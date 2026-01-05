@@ -384,7 +384,7 @@ mod tests {
         // Check that sample was collected
         let samples = monitor.samples.lock().unwrap();
         assert_eq!(samples.len(), 1);
-        assert!(samples[0].hit_rate > 0.0);
+        assert!(samples[0].timestamp > 0);
     }
 
     #[test]

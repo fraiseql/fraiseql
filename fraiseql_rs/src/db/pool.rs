@@ -27,6 +27,16 @@ impl DatabasePool {
         // The production pool always has a valid pool, so return Some()
         Some(self.inner.get_underlying_pool())
     }
+
+    /// Create a new database pool from a production pool (internal use).
+    ///
+    /// This is used internally for creating pools from Rust code.
+    #[must_use]
+    pub fn new(production_pool: ProductionPool) -> Self {
+        Self {
+            inner: Arc::new(production_pool),
+        }
+    }
 }
 
 #[pymethods]

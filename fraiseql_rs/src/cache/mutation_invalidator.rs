@@ -247,7 +247,7 @@ mod tests {
         // Pre-populate cache
         cache
             .put(
-                "query:user:1".to_string(),
+                "query:user:1",
                 json!({"user": {"id": "1"}}),
                 vec![("User".to_string(), "1".to_string())],
             )

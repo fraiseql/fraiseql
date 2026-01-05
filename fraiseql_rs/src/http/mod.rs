@@ -84,6 +84,7 @@ pub mod operation_metrics;
 pub mod operation_metrics_middleware;
 pub mod operation_monitor;
 pub mod optimization;
+pub mod py_bindings;
 pub mod security_middleware;
 pub mod websocket;
 
@@ -117,6 +118,7 @@ pub use optimization::{
     CacheStats, ConnectionPoolStats, HealthStatus, OptimizationConfig, PerformanceStats,
     RateLimitConfig, RateLimitInfo,
 };
+pub use py_bindings::PyAxumServer;
 pub use security_middleware::{check_rate_limit, validate_graphql_request, HttpSecurityError};
 pub use websocket::websocket_handler;
 

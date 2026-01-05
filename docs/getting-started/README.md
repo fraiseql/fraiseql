@@ -62,6 +62,27 @@ Platform-specific installation instructions and troubleshooting.
 
 ---
 
+## Choose Your HTTP Server
+
+**NEW in v2.0.0**: FraiseQL now supports multiple pluggable HTTP servers!
+
+Before diving deep, decide which HTTP framework you want to use:
+
+### 🚀 [HTTP Servers Guide](../http-servers/README.md) - **START HERE**
+
+Choose between:
+- **Axum (Rust)** - Maximum performance (7-10x faster)
+- **Starlette (Python)** - Lightweight, Python-only
+- **FastAPI (Legacy)** - Existing code support
+
+**Quick links**:
+- **[Which server should I use?](../http-servers/README.md#decision-matrix-which-server-should-you-use)** - Decision matrix
+- **[Detailed comparison](../http-servers/COMPARISON.md)** - Feature matrix, performance data
+- **[Axum getting started](../http-servers/axum/01-getting-started.md)** - For high performance
+- **[Starlette getting started](../http-servers/starlette/01-getting-started.md)** - For Python teams
+
+---
+
 ## After Getting Started
 
 Once you've completed these guides, continue your learning journey:

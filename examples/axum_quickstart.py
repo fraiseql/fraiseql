@@ -308,7 +308,7 @@ def example_production_config() -> None:
     )
 
     config = app.get_config()
-    logger.info(f"Production config:")
+    logger.info("Production config:")
     logger.info(f"  Environment: {config.environment}")
     logger.info(f"  Production mode: {config.production_mode}")
     logger.info(f"  Hide errors: {config.hide_error_details}")

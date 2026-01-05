@@ -311,7 +311,7 @@ mod tests {
 
         validator
             .record_cache_put(
-                "query:user:1".to_string(),
+                "query:user:1",
                 vec![("User".to_string(), "1".to_string())],
             )
             .unwrap();
@@ -328,7 +328,7 @@ mod tests {
 
         validator
             .record_cache_put(
-                "query:user:1".to_string(),
+                "query:user:1",
                 vec![("User".to_string(), "1".to_string())],
             )
             .unwrap();
@@ -349,7 +349,7 @@ mod tests {
 
         validator
             .record_cache_put(
-                "query:user:1".to_string(),
+                "query:user:1",
                 vec![("User".to_string(), "1".to_string())],
             )
             .unwrap();
@@ -373,7 +373,7 @@ mod tests {
 
         validator
             .record_cache_put(
-                "query:user:1".to_string(),
+                "query:user:1",
                 vec![("User".to_string(), "1".to_string())],
             )
             .unwrap();
@@ -397,7 +397,7 @@ mod tests {
 
         validator
             .record_cache_put(
-                "query:user:1".to_string(),
+                "query:user:1",
                 vec![("User".to_string(), "1".to_string())],
             )
             .unwrap();
@@ -412,14 +412,14 @@ mod tests {
 
         validator
             .record_cache_put(
-                "query:users:all".to_string(),
+                "query:users:all",
                 vec![("User".to_string(), "*".to_string())],
             )
             .unwrap();
 
         validator
             .record_cache_put(
-                "query:user:1".to_string(),
+                "query:user:1",
                 vec![("User".to_string(), "1".to_string())],
             )
             .unwrap();
@@ -444,7 +444,7 @@ mod tests {
 
         validator
             .record_cache_put(
-                "query:user:1:posts".to_string(),
+                "query:user:1:posts",
                 vec![
                     ("User".to_string(), "1".to_string()),
                     ("Post".to_string(), "100".to_string()),

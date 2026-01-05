@@ -1128,16 +1128,13 @@ mod tests {
         });
 
         // Collector: measure throughput
-        let mut total_received = 0;
-        let mut stream_iter = streams.into_iter().enumerate();
+        let _streams = streams;
 
         // Receive from all streams concurrently
         let collector_task = tokio::spawn(async move {
-            let mut total = 0;
-
             // This is a simplified collector - in production would use select!
             tokio::time::sleep(Duration::from_secs(12)).await;
-            total
+            0
         });
 
         let _collected = collector_task.await.expect("Collector failed");
@@ -3092,8 +3089,8 @@ mod tests {
 
         // Simulate 3 different subgraphs
         let users_fed = FederationContext::with_id("users-service".to_string());
-        let orders_fed = FederationContext::with_id("orders-service".to_string());
-        let products_fed = FederationContext::with_id("products-service".to_string());
+        let _orders_fed = FederationContext::with_id("orders-service".to_string());
+        let _products_fed = FederationContext::with_id("products-service".to_string());
 
         // Create subscriptions for each subgraph
         let mut users_subscriptions = vec![];
@@ -3584,7 +3581,7 @@ mod tests {
         assert!(all_desc.contains("user-audit-123"));
         assert!(all_desc.contains("tenant-audit-5"));
 
-        let allowed_desc = ctx.describe_field_access("reports", &allowed);
+        let _allowed_desc = ctx.describe_field_access("reports", &allowed);
         assert!(all_desc.contains("reports"));
 
         let denied_desc = ctx.describe_field_access("analytics", &allowed);
@@ -4164,7 +4161,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_integration_violation_tracking_multiple_types() {
-        let executor = SubscriptionExecutor::new();
+        let _executor = SubscriptionExecutor::new();
         let metrics = crate::subscriptions::SecurityMetrics::new();
 
         // Scenario 1: Row filter violation
@@ -4493,7 +4490,7 @@ mod tests {
         };
 
         let connection_id = uuid::Uuid::new_v4();
-        let sub_secure = executor
+        let _sub_secure = executor
             .execute_with_security(connection_id, &payload, security_ctx.clone())
             .expect("Failed to execute subscription");
 

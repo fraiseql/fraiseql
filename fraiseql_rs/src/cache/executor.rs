@@ -191,7 +191,7 @@ mod tests {
         // Pre-populate cache with queries about User:1
         cache
             .put(
-                "query:user:1".to_string(),
+                "query:user:1",
                 json!({"user": {"id": "1", "name": "Alice"}}),
                 vec![("User".to_string(), "1".to_string())],
             )
@@ -199,7 +199,7 @@ mod tests {
 
         cache
             .put(
-                "query:users:all".to_string(),
+                "query:users:all",
                 json!({"users": [{"id": "1", "name": "Alice"}]}),
                 vec![("User".to_string(), "*".to_string())],
             )

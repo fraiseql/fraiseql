@@ -6,6 +6,7 @@ authentication, logging, rate limiting, and compression.
 """
 
 import logging
+
 from fraiseql import create_axum_fraiseql_app, fraise_type
 from fraiseql.axum.middleware import (
     AuthenticationMiddleware,

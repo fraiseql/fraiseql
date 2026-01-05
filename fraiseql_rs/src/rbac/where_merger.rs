@@ -85,6 +85,7 @@ impl std::fmt::Display for WhereMergeError {
 impl std::error::Error for WhereMergeError {}
 
 /// WHERE clause merger for safe composition of explicit and auth filters
+#[derive(Debug)]
 pub struct WhereMerger;
 
 impl WhereMerger {
@@ -194,31 +195,45 @@ impl WhereMerger {
     fn extract_field_operators(where_clause: &Value) -> Result<HashMap<String, String>> {
         let mut fields = HashMap::new();
 
-        if let Some(obj) = where_clause.as_object() {
-            for (key, value) in obj {
-                match key.as_str() {
-                    "AND" | "OR" => {
-                        // Recursively extract from logical operators
-                        if let Some(arr) = value.as_array() {
-                            for item in arr {
-                                let nested_fields = Self::extract_field_operators(item)?;
-                                fields.extend(nested_fields);
-                            }
-                        }
-                    }
-                    _ => {
-                        // Regular field with operators
-                        if let Some(ops) = value.as_object() {
-                            if let Some(op_key) = ops.keys().next() {
-                                fields.insert(key.clone(), op_key.clone());
-                            }
-                        }
-                    }
+        let Some(obj) = where_clause.as_object() else {
+            return Ok(fields);
+        };
+
+        for (key, value) in obj {
+            match key.as_str() {
+                "AND" | "OR" => {
+                    Self::extract_logical_operators(value, &mut fields)?;
+                }
+                _ => {
+                    Self::extract_field_operator(key, value, &mut fields);
                 }
             }
         }
 
         Ok(fields)
+    }
+
+    fn extract_logical_operators(value: &Value, fields: &mut HashMap<String, String>) -> Result<()> {
+        let Some(arr) = value.as_array() else {
+            return Ok(());
+        };
+
+        for item in arr {
+            let nested_fields = Self::extract_field_operators(item)?;
+            fields.extend(nested_fields);
+        }
+
+        Ok(())
+    }
+
+    fn extract_field_operator(key: &str, value: &Value, fields: &mut HashMap<String, String>) {
+        let Some(ops) = value.as_object() else {
+            return;
+        };
+
+        if let Some(op_key) = ops.keys().next() {
+            fields.insert(key.to_string(), op_key.clone());
+        }
     }
 
     /// Compose two WHERE clauses with AND operator
@@ -262,36 +277,48 @@ impl WhereMerger {
             ));
         }
 
-        if let Some(obj) = where_clause.as_object() {
-            for (key, value) in obj {
-                match key.as_str() {
-                    "AND" | "OR" => {
-                        // Should be array of objects
-                        if !value.is_array() {
-                            return Err(WhereMergeError::InvalidStructure(format!(
-                                "{} must contain an array",
-                                key
-                            )));
-                        }
-                        if let Some(arr) = value.as_array() {
-                            for item in arr {
-                                Self::validate_where(item)?;
-                            }
-                        }
-                    }
-                    _ => {
-                        // Regular field: must be {operator: value}
-                        if !value.is_object() {
-                            return Err(WhereMergeError::InvalidStructure(format!(
-                                "Field '{}' must contain operators",
-                                key
-                            )));
-                        }
-                    }
+        let Some(obj) = where_clause.as_object() else {
+            return Ok(());
+        };
+
+        for (key, value) in obj {
+            match key.as_str() {
+                "AND" | "OR" => {
+                    Self::validate_logical_operator(key, value)?;
+                }
+                _ => {
+                    Self::validate_field_operator(key, value)?;
                 }
             }
         }
 
+        Ok(())
+    }
+
+    fn validate_logical_operator(key: &str, value: &Value) -> Result<()> {
+        if !value.is_array() {
+            return Err(WhereMergeError::InvalidStructure(format!(
+                "{key} must contain an array"
+            )));
+        }
+
+        let Some(arr) = value.as_array() else {
+            return Ok(());
+        };
+
+        for item in arr {
+            Self::validate_where(item)?;
+        }
+
+        Ok(())
+    }
+
+    fn validate_field_operator(key: &str, value: &Value) -> Result<()> {
+        if !value.is_object() {
+            return Err(WhereMergeError::InvalidStructure(format!(
+                "Field '{key}' must contain operators"
+            )));
+        }
         Ok(())
     }
 }

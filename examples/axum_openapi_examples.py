@@ -6,6 +6,7 @@ configurations for different environments and use cases.
 """
 
 import logging
+
 from fraiseql import create_axum_fraiseql_app, fraise_type
 from fraiseql.axum.openapi import OpenAPIConfig
 

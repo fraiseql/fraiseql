@@ -224,7 +224,7 @@ mod tests {
         // Add entry
         cache
             .put(
-                "query:test".to_string(),
+                "query:test",
                 serde_json::json!({"test": "value"}),
                 vec![("Test".to_string(), "1".to_string())],
             )

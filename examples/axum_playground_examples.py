@@ -6,6 +6,7 @@ and use cases.
 """
 
 import logging
+
 from fraiseql import create_axum_fraiseql_app, fraise_type
 from fraiseql.axum.playground import PlaygroundConfig
 
@@ -159,7 +160,7 @@ def example_custom_subscription_endpoint() -> None:
     )
 
     logger.info(f"Playground Config: {config}")
-    logger.info(f"REST Endpoint: /graphql")
+    logger.info("REST Endpoint: /graphql")
     logger.info(f"WebSocket Endpoint: {config.subscriptions_endpoint}")
 
 

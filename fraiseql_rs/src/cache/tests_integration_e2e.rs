@@ -23,7 +23,7 @@ mod tests {
         let monitor = Arc::new(CacheMonitor::new());
 
         // Step 1: First query - cache miss
-        let cache_key = "query:user:1".to_string();
+        let cache_key = "query:user:1";
         let result1 = json!({"user": {"id": "1", "name": "Alice"}});
 
         assert!(cache.get(&cache_key).unwrap().is_none());
@@ -32,7 +32,7 @@ mod tests {
         // Store in cache
         cache
             .put(
-                cache_key.clone(),
+                cache_key,
                 result1.clone(),
                 vec![("User".to_string(), "1".to_string())],
             )
@@ -62,7 +62,7 @@ mod tests {
 
         cache
             .put(
-                "query:user:1".to_string(),
+                "query:user:1",
                 user1_result.clone(),
                 vec![("User".to_string(), "1".to_string())],
             )
@@ -70,7 +70,7 @@ mod tests {
 
         cache
             .put(
-                "query:user:2".to_string(),
+                "query:user:2",
                 user2_result.clone(),
                 vec![("User".to_string(), "2".to_string())],
             )
@@ -78,7 +78,7 @@ mod tests {
 
         cache
             .put(
-                "query:post:1".to_string(),
+                "query:post:1",
                 post1_result.clone(),
                 vec![("Post".to_string(), "1".to_string())],
             )
@@ -114,7 +114,7 @@ mod tests {
         let user_data = json!({"user": {"id": "1", "name": "Alice"}});
         cache
             .put(
-                "query:user:1".to_string(),
+                "query:user:1",
                 user_data,
                 vec![("User".to_string(), "1".to_string())],
             )
@@ -145,7 +145,7 @@ mod tests {
         // Cache: specific user query + list query
         cache
             .put(
-                "query:user:1".to_string(),
+                "query:user:1",
                 json!({"user": {"id": "1"}}),
                 vec![("User".to_string(), "1".to_string())],
             )
@@ -153,7 +153,7 @@ mod tests {
 
         cache
             .put(
-                "query:users:all".to_string(),
+                "query:users:all",
                 json!({"users": [{"id": "1"}]}),
                 vec![("User".to_string(), "*".to_string())], // Wildcard = all users
             )
@@ -185,7 +185,7 @@ mod tests {
         // Cache different entity types
         cache
             .put(
-                "query:user:1".to_string(),
+                "query:user:1",
                 json!({"user": {"id": "1"}}),
                 vec![("User".to_string(), "1".to_string())],
             )
@@ -193,7 +193,7 @@ mod tests {
 
         cache
             .put(
-                "query:user:2".to_string(),
+                "query:user:2",
                 json!({"user": {"id": "2"}}),
                 vec![("User".to_string(), "2".to_string())],
             )
@@ -201,7 +201,7 @@ mod tests {
 
         cache
             .put(
-                "query:post:100".to_string(),
+                "query:post:100",
                 json!({"post": {"id": "100"}}),
                 vec![("Post".to_string(), "100".to_string())],
             )
@@ -241,7 +241,7 @@ mod tests {
         let user_data = json!({"user": {"id": "1", "name": "Alice"}});
         cache
             .put(
-                "query:user:1".to_string(),
+                "query:user:1",
                 user_data.clone(),
                 vec![("User".to_string(), "1".to_string())],
             )
@@ -269,7 +269,7 @@ mod tests {
         let fresh_data = json!({"user": {"id": "1", "name": "Alice Updated"}});
         cache
             .put(
-                "query:user:1".to_string(),
+                "query:user:1",
                 fresh_data,
                 vec![("User".to_string(), "1".to_string())],
             )
@@ -289,7 +289,7 @@ mod tests {
         // Cache: User with their posts
         cache
             .put(
-                "query:user:1:with_posts".to_string(),
+                "query:user:1:with_posts",
                 json!({"user": {"id": "1", "posts": [{"id": "100"}]}}),
                 vec![
                     ("User".to_string(), "1".to_string()),
@@ -301,7 +301,7 @@ mod tests {
         // Cache: Post by user
         cache
             .put(
-                "query:post:100".to_string(),
+                "query:post:100",
                 json!({"post": {"id": "100", "userId": "1"}}),
                 vec![("Post".to_string(), "100".to_string())],
             )
@@ -336,7 +336,7 @@ mod tests {
         // Cache: List of all users (wildcard)
         cache
             .put(
-                "query:users:all".to_string(),
+                "query:users:all",
                 json!({"users": [{"id": "1"}]}),
                 vec![("User".to_string(), "*".to_string())],
             )
@@ -345,7 +345,7 @@ mod tests {
         // Cache: Specific user
         cache
             .put(
-                "query:user:1".to_string(),
+                "query:user:1",
                 json!({"user": {"id": "1"}}),
                 vec![("User".to_string(), "1".to_string())],
             )
@@ -354,7 +354,7 @@ mod tests {
         // Cache: Another specific user
         cache
             .put(
-                "query:user:2".to_string(),
+                "query:user:2",
                 json!({"user": {"id": "2"}}),
                 vec![("User".to_string(), "2".to_string())],
             )
@@ -390,7 +390,7 @@ mod tests {
         for i in 0..5 {
             cache
                 .put(
-                    format!("query:user:{i}"),
+                    &format!("query:user:{i}"),
                     json!({"user": {"id": format!("{i}")}}),
                     vec![("User".to_string(), format!("{i}"))],
                 )
@@ -400,7 +400,7 @@ mod tests {
         for i in 0..5 {
             cache
                 .put(
-                    format!("query:post:{i}"),
+                    &format!("query:post:{i}"),
                     json!({"post": {"id": format!("{i}")}}),
                     vec![("Post".to_string(), format!("{i}"))],
                 )
@@ -443,7 +443,7 @@ mod tests {
         // Cache old data
         cache
             .put(
-                "query:user:1".to_string(),
+                "query:user:1",
                 json!({"user": {"id": "1", "name": "Alice"}}),
                 vec![("User".to_string(), "1".to_string())],
             )
@@ -471,7 +471,7 @@ mod tests {
         let fresh_data = json!({"user": {"id": "1", "name": "Alice Updated"}});
         cache
             .put(
-                "query:user:1".to_string(),
+                "query:user:1",
                 fresh_data.clone(),
                 vec![("User".to_string(), "1".to_string())],
             )
@@ -489,7 +489,7 @@ mod tests {
 
         cache
             .put(
-                "query:user:1".to_string(),
+                "query:user:1",
                 json!({"user": {"id": "1"}}),
                 vec![("User".to_string(), "1".to_string())],
             )
@@ -559,7 +559,7 @@ mod tests {
         for i in 0..10 {
             cache
                 .put(
-                    format!("query:user:{i}"),
+                    &format!("query:user:{i}"),
                     json!({"user": {"id": format!("{i}")}}),
                     vec![("User".to_string(), format!("{i}"))],
                 )
@@ -605,7 +605,7 @@ mod tests {
         // Cycle 1: Query and cache
         cache
             .put(
-                "query:user:1".to_string(),
+                "query:user:1",
                 json!({"user": {"id": "1", "name": "v1"}}),
                 vec![("User".to_string(), "1".to_string())],
             )
@@ -625,7 +625,7 @@ mod tests {
         // Cycle 3: Re-query and cache updated data
         cache
             .put(
-                "query:user:1".to_string(),
+                "query:user:1",
                 json!({"user": {"id": "1", "name": "v2"}}),
                 vec![("User".to_string(), "1".to_string())],
             )
@@ -646,7 +646,7 @@ mod tests {
         // Cache: Author query
         cache
             .put(
-                "query:author:1".to_string(),
+                "query:author:1",
                 json!({"author": {"id": "1"}}),
                 vec![("Author".to_string(), "1".to_string())],
             )
@@ -655,7 +655,7 @@ mod tests {
         // Cache: Posts by author
         cache
             .put(
-                "query:author:1:posts".to_string(),
+                "query:author:1:posts",
                 json!({"posts": [{"id": "100"}, {"id": "101"}]}),
                 vec![
                     ("Author".to_string(), "1".to_string()),
@@ -668,7 +668,7 @@ mod tests {
         // Cache: Individual posts
         cache
             .put(
-                "query:post:100".to_string(),
+                "query:post:100",
                 json!({"post": {"id": "100"}}),
                 vec![("Post".to_string(), "100".to_string())],
             )
@@ -676,7 +676,7 @@ mod tests {
 
         cache
             .put(
-                "query:post:101".to_string(),
+                "query:post:101",
                 json!({"post": {"id": "101"}}),
                 vec![("Post".to_string(), "101".to_string())],
             )
@@ -712,7 +712,7 @@ mod tests {
         for i in 0..5 {
             cache
                 .put(
-                    format!("query:{i}"),
+                    &format!("query:{i}"),
                     json!({"id": i}),
                     vec![("Entity".to_string(), format!("{i}"))],
                 )
@@ -748,7 +748,7 @@ mod tests {
 
         cache
             .put(
-                "query:test".to_string(),
+                "query:test",
                 json!({"test": true}),
                 vec![("Test".to_string(), "1".to_string())],
             )
@@ -798,7 +798,7 @@ mod tests {
     fn write_multiple_keys(cache: &Arc<QueryResultCache>) {
         for i in 0..5 {
             let _ = cache.put(
-                format!("query:user:{i}"),
+                &format!("query:user:{i}"),
                 json!({"user": {"id": format!("{i}")}}),
                 vec![("User".to_string(), format!("{i}"))],
             );

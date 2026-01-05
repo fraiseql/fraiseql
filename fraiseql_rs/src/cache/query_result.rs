@@ -344,7 +344,7 @@ mod tests {
 
         cache
             .put(
-                "query:user:123".to_string(),
+                "query:user:123",
                 result.clone(),
                 vec![("User".to_string(), "123".to_string())],
             )
@@ -374,7 +374,7 @@ mod tests {
             let result = json!({"id": i});
             cache
                 .put(
-                    format!("key:{i}"),
+                    &format!("key:{i}"),
                     result,
                     vec![("Entity".to_string(), format!("{i}"))],
                 )
@@ -393,7 +393,7 @@ mod tests {
         // Cache queries about different users
         cache
             .put(
-                "query:user:123:name".to_string(),
+                "query:user:123:name",
                 json!({"name": "John"}),
                 vec![("User".to_string(), "123".to_string())],
             )
@@ -401,7 +401,7 @@ mod tests {
 
         cache
             .put(
-                "query:user:456:name".to_string(),
+                "query:user:456:name",
                 json!({"name": "Jane"}),
                 vec![("User".to_string(), "456".to_string())],
             )
@@ -432,7 +432,7 @@ mod tests {
 
         cache
             .put(
-                "query:user:100".to_string(),
+                "query:user:100",
                 json!({"name": "Alice"}),
                 vec![("User".to_string(), "100".to_string())],
             )
@@ -440,7 +440,7 @@ mod tests {
 
         cache
             .put(
-                "query:user:200".to_string(),
+                "query:user:200",
                 json!({"name": "Bob"}),
                 vec![("User".to_string(), "200".to_string())],
             )
@@ -448,7 +448,7 @@ mod tests {
 
         cache
             .put(
-                "query:post:1".to_string(),
+                "query:post:1",
                 json!({"title": "Post1"}),
                 vec![("Post".to_string(), "1".to_string())],
             )
@@ -484,7 +484,7 @@ mod tests {
         // Put
         cache
             .put(
-                "key:1".to_string(),
+                "key:1",
                 json!({"value": 1}),
                 vec![("Type".to_string(), "1".to_string())],
             )

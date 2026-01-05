@@ -5,6 +5,7 @@ Demonstrates various CORS setup options for different environments.
 """
 
 import logging
+
 from fraiseql import create_axum_fraiseql_app, fraise_type
 from fraiseql.axum.cors import CORSConfig
 
@@ -48,8 +49,8 @@ def example_development_permissive() -> None:
     )
 
     logger.info(f"App created: {app}")
-    logger.info(f"Allows: all origins (wildcard)")
-    logger.info(f"Credentials: not allowed (required with wildcard)")
+    logger.info("Allows: all origins (wildcard)")
+    logger.info("Credentials: not allowed (required with wildcard)")
 
 
 # ===== Example 2: Localhost Development =====
@@ -70,8 +71,8 @@ def example_localhost_development() -> None:
     )
 
     logger.info(f"Allows: {cors_config.allow_origins}")
-    logger.info(f"Credentials: allowed")
-    logger.info(f"Preflight cache: disabled (max_age=0)")
+    logger.info("Credentials: allowed")
+    logger.info("Preflight cache: disabled (max_age=0)")
 
 
 # ===== Example 3: Production (Single Domain) =====
@@ -92,8 +93,8 @@ def example_production_single_domain() -> None:
     )
 
     logger.info(f"Allows: {cors_config.allow_origins}")
-    logger.info(f"Credentials: allowed")
-    logger.info(f"Protocol: HTTPS only")
+    logger.info("Credentials: allowed")
+    logger.info("Protocol: HTTPS only")
 
 
 # ===== Example 4: Production (Single Domain + Subdomains) =====
@@ -114,7 +115,7 @@ def example_production_with_subdomains() -> None:
     )
 
     logger.info(f"Allows: {cors_config.allow_origins}")
-    logger.info(f"Includes: example.com, *.example.com")
+    logger.info("Includes: example.com, *.example.com")
 
 
 # ===== Example 5: Production (Multi-Tenant) =====
@@ -202,7 +203,7 @@ def example_staging_environment() -> None:
     )
 
     logger.info(f"Allows: {cors_config.allow_origins}")
-    logger.info(f"Staging domain with all subdomains")
+    logger.info("Staging domain with all subdomains")
 
 
 # ===== Example 8: Mixed Environment (Dev + Prod) =====

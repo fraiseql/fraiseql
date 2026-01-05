@@ -817,6 +817,8 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
             "PySubscriptionPayload",
             "PyGraphQLMessage",
             "PyEventBusConfig",
+            // Phase 16: Axum HTTP server PyO3 bindings
+            "PyAxumServer",
         ],
     )?;
 
@@ -892,6 +894,9 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<apq::py_bindings::PyApqHandler>()?;
     m.add_function(wrap_pyfunction!(apq::hasher::hash_query, m)?)?;
     m.add_function(wrap_pyfunction!(apq::hasher::verify_hash, m)?)?;
+
+    // Add Axum HTTP server PyO3 bindings (Phase 16)
+    m.add_class::<http::py_bindings::PyAxumServer>()?;
 
     // Add subscriptions (Phase 15b)
     let subscriptions_module = PyModule::new(m.py(), "subscriptions")?;
