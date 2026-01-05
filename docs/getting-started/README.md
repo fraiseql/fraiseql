@@ -1,14 +1,4 @@
----
-title: Getting Started
-description: Quick start guide and introduction to FraiseQL
-tags:
-  - getting-started
-  - introduction
-  - quickstart
-  - tutorial
----
-
-# Getting Started with FraiseQL
+# Getting Started
 
 Welcome! This directory contains everything you need to go from zero to building your first FraiseQL application.
 
@@ -16,12 +6,23 @@ Welcome! This directory contains everything you need to go from zero to building
 
 Follow this recommended progression:
 
-### 1. **[Quickstart (5 minutes)](quickstart.md)** 🚀
+### 1. **[Installation](installation.md)** 🔧
+
+Get FraiseQL installed and running on your system.
+
+**Time**: 10 minutes
+**You'll learn**: System requirements, installation options, troubleshooting
+
+**Start here if**: You're new to FraiseQL or need to set up your environment
+
+---
+
+### 2. **[Quickstart (5 minutes)](quickstart.md)** 🚀
 
 Get a working GraphQL API running immediately.
 
+**Time**: 5 minutes
 **You'll build**: A simple note-taking API with queries and mutations
-
 **You'll learn**:
 - Installing FraiseQL
 - Creating database views
@@ -32,12 +33,12 @@ Get a working GraphQL API running immediately.
 
 ---
 
-### 2. **[First Hour Guide (60 minutes)](first-hour.md)** 📚
+### 3. **[First Hour Guide](first-hour.md)** 📚
 
 Progressive tutorial building on the quickstart.
 
+**Time**: 60 minutes
 **You'll build**: Extended note-taking API with filtering, timestamps, and error handling
-
 **You'll learn**:
 - Adding fields and filtering
 - Where input types and operators
@@ -48,67 +49,21 @@ Progressive tutorial building on the quickstart.
 
 ---
 
-### 3. **[Installation Guide](installation.md)** 🔧
+## What You'll Build
 
-Platform-specific installation instructions and troubleshooting.
+By the end of these guides, you'll have:
 
-**You'll learn**:
-- Python environment setup
-- PostgreSQL installation by OS
-- Dependency management
-- Common installation issues
+- ✅ **Working GraphQL API** with queries and mutations
+- ✅ **PostgreSQL integration** with automatic type inference
+- ✅ **Type-safe operations** with full validation
+- ✅ **Production patterns** for error handling and timestamps
+- ✅ **Understanding** of FraiseQL's approach to database-driven GraphQL
 
-**Start here if**: You're having installation problems
+## Next Steps
 
----
+After completing these guides:
 
-## Choose Your HTTP Server
-
-**NEW in v2.0.0**: FraiseQL now supports multiple pluggable HTTP servers!
-
-Before diving deep, decide which HTTP framework you want to use:
-
-### 🚀 [HTTP Servers Guide](../http-servers/README.md) - **START HERE**
-
-Choose between:
-- **Axum (Rust)** - Maximum performance (7-10x faster)
-- **Starlette (Python)** - Lightweight, Python-only
-- **FastAPI (Legacy)** - Existing code support
-
-**Quick links**:
-- **[Which server should I use?](../http-servers/README.md#decision-matrix-which-server-should-you-use)** - Decision matrix
-- **[Detailed comparison](../http-servers/COMPARISON.md)** - Feature matrix, performance data
-- **[Axum getting started](../http-servers/axum/01-getting-started.md)** - For high performance
-- **[Starlette getting started](../http-servers/starlette/01-getting-started.md)** - For Python teams
-
----
-
-## After Getting Started
-
-Once you've completed these guides, continue your learning journey:
-
-### Understanding the Architecture
-- **[Understanding FraiseQL](../guides/understanding-fraiseql.md)** - 10-minute architecture deep dive
-- **[Core Concepts](../core/concepts-glossary.md)** - CQRS, JSONB views, Trinity identifiers
-
-### Building Real Applications
-- **[Blog API Tutorial](../tutorials/blog-api.md)** - Complete application example
-- **[Beginner Learning Path](../tutorials/beginner-path.md)** - Structured skill progression
-
-### When Things Go Wrong
-- **[Troubleshooting Guide](../guides/troubleshooting.md)** - Common issues and solutions
-- **[Troubleshooting Decision Tree](../guides/troubleshooting-decision-tree.md)** - Diagnostic flowchart
-
-## Quick Reference
-
-**Prerequisites**: Python 3.13+, PostgreSQL 13+
-
-**Installation**: `pip install fraiseql`
-
-**Documentation Hub**: [docs/README.md](../README.md)
-
-**Need help?**: [GitHub Discussions](../discussions)
-
----
-
-**Ready to start?** → [Open the Quickstart Guide](quickstart.md)
+1. **[Authentication Guide](../../guides/authentication.md)** - Add user authentication
+2. **[Caching Guide](../../guides/caching-strategy.md)** - Implement intelligent caching
+3. **[Architecture Overview](../../architecture/README.md)** - Understand the system design
+4. **[Troubleshooting](../../guides/troubleshooting.md)** - Common issues
