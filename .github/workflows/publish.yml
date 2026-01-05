@@ -205,6 +205,7 @@ jobs:
         maturin-version: "1.9.6"
         command: build
         args: --release --out dist --find-interpreter
+        manylinux: 2_28
 
     - name: Upload wheels
       uses: actions/upload-artifact@v6
