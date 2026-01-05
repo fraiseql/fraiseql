@@ -224,56 +224,17 @@ class Product:
 
 ## Caching Strategies
 
-### Result Caching
+For comprehensive guidance on cache architectures, configuration, and best practices, see the [Caching Strategy & Implementation Guide](./caching-strategy.md). That guide covers:
 
-Cache entire query results:
+- **Cache architecture**: PostgreSQL-based UNLOGGED tables vs Redis
+- **Result caching**: Query-level cache setup and optimization
+- **Field-level caching**: Expensive computation caching patterns
+- **Cache invalidation**: TTL strategies and domain-based invalidation
+- **Multi-tenant considerations**: Automatic tenant isolation in cache keys
+- **Monitoring**: Cache statistics, Prometheus metrics, health checks
+- **Troubleshooting**: Common cache issues and debug techniques
 
-```python
-from fraiseql.caching import ResultCache
-
-cache = ResultCache(
-    backend=PostgresCache(pool),
-    default_ttl=300,
-    max_size_mb=500
-)
-
-# Automatic result caching
-@fraiseql.query
-async def search_products(info, query: str) -> list[Product]:
-    # Cached for 5 minutes
-    return await db.search_products(query)
-```
-
-### Field-Level Caching
-
-Cache individual expensive computations:
-
-```python
-@fraiseql.field(cache_key="product:{id}:inventory")
-async def available_inventory(self, info) -> int:
-    # Cache for 1 minute - inventory changes frequently
-    return await external_api.get_inventory(self.id)
-```
-
-### Cache Invalidation
-
-Handle data changes properly:
-
-```python
-from fraiseql.cache import CacheInvalidator
-
-invalidator = CacheInvalidator(cache)
-
-@fraiseql.mutation
-async def update_product(info, id: UUID, data: dict) -> Product:
-    product = await db.update_product(id, data)
-
-    # Invalidate related caches
-    await invalidator.invalidate_pattern(f"product:{id}:*")
-    await invalidator.invalidate("search_products")
-
-    return product
-```
+The caching setup described here provides the 50-500x performance improvement referenced above. Configure your caches according to the strategies in that guide for optimal performance.
 
 ## Monitoring & Observability
 

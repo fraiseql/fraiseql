@@ -678,10 +678,25 @@ async def get_data(info) -> Data:
     return data
 ```
 
+## Performance Integration
+
+### Cache + Performance Tuning
+
+For a comprehensive guide on cache-based performance optimization, see the [Performance Tuning Guide](./performance-tuning.md) which covers:
+- **Quick performance wins**: Enabling caching (50-500x improvement)
+- **Cache configurations**: TTL strategies, size limits, eviction policies
+- **Field-level caching**: Expensive computation optimization
+- **Cache with query complexity**: Safe caching patterns for production
+- **Monitoring integration**: Performance metrics and cache health
+- **Scaling considerations**: Database pooling and cache distribution
+
+The caching strategy described in this guide is the foundation for the performance improvements detailed in that guide.
+
 ## Next Steps
 
-- [Performance Guide](../guides/performance-guide.md) - Advanced optimization
-- [Monitoring](../production/monitoring.md) - Production monitoring
+- [Performance Tuning Guide](../guides/performance-tuning.md) - Caching + performance optimization
+- [Monitoring](../production/monitoring.md) - Cache health and metrics
+- [GraphQL Cascade](../features/graphql-cascade.md) - Automatic cache invalidation
 - [Troubleshooting](../guides/troubleshooting.md) - Common cache issues
 
 ---

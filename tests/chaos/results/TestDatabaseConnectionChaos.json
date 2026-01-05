@@ -1,10 +1,10 @@
 {
   "test_class": "TestDatabaseConnectionChaos",
-  "timestamp": 1767604353.7228966,
+  "timestamp": 1767641729.3584383,
   "metrics": {
-    "duration_ms": 29045.747756958008,
+    "duration_ms": 29046.727657318115,
     "query_count": 4,
-    "avg_query_time_ms": 900.0788331031799,
+    "avg_query_time_ms": 900.1192077994347,
     "p95_query_time_ms": null,
     "error_count": 0,
     "retry_count": 0,

@@ -239,6 +239,8 @@ ORDER BY hour;
 
 **Recommended alternative to Redis.** FraiseQL uses PostgreSQL UNLOGGED tables for high-performance caching—saving $50-500/month while matching Redis performance.
 
+> **For comprehensive cache strategy guidance**, see the [Caching Strategy & Implementation Guide](../guides/caching-strategy.md). This section focuses on production setup and monitoring context. The full guide covers cache architectures, invalidation patterns, multi-tenancy, performance tuning, and troubleshooting.
+
 ### Setup
 
 ```python
