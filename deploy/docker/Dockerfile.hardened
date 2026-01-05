@@ -52,7 +52,7 @@ FROM python:3.13-slim AS production
 
 # Labels for compliance and metadata
 LABEL org.opencontainers.image.authors="FraiseQL Team" \
-      org.opencontainers.image.version="1.9.3" \
+      org.opencontainers.image.version="1.9.4" \
       org.opencontainers.image.description="Government-grade GraphQL-to-PostgreSQL framework with native Rust performance" \
       org.opencontainers.image.vendor="FraiseQL Project" \
       org.opencontainers.image.licenses="MIT" \

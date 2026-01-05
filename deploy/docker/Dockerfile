@@ -52,7 +52,7 @@ FROM python:3.13-slim AS runtime
 
 # Labels for metadata
 LABEL org.opencontainers.image.authors="FraiseQL Team"
-LABEL org.opencontainers.image.version="1.9.3"
+LABEL org.opencontainers.image.version="1.9.4"
 LABEL org.opencontainers.image.description="Production-ready GraphQL-to-PostgreSQL framework with native Rust performance"
 
 # Install runtime dependencies and security updates
