@@ -29,27 +29,26 @@ class IDFilter:
     isnull: bool | None = None
 ```
 
-#### IDPolicy-Aware Filter Mapping
+#### Consistent GraphQL Schema (Scenario A)
 
-Where clause filter type for ID fields now respects the configured IDPolicy:
-
-| IDPolicy | ID Field Filter | GraphQL Type |
-|----------|-----------------|--------------|
-| `UUID` (default) | `UUIDFilter` | `UUID` scalar |
-| `OPAQUE` | `IDFilter` | `ID` scalar |
+ID type **always** uses `IDFilter` regardless of policy. This ensures:
+- GraphQL schema stays consistent with frontend expectations (`$id: ID!`)
+- UUID validation (if `IDPolicy.UUID`) happens at runtime, not schema level
+- No frontend query changes needed when switching policies
 
 ```python
 from fraiseql.config.schema_config import SchemaConfig, IDPolicy
 
-# With UUID policy (default): where clauses expect UUID values
-SchemaConfig.set_config(id_policy=IDPolicy.UUID)
-# allocations(where: { machine: { id: { eq: $machineId } } })
-# $machineId: UUID!
+# Both policies use ID scalar in GraphQL schema
+# Frontend always uses: $id: ID!
 
-# With OPAQUE policy: where clauses accept any string ID
+SchemaConfig.set_config(id_policy=IDPolicy.UUID)
+# Schema: id: ID!
+# Runtime: validates UUID format
+
 SchemaConfig.set_config(id_policy=IDPolicy.OPAQUE)
-# allocations(where: { machine: { id: { eq: $machineId } } })
-# $machineId: ID!
+# Schema: id: ID!
+# Runtime: accepts any string
 ```
 
 ### Testing

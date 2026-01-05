@@ -231,26 +231,33 @@ class TestIDPolicyDocumentation:
 
 
 class TestIDPolicyWhereFilters:
-    """Tests for ID policy affecting where clause filter types."""
+    """Tests for ID policy affecting where clause filter types.
 
-    def test_uuid_policy_id_uses_uuid_filter(self):
-        """Test that ID fields use UUIDFilter with UUID policy."""
+    Note: ID type ALWAYS uses IDFilter regardless of policy.
+    This ensures GraphQL schema stays consistent with frontend ($id: ID!).
+    UUID validation (if IDPolicy.UUID) happens at runtime, not at schema level.
+    """
+
+    def test_uuid_policy_id_uses_id_filter(self):
+        """Test that ID fields use IDFilter with UUID policy.
+
+        UUID validation happens at runtime, not via GraphQL type.
+        This keeps schema compatible with frontend using $id: ID!
+        """
         from fraiseql.sql.graphql_where_generator import (
             IDFilter,
-            UUIDFilter,
             _get_filter_type_for_field,
         )
 
         SchemaConfig.set_config(id_policy=IDPolicy.UUID)
 
         filter_type = _get_filter_type_for_field(ID)
-        assert filter_type is UUIDFilter
+        assert filter_type is IDFilter
 
     def test_opaque_policy_id_uses_id_filter(self):
         """Test that ID fields use IDFilter with OPAQUE policy."""
         from fraiseql.sql.graphql_where_generator import (
             IDFilter,
-            UUIDFilter,
             _get_filter_type_for_field,
         )
 
@@ -258,6 +265,22 @@ class TestIDPolicyWhereFilters:
 
         filter_type = _get_filter_type_for_field(ID)
         assert filter_type is IDFilter
+
+    def test_id_always_uses_id_filter_regardless_of_policy(self):
+        """Test that ID type always uses IDFilter for any policy.
+
+        This is Scenario A: GraphQL schema uses ID scalar everywhere,
+        UUID validation happens at runtime based on IDPolicy.
+        """
+        from fraiseql.sql.graphql_where_generator import (
+            IDFilter,
+            _get_filter_type_for_field,
+        )
+
+        for policy in IDPolicy:
+            SchemaConfig.set_config(id_policy=policy)
+            filter_type = _get_filter_type_for_field(ID)
+            assert filter_type is IDFilter, f"ID should use IDFilter with {policy}"
 
     def test_uuid_uuid_always_uses_uuid_filter(self):
         """Test that uuid.UUID always uses UUIDFilter regardless of policy."""

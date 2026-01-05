@@ -756,18 +756,9 @@ def _get_filter_type_for_field(
         pass
 
     # Map Python types to filter types
-    # Determine ID filter type based on IDPolicy
-    # - UUID policy: IDs must be valid UUIDs, use UUIDFilter for stricter typing
-    # - OPAQUE policy: IDs accept any string, use IDFilter (GraphQL ID scalar)
-    try:
-        from fraiseql.config.schema_config import SchemaConfig
-
-        config = SchemaConfig.get_instance()
-        id_filter_type = UUIDFilter if config.id_policy.enforces_uuid() else IDFilter
-    except Exception:
-        # Fallback to IDFilter if config not available
-        id_filter_type = IDFilter
-
+    # ID type always uses IDFilter (GraphQL ID scalar) regardless of policy.
+    # This keeps GraphQL schema consistent with frontend expectations ($id: ID!).
+    # UUID validation (if IDPolicy.UUID) happens at runtime, not at schema level.
     type_mapping = {
         str: StringFilter,
         int: IntFilter,
@@ -775,7 +766,7 @@ def _get_filter_type_for_field(
         Decimal: DecimalFilter,
         bool: BooleanFilter,
         UUID: UUIDFilter,
-        ID: id_filter_type,  # Policy-aware: UUIDFilter or IDFilter
+        ID: IDFilter,  # Always use IDFilter - UUID validation is runtime
         date: DateFilter,
         datetime: DateTimeFilter,
         dict: JSONBFilter,  # JSONB fields are typically dict type in Python
