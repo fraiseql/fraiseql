@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "fraiseql"
-version = "1.9.3"
+version = "1.9.2"
 description = "GraphQL for the LLM era. Simple. Powerful. Rust-fast. Production-ready GraphQL API framework for PostgreSQL with CQRS, JSONB optimization, and type-safe mutations"
 authors = [
   { name = "Lionel Hamayon", email = "lionel.hamayon@evolution-digitale.fr" },
