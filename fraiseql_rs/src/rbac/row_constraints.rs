@@ -407,13 +407,13 @@ mod tests {
 
     #[test]
     fn test_cache_key_generation() {
-        let cache = ConstraintCache::new(100);
+        let _cache = ConstraintCache::new(100);
         let user_id = Uuid::nil();
         let table = "documents";
         let tenant_id = Uuid::new_v4();
 
         let key1 = ConstraintCache::cache_key(user_id, table, Some(tenant_id));
-        let key2 = ConstraintCache::cache_key(user_id, table, Some(tenant_id));
+        let _key2 = ConstraintCache::cache_key(user_id, table, Some(tenant_id));
         let key3 = ConstraintCache::cache_key(user_id, table, None);
         assert_ne!(key1, key3);
     }
