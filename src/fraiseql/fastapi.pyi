@@ -1,5 +1,5 @@
-from collections.abc import Coroutine
-from typing import Any, Callable, Type
+from collections.abc import Callable, Coroutine
+from typing import Any
 
 from fastapi import FastAPI
 from pydantic import BaseModel
@@ -72,10 +72,10 @@ class FraiseQLConfig(BaseModel):
 def create_fraiseql_app(
     config: FraiseQLConfig | None = None,
     *,
-    types: list[Type[Any]] | None = None,
-    mutations: list[Type[Any]] | None = None,
-    queries: list[Type[Any]] | None = None,
-    subscriptions: list[Type[Any]] | None = None,
+    types: list[type[Any]] | None = None,
+    mutations: list[type[Any]] | None = None,
+    queries: list[type[Any]] | None = None,
+    subscriptions: list[type[Any]] | None = None,
     context_getter: Callable[..., Coroutine[Any, Any, dict[str, Any]]] | None = None,
     middleware: list[Any] | None = None,
     cors_origins: list[str] | None = None,

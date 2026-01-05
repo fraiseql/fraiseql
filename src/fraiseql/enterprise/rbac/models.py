@@ -6,7 +6,7 @@ and data validation throughout the RBAC system.
 """
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -21,9 +21,9 @@ class Role(BaseModel):
 
     id: UUID
     name: str = Field(..., max_length=100)
-    description: Optional[str] = None
-    parent_role_id: Optional[UUID] = None
-    tenant_id: Optional[UUID] = None  # NULL for global roles
+    description: str | None = None
+    parent_role_id: UUID | None = None
+    tenant_id: UUID | None = None  # NULL for global roles
     is_system: bool = False  # System roles can't be deleted
     created_at: datetime
     updated_at: datetime
@@ -41,8 +41,8 @@ class Permission(BaseModel):
     id: UUID
     resource: str = Field(..., max_length=100)  # e.g., 'user', 'product', 'order'
     action: str = Field(..., max_length=50)  # e.g., 'create', 'read', 'update', 'delete'
-    description: Optional[str] = None
-    constraints: Optional[dict[str, Any]] = None  # JSONB constraints
+    description: str | None = None
+    constraints: dict[str, Any] | None = None  # JSONB constraints
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
@@ -72,10 +72,10 @@ class UserRole(BaseModel):
     id: UUID
     user_id: UUID  # References users table
     role_id: UUID
-    tenant_id: Optional[UUID] = None  # Scoped to tenant
-    granted_by: Optional[UUID] = None  # User who granted this role
+    tenant_id: UUID | None = None  # Scoped to tenant
+    granted_by: UUID | None = None  # User who granted this role
     granted_at: datetime
-    expires_at: Optional[datetime] = None  # Optional expiration
+    expires_at: datetime | None = None  # Optional expiration
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -86,7 +86,7 @@ class PermissionCheck(BaseModel):
     user_id: UUID
     resource: str
     action: str
-    tenant_id: Optional[UUID] = None
+    tenant_id: UUID | None = None
 
 
 class RoleAssignment(BaseModel):
@@ -94,6 +94,6 @@ class RoleAssignment(BaseModel):
 
     user_id: UUID
     role_id: UUID
-    tenant_id: Optional[UUID] = None
-    granted_by: Optional[UUID] = None
-    expires_at: Optional[datetime] = None
+    tenant_id: UUID | None = None
+    granted_by: UUID | None = None
+    expires_at: datetime | None = None

@@ -22,7 +22,7 @@ def serialize_longitude(value: Any) -> str | None:
     if not _LONGITUDE_REGEX.match(value_str):
         raise GraphQLError(
             f"Invalid longitude: {value}. Must be between -180 and 180 "
-            "(e.g., '-74.0060', '151.2093', '0.0')"
+            "(e.g., '-74.0060', '151.2093', '0.0')",
         )
 
     return value_str
@@ -36,7 +36,7 @@ def parse_longitude_value(value: Any) -> str:
     if not _LONGITUDE_REGEX.match(value):
         raise GraphQLError(
             f"Invalid longitude: {value}. Must be between -180 and 180 "
-            "(e.g., '-74.0060', '151.2093', '0.0')"
+            "(e.g., '-74.0060', '151.2093', '0.0')",
         )
 
     return value
@@ -90,6 +90,6 @@ class LongitudeField(str, ScalarMarker):
         if not _LONGITUDE_REGEX.match(value):
             raise ValueError(
                 f"Invalid longitude: {value}. Must be between -180 and 180 "
-                "(e.g., '-74.0060', '151.2093', '0.0')"
+                "(e.g., '-74.0060', '151.2093', '0.0')",
             )
         return super().__new__(cls, value)

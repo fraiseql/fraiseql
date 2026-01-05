@@ -5,7 +5,7 @@ PostgreSQL -> Rust -> HTTP bytes (zero Python parsing)
 
 import json
 import logging
-from typing import Any, Type
+from typing import Any
 
 from fraiseql.core.rust_pipeline import RustResponseBytes
 from fraiseql.utils.casing import dict_keys_to_snake_case
@@ -22,7 +22,7 @@ def _get_fraiseql_rs():
     except ImportError as e:
         raise ImportError(
             "fraiseql Rust extension not available. "
-            "Reinstall: pip install --force-reinstall fraiseql"
+            "Reinstall: pip install --force-reinstall fraiseql",
         ) from e
 
 
@@ -38,7 +38,7 @@ async def execute_mutation_rust(
     context_args: list[Any] | None = None,
     cascade_selections: str | None = None,
     config: Any | None = None,
-    success_type_class: Type | None = None,
+    success_type_class: type | None = None,
     success_type_fields: list[str] | None = None,
     error_type_fields: list[str] | None = None,
 ) -> RustResponseBytes:
@@ -118,7 +118,7 @@ async def execute_mutation_rust(
                 "updated_fields": None,
                 "cascade": None,
                 "metadata": None,
-            }
+            },
         )
         response_bytes = fraiseql_rs.build_mutation_response(
             error_json,
@@ -231,7 +231,7 @@ async def execute_mutation_rust(
                     raise ValueError(
                         f"Success type '{typename}' returned null entity. "
                         f"This indicates a logic error in the mutation or Rust pipeline. "
-                        f"Validation failures should return Error type, not Success type."
+                        f"Validation failures should return Error type, not Success type.",
                     )
 
             # Error type: code field must be present
@@ -239,12 +239,12 @@ async def execute_mutation_rust(
                 if "code" not in mutation_result:
                     raise ValueError(
                         f"Error type '{typename}' missing required 'code' field. "
-                        f"Ensure Rust pipeline includes code field."
+                        f"Ensure Rust pipeline includes code field.",
                     )
                 if not isinstance(mutation_result["code"], int):
                     raise ValueError(
                         f"Error type '{typename}' has invalid 'code' type: {type(mutation_result['code'])}. "  # noqa: E501
-                        f"Expected int (422, 404, 409, 500)."
+                        f"Expected int (422, 404, 409, 500).",
                     )
 
     except (json.JSONDecodeError, KeyError, TypeError) as e:

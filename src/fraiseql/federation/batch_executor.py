@@ -23,7 +23,8 @@ from fraiseql.federation.dataloader import EntityDataLoader
 
 # Context variable to track active batches
 _active_loader: contextvars.ContextVar[EntityDataLoader | None] = contextvars.ContextVar(
-    "_active_loader", default=None
+    "_active_loader",
+    default=None,
 )
 
 

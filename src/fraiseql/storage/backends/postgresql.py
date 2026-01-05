@@ -2,7 +2,7 @@
 
 import json
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from .base import APQStorageBackend
 
@@ -23,7 +23,7 @@ class PostgreSQLAPQBackend(APQStorageBackend):
     - Graceful error handling
     """
 
-    def __init__(self, config: dict[str, Any], pool: Optional[Any] = None) -> None:
+    def __init__(self, config: dict[str, Any], pool: Any | None = None) -> None:
         """Initialize the PostgreSQL backend with configuration.
 
         Args:
@@ -44,14 +44,14 @@ class PostgreSQLAPQBackend(APQStorageBackend):
         logger.debug(
             f"PostgreSQL APQ backend initialized: "
             f"queries_table={self._queries_table}, "
-            f"responses_table={self._responses_table}"
+            f"responses_table={self._responses_table}",
         )
 
         # Initialize tables if auto-creation is enabled
         if self._auto_create_tables:
             self._ensure_tables_exist()
 
-    def get_persisted_query(self, hash_value: str) -> Optional[str]:
+    def get_persisted_query(self, hash_value: str) -> str | None:
         """Retrieve stored query by hash.
 
         Args:
@@ -99,8 +99,10 @@ class PostgreSQLAPQBackend(APQStorageBackend):
             logger.warning(f"Failed to store persisted query: {e}")
 
     def get_cached_response(
-        self, hash_value: str, context: Optional[dict[str, Any]] = None
-    ) -> Optional[dict[str, Any]]:
+        self,
+        hash_value: str,
+        context: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
         """Get cached JSON response for APQ hash with tenant isolation.
 
         Args:
@@ -144,7 +146,10 @@ class PostgreSQLAPQBackend(APQStorageBackend):
             return None
 
     def store_cached_response(
-        self, hash_value: str, response: dict[str, Any], context: Optional[dict[str, Any]] = None
+        self,
+        hash_value: str,
+        response: dict[str, Any],
+        context: dict[str, Any] | None = None,
     ) -> None:
         """Store pre-computed JSON response for APQ hash with tenant isolation.
 
@@ -234,7 +239,7 @@ class PostgreSQLAPQBackend(APQStorageBackend):
             # Production: would integrate with FraiseQL's connection management
             raise NotImplementedError("Database connection integration needed")
 
-    def _execute_query(self, sql: str, params: Optional[tuple] = None) -> None:
+    def _execute_query(self, sql: str, params: tuple | None = None) -> None:
         """Execute a SQL query.
 
         Args:
@@ -254,7 +259,7 @@ class PostgreSQLAPQBackend(APQStorageBackend):
             # Mock implementation for production
             logger.debug(f"Executing SQL: {sql[:100]}...")
 
-    def _fetch_one(self, sql: str, params: Optional[tuple] = None) -> Optional[tuple]:
+    def _fetch_one(self, sql: str, params: tuple | None = None) -> tuple | None:
         """Fetch one row from a SQL query.
 
         Args:

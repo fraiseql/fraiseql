@@ -40,7 +40,7 @@ def serialize_url(value: Any) -> str | None:
     except (ValueError, TypeError):
         raise GraphQLError(
             f"Invalid URL: {value}. Must be valid HTTP or HTTPS URL "
-            "(e.g., 'https://example.com', 'http://api.example.com/v1/users')"
+            "(e.g., 'https://example.com', 'http://api.example.com/v1/users')",
         )
 
     return value_str
@@ -64,7 +64,7 @@ def parse_url_value(value: Any) -> str:
     except (ValueError, TypeError):
         raise GraphQLError(
             f"Invalid URL: {value}. Must be valid HTTP or HTTPS URL "
-            "(e.g., 'https://example.com', 'http://api.example.com/v1/users')"
+            "(e.g., 'https://example.com', 'http://api.example.com/v1/users')",
         )
 
     return value
@@ -127,6 +127,6 @@ class URLField(str, ScalarMarker):
         except (ValueError, TypeError):
             raise ValueError(
                 f"Invalid URL: {value}. Must be valid HTTP or HTTPS URL "
-                "(e.g., 'https://example.com', 'http://api.example.com/v1/users')"
+                "(e.g., 'https://example.com', 'http://api.example.com/v1/users')",
             )
         return super().__new__(cls, value)

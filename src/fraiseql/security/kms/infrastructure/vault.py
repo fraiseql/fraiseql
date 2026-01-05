@@ -88,7 +88,7 @@ class VaultKMSProvider(BaseKMSProvider):
         # Add context if provided (used for key derivation)
         if context:
             payload["context"] = base64.b64encode(
-                json.dumps(context, sort_keys=True).encode()
+                json.dumps(context, sort_keys=True).encode(),
             ).decode()
 
         async with httpx.AsyncClient(
@@ -120,7 +120,7 @@ class VaultKMSProvider(BaseKMSProvider):
         # Add context if provided
         if context:
             payload["context"] = base64.b64encode(
-                json.dumps(context, sort_keys=True).encode()
+                json.dumps(context, sort_keys=True).encode(),
             ).decode()
 
         async with httpx.AsyncClient(
@@ -151,7 +151,7 @@ class VaultKMSProvider(BaseKMSProvider):
         # Add context if provided
         if context:
             payload["context"] = base64.b64encode(
-                json.dumps(context, sort_keys=True).encode()
+                json.dumps(context, sort_keys=True).encode(),
             ).decode()
 
         async with httpx.AsyncClient(

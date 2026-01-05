@@ -23,7 +23,7 @@ def serialize_timezone(value: Any) -> str | None:
     if not _TIMEZONE_REGEX.match(value_str):
         raise GraphQLError(
             f"Invalid timezone: {value}. Must be IANA timezone identifier "
-            "(e.g., 'America/New_York', 'Europe/Paris')"
+            "(e.g., 'America/New_York', 'Europe/Paris')",
         )
 
     return value_str
@@ -37,7 +37,7 @@ def parse_timezone_value(value: Any) -> str:
     if not _TIMEZONE_REGEX.match(value):
         raise GraphQLError(
             f"Invalid timezone: {value}. Must be IANA timezone identifier "
-            "(e.g., 'America/New_York', 'Europe/Paris')"
+            "(e.g., 'America/New_York', 'Europe/Paris')",
         )
 
     return value
@@ -94,6 +94,6 @@ class TimezoneField(str, ScalarMarker):
         if not _TIMEZONE_REGEX.match(value):
             raise ValueError(
                 f"Invalid timezone: {value}. Must be IANA timezone identifier "
-                "(e.g., 'America/New_York', 'Europe/Paris')"
+                "(e.g., 'America/New_York', 'Europe/Paris')",
             )
         return super().__new__(cls, value)

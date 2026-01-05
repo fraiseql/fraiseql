@@ -250,14 +250,17 @@ def benchmark_query_transformation_performance(iterations: int = 10000) -> bool:
             "id": "123",
             "name": "Test Product",
             "price": 99.99,
-        }
+        },
     )
 
     print("Test Case 1: Simple flat object (3 fields)")
     start = time.perf_counter()
     for _ in range(iterations):
         _fraiseql_rs.build_graphql_response(
-            json_strings=[simple_json], field_name="products", type_name="Product", field_paths=None
+            json_strings=[simple_json],
+            field_name="products",
+            type_name="Product",
+            field_paths=None,
         )
     elapsed = (time.perf_counter() - start) * 1000
     per_op = elapsed / iterations
@@ -274,14 +277,17 @@ def benchmark_query_transformation_performance(iterations: int = 10000) -> bool:
                 "id": "cat-1",
                 "name": "Electronics",
             },
-        }
+        },
     )
 
     print("\nTest Case 2: Nested object (1 level, 5 fields)")
     start = time.perf_counter()
     for _ in range(iterations):
         _fraiseql_rs.build_graphql_response(
-            json_strings=[nested_json], field_name="products", type_name="Product", field_paths=None
+            json_strings=[nested_json],
+            field_name="products",
+            type_name="Product",
+            field_paths=None,
         )
     elapsed = (time.perf_counter() - start) * 1000
     per_op = elapsed / iterations
@@ -301,7 +307,7 @@ def benchmark_query_transformation_performance(iterations: int = 10000) -> bool:
                     "location": "New York",
                 },
             },
-        }
+        },
     )
 
     print("\nTest Case 3: Deeply nested (3 levels, 7 fields)")
@@ -370,7 +376,7 @@ def benchmark_concurrency(threads: int = 10, operations_per_thread: int = 1000) 
             "id": "123",
             "name": "Test Product",
             "price": 99.99,
-        }
+        },
     )
 
     def worker():
@@ -455,13 +461,13 @@ def print_summary(startup_results: BenchmarkResults) -> None:
     memory_pass = summary["memory"]["increase_mb"] < memory_target
 
     print(
-        f"  Startup overhead:       {summary['startup']['mean']:.2f}ms < {startup_target}ms  {'✅' if startup_pass else '❌'}"
+        f"  Startup overhead:       {summary['startup']['mean']:.2f}ms < {startup_target}ms  {'✅' if startup_pass else '❌'}",
     )
     print(
-        f"  Serialization overhead: {summary['serialization']['mean']:.2f}ms < {serialization_target}ms  {'✅' if serialization_pass else '❌'}"
+        f"  Serialization overhead: {summary['serialization']['mean']:.2f}ms < {serialization_target}ms  {'✅' if serialization_pass else '❌'}",
     )
     print(
-        f"  Memory increase:        {summary['memory']['increase_mb']:.2f}MB < {memory_target}MB  {'✅' if memory_pass else '❌'}"
+        f"  Memory increase:        {summary['memory']['increase_mb']:.2f}MB < {memory_target}MB  {'✅' if memory_pass else '❌'}",
     )
     print()
 

@@ -4,8 +4,9 @@ Protects against DoS attacks by rejecting requests that exceed
 a configurable body size limit.
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint

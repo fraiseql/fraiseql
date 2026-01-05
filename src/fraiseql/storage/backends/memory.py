@@ -1,7 +1,7 @@
 """Memory-based APQ storage backend for FraiseQL."""
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from .base import APQStorageBackend
 
@@ -23,7 +23,7 @@ class MemoryAPQBackend(APQStorageBackend):
         self._query_storage: dict[str, str] = {}
         self._response_storage: dict[str, dict[str, Any]] = {}
 
-    def _get_cache_key(self, hash_value: str, context: Optional[dict[str, Any]] = None) -> str:
+    def _get_cache_key(self, hash_value: str, context: dict[str, Any] | None = None) -> str:
         """Generate cache key with tenant isolation.
 
         Args:
@@ -39,7 +39,7 @@ class MemoryAPQBackend(APQStorageBackend):
                 return f"{tenant_id}:{hash_value}"
         return hash_value
 
-    def get_persisted_query(self, hash_value: str) -> Optional[str]:
+    def get_persisted_query(self, hash_value: str) -> str | None:
         """Retrieve stored query by hash.
 
         Args:
@@ -70,8 +70,10 @@ class MemoryAPQBackend(APQStorageBackend):
         logger.debug(f"Stored APQ query with hash {hash_value[:8]}...")
 
     def get_cached_response(
-        self, hash_value: str, context: Optional[dict[str, Any]] = None
-    ) -> Optional[dict[str, Any]]:
+        self,
+        hash_value: str,
+        context: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
         """Get cached JSON response for APQ hash.
 
         Args:
@@ -97,7 +99,10 @@ class MemoryAPQBackend(APQStorageBackend):
         return response
 
     def store_cached_response(
-        self, hash_value: str, response: dict[str, Any], context: Optional[dict[str, Any]] = None
+        self,
+        hash_value: str,
+        response: dict[str, Any],
+        context: dict[str, Any] | None = None,
     ) -> None:
         """Store pre-computed JSON response for APQ hash.
 
@@ -127,7 +132,7 @@ class MemoryAPQBackend(APQStorageBackend):
 
         logger.debug(
             f"Cleared {query_count} APQ queries and "
-            f"{response_count} cached responses from memory storage"
+            f"{response_count} cached responses from memory storage",
         )
 
     def get_storage_stats(self) -> dict[str, Any]:

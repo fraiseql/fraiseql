@@ -2,7 +2,7 @@
 
 import re
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Any
 
 from psycopg.sql import SQL, Composable, Literal
 
@@ -16,7 +16,7 @@ _IP_PATTERN = re.compile(
     # IPv4 with octet validation (0-255)
     r"(?:(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)|"
     r"(?:[0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}"  # IPv6
-    r")$"
+    r")$",
 )
 
 
@@ -33,7 +33,7 @@ class ListOperatorStrategy(BaseOperatorStrategy):
 
     SUPPORTED_OPERATORS = {"in", "notin"}
 
-    def supports_operator(self, operator: str, field_type: Optional[type]) -> bool:
+    def supports_operator(self, operator: str, field_type: type | None) -> bool:
         """Check if this is a list operator (fallback - always handles these)."""
         return operator in self.SUPPORTED_OPERATORS
 
@@ -42,9 +42,9 @@ class ListOperatorStrategy(BaseOperatorStrategy):
         operator: str,
         value: Any,
         path_sql: Composable,
-        field_type: Optional[type] = None,
-        jsonb_column: Optional[str] = None,
-    ) -> Optional[Composable]:
+        field_type: type | None = None,
+        jsonb_column: str | None = None,
+    ) -> Composable | None:
         """Build SQL for list operators."""
         if not isinstance(value, list):
             raise TypeError(f"'{operator}' operator requires a list, got {type(value)}")

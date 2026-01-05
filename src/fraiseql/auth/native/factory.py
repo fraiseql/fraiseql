@@ -2,7 +2,6 @@
 
 import os
 from pathlib import Path
-from typing import Optional
 
 from fastapi import APIRouter, FastAPI
 from psycopg_pool import AsyncConnectionPool
@@ -14,7 +13,7 @@ from fraiseql.auth.native.tokens import TokenManager
 async def create_native_auth_provider(
     db_pool: AsyncConnectionPool,
     schema: str = "public",
-    secret_key: Optional[str] = None,
+    secret_key: str | None = None,
     access_token_ttl_minutes: int = 15,
     refresh_token_ttl_days: int = 30,
 ) -> NativeAuthProvider:
@@ -36,7 +35,7 @@ async def create_native_auth_provider(
         if not secret_key:
             raise ValueError(
                 "JWT secret key required. Set JWT_SECRET_KEY environment variable "
-                "or pass secret_key parameter."
+                "or pass secret_key parameter.",
             )
 
     # Create token manager with configured TTLs
@@ -109,7 +108,7 @@ def add_security_middleware(
     enable_csrf_protection: bool = False,  # Disabled by default for API-first apps
     rate_limit_requests_per_minute: int = 60,
     rate_limit_auth_requests_per_minute: int = 5,
-    csp_policy: Optional[str] = None,
+    csp_policy: str | None = None,
 ) -> None:
     """Add security middleware to a FastAPI application.
 

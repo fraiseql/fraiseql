@@ -3,7 +3,6 @@
 import asyncio
 import time
 from dataclasses import dataclass
-from typing import Optional
 
 from fraiseql.cqrs.repository import CQRSRepository
 
@@ -16,7 +15,7 @@ class ColumnInfo:
     data_type: str
     is_nullable: bool
     is_jsonb: bool
-    jsonb_structure: Optional[dict[str, any]] = None
+    jsonb_structure: dict[str, any] | None = None
 
 
 @dataclass
@@ -25,7 +24,7 @@ class ViewInfo:
 
     view_name: str
     columns: dict[str, ColumnInfo]
-    primary_key: Optional[str] = None
+    primary_key: str | None = None
     indexes: list[str] = None
     last_analyzed: float = 0
 
@@ -43,7 +42,7 @@ class ViewMetadataCache:
         self.cache: dict[str, ViewInfo] = {}
         self._lock = asyncio.Lock()
 
-    async def get_view_structure(self, view_name: str, db: CQRSRepository) -> Optional[ViewInfo]:
+    async def get_view_structure(self, view_name: str, db: CQRSRepository) -> ViewInfo | None:
         """Get cached view structure.
 
         Args:
@@ -74,7 +73,7 @@ class ViewMetadataCache:
 
             return info
 
-    async def _query_view_structure(self, view_name: str, db: CQRSRepository) -> Optional[ViewInfo]:
+    async def _query_view_structure(self, view_name: str, db: CQRSRepository) -> ViewInfo | None:
         """Query view structure from information_schema.
 
         Args:
@@ -123,7 +122,9 @@ class ViewMetadataCache:
             # Analyze JSONB structure if needed
             if col_info.is_jsonb:
                 structure = await self._analyze_jsonb_column(
-                    f"{schema_name}.{view_name}", col_info.name, db
+                    f"{schema_name}.{view_name}",
+                    col_info.name,
+                    db,
                 )
                 col_info.jsonb_structure = structure
 
@@ -165,8 +166,11 @@ class ViewMetadataCache:
         )
 
     async def _analyze_jsonb_column(
-        self, table_name: str, column_name: str, db: CQRSRepository
-    ) -> Optional[dict[str, any]]:
+        self,
+        table_name: str,
+        column_name: str,
+        db: CQRSRepository,
+    ) -> dict[str, any] | None:
         """Analyze JSONB column structure.
 
         Args:
@@ -211,7 +215,7 @@ class ViewMetadataCache:
             # If analysis fails, return None
             return None
 
-    def get_jsonb_paths(self, view_name: str, field_name: str) -> Optional[str]:
+    def get_jsonb_paths(self, view_name: str, field_name: str) -> str | None:
         """Get JSONB path for a field.
 
         Args:

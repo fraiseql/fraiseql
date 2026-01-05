@@ -10,7 +10,7 @@ from fraiseql.types.definitions import ScalarMarker
 
 # MIME type: type/subtype format
 _MIME_TYPE_REGEX = re.compile(
-    r"^[a-zA-Z][a-zA-Z0-9][a-zA-Z0-9!#$&^_-]*\/[a-zA-Z][a-zA-Z0-9][a-zA-Z0-9!#$&^_-]*(?:\+[a-zA-Z][a-zA-Z0-9][a-zA-Z0-9!#$&^_-]*)?$"
+    r"^[a-zA-Z][a-zA-Z0-9][a-zA-Z0-9!#$&^_-]*\/[a-zA-Z][a-zA-Z0-9][a-zA-Z0-9!#$&^_-]*(?:\+[a-zA-Z][a-zA-Z0-9][a-zA-Z0-9!#$&^_-]*)?$",
 )
 
 
@@ -24,7 +24,7 @@ def serialize_mime_type(value: Any) -> str | None:
     if not _MIME_TYPE_REGEX.match(value_str):
         raise GraphQLError(
             f"Invalid MIME type: {value}. Must be type/subtype format "
-            "(e.g., 'application/json', 'image/png', 'text/html')"
+            "(e.g., 'application/json', 'image/png', 'text/html')",
         )
 
     return value_str
@@ -38,7 +38,7 @@ def parse_mime_type_value(value: Any) -> str:
     if not _MIME_TYPE_REGEX.match(value):
         raise GraphQLError(
             f"Invalid MIME type: {value}. Must be type/subtype format "
-            "(e.g., 'application/json', 'image/png', 'text/html')"
+            "(e.g., 'application/json', 'image/png', 'text/html')",
         )
 
     return value
@@ -92,6 +92,6 @@ class MimeTypeField(str, ScalarMarker):
         if not _MIME_TYPE_REGEX.match(value):
             raise ValueError(
                 f"Invalid MIME type: {value}. Must be type/subtype format "
-                "(e.g., 'application/json', 'image/png', 'text/html')"
+                "(e.g., 'application/json', 'image/png', 'text/html')",
             )
         return super().__new__(cls, value)

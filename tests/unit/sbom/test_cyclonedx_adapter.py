@@ -193,7 +193,30 @@ class TestCycloneDXAdapter:
         with pytest.raises(NotImplementedError, match="XML serialization not yet implemented"):
             adapter.to_xml(sbom)
 
-    def test_from_json_not_implemented(self) -> None:
-        """Test that deserialization raises NotImplementedError."""
-        with pytest.raises(NotImplementedError, match="deserialization not yet implemented"):
-            CycloneDXAdapter.from_json('{"bomFormat": "CycloneDX"}')
+    def test_from_json_basic(self) -> None:
+        """Test basic JSON deserialization."""
+        # Create simple SBOM and serialize it
+        sbom = SBOM(
+            component_name="fraiseql",
+            component_version="1.5.0",
+        )
+
+        # Add a component
+        identifier = ComponentIdentifier(
+            name="fastapi",
+            version="0.115.12",
+            purl="pkg:pypi/fastapi@0.115.12",
+        )
+        component = Component(identifier=identifier)
+        sbom.add_component(component)
+
+        # Serialize then deserialize
+        adapter = CycloneDXAdapter()
+        json_str = adapter.to_json(sbom)
+        deserialized_sbom = adapter.from_json(json_str)
+
+        # Validate
+        assert deserialized_sbom.component_name == "fraiseql"
+        assert deserialized_sbom.component_version == "1.5.0"
+        assert len(deserialized_sbom.components) == 1
+        assert deserialized_sbom.components[0].identifier.name == "fastapi"

@@ -30,7 +30,7 @@ class CacheStatsMiddleware(BaseHTTPMiddleware):
                     f"hits={stats['hits']}, "
                     f"misses={stats['misses']}, "
                     f"hit_rate={stats['hit_rate']:.1%}, "
-                    f"cached={stats['cached_plans']}/{stats['max_cached_plans']}"
+                    f"cached={stats['cached_plans']}/{stats['max_cached_plans']}",
                 )
             except Exception as e:
                 logger.warning(f"Failed to get cache stats: {e}")

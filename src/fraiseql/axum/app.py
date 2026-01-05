@@ -5,7 +5,8 @@ for create_fraiseql_app from the FastAPI integration.
 """
 
 import logging
-from typing import Any, Callable, Coroutine, Type
+from collections.abc import Callable, Coroutine
+from typing import Any
 
 from fraiseql.axum.config import AxumFraiseQLConfig
 from fraiseql.axum.server import AxumServer
@@ -17,10 +18,10 @@ def create_axum_fraiseql_app(
     *,
     config: AxumFraiseQLConfig | None = None,
     database_url: str | None = None,
-    types: list[Type[Any]] | None = None,
-    mutations: list[Type[Any]] | None = None,
-    queries: list[Type[Any]] | None = None,
-    subscriptions: list[Type[Any]] | None = None,
+    types: list[type[Any]] | None = None,
+    mutations: list[type[Any]] | None = None,
+    queries: list[type[Any]] | None = None,
+    subscriptions: list[type[Any]] | None = None,
     context_getter: Callable[..., Coroutine[Any, Any, dict[str, Any]]] | None = None,
     middleware: list[Any] | None = None,
     cors_origins: list[str] | None = None,
@@ -171,7 +172,7 @@ def create_axum_fraiseql_app(
 
         if database_url is None:
             raise ValueError(
-                "database_url is required. Provide via parameter or config.database_url"
+                "database_url is required. Provide via parameter or config.database_url",
             )
 
         # Extract CORS settings from parameters
@@ -243,8 +244,8 @@ def create_axum_fraiseql_app(
 def create_production_app(
     *,
     database_url: str,
-    types: list[Type[Any]] | None = None,
-    mutations: list[Type[Any]] | None = None,
+    types: list[type[Any]] | None = None,
+    mutations: list[type[Any]] | None = None,
     **kwargs: Any,
 ) -> AxumServer:
     """Create production-optimized Axum FraiseQL server.

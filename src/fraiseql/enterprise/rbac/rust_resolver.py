@@ -10,7 +10,7 @@ Performance:
 """
 
 import logging
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from fraiseql.enterprise.rbac.models import Permission
@@ -61,14 +61,16 @@ class RustPermissionResolver:
         """
         if not HAS_RUST_RBAC:
             raise RuntimeError(
-                "Rust RBAC extension not available. Rebuild with: maturin develop --release"
+                "Rust RBAC extension not available. Rebuild with: maturin develop --release",
             )
 
         self._rust_resolver = PyPermissionResolver(pool, cache_capacity)
         logger.info(f"✓ Using Rust RBAC resolver (cache capacity: {cache_capacity})")
 
     async def get_user_permissions(
-        self, user_id: UUID, tenant_id: Optional[UUID] = None
+        self,
+        user_id: UUID,
+        tenant_id: UUID | None = None,
     ) -> list[Permission]:
         """Get all effective permissions for user.
 
@@ -90,7 +92,8 @@ class RustPermissionResolver:
         """
         # Call Rust implementation
         rust_perms = await self._rust_resolver.get_user_permissions(
-            str(user_id), str(tenant_id) if tenant_id else None
+            str(user_id),
+            str(tenant_id) if tenant_id else None,
         )
 
         # Convert Rust permissions to Python Permission objects
@@ -111,7 +114,7 @@ class RustPermissionResolver:
         user_id: UUID,
         resource: str,
         action: str,
-        tenant_id: Optional[UUID] = None,
+        tenant_id: UUID | None = None,
     ) -> bool:
         """Check if user has specific permission.
 
@@ -134,7 +137,10 @@ class RustPermissionResolver:
             - Uncached: <1ms
         """
         return await self._rust_resolver.has_permission(
-            str(user_id), resource, action, str(tenant_id) if tenant_id else None
+            str(user_id),
+            resource,
+            action,
+            str(tenant_id) if tenant_id else None,
         )
 
     def invalidate_user(self, user_id: UUID) -> None:
@@ -193,7 +199,8 @@ class RustPermissionResolver:
 
 # Convenience function for backward compatibility
 def create_rust_resolver(
-    pool: "DatabasePool", cache_capacity: int = 10000
+    pool: "DatabasePool",
+    cache_capacity: int = 10000,
 ) -> RustPermissionResolver:
     """Create Rust-based permission resolver.
 

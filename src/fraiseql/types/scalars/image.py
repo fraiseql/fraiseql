@@ -34,7 +34,7 @@ def serialize_image(value: Any) -> str | None:
     if not _IMAGE_REGEX.match(value_str):
         extensions_str = ", ".join(sorted(_IMAGE_EXTENSIONS))
         raise GraphQLError(
-            f"Invalid image: {value}. Must be URL or path with image extension ({extensions_str})"
+            f"Invalid image: {value}. Must be URL or path with image extension ({extensions_str})",
         )
 
     return value_str
@@ -48,7 +48,7 @@ def parse_image_value(value: Any) -> str:
     if not _IMAGE_REGEX.match(value):
         extensions_str = ", ".join(sorted(_IMAGE_EXTENSIONS))
         raise GraphQLError(
-            f"Invalid image: {value}. Must be URL or path with image extension ({extensions_str})"
+            f"Invalid image: {value}. Must be URL or path with image extension ({extensions_str})",
         )
 
     return value
@@ -102,6 +102,6 @@ class ImageField(str, ScalarMarker):
             extensions_str = ", ".join(sorted(_IMAGE_EXTENSIONS))
             raise ValueError(
                 f"Invalid image: {value}. Must be URL or path with image extension "
-                f"({extensions_str})"
+                f"({extensions_str})",
             )
         return super().__new__(cls, value)

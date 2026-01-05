@@ -22,7 +22,6 @@ if not DATABASE_URL:
 
 async def setup_database():
     """Set up database schema and initial data."""
-
     print("🔧 Setting up RAG database...")
 
     # Connect to database
@@ -166,7 +165,6 @@ async def setup_database():
 
 async def seed_sample_data():
     """Add some sample documents for testing."""
-
     print("🌱 Seeding sample data...")
 
     conn = await asyncpg.connect(DATABASE_URL)
@@ -243,7 +241,9 @@ async def seed_sample_data():
         for doc in sample_docs:
             # Create document
             _ = await conn.fetchval(
-                "SELECT fn_create_document($1, $2)", doc["title"], doc["content"]
+                "SELECT fn_create_document($1, $2)",
+                doc["title"],
+                doc["content"],
             )
 
             print(f"✅ Added document: {doc['title']}")
@@ -256,7 +256,6 @@ async def seed_sample_data():
 
 async def main():
     """Main setup function."""
-
     import argparse
 
     parser = argparse.ArgumentParser(description="Set up RAG database")

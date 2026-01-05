@@ -3,7 +3,7 @@
 import time
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 from fraiseql.fastapi.turbo import TurboQuery, TurboRegistry, TurboRouter
 
@@ -97,7 +97,7 @@ class EnhancedTurboRegistry(TurboRegistry):
 
         return False
 
-    def register(self, turbo_query: EnhancedTurboQuery) -> Optional[str]:
+    def register(self, turbo_query: EnhancedTurboQuery) -> str | None:
         """Register a TurboQuery with admission control.
 
         Args:
@@ -131,7 +131,8 @@ class EnhancedTurboRegistry(TurboRegistry):
 
                 # Evict least valuable query
                 evict_hash, evict_query = min(
-                    self._queries.items(), key=lambda item: item[1].cache_weight
+                    self._queries.items(),
+                    key=lambda item: item[1].cache_weight,
                 )
                 self.total_weight -= evict_query.cache_weight
                 del self._queries[evict_hash]
@@ -143,7 +144,10 @@ class EnhancedTurboRegistry(TurboRegistry):
         return query_hash
 
     def update_metrics(
-        self, query_hash: str, execution_time: float, cache_hit: bool = True
+        self,
+        query_hash: str,
+        execution_time: float,
+        cache_hit: bool = True,
     ) -> None:
         """Update query metrics after execution.
 
@@ -200,7 +204,9 @@ class EnhancedTurboRegistry(TurboRegistry):
                     "avg_time_ms": round(q.avg_execution_time * 1000, 2),
                 }
                 for hash_, q in sorted(
-                    self._queries.items(), key=lambda item: item[1].cache_weight, reverse=True
+                    self._queries.items(),
+                    key=lambda item: item[1].cache_weight,
+                    reverse=True,
                 )[:5]
             ],
         }
@@ -224,7 +230,7 @@ class EnhancedTurboRouter(TurboRouter):
         query: str,
         variables: dict[str, Any],
         context: dict[str, Any],
-    ) -> Optional[dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Execute query with enhanced metrics tracking.
 
         Args:
@@ -278,7 +284,9 @@ class EnhancedTurboRouter(TurboRouter):
 
                     # Pattern 1: Named query (handles fragments before query)
                     named_query_match = re.search(
-                        r"query\s+\w+[^{]*{\s*(\w+)", clean_query, re.DOTALL
+                        r"query\s+\w+[^{]*{\s*(\w+)",
+                        clean_query,
+                        re.DOTALL,
                     )
                     if named_query_match:
                         return named_query_match.group(1)

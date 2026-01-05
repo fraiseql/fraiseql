@@ -1,7 +1,7 @@
 """Schema validation for FraiseQL requirements."""
 
 import types
-from typing import Any, List, Type
+from typing import Any
 
 
 class SchemaValidator:
@@ -10,9 +10,9 @@ class SchemaValidator:
     @staticmethod
     def validate_mutation_types(
         mutation_name: str,
-        success_type: Type,
-        error_type: Type,
-    ) -> List[str]:
+        success_type: type,
+        error_type: type,
+    ) -> list[str]:
         """Validate mutation types conform to requirements.
 
         Returns:
@@ -31,8 +31,8 @@ class SchemaValidator:
     @staticmethod
     def _validate_success_type(
         mutation_name: str,
-        success_type: Type,
-    ) -> List[str]:
+        success_type: type,
+    ) -> list[str]:
         """Validate Success type requirements."""
         errors = []
 
@@ -63,7 +63,7 @@ class SchemaValidator:
         if not entity_field:
             errors.append(
                 f"{success_type.__name__}: Missing entity field. "
-                f"Expected 'entity', field derived from mutation name, or common entity name."
+                f"Expected 'entity', field derived from mutation name, or common entity name.",
             )
             return errors
 
@@ -72,13 +72,13 @@ class SchemaValidator:
         if _is_optional(entity_type):
             errors.append(
                 f"{success_type.__name__}.{entity_field}: Must be non-null. "
-                f"Got '{entity_type}'. Remove Optional or '| None'."
+                f"Got '{entity_type}'. Remove Optional or '| None'.",
             )
 
         return errors
 
     @staticmethod
-    def _validate_error_type(error_type: Type) -> List[str]:
+    def _validate_error_type(error_type: type) -> list[str]:
         """Validate Error type requirements."""
         errors = []
 
@@ -98,7 +98,7 @@ class SchemaValidator:
         for field_name, expected_type in required_fields.items():
             if field_name not in annotations:
                 errors.append(
-                    f"{error_type.__name__}: Missing required field '{field_name}: {expected_type.__name__}'"  # noqa: E501
+                    f"{error_type.__name__}: Missing required field '{field_name}: {expected_type.__name__}'",  # noqa: E501
                 )
             else:
                 actual_type = annotations[field_name]
@@ -109,7 +109,7 @@ class SchemaValidator:
                 ):
                     errors.append(
                         f"{error_type.__name__}.{field_name}: Wrong type. "
-                        f"Expected '{expected_type.__name__}', got '{actual_type}'"
+                        f"Expected '{expected_type.__name__}', got '{actual_type}'",
                     )
 
         return errors

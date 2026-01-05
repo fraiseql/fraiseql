@@ -111,7 +111,7 @@ def normalize_dict_where(
         except (ImportError, Exception) as e:
             # Fall back to Python implementation if Rust unavailable or fails
             logger.debug(
-                f"Rust WHERE normalization unavailable or failed: {e}. Using Python fallback."
+                f"Rust WHERE normalization unavailable or failed: {e}. Using Python fallback.",
             )
 
     # Python implementation (fallback or when Rust disabled)
@@ -131,7 +131,10 @@ def normalize_dict_where(
                 or_clauses = []
                 for or_dict in field_value:
                     or_clause = normalize_dict_where(
-                        or_dict, view_name, table_columns, jsonb_column
+                        or_dict,
+                        view_name,
+                        table_columns,
+                        jsonb_column,
                     )
                     # CRITICAL FIX: Preserve the entire WhereClause structure
                     # Don't flatten to just conditions - this loses AND grouping
@@ -147,7 +150,10 @@ def normalize_dict_where(
             if isinstance(field_value, list):
                 for and_dict in field_value:
                     and_clause = normalize_dict_where(
-                        and_dict, view_name, table_columns, jsonb_column
+                        and_dict,
+                        view_name,
+                        table_columns,
+                        jsonb_column,
                     )
                     # CRITICAL FIX: Preserve nested clauses (like OR inside AND)
                     # If the clause has nested structures, preserve it as a nested clause
@@ -163,7 +169,10 @@ def normalize_dict_where(
             # NOT is a single WHERE clause
             if isinstance(field_value, dict):
                 not_clause = normalize_dict_where(
-                    field_value, view_name, table_columns, jsonb_column
+                    field_value,
+                    view_name,
+                    table_columns,
+                    jsonb_column,
                 )
             continue
 
@@ -180,7 +189,10 @@ def normalize_dict_where(
 
         # Check if this is a nested object filter
         is_nested, use_fk = _is_nested_object_filter(
-            field_name, field_value, table_columns, view_name
+            field_name,
+            field_value,
+            table_columns,
+            view_name,
         )
 
         if is_nested and use_fk:
@@ -250,7 +262,10 @@ def normalize_dict_where(
                         # Create a nested WHERE clause with the parent path prepended
                         nested_where = {nested_field: nested_value}
                         nested_clause = normalize_dict_where(
-                            nested_where, view_name, table_columns, jsonb_column
+                            nested_where,
+                            view_name,
+                            table_columns,
+                            jsonb_column,
                         )
                         # The nested clause will have conditions with field_path
                         # like [parent, child, ...]
@@ -429,7 +444,7 @@ def _is_nested_object_filter(
             # FK column exists, use it
             logger.debug(
                 f"Dict WHERE: Detected FK nested object filter for {field_name} "
-                f"(FK column {potential_fk_column} exists)"
+                f"(FK column {potential_fk_column} exists)",
             )
             return True, True
 
@@ -460,7 +475,7 @@ def normalize_whereinput(
     """
     if not hasattr(where_input, "_to_whereinput_dict"):
         raise TypeError(
-            f"WhereInput object must have _to_whereinput_dict() method. Got: {type(where_input)}"
+            f"WhereInput object must have _to_whereinput_dict() method. Got: {type(where_input)}",
         )
 
     # Convert to dict

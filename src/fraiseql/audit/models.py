@@ -8,7 +8,7 @@ Commit 4.5.
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 
 class AuditFilterType(str, Enum):
@@ -64,18 +64,18 @@ class AuditEvent:
     id: str
     timestamp: datetime
     event_type: str
-    user_id: Optional[str] = None
-    user_email: Optional[str] = None
-    ip_address: Optional[str] = None
-    resource: Optional[str] = None
-    action: Optional[str] = None
+    user_id: str | None = None
+    user_email: str | None = None
+    ip_address: str | None = None
+    resource: str | None = None
+    action: str | None = None
     result: str = "unknown"
-    reason: Optional[str] = None
-    duration_ms: Optional[float] = None
-    error_count: Optional[int] = None
-    field_count: Optional[int] = None
-    response_size_bytes: Optional[int] = None
-    trace_id: Optional[str] = None
+    reason: str | None = None
+    duration_ms: float | None = None
+    error_count: int | None = None
+    field_count: int | None = None
+    response_size_bytes: int | None = None
+    trace_id: str | None = None
     slow: bool = False
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -160,8 +160,8 @@ class EventStats:
     p50_duration_ms: float = 0.0
     p95_duration_ms: float = 0.0
     p99_duration_ms: float = 0.0
-    most_common_action: Optional[str] = None
-    last_event_time: Optional[datetime] = None
+    most_common_action: str | None = None
+    last_event_time: datetime | None = None
 
     def success_count(self) -> int:
         """Get count of successful events.
@@ -297,7 +297,7 @@ class ComplianceReport:
             return 0.0
         return self.denied_events / self.total_events
 
-    def get_top_user(self) -> Optional[tuple[str, int]]:
+    def get_top_user(self) -> tuple[str, int] | None:
         """Get most active user.
 
         Returns:

@@ -22,7 +22,7 @@ def serialize_lei(value: Any) -> str | None:
     if not _LEI_REGEX.match(value_str):
         raise GraphQLError(
             f"Invalid LEI: {value}. Must be 20 alphanumeric characters "
-            "(e.g., '549300E9PC51EN656011')"
+            "(e.g., '549300E9PC51EN656011')",
         )
 
     return value_str
@@ -38,7 +38,7 @@ def parse_lei_value(value: Any) -> str:
     if not _LEI_REGEX.match(value_upper):
         raise GraphQLError(
             f"Invalid LEI: {value}. Must be 20 alphanumeric characters "
-            "(e.g., '549300E9PC51EN656011')"
+            "(e.g., '549300E9PC51EN656011')",
         )
 
     return value_upper
@@ -93,6 +93,6 @@ class LEIField(str, ScalarMarker):
         if not _LEI_REGEX.match(value_upper):
             raise ValueError(
                 f"Invalid LEI: {value}. Must be 20 alphanumeric characters "
-                "(e.g., '549300E9PC51EN656011')"
+                "(e.g., '549300E9PC51EN656011')",
             )
         return super().__new__(cls, value_upper)

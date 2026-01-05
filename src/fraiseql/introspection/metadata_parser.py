@@ -5,7 +5,6 @@ to extract FraiseQL configuration for auto-discovery.
 """
 
 from dataclasses import dataclass
-from typing import Optional
 
 import yaml
 
@@ -16,9 +15,9 @@ class TypeAnnotation:
 
     trinity: bool = False
     use_projection: bool = False
-    description: Optional[str] = None
-    expose_fields: Optional[list[str]] = None
-    filter_config: Optional[dict] = None
+    description: str | None = None
+    expose_fields: list[str] | None = None
+    filter_config: dict | None = None
 
 
 @dataclass
@@ -29,9 +28,9 @@ class MutationAnnotation:
     name: str
     success_type: str
     error_type: str
-    description: Optional[str] = None
-    input_type: Optional[str] = None
-    context_params: Optional[list[str]] = None  # NEW: Explicit context params
+    description: str | None = None
+    input_type: str | None = None
+    context_params: list[str] | None = None  # NEW: Explicit context params
 
 
 @dataclass
@@ -52,7 +51,7 @@ class FieldMetadata:
     graphql_type: str  # GraphQL type (e.g., "String!", "UUID")
     required: bool  # Is field required (non-null)?
     is_enum: bool = False  # Is this an enum type?
-    description: Optional[str] = None
+    description: str | None = None
 
 
 class MetadataParser:
@@ -60,7 +59,7 @@ class MetadataParser:
 
     ANNOTATION_MARKER = "@fraiseql:"
 
-    def parse_type_annotation(self, comment: Optional[str]) -> Optional[TypeAnnotation]:
+    def parse_type_annotation(self, comment: str | None) -> TypeAnnotation | None:
         """Parse @fraiseql:type annotation from view comment.
 
         Format:
@@ -112,7 +111,7 @@ class MetadataParser:
             logger.warning(f"Failed to parse @fraiseql:type: {e}")
             return None
 
-    def parse_mutation_annotation(self, comment: Optional[str]) -> Optional[MutationAnnotation]:
+    def parse_mutation_annotation(self, comment: str | None) -> MutationAnnotation | None:
         """Parse @fraiseql:mutation annotation from function comment.
 
         Now supports context_params:

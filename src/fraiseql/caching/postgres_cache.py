@@ -70,7 +70,7 @@ class PostgresCache:
                     cache_value JSONB NOT NULL,
                     expires_at TIMESTAMPTZ NOT NULL
                 )
-            """
+            """,
             )
 
             # Index on expiry for efficient cleanup
@@ -78,7 +78,7 @@ class PostgresCache:
                 f"""
                 CREATE INDEX IF NOT EXISTS {self.table_name}_expires_idx
                 ON {self.table_name} (expires_at)
-            """
+            """,
             )
 
             # Detect pg_fraiseql_cache extension
@@ -88,7 +88,7 @@ class PostgresCache:
                     SELECT extversion
                     FROM pg_extension
                     WHERE extname = 'pg_fraiseql_cache'
-                """
+                """,
                 )
                 result = await cur.fetchone()
 
@@ -267,7 +267,11 @@ class PostgresCache:
             raise PostgresCacheError(f"Failed to get domain versions: {e}") from e
 
     async def set(
-        self, key: str, value: Any, ttl: int, versions: dict[str, int] | None = None
+        self,
+        key: str,
+        value: Any,
+        ttl: int,
+        versions: dict[str, int] | None = None,
     ) -> None:
         """Set value in cache with TTL and optional version metadata.
 
@@ -543,7 +547,10 @@ class PostgresCache:
             raise PostgresCacheError(f"Failed to get cache stats: {e}") from e
 
     async def register_cascade_rule(
-        self, source_domain: str, target_domain: str, rule_type: str = "invalidate"
+        self,
+        source_domain: str,
+        target_domain: str,
+        rule_type: str = "invalidate",
     ) -> None:
         """Register CASCADE rule for automatic cache invalidation.
 

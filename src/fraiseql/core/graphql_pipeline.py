@@ -6,7 +6,7 @@ of parameter conversion, error handling, and result transformation.
 """
 
 import json
-from typing import Any, Dict, List
+from typing import Any
 
 # Lazy import of Rust functions to handle cases where extension is not available
 _rust_functions = None
@@ -24,7 +24,7 @@ def _get_rust_functions():
             class FallbackRust:
                 async def execute_query_async(self, query_json: str) -> str:
                     return json.dumps(
-                        {"data": [{"id": 1, "name": "Fallback User"}], "errors": None}
+                        {"data": [{"id": 1, "name": "Fallback User"}], "errors": None},
                     )
 
                 async def execute_mutation_async(self, mutation_json: str) -> str:
@@ -46,7 +46,7 @@ class RustGraphQLPipeline:
         """Initialize the Rust pipeline."""
         self._rust = _get_rust_functions()
 
-    async def execute_query(self, query_def: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute_query(self, query_def: dict[str, Any]) -> dict[str, Any]:
         """Execute a GraphQL query via Rust backend.
 
         Args:
@@ -85,11 +85,11 @@ class RustGraphQLPipeline:
                     {
                         "message": str(e),
                         "extensions": {"code": "INTERNAL_ERROR", "operation": "query"},
-                    }
+                    },
                 ],
             }
 
-    async def execute_mutation(self, mutation_def: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute_mutation(self, mutation_def: dict[str, Any]) -> dict[str, Any]:
         """Execute a GraphQL mutation via Rust backend.
 
         Args:
@@ -132,13 +132,14 @@ class RustGraphQLPipeline:
                             "operation": "mutation",
                             "type": mutation_def.get("type", "unknown"),
                         },
-                    }
+                    },
                 ],
             }
 
     async def execute_bulk_operation(
-        self, operations: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        self,
+        operations: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
         """Execute multiple operations in a single transaction.
 
         Args:
@@ -160,7 +161,7 @@ class RustGraphQLPipeline:
                         {
                             "message": f"Unknown operation type: {op.get('operation')}",
                             "extensions": {"code": "INVALID_OPERATION"},
-                        }
+                        },
                     ],
                 }
             results.append(result)
@@ -173,16 +174,16 @@ pipeline = RustGraphQLPipeline()
 
 
 # Convenience functions for direct use
-async def execute_graphql_query(query_def: Dict[str, Any]) -> Dict[str, Any]:
+async def execute_graphql_query(query_def: dict[str, Any]) -> dict[str, Any]:
     """Convenience function for executing queries."""
     return await pipeline.execute_query(query_def)
 
 
-async def execute_graphql_mutation(mutation_def: Dict[str, Any]) -> Dict[str, Any]:
+async def execute_graphql_mutation(mutation_def: dict[str, Any]) -> dict[str, Any]:
     """Convenience function for executing mutations."""
     return await pipeline.execute_mutation(mutation_def)
 
 
-async def execute_bulk_graphql_operations(operations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+async def execute_bulk_graphql_operations(operations: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Convenience function for executing bulk operations."""
     return await pipeline.execute_bulk_operation(operations)

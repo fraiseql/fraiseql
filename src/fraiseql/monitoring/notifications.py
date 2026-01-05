@@ -625,7 +625,9 @@ class NotificationManager:
         """Send a notification for a specific config."""
         # Check rate limiting
         rate_limited = not await self._check_rate_limit(
-            error["error_id"], config["config_id"], config["rate_limit_minutes"]
+            error["error_id"],
+            config["config_id"],
+            config["rate_limit_minutes"],
         )
         if rate_limited:
             logger.debug(

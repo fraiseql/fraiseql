@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, Callable, List, cast, get_args, get_origin, get_type_hints
+from typing import TYPE_CHECKING, Any, cast, get_args, get_origin, get_type_hints
 
 from graphql import (
     GraphQLArgument,
@@ -30,6 +30,8 @@ from fraiseql.types.coercion import wrap_resolver_with_input_coercion
 from fraiseql.utils.naming import snake_to_camel
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from fraiseql.gql.builders.registry import SchemaRegistry
 
 logger = logging.getLogger(__name__)
@@ -57,14 +59,16 @@ class QueryTypeBuilder:
             (should_add_where, element_type)
         """
         origin = get_origin(return_type)
-        if origin in (list, List):
+        if origin in (list, list):
             args = get_args(return_type)
             if args and self._is_fraise_type(args[0]):
                 return True, args[0]
         return False, None
 
     def _add_where_parameter_if_needed(
-        self, gql_args: dict[str, GraphQLArgument], return_type: Any
+        self,
+        gql_args: dict[str, GraphQLArgument],
+        return_type: Any,
     ) -> None:
         """Add where parameter to GraphQL args if query returns list of Fraise types.
 
@@ -142,7 +146,9 @@ class QueryTypeBuilder:
         return False
 
     def _add_order_by_parameter_if_needed(
-        self, gql_args: dict[str, GraphQLArgument], return_type: Any
+        self,
+        gql_args: dict[str, GraphQLArgument],
+        return_type: Any,
     ) -> None:
         """Add orderBy parameter to GraphQL args if query returns list of Fraise types.
 
@@ -180,7 +186,9 @@ class QueryTypeBuilder:
                 )
 
     def _add_pagination_parameters_if_needed(
-        self, gql_args: dict[str, GraphQLArgument], return_type: Any
+        self,
+        gql_args: dict[str, GraphQLArgument],
+        return_type: Any,
     ) -> None:
         """Add limit/offset parameters if query returns list of Fraise types."""
         should_add, _ = self._should_add_where_parameter(return_type)
@@ -206,7 +214,9 @@ class QueryTypeBuilder:
         return False, None
 
     def _add_relay_parameters_if_needed(
-        self, gql_args: dict[str, GraphQLArgument], return_type: Any
+        self,
+        gql_args: dict[str, GraphQLArgument],
+        return_type: Any,
     ) -> None:
         """Add Relay pagination parameters if query returns Connection[T]."""
         from fraiseql.sql.graphql_order_by_generator import create_graphql_order_by_input
@@ -239,7 +249,7 @@ class QueryTypeBuilder:
             order_by_input_type = create_graphql_order_by_input(element_type)
             self.registry.register_type(order_by_input_type)
             gql_args["orderBy"] = GraphQLArgument(
-                GraphQLList(convert_type_to_graphql_input(order_by_input_type))
+                GraphQLList(convert_type_to_graphql_input(order_by_input_type)),
             )
 
     def build(self) -> GraphQLObjectType:
@@ -375,7 +385,9 @@ class QueryTypeBuilder:
         if asyncio.iscoroutinefunction(coerced_fn):
 
             async def async_resolver(
-                root: dict[str, Any], info: GraphQLResolveInfo, **kwargs: Any
+                root: dict[str, Any],
+                info: GraphQLResolveInfo,
+                **kwargs: Any,
             ) -> Any:
                 # Store GraphQL info and field name in context for repository
                 if hasattr(info, "context") and info.context is not None:

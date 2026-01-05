@@ -21,7 +21,7 @@ def serialize_mic(value: Any) -> str | None:
 
     if not _MIC_REGEX.match(value_str):
         raise GraphQLError(
-            f"Invalid MIC: {value}. Must be 4 uppercase letters (e.g., 'XNYS', 'XNAS', 'XLON')"
+            f"Invalid MIC: {value}. Must be 4 uppercase letters (e.g., 'XNYS', 'XNAS', 'XLON')",
         )
 
     return value_str
@@ -36,7 +36,7 @@ def parse_mic_value(value: Any) -> str:
 
     if not _MIC_REGEX.match(value_upper):
         raise GraphQLError(
-            f"Invalid MIC: {value}. Must be 4 uppercase letters (e.g., 'XNYS', 'XNAS', 'XLON')"
+            f"Invalid MIC: {value}. Must be 4 uppercase letters (e.g., 'XNYS', 'XNAS', 'XLON')",
         )
 
     return value_upper
@@ -90,6 +90,6 @@ class MICField(str, ScalarMarker):
         value_upper = value.upper()
         if not _MIC_REGEX.match(value_upper):
             raise ValueError(
-                f"Invalid MIC: {value}. Must be 4 uppercase letters (e.g., 'XNYS', 'XNAS', 'XLON')"
+                f"Invalid MIC: {value}. Must be 4 uppercase letters (e.g., 'XNYS', 'XNAS', 'XLON')",
             )
         return super().__new__(cls, value_upper)

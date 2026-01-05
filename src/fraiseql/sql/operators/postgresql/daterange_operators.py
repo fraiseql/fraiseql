@@ -1,6 +1,6 @@
 """DateRange operator strategies."""
 
-from typing import Any, Optional
+from typing import Any
 
 from psycopg.sql import SQL, Composable, Literal
 
@@ -39,7 +39,7 @@ class DateRangeOperatorStrategy(BaseOperatorStrategy):
         "isnull",
     }
 
-    def supports_operator(self, operator: str, field_type: Optional[type]) -> bool:
+    def supports_operator(self, operator: str, field_type: type | None) -> bool:
         """Check if this is a daterange operator."""
         # For DateRange fields, we support all operators (to reject unsupported ones)
         if field_type is not None:
@@ -64,9 +64,9 @@ class DateRangeOperatorStrategy(BaseOperatorStrategy):
         operator: str,
         value: Any,
         path_sql: Composable,
-        field_type: Optional[type] = None,
-        jsonb_column: Optional[str] = None,
-    ) -> Optional[Composable]:
+        field_type: type | None = None,
+        jsonb_column: str | None = None,
+    ) -> Composable | None:
         """Build SQL for daterange operators."""
         # Validate that pattern operators are not used with DateRange
         pattern_operators = {"contains", "startswith", "endswith"}
@@ -75,7 +75,7 @@ class DateRangeOperatorStrategy(BaseOperatorStrategy):
             if "daterange" in type_name:
                 raise ValueError(
                     f"Pattern operator '{operator}' is not supported for DateRange fields. "
-                    "DateRange only supports range-specific operators."
+                    "DateRange only supports range-specific operators.",
                 )
 
         # Comparison operators

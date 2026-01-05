@@ -5,10 +5,10 @@ import hashlib
 import logging
 import pickle
 import time
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 from dataclasses import dataclass
 from functools import wraps
-from typing import Any, Callable
+from typing import Any
 
 from graphql import GraphQLResolveInfo
 

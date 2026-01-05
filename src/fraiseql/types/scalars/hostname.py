@@ -18,7 +18,7 @@ _HOSTNAME_REGEX = re.compile(
     r"(?!-)"  # Cannot start with hyphen
     r"(?!.*--)"  # Cannot contain consecutive hyphens
     r"((?!-)[a-zA-Z0-9-]{1,63}(?<!-)\.)*"  # Labels with dots
-    r"(?!-)[a-zA-Z0-9-]{1,63}(?<!-)$"  # Final label without dot
+    r"(?!-)[a-zA-Z0-9-]{1,63}(?<!-)$",  # Final label without dot
 )
 
 
@@ -31,7 +31,7 @@ def serialize_hostname(value: Any) -> str | None:
 
     if not _HOSTNAME_REGEX.match(value_str):
         raise GraphQLError(
-            f"Invalid hostname: {value}. Must be a valid DNS hostname (RFC 1123 compliant)"
+            f"Invalid hostname: {value}. Must be a valid DNS hostname (RFC 1123 compliant)",
         )
 
     return value_str
@@ -46,7 +46,7 @@ def parse_hostname_value(value: Any) -> str:
 
     if not _HOSTNAME_REGEX.match(value_lower):
         raise GraphQLError(
-            f"Invalid hostname: {value}. Must be a valid DNS hostname (RFC 1123 compliant)"
+            f"Invalid hostname: {value}. Must be a valid DNS hostname (RFC 1123 compliant)",
         )
 
     return value_lower
@@ -99,6 +99,6 @@ class HostnameField(str, ScalarMarker):
         value_lower = value.lower()
         if not _HOSTNAME_REGEX.match(value_lower):
             raise ValueError(
-                f"Invalid hostname: {value}. Must be a valid DNS hostname (RFC 1123 compliant)"
+                f"Invalid hostname: {value}. Must be a valid DNS hostname (RFC 1123 compliant)",
             )
         return super().__new__(cls, value_lower)

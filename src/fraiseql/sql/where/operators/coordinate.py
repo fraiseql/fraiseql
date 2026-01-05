@@ -29,7 +29,7 @@ def build_coordinate_eq_sql(path_sql: SQL, val: tuple[float, float]) -> Composed
     # User provides (latitude, longitude), so we swap to (longitude, latitude)
     casted_path = Composed([SQL("("), path_sql, SQL(")::point")])
     return Composed(
-        [casted_path, SQL(" = POINT("), Literal(lng), SQL(", "), Literal(lat), SQL(")")]
+        [casted_path, SQL(" = POINT("), Literal(lng), SQL(", "), Literal(lat), SQL(")")],
     )
 
 
@@ -50,7 +50,7 @@ def build_coordinate_neq_sql(path_sql: SQL, val: tuple[float, float]) -> Compose
     lat, lng = val
     casted_path = Composed([SQL("("), path_sql, SQL(")::point")])
     return Composed(
-        [casted_path, SQL(" != POINT("), Literal(lng), SQL(", "), Literal(lat), SQL(")")]
+        [casted_path, SQL(" != POINT("), Literal(lng), SQL(", "), Literal(lat), SQL(")")],
     )
 
 
@@ -117,7 +117,9 @@ def build_coordinate_notin_sql(path_sql: SQL, val: list[tuple[float, float]]) ->
 
 
 def build_coordinate_distance_within_sql(
-    path_sql: SQL, center: tuple[float, float], distance_meters: float
+    path_sql: SQL,
+    center: tuple[float, float],
+    distance_meters: float,
 ) -> Composed:
     """Build SQL for distance-based coordinate filtering using PostGIS ST_DWithin.
 
@@ -151,12 +153,14 @@ def build_coordinate_distance_within_sql(
             SQL("), "),
             Literal(distance_meters),
             SQL(")"),
-        ]
+        ],
     )
 
 
 def build_coordinate_distance_within_sql_haversine(
-    path_sql: SQL, center: tuple[float, float], distance_meters: float
+    path_sql: SQL,
+    center: tuple[float, float],
+    distance_meters: float,
 ) -> Composed:
     """Build SQL for distance-based coordinate filtering using Haversine formula.
 
@@ -202,12 +206,14 @@ def build_coordinate_distance_within_sql_haversine(
             SQL(")) <= "),
             Literal(distance_meters),
             SQL(")"),
-        ]
+        ],
     )
 
 
 def build_coordinate_distance_within_sql_earthdistance(
-    path_sql: SQL, center: tuple[float, float], distance_meters: float
+    path_sql: SQL,
+    center: tuple[float, float],
+    distance_meters: float,
 ) -> Composed:
     """Build SQL for distance-based coordinate filtering using earthdistance module.
 
@@ -240,5 +246,5 @@ def build_coordinate_distance_within_sql_earthdistance(
             casted_path,
             SQL("))) <= "),
             Literal(distance_meters),
-        ]
+        ],
     )

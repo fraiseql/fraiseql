@@ -134,18 +134,18 @@ def _make_filter_field_composed(
                 # BUT: if using IN/NOTIN operators, we're checking membership of scalar values,
                 # so we still need text extraction (->>)
                 path_sql = Composed(
-                    [SQL("("), SQL(json_path), SQL(" -> "), Literal(name), SQL(")")]
+                    [SQL("("), SQL(json_path), SQL(" -> "), Literal(name), SQL(")")],
                 )
             elif detected_field_type == FieldType.JSONB:
                 # For JSONB, get the JSON value (preserve JSONB type)
                 path_sql = Composed(
-                    [SQL("("), SQL(json_path), SQL(" -> "), Literal(name), SQL(")")]
+                    [SQL("("), SQL(json_path), SQL(" -> "), Literal(name), SQL(")")],
                 )
             else:
                 # For other types, get the text value
                 # This includes IN/NOTIN operators with list values - the field is text, not array
                 path_sql = Composed(
-                    [SQL("("), SQL(json_path), SQL(" ->> "), Literal(name), SQL(")")]
+                    [SQL("("), SQL(json_path), SQL(" ->> "), Literal(name), SQL(")")],
                 )
 
             condition = build_operator_composed(path_sql, op, val, field_type, detected_field_type)
@@ -193,7 +193,9 @@ def _build_where_to_sql(
                 )
 
                 enhanced_type_hints = enhance_type_hints_with_graphql_context(
-                    type_hints, graphql_info, fields
+                    type_hints,
+                    graphql_info,
+                    fields,
                 )
             except ImportError:
                 # Fallback gracefully if GraphQL extraction is not available
@@ -418,7 +420,8 @@ def safe_create_where_type(cls: type[object]) -> type[DynamicType] | object:
 
 
 def create_where_type_with_graphql_context(
-    cls: type[object], graphql_info: Any | None = None
+    cls: type[object],
+    graphql_info: Any | None = None,
 ) -> type[DynamicType] | object:
     """Create a dataclass-based WHERE filter type with GraphQL context support.
 

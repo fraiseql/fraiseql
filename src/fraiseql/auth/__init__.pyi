@@ -1,11 +1,11 @@
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 @dataclass
 class UserContext:
     user_id: str
-    email: Optional[str]
-    name: Optional[str]
+    email: str | None
+    name: str | None
     roles: list[str]
     permissions: list[str]
     metadata: dict[str, Any]
@@ -18,8 +18,8 @@ class AuthProvider:
 class Auth0Config:
     domain: str
     api_identifier: str
-    client_id: Optional[str]
-    client_secret: Optional[str]
+    client_id: str | None
+    client_secret: str | None
 
 class Auth0Provider(AuthProvider):
     def __init__(self, config: Auth0Config) -> None: ...
@@ -38,11 +38,11 @@ class RevocationConfig:
     cache_ttl: int
 
 class InMemoryRevocationStore:
-    async def add_revoked_token(self, token: str, expiry: Optional[int] = None) -> None: ...
+    async def add_revoked_token(self, token: str, expiry: int | None = None) -> None: ...
     async def is_revoked(self, token: str) -> bool: ...
 
 class PostgreSQLRevocationStore:
-    async def add_revoked_token(self, token: str, expiry: Optional[int] = None) -> None: ...
+    async def add_revoked_token(self, token: str, expiry: int | None = None) -> None: ...
     async def is_revoked(self, token: str) -> bool: ...
 
 class TokenRevocationMixin:

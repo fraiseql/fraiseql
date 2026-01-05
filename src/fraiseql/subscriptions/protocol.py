@@ -16,7 +16,7 @@ Reference: https://github.com/enisdenjo/graphql-ws/blob/master/PROTOCOL.md
 import asyncio  # noqa: TC003
 import logging
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any
 
 from fraiseql.subscriptions.http_adapter import (
     SubscriptionProtocolHandler,
@@ -69,7 +69,7 @@ class ConnectionState(Enum):
 # ============================================================================
 
 
-def validate_connection_init(message: Dict[str, Any]) -> bool:
+def validate_connection_init(message: dict[str, Any]) -> bool:
     """Validate connection_init message format.
 
     Args:
@@ -87,7 +87,7 @@ def validate_connection_init(message: Dict[str, Any]) -> bool:
     return True
 
 
-def validate_subscribe(message: Dict[str, Any]) -> bool:
+def validate_subscribe(message: dict[str, Any]) -> bool:
     """Validate subscribe message format.
 
     Args:
@@ -112,7 +112,7 @@ def validate_subscribe(message: Dict[str, Any]) -> bool:
     return True
 
 
-def validate_complete(message: Dict[str, Any]) -> bool:
+def validate_complete(message: dict[str, Any]) -> bool:
     """Validate complete message format.
 
     Args:
@@ -139,8 +139,8 @@ def validate_complete(message: Dict[str, Any]) -> bool:
 
 
 def build_connection_ack(
-    payload: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+    payload: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Build connection_ack message.
 
     Args:
@@ -155,7 +155,7 @@ def build_connection_ack(
     }
 
 
-def build_connection_error(error_message: str) -> Dict[str, Any]:
+def build_connection_error(error_message: str) -> dict[str, Any]:
     """Build connection_error message.
 
     Args:
@@ -172,7 +172,7 @@ def build_connection_error(error_message: str) -> Dict[str, Any]:
     }
 
 
-def build_next(subscription_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+def build_next(subscription_id: str, data: dict[str, Any]) -> dict[str, Any]:
     """Build next message with subscription data.
 
     Args:
@@ -192,10 +192,10 @@ def build_next(subscription_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def build_error(
-    subscription_id: Optional[str],
+    subscription_id: str | None,
     error_message: str,
-    error_code: Optional[str] = None,
-) -> Dict[str, Any]:
+    error_code: str | None = None,
+) -> dict[str, Any]:
     """Build error message.
 
     Args:
@@ -206,12 +206,12 @@ def build_error(
     Returns:
         error message dict
     """
-    message: Dict[str, Any] = {
+    message: dict[str, Any] = {
         "type": MessageType.ERROR,
         "payload": [
             {
                 "message": error_message,
-            }
+            },
         ],
     }
 
@@ -224,7 +224,7 @@ def build_error(
     return message
 
 
-def build_complete(subscription_id: str) -> Dict[str, Any]:
+def build_complete(subscription_id: str) -> dict[str, Any]:
     """Build complete message.
 
     Args:
@@ -239,7 +239,7 @@ def build_complete(subscription_id: str) -> Dict[str, Any]:
     }
 
 
-def build_pong() -> Dict[str, Any]:
+def build_pong() -> dict[str, Any]:
     """Build pong message for ping/pong keep-alive.
 
     Returns:
@@ -270,13 +270,13 @@ class GraphQLTransportWSProtocol(SubscriptionProtocolHandler):
     def __init__(self) -> None:
         """Initialize protocol handler."""
         self.state = ConnectionState.CONNECTING
-        self.subscriptions: Dict[str, Any] = {}
-        self._keep_alive_task: Optional[asyncio.Task] = None
+        self.subscriptions: dict[str, Any] = {}
+        self._keep_alive_task: asyncio.Task | None = None
 
     async def handle_connection_init(
         self,
         adapter: WebSocketAdapter,
-        message: Dict[str, Any],
+        message: dict[str, Any],
     ) -> None:
         """Handle connection_init message.
 
@@ -304,7 +304,7 @@ class GraphQLTransportWSProtocol(SubscriptionProtocolHandler):
     async def handle_subscribe(
         self,
         adapter: WebSocketAdapter,
-        message: Dict[str, Any],
+        message: dict[str, Any],
     ) -> None:
         """Handle subscribe message.
 
@@ -343,7 +343,7 @@ class GraphQLTransportWSProtocol(SubscriptionProtocolHandler):
     async def handle_complete(
         self,
         adapter: WebSocketAdapter,
-        message: Dict[str, Any],
+        message: dict[str, Any],
     ) -> None:
         """Handle complete message from client.
 
@@ -368,7 +368,7 @@ class GraphQLTransportWSProtocol(SubscriptionProtocolHandler):
         self,
         adapter: WebSocketAdapter,
         subscription_id: str,
-        data: Dict[str, Any],
+        data: dict[str, Any],
     ) -> None:
         """Send next message with subscription data.
 
@@ -387,7 +387,7 @@ class GraphQLTransportWSProtocol(SubscriptionProtocolHandler):
     async def send_error(
         self,
         adapter: WebSocketAdapter,
-        subscription_id: Optional[str],
+        subscription_id: str | None,
         error_message: str,
     ) -> None:
         """Send error message to client.
@@ -405,7 +405,7 @@ class GraphQLTransportWSProtocol(SubscriptionProtocolHandler):
 
         if subscription_id:
             logger.warning(
-                f"Sent error for subscription {subscription_id}: {error_message}"
+                f"Sent error for subscription {subscription_id}: {error_message}",
             )
         else:
             logger.error(f"Connection error: {error_message}")
@@ -485,7 +485,7 @@ class ProtocolStateMachine:
         """Process connection_init message."""
         if self.state != ConnectionState.CONNECTING:
             raise ValueError(
-                "connection_init must be the first message"
+                "connection_init must be the first message",
             )
         self.state = ConnectionState.READY
 
@@ -493,11 +493,11 @@ class ProtocolStateMachine:
         """Process subscribe message."""
         if self.state != ConnectionState.READY:
             raise ValueError(
-                "Must send connection_init before subscribe"
+                "Must send connection_init before subscribe",
             )
         if subscription_id in self.active_subscriptions:
             raise ValueError(
-                f"Subscription {subscription_id} already exists"
+                f"Subscription {subscription_id} already exists",
             )
         self.active_subscriptions.add(subscription_id)
 
@@ -505,12 +505,14 @@ class ProtocolStateMachine:
         """Process complete message."""
         if subscription_id not in self.active_subscriptions:
             raise ValueError(
-                f"Subscription {subscription_id} not found"
+                f"Subscription {subscription_id} not found",
             )
         self.active_subscriptions.discard(subscription_id)
 
     def is_valid_transition(
-        self, current_state: str, message_type: str
+        self,
+        current_state: str,
+        message_type: str,
     ) -> bool:
         """Check if message type is valid in current state.
 

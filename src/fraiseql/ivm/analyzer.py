@@ -140,7 +140,7 @@ class IVMAnalyzer:
                     SELECT extversion
                     FROM pg_extension
                     WHERE extname = 'jsonb_ivm'
-                """
+                """,
                 )
                 result = await cur.fetchone()
 
@@ -172,7 +172,7 @@ class IVMAnalyzer:
                     WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
                       AND tablename LIKE 'tv_%'
                     ORDER BY tablename
-                """
+                """,
                 )
 
                 rows = await cur.fetchall()
@@ -440,7 +440,7 @@ class IVMAnalyzer:
 
             entity_configs.append(
                 f"    ('{entity_name}', '{candidate.table_name}', "
-                f"'v_{entity_name}', '{candidate.source_table}'),"
+                f"'v_{entity_name}', '{candidate.source_table}'),",
             )
 
         if not entity_configs:
@@ -581,7 +581,7 @@ class IVMAnalyzer:
                 "-- END;",
                 "-- $$ LANGUAGE plpgsql;",
                 "",
-            ]
+            ],
         )
 
         return "\n".join(sql_parts)
@@ -669,7 +669,7 @@ class IVMAnalyzer:
                     f'to {candidate.table_name}."""',
                     f"        return await self.sync_tv_table('{entity_name}', ids, mode)",
                     "",
-                ]
+                ],
             )
 
         helpers.extend(
@@ -687,7 +687,7 @@ class IVMAnalyzer:
                 '                await cur.execute("SELECT * FROM sync.v_metrics_summary")',
                 "",
                 "            return await cur.fetchall()",
-            ]
+            ],
         )
 
         return "\n".join(helpers)
@@ -859,7 +859,7 @@ class IVMAnalyzer:
                     "-" * 80,
                     "Recommended for Incremental Updates (jsonb_merge_shallow)",
                     "-" * 80,
-                ]
+                ],
             )
 
             for candidate in sorted(
@@ -871,7 +871,7 @@ class IVMAnalyzer:
                     f"  ✓ {candidate.table_name:30} "
                     f"(rows: {candidate.row_count:>8,}, "
                     f"fields: {candidate.jsonb_field_count:>2}, "
-                    f"score: {candidate.complexity_score:.1f})"
+                    f"score: {candidate.complexity_score:.1f})",
                 )
 
         if recommendation.full_rebuild_candidates:
@@ -881,7 +881,7 @@ class IVMAnalyzer:
                 report_lines.append(
                     f"  • {candidate.table_name:30} "
                     f"(rows: {candidate.row_count:>8,}, "
-                    f"score: {candidate.complexity_score:.1f})"
+                    f"score: {candidate.complexity_score:.1f})",
                 )
 
         report_lines.extend(["", "=" * 80, ""])
@@ -891,7 +891,10 @@ class IVMAnalyzer:
 
 
 async def setup_auto_ivm(
-    connection_pool: Any, *, verbose: bool = False, dry_run: bool = False
+    connection_pool: Any,
+    *,
+    verbose: bool = False,
+    dry_run: bool = False,
 ) -> IVMRecommendation:
     """Analyze tv_ tables and optionally set up incremental maintenance.
 

@@ -97,7 +97,7 @@ class EntityMetadata:
                 if field not in self.fields:
                     raise ValueError(
                         f"Key field '{field}' not found in {self.type_name}. "
-                        f"Available fields: {list(self.fields.keys())}"
+                        f"Available fields: {list(self.fields.keys())}",
                     )
             return self.key
 
@@ -107,7 +107,7 @@ class EntityMetadata:
         if detected is None:
             raise ValueError(
                 f"{self.type_name} has no 'id' field. "
-                f"Specify key explicitly: @entity(key='field_name')"
+                f"Specify key explicitly: @entity(key='field_name')",
             )
 
         return detected

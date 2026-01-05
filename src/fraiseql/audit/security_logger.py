@@ -8,7 +8,7 @@ import json
 import logging
 from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
@@ -75,15 +75,15 @@ class SecurityEvent(BaseModel):
     event_type: SecurityEventType
     severity: SecurityEventSeverity
     timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
-    user_id: Optional[str] = None
-    user_email: Optional[str] = None
-    ip_address: Optional[str] = None
-    user_agent: Optional[str] = None
-    request_id: Optional[str] = None
-    resource: Optional[str] = None
-    action: Optional[str] = None
-    result: Optional[str] = None
-    reason: Optional[str] = None
+    user_id: str | None = None
+    user_email: str | None = None
+    ip_address: str | None = None
+    user_agent: str | None = None
+    request_id: str | None = None
+    resource: str | None = None
+    action: str | None = None
+    result: str | None = None
+    reason: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     @field_serializer("timestamp")
@@ -100,7 +100,7 @@ class SecurityLogger:
         *,
         log_to_file: bool = True,
         log_to_stdout: bool = True,
-        log_file_path: Optional[str] = None,
+        log_file_path: str | None = None,
     ) -> None:
         """Initialize security logger.
 
@@ -170,10 +170,10 @@ class SecurityLogger:
     def log_auth_success(
         self,
         user_id: str,
-        user_email: Optional[str] = None,
-        ip_address: Optional[str] = None,
-        user_agent: Optional[str] = None,
-        metadata: Optional[dict[str, Any]] = None,
+        user_email: str | None = None,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> None:
         """Log successful authentication."""
         event = SecurityEvent(
@@ -191,10 +191,10 @@ class SecurityLogger:
     def log_auth_failure(
         self,
         reason: str,
-        ip_address: Optional[str] = None,
-        user_agent: Optional[str] = None,
-        attempted_username: Optional[str] = None,
-        metadata: Optional[dict[str, Any]] = None,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
+        attempted_username: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> None:
         """Log failed authentication attempt."""
         event = SecurityEvent(
@@ -217,8 +217,8 @@ class SecurityLogger:
         resource: str,
         action: str,
         reason: str,
-        user_email: Optional[str] = None,
-        metadata: Optional[dict[str, Any]] = None,
+        user_email: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> None:
         """Log authorization denial."""
         event = SecurityEvent(
@@ -240,8 +240,8 @@ class SecurityLogger:
         endpoint: str,
         limit: int,
         window: str,
-        user_id: Optional[str] = None,
-        metadata: Optional[dict[str, Any]] = None,
+        user_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> None:
         """Log rate limit violation."""
         event = SecurityEvent(
@@ -262,10 +262,10 @@ class SecurityLogger:
 
     def log_query_timeout(
         self,
-        user_id: Optional[str] = None,
-        query_hash: Optional[str] = None,
-        execution_time: Optional[float] = None,
-        metadata: Optional[dict[str, Any]] = None,
+        user_id: str | None = None,
+        query_hash: str | None = None,
+        execution_time: float | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> None:
         """Log query timeout event."""
         event = SecurityEvent(
@@ -284,7 +284,7 @@ class SecurityLogger:
 
 
 # Global security logger instance
-_security_logger: Optional[SecurityLogger] = None
+_security_logger: SecurityLogger | None = None
 
 
 def get_security_logger() -> SecurityLogger:

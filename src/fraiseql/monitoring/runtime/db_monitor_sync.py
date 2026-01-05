@@ -10,7 +10,7 @@ Designed specifically for CLI commands and synchronous contexts.
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from fraiseql.monitoring.db_monitor import (
     DatabaseMonitor,
@@ -22,8 +22,8 @@ from fraiseql.monitoring.db_monitor import (
 logger = logging.getLogger(__name__)
 
 # Global instance holders
-_db_monitor_instance: Optional[DatabaseMonitor] = None
-_db_monitor_sync_instance: Optional[DatabaseMonitorSync] = None
+_db_monitor_instance: DatabaseMonitor | None = None
+_db_monitor_sync_instance: DatabaseMonitorSync | None = None
 
 
 def set_database_monitor(monitor: DatabaseMonitor) -> None:
@@ -88,7 +88,7 @@ class DatabaseMonitorSync:
     and return in microseconds.
     """
 
-    def __init__(self, monitor: Optional[DatabaseMonitor] = None) -> None:
+    def __init__(self, monitor: DatabaseMonitor | None = None) -> None:
         """Initialize synchronous database monitor accessor.
 
         Args:
@@ -141,7 +141,7 @@ class DatabaseMonitorSync:
                 counts[query.query_type] = counts.get(query.query_type, 0) + 1
             return counts
 
-    def get_pool_metrics(self) -> Optional[PoolMetrics]:
+    def get_pool_metrics(self) -> PoolMetrics | None:
         """Get current connection pool metrics (synchronous).
 
         Returns:
@@ -243,7 +243,7 @@ class DatabaseMonitorSync:
         with self._monitor._lock:
             return len(self._monitor._slow_queries)
 
-    def get_last_query(self) -> Optional[QueryMetrics]:
+    def get_last_query(self) -> QueryMetrics | None:
         """Get the last recorded query (synchronous).
 
         Returns:

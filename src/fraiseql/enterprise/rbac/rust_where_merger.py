@@ -12,7 +12,7 @@ Performance: WHERE merging operations complete in <0.05ms
 
 import json
 import logging
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -57,10 +57,10 @@ class RustWhereMerger:
 
     @staticmethod
     def merge_where(
-        explicit_where: Optional[dict[str, Any]],
-        auth_filter: Optional[dict[str, Any]],
+        explicit_where: dict[str, Any] | None,
+        auth_filter: dict[str, Any] | None,
         strategy: str = "error",
-    ) -> Optional[dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Merge explicit WHERE clause with row-level auth filter.
 
         Combines user-provided WHERE with auto-injected row-level constraints
@@ -118,7 +118,7 @@ class RustWhereMerger:
         """
         if not HAS_RUST_WHERE_MERGER:
             raise RuntimeError(
-                "Rust WHERE merger not available. Install with 'pip install fraiseql[rust]'"
+                "Rust WHERE merger not available. Install with 'pip install fraiseql[rust]'",
             )
 
         # Validate strategy
@@ -194,7 +194,7 @@ class RustWhereMerger:
         """
         if not HAS_RUST_WHERE_MERGER:
             raise RuntimeError(
-                "Rust WHERE merger not available. Install with 'pip install fraiseql[rust]'"
+                "Rust WHERE merger not available. Install with 'pip install fraiseql[rust]'",
             )
 
         try:
@@ -239,10 +239,10 @@ class RustWhereMerger:
 
 # Convenience function for easy access
 def merge_where_clauses(
-    explicit_where: Optional[dict[str, Any]],
-    auth_filter: Optional[dict[str, Any]],
+    explicit_where: dict[str, Any] | None,
+    auth_filter: dict[str, Any] | None,
     strategy: str = "error",
-) -> Optional[dict[str, Any]]:
+) -> dict[str, Any] | None:
     """Merge WHERE clauses with row-level auth filter.
 
     Convenience function wrapping RustWhereMerger.merge_where() for easy use

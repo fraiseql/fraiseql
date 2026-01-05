@@ -18,7 +18,7 @@ Design Notes:
 """
 
 import logging
-from typing import Any
+from typing import Any, ClassVar
 
 from graphql import (
     GraphQLList,
@@ -62,8 +62,8 @@ class SchemaSerializer:
     }
     """
 
-    VERSION = "1.0"
-    FEATURES = ["type_resolution", "aliases"]
+    VERSION: ClassVar[str] = "1.0"
+    FEATURES: ClassVar[list[str]] = ["type_resolution", "aliases"]
 
     def serialize_schema(self, schema: GraphQLSchema) -> dict[str, Any]:
         """Serialize a GraphQL schema to JSON IR format.
@@ -101,7 +101,7 @@ class SchemaSerializer:
                     result["types"][type_name] = self._serialize_object_type(type_def)
                     type_count += 1
                     logger.debug(
-                        f"Serialized type '{type_name}' with {len(type_def.fields)} fields"
+                        f"Serialized type '{type_name}' with {len(type_def.fields)} fields",
                     )
                 except Exception as e:
                     logger.warning(f"Failed to serialize type '{type_name}': {e}")

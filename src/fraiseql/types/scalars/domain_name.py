@@ -15,7 +15,7 @@ _DOMAIN_NAME_REGEX = re.compile(
     r"(?!-)[a-zA-Z0-9-]{1,63}(?<!-)"
     r"(\."
     r"(?!-)[a-zA-Z0-9-]{1,63}(?<!-))*"
-    r"\.[a-zA-Z]{2,}$"
+    r"\.[a-zA-Z]{2,}$",
 )
 
 
@@ -29,7 +29,7 @@ def serialize_domain_name(value: Any) -> str | None:
     if not _DOMAIN_NAME_REGEX.match(value_str):
         raise GraphQLError(
             f"Invalid domain name: {value}. Must be RFC-compliant domain name "
-            "(e.g., 'example.com', 'subdomain.example.co.uk')"
+            "(e.g., 'example.com', 'subdomain.example.co.uk')",
         )
 
     return value_str
@@ -45,7 +45,7 @@ def parse_domain_name_value(value: Any) -> str:
     if not _DOMAIN_NAME_REGEX.match(value_lower):
         raise GraphQLError(
             f"Invalid domain name: {value}. Must be RFC-compliant domain name "
-            "(e.g., 'example.com', 'subdomain.example.co.uk')"
+            "(e.g., 'example.com', 'subdomain.example.co.uk')",
         )
 
     return value_lower
@@ -99,6 +99,6 @@ class DomainNameField(str, ScalarMarker):
         if not _DOMAIN_NAME_REGEX.match(value_lower):
             raise ValueError(
                 f"Invalid domain name: {value}. Must be RFC-compliant domain name "
-                "(e.g., 'example.com', 'subdomain.example.co.uk')"
+                "(e.g., 'example.com', 'subdomain.example.co.uk')",
             )
         return super().__new__(cls, value_lower)

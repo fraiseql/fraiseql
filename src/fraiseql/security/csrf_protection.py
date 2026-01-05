@@ -6,9 +6,10 @@ import json
 import logging
 import secrets
 import time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Awaitable, Callable
+from typing import Any
 
 from fastapi import FastAPI, Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -288,7 +289,9 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
             }
 
     async def dispatch(
-        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+        self,
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
         """Apply CSRF protection to requests."""
         # Skip exempt paths
@@ -317,7 +320,9 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
         return response
 
     async def _handle_graphql_request(
-        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+        self,
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
         """Handle GraphQL-specific CSRF protection."""
         try:

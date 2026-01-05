@@ -22,7 +22,7 @@ def serialize_license_plate(value: Any) -> str | None:
     if not _LICENSE_PLATE_REGEX.match(value_str):
         raise GraphQLError(
             f"Invalid license plate: {value}. Must be 2-12 alphanumeric characters "
-            "(A-Z, 0-9, spaces, hyphens only)"
+            "(A-Z, 0-9, spaces, hyphens only)",
         )
 
     return value_str
@@ -36,7 +36,7 @@ def parse_license_plate_value(value: Any) -> str:
     if not _LICENSE_PLATE_REGEX.match(value):
         raise GraphQLError(
             f"Invalid license plate: {value}. Must be 2-12 alphanumeric characters "
-            "(A-Z, 0-9, spaces, hyphens only)"
+            "(A-Z, 0-9, spaces, hyphens only)",
         )
 
     return value
@@ -94,6 +94,6 @@ class LicensePlateField(str, ScalarMarker):
         if not _LICENSE_PLATE_REGEX.match(value):
             raise ValueError(
                 f"Invalid license plate: {value}. Must be 2-12 alphanumeric characters "
-                "(A-Z, 0-9, spaces, hyphens only)"
+                "(A-Z, 0-9, spaces, hyphens only)",
             )
         return super().__new__(cls, value)

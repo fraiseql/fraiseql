@@ -2,7 +2,7 @@
 
 import uuid
 from datetime import UTC, datetime, timedelta
-from typing import Any, Optional
+from typing import Any
 
 import jwt
 from psycopg import AsyncCursor
@@ -57,8 +57,8 @@ class TokenManager:
     def generate_tokens(
         self,
         user_id: str,
-        family_id: Optional[str] = None,
-        user_claims: Optional[dict[str, Any]] = None,
+        family_id: str | None = None,
+        user_claims: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Generate access and refresh tokens.
 
@@ -163,7 +163,10 @@ class TokenManager:
             raise InvalidTokenError(f"Invalid refresh token: {e!s}")
 
     async def rotate_refresh_token(
-        self, old_token: str, cursor: AsyncCursor, schema: str
+        self,
+        old_token: str,
+        cursor: AsyncCursor,
+        schema: str,
     ) -> dict[str, Any]:
         """Rotate refresh token and detect token theft.
 
@@ -212,7 +215,10 @@ class TokenManager:
         return self.generate_tokens(payload["sub"], payload["family"])
 
     async def invalidate_token_family(
-        self, family_id: str, cursor: AsyncCursor, schema: str
+        self,
+        family_id: str,
+        cursor: AsyncCursor,
+        schema: str,
     ) -> None:
         """Invalidate all tokens in a family.
 
@@ -231,7 +237,7 @@ class TokenManager:
             (family_id,),
         )
 
-    def extract_user_id(self, token: str) -> Optional[str]:
+    def extract_user_id(self, token: str) -> str | None:
         """Extract user ID from token without full verification.
 
         This is useful for logging or non-security-critical operations.

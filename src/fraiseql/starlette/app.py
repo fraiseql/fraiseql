@@ -176,7 +176,7 @@ async def graphql_handler(
             body = await request.json()
         except Exception as e:
             return await response_formatter.format_response(
-                GraphQLResponse.error(f"Invalid JSON: {e}", code=400)
+                GraphQLResponse.error(f"Invalid JSON: {e}", code=400),
             )
 
         # Build framework-agnostic context
@@ -243,7 +243,7 @@ async def graphql_handler(
     except Exception as e:
         logger.exception("Unhandled error in GraphQL handler")
         return await response_formatter.format_response(
-            GraphQLResponse.error(f"Internal server error: {e}", code=500)
+            GraphQLResponse.error(f"Internal server error: {e}", code=500),
         )
 
 

@@ -22,7 +22,7 @@ def serialize_flight_number(value: Any) -> str | None:
     if not _FLIGHT_NUMBER_REGEX.match(value_str):
         raise GraphQLError(
             f"Invalid flight number: {value}. Must be IATA format: "
-            "2 letters + 1-4 digits + optional letter (e.g., 'AA100', 'BA2276', 'DL1234A')"
+            "2 letters + 1-4 digits + optional letter (e.g., 'AA100', 'BA2276', 'DL1234A')",
         )
 
     return value_str
@@ -38,7 +38,7 @@ def parse_flight_number_value(value: Any) -> str:
     if not _FLIGHT_NUMBER_REGEX.match(value_upper):
         raise GraphQLError(
             f"Invalid flight number: {value}. Must be IATA format: "
-            "2 letters + 1-4 digits + optional letter (e.g., 'AA100', 'BA2276', 'DL1234A')"
+            "2 letters + 1-4 digits + optional letter (e.g., 'AA100', 'BA2276', 'DL1234A')",
         )
 
     return value_upper
@@ -99,7 +99,7 @@ class FlightNumberField(str, ScalarMarker):
         if not _FLIGHT_NUMBER_REGEX.match(value_upper):
             raise ValueError(
                 f"Invalid flight number: {value}. Must be IATA format: "
-                "2 letters + 1-4 digits + optional letter (e.g., 'AA100', 'BA2276', 'DL1234A')"
+                "2 letters + 1-4 digits + optional letter (e.g., 'AA100', 'BA2276', 'DL1234A')",
             )
 
         return super().__new__(cls, value_upper)

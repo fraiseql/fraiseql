@@ -45,7 +45,7 @@ async def setup_rbac_cache(db_pool: AsyncConnectionPool) -> None:
     if not cache.has_domain_versioning:
         logger.warning(
             "pg_fraiseql_cache extension not available. "
-            "RBAC will use TTL-only caching without automatic invalidation."
+            "RBAC will use TTL-only caching without automatic invalidation.",
         )
         return
 
@@ -54,7 +54,9 @@ async def setup_rbac_cache(db_pool: AsyncConnectionPool) -> None:
     await cache.setup_table_trigger("permissions", domain_name="permission")
     await cache.setup_table_trigger("role_permissions", domain_name="role_permission")
     await cache.setup_table_trigger(
-        "user_roles", domain_name="user_role", tenant_column="tenant_id"
+        "user_roles",
+        domain_name="user_role",
+        tenant_column="tenant_id",
     )
 
     # Setup CASCADE rules (idempotent)

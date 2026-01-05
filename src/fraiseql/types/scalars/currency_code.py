@@ -22,7 +22,7 @@ def serialize_currency_code(value: Any) -> str | None:
     if not _CURRENCY_CODE_REGEX.match(value_str):
         raise GraphQLError(
             f"Invalid currency code: {value}. Must be ISO 4217 three-letter code "
-            "(e.g., 'USD', 'EUR', 'GBP')"
+            "(e.g., 'USD', 'EUR', 'GBP')",
         )
 
     return value_str
@@ -38,7 +38,7 @@ def parse_currency_code_value(value: Any) -> str:
     if not _CURRENCY_CODE_REGEX.match(value_upper):
         raise GraphQLError(
             f"Invalid currency code: {value}. Must be ISO 4217 three-letter code "
-            "(e.g., 'USD', 'EUR', 'GBP')"
+            "(e.g., 'USD', 'EUR', 'GBP')",
         )
 
     return value_upper
@@ -90,6 +90,6 @@ class CurrencyCodeField(str, ScalarMarker):
         if not _CURRENCY_CODE_REGEX.match(value_upper):
             raise ValueError(
                 f"Invalid currency code: {value}. Must be ISO 4217 three-letter code "
-                "(e.g., 'USD', 'EUR', 'GBP')"
+                "(e.g., 'USD', 'EUR', 'GBP')",
             )
         return super().__new__(cls, value_upper)

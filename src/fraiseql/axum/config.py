@@ -66,7 +66,10 @@ class AxumFraiseQLConfig(BaseModel):
     database_url: str = Field(..., description="PostgreSQL connection URL")
     database_pool_size: int = Field(10, ge=1, le=100, description="Connection pool size")
     database_pool_timeout: int = Field(
-        30, ge=1, le=300, description="Connection timeout in seconds"
+        30,
+        ge=1,
+        le=300,
+        description="Connection timeout in seconds",
     )
     database_max_overflow: int = Field(20, ge=0, le=200, description="Max overflow connections")
 
@@ -96,7 +99,8 @@ class AxumFraiseQLConfig(BaseModel):
     axum_host: str = Field("127.0.0.1", description="HTTP server bind address")
     axum_port: int = Field(8000, ge=1, le=65535, description="HTTP server port")
     axum_workers: int | None = Field(
-        None, description="Number of worker threads (auto-detect if None)"
+        None,
+        description="Number of worker threads (auto-detect if None)",
     )
     axum_metrics_token: str = Field("", description="Token for /metrics endpoint access")
 
@@ -114,10 +118,16 @@ class AxumFraiseQLConfig(BaseModel):
     # Phase 3E: Advanced Configuration
     # Request/Response configuration
     max_request_body_size: int = Field(
-        1000000, ge=1, le=104857600, description="Maximum request body size in bytes (1B-100MB)"
+        1000000,
+        ge=1,
+        le=104857600,
+        description="Maximum request body size in bytes (1B-100MB)",
     )
     request_timeout: int = Field(
-        30, ge=1, le=3600, description="Request timeout in seconds (1-3600)"
+        30,
+        ge=1,
+        le=3600,
+        description="Request timeout in seconds (1-3600)",
     )
 
     # Logging configuration
@@ -130,7 +140,8 @@ class AxumFraiseQLConfig(BaseModel):
 
     # Security configuration
     enable_introspection_in_production: bool = Field(
-        False, description="Allow GraphQL introspection queries in production"
+        False,
+        description="Allow GraphQL introspection queries in production",
     )
     require_https: bool = Field(False, description="Require HTTPS and redirect HTTP to HTTPS")
 
@@ -168,7 +179,7 @@ class AxumFraiseQLConfig(BaseModel):
         for origin in v:
             if not origin.startswith(("http://", "https://", "*")):
                 raise ValueError(
-                    f"CORS origin must start with http://, https://, or be *: {origin}"
+                    f"CORS origin must start with http://, https://, or be *: {origin}",
                 )
         return v
 
@@ -248,7 +259,8 @@ class AxumFraiseQLConfig(BaseModel):
             log_requests=os.getenv("FRAISEQL_LOG_REQUESTS", "true").lower() == "true",
             log_level=os.getenv("FRAISEQL_LOG_LEVEL", "INFO"),
             enable_introspection_in_production=os.getenv(
-                "FRAISEQL_INTROSPECTION_PROD", "false"
+                "FRAISEQL_INTROSPECTION_PROD",
+                "false",
             ).lower()
             == "true",
             require_https=os.getenv("FRAISEQL_REQUIRE_HTTPS", "false").lower() == "true",

@@ -6,8 +6,9 @@ different backends, automatic key generation, and cache invalidation.
 
 import functools
 import logging
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any, Awaitable, Callable, Protocol, TypeVar
+from typing import Any, Protocol, TypeVar
 
 from .cache_key import CacheKeyBuilder
 

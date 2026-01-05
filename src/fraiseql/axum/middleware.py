@@ -88,7 +88,7 @@ class RequestLoggingMiddleware(AxumMiddleware):
         self.log_response = log_response
         logger.debug(
             f"RequestLoggingMiddleware initialized: "
-            f"log_body={log_body}, log_response={log_response}"
+            f"log_body={log_body}, log_response={log_response}",
         )
 
     async def process_request(self, request_data: dict[str, Any]) -> dict[str, Any] | None:
@@ -142,7 +142,7 @@ class AuthenticationMiddleware(AxumMiddleware):
         self.optional_paths = optional_paths or []
         logger.debug(
             f"AuthenticationMiddleware initialized: "
-            f"header={header_name}, optional_paths={len(self.optional_paths)}"
+            f"header={header_name}, optional_paths={len(self.optional_paths)}",
         )
 
     async def process_request(self, request_data: dict[str, Any]) -> dict[str, Any] | None:
@@ -203,7 +203,7 @@ class RateLimitMiddleware(AxumMiddleware):
         self._ip_counts: dict[str, dict[str, int]] = {}
         logger.debug(
             f"RateLimitMiddleware initialized: "
-            f"{requests_per_minute} req/min, {requests_per_hour} req/hr"
+            f"{requests_per_minute} req/min, {requests_per_hour} req/hr",
         )
 
     async def process_request(self, request_data: dict[str, Any]) -> dict[str, Any] | None:
@@ -258,13 +258,13 @@ class CompressionMiddleware(AxumMiddleware):
         """
         if algorithm not in ("gzip", "brotli", "deflate"):
             raise ValueError(
-                f"Invalid algorithm: {algorithm}. Must be one of: gzip, brotli, deflate"
+                f"Invalid algorithm: {algorithm}. Must be one of: gzip, brotli, deflate",
             )
 
         self.algorithm = algorithm
         self.min_bytes = min_bytes
         logger.debug(
-            f"CompressionMiddleware initialized: algorithm={algorithm}, min_bytes={min_bytes}"
+            f"CompressionMiddleware initialized: algorithm={algorithm}, min_bytes={min_bytes}",
         )
 
     async def process_request(self, request_data: dict[str, Any]) -> dict[str, Any] | None:

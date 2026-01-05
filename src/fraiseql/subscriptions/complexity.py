@@ -1,8 +1,9 @@
 """Complexity analysis for GraphQL subscriptions."""
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from functools import wraps
-from typing import Any, Callable
+from typing import Any
 
 from graphql import SelectionSetNode
 
@@ -66,7 +67,9 @@ class SubscriptionComplexityAnalyzer:
         return cost
 
     def _calculate_depth(
-        self, selection_set: SelectionSetNode | None, current_depth: int = 0
+        self,
+        selection_set: SelectionSetNode | None,
+        current_depth: int = 0,
     ) -> int:
         """Calculate maximum depth of selection set."""
         if not selection_set:
@@ -81,7 +84,9 @@ class SubscriptionComplexityAnalyzer:
         return max_depth
 
     def _calculate_selection_cost(
-        self, selection_set: SelectionSetNode | None, fragments: dict[str, Any]
+        self,
+        selection_set: SelectionSetNode | None,
+        fragments: dict[str, Any],
     ) -> int:
         """Calculate cost of selection set."""
         if not selection_set:

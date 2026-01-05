@@ -5,7 +5,7 @@ function parameters for mutation generation.
 """
 
 import logging
-from typing import TYPE_CHECKING, Optional, Type
+from typing import TYPE_CHECKING
 
 from .metadata_parser import MetadataParser, MutationAnnotation
 from .postgres_introspector import FunctionMetadata, ParameterInfo
@@ -25,7 +25,8 @@ class InputGenerator:
         self.metadata_parser = MetadataParser()
 
     def _find_jsonb_input_parameter(
-        self, function_metadata: FunctionMetadata
+        self,
+        function_metadata: FunctionMetadata,
     ) -> ParameterInfo | None:
         """Find the JSONB input parameter that maps to a composite type.
 
@@ -54,7 +55,9 @@ class InputGenerator:
         return None
 
     def _extract_composite_type_name(
-        self, function_metadata: FunctionMetadata, annotation: MutationAnnotation
+        self,
+        function_metadata: FunctionMetadata,
+        annotation: MutationAnnotation,
     ) -> str | None:
         """Extract composite type name from annotation or convention.
 
@@ -96,8 +99,11 @@ class InputGenerator:
         return f"type_{function_name}_input"
 
     async def _generate_from_composite_type(
-        self, composite_type_name: str, schema_name: str, introspector: "PostgresIntrospector"
-    ) -> Type:
+        self,
+        composite_type_name: str,
+        schema_name: str,
+        introspector: "PostgresIntrospector",
+    ) -> type:
         """Generate input class from PostgreSQL composite type (created by SpecQL).
 
         This method READS the composite type from the database and generates
@@ -133,13 +139,14 @@ class InputGenerator:
         """
         # Step 1: Introspect composite type (READ from database)
         composite_metadata = await introspector.discover_composite_type(
-            composite_type_name, schema=schema_name
+            composite_type_name,
+            schema=schema_name,
         )
 
         if not composite_metadata:
             raise ValueError(
                 f"Composite type '{composite_type_name}' not found in '{schema_name}' schema. "
-                f"Expected by function '{schema_name}.{composite_type_name}'."
+                f"Expected by function '{schema_name}.{composite_type_name}'.",
             )
 
         # Step 2: Build annotations AND field descriptors
@@ -219,8 +226,8 @@ class InputGenerator:
         function_metadata: FunctionMetadata,
         annotation: MutationAnnotation,
         introspector: "PostgresIntrospector",
-        context_params: Optional[dict[str, str]] = None,  # NEW: Explicit exclusion list
-    ) -> Type:
+        context_params: dict[str, str] | None = None,  # NEW: Explicit exclusion list
+    ) -> type:
         """Generate input class for mutation.
 
         Strategy:
@@ -266,14 +273,16 @@ class InputGenerator:
             if composite_type_name:
                 try:
                     return await self._generate_from_composite_type(
-                        composite_type_name, function_metadata.schema_name, introspector
+                        composite_type_name,
+                        function_metadata.schema_name,
+                        introspector,
                     )
                 except ValueError as e:
                     # Composite type not found, fall back to parameter-based
                     logger.warning(
                         f"Composite type generation failed for "
                         f"{function_metadata.function_name}: {e}. "
-                        f"Falling back to parameter-based generation."
+                        f"Falling back to parameter-based generation.",
                     )
 
         # STRATEGY 2: Fall back to parameter-based generation (legacy)
@@ -283,8 +292,8 @@ class InputGenerator:
         self,
         function_metadata: FunctionMetadata,
         annotation: MutationAnnotation,
-        context_params: Optional[dict[str, str]] = None,
-    ) -> Type:
+        context_params: dict[str, str] | None = None,
+    ) -> type:
         """Generate input class from function parameters (legacy pattern).
 
         This is the original implementation for backward compatibility.
@@ -316,7 +325,8 @@ class InputGenerator:
             # Map parameter to input field
             field_name = param.name.replace("p_", "")  # Remove p_ prefix
             python_type = self.type_mapper.pg_type_to_python(
-                param.pg_type, nullable=(param.default_value is not None)
+                param.pg_type,
+                nullable=(param.default_value is not None),
             )
             annotations[field_name] = python_type
 

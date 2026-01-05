@@ -23,7 +23,7 @@ def serialize_sedol(value: Any) -> str | None:
     if not _SEDOL_REGEX.match(value_str):
         raise GraphQLError(
             f"Invalid SEDOL: {value}. Must be 7 characters (6 alphanumeric + 1 check digit) "
-            "(e.g., '0263494')"
+            "(e.g., '0263494')",
         )
 
     return value_str
@@ -39,7 +39,7 @@ def parse_sedol_value(value: Any) -> str:
     if not _SEDOL_REGEX.match(value_upper):
         raise GraphQLError(
             f"Invalid SEDOL: {value}. Must be 7 characters (6 alphanumeric + 1 check digit) "
-            "(e.g., '0263494')"
+            "(e.g., '0263494')",
         )
 
     return value_upper
@@ -95,6 +95,6 @@ class SEDOLField(str, ScalarMarker):
         if not _SEDOL_REGEX.match(value_upper):
             raise ValueError(
                 f"Invalid SEDOL: {value}. Must be 7 characters (6 alphanumeric + 1 check digit) "
-                "(e.g., '0263494')"
+                "(e.g., '0263494')",
             )
         return super().__new__(cls, value_upper)

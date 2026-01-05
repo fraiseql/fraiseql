@@ -4,8 +4,9 @@ This middleware provides automatic injection of GraphQL info into resolver conte
 """
 
 import inspect
+from collections.abc import Callable
 from functools import wraps
-from typing import Any, Callable, TypeVar
+from typing import Any, TypeVar
 
 # Type variable for decorators
 F = TypeVar("F", bound=Callable[..., Any])

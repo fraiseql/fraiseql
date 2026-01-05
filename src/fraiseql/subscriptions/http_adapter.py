@@ -13,7 +13,7 @@ Key Components:
 import json
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ class WebSocketAdapter(ABC):
     """
 
     @abstractmethod
-    async def accept(self, subprotocol: Optional[str] = None) -> None:
+    async def accept(self, subprotocol: str | None = None) -> None:
         """Accept WebSocket connection from client.
 
         Args:
@@ -45,7 +45,7 @@ class WebSocketAdapter(ABC):
         ...
 
     @abstractmethod
-    async def receive_json(self) -> Dict[str, Any]:
+    async def receive_json(self) -> dict[str, Any]:
         """Receive and parse JSON message from client.
 
         Returns:
@@ -57,7 +57,7 @@ class WebSocketAdapter(ABC):
         ...
 
     @abstractmethod
-    async def send_json(self, data: Dict[str, Any]) -> None:
+    async def send_json(self, data: dict[str, Any]) -> None:
         """Send JSON message to client.
 
         Args:
@@ -128,18 +128,18 @@ class FastAPIWebSocketAdapter(WebSocketAdapter):
         """
         self._ws = websocket
 
-    async def accept(self, subprotocol: Optional[str] = None) -> None:
+    async def accept(self, subprotocol: str | None = None) -> None:
         """Accept FastAPI WebSocket connection."""
         await self._ws.accept(subprotocol=subprotocol)
         logger.debug(f"FastAPI WebSocket accepted with subprotocol: {subprotocol}")
 
-    async def receive_json(self) -> Dict[str, Any]:
+    async def receive_json(self) -> dict[str, Any]:
         """Receive JSON from FastAPI WebSocket."""
         data = await self._ws.receive_json()
         logger.debug(f"FastAPI received JSON: {data}")
         return data
 
-    async def send_json(self, data: Dict[str, Any]) -> None:
+    async def send_json(self, data: dict[str, Any]) -> None:
         """Send JSON via FastAPI WebSocket."""
         await self._ws.send_json(data)
         logger.debug(f"FastAPI sent JSON: {data}")
@@ -159,10 +159,7 @@ class FastAPIWebSocketAdapter(WebSocketAdapter):
         """Check FastAPI WebSocket connection status."""
         # FastAPI WebSocket has client_state that can be checked
         # CONNECTED = 1, DISCONNECTED = 0
-        return (
-            hasattr(self._ws, "client_state")
-            and self._ws.client_state.value == 1
-        )
+        return hasattr(self._ws, "client_state") and self._ws.client_state.value == 1
 
 
 # ============================================================================
@@ -186,12 +183,12 @@ class StarletteWebSocketAdapter(WebSocketAdapter):
         """
         self._ws = websocket
 
-    async def accept(self, subprotocol: Optional[str] = None) -> None:
+    async def accept(self, subprotocol: str | None = None) -> None:
         """Accept Starlette WebSocket connection."""
         await self._ws.accept(subprotocol=subprotocol)
         logger.debug(f"Starlette WebSocket accepted with subprotocol: {subprotocol}")
 
-    async def receive_json(self) -> Dict[str, Any]:
+    async def receive_json(self) -> dict[str, Any]:
         """Receive JSON from Starlette WebSocket.
 
         Starlette doesn't have receive_json(), so we receive text and parse.
@@ -201,7 +198,7 @@ class StarletteWebSocketAdapter(WebSocketAdapter):
         logger.debug(f"Starlette received JSON: {data}")
         return data
 
-    async def send_json(self, data: Dict[str, Any]) -> None:
+    async def send_json(self, data: dict[str, Any]) -> None:
         """Send JSON via Starlette WebSocket."""
         text = json.dumps(data)
         await self._ws.send_text(text)
@@ -222,10 +219,7 @@ class StarletteWebSocketAdapter(WebSocketAdapter):
         """Check Starlette WebSocket connection status."""
         # Starlette WebSocket has client_state
         # CONNECTED = 1, DISCONNECTED = 0
-        return (
-            hasattr(self._ws, "client_state")
-            and self._ws.client_state.value == 1
-        )
+        return hasattr(self._ws, "client_state") and self._ws.client_state.value == 1
 
 
 # ============================================================================
@@ -262,42 +256,41 @@ class CustomServerWebSocketAdapter(WebSocketAdapter):
         """
         self._connection = connection
 
-    async def accept(self, subprotocol: Optional[str] = None) -> None:
+    async def accept(self, subprotocol: str | None = None) -> None:
         """Accept connection in your server."""
         raise NotImplementedError(
-            "Implement accept() for your server: "
-            "await your_server.accept_websocket(subprotocol)"
+            "Implement accept() for your server: await your_server.accept_websocket(subprotocol)",
         )
 
-    async def receive_json(self) -> Dict[str, Any]:
+    async def receive_json(self) -> dict[str, Any]:
         """Receive JSON from your server."""
         raise NotImplementedError(
-            "Implement receive_json() for your server"
+            "Implement receive_json() for your server",
         )
 
-    async def send_json(self, data: Dict[str, Any]) -> None:
+    async def send_json(self, data: dict[str, Any]) -> None:
         """Send JSON via your server."""
         raise NotImplementedError(
-            "Implement send_json() for your server"
+            "Implement send_json() for your server",
         )
 
     async def send_bytes(self, data: bytes) -> None:
         """Send bytes via your server."""
         raise NotImplementedError(
-            "Implement send_bytes() for your server"
+            "Implement send_bytes() for your server",
         )
 
     async def close(self, code: int = 1000, reason: str = "") -> None:
         """Close connection in your server."""
         raise NotImplementedError(
-            "Implement close() for your server"
+            "Implement close() for your server",
         )
 
     @property
     def is_connected(self) -> bool:
         """Check if connection is still active in your server."""
         raise NotImplementedError(
-            "Implement is_connected property for your server"
+            "Implement is_connected property for your server",
         )
 
 
@@ -315,7 +308,9 @@ class SubscriptionProtocolHandler(ABC):
 
     @abstractmethod
     async def handle_connection_init(
-        self, adapter: WebSocketAdapter, message: Dict[str, Any]
+        self,
+        adapter: WebSocketAdapter,
+        message: dict[str, Any],
     ) -> None:
         """Handle connection_init message from client.
 
@@ -330,7 +325,9 @@ class SubscriptionProtocolHandler(ABC):
 
     @abstractmethod
     async def handle_subscribe(
-        self, adapter: WebSocketAdapter, message: Dict[str, Any]
+        self,
+        adapter: WebSocketAdapter,
+        message: dict[str, Any],
     ) -> None:
         """Handle subscribe message from client.
 
@@ -345,7 +342,9 @@ class SubscriptionProtocolHandler(ABC):
 
     @abstractmethod
     async def handle_complete(
-        self, adapter: WebSocketAdapter, message: Dict[str, Any]
+        self,
+        adapter: WebSocketAdapter,
+        message: dict[str, Any],
     ) -> None:
         """Handle complete message from client.
 
@@ -363,7 +362,7 @@ class SubscriptionProtocolHandler(ABC):
         self,
         adapter: WebSocketAdapter,
         subscription_id: str,
-        data: Dict[str, Any],
+        data: dict[str, Any],
     ) -> None:
         """Send next message with subscription data to client.
 
@@ -381,7 +380,7 @@ class SubscriptionProtocolHandler(ABC):
     async def send_error(
         self,
         adapter: WebSocketAdapter,
-        subscription_id: Optional[str],
+        subscription_id: str | None,
         error_message: str,
     ) -> None:
         """Send error message to client.

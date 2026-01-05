@@ -1,7 +1,7 @@
 """TurboRouter query registration system."""
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable, Optional
 
 from graphql import DocumentNode, OperationDefinitionNode, parse
 
@@ -14,10 +14,10 @@ class RegistrationResult:
     """Result of query registration attempt."""
 
     success: bool
-    query_hash: Optional[str] = None
-    error: Optional[str] = None
-    sql_template: Optional[str] = None
-    param_mapping: Optional[dict[str, str]] = None
+    query_hash: str | None = None
+    error: str | None = None
+    sql_template: str | None = None
+    param_mapping: dict[str, str] | None = None
 
 
 class TurboRegistration:
@@ -38,8 +38,8 @@ class TurboRegistration:
     def register_from_resolver(
         self,
         resolver_func: Callable,
-        query_template: Optional[str] = None,
-        operation_name: Optional[str] = None,
+        query_template: str | None = None,
+        operation_name: str | None = None,
     ) -> RegistrationResult:
         """Register a query from a resolver function.
 
@@ -61,7 +61,8 @@ class TurboRegistration:
             sql_info = self.sql_compiler.extract_from_resolver(resolver_func)
             if not sql_info:
                 return RegistrationResult(
-                    success=False, error="Could not extract SQL pattern from resolver"
+                    success=False,
+                    error="Could not extract SQL pattern from resolver",
                 )
 
             # Generate or validate GraphQL query
@@ -72,7 +73,8 @@ class TurboRegistration:
                 graphql_query = self._infer_graphql_query(func_name)
                 if not graphql_query:
                     return RegistrationResult(
-                        success=False, error="Could not infer GraphQL query structure"
+                        success=False,
+                        error="Could not infer GraphQL query structure",
                     )
 
             # Create TurboQuery
@@ -97,7 +99,10 @@ class TurboRegistration:
             return RegistrationResult(success=False, error=f"Registration failed: {e!s}")
 
     def register_from_graphql(
-        self, query: str, view_mapping: dict[str, str], operation_name: Optional[str] = None
+        self,
+        query: str,
+        view_mapping: dict[str, str],
+        operation_name: str | None = None,
     ) -> RegistrationResult:
         """Register a query from GraphQL string.
 
@@ -152,13 +157,13 @@ class TurboRegistration:
         parts = func_name.split("_")
         return "".join(word.capitalize() for word in parts)
 
-    def _infer_graphql_query(self, func_name: str) -> Optional[str]:
+    def _infer_graphql_query(self, func_name: str) -> str | None:
         """Try to infer GraphQL query structure from function name."""
         # This is a simplified implementation
         # In production, this would use schema introspection
         return None
 
-    def _get_operation(self, document: DocumentNode) -> Optional[OperationDefinitionNode]:
+    def _get_operation(self, document: DocumentNode) -> OperationDefinitionNode | None:
         """Extract the first operation from a GraphQL document."""
         for definition in document.definitions:
             if isinstance(definition, OperationDefinitionNode):

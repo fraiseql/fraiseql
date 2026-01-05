@@ -22,7 +22,7 @@ def serialize_phone_number(value: Any) -> str | None:
     if not _PHONE_NUMBER_REGEX.match(value_str):
         raise GraphQLError(
             f"Invalid phone number: {value}. Must be E.164 format "
-            "(e.g., '+1234567890', '+447911123456')"
+            "(e.g., '+1234567890', '+447911123456')",
         )
 
     return value_str
@@ -36,7 +36,7 @@ def parse_phone_number_value(value: Any) -> str:
     if not _PHONE_NUMBER_REGEX.match(value):
         raise GraphQLError(
             f"Invalid phone number: {value}. Must be E.164 format "
-            "(e.g., '+1234567890', '+447911123456')"
+            "(e.g., '+1234567890', '+447911123456')",
         )
 
     return value
@@ -89,6 +89,6 @@ class PhoneNumberField(str, ScalarMarker):
         if not _PHONE_NUMBER_REGEX.match(value):
             raise ValueError(
                 f"Invalid phone number: {value}. Must be E.164 format "
-                "(e.g., '+1234567890', '+447911123456')"
+                "(e.g., '+1234567890', '+447911123456')",
             )
         return super().__new__(cls, value)

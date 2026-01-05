@@ -3,10 +3,10 @@
 import asyncio
 import json
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Awaitable
+from typing import Any
 
 from fastapi import FastAPI, Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -325,7 +325,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self.graphql_limiter = GraphQLRateLimiter(self.store)
 
     async def dispatch(
-        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+        self,
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
         """Apply rate limiting to requests."""
         # Check if request should be exempt
@@ -344,7 +346,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
     async def _handle_graphql_request(
-        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+        self,
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
         """Handle GraphQL-specific rate limiting."""
         try:

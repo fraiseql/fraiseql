@@ -10,7 +10,6 @@ but delegates domain logic to domain models and services.
 import logging
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional
 
 from fraiseql.sbom.domain.models import (
     SBOM,
@@ -58,9 +57,9 @@ class SBOMGenerator:
         self,
         component_name: str,
         component_version: str,
-        component_description: Optional[str] = None,
-        supplier: Optional[Supplier] = None,
-        authors: Optional[list[str]] = None,
+        component_description: str | None = None,
+        supplier: Supplier | None = None,
+        authors: list[str] | None = None,
     ) -> SBOM:
         """Generate SBOM for the specified software component.
 
@@ -158,13 +157,15 @@ class SBOMGenerator:
             identifier=identifier,
             type=ComponentType.LIBRARY,
             description=self.metadata_repository.get_package_description(
-                identifier.name, identifier.version
+                identifier.name,
+                identifier.version,
             ),
         )
 
         # Add license information
         pkg_license = self.metadata_repository.get_package_license(
-            identifier.name, identifier.version
+            identifier.name,
+            identifier.version,
         )
         if pkg_license:
             component.add_license(pkg_license)
@@ -176,14 +177,16 @@ class SBOMGenerator:
 
         # Add hash for integrity verification
         package_hash = self.metadata_repository.get_package_hash(
-            identifier.name, identifier.version
+            identifier.name,
+            identifier.version,
         )
         if package_hash:
             component.add_hash(Hash(algorithm=HashAlgorithm.SHA256, value=package_hash))
 
         # Add external reference (homepage)
         homepage = self.metadata_repository.get_package_homepage(
-            identifier.name, identifier.version
+            identifier.name,
+            identifier.version,
         )
         if homepage:
             component.external_references["homepage"] = homepage
@@ -196,9 +199,9 @@ class SBOMGenerator:
         component_name: str,
         component_version: str,
         format: str = "json",
-        component_description: Optional[str] = None,
-        supplier: Optional[Supplier] = None,
-        authors: Optional[list[str]] = None,
+        component_description: str | None = None,
+        supplier: Supplier | None = None,
+        authors: list[str] | None = None,
     ) -> Path:
         """Generate SBOM and save to file.
 

@@ -7,8 +7,9 @@ for the Rust-based Axum GraphQL server.
 import asyncio
 import json
 import logging
+from collections.abc import Generator
 from contextlib import asynccontextmanager, contextmanager
-from typing import Any, Generator, Type
+from typing import Any
 
 try:
     from fraiseql._fraiseql_rs import PyAxumServer
@@ -53,16 +54,16 @@ class AxumServer:
         self._config = config
         self._py_server: PyAxumServer | None = None
         self._is_running = False
-        self._types: dict[str, Type[Any]] = {}
-        self._mutations: dict[str, Type[Any]] = {}
-        self._queries: dict[str, Type[Any]] = {}
-        self._subscriptions: dict[str, Type[Any]] = {}
+        self._types: dict[str, type[Any]] = {}
+        self._mutations: dict[str, type[Any]] = {}
+        self._queries: dict[str, type[Any]] = {}
+        self._subscriptions: dict[str, type[Any]] = {}
 
         logger.debug(f"Initialized AxumServer: {config}")
 
     # ===== Type Registration =====
 
-    def register_types(self, types: list[Type[Any]]) -> None:
+    def register_types(self, types: list[type[Any]]) -> None:
         """Register GraphQL types.
 
         Args:
@@ -73,7 +74,7 @@ class AxumServer:
             self._types[type_name] = type_
         logger.debug(f"Registered {len(types)} GraphQL types")
 
-    def register_mutations(self, mutations: list[Type[Any]]) -> None:
+    def register_mutations(self, mutations: list[type[Any]]) -> None:
         """Register GraphQL mutations.
 
         Args:
@@ -84,7 +85,7 @@ class AxumServer:
             self._mutations[mut_name] = mut
         logger.debug(f"Registered {len(mutations)} mutations")
 
-    def register_queries(self, queries: list[Type[Any]]) -> None:
+    def register_queries(self, queries: list[type[Any]]) -> None:
         """Register GraphQL queries.
 
         Args:
@@ -95,7 +96,7 @@ class AxumServer:
             self._queries[query_name] = query
         logger.debug(f"Registered {len(queries)} queries")
 
-    def register_subscriptions(self, subscriptions: list[Type[Any]]) -> None:
+    def register_subscriptions(self, subscriptions: list[type[Any]]) -> None:
         """Register GraphQL subscriptions.
 
         Args:
@@ -151,7 +152,7 @@ class AxumServer:
         if PyAxumServer is None:
             raise ImportError(
                 "PyAxumServer FFI binding not available. "
-                "Ensure fraiseql_rs is compiled and installed."
+                "Ensure fraiseql_rs is compiled and installed.",
             )
 
         host = host or self._config.axum_host
@@ -214,7 +215,7 @@ class AxumServer:
         if PyAxumServer is None:
             raise ImportError(
                 "PyAxumServer FFI binding not available. "
-                "Ensure fraiseql_rs is compiled and installed."
+                "Ensure fraiseql_rs is compiled and installed.",
             )
 
         host = host or self._config.axum_host
@@ -344,7 +345,11 @@ class AxumServer:
         """
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(
-            None, self.execute_query, query, variables, operation_name
+            None,
+            self.execute_query,
+            query,
+            variables,
+            operation_name,
         )
 
     # ===== Configuration & Introspection =====
@@ -477,7 +482,9 @@ class AxumServer:
 
     @asynccontextmanager
     async def running_async(
-        self, host: str = "127.0.0.1", port: int = 8000
+        self,
+        host: str = "127.0.0.1",
+        port: int = 8000,
     ) -> Generator["AxumServer"]:  # type: ignore[type-arg]
         """Context manager for server lifecycle (async).
 

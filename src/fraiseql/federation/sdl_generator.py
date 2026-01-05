@@ -24,7 +24,7 @@ Examples:
         >>> sdl = sdl_generator.generate_schema_sdl()
 """
 
-from typing import Any, Optional, Set, Union
+from typing import Any, ClassVar
 
 from .computed_fields import extract_computed_fields, get_all_field_dependencies
 from .decorators import EntityMetadata, get_entity_metadata, get_entity_registry
@@ -43,7 +43,7 @@ class SDLGenerator:
     """
 
     # Map Python type hints to GraphQL scalar types
-    TYPE_MAP = {
+    TYPE_MAP: ClassVar[dict] = {
         str: "String",
         int: "Int",
         float: "Float",
@@ -141,7 +141,7 @@ class SDLGenerator:
 
         return f"{type_keyword} {metadata.type_name} @key(fields: {key_fields}) {{"
 
-    def _format_key_fields(self, resolved_key: Union[str, list[str]]) -> str:
+    def _format_key_fields(self, resolved_key: str | list[str]) -> str:
         """Format key fields for @key directive.
 
         Args:
@@ -199,7 +199,9 @@ class SDLGenerator:
         # Add computed field methods
         for method_name, computed_field in computed_fields.items():
             method_line = self._build_computed_field_line(
-                method_name, computed_field, method_directives.get(method_name)
+                method_name,
+                computed_field,
+                method_directives.get(method_name),
             )
             lines.append(method_line)
 
@@ -210,7 +212,7 @@ class SDLGenerator:
         field_name: str,
         field_type: Any,
         is_external: bool = False,
-        computed_deps: Optional[Set[str]] = None,
+        computed_deps: set[str] | None = None,
     ) -> str:
         """Build a single field definition line.
 
@@ -245,7 +247,7 @@ class SDLGenerator:
         self,
         method_name: str,
         computed_field: Any,
-        method_directive_metadata: Optional[Any] = None,
+        method_directive_metadata: Any | None = None,
     ) -> str:
         """Build a computed field definition line.
 

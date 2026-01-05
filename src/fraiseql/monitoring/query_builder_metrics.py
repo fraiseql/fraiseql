@@ -59,7 +59,8 @@ if PROMETHEUS_AVAILABLE:
 
     # Rust availability
     rust_available = Gauge(
-        "fraiseql_rust_query_builder_available", "Whether Rust query builder is available"
+        "fraiseql_rust_query_builder_available",
+        "Whether Rust query builder is available",
     )
 
 

@@ -3,7 +3,7 @@
 import re
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Any
 from uuid import UUID
 
 from psycopg.sql import SQL, Composable, Literal
@@ -18,7 +18,7 @@ _IP_PATTERN = re.compile(
     # IPv4 with octet validation (0-255)
     r"(?:(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)|"
     r"(?:[0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}"  # IPv6
-    r")$"
+    r")$",
 )
 
 
@@ -44,7 +44,7 @@ class ComparisonOperatorStrategy(BaseOperatorStrategy):
         "lte": " <= ",
     }
 
-    def supports_operator(self, operator: str, field_type: Optional[type]) -> bool:
+    def supports_operator(self, operator: str, field_type: type | None) -> bool:
         """Check if this is a comparison operator (fallback - always handles these)."""
         return operator in self.SUPPORTED_OPERATORS
 
@@ -53,9 +53,9 @@ class ComparisonOperatorStrategy(BaseOperatorStrategy):
         operator: str,
         value: Any,
         path_sql: Composable,
-        field_type: Optional[type] = None,
-        jsonb_column: Optional[str] = None,
-    ) -> Optional[Composable]:
+        field_type: type | None = None,
+        jsonb_column: str | None = None,
+    ) -> Composable | None:
         """Build SQL for comparison operators with proper type casting."""
         # Apply type casting based on value type
         # For JSONB, this is required; for regular columns, this adds safety

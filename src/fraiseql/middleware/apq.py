@@ -11,7 +11,7 @@ https://github.com/apollographql/apollo-link-persisted-queries
 """
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from graphql import GraphQLSchema
 
@@ -90,7 +90,9 @@ def is_apq_with_query_request(request: GraphQLRequest) -> bool:
 
 
 def create_apq_error_response(
-    error_code: str, message: str, details: Optional[str] = None
+    error_code: str,
+    message: str,
+    details: str | None = None,
 ) -> dict[str, Any]:
     """Create standardized APQ error response.
 
@@ -115,9 +117,9 @@ def create_apq_error_response(
 async def execute_persisted_query(
     query: str,
     schema: GraphQLSchema,
-    context_value: Optional[dict[str, Any]] = None,
-    variables: Optional[dict[str, Any]] = None,
-    operation_name: Optional[str] = None,
+    context_value: dict[str, Any] | None = None,
+    variables: dict[str, Any] | None = None,
+    operation_name: str | None = None,
 ) -> dict[str, Any]:
     """Execute a persisted GraphQL query using FraiseQL's execution engine.
 
@@ -158,9 +160,9 @@ async def execute_persisted_query(
 
 
 def handle_apq_request(
-    hash_value: Optional[str],
-    variables: Optional[dict[str, Any]],
-    operation_name: Optional[str] = None,
+    hash_value: str | None,
+    variables: dict[str, Any] | None,
+    operation_name: str | None = None,
 ) -> dict[str, Any]:
     """Handle APQ request and return GraphQL response.
 

@@ -5,7 +5,7 @@ fraiseql-rs Rust extension for high-performance JSON transformation.
 """
 
 import logging
-from typing import Any, Optional, Type
+from typing import Any
 
 
 # Lazy-load the Rust extension to avoid circular import issues
@@ -18,7 +18,7 @@ def _get_fraiseql_rs():
     except ImportError as e:
         raise ImportError(
             "fraiseql Rust extension is not available. "
-            "Please reinstall fraiseql: pip install --force-reinstall fraiseql"
+            "Please reinstall fraiseql: pip install --force-reinstall fraiseql",
         ) from e
 
 
@@ -63,7 +63,7 @@ class RustTransformer:
         self._type_names: set[str] = set()  # Track registered types for validation
         logger.info("fraiseql-rs transformer initialized")
 
-    def register_type(self, type_class: Type, type_name: Optional[str] = None) -> None:
+    def register_type(self, type_class: type, type_name: str | None = None) -> None:
         """Register a GraphQL type name.
 
         This method tracks type names for validation purposes.
@@ -91,7 +91,7 @@ class RustTransformer:
         )
         return response_bytes.decode("utf-8")
 
-    def transform_json_passthrough(self, json_str: str, root_type: Optional[str] = None) -> str:
+    def transform_json_passthrough(self, json_str: str, root_type: str | None = None) -> str:
         """Transform JSON to camelCase (optionally with __typename).
 
         Args:
@@ -115,7 +115,7 @@ class RustTransformer:
 
 
 # Global singleton instance
-_transformer: Optional[RustTransformer] = None
+_transformer: RustTransformer | None = None
 
 
 def get_transformer() -> RustTransformer:
@@ -130,7 +130,7 @@ def get_transformer() -> RustTransformer:
     return _transformer
 
 
-def register_graphql_types(*types: Type) -> None:
+def register_graphql_types(*types: type) -> None:
     """Register multiple GraphQL types with the Rust transformer.
 
     Args:

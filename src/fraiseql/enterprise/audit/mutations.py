@@ -1,6 +1,5 @@
 """Enterprise audit logging mutations."""
 
-from typing import Optional
 from uuid import UUID
 
 from fraiseql.mutations.decorators import mutation
@@ -13,9 +12,9 @@ class LogAuditEventInput:
 
     event_type: str
     event_data: dict
-    user_id: Optional[UUID] = None
-    tenant_id: Optional[UUID] = None
-    ip_address: Optional[str] = None
+    user_id: UUID | None = None
+    tenant_id: UUID | None = None
+    ip_address: str | None = None
 
 
 @strawberry.type
@@ -23,7 +22,7 @@ class LogAuditEventResult:
     """Result of logging an audit event."""
 
     success: bool
-    event_id: Optional[UUID] = None
+    event_id: UUID | None = None
     message: str
 
 
@@ -35,9 +34,9 @@ class LogAuditEvent:
     def sql(
         event_type: str,
         event_data: dict,
-        user_id: Optional[UUID] = None,
-        tenant_id: Optional[UUID] = None,
-        ip_address: Optional[str] = None,
+        user_id: UUID | None = None,
+        tenant_id: UUID | None = None,
+        ip_address: str | None = None,
     ) -> str:
         """Generate SQL to insert audit event.
 
@@ -79,9 +78,9 @@ class LogAuditEvent:
     def execute(
         event_type: str,
         event_data: dict,
-        user_id: Optional[UUID] = None,
-        tenant_id: Optional[UUID] = None,
-        ip_address: Optional[str] = None,
+        user_id: UUID | None = None,
+        tenant_id: UUID | None = None,
+        ip_address: str | None = None,
     ) -> dict:
         """Execute the audit event logging.
 

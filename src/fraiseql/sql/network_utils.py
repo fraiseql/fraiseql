@@ -300,7 +300,11 @@ class NetworkOperatorStrategy:
         return is_network_type and is_network_operator
 
     def apply(
-        self, operator: str, field_path: SQL, value: Any, field_type: type | None = None
+        self,
+        operator: str,
+        field_path: SQL,
+        value: Any,
+        field_type: type | None = None,
     ) -> SQL | Composed:
         """Apply network operator to generate SQL.
 
@@ -319,7 +323,7 @@ class NetworkOperatorStrategy:
             if params:
                 # Create parameterized SQL
                 return Composed(
-                    [SQL(sql_str), *[SQL(" ") if i > 0 else SQL("") for i in range(len(params))]]
+                    [SQL(sql_str), *[SQL(" ") if i > 0 else SQL("") for i in range(len(params))]],
                 )
             # Simple SQL string
             return SQL(sql_str)

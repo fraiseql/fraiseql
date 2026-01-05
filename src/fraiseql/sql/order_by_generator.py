@@ -92,7 +92,10 @@ class OrderBy:
                 field_name, operator = parts
                 if operator in ("cosine_distance", "l2_distance", "inner_product"):
                     return self._build_vector_distance_sql(
-                        field_name, operator, self.value, table_ref
+                        field_name,
+                        operator,
+                        self.value,
+                        table_ref,
                     )
 
         # Standard JSONB extraction for regular fields
@@ -199,7 +202,7 @@ class OrderBy:
                 type_cast,
                 sql.SQL(" "),
                 direction_sql,
-            ]
+            ],
         )
 
 

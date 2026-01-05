@@ -1,7 +1,7 @@
 """APQ storage backend abstract interface for FraiseQL."""
 
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Any
 
 
 class APQStorageBackend(ABC):
@@ -17,7 +17,7 @@ class APQStorageBackend(ABC):
     """
 
     @abstractmethod
-    def get_persisted_query(self, hash_value: str) -> Optional[str]:
+    def get_persisted_query(self, hash_value: str) -> str | None:
         """Retrieve stored query by hash.
 
         Args:
@@ -38,8 +38,10 @@ class APQStorageBackend(ABC):
 
     @abstractmethod
     def get_cached_response(
-        self, hash_value: str, context: Optional[dict[str, Any]] = None
-    ) -> Optional[dict[str, Any]]:
+        self,
+        hash_value: str,
+        context: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
         """Get cached JSON response for APQ hash.
 
         This enables direct JSON passthrough, bypassing GraphQL execution
@@ -55,7 +57,10 @@ class APQStorageBackend(ABC):
 
     @abstractmethod
     def store_cached_response(
-        self, hash_value: str, response: dict[str, Any], context: Optional[dict[str, Any]] = None
+        self,
+        hash_value: str,
+        response: dict[str, Any],
+        context: dict[str, Any] | None = None,
     ) -> None:
         """Store pre-computed JSON response for APQ hash.
 
@@ -88,7 +93,7 @@ class APQStorageBackend(ABC):
                 result[hash_value] = query
         return result
 
-    def extract_tenant_id(self, context: Optional[dict[str, Any]]) -> Optional[str]:
+    def extract_tenant_id(self, context: dict[str, Any] | None) -> str | None:
         """Extract tenant_id from various context structures.
 
         Supports multiple context patterns:

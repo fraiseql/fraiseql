@@ -1,13 +1,13 @@
 """Decorator for hybrid table types with both regular columns and JSONB data."""
 
-from typing import Callable, Optional, Type
+from collections.abc import Callable
 
 from fraiseql.db import register_type_for_view
 
 
 def hybrid_type(
     sql_source: str,
-    regular_columns: Optional[set[str]] = None,
+    regular_columns: set[str] | None = None,
     has_jsonb_data: bool = True,
 ) -> Callable:
     """Decorator for types backed by hybrid tables.
@@ -38,7 +38,7 @@ def hybrid_type(
         much faster.
     """
 
-    def decorator(cls: Type) -> Type:
+    def decorator(cls: type) -> type:
         # Store metadata on the class for introspection
         cls.__hybrid_metadata__ = {
             "sql_source": sql_source,
@@ -50,7 +50,10 @@ def hybrid_type(
         # This happens at import time, not query time
         if regular_columns or has_jsonb_data:
             register_type_for_view(
-                sql_source, cls, table_columns=regular_columns, has_jsonb_data=has_jsonb_data
+                sql_source,
+                cls,
+                table_columns=regular_columns,
+                has_jsonb_data=has_jsonb_data,
             )
 
         return cls

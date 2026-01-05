@@ -1,6 +1,6 @@
 """Network type operator strategies (INET, CIDR, IPv4, IPv6)."""
 
-from typing import Any, Optional
+from typing import Any
 
 from psycopg.sql import SQL, Composable
 
@@ -50,7 +50,7 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
 
     NETWORK_TYPES = {"IPv4Address", "IPv6Address", "IPv4Network", "IPv6Network", "IpAddress"}
 
-    def supports_operator(self, operator: str, field_type: Optional[type]) -> bool:
+    def supports_operator(self, operator: str, field_type: type | None) -> bool:
         """Check if this is a network operator."""
         if operator not in self.SUPPORTED_OPERATORS:
             return False
@@ -99,9 +99,9 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
         operator: str,
         value: Any,
         path_sql: Composable,
-        field_type: Optional[type] = None,
-        jsonb_column: Optional[str] = None,
-    ) -> Optional[Composable]:
+        field_type: type | None = None,
+        jsonb_column: str | None = None,
+    ) -> Composable | None:
         """Build SQL for network operators."""
         # Comparison operators
         if operator == "eq":
@@ -149,7 +149,7 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
                 "{} << inet '127.0.0.0/8' OR "
                 "{} << inet '169.254.0.0/16' OR "
                 "{} << inet 'fc00::/7' OR "
-                "{} << inet 'fe80::/10')"
+                "{} << inet 'fe80::/10')",
             ).format(
                 casted_path,
                 casted_path,
@@ -170,7 +170,7 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
                 "{} << inet '127.0.0.0/8' OR "
                 "{} << inet '169.254.0.0/16' OR "
                 "{} << inet 'fc00::/7' OR "
-                "{} << inet 'fe80::/10')"
+                "{} << inet 'fe80::/10')",
             ).format(
                 casted_path,
                 casted_path,

@@ -32,7 +32,8 @@ Examples:
                 return await db.fetch("SELECT * FROM posts WHERE user_id = $1", self.id)
 """
 
-from typing import Any, Callable, Optional, Set, TypeVar
+from collections.abc import Callable
+from typing import Any, TypeVar
 
 T = TypeVar("T")
 
@@ -55,7 +56,7 @@ class _RequiresMarker:
             fields: Space/comma-separated field names or list of field names
         """
         self.fields = self._parse_fields(fields)
-        self.field_set: Set[str] = set(self.fields)
+        self.field_set: set[str] = set(self.fields)
 
     @staticmethod
     def _parse_fields(fields: str | list[str]) -> list[str]:
@@ -102,7 +103,7 @@ class _ProvidesMarker:
             fields: Space/comma-separated field names or list of field names
         """
         self.fields = self._parse_fields(fields)
-        self.field_set: Set[str] = set(self.fields)
+        self.field_set: set[str] = set(self.fields)
 
     @staticmethod
     def _parse_fields(fields: str | list[str]) -> list[str]:
@@ -212,8 +213,8 @@ class DirectiveMetadata:
 
     def __init__(
         self,
-        requires: Optional[_RequiresMarker] = None,
-        provides: Optional[_ProvidesMarker] = None,
+        requires: _RequiresMarker | None = None,
+        provides: _ProvidesMarker | None = None,
     ):
         self.requires = requires
         self.provides = provides

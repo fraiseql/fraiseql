@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 from fraiseql.execution.mode_selector import ExecutionMode
 
@@ -19,7 +19,7 @@ class QueryRouter:
         self.config = config
         self.entity_extractor = entity_extractor
 
-    def determine_execution_mode(self, query: str) -> Optional[ExecutionMode]:
+    def determine_execution_mode(self, query: str) -> ExecutionMode | None:
         """Determine the optimal execution mode for a query."""
         if not self.config.auto_routing_enabled:
             return None
@@ -37,7 +37,8 @@ class QueryRouter:
             return ExecutionMode.NORMAL
 
     def _determine_mode_from_classification(
-        self, classification: dict[str, list[str]]
+        self,
+        classification: dict[str, list[str]],
     ) -> ExecutionMode:
         """Determine execution mode from entity classification."""
         has_turbo_entities = bool(classification["turbo_entities"])

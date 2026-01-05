@@ -4,7 +4,7 @@ This module provides a simple operator registry using function mapping
 instead of complex strategy classes.
 """
 
-from typing import Callable
+from collections.abc import Callable
 
 from psycopg.sql import SQL, Composed
 
@@ -222,7 +222,8 @@ OPERATOR_MAP: dict[tuple[FieldType, str], Callable[[SQL, any], Composed]] = {
 
 
 def get_operator_function(
-    field_type: FieldType, operator: str
+    field_type: FieldType,
+    operator: str,
 ) -> Callable[[SQL | Composed, any], Composed]:
     """Get the function to build SQL for this operator.
 
@@ -247,7 +248,7 @@ def get_operator_function(
     available_ops = [op for ft, op in OPERATOR_MAP if ft == field_type]
     raise ValueError(
         f"Unsupported operator '{operator}' for field type '{field_type.value}'. "
-        f"Available operators for this type: {available_ops}"
+        f"Available operators for this type: {available_ops}",
     )
 
 

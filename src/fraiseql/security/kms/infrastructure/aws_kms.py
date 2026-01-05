@@ -67,7 +67,7 @@ class AWSKMSProvider(BaseKMSProvider):
         if not BOTO3_AVAILABLE:
             raise ImportError(
                 "boto3 is required for AWS KMS provider. "
-                "Install with: pip install boto3 or uv sync --extra aws"
+                "Install with: pip install boto3 or uv sync --extra aws",
             )
 
         if self._client is None:
@@ -222,7 +222,7 @@ class AWSKMSProvider(BaseKMSProvider):
         # Handle non-ClientError exceptions (like ImportError for missing boto3)
         if not hasattr(error, "response"):
             raise ProviderConnectionError(
-                f"AWS KMS provider error during {operation}: {error}"
+                f"AWS KMS provider error during {operation}: {error}",
             ) from error
 
         # At this point we know it's a ClientError with response attribute

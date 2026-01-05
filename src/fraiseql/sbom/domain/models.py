@@ -16,7 +16,6 @@ Ubiquitous Language:
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Optional
 from uuid import uuid4
 
 
@@ -84,7 +83,7 @@ class License:
 
     id: str  # SPDX identifier
     name: str
-    url: Optional[str] = None
+    url: str | None = None
 
     def __post_init__(self) -> None:
         """Validate license data."""
@@ -123,8 +122,8 @@ class Supplier:
     """
 
     name: str
-    url: Optional[str] = None
-    contact: Optional[str] = None
+    url: str | None = None
+    contact: str | None = None
 
     def __post_init__(self) -> None:
         """Validate supplier data."""
@@ -148,7 +147,7 @@ class ComponentIdentifier:
     name: str
     version: str
     purl: str  # Package URL (e.g., "pkg:pypi/fastapi@0.115.12")
-    cpe: Optional[str] = None  # CPE for vulnerability databases
+    cpe: str | None = None  # CPE for vulnerability databases
 
     def __post_init__(self) -> None:
         """Validate component identifier."""
@@ -182,10 +181,10 @@ class Component:
     identifier: ComponentIdentifier
     type: ComponentType = ComponentType.LIBRARY
     bom_ref: str = field(default_factory=lambda: str(uuid4()))
-    supplier: Optional[Supplier] = None
+    supplier: Supplier | None = None
     licenses: list[License] = field(default_factory=list)
     hashes: list[Hash] = field(default_factory=list)
-    description: Optional[str] = None
+    description: str | None = None
     external_references: dict[str, str] = field(default_factory=dict)
 
     def add_license(self, license: License) -> None:
@@ -262,13 +261,13 @@ class SBOM:
     # Metadata about the software being inventoried
     component_name: str = ""
     component_version: str = ""
-    component_description: Optional[str] = None
-    supplier: Optional[Supplier] = None
+    component_description: str | None = None
+    supplier: Supplier | None = None
 
     # The inventory itself
     components: list[Component] = field(default_factory=list)
     dependencies: dict[str, list[str]] = field(
-        default_factory=dict
+        default_factory=dict,
     )  # bom_ref -> list of dependency bom_refs
 
     def add_component(self, component: Component) -> None:
@@ -284,12 +283,12 @@ class SBOM:
         existing = self.find_component(component.identifier.name, component.identifier.version)
         if existing:
             raise ValueError(
-                f"Component {component.identifier} already exists with bom_ref {existing.bom_ref}"
+                f"Component {component.identifier} already exists with bom_ref {existing.bom_ref}",
             )
 
         self.components.append(component)
 
-    def find_component(self, name: str, version: str) -> Optional[Component]:
+    def find_component(self, name: str, version: str) -> Component | None:
         """Find a component by name and version.
 
         Args:
@@ -304,7 +303,7 @@ class SBOM:
                 return component
         return None
 
-    def find_component_by_bom_ref(self, bom_ref: str) -> Optional[Component]:
+    def find_component_by_bom_ref(self, bom_ref: str) -> Component | None:
         """Find a component by its BOM reference.
 
         Args:

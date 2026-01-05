@@ -22,7 +22,7 @@ def serialize_api_key(value: Any) -> str | None:
     if not _API_KEY_REGEX.match(value_str):
         raise GraphQLError(
             f"Invalid API key: {value}. Must be 16-128 characters containing only "
-            "letters, numbers, hyphens, and underscores"
+            "letters, numbers, hyphens, and underscores",
         )
 
     return value_str
@@ -36,7 +36,7 @@ def parse_api_key_value(value: Any) -> str:
     if not _API_KEY_REGEX.match(value):
         raise GraphQLError(
             f"Invalid API key: {value}. Must be 16-128 characters containing only "
-            "letters, numbers, hyphens, and underscores"
+            "letters, numbers, hyphens, and underscores",
         )
 
     return value
@@ -87,6 +87,6 @@ class ApiKeyField(str, ScalarMarker):
         if not _API_KEY_REGEX.match(value):
             raise ValueError(
                 f"Invalid API key: {value}. Must be 16-128 characters containing only "
-                "letters, numbers, hyphens, and underscores"
+                "letters, numbers, hyphens, and underscores",
             )
         return super().__new__(cls, value)

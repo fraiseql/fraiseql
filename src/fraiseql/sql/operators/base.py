@@ -1,7 +1,7 @@
 """Base operator strategy abstract class."""
 
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Any
 
 from psycopg.sql import SQL, Composable, Literal
 
@@ -14,7 +14,7 @@ class BaseOperatorStrategy(ABC):
     """
 
     @abstractmethod
-    def supports_operator(self, operator: str, field_type: Optional[type]) -> bool:
+    def supports_operator(self, operator: str, field_type: type | None) -> bool:
         """Check if this strategy supports the given operator and field type.
 
         Args:
@@ -31,9 +31,9 @@ class BaseOperatorStrategy(ABC):
         operator: str,
         value: Any,
         path_sql: Composable,
-        field_type: Optional[type] = None,
-        jsonb_column: Optional[str] = None,
-    ) -> Optional[Composable]:
+        field_type: type | None = None,
+        jsonb_column: str | None = None,
+    ) -> Composable | None:
         """Build SQL for the given operator.
 
         Args:
@@ -53,7 +53,7 @@ class BaseOperatorStrategy(ABC):
         self,
         path_sql: Composable,
         target_type: str,
-        jsonb_column: Optional[str] = None,
+        jsonb_column: str | None = None,
         use_postgres_cast: bool = False,
     ) -> Composable:
         """Cast path SQL to specified PostgreSQL type.
@@ -176,8 +176,11 @@ class BaseOperatorStrategy(ABC):
         return casted_values
 
     def _build_comparison(
-        self, operator: str, casted_path: Composable, value: Any
-    ) -> Optional[Composable]:
+        self,
+        operator: str,
+        casted_path: Composable,
+        value: Any,
+    ) -> Composable | None:
         """Build SQL for common comparison operators.
 
         Args:
@@ -213,7 +216,7 @@ class BaseOperatorStrategy(ABC):
         casted_path: Composable,
         value: Any,
         negate: bool = False,
-        cast_values: Optional[str] = None,
+        cast_values: str | None = None,
     ) -> Composable:
         """Build SQL for IN or NOT IN operators.
 

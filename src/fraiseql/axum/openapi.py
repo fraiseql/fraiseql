@@ -70,13 +70,13 @@ class OpenAPIConfig:
 
         if self.subscriptions_endpoint and not self.subscriptions_endpoint.startswith("/"):
             raise ValueError(
-                f"subscriptions_endpoint must start with /: {self.subscriptions_endpoint}"
+                f"subscriptions_endpoint must start with /: {self.subscriptions_endpoint}",
             )
 
         logger.debug(
             f"OpenAPIConfig initialized: title={self.title!r}, "
             f"version={self.version}, swagger={self.enable_swagger_ui}, "
-            f"redoc={self.enable_redoc}"
+            f"redoc={self.enable_redoc}",
         )
 
     def generate_openapi_schema(self) -> dict:
@@ -133,8 +133,8 @@ class OpenAPIConfig:
                                             },
                                         },
                                         "required": ["query"],
-                                    }
-                                }
+                                    },
+                                },
                             },
                         },
                         "responses": {
@@ -162,8 +162,8 @@ class OpenAPIConfig:
                                                     },
                                                 },
                                             },
-                                        }
-                                    }
+                                        },
+                                    },
                                 },
                             },
                             "400": {
@@ -173,8 +173,8 @@ class OpenAPIConfig:
                                 "description": "Internal server error",
                             },
                         },
-                    }
-                }
+                    },
+                },
             },
         }
 
@@ -197,7 +197,7 @@ class OpenAPIConfig:
                     "summary": "GraphQL Subscriptions",
                     "description": "WebSocket endpoint for subscriptions",
                     "tags": ["GraphQL"],
-                }
+                },
             }
 
         return schema

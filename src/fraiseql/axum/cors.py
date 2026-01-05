@@ -110,14 +110,14 @@ class CORSConfig:
                 # Wildcard is only valid alone
                 if len(origins) > 1:
                     raise InvalidCORSOriginError(
-                        "Wildcard '*' cannot be combined with other origins"
+                        "Wildcard '*' cannot be combined with other origins",
                     )
                 return "*"
 
             # Validate URL format
             if not origin.startswith(("http://", "https://")):
                 raise InvalidCORSOriginError(
-                    f"Origin must start with http:// or https://: {origin}"
+                    f"Origin must start with http:// or https://: {origin}",
                 )
 
             # Parse URL to validate format

@@ -1,6 +1,6 @@
 """LTree hierarchical path operator strategies."""
 
-from typing import Any, Optional
+from typing import Any
 
 from psycopg.sql import SQL, Composable, Literal
 
@@ -59,7 +59,7 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
         "endswith",
     }
 
-    def supports_operator(self, operator: str, field_type: Optional[type]) -> bool:
+    def supports_operator(self, operator: str, field_type: type | None) -> bool:
         """Check if this is an ltree operator."""
         if operator not in self.SUPPORTED_OPERATORS:
             return False
@@ -100,9 +100,9 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
         operator: str,
         value: Any,
         path_sql: Composable,
-        field_type: Optional[type] = None,
-        jsonb_column: Optional[str] = None,
-    ) -> Optional[Composable]:
+        field_type: type | None = None,
+        jsonb_column: str | None = None,
+    ) -> Composable | None:
         """Build SQL for ltree operators."""
         # Validate that pattern operators are not used with LTree fields
         pattern_operators = {"contains", "startswith", "endswith"}
@@ -112,7 +112,7 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
                 raise ValueError(
                     f"Pattern operator '{operator}' is not supported for LTree fields. "
                     "Use LTree-specific operators like 'matches_lquery' or "
-                    "'matches_ltxtquery' instead."
+                    "'matches_ltxtquery' instead.",
                 )
 
         # Comparison operators (need ltree casting on both sides)
@@ -209,7 +209,7 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
 
             if not isinstance(paths_array, list):
                 raise TypeError(
-                    f"array_contains first element must be a list, got {type(paths_array)}"
+                    f"array_contains first element must be a list, got {type(paths_array)}",
                 )
 
             # Build: ARRAY['path1'::ltree, 'path2'::ltree, ...] @> 'target'::ltree
@@ -285,7 +285,7 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
             # subpath(path, offset, length) - extract subpath
             if not isinstance(value, tuple):
                 raise TypeError(
-                    f"subpath operator requires tuple (offset, length), got {type(value)}"
+                    f"subpath operator requires tuple (offset, length), got {type(value)}",
                 )
 
             # Accept both (offset, length) and (offset, path_sql, length) formats
@@ -298,7 +298,7 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
                 path_for_subpath = SQL("({})::ltree").format(middle_path_sql)
             else:
                 raise TypeError(
-                    f"subpath operator requires tuple of length 2 or 3, got {len(value)}"
+                    f"subpath operator requires tuple of length 2 or 3, got {len(value)}",
                 )
 
             from psycopg.sql import Composed
@@ -312,7 +312,7 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
                     SQL(", "),
                     Literal(int(length)),
                     SQL(")"),
-                ]
+                ],
             )
 
         if operator == "index":
@@ -320,7 +320,7 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
             from psycopg.sql import Composed
 
             return Composed(
-                [SQL("index("), casted_path, SQL(", "), Literal(str(value)), SQL("::ltree)")]
+                [SQL("index("), casted_path, SQL(", "), Literal(str(value)), SQL("::ltree)")],
             )
 
         if operator == "index_eq":
@@ -342,7 +342,7 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
             from psycopg.sql import Composed
 
             index_expr = Composed(
-                [SQL("index("), path_for_index, SQL(", "), Literal(str(sublabel)), SQL("::ltree)")]
+                [SQL("index("), path_for_index, SQL(", "), Literal(str(sublabel)), SQL("::ltree)")],
             )
             return Composed([index_expr, SQL(" = "), Literal(int(position))])
 
@@ -350,7 +350,7 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
             # index(path, sublabel) >= min_position
             if not isinstance(value, tuple):
                 raise TypeError(
-                    f"index_gte requires tuple (sublabel, min_position), got {type(value)}"
+                    f"index_gte requires tuple (sublabel, min_position), got {type(value)}",
                 )
 
             # Accept both (sublabel, min_position) and (sublabel, path_sql, min_position) formats
@@ -367,7 +367,7 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
             from psycopg.sql import Composed
 
             index_expr = Composed(
-                [SQL("index("), path_for_index, SQL(", "), Literal(str(sublabel)), SQL("::ltree)")]
+                [SQL("index("), path_for_index, SQL(", "), Literal(str(sublabel)), SQL("::ltree)")],
             )
             return Composed([index_expr, SQL(" >= "), Literal(int(min_position))])
 

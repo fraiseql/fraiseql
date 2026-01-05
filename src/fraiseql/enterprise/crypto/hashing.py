@@ -16,10 +16,10 @@ DO NOT use this module to:
 
 import hashlib
 import json
-from typing import Any, Optional
+from typing import Any
 
 
-def hash_audit_event(event_data: dict[str, Any], previous_hash: Optional[str]) -> str:
+def hash_audit_event(event_data: dict[str, Any], previous_hash: str | None) -> str:
     """Generate SHA-256 hash of audit event linked to previous hash.
 
     NOTE: This is for VERIFICATION ONLY. Production event creation uses

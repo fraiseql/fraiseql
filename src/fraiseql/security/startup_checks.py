@@ -12,7 +12,6 @@ import os
 import sys
 import warnings
 from pathlib import Path
-from typing import List
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +35,7 @@ def check_sqlite_not_used() -> None:
             "SECURITY VIOLATION: sqlite3 module detected in production. "
             "FraiseQL uses PostgreSQL exclusively. "
             "Check dependencies for unexpected SQLite imports. "
-            "CVE-2025-7709 mitigation failed."
+            "CVE-2025-7709 mitigation failed.",
         )
 
 
@@ -90,7 +89,7 @@ def check_production_environment() -> None:
                 "SECURITY VIOLATION: DATABASE_URL contains 'sqlite' in production. "
                 "FraiseQL requires PostgreSQL. "
                 "Set DATABASE_URL to postgresql://... "
-                "CVE-2025-7709 mitigation failed."
+                "CVE-2025-7709 mitigation failed.",
             )
 
         # Check for debug mode
@@ -121,7 +120,7 @@ def check_user_privileges() -> None:
             raise SecurityCheckError(
                 "SECURITY VIOLATION: Application running as root (UID 0). "
                 "FraiseQL must run as non-root user (recommended UID 65532). "
-                "This increases impact of CVE-2025-14104 and other exploits."
+                "This increases impact of CVE-2025-14104 and other exploits.",
             )
 
         # Log current user for audit
@@ -148,7 +147,7 @@ def check_filesystem_permissions() -> None:
     - /app is readable (application directory)
     - /etc/passwd is not writable (prevents CVE-2025-14104 exploitation)
     """
-    checks: List[tuple[str, bool, str]] = [
+    checks: list[tuple[str, bool, str]] = [
         ("/tmp", True, "Temporary directory must be writable"),
         ("/app", False, "Application directory must be readable"),
     ]
@@ -180,7 +179,7 @@ def check_filesystem_permissions() -> None:
         raise SecurityCheckError(
             "SECURITY VIOLATION: /etc/passwd is writable. "
             "This enables exploitation of CVE-2025-14104. "
-            "Container must run as non-root with read-only /etc."
+            "Container must run as non-root with read-only /etc.",
         )
 
 

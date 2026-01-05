@@ -1,7 +1,7 @@
 """Array operator strategies for JSONB array fields."""
 
 import json
-from typing import Any, Optional, get_origin
+from typing import Any, ClassVar, get_origin
 
 from psycopg.sql import SQL, Composable, Literal
 
@@ -21,7 +21,7 @@ class ArrayOperatorStrategy(BaseOperatorStrategy):
         - all_eq: All elements equal value
     """
 
-    SUPPORTED_OPERATORS = {
+    SUPPORTED_OPERATORS: ClassVar[set[str]] = {
         "eq",
         "neq",
         "contains",
@@ -37,7 +37,7 @@ class ArrayOperatorStrategy(BaseOperatorStrategy):
         "all_eq",
     }
 
-    def supports_operator(self, operator: str, field_type: Optional[type]) -> bool:
+    def supports_operator(self, operator: str, field_type: type | None) -> bool:
         """Check if this is an array operator on an array field."""
         if operator not in self.SUPPORTED_OPERATORS:
             return False
@@ -54,9 +54,9 @@ class ArrayOperatorStrategy(BaseOperatorStrategy):
         operator: str,
         value: Any,
         path_sql: Composable,
-        field_type: Optional[type] = None,
-        jsonb_column: Optional[str] = None,
-    ) -> Optional[Composable]:
+        field_type: type | None = None,
+        jsonb_column: str | None = None,
+    ) -> Composable | None:
         """Build SQL for array operators."""
         # Array operations work directly on JSONB arrays
         # path_sql is already the JSONB path (e.g., data->'tags')
@@ -114,7 +114,7 @@ class ArrayOperatorStrategy(BaseOperatorStrategy):
         if operator == "any_eq":
             # Check if any element in the array equals the value
             return SQL(
-                "EXISTS (SELECT 1 FROM jsonb_array_elements_text({}) AS elem WHERE elem = {})"
+                "EXISTS (SELECT 1 FROM jsonb_array_elements_text({}) AS elem WHERE elem = {})",
             ).format(path_sql, Literal(value))
 
         if operator == "all_eq":
@@ -122,7 +122,7 @@ class ArrayOperatorStrategy(BaseOperatorStrategy):
             # This means: array_length = count of elements that equal the value
             return SQL(
                 "jsonb_array_length({}) = "
-                "(SELECT COUNT(*) FROM jsonb_array_elements_text({}) AS elem WHERE elem = {})"
+                "(SELECT COUNT(*) FROM jsonb_array_elements_text({}) AS elem WHERE elem = {})",
             ).format(path_sql, path_sql, Literal(value))
 
         return None

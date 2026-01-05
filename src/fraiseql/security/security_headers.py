@@ -1,10 +1,9 @@
 """Security headers middleware for FraiseQL applications."""
 
 import logging
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Awaitable
 
 from fastapi import FastAPI, Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -161,7 +160,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         self.config = config
 
     async def dispatch(
-        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+        self,
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
         """Add security headers to responses."""
         response = await call_next(request)

@@ -52,7 +52,7 @@ def init(path: str) -> None:
         if db_dir.exists():
             console.print(
                 "[yellow]⚠️  Migration directory already exists. "
-                "Some files may be overwritten.[/yellow]"
+                "Some files may be overwritten.[/yellow]",
             )
             if not click.confirm("Continue?"):
                 return
@@ -83,7 +83,7 @@ CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 
 -- LTree for hierarchical data (if using FraiseQL LTree types)
 -- CREATE EXTENSION IF NOT EXISTS "ltree";
-"""
+""",
         )
 
         # Create example table
@@ -110,7 +110,7 @@ SELECT jsonb_build_object(
     'updatedAt', updated_at
 ) AS data
 FROM users;
-"""
+""",
         )
 
         # Create example seed file
@@ -125,7 +125,7 @@ FROM users;
 --     ('developer', 'dev@example.com'),
 --     ('tester', 'test@example.com')
 -- ON CONFLICT (username) DO NOTHING;
-"""
+""",
         )
 
         # Create local environment config
@@ -145,7 +145,7 @@ database:
   database: fraiseql_local
   user: postgres
   password: postgres
-"""
+""",
         )
 
         # Create README
@@ -182,7 +182,7 @@ This directory contains your FraiseQL database schema and migrations.
 
 - [FraiseQL Documentation](https://github.com/fraiseql/fraiseql)
 - [Confiture Migration Tool](https://github.com/fraiseql/confiture)
-"""
+""",
         )
 
         console.print("[green]✅ FraiseQL migrations initialized successfully![/green]")
@@ -457,7 +457,8 @@ def up(migrations_dir: str, config: str, target: str | None) -> None:
 
             # Apply migration
             console.print(
-                f"[cyan]⚡ Applying {migration.version}_{migration.name}...[/cyan]", end=" "
+                f"[cyan]⚡ Applying {migration.version}_{migration.name}...[/cyan]",
+                end=" ",
             )
             migrator.apply(migration)
             console.print("[green]✅[/green]")
@@ -533,7 +534,7 @@ def down(migrations_dir: str, config: str, steps: int) -> None:
 
         # Confirm rollback
         if not click.confirm(
-            f"⚠️  This will rollback {len(versions_to_rollback)} migration(s). Continue?"
+            f"⚠️  This will rollback {len(versions_to_rollback)} migration(s). Continue?",
         ):
             console.print("[yellow]Rollback cancelled.[/yellow]")
             conn.close()
@@ -563,14 +564,15 @@ def down(migrations_dir: str, config: str, steps: int) -> None:
 
             # Rollback migration
             console.print(
-                f"[cyan]⚡ Rolling back {migration.version}_{migration.name}...[/cyan]", end=" "
+                f"[cyan]⚡ Rolling back {migration.version}_{migration.name}...[/cyan]",
+                end=" ",
             )
             migrator.rollback(migration)
             console.print("[green]✅[/green]")
             rolled_back_count += 1
 
         console.print(
-            f"\n[green]✅ Successfully rolled back {rolled_back_count} migration(s)![/green]"
+            f"\n[green]✅ Successfully rolled back {rolled_back_count} migration(s)![/green]",
         )
         conn.close()
 

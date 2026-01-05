@@ -22,7 +22,7 @@ def serialize_latitude(value: Any) -> str | None:
     if not _LATITUDE_REGEX.match(value_str):
         raise GraphQLError(
             f"Invalid latitude: {value}. Must be between -90 and 90 "
-            "(e.g., '40.7128', '-33.8688', '0.0')"
+            "(e.g., '40.7128', '-33.8688', '0.0')",
         )
 
     return value_str
@@ -36,7 +36,7 @@ def parse_latitude_value(value: Any) -> str:
     if not _LATITUDE_REGEX.match(value):
         raise GraphQLError(
             f"Invalid latitude: {value}. Must be between -90 and 90 "
-            "(e.g., '40.7128', '-33.8688', '0.0')"
+            "(e.g., '40.7128', '-33.8688', '0.0')",
         )
 
     return value
@@ -90,6 +90,6 @@ class LatitudeField(str, ScalarMarker):
         if not _LATITUDE_REGEX.match(value):
             raise ValueError(
                 f"Invalid latitude: {value}. Must be between -90 and 90 "
-                "(e.g., '40.7128', '-33.8688', '0.0')"
+                "(e.g., '40.7128', '-33.8688', '0.0')",
             )
         return super().__new__(cls, value)

@@ -7,14 +7,14 @@ without async/await overhead.
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from fraiseql.monitoring.cache_monitoring import CacheMetrics, CacheMonitor
 
 logger = logging.getLogger(__name__)
 
 # Global instance holder
-_cache_monitor_instance: Optional[CacheMonitor] = None
+_cache_monitor_instance: CacheMonitor | None = None
 
 
 def set_cache_monitor(monitor: CacheMonitor) -> None:
@@ -49,7 +49,7 @@ class CacheMonitorSync:
     without async/await overhead.
     """
 
-    def __init__(self, monitor: Optional[CacheMonitor] = None) -> None:
+    def __init__(self, monitor: CacheMonitor | None = None) -> None:
         """Initialize synchronous cache monitor accessor.
 
         Args:
@@ -118,7 +118,7 @@ class CacheMonitorSync:
         # Check hit rate
         if metrics.hit_rate < hit_rate_threshold:
             logger.warning(
-                f"Cache hit rate {metrics.hit_rate:.1f}% below threshold {hit_rate_threshold}%"
+                f"Cache hit rate {metrics.hit_rate:.1f}% below threshold {hit_rate_threshold}%",
             )
             return False
 
@@ -128,7 +128,7 @@ class CacheMonitorSync:
             if eviction_rate > eviction_rate_threshold:
                 logger.warning(
                     f"Cache eviction rate {eviction_rate:.1f}% "
-                    f"above threshold {eviction_rate_threshold}%"
+                    f"above threshold {eviction_rate_threshold}%",
                 )
                 return False
 

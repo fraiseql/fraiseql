@@ -11,7 +11,7 @@ from fraiseql.types.definitions import ScalarMarker
 # ISO 8601 duration: P[n]Y[n]M[n]DT[n]H[n]M[n]S
 _DURATION_REGEX = re.compile(
     r"^P(?=\d+[YMWD])?(?:\d+Y)?(?:\d+M)?(?:\d+W)?(?:\d+D)?"
-    r"(?:T(?:\d+H)?(?:\d+M)?(?:\d+S)?)?$"
+    r"(?:T(?:\d+H)?(?:\d+M)?(?:\d+S)?)?$",
 )
 
 
@@ -25,7 +25,7 @@ def serialize_duration(value: Any) -> str | None:
     if not _DURATION_REGEX.match(value_str):
         raise GraphQLError(
             f"Invalid duration: {value}. Must be ISO 8601 duration format "
-            "(e.g., 'P1Y2M3DT4H5M6S', 'PT30M', 'P1D')"
+            "(e.g., 'P1Y2M3DT4H5M6S', 'PT30M', 'P1D')",
         )
 
     return value_str
@@ -39,7 +39,7 @@ def parse_duration_value(value: Any) -> str:
     if not _DURATION_REGEX.match(value):
         raise GraphQLError(
             f"Invalid duration: {value}. Must be ISO 8601 duration format "
-            "(e.g., 'P1Y2M3DT4H5M6S', 'PT30M', 'P1D')"
+            "(e.g., 'P1Y2M3DT4H5M6S', 'PT30M', 'P1D')",
         )
 
     return value
@@ -94,6 +94,6 @@ class DurationField(str, ScalarMarker):
         if not _DURATION_REGEX.match(value):
             raise ValueError(
                 f"Invalid duration: {value}. Must be ISO 8601 duration format "
-                "(e.g., 'P1Y2M3DT4H5M6S', 'PT30M', 'P1D')"
+                "(e.g., 'P1Y2M3DT4H5M6S', 'PT30M', 'P1D')",
             )
         return super().__new__(cls, value)

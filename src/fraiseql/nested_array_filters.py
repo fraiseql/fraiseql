@@ -45,15 +45,16 @@ This enables sophisticated GraphQL queries like:
 """
 
 import logging
-from typing import Any, Callable, Type, get_args, get_origin
+from collections.abc import Callable
+from typing import Any, get_args, get_origin
 
 logger = logging.getLogger(__name__)
 
 # Global registry for nested array filters
-_nested_array_filters: dict[str, dict[str, Type]] = {}
+_nested_array_filters: dict[str, dict[str, type]] = {}
 
 
-def register_nested_array_filter(parent_type: Type, field_name: str, element_type: Type) -> None:
+def register_nested_array_filter(parent_type: type, field_name: str, element_type: type) -> None:
     """Register a nested array field for where filtering.
 
     Args:
@@ -71,11 +72,11 @@ def register_nested_array_filter(parent_type: Type, field_name: str, element_typ
 
     _nested_array_filters[parent_key][field_name] = element_type
     logger.debug(
-        f"Registered nested array filter: {parent_key}.{field_name} -> {element_type.__name__}"
+        f"Registered nested array filter: {parent_key}.{field_name} -> {element_type.__name__}",
     )
 
 
-def enable_nested_array_filtering(parent_type: Type) -> None:
+def enable_nested_array_filtering(parent_type: type) -> None:
     """Automatically enable where filtering for all list[SomeType] fields in a type.
 
     This scans the type annotations and automatically registers filters for any
@@ -103,7 +104,7 @@ def enable_nested_array_filtering(parent_type: Type) -> None:
             logger.info(f"Auto-registered nested array filter: {parent_type.__name__}.{field_name}")
 
 
-def get_nested_array_filter(parent_type: Type, field_name: str) -> Type | None:
+def get_nested_array_filter(parent_type: type, field_name: str) -> type | None:
     """Get the registered element type for a nested array field.
 
     Args:
@@ -117,7 +118,7 @@ def get_nested_array_filter(parent_type: Type, field_name: str) -> Type | None:
     return _nested_array_filters.get(parent_key, {}).get(field_name)
 
 
-def is_nested_array_filterable(parent_type: Type, field_name: str) -> bool:
+def is_nested_array_filterable(parent_type: type, field_name: str) -> bool:
     """Check if a field is registered for nested array filtering.
 
     Args:
@@ -150,7 +151,7 @@ def clear_registry() -> None:
     _nested_array_filters = {}
 
 
-def _extract_list_element_type(field_type: Any) -> Type | None:
+def _extract_list_element_type(field_type: Any) -> type | None:
     """Extract the element type from list[T] annotations."""
     origin = get_origin(field_type)
 
@@ -170,7 +171,7 @@ def _extract_list_element_type(field_type: Any) -> Type | None:
     return None
 
 
-def _is_fraiseql_type(type_class: Type) -> bool:
+def _is_fraiseql_type(type_class: type) -> bool:
     """Check if a type is a FraiseQL type (has __fraiseql_definition__)."""
     return hasattr(type_class, "__fraiseql_definition__")
 
@@ -189,7 +190,7 @@ def nested_array_filterable(*field_names: str) -> Callable:
             dns_servers: list[DnsServer] = fraise_field(default_factory=list)
     """
 
-    def decorator(cls: Type) -> Type:
+    def decorator(cls: type) -> type:
         from typing import get_type_hints
 
         try:
@@ -207,7 +208,7 @@ def nested_array_filterable(*field_names: str) -> Callable:
     return decorator
 
 
-def auto_nested_array_filters(cls: Type) -> Type:
+def auto_nested_array_filters(cls: type) -> type:
     """Decorator to automatically enable filtering for all list[T] fields.
 
     Usage:

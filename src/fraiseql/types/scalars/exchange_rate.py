@@ -29,7 +29,7 @@ def serialize_exchange_rate(value: Any) -> str | None:
     if not _EXCHANGE_RATE_REGEX.match(value_str):
         raise GraphQLError(
             f"Invalid exchange rate: {value}. Must be positive numeric with up to 8 decimal places "
-            "(e.g., '1.23456789', '1234.5', '0.00001234')"
+            "(e.g., '1.23456789', '1234.5', '0.00001234')",
         )
 
     return value_str
@@ -51,7 +51,7 @@ def parse_exchange_rate_value(value: Any) -> str:
     if not _EXCHANGE_RATE_REGEX.match(value_str):
         raise GraphQLError(
             f"Invalid exchange rate: {value}. Must be positive numeric with up to 8 decimal places "
-            "(e.g., '1.23456789', '1234.5', '0.00001234')"
+            "(e.g., '1.23456789', '1234.5', '0.00001234')",
         )
 
     return value_str
@@ -115,6 +115,6 @@ class ExchangeRateField(str, ScalarMarker):
         if not _EXCHANGE_RATE_REGEX.match(value_str):
             raise ValueError(
                 f"Invalid exchange rate: {value}. Must be positive numeric "
-                "with up to 8 decimal places (e.g., '1.23456789', '1234.5', '0.00001234')"
+                "with up to 8 decimal places (e.g., '1.23456789', '1234.5', '0.00001234')",
             )
         return super().__new__(cls, value_str)

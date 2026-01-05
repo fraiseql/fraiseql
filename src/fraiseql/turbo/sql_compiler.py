@@ -2,8 +2,9 @@
 
 import ast
 import inspect
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable, Optional
+from typing import Any
 
 from graphql import (
     DocumentNode,
@@ -41,7 +42,9 @@ class SQLCompiler:
     """Compiles GraphQL queries into optimized SQL templates."""
 
     def compile_from_graphql(
-        self, document: DocumentNode, view_mapping: dict[str, str]
+        self,
+        document: DocumentNode,
+        view_mapping: dict[str, str],
     ) -> SQLCompilationResult:
         """Generate SQL template from GraphQL AST.
 
@@ -83,7 +86,7 @@ class SQLCompiler:
             required_fields=structure.required_fields,
         )
 
-    def extract_from_resolver(self, resolver_func: Callable) -> Optional[ResolverSQLInfo]:
+    def extract_from_resolver(self, resolver_func: Callable) -> ResolverSQLInfo | None:
         """Extract SQL pattern from resolver function.
 
         Args:
@@ -188,7 +191,9 @@ class QueryStructureAnalyzer:
     """Analyzes GraphQL query structure."""
 
     def __init__(
-        self, fragments: dict[str, FragmentDefinitionNode], view_mapping: dict[str, str]
+        self,
+        fragments: dict[str, FragmentDefinitionNode],
+        view_mapping: dict[str, str],
     ) -> None:
         self.fragments = fragments
         self.view_mapping = view_mapping
@@ -231,7 +236,9 @@ class QueryStructureAnalyzer:
         )
 
     def _extract_selections(
-        self, selection_set: Optional[SelectionSetNode], path: str = ""
+        self,
+        selection_set: SelectionSetNode | None,
+        path: str = "",
     ) -> list[str]:
         """Extract all field selections."""
         if not selection_set:
@@ -281,7 +288,9 @@ class QueryStructureAnalyzer:
         return filters
 
     def _calculate_depth(
-        self, selection_set: Optional[SelectionSetNode], current_depth: int = 0
+        self,
+        selection_set: SelectionSetNode | None,
+        current_depth: int = 0,
     ) -> int:
         """Calculate maximum query depth."""
         if not selection_set:
@@ -412,7 +421,7 @@ class ResolverAnalyzer(ast.NodeVisitor):
 
         self.generic_visit(node)
 
-    def _extract_db_call(self, node: ast.Call, is_find_one: bool) -> Optional[DBCall]:
+    def _extract_db_call(self, node: ast.Call, is_find_one: bool) -> DBCall | None:
         """Extract database call information."""
         if not node.args:
             return None

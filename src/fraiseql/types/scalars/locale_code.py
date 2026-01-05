@@ -22,7 +22,8 @@ def serialize_locale_code(value: Any) -> str | None:
 
     if not _LOCALE_CODE_REGEX.match(value_str):
         raise GraphQLError(
-            f"Invalid locale code: {value}. Must be BCP 47 format (e.g., 'en-US', 'fr-FR', 'de-DE')"
+            f"Invalid locale code: {value}. Must be BCP 47 format "
+            f"(e.g., 'en-US', 'fr-FR', 'de-DE')",
         )
 
     return value_str
@@ -35,7 +36,8 @@ def parse_locale_code_value(value: Any) -> str:
 
     if not _LOCALE_CODE_REGEX.match(value):
         raise GraphQLError(
-            f"Invalid locale code: {value}. Must be BCP 47 format (e.g., 'en-US', 'fr-FR', 'de-DE')"
+            f"Invalid locale code: {value}. Must be BCP 47 format "
+            f"(e.g., 'en-US', 'fr-FR', 'de-DE')",
         )
 
     return value
@@ -88,6 +90,6 @@ class LocaleCodeField(str, ScalarMarker):
         if not _LOCALE_CODE_REGEX.match(value):
             raise ValueError(
                 f"Invalid locale code: {value}. Must be BCP 47 format "
-                "(e.g., 'en-US', 'fr-FR', 'de-DE')"
+                "(e.g., 'en-US', 'fr-FR', 'de-DE')",
             )
         return super().__new__(cls, value)

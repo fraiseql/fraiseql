@@ -24,7 +24,7 @@ When using @extend_entity, mark fields as external() if they're defined elsewher
 This enables the Apollo Gateway to understand which fields are local vs. external.
 """
 
-from typing import Any, Optional, Set
+from typing import Any
 
 
 class ExternalFieldInfo:
@@ -39,7 +39,7 @@ class ExternalFieldInfo:
     def __init__(
         self,
         field_name: str,
-        type_annotation: Optional[Any] = None,
+        type_annotation: Any | None = None,
         is_required: bool = True,
     ):
         self.field_name = field_name
@@ -59,12 +59,12 @@ class ExternalFieldManager:
 
     def __init__(self):
         self.external_fields: dict[str, ExternalFieldInfo] = {}
-        self.new_fields: Set[str] = set()
+        self.new_fields: set[str] = set()
 
     def mark_external(
         self,
         field_name: str,
-        type_annotation: Optional[Any] = None,
+        type_annotation: Any | None = None,
         is_required: bool = True,
     ) -> None:
         """Mark a field as external (defined in another subgraph).
@@ -75,7 +75,9 @@ class ExternalFieldManager:
             is_required: Whether field is required (non-null)
         """
         self.external_fields[field_name] = ExternalFieldInfo(
-            field_name, type_annotation, is_required
+            field_name,
+            type_annotation,
+            is_required,
         )
 
     def mark_new(self, field_name: str) -> None:
@@ -124,7 +126,7 @@ class ExternalFieldManager:
         """
         return field_name in self.new_fields
 
-    def validate_all_fields(self, all_field_names: Set[str]) -> list[str]:
+    def validate_all_fields(self, all_field_names: set[str]) -> list[str]:
         """Validate that all fields are categorized.
 
         Checks that every field in the type is marked as either external or new.
@@ -156,7 +158,7 @@ class ExternalFieldManager:
 
 def extract_external_fields(
     cls: type,
-) -> tuple[dict[str, Any], Set[str]]:
+) -> tuple[dict[str, Any], set[str]]:
     """Extract external field information from a class.
 
     Examines the class to find fields marked with external() and builds
@@ -186,7 +188,7 @@ def extract_external_fields(
     from .decorators import _External
 
     external_fields_dict: dict[str, Any] = {}
-    other_field_names: Set[str] = set()
+    other_field_names: set[str] = set()
 
     # Get all annotations
     annotations = getattr(cls, "__annotations__", {})

@@ -369,7 +369,7 @@ def _get_preset_for_mode(
 
     if mode not in presets:
         raise ValueError(
-            f"Unknown WebSocket mode: {mode}. Must be one of: {', '.join(presets.keys())}"
+            f"Unknown WebSocket mode: {mode}. Must be one of: {', '.join(presets.keys())}",
         )
 
     return presets[mode]
@@ -404,10 +404,12 @@ def resolve_websocket_config(
     if config is True:
         if environment == "production":
             return WebSocketPresets.PRODUCTION.resolve(
-                database_url=database_url, environment=environment
+                database_url=database_url,
+                environment=environment,
             )
         return WebSocketPresets.DEVELOPMENT.resolve(
-            database_url=database_url, environment=environment
+            database_url=database_url,
+            environment=environment,
         )
 
     # WebSocketConfig instance
@@ -420,5 +422,5 @@ def resolve_websocket_config(
         return ws_config.resolve(database_url=database_url, environment=environment)
 
     raise TypeError(
-        f"Invalid websocket_config type: {type(config)}. Must be bool, WebSocketConfig, or dict"
+        f"Invalid websocket_config type: {type(config)}. Must be bool, WebSocketConfig, or dict",
     )

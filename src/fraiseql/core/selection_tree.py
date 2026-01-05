@@ -8,7 +8,7 @@ from root to leaf, making it easy to serialize and process in Rust without tree 
 """
 
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 from graphql import (
     GraphQLSchema,
@@ -44,7 +44,7 @@ class GraphQLSchemaWrapper:
         """
         self.schema = schema
 
-    def get_field_type(self, type_name: str, field_name: str) -> Optional[FieldInfo]:
+    def get_field_type(self, type_name: str, field_name: str) -> FieldInfo | None:
         """Look up field type information in the GraphQL schema.
 
         Args:
@@ -211,7 +211,7 @@ def build_selection_tree(
                     alias=alias,
                     type_name=field_type_name,
                     is_nested_object=is_nested,
-                )
+                ),
             )
 
             # Move to next type in path

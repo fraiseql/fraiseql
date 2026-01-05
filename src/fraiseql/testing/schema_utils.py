@@ -165,7 +165,7 @@ def validate_schema_refresh(
         if lost_mutations:
             logger.error(f"Schema refresh lost mutations: {lost_mutations}")
             raise AssertionError(
-                f"Schema refresh lost {len(lost_mutations)} mutations: {lost_mutations}"
+                f"Schema refresh lost {len(lost_mutations)} mutations: {lost_mutations}",
             )
 
     # Log summary

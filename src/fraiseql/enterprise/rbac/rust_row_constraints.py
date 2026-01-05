@@ -11,7 +11,7 @@ Performance:
 
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 if TYPE_CHECKING:
@@ -80,7 +80,7 @@ class RustRowConstraintResolver:
         """
         if not HAS_RUST_ROW_CONSTRAINTS:
             raise RuntimeError(
-                "Rust row constraints extension not available. Rebuild with: maturin develop --release"
+                "Rust row constraints extension not available. Rebuild with: maturin develop --release",
             )
 
         self._rust_resolver = PyRowConstraintResolver(pool, cache_capacity)
@@ -91,8 +91,8 @@ class RustRowConstraintResolver:
         user_id: UUID,
         table_name: str,
         roles: list["Role"],
-        tenant_id: Optional[UUID] = None,
-    ) -> Optional[RowFilter]:
+        tenant_id: UUID | None = None,
+    ) -> RowFilter | None:
         """Get row-level filters for a user on a table.
 
         Queries the `tb_row_constraint` table for applicable constraints based on:
@@ -163,7 +163,8 @@ class RustRowConstraintResolver:
 
 # Convenience function for backward compatibility
 def create_rust_row_constraint_resolver(
-    pool: "DatabasePool", cache_capacity: int = 10000
+    pool: "DatabasePool",
+    cache_capacity: int = 10000,
 ) -> RustRowConstraintResolver:
     """Create Rust-based row constraint resolver.
 

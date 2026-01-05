@@ -5,8 +5,9 @@ and generates the appropriate middleware configurations and stacks for enforcing
 security policies in a FastAPI application.
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 from fastapi import Request
 
@@ -78,7 +79,8 @@ class ProfileEnforcer:
             requests_per_hour=self.profile_config.rate_limit_requests_per_minute
             * 60,  # Rough estimate
             burst_size=min(
-                10, self.profile_config.rate_limit_requests_per_minute // 6
+                10,
+                self.profile_config.rate_limit_requests_per_minute // 6,
             ),  # 1/6 of limit
             window_type="sliding",
             key_func=self._default_key_func,

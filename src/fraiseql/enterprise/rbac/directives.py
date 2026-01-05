@@ -4,7 +4,8 @@ These directives integrate with the PostgreSQL-cached PermissionResolver
 to provide field-level authorization in GraphQL schemas.
 """
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 try:
     import strawberry  # type: ignore[import]
@@ -62,7 +63,8 @@ def requires_permission(resource: str, action: str, check_constraints: bool = Tr
 
             # Get user permissions (uses PostgreSQL cache)
             permissions = await resolver_instance.get_user_permissions(
-                user_id=user_id, tenant_id=tenant_id
+                user_id=user_id,
+                tenant_id=tenant_id,
             )
 
             # Find matching permission
@@ -78,11 +80,13 @@ def requires_permission(resource: str, action: str, check_constraints: bool = Tr
             # Evaluate constraints if present and requested
             if check_constraints and matching_permission.constraints:
                 constraints_met = await _evaluate_constraints(
-                    matching_permission.constraints, context, kwargs
+                    matching_permission.constraints,
+                    context,
+                    kwargs,
                 )
                 if not constraints_met:
                     raise PermissionError(
-                        f"Permission constraints not satisfied for {resource}.{action}"
+                        f"Permission constraints not satisfied for {resource}.{action}",
                     )
 
             # Execute field resolver
@@ -152,7 +156,9 @@ def requires_role(role_name: str) -> Callable:
 
 
 async def _evaluate_constraints(
-    constraints: dict[str, Any], context: dict[str, Any], field_args: dict[str, Any]
+    constraints: dict[str, Any],
+    context: dict[str, Any],
+    field_args: dict[str, Any],
 ) -> bool:
     """Evaluate permission constraints against context and field arguments.
 

@@ -62,7 +62,7 @@ def get_date_range_validation_errors(obj: DateRangeValidatable) -> list[dict[str
                 "code": 422,
                 "identifier": "validation_error",
                 "fields": ["start_date", "end_date"],
-            }
+            },
         ]
     return []
 

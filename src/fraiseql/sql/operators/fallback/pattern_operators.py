@@ -1,6 +1,6 @@
 """Fallback pattern matching operator strategy."""
 
-from typing import Any, Optional
+from typing import Any
 
 from psycopg.sql import SQL, Composable, Literal
 
@@ -33,7 +33,7 @@ class PatternOperatorStrategy(BaseOperatorStrategy):
         "ilike",
     }
 
-    def supports_operator(self, operator: str, field_type: Optional[type]) -> bool:
+    def supports_operator(self, operator: str, field_type: type | None) -> bool:
         """Check if this is a pattern matching operator (fallback - always handles these)."""
         return operator in self.SUPPORTED_OPERATORS
 
@@ -42,9 +42,9 @@ class PatternOperatorStrategy(BaseOperatorStrategy):
         operator: str,
         value: Any,
         path_sql: Composable,
-        field_type: Optional[type] = None,
-        jsonb_column: Optional[str] = None,
-    ) -> Optional[Composable]:
+        field_type: type | None = None,
+        jsonb_column: str | None = None,
+    ) -> Composable | None:
         """Build SQL for pattern matching operators."""
         # No special type casting needed for pattern matching
         # Text operations work naturally

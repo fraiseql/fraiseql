@@ -11,7 +11,6 @@ from collections import deque
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from threading import Lock
-from typing import Optional
 
 
 @dataclass
@@ -45,8 +44,8 @@ class QueryMetrics:
     parameter_count: int = 0
     connection_acquired_ms: float = 0.0
     is_slow: bool = False
-    error: Optional[str] = None
-    trace_id: Optional[str] = None
+    error: str | None = None
+    trace_id: str | None = None
 
     def is_success(self) -> bool:
         """Check if query succeeded."""
@@ -107,12 +106,12 @@ class TransactionMetrics:
 
     transaction_id: str
     start_time: datetime
-    end_time: Optional[datetime] = None
-    duration_ms: Optional[float] = None
+    end_time: datetime | None = None
+    duration_ms: float | None = None
     query_count: int = 0
     status: str = "STARTED"
     is_long_running: bool = False
-    error: Optional[str] = None
+    error: str | None = None
 
     def is_active(self) -> bool:
         """Check if transaction is still active."""
@@ -311,7 +310,7 @@ class DatabaseMonitor:
         with self._lock:
             self._pool_states.append(metrics)
 
-    async def get_pool_metrics(self) -> Optional[PoolMetrics]:
+    async def get_pool_metrics(self) -> PoolMetrics | None:
         """Get current connection pool metrics.
 
         Returns:

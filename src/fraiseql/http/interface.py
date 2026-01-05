@@ -16,8 +16,9 @@ The abstraction is EXTRACTED FROM AXUM CODE, not theoretical.
 This ensures all servers can implement it without issues.
 """
 
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
-from typing import Any, AsyncIterator, Dict, Optional, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 # ============================================================================
 # Core GraphQL Request/Response Types
@@ -39,9 +40,9 @@ class GraphQLRequest:
     """
 
     query: str
-    operation_name: Optional[str] = None
-    variables: Optional[Dict[str, Any]] = None
-    extensions: Optional[Dict[str, Any]] = None
+    operation_name: str | None = None
+    variables: dict[str, Any] | None = None
+    extensions: dict[str, Any] | None = None
 
     def validate(self) -> None:
         """Validate that query is present.
@@ -65,9 +66,9 @@ class GraphQLError:
     """
 
     message: str
-    extensions: Optional[Dict[str, Any]] = None
+    extensions: dict[str, Any] | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         result = {"message": self.message}
         if self.extensions:
@@ -88,11 +89,11 @@ class GraphQLResponse:
         status_code: HTTP status code (200 for success, 400+ for errors)
     """
 
-    data: Optional[Dict[str, Any]] = None
-    errors: Optional[list[GraphQLError]] = None
+    data: dict[str, Any] | None = None
+    errors: list[GraphQLError] | None = None
     status_code: int = 200
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         result = {}
         if self.data is not None:
@@ -102,12 +103,12 @@ class GraphQLResponse:
         return result
 
     @classmethod
-    def success(cls, data: Dict[str, Any]) -> "GraphQLResponse":
+    def success(cls, data: dict[str, Any]) -> "GraphQLResponse":
         """Create a successful response."""
         return cls(data=data, status_code=200)
 
     @classmethod
-    def error(cls, message: str, code: Optional[int] = None) -> "GraphQLResponse":
+    def error(cls, message: str, code: int | None = None) -> "GraphQLResponse":
         """Create an error response."""
         return cls(
             errors=[GraphQLError(message=message)],
@@ -137,13 +138,13 @@ class HttpContext:
         extra: Framework-specific data dict
     """
 
-    request_body: Dict[str, Any]
-    headers: Dict[str, str]
-    user: Optional[Any] = None
+    request_body: dict[str, Any]
+    headers: dict[str, str]
+    user: Any | None = None
     method: str = "POST"
     path: str = "/graphql"
-    raw_request: Optional[Any] = None
-    extra: Dict[str, Any] = field(default_factory=dict)
+    raw_request: Any | None = None
+    extra: dict[str, Any] = field(default_factory=dict)
 
     def get_extra(self, key: str, default: Any = None) -> Any:
         """Get framework-specific data."""
@@ -268,7 +269,9 @@ class HttpMiddleware(Protocol):
         ...
 
     async def process_response(
-        self, response: GraphQLResponse, context: HttpContext
+        self,
+        response: GraphQLResponse,
+        context: HttpContext,
     ) -> GraphQLResponse:
         """Process response after GraphQL execution.
 
@@ -303,9 +306,9 @@ class HealthStatus:
 
     status: str
     version: str
-    details: Optional[Dict[str, Any]] = None
+    details: dict[str, Any] | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON response."""
         result = {
             "status": self.status,

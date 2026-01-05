@@ -66,7 +66,7 @@ def build_comparison_sql(
             SQL(f")::{cast_type} {operator} "),
             Literal(value),
             SQL(f"::{cast_type}"),
-        ]
+        ],
     )
 
 

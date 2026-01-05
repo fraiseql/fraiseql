@@ -9,11 +9,14 @@ analysis between the two integration approaches.
 
 import asyncio
 import json
+import logging
 import time
 import tracemalloc
 import uuid
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
+
+logger = logging.getLogger(__name__)
 
 # Optional imports for integrations
 try:
@@ -48,7 +51,7 @@ class BenchmarkResult:
     memory_usage: int
     throughput: float
     error_rate: float
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
 
 
 @dataclass
@@ -57,7 +60,7 @@ class BenchmarkConfig:
 
     document_count: int = 1000
     embedding_dimension: int = 384
-    batch_sizes: Optional[List[int]] = None
+    batch_sizes: list[int] | None = None
     concurrent_users: int = 10
     query_count: int = 100
     warmup_iterations: int = 5
@@ -73,7 +76,7 @@ class MockDoc:
 
     page_content: str
     text: str
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
 
 
 class MemoryProfiler:
@@ -91,10 +94,10 @@ class MemoryProfiler:
         """Take a memory snapshot."""
         current, peak = tracemalloc.get_traced_memory()
         self.snapshots.append(
-            {"label": label, "current": current, "peak": peak, "timestamp": time.time()}
+            {"label": label, "current": current, "peak": peak, "timestamp": time.time()},
         )
 
-    def stop(self) -> Dict[str, Any]:
+    def stop(self) -> dict[str, Any]:
         """Stop profiling and return results."""
         current, peak = tracemalloc.get_traced_memory()
         tracemalloc.stop()
@@ -123,13 +126,13 @@ class MemoryProfiler:
 class VectorStoreBenchmark:
     """Comprehensive benchmark suite for vector store integrations."""
 
-    def __init__(self, db_pool: Any, config: Optional[BenchmarkConfig] = None):
+    def __init__(self, db_pool: Any, config: BenchmarkConfig | None = None):
         self.db_pool = db_pool
         self.config = config or BenchmarkConfig()
         self.results = []
         self.profiler = MemoryProfiler()
 
-    async def setup_test_tables(self) -> Tuple[str, str]:
+    async def setup_test_tables(self) -> tuple[str, str]:
         """Create test tables for both frameworks."""
         langchain_table = f"bench_langchain_{uuid.uuid4().hex[:8]}"
         llamaindex_table = f"bench_llamaindex_{uuid.uuid4().hex[:8]}"
@@ -138,8 +141,8 @@ class VectorStoreBenchmark:
             # Enable pgvector
             try:
                 await conn.execute("CREATE EXTENSION IF NOT EXISTS vector;")
-            except Exception:
-                pass  # Extension might already exist
+            except Exception as e:
+                logger.warning(f"Failed to create vector extension: {e}")
 
             # Create tables
             for table in [langchain_table, llamaindex_table]:
@@ -159,12 +162,13 @@ class VectorStoreBenchmark:
                         ON {table} USING ivfflat (embedding vector_cosine_ops)
                         WITH (lists = 100);
                     """)
-                except Exception:
-                    pass  # Index creation might fail in some environments
+                except Exception as e:
+                    logger.warning(f"Failed to create index for {table}: {e}")
+                    # Index creation might fail in some environments
 
         return langchain_table, llamaindex_table
 
-    async def generate_test_documents(self, count: int) -> Tuple[List[Any], List[Any]]:
+    async def generate_test_documents(self, count: int) -> tuple[list[Any], list[Any]]:
         """Generate test documents for both frameworks."""
         langchain_docs = []
         llamaindex_docs = []
@@ -193,7 +197,11 @@ class VectorStoreBenchmark:
         return langchain_docs, llamaindex_docs
 
     async def benchmark_insertion(
-        self, framework: str, vectorstore: Any, documents: List[Any], batch_size: int
+        self,
+        framework: str,
+        vectorstore: Any,
+        documents: list[Any],
+        batch_size: int,
     ) -> BenchmarkResult:
         """Benchmark document insertion performance."""
         self.profiler.start()
@@ -259,7 +267,10 @@ class VectorStoreBenchmark:
         )
 
     async def benchmark_search(
-        self, framework: str, vectorstore: Any, query_count: int = 100
+        self,
+        framework: str,
+        vectorstore: Any,
+        query_count: int = 100,
     ) -> BenchmarkResult:
         """Benchmark vector search performance."""
         self.profiler.start()
@@ -281,7 +292,8 @@ class VectorStoreBenchmark:
                 try:
                     if framework == "langchain":
                         results = await vectorstore.asimilarity_search_by_vector(
-                            query_embedding, k=10
+                            query_embedding,
+                            k=10,
                         )
                     else:  # llamaindex
                         query = type(
@@ -349,7 +361,8 @@ class VectorStoreBenchmark:
 
                         if framework == "langchain":
                             result = await vectorstore.asimilarity_search_by_vector(
-                                query_embedding, k=5
+                                query_embedding,
+                                k=5,
                             )
                         else:
                             query = type(
@@ -427,18 +440,18 @@ class VectorStoreBenchmark:
             },
         )
 
-    async def run_full_benchmark(self) -> Dict[str, Any]:
+    async def run_full_benchmark(self) -> dict[str, Any]:
         """Run complete benchmark suite."""
         print("🚀 Starting FraiseQL Vector Store Integration Benchmarks")
         print(
             f"📊 Configuration: {self.config.document_count} documents, "
-            f"{self.config.embedding_dimension}D embeddings"
+            f"{self.config.embedding_dimension}D embeddings",
         )
 
         # Setup
         langchain_table, llamaindex_table = await self.setup_test_tables()
         langchain_docs, llamaindex_docs = await self.generate_test_documents(
-            self.config.document_count
+            self.config.document_count,
         )
 
         results = []
@@ -455,7 +468,7 @@ class VectorStoreBenchmark:
                         embedding_function=None,  # We'll provide embeddings manually
                     ),
                     langchain_docs,
-                )
+                ),
             )
 
         if LLAMAINDEX_AVAILABLE:
@@ -468,7 +481,7 @@ class VectorStoreBenchmark:
                         embedding_dimension=self.config.embedding_dimension,
                     ),
                     llamaindex_docs,
-                )
+                ),
             )
 
         for framework_name, vectorstore, docs in frameworks:
@@ -483,7 +496,10 @@ class VectorStoreBenchmark:
             print("  📥 Testing insertion performance...")
             for batch_size in self.config.batch_sizes:
                 result = await self.benchmark_insertion(
-                    framework_name, vectorstore, docs, batch_size
+                    framework_name,
+                    vectorstore,
+                    docs,
+                    batch_size,
                 )
                 results.append(result)
                 print(f".2fthroughput: {result.throughput:.1f} docs/sec")
@@ -491,7 +507,9 @@ class VectorStoreBenchmark:
             # Search benchmarks
             print("  🔍 Testing search performance...")
             search_result = await self.benchmark_search(
-                framework_name, vectorstore, self.config.query_count
+                framework_name,
+                vectorstore,
+                self.config.query_count,
             )
             results.append(search_result)
             print(f".2fthroughput: {search_result.throughput:.1f} queries/sec")
@@ -523,10 +541,10 @@ class VectorStoreBenchmark:
             for table in table_names:
                 try:
                     await conn.execute(f"DROP TABLE IF EXISTS {table} CASCADE;")
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Failed to drop table {table}: {e}")
 
-    def generate_report(self, results: List[BenchmarkResult]) -> Dict[str, Any]:
+    def generate_report(self, results: list[BenchmarkResult]) -> dict[str, Any]:
         """Generate comprehensive benchmark report."""
         report = {
             "timestamp": time.time(),

@@ -3,11 +3,10 @@
 import asyncio
 import logging
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Hashable
+from collections.abc import AsyncGenerator, Callable, Hashable
 from contextlib import asynccontextmanager
 from typing import (
     Any,
-    AsyncGenerator,
     Generic,
     TypeVar,
 )

@@ -116,7 +116,7 @@ def build_array_any_eq_sql(path_sql: SQL, value: str) -> Composed:
             SQL(" = ANY(ARRAY(SELECT jsonb_array_elements_text("),
             path_sql,
             SQL(")))"),
-        ]
+        ],
     )
 
 
@@ -129,5 +129,5 @@ def build_array_all_eq_sql(path_sql: SQL, value: str) -> Composed:
             SQL(" = ALL(ARRAY(SELECT jsonb_array_elements_text("),
             path_sql,
             SQL(")))"),
-        ]
+        ],
     )

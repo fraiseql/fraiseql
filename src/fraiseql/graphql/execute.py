@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from graphql import (
     ExecutionResult,
@@ -117,8 +117,8 @@ async def execute_graphql(
     source: str,
     root_value: Any = None,
     context_value: Any = None,
-    variable_values: Optional[dict[str, Any]] = None,
-    operation_name: Optional[str] = None,
+    variable_values: dict[str, Any] | None = None,
+    operation_name: str | None = None,
     enable_introspection: bool = True,
 ) -> ExecutionResult | RustResponseBytes:
     """Execute GraphQL with unified Rust-first architecture and introspection control.
@@ -158,7 +158,8 @@ async def execute_graphql(
 
     # Check if introspection should be blocked
     should_block_introspection, introspection_block_reason = _should_block_introspection(
-        enable_introspection, context_value
+        enable_introspection,
+        context_value,
     )
 
     # Add introspection validation rule if should be blocked
@@ -179,7 +180,8 @@ async def execute_graphql(
             )
         else:
             logger.warning(
-                "Schema validation failed: %s", [err.message for err in validation_errors]
+                "Schema validation failed: %s",
+                [err.message for err in validation_errors],
             )
         return ExecutionResult(data=None, errors=validation_errors)
 
@@ -255,7 +257,9 @@ def _serialize_fraise_types_in_result(result: ExecutionResult) -> ExecutionResul
         cleaned_data = _clean_fraise_types(result.data)
         logger.info(f"Cleaned data type: {type(cleaned_data)}")
         return ExecutionResult(
-            data=cleaned_data, errors=result.errors, extensions=result.extensions
+            data=cleaned_data,
+            errors=result.errors,
+            extensions=result.extensions,
         )
     return result
 

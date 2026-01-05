@@ -22,7 +22,7 @@ def serialize_exchange_code(value: Any) -> str | None:
     if not _EXCHANGE_CODE_REGEX.match(value_str):
         raise GraphQLError(
             f"Invalid exchange code: {value}. Must be 2-6 uppercase letters "
-            "(e.g., 'NYSE', 'NASDAQ', 'LSE', 'TSE')"
+            "(e.g., 'NYSE', 'NASDAQ', 'LSE', 'TSE')",
         )
 
     return value_str
@@ -38,7 +38,7 @@ def parse_exchange_code_value(value: Any) -> str:
     if not _EXCHANGE_CODE_REGEX.match(value_upper):
         raise GraphQLError(
             f"Invalid exchange code: {value}. Must be 2-6 uppercase letters "
-            "(e.g., 'NYSE', 'NASDAQ', 'LSE', 'TSE')"
+            "(e.g., 'NYSE', 'NASDAQ', 'LSE', 'TSE')",
         )
 
     return value_upper
@@ -90,6 +90,6 @@ class ExchangeCodeField(str, ScalarMarker):
         if not _EXCHANGE_CODE_REGEX.match(value_upper):
             raise ValueError(
                 f"Invalid exchange code: {value}. Must be 2-6 uppercase letters "
-                "(e.g., 'NYSE', 'NASDAQ', 'LSE', 'TSE')"
+                "(e.g., 'NYSE', 'NASDAQ', 'LSE', 'TSE')",
             )
         return super().__new__(cls, value_upper)

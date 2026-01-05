@@ -58,7 +58,7 @@ def _coerce_to_enum(value: Any, enum_class: type[Enum]) -> Enum:
     valid_values = [f"{member.name}={member.value}" for member in enum_class]
     raise ValueError(
         f"Cannot convert '{value}' to {enum_class.__name__}. "
-        f"Valid values are: {', '.join(valid_values)}"
+        f"Valid values are: {', '.join(valid_values)}",
     )
 
 

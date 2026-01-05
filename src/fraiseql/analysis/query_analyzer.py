@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 from graphql import (
     DocumentNode,
@@ -32,10 +32,10 @@ class PassthroughAnalysis:
 
     eligible: bool
     eligibility: PassthroughEligibility
-    reason: Optional[str] = None
-    view_name: Optional[str] = None
-    field_paths: Optional[dict[str, str]] = None  # GraphQL -> JSONB path
-    where_conditions: Optional[dict[str, any]] = None
+    reason: str | None = None
+    view_name: str | None = None
+    field_paths: dict[str, str] | None = None  # GraphQL -> JSONB path
+    where_conditions: dict[str, any] | None = None
     complexity_score: int = 0
     has_custom_resolvers: bool = False
     has_computed_fields: bool = False
@@ -57,7 +57,9 @@ class QueryAnalyzer:
         self._init_resolver_analysis()
 
     def analyze_for_passthrough(
-        self, query: str, variables: Optional[dict[str, any]] = None
+        self,
+        query: str,
+        variables: dict[str, any] | None = None,
     ) -> PassthroughAnalysis:
         """Analyze query for JSON passthrough eligibility.
 
@@ -166,7 +168,7 @@ class QueryAnalyzer:
 
         return True
 
-    def _get_operation(self, document: DocumentNode) -> Optional[OperationDefinitionNode]:
+    def _get_operation(self, document: DocumentNode) -> OperationDefinitionNode | None:
         """Extract operation from document."""
         for definition in document.definitions:
             if isinstance(definition, OperationDefinitionNode):
@@ -174,7 +176,8 @@ class QueryAnalyzer:
         return None
 
     def _check_structure_complexity(
-        self, operation: OperationDefinitionNode
+        self,
+        operation: OperationDefinitionNode,
     ) -> PassthroughAnalysis:
         """Check if query structure is simple enough."""
         # Check number of root fields
@@ -297,14 +300,16 @@ class QueryAnalyzer:
             field_paths=field_paths,
         )
 
-    def _get_view_name(self, type_name: str) -> Optional[str]:
+    def _get_view_name(self, type_name: str) -> str | None:
         """Get database view name for GraphQL type."""
         # Convert to snake_case and add _view suffix
         snake_name = to_snake_case(type_name)
         return f"{snake_name}_view"
 
     def _build_field_paths(
-        self, selection_set: SelectionSetNode, prefix: str = ""
+        self,
+        selection_set: SelectionSetNode,
+        prefix: str = "",
     ) -> dict[str, str]:
         """Build mapping of GraphQL fields to JSONB paths."""
         field_paths = {}
@@ -330,7 +335,9 @@ class QueryAnalyzer:
         return field_paths
 
     def _extract_where_conditions(
-        self, operation: OperationDefinitionNode, variables: Optional[dict[str, any]]
+        self,
+        operation: OperationDefinitionNode,
+        variables: dict[str, any] | None,
     ) -> dict[str, any]:
         """Extract WHERE conditions from query arguments."""
         conditions = {}
@@ -380,7 +387,7 @@ class QueryAnalyzer:
 
         return max_depth
 
-    def get_field_mapping(self, type_name: str, field_name: str) -> Optional[str]:
+    def get_field_mapping(self, type_name: str, field_name: str) -> str | None:
         """Get database field mapping for GraphQL field.
 
         Args:

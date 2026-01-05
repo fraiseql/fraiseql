@@ -114,7 +114,8 @@ class EntityDataLoader:
 
         # Request queue for the current batch
         self._pending_requests: dict[
-            tuple[str, str, Any], list[asyncio.Future[dict[str, Any] | None]]
+            tuple[str, str, Any],
+            list[asyncio.Future[dict[str, Any] | None]],
         ] = defaultdict(list)
 
         # Batch timer task
@@ -129,7 +130,10 @@ class EntityDataLoader:
         return self._stats
 
     def _make_dedup_key(
-        self, typename: str, key_field: str, key_value: Any
+        self,
+        typename: str,
+        key_field: str,
+        key_value: Any,
     ) -> tuple[str, str, Any]:
         """Create deduplication key for a request.
 

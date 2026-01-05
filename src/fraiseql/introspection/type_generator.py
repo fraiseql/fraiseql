@@ -5,7 +5,7 @@ dynamically from PostgreSQL view metadata and @fraiseql annotations.
 """
 
 import logging
-from typing import Any, Optional, Type
+from typing import Any
 from uuid import UUID
 
 from .metadata_parser import TypeAnnotation
@@ -18,12 +18,15 @@ logger = logging.getLogger(__name__)
 class TypeGenerator:
     """Generate FraiseQL @type classes dynamically."""
 
-    def __init__(self, type_mapper: Optional[TypeMapper] = None):
+    def __init__(self, type_mapper: TypeMapper | None = None):
         self.type_mapper = type_mapper or TypeMapper()
 
     async def generate_type_class(
-        self, view_metadata: ViewMetadata, annotation: TypeAnnotation, db_pool: Any
-    ) -> Type:
+        self,
+        view_metadata: ViewMetadata,
+        annotation: TypeAnnotation,
+        db_pool: Any,
+    ) -> type:
         """Generate a @type class from view metadata.
 
         Steps:
@@ -43,7 +46,9 @@ class TypeGenerator:
         """
         # 1. Get JSONB structure by querying sample row
         jsonb_fields = await self._introspect_jsonb_column(
-            view_metadata.view_name, view_metadata.schema_name, db_pool
+            view_metadata.view_name,
+            view_metadata.schema_name,
+            db_pool,
         )
 
         # 2. Build class name (PascalCase from view name)
@@ -53,7 +58,8 @@ class TypeGenerator:
         annotations = {}
         for field_name, field_info in jsonb_fields.items():
             python_type = self.type_mapper.pg_type_to_python(
-                field_info["type"], field_info["nullable"]
+                field_info["type"],
+                field_info["nullable"],
             )
             annotations[field_name] = python_type
 
@@ -82,7 +88,10 @@ class TypeGenerator:
         return decorated_cls
 
     async def _introspect_jsonb_column(
-        self, view_name: str, schema_name: str, db_pool: Any
+        self,
+        view_name: str,
+        schema_name: str,
+        db_pool: Any,
     ) -> dict[str, dict]:
         """Introspect JSONB data column structure.
 
@@ -127,7 +136,10 @@ class TypeGenerator:
             return fields
 
     async def _introspect_view_definition(
-        self, view_name: str, schema_name: str, conn: Any
+        self,
+        view_name: str,
+        schema_name: str,
+        conn: Any,
     ) -> dict[str, dict]:
         """Introspect view definition when no data is available.
 
@@ -189,7 +201,7 @@ class TypeGenerator:
         parts = name.split("_")
         return "".join(part.capitalize() for part in parts)
 
-    def _apply_type_decorator(self, cls: Type, sql_source: str, annotation: TypeAnnotation) -> Type:
+    def _apply_type_decorator(self, cls: type, sql_source: str, annotation: TypeAnnotation) -> type:
         """Apply the @type decorator to the class."""
         # Import here to avoid circular imports
         from fraiseql import type as fraiseql_type
@@ -199,7 +211,7 @@ class TypeGenerator:
 
         return decorated_cls
 
-    def _register_type(self, cls: Type):
+    def _register_type(self, cls: type):
         """Register the type in FraiseQL's type registry."""
         # Import here to avoid circular imports
         from fraiseql.db import _type_registry

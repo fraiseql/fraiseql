@@ -7,7 +7,7 @@ without async/await overhead.
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ class OperationMonitor:
 
 
 # Global instance holder
-_operation_monitor_instance: Optional[OperationMonitor] = None
+_operation_monitor_instance: OperationMonitor | None = None
 
 
 def set_operation_monitor(monitor: OperationMonitor) -> None:
@@ -52,7 +52,7 @@ class OperationMonitorSync:
     without async/await overhead.
     """
 
-    def __init__(self, monitor: Optional[OperationMonitor] = None) -> None:
+    def __init__(self, monitor: OperationMonitor | None = None) -> None:
         """Initialize synchronous operation monitor accessor.
 
         Args:
@@ -76,7 +76,9 @@ class OperationMonitorSync:
         return []
 
     def get_slow_operations(
-        self, limit: int = 20, threshold_ms: float = 500.0
+        self,
+        limit: int = 20,
+        threshold_ms: float = 500.0,
     ) -> list[dict[str, Any]]:
         """Get slow GraphQL operations (synchronous).
 

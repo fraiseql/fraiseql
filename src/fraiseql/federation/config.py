@@ -5,7 +5,6 @@ Presets for common use cases (LITE, STANDARD, ADVANCED).
 """
 
 from dataclasses import dataclass, field
-from typing import List, Optional
 
 
 @dataclass
@@ -35,7 +34,7 @@ class FederationConfig:
     auto_service_resolver: bool = True
 
     # Directives to support
-    directives: List[str] = field(default_factory=lambda: ["key", "external"])
+    directives: list[str] = field(default_factory=lambda: ["key", "external"])
 
     # Performance
     batch_size: int = 100
@@ -43,7 +42,7 @@ class FederationConfig:
 
     # Caching
     cache_sdl: bool = True
-    cache_ttl_seconds: Optional[int] = 3600
+    cache_ttl_seconds: int | None = 3600
 
     def __post_init__(self):
         """Validate configuration after initialization."""

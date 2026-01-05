@@ -309,7 +309,7 @@ class FieldCondition:
         if self.operator not in ALL_OPERATORS:
             raise ValueError(
                 f"Invalid operator '{self.operator}'. "
-                f"Supported operators: {', '.join(sorted(ALL_OPERATORS.keys()))}"
+                f"Supported operators: {', '.join(sorted(ALL_OPERATORS.keys()))}",
             )
 
         # Validate lookup_strategy
@@ -317,7 +317,7 @@ class FieldCondition:
         if self.lookup_strategy not in valid_strategies:
             raise ValueError(
                 f"Invalid lookup_strategy '{self.lookup_strategy}'. "
-                f"Must be one of: {', '.join(sorted(valid_strategies))}"
+                f"Must be one of: {', '.join(sorted(valid_strategies))}",
             )
 
         # Validate JSONB path consistency
@@ -411,7 +411,7 @@ class FieldCondition:
                 )
                 if sql is None:
                     raise ValueError(
-                        f"Network operator '{self.operator}' not supported by registry"
+                        f"Network operator '{self.operator}' not supported by registry",
                     )
             else:
                 # JSONB text comparison - need to handle boolean conversion
@@ -460,7 +460,7 @@ class FieldCondition:
                 else:
                     raise ValueError(
                         f"Vector operator requires dict or (vector, threshold) "
-                        f"tuple, got {self.value!r}"
+                        f"tuple, got {self.value!r}",
                     )
 
                 comp_op = "<" if comparison == "lt" else "<=" if comparison == "lte" else ">"
@@ -479,7 +479,7 @@ class FieldCondition:
                             SQL("%s"),
                             SQL(f") {comp_op} "),
                             SQL("%s"),
-                        ]
+                        ],
                     )
                 else:
                     # Regular vector type columns
@@ -492,7 +492,7 @@ class FieldCondition:
                             SQL("%s::vector"),
                             SQL(f") {comp_op} "),
                             SQL("%s"),
-                        ]
+                        ],
                     )
                 params.extend([vector, threshold])
             elif self.operator in FULLTEXT_OPERATORS:
@@ -505,7 +505,7 @@ class FieldCondition:
                             SQL(" @@ to_tsquery("),
                             SQL("%s"),
                             SQL(")"),
-                        ]
+                        ],
                     )
                     params.append(self.value)
                 elif self.operator == "plain_query":
@@ -516,7 +516,7 @@ class FieldCondition:
                             SQL(" @@ plainto_tsquery("),
                             SQL("%s"),
                             SQL(")"),
-                        ]
+                        ],
                     )
                     params.append(self.value)
                 elif self.operator == "phrase_query":
@@ -527,7 +527,7 @@ class FieldCondition:
                             SQL(" @@ phraseto_tsquery("),
                             SQL("%s"),
                             SQL(")"),
-                        ]
+                        ],
                     )
                     params.append(self.value)
                 elif self.operator == "websearch_query":
@@ -538,7 +538,7 @@ class FieldCondition:
                             SQL(" @@ websearch_to_tsquery("),
                             SQL("%s"),
                             SQL(")"),
-                        ]
+                        ],
                     )
                     params.append(self.value)
                 elif self.operator in ("rank_gt", "rank_lt"):
@@ -553,7 +553,7 @@ class FieldCondition:
                     else:
                         raise ValueError(
                             f"rank_* operators require 'query:threshold' string or "
-                            f"dict with query and threshold, got {self.value!r}"
+                            f"dict with query and threshold, got {self.value!r}",
                         )
 
                     comp = ">" if self.operator == "rank_gt" else "<"
@@ -565,7 +565,7 @@ class FieldCondition:
                             SQL("%s"),
                             SQL(f")) {comp} "),
                             SQL("%s"),
-                        ]
+                        ],
                     )
                     params.extend([query, threshold])
                 elif self.operator in ("rank_cd_gt", "rank_cd_lt"):
@@ -580,7 +580,7 @@ class FieldCondition:
                     else:
                         raise ValueError(
                             f"rank_cd_* operators require 'query:threshold' string or "
-                            f"dict with query and threshold, got {self.value!r}"
+                            f"dict with query and threshold, got {self.value!r}",
                         )
 
                     comp = ">" if self.operator == "rank_cd_gt" else "<"
@@ -592,7 +592,7 @@ class FieldCondition:
                             SQL("%s"),
                             SQL(f")) {comp} "),
                             SQL("%s"),
-                        ]
+                        ],
                     )
                     params.extend([query, threshold])
             elif self.operator in ARRAY_OPERATORS:
@@ -615,7 +615,7 @@ class FieldCondition:
                     if self.operator == "contains":
                         raise ValueError(
                             f"Operator 'contains' reached ARRAY_OPERATORS section unexpectedly. "
-                            f"Value type: {type(self.value).__name__}, value: {self.value!r}"
+                            f"Value type: {type(self.value).__name__}, value: {self.value!r}",
                         )
                     op = ARRAY_OPERATORS[self.operator]
                     sql = Composed([Identifier(self.target_column), SQL(f" {op} "), SQL("%s")])
@@ -639,14 +639,14 @@ class FieldCondition:
                             SQL(", 1) "),
                             SQL(f"{op} "),
                             SQL("%s"),
-                        ]
+                        ],
                     )
                     params.append(self.value)
                 elif self.operator in ("array_any_eq", "any_eq", "array_all_eq", "all_eq"):
                     # ANY/ALL: %s = ANY(column)
                     op = "ANY" if self.operator in ("array_any_eq", "any_eq") else "ALL"
                     sql = Composed(
-                        [SQL("%s = "), SQL(f"{op}("), Identifier(self.target_column), SQL(")")]
+                        [SQL("%s = "), SQL(f"{op}("), Identifier(self.target_column), SQL(")")],
                     )
                     params.append(self.value)
             elif self.operator in NETWORK_OPERATORS:
@@ -662,7 +662,7 @@ class FieldCondition:
                 )
                 if sql is None:
                     raise ValueError(
-                        f"Network operator '{self.operator}' not supported by registry"
+                        f"Network operator '{self.operator}' not supported by registry",
                     )
             else:
                 sql = Composed([Identifier(self.target_column), SQL(f" {sql_op} "), SQL("%s")])
@@ -761,7 +761,7 @@ class WhereClause:
         # Must have at least one condition or nested clause
         if not self.conditions and not self.nested_clauses and not self.not_clause:
             raise ValueError(
-                "WhereClause must have at least one condition, nested clause, or NOT clause"
+                "WhereClause must have at least one condition, nested clause, or NOT clause",
             )
 
     def to_sql(self) -> tuple[Composed | None, list[Any]]:

@@ -173,7 +173,7 @@ class SchemaRegistry:
 
         if not isinstance(scalar_class, GraphQLScalarType):
             raise TypeError(
-                f"{scalar_class} must be a GraphQLScalarType instance, got {type(scalar_class)}"
+                f"{scalar_class} must be a GraphQLScalarType instance, got {type(scalar_class)}",
             )
 
         scalar_name = scalar_class.name

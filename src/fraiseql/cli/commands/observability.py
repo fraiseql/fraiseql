@@ -83,7 +83,7 @@ def export(format: str, output: str | None) -> None:
                         "counters": [],  # Would be populated from actual metrics
                         "gauges": [],
                         "histograms": [],
-                    }
+                    },
                 },
                 indent=2,
             )

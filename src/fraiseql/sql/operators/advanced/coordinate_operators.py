@@ -1,7 +1,7 @@
 """Coordinate operator strategies for geographic POINT data."""
 
 import os
-from typing import Any, Optional
+from typing import Any, ClassVar
 
 from psycopg.sql import SQL, Composable, Composed, Literal
 
@@ -27,9 +27,9 @@ class CoordinateOperatorStrategy(BaseOperatorStrategy):
     converted to PostgreSQL POINT(longitude, latitude) format.
     """
 
-    SUPPORTED_OPERATORS = {"eq", "neq", "in", "notin", "distance_within"}
+    SUPPORTED_OPERATORS: ClassVar[set[str]] = {"eq", "neq", "in", "notin", "distance_within"}
 
-    def supports_operator(self, operator: str, field_type: Optional[type]) -> bool:
+    def supports_operator(self, operator: str, field_type: type | None) -> bool:
         """Check if this is a coordinate operator."""
         if operator not in self.SUPPORTED_OPERATORS:
             return False
@@ -50,9 +50,9 @@ class CoordinateOperatorStrategy(BaseOperatorStrategy):
         operator: str,
         value: Any,
         path_sql: Composable,
-        field_type: Optional[type] = None,
-        jsonb_column: Optional[str] = None,
-    ) -> Optional[Composable]:
+        field_type: type | None = None,
+        jsonb_column: str | None = None,
+    ) -> Composable | None:
         """Build SQL for coordinate operators with proper PostgreSQL POINT type casting."""
         # Basic operations: cast to point
         if operator in ("eq", "neq", "in", "notin"):
@@ -61,7 +61,7 @@ class CoordinateOperatorStrategy(BaseOperatorStrategy):
             if operator == "eq":
                 if not isinstance(value, tuple) or len(value) != 2:
                     raise TypeError(
-                        f"eq operator requires a coordinate tuple (lat, lng), got {value}"
+                        f"eq operator requires a coordinate tuple (lat, lng), got {value}",
                     )
                 lat, lng = value
                 # PostgreSQL POINT uses (x,y) = (longitude, latitude)
@@ -70,7 +70,7 @@ class CoordinateOperatorStrategy(BaseOperatorStrategy):
             if operator == "neq":
                 if not isinstance(value, tuple) or len(value) != 2:
                     raise TypeError(
-                        f"neq operator requires a coordinate tuple (lat, lng), got {value}"
+                        f"neq operator requires a coordinate tuple (lat, lng), got {value}",
                     )
                 lat, lng = value
                 return SQL("{} != POINT({}, {})").format(casted_path, Literal(lng), Literal(lat))
@@ -83,7 +83,7 @@ class CoordinateOperatorStrategy(BaseOperatorStrategy):
                 for coord in value:
                     if not isinstance(coord, tuple) or len(coord) != 2:
                         raise TypeError(
-                            f"in operator requires coordinate tuples (lat, lng), got {coord}"
+                            f"in operator requires coordinate tuples (lat, lng), got {coord}",
                         )
                     lat, lng = coord
                     point_literals.append(SQL("POINT({}, {})").format(Literal(lng), Literal(lat)))
@@ -98,7 +98,7 @@ class CoordinateOperatorStrategy(BaseOperatorStrategy):
                 for coord in value:
                     if not isinstance(coord, tuple) or len(coord) != 2:
                         raise TypeError(
-                            f"notin operator requires coordinate tuples (lat, lng), got {coord}"
+                            f"notin operator requires coordinate tuples (lat, lng), got {coord}",
                         )
                     lat, lng = coord
                     point_literals.append(SQL("POINT({}, {})").format(Literal(lng), Literal(lat)))
@@ -115,7 +115,7 @@ class CoordinateOperatorStrategy(BaseOperatorStrategy):
                         sql_parts.append(", ")
                     if not isinstance(coord, tuple) or len(coord) != 2:
                         raise TypeError(
-                            f"notin operator requires coordinate tuples (lat, lng), got {coord}"
+                            f"notin operator requires coordinate tuples (lat, lng), got {coord}",
                         )
                     lat, lng = coord
                     sql_parts.extend([f"POINT({lng}, {lat})"])
@@ -132,7 +132,7 @@ class CoordinateOperatorStrategy(BaseOperatorStrategy):
                         parts.append(SQL(", "))
                     if not isinstance(coord, tuple) or len(coord) != 2:
                         raise TypeError(
-                            f"notin operator requires coordinate tuples (lat, lng), got {coord}"
+                            f"notin operator requires coordinate tuples (lat, lng), got {coord}",
                         )
                     lat, lng = coord
                     parts.extend([SQL("POINT("), Literal(lng), SQL(", "), Literal(lat), SQL(")")])
@@ -145,18 +145,18 @@ class CoordinateOperatorStrategy(BaseOperatorStrategy):
             if not isinstance(value, tuple) or len(value) != 2:
                 raise TypeError(
                     f"distance_within operator requires a tuple "
-                    f"(center_coord, distance_meters), got {value}"
+                    f"(center_coord, distance_meters), got {value}",
                 )
 
             center_coord, distance_meters = value
             if not isinstance(center_coord, tuple) or len(center_coord) != 2:
                 raise TypeError(
                     f"distance_within center must be a coordinate tuple "
-                    f"(lat, lng), got {center_coord}"
+                    f"(lat, lng), got {center_coord}",
                 )
             if not isinstance(distance_meters, (int, float)) or distance_meters < 0:
                 raise TypeError(
-                    f"distance_within distance must be a positive number, got {distance_meters}"
+                    f"distance_within distance must be a positive number, got {distance_meters}",
                 )
 
             # Get distance method from environment or use default
@@ -171,24 +171,33 @@ class CoordinateOperatorStrategy(BaseOperatorStrategy):
                 return self._build_distance_haversine(path_sql, center_coord, distance_meters)
             raise ValueError(
                 f"Invalid coordinate_distance_method: '{method}'. "
-                f"Valid options: 'postgis', 'haversine', 'earthdistance'"
+                f"Valid options: 'postgis', 'haversine', 'earthdistance'",
             )
 
         return None
 
     def _build_distance_postgis(
-        self, path_sql: Composable, center: tuple[float, float], distance_meters: float
+        self,
+        path_sql: Composable,
+        center: tuple[float, float],
+        distance_meters: float,
     ) -> Composable:
         """Build SQL for distance using PostGIS ST_DWithin."""
         lat, lng = center
         casted_path = SQL("({})::point").format(path_sql)
 
         return SQL("ST_DWithin({}, POINT({}, {}), {})").format(
-            casted_path, Literal(lng), Literal(lat), Literal(distance_meters)
+            casted_path,
+            Literal(lng),
+            Literal(lat),
+            Literal(distance_meters),
         )
 
     def _build_distance_haversine(
-        self, path_sql: Composable, center: tuple[float, float], distance_meters: float
+        self,
+        path_sql: Composable,
+        center: tuple[float, float],
+        distance_meters: float,
     ) -> Composable:
         """Build SQL for distance using Haversine formula."""
         center_lat, center_lng = center
@@ -200,7 +209,7 @@ class CoordinateOperatorStrategy(BaseOperatorStrategy):
             "POWER(SIN(RADIANS({}) - RADIANS(ST_Y(({}::point)))), 2) / 2 + "
             "COS(RADIANS({})) * COS(RADIANS(ST_Y(({}::point)))) * "
             "POWER(SIN(RADIANS({}) - RADIANS(ST_X(({}::point)))), 2) / 2"
-            ")) <= {}"
+            ")) <= {}",
         ).format(
             Literal(center_lat),
             path_sql,
@@ -212,7 +221,10 @@ class CoordinateOperatorStrategy(BaseOperatorStrategy):
         )
 
     def _build_distance_earthdistance(
-        self, path_sql: Composable, center: tuple[float, float], distance_meters: float
+        self,
+        path_sql: Composable,
+        center: tuple[float, float],
+        distance_meters: float,
     ) -> Composable:
         """Build SQL for distance using earthdistance extension."""
         lat, lng = center
@@ -230,5 +242,5 @@ class CoordinateOperatorStrategy(BaseOperatorStrategy):
                 casted_path,
                 SQL("))) <= "),
                 Literal(distance_meters),
-            ]
+            ],
         )

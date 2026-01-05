@@ -223,7 +223,8 @@ class MutationDefinition:
         return self._resolved_error_config
 
     def _resolve_error_config(
-        self, provided_error_config: MutationErrorConfig | None
+        self,
+        provided_error_config: MutationErrorConfig | None,
     ) -> MutationErrorConfig | None:
         """Resolve the error config to use, considering defaults from config.
 
@@ -276,7 +277,7 @@ class MutationDefinition:
         if entity_field not in success_annotations:
             raise ValueError(
                 f"Success type {success_type_name} must have '{entity_field}' field. "
-                f"v1.8.0 requires Success types to always have non-null entity."
+                f"v1.8.0 requires Success types to always have non-null entity.",
             )
 
         # Entity field must NOT be Optional
@@ -285,7 +286,7 @@ class MutationDefinition:
             raise ValueError(
                 f"Success type {success_type_name} has nullable entity field. "
                 f"v1.8.0 requires entity to be non-null. "
-                f"Change '{entity_field}: {entity_type}' to non-nullable type."
+                f"Change '{entity_field}: {entity_type}' to non-nullable type.",
             )
 
         # Validate Error type
@@ -338,7 +339,7 @@ class MutationDefinition:
 
         raise ValueError(
             f"Could not determine entity field name for {getattr(self.success_type, '__name__', 'Success')}. "  # noqa: E501
-            f"Expected 'entity' or lowercase mutation name."
+            f"Expected 'entity' or lowercase mutation name.",
         )
 
     def _is_optional(self, type_hint: Any) -> bool:
@@ -354,7 +355,9 @@ class MutationDefinition:
 
         # Check for Optional[X] (older syntax)
         return getattr(type_hint, "__origin__", None) is typing.Union and type(None) in getattr(
-            type_hint, "__args__", []
+            type_hint,
+            "__args__",
+            [],
         )
 
     def create_resolver(self) -> Callable:
@@ -897,7 +900,12 @@ def mutation(
         cls = cls_or_fn
         # Create mutation definition
         definition = MutationDefinition(
-            cls, function, schema, context_params, error_config, enable_cascade
+            cls,
+            function,
+            schema,
+            context_params,
+            error_config,
+            enable_cascade,
         )
 
         # Store definition on the class

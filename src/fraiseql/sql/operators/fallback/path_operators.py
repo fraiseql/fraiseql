@@ -1,6 +1,6 @@
 """Path/tree operator strategy for generic hierarchical operations."""
 
-from typing import Any, Optional
+from typing import Any
 
 from psycopg.sql import SQL, Composable, Literal
 
@@ -19,7 +19,7 @@ class PathOperatorStrategy(BaseOperatorStrategy):
 
     SUPPORTED_OPERATORS = {"depth_eq", "depth_gt", "depth_lt", "isdescendant"}
 
-    def supports_operator(self, operator: str, field_type: Optional[type]) -> bool:
+    def supports_operator(self, operator: str, field_type: type | None) -> bool:
         """Check if this is a path operator."""
         return operator in self.SUPPORTED_OPERATORS
 
@@ -28,9 +28,9 @@ class PathOperatorStrategy(BaseOperatorStrategy):
         operator: str,
         value: Any,
         path_sql: Composable,
-        field_type: Optional[type] = None,
-        jsonb_column: Optional[str] = None,
-    ) -> Optional[Composable]:
+        field_type: type | None = None,
+        jsonb_column: str | None = None,
+    ) -> Composable | None:
         """Build SQL for path operators."""
         if operator == "depth_eq":
             return SQL("nlevel({}) = {}").format(path_sql, Literal(value))

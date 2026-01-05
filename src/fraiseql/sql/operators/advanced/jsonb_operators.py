@@ -1,6 +1,6 @@
 """JSONB-specific operator strategies."""
 
-from typing import Any, Optional
+from typing import Any, ClassVar
 
 from psycopg.sql import SQL, Composable, Literal
 
@@ -15,9 +15,9 @@ class JsonbOperatorStrategy(BaseOperatorStrategy):
         - strictly_contains: JSONB strictly contains (@> but not equal)
     """
 
-    SUPPORTED_OPERATORS = {"overlaps", "strictly_contains"}
+    SUPPORTED_OPERATORS: ClassVar[set[str]] = {"overlaps", "strictly_contains"}
 
-    def supports_operator(self, operator: str, field_type: Optional[type]) -> bool:
+    def supports_operator(self, operator: str, field_type: type | None) -> bool:
         """Check if this is a JSONB-specific operator."""
         if operator not in self.SUPPORTED_OPERATORS:
             return False
@@ -31,9 +31,9 @@ class JsonbOperatorStrategy(BaseOperatorStrategy):
         operator: str,
         value: Any,
         path_sql: Composable,
-        field_type: Optional[type] = None,
-        jsonb_column: Optional[str] = None,
-    ) -> Optional[Composable]:
+        field_type: type | None = None,
+        jsonb_column: str | None = None,
+    ) -> Composable | None:
         """Build SQL for JSONB operators."""
         if operator == "overlaps":
             # && operator: check if JSONB objects/arrays overlap
@@ -43,7 +43,10 @@ class JsonbOperatorStrategy(BaseOperatorStrategy):
             # @> operator but exclude exact equality
             # Means: contains the value AND is not equal to the value
             return SQL("{} @> {} AND {} != {}").format(
-                path_sql, Literal(value), path_sql, Literal(value)
+                path_sql,
+                Literal(value),
+                path_sql,
+                Literal(value),
             )
 
         return None

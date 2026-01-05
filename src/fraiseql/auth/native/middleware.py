@@ -4,7 +4,7 @@ import hashlib
 import time
 from collections import defaultdict
 from collections.abc import Callable
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import FastAPI, Request, Response, status
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -26,12 +26,24 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         app: FastAPI,
         hsts_max_age: int = 31536000,  # 1 year
         include_subdomains: bool = True,
-        csp_policy: Optional[str] = None,
+        csp_policy: str | None = None,
         frame_options: str = "DENY",
         content_type_options: str = "nosniff",
         referrer_policy: str = "strict-origin-when-cross-origin",
-        permissions_policy: Optional[str] = None,
+        permissions_policy: str | None = None,
     ) -> None:
+        """Initialize security headers middleware.
+
+        Args:
+            app: FastAPI application instance
+            hsts_max_age: Max age for HSTS header in seconds
+            include_subdomains: Include subdomains in HSTS
+            csp_policy: Content Security Policy string
+            frame_options: X-Frame-Options value
+            content_type_options: X-Content-Type-Options value
+            referrer_policy: Referrer-Policy value
+            permissions_policy: Permissions-Policy value
+        """
         super().__init__(app)
         self.hsts_max_age = hsts_max_age
         self.include_subdomains = include_subdomains
@@ -45,7 +57,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         )
 
     async def dispatch(
-        self, request: Request, call_next: Callable[[Request], Response]
+        self,
+        request: Request,
+        call_next: Callable[[Request], Response],
     ) -> Response:
         """Process request and add security headers to response.
 
@@ -90,7 +104,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         auth_requests_per_minute: int = 5,  # Stricter limit for auth endpoints
         burst_auth_requests: int = 2,
         redis_client: Any = None,
-        redis_url: Optional[str] = None,
+        redis_url: str | None = None,
         redis_ttl: int = 3600,
     ) -> None:
         super().__init__(app)
@@ -181,7 +195,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         return False  # Allow request
 
     async def dispatch(
-        self, request: Request, call_next: Callable[[Request], Response]
+        self,
+        request: Request,
+        call_next: Callable[[Request], Response],
     ) -> Response:
         """Apply rate limiting to incoming requests.
 
@@ -207,7 +223,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 media_type="application/json",
             )
             response.headers["X-RateLimit-Limit"] = str(
-                self.auth_requests_per_minute if is_auth_endpoint else self.requests_per_minute
+                self.auth_requests_per_minute if is_auth_endpoint else self.requests_per_minute,
             )
             response.headers["X-RateLimit-Remaining"] = "0"
             response.headers["Retry-After"] = "60"
@@ -311,7 +327,9 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
         return True
 
     async def dispatch(
-        self, request: Request, call_next: Callable[[Request], Response]
+        self,
+        request: Request,
+        call_next: Callable[[Request], Response],
     ) -> Response:
         """Validate CSRF tokens for state-changing requests.
 

@@ -5,7 +5,6 @@ All mutations automatically invalidate caches via PostgreSQL domain versioning.
 """
 
 from datetime import datetime
-from typing import Optional
 from uuid import UUID
 
 from fraiseql.mutations.mutation_decorator import mutation
@@ -18,9 +17,9 @@ class CreateRoleInput:
     """Input for creating a new role."""
 
     name: str
-    description: Optional[str] = None
-    parent_role_id: Optional[UUID] = None
-    tenant_id: Optional[UUID] = None
+    description: str | None = None
+    parent_role_id: UUID | None = None
+    tenant_id: UUID | None = None
 
 
 @strawberry.input
@@ -28,9 +27,9 @@ class UpdateRoleInput:
     """Input for updating an existing role."""
 
     role_id: UUID
-    name: Optional[str] = None
-    description: Optional[str] = None
-    parent_role_id: Optional[UUID] = None
+    name: str | None = None
+    description: str | None = None
+    parent_role_id: UUID | None = None
 
 
 @strawberry.input
@@ -47,8 +46,8 @@ class CreatePermissionInput:
 
     resource: str
     action: str
-    description: Optional[str] = None
-    constraints: Optional[dict] = None
+    description: str | None = None
+    constraints: dict | None = None
 
 
 @strawberry.input
@@ -56,10 +55,10 @@ class UpdatePermissionInput:
     """Input for updating an existing permission."""
 
     permission_id: UUID
-    resource: Optional[str] = None
-    action: Optional[str] = None
-    description: Optional[str] = None
-    constraints: Optional[dict] = None
+    resource: str | None = None
+    action: str | None = None
+    description: str | None = None
+    constraints: dict | None = None
 
 
 @strawberry.input
@@ -93,8 +92,8 @@ class AssignRoleToUserInput:
 
     user_id: UUID
     role_id: UUID
-    tenant_id: Optional[UUID] = None
-    expires_at: Optional[datetime] = None
+    tenant_id: UUID | None = None
+    expires_at: datetime | None = None
 
 
 @strawberry.input
@@ -103,7 +102,7 @@ class RevokeRoleFromUserInput:
 
     user_id: UUID
     role_id: UUID
-    tenant_id: Optional[UUID] = None
+    tenant_id: UUID | None = None
 
 
 # Result types
@@ -112,7 +111,7 @@ class RoleMutationResult:
     """Result of a role mutation."""
 
     success: bool
-    role_id: Optional[UUID] = None
+    role_id: UUID | None = None
     message: str
 
 
@@ -121,7 +120,7 @@ class PermissionMutationResult:
     """Result of a permission mutation."""
 
     success: bool
-    permission_id: Optional[UUID] = None
+    permission_id: UUID | None = None
     message: str
 
 
@@ -130,7 +129,7 @@ class RolePermissionMutationResult:
     """Result of a role-permission mutation."""
 
     success: bool
-    role_permission_id: Optional[UUID] = None
+    role_permission_id: UUID | None = None
     message: str
 
 
@@ -139,7 +138,7 @@ class UserRoleMutationResult:
     """Result of a user-role mutation."""
 
     success: bool
-    user_role_id: Optional[UUID] = None
+    user_role_id: UUID | None = None
     message: str
 
 
@@ -155,9 +154,9 @@ class CreateRole:
     @staticmethod
     def sql(
         name: str,
-        description: Optional[str] = None,
-        parent_role_id: Optional[UUID] = None,
-        tenant_id: Optional[UUID] = None,
+        description: str | None = None,
+        parent_role_id: UUID | None = None,
+        tenant_id: UUID | None = None,
     ) -> str:
         """Generate SQL to create a new role."""
         columns = ["name"]
@@ -191,9 +190,9 @@ class CreateRole:
     @staticmethod
     def execute(
         name: str,
-        description: Optional[str] = None,
-        parent_role_id: Optional[UUID] = None,
-        tenant_id: Optional[UUID] = None,
+        description: str | None = None,
+        parent_role_id: UUID | None = None,
+        tenant_id: UUID | None = None,
     ) -> dict:
         """Execute role creation."""
         return {
@@ -226,9 +225,9 @@ class UpdateRole:
     @staticmethod
     def sql(
         role_id: UUID,
-        name: Optional[str] = None,
-        description: Optional[str] = None,
-        parent_role_id: Optional[UUID] = None,
+        name: str | None = None,
+        description: str | None = None,
+        parent_role_id: UUID | None = None,
     ) -> str:
         """Generate SQL to update a role."""
         updates = []
@@ -263,9 +262,9 @@ class UpdateRole:
     @staticmethod
     def execute(
         role_id: UUID,
-        name: Optional[str] = None,
-        description: Optional[str] = None,
-        parent_role_id: Optional[UUID] = None,
+        name: str | None = None,
+        description: str | None = None,
+        parent_role_id: UUID | None = None,
     ) -> dict:
         """Execute role update."""
         return {
@@ -330,8 +329,8 @@ class CreatePermission:
     def sql(
         resource: str,
         action: str,
-        description: Optional[str] = None,
-        constraints: Optional[dict] = None,
+        description: str | None = None,
+        constraints: dict | None = None,
     ) -> str:
         """Generate SQL to create a new permission."""
         columns = ["resource", "action"]
@@ -361,8 +360,8 @@ class CreatePermission:
     def execute(
         resource: str,
         action: str,
-        description: Optional[str] = None,
-        constraints: Optional[dict] = None,
+        description: str | None = None,
+        constraints: dict | None = None,
     ) -> dict:
         """Execute permission creation."""
         return {
@@ -393,10 +392,10 @@ class UpdatePermission:
     @staticmethod
     def sql(
         permission_id: UUID,
-        resource: Optional[str] = None,
-        action: Optional[str] = None,
-        description: Optional[str] = None,
-        constraints: Optional[dict] = None,
+        resource: str | None = None,
+        action: str | None = None,
+        description: str | None = None,
+        constraints: dict | None = None,
     ) -> str:
         """Generate SQL to update a permission."""
         updates = []
@@ -434,10 +433,10 @@ class UpdatePermission:
     @staticmethod
     def execute(
         permission_id: UUID,
-        resource: Optional[str] = None,
-        action: Optional[str] = None,
-        description: Optional[str] = None,
-        constraints: Optional[dict] = None,
+        resource: str | None = None,
+        action: str | None = None,
+        description: str | None = None,
+        constraints: dict | None = None,
     ) -> dict:
         """Execute permission update."""
         return {
@@ -577,8 +576,8 @@ class AssignRoleToUser:
     def sql(
         user_id: UUID,
         role_id: UUID,
-        tenant_id: Optional[UUID] = None,
-        expires_at: Optional[datetime] = None,
+        tenant_id: UUID | None = None,
+        expires_at: datetime | None = None,
     ) -> str:
         """Generate SQL to assign role to user."""
         columns = ["user_id", "role_id"]
@@ -611,8 +610,8 @@ class AssignRoleToUser:
     def execute(
         user_id: UUID,
         role_id: UUID,
-        tenant_id: Optional[UUID] = None,
-        expires_at: Optional[datetime] = None,
+        tenant_id: UUID | None = None,
+        expires_at: datetime | None = None,
     ) -> dict:
         """Execute role assignment."""
         return {
@@ -644,7 +643,7 @@ class RevokeRoleFromUser:
     def sql(
         user_id: UUID,
         role_id: UUID,
-        tenant_id: Optional[UUID] = None,
+        tenant_id: UUID | None = None,
     ) -> str:
         """Generate SQL to revoke role from user."""
         if tenant_id is not None:
@@ -663,7 +662,7 @@ class RevokeRoleFromUser:
     def execute(
         user_id: UUID,
         role_id: UUID,
-        tenant_id: Optional[UUID] = None,
+        tenant_id: UUID | None = None,
     ) -> dict:
         """Execute role revocation."""
         return {

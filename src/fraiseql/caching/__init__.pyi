@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 class CacheKeyBuilder:
     def __init__(self) -> None: ...
@@ -9,8 +9,8 @@ class CacheKeyBuilder:
 class CacheConfig:
     enabled: bool
     backend: str
-    ttl: Optional[int]
-    max_size: Optional[int]
+    ttl: int | None
+    max_size: int | None
 
 @dataclass
 class CacheStats:
@@ -22,28 +22,28 @@ class CacheStats:
 class PostgresCacheError(Exception): ...
 
 class PostgresCache:
-    async def get(self, key: str) -> Optional[Any]: ...
-    async def set(self, key: str, value: Any, ttl: Optional[int] = None) -> None: ...
+    async def get(self, key: str) -> Any | None: ...
+    async def set(self, key: str, value: Any, ttl: int | None = None) -> None: ...
     async def delete(self, key: str) -> None: ...
     async def clear(self) -> None: ...
     async def get_stats(self) -> CacheStats: ...
 
 class CacheBackend:
-    async def get(self, key: str) -> Optional[Any]: ...
-    async def set(self, key: str, value: Any, ttl: Optional[int] = None) -> None: ...
+    async def get(self, key: str) -> Any | None: ...
+    async def set(self, key: str, value: Any, ttl: int | None = None) -> None: ...
     async def delete(self, key: str) -> None: ...
     async def clear(self) -> None: ...
 
 class ResultCache:
     def __init__(self, backend: CacheBackend, config: CacheConfig) -> None: ...
-    async def get(self, key: str) -> Optional[Any]: ...
-    async def set(self, key: str, value: Any, ttl: Optional[int] = None) -> None: ...
+    async def get(self, key: str) -> Any | None: ...
+    async def set(self, key: str, value: Any, ttl: int | None = None) -> None: ...
 
 async def cached_query(
     key: str,
     query_fn: Any,
     cache: ResultCache,
-    ttl: Optional[int] = None,
+    ttl: int | None = None,
 ) -> Any: ...
 @dataclass
 class CascadeRule:
@@ -63,34 +63,34 @@ class CachedRepository:
         self,
         repository: Any,
         cache: CacheBackend,
-        config: Optional[CacheConfig] = None,
+        config: CacheConfig | None = None,
     ) -> None: ...
     async def query(
         self,
         view_name: str,
-        where: Optional[dict[str, Any]] = None,
-        order_by: Optional[list[str] | str] = None,
-        limit: Optional[int] = None,
-        offset: Optional[int] = None,
-        selection_set: Optional[dict[str, Any]] = None,
+        where: dict[str, Any] | None = None,
+        order_by: list[str] | str | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
+        selection_set: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]: ...
     async def create(
         self,
         entity_type: str,
         input_data: dict[str, Any],
-        selection_set: Optional[dict[str, Any]] = None,
+        selection_set: dict[str, Any] | None = None,
     ) -> dict[str, Any]: ...
     async def update(
         self,
         entity_type: str,
         id_value: Any,
         update_data: dict[str, Any],
-        selection_set: Optional[dict[str, Any]] = None,
+        selection_set: dict[str, Any] | None = None,
     ) -> dict[str, Any]: ...
     async def delete(
         self,
         entity_type: str,
         id_value: Any,
-        selection_set: Optional[dict[str, Any]] = None,
+        selection_set: dict[str, Any] | None = None,
     ) -> dict[str, Any]: ...
     async def get_stats(self) -> CacheStats: ...

@@ -8,10 +8,10 @@ import asyncio
 import logging
 import time
 from collections import defaultdict
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 from graphql import GraphQLResolveInfo
 

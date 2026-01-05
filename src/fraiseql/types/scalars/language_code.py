@@ -22,7 +22,7 @@ def serialize_language_code(value: Any) -> str | None:
     if not _LANGUAGE_CODE_REGEX.match(value_str):
         raise GraphQLError(
             f"Invalid language code: {value}. Must be ISO 639-1 two-letter code "
-            "(e.g., 'en', 'fr', 'de')"
+            "(e.g., 'en', 'fr', 'de')",
         )
 
     return value_str
@@ -38,7 +38,7 @@ def parse_language_code_value(value: Any) -> str:
     if not _LANGUAGE_CODE_REGEX.match(value_lower):
         raise GraphQLError(
             f"Invalid language code: {value}. Must be ISO 639-1 two-letter code "
-            "(e.g., 'en', 'fr', 'de')"
+            "(e.g., 'en', 'fr', 'de')",
         )
 
     return value_lower
@@ -90,6 +90,6 @@ class LanguageCodeField(str, ScalarMarker):
         if not _LANGUAGE_CODE_REGEX.match(value_lower):
             raise ValueError(
                 f"Invalid language code: {value}. Must be ISO 639-1 two-letter code "
-                "(e.g., 'en', 'fr', 'de')"
+                "(e.g., 'en', 'fr', 'de')",
             )
         return super().__new__(cls, value_lower)

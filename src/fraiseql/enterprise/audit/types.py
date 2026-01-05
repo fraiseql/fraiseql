@@ -1,7 +1,6 @@
 """GraphQL types for FraiseQL Enterprise Audit Logging."""
 
 from datetime import datetime
-from typing import Optional
 from uuid import UUID
 
 from fraiseql.strawberry_compat import strawberry
@@ -15,11 +14,11 @@ class AuditEvent:
     id: UUID
     event_type: str
     event_data: JSONField
-    user_id: Optional[UUID]
-    tenant_id: Optional[UUID]
+    user_id: UUID | None
+    tenant_id: UUID | None
     timestamp: datetime
-    ip_address: Optional[str]
-    previous_hash: Optional[str]
+    ip_address: str | None
+    previous_hash: str | None
     event_hash: str
     signature: str
 
@@ -44,11 +43,11 @@ class AuditEvent:
 class AuditEventFilter:
     """Filter for querying audit events."""
 
-    event_type: Optional[str] = None
-    user_id: Optional[UUID] = None
-    tenant_id: Optional[UUID] = None
-    start_time: Optional[datetime] = None
-    end_time: Optional[datetime] = None
+    event_type: str | None = None
+    user_id: UUID | None = None
+    tenant_id: UUID | None = None
+    start_time: datetime | None = None
+    end_time: datetime | None = None
 
 
 @strawberry.type

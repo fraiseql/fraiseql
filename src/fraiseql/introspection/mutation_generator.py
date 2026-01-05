@@ -5,7 +5,8 @@ functions with automatic Union return type handling.
 """
 
 import logging
-from typing import TYPE_CHECKING, Callable, Type
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 from .input_generator import InputGenerator
 from .metadata_parser import MutationAnnotation
@@ -24,7 +25,9 @@ class MutationGenerator:
         self.input_generator = input_generator
 
     def _extract_context_params(
-        self, function_metadata: FunctionMetadata, annotation: MutationAnnotation
+        self,
+        function_metadata: FunctionMetadata,
+        annotation: MutationAnnotation,
     ) -> dict[str, str]:
         """Extract context parameters from function signature.
 
@@ -63,7 +66,8 @@ class MutationGenerator:
             for param_name in annotation.context_params:
                 # Find the parameter in function metadata
                 param = next(
-                    (p for p in function_metadata.parameters if p.name == param_name), None
+                    (p for p in function_metadata.parameters if p.name == param_name),
+                    None,
                 )
                 if param:
                     # Extract context key from parameter name
@@ -100,7 +104,7 @@ class MutationGenerator:
         self,
         function_metadata: FunctionMetadata,
         annotation: MutationAnnotation,
-        type_registry: dict[str, Type],
+        type_registry: dict[str, type],
         introspector: "PostgresIntrospector",
     ) -> Callable | None:
         """Generate mutation from function (created by SpecQL).
@@ -142,13 +146,17 @@ class MutationGenerator:
         if not success_type or not error_type:
             logger.warning(
                 f"Cannot generate mutation {function_metadata.function_name}: "
-                f"missing types {annotation.success_type} or {annotation.error_type}"
+                f"missing types {annotation.success_type} or {annotation.error_type}",
             )
             return None
 
         # 4. Create mutation class dynamically
         mutation_class = self._create_mutation_class(
-            function_metadata, annotation, input_cls, success_type, error_type
+            function_metadata,
+            annotation,
+            input_cls,
+            success_type,
+            error_type,
         )
 
         # 5. Apply @mutation decorator with context params
@@ -167,10 +175,10 @@ class MutationGenerator:
         self,
         function_metadata: FunctionMetadata,
         annotation: MutationAnnotation,
-        input_cls: Type,
-        success_type: Type,
-        error_type: Type,
-    ) -> Type:
+        input_cls: type,
+        success_type: type,
+        error_type: type,
+    ) -> type:
         """Create a mutation class with proper type annotations."""
         # Create class name
         class_name = self._function_to_mutation_class_name(function_metadata.function_name)

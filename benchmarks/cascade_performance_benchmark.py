@@ -7,11 +7,11 @@ in FraiseQL mutations.
 
 import json
 import time
-from typing import Any, Dict
+from typing import Any
 
 
 # Mock cascade data for benchmarking
-def generate_cascade_data(entity_count: int = 1, invalidation_count: int = 1) -> Dict[str, Any]:
+def generate_cascade_data(entity_count: int = 1, invalidation_count: int = 1) -> dict[str, Any]:
     """Generate mock cascade data for benchmarking."""
     cascade = {
         "updated": [],
@@ -34,7 +34,7 @@ def generate_cascade_data(entity_count: int = 1, invalidation_count: int = 1) ->
                     "post_count": i if i % 2 == 1 else None,
                     "created_at": "2025-11-13T10:00:00Z",
                 },
-            }
+            },
         )
 
     # Generate invalidations
@@ -44,7 +44,7 @@ def generate_cascade_data(entity_count: int = 1, invalidation_count: int = 1) ->
                 "queryName": f"query-{i}",
                 "strategy": "INVALIDATE",
                 "scope": "PREFIX" if i % 2 == 0 else "EXACT",
-            }
+            },
         )
 
     return cascade
@@ -57,7 +57,7 @@ def benchmark_cascade_processing_overhead() -> None:
 
     # Mock mutation result with cascade
     class MockResult:
-        def __init__(self, cascade_data: Dict[str, Any]):
+        def __init__(self, cascade_data: dict[str, Any]):
             self.__cascade__ = cascade_data
 
     # Test different cascade sizes
@@ -65,7 +65,8 @@ def benchmark_cascade_processing_overhead() -> None:
 
     for size in sizes:
         cascade_data = generate_cascade_data(
-            entity_count=size, invalidation_count=max(1, size // 10)
+            entity_count=size,
+            invalidation_count=max(1, size // 10),
         )
 
         # Benchmark JSON serialization (what happens in the JSON encoder)
@@ -90,7 +91,7 @@ def benchmark_cascade_vs_no_cascade() -> None:
 
     # Mock results
     class MockResultWithCascade:
-        def __init__(self, cascade_data: Dict[str, Any]):
+        def __init__(self, cascade_data: dict[str, Any]):
             self.id = "test-123"
             self.message = "Success"
             self.__cascade__ = cascade_data
@@ -137,7 +138,8 @@ def benchmark_cascade_memory_usage() -> None:
 
     for size in sizes:
         cascade_data = generate_cascade_data(
-            entity_count=size, invalidation_count=max(1, size // 10)
+            entity_count=size,
+            invalidation_count=max(1, size // 10),
         )
 
         # Measure memory usage of cascade data
@@ -156,14 +158,14 @@ def benchmark_client_cache_updates() -> None:
             self.store = {}
             self.operations = []
 
-        def identify(self, obj: Dict[str, Any]) -> str:
+        def identify(self, obj: dict[str, Any]) -> str:
             return f"{obj['__typename']}:{obj['id']}"
 
-        def writeFragment(self, options: Dict[str, Any]) -> None:
+        def writeFragment(self, options: dict[str, Any]) -> None:
             self.operations.append(("write", options["id"], len(str(options["data"]))))
             self.store[options["id"]] = options["data"]
 
-        def evict(self, options: Dict[str, Any]) -> None:
+        def evict(self, options: dict[str, Any]) -> None:
             self.operations.append(("evict", options.get("fieldName", "unknown"), 0))
             # Simulate eviction
             keys_to_remove = [k for k in self.store if options.get("fieldName", "") in k]
@@ -176,7 +178,8 @@ def benchmark_client_cache_updates() -> None:
     for size in sizes:
         cache = MockApolloCache()
         cascade_data = generate_cascade_data(
-            entity_count=size, invalidation_count=max(1, size // 5)
+            entity_count=size,
+            invalidation_count=max(1, size // 5),
         )
 
         # Measure cache update time
@@ -189,7 +192,7 @@ def benchmark_client_cache_updates() -> None:
                     "id": cache.identify({"__typename": update["__typename"], "id": update["id"]}),
                     "fragment": f"fragment _ on {update['__typename']} {{ id }}",
                     "data": update["entity"],
-                }
+                },
             )
 
         for invalidation in cascade_data["invalidations"]:

@@ -48,12 +48,12 @@ class PlaygroundConfig:
 
         if self.subscriptions_endpoint and not self.subscriptions_endpoint.startswith("/"):
             raise ValueError(
-                f"Subscriptions endpoint must start with /: {self.subscriptions_endpoint}"
+                f"Subscriptions endpoint must start with /: {self.subscriptions_endpoint}",
             )
 
         logger.debug(
             f"PlaygroundConfig initialized: enabled={self.enabled}, "
-            f"path={self.path}, title={self.title}"
+            f"path={self.path}, title={self.title}",
         )
 
     def generate_html(self, graphql_endpoint: str = "/graphql") -> str:

@@ -5,7 +5,7 @@ Generates union types for all mutations.
 
 import types
 from dataclasses import dataclass
-from typing import Annotated, Any, Type
+from typing import Annotated, Any
 
 from fraiseql.mutations.decorators import FraiseUnion
 
@@ -18,8 +18,8 @@ class MutationSchema:
     """
 
     mutation_name: str
-    success_type: Type
-    error_type: Type
+    success_type: type
+    error_type: type
     union_type: Any  # FraiseQL union type
 
     def to_graphql_sdl(self) -> str:
@@ -83,7 +83,7 @@ extend type Mutation {{
         if "code" not in annotations:
             raise ValueError(
                 f"Error type {self.error_type.__name__} missing required 'code: int' field. "
-                f"Error types must include REST-like error codes."
+                f"Error types must include REST-like error codes.",
             )
 
         for field_name, field_type in annotations.items():
@@ -203,7 +203,7 @@ extend type Mutation {{
             # Multiple non-None types: not supported
             raise ValueError(
                 f"Union types with multiple non-None types not supported: {python_type}. "
-                f"GraphQL unions require separate type definitions."
+                f"GraphQL unions require separate type definitions.",
             )
 
         # Handle basic types
@@ -221,7 +221,7 @@ extend type Mutation {{
             if not args and python_type is list:
                 # Bare list without type parameter
                 raise ValueError(
-                    "List type must have element type: use list[X] instead of bare 'list'"
+                    "List type must have element type: use list[X] instead of bare 'list'",
                 )
 
             element_type = args[0]
@@ -253,13 +253,13 @@ extend type Mutation {{
             # This shouldn't happen if we've covered all cases above
             raise ValueError(
                 f"Unsupported typing construct: {python_type}. "
-                f"Origin: {typing.get_origin(python_type)}"
+                f"Origin: {typing.get_origin(python_type)}",
             )
 
         # Fallback for unknown types
         raise ValueError(
             f"Cannot convert Python type to GraphQL: {python_type}. "
-            f"Supported types: int, str, bool, float, list[X], dict, Optional[X], custom classes."
+            f"Supported types: int, str, bool, float, list[X], dict, Optional[X], custom classes.",
         )
 
     def _to_camel_case(self, snake_str: str) -> str:
@@ -270,8 +270,8 @@ extend type Mutation {{
 
 def generate_mutation_schema(
     mutation_name: str,
-    success_type: Type,
-    error_type: Type,
+    success_type: type,
+    error_type: type,
 ) -> MutationSchema:
     """Generate schema for a mutation.
 
@@ -312,7 +312,7 @@ def generate_mutation_schema(
     if not entity_field:
         raise ValueError(
             f"Success type {success_type.__name__} must have entity field. "
-            f"Expected 'entity', field derived from mutation name, or common entity name."
+            f"Expected 'entity', field derived from mutation name, or common entity name.",
         )
 
     # Ensure entity is non-nullable
@@ -321,7 +321,7 @@ def generate_mutation_schema(
         raise ValueError(
             f"Success type {success_type.__name__} has nullable entity field '{entity_field}'. "
             f"Entity must be non-null in Success types. "
-            f"Change type from '{entity_type}' to non-nullable."
+            f"Change type from '{entity_type}' to non-nullable.",
         )
 
     # Validate Error type
@@ -334,7 +334,7 @@ def generate_mutation_schema(
     if "code" not in error_annotations:
         raise ValueError(
             f"Error type {error_type.__name__} must have 'code: int' field. "
-            f"Error types must include REST-like error codes."
+            f"Error types must include REST-like error codes.",
         )
 
     # Ensure status field exists

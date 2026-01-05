@@ -22,13 +22,15 @@ def generate_partial_update_checks(fields: dict[str, str]) -> str:
         updates.append(
             f"{pg_column} = CASE "
             f"WHEN p_input ? '{graphql_name}' THEN p_input->>'{graphql_name}' "
-            f"ELSE {pg_column} END"
+            f"ELSE {pg_column} END",
         )
     return ",\n        ".join(updates)
 
 
 def generate_field_update_blocks(
-    fields: dict[str, str], table_name: str, schema: str = "public"
+    fields: dict[str, str],
+    table_name: str,
+    schema: str = "public",
 ) -> str:
     """Generate individual IF blocks for field updates.
 

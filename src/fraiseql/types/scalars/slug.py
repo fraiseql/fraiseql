@@ -22,7 +22,7 @@ def serialize_slug(value: Any) -> str | None:
     if not _SLUG_REGEX.match(value_str):
         raise GraphQLError(
             f"Invalid slug: {value}. Must be lowercase alphanumeric with hyphens, "
-            "no leading/trailing hyphens (e.g., 'hello-world', 'my-post-123')"
+            "no leading/trailing hyphens (e.g., 'hello-world', 'my-post-123')",
         )
 
     return value_str
@@ -36,7 +36,7 @@ def parse_slug_value(value: Any) -> str:
     if not _SLUG_REGEX.match(value):
         raise GraphQLError(
             f"Invalid slug: {value}. Must be lowercase alphanumeric with hyphens, "
-            "no leading/trailing hyphens (e.g., 'hello-world', 'my-post-123')"
+            "no leading/trailing hyphens (e.g., 'hello-world', 'my-post-123')",
         )
 
     return value
@@ -90,6 +90,6 @@ class SlugField(str, ScalarMarker):
         if not _SLUG_REGEX.match(value):
             raise ValueError(
                 f"Invalid slug: {value}. Must be lowercase alphanumeric with hyphens, "
-                "no leading/trailing hyphens (e.g., 'hello-world', 'my-post-123')"
+                "no leading/trailing hyphens (e.g., 'hello-world', 'my-post-123')",
             )
         return super().__new__(cls, value)

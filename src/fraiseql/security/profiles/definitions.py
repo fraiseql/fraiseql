@@ -195,7 +195,7 @@ def get_profile(profile: str | SecurityProfile) -> SecurityProfileConfig:
     if profile_name not in profiles:
         available = ", ".join(profiles.keys())
         raise ValueError(
-            f"Unknown security profile '{profile_name}'. Available profiles: {available}"
+            f"Unknown security profile '{profile_name}'. Available profiles: {available}",
         )
 
     return profiles[profile_name]

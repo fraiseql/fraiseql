@@ -15,7 +15,7 @@ Example:
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any, Optional
+from typing import Any
 
 # Import monitoring classes if available from Commits 3, 4, 4.5
 try:
@@ -129,7 +129,7 @@ class DatabaseHealthCheck:
 
     def __init__(
         self,
-        monitor: Optional[Any] = None,
+        monitor: Any | None = None,
         pool_utilization_threshold: float = 0.8,
         slow_query_threshold: float = 0.05,
         error_rate_threshold: float = 0.01,
@@ -247,7 +247,7 @@ class CacheHealthCheck:
 
     def __init__(
         self,
-        monitor: Optional[Any] = None,
+        monitor: Any | None = None,
         hit_rate_threshold: float = 0.6,
         eviction_threshold: float = 0.3,
     ):
@@ -349,7 +349,7 @@ class GraphQLHealthCheck:
 
     def __init__(
         self,
-        monitor: Optional[Any] = None,
+        monitor: Any | None = None,
         success_rate_threshold: float = 0.95,
         error_rate_threshold: float = 0.01,
     ):
@@ -534,10 +534,10 @@ class HealthCheckAggregator:
 
     def __init__(
         self,
-        database_check: Optional[Any] = None,
-        cache_check: Optional[Any] = None,
-        graphql_check: Optional[Any] = None,
-        tracing_check: Optional[Any] = None,
+        database_check: Any | None = None,
+        cache_check: Any | None = None,
+        graphql_check: Any | None = None,
+        tracing_check: Any | None = None,
     ):
         """Initialize aggregator with health checks.
 

@@ -107,7 +107,8 @@ async def setup_test_table(pool: psycopg_pool.AsyncConnectionPool) -> None:
 
             for data in test_cases:
                 await cursor.execute(
-                    "INSERT INTO benchmark_test_users (data) VALUES (%s)", (json.dumps(data),)
+                    "INSERT INTO benchmark_test_users (data) VALUES (%s)",
+                    (json.dumps(data),),
                 )
 
 
@@ -186,7 +187,10 @@ async def run_database_benchmark() -> None:
 
             # Benchmark with Python transformation
             result_python = await benchmark_query_with_transformation(
-                pool, query, transform_python, iterations=30
+                pool,
+                query,
+                transform_python,
+                iterations=30,
             )
 
             print("\nQuery + Python transformation:")
@@ -198,7 +202,10 @@ async def run_database_benchmark() -> None:
             # Benchmark with Rust transformation
             if rust_available:
                 result_rust = await benchmark_query_with_transformation(
-                    pool, query, fraiseql_rs.transform_json, iterations=30
+                    pool,
+                    query,
+                    fraiseql_rs.transform_json,
+                    iterations=30,
                 )
 
                 print("\nQuery + Rust transformation:")
@@ -214,7 +221,7 @@ async def run_database_benchmark() -> None:
                 print("\n⚡ Impact:")
                 print(f"   Speedup: {speedup:.2f}x")
                 print(
-                    f"   Time saved: {time_saved:.2f} ms ({time_saved / result_python['mean_ms'] * 100:.1f}%)"
+                    f"   Time saved: {time_saved:.2f} ms ({time_saved / result_python['mean_ms'] * 100:.1f}%)",
                 )
 
             print("-" * 80)

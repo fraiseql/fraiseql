@@ -7,7 +7,6 @@ packages from the installed environment, pyproject.toml, and uv.lock.
 import importlib.metadata
 import logging
 from pathlib import Path
-from typing import Optional
 
 try:
     import tomllib  # Python 3.11+
@@ -34,9 +33,9 @@ class PythonPackageScanner(PackageMetadataRepository):
 
     def __init__(
         self,
-        project_root: Optional[Path] = None,
-        lock_file_path: Optional[Path] = None,
-        pyproject_path: Optional[Path] = None,
+        project_root: Path | None = None,
+        lock_file_path: Path | None = None,
+        pyproject_path: Path | None = None,
     ) -> None:
         """Initialize package scanner.
 
@@ -49,8 +48,8 @@ class PythonPackageScanner(PackageMetadataRepository):
         self.lock_file_path = lock_file_path or self.project_root / "uv.lock"
         self.pyproject_path = pyproject_path or self.project_root / "pyproject.toml"
 
-        self._lock_data: Optional[dict] = None
-        self._pyproject_data: Optional[dict] = None
+        self._lock_data: dict | None = None
+        self._pyproject_data: dict | None = None
 
     def get_installed_packages(self) -> list[ComponentIdentifier]:
         """Get list of all installed packages.
@@ -76,7 +75,10 @@ class PythonPackageScanner(PackageMetadataRepository):
                     purl = f"pkg:pypi/{name.lower()}@{version}"
 
                     identifier = ComponentIdentifier(
-                        name=name, version=version, purl=purl, cpe=None
+                        name=name,
+                        version=version,
+                        purl=purl,
+                        cpe=None,
                     )
 
                     identifiers.append(identifier)
@@ -102,7 +104,7 @@ class PythonPackageScanner(PackageMetadataRepository):
 
         return identifiers
 
-    def get_package_license(self, name: str, version: str) -> Optional[License]:
+    def get_package_license(self, name: str, version: str) -> License | None:
         """Get license information for a package.
 
         Args:
@@ -151,7 +153,7 @@ class PythonPackageScanner(PackageMetadataRepository):
 
         return None
 
-    def get_package_description(self, name: str, version: str) -> Optional[str]:
+    def get_package_description(self, name: str, version: str) -> str | None:
         """Get description for a package.
 
         Args:
@@ -168,7 +170,7 @@ class PythonPackageScanner(PackageMetadataRepository):
         except Exception:
             return None
 
-    def get_package_homepage(self, name: str, version: str) -> Optional[str]:
+    def get_package_homepage(self, name: str, version: str) -> str | None:
         """Get homepage URL for a package.
 
         Args:
@@ -199,7 +201,7 @@ class PythonPackageScanner(PackageMetadataRepository):
 
         return None
 
-    def get_package_hash(self, name: str, version: str) -> Optional[str]:
+    def get_package_hash(self, name: str, version: str) -> str | None:
         """Get SHA256 hash for a package from uv.lock.
 
         Args:

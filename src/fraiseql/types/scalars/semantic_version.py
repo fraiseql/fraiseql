@@ -13,7 +13,7 @@ _SEMVER_REGEX = re.compile(
     r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)"
     r"(?:-((?:0|[1-9]\d*|\d*[a-z-][0-9a-z-]*)"
     r"(?:\.(?:0|[1-9]\d*|\d*[a-z-][0-9a-z-]*))*))?"
-    r"(?:\+([0-9a-z-]+(?:\.[0-9a-z-]+)*))?$"
+    r"(?:\+([0-9a-z-]+(?:\.[0-9a-z-]+)*))?$",
 )
 
 
@@ -27,7 +27,7 @@ def serialize_semantic_version(value: Any) -> str | None:
     if not _SEMVER_REGEX.match(value_str):
         raise GraphQLError(
             f"Invalid semantic version: {value}. Must follow semver format "
-            "(e.g., '1.0.0', '2.3.4-alpha.1', '3.0.0-beta+20130313144700')"
+            "(e.g., '1.0.0', '2.3.4-alpha.1', '3.0.0-beta+20130313144700')",
         )
 
     return value_str
@@ -41,7 +41,7 @@ def parse_semantic_version_value(value: Any) -> str:
     if not _SEMVER_REGEX.match(value):
         raise GraphQLError(
             f"Invalid semantic version: {value}. Must follow semver format "
-            "(e.g., '1.0.0', '2.3.4-alpha.1', '3.0.0-beta+20130313144700')"
+            "(e.g., '1.0.0', '2.3.4-alpha.1', '3.0.0-beta+20130313144700')",
         )
 
     return value
@@ -94,6 +94,6 @@ class SemanticVersionField(str, ScalarMarker):
         if not _SEMVER_REGEX.match(value):
             raise ValueError(
                 f"Invalid semantic version: {value}. Must follow semver format "
-                "(e.g., '1.0.0', '2.3.4-alpha.1', '3.0.0-beta+20130313144700')"
+                "(e.g., '1.0.0', '2.3.4-alpha.1', '3.0.0-beta+20130313144700')",
             )
         return super().__new__(cls, value)

@@ -1,4 +1,5 @@
-from typing import Any, Awaitable, Callable, Optional, TypeVar, overload
+from collections.abc import Awaitable, Callable
+from typing import Any, TypeVar, overload
 
 _F = TypeVar("_F", bound=Callable[..., Any])
 
@@ -15,46 +16,46 @@ def subscription(fn: _F | None = None) -> _F | Callable[[_F], _F]: ...
 @overload
 def field(
     *,
-    resolver: Optional[Callable[..., Awaitable[Any]]] = None,
-    cache_ttl: Optional[int] = None,
+    resolver: Callable[..., Awaitable[Any]] | None = None,
+    cache_ttl: int | None = None,
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]: ...
 @overload
 def field(
     fn: Callable[..., Any],
     *,
-    resolver: Optional[Callable[..., Awaitable[Any]]] = None,
-    cache_ttl: Optional[int] = None,
+    resolver: Callable[..., Awaitable[Any]] | None = None,
+    cache_ttl: int | None = None,
 ) -> Callable[..., Any]: ...
 def field(
-    fn: Optional[Callable[..., Any]] = None,
+    fn: Callable[..., Any] | None = None,
     *,
-    resolver: Optional[Callable[..., Awaitable[Any]]] = None,
-    cache_ttl: Optional[int] = None,
+    resolver: Callable[..., Awaitable[Any]] | None = None,
+    cache_ttl: int | None = None,
 ) -> Any: ...
 def turbo_query(
-    fn: Optional[_F] = None,
+    fn: _F | None = None,
     *,
-    cache_ttl: Optional[int] = None,
+    cache_ttl: int | None = None,
     max_page_size: int = 100,
 ) -> _F | Callable[[_F], _F]: ...
 
 class TurboExecutionMarker:
     query_name: str
     view_name: str
-    cache_ttl: Optional[int]
+    cache_ttl: int | None
     max_page_size: int
 
     def __init__(
         self,
         query_name: str,
         view_name: str,
-        cache_ttl: Optional[int] = None,
+        cache_ttl: int | None = None,
         max_page_size: int = 100,
     ) -> None: ...
 
 def connection(
-    fn: Optional[_F] = None,
+    fn: _F | None = None,
     *,
-    view_name: Optional[str] = None,
+    view_name: str | None = None,
     max_page_size: int = 100,
 ) -> _F | Callable[[_F], _F]: ...

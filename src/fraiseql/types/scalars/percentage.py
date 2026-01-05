@@ -29,7 +29,7 @@ def serialize_percentage(value: Any) -> str | None:
     if not _PERCENTAGE_REGEX.match(value_str):
         raise GraphQLError(
             f"Invalid percentage: {value}. Must be between 0.00 and 100.00 "
-            "(e.g., '25.5', '100', '0.01')"
+            "(e.g., '25.5', '100', '0.01')",
         )
 
     return value_str
@@ -51,7 +51,7 @@ def parse_percentage_value(value: Any) -> str:
     if not _PERCENTAGE_REGEX.match(value_str):
         raise GraphQLError(
             f"Invalid percentage: {value}. Must be between 0.00 and 100.00 "
-            "(e.g., '25.5', '100', '0.01')"
+            "(e.g., '25.5', '100', '0.01')",
         )
 
     return value_str
@@ -112,6 +112,6 @@ class PercentageField(str, ScalarMarker):
         if not _PERCENTAGE_REGEX.match(value_str):
             raise ValueError(
                 f"Invalid percentage: {value}. Must be between 0.00 and 100.00 "
-                "(e.g., '25.5', '100', '0.01')"
+                "(e.g., '25.5', '100', '0.01')",
             )
         return super().__new__(cls, value_str)

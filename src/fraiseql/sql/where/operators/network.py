@@ -65,7 +65,7 @@ def build_is_private_sql(path_sql: SQL, value: bool) -> Composed:
             casted_path,
             SQL(" <<= '169.254.0.0/16'::inet"),
             SQL(")"),
-        ]
+        ],
     )
 
     if value:

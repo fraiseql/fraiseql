@@ -15,7 +15,7 @@ Performance targets:
 """
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from .decorators import get_entity_metadata, get_entity_registry
 
@@ -64,7 +64,7 @@ class EntitiesResolver:
         """
         self.entity_registry = get_entity_registry()
 
-    def _parse_representation(self, rep: Dict[str, Any]) -> EntityResolutionRequest:
+    def _parse_representation(self, rep: dict[str, Any]) -> EntityResolutionRequest:
         """Parse a federation representation into a resolution request.
 
         Args:
@@ -90,7 +90,7 @@ class EntitiesResolver:
             # Composite key - not yet supported in Federation Lite
             # Will be added in Federation Standard
             raise NotImplementedError(
-                f"Composite keys not yet supported for {typename}. Use Federation Standard mode."
+                f"Composite keys not yet supported for {typename}. Use Federation Standard mode.",
             )
 
         key_value = rep.get(key_field)
@@ -103,7 +103,7 @@ class EntitiesResolver:
             key_value=key_value,
         )
 
-    def _build_queries(self, requests: List[EntityResolutionRequest]) -> Dict[str, tuple]:
+    def _build_queries(self, requests: list[EntityResolutionRequest]) -> dict[str, tuple]:
         """Build database queries grouped by entity type.
 
         Batches requests by type to minimize database round-trips.
@@ -114,7 +114,7 @@ class EntitiesResolver:
         Returns:
             Dict mapping typename to (table_name, key_field, [key_values])
         """
-        queries: Dict[str, tuple] = {}
+        queries: dict[str, tuple] = {}
 
         for req in requests:
             if req.typename not in queries:
@@ -132,9 +132,9 @@ class EntitiesResolver:
 
     async def resolve(
         self,
-        representations: List[Dict[str, Any]],
+        representations: list[dict[str, Any]],
         db_pool: Any,
-    ) -> List[Optional[Dict[str, Any]]]:
+    ) -> list[dict[str, Any] | None]:
         """Resolve entity references from Apollo Gateway.
 
         Executes efficient batched queries against CQRS query-side tables.
@@ -156,7 +156,7 @@ class EntitiesResolver:
         queries = self._build_queries(requests)
 
         # Execute queries and collect results
-        results_by_key: Dict[tuple, Dict[str, Any]] = {}
+        results_by_key: dict[tuple, dict[str, Any]] = {}
 
         async with db_pool.acquire() as conn:
             for typename, query_info in queries.items():
@@ -176,9 +176,13 @@ class EntitiesResolver:
 
                 try:
                     rows = await conn.fetch(sql, *key_values)
-                except Exception:
+                except Exception as e:
                     # Table might not exist - return None for these entities
                     # In production, log this error
+                    import logging
+
+                    logger = logging.getLogger(__name__)
+                    logger.warning(f"Failed to fetch entities for {typename}: {e}")
                     for key_value in key_values:
                         results_by_key[(typename, key_value)] = None
                     continue
@@ -201,7 +205,7 @@ class EntitiesResolver:
 
         return resolved
 
-    def get_supported_types(self) -> List[str]:
+    def get_supported_types(self) -> list[str]:
         """Get list of supported entity types.
 
         Returns:
@@ -209,7 +213,7 @@ class EntitiesResolver:
         """
         return list(self.entity_registry.keys())
 
-    def get_key_field(self, typename: str) -> Optional[str]:
+    def get_key_field(self, typename: str) -> str | None:
         """Get the key field for an entity type.
 
         Args:

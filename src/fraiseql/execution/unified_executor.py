@@ -1,7 +1,7 @@
 """Unified query executor with mode switching."""
 
 import time
-from typing import Any, Optional
+from typing import Any
 
 from graphql import GraphQLSchema
 
@@ -19,8 +19,8 @@ class UnifiedExecutor:
         self,
         schema: GraphQLSchema,
         mode_selector: ModeSelector,
-        turbo_router: Optional[TurboRouter] = None,
-        query_analyzer: Optional[QueryAnalyzer] = None,
+        turbo_router: TurboRouter | None = None,
+        query_analyzer: QueryAnalyzer | None = None,
     ) -> None:
         """Initialize unified executor.
 
@@ -51,9 +51,9 @@ class UnifiedExecutor:
     async def execute(
         self,
         query: str,
-        variables: Optional[dict[str, Any]] = None,
-        operation_name: Optional[str] = None,
-        context: Optional[dict[str, Any]] = None,
+        variables: dict[str, Any] | None = None,
+        operation_name: str | None = None,
+        context: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Execute query using unified Rust-first pipeline.
 
@@ -83,7 +83,9 @@ class UnifiedExecutor:
                 variable_values=variables,
                 operation_name=operation_name,
                 enable_introspection=getattr(
-                    self.mode_selector.config, "enable_introspection", True
+                    self.mode_selector.config,
+                    "enable_introspection",
+                    True,
                 ),
             )
 
@@ -136,8 +138,8 @@ class UnifiedExecutor:
                             "code": "EXECUTION_ERROR",
                             "mode": "unified_rust",
                         },
-                    }
-                ]
+                    },
+                ],
             }
 
     def _format_error(self, error: Any) -> dict[str, Any]:

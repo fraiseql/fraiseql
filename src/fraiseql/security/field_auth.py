@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import functools
 import warnings
-from typing import TYPE_CHECKING, Any, Protocol, TypeVar, Union
+from typing import TYPE_CHECKING, Any, Protocol, TypeVar
 
 from graphql import GraphQLError, GraphQLResolveInfo
 
@@ -31,7 +31,7 @@ class PermissionCheck(Protocol):
         info: GraphQLResolveInfo,
         *args: Any,
         **kwargs: Any,
-    ) -> Union[bool, Awaitable[bool]]:
+    ) -> bool | Awaitable[bool]:
         """Check if the field access is authorized."""
         ...
 
@@ -98,7 +98,10 @@ def authorize_field(
 
             @functools.wraps(func)
             async def async_auth_wrapper(
-                root: Any, info: GraphQLResolveInfo, *args: Any, **kwargs: Any
+                root: Any,
+                info: GraphQLResolveInfo,
+                *args: Any,
+                **kwargs: Any,
             ) -> Any:
                 # Check permission first
                 if asyncio.iscoroutinefunction(permission_check):
@@ -136,7 +139,10 @@ def authorize_field(
 
         @functools.wraps(func)
         def sync_auth_wrapper(
-            root: Any, info: GraphQLResolveInfo, *args: Any, **kwargs: Any
+            root: Any,
+            info: GraphQLResolveInfo,
+            *args: Any,
+            **kwargs: Any,
         ) -> Any:
             # Check permission first
             if asyncio.iscoroutinefunction(permission_check):

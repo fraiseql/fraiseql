@@ -97,12 +97,12 @@ def serialize_vin(value: Any) -> str | None:
     if not _VIN_REGEX.match(value_str):
         raise GraphQLError(
             f"Invalid VIN: {value}. Must be 17 characters (A-H, J-N, P, R-Z, 0-9), "
-            "no I, O, or Q allowed"
+            "no I, O, or Q allowed",
         )
 
     if not _validate_vin_check_digit(value_str):
         raise GraphQLError(
-            f"Invalid VIN: {value}. Check digit does not match (ISO 3779/3780 validation failed)"
+            f"Invalid VIN: {value}. Check digit does not match (ISO 3779/3780 validation failed)",
         )
 
     return value_str
@@ -118,12 +118,12 @@ def parse_vin_value(value: Any) -> str:
     if not _VIN_REGEX.match(value_upper):
         raise GraphQLError(
             f"Invalid VIN: {value}. Must be 17 characters (A-H, J-N, P, R-Z, 0-9), "
-            "no I, O, or Q allowed"
+            "no I, O, or Q allowed",
         )
 
     if not _validate_vin_check_digit(value_upper):
         raise GraphQLError(
-            f"Invalid VIN: {value}. Check digit does not match (ISO 3779/3780 validation failed)"
+            f"Invalid VIN: {value}. Check digit does not match (ISO 3779/3780 validation failed)",
         )
 
     return value_upper
@@ -186,13 +186,13 @@ class VINField(str, ScalarMarker):
         if not _VIN_REGEX.match(value_upper):
             raise ValueError(
                 f"Invalid VIN: {value}. Must be 17 characters (A-H, J-N, P, R-Z, 0-9), "
-                "no I, O, or Q allowed"
+                "no I, O, or Q allowed",
             )
 
         if not _validate_vin_check_digit(value_upper):
             raise ValueError(
                 f"Invalid VIN: {value}. Check digit does not match "
-                "(ISO 3779/3780 validation failed)"
+                "(ISO 3779/3780 validation failed)",
             )
 
         return super().__new__(cls, value_upper)

@@ -26,7 +26,8 @@ Example:
 """
 
 import logging
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
@@ -45,7 +46,7 @@ __all__ = [
 def create_subscription_router(
     manager: SubscriptionManager,
     path: str = "/graphql/subscriptions",
-    on_disconnect: Optional[Callable] = None,
+    on_disconnect: Callable | None = None,
 ) -> APIRouter:
     """Create FastAPI router with WebSocket subscription endpoint.
 
@@ -160,12 +161,14 @@ def create_subscription_router_with_auth(
 
             if message.get("type") != "connection_init":
                 # Protocol violation - close connection
-                await adapter.send_json({
-                    "type": "connection_error",
-                    "payload": {
-                        "message": "First message must be connection_init"
-                    },
-                })
+                await adapter.send_json(
+                    {
+                        "type": "connection_error",
+                        "payload": {
+                            "message": "First message must be connection_init",
+                        },
+                    }
+                )
                 await adapter.close()
                 return
 
@@ -176,10 +179,12 @@ def create_subscription_router_with_auth(
             except Exception as e:
                 # Auth failed - close connection
                 error_msg = str(e) or "Authentication failed"
-                await adapter.send_json({
-                    "type": "connection_error",
-                    "payload": {"message": error_msg},
-                })
+                await adapter.send_json(
+                    {
+                        "type": "connection_error",
+                        "payload": {"message": error_msg},
+                    }
+                )
                 await adapter.close()
                 logger.warning(f"Authentication failed: {error_msg}")
                 return
@@ -188,10 +193,12 @@ def create_subscription_router_with_auth(
             protocol = GraphQLTransportWSProtocol()
 
             # Send connection_ack with auth context
-            await adapter.send_json({
-                "type": "connection_ack",
-                "payload": auth_context,
-            })
+            await adapter.send_json(
+                {
+                    "type": "connection_ack",
+                    "payload": auth_context,
+                }
+            )
 
             # Mark protocol as ready (skip re-accepting connection)
             protocol.state = "ready"
@@ -211,8 +218,8 @@ def create_subscription_router_with_auth(
             logger.exception("Authenticated WebSocket error")
             try:
                 await websocket.close(code=1011)
-            except Exception:
-                pass
+            except Exception as close_e:
+                logger.debug(f"Failed to close websocket on error: {close_e}")
 
     return router
 
@@ -237,10 +244,8 @@ async def _handle_authenticated_connection(
             except Exception as e:
                 logger.exception("Error handling message")
                 await protocol.send_error(adapter, None, str(e))
-    except Exception:
-        pass
     finally:
         try:
             await adapter.close()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Failed to close adapter in finally: {e}")

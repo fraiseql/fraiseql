@@ -46,7 +46,10 @@ def transform_json_python(json_str: str) -> str:
 
 
 def benchmark_transformation(
-    name: str, func: Callable[[str], str], input_data: str, iterations: int = 1000
+    name: str,
+    func: Callable[[str], str],
+    input_data: str,
+    iterations: int = 1000,
 ) -> dict[str, Any]:
     """Run benchmark and return statistics."""
     # Warm-up
@@ -169,14 +172,20 @@ def run_benchmarks() -> None:
 
         # Benchmark Python
         result_python = benchmark_transformation(
-            "Python (pure)", transform_json_python, json_str, iterations=100
+            "Python (pure)",
+            transform_json_python,
+            json_str,
+            iterations=100,
         )
         results.append(result_python)
 
         # Benchmark Rust
         if rust_available:
             result_rust = benchmark_transformation(
-                "Rust (fraiseql_rs)", fraiseql_rs.transform_json, json_str, iterations=100
+                "Rust (fraiseql_rs)",
+                fraiseql_rs.transform_json,
+                json_str,
+                iterations=100,
             )
             results.append(result_rust)
 

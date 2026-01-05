@@ -54,7 +54,7 @@ class RoleHierarchy:
                 statement="SELECT * FROM get_inherited_roles(%(role_id)s)",
                 params={"role_id": str(role_id)},
                 fetch_result=True,
-            )
+            ),
         )
 
         if not results:
@@ -75,7 +75,7 @@ class RoleHierarchy:
             """,
                 params={"ids": role_ids},
                 fetch_result=True,
-            )
+            ),
         )
 
         roles = [Role(**row) for row in roles_data]
@@ -123,7 +123,7 @@ class RoleHierarchy:
             """,
                 params={"parent_role_id": str(role_id)},
                 fetch_result=True,
-            )
+            ),
         )
 
         return [Role(**row) for row in results]
@@ -157,7 +157,7 @@ class RoleHierarchy:
                 statement="SELECT MAX(depth) as max_depth FROM get_inherited_roles(%(role_id)s)",
                 params={"role_id": str(role_id)},
                 fetch_result=True,
-            )
+            ),
         )
 
         if not results or results[0]["max_depth"] is None:

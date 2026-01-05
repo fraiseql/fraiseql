@@ -2,7 +2,6 @@
 
 import json
 from pathlib import Path
-from typing import Optional
 
 import click
 from graphql import parse
@@ -27,7 +26,10 @@ def turbo() -> None:
 @click.option("--output", "-o", type=click.Path(), help="Output file for registration results")
 @click.option("--dry-run", is_flag=True, help="Validate without registering")
 def register(
-    query_file: str, view_mapping: Optional[str], output: Optional[str], dry_run: bool
+    query_file: str,
+    view_mapping: str | None,
+    output: str | None,
+    dry_run: bool,
 ) -> None:
     """Register GraphQL queries for TurboRouter optimization.
 
@@ -77,7 +79,7 @@ def register(
                     "success": result.success,
                     "hash": result.query_hash,
                     "error": result.error,
-                }
+                },
             )
 
     # Save results
@@ -93,7 +95,11 @@ def register(
 
 @turbo.command(name="list")
 @click.option(
-    "--format", "-f", type=click.Choice(["json", "sql"]), default="json", help="Output format"
+    "--format",
+    "-f",
+    type=click.Choice(["json", "sql"]),
+    default="json",
+    help="Output format",
 )
 def list_queries(format: str) -> None:
     """List registered TurboRouter queries."""

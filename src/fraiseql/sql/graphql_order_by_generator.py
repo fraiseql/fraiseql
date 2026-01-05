@@ -155,7 +155,7 @@ def _convert_order_by_input_to_sql(order_by_input: Any) -> OrderBySet | None:
                                     field=f"{field_path}.cosine_distance",
                                     direction=OrderDirection.ASC,  # ASC for vectors
                                     value=value.cosine_distance,
-                                )
+                                ),
                             )
                         elif value.l2_distance is not None:
                             instructions.append(
@@ -163,7 +163,7 @@ def _convert_order_by_input_to_sql(order_by_input: Any) -> OrderBySet | None:
                                     field=f"{field_path}.l2_distance",
                                     direction=OrderDirection.ASC,
                                     value=value.l2_distance,
-                                )
+                                ),
                             )
                         elif value.l1_distance is not None:
                             instructions.append(
@@ -171,7 +171,7 @@ def _convert_order_by_input_to_sql(order_by_input: Any) -> OrderBySet | None:
                                     field=f"{field_path}.l1_distance",
                                     direction=OrderDirection.ASC,
                                     value=value.l1_distance,
-                                )
+                                ),
                             )
                         elif value.inner_product is not None:
                             instructions.append(
@@ -179,7 +179,7 @@ def _convert_order_by_input_to_sql(order_by_input: Any) -> OrderBySet | None:
                                     field=f"{field_path}.inner_product",
                                     direction=OrderDirection.ASC,
                                     value=value.inner_product,
-                                )
+                                ),
                             )
                         elif value.hamming_distance is not None:
                             instructions.append(
@@ -187,7 +187,7 @@ def _convert_order_by_input_to_sql(order_by_input: Any) -> OrderBySet | None:
                                     field=f"{field_path}.hamming_distance",
                                     direction=OrderDirection.ASC,
                                     value=value.hamming_distance,
-                                )
+                                ),
                             )
                         elif value.jaccard_distance is not None:
                             instructions.append(
@@ -195,7 +195,7 @@ def _convert_order_by_input_to_sql(order_by_input: Any) -> OrderBySet | None:
                                     field=f"{field_path}.jaccard_distance",
                                     direction=OrderDirection.ASC,
                                     value=value.jaccard_distance,
-                                )
+                                ),
                             )
                     # If it's an OrderDirection enum or string, use it
                     if isinstance(value, (OrderDirection, str)):
@@ -233,7 +233,7 @@ def _convert_order_by_input_to_sql(order_by_input: Any) -> OrderBySet | None:
                                     field=f"{field_path}.cosine_distance",
                                     direction=OrderDirection.ASC,  # ASC for vectors
                                     value=value.cosine_distance,
-                                )
+                                ),
                             )
                         elif value.l2_distance is not None:
                             instructions.append(
@@ -241,7 +241,7 @@ def _convert_order_by_input_to_sql(order_by_input: Any) -> OrderBySet | None:
                                     field=f"{field_path}.l2_distance",
                                     direction=OrderDirection.ASC,
                                     value=value.l2_distance,
-                                )
+                                ),
                             )
                         elif value.inner_product is not None:
                             instructions.append(
@@ -249,7 +249,7 @@ def _convert_order_by_input_to_sql(order_by_input: Any) -> OrderBySet | None:
                                     field=f"{field_path}.inner_product",
                                     direction=OrderDirection.ASC,
                                     value=value.inner_product,
-                                )
+                                ),
                             )
                     # Handle nested dict
                     elif isinstance(value, dict):

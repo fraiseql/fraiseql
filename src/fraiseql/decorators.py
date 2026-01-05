@@ -4,7 +4,7 @@ import asyncio
 import time
 from collections.abc import Callable
 from functools import wraps
-from typing import Any, Optional, TypeVar, overload
+from typing import Any, TypeVar, overload
 
 from graphql import GraphQLResolveInfo
 
@@ -170,7 +170,9 @@ def query(fn: F | None = None) -> F | Callable[[F], F]:
 
         # Log current state
         logger.debug(
-            "Total queries registered after '%s': %d", func.__name__, len(registry.queries)
+            "Total queries registered after '%s': %d",
+            func.__name__,
+            len(registry.queries),
         )
 
         return wrapper  # type: ignore[return-value]
@@ -497,7 +499,10 @@ def field(
         if is_async:
 
             async def async_wrapped_resolver(
-                root: Any, info: GraphQLResolveInfo, *args: Any, **kwargs: Any
+                root: Any,
+                info: GraphQLResolveInfo,
+                *args: Any,
+                **kwargs: Any,
             ) -> Any:
                 # Check if N+1 detector is available in context
                 detector = None
@@ -560,7 +565,10 @@ def field(
         else:
 
             def sync_wrapped_resolver(
-                root: Any, info: GraphQLResolveInfo, *args: Any, **kwargs: Any
+                root: Any,
+                info: GraphQLResolveInfo,
+                *args: Any,
+                **kwargs: Any,
             ) -> Any:
                 # Check if N+1 detector is available in context
                 detector = None
@@ -595,12 +603,14 @@ def field(
                                 # Using create_task is safe - detector manages its own lifecycle
                                 task = asyncio.create_task(
                                     detector.track_field_resolution(
-                                        info, info.field_name, execution_time
+                                        info,
+                                        info.field_name,
+                                        execution_time,
                                     ),
                                 )
                                 # Add error handler to prevent unhandled exceptions
                                 task.add_done_callback(
-                                    lambda t: t.exception() if t.done() else None
+                                    lambda t: t.exception() if t.done() else None,
                                 )
                         except RuntimeError:
                             # No event loop - skip tracking for now
@@ -614,11 +624,13 @@ def field(
                             if loop.is_running():
                                 task = asyncio.create_task(
                                     detector.track_field_resolution(
-                                        info, info.field_name, execution_time
+                                        info,
+                                        info.field_name,
+                                        execution_time,
                                     ),
                                 )
                                 task.add_done_callback(
-                                    lambda t: t.exception() if t.done() else None
+                                    lambda t: t.exception() if t.done() else None,
                                 )
                         except RuntimeError:
                             # No event loop - skip tracking for now
@@ -666,8 +678,8 @@ def field(
 def turbo_query(
     cache_ttl: int = 300,
     auto_register: bool = True,
-    param_mapping: Optional[dict[str, str]] = None,
-    operation_name: Optional[str] = None,
+    param_mapping: dict[str, str] | None = None,
+    operation_name: str | None = None,
 ) -> Callable[[F], F]:
     """Decorator to mark a query for TurboRouter optimization.
 
@@ -784,7 +796,9 @@ class TurboExecutionMarker:
 
 # Helper functions for connection decorator
 def _validate_connection_config(
-    node_type: type | None, default_page_size: int, max_page_size: int
+    node_type: type | None,
+    default_page_size: int,
+    max_page_size: int,
 ) -> None:
     """Validate connection decorator configuration parameters."""
     if node_type is None:
@@ -985,7 +999,7 @@ def connection(
                 # Provide context about which view/query failed
                 raise ValueError(
                     f"Pagination failed for view '{inferred_view_name}' "
-                    f"in function '{func.__name__}': {e!s}"
+                    f"in function '{func.__name__}': {e!s}",
                 ) from e
 
             # Convert to typed Connection using create_connection helper

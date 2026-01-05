@@ -610,17 +610,17 @@ def _create_custom_scalar_filter(scalar_type: GraphQLScalarType) -> type:
         """Filter operations for custom scalar types."""
 
         # Equality and comparison operators
-        eq: Optional[scalar_type] = None
-        ne: Optional[scalar_type] = None
+        eq: scalar_type | None = None
+        ne: scalar_type | None = None
 
         # List membership operators (with GraphQL name mapping)
-        in_: Optional[list[scalar_type]] = fraise_field(default=None, graphql_name="in")
-        not_in: Optional[list[scalar_type]] = fraise_field(default=None, graphql_name="notIn")
+        in_: list[scalar_type] | None = fraise_field(default=None, graphql_name="in")
+        not_in: list[scalar_type] | None = fraise_field(default=None, graphql_name="notIn")
 
         # String pattern matching operators (may be useful for custom scalars)
-        contains: Optional[scalar_type] = None
-        starts_with: Optional[scalar_type] = fraise_field(default=None, graphql_name="startsWith")
-        ends_with: Optional[scalar_type] = fraise_field(default=None, graphql_name="endsWith")
+        contains: scalar_type | None = None
+        starts_with: scalar_type | None = fraise_field(default=None, graphql_name="startsWith")
+        ends_with: scalar_type | None = fraise_field(default=None, graphql_name="endsWith")
 
     # Set the class name dynamically
     CustomScalarFilter.__name__ = filter_name
@@ -636,7 +636,9 @@ def _create_custom_scalar_filter(scalar_type: GraphQLScalarType) -> type:
 
 
 def _get_filter_type_for_field(
-    field_type: type, parent_class: type | None = None, field_name: str | None = None
+    field_type: type,
+    parent_class: type | None = None,
+    field_name: str | None = None,
 ) -> type:
     """Get the appropriate filter type for a field type."""
     # Handle Optional types FIRST before any other checks
@@ -902,7 +904,8 @@ def _convert_graphql_input_to_where_type(graphql_input: Any, target_class: type)
                         setattr(where_obj, field_name, filter_value._to_sql_where())
                 # Check if this is a nested where input
                 elif hasattr(filter_value, "_target_class") and hasattr(
-                    filter_value, "_to_sql_where"
+                    filter_value,
+                    "_to_sql_where",
                 ):
                     # Convert nested where input recursively
                     nested_where = filter_value._to_sql_where()
@@ -938,7 +941,8 @@ def _convert_graphql_input_to_where_type(graphql_input: Any, target_class: type)
                         setattr(where_obj, field_name, filter_value._to_sql_where())
                 # Check if this is a nested where input
                 elif hasattr(filter_value, "_target_class") and hasattr(
-                    filter_value, "_to_sql_where"
+                    filter_value,
+                    "_to_sql_where",
                 ):
                     # Convert nested where input recursively
                     nested_where = filter_value._to_sql_where()
@@ -1015,7 +1019,9 @@ def create_graphql_where_input(cls: type, name: str | None = None) -> type:
 
             # Get the appropriate filter type
             filter_type = _get_filter_type_for_field(
-                field_type, parent_class=cls, field_name=field_name
+                field_type,
+                parent_class=cls,
+                field_name=field_name,
             )
 
             # Check if this is a deferred type (circular reference)
@@ -1246,7 +1252,7 @@ def create_graphql_where_input(cls: type, name: str | None = None) -> type:
                 if table_columns and fk_column not in table_columns:
                     logger.warning(
                         f"FK relationship {field_name} → {fk_column} declared "
-                        f"but {fk_column} not in registered columns for {sql_source}"
+                        f"but {fk_column} not in registered columns for {sql_source}",
                     )
 
             # Check for undeclared FK candidates
@@ -1262,7 +1268,7 @@ def create_graphql_where_input(cls: type, name: str | None = None) -> type:
                         logger.info(
                             f"Field {cls.__name__}.{field_name} looks like FK relationship "
                             f"(column {potential_fk} exists) but not declared in fk_relationships. "
-                            f"Using convention-based detection."
+                            f"Using convention-based detection.",
                         )
 
         # Add helpful docstring with FK info

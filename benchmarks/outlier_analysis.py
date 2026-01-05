@@ -4,7 +4,8 @@ import asyncio
 import json
 import statistics
 import time
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 import psycopg_pool
 
@@ -125,7 +126,8 @@ async def setup_test_data(pool: psycopg_pool.AsyncConnectionPool) -> None:
                     "user_posts": [{"post_id": j, "post_title": f"Post {j}"} for j in range(10)],
                 }
                 await cursor.execute(
-                    "INSERT INTO outlier_test (data) VALUES (%s)", (json.dumps(data),)
+                    "INSERT INTO outlier_test (data) VALUES (%s)",
+                    (json.dumps(data),),
                 )
 
 
@@ -159,11 +161,19 @@ async def main() -> None:
 
         # Run benchmarks
         result_python = await detailed_benchmark(
-            pool, query, transform_python, "Python", iterations=100
+            pool,
+            query,
+            transform_python,
+            "Python",
+            iterations=100,
         )
 
         result_rust = await detailed_benchmark(
-            pool, query, fraiseql_rs.transform_json, "Rust", iterations=100
+            pool,
+            query,
+            fraiseql_rs.transform_json,
+            "Rust",
+            iterations=100,
         )
 
         # Compare
@@ -173,10 +183,10 @@ async def main() -> None:
         print(f"\nMedian speedup: {result_python['median'] / result_rust['median']:.2f}x")
         print(f"Mean speedup:   {result_python['mean'] / result_rust['mean']:.2f}x")
         print(
-            f"\nPython variance: {result_python['stdev']:.3f}ms (outliers: {result_python['outliers']})"
+            f"\nPython variance: {result_python['stdev']:.3f}ms (outliers: {result_python['outliers']})",
         )
         print(
-            f"Rust variance:   {result_rust['stdev']:.3f}ms (outliers: {result_rust['outliers']})"
+            f"Rust variance:   {result_rust['stdev']:.3f}ms (outliers: {result_rust['outliers']})",
         )
 
         # Conclusion
@@ -194,10 +204,10 @@ async def main() -> None:
 
         if result_rust["median"] < result_python["median"]:
             print(
-                f"\n✅ Rust median ({result_rust['median']:.2f}ms) < Python median ({result_python['median']:.2f}ms)"
+                f"\n✅ Rust median ({result_rust['median']:.2f}ms) < Python median ({result_python['median']:.2f}ms)",
             )
             print(
-                f"   Typical case: Rust is {result_python['median'] / result_rust['median']:.2f}x faster"
+                f"   Typical case: Rust is {result_python['median'] / result_rust['median']:.2f}x faster",
             )
 
         # Cleanup

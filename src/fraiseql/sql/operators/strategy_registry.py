@@ -1,6 +1,6 @@
 """Registry for operator strategies."""
 
-from typing import Any, List, Optional
+from typing import Any
 
 from psycopg.sql import Composable
 
@@ -15,15 +15,17 @@ class OperatorRegistry:
     """
 
     def __init__(self):
-        self._strategies: List[BaseOperatorStrategy] = []
+        self._strategies: list[BaseOperatorStrategy] = []
 
     def register(self, strategy: BaseOperatorStrategy) -> None:
         """Register an operator strategy."""
         self._strategies.append(strategy)
 
     def get_strategy(
-        self, operator: str, field_type: Optional[type] = None
-    ) -> Optional[BaseOperatorStrategy]:
+        self,
+        operator: str,
+        field_type: type | None = None,
+    ) -> BaseOperatorStrategy | None:
         """Find the first strategy that supports the given operator.
 
         Strategies are checked in reverse registration order (last registered wins).
@@ -39,9 +41,9 @@ class OperatorRegistry:
         operator: str,
         value: Any,
         path_sql: Composable,
-        field_type: Optional[type] = None,
-        jsonb_column: Optional[str] = None,
-    ) -> Optional[Composable]:
+        field_type: type | None = None,
+        jsonb_column: str | None = None,
+    ) -> Composable | None:
         """Build SQL using the appropriate strategy.
 
         Returns:

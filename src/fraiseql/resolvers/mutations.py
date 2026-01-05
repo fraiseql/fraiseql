@@ -5,7 +5,7 @@ with GraphQL mutation resolvers for typical CRUD operations.
 """
 
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any
 
 # from fraiseql.core.graphql_pipeline import pipeline  # Will be imported at runtime
 
@@ -19,7 +19,7 @@ class MockPipeline:
 pipeline = MockPipeline()
 
 
-async def resolve_create_user(obj: Any, info: Any, input: Dict[str, Any]) -> Dict[str, Any]:
+async def resolve_create_user(obj: Any, info: Any, input: dict[str, Any]) -> dict[str, Any]:
     """Create user mutation: mutation { createUser(input: {name, email}) { id, name, email } }
 
     Args:
@@ -52,8 +52,11 @@ async def resolve_create_user(obj: Any, info: Any, input: Dict[str, Any]) -> Dic
 
 
 async def resolve_update_user(
-    obj: Any, info: Any, id: int, input: Dict[str, Any]
-) -> Dict[str, Any]:
+    obj: Any,
+    info: Any,
+    id: int,
+    input: dict[str, Any],
+) -> dict[str, Any]:
     """Update user mutation: mutation { updateUser(id: 1, input: {name}) { id, name, email } }
 
     Args:
@@ -86,7 +89,7 @@ async def resolve_update_user(
     return result["data"]
 
 
-async def resolve_delete_user(obj: Any, info: Any, id: int) -> Dict[str, Any]:
+async def resolve_delete_user(obj: Any, info: Any, id: int) -> dict[str, Any]:
     """Delete user mutation: mutation { deleteUser(id: 1) { success, message } }
 
     Args:
@@ -114,8 +117,11 @@ async def resolve_delete_user(obj: Any, info: Any, id: int) -> Dict[str, Any]:
 
 
 async def resolve_bulk_update_users(
-    obj: Any, info: Any, filter_input: Dict[str, Any], input: Dict[str, Any]
-) -> Dict[str, Any]:
+    obj: Any,
+    info: Any,
+    filter_input: dict[str, Any],
+    input: dict[str, Any],
+) -> dict[str, Any]:
     """Bulk update users matching filter.
 
     Args:
@@ -148,7 +154,7 @@ async def resolve_bulk_update_users(
     return {"success": True, "updated_count": updated_count, "records": result["data"]}
 
 
-async def resolve_create_post(obj: Any, info: Any, input: Dict[str, Any]) -> Dict[str, Any]:
+async def resolve_create_post(obj: Any, info: Any, input: dict[str, Any]) -> dict[str, Any]:
     """Create post mutation with user association.
 
     Args:
@@ -181,7 +187,7 @@ async def resolve_create_post(obj: Any, info: Any, input: Dict[str, Any]) -> Dic
     return result["data"]
 
 
-async def resolve_publish_post(obj: Any, info: Any, id: int) -> Dict[str, Any]:
+async def resolve_publish_post(obj: Any, info: Any, id: int) -> dict[str, Any]:
     """Publish a post by updating its published status.
 
     Args:
@@ -209,7 +215,7 @@ async def resolve_publish_post(obj: Any, info: Any, id: int) -> Dict[str, Any]:
     return result["data"]
 
 
-async def resolve_bulk_delete_posts(obj: Any, info: Any, user_id: int) -> Dict[str, Any]:
+async def resolve_bulk_delete_posts(obj: Any, info: Any, user_id: int) -> dict[str, Any]:
     """Delete all posts by a specific user.
 
     Args:
@@ -236,7 +242,7 @@ async def resolve_bulk_delete_posts(obj: Any, info: Any, user_id: int) -> Dict[s
     return {"success": True, "message": f"All posts by user {user_id} deleted"}
 
 
-def _convert_graphql_filter(graphql_filter: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def _convert_graphql_filter(graphql_filter: dict[str, Any]) -> dict[str, Any] | None:
     """Convert GraphQL filter input to Rust query filter.
 
     This function handles the conversion from GraphQL input types
@@ -275,7 +281,7 @@ def _convert_graphql_filter(graphql_filter: Dict[str, Any]) -> Optional[Dict[str
     return _convert_simple_filter(graphql_filter)
 
 
-def _convert_simple_filter(filter: Dict[str, Any]) -> Dict[str, Any]:
+def _convert_simple_filter(filter: dict[str, Any]) -> dict[str, Any]:
     """Convert a simple filter to Rust format.
 
     Handles both explicit format: { field: 'name', operator: 'eq', value: 'John' }

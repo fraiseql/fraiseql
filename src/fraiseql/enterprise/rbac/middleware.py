@@ -6,7 +6,8 @@ automatic cache management.
 """
 
 import logging
-from typing import Any, Awaitable, Callable, Optional
+from collections.abc import Awaitable, Callable
+from typing import Any
 from uuid import UUID
 
 from .cache import PermissionCache
@@ -39,8 +40,8 @@ class RbacMiddleware:
 
     def __init__(
         self,
-        permission_resolver: Optional[PermissionResolver] = None,
-        row_constraint_resolver: Optional[RustRowConstraintResolver] = None,
+        permission_resolver: PermissionResolver | None = None,
+        row_constraint_resolver: RustRowConstraintResolver | None = None,
     ) -> None:
         """Initialize RBAC middleware.
 
@@ -54,13 +55,21 @@ class RbacMiddleware:
         self.row_constraint_resolver = row_constraint_resolver
 
     def resolve(
-        self, next_: Callable[..., Awaitable[Any]], root: Any, info: Any, **kwargs: Any
+        self,
+        next_: Callable[..., Awaitable[Any]],
+        root: Any,
+        info: Any,
+        **kwargs: Any,
     ) -> Awaitable[Any]:
         """Strawberry middleware resolver method."""
         return self._middleware(next_, root, info, **kwargs)
 
     async def _middleware(
-        self, next_: Callable[..., Awaitable[Any]], root: Any, info: Any, **kwargs: Any
+        self,
+        next_: Callable[..., Awaitable[Any]],
+        root: Any,
+        info: Any,
+        **kwargs: Any,
     ) -> Any:
         """Execute middleware logic.
 
@@ -123,7 +132,7 @@ class RbacMiddleware:
 
         return context
 
-    def _extract_user_id(self, context: dict[str, Any]) -> Optional[UUID]:
+    def _extract_user_id(self, context: dict[str, Any]) -> UUID | None:
         """Extract user ID from GraphQL context.
 
         Customize this method based on your authentication system.
@@ -157,7 +166,7 @@ class RbacMiddleware:
         user_id = context.get("user_id")
         return UUID(user_id) if user_id else None
 
-    def _extract_tenant_id(self, context: dict[str, Any]) -> Optional[UUID]:
+    def _extract_tenant_id(self, context: dict[str, Any]) -> UUID | None:
         """Extract tenant ID from GraphQL context.
 
         Args:
@@ -193,7 +202,7 @@ class RbacMiddleware:
         tenant_id = context.get("tenant_id")
         return UUID(tenant_id) if tenant_id else None
 
-    def _get_permission_resolver(self, context: dict[str, Any]) -> Optional[PermissionResolver]:
+    def _get_permission_resolver(self, context: dict[str, Any]) -> PermissionResolver | None:
         """Get or create PermissionResolver for the request.
 
         Args:
@@ -222,8 +231,10 @@ class RbacMiddleware:
             return None
 
     async def _get_row_filters(
-        self, context: dict[str, Any], info: Any
-    ) -> Optional[dict[str, Any]]:
+        self,
+        context: dict[str, Any],
+        info: Any,
+    ) -> dict[str, Any] | None:
         """Resolve row-level filters for a request.
 
         This method queries the row constraint resolver to get any row-level
@@ -272,7 +283,7 @@ class RbacMiddleware:
             logger.warning(f"Failed to resolve row constraints: {e}")
             return None
 
-    def _extract_table_name(self, info: Any) -> Optional[str]:
+    def _extract_table_name(self, info: Any) -> str | None:
         """Extract table name from GraphQL query field name.
 
         This is a heuristic approach to map GraphQL field names to table names.
@@ -314,8 +325,8 @@ class RbacMiddleware:
 
 # Convenience function for easy middleware setup
 def create_rbac_middleware(
-    permission_resolver: Optional[PermissionResolver] = None,
-    row_constraint_resolver: Optional[RustRowConstraintResolver] = None,
+    permission_resolver: PermissionResolver | None = None,
+    row_constraint_resolver: RustRowConstraintResolver | None = None,
 ) -> RbacMiddleware:
     """Create RBAC middleware instance.
 

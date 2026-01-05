@@ -6,7 +6,7 @@ early and ensure their queries are well-formed.
 
 import typing
 from dataclasses import fields, is_dataclass
-from typing import Any, Optional, Type, cast, get_args, get_origin, get_type_hints
+from typing import Any, cast, get_args, get_origin, get_type_hints
 
 from graphql import GraphQLResolveInfo
 
@@ -15,7 +15,7 @@ from .errors.exceptions import QueryValidationError, WhereClauseError
 
 def validate_where_input(
     where_obj: Any,
-    type_class: Type[Any],
+    type_class: type[Any],
     *,
     path: str = "where",
     strict: bool = False,
@@ -188,7 +188,7 @@ def validate_where_input(
 
 def validate_selection_set(
     info: GraphQLResolveInfo,
-    type_class: Optional[Type[Any]] = None,
+    type_class: type[Any] | None = None,
     *,
     max_depth: int = 10,
     strict: bool = False,
@@ -261,7 +261,7 @@ def validate_selection_set(
     return errors
 
 
-def _get_type_fields(type_class: Type[Any]) -> set[str]:
+def _get_type_fields(type_class: type[Any]) -> set[str]:
     """Extract field names from a type class."""
     fields_set = set()
 
@@ -283,7 +283,7 @@ def _get_type_fields(type_class: Type[Any]) -> set[str]:
     return fields_set
 
 
-def _is_nested_object_type(field_type: Type[Any]) -> bool:
+def _is_nested_object_type(field_type: type[Any]) -> bool:
     """Check if a type represents a nested object (not a typing construct)."""
     # Don't treat typing constructs as nested objects
     if hasattr(field_type, "__module__") and field_type.__module__ == "typing":
@@ -315,7 +315,7 @@ def _is_nested_object_type(field_type: Type[Any]) -> bool:
     )
 
 
-def _get_field_type(type_class: Type[Any], field_name: str) -> Optional[Type]:
+def _get_field_type(type_class: type[Any], field_name: str) -> type | None:
     """Get the type of a specific field."""
     # Try type hints first
     try:
@@ -336,7 +336,7 @@ def _get_field_type(type_class: Type[Any], field_name: str) -> Optional[Type]:
                 # Handle string annotations or forward references
                 if isinstance(field_type, str):
                     return None
-                return cast(Type[Any], field_type)
+                return cast("type[Any]", field_type)
 
     # Try __annotations__
     if hasattr(type_class, "__annotations__") and field_name in type_class.__annotations__:
@@ -348,7 +348,7 @@ def _get_field_type(type_class: Type[Any], field_name: str) -> Optional[Type]:
 def _validate_operator_for_type(
     operator: str,
     value: Any,
-    field_type: Type,
+    field_type: type,
     path: str,
 ) -> list[str]:
     """Validate that an operator is appropriate for a field type."""
@@ -387,7 +387,7 @@ def _validate_operator_for_type(
 def _extract_selected_fields(
     info: GraphQLResolveInfo,
     prefix: str = "",
-    visited: Optional[set[str]] = None,
+    visited: set[str] | None = None,
 ) -> set[str]:
     """Extract all selected field paths from GraphQL query."""
     if visited is None:
@@ -448,7 +448,7 @@ def validate_query_complexity(
     info: GraphQLResolveInfo,
     *,
     max_complexity: int = 1000,
-    field_costs: Optional[dict[str, int]] = None,
+    field_costs: dict[str, int] | None = None,
 ) -> tuple[int, list[str]]:
     """Calculate and validate query complexity.
 

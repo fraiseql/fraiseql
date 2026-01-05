@@ -5,7 +5,7 @@ Phase 10 implementation with 5-10x performance improvement over Python.
 """
 
 import logging
-from typing import Any, List
+from typing import Any
 
 from fraiseql.auth.base import AuthProvider, UserContext
 
@@ -28,7 +28,7 @@ class RustAuth0Provider(AuthProvider):
         audience: Expected audience value(s)
     """
 
-    def __init__(self, domain: str, audience: str | List[str]):
+    def __init__(self, domain: str, audience: str | list[str]):
         """Initialize Auth0 provider."""
         self.domain = domain
         self.audience = [audience] if isinstance(audience, str) else audience
@@ -43,7 +43,7 @@ class RustAuth0Provider(AuthProvider):
             self._has_rust = False
             logger.warning(
                 "⚠ Rust extension not available - install with 'pip install fraiseql[rust]'. "
-                "Falling back to Python implementation (slower)."
+                "Falling back to Python implementation (slower).",
             )
 
     async def get_user_from_token(self, token: str) -> UserContext:
@@ -62,7 +62,7 @@ class RustAuth0Provider(AuthProvider):
         if not self._has_rust:
             raise NotImplementedError(
                 "Rust backend not available. Python fallback for Auth0 not implemented. "
-                "Install with 'pip install fraiseql[rust]' to use Auth0 provider."
+                "Install with 'pip install fraiseql[rust]' to use Auth0 provider.",
             )
 
         # Import here to avoid issues if Rust extension is not available
@@ -79,7 +79,9 @@ class RustAuth0Provider(AuthProvider):
         try:
             # Call Rust's blocking validation in a thread executor
             py_user_context = await loop.run_in_executor(
-                None, self._rust_provider.validate_token_blocking, token
+                None,
+                self._rust_provider.validate_token_blocking,
+                token,
             )
 
             # Convert PyUserContext to Python UserContext
@@ -135,7 +137,7 @@ class RustCustomJWTProvider(AuthProvider):
     def __init__(
         self,
         issuer: str,
-        audience: str | List[str],
+        audience: str | list[str],
         jwks_url: str,
         roles_claim: str = "roles",
         permissions_claim: str = "permissions",
@@ -160,7 +162,7 @@ class RustCustomJWTProvider(AuthProvider):
         except ImportError:
             self._has_rust = False
             logger.warning(
-                "⚠ Rust extension not available. Falling back to Python implementation (slower)."
+                "⚠ Rust extension not available. Falling back to Python implementation (slower).",
             )
 
     async def get_user_from_token(self, token: str) -> UserContext:
@@ -179,7 +181,7 @@ class RustCustomJWTProvider(AuthProvider):
         if not self._has_rust:
             raise NotImplementedError(
                 "Rust backend not available. Python fallback not implemented. "
-                "Install with 'pip install fraiseql[rust]' to use CustomJWT provider."
+                "Install with 'pip install fraiseql[rust]' to use CustomJWT provider.",
             )
 
         # Import here to avoid issues if Rust extension is not available
@@ -202,7 +204,9 @@ class RustCustomJWTProvider(AuthProvider):
         try:
             # Call Rust's blocking validation in a thread executor
             py_user_context = await loop.run_in_executor(
-                None, self._rust_provider.validate_token_blocking, token
+                None,
+                self._rust_provider.validate_token_blocking,
+                token,
             )
 
             # Convert PyUserContext to Python UserContext

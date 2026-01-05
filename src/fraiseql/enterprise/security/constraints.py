@@ -1,7 +1,5 @@
 """Security constraints (rate limiting, IP filtering, complexity analysis)."""
 
-from typing import List
-
 # Import from fraiseql._fraiseql_rs (Rust extension in parent package)
 from fraiseql._fraiseql_rs import PyComplexityAnalyzer, PyIpFilter, PyRateLimiter
 
@@ -89,8 +87,8 @@ class IpFilter:
 
     def __init__(
         self,
-        allowlist: List[str] | None = None,
-        blocklist: List[str] | None = None,
+        allowlist: list[str] | None = None,
+        blocklist: list[str] | None = None,
     ):
         """Initialize IP filter.
 

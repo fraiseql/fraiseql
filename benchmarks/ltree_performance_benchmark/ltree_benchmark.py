@@ -17,7 +17,10 @@ import psycopg_pool
 
 
 async def benchmark_ltree_query(
-    pool: psycopg_pool.AsyncConnectionPool, query: str, description: str, iterations: int = 100
+    pool: psycopg_pool.AsyncConnectionPool,
+    query: str,
+    description: str,
+    iterations: int = 100,
 ) -> dict[str, Any]:
     """Benchmark a single LTREE query."""
     times = []
@@ -62,7 +65,7 @@ async def run_ltree_benchmarks(pool: psycopg_pool.AsyncConnectionPool) -> list[d
             pool,
             "SELECT * FROM ltree_benchmark WHERE category_path = 'top.science.physics'::ltree",
             "Basic equality (=)",
-        )
+        ),
     )
 
     benchmarks.append(
@@ -70,7 +73,7 @@ async def run_ltree_benchmarks(pool: psycopg_pool.AsyncConnectionPool) -> list[d
             pool,
             "SELECT * FROM ltree_benchmark WHERE category_path != 'top.science.physics'::ltree",
             "Inequality (!=)",
-        )
+        ),
     )
 
     # Hierarchical operations
@@ -79,7 +82,7 @@ async def run_ltree_benchmarks(pool: psycopg_pool.AsyncConnectionPool) -> list[d
             pool,
             "SELECT * FROM ltree_benchmark WHERE category_path @> 'top.science'::ltree",
             "Ancestor of (@>)",
-        )
+        ),
     )
 
     benchmarks.append(
@@ -87,7 +90,7 @@ async def run_ltree_benchmarks(pool: psycopg_pool.AsyncConnectionPool) -> list[d
             pool,
             "SELECT * FROM ltree_benchmark WHERE category_path <@ 'top.science.physics'::ltree",
             "Descendant of (<@)",
-        )
+        ),
     )
 
     # Pattern matching
@@ -96,7 +99,7 @@ async def run_ltree_benchmarks(pool: psycopg_pool.AsyncConnectionPool) -> list[d
             pool,
             "SELECT * FROM ltree_benchmark WHERE category_path ~ 'top.science.*.physics'",
             "LQUERY pattern match (~)",
-        )
+        ),
     )
 
     benchmarks.append(
@@ -104,7 +107,7 @@ async def run_ltree_benchmarks(pool: psycopg_pool.AsyncConnectionPool) -> list[d
             pool,
             "SELECT * FROM ltree_benchmark WHERE category_path @ 'top.science.*{1,2}.physics'",
             "LTXTQUERY pattern match (@)",
-        )
+        ),
     )
 
     benchmarks.append(
@@ -113,7 +116,7 @@ async def run_ltree_benchmarks(pool: psycopg_pool.AsyncConnectionPool) -> list[d
             "SELECT * FROM ltree_benchmark WHERE category_path ? "
             "ARRAY['top.science.*.physics', 'top.business.*.finance']",
             "Match any LQUERY (? array)",
-        )
+        ),
     )
 
     # Path analysis operations
@@ -122,7 +125,7 @@ async def run_ltree_benchmarks(pool: psycopg_pool.AsyncConnectionPool) -> list[d
             pool,
             "SELECT * FROM ltree_benchmark WHERE nlevel(category_path) = 3",
             "Exact depth (nlevel = 3)",
-        )
+        ),
     )
 
     benchmarks.append(
@@ -130,7 +133,7 @@ async def run_ltree_benchmarks(pool: psycopg_pool.AsyncConnectionPool) -> list[d
             pool,
             "SELECT * FROM ltree_benchmark WHERE nlevel(category_path) > 2",
             "Depth greater than (nlevel > 2)",
-        )
+        ),
     )
 
     benchmarks.append(
@@ -138,7 +141,7 @@ async def run_ltree_benchmarks(pool: psycopg_pool.AsyncConnectionPool) -> list[d
             pool,
             "SELECT * FROM ltree_benchmark WHERE subpath(category_path, 1, 2) = 'science.physics'",
             "Subpath extraction",
-        )
+        ),
     )
 
     benchmarks.append(
@@ -146,7 +149,7 @@ async def run_ltree_benchmarks(pool: psycopg_pool.AsyncConnectionPool) -> list[d
             pool,
             "SELECT * FROM ltree_benchmark WHERE index(category_path, 'physics') = 2",
             "Find sublabel position (index = 2)",
-        )
+        ),
     )
 
     benchmarks.append(
@@ -154,7 +157,7 @@ async def run_ltree_benchmarks(pool: psycopg_pool.AsyncConnectionPool) -> list[d
             pool,
             "SELECT * FROM ltree_benchmark WHERE index(category_path, 'physics') >= 1",
             "Minimum sublabel position (index >= 1)",
-        )
+        ),
     )
 
     # Path manipulation
@@ -164,7 +167,7 @@ async def run_ltree_benchmarks(pool: psycopg_pool.AsyncConnectionPool) -> list[d
             "SELECT category_path || 'quantum'::ltree FROM ltree_benchmark "
             "WHERE category_path = 'top.science.physics'::ltree",
             "Path concatenation (||)",
-        )
+        ),
     )
 
     benchmarks.append(
@@ -173,7 +176,7 @@ async def run_ltree_benchmarks(pool: psycopg_pool.AsyncConnectionPool) -> list[d
             "SELECT lca(ARRAY[category_path, 'top.science.chemistry'::ltree]) "
             "FROM ltree_benchmark WHERE category_path <@ 'top.science'::ltree LIMIT 10",
             "Lowest common ancestor (lca)",
-        )
+        ),
     )
 
     # Array operations
@@ -183,7 +186,7 @@ async def run_ltree_benchmarks(pool: psycopg_pool.AsyncConnectionPool) -> list[d
             "SELECT * FROM ltree_benchmark WHERE category_path IN "
             "('top.science.physics'::ltree, 'top.business.finance'::ltree)",
             "IN array",
-        )
+        ),
     )
 
     benchmarks.append(
@@ -191,7 +194,7 @@ async def run_ltree_benchmarks(pool: psycopg_pool.AsyncConnectionPool) -> list[d
             pool,
             "SELECT * FROM ltree_benchmark WHERE 'top.science'::ltree @> category_path",
             "Array contains (@>)",
-        )
+        ),
     )
 
     # Complex hierarchical queries
@@ -201,7 +204,7 @@ async def run_ltree_benchmarks(pool: psycopg_pool.AsyncConnectionPool) -> list[d
             "SELECT * FROM ltree_benchmark WHERE category_path <@ 'top.science'::ltree "
             "AND nlevel(category_path) >= 3",
             "Complex: descendants with min depth",
-        )
+        ),
     )
 
     benchmarks.append(
@@ -210,7 +213,7 @@ async def run_ltree_benchmarks(pool: psycopg_pool.AsyncConnectionPool) -> list[d
             "SELECT * FROM ltree_benchmark WHERE category_path ~ 'top.*.*' "
             "AND category_path @> 'physics'",
             "Complex: pattern + ancestor",
-        )
+        ),
     )
 
     return benchmarks
@@ -234,7 +237,7 @@ async def run_index_comparison_benchmark(pool: psycopg_pool.AsyncConnectionPool)
     # Recreate index
     async with pool.connection() as conn, conn.cursor() as cursor:
         await cursor.execute(
-            "CREATE INDEX idx_ltree_benchmark_path ON ltree_benchmark USING GIST (category_path)"
+            "CREATE INDEX idx_ltree_benchmark_path ON ltree_benchmark USING GIST (category_path)",
         )
 
     return {
@@ -293,11 +296,11 @@ async def main() -> None:
         logger.info(f"⚡ Index speedup: {index_comparison['speedup_factor']}x")
         logger.info(
             f"🏃 Fastest operation: {report['summary']['fastest_operation']['description']} "
-            f"({report['summary']['fastest_operation']['avg_time_ms']}ms)"
+            f"({report['summary']['fastest_operation']['avg_time_ms']}ms)",
         )
         logger.info(
             f"🐌 Slowest operation: {report['summary']['slowest_operation']['description']} "
-            f"({report['summary']['slowest_operation']['avg_time_ms']}ms)"
+            f"({report['summary']['slowest_operation']['avg_time_ms']}ms)",
         )
 
 

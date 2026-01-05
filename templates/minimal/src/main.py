@@ -2,7 +2,6 @@
 
 import os
 from datetime import datetime
-from typing import List
 
 import fraiseql
 from fraiseql import fraise_field
@@ -32,7 +31,7 @@ class CreateTaskInput:
 class QueryRoot:
     """Root query type."""
 
-    tasks: List[Task] = fraise_field(description="List all tasks")
+    tasks: list[Task] = fraise_field(description="List all tasks")
     task: Task | None = fraise_field(description="Get single task by ID")
 
     async def resolve_tasks(self, info, completed: bool | None = None):
@@ -59,7 +58,9 @@ class MutationRoot:
     async def resolve_create_task(self, info, input: CreateTaskInput):
         repo = info.context["repo"]
         task_id = await repo.call_function(
-            "fn_create_task", p_title=input.title, p_description=input.description
+            "fn_create_task",
+            p_title=input.title,
+            p_description=input.description,
         )
         result = await repo.find_one("v_task", where={"id": task_id})
         return Task(**result)

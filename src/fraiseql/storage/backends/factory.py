@@ -81,7 +81,7 @@ def _create_custom_backend(backend_config: dict[str, Any]) -> APQStorageBackend:
         backend_class = getattr(module, class_name)
     except AttributeError as e:
         raise AttributeError(
-            f"Class '{class_name}' not found in module '{module_path}': {e}"
+            f"Class '{class_name}' not found in module '{module_path}': {e}",
         ) from e
 
     # Create and return the backend instance

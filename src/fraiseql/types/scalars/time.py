@@ -22,7 +22,7 @@ def serialize_time(value: Any) -> str | None:
     if not _TIME_REGEX.match(value_str):
         raise GraphQLError(
             f"Invalid time: {value}. Must be HH:MM or HH:MM:SS format "
-            "(e.g., '14:30', '09:15:30', '23:59')"
+            "(e.g., '14:30', '09:15:30', '23:59')",
         )
 
     return value_str
@@ -36,7 +36,7 @@ def parse_time_value(value: Any) -> str:
     if not _TIME_REGEX.match(value):
         raise GraphQLError(
             f"Invalid time: {value}. Must be HH:MM or HH:MM:SS format "
-            "(e.g., '14:30', '09:15:30', '23:59')"
+            "(e.g., '14:30', '09:15:30', '23:59')",
         )
 
     return value
@@ -91,6 +91,6 @@ class TimeField(str, ScalarMarker):
         if not _TIME_REGEX.match(value):
             raise ValueError(
                 f"Invalid time: {value}. Must be HH:MM or HH:MM:SS format "
-                "(e.g., '14:30', '09:15:30', '23:59')"
+                "(e.g., '14:30', '09:15:30', '23:59')",
             )
         return super().__new__(cls, value)

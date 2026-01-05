@@ -18,7 +18,7 @@ def build_daterange_eq_sql(path_sql: SQL, value: str) -> Composed:
         Composed SQL: (path)::daterange = 'value'::daterange
     """
     return Composed(
-        [SQL("("), path_sql, SQL(")::daterange = "), Literal(value), SQL("::daterange")]
+        [SQL("("), path_sql, SQL(")::daterange = "), Literal(value), SQL("::daterange")],
     )
 
 
@@ -33,7 +33,7 @@ def build_daterange_neq_sql(path_sql: SQL, value: str) -> Composed:
         Composed SQL: (path)::daterange != 'value'::daterange
     """
     return Composed(
-        [SQL("("), path_sql, SQL(")::daterange != "), Literal(value), SQL("::daterange")]
+        [SQL("("), path_sql, SQL(")::daterange != "), Literal(value), SQL("::daterange")],
     )
 
 
@@ -119,7 +119,7 @@ def build_overlaps_sql(path_sql: SQL, value: str) -> Composed:
         Composed SQL: (path)::daterange && 'value'::daterange
     """
     return Composed(
-        [SQL("("), path_sql, SQL(")::daterange && "), Literal(value), SQL("::daterange")]
+        [SQL("("), path_sql, SQL(")::daterange && "), Literal(value), SQL("::daterange")],
     )
 
 
@@ -136,7 +136,7 @@ def build_adjacent_sql(path_sql: SQL, value: str) -> Composed:
         Composed SQL: (path)::daterange -|- 'value'::daterange
     """
     return Composed(
-        [SQL("("), path_sql, SQL(")::daterange -|- "), Literal(value), SQL("::daterange")]
+        [SQL("("), path_sql, SQL(")::daterange -|- "), Literal(value), SQL("::daterange")],
     )
 
 
@@ -153,7 +153,7 @@ def build_strictly_left_sql(path_sql: SQL, value: str) -> Composed:
         Composed SQL: (path)::daterange << 'value'::daterange
     """
     return Composed(
-        [SQL("("), path_sql, SQL(")::daterange << "), Literal(value), SQL("::daterange")]
+        [SQL("("), path_sql, SQL(")::daterange << "), Literal(value), SQL("::daterange")],
     )
 
 
@@ -170,7 +170,7 @@ def build_strictly_right_sql(path_sql: SQL, value: str) -> Composed:
         Composed SQL: (path)::daterange >> 'value'::daterange
     """
     return Composed(
-        [SQL("("), path_sql, SQL(")::daterange >> "), Literal(value), SQL("::daterange")]
+        [SQL("("), path_sql, SQL(")::daterange >> "), Literal(value), SQL("::daterange")],
     )
 
 
@@ -187,7 +187,7 @@ def build_not_left_sql(path_sql: SQL, value: str) -> Composed:
         Composed SQL: (path)::daterange &> 'value'::daterange
     """
     return Composed(
-        [SQL("("), path_sql, SQL(")::daterange &> "), Literal(value), SQL("::daterange")]
+        [SQL("("), path_sql, SQL(")::daterange &> "), Literal(value), SQL("::daterange")],
     )
 
 
@@ -204,5 +204,5 @@ def build_not_right_sql(path_sql: SQL, value: str) -> Composed:
         Composed SQL: (path)::daterange &< 'value'::daterange
     """
     return Composed(
-        [SQL("("), path_sql, SQL(")::daterange &< "), Literal(value), SQL("::daterange")]
+        [SQL("("), path_sql, SQL(")::daterange &< "), Literal(value), SQL("::daterange")],
     )

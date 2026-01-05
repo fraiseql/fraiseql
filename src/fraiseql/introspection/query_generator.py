@@ -5,7 +5,7 @@ queries (find_one, find_all, connection) for auto-discovered types.
 """
 
 import logging
-from typing import Any, Optional
+from typing import Any
 from uuid import UUID
 
 from .metadata_parser import TypeAnnotation
@@ -17,7 +17,11 @@ class QueryGenerator:
     """Generate standard queries for auto-discovered types."""
 
     def generate_queries_for_type(
-        self, type_class: Any, view_name: str, schema_name: str, annotation: TypeAnnotation
+        self,
+        type_class: Any,
+        view_name: str,
+        schema_name: str,
+        annotation: TypeAnnotation,
     ) -> list[callable]:
         """Generate standard queries for a type.
 
@@ -50,12 +54,15 @@ class QueryGenerator:
         return queries
 
     def _generate_find_one_query(
-        self, type_class: Any, view_name: str, schema_name: str
+        self,
+        type_class: Any,
+        view_name: str,
+        schema_name: str,
     ) -> callable:
         """Generate find_one(id) query."""
 
         # Create query function dynamically
-        async def find_one_impl(info: Any, id: UUID) -> Optional[Any]:
+        async def find_one_impl(info: Any, id: UUID) -> Any | None:
             """Get a single item by ID."""
             db = info.context["db"]
             sql_source = f"{schema_name}.{view_name}"
@@ -73,22 +80,29 @@ class QueryGenerator:
         return query(find_one_impl)
 
     def _generate_find_all_query(
-        self, type_class: Any, view_name: str, schema_name: str
+        self,
+        type_class: Any,
+        view_name: str,
+        schema_name: str,
     ) -> callable:
         """Generate find_all(where, order_by, ...) query."""
 
         async def find_all_impl(
             info: Any,
-            where: Optional[dict] = None,
-            order_by: Optional[dict] = None,
-            limit: Optional[int] = None,
-            offset: Optional[int] = None,
+            where: dict | None = None,
+            order_by: dict | None = None,
+            limit: int | None = None,
+            offset: int | None = None,
         ) -> list[Any]:
             """Get all items with optional filtering."""
             db = info.context["db"]
             sql_source = f"{schema_name}.{view_name}"
             results = await db.find(
-                sql_source, where=where, order_by=order_by, limit=limit, offset=offset
+                sql_source,
+                where=where,
+                order_by=order_by,
+                limit=limit,
+                offset=offset,
             )
             return results
 
@@ -104,7 +118,10 @@ class QueryGenerator:
         return query(find_all_impl)
 
     def _generate_connection_query(
-        self, type_class: Any, view_name: str, schema_name: str
+        self,
+        type_class: Any,
+        view_name: str,
+        schema_name: str,
     ) -> callable:
         """Generate Relay connection query (optional)."""
 
@@ -112,9 +129,9 @@ class QueryGenerator:
         # In a full implementation, this would use Relay connection spec
         async def connection_impl(
             info: Any,
-            first: Optional[int] = None,
-            after: Optional[str] = None,
-            where: Optional[dict] = None,
+            first: int | None = None,
+            after: str | None = None,
+            where: dict | None = None,
         ) -> dict:
             """Relay-style connection with pagination."""
             db = info.context["db"]
@@ -122,7 +139,10 @@ class QueryGenerator:
 
             # Basic implementation - would need proper Relay connection logic
             results = await db.find(
-                sql_source, where=where, limit=first, offset=int(after) if after else 0
+                sql_source,
+                where=where,
+                limit=first,
+                offset=int(after) if after else 0,
             )
 
             return {

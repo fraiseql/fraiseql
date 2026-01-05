@@ -7,8 +7,9 @@ and ensure fair usage of resources. Supports both PostgreSQL and in-memory backe
 import asyncio
 import time
 from collections import defaultdict, deque
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Awaitable, Callable, Optional, Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from fastapi import HTTPException, Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -72,7 +73,7 @@ class RateLimitConfig:
     window_type: str = "sliding"
 
     # Custom key function to identify clients
-    key_func: Optional[Callable[[Request], str]] = None
+    key_func: Callable[[Request], str] | None = None
 
     # IP whitelist (never rate limited)
     whitelist: list[str] = field(default_factory=list)
@@ -326,7 +327,7 @@ class PostgreSQLRateLimiter:
                     window_type TEXT NOT NULL,
                     PRIMARY KEY (client_key, request_time, window_type)
                 )
-            """
+            """,
             )
 
             # Create index for time-based queries
@@ -334,7 +335,7 @@ class PostgreSQLRateLimiter:
                 f"""
                 CREATE INDEX IF NOT EXISTS {self.table_name}_time_idx
                 ON {self.table_name} (request_time)
-            """
+            """,
             )
 
             # Create index for client queries
@@ -342,7 +343,7 @@ class PostgreSQLRateLimiter:
                 f"""
                 CREATE INDEX IF NOT EXISTS {self.table_name}_client_idx
                 ON {self.table_name} (client_key, window_type, request_time)
-            """
+            """,
             )
 
             await conn.commit()
@@ -621,7 +622,9 @@ class RateLimiterMiddleware(BaseHTTPMiddleware):
         self.rate_limiter = rate_limiter
 
     async def dispatch(
-        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+        self,
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
         """Process request with rate limiting."""
         # Skip rate limiting for certain paths

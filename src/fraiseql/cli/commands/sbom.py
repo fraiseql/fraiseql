@@ -12,7 +12,6 @@ Usage:
 
 import logging
 from pathlib import Path
-from typing import Optional
 
 import click
 
@@ -101,13 +100,13 @@ def sbom_cli() -> None:
 def generate_sbom(
     output: Path,
     format: str,
-    component_name: Optional[str],
-    component_version: Optional[str],
-    supplier_name: Optional[str],
-    supplier_url: Optional[str],
-    supplier_contact: Optional[str],
+    component_name: str | None,
+    component_version: str | None,
+    supplier_name: str | None,
+    supplier_url: str | None,
+    supplier_contact: str | None,
     author: tuple[str, ...],
-    project_root: Optional[Path],
+    project_root: Path | None,
     include_dev: bool,
     verbose: bool,
 ) -> None:
@@ -326,7 +325,7 @@ def validate_sbom(input_file: Path, verbose: bool) -> None:
         if copyleft_count > 0:
             click.echo("")
             click.echo(
-                f"⚠️  Warning: Found {copyleft_count} components with copyleft licenses (GPL)"
+                f"⚠️  Warning: Found {copyleft_count} components with copyleft licenses (GPL)",
             )
             click.echo("   Copyleft licenses may restrict federal use. Review carefully.")
 

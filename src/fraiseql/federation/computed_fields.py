@@ -35,7 +35,7 @@ This module provides:
 - get_computed_fields(): Extract all computed fields from class
 """
 
-from typing import Any, Optional, Set
+from typing import Any
 
 from .directives import get_method_directives
 
@@ -54,10 +54,10 @@ class ComputedField:
     def __init__(
         self,
         method_name: str,
-        requires: Optional[list[str]] = None,
-        provides: Optional[list[str]] = None,
+        requires: list[str] | None = None,
+        provides: list[str] | None = None,
         is_async: bool = False,
-        return_type: Optional[Any] = None,
+        return_type: Any | None = None,
     ):
         self.method_name = method_name
         self.requires = requires or []
@@ -108,8 +108,8 @@ class ComputedFieldValidator:
         self,
         method_name: str,
         required_fields: list[str],
-        all_fields: Set[str],
-        external_fields: Optional[Set[str]] = None,
+        all_fields: set[str],
+        external_fields: set[str] | None = None,
     ) -> bool:
         """Validate that required fields exist.
 
@@ -128,7 +128,7 @@ class ComputedFieldValidator:
         if missing:
             missing_list = sorted(missing)
             self.errors.append(
-                f"Method {method_name} @requires fields that don't exist: {missing_list}"
+                f"Method {method_name} @requires fields that don't exist: {missing_list}",
             )
             return False
 
@@ -138,7 +138,7 @@ class ComputedFieldValidator:
         self,
         method_name: str,
         provided_fields: list[str],
-        all_fields: Set[str],
+        all_fields: set[str],
     ) -> bool:
         """Validate that provided fields can be resolved.
 
@@ -161,8 +161,8 @@ class ComputedFieldValidator:
     def validate_computed_field(
         self,
         computed_field: ComputedField,
-        all_fields: Set[str],
-        external_fields: Optional[Set[str]] = None,
+        all_fields: set[str],
+        external_fields: set[str] | None = None,
     ) -> bool:
         """Validate a computed field completely.
 
@@ -265,8 +265,9 @@ def extract_computed_fields(cls: type) -> dict[str, ComputedField]:
 
 
 def get_all_field_dependencies(
-    cls: type, external_fields: Optional[Set[str]] = None
-) -> dict[str, Set[str]]:
+    cls: type,
+    external_fields: set[str] | None = None,
+) -> dict[str, set[str]]:
     """Build complete dependency graph for all computed fields.
 
     Shows which fields each computed field depends on.
@@ -294,7 +295,7 @@ def get_all_field_dependencies(
     """
     external_fields = external_fields or set()
     computed = extract_computed_fields(cls)
-    dependencies: dict[str, Set[str]] = {}
+    dependencies: dict[str, set[str]] = {}
 
     for method_name, computed_field in computed.items():
         if computed_field.has_requirements():
@@ -305,8 +306,8 @@ def get_all_field_dependencies(
 
 def validate_all_computed_fields(
     cls: type,
-    all_fields: Set[str],
-    external_fields: Optional[Set[str]] = None,
+    all_fields: set[str],
+    external_fields: set[str] | None = None,
     strict: bool = False,
 ) -> tuple[bool, list[str]]:
     """Validate all computed fields in a class.

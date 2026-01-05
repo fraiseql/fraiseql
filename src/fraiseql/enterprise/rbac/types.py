@@ -1,7 +1,6 @@
 """GraphQL types for FraiseQL Enterprise RBAC (Role-Based Access Control)."""
 
 from datetime import datetime
-from typing import Optional
 from uuid import UUID
 
 from fraiseql.strawberry_compat import strawberry
@@ -16,9 +15,9 @@ class RoleType:
 
     id: UUID
     name: str
-    description: Optional[str]
-    parent_role_id: Optional[UUID]
-    tenant_id: Optional[UUID]
+    description: str | None
+    parent_role_id: UUID | None
+    tenant_id: UUID | None
     is_system: bool
     created_at: datetime
     updated_at: datetime
@@ -45,8 +44,8 @@ class PermissionType:
     id: UUID
     resource: str
     action: str
-    description: Optional[str]
-    constraints: Optional[JSONField]
+    description: str | None
+    constraints: JSONField | None
     created_at: datetime
 
     @classmethod
@@ -69,10 +68,10 @@ class UserRoleType:
     id: UUID
     user_id: UUID
     role_id: UUID
-    tenant_id: Optional[UUID]
-    granted_by: Optional[UUID]
+    tenant_id: UUID | None
+    granted_by: UUID | None
     granted_at: datetime
-    expires_at: Optional[datetime]
+    expires_at: datetime | None
 
     @classmethod
     def from_model(cls, user_role: UserRole) -> "UserRoleType":
@@ -102,7 +101,7 @@ class UserPermissions:
     """User's effective permissions across all roles."""
 
     user_id: UUID
-    tenant_id: Optional[UUID]
+    tenant_id: UUID | None
     permissions: list[PermissionType]
     roles: list[RoleType]
 
@@ -111,26 +110,26 @@ class UserPermissions:
 class RoleFilter:
     """Filter for querying roles."""
 
-    tenant_id: Optional[UUID] = None
-    name_contains: Optional[str] = None
-    is_system: Optional[bool] = None
+    tenant_id: UUID | None = None
+    name_contains: str | None = None
+    is_system: bool | None = None
 
 
 @strawberry.input
 class PermissionFilter:
     """Filter for querying permissions."""
 
-    resource: Optional[str] = None
-    action: Optional[str] = None
+    resource: str | None = None
+    action: str | None = None
 
 
 @strawberry.input
 class UserRoleFilter:
     """Filter for querying user roles."""
 
-    user_id: Optional[UUID] = None
-    tenant_id: Optional[UUID] = None
-    role_id: Optional[UUID] = None
+    user_id: UUID | None = None
+    tenant_id: UUID | None = None
+    role_id: UUID | None = None
 
 
 @strawberry.input
@@ -139,8 +138,8 @@ class AssignRoleInput:
 
     user_id: UUID
     role_id: UUID
-    tenant_id: Optional[UUID] = None
-    expires_at: Optional[datetime] = None
+    tenant_id: UUID | None = None
+    expires_at: datetime | None = None
 
 
 @strawberry.input
@@ -149,7 +148,7 @@ class RevokeRoleInput:
 
     user_id: UUID
     role_id: UUID
-    tenant_id: Optional[UUID] = None
+    tenant_id: UUID | None = None
 
 
 @strawberry.input
@@ -157,9 +156,9 @@ class CreateRoleInput:
     """Input for creating a new role."""
 
     name: str
-    description: Optional[str] = None
-    parent_role_id: Optional[UUID] = None
-    tenant_id: Optional[UUID] = None
+    description: str | None = None
+    parent_role_id: UUID | None = None
+    tenant_id: UUID | None = None
 
 
 @strawberry.input
@@ -167,9 +166,9 @@ class UpdateRoleInput:
     """Input for updating an existing role."""
 
     id: UUID
-    name: Optional[str] = None
-    description: Optional[str] = None
-    parent_role_id: Optional[UUID] = None
+    name: str | None = None
+    description: str | None = None
+    parent_role_id: UUID | None = None
 
 
 @strawberry.input
@@ -178,8 +177,8 @@ class CreatePermissionInput:
 
     resource: str
     action: str
-    description: Optional[str] = None
-    constraints: Optional[JSONField] = None
+    description: str | None = None
+    constraints: JSONField | None = None
 
 
 @strawberry.input
@@ -189,7 +188,7 @@ class PermissionCheckInput:
     user_id: UUID
     resource: str
     action: str
-    tenant_id: Optional[UUID] = None
+    tenant_id: UUID | None = None
 
 
 @strawberry.type
@@ -200,7 +199,7 @@ class PermissionCheckResult:
     user_id: UUID
     resource: str
     action: str
-    tenant_id: Optional[UUID]
+    tenant_id: UUID | None
 
 
 @strawberry.type
@@ -209,4 +208,4 @@ class MutationResult:
 
     success: bool
     message: str
-    id: Optional[UUID] = None
+    id: UUID | None = None

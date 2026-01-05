@@ -1,6 +1,6 @@
-from collections.abc import AsyncIterator, Coroutine
+from collections.abc import AsyncIterator, Callable, Coroutine
 from contextlib import asynccontextmanager, contextmanager
-from typing import Any, Callable, ContextManager, Type
+from typing import Any, ContextManager
 
 from pydantic import BaseModel
 
@@ -94,10 +94,10 @@ class AxumServer:
     def __init__(self, config: AxumFraiseQLConfig) -> None: ...
 
     # Type Registration
-    def register_types(self, types: list[Type[Any]]) -> None: ...
-    def register_mutations(self, mutations: list[Type[Any]]) -> None: ...
-    def register_queries(self, queries: list[Type[Any]]) -> None: ...
-    def register_subscriptions(self, subscriptions: list[Type[Any]]) -> None: ...
+    def register_types(self, types: list[type[Any]]) -> None: ...
+    def register_mutations(self, mutations: list[type[Any]]) -> None: ...
+    def register_queries(self, queries: list[type[Any]]) -> None: ...
+    def register_subscriptions(self, subscriptions: list[type[Any]]) -> None: ...
     def add_middleware(self, middleware: Any) -> None: ...
 
     # Lifecycle Management
@@ -146,17 +146,19 @@ class AxumServer:
     def running(self, host: str = "127.0.0.1", port: int = 8000) -> ContextManager[AxumServer]: ...
     @asynccontextmanager
     async def running_async(
-        self, host: str = "127.0.0.1", port: int = 8000
+        self,
+        host: str = "127.0.0.1",
+        port: int = 8000,
     ) -> AsyncIterator[AxumServer]: ...
 
 def create_axum_fraiseql_app(
     *,
     config: AxumFraiseQLConfig | None = None,
     database_url: str | None = None,
-    types: list[Type[Any]] | None = None,
-    mutations: list[Type[Any]] | None = None,
-    queries: list[Type[Any]] | None = None,
-    subscriptions: list[Type[Any]] | None = None,
+    types: list[type[Any]] | None = None,
+    mutations: list[type[Any]] | None = None,
+    queries: list[type[Any]] | None = None,
+    subscriptions: list[type[Any]] | None = None,
     context_getter: Callable[..., Coroutine[Any, Any, dict[str, Any]]] | None = None,
     middleware: list[Any] | None = None,
     cors_origins: list[str] | None = None,
@@ -175,8 +177,8 @@ def create_axum_fraiseql_app(
 def create_production_app(
     *,
     database_url: str,
-    types: list[Type[Any]] | None = None,
-    mutations: list[Type[Any]] | None = None,
+    types: list[type[Any]] | None = None,
+    mutations: list[type[Any]] | None = None,
     **kwargs: Any,
 ) -> AxumServer: ...
 

@@ -22,7 +22,7 @@ def serialize_tracking_number(value: Any) -> str | None:
     if not _TRACKING_NUMBER_REGEX.match(value_str):
         raise GraphQLError(
             f"Invalid tracking number: {value}. Must be 8-30 alphanumeric characters "
-            "(e.g., '1Z999AA10123456784', '123456789012')"
+            "(e.g., '1Z999AA10123456784', '123456789012')",
         )
 
     return value_str
@@ -36,7 +36,7 @@ def parse_tracking_number_value(value: Any) -> str:
     if not _TRACKING_NUMBER_REGEX.match(value):
         raise GraphQLError(
             f"Invalid tracking number: {value}. Must be 8-30 alphanumeric characters "
-            "(e.g., '1Z999AA10123456784', '123456789012')"
+            "(e.g., '1Z999AA10123456784', '123456789012')",
         )
 
     return value
@@ -92,6 +92,6 @@ class TrackingNumberField(str, ScalarMarker):
         if not _TRACKING_NUMBER_REGEX.match(value):
             raise ValueError(
                 f"Invalid tracking number: {value}. Must be 8-30 alphanumeric characters "
-                "(e.g., '1Z999AA10123456784', '123456789012')"
+                "(e.g., '1Z999AA10123456784', '123456789012')",
             )
         return super().__new__(cls, value)

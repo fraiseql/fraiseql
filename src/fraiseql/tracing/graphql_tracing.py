@@ -8,9 +8,10 @@ Provides enhanced OpenTelemetry tracing with GraphQL-aware features:
 """
 
 import types
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from functools import wraps
-from typing import Any, Callable, Optional
+from typing import Any
 
 from fraiseql.tracing.opentelemetry import get_tracer
 
@@ -54,7 +55,7 @@ class TracingConfig:
             "session",
             "cookie",
             "authorization",
-        }
+        },
     )
     max_query_length: int = 1000
 
@@ -69,7 +70,7 @@ class GraphQLTracer:
     - Resolver-level tracing
     """
 
-    def __init__(self, config: Optional[TracingConfig] = None) -> None:
+    def __init__(self, config: TracingConfig | None = None) -> None:
         """Initialize GraphQL tracer."""
         self._config = config or TracingConfig()
         self._otel_tracer = get_tracer() if OPENTELEMETRY_AVAILABLE else None
@@ -81,27 +82,27 @@ class GraphQLTracer:
 
     def trace_query(
         self,
-        operation_name: Optional[str],
+        operation_name: str | None,
         query: str,
-        variables: Optional[dict[str, Any]] = None,
+        variables: dict[str, Any] | None = None,
     ) -> Any:
         """Context manager for tracing GraphQL queries."""
         return self._trace_operation("query", operation_name, query, variables)
 
     def trace_mutation(
         self,
-        operation_name: Optional[str],
+        operation_name: str | None,
         query: str,
-        variables: Optional[dict[str, Any]] = None,
+        variables: dict[str, Any] | None = None,
     ) -> Any:
         """Context manager for tracing GraphQL mutations."""
         return self._trace_operation("mutation", operation_name, query, variables)
 
     def trace_subscription(
         self,
-        operation_name: Optional[str],
+        operation_name: str | None,
         query: str,
-        variables: Optional[dict[str, Any]] = None,
+        variables: dict[str, Any] | None = None,
     ) -> Any:
         """Context manager for tracing GraphQL subscriptions."""
         return self._trace_operation("subscription", operation_name, query, variables)
@@ -161,9 +162,9 @@ class GraphQLTracer:
     def _trace_operation(
         self,
         operation_type: str,
-        operation_name: Optional[str],
+        operation_name: str | None,
         query: str,
-        variables: Optional[dict[str, Any]],
+        variables: dict[str, Any] | None,
     ):
         """Generic operation tracing context manager."""
         if not self._otel_tracer:
@@ -224,9 +225,9 @@ class _GraphQLOperationContext:
         self,
         tracer: Any,
         operation_type: str,
-        operation_name: Optional[str],
+        operation_name: str | None,
         query: str,
-        variables: Optional[dict[str, Any]],
+        variables: dict[str, Any] | None,
         config: TracingConfig,
     ) -> None:
         self.tracer = tracer

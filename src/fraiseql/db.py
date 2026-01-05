@@ -38,7 +38,7 @@ import logging
 import os
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
-from typing import Any, Optional, TypeVar, Union, get_args, get_origin
+from typing import Any, TypeVar, Union, get_args, get_origin
 
 from psycopg import AsyncConnection
 from psycopg.rows import dict_row
@@ -219,7 +219,7 @@ def register_type_for_view(
                     f"Field '{field_name}' mapped to FK column '{fk_column}', "
                     f"but '{fk_column}' not in table_columns: {table_columns}. "
                     f"Either add '{fk_column}' to table_columns or fix fk_relationships. "
-                    f"To allow this (not recommended), set validate_fk_strict=False."
+                    f"To allow this (not recommended), set validate_fk_strict=False.",
                 )
 
     # Store metadata if provided
@@ -239,7 +239,7 @@ def register_type_for_view(
         _table_metadata[view_name] = metadata
         logger.debug(
             f"Registered metadata for {view_name}: {len(table_columns or set())} columns, "
-            f"jsonb={has_jsonb_data}, jsonb_column={jsonb_column}"
+            f"jsonb={has_jsonb_data}, jsonb_column={jsonb_column}",
         )
 
 
@@ -250,16 +250,16 @@ class FraiseQLRepository:
     No mode detection or branching - single execution path.
     """
 
-    def __init__(self, pool: AsyncConnectionPool, context: Optional[dict[str, Any]] = None) -> None:
+    def __init__(self, pool: AsyncConnectionPool, context: dict[str, Any] | None = None) -> None:
         """Initialize with an async connection pool and optional context."""
         self._pool = pool
         self.context = context or {}
         # Get query timeout from context or use default (30 seconds)
         self.query_timeout = self.context.get("query_timeout", 30)
         # Cache for type names to avoid repeated registry lookups
-        self._type_name_cache: dict[str, Optional[str]] = {}
+        self._type_name_cache: dict[str, str | None] = {}
 
-    def _get_cached_type_name(self, view_name: str) -> Optional[str]:
+    def _get_cached_type_name(self, view_name: str) -> str | None:
         """Get cached type name for a view, or lookup and cache it if not found.
 
         This avoids repeated registry lookups for the same view across multiple queries.
@@ -274,9 +274,12 @@ class FraiseQLRepository:
             type_class = self._get_type_for_view(view_name)
             if hasattr(type_class, "__name__"):
                 type_name = type_class.__name__
-        except Exception:
+        except Exception as e:
             # If we can't get the type, continue without type name
-            pass
+            import logging
+
+            logger = logging.getLogger(__name__)
+            logger.debug(f"Could not get type name for view {view_name}: {e}")
 
         # Cache the result (including None for failed lookups)
         self._type_name_cache[view_name] = type_name
@@ -301,49 +304,53 @@ class FraiseQLRepository:
             if is_cursor:
                 await cursor_or_conn.execute(
                     SQL("SET LOCAL app.tenant_id = {}").format(
-                        Literal(str(self.context["tenant_id"]))
-                    )
+                        Literal(str(self.context["tenant_id"])),
+                    ),
                 )
             else:
                 # asyncpg connection
                 await cursor_or_conn.execute(
-                    "SET LOCAL app.tenant_id = $1", str(self.context["tenant_id"])
+                    "SET LOCAL app.tenant_id = $1",
+                    str(self.context["tenant_id"]),
                 )
 
         if "contact_id" in self.context:
             if is_cursor:
                 await cursor_or_conn.execute(
                     SQL("SET LOCAL app.contact_id = {}").format(
-                        Literal(str(self.context["contact_id"]))
-                    )
+                        Literal(str(self.context["contact_id"])),
+                    ),
                 )
             else:
                 # asyncpg connection
                 await cursor_or_conn.execute(
-                    "SET LOCAL app.contact_id = $1", str(self.context["contact_id"])
+                    "SET LOCAL app.contact_id = $1",
+                    str(self.context["contact_id"]),
                 )
         elif "user" in self.context:
             # Fallback to 'user' if 'contact_id' not set
             if is_cursor:
                 await cursor_or_conn.execute(
-                    SQL("SET LOCAL app.contact_id = {}").format(Literal(str(self.context["user"])))
+                    SQL("SET LOCAL app.contact_id = {}").format(Literal(str(self.context["user"]))),
                 )
             else:
                 # asyncpg connection
                 await cursor_or_conn.execute(
-                    "SET LOCAL app.contact_id = $1", str(self.context["user"])
+                    "SET LOCAL app.contact_id = $1",
+                    str(self.context["user"]),
                 )
 
         # RBAC-specific session variables for Row-Level Security
         if "user_id" in self.context:
             if is_cursor:
                 await cursor_or_conn.execute(
-                    SQL("SET LOCAL app.user_id = {}").format(Literal(str(self.context["user_id"])))
+                    SQL("SET LOCAL app.user_id = {}").format(Literal(str(self.context["user_id"]))),
                 )
             else:
                 # asyncpg connection
                 await cursor_or_conn.execute(
-                    "SET LOCAL app.user_id = $1", str(self.context["user_id"])
+                    "SET LOCAL app.user_id = $1",
+                    str(self.context["user_id"]),
                 )
 
         # Set super_admin flag based on user roles
@@ -355,7 +362,7 @@ class FraiseQLRepository:
             )
             if is_cursor:
                 await cursor_or_conn.execute(
-                    SQL("SET LOCAL app.is_super_admin = {}").format(Literal(is_super_admin))
+                    SQL("SET LOCAL app.is_super_admin = {}").format(Literal(is_super_admin)),
                 )
             else:
                 # asyncpg connection
@@ -372,8 +379,8 @@ class FraiseQLRepository:
                         SQL(
                             "SET LOCAL app.is_super_admin = EXISTS (SELECT 1 FROM "
                             "user_roles ur INNER JOIN roles r ON ur.role_id = r.id "
-                            "WHERE ur.user_id = {} AND r.name = 'super_admin')"
-                        ).format(Literal(str(user_id)))
+                            "WHERE ur.user_id = {} AND r.name = 'super_admin')",
+                        ).format(Literal(str(user_id))),
                     )
                 else:
                     # asyncpg connection
@@ -388,7 +395,7 @@ class FraiseQLRepository:
                 # If role checking fails, default to False for security
                 if is_cursor:
                     await cursor_or_conn.execute(
-                        SQL("SET LOCAL app.is_super_admin = {}").format(Literal(False))
+                        SQL("SET LOCAL app.is_super_admin = {}").format(Literal(False)),
                     )
                 else:
                     await cursor_or_conn.execute("SET LOCAL app.is_super_admin = $1", False)
@@ -664,7 +671,11 @@ class FraiseQLRepository:
             self._introspection_in_progress.discard(view_name)
 
     async def find(
-        self, view_name: str, field_name: str | None = None, info: Any = None, **kwargs: Any
+        self,
+        view_name: str,
+        field_name: str | None = None,
+        info: Any = None,
+        **kwargs: Any,
     ) -> RustResponseBytes:
         """Find records using unified Rust-first pipeline.
 
@@ -790,7 +801,11 @@ class FraiseQLRepository:
             return result
 
     async def find_one(
-        self, view_name: str, field_name: str | None = None, info: Any = None, **kwargs: Any
+        self,
+        view_name: str,
+        field_name: str | None = None,
+        info: Any = None,
+        **kwargs: Any,
     ) -> RustResponseBytes | None:
         """Find single record using unified Rust-first pipeline.
 
@@ -1616,7 +1631,7 @@ class FraiseQLRepository:
         # FIX: Always raise error for unsupported types, never return None
         raise TypeError(
             f"WHERE clause must be dict, WhereClause, or WhereInput object. "
-            f"Got: {type(where).__name__}"
+            f"Got: {type(where).__name__}",
         )
 
     def _build_where_clause(self, view_name: str, **kwargs: Any) -> tuple[list[Any], list[Any]]:
@@ -1655,7 +1670,7 @@ class FraiseQLRepository:
                 if not table_columns:
                     logger.warning(
                         f"No table_columns registered for {view_name} - "
-                        f"FK detection may be disabled. Call register_type_for_view()."
+                        f"FK detection may be disabled. Call register_type_for_view().",
                     )
 
             # SINGLE CODE PATH: Normalize to WhereClause
@@ -1693,7 +1708,7 @@ class FraiseQLRepository:
 
         return where_parts, all_params
 
-    def _extract_type(self, field_type: type) -> Optional[type]:
+    def _extract_type(self, field_type: type) -> type | None:
         """Extract the actual type from Optional, Union, etc."""
         origin = get_origin(field_type)
         if origin is Union:
@@ -1947,7 +1962,10 @@ class FraiseQLRepository:
             if strategy is None:
                 # Operator not supported by strategy system, fall back to basic handling
                 return self._build_basic_dict_condition(
-                    field_name, operator, value, use_jsonb_path=use_jsonb_path
+                    field_name,
+                    operator,
+                    value,
+                    use_jsonb_path=use_jsonb_path,
                 )
 
             # Use the strategy to build intelligent SQL with type detection
@@ -1968,7 +1986,11 @@ class FraiseQLRepository:
             return self._build_basic_dict_condition(field_name, operator, value)
 
     def _build_basic_dict_condition(
-        self, field_name: str, operator: str, value: Any, use_jsonb_path: bool = False
+        self,
+        field_name: str,
+        operator: str,
+        value: Any,
+        use_jsonb_path: bool = False,
     ) -> Composed | None:
         """Fallback method for basic WHERE condition building.
 
@@ -1988,7 +2010,7 @@ class FraiseQLRepository:
             "ilike": lambda path, val: Composed([path, SQL(" ILIKE "), Literal(val)]),
             "like": lambda path, val: Composed([path, SQL(" LIKE "), Literal(val)]),
             "isnull": lambda path, val: Composed(
-                [path, SQL(" IS NULL" if val else " IS NOT NULL")]
+                [path, SQL(" IS NULL" if val else " IS NOT NULL")],
             ),
         }
 
@@ -2157,7 +2179,7 @@ class FraiseQLRepository:
                 "end_date",
                 "created_date",
                 "modified_date",
-            }
+            },
         )
 
         use_jsonb = field_name not in REGULAR_COLUMNS

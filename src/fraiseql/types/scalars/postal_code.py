@@ -24,7 +24,7 @@ def serialize_postal_code(value: Any) -> str | None:
         raise GraphQLError(
             f"Invalid postal code: {value}. Must be 3-10 characters, "
             "alphanumeric with optional spaces/hyphens "
-            "(e.g., '90210', 'SW1A 1AA', '75001', '100-0001')"
+            "(e.g., '90210', 'SW1A 1AA', '75001', '100-0001')",
         )
 
     return value_str
@@ -41,7 +41,7 @@ def parse_postal_code_value(value: Any) -> str:
         raise GraphQLError(
             f"Invalid postal code: {value}. Must be 3-10 characters, "
             "alphanumeric with optional spaces/hyphens "
-            "(e.g., '90210', 'SW1A 1AA', '75001', '100-0001')"
+            "(e.g., '90210', 'SW1A 1AA', '75001', '100-0001')",
         )
 
     return value_str
@@ -97,6 +97,6 @@ class PostalCodeField(str, ScalarMarker):
             raise ValueError(
                 f"Invalid postal code: {value}. Must be 3-10 characters, "
                 "alphanumeric with optional spaces/hyphens "
-                "(e.g., '90210', 'SW1A 1AA', '75001', '100-0001')"
+                "(e.g., '90210', 'SW1A 1AA', '75001', '100-0001')",
             )
         return super().__new__(cls, value_str)

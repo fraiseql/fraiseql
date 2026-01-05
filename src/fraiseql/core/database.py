@@ -3,8 +3,6 @@
 Phase 1: Production pool wrapper with backward compatibility.
 """
 
-from typing import Optional
-
 from fraiseql._fraiseql_rs import DatabasePool as RustDatabasePool
 
 
@@ -14,7 +12,7 @@ class DatabasePool:
     Provides a Python interface to the high-performance Rust connection pool.
     """
 
-    def __init__(self, database_url: str, config: Optional[dict] = None) -> None:
+    def __init__(self, database_url: str, config: dict | None = None) -> None:
         """Create a new database connection pool.
 
         Args:
@@ -31,7 +29,9 @@ class DatabasePool:
             max_size = config.get("max_size", 10)
             ssl_mode = config.get("ssl_mode", "prefer")
             self._rust_pool = RustDatabasePool(
-                url=database_url, max_size=max_size, ssl_mode=ssl_mode
+                url=database_url,
+                max_size=max_size,
+                ssl_mode=ssl_mode,
             )
         else:
             # Use URL only (defaults apply)

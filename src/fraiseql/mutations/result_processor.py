@@ -1,7 +1,7 @@
 """Clean, immutable mutation result processor."""
 
 from dataclasses import dataclass
-from typing import Any, Optional, Type, TypeVar
+from typing import Any, TypeVar
 
 from .types import MutationResult
 
@@ -26,7 +26,7 @@ class ProcessedResult:
     status: str
     message: str
     errors: list[ErrorDetail]
-    data: Optional[dict[str, Any]] = None
+    data: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to JSON-serializable dictionary."""
@@ -54,7 +54,7 @@ class ProcessedResult:
 class MutationResultProcessor:
     """Clean, predictable mutation result processor."""
 
-    def process_error(self, db_result: MutationResult, error_class: Type[T]) -> ProcessedResult:
+    def process_error(self, db_result: MutationResult, error_class: type[T]) -> ProcessedResult:
         """Process database result into error response."""
         error_detail = self._create_error_detail(db_result)
 
@@ -66,7 +66,7 @@ class MutationResultProcessor:
             data=self._extract_error_data(db_result, error_class),
         )
 
-    def process_success(self, db_result: MutationResult, success_class: Type[T]) -> ProcessedResult:
+    def process_success(self, db_result: MutationResult, success_class: type[T]) -> ProcessedResult:
         """Process database result into success response."""
         return ProcessedResult(
             typename=success_class.__name__,
@@ -104,8 +104,10 @@ class MutationResultProcessor:
         )
 
     def _extract_error_data(
-        self, db_result: MutationResult, error_class: Type[T]
-    ) -> Optional[dict[str, Any]]:
+        self,
+        db_result: MutationResult,
+        error_class: type[T],
+    ) -> dict[str, Any] | None:
         """Extract error-specific data from database result."""
         # Start with base error class fields
         data = {}
@@ -130,8 +132,10 @@ class MutationResultProcessor:
         return data if data else None
 
     def _extract_success_data(
-        self, db_result: MutationResult, success_class: Type[T]
-    ) -> Optional[dict[str, Any]]:
+        self,
+        db_result: MutationResult,
+        success_class: type[T],
+    ) -> dict[str, Any] | None:
         """Extract success-specific data from database result."""
         data = {}
 

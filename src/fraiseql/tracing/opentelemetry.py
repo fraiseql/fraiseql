@@ -5,11 +5,12 @@ enabling visibility into GraphQL operations across the entire request lifecycle.
 """
 
 import logging
+from collections.abc import Awaitable, Callable, Generator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
 from functools import wraps
-from typing import Any, Awaitable, Callable, Generator, Optional
+from typing import Any, Optional
 
 from fastapi import FastAPI, Request, Response
 
@@ -230,7 +231,7 @@ class FraiseQLTracer:
             logger.warning(
                 "Zipkin exporter requested but not available. "
                 "Install opentelemetry-exporter-zipkin<1.20.0 for protobuf<4.0 compatibility. "
-                "Falling back to console exporter."
+                "Falling back to console exporter.",
             )
             return None
         # Return None for console exporter
@@ -238,7 +239,10 @@ class FraiseQLTracer:
 
     @contextmanager
     def trace_graphql_query(
-        self, operation_name: str, query: str, variables: dict | None = None
+        self,
+        operation_name: str,
+        query: str,
+        variables: dict | None = None,
     ) -> Generator[Any]:
         """Trace a GraphQL query operation."""
         if not self.tracer:
@@ -381,13 +385,17 @@ class TracingMiddleware(BaseHTTPMiddleware):
         self.tracer = tracer
 
     async def dispatch(
-        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+        self,
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
         """Process request with tracing."""
         return await self.process_request(request, call_next)
 
     async def process_request(
-        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+        self,
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
         """Process request and create trace span."""
         # Skip excluded paths

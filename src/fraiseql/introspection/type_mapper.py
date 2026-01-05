@@ -6,7 +6,7 @@ for dynamic GraphQL type generation.
 
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any, List
+from typing import Any, ClassVar
 from uuid import UUID
 
 
@@ -14,7 +14,7 @@ class TypeMapper:
     """Map PostgreSQL types to Python types."""
 
     # PostgreSQL → Python type mapping
-    PG_TO_PYTHON = {
+    PG_TO_PYTHON: ClassVar[dict[str, Any]] = {
         "uuid": UUID,
         "text": str,
         "character varying": str,
@@ -43,9 +43,9 @@ class TypeMapper:
         "real": float,
         "float4": float,
         # Array types
-        "text[]": List[str],
-        "integer[]": List[int],
-        "uuid[]": List[UUID],
+        "text[]": list[str],
+        "integer[]": list[int],
+        "uuid[]": list[UUID],
         # Custom types (extensible)
     }
 
@@ -66,7 +66,7 @@ class TypeMapper:
         if pg_type_clean.endswith("[]"):
             base_type = pg_type_clean[:-2]
             element_type = self.PG_TO_PYTHON.get(base_type, str)
-            python_type = List[element_type]
+            python_type = list[element_type]
         else:
             python_type = self.PG_TO_PYTHON.get(pg_type_clean, str)
 

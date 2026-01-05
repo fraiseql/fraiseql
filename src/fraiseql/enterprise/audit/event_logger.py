@@ -7,7 +7,7 @@ Philosophy: "In PostgreSQL Everything"
 """
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 from uuid import UUID, uuid4
 
 import psycopg
@@ -32,9 +32,9 @@ class AuditLogger:
         self,
         event_type: str,
         event_data: dict[str, Any],
-        user_id: Optional[str] = None,
-        tenant_id: Optional[str] = None,
-        ip_address: Optional[str] = None,
+        user_id: str | None = None,
+        tenant_id: str | None = None,
+        ip_address: str | None = None,
         immediate: bool = True,
     ) -> UUID:
         """Log audit event (batched or immediate).
@@ -83,9 +83,9 @@ class AuditLogger:
         self,
         event_type: str,
         event_data: dict[str, Any],
-        user_id: Optional[str],
-        tenant_id: Optional[str],
-        ip_address: Optional[str],
+        user_id: str | None,
+        tenant_id: str | None,
+        ip_address: str | None,
     ) -> dict[str, Any]:
         """Prepare event data for logging.
 
@@ -107,7 +107,9 @@ class AuditLogger:
         }
 
     async def _write_event(
-        self, event: dict[str, Any], conn: AsyncConnection | None = None
+        self,
+        event: dict[str, Any],
+        conn: AsyncConnection | None = None,
     ) -> UUID:
         """Write a single event to database.
 

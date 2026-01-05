@@ -1,7 +1,8 @@
 """Enum serialization helpers for GraphQL resolvers."""
 
+from collections.abc import Callable
 from enum import Enum
-from typing import Any, Callable
+from typing import Any
 
 
 def serialize_enum_value(value: Any) -> Any:

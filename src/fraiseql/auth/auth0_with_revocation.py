@@ -1,6 +1,6 @@
 """Auth0 provider with token revocation support."""
 
-from typing import Any, Optional
+from typing import Any
 
 from .auth0 import Auth0Provider
 from .token_revocation import TokenRevocationMixin, TokenRevocationService
@@ -53,7 +53,7 @@ class Auth0ProviderWithRevocation(TokenRevocationMixin, Auth0Provider):
         algorithms: list[str] | None = None,
         *,
         cache_jwks: bool = True,
-        revocation_service: Optional[TokenRevocationService] = None,
+        revocation_service: TokenRevocationService | None = None,
     ) -> None:
         """Initialize Auth0 provider with revocation support.
 

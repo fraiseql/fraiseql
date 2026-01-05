@@ -5,8 +5,9 @@ for metrics collection.
 """
 
 import time
+from collections.abc import Awaitable, Callable
 from functools import wraps
-from typing import Any, Awaitable, Callable, Optional
+from typing import Any
 
 from fastapi import FastAPI, Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -15,7 +16,7 @@ from .collectors import FraiseQLMetrics
 from .config import CONTENT_TYPE_LATEST, MetricsConfig
 
 # Global metrics instance
-_metrics_instance: Optional[FraiseQLMetrics] = None
+_metrics_instance: FraiseQLMetrics | None = None
 
 
 class MetricsMiddleware(BaseHTTPMiddleware):
@@ -28,7 +29,10 @@ class MetricsMiddleware(BaseHTTPMiddleware):
     """
 
     def __init__(
-        self, app: FastAPI, metrics: FraiseQLMetrics, config: MetricsConfig | None = None
+        self,
+        app: FastAPI,
+        metrics: FraiseQLMetrics,
+        config: MetricsConfig | None = None,
     ) -> None:
         """Initialize metrics middleware."""
         super().__init__(app)
@@ -36,13 +40,17 @@ class MetricsMiddleware(BaseHTTPMiddleware):
         self.config = config or MetricsConfig()
 
     async def dispatch(
-        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+        self,
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
         """Process request and record metrics."""
         return await self.process_request(request, call_next)
 
     async def process_request(
-        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+        self,
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
         """Process request with metrics collection."""
         # Skip excluded paths

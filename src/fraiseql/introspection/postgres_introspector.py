@@ -6,7 +6,6 @@ functions, and their metadata from PostgreSQL catalog tables.
 
 import re
 from dataclasses import dataclass
-from typing import Optional
 
 import psycopg_pool
 
@@ -18,7 +17,7 @@ class ViewMetadata:
     schema_name: str
     view_name: str
     definition: str
-    comment: Optional[str]
+    comment: str | None
     columns: dict[str, "ColumnInfo"]
 
 
@@ -29,7 +28,7 @@ class ColumnInfo:
     name: str
     pg_type: str
     nullable: bool
-    comment: Optional[str]
+    comment: str | None
 
 
 @dataclass
@@ -40,7 +39,7 @@ class FunctionMetadata:
     function_name: str
     parameters: list["ParameterInfo"]
     return_type: str
-    comment: Optional[str]
+    comment: str | None
     language: str
 
 
@@ -51,7 +50,7 @@ class ParameterInfo:
     name: str
     pg_type: str
     mode: str  # IN, OUT, INOUT
-    default_value: Optional[str]
+    default_value: str | None
 
 
 @dataclass
@@ -61,7 +60,7 @@ class CompositeAttribute:
     name: str  # Attribute name (e.g., "email")
     pg_type: str  # PostgreSQL type (e.g., "text", "uuid")
     ordinal_position: int  # Position in type (1, 2, 3, ...)
-    comment: Optional[str]  # Column comment (contains @fraiseql:field metadata)
+    comment: str | None  # Column comment (contains @fraiseql:field metadata)
 
 
 @dataclass
@@ -71,7 +70,7 @@ class CompositeTypeMetadata:
     schema_name: str  # Schema (e.g., "app")
     type_name: str  # Type name (e.g., "type_create_contact_input")
     attributes: list[CompositeAttribute]  # List of attributes/fields
-    comment: Optional[str]  # Type comment (contains @fraiseql:input metadata)
+    comment: str | None  # Type comment (contains @fraiseql:input metadata)
 
 
 class PostgresIntrospector:
@@ -297,7 +296,9 @@ class PostgresIntrospector:
             return functions
 
     async def discover_composite_type(
-        self, type_name: str, schema: str = "app"
+        self,
+        type_name: str,
+        schema: str = "app",
     ) -> CompositeTypeMetadata | None:
         """Introspect a PostgreSQL composite type.
 
@@ -418,7 +419,7 @@ class PostgresIntrospector:
                     pg_type=param_type,
                     mode=mode,
                     default_value=default_value,
-                )
+                ),
             )
 
         return parameters

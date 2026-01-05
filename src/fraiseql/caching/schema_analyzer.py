@@ -35,6 +35,7 @@ class CascadeRule:
     confidence: float = 1.0
 
     def __str__(self) -> str:
+        """Return string representation of the CASCADE rule."""
         return f"{self.source_domain} → {self.target_domain}"
 
 
@@ -299,7 +300,7 @@ class SchemaAnalyzer:
         for rule in sorted(rules, key=lambda r: (r.source_domain, r.target_domain)):
             confidence_indicator = "✓" if rule.confidence >= 0.95 else "~"
             report_lines.append(
-                f"  {confidence_indicator} {rule.source_domain} → {rule.target_domain}"
+                f"  {confidence_indicator} {rule.source_domain} → {rule.target_domain}",
             )
 
         report_lines.extend(
@@ -308,7 +309,7 @@ class SchemaAnalyzer:
                 "-" * 80,
                 "Domain Dependency Graph",
                 "-" * 80,
-            ]
+            ],
         )
 
         for domain, deps in sorted(dependencies.items()):
@@ -323,7 +324,10 @@ class SchemaAnalyzer:
 
 
 async def setup_auto_cascade_rules(
-    cache: Any, schema: GraphQLSchema, *, verbose: bool = False
+    cache: Any,
+    schema: GraphQLSchema,
+    *,
+    verbose: bool = False,
 ) -> int:
     """Analyze schema and register all CASCADE rules automatically.
 

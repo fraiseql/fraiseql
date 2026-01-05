@@ -147,7 +147,9 @@ async def discover_fraiseql_schema(
 
         # Discover all components
         return await auto_discovery.discover_all(
-            view_pattern=view_pattern, function_pattern=function_pattern, schemas=schemas
+            view_pattern=view_pattern,
+            function_pattern=function_pattern,
+            schemas=schemas,
         )
     finally:
         await pool.close()
@@ -415,7 +417,7 @@ def create_fraiseql_app(
             logger.warning(
                 "CORS enabled with wildcard origin (*) in production. "
                 "This may cause conflicts with reverse proxies that handle CORS. "
-                "Consider disabling CORS in FraiseQL when using a reverse proxy."
+                "Consider disabling CORS in FraiseQL when using a reverse proxy.",
             )
 
         app.add_middleware(
@@ -473,7 +475,7 @@ def create_fraiseql_app(
 
             logger.info(
                 f"Auto-discovery completed: {len(auto_types)} types, "
-                f"{len(auto_queries)} queries, {len(auto_mutations)} mutations"
+                f"{len(auto_queries)} queries, {len(auto_mutations)} mutations",
             )
         except Exception as e:
             logger.error(f"Auto-discovery failed during app creation: {e}")
@@ -534,7 +536,8 @@ def create_fraiseql_app(
         except Exception as e:
             # Log error but don't fail app startup - maintain backward compatibility
             logger.warning(
-                "Failed to initialize schema registry (continuing with app startup): %s", str(e)
+                "Failed to initialize schema registry (continuing with app startup): %s",
+                str(e),
             )
     else:
         logger.debug("Schema registry initialization disabled by feature flag")
@@ -701,7 +704,9 @@ def create_fraiseql_app(
         import time
 
         def _replace_graphql_router(
-            app: FastAPI, new_schema: GraphQLSchema, refresh_config: dict[str, Any]
+            app: FastAPI,
+            new_schema: GraphQLSchema,
+            refresh_config: dict[str, Any],
         ) -> None:
             """Replace GraphQL router with new schema (internal helper)."""
             from fraiseql.fastapi.routers import create_graphql_router
@@ -731,7 +736,7 @@ def create_fraiseql_app(
         if not hasattr(app.state, "_fraiseql_refresh_config"):
             raise RuntimeError(
                 "Cannot refresh schema: app not created with create_fraiseql_app(). "
-                "Ensure app was created using the standard FraiseQL factory."
+                "Ensure app was created using the standard FraiseQL factory.",
             )
 
         refresh_config = app.state._fraiseql_refresh_config
@@ -772,7 +777,7 @@ def create_fraiseql_app(
             auto_mutations = discovery_result["mutations"]
             logger.info(
                 f"Auto-discovery: {len(auto_types)} types, "
-                f"{len(auto_queries)} queries, {len(auto_mutations)} mutations"
+                f"{len(auto_queries)} queries, {len(auto_mutations)} mutations",
             )
         finally:
             await pool.close()
@@ -787,7 +792,7 @@ def create_fraiseql_app(
         )
         logger.debug(
             f"Original types: {type(refresh_config['original_types'])}, "
-            f"value: {original_types_sample}"
+            f"value: {original_types_sample}",
         )
         logger.debug(f"Auto types: {type(auto_types)}, length: {len(auto_types)}")
 
@@ -841,7 +846,7 @@ def create_fraiseql_app(
                 result = validate_schema_refresh(old_schema, new_schema)
                 logger.debug(
                     f"Schema validation: {len(result['preserved_types'])} preserved, "
-                    f"{len(result['new_types'])} new"
+                    f"{len(result['new_types'])} new",
                 )
             except AssertionError as e:
                 logger.error(f"Schema refresh validation failed: {e}")

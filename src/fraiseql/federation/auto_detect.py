@@ -9,10 +9,8 @@ Auto-detects entity key fields from Python class annotations using a priority-ba
 This enables @entity decorator to work without explicit key specification.
 """
 
-from typing import Optional, Type
 
-
-def auto_detect_key_python(cls: Type) -> Optional[str]:
+def auto_detect_key_python(cls: type) -> str | None:
     """Auto-detect key field from Python class annotations.
 
     Uses priority-based algorithm:
@@ -62,7 +60,7 @@ def auto_detect_key_python(cls: Type) -> Optional[str]:
     return None
 
 
-def validate_key_field(cls: Type, key: Optional[str]) -> Optional[str]:
+def validate_key_field(cls: type, key: str | None) -> str | None:
     """Validate that key field exists in class annotations.
 
     Args:
@@ -83,7 +81,7 @@ def validate_key_field(cls: Type, key: Optional[str]) -> Optional[str]:
     if key not in annotations:
         available = ", ".join(annotations.keys()) if annotations else "none"
         raise ValueError(
-            f"Key field '{key}' not found in {cls.__name__}. Available fields: {available}"
+            f"Key field '{key}' not found in {cls.__name__}. Available fields: {available}",
         )
 
     return key

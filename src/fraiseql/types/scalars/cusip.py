@@ -22,7 +22,7 @@ def serialize_cusip(value: Any) -> str | None:
     if not _CUSIP_REGEX.match(value_str):
         raise GraphQLError(
             f"Invalid CUSIP: {value}. Must be 9 characters "
-            "(3 digits + 5 alphanumeric + 1 check digit) (e.g., '037833100')"
+            "(3 digits + 5 alphanumeric + 1 check digit) (e.g., '037833100')",
         )
 
     return value_str
@@ -38,7 +38,7 @@ def parse_cusip_value(value: Any) -> str:
     if not _CUSIP_REGEX.match(value_upper):
         raise GraphQLError(
             f"Invalid CUSIP: {value}. Must be 9 characters "
-            "(3 digits + 5 alphanumeric + 1 check digit) (e.g., '037833100')"
+            "(3 digits + 5 alphanumeric + 1 check digit) (e.g., '037833100')",
         )
 
     return value_upper
@@ -93,6 +93,6 @@ class CUSIPField(str, ScalarMarker):
         if not _CUSIP_REGEX.match(value_upper):
             raise ValueError(
                 f"Invalid CUSIP: {value}. Must be 9 characters "
-                "(3 digits + 5 alphanumeric + 1 check digit) (e.g., '037833100')"
+                "(3 digits + 5 alphanumeric + 1 check digit) (e.g., '037833100')",
             )
         return super().__new__(cls, value_upper)

@@ -18,7 +18,8 @@ Example:
 """
 
 import logging
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from fraiseql.subscriptions.http_adapter import StarletteWebSocketAdapter
 from fraiseql.subscriptions.manager import SubscriptionManager
@@ -75,7 +76,7 @@ def add_subscription_routes(
 
     # Add route to app
     app.router.routes.append(
-        _create_route(path, websocket_endpoint)
+        _create_route(path, websocket_endpoint),
     )
     logger.info(f"Added subscription route at {path}")
 
@@ -126,12 +127,14 @@ def add_subscription_routes_with_auth(
             message = await adapter.receive_json()
 
             if message.get("type") != "connection_init":
-                await adapter.send_json({
-                    "type": "connection_error",
-                    "payload": {
-                        "message": "First message must be connection_init"
-                    },
-                })
+                await adapter.send_json(
+                    {
+                        "type": "connection_error",
+                        "payload": {
+                            "message": "First message must be connection_init",
+                        },
+                    }
+                )
                 await adapter.close()
                 return
 
@@ -140,20 +143,24 @@ def add_subscription_routes_with_auth(
             try:
                 auth_context = await auth_handler(auth_params)
             except Exception as e:
-                await adapter.send_json({
-                    "type": "connection_error",
-                    "payload": {
-                        "message": f"Authentication failed: {e!s}"
-                    },
-                })
+                await adapter.send_json(
+                    {
+                        "type": "connection_error",
+                        "payload": {
+                            "message": f"Authentication failed: {e!s}",
+                        },
+                    }
+                )
                 await adapter.close()
                 return
 
             # Send connection_ack
-            await adapter.send_json({
-                "type": "connection_ack",
-                "payload": {"user": auth_context},
-            })
+            await adapter.send_json(
+                {
+                    "type": "connection_ack",
+                    "payload": {"user": auth_context},
+                }
+            )
 
             # Create protocol and continue
             protocol = GraphQLTransportWSProtocol()
@@ -171,7 +178,7 @@ def add_subscription_routes_with_auth(
 
     # Add route
     app.router.routes.append(
-        _create_route(path, websocket_endpoint)
+        _create_route(path, websocket_endpoint),
     )
     logger.info(f"Added authenticated subscription route at {path}")
 
@@ -197,8 +204,8 @@ async def _handle_authenticated_messages(
                 logger.exception("Message handling error")
                 if protocol:
                     await protocol.send_error(adapter, None, str(e))
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"WebSocket connection error: {e}")
     finally:
         await adapter.close()
 

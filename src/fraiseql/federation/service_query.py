@@ -21,7 +21,7 @@ Example:
         }
 """
 
-from typing import Any
+from typing import Any, ClassVar
 
 from .sdl_generator import generate_schema_sdl
 
@@ -36,7 +36,7 @@ class ServiceQueryResolver:
     """
 
     # Federation directives supported by FraiseQL
-    SUPPORTED_DIRECTIVES = {
+    SUPPORTED_DIRECTIVES: ClassVar[dict] = {
         "key": True,  # @key for entity keys
         "external": True,  # @external for extended fields
         "requires": True,  # @requires for computed fields

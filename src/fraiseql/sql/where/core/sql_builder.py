@@ -151,7 +151,9 @@ def build_where_clause_recursive(where_dict: dict, path: list[str] | None = None
 
                     # Detect field type from field name and value
                     detected_field_type = detect_field_type(
-                        db_field_name, op_value, field_type=None
+                        db_field_name,
+                        op_value,
+                        field_type=None,
                     )
 
                     # Convert FieldType enum to Python type for operator strategies

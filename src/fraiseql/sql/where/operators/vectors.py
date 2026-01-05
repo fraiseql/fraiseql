@@ -22,7 +22,7 @@ def build_cosine_distance_sql(path_sql: SQL, value: list[float]) -> Composed:
     """
     vector_literal = "[" + ",".join(str(v) for v in value) + "]"
     return Composed(
-        [SQL("("), path_sql, SQL(")::vector <=> "), Literal(vector_literal), SQL("::vector")]
+        [SQL("("), path_sql, SQL(")::vector <=> "), Literal(vector_literal), SQL("::vector")],
     )
 
 
@@ -34,7 +34,7 @@ def build_l2_distance_sql(path_sql: SQL, value: list[float]) -> Composed:
     """
     vector_literal = "[" + ",".join(str(v) for v in value) + "]"
     return Composed(
-        [SQL("("), path_sql, SQL(")::vector <-> "), Literal(vector_literal), SQL("::vector")]
+        [SQL("("), path_sql, SQL(")::vector <-> "), Literal(vector_literal), SQL("::vector")],
     )
 
 
@@ -46,7 +46,7 @@ def build_inner_product_sql(path_sql: SQL, value: list[float]) -> Composed:
     """
     vector_literal = "[" + ",".join(str(v) for v in value) + "]"
     return Composed(
-        [SQL("("), path_sql, SQL(")::vector <#> "), Literal(vector_literal), SQL("::vector")]
+        [SQL("("), path_sql, SQL(")::vector <#> "), Literal(vector_literal), SQL("::vector")],
     )
 
 
@@ -58,7 +58,7 @@ def build_l1_distance_sql(path_sql: SQL, value: list[float]) -> Composed:
     """
     vector_literal = "[" + ",".join(str(v) for v in value) + "]"
     return Composed(
-        [SQL("("), path_sql, SQL(")::vector <+> "), Literal(vector_literal), SQL("::vector")]
+        [SQL("("), path_sql, SQL(")::vector <+> "), Literal(vector_literal), SQL("::vector")],
     )
 
 
@@ -103,7 +103,7 @@ def build_sparse_cosine_distance_sql(path_sql: SQL, value: dict[str, Any]) -> Co
     sparse_literal = f"{{{elements}}}/{dimension}"
 
     return Composed(
-        [SQL("("), path_sql, SQL(")::sparsevec <=> "), Literal(sparse_literal), SQL("::sparsevec")]
+        [SQL("("), path_sql, SQL(")::sparsevec <=> "), Literal(sparse_literal), SQL("::sparsevec")],
     )
 
 
@@ -126,7 +126,7 @@ def build_sparse_l2_distance_sql(path_sql: SQL, value: dict[str, Any]) -> Compos
     sparse_literal = f"{{{elements}}}/{dimension}"
 
     return Composed(
-        [SQL("("), path_sql, SQL(")::sparsevec <-> "), Literal(sparse_literal), SQL("::sparsevec")]
+        [SQL("("), path_sql, SQL(")::sparsevec <-> "), Literal(sparse_literal), SQL("::sparsevec")],
     )
 
 
@@ -152,7 +152,7 @@ def build_sparse_inner_product_sql(path_sql: SQL, value: dict[str, Any]) -> Comp
     sparse_literal = f"{{{elements}}}/{dimension}"
 
     return Composed(
-        [SQL("("), path_sql, SQL(")::sparsevec <#> "), Literal(sparse_literal), SQL("::sparsevec")]
+        [SQL("("), path_sql, SQL(")::sparsevec <#> "), Literal(sparse_literal), SQL("::sparsevec")],
     )
 
 
@@ -283,7 +283,7 @@ def build_quantized_distance_sql(path_sql: SQL, value: dict[str, Any]) -> Compos
                 SQL(", "),
                 SQL(vector_literal),
                 SQL("::vector)"),
-            ]
+            ],
         )
     # Could support sparse target vectors too
     raise ValueError("Quantized distance currently only supports dense target vectors")

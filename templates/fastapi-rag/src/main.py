@@ -2,15 +2,14 @@
 
 import os
 from datetime import datetime
-from typing import List
 
 import fraiseql
 from fraiseql import fraise_field
 from fraiseql.types.scalars import UUID
-from langchain_openai import OpenAIEmbeddings
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import PGVector
 from langchain_core.documents import Document
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_openai import OpenAIEmbeddings
 
 
 # GraphQL Types
@@ -31,7 +30,7 @@ class DocumentChunk:
     id: UUID = fraise_field(description="Chunk ID")
     document_id: UUID = fraise_field(description="Parent document ID")
     content: str = fraise_field(description="Chunk content")
-    embedding: List[float] = fraise_field(description="Vector embedding")
+    embedding: list[float] = fraise_field(description="Vector embedding")
     chunk_index: int = fraise_field(description="Chunk index in document")
 
 
@@ -49,7 +48,7 @@ class RAGResponse:
     """Response from RAG question answering."""
 
     answer: str = fraise_field(description="Generated answer")
-    sources: List[SearchResult] = fraise_field(description="Source documents")
+    sources: list[SearchResult] = fraise_field(description="Source documents")
 
 
 # Input Types
@@ -73,9 +72,9 @@ class AskQuestionInput:
 class QueryRoot:
     """Root query type."""
 
-    documents: List[DocumentType] = fraise_field(description="List all documents")
+    documents: list[DocumentType] = fraise_field(description="List all documents")
     document: DocumentType | None = fraise_field(description="Get single document by ID")
-    search_documents: List[SearchResult] = fraise_field(description="Search documents by query")
+    search_documents: list[SearchResult] = fraise_field(description="Search documents by query")
     ask_question: RAGResponse = fraise_field(description="Ask a question using RAG")
 
     async def resolve_documents(self, info):
@@ -105,8 +104,10 @@ class QueryRoot:
             if doc_id:
                 results.append(
                     SearchResult(
-                        document_id=doc_id, content=doc.page_content, similarity=float(score)
-                    )
+                        document_id=doc_id,
+                        content=doc.page_content,
+                        similarity=float(score),
+                    ),
                 )
 
         return results
@@ -141,7 +142,7 @@ class QueryRoot:
                         document_id=doc_id,
                         content=doc.page_content,
                         similarity=0.0,  # Could calculate if needed
-                    )
+                    ),
                 )
 
         return RAGResponse(answer=result["result"], sources=sources)
@@ -161,7 +162,9 @@ class MutationRoot:
 
         # Create document record
         doc_id = await repo.call_function(
-            "fn_create_document", p_title=input.title, p_content=input.content
+            "fn_create_document",
+            p_title=input.title,
+            p_content=input.content,
         )
 
         # Get the created document
@@ -170,7 +173,9 @@ class MutationRoot:
 
         # Split document into chunks
         text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1000, chunk_overlap=200, length_function=len
+            chunk_size=1000,
+            chunk_overlap=200,
+            length_function=len,
         )
         chunks = text_splitter.split_text(input.content)
 
@@ -181,14 +186,18 @@ class MutationRoot:
         for i, chunk in enumerate(chunks):
             # Store chunk in database
             await repo.call_function(
-                "fn_create_document_chunk", p_document_id=doc_id, p_content=chunk, p_chunk_index=i
+                "fn_create_document_chunk",
+                p_document_id=doc_id,
+                p_content=chunk,
+                p_chunk_index=i,
             )
 
             # Prepare for vector store
             langchain_docs.append(
                 Document(
-                    page_content=chunk, metadata={"document_id": str(doc_id), "chunk_index": i}
-                )
+                    page_content=chunk,
+                    metadata={"document_id": str(doc_id), "chunk_index": i},
+                ),
             )
 
         # Add to vector store
@@ -201,7 +210,6 @@ class MutationRoot:
 # Application setup
 def create_app():
     """Create FastAPI application with RAG components."""
-
     # Initialize embeddings and vector store
     embeddings = OpenAIEmbeddings()
     connection_string = os.getenv("DATABASE_URL")

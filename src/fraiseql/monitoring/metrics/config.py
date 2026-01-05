@@ -43,7 +43,11 @@ except ImportError:
         """Placeholder counter when prometheus_client is not available."""
 
         def __init__(
-            self, name: str, documentation: str, labelnames: Any = None, registry: Any = None
+            self,
+            name: str,
+            documentation: str,
+            labelnames: Any = None,
+            registry: Any = None,
         ) -> None:
             """Initialize placeholder counter."""
             self._name = name
@@ -73,7 +77,11 @@ except ImportError:
         """Placeholder gauge when prometheus_client is not available."""
 
         def __init__(
-            self, name: str, documentation: str, labelnames: Any = None, registry: Any = None
+            self,
+            name: str,
+            documentation: str,
+            labelnames: Any = None,
+            registry: Any = None,
         ) -> None:
             """Initialize placeholder gauge."""
             self._name = name
@@ -135,7 +143,8 @@ except ImportError:
             label_key = tuple(args) + tuple(sorted(kwargs.items()))
             if label_key not in self._labeled_instances:
                 labeled_histogram = Histogram(
-                    f"{self._name}_{hash(label_key)}", "labeled histogram"
+                    f"{self._name}_{hash(label_key)}",
+                    "labeled histogram",
                 )
                 self._labeled_instances[label_key] = labeled_histogram
             return self._labeled_instances[label_key]

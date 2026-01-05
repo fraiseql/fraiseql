@@ -49,7 +49,7 @@ def serialize_mac_address(value: Any) -> str | None:
     if not any(pattern.match(value_str) for pattern in _MAC_PATTERNS):
         raise GraphQLError(
             f"Invalid MAC address: {value}. Expected format like "
-            f"'00:11:22:33:44:55' or '0011.2233.4455'"
+            f"'00:11:22:33:44:55' or '0011.2233.4455'",
         )
 
     try:
@@ -67,7 +67,7 @@ def parse_mac_address_value(value: Any) -> str:
     if not any(pattern.match(value) for pattern in _MAC_PATTERNS):
         raise GraphQLError(
             f"Invalid MAC address: {value}. Expected format like "
-            f"'00:11:22:33:44:55' or '0011.2233.4455'"
+            f"'00:11:22:33:44:55' or '0011.2233.4455'",
         )
 
     try:
@@ -127,7 +127,7 @@ class MacAddressField(str, ScalarMarker):
         if not any(pattern.match(value) for pattern in _MAC_PATTERNS):
             raise ValueError(
                 f"Invalid MAC address: {value}. Expected format like "
-                f"'00:11:22:33:44:55' or '0011.2233.4455'"
+                f"'00:11:22:33:44:55' or '0011.2233.4455'",
             )
 
         # Normalize to colon-separated format

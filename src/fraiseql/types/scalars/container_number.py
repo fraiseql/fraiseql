@@ -97,13 +97,13 @@ def serialize_container_number(value: Any) -> str | None:
     if not _CONTAINER_NUMBER_REGEX.match(value_str):
         raise GraphQLError(
             f"Invalid container number: {value}. Must be ISO 6346 format: "
-            "3 letters + U/J/Z + 6 digits + check digit (e.g., 'CSQU3054383')"
+            "3 letters + U/J/Z + 6 digits + check digit (e.g., 'CSQU3054383')",
         )
 
     if not _validate_container_check_digit(value_str):
         raise GraphQLError(
             f"Invalid container number: {value}. Check digit does not match "
-            "(ISO 6346 validation failed)"
+            "(ISO 6346 validation failed)",
         )
 
     return value_str
@@ -119,13 +119,13 @@ def parse_container_number_value(value: Any) -> str:
     if not _CONTAINER_NUMBER_REGEX.match(value_upper):
         raise GraphQLError(
             f"Invalid container number: {value}. Must be ISO 6346 format: "
-            "3 letters + U/J/Z + 6 digits + check digit (e.g., 'CSQU3054383')"
+            "3 letters + U/J/Z + 6 digits + check digit (e.g., 'CSQU3054383')",
         )
 
     if not _validate_container_check_digit(value_upper):
         raise GraphQLError(
             f"Invalid container number: {value}. Check digit does not match "
-            "(ISO 6346 validation failed)"
+            "(ISO 6346 validation failed)",
         )
 
     return value_upper
@@ -189,13 +189,13 @@ class ContainerNumberField(str, ScalarMarker):
         if not _CONTAINER_NUMBER_REGEX.match(value_upper):
             raise ValueError(
                 f"Invalid container number: {value}. Must be ISO 6346 format: "
-                "3 letters + U/J/Z + 6 digits + check digit (e.g., 'CSQU3054383')"
+                "3 letters + U/J/Z + 6 digits + check digit (e.g., 'CSQU3054383')",
             )
 
         if not _validate_container_check_digit(value_upper):
             raise ValueError(
                 f"Invalid container number: {value}. Check digit does not match "
-                "(ISO 6346 validation failed)"
+                "(ISO 6346 validation failed)",
             )
 
         return super().__new__(cls, value_upper)

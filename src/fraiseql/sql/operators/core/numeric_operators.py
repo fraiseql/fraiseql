@@ -1,6 +1,6 @@
 """Numeric operator strategies."""
 
-from typing import Any, Optional
+from typing import Any
 
 from psycopg.sql import Composable
 
@@ -21,7 +21,7 @@ class NumericOperatorStrategy(BaseOperatorStrategy):
 
     NUMERIC_TYPES = (int, float)
 
-    def supports_operator(self, operator: str, field_type: Optional[type]) -> bool:
+    def supports_operator(self, operator: str, field_type: type | None) -> bool:
         """Check if this is a numeric operator."""
         if operator not in self.SUPPORTED_OPERATORS:
             return False
@@ -44,9 +44,9 @@ class NumericOperatorStrategy(BaseOperatorStrategy):
         operator: str,
         value: Any,
         path_sql: Composable,
-        field_type: Optional[type] = None,
-        jsonb_column: Optional[str] = None,
-    ) -> Optional[Composable]:
+        field_type: type | None = None,
+        jsonb_column: str | None = None,
+    ) -> Composable | None:
         """Build SQL for numeric operators."""
         # Determine numeric cast type
         if jsonb_column:

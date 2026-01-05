@@ -16,7 +16,7 @@ import json
 from collections import Counter
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from fraiseql.audit.models import AuditEvent, ComplianceReport, EventStats, OperationType
 
@@ -32,7 +32,7 @@ class AuditLogQueryBuilder:
     Supports filtering, pagination, aggregation, and export.
     """
 
-    def __init__(self, events: Optional[list[AuditEvent]] = None) -> None:
+    def __init__(self, events: list[AuditEvent] | None = None) -> None:
         """Initialize query builder.
 
         Args:
@@ -41,7 +41,7 @@ class AuditLogQueryBuilder:
         """
         self._events = events or []
         self._filters: dict[str, Any] = {}
-        self._limit: Optional[int] = None
+        self._limit: int | None = None
         self._offset: int = 0
         self._order_by: str = "timestamp"
         self._order_desc: bool = True
@@ -51,7 +51,7 @@ class AuditLogQueryBuilder:
     async def recent_operations(
         self,
         limit: int = 100,
-        operation_type: Optional[OperationType] = None,
+        operation_type: OperationType | None = None,
     ) -> list[AuditEvent]:
         """Get recent GraphQL operations.
 
@@ -445,7 +445,7 @@ class AuditLogQueryBuilder:
                         "duration_ms": event.duration_ms,
                         "error_count": event.error_count,
                         "trace_id": event.trace_id,
-                    }
+                    },
                 )
 
     async def export_json(self, filepath: str) -> None:

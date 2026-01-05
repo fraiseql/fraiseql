@@ -22,7 +22,7 @@ def serialize_port_code(value: Any) -> str | None:
     if not _PORT_CODE_REGEX.match(value_str):
         raise GraphQLError(
             f"Invalid port code: {value}. Must be UN/LOCODE format "
-            "(2 country letters + 3 location characters, e.g., 'USNYC', 'CNSHA')"
+            "(2 country letters + 3 location characters, e.g., 'USNYC', 'CNSHA')",
         )
 
     return value_str
@@ -38,7 +38,7 @@ def parse_port_code_value(value: Any) -> str:
     if not _PORT_CODE_REGEX.match(value_upper):
         raise GraphQLError(
             f"Invalid port code: {value}. Must be UN/LOCODE format "
-            "(2 country letters + 3 location characters, e.g., 'USNYC', 'CNSHA')"
+            "(2 country letters + 3 location characters, e.g., 'USNYC', 'CNSHA')",
         )
 
     return value_upper
@@ -91,6 +91,6 @@ class PortCodeField(str, ScalarMarker):
         if not _PORT_CODE_REGEX.match(value_upper):
             raise ValueError(
                 f"Invalid port code: {value}. Must be UN/LOCODE format "
-                "(2 country letters + 3 location characters, e.g., 'USNYC', 'CNSHA')"
+                "(2 country letters + 3 location characters, e.g., 'USNYC', 'CNSHA')",
             )
         return super().__new__(cls, value_upper)

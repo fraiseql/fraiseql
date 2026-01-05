@@ -9,7 +9,7 @@ import logging
 import time
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Optional, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 from fraiseql.audit import get_security_logger
 from fraiseql.audit.security_logger import SecurityEvent, SecurityEventSeverity, SecurityEventType
@@ -169,7 +169,7 @@ class PostgreSQLRevocationStore:
                     revoked_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     expires_at TIMESTAMPTZ NOT NULL
                 )
-            """
+            """,
             )
 
             # Create index on user_id for batch revocations
@@ -177,7 +177,7 @@ class PostgreSQLRevocationStore:
                 f"""
                 CREATE INDEX IF NOT EXISTS {self.table_name}_user_idx
                 ON {self.table_name} (user_id)
-            """
+            """,
             )
 
             # Create index on expires_at for efficient cleanup
@@ -185,7 +185,7 @@ class PostgreSQLRevocationStore:
                 f"""
                 CREATE INDEX IF NOT EXISTS {self.table_name}_expires_idx
                 ON {self.table_name} (expires_at)
-            """
+            """,
             )
 
             await conn.commit()
@@ -311,7 +311,7 @@ class TokenRevocationService:
     def __init__(
         self,
         store: RevocationStore,
-        config: Optional[RevocationConfig] = None,
+        config: RevocationConfig | None = None,
     ) -> None:
         """Initialize revocation service.
 
@@ -321,7 +321,7 @@ class TokenRevocationService:
         """
         self.store = store
         self.config = config or RevocationConfig()
-        self._cleanup_task: Optional[asyncio.Task] = None
+        self._cleanup_task: asyncio.Task | None = None
 
     async def start(self) -> None:
         """Start the revocation service."""
@@ -439,7 +439,7 @@ class TokenRevocationService:
 class TokenRevocationMixin:
     """Mixin for auth providers to add revocation support."""
 
-    revocation_service: Optional[TokenRevocationService] = None
+    revocation_service: TokenRevocationService | None = None
 
     async def validate_token(self, token: str) -> dict[str, Any]:
         """Validate token with revocation check.

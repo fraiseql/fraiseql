@@ -27,7 +27,7 @@ Example:
 import asyncio
 import json
 import uuid
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import psycopg_pool
 from psycopg.sql import SQL, Identifier
@@ -49,22 +49,22 @@ except ImportError:
     class Document:  # type: ignore[no-redef]
         """Dummy Document class for type hints when LangChain is not available."""
 
-        def __init__(self, page_content: str, metadata: Optional[Dict[str, Any]] = None):
+        def __init__(self, page_content: str, metadata: dict[str, Any] | None = None):
             self.page_content = page_content
             self.metadata = metadata or {}
 
     class Embeddings:  # type: ignore[no-redef]
         """Dummy Embeddings class for type hints when LangChain is not available."""
 
-        async def aembed_documents(self, texts: List[str]) -> List[List[float]]:
+        async def aembed_documents(self, texts: list[str]) -> list[list[float]]:
             """Dummy async embed documents method."""
             return [[0.0] * 384 for _ in texts]
 
-        async def aembed_query(self, text: str) -> List[float]:
+        async def aembed_query(self, text: str) -> list[float]:
             """Dummy async embed query method."""
             return [0.0] * 384
 
-        def embed_query(self, text: str) -> List[float]:
+        def embed_query(self, text: str) -> list[float]:
             """Dummy embed query method."""
             return [0.0] * 384
 
@@ -117,10 +117,10 @@ class FraiseQLVectorStore(VectorStore if LANGCHAIN_AVAILABLE else object):  # ty
 
     async def aadd_texts(
         self,
-        texts: List[str],
-        metadatas: Optional[List[Dict[str, Any]]] = None,
+        texts: list[str],
+        metadatas: list[dict[str, Any]] | None = None,
         **kwargs: Any,
-    ) -> List[str]:
+    ) -> list[str]:
         """Add texts to the vector store asynchronously."""
         # Generate embeddings
         if hasattr(self.embedding_function, "aembed_documents"):
@@ -180,13 +180,13 @@ class FraiseQLVectorStore(VectorStore if LANGCHAIN_AVAILABLE else object):  # ty
 
         return ids
 
-    async def aadd_documents(self, documents: List["Document"], **kwargs: Any) -> List[str]:  # type: ignore[name-defined]
+    async def aadd_documents(self, documents: list["Document"], **kwargs: Any) -> list[str]:  # type: ignore[name-defined]
         """Add documents to the vector store asynchronously."""
         texts = [doc.page_content for doc in documents]
         metadatas = [doc.metadata for doc in documents]
         return await self.aadd_texts(texts, metadatas, **kwargs)
 
-    def _build_metadata_where_clause(self, filter_dict: Dict[str, Any]) -> Tuple[str, List[Any]]:
+    def _build_metadata_where_clause(self, filter_dict: dict[str, Any]) -> tuple[str, list[Any]]:
         """Build WHERE clause for metadata filtering.
 
         Args:
@@ -219,9 +219,9 @@ class FraiseQLVectorStore(VectorStore if LANGCHAIN_AVAILABLE else object):  # ty
         self,
         query: str,
         k: int = 4,
-        filter: Optional[Dict[str, Any]] = None,
+        filter: dict[str, Any] | None = None,
         **kwargs: Any,
-    ) -> List["Document"]:  # type: ignore[name-defined]
+    ) -> list["Document"]:  # type: ignore[name-defined]
         """Perform similarity search asynchronously."""
         # Generate embedding for query
         query_embedding = await self.embedding_function.aembed_query(query)
@@ -270,16 +270,16 @@ class FraiseQLVectorStore(VectorStore if LANGCHAIN_AVAILABLE else object):  # ty
         self,
         query: str,
         k: int = 4,
-        filter: Optional[Dict[str, Any]] = None,
+        filter: dict[str, Any] | None = None,
         **kwargs: Any,
-    ) -> List[Tuple["Document", float]]:  # type: ignore[name-defined]
+    ) -> list[tuple["Document", float]]:  # type: ignore[name-defined]
         """Perform similarity search with scores asynchronously."""
         # For now, return search results without scores
         # v1.8: Implement score extraction from pgvector results
         documents = await self.asimilarity_search(query, k=k, filter=filter, **kwargs)
         return [(doc, 0.0) for doc in documents]  # Placeholder scores
 
-    async def adelete(self, ids: Optional[List[str]] = None, **kwargs: Any) -> None:
+    async def adelete(self, ids: list[str] | None = None, **kwargs: Any) -> None:
         """Delete documents by IDs asynchronously."""
         if not ids:
             return
@@ -300,14 +300,14 @@ class FraiseQLVectorStore(VectorStore if LANGCHAIN_AVAILABLE else object):  # ty
     # Synchronous methods (wrappers around async methods)
     def add_texts(
         self,
-        texts: List[str],
-        metadatas: Optional[List[Dict[str, Any]]] = None,
+        texts: list[str],
+        metadatas: list[dict[str, Any]] | None = None,
         **kwargs: Any,
-    ) -> List[str]:
+    ) -> list[str]:
         """Add texts to the vector store."""
         return asyncio.run(self.aadd_texts(texts, metadatas, **kwargs))
 
-    def add_documents(self, documents: List["Document"], **kwargs: Any) -> List[str]:  # type: ignore[name-defined]
+    def add_documents(self, documents: list["Document"], **kwargs: Any) -> list[str]:  # type: ignore[name-defined]
         """Add documents to the vector store."""
         return asyncio.run(self.aadd_documents(documents, **kwargs))
 
@@ -315,9 +315,9 @@ class FraiseQLVectorStore(VectorStore if LANGCHAIN_AVAILABLE else object):  # ty
         self,
         query: str,
         k: int = 4,
-        filter: Optional[Dict[str, Any]] = None,
+        filter: dict[str, Any] | None = None,
         **kwargs: Any,
-    ) -> List["Document"]:  # type: ignore[name-defined]
+    ) -> list["Document"]:  # type: ignore[name-defined]
         """Perform similarity search."""
         return asyncio.run(self.asimilarity_search(query, k=k, filter=filter, **kwargs))
 
@@ -325,23 +325,23 @@ class FraiseQLVectorStore(VectorStore if LANGCHAIN_AVAILABLE else object):  # ty
         self,
         query: str,
         k: int = 4,
-        filter: Optional[Dict[str, Any]] = None,
+        filter: dict[str, Any] | None = None,
         **kwargs: Any,
-    ) -> List[Tuple["Document", float]]:  # type: ignore[name-defined]
+    ) -> list[tuple["Document", float]]:  # type: ignore[name-defined]
         """Perform similarity search with scores."""
         return asyncio.run(self.asimilarity_search_with_score(query, k=k, filter=filter, **kwargs))
 
-    def delete(self, ids: Optional[List[str]] = None, **kwargs: Any) -> None:
+    def delete(self, ids: list[str] | None = None, **kwargs: Any) -> None:
         """Delete documents by IDs."""
         asyncio.run(self.adelete(ids, **kwargs))
 
     @classmethod
     def from_texts(
         cls,
-        texts: List[str],
+        texts: list[str],
         embedding: "Embeddings",  # type: ignore[name-defined]
-        metadatas: Optional[List[Dict[str, Any]]] = None,
-        db_pool: Optional[psycopg_pool.AsyncConnectionPool] = None,
+        metadatas: list[dict[str, Any]] | None = None,
+        db_pool: psycopg_pool.AsyncConnectionPool | None = None,
         table_name: str = "documents",
         **kwargs: Any,
     ) -> "FraiseQLVectorStore":

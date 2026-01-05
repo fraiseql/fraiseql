@@ -5,7 +5,7 @@ and prevent resource-intensive queries from being executed.
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 from graphql import (
     FieldNode,
@@ -27,9 +27,9 @@ class ComplexityError(GraphQLError):
     def __init__(
         self,
         message: str,
-        complexity: Optional[int] = None,
-        depth: Optional[int] = None,
-        limit: Optional[int] = None,
+        complexity: int | None = None,
+        depth: int | None = None,
+        limit: int | None = None,
     ) -> None:
         """Initialize complexity error."""
         super().__init__(message)
@@ -79,7 +79,7 @@ def calculate_field_complexity(
     *,
     is_list: bool = False,
     is_object: bool = False,
-    limit: Optional[int] = None,
+    limit: int | None = None,
     estimated_size: int = 10,
     nested_complexity: int = 0,
     multiplier: int = 1,
@@ -122,7 +122,7 @@ def calculate_query_complexity(
     node: SelectionNode,
     fragments: dict[str, FragmentDefinitionNode],
     config: ComplexityConfig,
-    variables: Optional[dict[str, Any]] = None,
+    variables: dict[str, Any] | None = None,
     depth: int = 0,
 ) -> tuple[int, int, int]:
     """Calculate complexity for a selection node.
@@ -235,7 +235,7 @@ class QueryComplexityAnalyzer:
         """Initialize analyzer with configuration."""
         self.config = config
 
-    def analyze(self, query: str, variables: Optional[dict[str, Any]] = None) -> ComplexityInfo:
+    def analyze(self, query: str, variables: dict[str, Any] | None = None) -> ComplexityInfo:
         """Analyze query complexity.
 
         Args:

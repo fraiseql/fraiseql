@@ -5,7 +5,8 @@ the complete discovery pipeline from PostgreSQL metadata to GraphQL schema.
 """
 
 import logging
-from typing import Any, Callable, Dict, List, Type
+from collections.abc import Callable
+from typing import Any
 
 import psycopg_pool
 
@@ -37,14 +38,14 @@ class AutoDiscovery:
         self.mutation_generator = MutationGenerator(self.input_generator)
 
         # Registry for generated types
-        self.type_registry: Dict[str, Type] = {}
+        self.type_registry: dict[str, type] = {}
 
     async def discover_all(
         self,
         view_pattern: str = "v_%",
         function_pattern: str = "fn_%",
-        schemas: List[str] | None = None,
-    ) -> Dict[str, List[Any]]:
+        schemas: list[str] | None = None,
+    ) -> dict[str, list[Any]]:
         """Full discovery pipeline.
 
         Args:
@@ -68,7 +69,8 @@ class AutoDiscovery:
         # 1. Discover database objects
         views = await self.introspector.discover_views(pattern=view_pattern, schemas=schemas)
         functions = await self.introspector.discover_functions(
-            pattern=function_pattern, schemas=schemas
+            pattern=function_pattern,
+            schemas=schemas,
         )
 
         logger.info(f"Discovered {len(views)} views and {len(functions)} functions")
@@ -94,7 +96,7 @@ class AutoDiscovery:
                 mutations.append(mutation)
 
         logger.info(
-            f"Generated {len(types)} types, {len(queries)} queries, {len(mutations)} mutations"
+            f"Generated {len(types)} types, {len(queries)} queries, {len(mutations)} mutations",
         )
 
         return {
@@ -103,7 +105,7 @@ class AutoDiscovery:
             "mutations": mutations,
         }
 
-    async def _generate_type_from_view(self, view_metadata: ViewMetadata) -> Type | None:
+    async def _generate_type_from_view(self, view_metadata: ViewMetadata) -> type | None:
         """Generate a type class from view metadata."""
         # Parse @fraiseql:type annotation
         annotation = self.metadata_parser.parse_type_annotation(view_metadata.comment)
@@ -113,7 +115,9 @@ class AutoDiscovery:
         # Generate type class
         try:
             type_class = await self.type_generator.generate_type_class(
-                view_metadata, annotation, self.connection_pool
+                view_metadata,
+                annotation,
+                self.connection_pool,
             )
 
             # Register in type registry
@@ -126,7 +130,7 @@ class AutoDiscovery:
             logger.warning(f"Failed to generate type from view {view_metadata.view_name}: {e}")
             return None
 
-    def _generate_queries_for_type(self, type_class: Type) -> List[Callable]:
+    def _generate_queries_for_type(self, type_class: type) -> list[Callable]:
         """Generate standard queries for a type."""
         try:
             # Get view metadata for the type (assuming it's stored in the type)
@@ -140,7 +144,10 @@ class AutoDiscovery:
             annotation = TypeAnnotation()
 
             queries = self.query_generator.generate_queries_for_type(
-                type_class, view_name, schema_name, annotation
+                type_class,
+                view_name,
+                schema_name,
+                annotation,
             )
 
             logger.debug(f"Generated {len(queries)} queries for type: {type_class.__name__}")
@@ -151,7 +158,8 @@ class AutoDiscovery:
             return []
 
     async def _generate_mutation_from_function(
-        self, function_metadata: FunctionMetadata
+        self,
+        function_metadata: FunctionMetadata,
     ) -> Callable | None:
         """Generate a mutation from function metadata (SpecQL function).
 
@@ -178,6 +186,6 @@ class AutoDiscovery:
 
         except Exception as e:
             logger.warning(
-                f"Failed to generate mutation from function {function_metadata.function_name}: {e}"
+                f"Failed to generate mutation from function {function_metadata.function_name}: {e}",
             )
             return None

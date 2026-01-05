@@ -2,7 +2,7 @@
 
 import re
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 from fraiseql.analysis.query_analyzer import QueryAnalyzer
 from fraiseql.fastapi.config import FraiseQLConfig
@@ -30,11 +30,11 @@ class ModeSelector:
             config: FraiseQL configuration
         """
         self.config = config
-        self.turbo_registry: Optional[TurboRegistry] = None
-        self.query_analyzer: Optional[QueryAnalyzer] = None
-        self.query_router: Optional[QueryRouter] = None
+        self.turbo_registry: TurboRegistry | None = None
+        self.query_analyzer: QueryAnalyzer | None = None
+        self.query_router: QueryRouter | None = None
         self.mode_hint_pattern = re.compile(
-            getattr(config, "mode_hint_pattern", r"#\s*@mode:\s*(\w+)")
+            getattr(config, "mode_hint_pattern", r"#\s*@mode:\s*(\w+)"),
         )
 
     def set_turbo_registry(self, registry: TurboRegistry) -> None:
@@ -62,7 +62,10 @@ class ModeSelector:
         self.query_router = router
 
     def select_mode(
-        self, query: str, variables: dict[str, Any], context: dict[str, Any]
+        self,
+        query: str,
+        variables: dict[str, Any],
+        context: dict[str, Any],
     ) -> ExecutionMode:
         """Select optimal execution mode for query.
 
@@ -92,7 +95,9 @@ class ModeSelector:
 
         # Check mode priority from config
         execution_mode_priority = getattr(
-            self.config, "execution_mode_priority", ["turbo", "passthrough", "normal"]
+            self.config,
+            "execution_mode_priority",
+            ["turbo", "passthrough", "normal"],
         )
 
         for mode_name in execution_mode_priority:
@@ -106,7 +111,7 @@ class ModeSelector:
         # Default to normal mode
         return ExecutionMode.NORMAL
 
-    def _extract_mode_hint(self, query: str) -> Optional[ExecutionMode]:
+    def _extract_mode_hint(self, query: str) -> ExecutionMode | None:
         """Extract mode hint from query comment.
 
         Args:
@@ -184,7 +189,9 @@ class ModeSelector:
             "passthrough_enabled": True,  # Always enabled for max performance
             "mode_hints_enabled": True,  # Always enabled
             "priority": getattr(
-                self.config, "execution_mode_priority", ["turbo", "passthrough", "normal"]
+                self.config,
+                "execution_mode_priority",
+                ["turbo", "passthrough", "normal"],
             ),
         }
 

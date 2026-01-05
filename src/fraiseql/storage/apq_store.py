@@ -5,7 +5,6 @@ This module maintains backward compatibility while using the new backend system 
 
 import hashlib
 import logging
-from typing import Optional
 
 from fraiseql.monitoring import get_global_metrics
 
@@ -39,7 +38,7 @@ def store_persisted_query(hash_value: str, query: str) -> None:
     if hash_value != actual_hash:
         logger.warning(
             f"Hash mismatch: provided={hash_value[:8]}..., "
-            f"computed={actual_hash[:8]}... - storing anyway for APQ compatibility"
+            f"computed={actual_hash[:8]}... - storing anyway for APQ compatibility",
         )
 
     _backend.store_persisted_query(hash_value, query)
@@ -49,7 +48,7 @@ def store_persisted_query(hash_value: str, query: str) -> None:
     metrics.record_query_cache_store(hash_value)
 
 
-def get_persisted_query(hash_value: str) -> Optional[str]:
+def get_persisted_query(hash_value: str) -> str | None:
     """Retrieve a persisted query by its hash.
 
     Args:

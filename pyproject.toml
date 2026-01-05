@@ -255,28 +255,28 @@ ignore = [
   "N818",    # Exception naming - would require breaking changes
   "A003",    # Builtins shadowing - needed for 'list' method in repository
 
-  # Documentation - enable for public APIs only
-  "D105", # Missing docstring in magic method
-  "D107", # Missing docstring in __init__
-  "D415", # First line should end with a period
+   # Documentation - enable for public APIs only
+   "D105", # Missing docstring in magic method
+   "D107", # Missing docstring in __init__
+   "D415", # First line should end with a period
 
   # Type annotations - strict checking enabled (except ANN401 which is too restrictive)
   # "ANN001",  # Missing type annotation for function argument - ENABLED
   # "ANN002",  # Missing type annotation for *args - ENABLED
   # "ANN003",  # Missing type annotation for **kwargs - ENABLED
-  # "ANN201",  # Missing return type annotation for public function - ENABLED
-  "ANN202", # Missing return type annotation for private function - ENABLED
-  "ANN204", # Missing return type annotation for special method - ENABLED
+   # "ANN201",  # Missing return type annotation for public function - ENABLED
+   "ANN202", # Missing return type annotation for private function - ENABLED
+   "ANN204", # Missing return type annotation for special method - ENABLED
   "ANN401", # Dynamically typed expressions (Any) are allowed for flexible APIs
 
-  # Too strict or pedantic
-  "INP001",  # Implicit namespace package
-  "PLC0415", # Import should be at top-level (sometimes conditional imports make sense)
-  "TRY003",  # Avoid specifying long messages outside exception class
-  "TRY301",  # Abstract raise to inner function
-  "TRY400",  # Use logging.exception instead of logging.error
-  "EM101",   # Exception must not use string literal
-  "EM102",   # Exception must not use f-string literal
+   # Too strict or pedantic
+   "INP001",  # Implicit namespace package
+   "PLC0415", # Import should be at top-level (sometimes conditional imports make sense)
+   "TRY003",  # Avoid specifying long messages outside exception class
+   "TRY301",  # Abstract raise to inner function
+   "TRY400",  # Use logging.exception instead of logging.error
+   "EM101",   # Exception must not use string literal
+   "EM102",   # Exception must not use f-string literal
   "FBT001",  # Boolean positional arg in function definition
   "FBT002",  # Boolean default value in function definition
   "FBT003",  # Boolean positional value in function call
@@ -287,12 +287,12 @@ ignore = [
   "ARG001",  # Unused function argument
   "ARG002",  # Unused method argument
 
-  # Style preferences - these are suggestions not requirements
-  "G004",    # Logging statement uses f-string - performance impact minimal
-  "TRY300",  # Consider moving statement to else block - style preference
-  "RET504",  # Unnecessary assignment before return - sometimes clearer
-  "TRY203",  # Use raise from to specify exception cause - not always needed
-  "SIM105",  # Use contextlib.suppress - style preference
+   # Style preferences - these are suggestions not requirements
+   "G004",    # Logging statement uses f-string - performance impact minimal
+   "TRY300",  # Consider moving statement to else block - style preference
+   "RET504",  # Unnecessary assignment before return - sometimes clearer
+   "TRY203",  # Use raise from to specify exception cause - not always needed
+   "SIM105",  # Use contextlib.suppress - style preference
   "SIM103",  # Return condition directly - sometimes less readable
   "SIM108",  # Use ternary operator - sometimes less readable
   "S324",    # MD5 hash usage - acceptable for cache keys, not cryptographic

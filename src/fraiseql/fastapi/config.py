@@ -431,7 +431,9 @@ class FraiseQLConfig(BaseSettings):
     @field_validator("introspection_policy")
     @classmethod
     def set_production_introspection_default(
-        cls, v: IntrospectionPolicy, info: ValidationInfo
+        cls,
+        v: IntrospectionPolicy,
+        info: ValidationInfo,
     ) -> IntrospectionPolicy:
         """Set introspection policy to DISABLED in production unless explicitly set."""
         if info.data.get("environment") == "production" and v == IntrospectionPolicy.PUBLIC:
@@ -466,7 +468,7 @@ class FraiseQLConfig(BaseSettings):
             logger.warning(
                 "⚠️  CORS is enabled with wildcard origin (*) in production environment. "
                 "This is a security risk and may cause conflicts with reverse proxies. "
-                "Consider disabling CORS or setting specific allowed origins."
+                "Consider disabling CORS or setting specific allowed origins.",
             )
 
         return v

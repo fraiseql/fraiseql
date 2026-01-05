@@ -11,7 +11,8 @@ well with PostgreSQL views that pre-join related data into JSONB columns.
 """
 
 import logging
-from typing import Any, Callable, get_args, get_origin
+from collections.abc import Callable
+from typing import Any, get_args, get_origin
 
 from graphql import GraphQLResolveInfo
 
@@ -48,7 +49,9 @@ def create_smart_nested_field_resolver(field_name: str, field_type: Any) -> Call
     """
 
     async def resolve_nested_field(
-        parent: dict[str, Any], info: GraphQLResolveInfo, **kwargs: Any
+        parent: dict[str, Any],
+        info: GraphQLResolveInfo,
+        **kwargs: Any,
     ) -> Any:
         """Resolve a nested field, preferring embedded data over separate queries."""
         # First, check if the data is already present in the parent object
@@ -58,7 +61,7 @@ def create_smart_nested_field_resolver(field_name: str, field_type: Any) -> Call
             # Data is embedded - return it directly
             logger.debug(
                 f"Field '{field_name}' has embedded data, "
-                f"returning directly without querying sql_source"
+                f"returning directly without querying sql_source",
             )
 
             # If it's a dict and the field type is a FraiseQL type, convert it
@@ -126,7 +129,7 @@ def create_smart_nested_field_resolver(field_name: str, field_type: Any) -> Call
 
                     logger.debug(
                         f"Attempting to query {table} for field '{field_name}' "
-                        f"with params: {query_params}"
+                        f"with params: {query_params}",
                     )
 
                     # Use find_one if available
@@ -140,7 +143,7 @@ def create_smart_nested_field_resolver(field_name: str, field_type: Any) -> Call
                 except Exception as e:
                     logger.warning(
                         f"Failed to query {table} for field '{field_name}': {e}. "  # type: ignore[possibly-unbound]
-                        f"This may be expected if the data should be embedded."
+                        f"This may be expected if the data should be embedded.",
                     )
 
         # No data found - return None
@@ -183,7 +186,9 @@ def should_use_nested_resolver(field_type: type) -> bool:
 
 
 def create_nested_array_field_resolver_with_where(
-    field_name: str, field_type: type, field_metadata: Any = None
+    field_name: str,
+    field_type: type,
+    field_metadata: Any = None,
 ) -> Callable:
     """Create a field resolver for nested arrays with comprehensive logical operator filtering.
 
@@ -232,7 +237,10 @@ def create_nested_array_field_resolver_with_where(
     """
 
     async def resolve_nested_array_with_where(
-        parent: Any, info: GraphQLResolveInfo, where: Any = None, **kwargs: Any
+        parent: Any,
+        info: GraphQLResolveInfo,
+        where: Any = None,
+        **kwargs: Any,
     ) -> Any:
         """Resolve nested array field with optional where filtering."""
         # First, get the raw data using existing logic
@@ -300,7 +308,7 @@ async def _item_matches_where_criteria(item: Any, where_filter: Any) -> bool:
                 if not and_conditions:  # Empty AND array = all match
                     return True
                 logger.debug(
-                    f"Processing AND conditions for item: {getattr(item, 'hostname', 'unknown')}"
+                    f"Processing AND conditions for item: {getattr(item, 'hostname', 'unknown')}",
                 )
                 for i, condition in enumerate(and_conditions):
                     result = await _item_matches_where_criteria(item, condition)

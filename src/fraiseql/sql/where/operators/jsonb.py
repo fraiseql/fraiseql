@@ -1,6 +1,6 @@
 """PostgreSQL JSONB operators for FraiseQL WHERE filtering."""
 
-from typing import Any, Optional
+from typing import Any
 
 from psycopg.sql import SQL, Composed, Literal
 from pydantic import BaseModel
@@ -164,7 +164,7 @@ def build_strictly_contains_sql(field_sql: SQL | Composed, value: Any) -> Compos
             SQL(" != "),
             Literal(json_str),
             SQL("::jsonb"),
-        ]
+        ],
     )
 
 
@@ -179,42 +179,42 @@ class JSONBFilter(BaseModel):
     """
 
     # Basic comparison operators
-    eq: Optional[Any] = None
+    eq: Any | None = None
     """Exact equality comparison (accepts dict or list)."""
 
-    neq: Optional[Any] = None
+    neq: Any | None = None
     """Not equal comparison (accepts dict or list)."""
 
-    isnull: Optional[bool] = None
+    isnull: bool | None = None
     """Check if field is null."""
 
     # Key existence operators
-    has_key: Optional[str] = None
+    has_key: str | None = None
     """Check if JSONB contains a specific key (? operator)."""
 
-    has_any_keys: Optional[list[str]] = None
+    has_any_keys: list[str] | None = None
     """Check if JSONB contains any of the specified keys (?| operator)."""
 
-    has_all_keys: Optional[list[str]] = None
+    has_all_keys: list[str] | None = None
     """Check if JSONB contains all of the specified keys (?& operator)."""
 
     # Containment operators
-    contains: Optional[Any] = None
+    contains: Any | None = None
     """Check if JSONB contains the specified value (@> operator, accepts dict or list)."""
 
-    contained_by: Optional[Any] = None
+    contained_by: Any | None = None
     """Check if JSONB is contained by the specified value (<@ operator, accepts dict or list)."""
 
     # JSONPath operators
-    path_exists: Optional[str] = None
+    path_exists: str | None = None
     """Check if JSONPath expression exists (@? operator)."""
 
-    path_match: Optional[str] = None
+    path_match: str | None = None
     """Check if JSONPath predicate matches (@@ operator)."""
 
     # Deep path access operators
-    get_path: Optional[list[str]] = None
+    get_path: list[str] | None = None
     """Get value at path (#> operator)."""
 
-    get_path_text: Optional[list[str]] = None
+    get_path_text: list[str] | None = None
     """Get value at path as text (#>> operator)."""

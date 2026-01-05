@@ -22,7 +22,7 @@ def serialize_hash_sha256(value: Any) -> str | None:
     if not _HASH_SHA256_REGEX.match(value_str):
         raise GraphQLError(
             f"Invalid SHA256 hash: {value}. Must be exactly 64 hexadecimal characters "
-            "(e.g., 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855')"
+            "(e.g., 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855')",
         )
 
     return value_str
@@ -36,7 +36,7 @@ def parse_hash_sha256_value(value: Any) -> str:
     if not _HASH_SHA256_REGEX.match(value):
         raise GraphQLError(
             f"Invalid SHA256 hash: {value}. Must be exactly 64 hexadecimal characters "
-            "(e.g., 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855')"
+            "(e.g., 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855')",
         )
 
     return value
@@ -87,6 +87,6 @@ class HashSHA256Field(str, ScalarMarker):
         if not _HASH_SHA256_REGEX.match(value):
             raise ValueError(
                 f"Invalid SHA256 hash: {value}. Must be exactly 64 hexadecimal characters "
-                "(e.g., 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855')"
+                "(e.g., 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855')",
             )
         return super().__new__(cls, value)

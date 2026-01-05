@@ -30,7 +30,7 @@ def serialize_money(value: Any) -> str | None:
     if not _MONEY_REGEX.match(value_str):
         raise GraphQLError(
             f"Invalid money value: {value}. Must be numeric with up to 4 decimal places "
-            "(e.g., '123.45', '-999.9999', '100')"
+            "(e.g., '123.45', '-999.9999', '100')",
         )
 
     return value_str
@@ -52,7 +52,7 @@ def parse_money_value(value: Any) -> str:
     if not _MONEY_REGEX.match(value_str):
         raise GraphQLError(
             f"Invalid money value: {value}. Must be numeric with up to 4 decimal places "
-            "(e.g., '123.45', '-999.9999', '100')"
+            "(e.g., '123.45', '-999.9999', '100')",
         )
 
     return value_str
@@ -115,6 +115,6 @@ class MoneyField(str, ScalarMarker):
         if not _MONEY_REGEX.match(value_str):
             raise ValueError(
                 f"Invalid money value: {value}. Must be numeric with up to 4 decimal places "
-                "(e.g., '123.45', '-999.9999', '100')"
+                "(e.g., '123.45', '-999.9999', '100')",
             )
         return super().__new__(cls, value_str)

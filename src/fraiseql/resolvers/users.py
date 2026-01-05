@@ -4,7 +4,7 @@ This module demonstrates how to integrate the RustGraphQLPipeline
 with GraphQL resolvers for typical CRUD operations.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 # Import pipeline at runtime to avoid static analysis issues
 # from fraiseql.core.graphql_pipeline import pipeline  # Will be imported at runtime
@@ -19,7 +19,7 @@ class MockPipeline:
 pipeline = MockPipeline()
 
 
-async def resolve_user(obj: Any, info: Any, id: int) -> Optional[Dict[str, Any]]:
+async def resolve_user(obj: Any, info: Any, id: int) -> dict[str, Any] | None:
     """Resolve single user query: query { user(id: 1) { id, name, email } }
 
     Args:
@@ -48,8 +48,12 @@ async def resolve_user(obj: Any, info: Any, id: int) -> Optional[Dict[str, Any]]
 
 
 async def resolve_users(
-    obj: Any, info: Any, limit: int = 10, offset: int = 0, sort_by: str = "name"
-) -> List[Dict[str, Any]]:
+    obj: Any,
+    info: Any,
+    limit: int = 10,
+    offset: int = 0,
+    sort_by: str = "name",
+) -> list[dict[str, Any]]:
     """Resolve users list query: query { users(limit: 10) { id, name, email } }
 
     Args:
@@ -79,7 +83,7 @@ async def resolve_users(
     return result["data"]
 
 
-async def resolve_users_by_domain(obj: Any, info: Any, domain: str) -> List[Dict[str, Any]]:
+async def resolve_users_by_domain(obj: Any, info: Any, domain: str) -> list[dict[str, Any]]:
     """Resolve users filtered by email domain.
 
     Args:
@@ -105,7 +109,7 @@ async def resolve_users_by_domain(obj: Any, info: Any, domain: str) -> List[Dict
     return result["data"]
 
 
-async def resolve_active_users(obj: Any, info: Any) -> List[Dict[str, Any]]:
+async def resolve_active_users(obj: Any, info: Any) -> list[dict[str, Any]]:
     """Resolve only active users.
 
     Args:
@@ -131,8 +135,10 @@ async def resolve_active_users(obj: Any, info: Any) -> List[Dict[str, Any]]:
 
 
 async def resolve_users_with_complex_filter(
-    obj: Any, info: Any, filter_input: Dict[str, Any]
-) -> List[Dict[str, Any]]:
+    obj: Any,
+    info: Any,
+    filter_input: dict[str, Any],
+) -> list[dict[str, Any]]:
     """Resolve users with complex nested filters.
 
     Args:
@@ -190,7 +196,7 @@ async def resolve_user_count(obj: Any, info: Any) -> int:
     return 0
 
 
-def _convert_graphql_filter(graphql_filter: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def _convert_graphql_filter(graphql_filter: dict[str, Any]) -> dict[str, Any] | None:
     """Convert GraphQL filter input to Rust query filter.
 
     This function handles the conversion from GraphQL input types
@@ -229,7 +235,7 @@ def _convert_graphql_filter(graphql_filter: Dict[str, Any]) -> Optional[Dict[str
     return _convert_simple_filter(graphql_filter)
 
 
-def _convert_simple_filter(filter: Dict[str, Any]) -> Dict[str, Any]:
+def _convert_simple_filter(filter: dict[str, Any]) -> dict[str, Any]:
     """Convert a simple filter to Rust format.
 
     Handles both explicit format: { field: 'name', operator: 'eq', value: 'John' }

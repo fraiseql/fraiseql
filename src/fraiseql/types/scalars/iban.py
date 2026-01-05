@@ -153,7 +153,7 @@ def serialize_iban(value: Any) -> str | None:
         raise GraphQLError(
             f"Invalid IBAN: {value}. Must be ISO 13616 format: "
             "2 country letters + 2 check digits + 11-30 alphanumeric "
-            "(e.g., 'GB82WEST12345698765432')"
+            "(e.g., 'GB82WEST12345698765432')",
         )
 
     # Check country-specific length
@@ -161,12 +161,14 @@ def serialize_iban(value: Any) -> str | None:
     expected_length = _IBAN_LENGTHS.get(country_code)
     if expected_length and len(value_str) != expected_length:
         raise GraphQLError(
-            f"Invalid IBAN: {value}. {country_code} IBANs must be {expected_length} characters long"
+            f"Invalid IBAN: {value}. {country_code} IBANs must be "
+            f"{expected_length} characters long",
         )
 
     if not _validate_iban_check_digits(value_str):
         raise GraphQLError(
-            f"Invalid IBAN: {value}. Check digits do not match (ISO 13616 mod-97 validation failed)"
+            f"Invalid IBAN: {value}. Check digits do not match "
+            f"(ISO 13616 mod-97 validation failed)",
         )
 
     return value_str
@@ -183,7 +185,7 @@ def parse_iban_value(value: Any) -> str:
         raise GraphQLError(
             f"Invalid IBAN: {value}. Must be ISO 13616 format: "
             "2 country letters + 2 check digits + 11-30 alphanumeric "
-            "(e.g., 'GB82WEST12345698765432')"
+            "(e.g., 'GB82WEST12345698765432')",
         )
 
     # Check country-specific length
@@ -191,12 +193,14 @@ def parse_iban_value(value: Any) -> str:
     expected_length = _IBAN_LENGTHS.get(country_code)
     if expected_length and len(value_upper) != expected_length:
         raise GraphQLError(
-            f"Invalid IBAN: {value}. {country_code} IBANs must be {expected_length} characters long"
+            f"Invalid IBAN: {value}. {country_code} IBANs must be "
+            f"{expected_length} characters long",
         )
 
     if not _validate_iban_check_digits(value_upper):
         raise GraphQLError(
-            f"Invalid IBAN: {value}. Check digits do not match (ISO 13616 mod-97 validation failed)"
+            f"Invalid IBAN: {value}. Check digits do not match "
+            f"(ISO 13616 mod-97 validation failed)",
         )
 
     return value_upper
@@ -262,7 +266,7 @@ class IBANField(str, ScalarMarker):
             raise ValueError(
                 f"Invalid IBAN: {value}. Must be ISO 13616 format: "
                 "2 country letters + 2 check digits + 11-30 alphanumeric "
-                "(e.g., 'GB82WEST12345698765432')"
+                "(e.g., 'GB82WEST12345698765432')",
             )
 
         # Check country-specific length
@@ -271,13 +275,13 @@ class IBANField(str, ScalarMarker):
         if expected_length and len(value_upper) != expected_length:
             raise ValueError(
                 f"Invalid IBAN: {value}. {country_code} IBANs must be "
-                f"{expected_length} characters long"
+                f"{expected_length} characters long",
             )
 
         if not _validate_iban_check_digits(value_upper):
             raise ValueError(
                 f"Invalid IBAN: {value}. Check digits do not match "
-                "(ISO 13616 mod-97 validation failed)"
+                "(ISO 13616 mod-97 validation failed)",
             )
 
         return super().__new__(cls, value_upper)

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, Callable, cast, get_type_hints
+from typing import TYPE_CHECKING, Any, cast, get_type_hints
 
 from graphql import (
     GraphQLArgument,
@@ -26,6 +26,8 @@ from fraiseql.types.coercion import wrap_resolver_with_input_coercion
 from fraiseql.utils.naming import snake_to_camel
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from fraiseql.gql.builders.registry import SchemaRegistry
 
 logger = logging.getLogger(__name__)
@@ -97,7 +99,8 @@ class MutationTypeBuilder:
 
             description = None
             if hasattr(fn, "__fraiseql_mutation__") and hasattr(
-                fn.__fraiseql_mutation__, "mutation_class"
+                fn.__fraiseql_mutation__,
+                "mutation_class",
             ):
                 description = _clean_docstring(fn.__fraiseql_mutation__.mutation_class.__doc__)
             else:
@@ -116,7 +119,8 @@ class MutationTypeBuilder:
 
                 # Modify the return type to include cascade field in Success branch
                 gql_return_type = add_cascade_to_union_type(
-                    cast("GraphQLOutputType", gql_return_type), fn.__fraiseql_mutation__
+                    cast("GraphQLOutputType", gql_return_type),
+                    fn.__fraiseql_mutation__,
                 )
 
             fields[graphql_field_name] = GraphQLField(
@@ -129,7 +133,9 @@ class MutationTypeBuilder:
         return GraphQLObjectType(name="Mutation", fields=MappingProxyType(fields))
 
     def _wrap_mutation_resolver(
-        self, fn: Callable[..., Any], arg_name_mapping: dict[str, str] | None = None
+        self,
+        fn: Callable[..., Any],
+        arg_name_mapping: dict[str, str] | None = None,
     ) -> Callable[..., Any]:
         """Wrap a mutation function with argument mapping and input coercion.
 

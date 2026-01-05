@@ -1,4 +1,6 @@
-from typing import Any, Callable, Type, TypeVar, overload
+import builtins
+from collections.abc import Callable
+from typing import Any, TypeVar, overload
 
 from .mutations.error_config import MutationErrorConfig as MutationErrorConfig
 
@@ -7,40 +9,40 @@ _F = TypeVar("_F", bound=Callable[..., Any])
 
 # Core type decorators
 @overload
-def fraise_type_decorator(cls: Type[_T]) -> Type[_T]: ...
+def fraise_type_decorator(cls: builtins.type[_T]) -> builtins.type[_T]: ...
 @overload
 def fraise_type_decorator(
     *,
     sql_source: str | None = None,
     jsonb_column: str | None = None,
-    implements: list[Type[Any]] | None = None,
+    implements: list[builtins.type[Any]] | None = None,
     resolve_nested: bool = False,
-) -> Callable[[Type[_T]], Type[_T]]: ...
+) -> Callable[[builtins.type[_T]], builtins.type[_T]]: ...
 def fraise_type_decorator(
-    cls: Type[_T] | None = None,
+    cls: builtins.type[_T] | None = None,
     *,
     sql_source: str | None = None,
     jsonb_column: str | None = None,
-    implements: list[Type[Any]] | None = None,
+    implements: list[builtins.type[Any]] | None = None,
     resolve_nested: bool = False,
-) -> Type[_T] | Callable[[Type[_T]], Type[_T]]: ...
+) -> builtins.type[_T] | Callable[[builtins.type[_T]], builtins.type[_T]]: ...
 @overload
-def fraise_input_decorator(cls: Type[_T]) -> Type[_T]: ...
+def fraise_input_decorator(cls: builtins.type[_T]) -> builtins.type[_T]: ...
 @overload
 def fraise_input_decorator(
     *,
     description: str | None = None,
-) -> Callable[[Type[_T]], Type[_T]]: ...
+) -> Callable[[builtins.type[_T]], builtins.type[_T]]: ...
 def fraise_input_decorator(
-    cls: Type[_T] | None = None,
+    cls: builtins.type[_T] | None = None,
     *,
     description: str | None = None,
-) -> Type[_T] | Callable[[Type[_T]], Type[_T]]: ...
-def success(cls: Type[_T]) -> Type[_T]: ...
-def error(cls: Type[_T]) -> Type[_T]: ...
-def result(cls: Type[_T]) -> Type[_T]: ...
-def enum(cls: Type[_T]) -> Type[_T]: ...
-def interface(cls: Type[_T]) -> Type[_T]: ...
+) -> builtins.type[_T] | Callable[[builtins.type[_T]], builtins.type[_T]]: ...
+def success(cls: builtins.type[_T]) -> builtins.type[_T]: ...
+def error(cls: builtins.type[_T]) -> builtins.type[_T]: ...
+def result(cls: builtins.type[_T]) -> builtins.type[_T]: ...
+def enum(cls: builtins.type[_T]) -> builtins.type[_T]: ...
+def interface(cls: builtins.type[_T]) -> builtins.type[_T]: ...
 
 # Query decorator
 @overload
@@ -88,7 +90,7 @@ def mutation(
     schema: str = "graphql",
     context_params: dict[str, str] | None = None,
     error_config: MutationErrorConfig | None = None,
-) -> Callable[[Type[_T]], Type[_T]]: ...
+) -> Callable[[builtins.type[_T]], builtins.type[_T]]: ...
 
 # Subscription decorator
 @overload
@@ -184,10 +186,10 @@ class CQRSExecutor:
 
 # Schema builder
 def build_fraiseql_schema(
-    types: list[Type[Any]] | None = None,
-    mutations: list[Type[Any]] | None = None,
-    queries: list[Type[Any]] | None = None,
-    subscriptions: list[Type[Any]] | None = None,
+    types: list[builtins.type[Any]] | None = None,
+    mutations: list[builtins.type[Any]] | None = None,
+    queries: list[builtins.type[Any]] | None = None,
+    subscriptions: list[builtins.type[Any]] | None = None,
 ) -> Any: ...
 
 # Error configurations

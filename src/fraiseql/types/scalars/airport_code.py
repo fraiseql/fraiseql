@@ -22,7 +22,7 @@ def serialize_airport_code(value: Any) -> str | None:
     if not _AIRPORT_CODE_REGEX.match(value_str):
         raise GraphQLError(
             f"Invalid airport code: {value}. Must be 3 uppercase letters "
-            "(e.g., 'LAX', 'JFK', 'LHR')"
+            "(e.g., 'LAX', 'JFK', 'LHR')",
         )
 
     return value_str
@@ -38,7 +38,7 @@ def parse_airport_code_value(value: Any) -> str:
     if not _AIRPORT_CODE_REGEX.match(value_upper):
         raise GraphQLError(
             f"Invalid airport code: {value}. Must be 3 uppercase letters "
-            "(e.g., 'LAX', 'JFK', 'LHR')"
+            "(e.g., 'LAX', 'JFK', 'LHR')",
         )
 
     return value_upper
@@ -93,6 +93,6 @@ class AirportCodeField(str, ScalarMarker):
         if not _AIRPORT_CODE_REGEX.match(value_upper):
             raise ValueError(
                 f"Invalid airport code: {value}. Must be 3 uppercase letters "
-                "(e.g., 'LAX', 'JFK', 'LHR')"
+                "(e.g., 'LAX', 'JFK', 'LHR')",
             )
         return super().__new__(cls, value_upper)

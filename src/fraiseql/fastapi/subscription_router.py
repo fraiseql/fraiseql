@@ -6,7 +6,8 @@ auth inheritance, and sensible defaults.
 """
 
 import logging
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, WebSocketException
 from graphql import GraphQLSchema
@@ -134,15 +135,15 @@ class SubscriptionRouterFactory:
                 logger.error(f"WebSocket error: {e}")
                 try:
                     await websocket.close(code=1000, reason="Internal error")
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Failed to close websocket cleanly: {e}")
 
             except Exception:
                 logger.exception("Unexpected error in WebSocket handler")
                 try:
                     await websocket.close(code=1011, reason="Internal server error")
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Failed to close websocket on error: {e}")
 
         return router
 

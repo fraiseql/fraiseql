@@ -8,7 +8,7 @@ import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from threading import Lock
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ class APQMetricsSnapshot:
 
     # Performance metrics
     total_requests: int
-    avg_query_parse_time_ms: Optional[float] = None
+    avg_query_parse_time_ms: float | None = None
 
     # Derived metrics
     @property
@@ -224,7 +224,10 @@ class APQMetrics:
     # === Storage Statistics ===
 
     def update_storage_stats(
-        self, stored_queries: int, cached_responses: int, total_bytes: int
+        self,
+        stored_queries: int,
+        cached_responses: int,
+        total_bytes: int,
     ) -> None:
         """Update storage statistics (called periodically).
 
@@ -241,7 +244,10 @@ class APQMetrics:
     # === Query Patterns ===
 
     def _update_query_pattern(
-        self, query_hash: str, cache_hit: bool = False, parse_time_ms: Optional[float] = None
+        self,
+        query_hash: str,
+        cache_hit: bool = False,
+        parse_time_ms: float | None = None,
     ) -> None:
         """Update query pattern statistics (called within lock)."""
         if query_hash not in self._query_patterns:
@@ -249,7 +255,8 @@ class APQMetrics:
             if len(self._query_patterns) >= self._max_tracked_queries:
                 # Evict least recently used query
                 lru_hash = min(
-                    self._query_patterns.keys(), key=lambda h: self._query_patterns[h].last_seen
+                    self._query_patterns.keys(),
+                    key=lambda h: self._query_patterns[h].last_seen,
                 )
                 del self._query_patterns[lru_hash]
 
@@ -427,26 +434,26 @@ class APQMetrics:
 
         if snapshot.query_cache_hit_rate < 0.7 and snapshot.total_requests > 100:
             warnings.append(
-                f"Low query cache hit rate: {snapshot.query_cache_hit_rate:.1%} (target: >70%)"
+                f"Low query cache hit rate: {snapshot.query_cache_hit_rate:.1%} (target: >70%)",
             )
 
         if snapshot.response_cache_hit_rate < 0.5 and snapshot.response_cache_stores > 10:
             warnings.append(
                 f"Low response cache hit rate: {snapshot.response_cache_hit_rate:.1%} "
-                "(target: >50%)"
+                "(target: >50%)",
             )
 
         if snapshot.total_storage_bytes > 100 * 1024 * 1024:  # 100MB
             warnings.append(
                 f"High storage usage: {snapshot.total_storage_bytes / (1024 * 1024):.1f}MB "
-                "(consider TTL or eviction)"
+                "(consider TTL or eviction)",
             )
 
         return warnings
 
 
 # Global metrics instance for convenience
-_global_metrics: Optional[APQMetrics] = None
+_global_metrics: APQMetrics | None = None
 
 
 def get_global_metrics() -> APQMetrics:

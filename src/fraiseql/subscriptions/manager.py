@@ -14,8 +14,9 @@ Key Features:
 
 import asyncio
 import logging
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any, Awaitable, Callable, Dict, Optional
+from typing import Any
 
 from fraiseql.subscriptions.http_adapter import (
     SubscriptionProtocolHandler,
@@ -35,8 +36,8 @@ logger = logging.getLogger(__name__)
 
 
 ResolverFunction = Callable[
-    [Dict[str, Any], Dict[str, Any]],
-    Awaitable[Dict[str, Any]],
+    [dict[str, Any], dict[str, Any]],
+    Awaitable[dict[str, Any]],
 ]
 """Type hint for resolver functions.
 
@@ -106,17 +107,17 @@ class SubscriptionManager:
         })
     """
 
-    def __init__(self, config: Optional[SubscriptionConfig] = None) -> None:
+    def __init__(self, config: SubscriptionConfig | None = None) -> None:
         """Initialize SubscriptionManager.
 
         Args:
             config: Optional configuration (uses defaults if None)
         """
         self.config = config or SubscriptionConfig()
-        self.resolvers: Dict[str, ResolverFunction] = {}
-        self.subscriptions: Dict[str, Dict[str, Any]] = {}
-        self.protocol: Optional[SubscriptionProtocolHandler] = None
-        self.state_machine: Optional[ProtocolStateMachine] = None
+        self.resolvers: dict[str, ResolverFunction] = {}
+        self.subscriptions: dict[str, dict[str, Any]] = {}
+        self.protocol: SubscriptionProtocolHandler | None = None
+        self.state_machine: ProtocolStateMachine | None = None
 
         logger.setLevel(self.config.log_level)
         logger.info("SubscriptionManager initialized")
@@ -148,7 +149,7 @@ class SubscriptionManager:
         self,
         event_type: str,
         channel: str,
-        data: Dict[str, Any],
+        data: dict[str, Any],
     ) -> None:
         """Publish an event to subscriptions.
 
@@ -200,7 +201,7 @@ class SubscriptionManager:
     async def handle_connection(
         self,
         adapter: WebSocketAdapter,
-        protocol: Optional[SubscriptionProtocolHandler] = None,
+        protocol: SubscriptionProtocolHandler | None = None,
     ) -> None:
         """Handle a new WebSocket connection.
 
@@ -246,7 +247,7 @@ class SubscriptionManager:
     async def _handle_protocol_message(
         self,
         adapter: WebSocketAdapter,
-        message: Dict[str, Any],
+        message: dict[str, Any],
     ) -> None:
         """Route protocol message to appropriate handler.
 
@@ -276,10 +277,12 @@ class SubscriptionManager:
                         self.subscriptions[sub_id] = {
                             "adapter": adapter,
                             "channel": message.get("payload", {}).get(
-                                "channel", ""
+                                "channel",
+                                "",
                             ),
                             "variables": message.get("payload", {}).get(
-                                "variables", {}
+                                "variables",
+                                {},
                             ),
                         }
 
@@ -330,7 +333,7 @@ class SubscriptionManager:
 
 
 def create_manager(
-    config: Optional[SubscriptionConfig] = None,
+    config: SubscriptionConfig | None = None,
 ) -> SubscriptionManager:
     """Factory function to create SubscriptionManager.
 

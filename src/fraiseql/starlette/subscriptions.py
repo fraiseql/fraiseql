@@ -127,7 +127,7 @@ class StarletteSubscriptionHandler:
                 {
                     "type": "connection_ack",
                     "payload": {},
-                }
+                },
             )
 
             # Handle subscription messages
@@ -181,7 +181,7 @@ class StarletteSubscriptionHandler:
                             {
                                 "type": "complete",
                                 "id": message_id,
-                            }
+                            },
                         )
 
                 elif message_type == "connection_terminate":
@@ -234,7 +234,7 @@ class StarletteSubscriptionHandler:
                     "type": "error",
                     "id": message_id,
                     "payload": [{"message": "Query is required"}],
-                }
+                },
             )
             return
 
@@ -247,7 +247,7 @@ class StarletteSubscriptionHandler:
                 payload.get("operationName"),
                 payload.get("variables"),
                 connection_params,
-            )
+            ),
         )
 
         active_subscriptions[message_id] = task
@@ -304,7 +304,7 @@ class StarletteSubscriptionHandler:
                         "type": "data",
                         "id": subscription_id,
                         "payload": payload,
-                    }
+                    },
                 )
 
                 # Send complete
@@ -312,7 +312,7 @@ class StarletteSubscriptionHandler:
                     {
                         "type": "complete",
                         "id": subscription_id,
-                    }
+                    },
                 )
 
         except asyncio.CancelledError:
@@ -326,7 +326,7 @@ class StarletteSubscriptionHandler:
                         "type": "error",
                         "id": subscription_id,
                         "payload": [{"message": str(e)}],
-                    }
+                    },
                 )
             except Exception:
                 pass
@@ -347,7 +347,7 @@ class StarletteSubscriptionHandler:
                 {
                     "type": "connection_error",
                     "payload": {"message": message},
-                }
+                },
             )
         finally:
             await websocket.close(code=1000)

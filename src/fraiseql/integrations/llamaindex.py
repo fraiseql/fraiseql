@@ -23,7 +23,7 @@ Example:
 
 import asyncio
 import uuid
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
 from psycopg.types.json import Json
 
@@ -31,7 +31,7 @@ if TYPE_CHECKING:
     from llama_index.core.schema import BaseNode  # type: ignore[import-untyped]
 
 
-def _parse_vector(vec: Any) -> Optional[List[float]]:
+def _parse_vector(vec: Any) -> list[float] | None:
     """Parse a vector from PostgreSQL format to list of floats.
 
     Args:
@@ -79,7 +79,7 @@ except ImportError:
     class LlamaDocument:  # type: ignore[no-redef]
         """Dummy Document class for type hints when LlamaIndex is not available."""
 
-        def __init__(self, text: str, metadata: Optional[Dict[str, Any]] = None):
+        def __init__(self, text: str, metadata: dict[str, Any] | None = None):
             self.text = text
             self.metadata = metadata or {}
 
@@ -99,9 +99,9 @@ except ImportError:
 
         def __init__(
             self,
-            nodes: Optional[List[Any]] = None,
-            similarities: Optional[List[float]] = None,
-            ids: Optional[List[str]] = None,
+            nodes: list[Any] | None = None,
+            similarities: list[float] | None = None,
+            ids: list[str] | None = None,
         ) -> None:
             self.nodes = nodes or []
             self.similarities = similarities or []
@@ -121,7 +121,7 @@ except ImportError:
             self.value = None
 
     # Dummy functions
-    def node_to_metadata_dict(node: Any) -> Dict[str, Any]:  # type: ignore[no-untyped-def]
+    def node_to_metadata_dict(node: Any) -> dict[str, Any]:  # type: ignore[no-untyped-def]
         """Convert a node to metadata dictionary."""
         return getattr(node, "metadata", {})
 
@@ -141,9 +141,9 @@ class FraiseQLReader(BaseReader if LLAMAINDEX_AVAILABLE else object):  # type: i
         db_pool: psycopg_pool.AsyncConnectionPool,
         table_name: str,
         content_column: str = "content",
-        metadata_columns: Optional[List[str]] = None,
+        metadata_columns: list[str] | None = None,
         id_column: str = "id",
-        metadata_column: Optional[str] = "metadata",
+        metadata_column: str | None = "metadata",
     ):
         """Initialize FraiseQL reader.
 
@@ -164,10 +164,10 @@ class FraiseQLReader(BaseReader if LLAMAINDEX_AVAILABLE else object):  # type: i
 
     async def aload_data(
         self,
-        where_clause: Optional[Dict[str, Any]] = None,
-        limit: Optional[int] = None,
+        where_clause: dict[str, Any] | None = None,
+        limit: int | None = None,
         offset: int = 0,
-    ) -> List[LlamaDocument]:
+    ) -> list[LlamaDocument]:
         """Load data from FraiseQL table asynchronously.
 
         Args:
@@ -193,6 +193,10 @@ class FraiseQLReader(BaseReader if LLAMAINDEX_AVAILABLE else object):  # type: i
         if where_clause:
             conditions = []
             for key, value in where_clause.items():
+                # Validate key is safe SQL identifier to prevent SQL injection
+                if not key.replace("_", "").replace(".", "").isalnum():
+                    raise ValueError(f"Invalid column name: {key}")
+
                 # Support both direct column access and JSONB field access
                 if self.metadata_column and key not in [
                     self.id_column,
@@ -200,10 +204,10 @@ class FraiseQLReader(BaseReader if LLAMAINDEX_AVAILABLE else object):  # type: i
                     *self.metadata_columns,
                 ]:
                     # Assume it's a JSONB field
-                    condition = f"{self.metadata_column}->>'{{key}}' = %s"
-                    conditions.append(condition.replace("{key}", key))
+                    condition = f"{self.metadata_column}->>'{key}' = %s"
                 else:
-                    conditions.append(f"{key} = %s")
+                    condition = f"{key} = %s"
+                conditions.append(condition)
                 params.append(value)
             if conditions:
                 query += f" WHERE {' AND '.join(conditions)}"
@@ -248,10 +252,10 @@ class FraiseQLReader(BaseReader if LLAMAINDEX_AVAILABLE else object):  # type: i
 
     def load_data(
         self,
-        where_clause: Optional[Dict[str, Any]] = None,
-        limit: Optional[int] = None,
+        where_clause: dict[str, Any] | None = None,
+        limit: int | None = None,
         offset: int = 0,
-    ) -> List[LlamaDocument]:
+    ) -> list[LlamaDocument]:
         """Load data from FraiseQL table synchronously."""
         return asyncio.run(self.aload_data(where_clause, limit, offset))
 
@@ -316,9 +320,9 @@ class FraiseQLVectorStore(BasePydanticVectorStore if LLAMAINDEX_AVAILABLE else o
 
     async def aadd(
         self,
-        nodes: List["BaseNode"],  # type: ignore[name-defined]
+        nodes: list["BaseNode"],  # type: ignore[name-defined]
         **kwargs: Any,
-    ) -> List[str]:
+    ) -> list[str]:
         """Add nodes to the vector store asynchronously."""
         ids = []
 
@@ -358,9 +362,9 @@ class FraiseQLVectorStore(BasePydanticVectorStore if LLAMAINDEX_AVAILABLE else o
 
     async def aget(
         self,
-        doc_ids: List[str],
+        doc_ids: list[str],
         **kwargs: Any,
-    ) -> List["BaseNode"]:  # type: ignore[name-defined]
+    ) -> list["BaseNode"]:  # type: ignore[name-defined]
         """Get nodes by IDs asynchronously."""
         if not doc_ids:
             return []
@@ -391,7 +395,10 @@ class FraiseQLVectorStore(BasePydanticVectorStore if LLAMAINDEX_AVAILABLE else o
                 from llama_index.core.schema import TextNode  # type: ignore[import-untyped]
 
                 node = TextNode(
-                    id_=node_id, text=content, embedding=embedding_list, metadata=metadata or {}
+                    id_=node_id,
+                    text=content,
+                    embedding=embedding_list,
+                    metadata=metadata or {},
                 )
             else:
                 # Fallback for when LlamaIndex is not available
@@ -412,7 +419,7 @@ class FraiseQLVectorStore(BasePydanticVectorStore if LLAMAINDEX_AVAILABLE else o
 
     async def adelete(
         self,
-        doc_ids: List[str],
+        doc_ids: list[str],
         **kwargs: Any,
     ) -> None:
         """Delete nodes by IDs asynchronously."""
@@ -450,7 +457,8 @@ class FraiseQLVectorStore(BasePydanticVectorStore if LLAMAINDEX_AVAILABLE else o
 
         # Build similarity search query
         distance_op = {"cosine": "<=>", "l2": "<->", "inner_product": "<#>"}.get(
-            self.distance_metric, "<=>"
+            self.distance_metric,
+            "<=>",
         )
 
         sql_query = f"""
@@ -485,7 +493,10 @@ class FraiseQLVectorStore(BasePydanticVectorStore if LLAMAINDEX_AVAILABLE else o
                 from llama_index.core.schema import TextNode  # type: ignore[import-untyped]
 
                 node = TextNode(
-                    id_=node_id, text=content, embedding=embedding_list, metadata=metadata or {}
+                    id_=node_id,
+                    text=content,
+                    embedding=embedding_list,
+                    metadata=metadata or {},
                 )
             else:
                 node = type(
@@ -503,19 +514,21 @@ class FraiseQLVectorStore(BasePydanticVectorStore if LLAMAINDEX_AVAILABLE else o
             similarities.append(0.0)  # Placeholder similarity score
 
         return VectorStoreQueryResult(  # type: ignore[call-arg]
-            nodes=nodes, similarities=similarities, ids=ids
+            nodes=nodes,
+            similarities=similarities,
+            ids=ids,
         )
 
     # Synchronous methods (wrappers around async methods)
-    def add(self, nodes: List["BaseNode"], **kwargs: Any) -> List[str]:  # type: ignore[name-defined]
+    def add(self, nodes: list["BaseNode"], **kwargs: Any) -> list[str]:  # type: ignore[name-defined]
         """Add nodes to the vector store synchronously."""
         return asyncio.run(self.aadd(nodes, **kwargs))
 
-    def get(self, doc_ids: List[str], **kwargs: Any) -> List["BaseNode"]:  # type: ignore[name-defined]
+    def get(self, doc_ids: list[str], **kwargs: Any) -> list["BaseNode"]:  # type: ignore[name-defined]
         """Get nodes by IDs synchronously."""
         return asyncio.run(self.aget(doc_ids, **kwargs))
 
-    def delete(self, doc_ids: List[str], **kwargs: Any) -> None:
+    def delete(self, doc_ids: list[str], **kwargs: Any) -> None:
         """Delete nodes by IDs synchronously."""
         asyncio.run(self.adelete(doc_ids, **kwargs))
 
@@ -526,7 +539,7 @@ class FraiseQLVectorStore(BasePydanticVectorStore if LLAMAINDEX_AVAILABLE else o
     # Required abstract methods from BasePydanticVectorStore
     def delete_nodes(
         self,
-        node_ids: List[str],
+        node_ids: list[str],
         delete_from_docstore: bool = False,
         **kwargs: Any,
     ) -> None:
@@ -535,7 +548,7 @@ class FraiseQLVectorStore(BasePydanticVectorStore if LLAMAINDEX_AVAILABLE else o
 
     async def adelete_nodes(
         self,
-        node_ids: List[str],
+        node_ids: list[str],
         delete_from_docstore: bool = False,
         **kwargs: Any,
     ) -> None:

@@ -83,7 +83,7 @@ def doctor(fix: bool, verbose: bool) -> None:
         if issues_found > issues_fixed:
             click.echo("💡 Run with --fix to automatically resolve some issues")
             click.echo(
-                f"   Or manually address the remaining {issues_found - issues_fixed} issue(s)"
+                f"   Or manually address the remaining {issues_found - issues_fixed} issue(s)",
             )
 
     if issues_found > 0:
@@ -333,7 +333,11 @@ def check_code_quality(verbose: bool) -> int:
     # Try ruff if available
     try:
         result = subprocess.run(
-            ["ruff", "check", "src/"], check=False, capture_output=True, text=True, timeout=30
+            ["ruff", "check", "src/"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
 
         if result.returncode == 0:

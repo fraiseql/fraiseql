@@ -21,7 +21,7 @@ def serialize_color(value: Any) -> str | None:
 
     if not _COLOR_REGEX.match(value_str):
         raise GraphQLError(
-            f"Invalid color: {value}. Must be hex color code (e.g., '#FF0000', '#f00', '#3366CC')"
+            f"Invalid color: {value}. Must be hex color code (e.g., '#FF0000', '#f00', '#3366CC')",
         )
 
     return value_str
@@ -34,7 +34,7 @@ def parse_color_value(value: Any) -> str:
 
     if not _COLOR_REGEX.match(value):
         raise GraphQLError(
-            f"Invalid color: {value}. Must be hex color code (e.g., '#FF0000', '#f00', '#3366CC')"
+            f"Invalid color: {value}. Must be hex color code (e.g., '#FF0000', '#f00', '#3366CC')",
         )
 
     return value
@@ -89,6 +89,6 @@ class ColorField(str, ScalarMarker):
         if not _COLOR_REGEX.match(value):
             raise ValueError(
                 f"Invalid color: {value}. Must be hex color code "
-                "(e.g., '#FF0000', '#f00', '#3366CC')"
+                "(e.g., '#FF0000', '#f00', '#3366CC')",
             )
         return super().__new__(cls, value)

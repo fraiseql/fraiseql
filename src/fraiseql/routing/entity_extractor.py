@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 from graphql import (
     DocumentNode,
@@ -135,7 +134,7 @@ class EntityExtractor:
                 analysis_errors=[f"Parsing error: {e!s}"],
             )
 
-    def _get_operation(self, document: DocumentNode) -> Optional[OperationDefinitionNode]:
+    def _get_operation(self, document: DocumentNode) -> OperationDefinitionNode | None:
         """Extract the operation definition from a document."""
         for definition in document.definitions:
             if isinstance(definition, OperationDefinitionNode):
@@ -143,7 +142,8 @@ class EntityExtractor:
         return None
 
     def _extract_entities_from_operation(
-        self, operation: OperationDefinitionNode
+        self,
+        operation: OperationDefinitionNode,
     ) -> dict[str, list[str]]:
         """Extract entities from an operation definition."""
         root_entities = []
@@ -187,7 +187,7 @@ class EntityExtractor:
 
         return entities
 
-    def _field_to_entity_name(self, field_name: str) -> Optional[str]:
+    def _field_to_entity_name(self, field_name: str) -> str | None:
         """Convert a GraphQL field name to an entity name."""
         query_type = self.schema.type_map.get("Query")
         if not query_type:

@@ -91,7 +91,9 @@ class TurboRegistry:
         # Step 4: Add back minimal spaces for readability and consistency
         # Add space after keywords and before opening braces
         normalized = re.sub(
-            r"\b(query|mutation|subscription|fragment)\b(?=\w|\{)", r"\1 ", normalized
+            r"\b(query|mutation|subscription|fragment)\b(?=\w|\{)",
+            r"\1 ",
+            normalized,
         )
         normalized = re.sub(r"(\w)(\{)", r"\1 \2", normalized)
         normalized = re.sub(r"(\})(\w)", r"\1 \2", normalized)
@@ -327,19 +329,19 @@ class TurboRouter:
                 if "tenant_id" in context:
                     await cursor.execute(
                         SQL("SET LOCAL app.tenant_id = {}").format(
-                            Literal(str(context["tenant_id"]))
-                        )
+                            Literal(str(context["tenant_id"])),
+                        ),
                     )
                 if "contact_id" in context:
                     await cursor.execute(
                         SQL("SET LOCAL app.contact_id = {}").format(
-                            Literal(str(context["contact_id"]))
-                        )
+                            Literal(str(context["contact_id"])),
+                        ),
                     )
                 elif "user" in context:
                     # Fallback to 'user' if 'contact_id' not set
                     await cursor.execute(
-                        SQL("SET LOCAL app.contact_id = {}").format(Literal(str(context["user"])))
+                        SQL("SET LOCAL app.contact_id = {}").format(Literal(str(context["user"]))),
                     )
 
                 # Execute the actual query
@@ -372,7 +374,9 @@ class TurboRouter:
 
                     # Pattern 1: Named query (handles fragments before query)
                     named_query_match = re.search(
-                        r"query\s+\w+[^{]*{\s*(\w+)", clean_query, re.DOTALL
+                        r"query\s+\w+[^{]*{\s*(\w+)",
+                        clean_query,
+                        re.DOTALL,
                     )
                     if named_query_match:
                         return named_query_match.group(1)

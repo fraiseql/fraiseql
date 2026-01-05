@@ -177,7 +177,9 @@ def _camel_to_snake(name: str) -> str:
 
 
 def enhance_type_hints_with_graphql_context(
-    type_hints: dict[str, type] | None, graphql_info: Any, field_names: list[str]
+    type_hints: dict[str, type] | None,
+    graphql_info: Any,
+    field_names: list[str],
 ) -> dict[str, type]:
     """Enhance type hints dictionary with GraphQL context field type extraction.
 
