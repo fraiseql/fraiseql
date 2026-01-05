@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.2] - 2025-01-05
+
+**Security & ID Policy Release - APQ Fixes + Configurable ID Behavior**
+
+This release fixes critical security vulnerabilities in APQ response caching and introduces configurable ID policy for GraphQL scalar behavior.
+
 ### Added
 
 #### Configurable ID Policy
@@ -45,12 +51,6 @@ SchemaConfig.set_config(id_policy=IDPolicy.OPAQUE)
 - Updated `docs/core/id-type.md` with ID Policy documentation
 - Added `SchemaConfig` section to `docs/core/configuration.md`
 - Updated `docs/getting-started/quickstart.md` to use `ID` type
-
-## [1.10.0] - 2025-01-05
-
-**Security & Bug Fix Release - APQ Response Caching Vulnerabilities**
-
-This release fixes critical security vulnerabilities in APQ (Automatic Persisted Queries) response caching that could lead to data leakage between users and incorrect field selection.
 
 ### Security
 
