@@ -7,6 +7,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.3] - 2025-01-05
+
+**Where Filter Enhancement - IDPolicy-Aware ID Filtering**
+
+This release adds proper where clause filtering for ID type fields based on the configured ID policy.
+
+### Added
+
+#### IDFilter for Where Clauses
+
+New `IDFilter` class for filtering ID fields in where clauses:
+
+```python
+@fraise_input
+class IDFilter:
+    eq: ID | None = None
+    neq: ID | None = None
+    in_: list[ID] | None = None
+    nin: list[ID] | None = None
+    isnull: bool | None = None
+```
+
+#### IDPolicy-Aware Filter Mapping
+
+Where clause filter type for ID fields now respects the configured IDPolicy:
+
+| IDPolicy | ID Field Filter | GraphQL Type |
+|----------|-----------------|--------------|
+| `UUID` (default) | `UUIDFilter` | `UUID` scalar |
+| `OPAQUE` | `IDFilter` | `ID` scalar |
+
+```python
+from fraiseql.config.schema_config import SchemaConfig, IDPolicy
+
+# With UUID policy (default): where clauses expect UUID values
+SchemaConfig.set_config(id_policy=IDPolicy.UUID)
+# allocations(where: { machine: { id: { eq: $machineId } } })
+# $machineId: UUID!
+
+# With OPAQUE policy: where clauses accept any string ID
+SchemaConfig.set_config(id_policy=IDPolicy.OPAQUE)
+# allocations(where: { machine: { id: { eq: $machineId } } })
+# $machineId: ID!
+```
+
+### Testing
+
+- 5 new tests for IDPolicy where filter behavior
+- All existing ID policy tests continue to pass
+
+### Files Modified
+
+| File | Change |
+|------|--------|
+| `src/fraiseql/sql/graphql_where_generator.py` | Added `IDFilter`, policy-aware type mapping |
+| `tests/config/test_id_policy.py` | Added `TestIDPolicyWhereFilters` test class |
+
 ## [1.9.2] - 2025-01-05
 
 **Security & ID Policy Release - APQ Fixes + Configurable ID Behavior**
