@@ -2,6 +2,8 @@
 
 Production monitoring, alerting, and operational runbooks for FraiseQL performance management.
 
+> **For comprehensive monitoring and observability**, see the [Observability Guide](./observability.md) and [Production Monitoring Guide](./monitoring.md) which cover error tracking, metrics, alerting, and integrated observability architecture.
+
 ## Overview
 
 Effective performance monitoring is crucial for maintaining optimal FraiseQL application performance. This guide covers monitoring setup, key metrics, alerting strategies, and operational procedures.

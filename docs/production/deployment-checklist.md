@@ -5,6 +5,8 @@
 **Audience:** DevOps engineers, platform engineers, SREs
 **Time to Complete:** 1-3 hours (depending on profile)
 
+> **For detailed deployment procedures**, see the [Production Deployment Guide](./deployment.md) which covers Docker, Kubernetes, CI/CD, scaling, and zero-downtime deployments.
+
 ---
 
 ## Overview

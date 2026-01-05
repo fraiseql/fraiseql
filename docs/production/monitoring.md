@@ -14,6 +14,8 @@ tags:
 
 Comprehensive monitoring strategy for FraiseQL applications with **PostgreSQL-native error tracking, caching, and observability**—eliminating the need for external services like Sentry or Redis.
 
+> **For comprehensive observability guidance**, see the [Observability Guide](./observability.md) which covers error tracking, distributed tracing, metrics, and integrated monitoring architecture.
+
 ## Overview
 
 FraiseQL implements the **"In PostgreSQL Everything"** philosophy: all monitoring, error tracking, caching, and observability run directly in PostgreSQL, saving $300-3,000/month and simplifying operations.
