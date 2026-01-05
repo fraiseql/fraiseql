@@ -256,8 +256,8 @@ ignore = [
   "A003",    # Builtins shadowing - needed for 'list' method in repository
 
    # Documentation - enable for public APIs only
-   "D105", # Missing docstring in magic method
-   "D107", # Missing docstring in __init__
+   #"D105", # Missing docstring in magic method - ENABLING
+   #"D107", # Missing docstring in __init__ - ENABLING
    "D415", # First line should end with a period
 
   # Type annotations - strict checking enabled (except ANN401 which is too restrictive)
@@ -274,7 +274,7 @@ ignore = [
    "PLC0415", # Import should be at top-level (sometimes conditional imports make sense)
    "TRY003",  # Avoid specifying long messages outside exception class
    "TRY301",  # Abstract raise to inner function
-   "TRY400",  # Use logging.exception instead of logging.error
+   #"TRY400",  # Use logging.exception instead of logging.error - ENABLING
    "EM101",   # Exception must not use string literal
    "EM102",   # Exception must not use f-string literal
   "FBT001",  # Boolean positional arg in function definition
@@ -290,7 +290,7 @@ ignore = [
    # Style preferences - these are suggestions not requirements
    "G004",    # Logging statement uses f-string - performance impact minimal
    "TRY300",  # Consider moving statement to else block - style preference
-   "RET504",  # Unnecessary assignment before return - sometimes clearer
+   #"RET504",  # Unnecessary assignment before return - ENABLING
    "TRY203",  # Use raise from to specify exception cause - not always needed
    "SIM105",  # Use contextlib.suppress - style preference
   "SIM103",  # Return condition directly - sometimes less readable
