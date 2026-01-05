@@ -207,9 +207,8 @@ class TypeGenerator:
         from fraiseql import type as fraiseql_type
 
         # Apply decorator with appropriate parameters
-        decorated_cls = fraiseql_type(sql_source=sql_source, jsonb_column="data")(cls)
+        return fraiseql_type(sql_source=sql_source, jsonb_column="data")(cls)
 
-        return decorated_cls
 
     def _register_type(self, cls: type):
         """Register the type in FraiseQL's type registry."""

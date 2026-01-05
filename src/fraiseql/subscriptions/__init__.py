@@ -95,9 +95,8 @@ def simple_subscription(
             result = websocket_auth(required=require_auth, roles=roles)(result)  # type: ignore[assignment]
 
         # Apply subscription decorator last (it needs to register with schema)
-        result = subscription(result)  # type: ignore[assignment]
+        return subscription(result)  # type: ignore[assignment]
 
-        return result
 
     # Allow usage with or without parentheses
     if fn is not None:

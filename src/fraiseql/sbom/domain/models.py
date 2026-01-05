@@ -393,6 +393,7 @@ class SBOM:
         return issues
 
     def __repr__(self) -> str:
+        """Return string representation."""
         """Return string representation of SBOM."""
         return (
             f"SBOM(serial={self.serial_number[:13]}..., "

@@ -80,8 +80,7 @@ class BatchExecutor:
 
         try:
             # Load all requests
-            results = await loader.load_many(requests)
-            return results
+            return await loader.load_many(requests)
         finally:
             await loader.close()
 

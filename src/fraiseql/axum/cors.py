@@ -338,6 +338,7 @@ class CORSConfig:
         )
 
     def __repr__(self) -> str:
+        """Return string representation."""
         """String representation."""
         origins = (
             f"{self.allow_origins!r}"

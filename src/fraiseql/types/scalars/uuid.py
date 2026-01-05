@@ -66,5 +66,6 @@ class UUIDField(str, ScalarMarker):
     __slots__ = ()
 
     def __repr__(self) -> str:
+        """Return string representation."""
         """Return a user-friendly type name for introspection and debugging."""
         return "UUID"

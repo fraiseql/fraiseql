@@ -107,6 +107,18 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         redis_url: str | None = None,
         redis_ttl: int = 3600,
     ) -> None:
+        """Initialize rate limiting middleware.
+
+        Args:
+            app: FastAPI application instance
+            requests_per_minute: General request limit per minute
+            burst_requests: Burst request allowance
+            auth_requests_per_minute: Authentication endpoint limit per minute
+            burst_auth_requests: Authentication burst allowance
+            redis_client: Optional Redis client for distributed rate limiting
+            redis_url: Redis connection URL (alternative to redis_client)
+            redis_ttl: Redis key TTL in seconds
+        """
         super().__init__(app)
         self.requests_per_minute = requests_per_minute
         self.burst_requests = burst_requests

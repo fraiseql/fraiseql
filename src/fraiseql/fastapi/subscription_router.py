@@ -116,7 +116,7 @@ class SubscriptionRouterFactory:
                     try:
                         await websocket.accept()
                     except Exception as e:
-                        logger.error(f"Failed to accept WebSocket: {e}")
+                        logger.exception(f"Failed to accept WebSocket: {e}")
                         raise
 
                 logger.debug("WebSocket connection accepted")
@@ -132,7 +132,7 @@ class SubscriptionRouterFactory:
                 logger.debug(f"WebSocket disconnected: {connection_id}")
 
             except WebSocketException as e:
-                logger.error(f"WebSocket error: {e}")
+                logger.exception(f"WebSocket error: {e}")
                 try:
                     await websocket.close(code=1000, reason="Internal error")
                 except Exception as e:

@@ -303,9 +303,8 @@ def integrate_cache_metrics(result_cache: Any, cache_name: str = "default") -> N
     async def monitored_get_or_set(key: str, func: Any, ttl: int | None = None) -> Any:
         """Instrumented get_or_set that records metrics."""
         try:
-            result = await original_get_or_set(key, func, ttl)
+            return await original_get_or_set(key, func, ttl)
             # Metrics tracking happens via the wrapped get_stats method
-            return result
         except Exception as e:
             monitor.record_error()
             logger.warning(f"Cache error in {cache_name}: {e}")

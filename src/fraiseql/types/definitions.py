@@ -80,6 +80,7 @@ class FraiseQLTypeDefinition:
         return not self.is_input
 
     def __repr__(self) -> str:
+        """Return string representation."""
         """Returns a string representation of the FraiseQLTypeDefinition instance."""
         return (
             f"<FraiseQLTypeDefinition("
@@ -142,6 +143,7 @@ class UnsetType:
         return ""
 
     def __repr__(self) -> str:
+        """Return string representation."""
         """Repr of UNSET sentinel value."""
         return "UNSET"
 

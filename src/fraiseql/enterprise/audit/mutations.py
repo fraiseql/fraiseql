@@ -66,13 +66,12 @@ class LogAuditEvent:
         columns_str = ", ".join(columns)
         placeholders = ", ".join(["%s"] * len(params))
 
-        sql = f"""
+        return f"""
         INSERT INTO audit_events ({columns_str})
         VALUES ({placeholders})
         RETURNING id
         """
 
-        return sql
 
     @staticmethod
     def execute(

@@ -974,7 +974,7 @@ def _create_edge_type(node_type: type, edge_name: str, registry: Any) -> GraphQL
     # Get the GraphQL type for the node
     node_graphql_type = convert_type_to_graphql_output(node_type)
 
-    edge_type = GraphQLObjectType(
+    return GraphQLObjectType(
         name=edge_name,
         fields={
             "node": GraphQLField(
@@ -989,7 +989,6 @@ def _create_edge_type(node_type: type, edge_name: str, registry: Any) -> GraphQL
         description=f"An edge in a {node_type.__name__} connection.",
     )
 
-    return edge_type
 
 
 # Module-level cache for PageInfo type (singleton)

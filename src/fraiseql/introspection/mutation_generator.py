@@ -162,14 +162,13 @@ class MutationGenerator:
         # 5. Apply @mutation decorator with context params
         from fraiseql import mutation
 
-        decorated_mutation = mutation(
+        return mutation(
             mutation_class,
             function=function_metadata.function_name,
             schema=function_metadata.schema_name,
             context_params=context_params,  # ADD THIS
         )
 
-        return decorated_mutation
 
     def _create_mutation_class(
         self,
@@ -184,7 +183,7 @@ class MutationGenerator:
         class_name = self._function_to_mutation_class_name(function_metadata.function_name)
 
         # Create class with type annotations
-        mutation_cls = type(
+        return type(
             class_name,
             (object,),
             {
@@ -203,7 +202,6 @@ class MutationGenerator:
             },
         )
 
-        return mutation_cls
 
     def _function_to_mutation_class_name(self, function_name: str) -> str:
         """Convert fn_create_user → CreateUser."""

@@ -125,8 +125,7 @@ class GraphQLTracer:
                     span.set_attribute("graphql.field.parent_type", parent_type)
 
                     try:
-                        result = await func(*args, **kwargs)
-                        return result
+                        return await func(*args, **kwargs)
                     except Exception as e:
                         if Status and StatusCode:
                             span.record_exception(e)
@@ -196,8 +195,7 @@ class GraphQLTracer:
         if len(query) <= self._config.max_query_length:
             return query
 
-        truncated = query[: self._config.max_query_length - 3] + "..."
-        return truncated
+        return query[: self._config.max_query_length - 3] + "..."
 
     def _sanitize_variables(self, variables: dict[str, Any]) -> dict[str, Any]:
         """Sanitize sensitive variable values for tracing."""

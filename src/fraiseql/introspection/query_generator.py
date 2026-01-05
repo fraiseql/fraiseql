@@ -66,8 +66,7 @@ class QueryGenerator:
             """Get a single item by ID."""
             db = info.context["db"]
             sql_source = f"{schema_name}.{view_name}"
-            result = await db.find_one(sql_source, where={"id": id})
-            return result
+            return await db.find_one(sql_source, where={"id": id})
 
         # Rename function
         type_name = type_class.__name__
@@ -97,14 +96,13 @@ class QueryGenerator:
             """Get all items with optional filtering."""
             db = info.context["db"]
             sql_source = f"{schema_name}.{view_name}"
-            results = await db.find(
+            return await db.find(
                 sql_source,
                 where=where,
                 order_by=order_by,
                 limit=limit,
                 offset=offset,
             )
-            return results
 
         # Rename function
         type_name = type_class.__name__

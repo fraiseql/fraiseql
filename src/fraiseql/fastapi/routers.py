@@ -883,7 +883,7 @@ async def execute_multi_field_query(
             )
 
         except Exception as e:
-            logger.error(f"Failed to execute resolver for field '{field_name}': {e}")
+            logger.exception(f"Failed to execute resolver for field '{field_name}': {e}")
 
             # Add null field data for failed field
             field_data_list.append((response_key, type_name, [], None, is_list))

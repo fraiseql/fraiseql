@@ -180,7 +180,7 @@ class AxumServer:
 
         except Exception as e:
             self._is_running = False
-            logger.error(f"Failed to start Axum server: {e}")
+            logger.exception(f"Failed to start Axum server: {e}")
             raise
 
     async def start_async(
@@ -236,7 +236,7 @@ class AxumServer:
 
         except Exception as e:
             self._is_running = False
-            logger.error(f"Failed to start async Axum server: {e}")
+            logger.exception(f"Failed to start async Axum server: {e}")
             raise
 
     async def shutdown(self) -> None:
@@ -259,7 +259,7 @@ class AxumServer:
             self._is_running = False
             logger.info("FraiseQL Axum server stopped")
         except Exception as e:
-            logger.error(f"Error during shutdown: {e}")
+            logger.exception(f"Error during shutdown: {e}")
             raise
 
     def is_running(self) -> bool:
@@ -319,10 +319,10 @@ class AxumServer:
             )
             return json.loads(result_json)
         except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse GraphQL response: {e}")
+            logger.exception(f"Failed to parse GraphQL response: {e}")
             return {"errors": [{"message": f"Failed to parse response: {e}"}]}
         except Exception as e:
-            logger.error(f"Query execution failed: {e}")
+            logger.exception(f"Query execution failed: {e}")
             return {"errors": [{"message": str(e)}]}
 
     async def execute_query_async(
@@ -402,8 +402,7 @@ class AxumServer:
         if not self._config.axum_metrics_token:
             logger.warning("No metrics token configured, metrics may not be accessible")
 
-        metrics_str = self._py_server.get_metrics()
-        return metrics_str
+        return self._py_server.get_metrics()
 
     # ===== Type Introspection =====
 
@@ -517,6 +516,7 @@ class AxumServer:
     # ===== Utility Methods =====
 
     def __repr__(self) -> str:
+        """Return string representation."""
         """String representation."""
         return (
             f"AxumServer("

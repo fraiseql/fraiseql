@@ -54,6 +54,7 @@ class FederationConfig:
             self.directives.insert(0, "key")
 
     def __repr__(self) -> str:
+        """Return string representation."""
         return (
             f"FederationConfig("
             f"enabled={self.enabled}, "

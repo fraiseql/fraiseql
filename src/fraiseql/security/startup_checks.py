@@ -225,8 +225,8 @@ def run_all_security_checks() -> None:
         logger.info("All security checks passed!")
 
     except SecurityCheckError as e:
-        logger.error(f"SECURITY CHECK FAILED: {e}")
-        logger.error("Application startup aborted for security reasons.")
+        logger.exception(f"SECURITY CHECK FAILED: {e}")
+        logger.exception("Application startup aborted for security reasons.")
         sys.exit(1)
 
 

@@ -95,7 +95,7 @@ class PythonPackageScanner(PackageMetadataRepository):
                     )
 
         except Exception as e:
-            logger.error(f"Failed to scan installed packages: {e}", extra={"error": str(e)})
+            logger.exception(f"Failed to scan installed packages: {e}", extra={"error": str(e)})
 
         logger.info(
             f"Scanned {len(identifiers)} installed packages",

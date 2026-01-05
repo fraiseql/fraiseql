@@ -137,5 +137,6 @@ class JSONField(dict[str, Any], ScalarMarker):
     __slots__ = ()
 
     def __repr__(self) -> str:
+        """Return string representation."""
         """String representation used in type annotations and debug output."""
         return "JSON"

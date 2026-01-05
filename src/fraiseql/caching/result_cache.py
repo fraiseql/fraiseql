@@ -152,7 +152,7 @@ class ResultCache:
             if deleted:
                 logger.info(f"Invalidated cache key: {key}")
         except Exception as e:
-            logger.error(f"Failed to invalidate key {key}: {e}")
+            logger.exception(f"Failed to invalidate key {key}: {e}")
 
     async def invalidate_pattern(self, pattern: str) -> None:
         """Invalidate all keys matching a pattern.
@@ -164,7 +164,7 @@ class ResultCache:
             count = await self.backend.delete_pattern(pattern)
             logger.info(f"Invalidated {count} cache keys matching: {pattern}")
         except Exception as e:
-            logger.error(f"Failed to invalidate pattern {pattern}: {e}")
+            logger.exception(f"Failed to invalidate pattern {pattern}: {e}")
 
     def get_stats(self) -> CacheStats:
         """Get cache statistics.
@@ -196,7 +196,7 @@ class ResultCache:
                 await self.backend.set(key, result, ttl=self.config.default_ttl)
                 logger.info(f"Warmed cache for {query_name} with filters {filters}")
             except Exception as e:
-                logger.error(f"Failed to warm cache for {query_name}: {e}")
+                logger.exception(f"Failed to warm cache for {query_name}: {e}")
 
 
 def cached_query(

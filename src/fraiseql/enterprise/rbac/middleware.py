@@ -227,7 +227,7 @@ class RbacMiddleware:
             logger.debug("Created PermissionResolver for request")
             return resolver
         except Exception as e:
-            logger.error(f"Failed to create PermissionResolver: {e}")
+            logger.exception(f"Failed to create PermissionResolver: {e}")
             return None
 
     async def _get_row_filters(

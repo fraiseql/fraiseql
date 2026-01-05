@@ -73,5 +73,6 @@ class DateField(str, ScalarMarker):
     __slots__ = ()
 
     def __repr__(self) -> str:
+        """Return string representation."""
         """Return a string identifier for debugging."""
         return "Date"

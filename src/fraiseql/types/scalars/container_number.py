@@ -70,8 +70,7 @@ def _calculate_iso6346_check_digit(container: str) -> int:
         total += char_value * weight
 
     # Check digit = (total % 11) % 10
-    check_digit = (total % 11) % 10
-    return check_digit
+    return (total % 11) % 10
 
 
 def _validate_container_check_digit(container: str) -> bool:

@@ -242,8 +242,7 @@ class CycloneDXAdapter:
             raise ValueError("Invalid bomFormat, expected 'CycloneDX'")
 
         # Create SBOM instance
-        sbom = cls._from_cyclonedx_dict(data)
-        return sbom
+        return cls._from_cyclonedx_dict(data)
 
     @classmethod
     def _from_cyclonedx_dict(cls, data: dict[str, Any]) -> SBOM:

@@ -47,6 +47,7 @@ class ExternalFieldInfo:
         self.is_required = is_required
 
     def __repr__(self) -> str:
+        """Return string representation."""
         return f"ExternalFieldInfo(field_name={self.field_name!r}, required={self.is_required})"
 
 
@@ -148,6 +149,7 @@ class ExternalFieldManager:
         return sorted(uncategorized)
 
     def __repr__(self) -> str:
+        """Return string representation."""
         return (
             f"ExternalFieldManager("
             f"external={len(self.external_fields)}, "

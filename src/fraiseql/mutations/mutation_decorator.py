@@ -91,8 +91,7 @@ def _extract_mutation_selected_fields(info: GraphQLResolveInfo, type_name: str) 
     if not selected_fields:
         return None
 
-    result = list(selected_fields)
-    return result
+    return list(selected_fields)
 
 
 class MutationDefinition:
@@ -443,7 +442,7 @@ class MutationDefinition:
                     )
                     logger.debug(f"Mutation {self.name} executed successfully")
                 except Exception as e:
-                    logger.error(
+                    logger.exception(
                         f"Mutation {self.name} failed during execution",
                         extra={
                             "function": full_function_name,
@@ -475,7 +474,7 @@ class MutationDefinition:
                 mutation_result = graphql_response["data"][field_name]
                 logger.debug(f"Parsed GraphQL response for field '{field_name}'")
             except Exception as e:
-                logger.error(
+                logger.exception(
                     f"Failed to parse GraphQL response for mutation {self.name}",
                     extra={
                         "field_name": field_name,

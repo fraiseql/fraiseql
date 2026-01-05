@@ -719,8 +719,7 @@ def _get_filter_type_for_field(
             try:
                 # Use the lazy property - it will generate on access
                 # This breaks circular dependencies naturally
-                nested_where_input = field_type.WhereInput
-                return nested_where_input
+                return field_type.WhereInput
             except Exception:
                 # If lazy property fails, fall through to manual generation
                 pass
@@ -728,8 +727,7 @@ def _get_filter_type_for_field(
         # Generate nested where input type recursively
         # Since we're already inside the module, we can call the function directly
         # without circular import issues
-        nested_where_input = create_graphql_where_input(field_type)
-        return nested_where_input
+        return create_graphql_where_input(field_type)
 
     # First check for FraiseQL scalar types that need restricted filters
     # Import at runtime to avoid circular imports

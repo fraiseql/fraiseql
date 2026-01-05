@@ -82,6 +82,8 @@ class ComputedField:
         return self.provides
 
     def __repr__(self) -> str:
+        """Return string representation."""
+        """Return string representation of the computed field."""
         parts = [f"method={self.method_name}"]
         if self.requires:
             parts.append(f"requires={self.requires}")

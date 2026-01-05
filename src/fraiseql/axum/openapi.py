@@ -219,7 +219,7 @@ class OpenAPIConfig:
         openapi_url = self._escape_html(self.openapi_path)
         title = self._escape_html(self.title)
 
-        html = f"""<!DOCTYPE html>
+        return f"""<!DOCTYPE html>
 <html>
   <head>
     <meta charset="utf-8" />
@@ -273,7 +273,6 @@ class OpenAPIConfig:
   </body>
 </html>"""
 
-        return html
 
     def generate_redoc_html(self) -> str:
         """Generate HTML for ReDoc UI.
@@ -292,7 +291,7 @@ class OpenAPIConfig:
         openapi_url = self._escape_html(self.openapi_path)
         title = self._escape_html(self.title)
 
-        html = f"""<!DOCTYPE html>
+        return f"""<!DOCTYPE html>
 <html>
   <head>
     <meta charset="utf-8" />
@@ -312,7 +311,6 @@ class OpenAPIConfig:
   </body>
 </html>"""
 
-        return html
 
     def to_dict(self) -> dict:
         """Convert to dictionary for serialization.
@@ -355,6 +353,7 @@ class OpenAPIConfig:
         )
 
     def __repr__(self) -> str:
+        """Return string representation."""
         """String representation."""
         return (
             f"OpenAPIConfig(title={self.title!r}, version={self.version}, "

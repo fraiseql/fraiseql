@@ -198,6 +198,7 @@ class RustResponseBytes:
         return json.loads(data_bytes)
 
     def __bytes__(self) -> bytes:
+        """Return the response data as bytes, fixing JSON if necessary."""
         # Workaround for Rust bug: Check if JSON is missing closing brace
         if not self._fixed:
             try:
@@ -231,7 +232,7 @@ class RustResponseBytes:
                             self._fixed = True
                         except json.JSONDecodeError:
                             # Fix didn't work, return original
-                            logger.error(
+                            logger.exception(
                                 "Rust JSON workaround failed - returning original malformed JSON",
                             )
                     else:

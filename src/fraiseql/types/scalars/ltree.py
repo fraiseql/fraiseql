@@ -81,5 +81,6 @@ class LTreeField(str, ScalarMarker):
     __slots__ = ()
 
     def __repr__(self) -> str:
+        """Return string representation."""
         """Missing docstring."""
         return "UUID"

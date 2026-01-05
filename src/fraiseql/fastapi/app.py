@@ -478,7 +478,7 @@ def create_fraiseql_app(
                 f"{len(auto_queries)} queries, {len(auto_mutations)} mutations",
             )
         except Exception as e:
-            logger.error(f"Auto-discovery failed during app creation: {e}")
+            logger.exception(f"Auto-discovery failed during app creation: {e}")
             # Continue with empty auto-discovered components
 
     # Build GraphQL schema
@@ -849,7 +849,7 @@ def create_fraiseql_app(
                     f"{len(result['new_types'])} new",
                 )
             except AssertionError as e:
-                logger.error(f"Schema refresh validation failed: {e}")
+                logger.exception(f"Schema refresh validation failed: {e}")
                 raise
 
         refresh_duration = (time.time() - refresh_start) * 1000

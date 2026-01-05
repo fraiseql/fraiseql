@@ -161,7 +161,7 @@ class PostgresCache:
                 return cache_value
 
         except psycopg.Error as e:
-            logger.error("Failed to get cache key '%s': %s", key, e)
+            logger.exception("Failed to get cache key '%s': %s", key, e)
             raise PostgresCacheError(f"Failed to get cache key: {e}") from e
 
     async def get_with_metadata(self, key: str) -> tuple[Any | None, dict[str, int] | None]:
@@ -210,7 +210,7 @@ class PostgresCache:
                 return cache_value, None
 
         except psycopg.Error as e:
-            logger.error("Failed to get cache key '%s': %s", key, e)
+            logger.exception("Failed to get cache key '%s': %s", key, e)
             raise PostgresCacheError(f"Failed to get cache key: {e}") from e
 
     async def get_domain_versions(self, tenant_id: Any, domains: list[str]) -> dict[str, int]:
@@ -263,7 +263,7 @@ class PostgresCache:
                 return versions
 
         except psycopg.Error as e:
-            logger.error("Failed to get domain versions: %s", e)
+            logger.exception("Failed to get domain versions: %s", e)
             raise PostgresCacheError(f"Failed to get domain versions: {e}") from e
 
     async def set(
@@ -332,7 +332,7 @@ class PostgresCache:
                 await conn.commit()
 
         except psycopg.Error as e:
-            logger.error("Failed to set cache key '%s': %s", key, e)
+            logger.exception("Failed to set cache key '%s': %s", key, e)
             raise PostgresCacheError(f"Failed to set cache key: {e}") from e
 
     async def delete(self, key: str) -> bool:
@@ -359,7 +359,7 @@ class PostgresCache:
                 return cur.rowcount > 0
 
         except psycopg.Error as e:
-            logger.error("Failed to delete cache key '%s': %s", key, e)
+            logger.exception("Failed to delete cache key '%s': %s", key, e)
             raise PostgresCacheError(f"Failed to delete cache key: {e}") from e
 
     async def delete_pattern(self, pattern: str) -> int:
@@ -390,7 +390,7 @@ class PostgresCache:
                 return cur.rowcount
 
         except psycopg.Error as e:
-            logger.error("Failed to delete pattern '%s': %s", pattern, e)
+            logger.exception("Failed to delete pattern '%s': %s", pattern, e)
             raise PostgresCacheError(f"Failed to delete pattern: {e}") from e
 
     async def exists(self, key: str) -> bool:
@@ -422,7 +422,7 @@ class PostgresCache:
                 return await cur.fetchone() is not None
 
         except psycopg.Error as e:
-            logger.error("Failed to check cache key '%s': %s", key, e)
+            logger.exception("Failed to check cache key '%s': %s", key, e)
             raise PostgresCacheError(f"Failed to check cache key: {e}") from e
 
     async def ping(self) -> bool:
@@ -441,7 +441,7 @@ class PostgresCache:
                 return result is not None
 
         except psycopg.Error as e:
-            logger.error("Failed to ping PostgreSQL: %s", e)
+            logger.exception("Failed to ping PostgreSQL: %s", e)
             raise PostgresCacheError(f"Failed to ping PostgreSQL: {e}") from e
 
     async def cleanup_expired(self) -> int:
@@ -472,7 +472,7 @@ class PostgresCache:
                 return cleaned
 
         except psycopg.Error as e:
-            logger.error("Failed to cleanup expired entries: %s", e)
+            logger.exception("Failed to cleanup expired entries: %s", e)
             raise PostgresCacheError(f"Failed to cleanup expired entries: {e}") from e
 
     async def clear_all(self) -> int:
@@ -495,7 +495,7 @@ class PostgresCache:
                 return cur.rowcount
 
         except psycopg.Error as e:
-            logger.error("Failed to clear cache: %s", e)
+            logger.exception("Failed to clear cache: %s", e)
             raise PostgresCacheError(f"Failed to clear cache: {e}") from e
 
     async def get_stats(self) -> dict[str, Any]:
@@ -543,7 +543,7 @@ class PostgresCache:
                 }
 
         except psycopg.Error as e:
-            logger.error("Failed to get cache stats: %s", e)
+            logger.exception("Failed to get cache stats: %s", e)
             raise PostgresCacheError(f"Failed to get cache stats: {e}") from e
 
     async def register_cascade_rule(
@@ -603,7 +603,7 @@ class PostgresCache:
                 )
 
         except psycopg.Error as e:
-            logger.error(
+            logger.exception(
                 "Failed to register CASCADE rule %s -> %s: %s",
                 source_domain,
                 target_domain,
@@ -652,7 +652,7 @@ class PostgresCache:
                 return deleted
 
         except psycopg.Error as e:
-            logger.error("Failed to clear CASCADE rules: %s", e)
+            logger.exception("Failed to clear CASCADE rules: %s", e)
             raise PostgresCacheError(f"Failed to clear CASCADE rules: {e}") from e
 
     async def setup_table_trigger(
@@ -714,5 +714,5 @@ class PostgresCache:
                 )
 
         except psycopg.Error as e:
-            logger.error("Failed to setup trigger for table '%s': %s", table_name, e)
+            logger.exception("Failed to setup trigger for table '%s': %s", table_name, e)
             raise PostgresCacheError(f"Failed to setup trigger for table {table_name}: {e}") from e

@@ -92,6 +92,7 @@ class IpAddressField(str, ScalarMarker):
     __slots__ = ()
 
     def __repr__(self) -> str:
+        """Return string representation."""
         """Missing docstring."""
         return "IpAddress"
 
@@ -170,5 +171,6 @@ class SubnetMaskField(str, ScalarMarker):
     __slots__ = ()
 
     def __repr__(self) -> str:
+        """Return string representation."""
         """Missing docstring."""
         return "SubnetMask"

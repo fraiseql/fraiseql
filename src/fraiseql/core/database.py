@@ -68,5 +68,6 @@ class DatabasePool:
         return self._rust_pool.stats()
 
     def __repr__(self) -> str:
+        """Return string representation."""
         """String representation for debugging."""
         return repr(self._rust_pool)

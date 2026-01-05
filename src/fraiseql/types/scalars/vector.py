@@ -301,6 +301,7 @@ class VectorField(list[float], ScalarMarker):
     __slots__ = ()
 
     def __repr__(self) -> str:
+        """Return string representation."""
         """String representation used in type annotations and debug output."""
         return "Vector"
 
@@ -321,6 +322,7 @@ class HalfVectorField(list[float], ScalarMarker):
     __slots__ = ()
 
     def __repr__(self) -> str:
+        """Return string representation."""
         """String representation used in type annotations and debug output."""
         return "HalfVector"
 
@@ -341,6 +343,7 @@ class SparseVectorField(dict, ScalarMarker):
     __slots__ = ()
 
     def __repr__(self) -> str:
+        """Return string representation."""
         """String representation used in type annotations and debug output."""
         return "SparseVector"
 
@@ -361,5 +364,6 @@ class QuantizedVectorField(dict, ScalarMarker):
     __slots__ = ()
 
     def __repr__(self) -> str:
+        """Return string representation."""
         """String representation used in type annotations and debug output."""
         return "QuantizedVector"

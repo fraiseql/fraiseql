@@ -372,7 +372,7 @@ async def setup_auto_cascade_rules(
             )
             registered_count += 1
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "Failed to register CASCADE rule %s -> %s: %s",
                 rule.source_domain,
                 rule.target_domain,

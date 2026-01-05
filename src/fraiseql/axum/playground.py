@@ -81,7 +81,7 @@ class PlaygroundConfig:
         settings_str = self._serialize_settings(settings)
 
         # Generate HTML with proper escaping
-        html = f"""<!DOCTYPE html>
+        return f"""<!DOCTYPE html>
 <html>
   <head>
     <meta charset="utf-8" />
@@ -111,7 +111,6 @@ class PlaygroundConfig:
   </body>
 </html>"""
 
-        return html
 
     def _format_subscription_endpoint(self) -> str:
         """Format subscription endpoint config for HTML."""
@@ -201,6 +200,7 @@ class PlaygroundConfig:
         }
 
     def __repr__(self) -> str:
+        """Return string representation."""
         """String representation."""
         return f"PlaygroundConfig(enabled={self.enabled}, path={self.path}, title={self.title!r})"
 

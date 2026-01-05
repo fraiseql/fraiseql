@@ -106,8 +106,7 @@ class AuditLogQueryBuilder:
         results = [e for e in self._events if e.user_id == user_id and e.timestamp >= cutoff]
 
         results = self._apply_filters(results)
-        results = self._apply_ordering(results)
-        return results
+        return self._apply_ordering(results)
 
     async def by_entity(
         self,
@@ -135,8 +134,7 @@ class AuditLogQueryBuilder:
         results = [e for e in self._events if e.resource == resource]
 
         results = self._apply_filters(results)
-        results = self._apply_ordering(results)
-        return results
+        return self._apply_ordering(results)
 
     async def failed_operations(
         self,
@@ -186,8 +184,7 @@ class AuditLogQueryBuilder:
         results = [e for e in self._events if e.event_type == event_type]
 
         results = self._apply_filters(results)
-        results = self._apply_ordering(results)
-        return results
+        return self._apply_ordering(results)
 
     async def by_severity(self, severity: str) -> list[AuditEvent]:
         """Filter by event severity level.
@@ -207,8 +204,7 @@ class AuditLogQueryBuilder:
         results = [e for e in self._events if e.metadata.get("severity") == severity]
 
         results = self._apply_filters(results)
-        results = self._apply_ordering(results)
-        return results
+        return self._apply_ordering(results)
 
     # ===== Chainable Filter Methods =====
 
@@ -552,6 +548,7 @@ class AuditLogQueryBuilder:
         return results
 
     def __repr__(self) -> str:
+        """Return string representation."""
         """String representation of builder state."""
         return (
             f"AuditLogQueryBuilder("

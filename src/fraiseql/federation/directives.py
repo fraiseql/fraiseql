@@ -82,6 +82,7 @@ class _RequiresMarker:
         return parsed
 
     def __repr__(self) -> str:
+        """Return string representation."""
         return f"<requires: {', '.join(self.fields)}>"
 
 
@@ -129,6 +130,7 @@ class _ProvidesMarker:
         return parsed
 
     def __repr__(self) -> str:
+        """Return string representation."""
         return f"<provides: {', '.join(self.fields)}>"
 
 
@@ -236,6 +238,7 @@ class DirectiveMetadata:
         return self.provides.fields if self.provides else []
 
     def __repr__(self) -> str:
+        """Return string representation."""
         parts = []
         if self.requires:
             parts.append(f"requires={self.requires.fields}")

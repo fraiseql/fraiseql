@@ -117,6 +117,7 @@ class EntityMetadata:
         self.external_fields.add(field_name)
 
     def __repr__(self) -> str:
+        """Return string representation."""
         return (
             f"EntityMetadata("
             f"type_name={self.type_name!r}, "
@@ -139,6 +140,7 @@ class _External:
     """
 
     def __repr__(self) -> str:
+        """Return string representation."""
         return "<external>"
 
     def __init__(self):

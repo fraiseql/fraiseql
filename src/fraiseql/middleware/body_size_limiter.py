@@ -74,6 +74,7 @@ class SizeLimitedBody:
         self._bytes_read = 0
 
     async def __aiter__(self):
+        """Async iterator over request body chunks with size limiting."""
         async for chunk in self._body:
             self._bytes_read += len(chunk)
             if self._bytes_read > self._max_size:

@@ -229,8 +229,7 @@ async def execute_graphql(
                 return value
 
     # Clean @fraise_type objects before returning to prevent JSON serialization issues
-    cleaned_result = _serialize_fraise_types_in_result(result)
-    return cleaned_result
+    return _serialize_fraise_types_in_result(result)
 
 
 def _serialize_fraise_types_in_result(result: ExecutionResult) -> ExecutionResult:

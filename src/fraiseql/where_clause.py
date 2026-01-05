@@ -687,6 +687,7 @@ class FieldCondition:
         return str(self.value)
 
     def __repr__(self) -> str:
+        """Return string representation."""
         """Human-readable representation for debugging."""
         path_str = ".".join(self.field_path)
 
@@ -819,6 +820,7 @@ class WhereClause:
         return combined_sql, all_params
 
     def __repr__(self) -> str:
+        """Return string representation."""
         """Human-readable representation for debugging."""
         parts = []
 

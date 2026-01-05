@@ -186,7 +186,7 @@ class InputGenerator:
         class_name = self._composite_type_to_class_name(composite_type_name)
 
         # Step 4: Create input class with field metadata
-        input_cls = type(
+        return type(
             class_name,
             (object,),
             {
@@ -197,7 +197,6 @@ class InputGenerator:
             },
         )
 
-        return input_cls
 
     def _composite_type_to_class_name(self, composite_type_name: str) -> str:
         """Convert composite type name to GraphQL input class name.
@@ -331,14 +330,12 @@ class InputGenerator:
             annotations[field_name] = python_type
 
         # Create input class
-        input_cls = type(class_name, (object,), {"__annotations__": annotations})
+        return type(class_name, (object,), {"__annotations__": annotations})
 
-        return input_cls
 
     def _function_to_input_name(self, function_name: str) -> str:
         """Convert fn_create_user → CreateUserInput."""
         name = function_name.replace("fn_", "").replace("tv_", "")
         parts = name.split("_")
         # Capitalize each part and add "Input" suffix
-        class_name = "".join(part.capitalize() for part in parts) + "Input"
-        return class_name
+        return "".join(part.capitalize() for part in parts) + "Input"

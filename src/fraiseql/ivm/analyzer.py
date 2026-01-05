@@ -45,6 +45,7 @@ class IVMCandidate:
     confidence: float
 
     def __str__(self) -> str:
+        """Return string representation of the IVM candidate."""
         return f"{self.table_name}: {self.recommendation} (score: {self.complexity_score:.1f})"
 
 
@@ -71,6 +72,7 @@ class IVMRecommendation:
     mutation_examples: str
 
     def __str__(self) -> str:
+        """Return string representation of the IVM recommendation."""
         return (
             f"IVM Analysis: {len(self.incremental_candidates)}/{self.total_tv_tables} "
             f"tables benefit from incremental updates (est. {self.estimated_speedup:.1f}x speedup)"
@@ -154,7 +156,7 @@ class IVMAnalyzer:
                 return False
 
         except Exception as e:
-            logger.error("Failed to check jsonb_ivm extension: %s", e)
+            logger.exception("Failed to check jsonb_ivm extension: %s", e)
             return False
 
     async def discover_tv_tables(self) -> list[str]:
@@ -182,7 +184,7 @@ class IVMAnalyzer:
                 return tables
 
         except Exception as e:
-            logger.error("Failed to discover tv_ tables: %s", e)
+            logger.exception("Failed to discover tv_ tables: %s", e)
             return []
 
     async def analyze_table(self, table_name: str) -> IVMCandidate | None:
@@ -279,7 +281,7 @@ class IVMAnalyzer:
                 return candidate
 
         except Exception as e:
-            logger.error("Failed to analyze table %s: %s", table_name, e)
+            logger.exception("Failed to analyze table %s: %s", table_name, e)
             return None
 
     def _calculate_complexity_score(
@@ -949,7 +951,7 @@ async def setup_auto_ivm(
                     len(recommendation.incremental_candidates),
                 )
         except Exception as e:
-            logger.error("Failed to set up incremental triggers: %s", e)
+            logger.exception("Failed to set up incremental triggers: %s", e)
             logger.info("You can apply the SQL manually:")
             logger.info(recommendation.setup_sql)
 
