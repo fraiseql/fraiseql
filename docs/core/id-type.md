@@ -108,7 +108,7 @@ class Post:
     author_id: ID   # Reference to another entity's external ID
 ```
 
-**Note**: In the Trinity pattern, `id` is the external UUID for API consumption, not the internal primary key (`pk_*`). See [Trinity Pattern](../patterns/trinity.md) for details.
+**Note**: In the Trinity pattern, `id` is the external UUID for API consumption, not the internal primary key (`pk_*`). See [Trinity Pattern](trinity-pattern.md) for details.
 
 ## Implementation Details
 
@@ -201,6 +201,6 @@ Currently, `ID` is backed by UUID. Support for other identifier types (ULID, KSU
 
 ## Related
 
-- [Scalars](scalars.md)
-- [Trinity Pattern](../patterns/trinity.md)
-- [Database Integration](database-integration.md)
+- [Types and Schema](types-and-schema.md)
+- [Trinity Pattern](trinity-pattern.md)
+- [Database API](database-api.md)
