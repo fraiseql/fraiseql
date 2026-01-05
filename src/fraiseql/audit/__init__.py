@@ -1,9 +1,9 @@
 """Security audit and event logging for FraiseQL.
 
 This package provides:
-- SecurityLogger: Centralized security event logging (Phase 14)
-- AuditLogQueryBuilder: Query builder for audit logs (Commit 5)
-- AuditAnalyzer: Analysis helpers for audit events (Commit 5)
+- SecurityLogger: Centralized security event logging
+- AuditLogQueryBuilder: Query builder for audit logs
+- AuditAnalyzer: Analysis helpers for audit events
 """
 
 from .analyzer import AuditAnalyzer

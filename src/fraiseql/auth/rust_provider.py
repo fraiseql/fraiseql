@@ -1,7 +1,7 @@
 """Rust-based authentication providers for FraiseQL.
 
 This module provides high-performance JWT validation using the Rust backend.
-Phase 10 implementation with 5-10x performance improvement over Python.
+Delivers 5-10x performance improvement over pure Python implementations.
 """
 
 import logging

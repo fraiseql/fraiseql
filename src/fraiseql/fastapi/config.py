@@ -330,7 +330,7 @@ class FraiseQLConfig(BaseSettings):
             return v
         raise ValueError("entity_routing must be an EntityRoutingConfig instance or dict")
 
-    # Observability settings (Phase 19)
+    # Observability settings
     observability_enabled: bool = True
     """Enable observability features (metrics, tracing, health checks)."""
 

@@ -758,7 +758,7 @@ async def execute_multi_field_query(
         # Resolvers expect: resolve(root, info, **args)
         # For root-level queries, root is None
         # We need to create a GraphQL ResolveInfo object, but for simplicity
-        # in Phase 2, we'll call the resolver directly and hope it doesn't need full info
+        # Call the resolver directly for simplified execution
 
         # SIMPLIFIED: Assume resolver returns the data we need
         # In a real implementation, we'd need to construct proper ResolveInfo
@@ -1244,7 +1244,7 @@ def create_graphql_router(
             )
             context["__has_multiple_root_fields__"] = has_multiple_root_fields
 
-            # 🚀 MULTI-FIELD QUERY ROUTING (Phase 1)
+            # 🚀 MULTI-FIELD QUERY ROUTING
             # Route multi-field queries to Rust-only merge path to avoid graphql-core type errors
             if has_multiple_root_fields:
                 field_count = _count_root_query_fields(request.query, request.operationName)
@@ -1318,13 +1318,13 @@ def create_graphql_router(
             # Generate unique request ID for N+1 detection
             request_id = str(uuid4())
 
-            # Phase 6: Parse query with Rust parser for performance
-            # This sets up query info for Phase 7 (query building in Rust)
+            # Parse query with Rust parser for performance
+            # This sets up query info for Rust query building
             if request.query:
                 parser = RustGraphQLParser()
                 parsed_query = await parser.parse(request.query)
 
-                # Extract query info for Phase 7
+                # Extract query info for Rust processing
                 context["rust_parsed_query"] = {
                     "operation_type": parsed_query.operation_type,
                     "root_field": parsed_query.root_field,
@@ -1356,7 +1356,7 @@ def create_graphql_router(
 
             # 🚀 RUST RESPONSE BYTES PASS-THROUGH (Fallback Executor):
             # Check if execute_graphql() returned RustResponseBytes directly (zero-copy path)
-            # This happens when Phase 1 middleware captures RustResponseBytes from resolvers
+            # This happens when middleware captures RustResponseBytes from resolvers
             # Only use fast path for single-field queries to avoid dropping fields
             if isinstance(result, RustResponseBytes) and not has_multiple_root_fields:
                 logger.info("🚀 Direct path: Returning RustResponseBytes from fallback executor")
@@ -1524,14 +1524,14 @@ def create_graphql_router(
 
         return await graphql_endpoint(request_obj, http_request, context)
 
-    # Phase 9: Add simplified unified Rust pipeline endpoint
+    # Add simplified unified Rust pipeline endpoint
     @router.post("/graphql/rust", response_class=Response)
     async def graphql_endpoint_rust(
         request: GraphQLRequest,
         http_request: Request,
         context: dict[str, Any] = context_dependency,
     ) -> Response:
-        """Execute GraphQL query using unified Rust pipeline (Phase 9).
+        """Execute GraphQL query using unified Rust pipeline.
 
         This endpoint demonstrates the dramatic simplification achieved by
         moving all database operations to Rust. All work happens in a

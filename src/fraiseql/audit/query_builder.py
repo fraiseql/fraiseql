@@ -1,8 +1,8 @@
 """Query builder for audit logs and security events.
 
 This module provides a fluent query builder for accessing:
-- Security events from Phase 14 audit logging
-- GraphQL operation metrics from Commit 4.5
+- Security events from centralized audit logging
+- GraphQL operation metrics
 
 Example:
     >>> from fraiseql.audit import AuditLogQueryBuilder
@@ -25,8 +25,8 @@ class AuditLogQueryBuilder:
     """Query builder for audit logs and security events.
 
     Provides a chainable, type-safe API for querying:
-    - Security events (Phase 14)
-    - GraphQL operations (Commit 4.5)
+    - Security events from audit logging
+    - GraphQL operations and metrics
     - Compliance data
 
     Supports filtering, pagination, aggregation, and export.

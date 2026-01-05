@@ -1,8 +1,7 @@
 """Data models for audit log queries.
 
 This module provides dataclasses for representing audit events and compliance
-reports, combining security events from Phase 14 and GraphQL operations from
-Commit 4.5.
+reports, combining security events and GraphQL operations.
 """
 
 from dataclasses import dataclass, field
@@ -38,8 +37,8 @@ class AuditEvent:
     """Represents a single audit event (security or operational).
 
     This can be either:
-    - A SecurityEvent from Phase 14 audit logging
-    - A GraphQL operation metric from Commit 4.5
+    - A security event from audit logging
+    - A GraphQL operation metric
 
     Attributes:
         id: Unique identifier for the event
@@ -83,7 +82,7 @@ class AuditEvent:
         """Check if this is a security event.
 
         Returns:
-            True if event is a security event from Phase 14
+            True if event is a security-related event
         """
         return (
             self.event_type.startswith("auth.")

@@ -1,4 +1,4 @@
-"""Request tracing middleware for W3C Trace Context support (Phase 19, Commit 2).
+"""Request tracing middleware for W3C Trace Context support.
 
 Middleware for propagating trace context through HTTP requests using W3C standards.
 """
