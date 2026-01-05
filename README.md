@@ -1023,7 +1023,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 | Version | Location | Status | Purpose | For Users? |
 |---------|----------|--------|---------|------------|
-| **v1.10.0** | Root level | Stable | Production-ready with tokio-postgres + auto-inject | ✅ Production Ready |
+| **v1.10.0** | Root level | Stable | APQ security fixes + ID Policy configuration | ✅ Production Ready |
 | **Rust Pipeline** | [`fraiseql_rs/`](fraiseql_rs/README.md) | Integrated | Included in v1.10.0+ | ✅ Stable |
 
 **New to FraiseQL?** → **[First Hour Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/getting-started/first-hour.md)** • [Project Structure](https://github.com/fraiseql/fraiseql/blob/main/docs/strategic/PROJECT_STRUCTURE.md)
