@@ -837,7 +837,7 @@ After successful migration, you should see:
 - **[Database API Documentation](database-api.md)** - Complete Rust backend API reference
 - **[Performance Optimization Guide](../performance/rust-pipeline-optimization.md)** - Advanced performance tuning
 - **[Troubleshooting Guide](../guides/troubleshooting.md)** - Common issues and solutions
-- **[CI/CD Architecture](../testing/ci-architecture.md)** - Testing the Rust backend
+- **[CI/CD Architecture](../archive/testing/ci-architecture.md)** - Testing the Rust backend
 
 ---
 

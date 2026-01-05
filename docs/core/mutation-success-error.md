@@ -545,6 +545,6 @@ mutation {
 
 ## See Also
 
-- [Mutations Guide](../reference/mutations.md) - Complete mutation documentation
+- [Mutations Guide](../reference/mutations-api.md) - Complete mutation documentation
 - [Auto-Inference](auto-inference.md) - Other auto-inference features
 - [Quick Reference](../reference/quick-reference.md) - Mutation patterns cheatsheet
