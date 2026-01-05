@@ -131,10 +131,7 @@ def _filter_data_by_selection(
     """
     # Handle lists - filter each item
     if isinstance(data, list):
-        return [
-            _filter_data_by_selection(item, selection_set, fragments)
-            for item in data
-        ]
+        return [_filter_data_by_selection(item, selection_set, fragments) for item in data]
 
     # Non-dict data passes through unchanged
     if not isinstance(data, dict):
@@ -150,17 +147,13 @@ def _filter_data_by_selection(
             # Handle named fragment spread: ...FragmentName
             fragment = fragments.get(selection.name.value)
             if fragment and fragment.selection_set:
-                nested = _filter_data_by_selection(
-                    data, fragment.selection_set, fragments
-                )
+                nested = _filter_data_by_selection(data, fragment.selection_set, fragments)
                 if isinstance(nested, dict):
                     filtered.update(nested)
 
         elif isinstance(selection, InlineFragmentNode) and selection.selection_set:
             # Handle inline fragment: ... on Type { fields }
-            nested = _filter_data_by_selection(
-                data, selection.selection_set, fragments
-            )
+            nested = _filter_data_by_selection(data, selection.selection_set, fragments)
             if isinstance(nested, dict):
                 filtered.update(nested)
 

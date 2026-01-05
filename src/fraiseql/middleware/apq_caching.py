@@ -188,9 +188,7 @@ def store_response_in_cache(
             selection_set = extract_selection_set(query_text, operation_name)
             if selection_set:
                 fragments = extract_fragments(query_text)
-                filtered_response = filter_response_by_selection(
-                    response, selection_set, fragments
-                )
+                filtered_response = filter_response_by_selection(response, selection_set, fragments)
 
         # Compute cache key including variables to prevent data leakage
         cache_key = compute_response_cache_key(hash_value, variables)
