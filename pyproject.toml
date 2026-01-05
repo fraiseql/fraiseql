@@ -193,6 +193,7 @@ markers = [
   "regression: Regression tests for specific bugs and version features",
   "rust: Tests that require the Rust extension module",
   "skip_ci: Skip in CI environment",
+  "subscriptions: Tests for subscription functionality",
   "turbo: Tests for TurboRouter functionality",
   "forked: Tests that require process isolation (schema registry singleton)",
   "chaos: Chaos engineering tests (resilience and failure handling)",
@@ -205,6 +206,11 @@ markers = [
   "chaos_concurrency: Chaos tests for concurrent execution (deadlocks, race conditions)",
   "chaos_validation: Chaos test validation and success criteria checks",
   "chaos_verification: Chaos infrastructure verification tests",
+  "phase1: Phase 1 tests (Foundation)",
+  "phase2: Phase 2 tests (Core Features)",
+  "phase3: Phase 3 tests (Advanced Features)",
+  "phase4: Phase 4 tests (Framework Integration)",
+  "phase5: Phase 5 tests (Optimization)",
 ]
 
 # Async support - explicit @pytest.mark.asyncio decorators used instead
