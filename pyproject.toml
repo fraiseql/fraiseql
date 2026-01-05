@@ -257,7 +257,7 @@ ignore = [
 
    # Documentation - enable for public APIs only
    #"D105", # Missing docstring in magic method - ENABLING
-   #"D107", # Missing docstring in __init__ - ENABLING
+   "D107", # Missing docstring in __init__ - DISABLED (too many violations for bulk fix)
    "D415", # First line should end with a period
 
   # Type annotations - strict checking enabled (except ANN401 which is too restrictive)
@@ -274,7 +274,8 @@ ignore = [
    "PLC0415", # Import should be at top-level (sometimes conditional imports make sense)
    "TRY003",  # Avoid specifying long messages outside exception class
    "TRY301",  # Abstract raise to inner function
-   #"TRY400",  # Use logging.exception instead of logging.error - ENABLING
+   "TRY400",  # Use logging.exception instead of logging.error - ENABLING
+   "TRY401",  # Redundant exception object in logging.exception - DISABLED (style preference)
    "EM101",   # Exception must not use string literal
    "EM102",   # Exception must not use f-string literal
   "FBT001",  # Boolean positional arg in function definition

@@ -178,9 +178,9 @@ class AxumServer:
                 },
             )
 
-        except Exception as e:
+        except Exception:
             self._is_running = False
-            logger.exception(f"Failed to start Axum server: {e}")
+            logger.exception("Failed to start Axum server")
             raise
 
     async def start_async(

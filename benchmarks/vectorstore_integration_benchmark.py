@@ -66,6 +66,7 @@ class BenchmarkConfig:
     warmup_iterations: int = 5
 
     def __post_init__(self):
+        """Initialize benchmark configuration after creation."""
         if self.batch_sizes is None:
             self.batch_sizes = [1, 10, 50, 100]
 
