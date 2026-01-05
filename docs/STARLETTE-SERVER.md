@@ -1,22 +1,30 @@
-# FraiseQL Starlette HTTP Server
+# Starlette HTTP Server (Optional Framework Choice in v2.0.0)
 
 **Version**: 2.0.0
 **Status**: Production Ready
-**Recommendation**: Preferred Python HTTP server for FraiseQL
+**Positioning**: NEW lightweight HTTP framework option
 
 ---
 
 ## Overview
 
-The Starlette HTTP server is a lightweight, production-ready GraphQL server built on the popular [Starlette](https://www.starlette.io/) ASGI framework. It provides all the features of FraiseQL with a minimal footprint and excellent performance.
+Starlette is a NEW lightweight HTTP framework option added in v2.0.0.
+It provides an alternative to FastAPI with identical GraphQL performance
+through the same Rust pipeline.
 
-### Why Starlette?
+## When to Use Starlette
 
-- **Lightweight**: Minimal dependencies, fast startup
-- **Standards-Based**: ASGI protocol, widely compatible
-- **Framework-Agnostic**: Uses abstract protocols, easy to extend
-- **Well-Tested**: Proven in production deployments
-- **Easy Migration**: If you used FastAPI, migration takes 30 minutes
+- Starting a new FraiseQL project
+- Wanting minimal HTTP dependencies
+- Preferring Starlette's minimal API
+- Migrating from FastAPI (optional, not required)
+
+## When to Use FastAPI
+
+- You have existing FastAPI code
+- You need auto-generated API documentation
+- Your team is familiar with FastAPI
+- You want built-in validation and serialization
 
 ### Framework Architecture (v2.0.0)
 

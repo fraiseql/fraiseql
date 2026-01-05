@@ -69,19 +69,62 @@ npm install @graphql-cascade/client-apollo
 - **Critical Security Fixes**: APQ field selection vulnerability patched
 - **Easy Migration**: Seamless FastAPI → Starlette migration guides
 
-### Framework Architecture
+## 🏗️ Pluggable HTTP Architecture (v2.0.0)
 
-**All frameworks use the same high-performance Rust Axum HTTP server internally** - the choice is about your Python API preferences:
+FraiseQL now supports multiple HTTP frameworks with **identical GraphQL performance**.
+Choose based on your preferences and requirements:
 
-| Python API Layer | Performance | Use Case |
-|------------------|-------------|----------|
-| **Starlette** ⭐ | Maximum (Rust Axum backend) | New projects, modern Python |
-| **FastAPI** | Maximum (Rust Axum backend) | Existing FastAPI code, familiar API |
-| **Direct Rust** | Maximum (Native Axum) | Maximum performance, advanced users |
+### Choose Your Framework
 
-**Why Axum by Default**: All options use the Rust Axum HTTP server (Phase 16) for 5-10x better performance than traditional Python HTTP servers.
+All frameworks use the same high-performance Rust GraphQL pipeline.
 
-**Migration**: FastAPI users can migrate in 30 minutes - see [Migration Guide](docs/STARLETTE-MIGRATION-GUIDE.md)
+| Framework | Performance | Best For | Startup | Memory |
+|-----------|-------------|----------|---------|--------|
+| **Starlette** ⭐ | 5-10x faster (Rust) | New Python projects | 300ms | 100MB |
+| **FastAPI** | 5-10x faster (Rust) | Existing FastAPI projects | 500ms | 120MB |
+| **Axum** | 5-10x faster (native) | Maximum performance | 100ms | 50MB |
+
+### Quick Start Examples
+
+**Starlette (Recommended for new projects)**
+```python
+from fraiseql.starlette.app import create_starlette_app
+
+app = create_starlette_app(
+    schema=my_schema,
+    database_url="postgresql://user:pass@localhost/db",
+    cors_origins=["*"],
+    auth_provider=my_auth,
+)
+```
+
+**FastAPI (Fully Supported)**
+```python
+from fraiseql.fastapi.app import create_fraiseql_app
+
+config = FraiseQLConfig(debug=True, turbo_mode=True)
+app = create_fraiseql_app(
+    schema=my_schema,
+    db_pool=db_pool,
+    config=config,
+)
+```
+
+**Axum (Peak Performance)**
+```rust
+// See docs/AXUM-NATIVE-SERVER.md for Rust setup
+let app = create_router(state);
+```
+
+See [Framework Comparison Guide](docs/FRAMEWORK-COMPARISON.md) for detailed comparison.
+
+## 🎉 What's New in v2.0.0
+
+- **Pluggable HTTP Architecture** - Same GraphQL schema on multiple HTTP frameworks
+- **Starlette Framework** - NEW lightweight Python option
+- **Framework Abstraction Layer** - Protocol-based design enables future frameworks
+- **Native Axum Server** - Direct Rust HTTP server for production deployments (Phase 16 complete)
+- **Improved Migration Tooling** - Move between frameworks without schema changes
 
 ---
 

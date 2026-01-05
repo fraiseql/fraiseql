@@ -21,11 +21,19 @@ Get started with FraiseQL in 5 minutes! This guide will walk you through creatin
 
 ## Framework Choice
 
-This guide uses **Starlette** (recommended for new projects in v2.0.0). Both Starlette and FastAPI now use the same high-performance **Rust Axum HTTP server** internally, so performance is identical.
+This guide uses **Starlette** as one example of the multiple framework options available in v2.0.0.
 
-**Why Starlette**: Modern, lightweight, same features as FastAPI but simpler codebase.
+### Available Frameworks (All Equal Performance)
 
-**Existing FastAPI Code**: No performance penalty - both frameworks use the same Rust backend. Migrate at your own pace (see [Migration Guide](../STARLETTE-MIGRATION-GUIDE.md)).
+| Framework | Best For | Startup | Memory |
+|-----------|----------|---------|--------|
+| **Starlette** (this guide) | New projects, minimal dependencies | 300ms | 100MB |
+| **FastAPI** | Existing FastAPI code, auto-docs | 500ms | 120MB |
+| **Axum** | Maximum performance, Rust native | 100ms | 50MB |
+
+**Key Insight**: All frameworks deliver identical GraphQL performance through the unified Rust pipeline. Differences are only in HTTP server overhead and Python API preferences.
+
+**Migration**: FastAPI users can migrate in 30 minutes (optional, not required). See [Framework Comparison Guide](../FRAMEWORK-COMPARISON.md) for detailed migration steps.
 
 ## Step 1: Install FraiseQL
 
