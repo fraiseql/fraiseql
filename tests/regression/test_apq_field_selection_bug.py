@@ -456,3 +456,349 @@ class TestAPQResponseFiltering:
 
         valid_response = {"data": {"user": {"id": 1, "name": "John"}}}
         assert is_cacheable_response(valid_response) is True
+
+
+class TestAPQFieldSelectionEndToEnd:
+    """End-to-end tests for APQ field selection - simulates real Apollo client flow.
+
+    This test class verifies the complete APQ caching flow with field selection:
+    1. First request (cache miss): Execute query, filter response, store in cache
+    2. Second request (cache hit): Retrieve from cache, filter response, return
+
+    These tests ensure that the bug described in the module docstring is fixed:
+    - Query: `{ user { name } }` should ONLY return `{ "user": { "name": "John" } }`
+    - NOT the full object with id, email, metadata, etc.
+    """
+
+    @pytest.fixture
+    def config_with_caching(self) -> FraiseQLConfig:
+        """Create config with APQ caching enabled."""
+        return FraiseQLConfig(
+            database_url="postgresql://test@localhost/test",
+            apq_storage_backend="memory",
+            apq_cache_responses=True,
+            apq_response_cache_ttl=600,
+        )
+
+    @pytest.fixture
+    def backend(self) -> MemoryAPQBackend:
+        """Create a fresh memory backend."""
+        return MemoryAPQBackend()
+
+    def test_apollo_client_flow_field_selection(
+        self, config_with_caching, backend
+    ) -> None:
+        """Simulate real Apollo client APQ flow with field selection.
+
+        This test simulates the exact request format from Apollo Client:
+        {
+            "operationName": "GetLocations",
+            "variables": {},
+            "extensions": {
+                "clientLibrary": {"name": "@apollo/client", "version": "4.0.11"},
+                "persistedQuery": {"version": 1, "sha256Hash": "..."}
+            }
+        }
+        """
+        from fraiseql.middleware.apq_caching import (
+            handle_apq_request_with_cache,
+            store_response_in_cache,
+        )
+
+        # Query that only requests id and name (NOT address, metadata, etc.)
+        query = """
+            query GetLocations {
+                locations {
+                    id
+                    name
+                }
+            }
+        """
+        query_hash = hashlib.sha256(query.encode()).hexdigest()
+
+        # Store the persisted query (simulates Apollo client registration)
+        backend.store_persisted_query(query_hash, query)
+
+        # Simulate resolver returning MORE fields than requested
+        # (this happens with ORMs/database queries that fetch full objects)
+        full_response_from_resolver = {
+            "data": {
+                "locations": [
+                    {
+                        "id": "loc-1",
+                        "name": "Headquarters",
+                        "address": "123 Main St",  # NOT requested
+                        "city": "NYC",  # NOT requested
+                        "metadata": {"active": True},  # NOT requested
+                    },
+                    {
+                        "id": "loc-2",
+                        "name": "Branch Office",
+                        "address": "456 Oak Ave",  # NOT requested
+                        "city": "LA",  # NOT requested
+                        "metadata": {"active": False},  # NOT requested
+                    },
+                ]
+            }
+        }
+
+        # Store response in cache (should filter before storing)
+        store_response_in_cache(
+            query_hash,
+            full_response_from_resolver,
+            backend,
+            config_with_caching,
+            variables={},
+            query_text=query,
+            operation_name="GetLocations",
+        )
+
+        # Simulate Apollo client request (hash-only, no query text)
+        request = Mock(
+            query=None,
+            variables={},
+            operationName="GetLocations",
+            extensions={
+                "clientLibrary": {"name": "@apollo/client", "version": "4.0.11"},
+                "persistedQuery": {"version": 1, "sha256Hash": query_hash},
+            },
+        )
+
+        # Get cached response
+        result = handle_apq_request_with_cache(
+            request, backend, config_with_caching
+        )
+
+        # Verify result
+        assert result is not None, "Should get cache hit"
+        assert "data" in result
+        assert "locations" in result["data"]
+
+        locations = result["data"]["locations"]
+        assert len(locations) == 2
+
+        # CRITICAL ASSERTIONS: Only requested fields should be present
+        for loc in locations:
+            assert "id" in loc, "id was requested and should be present"
+            assert "name" in loc, "name was requested and should be present"
+            assert "address" not in loc, "address was NOT requested but was returned"
+            assert "city" not in loc, "city was NOT requested but was returned"
+            assert "metadata" not in loc, "metadata was NOT requested but was returned"
+
+    def test_nested_field_selection_filtering(
+        self, config_with_caching, backend
+    ) -> None:
+        """Test that nested field selection is properly filtered.
+
+        Query: { company { name address { city } } }
+        Should NOT return: address.street, address.zip, company.id, etc.
+        """
+        from fraiseql.middleware.apq_caching import (
+            handle_apq_request_with_cache,
+            store_response_in_cache,
+        )
+
+        query = """
+            query GetCompany {
+                company {
+                    name
+                    address {
+                        city
+                    }
+                }
+            }
+        """
+        query_hash = hashlib.sha256(query.encode()).hexdigest()
+        backend.store_persisted_query(query_hash, query)
+
+        # Full response with unrequested nested fields
+        full_response = {
+            "data": {
+                "company": {
+                    "id": "comp-1",  # NOT requested
+                    "name": "Acme Corp",
+                    "email": "contact@acme.com",  # NOT requested
+                    "address": {
+                        "street": "123 Main St",  # NOT requested
+                        "city": "NYC",
+                        "zip": "10001",  # NOT requested
+                        "country": "USA",  # NOT requested
+                    },
+                }
+            }
+        }
+
+        store_response_in_cache(
+            query_hash,
+            full_response,
+            backend,
+            config_with_caching,
+            query_text=query,
+            operation_name="GetCompany",
+        )
+
+        request = Mock(
+            query=None,
+            variables=None,
+            operationName="GetCompany",
+            extensions={"persistedQuery": {"version": 1, "sha256Hash": query_hash}},
+        )
+
+        result = handle_apq_request_with_cache(
+            request, backend, config_with_caching
+        )
+
+        assert result is not None
+        company = result["data"]["company"]
+
+        # Top level
+        assert "name" in company
+        assert company["name"] == "Acme Corp"
+        assert "id" not in company, "id was NOT requested"
+        assert "email" not in company, "email was NOT requested"
+
+        # Nested level
+        assert "address" in company
+        assert "city" in company["address"]
+        assert company["address"]["city"] == "NYC"
+        assert "street" not in company["address"], "street was NOT requested"
+        assert "zip" not in company["address"], "zip was NOT requested"
+        assert "country" not in company["address"], "country was NOT requested"
+
+    def test_different_variables_different_cache_entries(
+        self, config_with_caching, backend
+    ) -> None:
+        """Test that different variables produce different cache entries.
+
+        This is the CRITICAL security test - ensures user1's data isn't
+        returned for user2's request.
+        """
+        from fraiseql.middleware.apq_caching import (
+            handle_apq_request_with_cache,
+            store_response_in_cache,
+        )
+
+        query = """
+            query GetUser($id: ID!) {
+                user(id: $id) {
+                    id
+                    name
+                }
+            }
+        """
+        query_hash = hashlib.sha256(query.encode()).hexdigest()
+        backend.store_persisted_query(query_hash, query)
+
+        # Store response for user 1
+        response_user1 = {"data": {"user": {"id": "1", "name": "Alice"}}}
+        store_response_in_cache(
+            query_hash,
+            response_user1,
+            backend,
+            config_with_caching,
+            variables={"id": "1"},
+            query_text=query,
+            operation_name="GetUser",
+        )
+
+        # Store response for user 2
+        response_user2 = {"data": {"user": {"id": "2", "name": "Bob"}}}
+        store_response_in_cache(
+            query_hash,
+            response_user2,
+            backend,
+            config_with_caching,
+            variables={"id": "2"},
+            query_text=query,
+            operation_name="GetUser",
+        )
+
+        # Request for user 1
+        request_user1 = Mock(
+            query=None,
+            variables={"id": "1"},
+            operationName="GetUser",
+            extensions={"persistedQuery": {"version": 1, "sha256Hash": query_hash}},
+        )
+        result1 = handle_apq_request_with_cache(
+            request_user1, backend, config_with_caching
+        )
+
+        # Request for user 2
+        request_user2 = Mock(
+            query=None,
+            variables={"id": "2"},
+            operationName="GetUser",
+            extensions={"persistedQuery": {"version": 1, "sha256Hash": query_hash}},
+        )
+        result2 = handle_apq_request_with_cache(
+            request_user2, backend, config_with_caching
+        )
+
+        # CRITICAL: Each user should get their own data
+        assert result1 is not None
+        assert result1["data"]["user"]["name"] == "Alice", "User 1 should get Alice"
+
+        assert result2 is not None
+        assert result2["data"]["user"]["name"] == "Bob", "User 2 should get Bob"
+
+    def test_cached_response_filtered_on_retrieval(
+        self, config_with_caching, backend
+    ) -> None:
+        """Test defense-in-depth: filtering happens on retrieval too.
+
+        Even if somehow a full response was cached (legacy data, bug, etc.),
+        retrieval should still filter based on the query's field selection.
+        """
+        from fraiseql.middleware.apq_caching import (
+            compute_response_cache_key,
+            handle_apq_request_with_cache,
+        )
+
+        query = """
+            query GetProduct {
+                product {
+                    id
+                    name
+                }
+            }
+        """
+        query_hash = hashlib.sha256(query.encode()).hexdigest()
+        backend.store_persisted_query(query_hash, query)
+
+        # Manually store an UNFILTERED response (simulating legacy/bug data)
+        cache_key = compute_response_cache_key(query_hash, None)
+        unfiltered_response = {
+            "data": {
+                "product": {
+                    "id": "prod-1",
+                    "name": "Widget",
+                    "price": 99.99,  # NOT in query
+                    "inventory": 500,  # NOT in query
+                    "secret_cost": 25.00,  # SENSITIVE - NOT in query
+                }
+            }
+        }
+        backend.store_cached_response(cache_key, unfiltered_response)
+
+        # Request should filter on retrieval
+        request = Mock(
+            query=None,
+            variables=None,
+            operationName="GetProduct",
+            extensions={"persistedQuery": {"version": 1, "sha256Hash": query_hash}},
+        )
+
+        result = handle_apq_request_with_cache(
+            request, backend, config_with_caching
+        )
+
+        assert result is not None
+        product = result["data"]["product"]
+
+        # Only requested fields should be returned
+        assert "id" in product
+        assert "name" in product
+        assert "price" not in product, "price was NOT requested"
+        assert "inventory" not in product, "inventory was NOT requested"
+        assert "secret_cost" not in product, "secret_cost was NOT requested (sensitive!)"
