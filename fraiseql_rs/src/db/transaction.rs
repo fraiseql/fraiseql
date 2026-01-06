@@ -6,8 +6,8 @@ use crate::db::{
     errors::{DatabaseError, DatabaseResult},
     pool_production::ProductionPool,
 };
-use tokio_postgres::IsolationLevel;
 use std::time::{Duration, Instant};
+use tokio_postgres::IsolationLevel;
 
 /// Transaction wrapper with ACID guarantees.
 ///

@@ -194,6 +194,7 @@ impl PyAuthProvider {
 
         // Try to use existing tokio runtime, or use thread-local cached FFI runtime
         // Use existing runtime if available (e.g., when called from Rust async context)
+        #[allow(clippy::option_if_let_else)]
         let context = if let Ok(handle) = tokio::runtime::Handle::try_current() {
             handle.block_on(provider.validate_token(token))
         } else {

@@ -99,6 +99,7 @@ impl VariableProcessor {
     }
 
     /// Process a single variable
+    #[allow(clippy::unused_self)]
     fn process_variable(
         &self,
         var_name: &str,

@@ -36,7 +36,7 @@ use serde_json::Value;
 ///
 /// # Arguments
 /// * `mutation_json` - Raw JSON from `PostgreSQL` (simple or full format)
-/// * `config` - MutationConfig with all mutation response building parameters
+/// * `config` - `MutationConfig` with all mutation response building parameters
 ///
 /// # Errors
 ///

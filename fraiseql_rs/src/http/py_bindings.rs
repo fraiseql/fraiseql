@@ -320,7 +320,7 @@ impl PyAxumServer {
     /// server.shutdown()
     /// # Server stopped listening
     /// ```
-    pub fn shutdown(&mut self) -> PyResult<()> {
+    pub const fn shutdown(&mut self) -> PyResult<()> {
         // TODO Phase 2: Implement graceful shutdown
         // This would require:
         // 1. Signal background thread to stop

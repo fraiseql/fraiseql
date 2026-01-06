@@ -129,6 +129,7 @@ impl WhereMerger {
                 if !conflicts.is_empty() {
                     match strategy {
                         ConflictStrategy::Error => {
+                            #[allow(clippy::unwrap_used)]
                             return Err(conflicts.into_iter().next().unwrap());
                         }
                         ConflictStrategy::Override => {
@@ -248,6 +249,7 @@ impl WhereMerger {
     /// - Flattening existing AND clauses
     /// - Creating new AND for non-AND clauses
     /// - Avoiding nested AND structures
+    #[allow(clippy::unnecessary_wraps)]
     fn compose_and(clause1: &Value, clause2: &Value) -> Option<Value> {
         // If clause1 is already AND, extend it
         if clause1.get("AND").is_some() {

@@ -33,8 +33,8 @@ pub struct CachedResult {
 /// # Memory Safety
 ///
 /// The cache enforces strict bounds to prevent unbounded memory growth:
-/// - **max_entries**: Hard limit on number of cached results (LRU eviction above this)
-/// - **ttl_seconds**: Time-based expiry for additional safety
+/// - **`max_entries`**: Hard limit on number of cached results (LRU eviction above this)
+/// - **`ttl_seconds`**: Time-based expiry for additional safety
 ///
 /// # Sizing Recommendations
 ///
@@ -45,7 +45,7 @@ pub struct CachedResult {
 ///
 /// Memory impact at default (10,000 entries):
 /// - Average result size: 1-10 KB
-/// - Estimated memory: 10-100 MB (adjust TTL or max_entries if exceeding available memory)
+/// - Estimated memory: 10-100 MB (adjust TTL or `max_entries` if exceeding available memory)
 #[derive(Debug, Clone, Copy)]
 pub struct QueryResultCacheConfig {
     /// Maximum number of entries in cache (LRU eviction above this)

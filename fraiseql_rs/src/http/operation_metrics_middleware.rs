@@ -153,7 +153,7 @@ impl OperationMetricsContext {
     /// * `status_code` - HTTP response status code
     /// * `response_body` - GraphQL response JSON
     /// * `had_errors` - Whether GraphQL returned errors
-    pub fn record_response(
+    pub const fn record_response(
         &self,
         status_code: StatusCode,
         response_body: &JsonValue,

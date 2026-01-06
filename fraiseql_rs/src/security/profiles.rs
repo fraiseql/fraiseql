@@ -42,8 +42,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 /// Security profile configuration
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub enum SecurityProfile {
     /// STANDARD: Basic security (rate limit + audit)
     #[default]
@@ -55,122 +54,135 @@ pub enum SecurityProfile {
 
 impl SecurityProfile {
     /// Create STANDARD profile
-    pub fn standard() -> Self {
-        SecurityProfile::Standard
+    #[must_use]
+    pub const fn standard() -> Self {
+        Self::Standard
     }
 
     /// Create REGULATED profile
-    pub fn regulated() -> Self {
-        SecurityProfile::Regulated
+    #[must_use]
+    pub const fn regulated() -> Self {
+        Self::Regulated
     }
 
     /// Check if this is STANDARD profile
-    pub fn is_standard(&self) -> bool {
-        matches!(self, SecurityProfile::Standard)
+    #[must_use]
+    pub const fn is_standard(&self) -> bool {
+        matches!(self, Self::Standard)
     }
 
     /// Check if this is REGULATED profile
-    pub fn is_regulated(&self) -> bool {
-        matches!(self, SecurityProfile::Regulated)
+    #[must_use]
+    pub const fn is_regulated(&self) -> bool {
+        matches!(self, Self::Regulated)
     }
 
     /// Get profile name
-    pub fn name(&self) -> &'static str {
+    #[must_use]
+    pub const fn name(&self) -> &'static str {
         match self {
-            SecurityProfile::Standard => "STANDARD",
-            SecurityProfile::Regulated => "REGULATED",
+            Self::Standard => "STANDARD",
+            Self::Regulated => "REGULATED",
         }
     }
 
     /// Check if rate limiting is enabled for this profile
-    pub fn rate_limit_enabled(&self) -> bool {
-        match self {
-            SecurityProfile::Standard => true,
-            SecurityProfile::Regulated => true,
-        }
+    #[must_use]
+    pub const fn rate_limit_enabled(&self) -> bool {
+        true
     }
 
     /// Check if audit logging is enabled for this profile
-    pub fn audit_logging_enabled(&self) -> bool {
-        match self {
-            SecurityProfile::Standard => true,
-            SecurityProfile::Regulated => true,
-        }
+    #[must_use]
+    pub const fn audit_logging_enabled(&self) -> bool {
+        true
     }
 
     /// Check if field-level audit is enabled (REGULATED only)
-    pub fn audit_field_access(&self) -> bool {
-        matches!(self, SecurityProfile::Regulated)
+    #[must_use]
+    pub const fn audit_field_access(&self) -> bool {
+        matches!(self, Self::Regulated)
     }
 
     /// Check if sensitive field masking is enabled (REGULATED only)
-    pub fn sensitive_field_masking(&self) -> bool {
-        matches!(self, SecurityProfile::Regulated)
+    #[must_use]
+    pub const fn sensitive_field_masking(&self) -> bool {
+        matches!(self, Self::Regulated)
     }
 
     /// Check if error detail reduction is enabled (REGULATED only)
-    pub fn error_detail_reduction(&self) -> bool {
-        matches!(self, SecurityProfile::Regulated)
+    #[must_use]
+    pub const fn error_detail_reduction(&self) -> bool {
+        matches!(self, Self::Regulated)
     }
 
     /// Check if query logging for compliance is enabled (REGULATED only)
-    pub fn query_logging_for_compliance(&self) -> bool {
-        matches!(self, SecurityProfile::Regulated)
+    #[must_use]
+    pub const fn query_logging_for_compliance(&self) -> bool {
+        matches!(self, Self::Regulated)
     }
 
     /// Check if response size limits are enforced (REGULATED only)
-    pub fn response_size_limits(&self) -> bool {
-        matches!(self, SecurityProfile::Regulated)
+    #[must_use]
+    pub const fn response_size_limits(&self) -> bool {
+        matches!(self, Self::Regulated)
     }
 
     /// Check if strict field filtering is enabled (REGULATED only)
-    pub fn field_filtering_strict(&self) -> bool {
-        matches!(self, SecurityProfile::Regulated)
+    #[must_use]
+    pub const fn field_filtering_strict(&self) -> bool {
+        matches!(self, Self::Regulated)
     }
 
     /// Get maximum response size for this profile (bytes)
-    pub fn max_response_size_bytes(&self) -> usize {
+    #[must_use]
+    pub const fn max_response_size_bytes(&self) -> usize {
         match self {
-            SecurityProfile::Standard => usize::MAX, // No limit
-            SecurityProfile::Regulated => 1_000_000, // 1MB for REGULATED
+            Self::Standard => usize::MAX, // No limit
+            Self::Regulated => 1_000_000, // 1MB for REGULATED
         }
     }
 
     /// Get maximum query complexity for this profile
-    pub fn max_query_complexity(&self) -> usize {
+    #[must_use]
+    pub const fn max_query_complexity(&self) -> usize {
         match self {
-            SecurityProfile::Standard => 100_000,
-            SecurityProfile::Regulated => 50_000, // Stricter for REGULATED
+            Self::Standard => 100_000,
+            Self::Regulated => 50_000, // Stricter for REGULATED
         }
     }
 
     /// Get maximum query depth for this profile
-    pub fn max_query_depth(&self) -> usize {
+    #[must_use]
+    pub const fn max_query_depth(&self) -> usize {
         match self {
-            SecurityProfile::Standard => 20,
-            SecurityProfile::Regulated => 10, // Stricter for REGULATED
+            Self::Standard => 20,
+            Self::Regulated => 10, // Stricter for REGULATED
         }
     }
 
     /// Get rate limit - requests per second per user
-    pub fn rate_limit_rps(&self) -> u32 {
+    #[must_use]
+    pub const fn rate_limit_rps(&self) -> u32 {
         match self {
-            SecurityProfile::Standard => 100,
-            SecurityProfile::Regulated => 10, // Stricter for REGULATED
+            Self::Standard => 100,
+            Self::Regulated => 10, // Stricter for REGULATED
         }
     }
 
     /// Get enforcement level description
-    pub fn description(&self) -> &'static str {
+    #[must_use]
+    pub const fn description(&self) -> &'static str {
         match self {
-            SecurityProfile::Standard => "Basic security with rate limiting and audit logging",
-            SecurityProfile::Regulated => {
+            Self::Standard => "Basic security with rate limiting and audit logging",
+            Self::Regulated => {
                 "Full compliance with field masking, error redaction, and strict limits"
             }
         }
     }
 
     /// Get all enforced features for this profile
+    #[must_use]
     pub fn enforced_features(&self) -> Vec<&'static str> {
         let mut features = vec!["Rate Limiting", "Audit Logging"];
 
@@ -194,7 +206,6 @@ impl fmt::Display for SecurityProfile {
         write!(f, "{}", self.name())
     }
 }
-
 
 #[cfg(test)]
 mod tests {

@@ -223,8 +223,7 @@ impl ProductionPool {
                             index: 0,
                             expected_type: "jsonb",
                             reason: format!(
-                                "Failed to extract JSONB from column 0 in row {}: {}",
-                                row_idx, e
+                                "Failed to extract JSONB from column 0 in row {row_idx}: {e}"
                             ),
                         });
                     }
@@ -279,13 +278,14 @@ impl ProductionPool {
     }
 }
 
-/// Detects if a database error is a deadlock error (PostgreSQL error code 40P01).
+/// Detects if a database error is a deadlock error (`PostgreSQL` error code 40P01).
 ///
 /// Deadlock errors are serialization conflicts that can be safely retried.
 /// This function enables automatic retry logic with exponential backoff.
 fn is_deadlock_error(error: &tokio_postgres::Error) -> bool {
     // Check if this is a database error with the deadlock error code
     // PostgreSQL error code for deadlock detected: 40P01
+    #[allow(clippy::option_if_let_else)]
     if let Some(db_error) = error
         .source()
         .and_then(|e| e.downcast_ref::<tokio_postgres::error::DbError>())

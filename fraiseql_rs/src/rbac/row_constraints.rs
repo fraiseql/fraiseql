@@ -152,6 +152,7 @@ struct ConstraintCache {
 impl ConstraintCache {
     /// Create new constraint cache with given capacity
     fn new(capacity: usize) -> Self {
+        #[allow(clippy::unwrap_used)]
         let capacity = NonZeroUsize::new(capacity).unwrap_or(NonZeroUsize::new(100).unwrap());
         Self {
             cache: Mutex::new(LruCache::new(capacity)),

@@ -65,7 +65,7 @@ pub enum DatabaseError {
     ///
     /// Indicates invalid configuration provided to database client.
     /// Common causes:
-    /// - Missing required parameters (wait_timeout, max_size)
+    /// - Missing required parameters (`wait_timeout`, `max_size`)
     /// - Invalid parameter values (negative pool size)
     /// - SSL mode misconfiguration
     Configuration(String),
