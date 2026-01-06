@@ -12,7 +12,6 @@ use axum::{
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
-use serde_json::Value as JsonValue;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -297,62 +296,42 @@ async fn graphql_handler(
         state.request_timeout,
         state
             .pipeline
-            .execute(&request.query, variables.clone(), user_context)
+            .execute(&request.query, variables.clone(), user_context),
     )
     .await
     {
         Ok(pipeline_result) => pipeline_result,
-        Err(_elapsed) => Err(anyhow::anyhow!("Request timeout after {} seconds", state.request_timeout.as_secs())),
+        Err(_elapsed) => Err(anyhow::anyhow!(
+            "Request timeout after {} seconds",
+            state.request_timeout.as_secs()
+        )),
     };
 
-    // Step 2: Determine response status and record metrics
-    let (status_code, response, error_msg) = match result {
+    // Step 2: Determine response status and handle errors
+    // Optimization: Skip deserialization/re-serialization cycle for successful responses
+    let (status_code, body, error_msg) = match result {
         Ok(response_bytes) => {
-            // Parse the response bytes back to JSON
-            match serde_json::from_slice::<JsonValue>(&response_bytes) {
-                Ok(data) => (
-                    StatusCode::OK,
-                    Json(GraphQLResponse {
-                        data: Some(data),
-                        errors: None,
-                    }),
-                    None,
-                ),
-                Err(e) => {
-                    let err_msg = format!("Failed to parse response: {e}");
-                    (
-                        StatusCode::OK,
-                        Json(GraphQLResponse {
-                            data: None,
-                            errors: Some(vec![GraphQLError {
-                                message: err_msg.clone(),
-                                extensions: Some(serde_json::json!({
-                                    "code": "RESPONSE_PARSE_ERROR",
-                                    "client_ip": addr.to_string(),
-                                })),
-                            }]),
-                        }),
-                        Some(err_msg),
-                    )
-                }
-            }
+            // Use response bytes directly without parse/serialize round-trip
+            // This avoids unnecessary JSON deserialization and re-serialization
+            (StatusCode::OK, response_bytes, None)
         }
         Err(e) => {
             let err_msg = e.to_string();
-            (
-                StatusCode::OK,
-                Json(GraphQLResponse {
-                    data: None,
-                    errors: Some(vec![GraphQLError {
-                        message: err_msg.clone(),
-                        extensions: Some(serde_json::json!({
-                            "code": "GRAPHQL_EXECUTION_ERROR",
-                            "client_ip": addr.to_string(),
-                        })),
-                    }]),
-                }),
-                Some(err_msg),
-            )
+            // Only build error response when execution fails
+            let error_response = GraphQLResponse {
+                data: None,
+                errors: Some(vec![GraphQLError {
+                    message: err_msg.clone(),
+                    extensions: Some(serde_json::json!({
+                        "code": "GRAPHQL_EXECUTION_ERROR",
+                        "client_ip": addr.to_string(),
+                    })),
+                }]),
+            };
+            // Serialize error response to bytes once
+            let error_bytes = serde_json::to_vec(&error_response)
+                .unwrap_or_else(|_| b"{\"errors\":[{\"message\":\"Internal error\"}]}".to_vec());
+            (StatusCode::OK, error_bytes, Some(err_msg))
         }
     };
 
@@ -389,7 +368,14 @@ async fn graphql_handler(
         });
     }
 
-    (status_code, response).into_response()
+    // Return response bytes directly with proper content-type header
+    // Optimization: avoids unnecessary JSON re-serialization
+    (
+        status_code,
+        [("content-type", "application/json")],
+        body,
+    )
+        .into_response()
 }
 
 /// Detect GraphQL operation type from query string
