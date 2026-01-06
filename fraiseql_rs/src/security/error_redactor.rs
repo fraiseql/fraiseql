@@ -54,12 +54,14 @@ impl GraphQLError {
     }
 
     /// Set error code
+    #[must_use]
     pub fn with_code(mut self, code: impl Into<String>) -> Self {
         self.code = Some(code.into());
         self
     }
 
     /// Set extensions
+    #[must_use]
     pub fn with_extensions(mut self, extensions: serde_json::Value) -> Self {
         self.extensions = Some(extensions);
         self
@@ -96,6 +98,7 @@ impl ErrorRedactor {
     ///
     /// # Returns
     /// Redacted error (unchanged for STANDARD, redacted for REGULATED)
+    #[must_use]
     pub fn redact(error: &GraphQLError, profile: &SecurityProfile) -> GraphQLError {
         match profile {
             SecurityProfile::Standard => {
@@ -141,7 +144,7 @@ impl ErrorRedactor {
         };
 
         let mut redacted = GraphQLError::new(redacted_message);
-        redacted.code = error.code.clone();
+        redacted.code.clone_from(&error.code);
 
         // Remove sensitive extensions
         if let Some(extensions) = &error.extensions {
@@ -190,6 +193,7 @@ impl ErrorRedactor {
     }
 
     /// Check if error is sensitive (should be redacted)
+    #[must_use]
     pub fn is_sensitive_error(error: &GraphQLError) -> bool {
         let msg = &error.message;
         msg.contains("database")
