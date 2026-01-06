@@ -201,7 +201,8 @@ impl Arena {
     /// Same safety guarantees as `try_alloc_bytes`.
     #[inline(always)]
     // Interior mutability pattern - safe via !Send + !Sync
-    #[allow(clippy::mut_from_ref)] // Interior mutability pattern - safe via !Send + !Sync marker
+    #[allow(clippy::mut_from_ref)]
+    // Interior mutability pattern - safe via !Send + !Sync marker
     // Intentional panic for convenience API
     #[allow(clippy::expect_used)] // Intentional panic for convenience API
     pub fn alloc_bytes(&self, len: usize) -> &mut [u8] {

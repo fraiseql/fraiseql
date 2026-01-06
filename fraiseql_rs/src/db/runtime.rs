@@ -180,7 +180,9 @@ pub fn ffi_runtime() -> &'static Runtime {
 
         // Safety: We just ensured it's Some above
         #[allow(clippy::unwrap_used)]
-        unsafe { &*std::ptr::from_ref::<Runtime>(rt_opt.as_ref().unwrap()) }
+        unsafe {
+            &*std::ptr::from_ref::<Runtime>(rt_opt.as_ref().unwrap())
+        }
     })
 }
 

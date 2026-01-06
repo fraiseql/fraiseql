@@ -532,7 +532,8 @@ pub fn filter_cascade_data(cascade_json: &str, selections_json: Option<&str>) ->
 #[pyfunction]
 #[pyo3(signature = (mutation_json, field_name, success_type, error_type, entity_field_name=None, entity_type=None, cascade_selections=None, auto_camel_case=true, success_type_fields=None, error_type_fields=None))]
 // API requires all parameters for schema context and field selections
-#[allow(clippy::too_many_arguments)] // PyO3 callback requires all parameters for Python compatibility
+#[allow(clippy::too_many_arguments)]
+// PyO3 callback requires all parameters for Python compatibility
 // PyO3 requires owned values for FFI boundary
 #[allow(clippy::needless_pass_by_value)] // PyO3 can only extract owned Vec, not &[T]
 pub fn build_mutation_response(

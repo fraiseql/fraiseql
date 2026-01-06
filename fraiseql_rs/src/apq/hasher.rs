@@ -104,8 +104,8 @@ pub fn hash_query_with_variables(query: &str, variables: &JsonValue) -> String {
     let query_hash = hash_query(query);
 
     // Step 2: Check if variables are empty/null
-    let is_empty = variables.is_null()
-        || variables.as_object().is_some_and(serde_json::Map::is_empty);
+    let is_empty =
+        variables.is_null() || variables.as_object().is_some_and(serde_json::Map::is_empty);
 
     if is_empty {
         // No variables, use query hash only

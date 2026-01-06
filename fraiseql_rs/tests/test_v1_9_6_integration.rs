@@ -315,7 +315,10 @@ mod tests {
 
         // REGULATED: 1MB limit
         let regulated_limit = 1_000_000;
-        assert!(total_size > regulated_limit, "Large array exceeds REGULATED limit");
+        assert!(
+            total_size > regulated_limit,
+            "Large array exceeds REGULATED limit"
+        );
     }
 
     // ========================================================================

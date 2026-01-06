@@ -130,7 +130,9 @@ impl WhereMerger {
                     match strategy {
                         ConflictStrategy::Error => {
                             // Safe: we've verified conflicts is not empty above
-                            let first_conflict = conflicts.into_iter().next()
+                            let first_conflict = conflicts
+                                .into_iter()
+                                .next()
                                 .expect("verified conflicts not empty");
                             return Err(first_conflict);
                         }
