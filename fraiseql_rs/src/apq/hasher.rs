@@ -105,7 +105,7 @@ pub fn hash_query_with_variables(query: &str, variables: &JsonValue) -> String {
 
     // Step 2: Check if variables are empty/null
     let is_empty = variables.is_null()
-        || (variables.is_object() && variables.as_object().is_some_and(|o| o.is_empty()));
+        || variables.as_object().is_some_and(serde_json::Map::is_empty);
 
     if is_empty {
         // No variables, use query hash only
@@ -117,7 +117,7 @@ pub fn hash_query_with_variables(query: &str, variables: &JsonValue) -> String {
     let variables_json = serde_json::to_string(variables).unwrap_or_default();
 
     // Step 4: Combine query hash and normalized variables
-    let combined = format!("{}:{}", query_hash, variables_json);
+    let combined = format!("{query_hash}:{variables_json}");
 
     // Step 5: Hash the combination for final cache key
     let mut hasher = Sha256::new();

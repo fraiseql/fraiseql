@@ -5,7 +5,7 @@
 //!
 //! **SECURITY CRITICAL**: Cache keys include normalized variables to prevent
 //! data leakage between requests with different variable values.
-//! See: fraiseql_rs/src/apq/hasher.rs for SHA-256 variable hashing implementation.
+//! See: `fraiseql_rs/src/apq/hasher.rs` for SHA-256 variable hashing implementation.
 
 use crate::apq::hash_query_with_variables;
 use crate::graphql::types::ParsedQuery;
