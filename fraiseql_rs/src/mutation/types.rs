@@ -12,9 +12,9 @@ use serde_json::Value;
 pub struct MutationConfig<'a> {
     /// GraphQL field name (e.g., "createUser")
     pub field_name: &'a str,
-    /// Success type name (e.g., "CreateUserSuccess")
+    /// Success type name (e.g., `"CreateUserSuccess"`)
     pub success_type: &'a str,
-    /// Error type name (e.g., "CreateUserError")
+    /// Error type name (e.g., `"CreateUserError"`)
     pub error_type: &'a str,
     /// Field name for entity (e.g., "user")
     pub entity_field_name: Option<&'a str>,
@@ -31,7 +31,7 @@ pub struct MutationConfig<'a> {
 }
 
 impl<'a> MutationConfig<'a> {
-    /// Create a new MutationConfig with required fields
+    /// Create a new `MutationConfig` with required fields
     ///
     /// # Arguments
     /// * `field_name` - GraphQL field name
@@ -43,7 +43,8 @@ impl<'a> MutationConfig<'a> {
     /// let config = MutationConfig::new("createUser", "CreateUserSuccess", "CreateUserError")
     ///     .with_entity("user", "User");
     /// ```
-    pub fn new(field_name: &'a str, success_type: &'a str, error_type: &'a str) -> Self {
+    #[must_use]
+    pub const fn new(field_name: &'a str, success_type: &'a str, error_type: &'a str) -> Self {
         Self {
             field_name,
             success_type,
@@ -58,6 +59,8 @@ impl<'a> MutationConfig<'a> {
     }
 
     /// Set entity field name and type (builder pattern)
+    #[must_use]
+    #[allow(clippy::missing_const_for_fn)]
     pub fn with_entity(mut self, field_name: &'a str, entity_type: &'a str) -> Self {
         self.entity_field_name = Some(field_name);
         self.entity_type = Some(entity_type);
@@ -65,6 +68,8 @@ impl<'a> MutationConfig<'a> {
     }
 
     /// Set entity options with Option types (builder pattern)
+    #[must_use]
+    #[allow(clippy::missing_const_for_fn)]
     pub fn with_entity_options(
         mut self,
         field_name: Option<&'a str>,
@@ -76,24 +81,32 @@ impl<'a> MutationConfig<'a> {
     }
 
     /// Set cascade selections (builder pattern)
+    #[must_use]
+    #[allow(clippy::missing_const_for_fn)]
     pub fn with_cascade_selections(mut self, selections: Option<&'a str>) -> Self {
         self.cascade_selections = selections;
         self
     }
 
     /// Set auto camelCase conversion (builder pattern)
+    #[must_use]
+    #[allow(clippy::missing_const_for_fn)]
     pub fn with_auto_camel_case(mut self, enabled: bool) -> Self {
         self.auto_camel_case = enabled;
         self
     }
 
     /// Set success type fields (builder pattern)
+    #[must_use]
+    #[allow(clippy::missing_const_for_fn)]
     pub fn with_success_type_fields(mut self, fields: Option<&'a [String]>) -> Self {
         self.success_type_fields = fields;
         self
     }
 
     /// Set error type fields (builder pattern)
+    #[must_use]
+    #[allow(clippy::missing_const_for_fn)]
     pub fn with_error_type_fields(mut self, fields: Option<&'a [String]>) -> Self {
         self.error_type_fields = fields;
         self
