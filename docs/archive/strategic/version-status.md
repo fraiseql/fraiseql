@@ -1,7 +1,7 @@
 # FraiseQL Version Status & Roadmap
 
 **Last Updated**: January 5, 2025
-**Current Stable**: v1.9.4
+**Current Stable**: v1.9.6
 
 ---
 
