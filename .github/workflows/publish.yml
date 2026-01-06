@@ -205,6 +205,10 @@ jobs:
         maturin-version: "1.9.6"
         command: build
         args: --release --out dist --find-interpreter
+        manylinux: 2_28
+        before-script-linux: |
+          # Install OpenSSL development packages (required by reqwest/openssl-sys)
+          yum install -y openssl-devel perl-IPC-Cmd
 
     - name: Upload wheels
       uses: actions/upload-artifact@v6
