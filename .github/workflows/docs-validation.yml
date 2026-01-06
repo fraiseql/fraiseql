@@ -195,8 +195,8 @@ jobs:
         start_time=$(date +%s)
 
         # Step 1: Check if user can find getting started info
-        if ! grep -q "Is this for me" README.md; then
-          echo "Missing 'Is this for me' section in README"
+        if ! grep -qi "Is this for" README.md; then
+          echo "Missing 'Is this for you/me' section in README"
           exit 1
         fi
 

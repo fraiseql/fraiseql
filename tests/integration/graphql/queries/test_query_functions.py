@@ -7,6 +7,7 @@ from graphql import graphql
 
 import fraiseql
 from fraiseql.gql.schema_builder import SchemaRegistry, build_fraiseql_schema
+from fraiseql.types import ID
 
 pytestmark = pytest.mark.integration
 
@@ -28,20 +29,22 @@ class Post:
 
 
 # Sample query functions (like in the blog example)
-async def get_user(info, id: UUID) -> User | None:
+async def get_user(info, id: ID) -> User | None:
     """Get a user by ID."""
     # Mock implementation
+    # IDScalar parses the id to uuid.UUID, so compare as string
     if str(id) == "123e4567-e89b-12d3-a456-426614174000":
-        return User(id=id, name="John Doe", email="john@example.com")
+        return User(id=id if isinstance(id, UUID) else UUID(id), name="John Doe", email="john@example.com")
     return None
 
 
-async def get_post(info, id: UUID) -> Post | None:
+async def get_post(info, id: ID) -> Post | None:
     """Get a post by ID."""
     # Mock implementation
+    # IDScalar parses the id to uuid.UUID, so compare as string
     if str(id) == "123e4567-e89b-12d3-a456-426614174001":
         return Post(
-            id=id,
+            id=id if isinstance(id, UUID) else UUID(id),
             title="Hello World",
             content="This is a test post",
             author_id=UUID("123e4567-e89b-12d3-a456-426614174000"),

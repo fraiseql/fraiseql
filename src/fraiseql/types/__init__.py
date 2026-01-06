@@ -56,7 +56,7 @@ from .scalars.hash_sha256 import HashSHA256Field as HashSHA256
 from .scalars.hostname import HostnameField as Hostname
 from .scalars.html import HTMLField as HTML  # noqa: N814
 from .scalars.iban import IBANField as IBAN  # noqa: N814
-from .scalars.id_scalar import IDField as ID  # noqa: N814
+from .scalars.id_scalar import ID
 from .scalars.image import ImageField as Image
 from .scalars.ip_address import IpAddressField as IpAddress
 from .scalars.isin import ISINField as ISIN  # noqa: N814

@@ -20,7 +20,6 @@ from .optimization.decorators import dataloader_field
 from .subscriptions import subscription
 from .types import fraise_input, fraise_type
 from .types.common import MutationResultBase
-from .types.context import GraphQLContext, build_context
 from .types.definitions import UNSET
 from .types.enum import fraise_enum
 from .types.errors import Error
@@ -34,9 +33,7 @@ from .types.generic import (
 from .types.interface import fraise_interface
 from .types.scalars.date import DateField as Date
 from .types.scalars.email_address import EmailAddressField as EmailAddress
-from .types.scalars.id_scalar import IDField as ID  # noqa: N814
 from .types.scalars.json import JSONField as JSON  # noqa: N814
-from .types.scalars.uuid import UUIDField as UUID  # noqa: N814
 
 # Core aliases (internal - not exported to prevent shadowing builtins)
 # Use fraiseql.type instead of importing 'type' directly
@@ -56,17 +53,6 @@ except ImportError:
     _fastapi_available = False
     create_fraiseql_app = None
     FraiseQLConfig = None
-
-# Axum HTTP server integration (optional - Phase 2)
-try:
-    from .axum import AxumFraiseQLConfig, AxumServer, create_axum_fraiseql_app
-
-    _axum_available = True
-except ImportError:
-    _axum_available = False
-    AxumFraiseQLConfig = None
-    AxumServer = None
-    create_axum_fraiseql_app = None
 
 # Auth integration (optional)
 try:
@@ -90,65 +76,15 @@ except ImportError:
     Auth0Config = None
     Auth0Provider = None
 
-# Caching integration (optional)
-try:
-    from .caching import (
-        CachedRepository,
-        SchemaAnalyzer,
-        setup_auto_cascade_rules,
-    )
-
-    _caching_available = True
-except ImportError:
-    _caching_available = False
-    CachedRepository = None
-    SchemaAnalyzer = None
-    setup_auto_cascade_rules = None
-
-# Database utilities (optional)
-try:
-    from .db import (
-        create_db_pool,
-        create_legacy_pool,
-        create_production_pool,
-        create_prototype_pool,
-    )
-
-    _db_available = True
-except ImportError:
-    _db_available = False
-    create_db_pool = None
-    create_legacy_pool = None
-    create_production_pool = None
-    create_prototype_pool = None
-
-__version__ = "1.9.1"
+__version__ = "1.9.4"
 
 
 # Lazy Rust extension loading for performance optimization
-import logging
 import os
-
-_logger = logging.getLogger(__name__)
-_rust_load_attempted = False
-_rust_load_failed = False
 
 
 def _get_fraiseql_rs():
-    """Lazy-load the Rust extension.
-
-    The Rust extension provides 7-10x performance improvement for JSON
-    transformation, WHERE clause merging, and other critical operations.
-
-    Returns:
-        fraiseql._fraiseql_rs module or None if unavailable.
-
-    Note:
-        If loading fails and FRAISEQL_SKIP_RUST is not set, a warning
-        is logged to help diagnose performance issues.
-    """
-    global _rust_load_attempted, _rust_load_failed
-
+    """Lazy-load the Rust extension."""
     # Allow skipping Rust loading for unit tests via environment variable
     if os.getenv("FRAISEQL_SKIP_RUST") == "1":
         return None
@@ -156,22 +92,8 @@ def _get_fraiseql_rs():
     try:
         import importlib
 
-        rs = importlib.import_module("fraiseql._fraiseql_rs")
-        _rust_load_attempted = True
-        return rs
-    except ImportError as e:
-        _rust_load_attempted = True
-        _rust_load_failed = True
-
-        # Warn about performance implications
-        _logger.warning(
-            "Failed to load Rust extension (fraiseql_rs). "
-            "Performance will be ~7-10x slower for JSON transformation, "
-            "WHERE clause merging, and other critical operations. "
-            "Error: %s. "
-            "See: https://fraiseql.dev/troubleshooting#rust-loading",
-            str(e),
-        )
+        return importlib.import_module("fraiseql._fraiseql_rs")
+    except ImportError:
         return None
 
 
@@ -205,42 +127,29 @@ def __getattr__(name: str):
 __all__ = [
     "ALWAYS_DATA_CONFIG",
     "DEFAULT_ERROR_CONFIG",
-    "ID",
     "JSON",
     "STRICT_STATUS_CONFIG",
     "UNSET",
-    "UUID",
     "Auth0Config",
     "Auth0Provider",
     "AuthProvider",
-    "AxumFraiseQLConfig",
-    "AxumServer",
     "CQRSExecutor",
     "CQRSRepository",
-    "CachedRepository",
     "Connection",
     "Date",
     "Edge",
     "EmailAddress",
     "Error",
     "FraiseQLConfig",
-    "GraphQLContext",
     "MutationErrorConfig",
     "MutationResultBase",
     "PageInfo",
     "PaginatedResponse",
-    "SchemaAnalyzer",
     "UserContext",
-    "build_context",
     "build_fraiseql_schema",
     "connection",
-    "create_axum_fraiseql_app",
     "create_connection",
-    "create_db_pool",
     "create_fraiseql_app",
-    "create_legacy_pool",
-    "create_production_pool",
-    "create_prototype_pool",
     "dataloader_field",
     "enum",
     "error",
@@ -259,7 +168,6 @@ __all__ = [
     "requires_permission",
     "requires_role",
     "result",
-    "setup_auto_cascade_rules",
     "subscription",
     "success",
     # "type",  # REMOVED: Shadows builtin - use fraiseql.type or fraise_type

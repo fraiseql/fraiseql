@@ -753,13 +753,16 @@ def _get_filter_type_for_field(
         pass
 
     # Map Python types to filter types
+    # ID type always uses IDFilter (GraphQL ID scalar) regardless of policy.
+    # This keeps GraphQL schema consistent with frontend expectations ($id: ID!).
+    # UUID validation (if IDPolicy.UUID) happens at runtime, not at schema level.
     type_mapping = {
         str: StringFilter,
         int: IntFilter,
         float: FloatFilter,
         Decimal: DecimalFilter,
         bool: BooleanFilter,
-        ID: IDFilter,  # GraphQL ID type uses IDFilter
+        ID: IDFilter,  # Always use IDFilter - UUID validation is runtime
         UUID: UUIDFilter,
         date: DateFilter,
         datetime: DateTimeFilter,

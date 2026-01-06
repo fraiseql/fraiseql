@@ -7,48 +7,175 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.4] - 2025-01-05
+
+**Where Filter Enhancement - IDPolicy-Aware ID Filtering**
+
+This release adds proper where clause filtering for ID type fields based on the configured ID policy.
+
 ### Added
 
-#### Phase 14: Production-Ready Audit Logging
+#### IDFilter for Where Clauses
 
-Implemented high-performance audit logging in Rust with PostgreSQL backend, providing 100x faster logging than Python implementations.
+New `IDFilter` class for filtering ID fields in where clauses:
 
-**Features**:
-- Audit logging for all GraphQL operations (queries, mutations)
-- Multi-tenant isolation with indexed queries
-- JSONB variable storage for flexible querying
-- Optional performance tracking (duration_ms)
-- Three severity levels: INFO, WARN, ERROR
-
-**Implementation**:
-- `fraiseql_rs/src/security/audit.rs` - Rust audit logger with deadpool-postgres
-- `fraiseql_rs/src/security/py_bindings.rs` - Python bindings (PyAuditLogger)
-- `src/fraiseql/enterprise/security/audit.py` - Python wrapper classes
-- `migrations/001_audit_logs.sql` - Database schema with indexes
-- 13 comprehensive tests (100% pass rate)
-
-**Performance**:
-- Logging: ~0.5ms per entry (100x faster than Python)
-- Querying: Indexed for multi-tenant filtering by tenant_id and level
-- Zero-copy PostgreSQL integration via existing deadpool
-
-**API Example**:
 ```python
-from fraiseql.enterprise.security import AuditLogger, AuditLevel
-
-logger = AuditLogger(pool)
-await logger.log(
-    level=AuditLevel.INFO,
-    user_id=123,
-    tenant_id=1,
-    operation="query",
-    query="{ users { id name } }",
-    variables={},
-    ip_address="192.168.1.100",
-    user_agent="GraphQL Client/1.0",
-    duration_ms=42
-)
+@fraise_input
+class IDFilter:
+    eq: ID | None = None
+    neq: ID | None = None
+    in_: list[ID] | None = None
+    nin: list[ID] | None = None
+    isnull: bool | None = None
 ```
+
+#### Consistent GraphQL Schema (Scenario A)
+
+ID type **always** uses `IDFilter` regardless of policy. This ensures:
+- GraphQL schema stays consistent with frontend expectations (`$id: ID!`)
+- UUID validation (if `IDPolicy.UUID`) happens at runtime, not schema level
+- No frontend query changes needed when switching policies
+
+```python
+from fraiseql.config.schema_config import SchemaConfig, IDPolicy
+
+# Both policies use ID scalar in GraphQL schema
+# Frontend always uses: $id: ID!
+
+SchemaConfig.set_config(id_policy=IDPolicy.UUID)
+# Schema: id: ID!
+# Runtime: validates UUID format
+
+SchemaConfig.set_config(id_policy=IDPolicy.OPAQUE)
+# Schema: id: ID!
+# Runtime: accepts any string
+```
+
+### Testing
+
+- 5 new tests for IDPolicy where filter behavior
+- All existing ID policy tests continue to pass
+
+### Files Modified
+
+| File | Change |
+|------|--------|
+| `src/fraiseql/sql/graphql_where_generator.py` | Added `IDFilter`, policy-aware type mapping |
+| `tests/config/test_id_policy.py` | Added `TestIDPolicyWhereFilters` test class |
+
+## [1.9.2] - 2025-01-05
+
+**Security & ID Policy Release - APQ Fixes + Configurable ID Behavior**
+
+This release fixes critical security vulnerabilities in APQ response caching and introduces configurable ID policy for GraphQL scalar behavior.
+
+### Added
+
+#### Configurable ID Policy
+
+New `IDPolicy` configuration for GraphQL ID scalar behavior:
+
+- **`IDPolicy.UUID`** (default): IDs must be valid UUIDs - FraiseQL's opinionated approach
+- **`IDPolicy.OPAQUE`**: IDs accept any string - GraphQL spec-compliant mode
+
+```python
+from fraiseql.config.schema_config import SchemaConfig, IDPolicy
+
+# Default: UUID enforcement (recommended)
+SchemaConfig.set_config(id_policy=IDPolicy.UUID)
+
+# GraphQL spec-compliant: accepts any string
+SchemaConfig.set_config(id_policy=IDPolicy.OPAQUE)
+```
+
+#### Semantic Type Mapping Fix
+
+- `uuid.UUID` now always maps to `UUIDScalar` (GraphQL name: "UUID")
+- Only the `ID` type annotation is affected by the ID policy
+- Clearer distinction between entity identifiers (`ID`) and generic UUIDs (`uuid.UUID`)
+
+### Changed
+
+#### Examples Updated to Use ID Type
+
+- 44 example files updated to use `ID` type for entity identifiers
+- Consistent with Trinity pattern: `id: ID` for external identifiers
+- Added `from fraiseql.types import ID` imports
+
+### Documentation
+
+- Updated `docs/core/id-type.md` with ID Policy documentation
+- Added `SchemaConfig` section to `docs/core/configuration.md`
+- Updated `docs/getting-started/quickstart.md` to use `ID` type
+
+### Security
+
+#### APQ Response Cache Data Leakage (CRITICAL)
+
+Fixed a critical vulnerability where APQ cached responses could be served to the wrong users due to missing variable consideration in cache keys.
+
+**Vulnerability Details**:
+- Cache keys were computed using only query hash, ignoring GraphQL variables
+- Query `{ user(id: $id) { name } }` with `{id: 1}` would cache User 1's data
+- Same query with `{id: 2}` would incorrectly return User 1's cached data
+- **Impact**: Cross-user data leakage in multi-tenant applications
+
+**Fix**: Implemented `compute_response_cache_key()` that combines query hash with normalized JSON variables, ensuring different variable values produce different cache entries.
+
+### Fixed
+
+#### APQ Field Selection Not Respected
+
+Fixed bug where cached APQ responses returned full payloads instead of only the requested fields.
+
+**Bug Details**:
+- Query `{ user { name } }` should return only `{ "user": { "name": "John" } }`
+- Instead returned full object: `{ "user": { "id": 1, "name": "John", "email": "...", ... } }`
+- Cached responses ignored the GraphQL field selection from the query
+
+**Fix**: Added `apq_selection` module that parses GraphQL queries and filters responses:
+- `extract_selection_set()`: Parses query to extract requested fields
+- `filter_response_by_selection()`: Filters response to match selection
+- Defense in depth: Filtering applied on both cache store AND retrieve
+- Full support for fragments, aliases, nested objects, and lists
+
+#### Full Response Cached for Partial Requests
+
+Fixed bug where the full resolver response was cached even when only partial fields were requested.
+
+**Bug Details**:
+- Resolver returns `{ id, name, email, metadata }` for ORM object
+- Query requests only `{ id, name }`
+- Full response was cached, wasting memory and potentially exposing unrequested data
+
+**Fix**: Response is now filtered by field selection BEFORE storing in cache.
+
+### Added
+
+#### APQ Selection Module
+
+New module `src/fraiseql/middleware/apq_selection.py` for GraphQL field selection:
+- Parse GraphQL queries using `graphql-core` library
+- Extract selection sets with operation name support
+- Filter responses based on field selection
+- Handle fragments (named and inline)
+- Support field aliases and deeply nested structures
+
+### Testing
+
+- 22 new unit tests for APQ selection extraction and filtering
+- Updated regression tests (removed 3 xfail markers)
+- All 47 APQ-related tests passing
+
+### Files Modified
+
+| File | Change |
+|------|--------|
+| `src/fraiseql/middleware/apq_selection.py` | New module for selection parsing and filtering |
+| `src/fraiseql/middleware/apq_caching.py` | Added variable-aware cache keys and response filtering |
+| `src/fraiseql/fastapi/routers.py` | Pass query_text and operation_name for filtering |
+| `tests/middleware/test_apq_selection.py` | 22 unit tests for new module |
+| `tests/regression/test_apq_field_selection_bug.py` | Removed xfail markers, tests now pass |
 
 ## [1.9.1] - 2025-12-31
 

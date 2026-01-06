@@ -19,22 +19,6 @@ Get started with FraiseQL in 5 minutes! This guide will walk you through creatin
 - **Python 3.13+** (required for FraiseQL's Rust pipeline and advanced features)
 - **PostgreSQL 13+**
 
-## Framework Choice
-
-This guide uses **Starlette** as one example of the multiple framework options available in v2.0.0.
-
-### Available Frameworks (All Equal Performance)
-
-| Framework | Best For | Startup | Memory |
-|-----------|----------|---------|--------|
-| **Starlette** (this guide) | New projects, minimal dependencies | 300ms | 100MB |
-| **FastAPI** | Existing FastAPI code, auto-docs | 500ms | 120MB |
-| **Axum** | Maximum performance, Rust native | 100ms | 50MB |
-
-**Key Insight**: All frameworks deliver identical GraphQL performance through the unified Rust pipeline. Differences are only in HTTP server overhead and Python API preferences.
-
-**Migration**: FastAPI users can migrate in 30 minutes (optional, not required). See [Framework Comparison Guide](../FRAMEWORK-COMPARISON.md) for detailed migration steps.
-
 ## Step 1: Install FraiseQL
 
 ```bash
@@ -111,7 +95,7 @@ Create a file called `app.py` with this complete code:
 from datetime import datetime
 import uvicorn
 import fraiseql
-from fraiseql.starlette.app import create_starlette_app  # v2.0.0: Starlette recommended
+from fraiseql.fastapi import create_fraiseql_app
 from fraiseql.types import ID  # Use ID for entity identifiers
 
 # Define GraphQL types
@@ -204,14 +188,14 @@ if __name__ == "__main__":
     # Database URL (override with DATABASE_URL environment variable)
     database_url = os.getenv("DATABASE_URL", "postgresql://localhost/quickstart_notes")
 
-    app = create_starlette_app(  # v2.0.0: Starlette server
+    app = create_fraiseql_app(
         database_url=database_url,
         types=QUICKSTART_TYPES,
         queries=QUICKSTART_QUERIES,
         mutations=QUICKSTART_MUTATIONS,
         title="Notes API",
         description="Simple note-taking GraphQL API",
-        enable_playground=True,  # Enable GraphQL playground (Starlette parameter)
+        production=False,  # Enable GraphQL playground
     )
 
     print("🚀 Notes API running at http://localhost:8000/graphql")
@@ -285,25 +269,9 @@ mutation {
 - **GraphQL Types**: Note type with proper typing
 - **Queries**: Get all notes and get note by ID
 - **Mutations**: Create new notes with success/failure handling
-- **Starlette Integration**: Lightweight, production-ready web server
+- **FastAPI Integration**: Ready-to-deploy web server
 
 ## 💡 Best Practices
-
-### Framework Choice
-
-**For new projects (v2.0.0):**
-
-```python
-# ✅ RECOMMENDED: Starlette (v2.0.0 default)
-from fraiseql.starlette.app import create_starlette_app
-```
-
-**For existing FastAPI projects:**
-
-```python
-# ✅ SUPPORTED: FastAPI (deprecated, supported until v3.0)
-from fraiseql.fastapi import create_fraiseql_app
-```
 
 ### Import Style
 

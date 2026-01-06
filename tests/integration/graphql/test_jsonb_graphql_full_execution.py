@@ -25,6 +25,7 @@ from fraiseql.core.rust_pipeline import RustResponseBytes
 from fraiseql.db import FraiseQLRepository, register_type_for_view
 from fraiseql.gql.schema_builder import build_fraiseql_schema
 from fraiseql.graphql.execute import execute_graphql
+from fraiseql.types import ID
 
 
 # Test type with JSONB data
@@ -32,7 +33,7 @@ from fraiseql.graphql.execute import execute_graphql
 class ProductWithJSONB:
     """Product entity with JSONB data column."""
 
-    id: str
+    id: ID
     name: str
     brand: str  # Stored in JSONB
     category: str  # Stored in JSONB
@@ -57,7 +58,7 @@ async def products_with_jsonb(info, limit: int = 10) -> list[ProductWithJSONB]:
 
 
 @fraiseql.query
-async def product_with_jsonb(info, id: UUID) -> ProductWithJSONB | None:
+async def product_with_jsonb(info, id: ID) -> ProductWithJSONB | None:
     """Single query with typed return value.
 
     The resolver returns ProductWithJSONB | None but repo.find_one() returns RustResponseBytes.
@@ -68,12 +69,12 @@ async def product_with_jsonb(info, id: UUID) -> ProductWithJSONB | None:
     pool = info.context.get("pool")
     test_schema = info.context.get("test_schema")
     repo = FraiseQLRepository(pool, context={"mode": "development"})
-    return await repo.find_one(f"{test_schema}.test_products_graphql_jsonb_view", id=str(id))
+    return await repo.find_one(f"{test_schema}.test_products_graphql_jsonb_view", id=id)
 
 
 @fraiseql.mutation
 async def create_product_with_jsonb(
-    info, id: str, name: str, brand: str, category: str, price: float
+    info, id: ID, name: str, brand: str, category: str, price: float
 ) -> ProductWithJSONB:
     """Mutation that creates a JSONB entity and returns it.
 
@@ -132,7 +133,7 @@ class TestJSONBFullGraphQLExecution:
             await conn.execute(
                 f"""
                 CREATE TABLE IF NOT EXISTS {test_schema}.test_products_graphql_jsonb (
-                    id TEXT PRIMARY KEY,
+                    id UUID PRIMARY KEY,
                     name TEXT NOT NULL,
                     data JSONB NOT NULL
                 )
@@ -162,9 +163,9 @@ class TestJSONBFullGraphQLExecution:
                 f"""
                 INSERT INTO {test_schema}.test_products_graphql_jsonb (id, name, data)
                 VALUES
-                    ('gql-prod-001', 'GraphQL Laptop', '{{"brand": "Dell", "category": "Electronics", "price": 999.99}}'),
-                    ('gql-prod-002', 'GraphQL Phone', '{{"brand": "Apple", "category": "Electronics", "price": 799.99}}'),
-                    ('gql-prod-003', 'GraphQL Tablet', '{{"brand": "Samsung", "category": "Electronics", "price": 499.99}}')
+                    ('10000000-0000-0000-0000-000000000001', 'GraphQL Laptop', '{{"brand": "Dell", "category": "Electronics", "price": 999.99}}'),
+                    ('10000000-0000-0000-0000-000000000002', 'GraphQL Phone', '{{"brand": "Apple", "category": "Electronics", "price": 799.99}}'),
+                    ('10000000-0000-0000-0000-000000000003', 'GraphQL Tablet', '{{"brand": "Samsung", "category": "Electronics", "price": 499.99}}')
                 ON CONFLICT (id) DO NOTHING
             """
             )
@@ -299,7 +300,7 @@ class TestJSONBFullGraphQLExecution:
             schema,
             query_str,
             context_value={"pool": class_db_pool, "test_schema": test_schema},
-            variable_values={"id": "gql-prod-001"},
+            variable_values={"id": "10000000-0000-0000-0000-000000000001"},
         )
 
         # 🚀 RUST RESPONSE BYTES PATH:
@@ -347,7 +348,7 @@ class TestJSONBFullGraphQLExecution:
             # ASSERTION 4: Should return product object
             product = result.data["productWithJsonb"]
         assert product is not None, "Expected product object, got None"
-        assert product["id"] == "gql-prod-001"
+        assert product["id"] == "10000000-0000-0000-0000-000000000001"
         assert product["name"] == "GraphQL Laptop"
         assert product["brand"] == "Dell"
 
@@ -379,7 +380,7 @@ class TestJSONBFullGraphQLExecution:
 
         mutation_str = """
             mutation CreateProduct(
-                $id: String!,
+                $id: ID!,
                 $name: String!,
                 $brand: String!,
                 $category: String!,
@@ -407,7 +408,7 @@ class TestJSONBFullGraphQLExecution:
             mutation_str,
             context_value={"pool": class_db_pool, "test_schema": test_schema},
             variable_values={
-                "id": "gql-prod-new-001",
+                "id": "10000000-0000-0000-0000-000000000099",
                 "name": "Mutation Test Product",
                 "brand": "TestBrand",
                 "category": "TestCategory",
@@ -454,7 +455,7 @@ class TestJSONBFullGraphQLExecution:
 
         # Verify the created product has correct data
         assert product is not None, "Expected product object, got None"
-        assert product["id"] == "gql-prod-new-001"
+        assert product["id"] == "10000000-0000-0000-0000-000000000099"
         assert product["name"] == "Mutation Test Product"
         assert product["brand"] == "TestBrand"
         assert product["category"] == "TestCategory"

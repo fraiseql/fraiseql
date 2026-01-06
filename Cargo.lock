@@ -536,7 +536,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql"
-version = "1.9.1"
+version = "1.9.3"
 dependencies = [
  "anyhow",
  "arc-swap",

@@ -177,6 +177,7 @@ class SchemaRegistry:
             )
 
         scalar_name = scalar_class.name
+
         if scalar_name in self._scalars:
             logger.debug("Scalar '%s' is already registered in the schema.", scalar_name)
         else:

@@ -2,129 +2,13 @@
 
 [![Quality Gate](https://github.com/fraiseql/fraiseql/actions/workflows/quality-gate.yml/badge.svg?branch=dev)](https://github.com/fraiseql/fraiseql/actions/workflows/quality-gate.yml)
 [![Documentation](https://github.com/fraiseql/fraiseql/actions/workflows/docs.yml/badge.svg)](https://github.com/fraiseql/fraiseql/actions/workflows/docs.yml)
-[![Release](https://img.shields.io/github/v/release/fraiseql/fraiseql)](https://github.com/fraiseql/fraiseql/releases/tag/v2.0.0)
+[![Release](https://img.shields.io/github/v/release/fraiseql/fraiseql)](https://github.com/fraiseql/fraiseql/releases/latest)
 [![Python](https://img.shields.io/badge/Python-3.13+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**v2.0.0** | **Stable** | **Rust-Powered GraphQL for PostgreSQL**
+**v1.9.4** | **Stable** | **Rust-Powered GraphQL for PostgreSQL**
 
 **Python**: 3.13+ | **PostgreSQL**: 13+
-
----
-
-## 🍓 Part of the FraiseQL Ecosystem
-
-**FraiseQL** is a complete full-stack PostgreSQL + GraphQL solution with extreme performance optimizations:
-
-### **Server Stack (PostgreSQL + Python/Rust)**
-
-| Tool | Purpose | Status | Performance Gain |
-|------|---------|--------|------------------|
-| **[pg_tviews](https://github.com/fraiseql/pg_tviews)** | Incremental materialized views | Beta | **100-500× faster** |
-| **[jsonb_delta](https://github.com/evoludigit/jsonb_delta)** | JSONB surgical updates | Stable | **2-7× faster** |
-| **[pgGit](https://pggit.dev)** | Database version control | Stable | Git for databases |
-| **[confiture](https://github.com/fraiseql/confiture)** | PostgreSQL migrations | Stable | **300-600× faster** |
-| **[fraiseql](https://fraiseql.dev)** | GraphQL framework | **Stable** ⭐ | **7-10× faster** |
-| **[fraiseql-data](https://github.com/fraiseql/fraiseql-seed)** | Seed data generation | Beta | Auto-dependency resolution |
-
-### **Client Libraries (TypeScript/JavaScript)**
-
-| Library | Purpose | Framework Support |
-|---------|---------|-------------------|
-| **[graphql-cascade](https://github.com/graphql-cascade/graphql-cascade)** | Automatic cache invalidation | Apollo, React Query, Relay, URQL |
-
-**Complete workflow:**
-```bash
-# SERVER: PostgreSQL + Python
-# 1. Database version control
-psql -c "CREATE EXTENSION pggit; SELECT pggit.init();"
-
-# 2. Build schema (300-600× faster than Alembic)
-confiture build --env production
-
-# 3. Create incremental views (100-500× faster refresh)
-CREATE EXTENSION pg_tviews;
-CREATE TABLE tv_post AS SELECT ...;
-
-# 4. Seed test data with auto-dependencies
-fraiseql-data add tb_user --count 100 --auto-deps
-
-# 5. GraphQL API (7-10× faster JSON processing)
-fraiseql dev
-
-# CLIENT: TypeScript/JavaScript
-# 6. Automatic cache invalidation (works with any GraphQL server)
-npm install @graphql-cascade/client-apollo
-```
-
-**💰 Cost Savings:** Replace Redis, Sentry, APM → Save **$5-48K/year**
-
----
-
-## 🎉 What's New in v2.0.0
-
-### Major Features
-- **Starlette HTTP Server**: Lightweight, production-ready GraphQL server (recommended for new projects)
-- **Framework Abstraction Layer**: Pluggable architecture supporting multiple HTTP frameworks
-- **Critical Security Fixes**: APQ field selection vulnerability patched
-- **Easy Migration**: Seamless FastAPI → Starlette migration guides
-
-## 🏗️ Pluggable HTTP Architecture (v2.0.0)
-
-FraiseQL now supports multiple HTTP frameworks with **identical GraphQL performance**.
-Choose based on your preferences and requirements:
-
-### Choose Your Framework
-
-All frameworks use the same high-performance Rust GraphQL pipeline.
-
-| Framework | Performance | Best For | Startup | Memory |
-|-----------|-------------|----------|---------|--------|
-| **Starlette** ⭐ | 5-10x faster (Rust) | New Python projects | 300ms | 100MB |
-| **FastAPI** | 5-10x faster (Rust) | Existing FastAPI projects | 500ms | 120MB |
-| **Axum** | 5-10x faster (native) | Maximum performance | 100ms | 50MB |
-
-### Quick Start Examples
-
-**Starlette (Recommended for new projects)**
-```python
-from fraiseql.starlette.app import create_starlette_app
-
-app = create_starlette_app(
-    schema=my_schema,
-    database_url="postgresql://user:pass@localhost/db",
-    cors_origins=["*"],
-    auth_provider=my_auth,
-)
-```
-
-**FastAPI (Fully Supported)**
-```python
-from fraiseql.fastapi.app import create_fraiseql_app
-
-config = FraiseQLConfig(debug=True, turbo_mode=True)
-app = create_fraiseql_app(
-    schema=my_schema,
-    db_pool=db_pool,
-    config=config,
-)
-```
-
-**Axum (Peak Performance)**
-```rust
-// See docs/AXUM-NATIVE-SERVER.md for Rust setup
-let app = create_router(state);
-```
-
-See [Framework Comparison Guide](docs/FRAMEWORK-COMPARISON.md) for detailed comparison.
-
-## 🎉 What's New in v2.0.0
-
-- **Pluggable HTTP Architecture** - Same GraphQL schema on multiple HTTP frameworks
-- **Starlette Framework** - NEW lightweight Python option
-- **Framework Abstraction Layer** - Protocol-based design enables future frameworks
-- **Native Axum Server** - Direct Rust HTTP server for production deployments (Phase 16 complete)
-- **Improved Migration Tooling** - Move between frameworks without schema changes
 
 ---
 
@@ -135,7 +19,7 @@ PostgreSQL returns JSONB. Rust transforms it. Zero Python overhead.
 ```python
 # Complete GraphQL API in 15 lines
 import fraiseql
-from fraiseql.starlette.app import create_starlette_app  # v2.0.0: Starlette recommended
+from fraiseql.fastapi import create_fraiseql_app
 
 @fraiseql.type(sql_source="v_user", jsonb_column="data")
 class User:
@@ -156,7 +40,7 @@ async def users(info) -> list[User]:
     db = info.context["db"]
     return await db.find("v_user")
 
-app = create_starlette_app(  # v2.0.0: Starlette server
+app = create_fraiseql_app(
     database_url="postgresql://localhost/mydb",
     types=[User],
     queries=[users]
@@ -194,7 +78,6 @@ app = create_starlette_app(  # v2.0.0: Starlette server
 - You need multi-database support (PostgreSQL-only)
 - Building your first GraphQL API (use simpler frameworks)
 - Don't use JSONB columns in PostgreSQL
-- Prefer FastAPI over Starlette (FastAPI supported until v3.0)
 
 ---
 
@@ -225,7 +108,7 @@ PostgreSQL → JSONB → Rust field selection → HTTP Response
 ## Quick Start
 
 ```bash
-pip install fraiseql>=2.0.0  # v2.0.0 required for Starlette
+pip install fraiseql
 fraiseql init my-api
 cd my-api
 fraiseql dev
@@ -233,25 +116,10 @@ fraiseql dev
 
 **Your GraphQL API is live at `http://localhost:8000/graphql`** 🎉
 
-**Framework Note**: v2.0.0 uses Starlette by default (recommended). For FastAPI migration, see [Migration Guide](docs/STARLETTE-MIGRATION-GUIDE.md).
-
 **Next steps:**
-- [5-Minute Quickstart](docs/getting-started/quickstart.md) - Uses Starlette
+- [5-Minute Quickstart](docs/getting-started/quickstart.md)
 - [First Hour Guide](docs/getting-started/first-hour.md) - Build a complete blog API
-- [Architecture Overview](docs/architecture/overview.md) - Complete system overview
-
-### 📚 Documentation
-
-FraiseQL features comprehensive, professionally organized documentation:
-
-- **[📖 Complete Documentation](docs/README.md)** - Clean navigation with 10 categories
-- **[🚀 Getting Started](docs/getting-started/README.md)** - Installation to first API in minutes
-- **[🛠️ API Reference](docs/api/)** - HTTP servers, authentication, federation
-- **[📚 Guides](docs/guides/)** - Authentication, caching, performance, testing
-- **[🏗️ Architecture](docs/architecture/)** - System design and design decisions
-- **[👥 Contributing](docs/contributing/)** - Development setup and testing
-
-**Documentation Transformation**: Recently restructured from 738 scattered files to 75 organized guides with single sources of truth for all major topics.
+- [Understanding FraiseQL](docs/guides/understanding-fraiseql.md) - Architecture deep-dive
 
 ---
 
@@ -306,7 +174,7 @@ FraiseQL separates testing into two workflows:
 **Standard CI/CD:** Validates that features work correctly
 **Chaos Tests:** Validates that system recovers from failures
 
-[→ Learn about chaos engineering strategy](docs/testing/chaos-engineering-strategy.md)
+[→ Learn about chaos engineering strategy](docs/archive/testing/chaos-engineering-strategy.md)
 
 ---
 
@@ -906,7 +774,7 @@ query {
 - CurrencyCode, StockSymbol - Trading symbols
 
 **Network & Infrastructure:**
-- IPv4, IPv6, CIDR, MACAddress - Network addresses with subnet operations
+- IPv4, IPv4, CIDR, MACAddress - Network addresses with subnet operations
 - Hostname, DomainName, Port, EmailAddress - Internet identifiers
 - APIKey, HashSHA256 - Security tokens
 
@@ -1155,8 +1023,8 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 | Version | Location | Status | Purpose | For Users? |
 |---------|----------|--------|---------|------------|
-| **v1.9.1** | Root level | Stable | Production-ready with tokio-postgres + auto-inject | ✅ Production Ready |
-| **Rust Pipeline** | [`fraiseql_rs/`](fraiseql_rs/README.md) | Integrated | Included in v1.9.1+ | ✅ Stable |
+| **v1.9.4** | Root level | Stable | APQ security fixes + ID Policy configuration | ✅ Production Ready |
+| **Rust Pipeline** | [`fraiseql_rs/`](fraiseql_rs/README.md) | Integrated | Included in v1.9.4+ | ✅ Stable |
 
 **New to FraiseQL?** → **[First Hour Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/getting-started/first-hour.md)** • [Project Structure](https://github.com/fraiseql/fraiseql/blob/main/docs/strategic/PROJECT_STRUCTURE.md)
 

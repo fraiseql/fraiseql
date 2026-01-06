@@ -3,7 +3,6 @@
 This module provides:
 - ID: NewType for Python type annotations (Strawberry-style syntax)
 - IDScalar: Alias for GraphQL's built-in ID scalar
-- IDField: Type compatibility alias
 
 FraiseQL follows GraphQL spec: ID is the standard identifier type.
 UUID validation happens at the resolver/input level, not at the scalar level.
@@ -34,6 +33,3 @@ When SchemaConfig.id_policy is IDPolicy.UUID (default), IDs are validated
 as UUIDs at the input validation layer. When IDPolicy.OPAQUE, any string
 is accepted.
 """
-
-# Type compatibility alias
-IDField = ID

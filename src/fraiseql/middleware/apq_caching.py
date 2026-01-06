@@ -8,7 +8,7 @@ pre-computed responses.
 import hashlib
 import json
 import logging
-from typing import Any
+from typing import Any, Optional
 
 from fraiseql.fastapi.config import FraiseQLConfig
 from fraiseql.fastapi.routers import GraphQLRequest
@@ -77,8 +77,8 @@ def handle_apq_request_with_cache(
     request: GraphQLRequest,
     backend: APQStorageBackend,
     config: FraiseQLConfig,
-    context: dict[str, Any] | None = None,
-) -> dict[str, Any] | None:
+    context: Optional[dict[str, Any]] = None,
+) -> Optional[dict[str, Any]]:
     """Handle APQ request with response caching support.
 
     This function implements the enhanced APQ flow:
@@ -128,9 +128,7 @@ def handle_apq_request_with_cache(
                 if selection_set:
                     fragments = extract_fragments(query_text)
                     cached_response = filter_response_by_selection(
-                        cached_response,
-                        selection_set,
-                        fragments,
+                        cached_response, selection_set, fragments
                     )
 
             return cached_response
@@ -148,7 +146,7 @@ def store_response_in_cache(
     backend: APQStorageBackend,
     config: FraiseQLConfig,
     variables: dict[str, Any] | None = None,
-    context: dict[str, Any] | None = None,
+    context: Optional[dict[str, Any]] = None,
     query_text: str | None = None,
     operation_name: str | None = None,
 ) -> None:
@@ -202,7 +200,7 @@ def store_response_in_cache(
         logger.warning(f"Failed to store response in cache: {e}")
 
 
-def get_apq_hash_from_request(request: GraphQLRequest) -> str | None:
+def get_apq_hash_from_request(request: GraphQLRequest) -> Optional[str]:
     """Extract APQ hash from GraphQL request.
 
     Args:

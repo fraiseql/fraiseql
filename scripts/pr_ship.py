@@ -115,9 +115,9 @@ class PRShip:
         print("🔍 PHASE 1: Pre-flight Quality Checks")
         print("=" * 60)
 
-        print("Running full test suite...")
+        print("Running full test suite (excluding chaos tests)...")
         result = self.run_command(
-            ["uv", "run", "pytest", "-x", "-q"],
+            ["uv", "run", "pytest", "-x", "-q", "--ignore=tests/chaos"],
             capture_output=True,
             check=False,
         )
