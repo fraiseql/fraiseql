@@ -52,6 +52,7 @@
 //! - `operation_monitor`: Slow operation detection and monitoring (Phase 19, Commit 4.5) ⭐
 //! - `operation_metrics_middleware`: Axum middleware for metrics collection and trace context (Phase 19, Commit 4.5) ⭐
 //! - `graphql_operation_detector`: Operation type detection and field/alias counting (Phase 19, Commit 4.5) ⭐
+//! - `response_filter`: GraphQL response filtering by field selection (Phase 2, v2.0 Security) 🔐
 //!
 //! # Examples
 //!
@@ -85,6 +86,8 @@ pub mod operation_metrics_middleware;
 pub mod operation_monitor;
 pub mod optimization;
 pub mod py_bindings;
+pub mod response_filter;
+pub mod response_filtering_integration;
 pub mod security_middleware;
 pub mod websocket;
 
@@ -119,6 +122,10 @@ pub use optimization::{
     RateLimitConfig, RateLimitInfo,
 };
 pub use py_bindings::PyAxumServer;
+pub use response_filter::{extract_selections, filter_response_by_selection, FieldSelection};
+pub use response_filtering_integration::{
+    filter_complete_graphql_response, filter_graphql_response, ResponseFilteringConfig,
+};
 pub use security_middleware::{check_rate_limit, validate_graphql_request, HttpSecurityError};
 pub use websocket::websocket_handler;
 
