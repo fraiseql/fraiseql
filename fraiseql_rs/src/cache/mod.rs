@@ -8,26 +8,26 @@
 //!
 //! All caches are configured with entry count limits to prevent unbounded memory growth:
 //!
-//! ## QueryPlanCache (SQL query plans)
+//! ## `QueryPlanCache` (SQL query plans)
 //! - **Default capacity**: 5,000 entries
 //! - **Per-entry size**: ~500 bytes (SQL template + metadata)
 //! - **Max memory**: ~2.5 MB
 //! - **Use case**: GraphQL query → SQL plan mapping
 //!
-//! ## QueryResultCache (GraphQL results)
+//! ## `QueryResultCache` (GraphQL results)
 //! - **Default capacity**: 10,000 entries
 //! - **Per-entry size**: ~1-10 KB (depends on result size)
 //! - **Max memory**: ~10-100 MB (configurable TTL for safer bounds)
 //! - **Use case**: Complete GraphQL query results
 //!
-//! ## UserContextCache (Auth context)
+//! ## `UserContextCache` (Auth context)
 //! - **Production default**: 1,000-5,000 entries
 //! - **Per-entry size**: ~200-400 bytes
 //! - **Max memory**: ~0.5-2 MB
 //! - **Eviction**: LRU + TTL (default 15 minutes)
 //! - **Use case**: Cached JWT/OIDC user context
 //!
-//! ## PermissionCache (RBAC)
+//! ## `PermissionCache` (RBAC)
 //! - **Production default**: 10,000 entries (was 100, now configurable)
 //! - **Per-entry size**: ~1 KB per user/tenant pair
 //! - **Max memory**: ~10 MB
