@@ -3,6 +3,103 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+/// Configuration for building GraphQL mutation responses
+///
+/// This struct consolidates all parameters needed for mutation response building,
+/// replacing the need for 9+ individual function parameters. It supports a builder
+/// pattern for ergonomic construction.
+#[derive(Debug, Clone)]
+pub struct MutationConfig<'a> {
+    /// GraphQL field name (e.g., "createUser")
+    pub field_name: &'a str,
+    /// Success type name (e.g., "CreateUserSuccess")
+    pub success_type: &'a str,
+    /// Error type name (e.g., "CreateUserError")
+    pub error_type: &'a str,
+    /// Field name for entity (e.g., "user")
+    pub entity_field_name: Option<&'a str>,
+    /// Entity type for __typename (e.g., "User")
+    pub entity_type: Option<&'a str>,
+    /// Optional cascade field selections JSON
+    pub cascade_selections: Option<&'a str>,
+    /// Whether to convert field names and JSON keys to camelCase
+    pub auto_camel_case: bool,
+    /// Optional list of expected fields in success type for validation
+    pub success_type_fields: Option<&'a [String]>,
+    /// Optional list of expected fields in error type for field selection
+    pub error_type_fields: Option<&'a [String]>,
+}
+
+impl<'a> MutationConfig<'a> {
+    /// Create a new MutationConfig with required fields
+    ///
+    /// # Arguments
+    /// * `field_name` - GraphQL field name
+    /// * `success_type` - Success type name
+    /// * `error_type` - Error type name
+    ///
+    /// # Example
+    /// ```ignore
+    /// let config = MutationConfig::new("createUser", "CreateUserSuccess", "CreateUserError")
+    ///     .with_entity("user", "User");
+    /// ```
+    pub fn new(field_name: &'a str, success_type: &'a str, error_type: &'a str) -> Self {
+        Self {
+            field_name,
+            success_type,
+            error_type,
+            entity_field_name: None,
+            entity_type: None,
+            cascade_selections: None,
+            auto_camel_case: true,
+            success_type_fields: None,
+            error_type_fields: None,
+        }
+    }
+
+    /// Set entity field name and type (builder pattern)
+    pub fn with_entity(mut self, field_name: &'a str, entity_type: &'a str) -> Self {
+        self.entity_field_name = Some(field_name);
+        self.entity_type = Some(entity_type);
+        self
+    }
+
+    /// Set entity options with Option types (builder pattern)
+    pub fn with_entity_options(
+        mut self,
+        field_name: Option<&'a str>,
+        entity_type: Option<&'a str>,
+    ) -> Self {
+        self.entity_field_name = field_name;
+        self.entity_type = entity_type;
+        self
+    }
+
+    /// Set cascade selections (builder pattern)
+    pub fn with_cascade_selections(mut self, selections: Option<&'a str>) -> Self {
+        self.cascade_selections = selections;
+        self
+    }
+
+    /// Set auto camelCase conversion (builder pattern)
+    pub fn with_auto_camel_case(mut self, enabled: bool) -> Self {
+        self.auto_camel_case = enabled;
+        self
+    }
+
+    /// Set success type fields (builder pattern)
+    pub fn with_success_type_fields(mut self, fields: Option<&'a [String]>) -> Self {
+        self.success_type_fields = fields;
+        self
+    }
+
+    /// Set error type fields (builder pattern)
+    pub fn with_error_type_fields(mut self, fields: Option<&'a [String]>) -> Self {
+        self.error_type_fields = fields;
+        self
+    }
+}
+
 /// Mutation response format (auto-detected)
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MutationResponse {
@@ -165,6 +262,20 @@ impl From<&str> for MutationError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_mutation_config_builder() {
+        let config = MutationConfig::new("createUser", "CreateUserSuccess", "CreateUserError")
+            .with_entity("user", "User")
+            .with_auto_camel_case(true);
+
+        assert_eq!(config.field_name, "createUser");
+        assert_eq!(config.success_type, "CreateUserSuccess");
+        assert_eq!(config.error_type, "CreateUserError");
+        assert_eq!(config.entity_field_name, Some("user"));
+        assert_eq!(config.entity_type, Some("User"));
+        assert!(config.auto_camel_case);
+    }
 
     #[test]
     fn test_status_kind_success() {

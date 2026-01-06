@@ -16,7 +16,7 @@ pub use entity_processor::{
 pub use parser::parse_mutation_response;
 pub use postgres_composite::PostgresMutationResponse;
 pub use response_builder::{build_graphql_response, build_success_response};
-pub use types::{FullResponse, MutationResponse, SimpleResponse, StatusKind};
+pub use types::{FullResponse, MutationConfig, MutationResponse, SimpleResponse, StatusKind};
 
 #[cfg(test)]
 mod test_status_only;
@@ -36,15 +36,7 @@ use serde_json::Value;
 ///
 /// # Arguments
 /// * `mutation_json` - Raw JSON from `PostgreSQL` (simple or full format)
-/// * `field_name` - GraphQL field name (e.g., "createUser")
-/// * `success_type` - Success type name (e.g., "`CreateUserSuccess`")
-/// * `error_type` - Error type name (e.g., "`CreateUserError`")
-/// * `entity_field_name` - Field name for entity (e.g., "user")
-/// * `entity_type` - Entity type for __typename (e.g., "User") - REQUIRED for simple format
-/// * `cascade_selections` - Optional cascade field selections JSON
-/// * `auto_camel_case` - Whether to convert field names and JSON keys to camelCase
-/// * `success_type_fields` - Optional list of expected fields in success type for validation
-/// * `error_type_fields` - Optional list of expected fields in error type for field selection
+/// * `config` - MutationConfig with all mutation response building parameters
 ///
 /// # Errors
 ///
@@ -52,46 +44,26 @@ use serde_json::Value;
 /// - JSON parsing fails for mutation response
 /// - GraphQL response building fails
 /// - Response serialization to bytes fails
-#[allow(clippy::too_many_arguments)]
 pub fn build_mutation_response(
     mutation_json: &str,
-    field_name: &str,
-    success_type: &str,
-    error_type: &str,
-    entity_field_name: Option<&str>,
-    entity_type: Option<&str>,
-    cascade_selections: Option<&str>,
-    auto_camel_case: bool,
-    success_type_fields: Option<&[String]>,
-    error_type_fields: Option<&[String]>,
+    config: &MutationConfig,
 ) -> Result<Vec<u8>, String> {
     // Step 1: Try parsing as PostgreSQL 8-field mutation_response FIRST
     let result = match postgres_composite::PostgresMutationResponse::from_json(mutation_json) {
         Ok(pg_response) => {
             // SUCCESS: Valid 8-field composite type
             // CASCADE from Position 7 will be placed at success wrapper level
-            pg_response.to_mutation_result(entity_type)
+            pg_response.to_mutation_result(config.entity_type)
         }
         Err(_parse_error) => {
             // FALLBACK: Try simple format (backward compatibility)
             // This handles users with simple entity responses
-            MutationResult::from_json(mutation_json, entity_type)?
+            MutationResult::from_json(mutation_json, config.entity_type)?
         }
     };
 
     // Step 2: Build GraphQL response using response_builder
-    let graphql_response = response_builder::build_graphql_response(
-        &result,
-        field_name,
-        success_type,
-        error_type,
-        entity_field_name,
-        entity_type,
-        auto_camel_case,
-        success_type_fields,
-        error_type_fields,
-        cascade_selections,
-    )?;
+    let graphql_response = response_builder::build_graphql_response(&result, config)?;
 
     // Step 3: Serialize to bytes
     serde_json::to_vec(&graphql_response).map_err(|e| format!("Failed to serialize: {e}"))
@@ -104,19 +76,10 @@ mod integration_tests {
     #[test]
     fn test_end_to_end_simple() {
         let json = r#"{"id": "123", "name": "John"}"#;
-        let result = build_mutation_response(
-            json,
-            "createUser",
-            "CreateUserSuccess",
-            "CreateUserError",
-            Some("user"),
-            Some("User"),
-            None,
-            true,
-            None,
-            None,
-        )
-        .unwrap();
+        let config = MutationConfig::new("createUser", "CreateUserSuccess", "CreateUserError")
+            .with_entity("user", "User");
+
+        let result = build_mutation_response(json, &config).unwrap();
 
         let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
         assert_eq!(
@@ -136,19 +99,10 @@ mod integration_tests {
             "cascade": {"updated": []}
         }"#;
 
-        let result = build_mutation_response(
-            json,
-            "createUser",
-            "CreateUserSuccess",
-            "CreateUserError",
-            Some("user"),
-            Some("User"),
-            None,
-            true,
-            None,
-            None,
-        )
-        .unwrap();
+        let config = MutationConfig::new("createUser", "CreateUserSuccess", "CreateUserError")
+            .with_entity("user", "User");
+
+        let result = build_mutation_response(json, &config).unwrap();
 
         let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
         let mutation_result = &response["data"]["createUser"];

@@ -4,7 +4,7 @@
 
 #![allow(clippy::excessive_nesting)] // TODO Phase 4.1: Refactor nested blocks
 
-use super::{MutationResult, MutationStatus};
+use super::{MutationConfig, MutationResult, MutationStatus};
 use crate::camel_case::to_camel_case;
 use serde_json::{json, Map, Value};
 
@@ -19,45 +19,36 @@ use serde_json::{json, Map, Value};
 /// - Success response building fails (e.g., missing required entity)
 /// - Error response building fails (e.g., invalid error format)
 /// - Cascade filtering fails when cascade selections are provided
-#[allow(clippy::too_many_arguments)]
 pub fn build_graphql_response(
     result: &MutationResult,
-    field_name: &str,
-    success_type: &str,
-    error_type: &str,
-    entity_field_name: Option<&str>,
-    _entity_type: Option<&str>,
-    auto_camel_case: bool,
-    success_type_fields: Option<&[String]>,
-    error_type_fields: Option<&[String]>,
-    cascade_selections: Option<&str>,
+    config: &MutationConfig,
 ) -> Result<Value, String> {
     // Success status returns Success type, all others return Error type
     let response_obj = if result.status.is_success() {
         build_success_response(
             result,
-            success_type,
-            entity_field_name,
-            auto_camel_case,
-            success_type_fields,
-            cascade_selections,
+            config.success_type,
+            config.entity_field_name,
+            config.auto_camel_case,
+            config.success_type_fields,
+            config.cascade_selections,
         )?
     } else {
         // NEW: Error response includes REST-like code
         // For error responses, use error_type_fields for field selection
         build_error_response_with_code(
             result,
-            error_type,
-            auto_camel_case,
-            error_type_fields, // Use error type field selection
-            cascade_selections,
+            config.error_type,
+            config.auto_camel_case,
+            config.error_type_fields, // Use error type field selection
+            config.cascade_selections,
         )?
     };
 
     // Wrap in GraphQL response structure
     Ok(json!({
         "data": {
-            field_name: response_obj
+            config.field_name: response_obj
         }
     }))
 }

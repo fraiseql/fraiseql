@@ -529,7 +529,7 @@ pub fn filter_cascade_data(cascade_json: &str, selections_json: Option<&str>) ->
 /// - Required fields are missing
 #[pyfunction]
 #[pyo3(signature = (mutation_json, field_name, success_type, error_type, entity_field_name=None, entity_type=None, cascade_selections=None, auto_camel_case=true, success_type_fields=None, error_type_fields=None))]
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments)] // PyO3 callback requires all parameters for Python compatibility
 #[allow(clippy::needless_pass_by_value)] // PyO3 can only extract owned Vec, not &[T]
 pub fn build_mutation_response(
     mutation_json: &str,
@@ -543,19 +543,16 @@ pub fn build_mutation_response(
     success_type_fields: Option<Vec<String>>,
     error_type_fields: Option<Vec<String>>,
 ) -> PyResult<Vec<u8>> {
-    mutation::build_mutation_response(
-        mutation_json,
-        field_name,
-        success_type,
-        error_type,
-        entity_field_name,
-        entity_type,
-        cascade_selections,
-        auto_camel_case,
-        success_type_fields.as_deref(),
-        error_type_fields.as_deref(),
-    )
-    .map_err(pyo3::exceptions::PyValueError::new_err)
+    // Construct MutationConfig internally to keep Python API unchanged
+    let config = mutation::MutationConfig::new(field_name, success_type, error_type)
+        .with_entity_options(entity_field_name, entity_type)
+        .with_cascade_selections(cascade_selections)
+        .with_auto_camel_case(auto_camel_case)
+        .with_success_type_fields(success_type_fields.as_deref())
+        .with_error_type_fields(error_type_fields.as_deref());
+
+    mutation::build_mutation_response(mutation_json, &config)
+        .map_err(pyo3::exceptions::PyValueError::new_err)
 }
 
 /// Reset the schema registry for testing purposes
