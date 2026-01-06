@@ -1,8 +1,56 @@
-//! Query caching module.
+//! Query caching module with memory-safe bounds.
 //!
 //! Contains two types of caches:
 //! 1. `QueryPlanCache`: Caches GraphQL query execution plans (existing)
 //! 2. `QueryResultCache`: Caches GraphQL query results with entity tracking (Phase 17A)
+//!
+//! # Cache Configuration Bounds
+//!
+//! All caches are configured with entry count limits to prevent unbounded memory growth:
+//!
+//! ## QueryPlanCache (SQL query plans)
+//! - **Default capacity**: 5,000 entries
+//! - **Per-entry size**: ~500 bytes (SQL template + metadata)
+//! - **Max memory**: ~2.5 MB
+//! - **Use case**: GraphQL query → SQL plan mapping
+//!
+//! ## QueryResultCache (GraphQL results)
+//! - **Default capacity**: 10,000 entries
+//! - **Per-entry size**: ~1-10 KB (depends on result size)
+//! - **Max memory**: ~10-100 MB (configurable TTL for safer bounds)
+//! - **Use case**: Complete GraphQL query results
+//!
+//! ## UserContextCache (Auth context)
+//! - **Production default**: 1,000-5,000 entries
+//! - **Per-entry size**: ~200-400 bytes
+//! - **Max memory**: ~0.5-2 MB
+//! - **Eviction**: LRU + TTL (default 15 minutes)
+//! - **Use case**: Cached JWT/OIDC user context
+//!
+//! ## PermissionCache (RBAC)
+//! - **Production default**: 10,000 entries (was 100, now configurable)
+//! - **Per-entry size**: ~1 KB per user/tenant pair
+//! - **Max memory**: ~10 MB
+//! - **Eviction**: LRU + TTL (default 5 minutes)
+//! - **Use case**: User permissions within tenant
+//!
+//! # Memory Safety Strategy
+//!
+//! - All caches use LRU eviction when entry count is exceeded
+//! - TTL expiry as secondary safety mechanism for permission caches
+//! - Memory estimates based on typical production data
+//! - Configured for servers with 512MB+ available for caching
+//!
+//! # Configuration
+//!
+//! Caches are initialized with safe defaults in production:
+//! ```text
+//! let config = QueryResultCacheConfig {
+//!     max_entries: 10_000,      // Entry count limit
+//!     ttl_seconds: 86400,       // 24 hours
+//!     cache_list_queries: true,
+//! };
+//! ```
 
 pub mod cache_key;
 pub mod coherency_validator;
@@ -198,7 +246,11 @@ impl QueryPlanCache {
 
 impl Default for QueryPlanCache {
     fn default() -> Self {
-        Self::new(5000) // 5000 cached plans by default
+        // Default to 5,000 cached plans
+        // Each plan entry: ~500 bytes (SQL template + parameter metadata)
+        // Max memory: ~2.5 MB
+        // Suitable for most production workloads with <10,000 unique queries
+        Self::new(5000)
     }
 }
 

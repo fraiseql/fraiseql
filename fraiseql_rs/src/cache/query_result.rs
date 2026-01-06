@@ -28,17 +28,45 @@ pub struct CachedResult {
     pub hit_count: u64,
 }
 
-/// Configuration for query result cache
+/// Configuration for query result cache with memory-safe bounds
+///
+/// # Memory Safety
+///
+/// The cache enforces strict bounds to prevent unbounded memory growth:
+/// - **max_entries**: Hard limit on number of cached results (LRU eviction above this)
+/// - **ttl_seconds**: Time-based expiry for additional safety
+///
+/// # Sizing Recommendations
+///
+/// - **Small deployments** (development, staging): `max_entries: 1_000`, `ttl_seconds: 3600` (1 hour)
+/// - **Medium deployments** (10-50 QPS): `max_entries: 10_000`, `ttl_seconds: 86400` (24 hours)
+/// - **Large deployments** (100+ QPS): `max_entries: 50_000`, `ttl_seconds: 604800` (7 days)
+/// - **High-traffic** (1000+ QPS): `max_entries: 100_000`, `ttl_seconds: 86400` with periodic cleanup
+///
+/// Memory impact at default (10,000 entries):
+/// - Average result size: 1-10 KB
+/// - Estimated memory: 10-100 MB (adjust TTL or max_entries if exceeding available memory)
 #[derive(Debug, Clone, Copy)]
 pub struct QueryResultCacheConfig {
     /// Maximum number of entries in cache (LRU eviction above this)
+    ///
+    /// When capacity is exceeded, least-recently-used entries are removed.
+    /// This hard limit prevents unbounded memory growth.
+    /// Recommended range: 1,000 - 100,000
     pub max_entries: usize,
 
     /// TTL in seconds (safety net for non-mutation changes)
+    ///
+    /// Entries are automatically invalidated after this duration.
+    /// This provides a safety net for data that changes outside the mutation path.
     /// Default: 24 hours (86400 seconds)
+    /// Recommended range: 3600 (1 hour) to 604800 (7 days)
     pub ttl_seconds: u64,
 
     /// Whether to cache list/paginated queries
+    ///
+    /// List queries can have varying result sizes. Set to false to save memory
+    /// and reduce invalidation complexity if list query caching isn't critical.
     pub cache_list_queries: bool,
 }
 

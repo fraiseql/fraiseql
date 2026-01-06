@@ -86,13 +86,22 @@ const DEFAULT_CACHE_CAPACITY: NonZeroUsize = match NonZeroUsize::new(DEFAULT_CAC
 /// - Typical lock hold time: < 1μs per operation
 /// - Poisoning recovery: Automatic, no data corruption
 ///
-/// # Memory Safety
+/// # Memory Safety and Configuration
 ///
 /// **Bounded memory usage:**
-/// - Maximum entries: Configured at construction (default: 100)
+/// - Maximum entries: Configured at construction (default: 100, but increase for production)
 /// - Per-entry size: ~1KB (varies with permission count)
 /// - Total memory: capacity * 1KB (e.g., 10K entries = 10MB max)
 /// - LRU eviction: Prevents unbounded growth
+///
+/// **Capacity recommendations:**
+/// - **Test/development**: 100-500 entries (small user base)
+/// - **Production small** (<100 users): 1,000-2,000 entries
+/// - **Production medium** (100-1000 users): 5,000-10,000 entries
+/// - **Production large** (1000+ users): 10,000-50,000 entries
+///
+/// The default of 100 is intentionally small for safety; production deployments
+/// should explicitly configure appropriate capacity based on user load.
 ///
 /// **Security properties:**
 /// - TTL expiry: Revoked permissions become invalid after TTL
