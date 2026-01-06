@@ -132,8 +132,6 @@ impl FieldMasker {
     fn mask_sensitive(value: &str) -> String {
         if value.is_empty() {
             "***".to_string()
-        } else if value.len() == 1 {
-            format!("{}***", value.chars().next().unwrap())
         } else {
             format!("{}***", value.chars().next().unwrap())
         }

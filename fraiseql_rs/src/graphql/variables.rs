@@ -22,8 +22,6 @@ pub struct VariableResult {
 pub struct VariableProcessor {
     /// Variable definitions from the query
     definitions: HashMap<String, VariableDefinition>,
-    /// Schema metadata (for ID policy validation)
-    schema: Option<SchemaMetadata>,
     /// ID policy for validation
     id_policy: IDPolicy,
 }
@@ -41,14 +39,13 @@ impl VariableProcessor {
 
         Self {
             definitions,
-            schema: None,
             id_policy: IDPolicy::default(),
         }
     }
 
     /// Create a new variable processor with schema and ID policy
     #[must_use]
-    pub fn with_schema(query: &ParsedQuery, schema: SchemaMetadata, id_policy: IDPolicy) -> Self {
+    pub fn with_schema(query: &ParsedQuery, _schema: SchemaMetadata, id_policy: IDPolicy) -> Self {
         // Extract variable definitions from query
         let definitions = query
             .variables
@@ -58,7 +55,6 @@ impl VariableProcessor {
 
         Self {
             definitions,
-            schema: Some(schema),
             id_policy,
         }
     }

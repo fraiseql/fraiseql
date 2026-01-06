@@ -105,7 +105,7 @@ pub fn hash_query_with_variables(query: &str, variables: &JsonValue) -> String {
 
     // Step 2: Check if variables are empty/null
     let is_empty = variables.is_null()
-        || (variables.is_object() && variables.as_object().map_or(false, |o| o.is_empty()));
+        || (variables.is_object() && variables.as_object().is_some_and(|o| o.is_empty()));
 
     if is_empty {
         // No variables, use query hash only

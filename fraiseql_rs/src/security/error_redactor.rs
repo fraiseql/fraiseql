@@ -114,16 +114,16 @@ impl ErrorRedactor {
         if error_msg.contains("database")
             || error_msg.contains("connection")
             || error_msg.contains("sql")
-        {
-            RedactionLevel::Full
-        } else if error_msg.contains("internal")
+            || error_msg.contains("internal")
             || error_msg.contains("stack")
             || error_msg.contains("backtrace")
         {
             RedactionLevel::Full
-        } else if error_msg.contains("syntax") || error_msg.contains("parse") {
-            RedactionLevel::Partial
-        } else if error_msg.contains("permission") || error_msg.contains("unauthorized") {
+        } else if error_msg.contains("syntax")
+            || error_msg.contains("parse")
+            || error_msg.contains("permission")
+            || error_msg.contains("unauthorized")
+        {
             RedactionLevel::Partial
         } else {
             RedactionLevel::None

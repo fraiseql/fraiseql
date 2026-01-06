@@ -169,7 +169,7 @@ impl FieldFilter {
 ///
 /// Vector of top-level field selections
 fn extract_selections(query: &str) -> Result<Vec<FieldSelection>, FilterError> {
-    parse_query(query).map_err(|e| FilterError::QueryParseError(e))
+    parse_query(query).map_err(FilterError::QueryParseError)
 }
 
 /// Simple GraphQL query parser
@@ -203,7 +203,7 @@ fn parse_selection_set(input: &str) -> Result<Vec<FieldSelection>, String> {
             '#' => {
                 // Comment - skip to end of line
                 chars.next();
-                while chars.peek().map_or(false, |&c| c != '\n') {
+                while chars.peek().is_some_and(|&c| c != '\n') {
                     chars.next();
                 }
             }
@@ -212,7 +212,7 @@ fn parse_selection_set(input: &str) -> Result<Vec<FieldSelection>, String> {
                 chars.next();
                 while chars
                     .peek()
-                    .map_or(false, |&c| c.is_alphanumeric() || c == '_')
+                    .is_some_and(|&c| c.is_alphanumeric() || c == '_')
                 {
                     chars.next();
                 }
@@ -239,7 +239,7 @@ fn parse_field(chars: &mut std::iter::Peekable<std::str::Chars>) -> Result<Field
     // Read field name
     while chars
         .peek()
-        .map_or(false, |&c| c.is_alphanumeric() || c == '_')
+        .is_some_and(|&c| c.is_alphanumeric() || c == '_')
     {
         name.push(chars.next().unwrap());
     }
@@ -254,7 +254,7 @@ fn parse_field(chars: &mut std::iter::Peekable<std::str::Chars>) -> Result<Field
         let mut alias_name = String::new();
         while chars
             .peek()
-            .map_or(false, |&c| c.is_alphanumeric() || c == '_')
+            .is_some_and(|&c| c.is_alphanumeric() || c == '_')
         {
             alias_name.push(chars.next().unwrap());
         }
@@ -276,7 +276,7 @@ fn parse_field(chars: &mut std::iter::Peekable<std::str::Chars>) -> Result<Field
                       // Skip directive name
         while chars
             .peek()
-            .map_or(false, |&c| c.is_alphanumeric() || c == '_')
+            .is_some_and(|&c| c.is_alphanumeric() || c == '_')
         {
             chars.next();
         }
@@ -319,7 +319,7 @@ fn parse_selection_set_until_close(
             }
             Some(&'#') => {
                 // Comment
-                while chars.peek().map_or(false, |&c| c != '\n') {
+                while chars.peek().is_some_and(|&c| c != '\n') {
                     chars.next();
                 }
             }
@@ -328,7 +328,7 @@ fn parse_selection_set_until_close(
                 chars.next();
                 while chars
                     .peek()
-                    .map_or(false, |&c| c.is_alphanumeric() || c == '_')
+                    .is_some_and(|&c| c.is_alphanumeric() || c == '_')
                 {
                     chars.next();
                 }
@@ -345,11 +345,11 @@ fn parse_selection_set_until_close(
                 skip_whitespace(chars);
 
                 // Check if it's an inline fragment (... on Type)
-                if chars.peek().map_or(false, |&c| c.is_alphabetic()) {
+                if chars.peek().is_some_and(|&c| c.is_alphabetic()) {
                     let mut word = String::new();
                     while chars
                         .peek()
-                        .map_or(false, |&c| c.is_alphanumeric() || c == '_')
+                        .is_some_and(|&c| c.is_alphanumeric() || c == '_')
                     {
                         word.push(chars.next().unwrap());
                     }
@@ -380,7 +380,7 @@ fn parse_selection_set_until_close(
 
 /// Skip whitespace and comments
 fn skip_whitespace(chars: &mut std::iter::Peekable<std::str::Chars>) {
-    while chars.peek().map_or(false, |&c| c.is_whitespace()) {
+    while chars.peek().is_some_and(|&c| c.is_whitespace()) {
         chars.next();
     }
 }
@@ -389,7 +389,7 @@ fn skip_whitespace(chars: &mut std::iter::Peekable<std::str::Chars>) {
 fn skip_type_name(chars: &mut std::iter::Peekable<std::str::Chars>) {
     while chars
         .peek()
-        .map_or(false, |&c| c.is_alphanumeric() || c == '_')
+        .is_some_and(|&c| c.is_alphanumeric() || c == '_')
     {
         chars.next();
     }

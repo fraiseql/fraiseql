@@ -43,8 +43,10 @@ use std::fmt;
 
 /// Security profile configuration
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Default)]
 pub enum SecurityProfile {
     /// STANDARD: Basic security (rate limit + audit)
+    #[default]
     Standard,
 
     /// REGULATED: Full security with compliance features (HIPAA/SOC2)
@@ -193,11 +195,6 @@ impl fmt::Display for SecurityProfile {
     }
 }
 
-impl Default for SecurityProfile {
-    fn default() -> Self {
-        SecurityProfile::Standard
-    }
-}
 
 #[cfg(test)]
 mod tests {

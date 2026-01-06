@@ -28,9 +28,11 @@ use serde::{Deserialize, Serialize};
 
 /// ID Policy determines how GraphQL ID scalar type behaves
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum IDPolicy {
     /// IDs must be valid UUIDs (FraiseQL's opinionated default)
     #[serde(rename = "uuid")]
+    #[default]
     UUID,
 
     /// IDs accept any string (GraphQL specification compliant)
@@ -53,11 +55,6 @@ impl IDPolicy {
     }
 }
 
-impl Default for IDPolicy {
-    fn default() -> Self {
-        IDPolicy::UUID
-    }
-}
 
 impl std::fmt::Display for IDPolicy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
