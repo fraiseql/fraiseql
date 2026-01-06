@@ -7,8 +7,8 @@
 //!
 //! - **Public**: No masking (e.g., id, name, title)
 //! - **Sensitive**: Partial masking - show first char + *** (e.g., email, phone)
-//! - **PII**: Heavy masking - type + **** (e.g., ssn, credit_card)
-//! - **Secret**: Always masked - **** (e.g., password, api_key)
+//! - **PII**: Heavy masking - type + **** (e.g., `ssn`, `credit_card`)
+//! - **Secret**: Always masked - **** (e.g., `password`, `api_key`)
 //!
 //! ## Pattern Matching
 //!
@@ -50,10 +50,10 @@ pub enum FieldSensitivity {
 impl fmt::Display for FieldSensitivity {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            FieldSensitivity::Public => write!(f, "public"),
-            FieldSensitivity::Sensitive => write!(f, "sensitive"),
-            FieldSensitivity::PII => write!(f, "pii"),
-            FieldSensitivity::Secret => write!(f, "secret"),
+            Self::Public => write!(f, "public"),
+            Self::Sensitive => write!(f, "sensitive"),
+            Self::PII => write!(f, "pii"),
+            Self::Secret => write!(f, "secret"),
         }
     }
 }
@@ -64,6 +64,7 @@ pub struct FieldMasker;
 
 impl FieldMasker {
     /// Detect field sensitivity based on name patterns
+    #[must_use]
     pub fn detect_sensitivity(field_name: &str) -> FieldSensitivity {
         let lower = field_name.to_lowercase();
 
@@ -119,6 +120,7 @@ impl FieldMasker {
     }
 
     /// Mask a string value based on sensitivity level
+    #[must_use]
     pub fn mask_value(value: &str, sensitivity: FieldSensitivity) -> String {
         match sensitivity {
             FieldSensitivity::Public => value.to_string(),
@@ -133,7 +135,8 @@ impl FieldMasker {
         if value.is_empty() {
             "***".to_string()
         } else {
-            format!("{}***", value.chars().next().unwrap())
+            let first_char = value.chars().next().unwrap_or('*');
+            format!("{first_char}***")
         }
     }
 
@@ -148,6 +151,7 @@ impl FieldMasker {
     }
 
     /// Determine if value should be masked for this profile
+    #[must_use]
     pub fn should_mask(sensitivity: FieldSensitivity, profile: &SecurityProfile) -> bool {
         match profile {
             SecurityProfile::Standard => false,
