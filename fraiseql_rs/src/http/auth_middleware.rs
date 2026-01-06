@@ -281,10 +281,10 @@ pub fn claims_to_user_context(claims: Claims) -> UserContext {
 /// Convert `AuthError` to `HttpAuthError`
 ///
 /// Maps auth module errors to appropriate HTTP status codes and specific error codes:
-/// - `InvalidToken` → 401 Unauthorized (code: TOKEN_INVALID)
-/// - `TokenExpired` → 401 Unauthorized (code: TOKEN_EXPIRED)
-/// - `InvalidAudience` → 401 Unauthorized (code: INVALID_AUDIENCE)
-/// - `InvalidIssuer` → 401 Unauthorized (code: INVALID_ISSUER)
+/// - `InvalidToken` → 401 Unauthorized (code: `TOKEN_INVALID`)
+/// - `TokenExpired` → 401 Unauthorized (code: `TOKEN_EXPIRED`)
+/// - `InvalidAudience` → 401 Unauthorized (code: `INVALID_AUDIENCE`)
+/// - `InvalidIssuer` → 401 Unauthorized (code: `INVALID_ISSUER`)
 /// - `KeyNotFound`, `JwksFetchFailed`, `HttpError`, `CacheError`, `JsonError` → 500 Internal Server Error
 ///
 /// Specific error codes allow clients to distinguish between different authentication
