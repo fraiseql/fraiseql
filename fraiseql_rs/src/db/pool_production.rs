@@ -111,13 +111,12 @@ impl ProductionPool {
         use postgres_native_tls::MakeTlsConnector;
 
         // Build TLS connector
-        let mut tls_builder = TlsConnector::builder();
+        let tls_builder = TlsConnector::builder();
 
-        // For 'prefer' mode, accept invalid certs (fallback gracefully)
-        // For 'require' mode, validate certificates
-        if config.ssl_mode == SslMode::Prefer {
-            tls_builder.danger_accept_invalid_certs(true);
-        }
+        // Always validate certificates - both 'prefer' and 'require' modes
+        // 'prefer' means we'll try SSL first, but fall back to non-SSL if needed
+        // This does NOT mean we accept invalid certificates
+        // Certificate validation is essential to prevent MITM attacks
 
         let tls = tls_builder
             .build()
@@ -186,13 +185,24 @@ impl ProductionPool {
         };
 
         // Extract JSONB from column 0 (FraiseQL CQRS pattern)
-        let results = rows
-            .iter()
-            .map(|row| {
-                row.try_get::<_, serde_json::Value>(0)
-                    .unwrap_or(serde_json::Value::Null)
-            })
-            .collect();
+        // Each row MUST have a valid JSONB value at column 0
+        let mut results = Vec::new();
+        for (row_idx, row) in rows.iter().enumerate() {
+            match row.try_get::<_, serde_json::Value>(0) {
+                Ok(value) => results.push(value),
+                Err(e) => {
+                    self.metrics.record_query_error();
+                    return Err(DatabaseError::ColumnAccess {
+                        index: 0,
+                        expected_type: "jsonb",
+                        reason: format!(
+                            "Failed to extract JSONB from column 0 in row {}: {}",
+                            row_idx, e
+                        ),
+                    });
+                }
+            }
+        }
 
         Ok(results)
     }

@@ -246,7 +246,7 @@ def _extract_field_location(field_node: Any) -> dict[str, int] | None:
 
 
 def _extract_variable_defaults(
-    query_string: str, operation_name: str | None = None
+    query_string: str, operation_name: str | None = None,
 ) -> dict[str, Any]:
     """Extract default values for variables from operation definition.
 
@@ -360,7 +360,7 @@ def _expand_fragment_spread(
 
         # Extract sub-selections using recursive field extraction
         sub_selections = extract_field_selections(
-            selection.selection_set, document, variables, None
+            selection.selection_set, document, variables, None,
         )
 
         fields.append(
@@ -369,7 +369,7 @@ def _expand_fragment_spread(
                 "response_key": response_key,
                 "field_node": selection,
                 "selections": sub_selections,
-            }
+            },
         )
 
     return fields
@@ -417,7 +417,7 @@ def _expand_inline_fragment(
 
         # Extract sub-selections using recursive field extraction
         sub_selections = extract_field_selections(
-            selection.selection_set, document, variables, None
+            selection.selection_set, document, variables, None,
         )
 
         fields.append(
@@ -426,7 +426,7 @@ def _expand_inline_fragment(
                 "response_key": response_key,
                 "field_node": selection,
                 "selections": sub_selections,
-            }
+            },
         )
 
     return fields
@@ -515,7 +515,7 @@ def extract_field_selections(
                 # Add to visited set and recursively extract fields from fragment
                 updated_visited = visited_fragments | {fragment_name}
                 fragment_fields = extract_field_selections(
-                    fragment_def.selection_set, document, variables, updated_visited
+                    fragment_def.selection_set, document, variables, updated_visited,
                 )
                 fields.extend(fragment_fields)
             continue
@@ -550,14 +550,14 @@ def extract_field_selections(
             {
                 "field_name": field_name,
                 "alias": alias,
-            }
+            },
         )
 
     return fields
 
 
 def _extract_root_query_fields(
-    query_string: str, operation_name: str | None = None, variables: dict[str, Any] | None = None
+    query_string: str, operation_name: str | None = None, variables: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Extract root-level query fields with their selections, applying directive filtering.
 
@@ -628,7 +628,7 @@ def _extract_root_query_fields(
 
                 # Extract sub-field selections with aliases and directives
                 sub_selections = extract_field_selections(
-                    selection.selection_set, document, variables, None
+                    selection.selection_set, document, variables, None,
                 )
 
                 fields.append(
@@ -637,7 +637,7 @@ def _extract_root_query_fields(
                         "response_key": response_key,  # For response building
                         "field_node": selection,
                         "selections": sub_selections,
-                    }
+                    },
                 )
 
             return fields
@@ -864,7 +864,7 @@ async def execute_multi_field_query(
 
             # Add to field data list (use response_key for the response field name)
             field_data_list.append(
-                (response_key, type_name, json_rows, field_selections_json, is_list)
+                (response_key, type_name, json_rows, field_selections_json, is_list),
             )
 
         except Exception as e:
@@ -983,7 +983,7 @@ def create_graphql_router(
     logger.info(
         f"Creating unified GraphQL router: environment={config.environment}, "
         f"turbo_enabled={turbo_registry is not None}, "
-        f"turbo_registry_type={type(turbo_registry).__name__}"
+        f"turbo_registry_type={type(turbo_registry).__name__}",
     )
 
     # Configure N+1 detection for non-production environments
@@ -1012,7 +1012,7 @@ def create_graphql_router(
 
     logger.info(
         f"TurboRouter creation final state: turbo_registry={turbo_registry is not None}, "
-        f"turbo_router={turbo_router is not None}, turbo_router_value={turbo_router}"
+        f"turbo_router={turbo_router is not None}, turbo_router_value={turbo_router}",
     )
     query_analyzer = QueryAnalyzer(schema)
     mode_selector = ModeSelector(config)
@@ -1120,7 +1120,7 @@ def create_graphql_router(
             if not sha256_hash or not isinstance(sha256_hash, str) or not sha256_hash.strip():
                 logger.debug("APQ request failed: invalid hash format")
                 return create_apq_error_response(
-                    "PERSISTED_QUERY_NOT_FOUND", "PersistedQueryNotFound"
+                    "PERSISTED_QUERY_NOT_FOUND", "PersistedQueryNotFound",
                 )
 
             # Get APQ backend for caching
@@ -1146,7 +1146,7 @@ def create_graphql_router(
 
                 # 1. Try cached response first (JSON passthrough)
                 cached_response = handle_apq_request_with_cache(
-                    request, apq_backend, config, context=context
+                    request, apq_backend, config, context=context,
                 )
                 if cached_response:
                     logger.debug(f"APQ cache hit: {sha256_hash[:8]}...")
@@ -1166,13 +1166,13 @@ def create_graphql_router(
                 if not persisted_query_text:
                     logger.debug(f"APQ request failed: hash not found: {sha256_hash[:8]}...")
                     return create_apq_error_response(
-                        "PERSISTED_QUERY_NOT_FOUND", "PersistedQueryNotFound"
+                        "PERSISTED_QUERY_NOT_FOUND", "PersistedQueryNotFound",
                     )
 
                 # Replace request query with persisted query for normal execution
                 logger.debug(
                     f"APQ request resolved: hash {sha256_hash[:8]}... -> "
-                    f"query length {len(persisted_query_text)}"
+                    f"query length {len(persisted_query_text)}",
                 )
                 request.query = persisted_query_text
 
@@ -1223,11 +1223,11 @@ def create_graphql_router(
                 field_count = _count_root_query_fields(request.query, request.operationName)
                 logger.info(
                     f"🚀 Multi-field query detected ({field_count} root fields) - "
-                    f"using Rust-only merge path"
+                    f"using Rust-only merge path",
                 )
                 try:
                     result = await execute_multi_field_query(
-                        schema, request.query, request.variables, context
+                        schema, request.query, request.variables, context,
                     )
                     # execute_multi_field_query returns RustResponseBytes
                     return Response(
@@ -1275,7 +1275,7 @@ def create_graphql_router(
                                 first_response = next(iter(rust_responses.values()))
                                 logger.info(
                                     "🚀 Direct path: Returning RustResponseBytes directly "
-                                    "(unified executor)"
+                                    "(unified executor)",
                                 )
                                 return Response(
                                     content=bytes(first_response),
@@ -1358,7 +1358,7 @@ def create_graphql_router(
                             first_response = next(iter(rust_responses.values()))
                             logger.info(
                                 "🚀 Direct path: Returning RustResponseBytes directly "
-                                "(fallback executor)"
+                                "(fallback executor)",
                             )
                             return Response(
                                 content=bytes(first_response),

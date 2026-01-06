@@ -10,6 +10,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
 
 use crate::auth::errors::AuthError;
+use crate::db::recover_from_poisoned;
 
 type Result<T> = std::result::Result<T, AuthError>;
 
@@ -151,7 +152,7 @@ impl JWKSCache {
     async fn get_jwk(&self, kid: &str, jwks_url: &str, client: &reqwest::Client) -> Result<Jwk> {
         // Check cache with TTL validation
         {
-            let mut cache = self.cache.lock().expect("JWK cache mutex poisoned");
+            let mut cache = recover_from_poisoned(self.cache.lock());
             if let Some((jwk, cached_at)) = cache.get(kid) {
                 let elapsed = SystemTime::now()
                     .duration_since(*cached_at)
@@ -179,7 +180,7 @@ impl JWKSCache {
 
         // Store in cache
         {
-            let mut cache = self.cache.lock().expect("JWK cache mutex poisoned");
+            let mut cache = recover_from_poisoned(self.cache.lock());
             cache.put(kid.to_string(), (jwk.clone(), SystemTime::now()));
         }
 

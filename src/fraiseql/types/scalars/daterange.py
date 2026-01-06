@@ -16,7 +16,7 @@ from fraiseql.types.definitions import ScalarMarker
 def is_valid_date(date_str: str) -> bool:
     """Check if a date string is valid and in the correct format."""
     try:
-        _ = datetime.strptime(date_str, "%Y-%m-%d")  # noqa: DTZ007
+        _ = datetime.strptime(date_str, "%Y-%m-%d")
     except ValueError:
         return False
     else:

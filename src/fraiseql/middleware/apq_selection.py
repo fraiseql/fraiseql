@@ -190,7 +190,7 @@ def _handle_field_selection(
     if selection.selection_set:
         # Recurse for nested selections
         filtered[response_key] = _filter_data_by_selection(
-            value, selection.selection_set, fragments
+            value, selection.selection_set, fragments,
         )
     else:
         # Scalar field - copy value directly

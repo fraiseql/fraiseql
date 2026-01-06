@@ -4,6 +4,7 @@ use pyo3::prelude::*;
 use std::sync::Arc;
 
 use crate::auth::provider::{Auth0Provider, AuthProvider, CustomJWTProvider};
+use crate::db::ffi_runtime;
 use crate::pipeline::unified::UserContext;
 
 /// Python wrapper for `UserContext` (exposed from Rust to Python)
@@ -191,22 +192,13 @@ impl PyAuthProvider {
     pub fn validate_token_blocking(&self, token: &str) -> PyResult<PyUserContext> {
         let provider = self.provider.clone();
 
-        // Try to use existing tokio runtime, or create a new one
+        // Try to use existing tokio runtime, or use thread-local cached FFI runtime
         // Use existing runtime if available (e.g., when called from Rust async context)
         let context = if let Ok(handle) = tokio::runtime::Handle::try_current() {
             handle.block_on(provider.validate_token(token))
         } else {
-            // Create a new single-threaded runtime for this validation
-            // This allows calling from Python asyncio without requiring tokio runtime
-            let rt = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .map_err(|e| {
-                    PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
-                        "Failed to create tokio runtime: {e}"
-                    ))
-                })?;
-
+            // Use thread-local cached FFI runtime (avoids 100-200ms overhead per call)
+            let rt = ffi_runtime();
             rt.block_on(provider.validate_token(token))
         };
 

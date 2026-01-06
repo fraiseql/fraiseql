@@ -19,6 +19,7 @@
 pub mod errors;
 pub mod health;
 pub mod metrics;
+pub mod mutex_recovery;
 pub mod pool;
 pub mod pool_config;
 pub mod pool_production;
@@ -33,12 +34,13 @@ pub mod where_builder;
 pub use errors::{DatabaseError, DatabaseResult};
 pub use health::{HealthCheckResult, PoolHealthStats};
 pub use metrics::{MetricsSnapshot, PoolMetrics};
+pub use mutex_recovery::recover_from_poisoned;
 pub use pool::DatabasePool;
 pub use pool_config::{DatabaseConfig, SslMode};
 pub use pool_production::{PoolStats, ProductionPool};
 pub use prototype::PrototypePool; // Phase 0: Export prototype for testing
 pub use query::QueryExecutor;
-pub use runtime::{init_runtime, runtime, RuntimeConfig, RuntimeStats};
+pub use runtime::{ffi_runtime, init_runtime, runtime, RuntimeConfig, RuntimeStats};
 pub use transaction::Transaction;
 pub use types::*;
 pub use where_builder::{WhereBuilder, WhereCondition};

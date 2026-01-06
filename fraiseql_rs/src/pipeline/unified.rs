@@ -265,10 +265,7 @@ impl GraphQLPipeline {
         // 3. Query complexity analysis
         let complexity_config = ComplexityConfig {
             max_complexity: 1000, // Configurable limit
-            field_cost: 1,
-            depth_multiplier: 1.5,
-            field_overrides: HashMap::new(),
-            type_multipliers: HashMap::new(),
+            ..Default::default()
         };
         let analyzer = ComplexityAnalyzer::with_config(complexity_config);
         analyzer

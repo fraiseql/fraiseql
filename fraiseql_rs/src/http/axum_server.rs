@@ -23,7 +23,8 @@ use crate::http::metrics::HttpMetrics;
 use crate::http::observability_middleware::{ObservabilityContext, ResponseStatus};
 use crate::pipeline::unified::{GraphQLPipeline, UserContext};
 use crate::security::audit::AuditLogger;
-use std::time::Instant;
+use std::time::{Duration, Instant};
+use tokio::time::timeout;
 
 /// GraphQL request structure
 ///
@@ -90,6 +91,9 @@ pub struct AppState {
 
     /// Optional audit logger for request tracking (requires `PostgreSQL`)
     pub audit_logger: Option<Arc<AuditLogger>>,
+
+    /// Request timeout duration (prevents hanging queries)
+    pub request_timeout: Duration,
 }
 
 impl AppState {
@@ -125,6 +129,7 @@ impl AppState {
             http_metrics,
             metrics_admin_token,
             audit_logger,
+            request_timeout: Duration::from_secs(30), // Default 30-second timeout
         }
     }
 
@@ -151,6 +156,7 @@ impl AppState {
             http_metrics,
             metrics_admin_token,
             audit_logger,
+            request_timeout: Duration::from_secs(30), // Default 30-second timeout
         }
     }
 }
@@ -286,11 +292,18 @@ async fn graphql_handler(
         })
     });
 
-    // Execute the GraphQL query through the pipeline
-    let result = state
-        .pipeline
-        .execute(&request.query, variables.clone(), user_context)
-        .await;
+    // Execute the GraphQL query through the pipeline with timeout
+    let result = match timeout(
+        state.request_timeout,
+        state
+            .pipeline
+            .execute(&request.query, variables.clone(), user_context)
+    )
+    .await
+    {
+        Ok(pipeline_result) => pipeline_result,
+        Err(_elapsed) => Err(anyhow::anyhow!("Request timeout after {} seconds", state.request_timeout.as_secs())),
+    };
 
     // Step 2: Determine response status and record metrics
     let (status_code, response, error_msg) = match result {

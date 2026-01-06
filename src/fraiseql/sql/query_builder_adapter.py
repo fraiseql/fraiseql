@@ -236,7 +236,7 @@ def _should_use_rust() -> bool:
     # Gradual rollout percentage
     if RUST_QUERY_BUILDER_PERCENTAGE > 0:
         # NOTE: S311 suppressed - random is fine for traffic sampling (not cryptographic)
-        return random.randint(1, 100) <= RUST_QUERY_BUILDER_PERCENTAGE  # noqa: S311
+        return random.randint(1, 100) <= RUST_QUERY_BUILDER_PERCENTAGE
 
     return False
 

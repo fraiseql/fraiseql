@@ -6,6 +6,7 @@ use std::num::NonZeroUsize;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
 
+use crate::db::recover_from_poisoned;
 use crate::pipeline::unified::UserContext;
 
 /// User context cache with LRU eviction and TTL validation.
@@ -40,7 +41,7 @@ impl UserContextCache {
     pub fn get(&self, token: &str) -> Option<UserContext> {
         let key = Self::hash_token(token);
 
-        let mut cache = self.cache.lock().expect("auth cache mutex poisoned");
+        let mut cache = recover_from_poisoned(self.cache.lock());
 
         if let Some((context, cached_at)) = cache.get(&key) {
             // Check TTL
@@ -75,7 +76,7 @@ impl UserContextCache {
     pub fn put(&self, token: &str, context: UserContext) {
         let key = Self::hash_token(token);
 
-        let mut cache = self.cache.lock().expect("auth cache mutex poisoned");
+        let mut cache = recover_from_poisoned(self.cache.lock());
         cache.put(key, (context, SystemTime::now()));
     }
 
@@ -85,7 +86,7 @@ impl UserContextCache {
     ///
     /// Panics if the cache mutex is poisoned.
     pub fn clear(&self) {
-        let mut cache = self.cache.lock().expect("auth cache mutex poisoned");
+        let mut cache = recover_from_poisoned(self.cache.lock());
         cache.clear();
     }
 

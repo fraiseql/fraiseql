@@ -413,7 +413,7 @@ class AuditLogQueryBuilder:
             return
 
         path = Path(filepath)
-        with path.open("w", newline="") as f:  # noqa: ASYNC230
+        with path.open("w", newline="") as f:
             writer = csv.DictWriter(
                 f,
                 fieldnames=[
@@ -475,7 +475,7 @@ class AuditLogQueryBuilder:
         ]
 
         path = Path(filepath)
-        with path.open("w") as f:  # noqa: ASYNC230
+        with path.open("w") as f:
             json.dump(data, f, indent=2, default=str)
 
     # ===== Private Helper Methods =====

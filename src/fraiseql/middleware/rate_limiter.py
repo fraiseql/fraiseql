@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from psycopg_pool import AsyncConnectionPool
 
 try:
-    from psycopg_pool import AsyncConnectionPool  # noqa: TC002
+    from psycopg_pool import AsyncConnectionPool
 
     PSYCOPG_AVAILABLE = True
 except ImportError:

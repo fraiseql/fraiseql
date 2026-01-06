@@ -133,7 +133,7 @@ def add_subscription_routes_with_auth(
                         "payload": {
                             "message": "First message must be connection_init",
                         },
-                    }
+                    },
                 )
                 await adapter.close()
                 return
@@ -149,7 +149,7 @@ def add_subscription_routes_with_auth(
                         "payload": {
                             "message": f"Authentication failed: {e!s}",
                         },
-                    }
+                    },
                 )
                 await adapter.close()
                 return
@@ -159,7 +159,7 @@ def add_subscription_routes_with_auth(
                 {
                     "type": "connection_ack",
                     "payload": {"user": auth_context},
-                }
+                },
             )
 
             # Create protocol and continue

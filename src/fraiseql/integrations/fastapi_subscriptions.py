@@ -167,7 +167,7 @@ def create_subscription_router_with_auth(
                         "payload": {
                             "message": "First message must be connection_init",
                         },
-                    }
+                    },
                 )
                 await adapter.close()
                 return
@@ -183,7 +183,7 @@ def create_subscription_router_with_auth(
                     {
                         "type": "connection_error",
                         "payload": {"message": error_msg},
-                    }
+                    },
                 )
                 await adapter.close()
                 logger.warning(f"Authentication failed: {error_msg}")
@@ -197,7 +197,7 @@ def create_subscription_router_with_auth(
                 {
                     "type": "connection_ack",
                     "payload": auth_context,
-                }
+                },
             )
 
             # Mark protocol as ready (skip re-accepting connection)

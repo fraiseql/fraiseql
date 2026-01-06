@@ -13,7 +13,7 @@ Protocol flow:
 Reference: https://github.com/enisdenjo/graphql-ws/blob/master/PROTOCOL.md
 """
 
-import asyncio  # noqa: TC003
+import asyncio
 import logging
 from enum import Enum
 from typing import Any

@@ -25,10 +25,28 @@
 //!
 //! Full subscription logic (parsing, validation, execution) will be
 //! implemented in Commit 4 with integration to the subscription executor.
+//!
+//! # Phase 2A Note: Structured Logging
+//!
+//! Current implementation uses eprintln for debug output. For production use,
+//! these should be replaced with structured logging via the `tracing` crate
+//! to enable log filtering, sampling, and integration with observability systems.
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use futures_util::sink::SinkExt;
 use futures_util::stream::StreamExt;
+
+// Phase 2A: Debug logging macro for future transition to structured logging
+// TODO: Replace with tracing::{debug, warn, error} macros
+#[cfg(debug_assertions)]
+macro_rules! debug_log {
+    ($($arg:tt)*) => { eprintln!($($arg)*) };
+}
+
+#[cfg(not(debug_assertions))]
+macro_rules! debug_log {
+    ($($arg:tt)*) => {};
+}
 
 /// Handles WebSocket upgrade for GraphQL subscriptions
 ///
@@ -72,24 +90,24 @@ pub async fn websocket_handler(ws: WebSocketUpgrade) -> impl axum::response::Int
 async fn handle_socket(socket: WebSocket) {
     let (mut sender, mut receiver) = socket.split();
 
-    eprintln!("WebSocket connection established");
+    debug_log!("WebSocket connection established");
 
     // Message handling loop
     while let Some(msg) = receiver.next().await {
         match msg {
             Ok(Message::Text(text)) => {
-                eprintln!("Received text message: {text}");
+                debug_log!("Received text message: {text}");
 
                 // For Commit 3: Simple echo
                 // In Commit 4: Parse as GraphQL message and route accordingly
                 if let Err(e) = sender.send(Message::Text(text)).await {
-                    eprintln!("Error sending response: {e}");
+                    debug_log!("Error sending response: {e}");
                     break;
                 }
             }
 
             Ok(Message::Close(close_frame)) => {
-                eprintln!(
+                debug_log!(
                     "WebSocket close received: {:?}",
                     close_frame.map(|cf| (cf.code, cf.reason))
                 );
@@ -99,29 +117,29 @@ async fn handle_socket(socket: WebSocket) {
             Ok(Message::Ping(data)) => {
                 // Respond to ping with pong
                 if let Err(e) = sender.send(Message::Pong(data)).await {
-                    eprintln!("Error sending pong: {e}");
+                    debug_log!("Error sending pong: {e}");
                     break;
                 }
             }
 
             Ok(Message::Pong(_)) => {
                 // Pong received, connection is alive
-                eprintln!("Pong received, connection alive");
+                debug_log!("Pong received, connection alive");
             }
 
             Err(e) => {
-                eprintln!("WebSocket error: {e}");
+                debug_log!("WebSocket error: {e}");
                 break;
             }
 
             _ => {
                 // Other message types (binary, etc.) are not supported yet
-                eprintln!("Unsupported message type received");
+                debug_log!("Unsupported message type received");
             }
         }
     }
 
-    eprintln!("WebSocket connection closed");
+    debug_log!("WebSocket connection closed");
 }
 
 #[cfg(test)]

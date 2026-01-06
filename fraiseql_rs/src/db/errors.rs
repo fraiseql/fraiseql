@@ -19,6 +19,21 @@ pub enum DatabaseError {
     Configuration(String),
     /// SSL/TLS error
     Ssl(String),
+    /// Column access error (e.g., JSONB extraction failed)
+    ///
+    /// This error occurs when attempting to extract a column from a query result fails.
+    /// This typically indicates:
+    /// - Column type mismatch (expected JSONB, got different type)
+    /// - Missing column in result set
+    /// - Schema mismatch between code and database
+    ColumnAccess {
+        /// Zero-based column index
+        index: usize,
+        /// Expected data type (e.g., "json" or "jsonb")
+        expected_type: &'static str,
+        /// Detailed reason from database driver
+        reason: String,
+    },
 }
 
 impl fmt::Display for DatabaseError {
@@ -31,6 +46,14 @@ impl fmt::Display for DatabaseError {
             Self::HealthCheck(e) => write!(f, "Health check failed: {e}"),
             Self::Configuration(e) => write!(f, "Configuration error: {e}"),
             Self::Ssl(e) => write!(f, "SSL/TLS error: {e}"),
+            Self::ColumnAccess {
+                index,
+                expected_type,
+                reason,
+            } => write!(
+                f,
+                "Column access error at index {index} (expected {expected_type}): {reason}"
+            ),
         }
     }
 }

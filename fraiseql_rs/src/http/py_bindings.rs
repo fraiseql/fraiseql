@@ -28,7 +28,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::cache::QueryPlanCache;
-use crate::db::{DatabaseConfig, DatabasePool, ProductionPool};
+use crate::db::{ffi_runtime, DatabaseConfig, DatabasePool, ProductionPool};
 use crate::http::axum_server::{AppState, GraphQLRequest};
 use crate::http::metrics::HttpMetrics;
 use crate::pipeline::unified::{GraphQLPipeline, UserContext};
@@ -225,16 +225,8 @@ impl PyAxumServer {
                 user_context,
             ))
         } else {
-            // Create a new runtime for this execution
-            let rt = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .map_err(|e| {
-                    PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
-                        "Failed to create tokio runtime: {e}"
-                    ))
-                })?;
-
+            // Use thread-local cached FFI runtime (avoids 100-200ms overhead per call)
+            let rt = ffi_runtime();
             rt.block_on(
                 self.state
                     .pipeline
