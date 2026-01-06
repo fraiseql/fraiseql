@@ -1,24 +1,24 @@
-"""
-Phase 1: PyO3 Core Bindings - Unit Tests
+"""Phase 1: PyO3 Core Bindings - Unit Tests
 
 Tests the basic PyO3 bindings for GraphQL subscriptions.
 These tests verify that Rust subscription engine can be called from Python.
 """
 
 import pytest
+
 from fraiseql import _fraiseql_rs
 
 
 class TestPySubscriptionPayload:
     """Test PySubscriptionPayload class"""
 
-    def test_create_payload(self):
+    def test_create_payload(self) -> None:
         """Test creating a subscription payload"""
         payload = _fraiseql_rs.subscriptions.PySubscriptionPayload("query { test }")
         assert payload.query == "query { test }"
         assert payload.operation_name is None
 
-    def test_payload_with_operation_name(self):
+    def test_payload_with_operation_name(self) -> None:
         """Test payload with operation name"""
         payload = _fraiseql_rs.subscriptions.PySubscriptionPayload("subscription Test { test }")
         payload.operation_name = "Test"
@@ -28,20 +28,19 @@ class TestPySubscriptionPayload:
 class TestPyGraphQLMessage:
     """Test PyGraphQLMessage class"""
 
-    def test_from_dict(self):
+    def test_from_dict(self) -> None:
         """Test creating message from dict"""
         data = {"type": "connection_ack", "id": "123"}
         message = _fraiseql_rs.subscriptions.PyGraphQLMessage.from_dict(data)
         assert message.type_ == "connection_ack"
         assert message.id == "123"
 
-    def test_to_dict(self):
+    def test_to_dict(self) -> None:
         """Test converting message to dict"""
         # Create message from dict (which is the intended way to construct)
-        message = _fraiseql_rs.subscriptions.PyGraphQLMessage.from_dict({
-            "type": "connection_ack",
-            "id": "123"
-        })
+        message = _fraiseql_rs.subscriptions.PyGraphQLMessage.from_dict(
+            {"type": "connection_ack", "id": "123"}
+        )
 
         result = message.to_dict()
         assert result["type"] == "connection_ack"
@@ -51,31 +50,31 @@ class TestPyGraphQLMessage:
 class TestPyEventBusConfig:
     """Test PyEventBusConfig class"""
 
-    def test_memory_config(self):
+    def test_memory_config(self) -> None:
         """Test in-memory event bus config"""
         config = _fraiseql_rs.subscriptions.PyEventBusConfig.memory()
         assert config.bus_type == "memory"
 
-    def test_redis_config(self):
+    def test_redis_config(self) -> None:
         """Test Redis event bus config"""
         config = _fraiseql_rs.subscriptions.PyEventBusConfig.redis(
             "redis://localhost:6379", "test-group"
         )
         assert config.bus_type == "redis"
 
-    def test_postgresql_config(self):
+    def test_postgresql_config(self) -> None:
         """Test PostgreSQL event bus config"""
         config = _fraiseql_rs.subscriptions.PyEventBusConfig.postgresql(
             "postgresql://user:pass@localhost/db"
         )
         assert config.bus_type == "postgresql"
 
-    def test_invalid_redis_url(self):
+    def test_invalid_redis_url(self) -> None:
         """Test invalid Redis URL rejection"""
         with pytest.raises(ValueError):
             _fraiseql_rs.subscriptions.PyEventBusConfig.redis("invalid-url", "test-group")
 
-    def test_invalid_postgresql_url(self):
+    def test_invalid_postgresql_url(self) -> None:
         """Test invalid PostgreSQL URL rejection"""
         with pytest.raises(ValueError):
             _fraiseql_rs.subscriptions.PyEventBusConfig.postgresql("invalid-url")
@@ -84,12 +83,12 @@ class TestPyEventBusConfig:
 class TestPySubscriptionExecutor:
     """Test PySubscriptionExecutor class"""
 
-    def test_create_executor(self):
+    def test_create_executor(self) -> None:
         """Test creating a subscription executor"""
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
         assert executor is not None
 
-    def test_register_subscription(self):
+    def test_register_subscription(self) -> None:
         """Test registering a subscription"""
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
 
@@ -104,7 +103,7 @@ class TestPySubscriptionExecutor:
             tenant_id=1,
         )
 
-    def test_publish_event(self):
+    def test_publish_event(self) -> None:
         """Test publishing an event"""
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
 
@@ -115,7 +114,7 @@ class TestPySubscriptionExecutor:
             data={"key": "value"},
         )
 
-    def test_next_event_no_response(self):
+    def test_next_event_no_response(self) -> None:
         """Test getting next event when subscription doesn't exist"""
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
 
@@ -124,7 +123,7 @@ class TestPySubscriptionExecutor:
         with pytest.raises(ValueError, match="Subscription not found"):
             executor.next_event("nonexistent")
 
-    def test_complete_subscription(self):
+    def test_complete_subscription(self) -> None:
         """Test completing a subscription"""
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
 
@@ -142,9 +141,8 @@ class TestPySubscriptionExecutor:
         # For Phase 1, subscriptions get auto-generated IDs, so we can't complete by ID
         # This test just verifies the method exists and can be called
         # Phase 2 will implement proper ID management
-        pass
 
-    def test_get_metrics(self):
+    def test_get_metrics(self) -> None:
         """Test getting executor metrics"""
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
 
@@ -157,7 +155,7 @@ class TestPySubscriptionExecutor:
 class TestEndToEndWorkflow:
     """Test complete end-to-end workflow"""
 
-    def test_full_workflow(self):
+    def test_full_workflow(self) -> None:
         """Test the complete Phase 1 workflow with Phase 2 dispatch"""
         # Create executor
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()

@@ -114,7 +114,7 @@ class TestGoldenFileRegression:
     """Test SQL output unchanged for common WHERE patterns."""
 
     @pytest.mark.parametrize("golden", GOLDEN_QUERIES, ids=lambda g: g["name"])
-    def test_where_sql_unchanged(self, golden):
+    def test_where_sql_unchanged(self, golden) -> None:
         """Verify WHERE clause generates expected SQL."""
         repo = FraiseQLRepository(None)
 
@@ -145,7 +145,7 @@ class TestGoldenFileRegression:
                 f"Expected {golden['expected_param_count']} params, got {len(params)}"
             )
 
-    def test_golden_queries_comprehensive_coverage(self):
+    def test_golden_queries_comprehensive_coverage(self) -> None:
         """Verify golden tests cover all major WHERE patterns."""
         golden_names = {g["name"] for g in GOLDEN_QUERIES}
 

@@ -12,7 +12,7 @@ from fraiseql.db import FraiseQLRepository
 class TestParameterBinding:
     """Test parameter binding correctness in WHERE clause execution."""
 
-    async def test_parameter_count_matches_placeholders(self, class_db_pool):
+    async def test_parameter_count_matches_placeholders(self, class_db_pool) -> None:
         """Verify parameter count matches %s placeholder count."""
         repo = FraiseQLRepository(class_db_pool, context={"tenant_id": "test"})
 
@@ -36,7 +36,7 @@ class TestParameterBinding:
             f"but {len(params)} parameters"
         )
 
-    async def test_parameter_order_correctness(self, class_db_pool, setup_hybrid_table):
+    async def test_parameter_order_correctness(self, class_db_pool, setup_hybrid_table) -> None:
         """Verify parameters are in correct order for placeholders."""
         test_data = setup_hybrid_table
         repo = FraiseQLRepository(class_db_pool, context={"tenant_id": "test"})
@@ -50,7 +50,7 @@ class TestParameterBinding:
         # Should return results
         assert result is not None
 
-    async def test_in_operator_parameter_binding(self, class_db_pool):
+    async def test_in_operator_parameter_binding(self, class_db_pool) -> None:
         """Verify IN operator uses individual parameters (psycopg3 style)."""
         repo = FraiseQLRepository(class_db_pool, context={"tenant_id": "test"})
 
@@ -69,7 +69,7 @@ class TestParameterBinding:
         assert sql_str.count("%s") == 3
         assert "IN (%s, %s, %s)" in sql_str
 
-    async def test_null_operator_no_parameters(self, class_db_pool):
+    async def test_null_operator_no_parameters(self, class_db_pool) -> None:
         """Verify IS NULL operator has no parameters."""
         repo = FraiseQLRepository(class_db_pool, context={"tenant_id": "test"})
 
@@ -87,7 +87,7 @@ class TestParameterBinding:
         assert "%s" not in sql_str
         assert "IS NULL" in sql_str
 
-    async def test_mixed_operators_parameter_binding(self, class_db_pool):
+    async def test_mixed_operators_parameter_binding(self, class_db_pool) -> None:
         """Verify complex WHERE with mixed operators has correct binding."""
         repo = FraiseQLRepository(class_db_pool, context={"tenant_id": "test"})
 
@@ -101,7 +101,7 @@ class TestParameterBinding:
 
         table_columns = {"status", "machine_id", "name", "created_at", "data"}
         clause = repo._normalize_where(where, "tv_allocation", table_columns)
-        sql, params = clause.to_sql()
+        _sql, params = clause.to_sql()
 
         # Should have 5 parameters (2 IN values individually, eq UUID, contains pattern, gte date)
         expected_param_count = 5
@@ -114,7 +114,7 @@ class TestParameterBinding:
         assert isinstance(params[3], str)  # LIKE pattern
         assert isinstance(params[4], str)  # date
 
-    async def test_query_execution_smoke_test(self, class_db_pool, setup_hybrid_table):
+    async def test_query_execution_smoke_test(self, class_db_pool, setup_hybrid_table) -> None:
         """Smoke test: Execute complex query to verify no runtime errors."""
         test_data = setup_hybrid_table
         repo = FraiseQLRepository(class_db_pool, context={"tenant_id": "test"})

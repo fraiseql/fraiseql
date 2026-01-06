@@ -3,18 +3,18 @@
 Tests the output formatting for table, JSON, and CSV formats.
 """
 
-import json
 import csv
 import io
+import json
 
 import pytest
 
 from fraiseql.cli.monitoring.formatters import (
-    format_json,
-    format_csv,
-    format_table,
-    format_output,
     _format_simple_table,
+    format_csv,
+    format_json,
+    format_output,
+    format_table,
 )
 
 
@@ -70,7 +70,7 @@ class TestCsvFormatter:
     def test_format_csv_with_commas(self) -> None:
         """Test CSV formatting with values containing commas."""
         headers = ["Name", "Description"]
-        rows = [['Smith, John', '"Test description"']]
+        rows = [["Smith, John", '"Test description"']]
 
         result = format_csv(headers, rows)
 
@@ -179,9 +179,7 @@ class TestFormatOutput:
         headers = ["Name", "Value"]
         rows = [["Test", "123"]]
 
-        result = format_output(
-            {}, format_type="table", headers=headers, rows=rows
-        )
+        result = format_output({}, format_type="table", headers=headers, rows=rows)
 
         assert "Name" in result
         assert "Test" in result
@@ -191,9 +189,7 @@ class TestFormatOutput:
         headers = ["Name", "Value"]
         rows = [["Test", "123"]]
 
-        result = format_output(
-            {}, format_type="csv", headers=headers, rows=rows
-        )
+        result = format_output({}, format_type="csv", headers=headers, rows=rows)
 
         assert "Name,Value" in result
         assert "Test,123" in result

@@ -50,7 +50,7 @@ class TestNetworkFiltering:
             "inSubnet", "192.168.1.0/24", field_path, field_type=IpAddress
         )
         assert subnet_sql is not None
-        subnet_str = subnet_sql.as_string(None)  # type: ignore
+        subnet_str = subnet_sql.as_string(None)  # type: ignore[misc]
 
         # Should contain proper casting
         assert "::inet" in subnet_str
@@ -60,7 +60,7 @@ class TestNetworkFiltering:
         # Test isPrivate generates proper SQL
         private_sql = registry.build_sql("isPrivate", True, field_path, field_type=IpAddress)
         assert private_sql is not None
-        private_str = private_sql.as_string(None)  # type: ignore
+        private_str = private_sql.as_string(None)  # type: ignore[misc]
 
         # Should use CIDR range checks for private IPs (no inet_public() in PostgreSQL)
         assert "10.0.0.0/8" in private_str  # RFC 1918 private range
@@ -79,9 +79,9 @@ class TestNetworkFiltering:
         )
 
         assert eq_sql is not None
-        eq_str = eq_sql.as_string(None)  # type: ignore
+        eq_str = eq_sql.as_string(None)  # type: ignore[misc]
         assert subnet_sql is not None
-        subnet_str = subnet_sql.as_string(None)  # type: ignore
+        subnet_str = subnet_sql.as_string(None)  # type: ignore[misc]
 
         # Both should work with PostgreSQL
         # eq uses host() to handle CIDR notation properly
@@ -139,7 +139,7 @@ class TestNetworkFiltering:
             "inSubnet", "192.168.0.0/16", field_path, field_type=IpAddress
         )
         assert subnet_sql is not None
-        subnet_str = subnet_sql.as_string(None)  # type: ignore
+        subnet_str = subnet_sql.as_string(None)  # type: ignore[misc]
 
         # Should generate: (data->>'ip_address')::inet <<= '192.168.0.0/16'::inet
         # This SQL should correctly filter only IPs in the 192.168.x.x range
@@ -152,7 +152,7 @@ class TestNetworkFiltering:
         # Issue #2: Exact matching (eq) doesn't work
         eq_sql = registry.build_sql("eq", "1.1.1.1", field_path, field_type=IpAddress)
         assert eq_sql is not None
-        eq_str = eq_sql.as_string(None)  # type: ignore
+        eq_str = eq_sql.as_string(None)  # type: ignore[misc]
 
         # Should generate proper equality check
         # The host() function is actually correct for handling CIDR notation
@@ -162,7 +162,7 @@ class TestNetworkFiltering:
         # Issue #3: isPrivate filter returns empty
         private_sql = registry.build_sql("isPrivate", True, field_path, field_type=IpAddress)
         assert private_sql is not None
-        private_str = private_sql.as_string(None)  # type: ignore
+        private_str = private_sql.as_string(None)  # type: ignore[misc]
 
         # Should use CIDR range checks for private IPs (no inet_public() in PostgreSQL)
         assert "10.0.0.0/8" in private_str  # RFC 1918 private range

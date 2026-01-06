@@ -136,7 +136,7 @@ class TestHealthCheckCore:
         health = HealthCheck()
 
         async def broken_check() -> CheckResult:
-            raise Exception("Something went wrong!")
+            raise Exception("Something went wrong!")  # noqa: TRY002
 
         health.add_check("broken", broken_check)
         result = await health.run_checks()

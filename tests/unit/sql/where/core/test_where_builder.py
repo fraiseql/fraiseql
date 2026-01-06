@@ -13,7 +13,7 @@ from fraiseql.sql.where.operators.base_builders import build_comparison_sql, bui
 class TestBuildComparisonSQL:
     """Test the generic comparison SQL builder."""
 
-    def test_comparison_no_casting(self):
+    def test_comparison_no_casting(self) -> None:
         """Test comparison with no type casting."""
         path_sql = SQL("data->>'name'")
         result = build_comparison_sql(path_sql, "John", "=")
@@ -21,14 +21,14 @@ class TestBuildComparisonSQL:
         assert sql_str == "data->>'name' = 'John'"
         assert "::" not in sql_str
 
-    def test_comparison_both_sides_cast(self):
+    def test_comparison_both_sides_cast(self) -> None:
         """Test comparison with casting on both sides."""
         path_sql = SQL("data->>'birth_date'")
         result = build_comparison_sql(path_sql, "2023-07-15", "=", "date")
         sql_str = result.as_string(None)
         assert sql_str == "(data->>'birth_date')::date = '2023-07-15'::date"
 
-    def test_comparison_left_side_only_cast(self):
+    def test_comparison_left_side_only_cast(self) -> None:
         """Test comparison with casting on left side only."""
         path_sql = SQL("data->>'port'")
         result = build_comparison_sql(path_sql, 8080, "=", "integer", cast_value=False)
@@ -37,7 +37,7 @@ class TestBuildComparisonSQL:
         assert "::integer" in sql_str
         assert "8080::integer" not in sql_str
 
-    def test_comparison_different_operators(self):
+    def test_comparison_different_operators(self) -> None:
         """Test comparison with different operators."""
         path_sql = SQL("data->>'age'")
         operators = ["=", "!=", ">", ">=", "<", "<="]
@@ -47,42 +47,42 @@ class TestBuildComparisonSQL:
             sql_str = result.as_string(None)
             assert f"(data->>'age')::integer {op} 25" == sql_str
 
-    def test_comparison_with_datetime_cast(self):
+    def test_comparison_with_datetime_cast(self) -> None:
         """Test comparison with datetime casting."""
         path_sql = SQL("data->>'created_at'")
         result = build_comparison_sql(path_sql, "2023-07-15 10:30:00", "=", "timestamptz")
         sql_str = result.as_string(None)
         assert sql_str == "(data->>'created_at')::timestamptz = '2023-07-15 10:30:00'::timestamptz"
 
-    def test_comparison_with_macaddr_cast(self):
+    def test_comparison_with_macaddr_cast(self) -> None:
         """Test comparison with MAC address casting."""
         path_sql = SQL("data->>'mac_address'")
         result = build_comparison_sql(path_sql, "00:11:22:33:44:55", "=", "macaddr")
         sql_str = result.as_string(None)
         assert sql_str == "(data->>'mac_address')::macaddr = '00:11:22:33:44:55'::macaddr"
 
-    def test_comparison_with_inet_cast(self):
+    def test_comparison_with_inet_cast(self) -> None:
         """Test comparison with IP address casting."""
         path_sql = SQL("data->>'ip_address'")
         result = build_comparison_sql(path_sql, "192.168.1.1", "=", "inet")
         sql_str = result.as_string(None)
         assert sql_str == "(data->>'ip_address')::inet = '192.168.1.1'::inet"
 
-    def test_comparison_with_ltree_cast(self):
+    def test_comparison_with_ltree_cast(self) -> None:
         """Test comparison with ltree casting."""
         path_sql = SQL("data->>'path'")
         result = build_comparison_sql(path_sql, "root.child.leaf", "=", "ltree")
         sql_str = result.as_string(None)
         assert sql_str == "(data->>'path')::ltree = 'root.child.leaf'::ltree"
 
-    def test_comparison_with_numeric_cast(self):
+    def test_comparison_with_numeric_cast(self) -> None:
         """Test comparison with numeric casting."""
         path_sql = SQL("data->>'score'")
         result = build_comparison_sql(path_sql, 95.5, ">", "numeric")
         sql_str = result.as_string(None)
         assert sql_str == "(data->>'score')::numeric > 95.5::numeric"
 
-    def test_comparison_with_uuid_cast(self):
+    def test_comparison_with_uuid_cast(self) -> None:
         """Test comparison with UUID casting."""
         path_sql = SQL("data->>'user_id'")
         uuid_val = "550e8400-e29b-41d4-a716-446655440000"
@@ -94,7 +94,7 @@ class TestBuildComparisonSQL:
 class TestBuildInListSQL:
     """Test the generic IN/NOT IN list SQL builder."""
 
-    def test_in_list_no_casting(self):
+    def test_in_list_no_casting(self) -> None:
         """Test IN list with no type casting."""
         path_sql = SQL("data->>'status'")
         values = ["active", "pending", "approved"]
@@ -102,7 +102,7 @@ class TestBuildInListSQL:
         sql_str = result.as_string(None)
         assert sql_str == "data->>'status' IN ('active', 'pending', 'approved')"
 
-    def test_notin_list_no_casting(self):
+    def test_notin_list_no_casting(self) -> None:
         """Test NOT IN list with no type casting."""
         path_sql = SQL("data->>'role'")
         values = ["admin", "superuser"]
@@ -110,7 +110,7 @@ class TestBuildInListSQL:
         sql_str = result.as_string(None)
         assert sql_str == "data->>'role' NOT IN ('admin', 'superuser')"
 
-    def test_in_list_both_sides_cast(self):
+    def test_in_list_both_sides_cast(self) -> None:
         """Test IN list with casting on both sides."""
         path_sql = SQL("data->>'birth_date'")
         values = ["2023-01-01", "2023-12-31"]
@@ -119,7 +119,7 @@ class TestBuildInListSQL:
         expected = "(data->>'birth_date')::date IN ('2023-01-01'::date, '2023-12-31'::date)"
         assert expected == sql_str
 
-    def test_in_list_left_side_only_cast(self):
+    def test_in_list_left_side_only_cast(self) -> None:
         """Test IN list with casting on left side only."""
         path_sql = SQL("data->>'port'")
         values = [80, 443, 8080]
@@ -129,7 +129,7 @@ class TestBuildInListSQL:
         assert "::integer" in sql_str
         assert "80::integer" not in sql_str
 
-    def test_in_list_single_value(self):
+    def test_in_list_single_value(self) -> None:
         """Test IN list with single value."""
         path_sql = SQL("data->>'category'")
         values = ["electronics"]
@@ -137,7 +137,7 @@ class TestBuildInListSQL:
         sql_str = result.as_string(None)
         assert sql_str == "data->>'category' IN ('electronics')"
 
-    def test_in_list_empty_list(self):
+    def test_in_list_empty_list(self) -> None:
         """Test IN list with empty list."""
         path_sql = SQL("data->>'tags'")
         values = []
@@ -145,7 +145,7 @@ class TestBuildInListSQL:
         sql_str = result.as_string(None)
         assert sql_str == "data->>'tags' IN ()"
 
-    def test_in_list_with_integers_cast(self):
+    def test_in_list_with_integers_cast(self) -> None:
         """Test IN list with integer casting."""
         path_sql = SQL("data->>'user_id'")
         values = [1, 2, 3, 5, 8]
@@ -153,7 +153,7 @@ class TestBuildInListSQL:
         sql_str = result.as_string(None)
         assert sql_str == "(data->>'user_id')::integer IN (1, 2, 3, 5, 8)"
 
-    def test_in_list_with_timestamps_cast(self):
+    def test_in_list_with_timestamps_cast(self) -> None:
         """Test IN list with timestamp casting."""
         path_sql = SQL("data->>'created_at'")
         values = ["2023-01-01 00:00:00", "2023-12-31 23:59:59"]
@@ -162,7 +162,7 @@ class TestBuildInListSQL:
         expected = "(data->>'created_at')::timestamptz IN ('2023-01-01 00:00:00'::timestamptz, '2023-12-31 23:59:59'::timestamptz)"
         assert expected == sql_str
 
-    def test_in_list_with_mac_addresses_cast(self):
+    def test_in_list_with_mac_addresses_cast(self) -> None:
         """Test IN list with MAC address casting."""
         path_sql = SQL("data->>'mac'")
         values = ["00:11:22:33:44:55", "aa:bb:cc:dd:ee:ff"]
@@ -171,19 +171,19 @@ class TestBuildInListSQL:
         expected = "(data->>'mac')::macaddr IN ('00:11:22:33:44:55'::macaddr, 'aa:bb:cc:dd:ee:ff'::macaddr)"
         assert expected == sql_str
 
-    def test_in_list_requires_list(self):
+    def test_in_list_requires_list(self) -> None:
         """Test that IN list requires a list."""
         path_sql = SQL("data->>'field'")
         with pytest.raises(TypeError, match="'in' operator requires a list"):
             build_in_list_sql(path_sql, "not-a-list", "IN")  # type: ignore[arg-type]
 
-    def test_notin_list_requires_list(self):
+    def test_notin_list_requires_list(self) -> None:
         """Test that NOT IN list requires a list."""
         path_sql = SQL("data->>'field'")
         with pytest.raises(TypeError, match="'notin' operator requires a list"):
             build_in_list_sql(path_sql, 42, "NOT IN")  # type: ignore[arg-type]
 
-    def test_in_list_with_special_characters(self):
+    def test_in_list_with_special_characters(self) -> None:
         """Test IN list with special characters in values."""
         path_sql = SQL("data->>'name'")
         values = ["O'Connor", "Smith-Jones", "user@domain.com"]
@@ -193,7 +193,7 @@ class TestBuildInListSQL:
         assert "Smith-Jones" in sql_str
         assert "user@domain.com" in sql_str
 
-    def test_in_list_with_large_numbers(self):
+    def test_in_list_with_large_numbers(self) -> None:
         """Test IN list with large numbers."""
         path_sql = SQL("data->>'big_id'")
         values = [9223372036854775807, 9223372036854775806]
@@ -205,14 +205,14 @@ class TestBuildInListSQL:
 class TestBaseBuildersEdgeCases:
     """Test edge cases for base builder functions."""
 
-    def test_comparison_with_none_value(self):
+    def test_comparison_with_none_value(self) -> None:
         """Test comparison with None value."""
         path_sql = SQL("data->>'optional_field'")
         result = build_comparison_sql(path_sql, None, "IS")
         sql_str = result.as_string(None)
         assert sql_str == "data->>'optional_field' IS NULL"
 
-    def test_in_list_with_none_values(self):
+    def test_in_list_with_none_values(self) -> None:
         """Test IN list containing None values."""
         path_sql = SQL("data->>'nullable_field'")
         values = ["value1", None, "value2"]
@@ -220,14 +220,14 @@ class TestBaseBuildersEdgeCases:
         sql_str = result.as_string(None)
         assert sql_str == "data->>'nullable_field' IN ('value1', NULL, 'value2')"
 
-    def test_comparison_with_boolean_values(self):
+    def test_comparison_with_boolean_values(self) -> None:
         """Test comparison with boolean values."""
         path_sql = SQL("data->>'is_active'")
         result = build_comparison_sql(path_sql, True, "=")
         sql_str = result.as_string(None)
         assert sql_str == "data->>'is_active' = true"
 
-    def test_in_list_with_boolean_values(self):
+    def test_in_list_with_boolean_values(self) -> None:
         """Test IN list with boolean values."""
         path_sql = SQL("data->>'flags'")
         values = [True, False, True]

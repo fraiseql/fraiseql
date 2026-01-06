@@ -31,7 +31,7 @@ class TestAuthProvider(AuthProvider):
     async def validate_token(self, token: str) -> dict:
         if token == "valid-token":
             return {"sub": "user-123", "email": "test@example.com"}
-        raise Exception("Invalid token")
+        raise Exception("Invalid token")  # noqa: TRY002
 
     async def get_user_from_token(self, token: str) -> Optional[UserContext]:
         if token == "valid-token":

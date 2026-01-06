@@ -13,19 +13,19 @@ class MockStrategy(BaseOperatorStrategy):
     def supports_operator(self, operator: str, field_type: type | None) -> bool:
         return operator == "mock_op"
 
-    def build_sql(self, operator, value, path_sql, field_type=None, jsonb_column=None):
+    def build_sql(self, operator, value, path_sql, field_type=None, jsonb_column=None) -> None:
         return SQL("{} = {}").format(path_sql, Literal(value))
 
 
 class TestBaseStrategy:
     """Test base operator strategy."""
 
-    def test_abstract_methods_must_be_implemented(self):
+    def test_abstract_methods_must_be_implemented(self) -> None:
         """Test that abstract methods must be implemented."""
         with pytest.raises(TypeError):
             BaseOperatorStrategy()
 
-    def test_mock_strategy_works(self):
+    def test_mock_strategy_works(self) -> None:
         """Test mock strategy implementation."""
         strategy = MockStrategy()
 
@@ -39,7 +39,7 @@ class TestBaseStrategy:
 class TestOperatorRegistry:
     """Test operator registry."""
 
-    def test_register_strategy(self):
+    def test_register_strategy(self) -> None:
         """Test registering a strategy."""
         registry = OperatorRegistry()
         strategy = MockStrategy()
@@ -49,14 +49,14 @@ class TestOperatorRegistry:
         found = registry.get_strategy("mock_op")
         assert found is strategy
 
-    def test_strategy_not_found(self):
+    def test_strategy_not_found(self) -> None:
         """Test when no strategy supports operator."""
         registry = OperatorRegistry()
 
         found = registry.get_strategy("unknown_op")
         assert found is None
 
-    def test_last_registered_wins(self):
+    def test_last_registered_wins(self) -> None:
         """Test that last registered strategy takes precedence."""
         registry = OperatorRegistry()
 
@@ -69,7 +69,7 @@ class TestOperatorRegistry:
         found = registry.get_strategy("mock_op")
         assert found is strategy2  # Last one wins
 
-    def test_build_sql_with_registry(self):
+    def test_build_sql_with_registry(self) -> None:
         """Test building SQL through registry."""
         registry = OperatorRegistry()
         strategy = MockStrategy()
@@ -78,7 +78,7 @@ class TestOperatorRegistry:
         sql = registry.build_sql("mock_op", "test_value", Identifier("field"))
         assert sql is not None
 
-    def test_build_sql_returns_none_for_unknown_operator(self):
+    def test_build_sql_returns_none_for_unknown_operator(self) -> None:
         """Test that build_sql returns None for unknown operators."""
         registry = OperatorRegistry()
 

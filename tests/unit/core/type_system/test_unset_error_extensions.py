@@ -84,13 +84,12 @@ def test_app(clear_registry, monkeypatch) -> None:
     monkeypatch.setattr("fraiseql.fastapi.dependencies.get_db_pool", lambda: mock_pool)
     monkeypatch.setattr("fraiseql.fastapi.dependencies.get_db", lambda: mock_db)
 
-    app = create_fraiseql_app(
+    return create_fraiseql_app(
         database_url="postgresql://test/test",
         types=[SampleType],
         queries=[error_query_func],
         mutations=[CreateTestItem],
     )
-    return app
 
 
 @pytest.fixture

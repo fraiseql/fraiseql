@@ -1,5 +1,4 @@
-"""
-Integration tests for Phase 2.1: Transaction Support.
+"""Integration tests for Phase 2.1: Transaction Support.
 
 Tests transaction support added to DatabasePool:
 - BEGIN/COMMIT/ROLLBACK operations
@@ -11,7 +10,7 @@ Uses testcontainers for automatic PostgreSQL provisioning.
 """
 
 import asyncio
-import pytest
+
 import pytest_asyncio
 
 # Import database fixtures (provides postgres_url via testcontainers)
@@ -19,7 +18,7 @@ pytest_plugins = ["tests.fixtures.database.database_conftest"]
 
 
 @pytest_asyncio.fixture
-async def pool(postgres_url):
+async def pool(postgres_url) -> None:
     """Create database pool for testing using testcontainers PostgreSQL."""
     from fraiseql._fraiseql_rs import DatabasePool
 
@@ -42,7 +41,7 @@ async def pool(postgres_url):
 class TestBasicTransactions:
     """Test basic transaction operations."""
 
-    async def test_commit_transaction(self, pool):
+    async def test_commit_transaction(self, pool) -> None:
         """Test transaction commit."""
         # Begin transaction
         await pool.begin_transaction()
@@ -59,7 +58,7 @@ class TestBasicTransactions:
         )
         assert len(results) == 1
 
-    async def test_rollback_transaction(self, pool):
+    async def test_rollback_transaction(self, pool) -> None:
         """Test transaction rollback."""
         # Begin transaction
         await pool.begin_transaction()
@@ -76,7 +75,7 @@ class TestBasicTransactions:
         )
         assert len(results) == 0
 
-    async def test_transaction_isolation(self, pool):
+    async def test_transaction_isolation(self, pool) -> None:
         """Test that uncommitted changes are not visible outside transaction."""
         # Begin transaction
         await pool.begin_transaction()
@@ -96,7 +95,7 @@ class TestBasicTransactions:
         )
         assert len(results) == 0
 
-    async def test_multiple_operations_in_transaction(self, pool):
+    async def test_multiple_operations_in_transaction(self, pool) -> None:
         """Test multiple operations in single transaction."""
         await pool.begin_transaction()
 
@@ -117,7 +116,7 @@ class TestBasicTransactions:
 class TestSavepoints:
     """Test savepoint functionality."""
 
-    async def test_savepoint_basic(self, pool):
+    async def test_savepoint_basic(self, pool) -> None:
         """Test basic savepoint creation and rollback."""
         await pool.begin_transaction()
 
@@ -147,7 +146,7 @@ class TestSavepoints:
         )
         assert len(results) == 0
 
-    async def test_nested_savepoints(self, pool):
+    async def test_nested_savepoints(self, pool) -> None:
         """Test nested savepoints."""
         await pool.begin_transaction()
 
@@ -178,7 +177,7 @@ class TestSavepoints:
         )
         assert len(results) == 2  # Should have level0 and level1
 
-    async def test_savepoint_partial_rollback(self, pool):
+    async def test_savepoint_partial_rollback(self, pool) -> None:
         """Test rolling back to middle savepoint."""
         await pool.begin_transaction()
 
@@ -224,7 +223,7 @@ class TestSavepoints:
 class TestErrorHandling:
     """Test error handling in transactions."""
 
-    async def test_rollback_on_error(self, pool):
+    async def test_rollback_on_error(self, pool) -> None:
         """Test that transaction can be rolled back after error."""
         await pool.begin_transaction()
 
@@ -246,7 +245,7 @@ class TestErrorHandling:
         )
         assert len(results) == 0
 
-    async def test_transaction_context_manager_pattern(self, pool):
+    async def test_transaction_context_manager_pattern(self, pool) -> None:
         """Test try/except pattern for transactions."""
         # Success case
         try:
@@ -282,10 +281,10 @@ class TestErrorHandling:
 class TestConcurrentTransactions:
     """Test concurrent transaction handling."""
 
-    async def test_concurrent_transactions(self, pool):
+    async def test_concurrent_transactions(self, pool) -> None:
         """Test that multiple transactions can run concurrently."""
 
-        async def transaction(value):
+        async def transaction(value) -> None:
             await pool.begin_transaction()
             await pool.execute_query(f"INSERT INTO test_transactions (value) VALUES ('{value}')")
             await asyncio.sleep(0.01)  # Small delay

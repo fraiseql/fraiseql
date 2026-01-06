@@ -32,7 +32,7 @@ from fraiseql.gql.builders.registry import SchemaRegistry
 
 
 @pytest.fixture(autouse=True)
-def clear_schema_registry():
+def clear_schema_registry() -> None:
     """Clear the schema registry before and after each test."""
     registry = SchemaRegistry.get_instance()
     registry.clear()

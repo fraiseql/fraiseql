@@ -246,7 +246,7 @@ class SchemaQualifiedQueryBuilder:
         self._parts.append(Identifier(self.schema, table))
         return self
 
-    def set_columns(self, **kwargs) -> "SchemaQualifiedQueryBuilder":
+    def set_columns(self, **kwargs) -> "SchemaQualifiedQueryBuilder":  # noqa: ANN003
         """Add a SET clause for UPDATE."""
         self._parts.append(SQL(" SET "))
         for i, (col, _) in enumerate(kwargs.items()):

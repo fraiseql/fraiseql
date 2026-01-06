@@ -178,7 +178,7 @@ def test_mixed_case_preservation(clear_registry) -> None:
     class APIConfig:
         api_key: str  # Should become apiKey
         APIVersion: str  # Should stay APIVersion
-        httpTimeout: int  # Should stay httpTimeout
+        httpTimeout: int  # Should stay httpTimeout  # noqa: N815
         URL: str  # Should stay URL
 
     @query

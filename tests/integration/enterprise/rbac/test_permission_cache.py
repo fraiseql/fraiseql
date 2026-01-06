@@ -28,7 +28,7 @@ async def test_permission_cache_stores_and_retrieves() -> None:
         cache = PermissionCache(db_pool)
 
         # Mock permissions
-        now = datetime.now()
+        now = datetime.now()  # noqa: DTZ005
         permissions = [
             Permission(
                 id=uuid4(), resource="user", action="read", description="Read users", created_at=now

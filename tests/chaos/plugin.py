@@ -1,15 +1,15 @@
-"""
-Chaos Engineering Pytest Plugin
+"""Chaos Engineering Pytest Plugin
 
 This plugin provides decorators and utilities for chaos engineering tests,
 including failure injection, retry logic, and chaos scenario management.
 """
 
-import time
 import functools
-import pytest
-from typing import Dict, Any, Optional, Callable
+import time
 from enum import Enum
+from typing import Any, Callable, Dict, Optional
+
+import pytest
 
 # Import for type annotations
 
@@ -32,12 +32,11 @@ class FailureType(Enum):
 class ChaosInjector:
     """Chaos injection manager."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.active_failures: Dict[str, Dict[str, Any]] = {}
 
-    def inject_failure(self, failure_type: FailureType, duration_ms: int, **kwargs) -> str:
-        """
-        Inject a failure scenario.
+    def inject_failure(self, failure_type: FailureType, duration_ms: int, **kwargs) -> str:  # noqa: ANN003
+        """Inject a failure scenario.
 
         Returns a failure ID that can be used to check status or cancel.
         """
@@ -54,7 +53,7 @@ class ChaosInjector:
 
         self.active_failures[failure_id] = failure_config
 
-        # TODO: Implement actual failure injection based on type
+        # TODO: Implement actual failure injection based on type  # noqa: TD002, TD003
         # For now, this is a placeholder that just waits
 
         return failure_id
@@ -75,7 +74,7 @@ class ChaosInjector:
 
         return True
 
-    def cancel_failure(self, failure_id: str):
+    def cancel_failure(self, failure_id: str) -> None:
         """Cancel an active failure."""
         if failure_id in self.active_failures:
             self.active_failures[failure_id]["active"] = False
@@ -89,9 +88,8 @@ class ChaosInjector:
 _chaos_injector = ChaosInjector()
 
 
-def chaos_inject(failure_type: FailureType, duration_ms: int = 5000, **kwargs):
-    """
-    Decorator to inject chaos into a test function.
+def chaos_inject(failure_type: FailureType, duration_ms: int = 5000, **kwargs) -> None:  # noqa: ANN003
+    """Decorator to inject chaos into a test function.
 
     Args:
         failure_type: Type of failure to inject
@@ -100,29 +98,28 @@ def chaos_inject(failure_type: FailureType, duration_ms: int = 5000, **kwargs):
 
     Example:
         @chaos_inject(FailureType.NETWORK_LATENCY, duration_ms=2000, latency_ms=500)
-        def test_with_latency(self):
+        def test_with_latency(self) -> None:
             # Test runs with 500ms network latency for 2 seconds
             pass
     """
 
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
-        def wrapper(*args, **kwargs_inner):
+        def wrapper(*args, **kwargs_inner) -> None:  # noqa: ANN002, ANN003
             # Inject chaos before running the test
             failure_id = _chaos_injector.inject_failure(failure_type, duration_ms, **kwargs)
 
             try:
                 # Run the test
-                result = func(*args, **kwargs_inner)
-                return result
+                return func(*args, **kwargs_inner)
             finally:
                 # Clean up chaos injection
                 _chaos_injector.cancel_failure(failure_id)
 
         # Mark the function as a chaos test
-        setattr(wrapper, "_chaos_test", True)
-        setattr(wrapper, "_failure_type", failure_type)
-        setattr(wrapper, "_chaos_duration", duration_ms)
+        wrapper._chaos_test = True
+        wrapper._failure_type = failure_type
+        wrapper._chaos_duration = duration_ms
 
         return wrapper
 
@@ -131,9 +128,8 @@ def chaos_inject(failure_type: FailureType, duration_ms: int = 5000, **kwargs):
 
 def retry_chaos_test(
     max_retries: int = 3, retry_on: tuple = (Exception,), record_all: bool = False
-):
-    """
-    Decorator to retry chaos tests that may be inherently flaky.
+) -> Callable:
+    """Decorator to retry chaos tests that may be inherently flaky.
 
     Args:
         max_retries: Maximum number of retry attempts
@@ -142,14 +138,14 @@ def retry_chaos_test(
 
     Example:
         @retry_chaos_test(max_retries=5, retry_on=(ConnectionError, TimeoutError))
-        def test_flaky_chaos_scenario(self):
+        def test_flaky_chaos_scenario(self) -> None:
             # Test that might fail due to chaos injection
             pass
     """
 
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args, **kwargs) -> None:  # noqa: ANN002, ANN003
             last_exception = None
 
             for attempt in range(max_retries + 1):
@@ -173,23 +169,25 @@ def retry_chaos_test(
             # All retries exhausted
             if last_exception:
                 raise last_exception
+            return None
 
         return wrapper
 
     return decorator
 
 
-def _record_chaos_attempt(test_name: str, attempt: int, success: bool, error: Optional[str] = None):
+def _record_chaos_attempt(
+    test_name: str, attempt: int, success: bool, error: Optional[str] = None
+) -> None:
     """Record a chaos test attempt for analysis."""
-    # TODO: Implement attempt recording
+    # TODO: Implement attempt recording  # noqa: TD002, TD003
     # This could write to a database or file for later analysis
-    pass
 
 
 # Pytest plugin hooks
 
 
-def pytest_configure(config):
+def pytest_configure(config) -> None:
     """Configure pytest with chaos engineering support."""
     # Add chaos test markers
     config.addinivalue_line(
@@ -198,7 +196,7 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "chaos_retry: mark test to retry on chaos-induced failures")
 
 
-def pytest_collection_modifyitems(config, items):
+def pytest_collection_modifyitems(config, items) -> None:
     """Modify test collection to handle chaos tests."""
     for item in items:
         # Check if test has chaos decorators
@@ -217,7 +215,7 @@ def pytest_collection_modifyitems(config, items):
 
 
 @pytest.fixture
-def chaos_injector():
+def chaos_injector() -> None:
     """Fixture providing access to the chaos injector."""
     return _chaos_injector
 
@@ -225,16 +223,16 @@ def chaos_injector():
 # Convenience decorators for common chaos scenarios
 
 
-def chaos_network_latency(latency_ms: int = 500, duration_ms: int = 5000):
+def chaos_network_latency(latency_ms: int = 500, duration_ms: int = 5000) -> None:
     """Decorator for network latency chaos."""
     return chaos_inject(FailureType.NETWORK_LATENCY, duration_ms, latency_ms=latency_ms)
 
 
-def chaos_packet_loss(loss_percent: float = 0.1, duration_ms: int = 5000):
+def chaos_packet_loss(loss_percent: float = 0.1, duration_ms: int = 5000) -> None:
     """Decorator for packet loss chaos."""
     return chaos_inject(FailureType.NETWORK_PACKET_LOSS, duration_ms, loss_percent=loss_percent)
 
 
-def chaos_database_timeout(timeout_ms: int = 5000, duration_ms: int = 10000):
+def chaos_database_timeout(timeout_ms: int = 5000, duration_ms: int = 10000) -> None:
     """Decorator for database timeout chaos."""
     return chaos_inject(FailureType.DATABASE_SLOW_QUERY, duration_ms, timeout_ms=timeout_ms)

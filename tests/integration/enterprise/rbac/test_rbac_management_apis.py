@@ -219,7 +219,7 @@ class TestUserRoleManagement:
             user_id=uuid4(),
             role_id=uuid4(),
             tenant_id=uuid4(),
-            expires_at=datetime.now() + timedelta(days=30),
+            expires_at=datetime.now() + timedelta(days=30),  # noqa: DTZ005
         )
 
         result = AssignRoleToUser.resolve(input_data)

@@ -5,7 +5,7 @@ from unittest.mock import Mock
 from fraiseql.mutations.mutation_decorator import _extract_mutation_selected_fields
 
 
-def test_extract_mutation_selected_fields_from_fragment():
+def test_extract_mutation_selected_fields_from_fragment() -> None:
     """Test extracting fields from inline fragment."""
     # Mock GraphQL info object with inline fragment
     info = Mock()
@@ -47,7 +47,7 @@ def test_extract_mutation_selected_fields_from_fragment():
     print(f"✅ Extracted fields: {result}")
 
 
-def test_extract_mutation_selected_fields_no_matching_fragment():
+def test_extract_mutation_selected_fields_no_matching_fragment() -> None:
     """Test when fragment type doesn't match."""
     info = Mock()
     field_node = Mock()
@@ -72,7 +72,7 @@ def test_extract_mutation_selected_fields_no_matching_fragment():
     print("✅ No matching fragment returns None")
 
 
-def test_extract_mutation_selected_fields_none_info():
+def test_extract_mutation_selected_fields_none_info() -> None:
     """Test with None info (backward compat)."""
     result = _extract_mutation_selected_fields(None, "CreateMachineSuccess")
     assert result is None

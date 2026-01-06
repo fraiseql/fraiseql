@@ -12,10 +12,10 @@ pytestmark = pytest.mark.integration
 
 
 @pytest_asyncio.fixture(scope="class")
-async def partitioned_db(class_db_pool, test_schema):
+async def partitioned_db(class_db_pool, test_schema) -> None:
     """Set up partitioned schema for testing."""
     # Read and execute partitioned schema
-    with open("src/fraiseql/monitoring/schema.sql") as f:
+    with open("src/fraiseql/monitoring/schema.sql") as f:  # noqa: ASYNC230, PTH123
         schema_sql = f.read()
 
     # Setup
@@ -75,7 +75,7 @@ class TestErrorOccurrencePartitioning:
                 )
 
                 # Insert occurrence for current month
-                current_time = datetime.now()
+                current_time = datetime.now()  # noqa: DTZ005
                 occurrence_id1 = str(uuid4())
                 await cur.execute(
                     """
@@ -130,7 +130,7 @@ class TestErrorOccurrencePartitioning:
         async with partitioned_db.connection() as conn, conn.cursor() as cur:
             await conn.execute(f"SET search_path TO {test_schema}")
             # Create partition for a future month
-            future_date = datetime.now() + timedelta(days=180)  # ~6 months ahead
+            future_date = datetime.now() + timedelta(days=180)  # ~6 months ahead  # noqa: DTZ005
 
             await cur.execute(
                 """
@@ -198,7 +198,7 @@ class TestErrorOccurrencePartitioning:
                 )
 
                 # Insert occurrences across multiple months
-                current_time = datetime.now()
+                current_time = datetime.now()  # noqa: DTZ005
                 for i in range(3):
                     month_offset = timedelta(days=30 * i)
                     occurrence_time = current_time + month_offset
@@ -272,7 +272,7 @@ class TestPartitionRetention:
         """Test dropping old partitions based on retention policy."""
         async with partitioned_db.connection() as conn, conn.cursor() as cur:
             # Create an old partition manually (7 months ago)
-            old_date = datetime.now() - timedelta(days=210)
+            old_date = datetime.now() - timedelta(days=210)  # noqa: DTZ005
             await cur.execute(
                 """
                     SELECT create_error_occurrence_partition(%s::date)
@@ -391,7 +391,7 @@ class TestNotificationLogPartitioning:
             result = await cur.fetchone()
             assert result is not None
 
-            relname, relkind = result
+            _relname, relkind = result
             # relkind 'p' means partitioned table
             assert relkind == "p"
 

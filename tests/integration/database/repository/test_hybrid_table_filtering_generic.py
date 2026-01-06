@@ -309,7 +309,7 @@ class TestHybridTableFiltering:
         self, class_db_pool, test_schema, setup_hybrid_table
     ) -> None:
         """Test filtering by multiple regular SQL columns simultaneously."""
-        setup_hybrid_table
+        setup_hybrid_table  # noqa: B018
 
         register_type_for_view(
             "products",
@@ -353,7 +353,7 @@ class TestHybridTableFiltering:
         This tests the hybrid nature where some filters should use regular columns
         and others should use JSONB paths.
         """
-        setup_hybrid_table
+        setup_hybrid_table  # noqa: B018
 
         register_type_for_view(
             "products",
@@ -403,8 +403,6 @@ class TestHybridTableFiltering:
         self, class_db_pool, test_schema, setup_hybrid_table
     ) -> None:
         """Test using WhereInput type (generated filter class) on hybrid table."""
-        counts = setup_hybrid_table
-
         register_type_for_view(
             "products",
             Product,

@@ -14,17 +14,17 @@ from fraiseql.gql.builders.registry import SchemaRegistry
 class TestDefaultErrorConfig:
     """Test default_error_config resolution in mutations."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Reset registry before each test."""
         registry = SchemaRegistry.get_instance()
         registry.config = None
 
-    def teardown_method(self):
+    def teardown_method(self) -> None:
         """Clean up registry after each test."""
         registry = SchemaRegistry.get_instance()
         registry.config = None
 
-    def test_mutation_uses_global_default_error_config(self):
+    def test_mutation_uses_global_default_error_config(self) -> None:
         """Test that mutations use default_error_config from FraiseQLConfig when not specified."""
         # Setup: Create config with default_error_config
         config = FraiseQLConfig(
@@ -49,7 +49,7 @@ class TestDefaultErrorConfig:
         # This will fail initially - we need to implement the feature
         assert mutation_def.error_config == DEFAULT_ERROR_CONFIG
 
-    def test_explicit_error_config_overrides_default(self):
+    def test_explicit_error_config_overrides_default(self) -> None:
         """Test that explicit error_config on decorator overrides global default."""
         # Setup: Config with DEFAULT_ERROR_CONFIG as default
         config = FraiseQLConfig(
@@ -77,7 +77,7 @@ class TestDefaultErrorConfig:
         assert mutation_def.error_config == custom_config
         assert mutation_def.error_config != DEFAULT_ERROR_CONFIG
 
-    def test_no_default_error_config_returns_none(self):
+    def test_no_default_error_config_returns_none(self) -> None:
         """Test that mutations get None when no global default is set."""
         # Setup: Config WITHOUT default_error_config
         config = FraiseQLConfig(
@@ -100,7 +100,7 @@ class TestDefaultErrorConfig:
         assert mutation_def is not None
         assert mutation_def.error_config is None
 
-    def test_no_config_returns_none(self):
+    def test_no_config_returns_none(self) -> None:
         """Test that mutations get None when registry has no config."""
         # Setup: No config in registry
         registry = SchemaRegistry.get_instance()
@@ -118,7 +118,7 @@ class TestDefaultErrorConfig:
         assert mutation_def is not None
         assert mutation_def.error_config is None
 
-    def test_different_default_error_configs(self):
+    def test_different_default_error_configs(self) -> None:
         """Test that different global defaults work correctly."""
         test_cases = [
             (DEFAULT_ERROR_CONFIG, "default"),

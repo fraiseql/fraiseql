@@ -12,7 +12,7 @@ class MockInfo:
         self.field_nodes = field_nodes
 
 
-def test_fragment_type_name_mismatch():
+def test_fragment_type_name_mismatch() -> None:
     """Test when fragment type doesn't match expected type."""
     query_string = """
     mutation {
@@ -35,7 +35,7 @@ def test_fragment_type_name_mismatch():
     assert result is None, "Should return None when type doesn't match"
 
 
-def test_named_fragments():
+def test_named_fragments() -> None:
     """Test behavior with named fragments (supported as of Phase 0 fix)."""
     query_string = """
     fragment MachineFields on CreateMachineSuccess {
@@ -75,7 +75,7 @@ def test_named_fragments():
     assert len(result) == 2
 
 
-def test_multiple_fragments_same_type():
+def test_multiple_fragments_same_type() -> None:
     """Test when multiple inline fragments match the same type."""
     query_string = """
     mutation {
@@ -103,7 +103,7 @@ def test_multiple_fragments_same_type():
     assert len(result) == 3
 
 
-def test_no_inline_fragment():
+def test_no_inline_fragment() -> None:
     """Test when query has no inline fragment (backward compat)."""
     query_string = """
     mutation {
@@ -125,7 +125,7 @@ def test_no_inline_fragment():
     assert result is None, "Should return None for backward compatibility when no fragments"
 
 
-def test_empty_fragment():
+def test_empty_fragment() -> None:
     """Test when fragment has no fields selected."""
     query_string = """
     mutation {
@@ -146,7 +146,7 @@ def test_empty_fragment():
     assert result is None, "Should return None when only __typename selected"
 
 
-def test_typename_skipped():
+def test_typename_skipped() -> None:
     """Test that __typename is not included in extracted fields."""
     query_string = """
     mutation {
@@ -170,7 +170,7 @@ def test_typename_skipped():
     assert len(result) == 1
 
 
-def test_no_info_or_field_nodes():
+def test_no_info_or_field_nodes() -> None:
     """Test when info is None or has no field_nodes."""
     # Test with None info
     result = _extract_mutation_selected_fields(None, "CreateMachineSuccess")
@@ -190,7 +190,7 @@ def test_no_info_or_field_nodes():
     assert result is None
 
 
-def test_field_node_no_selection_set():
+def test_field_node_no_selection_set() -> None:
     """Test when field_node has no selection_set."""
     query_string = """
     mutation {
@@ -206,7 +206,7 @@ def test_field_node_no_selection_set():
     assert result is None
 
 
-def test_union_with_both_success_and_error():
+def test_union_with_both_success_and_error() -> None:
     """Test extracting fields from a union with both success and error types."""
     query_string = """
     mutation {
@@ -245,7 +245,7 @@ def test_union_with_both_success_and_error():
     assert "machine" not in error_fields
 
 
-def test_nested_fields_only_top_level_extracted():
+def test_nested_fields_only_top_level_extracted() -> None:
     """Test that only top-level fields are extracted, not nested fields."""
     query_string = """
     mutation {

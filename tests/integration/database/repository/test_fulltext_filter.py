@@ -18,7 +18,7 @@ class TestFullTextFilter:
     """Test PostgreSQL full-text search operators."""
 
     @pytest.fixture(scope="class")
-    def test_types(self, clear_registry_class):
+    def test_types(self, clear_registry_class) -> None:
         """Create test types inside a fixture for proper isolation."""
 
         @fraiseql.type
@@ -36,7 +36,7 @@ class TestFullTextFilter:
         }
 
     @pytest_asyncio.fixture(scope="class")
-    async def setup_test_documents(self, class_db_pool, test_schema, test_types):
+    async def setup_test_documents(self, class_db_pool, test_schema, test_types) -> None:
         """Create test documents with tsvector data."""
         Document = test_types["Document"]
         # Register types for views (for development mode)

@@ -202,9 +202,7 @@ class TestRateLimitMiddleware:
 
     def test_initialization_with_options(self) -> None:
         """Test initialization with custom limits."""
-        middleware = RateLimitMiddleware(
-            requests_per_minute=1000, requests_per_hour=50000
-        )
+        middleware = RateLimitMiddleware(requests_per_minute=1000, requests_per_hour=50000)
 
         assert middleware.requests_per_minute == 1000
         assert middleware.requests_per_hour == 50000

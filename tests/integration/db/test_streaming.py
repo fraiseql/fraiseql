@@ -1,5 +1,4 @@
-"""
-Integration tests for Phase 2.2: Query Streaming (Chunked Queries).
+"""Integration tests for Phase 2.2: Query Streaming (Chunked Queries).
 
 Tests chunked query support added to DatabasePool:
 - execute_query_chunked() for memory-efficient pagination
@@ -10,7 +9,7 @@ Uses testcontainers for automatic PostgreSQL provisioning.
 """
 
 import asyncio
-import pytest
+
 import pytest_asyncio
 
 # Import database fixtures (provides postgres_url via testcontainers)
@@ -18,7 +17,7 @@ pytest_plugins = ["tests.fixtures.database.database_conftest"]
 
 
 @pytest_asyncio.fixture
-async def pool(postgres_url):
+async def pool(postgres_url) -> None:
     """Create database pool for testing using testcontainers PostgreSQL."""
     from fraiseql._fraiseql_rs import DatabasePool
 
@@ -48,7 +47,7 @@ async def pool(postgres_url):
 class TestBasicChunking:
     """Test basic chunked query operations."""
 
-    async def test_first_chunk(self, pool):
+    async def test_first_chunk(self, pool) -> None:
         """Test fetching first chunk of results."""
         # Fetch first 10 rows (select JSONB column)
         results = await pool.execute_query_chunked(
@@ -62,7 +61,7 @@ class TestBasicChunking:
         first_row = json.loads(results[0])
         assert first_row["value"] == "row_000"
 
-    async def test_middle_chunk(self, pool):
+    async def test_middle_chunk(self, pool) -> None:
         """Test fetching middle chunk of results."""
         # Fetch rows 30-39 (offset 30, limit 10)
         results = await pool.execute_query_chunked(
@@ -75,7 +74,7 @@ class TestBasicChunking:
         first_row = json.loads(results[0])
         assert first_row["value"] == "row_030"
 
-    async def test_last_chunk(self, pool):
+    async def test_last_chunk(self, pool) -> None:
         """Test fetching last chunk of results."""
         # Fetch last 10 rows (offset 90, limit 10)
         results = await pool.execute_query_chunked(
@@ -88,7 +87,7 @@ class TestBasicChunking:
         last_row = json.loads(results[9])
         assert last_row["value"] == "row_099"
 
-    async def test_partial_chunk(self, pool):
+    async def test_partial_chunk(self, pool) -> None:
         """Test fetching partial chunk at end of result set."""
         # Fetch beyond the last row (offset 95, limit 10)
         results = await pool.execute_query_chunked(
@@ -102,7 +101,7 @@ class TestBasicChunking:
         last_row = json.loads(results[4])
         assert last_row["value"] == "row_099"
 
-    async def test_empty_chunk(self, pool):
+    async def test_empty_chunk(self, pool) -> None:
         """Test fetching chunk beyond result set."""
         # Fetch beyond all rows (offset 1000, limit 10)
         results = await pool.execute_query_chunked(
@@ -116,7 +115,7 @@ class TestBasicChunking:
 class TestPaginationPatterns:
     """Test real-world pagination patterns."""
 
-    async def test_iterate_all_chunks(self, pool):
+    async def test_iterate_all_chunks(self, pool) -> None:
         """Test iterating through all chunks."""
         all_values = []
         chunk_size = 10
@@ -143,7 +142,7 @@ class TestPaginationPatterns:
         assert all_values[0] == "row_000"
         assert all_values[99] == "row_099"
 
-    async def test_process_in_batches(self, pool):
+    async def test_process_in_batches(self, pool) -> None:
         """Test batch processing pattern."""
         batch_size = 20
         batch_count = 0
@@ -161,7 +160,7 @@ class TestPaginationPatterns:
         assert batch_count == 5
         assert total_processed == 100
 
-    async def test_variable_chunk_sizes(self, pool):
+    async def test_variable_chunk_sizes(self, pool) -> None:
         """Test using different chunk sizes."""
         # Small chunks
         small_chunk = await pool.execute_query_chunked(
@@ -185,7 +184,7 @@ class TestPaginationPatterns:
 class TestQueryVariations:
     """Test chunked queries with various SQL patterns."""
 
-    async def test_with_where_clause(self, pool):
+    async def test_with_where_clause(self, pool) -> None:
         """Test chunked query with WHERE clause."""
         # Query should work with WHERE clause
         results = await pool.execute_query_chunked(
@@ -199,7 +198,7 @@ class TestQueryVariations:
         # First row should be row_050 (id > 50, since we have id=1..100 and data has id=0..99)
         assert first_row["value"] == "row_050"
 
-    async def test_with_trailing_semicolon(self, pool):
+    async def test_with_trailing_semicolon(self, pool) -> None:
         """Test that trailing semicolon is handled correctly."""
         # Query with semicolon should work
         results = await pool.execute_query_chunked(
@@ -208,7 +207,7 @@ class TestQueryVariations:
 
         assert len(results) == 10
 
-    async def test_with_aggregation(self, pool):
+    async def test_with_aggregation(self, pool) -> None:
         """Test chunked query with aggregation (though less common)."""
         # Even aggregation queries can be chunked (e.g., GROUP BY with many groups)
         results = await pool.execute_query_chunked(
@@ -221,10 +220,10 @@ class TestQueryVariations:
 class TestConcurrentChunking:
     """Test concurrent chunked query execution."""
 
-    async def test_concurrent_chunks(self, pool):
+    async def test_concurrent_chunks(self, pool) -> None:
         """Test fetching multiple chunks concurrently."""
 
-        async def fetch_chunk(offset):
+        async def fetch_chunk(offset) -> None:
             return await pool.execute_query_chunked(
                 "SELECT data FROM test_streaming ORDER BY id", limit=10, offset=offset
             )
@@ -252,7 +251,7 @@ class TestConcurrentChunking:
 class TestMemoryEfficiency:
     """Test memory-efficient processing patterns."""
 
-    async def test_large_result_set_chunked(self, pool):
+    async def test_large_result_set_chunked(self, pool) -> None:
         """Test that chunking enables processing large result sets."""
         # Create additional test data
         await pool.execute_query("""
@@ -279,7 +278,7 @@ class TestMemoryEfficiency:
         # Should have processed all rows (100 original + 1000 new = 1100)
         assert total_rows == 1100
 
-    async def test_streaming_pattern(self, pool):
+    async def test_streaming_pattern(self, pool) -> None:
         """Test streaming-style processing pattern."""
         processed_count = 0
         chunk_size = 50

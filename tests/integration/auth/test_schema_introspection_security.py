@@ -67,7 +67,7 @@ class TestSchemaIntrospectionSecurity:
             # This should be blocked in production, but currently isn't
             # This is the bug we need to fix
 
-            # TODO: This should fail (return error), but currently passes
+            # TODO: This should fail (return error), but currently passes  # noqa: TD002, TD003
             # This demonstrates the security issue
 
     def test_introspection_disabled_in_production(self) -> None:

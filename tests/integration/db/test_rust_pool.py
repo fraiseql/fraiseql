@@ -5,20 +5,21 @@ Phase 1: Basic validation and configuration tests.
 """
 
 import pytest
+
 from fraiseql.core.database import DatabasePool
 
 
 class TestDatabasePoolInitialization:
     """Test database pool initialization and configuration."""
 
-    def test_pool_initialization_with_valid_url(self):
+    def test_pool_initialization_with_valid_url(self) -> None:
         """Test that pool initializes with a valid PostgreSQL URL."""
         # Phase 1: Validation only, no actual connection
         pool = DatabasePool("postgresql://user:pass@localhost:5432/test")
         assert pool is not None
         assert isinstance(pool, DatabasePool)
 
-    def test_pool_initialization_with_invalid_url_format(self):
+    def test_pool_initialization_with_invalid_url_format(self) -> None:
         """Test that pool rejects invalid URL formats."""
         with pytest.raises(Exception) as exc_info:
             DatabasePool("invalid://not-a-postgres-url")
@@ -28,7 +29,7 @@ class TestDatabasePoolInitialization:
             "postgresql" in str(exc_info.value).lower() or "postgres" in str(exc_info.value).lower()
         )
 
-    def test_pool_initialization_with_missing_components(self):
+    def test_pool_initialization_with_missing_components(self) -> None:
         """Test that pool rejects URLs missing required components."""
         with pytest.raises(Exception) as exc_info:
             DatabasePool("postgresql://localhost")
@@ -41,7 +42,7 @@ class TestDatabasePoolInitialization:
 class TestDatabasePoolConfiguration:
     """Test pool configuration and statistics."""
 
-    def test_pool_default_configuration(self):
+    def test_pool_default_configuration(self) -> None:
         """Test that pool uses default configuration values."""
         pool = DatabasePool("postgresql://user:pass@localhost:5432/test")
 
@@ -51,7 +52,7 @@ class TestDatabasePoolConfiguration:
         assert "max_size=10" in config_summary
         assert "min_idle=1" in config_summary
 
-    def test_pool_stats_format(self):
+    def test_pool_stats_format(self) -> None:
         """Test that pool stats return expected format."""
         pool = DatabasePool("postgresql://user:pass@localhost:5432/test")
 
@@ -64,7 +65,7 @@ class TestDatabasePoolConfiguration:
         # Phase 1 expectation: 0 connections (validation only)
         assert "0 connections" in stats
 
-    def test_pool_repr(self):
+    def test_pool_repr(self) -> None:
         """Test pool string representation."""
         pool = DatabasePool("postgresql://user:pass@localhost:5432/test")
 
@@ -78,7 +79,7 @@ class TestDatabasePoolConfiguration:
 class TestDatabasePoolValidation:
     """Test URL validation and parsing."""
 
-    def test_pool_validates_postgresql_prefix(self):
+    def test_pool_validates_postgresql_prefix(self) -> None:
         """Test that only postgresql:// URLs are accepted."""
         # Valid
         pool = DatabasePool("postgresql://user:pass@localhost:5432/db")
@@ -92,7 +93,7 @@ class TestDatabasePoolValidation:
             "postgresql" in str(exc_info.value).lower() or "postgres" in str(exc_info.value).lower()
         )
 
-    def test_pool_validates_url_structure(self):
+    def test_pool_validates_url_structure(self) -> None:
         """Test that URL must contain @ and / characters."""
         # Valid structure: user@host/db
         pool = DatabasePool("postgresql://user:pass@localhost/db")
@@ -109,7 +110,7 @@ class TestDatabasePoolValidation:
 class TestDatabasePoolPhase1Scope:
     """Test Phase 1 scope and limitations."""
 
-    def test_pool_is_validation_only(self):
+    def test_pool_is_validation_only(self) -> None:
         """Test that Phase 1 pool is validation-only (no real connections)."""
         pool = DatabasePool("postgresql://user:pass@localhost:5432/test")
 
@@ -118,7 +119,7 @@ class TestDatabasePoolPhase1Scope:
         assert "0 connections" in stats
         assert "0 idle" in stats
 
-    def test_pool_accepts_valid_connection_string(self):
+    def test_pool_accepts_valid_connection_string(self) -> None:
         """Test various valid PostgreSQL connection string formats."""
         # Format 1: Full URL with port
         pool1 = DatabasePool("postgresql://user:pass@localhost:5432/db")

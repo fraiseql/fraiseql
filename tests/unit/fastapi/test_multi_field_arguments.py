@@ -1,5 +1,4 @@
-"""
-Tests for multi-field GraphQL field arguments support.
+"""Tests for multi-field GraphQL field arguments support.
 
 Tests that root fields can accept arguments for filtering, pagination, and other parameters.
 """
@@ -12,7 +11,7 @@ from fraiseql.fastapi.routers import execute_multi_field_query
 
 
 @pytest.mark.asyncio
-async def test_field_with_literal_argument(init_schema_registry_fixture):
+async def test_field_with_literal_argument(init_schema_registry_fixture) -> None:
     """Test root field with a literal argument value."""
     from graphql import (
         GraphQLArgument,
@@ -70,7 +69,7 @@ async def test_field_with_literal_argument(init_schema_registry_fixture):
 
 
 @pytest.mark.asyncio
-async def test_field_with_variable_argument(init_schema_registry_fixture):
+async def test_field_with_variable_argument(init_schema_registry_fixture) -> None:
     """Test root field argument using a query variable."""
     from graphql import (
         GraphQLArgument,
@@ -133,7 +132,7 @@ async def test_field_with_variable_argument(init_schema_registry_fixture):
 
 
 @pytest.mark.asyncio
-async def test_multi_field_with_different_arguments(init_schema_registry_fixture):
+async def test_multi_field_with_different_arguments(init_schema_registry_fixture) -> None:
     """Test multiple root fields each with their own arguments."""
     from graphql import (
         GraphQLArgument,
@@ -216,11 +215,12 @@ async def test_multi_field_with_different_arguments(init_schema_registry_fixture
     # Note: author_id is used for filtering but not selected in the query
     # We expect posts with IDs 1 and 3 (both have author_id=1)
     post_ids = [p["id"] for p in result_json["data"]["posts"]]
-    assert 1 in post_ids and 3 in post_ids
+    assert 1 in post_ids
+    assert 3 in post_ids
 
 
 @pytest.mark.asyncio
-async def test_field_with_complex_arguments(init_schema_registry_fixture):
+async def test_field_with_complex_arguments(init_schema_registry_fixture) -> None:
     """Test field arguments with lists and objects."""
     from graphql import (
         GraphQLArgument,
@@ -317,7 +317,7 @@ async def test_field_with_complex_arguments(init_schema_registry_fixture):
 
 
 @pytest.fixture
-def init_schema_registry_fixture():
+def init_schema_registry_fixture() -> None:
     """Initialize schema registry for multi-field argument tests."""
     import fraiseql._fraiseql_rs as fraiseql_rs
 

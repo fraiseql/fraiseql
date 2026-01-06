@@ -44,7 +44,7 @@ class TestOrderByExecution:
         gql_context,
         setup_graphql_table,
         seed_graphql_data,
-    ):
+    ) -> None:
         """OrderBy with ASC should sort ascending."""
         await setup_graphql_table("order_asc_users")
         await seed_graphql_data(
@@ -89,7 +89,7 @@ class TestOrderByExecution:
         gql_context,
         setup_graphql_table,
         seed_graphql_data,
-    ):
+    ) -> None:
         """OrderBy with DESC should sort descending."""
         await setup_graphql_table("order_desc_users")
         await seed_graphql_data(
@@ -134,7 +134,7 @@ class TestOrderByExecution:
         gql_context,
         setup_graphql_table,
         seed_graphql_data,
-    ):
+    ) -> None:
         """OrderBy should work on string fields."""
         await setup_graphql_table("order_str_users")
         await seed_graphql_data(
@@ -177,7 +177,7 @@ class TestOrderByExecution:
         gql_context,
         setup_graphql_table,
         seed_graphql_data,
-    ):
+    ) -> None:
         """OrderBy should work with where clause."""
         await setup_graphql_table("order_where_users")
         await seed_graphql_data(
@@ -229,7 +229,7 @@ class TestPaginationExecution:
         gql_context,
         setup_graphql_table,
         seed_graphql_data,
-    ):
+    ) -> None:
         """Limit should restrict number of results."""
         await setup_graphql_table("limit_exec_items")
         await seed_graphql_data(
@@ -267,7 +267,7 @@ class TestPaginationExecution:
         gql_context,
         setup_graphql_table,
         seed_graphql_data,
-    ):
+    ) -> None:
         """Offset should skip initial results."""
         await setup_graphql_table("offset_exec_items")
         await seed_graphql_data(
@@ -302,7 +302,7 @@ class TestPaginationExecution:
             context_value=gql_context,
         )
 
-        all_data, all_errors = parse_graphql_result(all_result)
+        all_data, _all_errors = parse_graphql_result(all_result)
         offset_data, offset_errors = parse_graphql_result(offset_result)
 
         assert offset_errors is None
@@ -318,7 +318,7 @@ class TestPaginationExecution:
         gql_context,
         setup_graphql_table,
         seed_graphql_data,
-    ):
+    ) -> None:
         """Limit and offset should work together."""
         await setup_graphql_table("page_exec_items")
         await seed_graphql_data(
@@ -361,7 +361,7 @@ class TestPaginationExecution:
     @pytest.mark.asyncio
     async def test_negative_limit_returns_error(
         self, clear_registry, db_connection, gql_context, setup_graphql_table
-    ):
+    ) -> None:
         """Negative limit should return error."""
         await setup_graphql_table("neg_limit_items")
 
@@ -382,13 +382,13 @@ class TestPaginationExecution:
             context_value=gql_context,
         )
 
-        data, errors = parse_graphql_result(result)
+        _data, errors = parse_graphql_result(result)
         assert errors is not None
 
     @pytest.mark.asyncio
     async def test_negative_offset_returns_error(
         self, clear_registry, db_connection, gql_context, setup_graphql_table
-    ):
+    ) -> None:
         """Negative offset should return error."""
         await setup_graphql_table("neg_offset_items")
 
@@ -409,7 +409,7 @@ class TestPaginationExecution:
             context_value=gql_context,
         )
 
-        data, errors = parse_graphql_result(result)
+        _data, errors = parse_graphql_result(result)
         assert errors is not None
 
 
@@ -424,7 +424,7 @@ class TestAllParametersCombined:
         gql_context,
         setup_graphql_table,
         seed_graphql_data,
-    ):
+    ) -> None:
         """All parameters should work together."""
         await setup_graphql_table("combined_items")
         await seed_graphql_data(

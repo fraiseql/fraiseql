@@ -178,6 +178,6 @@ class TestWhereClauseHandling:
         # This test will be implemented once we have the fix
         # For now, just document the expected behavior
         for _case in test_cases:
-            # TODO: Implement actual WHERE clause generation testing
+            # TODO: Implement actual WHERE clause generation testing  # noqa: TD002, TD003
             # when the fix is ready
             pass

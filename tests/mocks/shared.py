@@ -7,7 +7,7 @@ by the Rust-first mutation pipeline.
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, Self
 
 
 class MockCursor:
@@ -16,10 +16,10 @@ class MockCursor:
     def __init__(self, return_data: str | None = None) -> None:
         self._return_data = return_data or '{"status": "success"}'
 
-    async def __aenter__(self) -> MockCursor:
+    async def __aenter__(self) -> Self:  # noqa: D105
         return self
 
-    async def __aexit__(self, *args: object) -> None:
+    async def __aexit__(self, *args: object) -> None:  # noqa: D105
         pass
 
     async def fetchone(self) -> tuple[str]:
@@ -35,10 +35,10 @@ class MockConnection:
     def __init__(self, cursor: MockCursor | None = None) -> None:
         self._cursor = cursor or MockCursor()
 
-    async def __aenter__(self) -> MockConnection:
+    async def __aenter__(self) -> Self:  # noqa: D105
         return self
 
-    async def __aexit__(self, *args: object) -> None:
+    async def __aexit__(self, *args: object) -> None:  # noqa: D105
         pass
 
     def cursor(self) -> MockCursor:

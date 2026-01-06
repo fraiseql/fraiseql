@@ -23,7 +23,7 @@ class TestIpAddressSerialization:
         assert serialize_ip_address_string("172.16.0.1") == "172.16.0.1"
         assert serialize_ip_address_string("8.8.8.8") == "8.8.8.8"
         assert serialize_ip_address_string("255.255.255.255") == "255.255.255.255"
-        assert serialize_ip_address_string("0.0.0.0") == "0.0.0.0"
+        assert serialize_ip_address_string("0.0.0.0") == "0.0.0.0"  # noqa: S104
 
     def test_serialize_valid_ipv6(self) -> None:
         """Test serializing valid IPv6 addresses."""

@@ -13,8 +13,9 @@ from fraiseql.federation.sdl_generator import (
 class TestSDLGeneratorBasics:
     """Tests for basic SDL generation."""
 
-    def test_simple_entity_sdl(self):
+    def test_simple_entity_sdl(self) -> None:
         """Test SDL generation for simple entity."""
+
         @entity
         class User:
             id: str
@@ -27,8 +28,9 @@ class TestSDLGeneratorBasics:
         assert "name: String!" in sdl
         assert sdl.count("}") == 1
 
-    def test_entity_with_various_types(self):
+    def test_entity_with_various_types(self) -> None:
         """Test SDL generation with different field types."""
+
         @entity
         class Product:
             id: str
@@ -45,7 +47,7 @@ class TestSDLGeneratorBasics:
         assert "in_stock: Boolean!" in sdl
         assert "quantity: Int!" in sdl
 
-    def test_entity_with_optional_fields(self):
+    def test_entity_with_optional_fields(self) -> None:
         """Test SDL generation with optional fields."""
         from typing import Optional
 
@@ -61,8 +63,9 @@ class TestSDLGeneratorBasics:
         assert "description: String" in sdl
         assert "description: String!" not in sdl
 
-    def test_extended_entity_sdl(self):
+    def test_extended_entity_sdl(self) -> None:
         """Test SDL generation for extended entity."""
+
         @extend_entity(key="id")
         class Product:
             id: str = external()
@@ -75,8 +78,9 @@ class TestSDLGeneratorBasics:
         assert "id: String! @external" in sdl
         assert "name: String! @external" in sdl
 
-    def test_composite_key_sdl(self):
+    def test_composite_key_sdl(self) -> None:
         """Test SDL generation with composite key."""
+
         @entity(key=["org_id", "user_id"])
         class OrgUser:
             org_id: str
@@ -87,8 +91,9 @@ class TestSDLGeneratorBasics:
 
         assert '@key(fields: "org_id user_id")' in sdl
 
-    def test_unregistered_entity_raises_error(self):
+    def test_unregistered_entity_raises_error(self) -> None:
         """Test that unregistered entity raises error."""
+
         class NotRegistered:
             id: str
 
@@ -99,27 +104,27 @@ class TestSDLGeneratorBasics:
 class TestSDLGeneratorTypes:
     """Tests for type resolution."""
 
-    def test_type_map_string(self):
+    def test_type_map_string(self) -> None:
         """Test string type mapping."""
         gen = SDLGenerator()
         assert gen._resolve_graphql_type(str) == "String!"
 
-    def test_type_map_int(self):
+    def test_type_map_int(self) -> None:
         """Test int type mapping."""
         gen = SDLGenerator()
         assert gen._resolve_graphql_type(int) == "Int!"
 
-    def test_type_map_float(self):
+    def test_type_map_float(self) -> None:
         """Test float type mapping."""
         gen = SDLGenerator()
         assert gen._resolve_graphql_type(float) == "Float!"
 
-    def test_type_map_bool(self):
+    def test_type_map_bool(self) -> None:
         """Test bool type mapping."""
         gen = SDLGenerator()
         assert gen._resolve_graphql_type(bool) == "Boolean!"
 
-    def test_optional_string(self):
+    def test_optional_string(self) -> None:
         """Test optional string type."""
         from typing import Optional
 
@@ -128,14 +133,14 @@ class TestSDLGeneratorTypes:
         assert "String" in result
         assert "!" not in result or "[" in result
 
-    def test_list_type(self):
+    def test_list_type(self) -> None:
         """Test list type resolution."""
         gen = SDLGenerator()
         result = gen._resolve_graphql_type(list[str])
         assert "[" in result
         assert "String" in result
 
-    def test_string_type_name(self):
+    def test_string_type_name(self) -> None:
         """Test string type names."""
         gen = SDLGenerator()
         assert "String" in gen._resolve_graphql_type("str")
@@ -145,8 +150,9 @@ class TestSDLGeneratorTypes:
 class TestSDLGeneratorDirectives:
     """Tests for directive generation."""
 
-    def test_external_directive(self):
+    def test_external_directive(self) -> None:
         """Test @external directive generation."""
+
         @extend_entity(key="id")
         class Product:
             id: str = external()
@@ -159,8 +165,9 @@ class TestSDLGeneratorDirectives:
         assert "name: String! @external" in sdl
         assert "price: String! @external" in sdl
 
-    def test_key_directive_single(self):
+    def test_key_directive_single(self) -> None:
         """Test @key directive with single field."""
+
         @entity(key="id")
         class User:
             id: str
@@ -169,8 +176,9 @@ class TestSDLGeneratorDirectives:
         sdl = generate_entity_sdl(User)
         assert '@key(fields: "id")' in sdl
 
-    def test_key_directive_composite(self):
+    def test_key_directive_composite(self) -> None:
         """Test @key directive with composite key."""
+
         @entity(key=["tenant_id", "user_id"])
         class TenantUser:
             tenant_id: str
@@ -184,8 +192,9 @@ class TestSDLGeneratorDirectives:
 class TestSDLGeneratorComputedFields:
     """Tests for computed field SDL generation."""
 
-    def test_computed_field_with_requires(self):
+    def test_computed_field_with_requires(self) -> None:
         """Test SDL generation for field with @requires."""
+
         @entity
         class Product:
             id: str
@@ -201,8 +210,9 @@ class TestSDLGeneratorComputedFields:
         assert "price: Float!" in sdl
         assert 'discounted: JSON @requires(fields: "price")' in sdl
 
-    def test_computed_field_with_provides(self):
+    def test_computed_field_with_provides(self) -> None:
         """Test SDL generation for field with @provides."""
+
         @entity
         class User:
             id: str
@@ -216,8 +226,9 @@ class TestSDLGeneratorComputedFields:
 
         assert 'posts: JSON @provides(fields: "id name")' in sdl
 
-    def test_computed_field_with_both_directives(self):
+    def test_computed_field_with_both_directives(self) -> None:
         """Test computed field with both @requires and @provides."""
+
         @entity
         class Article:
             id: str
@@ -239,7 +250,7 @@ class TestSDLGeneratorComputedFields:
 class TestSDLGeneratorSchema:
     """Tests for complete schema generation."""
 
-    def test_empty_registry(self):
+    def test_empty_registry(self) -> None:
         """Test SDL generation with no registered entities."""
         from fraiseql.federation import clear_entity_registry
 
@@ -247,7 +258,7 @@ class TestSDLGeneratorSchema:
         sdl = generate_schema_sdl()
         assert sdl == ""
 
-    def test_single_entity_schema(self):
+    def test_single_entity_schema(self) -> None:
         """Test schema generation with single entity."""
         from fraiseql.federation import clear_entity_registry
 
@@ -264,7 +275,7 @@ class TestSDLGeneratorSchema:
         assert "id: String!" in sdl
         assert "name: String!" in sdl
 
-    def test_multiple_entities_schema(self):
+    def test_multiple_entities_schema(self) -> None:
         """Test schema generation with multiple entities."""
         from fraiseql.federation import clear_entity_registry
 
@@ -290,7 +301,7 @@ class TestSDLGeneratorSchema:
         # Entities should be separated by blank lines
         assert "\n\n" in sdl
 
-    def test_mixed_entities_and_extensions(self):
+    def test_mixed_entities_and_extensions(self) -> None:
         """Test schema with both entities and extensions."""
         from fraiseql.federation import clear_entity_registry
 
@@ -315,8 +326,9 @@ class TestSDLGeneratorSchema:
 class TestSDLGeneratorFormatting:
     """Tests for SDL formatting."""
 
-    def test_proper_indentation(self):
+    def test_proper_indentation(self) -> None:
         """Test that fields are properly indented."""
+
         @entity
         class User:
             id: str
@@ -330,8 +342,9 @@ class TestSDLGeneratorFormatting:
         for line in field_lines:
             assert line.startswith("  ")
 
-    def test_closing_brace(self):
+    def test_closing_brace(self) -> None:
         """Test that SDL has closing brace."""
+
         @entity
         class User:
             id: str
@@ -340,8 +353,9 @@ class TestSDLGeneratorFormatting:
 
         assert sdl.endswith("}")
 
-    def test_no_leading_closing_brace(self):
+    def test_no_leading_closing_brace(self) -> None:
         """Test that SDL doesn't have extra closing braces."""
+
         @entity
         class User:
             id: str
@@ -356,7 +370,7 @@ class TestSDLGeneratorFormatting:
 class TestSDLGeneratorRealWorld:
     """Real-world SDL generation scenarios."""
 
-    def test_ecommerce_product_extension(self):
+    def test_ecommerce_product_extension(self) -> None:
         """Test SDL for product extension with reviews."""
         from fraiseql.federation import clear_entity_registry
 
@@ -385,12 +399,13 @@ class TestSDLGeneratorRealWorld:
         assert "price: Float! @external" in sdl
 
         # Check new fields
-        assert "reviews:" in sdl and "[" in sdl
+        assert "reviews:" in sdl
+        assert "[" in sdl
 
         # Check computed fields
         assert "discounted_price: JSON" in sdl
 
-    def test_user_posts_extension(self):
+    def test_user_posts_extension(self) -> None:
         """Test SDL for user extension with posts."""
         from fraiseql.federation import clear_entity_registry
 
@@ -414,10 +429,11 @@ class TestSDLGeneratorRealWorld:
         assert "id: String! @external" in sdl
         assert "username: String! @external" in sdl
         assert "email: String! @external" in sdl
-        assert "posts:" in sdl and "[" in sdl
+        assert "posts:" in sdl
+        assert "[" in sdl
         assert 'user_posts: JSON @provides(fields: "id username")' in sdl
 
-    def test_complex_entity_with_all_features(self):
+    def test_complex_entity_with_all_features(self) -> None:
         """Test complex entity with all SDL features."""
         from fraiseql.federation import clear_entity_registry
 
@@ -441,7 +457,8 @@ class TestSDLGeneratorRealWorld:
 
         # Check regular fields
         assert "role: String!" in sdl
-        assert "permissions:" in sdl and "[" in sdl
+        assert "permissions:" in sdl
+        assert "[" in sdl
 
         # Check computed fields
         assert "permission_level: JSON" in sdl
@@ -450,8 +467,9 @@ class TestSDLGeneratorRealWorld:
 class TestSDLGeneratorEdgeCases:
     """Tests for edge cases."""
 
-    def test_entity_with_no_fields(self):
+    def test_entity_with_no_fields(self) -> None:
         """Test entity with no additional fields beyond key."""
+
         @entity
         class Marker:
             id: str
@@ -461,8 +479,9 @@ class TestSDLGeneratorEdgeCases:
         assert 'type Marker @key(fields: "id")' in sdl
         assert "id: String!" in sdl
 
-    def test_entity_with_special_field_names(self):
+    def test_entity_with_special_field_names(self) -> None:
         """Test entity with underscore-prefixed fields."""
+
         @entity
         class User:
             id: str
@@ -475,8 +494,9 @@ class TestSDLGeneratorEdgeCases:
         assert "_internal" not in sdl
         assert "name: String!" in sdl
 
-    def test_entity_extension_without_new_fields(self):
+    def test_entity_extension_without_new_fields(self) -> None:
         """Test extension that only marks existing fields as external."""
+
         @extend_entity(key="id")
         class Product:
             id: str = external()

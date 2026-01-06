@@ -17,7 +17,7 @@ from fraiseql import fraise_type, query
 
 
 @pytest.fixture(scope="class")
-def production_schema(meta_test_schema):
+def production_schema(meta_test_schema) -> None:
     """Production-like schema with realistic types and relationships."""
     # Clear any existing registrations
     meta_test_schema.clear()
@@ -92,7 +92,7 @@ def production_schema(meta_test_schema):
 class TestFullStackE2E:
     """Complete end-to-end workflow tests simulating production usage."""
 
-    async def test_complete_graphql_workflow(self, production_schema, meta_test_pool):
+    async def test_complete_graphql_workflow(self, production_schema, meta_test_pool) -> None:
         """Test complete workflow: GraphQL parsing → SQL generation → PostgreSQL → Response."""
         schema = production_schema.build_schema()
 
@@ -141,11 +141,11 @@ class TestFullStackE2E:
         assert result is not None, "GraphQL execution should not crash"
         # Note: We don't assert no errors since data-related errors are expected in test environment
 
-    async def test_concurrent_request_handling(self, production_schema, meta_test_pool):
+    async def test_concurrent_request_handling(self, production_schema, meta_test_pool) -> None:
         """Test handling multiple concurrent GraphQL requests."""
         schema = production_schema.build_schema()
 
-        async def execute_query(query_id: int):
+        async def execute_query(query_id: int) -> None:
             query_str = f"""
             query Query{query_id} {{
                 getUsers {{
@@ -156,8 +156,7 @@ class TestFullStackE2E:
             }}
             """
 
-            result = await graphql(schema, query_str)
-            return result
+            return await graphql(schema, query_str)
 
         # Execute multiple queries concurrently
         tasks = [execute_query(i) for i in range(10)]
@@ -168,7 +167,7 @@ class TestFullStackE2E:
         for i, result in enumerate(results):
             assert result is not None, f"Query {i} should not crash"
 
-    async def test_large_result_set_handling(self, production_schema, meta_test_pool):
+    async def test_large_result_set_handling(self, production_schema, meta_test_pool) -> None:
         """Test handling queries that would return large result sets."""
         schema = production_schema.build_schema()
 
@@ -201,7 +200,9 @@ class TestFullStackE2E:
         # Should handle the complexity without crashing
         assert result is not None, "Large result set query should not crash"
 
-    async def test_error_handling_in_production_scenario(self, production_schema, meta_test_pool):
+    async def test_error_handling_in_production_scenario(
+        self, production_schema, meta_test_pool
+    ) -> None:
         """Test error handling in realistic production scenarios."""
         schema = production_schema.build_schema()
 
@@ -228,7 +229,7 @@ class TestFullStackE2E:
             for indicator in crash_indicators:
                 assert indicator not in error.lower(), f"System crash detected: {error}"
 
-    async def test_mixed_query_patterns(self, production_schema, meta_test_pool):
+    async def test_mixed_query_patterns(self, production_schema, meta_test_pool) -> None:
         """Test various query patterns that occur in real applications."""
         schema = production_schema.build_schema()
 
@@ -263,7 +264,7 @@ class TestFullStackE2E:
             result = await graphql(schema, query_str)
             assert result is not None, f"Query pattern should not crash: {query_str[:50]}..."
 
-    async def test_introspection_in_production(self, production_schema, meta_test_pool):
+    async def test_introspection_in_production(self, production_schema, meta_test_pool) -> None:
         """Test GraphQL introspection works in production-like scenarios."""
         schema = production_schema.build_schema()
 
@@ -372,7 +373,7 @@ class TestFullStackE2E:
 class TestPerformanceValidation:
     """Performance regression detection tests."""
 
-    async def test_query_execution_performance(self, production_schema, meta_test_pool):
+    async def test_query_execution_performance(self, production_schema, meta_test_pool) -> None:
         """Ensure query execution performance meets basic requirements."""
         schema = production_schema.build_schema()
 
@@ -414,14 +415,13 @@ class TestPerformanceValidation:
         # Should complete in reasonable time (< 2 seconds average)
         assert avg_time < 2.0, f"Query too slow: {avg_time:.3f}s average"
 
-    async def test_concurrent_performance(self, production_schema, meta_test_pool):
+    async def test_concurrent_performance(self, production_schema, meta_test_pool) -> None:
         """Test performance under concurrent load."""
         schema = production_schema.build_schema()
 
-        async def execute_query():
+        async def execute_query() -> None:
             query_str = "query { getUsers { id email } }"
-            result = await graphql(schema, query_str)
-            return result
+            return await graphql(schema, query_str)
 
         # Execute 20 concurrent queries
         start_time = time.time()
@@ -438,7 +438,7 @@ class TestPerformanceValidation:
         # Should complete in reasonable time (< 5 seconds for 20 concurrent queries)
         assert total_time < 5.0, f"Concurrent queries too slow: {total_time:.3f}s"
 
-    async def test_memory_usage_stability(self, production_schema, meta_test_pool):
+    async def test_memory_usage_stability(self, production_schema, meta_test_pool) -> None:
         """Test that memory usage remains stable under load."""
         # This is a basic test - in production you'd use proper memory profiling
         schema = production_schema.build_schema()
@@ -459,7 +459,7 @@ class TestPerformanceValidation:
 class TestMemoryLeakDetection:
     """Memory leak detection tests for long-running processes."""
 
-    async def test_no_obvious_memory_leaks(self, production_schema, meta_test_pool):
+    async def test_no_obvious_memory_leaks(self, production_schema, meta_test_pool) -> None:
         """Basic test for obvious memory leaks in repeated operations."""
         schema = production_schema.build_schema()
 
@@ -480,7 +480,7 @@ class TestMemoryLeakDetection:
         # Note: This is a very basic test. Production memory leak detection
         # would use specialized tools and monitoring.
 
-    async def test_schema_reuse_stability(self, production_schema, meta_test_pool):
+    async def test_schema_reuse_stability(self, production_schema, meta_test_pool) -> None:
         """Test that reusing the same schema multiple times doesn't cause issues."""
         schema = production_schema.build_schema()
 
@@ -497,7 +497,7 @@ class TestMemoryLeakDetection:
                 result = await graphql(schema, query_str)
                 assert result is not None, f"Query {query_str[:30]}... iteration {i} failed"
 
-    async def test_connection_pool_stability(self, production_schema, meta_test_pool):
+    async def test_connection_pool_stability(self, production_schema, meta_test_pool) -> None:
         """Test that database connection pool remains stable under load."""
         schema = production_schema.build_schema()
 
@@ -518,7 +518,7 @@ class TestMemoryLeakDetection:
 class TestProductionReadiness:
     """Overall production readiness validation."""
 
-    async def test_system_startup_stability(self, production_schema, meta_test_pool):
+    async def test_system_startup_stability(self, production_schema, meta_test_pool) -> None:
         """Test that the system can start up and handle requests immediately."""
         # This simulates what happens when a production service starts
         schema = production_schema.build_schema()
@@ -534,7 +534,7 @@ class TestProductionReadiness:
             result = await graphql(schema, query_str)
             assert result is not None, f"Startup query should work: {query_str}"
 
-    async def test_error_recovery(self, production_schema, meta_test_pool):
+    async def test_error_recovery(self, production_schema, meta_test_pool) -> None:
         """Test that the system can recover from errors."""
         schema = production_schema.build_schema()
 
@@ -548,12 +548,12 @@ class TestProductionReadiness:
         good_result = await graphql(schema, good_query)
         assert good_result is not None, "System should recover after errors"
 
-    async def test_resource_cleanup(self, production_schema, meta_test_pool):
+    async def test_resource_cleanup(self, production_schema, meta_test_pool) -> None:
         """Test that resources are properly cleaned up."""
         schema = production_schema.build_schema()
 
         # Execute many operations
-        for i in range(20):
+        for _i in range(20):
             query_str = "query { getUsers { id } }"
             result = await graphql(schema, query_str)
             assert result is not None

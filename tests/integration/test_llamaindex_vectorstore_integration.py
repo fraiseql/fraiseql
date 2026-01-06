@@ -26,8 +26,8 @@ try:
     LLAMAINDEX_AVAILABLE = True
 except ImportError:
     LLAMAINDEX_AVAILABLE = False
-    LlamaDocument = Mock  # type: ignore
-    TextNode = Mock  # type: ignore
+    LlamaDocument = Mock  # type: ignore[misc]
+    TextNode = Mock  # type: ignore[misc]
 
 from fraiseql.integrations.llamaindex import FraiseQLReader, FraiseQLVectorStore
 
@@ -36,7 +36,7 @@ from fraiseql.integrations.llamaindex import FraiseQLReader, FraiseQLVectorStore
 class MockEmbeddings:
     """Mock embeddings class for testing."""
 
-    def __init__(self, dimension: int = 384):
+    def __init__(self, dimension: int = 384) -> None:
         self.dimension = dimension
 
     async def aembed_documents(self, texts: List[str]) -> List[List[float]]:
@@ -53,7 +53,7 @@ class MockEmbeddings:
 
 
 @pytest_asyncio.fixture
-async def vectorstore_table(class_db_pool, test_schema, pgvector_available):
+async def vectorstore_table(class_db_pool, test_schema, pgvector_available) -> None:
     """Create a test table for vectorstore integration tests."""
     if not pgvector_available:
         pytest.skip("pgvector extension not available")
@@ -122,7 +122,7 @@ class TestFraiseQLReader:
     """Test FraiseQLReader functionality."""
 
     @pytest.mark.asyncio
-    async def test_load_data_basic(self, reader: FraiseQLReader, class_db_pool, test_schema):
+    async def test_load_data_basic(self, reader: FraiseQLReader, class_db_pool, test_schema) -> None:
         """Test basic data loading from FraiseQL table."""
         # Insert test data
         async with class_db_pool.connection() as conn:
@@ -142,7 +142,7 @@ class TestFraiseQLReader:
         assert documents[0].metadata["id"] == "test1"
 
     @pytest.mark.asyncio
-    async def test_load_data_with_filters(self, reader: FraiseQLReader, class_db_pool, test_schema):
+    async def test_load_data_with_filters(self, reader: FraiseQLReader, class_db_pool, test_schema) -> None:
         """Test data loading with WHERE filters."""
         # Insert test data
         async with class_db_pool.connection() as conn:
@@ -164,7 +164,7 @@ class TestFraiseQLReader:
         assert documents[0].metadata["category"] == "A"
 
     @pytest.mark.asyncio
-    async def test_load_data_with_limit(self, reader: FraiseQLReader, class_db_pool, test_schema):
+    async def test_load_data_with_limit(self, reader: FraiseQLReader, class_db_pool, test_schema) -> None:
         """Test data loading with LIMIT."""
         # Insert test data
         async with class_db_pool.connection() as conn:
@@ -180,7 +180,7 @@ class TestFraiseQLReader:
 
         assert len(documents) == 2
 
-    def test_load_data_sync(self, reader: FraiseQLReader):
+    def test_load_data_sync(self, reader: FraiseQLReader) -> None:
         """Test synchronous data loading."""
         # This should work without errors (even if no data)
         documents = reader.load_data()
@@ -192,7 +192,7 @@ class TestFraiseQLVectorStore:
     """Test FraiseQLVectorStore functionality."""
 
     @pytest.mark.asyncio
-    async def test_add_and_get_nodes(self, vectorstore: FraiseQLVectorStore):
+    async def test_add_and_get_nodes(self, vectorstore: FraiseQLVectorStore) -> None:
         """Test adding and retrieving nodes."""
         # Create TextNode objects
         nodes = []
@@ -214,7 +214,7 @@ class TestFraiseQLVectorStore:
         assert retrieved_nodes[0].text == "Content 0"
 
     @pytest.mark.asyncio
-    async def test_delete_nodes(self, vectorstore: FraiseQLVectorStore):
+    async def test_delete_nodes(self, vectorstore: FraiseQLVectorStore) -> None:
         """Test deleting nodes."""
         # Add a node first
         node = TextNode(
@@ -236,7 +236,7 @@ class TestFraiseQLVectorStore:
         assert len(retrieved_after) == 0
 
     @pytest.mark.asyncio
-    async def test_similarity_search(self, vectorstore: FraiseQLVectorStore):
+    async def test_similarity_search(self, vectorstore: FraiseQLVectorStore) -> None:
         """Test vector similarity search."""
         # Add test nodes with different embeddings
         nodes = []
@@ -269,7 +269,7 @@ class TestFraiseQLVectorStore:
         assert len(results.ids) == len(results.nodes)
 
     @pytest.mark.asyncio
-    async def test_metadata_filtering(self, vectorstore: FraiseQLVectorStore):
+    async def test_metadata_filtering(self, vectorstore: FraiseQLVectorStore) -> None:
         """Test metadata filtering in queries."""
         # Add nodes with different metadata
         nodes = []
@@ -304,7 +304,7 @@ class TestFraiseQLVectorStore:
         for node in results.nodes:
             assert node.metadata.get("category") == "A"
 
-    def test_sync_methods(self, vectorstore: FraiseQLVectorStore):
+    def test_sync_methods(self, vectorstore: FraiseQLVectorStore) -> None:
         """Test that sync methods work (even if they do nothing)."""
         # These should not raise errors
         from llama_index.core.vector_stores.types import VectorStoreQuery
@@ -315,7 +315,7 @@ class TestFraiseQLVectorStore:
         vectorstore.query(VectorStoreQuery(query_embedding=[0.1] * 384, similarity_top_k=3))
 
     @pytest.mark.asyncio
-    async def test_error_handling(self, vectorstore: FraiseQLVectorStore):
+    async def test_error_handling(self, vectorstore: FraiseQLVectorStore) -> None:
         """Test error handling for invalid operations."""
         # Try to get non-existent nodes
         result = await vectorstore.aget(["nonexistent"])
@@ -340,7 +340,7 @@ class TestIntegration:
     """Test integration between Reader and VectorStore."""
 
     @pytest.mark.asyncio
-    async def test_reader_vectorstore_workflow(
+    async def test_reader_vectorstore_workflow(  # noqa: ANN201
         self, reader: FraiseQLReader, vectorstore: FraiseQLVectorStore, class_db_pool, test_schema
     ):
         """Test a complete workflow from reading to vector storage."""

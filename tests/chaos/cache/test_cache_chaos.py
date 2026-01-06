@@ -1,18 +1,16 @@
-"""
-Phase 3.1: Cache Chaos Tests
+"""Phase 3.1: Cache Chaos Tests
 
 Tests for cache invalidation, corruption, and backend failures.
 Validates FraiseQL's cache resilience and performance under adverse cache conditions.
 """
 
-import pytest
-import time
 import random
 import statistics
+import time
+
+import pytest
 from chaos.base import ChaosTestCase
-from chaos.fixtures import ToxiproxyManager
-from chaos.plugin import chaos_inject, FailureType
-from chaos.fraiseql_scenarios import MockFraiseQLClient, FraiseQLTestScenarios
+from chaos.fraiseql_scenarios import FraiseQLTestScenarios, MockFraiseQLClient
 
 
 class TestCacheChaos(ChaosTestCase):
@@ -20,9 +18,8 @@ class TestCacheChaos(ChaosTestCase):
 
     @pytest.mark.chaos
     @pytest.mark.chaos_cache
-    def test_cache_invalidation_storm(self):
-        """
-        Test cache invalidation storm resilience.
+    def test_cache_invalidation_storm(self) -> None:
+        """Test cache invalidation storm resilience.
 
         Scenario: Massive cache invalidation causes cache thrashing.
         Expected: FraiseQL handles cache misses gracefully with database fallback.
@@ -46,9 +43,9 @@ class TestCacheChaos(ChaosTestCase):
             # Simulate cache invalidation storm (first half of operations)
             current_hit_rate = storm_cache_hit_rate if i < total_operations // 2 else cache_hit_rate
 
-            if random.random() < current_hit_rate:
+            if random.random() < current_hit_rate:  # noqa: S311
                 # Cache hit - fast response
-                execution_time = 5.0 + random.uniform(-1, 1)  # ~5ms cache hit
+                execution_time = 5.0 + random.uniform(-1, 1)  # ~5ms cache hit  # noqa: S311
                 cache_hits += 1
             else:
                 # Cache miss - database query
@@ -59,7 +56,7 @@ class TestCacheChaos(ChaosTestCase):
             self.metrics.record_query_time(execution_time)
 
             # Simulate storm: invalidate cache entries randomly
-            if i < total_operations // 2 and random.random() < 0.3:  # 30% invalidation rate
+            if i < total_operations // 2 and random.random() < 0.3:  # 30% invalidation rate  # noqa: S311
                 # Cache invalidation causes next request to miss
                 pass
 
@@ -77,9 +74,8 @@ class TestCacheChaos(ChaosTestCase):
 
     @pytest.mark.chaos
     @pytest.mark.chaos_cache
-    def test_cache_corruption_handling(self):
-        """
-        Test cache corruption detection and recovery.
+    def test_cache_corruption_handling(self) -> None:
+        """Test cache corruption detection and recovery.
 
         Scenario: Cache contains corrupted data.
         Expected: FraiseQL detects corruption and falls back to database.
@@ -95,12 +91,12 @@ class TestCacheChaos(ChaosTestCase):
         # Uses multiplier-based formula to ensure meaningful test on all hardware
         total_operations = max(7, int(15 * self.chaos_config.load_multiplier))
 
-        for i in range(total_operations):
+        for _i in range(total_operations):
             try:
                 # Simulate cache access
-                if random.random() < 0.85:  # 85% cache hit rate
+                if random.random() < 0.85:  # 85% cache hit rate  # noqa: S311
                     # Check for corruption
-                    if random.random() < 0.15:  # 15% of cache entries corrupted
+                    if random.random() < 0.15:  # 15% of cache entries corrupted  # noqa: S311
                         # Corrupted cache entry detected
                         corruption_detected += 1
                         self.metrics.record_error()
@@ -112,7 +108,7 @@ class TestCacheChaos(ChaosTestCase):
                         successful_fallbacks += 1
                     else:
                         # Valid cache hit
-                        execution_time = 4.0 + random.uniform(-0.5, 0.5)
+                        execution_time = 4.0 + random.uniform(-0.5, 0.5)  # noqa: S311
                         self.metrics.record_query_time(execution_time)
                 else:
                     # Cache miss - direct database query
@@ -140,9 +136,8 @@ class TestCacheChaos(ChaosTestCase):
 
     @pytest.mark.chaos
     @pytest.mark.chaos_cache
-    def test_cache_backend_failure(self):
-        """
-        Test cache backend failure and recovery.
+    def test_cache_backend_failure(self) -> None:
+        """Test cache backend failure and recovery.
 
         Scenario: Cache backend becomes unavailable.
         Expected: FraiseQL degrades gracefully to database-only operation.
@@ -237,18 +232,17 @@ class TestCacheChaos(ChaosTestCase):
 
     @pytest.mark.chaos
     @pytest.mark.chaos_cache
-    def test_cache_stampede_prevention(self):
-        """
-        Test cache stampede prevention under concurrent load.
+    def test_cache_stampede_prevention(self) -> None:
+        """Test cache stampede prevention under concurrent load.
 
         Scenario: Multiple concurrent requests try to populate same cache entry.
         Expected: FraiseQL prevents cache stampede with proper synchronization.
         """
-        import threading
         import queue
+        import threading
 
-        client = MockFraiseQLClient()
-        operation = FraiseQLTestScenarios.simple_user_query()
+        MockFraiseQLClient()
+        FraiseQLTestScenarios.simple_user_query()
 
         self.metrics.start_test()
 
@@ -266,7 +260,7 @@ class TestCacheChaos(ChaosTestCase):
                 nonlocal cache_populated, stampede_events
 
                 # Check if cache needs population (simulate cache miss)
-                if not cache_populated and random.random() < 0.7:  # 70% chance of cache miss
+                if not cache_populated and random.random() < 0.7:  # 70% chance of cache miss  # noqa: S311
                     # This would be a stampede scenario in real systems
                     stampede_events += 1
 
@@ -280,7 +274,7 @@ class TestCacheChaos(ChaosTestCase):
                     execution_time = 50.0  # Includes population time
                 else:
                     # Cache hit
-                    execution_time = 4.0 + random.uniform(-0.5, 0.5)
+                    execution_time = 4.0 + random.uniform(-0.5, 0.5)  # noqa: S311
 
                 results_queue.put(("success", thread_id, execution_time))
 
@@ -304,7 +298,7 @@ class TestCacheChaos(ChaosTestCase):
         execution_times = []
 
         while not results_queue.empty():
-            result_type, thread_id, data = results_queue.get()
+            result_type, _thread_id, data = results_queue.get()
             if result_type == "success":
                 successes += 1
                 execution_times.append(data)
@@ -337,9 +331,8 @@ class TestCacheChaos(ChaosTestCase):
 
     @pytest.mark.chaos
     @pytest.mark.chaos_cache
-    def test_cache_memory_pressure(self):
-        """
-        Test cache behavior under memory pressure.
+    def test_cache_memory_pressure(self) -> None:
+        """Test cache behavior under memory pressure.
 
         Scenario: Cache eviction due to memory constraints.
         Expected: FraiseQL maintains performance with intelligent cache management.
@@ -365,9 +358,9 @@ class TestCacheChaos(ChaosTestCase):
         for i in range(total_operations):
             cache_key = f"query_{i % key_space}"  # More keys than capacity → evictions
 
-            if cache_key in cache_entries and random.random() < 0.7:  # 70% hit rate
+            if cache_key in cache_entries and random.random() < 0.7:  # 70% hit rate  # noqa: S311
                 # Cache hit
-                execution_time = 4.0 + random.uniform(-0.5, 0.5)
+                execution_time = 4.0 + random.uniform(-0.5, 0.5)  # noqa: S311
                 self.metrics.record_query_time(execution_time)
             else:
                 # Cache miss - database query
@@ -378,7 +371,7 @@ class TestCacheChaos(ChaosTestCase):
                 # Cache the result (with eviction pressure)
                 if len(cache_entries) >= cache_capacity:
                     # Evict random entry
-                    evicted_key = random.choice(list(cache_entries.keys()))
+                    evicted_key = random.choice(list(cache_entries.keys()))  # noqa: S311
                     del cache_entries[evicted_key]
                     evictions += 1
 
@@ -404,9 +397,8 @@ class TestCacheChaos(ChaosTestCase):
 
     @pytest.mark.chaos
     @pytest.mark.chaos_cache
-    def test_cache_warmup_after_failure(self):
-        """
-        Test cache warmup behavior after cache failure recovery.
+    def test_cache_warmup_after_failure(self) -> None:
+        """Test cache warmup behavior after cache failure recovery.
 
         Scenario: Cache fails and recovers, requiring warmup.
         Expected: FraiseQL handles cache warmup gracefully without overwhelming database.
@@ -419,8 +411,8 @@ class TestCacheChaos(ChaosTestCase):
         # Phase 1: Normal cache operation
         normal_operations = 8
         for _ in range(normal_operations):
-            if random.random() < 0.8:  # 80% cache hit
-                execution_time = 4.0 + random.uniform(-0.5, 0.5)
+            if random.random() < 0.8:  # 80% cache hit  # noqa: S311
+                execution_time = 4.0 + random.uniform(-0.5, 0.5)  # noqa: S311
             else:
                 result = client.execute_query(operation)
                 execution_time = result.get("_execution_time_ms", 40.0)
@@ -444,9 +436,9 @@ class TestCacheChaos(ChaosTestCase):
                 cache_available = True
                 print(f"Cache recovered at operation {i}")
 
-            if cache_available and random.random() < (0.3 + i * 0.05):  # Gradual warmup
+            if cache_available and random.random() < (0.3 + i * 0.05):  # Gradual warmup  # noqa: S311
                 # Cache hit (increasing hit rate during warmup)
-                execution_time = 4.0 + random.uniform(-0.5, 0.5)
+                execution_time = 4.0 + random.uniform(-0.5, 0.5)  # noqa: S311
                 self.metrics.record_query_time(execution_time)
             else:
                 # Cache miss - database query during warmup

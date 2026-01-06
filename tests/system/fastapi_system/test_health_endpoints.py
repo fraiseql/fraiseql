@@ -20,30 +20,28 @@ async def get_status(info) -> TestStatus:
 
 
 @pytest.fixture
-def test_app():
+def test_app() -> None:
     """Create a test FraiseQL app with database."""
-    app = create_fraiseql_app(
+    return create_fraiseql_app(
         database_url="postgresql://postgres:postgres@localhost:5432/fraiseql_test",
         types=[TestStatus],
         queries=[get_status],
         auto_discover=False,
     )
-    return app
 
 
 @pytest.fixture
-def test_app_no_db():
+def test_app_no_db() -> None:
     """Create a test FraiseQL app without database (for testing failures)."""
-    app = create_fraiseql_app(
+    return create_fraiseql_app(
         database_url="postgresql://invalid-host:5432/test",
         types=[TestStatus],
         queries=[get_status],
         auto_discover=False,
     )
-    return app
 
 
-def test_health_endpoint_always_returns_200(test_app):
+def test_health_endpoint_always_returns_200(test_app) -> None:
     """Test that /health always returns 200 (liveness probe)."""
     client = TestClient(test_app)
 
@@ -55,7 +53,7 @@ def test_health_endpoint_always_returns_200(test_app):
     assert data["service"] == "fraiseql"
 
 
-def test_health_endpoint_always_healthy_even_without_db(test_app_no_db):
+def test_health_endpoint_always_healthy_even_without_db(test_app_no_db) -> None:
     """Test that /health returns 200 even when database is unreachable.
 
     Liveness probes should only check if the process is alive,
@@ -70,7 +68,7 @@ def test_health_endpoint_always_healthy_even_without_db(test_app_no_db):
     assert response.json()["status"] == "healthy"
 
 
-def test_ready_endpoint_returns_200_when_database_available(test_app):
+def test_ready_endpoint_returns_200_when_database_available(test_app) -> None:
     """Test that /ready returns 200 when database is reachable.
 
     Note: This test may return 503 if the test database is not available,
@@ -90,7 +88,7 @@ def test_ready_endpoint_returns_200_when_database_available(test_app):
     assert "timestamp" in data
 
 
-def test_ready_endpoint_returns_503_when_database_unavailable(test_app_no_db):
+def test_ready_endpoint_returns_503_when_database_unavailable(test_app_no_db) -> None:
     """Test that /ready returns 503 when database is unreachable."""
     client = TestClient(test_app_no_db)
 
@@ -104,7 +102,7 @@ def test_ready_endpoint_returns_503_when_database_unavailable(test_app_no_db):
     assert "timestamp" in data
 
 
-def test_ready_endpoint_response_format(test_app):
+def test_ready_endpoint_response_format(test_app) -> None:
     """Test that /ready returns the expected response format."""
     client = TestClient(test_app)
 
@@ -125,7 +123,7 @@ def test_ready_endpoint_response_format(test_app):
     assert isinstance(data["timestamp"], (int, float))
 
 
-def test_health_vs_ready_difference(test_app_no_db):
+def test_health_vs_ready_difference(test_app_no_db) -> None:
     """Test that /health and /ready have different behavior.
 
     /health (liveness) should always return 200 if process is alive.
@@ -142,7 +140,7 @@ def test_health_vs_ready_difference(test_app_no_db):
     assert ready_response.status_code == 503
 
 
-def test_ready_endpoint_database_check_details(test_app_no_db):
+def test_ready_endpoint_database_check_details(test_app_no_db) -> None:
     """Test that /ready provides detailed error information for database failures."""
     client = TestClient(test_app_no_db)
 
@@ -157,7 +155,7 @@ def test_ready_endpoint_database_check_details(test_app_no_db):
     assert len(db_status) > 0
 
 
-def test_ready_endpoint_async(test_app):
+def test_ready_endpoint_async(test_app) -> None:
     """Test /ready endpoint with test client (sync)."""
     client = TestClient(test_app)
 
@@ -169,7 +167,7 @@ def test_ready_endpoint_async(test_app):
     assert data["status"] in ["ready", "not_ready"]
 
 
-def test_ready_endpoint_performance(test_app):
+def test_ready_endpoint_performance(test_app) -> None:
     """Test that /ready responds quickly (< 5 seconds for Kubernetes timeout)."""
     import time
 
@@ -187,7 +185,7 @@ def test_ready_endpoint_performance(test_app):
     assert elapsed_time < 1.0
 
 
-def test_ready_endpoint_idempotent(test_app):
+def test_ready_endpoint_idempotent(test_app) -> None:
     """Test that /ready can be called repeatedly without side effects."""
     client = TestClient(test_app)
 

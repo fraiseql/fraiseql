@@ -51,7 +51,7 @@ class TestProductionCQRSIPFilteringBug:
         for ip in production_ips:
             # Test eq operator SQL generation
             eq_sql = registry.build_sql("eq", ip, field_path, field_type=IpAddress)
-            eq_str = eq_sql.as_string(None)  # type: ignore
+            eq_str = eq_sql.as_string(None)  # type: ignore[misc]
 
             # Should properly cast to inet even without field_type
             assert "::inet" in eq_str, f"IP {ip} should be cast to inet: {eq_str}"
@@ -59,7 +59,7 @@ class TestProductionCQRSIPFilteringBug:
 
             # Test in operator with list
             in_sql = registry.build_sql("in", [ip], field_path, field_type=IpAddress)
-            in_str = in_sql.as_string(None)  # type: ignore
+            in_str = in_sql.as_string(None)  # type: ignore[misc]
 
             assert "::inet" in in_str, f"IP list [{ip}] should be cast to inet: {in_str}"
             assert ip in in_str, f"IP {ip} should be in list SQL: {in_str}"
@@ -71,7 +71,7 @@ class TestProductionCQRSIPFilteringBug:
 
         edge_cases = [
             "127.0.0.1",  # Localhost
-            "0.0.0.0",  # Any address
+            "0.0.0.0",  # Any address  # noqa: S104
             "255.255.255.255",  # Broadcast
             "169.254.1.1",  # Link-local
             "::1",  # IPv6 localhost
@@ -80,7 +80,7 @@ class TestProductionCQRSIPFilteringBug:
 
         for ip in edge_cases:
             eq_sql = registry.build_sql("eq", ip, field_path, field_type=IpAddress)
-            eq_str = eq_sql.as_string(None)  # type: ignore
+            eq_str = eq_sql.as_string(None)  # type: ignore[misc]
 
             # Should detect and cast IPv4 and IPv6 addresses
             if ":" in ip:  # IPv6
@@ -104,7 +104,7 @@ class TestProductionCQRSIPFilteringBug:
 
         for value in non_ip_values:
             eq_sql = registry.build_sql("eq", value, field_path, field_type=None)
-            eq_str = eq_sql.as_string(None)  # type: ignore
+            eq_str = eq_sql.as_string(None)  # type: ignore[misc]
 
             # Should NOT be cast to inet
             assert "::inet" not in eq_str, (
@@ -119,7 +119,7 @@ class TestProductionCQRSIPFilteringBug:
         # List with valid IPs - should be detected and cast
         ip_list = ["192.168.1.1", "10.0.0.1", "8.8.8.8"]
         in_sql = registry.build_sql("in", ip_list, field_path, field_type=IpAddress)
-        in_str = in_sql.as_string(None)  # type: ignore
+        in_str = in_sql.as_string(None)  # type: ignore[misc]
 
         assert "::inet" in in_str, f"IP list should be cast to inet: {in_str}"
         for ip in ip_list:
@@ -138,8 +138,8 @@ class TestProductionCQRSIPFilteringBug:
             "inSubnet", "192.168.1.0/24", field_path, field_type=IpAddress
         )
 
-        eq_str = eq_sql.as_string(None)  # type: ignore
-        subnet_str = subnet_sql.as_string(None)  # type: ignore
+        eq_str = eq_sql.as_string(None)  # type: ignore[misc]
+        subnet_str = subnet_sql.as_string(None)  # type: ignore[misc]
 
         # Both should cast to inet
         assert "::inet" in eq_str, f"Eq strategy should cast to inet: {eq_str}"
@@ -162,7 +162,7 @@ class TestProductionCQRSIPFilteringBug:
 
         # This is the exact pattern that was failing in PrintOptim
         where_sql = registry.build_sql("eq", target_ip, field_path, field_type=IpAddress)
-        where_str = where_sql.as_string(None)  # type: ignore
+        where_str = where_sql.as_string(None)  # type: ignore[misc]
 
         print(f"Generated SQL for production pattern: {where_str}")
 
@@ -186,7 +186,7 @@ class TestProductionCQRSIPFilteringBug:
         target_ips = ["120.0.0.1", "8.8.8.8"]  # primary-dns-server and Primary DNS Google
 
         in_sql = registry.build_sql("in", target_ips, field_path, field_type=IpAddress)
-        in_str = in_sql.as_string(None)  # type: ignore
+        in_str = in_sql.as_string(None)  # type: ignore[misc]
 
         print(f"Generated SQL for production list filtering: {in_str}")
 

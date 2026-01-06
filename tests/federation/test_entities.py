@@ -14,7 +14,7 @@ from fraiseql.federation import (
 class TestEntitiesResolver:
     """Tests for EntitiesResolver."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Clear registry and set up test entities before each test."""
         clear_entity_registry()
 
@@ -30,7 +30,7 @@ class TestEntitiesResolver:
             title: str
             author_id: str
 
-    def test_resolver_initialization(self):
+    def test_resolver_initialization(self) -> None:
         """Test EntitiesResolver initializes with registered entities."""
         resolver = EntitiesResolver()
 
@@ -38,7 +38,7 @@ class TestEntitiesResolver:
         assert "User" in resolver.get_supported_types()
         assert "Post" in resolver.get_supported_types()
 
-    def test_get_key_field(self):
+    def test_get_key_field(self) -> None:
         """Test getting key field for entity type."""
         resolver = EntitiesResolver()
 
@@ -46,7 +46,7 @@ class TestEntitiesResolver:
         assert resolver.get_key_field("Post") == "id"
         assert resolver.get_key_field("NonExistent") is None
 
-    def test_get_supported_types(self):
+    def test_get_supported_types(self) -> None:
         """Test getting list of supported types."""
         resolver = EntitiesResolver()
         types = resolver.get_supported_types()
@@ -55,7 +55,7 @@ class TestEntitiesResolver:
         assert "Post" in types
         assert len(types) >= 2
 
-    def test_parse_representation_valid(self):
+    def test_parse_representation_valid(self) -> None:
         """Test parsing valid federation representation."""
         resolver = EntitiesResolver()
 
@@ -66,7 +66,7 @@ class TestEntitiesResolver:
         assert req.key_field == "id"
         assert req.key_value == "user-123"
 
-    def test_parse_representation_missing_typename(self):
+    def test_parse_representation_missing_typename(self) -> None:
         """Test parsing representation without __typename."""
         resolver = EntitiesResolver()
 
@@ -74,7 +74,7 @@ class TestEntitiesResolver:
         with pytest.raises(ValueError, match="Missing __typename"):
             resolver._parse_representation(rep)
 
-    def test_parse_representation_missing_key(self):
+    def test_parse_representation_missing_key(self) -> None:
         """Test parsing representation without key field."""
         resolver = EntitiesResolver()
 
@@ -82,7 +82,7 @@ class TestEntitiesResolver:
         with pytest.raises(ValueError, match="Missing key field"):
             resolver._parse_representation(rep)
 
-    def test_parse_representation_unknown_type(self):
+    def test_parse_representation_unknown_type(self) -> None:
         """Test parsing representation with unknown type."""
         resolver = EntitiesResolver()
 
@@ -90,7 +90,7 @@ class TestEntitiesResolver:
         with pytest.raises(ValueError, match="Unknown entity type"):
             resolver._parse_representation(rep)
 
-    def test_build_queries_single_type(self):
+    def test_build_queries_single_type(self) -> None:
         """Test building queries for single entity type."""
         resolver = EntitiesResolver()
 
@@ -106,7 +106,7 @@ class TestEntitiesResolver:
         assert queries["User"]["key_field"] == "id"
         assert queries["User"]["key_values"] == ["user-1", "user-2"]
 
-    def test_build_queries_multiple_types(self):
+    def test_build_queries_multiple_types(self) -> None:
         """Test building queries for multiple entity types."""
         resolver = EntitiesResolver()
 
@@ -125,7 +125,7 @@ class TestEntitiesResolver:
         assert queries["Post"]["key_values"] == ["post-1"]
 
     @pytest.mark.asyncio
-    async def test_resolve_single_entity(self):
+    async def test_resolve_single_entity(self) -> None:
         """Test resolving a single entity."""
         resolver = EntitiesResolver()
 
@@ -153,7 +153,7 @@ class TestEntitiesResolver:
         assert result[0]["__typename"] == "User"
 
     @pytest.mark.asyncio
-    async def test_resolve_batch(self):
+    async def test_resolve_batch(self) -> None:
         """Test resolving batch of entities."""
         resolver = EntitiesResolver()
 
@@ -188,12 +188,12 @@ class TestEntitiesResolver:
         assert all(r is not None for r in result)
 
     @pytest.mark.asyncio
-    async def test_resolve_multiple_types(self):
+    async def test_resolve_multiple_types(self) -> None:
         """Test resolving mixed entity types."""
         resolver = EntitiesResolver()
 
         # Mock database pool to return different data per type
-        async def mock_fetch(sql, *args):
+        async def mock_fetch(sql, *args):  # noqa: ANN002
             if "tv_user" in sql:
                 mock_row = MagicMock()
                 mock_row.__getitem__ = lambda self, key: {
@@ -230,7 +230,7 @@ class TestEntitiesResolver:
         assert result[1]["__typename"] == "Post"
 
     @pytest.mark.asyncio
-    async def test_resolve_not_found(self):
+    async def test_resolve_not_found(self) -> None:
         """Test resolving entity that doesn't exist."""
         resolver = EntitiesResolver()
 
@@ -252,12 +252,12 @@ class TestEntitiesResolver:
         assert result[0] is None
 
     @pytest.mark.asyncio
-    async def test_resolve_preserves_order(self):
+    async def test_resolve_preserves_order(self) -> None:
         """Test that resolve preserves input order."""
         resolver = EntitiesResolver()
 
         # Mock database pool
-        async def mock_fetch(sql, *args):
+        async def mock_fetch(sql, *args):  # noqa: ANN002
             rows = []
             for key in args:
                 mock_row = MagicMock()
@@ -294,12 +294,13 @@ class TestEntitiesResolver:
 class TestEntitiesResolverIntegration:
     """Integration tests for entities resolver."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Clear registry before each test."""
         clear_entity_registry()
 
-    def test_cqrs_table_naming(self):
+    def test_cqrs_table_naming(self) -> None:
         """Test that resolver uses correct CQRS table naming."""
+
         @entity
         class User:
             id: str
@@ -311,8 +312,9 @@ class TestEntitiesResolverIntegration:
         # Should use tv_ prefix for query-side table
         assert queries["User"]["table_name"] == "tv_user"
 
-    def test_multiple_entities_same_key_field(self):
+    def test_multiple_entities_same_key_field(self) -> None:
         """Test multiple entities using same key field name."""
+
         @entity
         class User:
             id: str

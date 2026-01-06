@@ -2,16 +2,13 @@
 
 from __future__ import annotations
 
-import pytest
-
 from fraiseql.monitoring.runtime.db_monitor_sync import get_database_monitor_sync
-from fraiseql.monitoring.runtime.cache_monitor_sync import cache_monitor_sync
 
 
 class TestDatabaseMonitoringE2E:
     """End-to-end tests for database monitoring with PostgreSQL."""
 
-    def test_recent_queries_tracking(self, monitoring_enabled, sample_query_metrics):
+    def test_recent_queries_tracking(self, monitoring_enabled, sample_query_metrics) -> None:
         """Test that recent queries are tracked correctly."""
         monitor = monitoring_enabled
 
@@ -27,7 +24,7 @@ class TestDatabaseMonitoringE2E:
         assert len(recent) > 0
         assert recent[0].query_type == "SELECT"
 
-    def test_slow_query_detection(self, monitoring_enabled, sample_query_metrics):
+    def test_slow_query_detection(self, monitoring_enabled, sample_query_metrics) -> None:
         """Test slow query detection and tracking."""
         monitor = monitoring_enabled
 
@@ -47,7 +44,7 @@ class TestDatabaseMonitoringE2E:
         assert len(slow_queries) > 0
         assert all(q.duration_ms > 100 for q in slow_queries)
 
-    def test_statistics_aggregation(self, monitoring_enabled, sample_query_metrics):
+    def test_statistics_aggregation(self, monitoring_enabled, sample_query_metrics) -> None:
         """Test that statistics are aggregated correctly."""
         monitor = monitoring_enabled
 
@@ -65,7 +62,7 @@ class TestDatabaseMonitoringE2E:
         assert stats.success_rate <= 1.0
         assert stats.success_rate >= 0.0
 
-    def test_pool_metrics_tracking(self, monitoring_enabled, db_monitor_sync):
+    def test_pool_metrics_tracking(self, monitoring_enabled, db_monitor_sync) -> None:
         """Test connection pool metrics tracking."""
         from datetime import datetime
 
@@ -75,15 +72,17 @@ class TestDatabaseMonitoringE2E:
 
         # Set pool metrics (use _pool_states deque)
         with monitor._lock:
-            monitor._pool_states.append(PoolMetrics(
-                timestamp=datetime.now(),
-                total_connections=20,
-                active_connections=15,
-                idle_connections=5,
-                waiting_requests=0,
-                avg_wait_time_ms=2.5,
-                max_wait_time_ms=10.0,
-            ))
+            monitor._pool_states.append(
+                PoolMetrics(
+                    timestamp=datetime.now(),  # noqa: DTZ005
+                    total_connections=20,
+                    active_connections=15,
+                    idle_connections=5,
+                    waiting_requests=0,
+                    avg_wait_time_ms=2.5,
+                    max_wait_time_ms=10.0,
+                )
+            )
 
         # Get pool metrics via sync accessor (use fixture, not global)
         pool = db_monitor_sync.get_pool_metrics()
@@ -91,9 +90,11 @@ class TestDatabaseMonitoringE2E:
         # Pool should be available after being set
         assert pool is not None, "Pool metrics should be set"
         assert pool.total_connections == 20
-        assert pool.get_utilization_percent() == 75.0, f"Expected 75% utilization, got {pool.get_utilization_percent()}%"
+        assert pool.get_utilization_percent() == 75.0, (
+            f"Expected 75% utilization, got {pool.get_utilization_percent()}%"
+        )
 
-    def test_query_type_breakdown(self, monitoring_enabled, sample_query_metrics):
+    def test_query_type_breakdown(self, monitoring_enabled, sample_query_metrics) -> None:
         """Test query breakdown by type."""
         monitor = monitoring_enabled
 
@@ -115,25 +116,27 @@ class TestDatabaseMonitoringE2E:
 class TestGraphQLOperationTracking:
     """End-to-end tests for GraphQL operation tracking."""
 
-    def test_operation_metrics_recording(self, sample_graphql_operations):
+    def test_operation_metrics_recording(self, sample_graphql_operations) -> None:
         """Test that operation metrics are recorded correctly."""
         # Sample operations created successfully
         assert len(sample_graphql_operations) > 0
 
         # Verify different operation types
         queries = [op for op in sample_graphql_operations if op.operation_type.value == "query"]
-        mutations = [op for op in sample_graphql_operations if op.operation_type.value == "mutation"]
+        mutations = [
+            op for op in sample_graphql_operations if op.operation_type.value == "mutation"
+        ]
 
         assert len(queries) > 0
         assert len(mutations) > 0
 
-    def test_operation_duration_tracking(self, sample_graphql_operations):
+    def test_operation_duration_tracking(self, sample_graphql_operations) -> None:
         """Test operation duration tracking."""
         for op in sample_graphql_operations:
             # Duration should be set
             assert op.duration_ms > 0 or op.duration_ms == 0
 
-    def test_slow_operation_detection(self, sample_graphql_operations):
+    def test_slow_operation_detection(self, sample_graphql_operations) -> None:
         """Test detection of slow operations."""
         slow_threshold = 500.0
 
@@ -146,7 +149,7 @@ class TestGraphQLOperationTracking:
 class TestHealthCheckIntegration:
     """End-to-end tests for health check integration."""
 
-    def test_health_status_aggregation(self, mock_health_components):
+    def test_health_status_aggregation(self, mock_health_components) -> None:
         """Test that health status is aggregated from components."""
         components = mock_health_components
 
@@ -156,7 +159,7 @@ class TestHealthCheckIntegration:
         assert "graphql" in components
         assert "tracing" in components
 
-    def test_health_state_transitions(self, monitoring_enabled):
+    def test_health_state_transitions(self, monitoring_enabled) -> None:
         """Test health state transitions."""
         monitor = monitoring_enabled
 
@@ -169,7 +172,7 @@ class TestHealthCheckIntegration:
         # Verify modification
         assert monitor._slow_query_threshold == 50
 
-    def test_component_health_dependency(self, monitoring_enabled, sample_query_metrics):
+    def test_component_health_dependency(self, monitoring_enabled, sample_query_metrics) -> None:
         """Test health status depends on component metrics."""
         monitor = monitoring_enabled
 
@@ -190,21 +193,22 @@ class TestHealthCheckIntegration:
 class TestTraceContextPropagation:
     """End-to-end tests for W3C trace context propagation."""
 
-    def test_trace_context_injection(self, sample_graphql_operations):
+    def test_trace_context_injection(self, sample_graphql_operations) -> None:
         """Test W3C trace context is injected into metrics."""
         # Operations should have trace context if available
         for op in sample_graphql_operations:
             # Trace context is optional but should be structured if present
             assert hasattr(op, "trace_id") or True  # May not be set in all cases
 
-    def test_trace_id_propagation(self):
+    def test_trace_id_propagation(self) -> None:
         """Test trace ID propagates through operations."""
         from dataclasses import dataclass
         from enum import Enum
 
-        @dataclass
+        @dataclass  # noqa: RUF049
         class GraphQLOperationType(Enum):
             """GraphQL operation types."""
+
             Query = "query"
             Mutation = "mutation"
             Subscription = "subscription"
@@ -212,6 +216,7 @@ class TestTraceContextPropagation:
         @dataclass
         class OperationMetrics:
             """GraphQL operation metrics."""
+
             operation_id: str
             operation_name: str
             operation_type: GraphQLOperationType
@@ -234,7 +239,7 @@ class TestTraceContextPropagation:
 class TestCLIMonitoringCommands:
     """End-to-end tests for CLI monitoring commands."""
 
-    def test_cli_database_recent_command(self, monitoring_enabled, sample_query_metrics):
+    def test_cli_database_recent_command(self, monitoring_enabled, sample_query_metrics) -> None:
         """Test database recent command with real data."""
         monitor = monitoring_enabled
 
@@ -250,7 +255,7 @@ class TestCLIMonitoringCommands:
         assert len(recent) == 5
         assert all(hasattr(q, "query_type") for q in recent)
 
-    def test_cli_database_slow_command(self, monitoring_enabled, sample_query_metrics):
+    def test_cli_database_slow_command(self, monitoring_enabled, sample_query_metrics) -> None:
         """Test database slow command with real data."""
         monitor = monitoring_enabled
 
@@ -269,7 +274,7 @@ class TestCLIMonitoringCommands:
         assert len(slow) > 0
         assert all(q.duration_ms > 100 for q in slow)
 
-    def test_cli_cache_stats_command(self, cache_monitor_fixture):
+    def test_cli_cache_stats_command(self, cache_monitor_fixture) -> None:
         """Test cache stats command."""
         # Cache monitor should be available
         assert cache_monitor_fixture is not None
@@ -280,10 +285,8 @@ class TestCLIMonitoringCommands:
         assert "hit_rate" in metrics
         assert "evictions" in metrics
 
-    def test_cli_health_command(self, monitoring_enabled):
+    def test_cli_health_command(self, monitoring_enabled) -> None:
         """Test health command retrieves status."""
-        monitor = monitoring_enabled
-
         # Monitor should be in a valid state
         db_sync = get_database_monitor_sync()
         stats = db_sync.get_statistics()
@@ -295,7 +298,7 @@ class TestCLIMonitoringCommands:
 class TestOutputFormatValidation:
     """Tests for CLI output format validation."""
 
-    def test_json_format_output(self, sample_query_metrics):
+    def test_json_format_output(self, sample_query_metrics) -> None:
         """Test JSON output format."""
         import json
 
@@ -315,7 +318,7 @@ class TestOutputFormatValidation:
         assert json_str is not None
         assert "SELECT" in json_str
 
-    def test_csv_format_output(self, sample_query_metrics):
+    def test_csv_format_output(self, sample_query_metrics) -> None:
         """Test CSV output format."""
         import csv
         import io
@@ -329,30 +332,34 @@ class TestOutputFormatValidation:
 
         # Write sample metrics
         for metric in sample_query_metrics[:3]:
-            writer.writerow([
-                metric.timestamp.isoformat(),
-                metric.query_type,
-                f"{metric.duration_ms:.2f}",
-                str(metric.rows_affected),
-                "✓" if metric.is_success() else "✗",
-            ])
+            writer.writerow(
+                [
+                    metric.timestamp.isoformat(),
+                    metric.query_type,
+                    f"{metric.duration_ms:.2f}",
+                    str(metric.rows_affected),
+                    "✓" if metric.is_success() else "✗",
+                ]
+            )
 
         csv_output = output.getvalue()
         assert "SELECT" in csv_output
         assert len(csv_output) > 0
 
-    def test_table_format_output(self, sample_query_metrics):
+    def test_table_format_output(self, sample_query_metrics) -> None:
         """Test table output format."""
         # Create simple table output
         headers = ["Timestamp", "Type", "Duration (ms)"]
         rows = []
 
         for metric in sample_query_metrics[:3]:
-            rows.append([
-                metric.timestamp.isoformat()[:10],  # Date only
-                metric.query_type,
-                f"{metric.duration_ms:.2f}",
-            ])
+            rows.append(
+                [
+                    metric.timestamp.isoformat()[:10],  # Date only
+                    metric.query_type,
+                    f"{metric.duration_ms:.2f}",
+                ]
+            )
 
         # Should have proper structure
         assert len(headers) == 3

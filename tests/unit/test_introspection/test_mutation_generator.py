@@ -14,7 +14,7 @@ def mock_introspector() -> None:
     """Mock PostgresIntrospector for testing."""
 
     class MockIntrospector:
-        async def discover_composite_type(self, *args, **kwargs) -> None:
+        async def discover_composite_type(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
             return None
 
     return MockIntrospector()
@@ -41,7 +41,7 @@ class TestMutationGenerator:
     @pytest.mark.asyncio
     async def test_generate_mutation_for_function_success(
         self, mutation_generator: MutationGenerator, mock_introspector
-    ):
+    ) -> None:
         """Test successful mutation generation."""
         # Given: Function metadata and annotation
         function_metadata = FunctionMetadata(
@@ -82,7 +82,7 @@ class TestMutationGenerator:
     @pytest.mark.asyncio
     async def test_generate_mutation_for_function_missing_types(
         self, mutation_generator: MutationGenerator, mock_introspector
-    ):
+    ) -> None:
         """Test mutation generation fails when types are missing."""
         # Given: Function with missing types in registry
         function_metadata = FunctionMetadata(
@@ -112,7 +112,7 @@ class TestMutationGenerator:
     @pytest.mark.asyncio
     async def test_generate_mutation_for_function_partial_missing_types(
         self, mutation_generator: MutationGenerator, mock_introspector
-    ):
+    ) -> None:
         """Test mutation generation fails when success type is missing."""
         # Given: Function with only failure type in registry
         function_metadata = FunctionMetadata(
@@ -180,7 +180,7 @@ class TestMutationGenerator:
 
     def test_function_to_mutation_class_name_conversion(
         self, mutation_generator: MutationGenerator
-    ):
+    ) -> None:
         """Test function name to mutation class name conversion."""
         test_cases = [
             ("fn_create_user", "CreateUser"),
@@ -330,7 +330,7 @@ class TestMutationGenerator:
 
     def test_function_comment_used_as_mutation_description(
         self, mutation_generator: MutationGenerator
-    ):
+    ) -> None:
         """Test that PostgreSQL function comments become GraphQL mutation descriptions."""
         # Given: Input class and types
         input_cls = type("CreateUserInput", (), {"__annotations__": {"name": str, "email": str}})

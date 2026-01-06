@@ -84,7 +84,7 @@ class TestConnectionDecorator:
         # Should raise error for missing node_type
         with pytest.raises(ValueError, match="node_type is required"):
 
-            @connection(node_type=None)  # type: ignore
+            @connection(node_type=None)  # type: ignore[misc]
             async def invalid_connection(info) -> Connection[User]:
                 pass
 

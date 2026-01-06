@@ -1,16 +1,15 @@
-#!/usr/bin/env python3
-"""
-Toxiproxy Setup for Chaos Engineering
+#!/usr/bin/env python3  # noqa: EXE001
+"""Toxiproxy Setup for Chaos Engineering
 
 This script sets up Toxiproxy proxies for FraiseQL database connections
 to enable network chaos testing scenarios.
 """
 
-import requests
-import json
-import time
 import sys
-from typing import Dict, Any, Optional
+import time
+from typing import Any, Dict, Optional
+
+import requests
 
 
 class FraiseQLToxiproxySetup:
@@ -23,8 +22,7 @@ class FraiseQLToxiproxySetup:
     def setup_postgres_proxy(
         self, postgres_host: str = "postgres", postgres_port: int = 5432
     ) -> bool:
-        """
-        Set up Toxiproxy proxy for PostgreSQL connections.
+        """Set up Toxiproxy proxy for PostgreSQL connections.
 
         Args:
             postgres_host: PostgreSQL server hostname
@@ -47,11 +45,11 @@ class FraiseQLToxiproxySetup:
             existing = self.get_proxy("fraiseql_postgres")
             if existing:
                 print("📋 PostgreSQL proxy already exists, updating configuration...")
-                response = requests.post(
+                response = requests.post(  # noqa: S113
                     f"{self.base_url}/proxies/fraiseql_postgres", json=proxy_config
                 )
             else:
-                response = requests.post(f"{self.base_url}/proxies", json=proxy_config)
+                response = requests.post(f"{self.base_url}/proxies", json=proxy_config)  # noqa: S113
 
             response.raise_for_status()
             proxy = response.json()
@@ -108,7 +106,7 @@ class FraiseQLToxiproxySetup:
                 "toxicity": 1.0,
             }
 
-            response = requests.post(
+            response = requests.post(  # noqa: S113
                 f"{self.base_url}/proxies/fraiseql_postgres/toxics", json=toxic
             )
             response.raise_for_status()
@@ -120,7 +118,7 @@ class FraiseQLToxiproxySetup:
 
             # Remove the toxic
             print("   🧹 Removing latency toxic...")
-            requests.delete(f"{self.base_url}/proxies/fraiseql_postgres/toxics/demo_latency")
+            requests.delete(f"{self.base_url}/proxies/fraiseql_postgres/toxics/demo_latency")  # noqa: S113
 
             print("   ✅ Latency toxic removed")
             print("   🎉 Chaos injection working correctly!")
@@ -134,29 +132,30 @@ class FraiseQLToxiproxySetup:
     def get_proxy(self, name: str) -> Optional[Dict[str, Any]]:
         """Get proxy configuration."""
         try:
-            response = requests.get(f"{self.base_url}/proxies/{name}")
+            response = requests.get(f"{self.base_url}/proxies/{name}")  # noqa: S113
             if response.status_code == 200:
                 return response.json()
             return None
-        except:
+        except Exception:
+
             return None
 
     def list_proxies(self) -> Dict[str, Any]:
         """List all proxies."""
         try:
-            response = requests.get(f"{self.base_url}/proxies")
+            response = requests.get(f"{self.base_url}/proxies")  # noqa: S113
             response.raise_for_status()
             return response.json()
         except Exception as e:
             print(f"❌ Failed to list proxies: {e}")
             return {}
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         """Clean up created proxies."""
         print("\n🧹 Cleaning up chaos proxies...")
         for proxy_name in self.proxies_created:
             try:
-                requests.delete(f"{self.base_url}/proxies/{proxy_name}")
+                requests.delete(f"{self.base_url}/proxies/{proxy_name}")  # noqa: S113
                 print(f"   ✅ Removed proxy: {proxy_name}")
             except Exception as e:
                 print(f"   ⚠️  Failed to remove proxy {proxy_name}: {e}")
@@ -178,7 +177,7 @@ class FraiseQLToxiproxySetup:
             return False
 
 
-def main():
+def main() -> int | None:
     """Main setup function."""
     print("🚀 FraiseQL Chaos Engineering Setup")
     print("=" * 50)

@@ -127,7 +127,7 @@ class TestTurboRegister:
 
     def test_register_with_view_mapping(
         self, cli_runner, sample_graphql_query, sample_view_mapping
-    ):
+    ) -> None:
         """Test register with view mapping file."""
         result = cli_runner.invoke(
             cli,
@@ -177,7 +177,7 @@ class TestTurboRegister:
 
     def test_register_all_options(
         self, cli_runner, sample_graphql_queries_json, sample_view_mapping, tmp_path
-    ):
+    ) -> None:
         """Test register with all options combined."""
         output_file = tmp_path / "results.json"
 

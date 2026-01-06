@@ -1,19 +1,17 @@
-"""
-Phase 3.2: Authentication Chaos Tests (Real PostgreSQL Backend)
+"""Phase 3.2: Authentication Chaos Tests (Real PostgreSQL Backend)
 
 Tests for authentication and authorization failures.
 Uses real PostgreSQL connections to validate FraiseQL's security resilience
 under adverse auth conditions.
 """
 
-import pytest
-import time
+import asyncio
 import random
 import statistics
-import asyncio
 
-from chaos.fraiseql_scenarios import FraiseQLTestScenarios
+import pytest
 from chaos.base import ChaosMetrics
+from chaos.fraiseql_scenarios import FraiseQLTestScenarios
 
 
 @pytest.mark.chaos
@@ -22,9 +20,8 @@ from chaos.base import ChaosMetrics
 @pytest.mark.asyncio
 async def test_jwt_expiration_during_request(
     chaos_db_client, chaos_test_schema, baseline_metrics, chaos_config
-):
-    """
-    Test JWT token expiration during active request processing.
+) -> None:
+    """Test JWT token expiration during active request processing.
 
     Scenario: JWT expires while request is being processed.
     Expected: FraiseQL handles token expiration gracefully with proper error responses.
@@ -45,21 +42,20 @@ async def test_jwt_expiration_during_request(
 
     iterations = max(5, int(10 * chaos_config.load_multiplier))
 
-    for i in range(iterations):
+    for _i in range(iterations):
         try:
             # Simulate JWT validation
-            if random.random() < 0.15:  # 15% chance of token expiration during processing
-                raise Exception("Token expired during request processing")
-            elif random.random() < 0.05:  # 5% chance of other auth failures
-                raise Exception("JWT validation failed")
-            else:
-                # Successful authentication
-                auth_successes += 1
+            if random.random() < 0.15:  # 15% chance of token expiration during processing  # noqa: S311
+                raise Exception("Token expired during request processing")  # noqa: TRY002
+            if random.random() < 0.05:  # 5% chance of other auth failures  # noqa: S311
+                raise Exception("JWT validation failed")  # noqa: TRY002
+            # Successful authentication
+            auth_successes += 1
 
-                # Process the request
-                result = await chaos_db_client.execute_query(operation)
-                execution_time = result.get("_execution_time_ms", 15.0)
-                metrics.record_query_time(execution_time)
+            # Process the request
+            result = await chaos_db_client.execute_query(operation)
+            execution_time = result.get("_execution_time_ms", 15.0)
+            metrics.record_query_time(execution_time)
 
         except Exception as e:
             # Catch authentication failures (token/JWT related)
@@ -92,9 +88,8 @@ async def test_jwt_expiration_during_request(
 @pytest.mark.asyncio
 async def test_rbac_policy_failure(
     chaos_db_client, chaos_test_schema, baseline_metrics, chaos_config
-):
-    """
-    Test RBAC policy evaluation failures.
+) -> None:
+    """Test RBAC policy evaluation failures.
 
     Scenario: Authorization policy evaluation fails unexpectedly.
     Expected: FraiseQL handles RBAC failures securely (fail-closed).
@@ -115,13 +110,13 @@ async def test_rbac_policy_failure(
 
     iterations = max(6, int(12 * chaos_config.load_multiplier))
 
-    for i in range(iterations):
+    for _i in range(iterations):
         try:
             # Simulate RBAC policy check
-            if random.random() < 0.2:  # 20% chance of policy evaluation failure
-                raise Exception("RBAC policy evaluation failed")
-            elif random.random() < 0.3:  # 30% chance of authorization denial
-                raise Exception("Access denied by RBAC policy")
+            if random.random() < 0.2:  # 20% chance of policy evaluation failure  # noqa: S311
+                raise Exception("RBAC policy evaluation failed")  # noqa: TRY002
+            if random.random() < 0.3:  # 30% chance of authorization denial  # noqa: S311
+                raise Exception("Access denied by RBAC policy")  # noqa: TRY002
 
             # Policy check passed - proceed with operation
             policy_successes += 1
@@ -159,9 +154,8 @@ async def test_rbac_policy_failure(
 @pytest.mark.asyncio
 async def test_authentication_service_outage(
     chaos_db_client, chaos_test_schema, baseline_metrics, chaos_config
-):
-    """
-    Test authentication service unavailability.
+) -> None:
+    """Test authentication service unavailability.
 
     Scenario: Authentication service becomes temporarily unavailable.
     Expected: FraiseQL handles auth service outages gracefully.
@@ -198,10 +192,9 @@ async def test_authentication_service_outage(
     for i in range(total_operations):
         try:
             # Deterministic auth service availability - repeatable every run
-            if auth_service_available:
-                if i in outage_iterations:
-                    auth_service_available = False
-                    service_outages += 1
+            if auth_service_available and i in outage_iterations:
+                auth_service_available = False
+                service_outages += 1
 
             if auth_service_available:
                 # Normal authentication
@@ -210,7 +203,7 @@ async def test_authentication_service_outage(
                     execution_time = result.get("_execution_time_ms", 15.0)
                     metrics.record_query_time(execution_time)
                 else:
-                    raise Exception("Authentication failed")
+                    raise Exception("Authentication failed")  # noqa: TRY002
             else:
                 # Auth service unavailable - should handle gracefully
                 degraded_operations += 1
@@ -223,7 +216,7 @@ async def test_authentication_service_outage(
                     )  # Slower due to auth issues
                     metrics.record_query_time(execution_time)
                 else:
-                    raise Exception("Authentication service unavailable")
+                    raise Exception("Authentication service unavailable")  # noqa: TRY002
 
                 # Deterministic service recovery
                 if i in recovery_iterations:
@@ -258,9 +251,8 @@ async def test_authentication_service_outage(
 @pytest.mark.asyncio
 async def test_concurrent_authentication_load(
     chaos_db_client, chaos_test_schema, baseline_metrics, chaos_config
-):
-    """
-    Test authentication under concurrent load.
+) -> None:
+    """Test authentication under concurrent load.
 
     Scenario: Multiple concurrent requests require authentication.
     Expected: FraiseQL handles concurrent auth load without degradation.
@@ -282,11 +274,11 @@ async def test_concurrent_authentication_load(
 
         try:
             # Simulate authentication delay (varies per request)
-            auth_delay = 0.01 + random.uniform(0, 0.02)  # 10-30ms auth time
+            auth_delay = 0.01 + random.uniform(0, 0.02)  # 10-30ms auth time  # noqa: S311
             await asyncio.sleep(auth_delay)
 
             # Simulate occasional auth contention
-            if random.random() < 0.1:  # 10% chance of auth contention
+            if random.random() < 0.1:  # 10% chance of auth contention  # noqa: S311
                 auth_contentions += 1
                 await asyncio.sleep(0.05)  # Additional delay for contention
 

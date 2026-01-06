@@ -1,25 +1,25 @@
-"""
-Phase 3 Chaos Engineering Validation Tests (Real PostgreSQL Backend)
+"""Phase 3 Chaos Engineering Validation Tests (Real PostgreSQL Backend)
 
 Tests to validate Phase 3 cache and authentication chaos test success criteria.
 Validates FraiseQL's cache resilience and authentication security.
 """
 
-import pytest
-import statistics
 import asyncio
+import statistics
 
-from chaos.fraiseql_scenarios import FraiseQLTestScenarios
+import pytest
 from chaos.base import ChaosMetrics
+from chaos.fraiseql_scenarios import FraiseQLTestScenarios
 
 
 @pytest.mark.chaos
 @pytest.mark.chaos_validation
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
-async def test_cache_miss_performance_impact(chaos_db_client, chaos_test_schema, baseline_metrics):
-    """
-    Validate cache miss performance impact is acceptable.
+async def test_cache_miss_performance_impact(
+    chaos_db_client, chaos_test_schema, baseline_metrics
+) -> None:
+    """Validate cache miss performance impact is acceptable.
 
     Success Criteria: Cache misses should degrade performance but remain functional
     """
@@ -87,9 +87,8 @@ async def test_cache_miss_performance_impact(chaos_db_client, chaos_test_schema,
 @pytest.mark.asyncio
 async def test_cache_coherency_under_concurrent_access(
     chaos_db_client, chaos_test_schema, baseline_metrics
-):
-    """
-    Validate cache coherency under concurrent access.
+) -> None:
+    """Validate cache coherency under concurrent access.
 
     Success Criteria: Concurrent cache access should maintain consistency
     """
@@ -129,9 +128,10 @@ async def test_cache_coherency_under_concurrent_access(
 @pytest.mark.chaos_validation
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
-async def test_authentication_success_rate(chaos_db_client, chaos_test_schema, baseline_metrics):
-    """
-    Validate authentication success rate under normal and chaotic conditions.
+async def test_authentication_success_rate(
+    chaos_db_client, chaos_test_schema, baseline_metrics
+) -> None:
+    """Validate authentication success rate under normal and chaotic conditions.
 
     Success Criteria: Authentication should succeed 80%+ of the time
     """
@@ -185,9 +185,10 @@ async def test_authentication_success_rate(chaos_db_client, chaos_test_schema, b
 @pytest.mark.chaos_validation
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
-async def test_rbac_policy_enforcement(chaos_db_client, chaos_test_schema, baseline_metrics):
-    """
-    Validate RBAC policy enforcement.
+async def test_rbac_policy_enforcement(
+    chaos_db_client, chaos_test_schema, baseline_metrics
+) -> None:
+    """Validate RBAC policy enforcement.
 
     Success Criteria: Authorization policies should be enforced correctly
     """
@@ -199,7 +200,7 @@ async def test_rbac_policy_enforcement(chaos_db_client, chaos_test_schema, basel
     policy_successes = 0
     policy_checks = 0
 
-    for i in range(10):
+    for _i in range(10):
         try:
             # Simulate policy check by executing write operation
             result = await chaos_db_client.execute_query(operation)
@@ -227,9 +228,10 @@ async def test_rbac_policy_enforcement(chaos_db_client, chaos_test_schema, basel
 @pytest.mark.chaos_validation
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
-async def test_cache_stampede_prevention(chaos_db_client, chaos_test_schema, baseline_metrics):
-    """
-    Validate cache stampede prevention under concurrent cache misses.
+async def test_cache_stampede_prevention(
+    chaos_db_client, chaos_test_schema, baseline_metrics
+) -> None:
+    """Validate cache stampede prevention under concurrent cache misses.
 
     Success Criteria: Cache stampedes should be prevented or minimized
     """
@@ -262,7 +264,7 @@ async def test_cache_stampede_prevention(chaos_db_client, chaos_test_schema, bas
     # Collect successful execution times
     execution_times = [r for r in results if isinstance(r, (int, float)) and r is not None]
 
-    if execution_times:
+    if execution_times:  # noqa: SIM102
         # Check for stampede indicators (extreme variance)
         if len(execution_times) > 1:
             avg_time = statistics.mean(execution_times)

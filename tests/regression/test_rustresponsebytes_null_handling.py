@@ -74,11 +74,10 @@ class TestRustResponseBytesNullHandling:
 
             # Query for a user that doesn't exist
             # This will return RustResponseBytes containing {"data":{"testUserNullable":[]}}
-            result = await db.find_one(
+            return await db.find_one(
                 "test_users",
                 id="00000000-0000-0000-0000-000000000000",  # Non-existent ID
             )
-            return result
 
         # Build schema
         schema = build_fraiseql_schema()

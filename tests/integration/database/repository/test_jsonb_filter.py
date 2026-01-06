@@ -20,7 +20,7 @@ class TestJSONBKeyExistence:
     """Test PostgreSQL JSONB key existence operators."""
 
     @pytest.fixture(scope="class")
-    def test_types(self, clear_registry_class):
+    def test_types(self, clear_registry_class) -> None:
         """Create test types inside a fixture for proper isolation."""
 
         @fraiseql.type
@@ -46,7 +46,7 @@ class TestJSONBKeyExistence:
         register_type_for_view("test_products_view", Product)
 
         async with class_db_pool.connection() as conn:
-            await conn.execute(f"SET search_path TO {test_schema}, public")
+            await conn.execute(f"SET search_path TO {test_schema}, public")  # noqa: F405
             # Create tables
             await conn.execute(
                 """

@@ -57,12 +57,12 @@ class CreateNetworkConfiguration:
 class MockCursor:
     """Mock cursor for database operations."""
 
-    def __init__(self, db):
+    def __init__(self, db) -> None:
         self.db = db
         self.executed_query = None
         self.executed_params = None
 
-    async def execute(self, query, params):
+    async def execute(self, query, params) -> None:
         self.executed_query = query
         self.executed_params = params
 
@@ -87,7 +87,7 @@ class MockCursor:
                 except (json.JSONDecodeError, TypeError):
                     self.db.last_input_data = params[0] if params else None
 
-    async def fetchone(self):
+    async def fetchone(self) -> None:
         # Return a mock JSON result that matches the expected structure
         import json
 
@@ -103,39 +103,39 @@ class MockCursor:
         }
         return [json.dumps(mock_result)]
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> None:  # noqa: D105
         return self
 
-    async def __aexit__(self, *args):
+    async def __aexit__(self, *args) -> None:  # noqa: D105, ANN002
         pass
 
 
 class MockConnection:
     """Mock async connection context manager."""
 
-    def __init__(self, db):
+    def __init__(self, db) -> None:
         self._db = db
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> None:  # noqa: D105
         return self
 
-    async def __aexit__(self, *args):
+    async def __aexit__(self, *args) -> None:  # noqa: D105, ANN002
         pass
 
-    async def execute(self, *args, **kwargs):
+    async def execute(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
         pass
 
-    def cursor(self):
+    def cursor(self) -> None:
         return MockCursor(self._db)
 
 
 class MockPool:
     """Mock connection pool."""
 
-    def __init__(self, db):
+    def __init__(self, db) -> None:
         self._db = db
 
-    def connection(self):
+    def connection(self) -> None:
         return MockConnection(self._db)
 
 
@@ -147,7 +147,7 @@ class MockDatabase:
         self.last_input_data = None
         self._pool = MockPool(self)
 
-    def get_pool(self):
+    def get_pool(self) -> None:
         return self._pool
 
     async def execute_function(
@@ -187,7 +187,7 @@ class MockInfo:
 
 
 @pytest.fixture(autouse=True)
-def clear_schema_registry():
+def clear_schema_registry() -> None:
     """Clear the schema registry before and after each test."""
     registry = SchemaRegistry.get_instance()
     registry.clear()
@@ -222,7 +222,7 @@ async def test_dns_1_id_field_not_transformed() -> None:
     resolver = CreateNetworkConfiguration.__fraiseql_resolver__
 
     # Act
-    result = await resolver(mock_info, input_data)
+    await resolver(mock_info, input_data)
 
     # Assert - The function should receive the correct field names
     assert mock_db.last_function_call == "app.create_network_configuration"

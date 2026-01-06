@@ -20,32 +20,32 @@ from fraiseql.security.profiles import (
 class TestSecurityProfile:
     """Tests for SecurityProfile enum."""
 
-    def test_standard_profile_exists(self):
+    def test_standard_profile_exists(self) -> None:
         assert SecurityProfile.STANDARD.value == "standard"
 
-    def test_regulated_profile_exists(self):
+    def test_regulated_profile_exists(self) -> None:
         assert SecurityProfile.REGULATED.value == "regulated"
 
-    def test_restricted_profile_exists(self):
+    def test_restricted_profile_exists(self) -> None:
         assert SecurityProfile.RESTRICTED.value == "restricted"
 
 
 class TestSecurityProfileConfig:
     """Tests for SecurityProfileConfig."""
 
-    def test_standard_profile_allows_introspection(self):
+    def test_standard_profile_allows_introspection(self) -> None:
         assert STANDARD_PROFILE.introspection_policy == IntrospectionPolicy.AUTHENTICATED
 
-    def test_regulated_profile_disables_introspection(self):
+    def test_regulated_profile_disables_introspection(self) -> None:
         assert REGULATED_PROFILE.introspection_policy == IntrospectionPolicy.DISABLED
 
-    def test_restricted_profile_requires_mtls(self):
+    def test_restricted_profile_requires_mtls(self) -> None:
         assert RESTRICTED_PROFILE.mtls_required is True
 
-    def test_restricted_profile_smaller_body_size(self):
+    def test_restricted_profile_smaller_body_size(self) -> None:
         assert RESTRICTED_PROFILE.max_body_size == 524_288  # 512KB
 
-    def test_to_dict_serialization(self):
+    def test_to_dict_serialization(self) -> None:
         result = STANDARD_PROFILE.to_dict()
         assert result["profile"] == "standard"
         assert "max_body_size" in result
@@ -54,15 +54,15 @@ class TestSecurityProfileConfig:
 class TestGetProfile:
     """Tests for get_profile function."""
 
-    def test_get_by_string(self):
+    def test_get_by_string(self) -> None:
         profile = get_profile("standard")
         assert profile.profile == SecurityProfile.STANDARD
 
-    def test_get_by_enum(self):
+    def test_get_by_enum(self) -> None:
         profile = get_profile(SecurityProfile.REGULATED)
         assert profile.profile == SecurityProfile.REGULATED
 
-    def test_invalid_profile_raises(self):
+    def test_invalid_profile_raises(self) -> None:
         with pytest.raises(ValueError):
             get_profile("invalid")
 
@@ -70,7 +70,7 @@ class TestGetProfile:
 class TestQueryValidatorConfig:
     """Test QueryValidatorConfig dataclass."""
 
-    def test_query_validator_config_creation(self):
+    def test_query_validator_config_creation(self) -> None:
         """Test creating a QueryValidatorConfig instance."""
         config = QueryValidatorConfig(
             max_depth=10,
@@ -84,7 +84,7 @@ class TestQueryValidatorConfig:
         assert config.introspection_enabled is True
         assert config.field_validation_enabled is True
 
-    def test_query_validator_config_to_dict(self):
+    def test_query_validator_config_to_dict(self) -> None:
         """Test converting QueryValidatorConfig to dictionary."""
         config = QueryValidatorConfig(
             max_depth=5,
@@ -106,12 +106,12 @@ class TestQueryValidatorConfig:
 class TestProfileEnforcer:
     """Test ProfileEnforcer class."""
 
-    def test_profile_enforcer_creation(self):
+    def test_profile_enforcer_creation(self) -> None:
         """Test creating a ProfileEnforcer instance."""
         enforcer = ProfileEnforcer(STANDARD_PROFILE)
         assert enforcer.profile_config == STANDARD_PROFILE
 
-    def test_get_body_size_config(self):
+    def test_get_body_size_config(self) -> None:
         """Test getting body size config from profile."""
         enforcer = ProfileEnforcer(STANDARD_PROFILE)
 
@@ -121,7 +121,7 @@ class TestProfileEnforcer:
         assert config.exempt_methods == {"GET", "HEAD", "OPTIONS"}
         assert config.exempt_paths == []
 
-    def test_get_rate_limit_config(self):
+    def test_get_rate_limit_config(self) -> None:
         """Test getting rate limit config from profile."""
         enforcer = ProfileEnforcer(STANDARD_PROFILE)
 
@@ -135,7 +135,7 @@ class TestProfileEnforcer:
         assert config.whitelist == []
         assert config.blacklist == []
 
-    def test_get_query_validator_config(self):
+    def test_get_query_validator_config(self) -> None:
         """Test getting query validator config from profile."""
         enforcer = ProfileEnforcer(STANDARD_PROFILE)
 
@@ -146,7 +146,7 @@ class TestProfileEnforcer:
         assert config.introspection_enabled is True  # STANDARD allows authenticated introspection
         assert config.field_validation_enabled is True
 
-    def test_get_query_validator_config_regulated(self):
+    def test_get_query_validator_config_regulated(self) -> None:
         """Test query validator config for regulated profile."""
         enforcer = ProfileEnforcer(REGULATED_PROFILE)
 
@@ -157,7 +157,7 @@ class TestProfileEnforcer:
         assert config.introspection_enabled is False  # REGULATED disables introspection
         assert config.field_validation_enabled is True
 
-    def test_get_middleware_stack(self):
+    def test_get_middleware_stack(self) -> None:
         """Test getting middleware stack from profile."""
         enforcer = ProfileEnforcer(STANDARD_PROFILE)
 
@@ -175,7 +175,7 @@ class TestProfileEnforcer:
         assert "SecurityHeadersMiddleware" in middleware_names
         assert "CSRFProtectionMiddleware" in middleware_names
 
-    def test_get_middleware_stack_disabled_rate_limit(self):
+    def test_get_middleware_stack_disabled_rate_limit(self) -> None:
         """Test middleware stack when rate limiting is disabled."""
         # Create a custom profile with rate limiting disabled
         custom_profile = SecurityProfileConfig(
@@ -202,7 +202,7 @@ class TestProfileEnforcer:
         assert "SecurityHeadersMiddleware" in middleware_names
         assert "CSRFProtectionMiddleware" in middleware_names
 
-    def test_validate_request_context_https_required(self):
+    def test_validate_request_context_https_required(self) -> None:
         """Test request validation when HTTPS is required."""
         enforcer = ProfileEnforcer(REGULATED_PROFILE)
 
@@ -215,7 +215,7 @@ class TestProfileEnforcer:
 
         assert "HTTPS required" in str(exc_info.value)
 
-    def test_validate_request_context_https_allowed(self):
+    def test_validate_request_context_https_allowed(self) -> None:
         """Test request validation when HTTPS is not required."""
         enforcer = ProfileEnforcer(STANDARD_PROFILE)
 
@@ -230,7 +230,7 @@ class TestProfileEnforcer:
         assert context["tls_required"] is False
         assert context["validation_passed"] is True
 
-    def test_validate_request_context_body_size_check(self):
+    def test_validate_request_context_body_size_check(self) -> None:
         """Test request validation with body size check."""
         enforcer = ProfileEnforcer(STANDARD_PROFILE)
 
@@ -244,7 +244,7 @@ class TestProfileEnforcer:
 
         assert "Request body too large" in str(exc_info.value)
 
-    def test_apply_to_app(self):
+    def test_apply_to_app(self) -> None:
         """Test applying profile to FastAPI app."""
         enforcer = ProfileEnforcer(STANDARD_PROFILE)
 
@@ -262,7 +262,7 @@ class TestProfileEnforcer:
         assert mock_app.state.security_profile == STANDARD_PROFILE
         assert mock_app.state.profile_enforcer == enforcer
 
-    def test_default_key_func(self):
+    def test_default_key_func(self) -> None:
         """Test default rate limiting key function."""
         enforcer = ProfileEnforcer(STANDARD_PROFILE)
 
@@ -281,7 +281,7 @@ class TestProfileEnforcer:
         key = enforcer._default_key_func(mock_request)
         assert key == "192.168.1.1"
 
-    def test_default_key_func_with_user(self):
+    def test_default_key_func_with_user(self) -> None:
         """Test default key function with authenticated user."""
         enforcer = ProfileEnforcer(STANDARD_PROFILE)
 
@@ -300,7 +300,7 @@ class TestProfileEnforcer:
         key = enforcer._default_key_func(mock_request)
         assert key == "192.168.1.1:user123"
 
-    def test_default_key_func_anonymous(self):
+    def test_default_key_func_anonymous(self) -> None:
         """Test default key function for anonymous requests."""
         enforcer = ProfileEnforcer(STANDARD_PROFILE)
 
@@ -322,21 +322,21 @@ class TestProfileEnforcerIntegration:
     """Integration tests for ProfileEnforcer with different profiles."""
 
     @pytest.mark.parametrize(
-        "profile,expected_middleware_count",
+        ("profile", "expected_middleware_count"),
         [
             (STANDARD_PROFILE, 4),  # body size, rate limit, security headers, csrf
             (REGULATED_PROFILE, 4),  # same as standard
             (RESTRICTED_PROFILE, 4),  # same as standard
         ],
     )
-    def test_middleware_stack_sizes(self, profile, expected_middleware_count):
+    def test_middleware_stack_sizes(self, profile, expected_middleware_count) -> None:
         """Test middleware stack sizes for different profiles."""
         enforcer = ProfileEnforcer(profile)
         middleware_stack = enforcer.get_middleware_stack()
 
         assert len(middleware_stack) == expected_middleware_count
 
-    def test_restricted_profile_strictness(self):
+    def test_restricted_profile_strictness(self) -> None:
         """Test that restricted profile has strictest settings."""
         enforcer = ProfileEnforcer(RESTRICTED_PROFILE)
 

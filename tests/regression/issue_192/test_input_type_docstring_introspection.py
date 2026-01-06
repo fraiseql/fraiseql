@@ -1,4 +1,4 @@
-"""Regression test for Issue #192: Input type docstrings not exposed in GraphQL schema introspection.
+"""Regression test for Issue #192: Input type docstrings not exposed in GraphQL schema introspection.  # noqa: E501
 
 GitHub Issue: https://github.com/fraiseql/fraiseql/issues/192
 
@@ -30,7 +30,7 @@ from fraiseql.mutations import mutation
 
 
 @pytest.fixture
-def registry(clear_registry):
+def registry(clear_registry) -> None:
     """Get a clean schema registry for each test."""
     return SchemaRegistry.get_instance()
 
@@ -99,7 +99,7 @@ class TestInputTypeDocstringIntrospection:
         @mutation
         async def create_machine(info, input: CreateMachineInput) -> Machine:
             """Create a new machine."""
-            return None  # type: ignore
+            return None  # type: ignore[misc]
 
         # Build schema
         schema = registry.build_schema()
@@ -175,9 +175,9 @@ class TestInputTypeDocstringIntrospection:
         @mutation
         async def create_user(
             info, input: CreateUserInput
-        ) -> User | CreateUserSuccess | CreateUserError:  # type: ignore
+        ) -> User | CreateUserSuccess | CreateUserError:  # type: ignore[misc]
             """Create a new user."""
-            return None  # type: ignore
+            return None  # type: ignore[misc]
 
         # Build schema and execute introspection
         schema = registry.build_schema()
@@ -237,7 +237,7 @@ class TestInputTypeDocstringIntrospection:
 
         @mutation
         async def simple_mutation(info, input: SimpleInput) -> SimpleOutput:
-            return None  # type: ignore
+            return None  # type: ignore[misc]
 
         # Build schema and execute introspection
         schema = registry.build_schema()
@@ -283,7 +283,7 @@ class TestInputTypeDocstringIntrospection:
 
         @mutation
         async def detailed_mutation(info, input: DetailedInput) -> SimpleOutput:
-            return None  # type: ignore
+            return None  # type: ignore[misc]
 
         # Build schema and execute introspection
         schema = registry.build_schema()

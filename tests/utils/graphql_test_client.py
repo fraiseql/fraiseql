@@ -170,11 +170,11 @@ class GraphQLTestClient:
             return None
 
         # Handle dict (keep as-is for now, will enhance in Phase 4.3)
-        if result_type == dict or result_type == Any:
+        if result_type in (dict, Any):
             return data
 
         # Handle list types
-        if hasattr(result_type, "__origin__") and result_type.__origin__ == list:
+        if hasattr(result_type, "__origin__") and result_type.__origin__ is list:
             # Get the item type from list[ItemType]
             item_type = result_type.__args__[0] if result_type.__args__ else Any
             if isinstance(data, list):
@@ -182,7 +182,7 @@ class GraphQLTestClient:
             raise TypeError(f"Expected list data for {result_type}, got {type(data)}")
 
         # Handle dataclasses and FraiseQL types with __fraiseql_definition__
-        if isinstance(data, dict):
+        if isinstance(data, dict):  # noqa: SIM102
             # Check if result_type is a dataclass
             if hasattr(result_type, "__dataclass_fields__") or hasattr(
                 result_type, "__fraiseql_definition__"

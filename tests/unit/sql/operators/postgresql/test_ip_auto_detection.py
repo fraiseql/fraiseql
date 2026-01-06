@@ -35,7 +35,7 @@ class TestIPAutoDetection:
             ("IPv6 Short", "::1", "::inet", None),
             ("IPv6 Full", "2001:db8::1", "::inet", None),
             # MAC addresses: auto-detection sees them as IPv6 (has colons), casts to ::inet
-            # TODO: Refine auto-detection to distinguish MAC from IPv6
+            # TODO: Refine auto-detection to distinguish MAC from IPv6  # noqa: TD002, TD003
             ("MAC Colon", "00:11:22:33:44:55", "::inet", None),
             ("MAC Hyphen", "00-11-22-33-44-55", None, None),  # No colons, not detected
             ("MAC Upper", "AA:BB:CC:DD:EE:FF", "::inet", None),  # Has colons, detected as IPv6
@@ -202,7 +202,7 @@ class TestIPAutoDetection:
             ("Public IP Detection", "eq", "1.1.1.1", "::inet"),
         ]
 
-        for test_name, op, test_value, expected_cast in production_tests:
+        for test_name, op, test_value, _expected_cast in production_tests:
             strategy = registry.get_strategy(op, field_type=None)
             result = strategy.build_sql(op, test_value, jsonb_path, field_type=None)
             sql_str = render_sql_for_testing(result)
@@ -219,7 +219,7 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     logger.info("Testing comprehensive special types fix...")
 
-    test_instance = TestAllSpecialTypesFix()
+    test_instance = TestAllSpecialTypesFix()  # noqa: F821
 
     logger.info("\n1. Testing all special types comprehensive fix...")
     test_instance.test_all_special_types_comprehensive_fix()

@@ -10,17 +10,17 @@ from fraiseql.sql.where.operators import get_operator_function
 class TestInvalidOperators:
     """Test invalid operator name handling."""
 
-    def test_invalid_operator_name_text(self):
+    def test_invalid_operator_name_text(self) -> None:
         """Test that invalid operator names raise appropriate errors for text fields."""
-        with pytest.raises(ValueError, match="unsupported|invalid|not found"):
+        with pytest.raises(ValueError, match="unsupported|invalid|not found"):  # noqa: RUF043
             get_operator_function(FieldType.STRING, "invalid_op")
 
-    def test_invalid_operator_name_numeric(self):
+    def test_invalid_operator_name_numeric(self) -> None:
         """Test invalid operators for numeric fields."""
         with pytest.raises(ValueError):
             get_operator_function(FieldType.INTEGER, "invalid_op")
 
-    def test_typo_in_operator(self):
+    def test_typo_in_operator(self) -> None:
         """Test common typos in operator names."""
         with pytest.raises(ValueError):
             get_operator_function(FieldType.INTEGER, "eqauls")  # typo: equals
@@ -29,13 +29,13 @@ class TestInvalidOperators:
 class TestTypeMismatches:
     """Test type mismatch handling."""
 
-    def test_in_requires_list_text(self):
+    def test_in_requires_list_text(self) -> None:
         """Test that 'in' operator requires a list for text fields."""
         func = get_operator_function(FieldType.STRING, "in")
-        with pytest.raises((TypeError, ValueError), match="list|iterable|array"):
+        with pytest.raises((TypeError, ValueError), match="list|iterable|array"):  # noqa: RUF043
             func(SQL("field"), "not-a-list")
 
-    def test_in_requires_list_numeric(self):
+    def test_in_requires_list_numeric(self) -> None:
         """Test that 'in' operator requires a list for numeric fields."""
         func = get_operator_function(FieldType.INTEGER, "in")
         with pytest.raises((TypeError, ValueError)):
@@ -45,7 +45,7 @@ class TestTypeMismatches:
 class TestInvalidIPAddresses:
     """Test invalid IP address handling."""
 
-    def test_invalid_ipv4_format(self):
+    def test_invalid_ipv4_format(self) -> None:
         """Test malformed IPv4 address."""
         func = get_operator_function(FieldType.IP_ADDRESS, "eq")
         # PostgreSQL might handle validation, but test what our code does
@@ -53,7 +53,7 @@ class TestInvalidIPAddresses:
         # Either should raise, or pass through and let PostgreSQL handle it
         assert "999.999.999.999" in str(result)
 
-    def test_invalid_ipv6_format(self):
+    def test_invalid_ipv6_format(self) -> None:
         """Test malformed IPv6 address."""
         func = get_operator_function(FieldType.IP_ADDRESS, "eq")
         result = func(SQL("ip_address"), "gggg::1")
@@ -63,14 +63,14 @@ class TestInvalidIPAddresses:
 class TestInvalidDates:
     """Test invalid date handling."""
 
-    def test_invalid_date_format_daterange(self):
+    def test_invalid_date_format_daterange(self) -> None:
         """Test malformed date string for daterange."""
         func = get_operator_function(FieldType.DATE_RANGE, "eq")
         result = func(SQL("period"), "[invalid-date,2024-12-31]")
         # Pass through to PostgreSQL or raise
         assert "invalid-date" in str(result)
 
-    def test_invalid_range_format(self):
+    def test_invalid_range_format(self) -> None:
         """Test malformed range format."""
         func = get_operator_function(FieldType.DATE_RANGE, "eq")
         result = func(SQL("period"), "not-a-range")
@@ -80,28 +80,28 @@ class TestInvalidDates:
 class TestNullHandling:
     """Test NULL value handling across strategies."""
 
-    def test_null_numeric(self):
+    def test_null_numeric(self) -> None:
         """Test NULL with numeric strategy."""
         func = get_operator_function(FieldType.INTEGER, "eq")
         result = func(SQL("value"), None)
         # NULL is passed through as literal, not converted to IS NULL
         assert "None" in str(result) or "NULL" in str(result)
 
-    def test_null_text(self):
+    def test_null_text(self) -> None:
         """Test NULL with text strategy."""
         func = get_operator_function(FieldType.STRING, "eq")
         result = func(SQL("message"), None)
         # NULL is passed through as literal, not converted to IS NULL
         assert "None" in str(result) or "NULL" in str(result)
 
-    def test_null_boolean(self):
+    def test_null_boolean(self) -> None:
         """Test NULL with boolean strategy."""
         func = get_operator_function(FieldType.BOOLEAN, "eq")
         result = func(SQL("active"), None)
         # NULL is passed through as literal, not converted to IS NULL
         assert "None" in str(result) or "NULL" in str(result)
 
-    def test_isnull_operator(self):
+    def test_isnull_operator(self) -> None:
         """Test proper NULL checking with isnull operator."""
         func = get_operator_function(FieldType.ANY, "isnull")
         result = func(SQL("value"), True)
@@ -111,25 +111,25 @@ class TestNullHandling:
 class TestEdgeCaseValues:
     """Test edge case values."""
 
-    def test_empty_string(self):
+    def test_empty_string(self) -> None:
         """Test empty string value."""
         func = get_operator_function(FieldType.STRING, "eq")
         result = func(SQL("message"), "")
         assert '""' in str(result) or "''" in str(result)
 
-    def test_zero_value(self):
+    def test_zero_value(self) -> None:
         """Test zero numeric value."""
         func = get_operator_function(FieldType.INTEGER, "eq")
         result = func(SQL("count"), 0)
         assert "0" in str(result)
 
-    def test_negative_value(self):
+    def test_negative_value(self) -> None:
         """Test negative numeric value."""
         func = get_operator_function(FieldType.INTEGER, "eq")
         result = func(SQL("temperature"), -100)
         assert "-100" in str(result)
 
-    def test_very_large_number(self):
+    def test_very_large_number(self) -> None:
         """Test very large number."""
         func = get_operator_function(FieldType.INTEGER, "eq")
         large = 10**18
@@ -140,17 +140,17 @@ class TestEdgeCaseValues:
 class TestUnsupportedOperators:
     """Test operators not supported for certain field types."""
 
-    def test_regex_on_numeric(self):
+    def test_regex_on_numeric(self) -> None:
         """Test that regex operators don't exist for numeric fields."""
         with pytest.raises(ValueError):
             get_operator_function(FieldType.INTEGER, "matches")
 
-    def test_daterange_on_text(self):
+    def test_daterange_on_text(self) -> None:
         """Test that daterange operators don't exist for text fields."""
         with pytest.raises(ValueError):
             get_operator_function(FieldType.STRING, "overlaps")
 
-    def test_network_on_text(self):
+    def test_network_on_text(self) -> None:
         """Test that network operators don't exist for text fields."""
         with pytest.raises(ValueError):
             get_operator_function(FieldType.STRING, "isPrivate")
@@ -159,13 +159,13 @@ class TestUnsupportedOperators:
 class TestOperatorCaseSensitivity:
     """Test operator name case sensitivity."""
 
-    def test_operator_case_sensitive(self):
+    def test_operator_case_sensitive(self) -> None:
         """Test that operator names are case-sensitive."""
         # This should fail since operators are case-sensitive
         with pytest.raises(ValueError):
             get_operator_function(FieldType.STRING, "EQ")
 
-    def test_mixed_case_operators_fail(self):
+    def test_mixed_case_operators_fail(self) -> None:
         """Test that mixed case operator names fail."""
         with pytest.raises(ValueError):
             get_operator_function(FieldType.STRING, "Contains")

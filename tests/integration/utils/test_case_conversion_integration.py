@@ -14,7 +14,7 @@ from fraiseql.utils.casing import to_camel_case, to_snake_case
 
 
 @pytest.fixture(scope="class")
-def utils_test_schema(meta_test_schema):
+def utils_test_schema(meta_test_schema) -> None:
     """Schema registry with diverse field names for utils testing."""
     # Clear any existing registrations
     meta_test_schema.clear()
@@ -68,7 +68,7 @@ def utils_test_schema(meta_test_schema):
     return meta_test_schema
 
 
-def extract_all_field_names(schema_registry):
+def extract_all_field_names(schema_registry) -> None:
     """Extract all field names from registered types in schema."""
     field_names = set()
 
@@ -91,7 +91,7 @@ def extract_all_field_names(schema_registry):
 class TestCaseConversionIntegration:
     """Integration tests for case conversion utilities with real schema data."""
 
-    async def test_case_conversion_with_all_schema_fields(self, utils_test_schema):
+    async def test_case_conversion_with_all_schema_fields(self, utils_test_schema) -> None:
         """Case conversion should work with ALL field names from real schema."""
         # Get all field names from the test schema
         all_fields = extract_all_field_names(utils_test_schema)
@@ -114,7 +114,7 @@ class TestCaseConversionIntegration:
             )
 
     @pytest.mark.parametrize(
-        "field_name,expected_camel",
+        ("field_name", "expected_camel"),
         [
             # Basic cases
             ("id", "id"),
@@ -150,7 +150,7 @@ class TestCaseConversionIntegration:
             ("session_id_cookie", "sessionIdCookie"),
         ],
     )
-    def test_case_conversion_edge_cases_from_real_schema(self, field_name, expected_camel):
+    def test_case_conversion_edge_cases_from_real_schema(self, field_name, expected_camel) -> None:
         """Case conversion should handle edge cases extracted from real schemas."""
         # Test snake_case to camelCase
         result = to_camel_case(field_name)
@@ -162,7 +162,7 @@ class TestCaseConversionIntegration:
             f"Roundtrip failed: {field_name} -> {result} -> {snake_back}"
         )
 
-    async def test_case_conversion_with_graphql_execution(self, utils_test_schema):
+    async def test_case_conversion_with_graphql_execution(self, utils_test_schema) -> None:
         """Case conversion should work in complete GraphQL execution pipeline."""
         schema = utils_test_schema.build_schema()
 
@@ -189,7 +189,7 @@ class TestCaseConversionIntegration:
         result = await graphql(schema, query_str)
         assert not result.errors, f"GraphQL execution failed: {result.errors}"
 
-    async def test_case_conversion_with_nested_data_structures(self, utils_test_schema):
+    async def test_case_conversion_with_nested_data_structures(self, utils_test_schema) -> None:
         """Case conversion should work with nested GraphQL data structures."""
         from fraiseql.utils.casing import dict_keys_to_snake_case, transform_keys_to_camel_case
 
@@ -226,7 +226,7 @@ class TestCaseConversionIntegration:
         # Should be identical to original camelCase
         assert camel_again == camel_data
 
-    async def test_case_conversion_performance_with_large_schema(self, utils_test_schema):
+    async def test_case_conversion_performance_with_large_schema(self, utils_test_schema) -> None:
         """Case conversion should perform well with large numbers of fields."""
         import time
 
@@ -254,7 +254,7 @@ class TestCaseConversionIntegration:
             f"Case conversion too slow: {duration:.2f}s for {len(filterable_fields)} fields"
         )
 
-    def test_case_conversion_handles_special_characters(self):
+    def test_case_conversion_handles_special_characters(self) -> None:
         """Case conversion should handle fields with special characters gracefully."""
         # These should not crash (even if results aren't perfect)
         special_fields = [

@@ -382,7 +382,7 @@ class TestFraiseQLRepositoryIntegration:
             fetch_result=True,
         )
         active_count_result = await repository.run(active_count_query)
-        expected_active_count = int(active_count_result[0]["count"])  # type: ignore
+        expected_active_count = int(active_count_result[0]["count"])  # type: ignore[misc]
 
         inactive_count_query = DatabaseQuery(
             statement=SQL(
@@ -392,7 +392,7 @@ class TestFraiseQLRepositoryIntegration:
             fetch_result=True,
         )
         inactive_count_result = await repository.run(inactive_count_query)
-        expected_inactive_count = int(inactive_count_result[0]["count"])  # type: ignore
+        expected_inactive_count = int(inactive_count_result[0]["count"])  # type: ignore[misc]
 
         # Get all user names grouped by active status for verification
         names_query = DatabaseQuery(
@@ -428,18 +428,18 @@ class TestFraiseQLRepositoryIntegration:
 
         # Verify each group that should exist
         if expected_active_count > 0:
-            active_group = next(r for r in result if r["active"] is True)  # type: ignore
-            assert active_group["count"] == expected_active_count  # type: ignore
+            active_group = next(r for r in result if r["active"] is True)  # type: ignore[misc]
+            assert active_group["count"] == expected_active_count  # type: ignore[misc]
             # Verify names match database
-            expected_active_names = next(r for r in names_result if r["active"] is True)["names"]  # type: ignore
-            assert set(active_group["names"]) == set(expected_active_names)  # type: ignore
+            expected_active_names = next(r for r in names_result if r["active"] is True)["names"]  # type: ignore[misc]
+            assert set(active_group["names"]) == set(expected_active_names)  # type: ignore[misc]
 
         if expected_inactive_count > 0:
-            inactive_group = next(r for r in result if r["active"] is False)  # type: ignore
-            assert inactive_group["count"] == expected_inactive_count  # type: ignore
+            inactive_group = next(r for r in result if r["active"] is False)  # type: ignore[misc]
+            assert inactive_group["count"] == expected_inactive_count  # type: ignore[misc]
             # Verify names match database
-            expected_inactive_names = next(r for r in names_result if r["active"] is False)["names"]  # type: ignore
-            assert set(inactive_group["names"]) == set(expected_inactive_names)  # type: ignore
+            expected_inactive_names = next(r for r in names_result if r["active"] is False)["names"]  # type: ignore[misc]
+            assert set(inactive_group["names"]) == set(expected_inactive_names)  # type: ignore[misc]
 
     @pytest.mark.asyncio
     async def test_connection_pool_concurrency(self, class_db_pool, test_schema, test_data) -> None:

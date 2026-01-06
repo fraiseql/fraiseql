@@ -1,12 +1,12 @@
-"""
-Phase 3 Chaos Engineering Success Criteria
+"""Phase 3 Chaos Engineering Success Criteria
 
 This module implements validation logic for Phase 3 cache and authentication chaos test success criteria.
 Tests validate that FraiseQL maintains performance and security under adverse cache and auth conditions.
 """
 
 import statistics
-from typing import Dict, Any, List, Tuple
+from typing import Any, Dict, List, Tuple
+
 from chaos.base import ChaosTestCase
 
 
@@ -29,8 +29,7 @@ class Phase3SuccessCriteria:
     def validate_cache_chaos_test(
         cls, test_case: ChaosTestCase, cache_type: str
     ) -> Tuple[bool, str, Dict[str, Any]]:
-        """
-        Validate cache chaos test results.
+        """Validate cache chaos test results.
 
         Success Criteria:
         - Cache hit rates remain acceptable under chaos
@@ -81,7 +80,7 @@ class Phase3SuccessCriteria:
                 issues.append("Cache stampede prevention may be inadequate")
                 passed = False
 
-        elif cache_type == "memory_pressure":
+        elif cache_type == "memory_pressure":  # noqa: SIM102
             # Should handle memory pressure gracefully
             if errors > total_ops * 0.15:  # More than 15% errors
                 issues.append("Memory pressure handling may need improvement")
@@ -102,8 +101,7 @@ class Phase3SuccessCriteria:
     def validate_auth_chaos_test(
         cls, test_case: ChaosTestCase, auth_type: str
     ) -> Tuple[bool, str, Dict[str, Any]]:
-        """
-        Validate authentication chaos test results.
+        """Validate authentication chaos test results.
 
         Success Criteria:
         - Authentication maintains security under chaos
@@ -167,7 +165,7 @@ class Phase3SuccessCriteria:
                 )
                 passed = False
 
-        elif auth_type == "rbac_comprehensive":
+        elif auth_type == "rbac_comprehensive":  # noqa: SIM102
             # Should maintain security posture
             if success_rate < cls.RBAC_POLICY_SUCCESS_RATE:
                 issues.append("Comprehensive RBAC security needs strengthening")
@@ -188,8 +186,7 @@ class Phase3SuccessCriteria:
     def validate_phase3_overall_success(
         cls, test_results: List[Tuple[bool, str, Dict[str, Any]]]
     ) -> Tuple[bool, str, Dict[str, Any]]:
-        """
-        Validate overall Phase 3 success based on all cache and auth chaos test results.
+        """Validate overall Phase 3 success based on all cache and auth chaos test results.
 
         Success Criteria:
         - 70% of cache and auth tests must pass
@@ -342,10 +339,9 @@ class Phase3SuccessCriteria:
 
 
 def validate_cache_auth_chaos_test_success(
-    test_case: ChaosTestCase, test_type: str, **kwargs
+    test_case: ChaosTestCase, test_type: str, **kwargs  # noqa: ANN003
 ) -> Tuple[bool, str, Dict[str, Any]]:
-    """
-    Validate a cache or auth chaos test based on its type and success criteria.
+    """Validate a cache or auth chaos test based on its type and success criteria.
 
     Args:
         test_case: The ChaosTestCase that was executed
@@ -359,11 +355,10 @@ def validate_cache_auth_chaos_test_success(
     if test_type.startswith("cache"):
         cache_subtype = test_type.split("_", 1)[1] if "_" in test_type else "general"
         return Phase3SuccessCriteria.validate_cache_chaos_test(test_case, cache_subtype)
-    elif test_type.startswith("auth"):
+    if test_type.startswith("auth"):
         auth_subtype = test_type.split("_", 1)[1] if "_" in test_type else "general"
         return Phase3SuccessCriteria.validate_auth_chaos_test(test_case, auth_subtype)
-    else:
-        return False, "FAIL", {"issues": [f"Unknown cache/auth test type: {test_type}"]}
+    return False, "FAIL", {"issues": [f"Unknown cache/auth test type: {test_type}"]}
 
 
 def generate_phase3_report(test_results: List[Tuple[bool, str, Dict[str, Any]]]) -> Dict[str, Any]:
@@ -433,7 +428,7 @@ def generate_phase3_report(test_results: List[Tuple[bool, str, Dict[str, Any]]])
     return report
 
 
-def print_phase3_report(report: Dict[str, Any]):
+def print_phase3_report(report: Dict[str, Any]) -> None:
     """Print a formatted Phase 3 cache and auth chaos report."""
     print("\n" + "=" * 60)
     print("PHASE 3 CACHE & AUTHENTICATION CHAOS REPORT")

@@ -15,7 +15,7 @@ from fraiseql.types import fraise_type
 
 
 @pytest.fixture(autouse=True)
-def clear_registry():
+def clear_registry() -> None:
     """Clear the schema registry and type cache before and after each test."""
     registry = SchemaRegistry.get_instance()
     registry.clear()
@@ -234,7 +234,7 @@ class TestSchemaSerializer:
         async def dummy_query(info) -> list[types[0]]:
             return []
 
-        schema = build_fraiseql_schema(query_types=types + [dummy_query], mutation_resolvers=[])
+        schema = build_fraiseql_schema(query_types=[*types, dummy_query], mutation_resolvers=[])
 
         serializer = SchemaSerializer()
 

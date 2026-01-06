@@ -8,20 +8,20 @@ from fraiseql.sql.where.operators.logical import build_and_sql, build_not_sql, b
 class TestLogicalAndOperator:
     """Test AND operator combinations."""
 
-    def test_and_empty_conditions(self):
+    def test_and_empty_conditions(self) -> None:
         """Test AND with empty conditions list."""
         result = build_and_sql([])
         sql_str = result.as_string(None)
         assert sql_str == "TRUE"
 
-    def test_and_single_condition(self):
+    def test_and_single_condition(self) -> None:
         """Test AND with single condition."""
         condition = Composed([SQL("age > "), SQL("18")])
         result = build_and_sql([condition])
         sql_str = result.as_string(None)
         assert sql_str == "age > 18"
 
-    def test_and_two_conditions(self):
+    def test_and_two_conditions(self) -> None:
         """Test AND with two conditions."""
         condition1 = Composed([SQL("age > "), SQL("18")])
         condition2 = Composed([SQL("status = "), SQL("'active'")])
@@ -33,7 +33,7 @@ class TestLogicalAndOperator:
         assert sql_str.startswith("(")
         assert sql_str.endswith(")")
 
-    def test_and_multiple_conditions(self):
+    def test_and_multiple_conditions(self) -> None:
         """Test AND with multiple conditions."""
         conditions = [
             Composed([SQL("age >= "), SQL("21")]),
@@ -51,20 +51,20 @@ class TestLogicalAndOperator:
 class TestLogicalOrOperator:
     """Test OR operator combinations."""
 
-    def test_or_empty_conditions(self):
+    def test_or_empty_conditions(self) -> None:
         """Test OR with empty conditions list."""
         result = build_or_sql([])
         sql_str = result.as_string(None)
         assert sql_str == "FALSE"
 
-    def test_or_single_condition(self):
+    def test_or_single_condition(self) -> None:
         """Test OR with single condition."""
         condition = Composed([SQL("status = "), SQL("'draft'")])
         result = build_or_sql([condition])
         sql_str = result.as_string(None)
         assert sql_str == "status = 'draft'"
 
-    def test_or_two_conditions(self):
+    def test_or_two_conditions(self) -> None:
         """Test OR with two conditions."""
         condition1 = Composed([SQL("status = "), SQL("'draft'")])
         condition2 = Composed([SQL("status = "), SQL("'published'")])
@@ -76,7 +76,7 @@ class TestLogicalOrOperator:
         assert sql_str.startswith("(")
         assert sql_str.endswith(")")
 
-    def test_or_multiple_conditions(self):
+    def test_or_multiple_conditions(self) -> None:
         """Test OR with multiple conditions."""
         conditions = [
             Composed([SQL("role = "), SQL("'admin'")]),
@@ -94,7 +94,7 @@ class TestLogicalOrOperator:
 class TestLogicalNotOperator:
     """Test NOT operator negation."""
 
-    def test_not_simple_condition(self):
+    def test_not_simple_condition(self) -> None:
         """Test NOT with simple condition."""
         condition = Composed([SQL("active = "), SQL("TRUE")])
         result = build_not_sql(condition)
@@ -103,7 +103,7 @@ class TestLogicalNotOperator:
         assert sql_str.startswith("NOT (")
         assert sql_str.endswith(")")
 
-    def test_not_complex_condition(self):
+    def test_not_complex_condition(self) -> None:
         """Test NOT with complex condition."""
         condition = Composed([SQL("age > 18 AND status = 'active'")])
         result = build_not_sql(condition)
@@ -112,12 +112,12 @@ class TestLogicalNotOperator:
         assert "age > 18 AND status = 'active'" in sql_str
         assert sql_str.endswith(")")
 
-    def test_not_nested_logical(self):
+    def test_not_nested_logical(self) -> None:
         """Test NOT with nested logical operations."""
         inner_and = build_and_sql(
             [Composed([SQL("x > "), SQL("0")]), Composed([SQL("y < "), SQL("100")])]
         )
-        result = build_not_sql(inner_and)  # type: ignore
+        result = build_not_sql(inner_and)  # type: ignore[misc]
         sql_str = result.as_string(None)
         assert "NOT (" in sql_str
         assert "x > 0" in sql_str
@@ -128,7 +128,7 @@ class TestLogicalNotOperator:
 class TestLogicalOperatorNesting:
     """Test complex nesting of logical operators."""
 
-    def test_and_with_or_conditions(self):
+    def test_and_with_or_conditions(self) -> None:
         """Test AND containing OR conditions."""
         or_condition1 = build_or_sql(
             [
@@ -152,7 +152,7 @@ class TestLogicalOperatorNesting:
         assert sql_str.count(" OR ") == 2
         assert " AND " in sql_str
 
-    def test_or_with_nested_and_conditions(self):
+    def test_or_with_nested_and_conditions(self) -> None:
         """Test OR containing AND conditions."""
         and_condition1 = build_and_sql(
             [Composed([SQL("age >= "), SQL("18")]), Composed([SQL("country = "), SQL("'US'")])]
@@ -170,7 +170,7 @@ class TestLogicalOperatorNesting:
         assert sql_str.count(" AND ") == 2
         assert " OR " in sql_str
 
-    def test_not_with_and_or_combination(self):
+    def test_not_with_and_or_combination(self) -> None:
         """Test NOT with AND/OR combination."""
         and_or = build_and_sql(
             [
@@ -181,7 +181,7 @@ class TestLogicalOperatorNesting:
             ]
         )
 
-        result = build_not_sql(and_or)  # type: ignore
+        result = build_not_sql(and_or)  # type: ignore[misc]
         sql_str = result.as_string(None)
         assert sql_str.startswith("NOT (")
         assert "x = 1" in sql_str
@@ -190,7 +190,7 @@ class TestLogicalOperatorNesting:
         assert " OR " in sql_str
         assert " AND " in sql_str
 
-    def test_or_with_and_conditions(self):
+    def test_or_with_and_conditions(self) -> None:
         """Test OR containing AND conditions."""
         and_condition1 = build_and_sql(
             [Composed([SQL("age >= "), SQL("18")]), Composed([SQL("country = "), SQL("'US'")])]
@@ -199,7 +199,7 @@ class TestLogicalOperatorNesting:
             [Composed([SQL("age >= "), SQL("21")]), Composed([SQL("country = "), SQL("'CA'")])]
         )
 
-        result = build_or_sql([and_condition1, and_condition2])  # type: ignore
+        result = build_or_sql([and_condition1, and_condition2])  # type: ignore[misc]
         result_str = result.as_string(None)
         assert "age >= 18" in result_str
         assert "country = 'US'" in result_str
@@ -208,7 +208,7 @@ class TestLogicalOperatorNesting:
         assert result_str.count(" AND ") == 2
         assert " OR " in result_str
 
-    def test_not_with_and_or(self):
+    def test_not_with_and_or(self) -> None:
         """Test NOT with AND/OR combination."""
         and_or = build_and_sql(
             [
@@ -219,7 +219,7 @@ class TestLogicalOperatorNesting:
             ]
         )
 
-        result = build_not_sql(and_or)  # type: ignore
+        result = build_not_sql(and_or)  # type: ignore[misc]
         result_str = result.as_string(None)
         assert result_str.startswith("NOT (")
         assert "x = 1" in result_str
@@ -228,7 +228,7 @@ class TestLogicalOperatorNesting:
         assert " OR " in result_str
         assert " AND " in result_str
 
-    def test_or_containing_and_conditions(self):
+    def test_or_containing_and_conditions(self) -> None:
         """Test OR containing AND conditions."""
         and_condition1 = build_and_sql(
             [Composed([SQL("age >= "), SQL("18")]), Composed([SQL("country = "), SQL("'US'")])]
@@ -237,7 +237,7 @@ class TestLogicalOperatorNesting:
             [Composed([SQL("age >= "), SQL("21")]), Composed([SQL("country = "), SQL("'CA'")])]
         )
 
-        result = build_or_sql([and_condition1, and_condition2])  # type: ignore
+        result = build_or_sql([and_condition1, and_condition2])  # type: ignore[misc]
         result_str = result.as_string(None)
         assert "age >= 18" in result_str
         assert "country = 'US'" in result_str
@@ -246,7 +246,7 @@ class TestLogicalOperatorNesting:
         assert result_str.count(" AND ") == 2
         assert " OR " in result_str
 
-    def test_not_with_complex_and_or(self):
+    def test_not_with_complex_and_or(self) -> None:
         """Test NOT with AND/OR combination."""
         and_or = build_and_sql(
             [
@@ -257,7 +257,7 @@ class TestLogicalOperatorNesting:
             ]
         )
 
-        result = build_not_sql(and_or)  # type: ignore
+        result = build_not_sql(and_or)  # type: ignore[misc]
         result_str = result.as_string(None)
         assert result_str.startswith("NOT (")
         assert "x = 1" in result_str
@@ -270,7 +270,7 @@ class TestLogicalOperatorNesting:
 class TestLogicalOperatorEdgeCases:
     """Test edge cases for logical operators."""
 
-    def test_deep_nesting(self):
+    def test_deep_nesting(self) -> None:
         """Test deeply nested logical operations."""
         # NOT(AND(OR(a, b), OR(c, d)))
         inner_or1 = build_or_sql([Composed([SQL("a")]), Composed([SQL("b")])])
@@ -285,7 +285,7 @@ class TestLogicalOperatorEdgeCases:
         assert " AND " in result_str
         assert result_str.count(" OR ") == 2
 
-    def test_mixed_condition_types(self):
+    def test_mixed_condition_types(self) -> None:
         """Test mixing different types of conditions."""
         conditions = [
             Composed([SQL("id = "), SQL("123")]),

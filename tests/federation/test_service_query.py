@@ -14,17 +14,17 @@ from fraiseql.federation.service_query import (
 class TestServiceQueryResolver:
     """Tests for ServiceQueryResolver."""
 
-    def test_resolver_initialization(self):
+    def test_resolver_initialization(self) -> None:
         """Test creating a service query resolver."""
         resolver = ServiceQueryResolver()
         assert resolver.cache_sdl is True
 
-    def test_resolver_with_caching_disabled(self):
+    def test_resolver_with_caching_disabled(self) -> None:
         """Test resolver with caching disabled."""
         resolver = ServiceQueryResolver(cache_sdl=False)
         assert resolver.cache_sdl is False
 
-    def test_resolve_service_returns_sdl(self):
+    def test_resolve_service_returns_sdl(self) -> None:
         """Test that _service query returns SDL."""
         from fraiseql.federation import clear_entity_registry
 
@@ -42,7 +42,7 @@ class TestServiceQueryResolver:
         assert isinstance(result["sdl"], str)
         assert "@key" in result["sdl"]
 
-    def test_get_sdl_basic(self):
+    def test_get_sdl_basic(self) -> None:
         """Test getting SDL from resolver."""
         from fraiseql.federation import clear_entity_registry
 
@@ -59,7 +59,7 @@ class TestServiceQueryResolver:
         assert "type User" in sdl
         assert "@key" in sdl
 
-    def test_sdl_caching(self):
+    def test_sdl_caching(self) -> None:
         """Test that SDL is cached when enabled."""
         from fraiseql.federation import clear_entity_registry
 
@@ -79,7 +79,7 @@ class TestServiceQueryResolver:
         assert sdl1 == sdl2
         assert resolver._cached_sdl is not None
 
-    def test_sdl_no_caching(self):
+    def test_sdl_no_caching(self) -> None:
         """Test that SDL is not cached when disabled."""
         from fraiseql.federation import clear_entity_registry
 
@@ -99,7 +99,7 @@ class TestServiceQueryResolver:
         assert sdl1 == sdl2
         assert resolver._cached_sdl is None
 
-    def test_clear_cache(self):
+    def test_clear_cache(self) -> None:
         """Test clearing SDL cache."""
         from fraiseql.federation import clear_entity_registry
 
@@ -120,7 +120,7 @@ class TestServiceQueryResolver:
 class TestSupportedDirectives:
     """Tests for supported directives."""
 
-    def test_get_supported_directives(self):
+    def test_get_supported_directives(self) -> None:
         """Test getting supported directives."""
         resolver = ServiceQueryResolver()
         directives = resolver.get_supported_directives()
@@ -131,7 +131,7 @@ class TestSupportedDirectives:
         assert "requires" in directives
         assert "provides" in directives
 
-    def test_supported_directives_include_federation_lite(self):
+    def test_supported_directives_include_federation_lite(self) -> None:
         """Test that Federation Lite directives are supported."""
         resolver = ServiceQueryResolver()
         directives = resolver.get_supported_directives()
@@ -139,7 +139,7 @@ class TestSupportedDirectives:
         # Federation Lite
         assert directives["key"] is True
 
-    def test_supported_directives_include_federation_standard(self):
+    def test_supported_directives_include_federation_standard(self) -> None:
         """Test that Federation Standard directives are supported."""
         resolver = ServiceQueryResolver()
         directives = resolver.get_supported_directives()
@@ -149,7 +149,7 @@ class TestSupportedDirectives:
         assert directives["requires"] is True
         assert directives["provides"] is True
 
-    def test_is_directive_supported(self):
+    def test_is_directive_supported(self) -> None:
         """Test checking if directive is supported."""
         resolver = ServiceQueryResolver()
 
@@ -158,7 +158,7 @@ class TestSupportedDirectives:
         assert resolver.is_directive_supported("requires") is True
         assert resolver.is_directive_supported("provides") is True
 
-    def test_unsupported_directives(self):
+    def test_unsupported_directives(self) -> None:
         """Test unsupported directives."""
         resolver = ServiceQueryResolver()
 
@@ -167,7 +167,7 @@ class TestSupportedDirectives:
         # Non-existent directive
         assert resolver.is_directive_supported("nonexistent") is False
 
-    def test_supported_directives_returns_copy(self):
+    def test_supported_directives_returns_copy(self) -> None:
         """Test that modifications don't affect internal state."""
         resolver = ServiceQueryResolver()
         directives1 = resolver.get_supported_directives()
@@ -180,7 +180,7 @@ class TestSupportedDirectives:
 class TestFederationConfig:
     """Tests for federation configuration."""
 
-    def test_get_federation_config(self):
+    def test_get_federation_config(self) -> None:
         """Test getting federation configuration."""
         from fraiseql.federation import clear_entity_registry
 
@@ -197,14 +197,14 @@ class TestFederationConfig:
         assert "directives" in config
         assert "version" in config
 
-    def test_federation_config_version(self):
+    def test_federation_config_version(self) -> None:
         """Test federation version in config."""
         resolver = ServiceQueryResolver()
         config = resolver.get_federation_config()
 
         assert config["version"] == 2  # Apollo Federation 2.0
 
-    def test_federation_config_contains_sdl(self):
+    def test_federation_config_contains_sdl(self) -> None:
         """Test that config contains complete SDL."""
         from fraiseql.federation import clear_entity_registry
 
@@ -225,13 +225,13 @@ class TestFederationConfig:
 class TestCreateServiceResolver:
     """Tests for create_service_resolver factory function."""
 
-    def test_create_with_caching(self):
+    def test_create_with_caching(self) -> None:
         """Test creating resolver with caching."""
         resolver = create_service_resolver(cache_sdl=True)
         assert isinstance(resolver, ServiceQueryResolver)
         assert resolver.cache_sdl is True
 
-    def test_create_without_caching(self):
+    def test_create_without_caching(self) -> None:
         """Test creating resolver without caching."""
         resolver = create_service_resolver(cache_sdl=False)
         assert isinstance(resolver, ServiceQueryResolver)
@@ -241,18 +241,18 @@ class TestCreateServiceResolver:
 class TestDefaultResolver:
     """Tests for default singleton resolver."""
 
-    def test_get_default_resolver(self):
+    def test_get_default_resolver(self) -> None:
         """Test getting default resolver."""
         resolver = get_default_resolver()
         assert isinstance(resolver, ServiceQueryResolver)
 
-    def test_default_resolver_singleton(self):
+    def test_default_resolver_singleton(self) -> None:
         """Test that default resolver is a singleton."""
         resolver1 = get_default_resolver()
         resolver2 = get_default_resolver()
         assert resolver1 is resolver2
 
-    def test_reset_default_resolver(self):
+    def test_reset_default_resolver(self) -> None:
         """Test resetting default resolver."""
         from fraiseql.federation import clear_entity_registry
 
@@ -275,7 +275,7 @@ class TestDefaultResolver:
 class TestServiceQueryIntegration:
     """Integration tests for service query."""
 
-    def test_service_query_with_single_entity(self):
+    def test_service_query_with_single_entity(self) -> None:
         """Test _service query with single entity."""
         from fraiseql.federation import clear_entity_registry
 
@@ -291,12 +291,12 @@ class TestServiceQueryIntegration:
         result = resolver.resolve_service()
 
         sdl = result["sdl"]
-        assert "type Product @key(fields: \"id\")" in sdl
+        assert 'type Product @key(fields: "id")' in sdl
         assert "id: String!" in sdl
         assert "name: String!" in sdl
         assert "price: Float!" in sdl
 
-    def test_service_query_with_multiple_entities(self):
+    def test_service_query_with_multiple_entities(self) -> None:
         """Test _service query with multiple entities."""
         from fraiseql.federation import clear_entity_registry
 
@@ -319,7 +319,7 @@ class TestServiceQueryIntegration:
         assert "type User" in sdl
         assert "type Post" in sdl
 
-    def test_service_query_with_extensions(self):
+    def test_service_query_with_extensions(self) -> None:
         """Test _service query with extended entities."""
         from fraiseql.federation import clear_entity_registry
 
@@ -342,7 +342,7 @@ class TestServiceQueryIntegration:
         assert "extend type Product" in sdl
         assert "@external" in sdl
 
-    def test_service_query_with_computed_fields(self):
+    def test_service_query_with_computed_fields(self) -> None:
         """Test _service query includes computed fields."""
         from fraiseql.federation import clear_entity_registry, requires
 
@@ -362,9 +362,9 @@ class TestServiceQueryIntegration:
 
         sdl = result["sdl"]
         assert "discounted: JSON" in sdl
-        assert "@requires(fields: \"price\")" in sdl
+        assert '@requires(fields: "price")' in sdl
 
-    def test_full_federation_workflow(self):
+    def test_full_federation_workflow(self) -> None:
         """Test complete federation workflow."""
         from fraiseql.federation import clear_entity_registry
 
@@ -396,7 +396,7 @@ class TestServiceQueryIntegration:
 class TestServiceQueryEdgeCases:
     """Tests for edge cases in service query."""
 
-    def test_service_query_with_empty_registry(self):
+    def test_service_query_with_empty_registry(self) -> None:
         """Test _service query when no entities registered."""
         from fraiseql.federation import clear_entity_registry
 
@@ -406,7 +406,7 @@ class TestServiceQueryEdgeCases:
 
         assert result["sdl"] == ""
 
-    def test_service_query_caching_with_clear(self):
+    def test_service_query_caching_with_clear(self) -> None:
         """Test cache behavior with explicit clear."""
         from fraiseql.federation import clear_entity_registry
 
@@ -425,7 +425,7 @@ class TestServiceQueryEdgeCases:
         assert sdl1 == sdl2
         assert resolver._cached_sdl is not None  # Cache repopulated
 
-    def test_supported_directives_immutability(self):
+    def test_supported_directives_immutability(self) -> None:
         """Test that supported directives can't be modified internally."""
         resolver = ServiceQueryResolver()
         directives = resolver.get_supported_directives()

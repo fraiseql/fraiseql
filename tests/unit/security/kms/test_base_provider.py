@@ -64,11 +64,11 @@ class TestBaseKMSProvider:
     """Tests for BaseKMSProvider."""
 
     @pytest.fixture
-    def provider(self):
+    def provider(self) -> None:
         return ConcreteTestProvider()
 
     @pytest.mark.asyncio
-    async def test_encrypt_returns_encrypted_data(self, provider):
+    async def test_encrypt_returns_encrypted_data(self, provider) -> None:
         """encrypt() should return EncryptedData with metadata."""
         result = await provider.encrypt(b"plaintext", "my-key")
 
@@ -79,13 +79,13 @@ class TestBaseKMSProvider:
         assert result.algorithm == "test-algo"
 
     @pytest.mark.asyncio
-    async def test_encrypt_normalizes_context(self, provider):
+    async def test_encrypt_normalizes_context(self, provider) -> None:
         """encrypt() should handle None context."""
         result = await provider.encrypt(b"data", "key", context=None)
         assert result.context == {}
 
     @pytest.mark.asyncio
-    async def test_decrypt_returns_plaintext(self, provider):
+    async def test_decrypt_returns_plaintext(self, provider) -> None:
         """decrypt() should return plaintext bytes."""
         encrypted = EncryptedData(
             ciphertext=b"encrypted:secret",
@@ -106,7 +106,7 @@ class TestBaseKMSProvider:
         assert result == b"secret"
 
     @pytest.mark.asyncio
-    async def test_generate_data_key_returns_pair(self, provider):
+    async def test_generate_data_key_returns_pair(self, provider) -> None:
         """generate_data_key() should return DataKeyPair."""
         result = await provider.generate_data_key("master-key")
 
@@ -114,7 +114,7 @@ class TestBaseKMSProvider:
         assert len(result.plaintext_key) == 32
         assert result.encrypted_key.ciphertext == b"encrypted-key"
 
-    def test_cannot_instantiate_abc_directly(self):
+    def test_cannot_instantiate_abc_directly(self) -> None:
         """Should not be able to instantiate ABC without implementing abstracts."""
         with pytest.raises(TypeError):
             BaseKMSProvider()
@@ -124,7 +124,7 @@ class TestExceptionWrapping:
     """Tests for exception handling in base class."""
 
     @pytest.mark.asyncio
-    async def test_encrypt_wraps_exceptions(self):
+    async def test_encrypt_wraps_exceptions(self) -> None:
         """Exceptions in _do_encrypt should be wrapped in EncryptionError."""
 
         class FailingProvider(ConcreteTestProvider):
@@ -139,7 +139,7 @@ class TestExceptionWrapping:
         assert "Encryption operation failed" in str(exc_info.value)
 
     @pytest.mark.asyncio
-    async def test_decrypt_wraps_exceptions(self):
+    async def test_decrypt_wraps_exceptions(self) -> None:
         """Exceptions in _do_decrypt should be wrapped in DecryptionError."""
 
         class FailingProvider(ConcreteTestProvider):

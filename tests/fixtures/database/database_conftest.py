@@ -103,8 +103,7 @@ def postgres_url(postgres_container) -> str:
         container = _container_cache["postgres"]
         url = container.get_connection_url()
         # testcontainers returns postgresql+psycopg:// but psycopg3 expects postgresql://
-        url = url.replace("postgresql+psycopg://", "postgresql://")
-        return url
+        return url.replace("postgresql+psycopg://", "postgresql://")
 
     # Fallback to explicit external database
     external_url = os.environ.get("TEST_DATABASE_URL")

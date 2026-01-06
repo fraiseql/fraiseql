@@ -78,7 +78,7 @@ class TestNestedArrayWhereIntegration:
                 return None
 
             # If we get here, the test should fail because where support isn't implemented
-            assert False, "Expected where parameter support to not exist yet"
+            raise AssertionError("Expected where parameter support to not exist yet")
 
         except Exception:
             # Expected - where parameter support doesn't exist yet
@@ -106,7 +106,7 @@ class TestNestedArrayWhereIntegration:
         """Test that fraise_field now accepts where-related parameters."""
         # These should all work now that where support is implemented
         field1 = fraise_field(where_input_type=dict)
-        assert field1.where_input_type == dict
+        assert field1.where_input_type is dict
 
         field2 = fraise_field(supports_where_filtering=True)
         assert field2.supports_where_filtering is True

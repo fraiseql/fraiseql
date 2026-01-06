@@ -2,17 +2,13 @@
 
 from __future__ import annotations
 
-import time
-
-import pytest
-
 from fraiseql.monitoring.runtime.db_monitor_sync import get_database_monitor_sync
 
 
 class TestRustPythonDataFlow:
     """Tests for Rust ↔ Python data flow integration."""
 
-    def test_operation_metrics_to_audit_log(self, sample_graphql_operations):
+    def test_operation_metrics_to_audit_log(self, sample_graphql_operations) -> None:
         """Test GraphQL operation metrics flow to audit system."""
         # Operations created in Rust/Python layer
         assert len(sample_graphql_operations) > 0
@@ -22,7 +18,7 @@ class TestRustPythonDataFlow:
             assert op.operation_name is not None
             assert op.duration_ms >= 0
 
-    def test_health_status_aggregation(self, monitoring_enabled, mock_health_components):
+    def test_health_status_aggregation(self, monitoring_enabled, mock_health_components) -> None:
         """Test health status aggregation from components."""
         components = mock_health_components
 
@@ -34,7 +30,7 @@ class TestRustPythonDataFlow:
         cache_healthy = components["cache"].is_healthy()
         assert cache_healthy is True
 
-    def test_cache_metrics_integration(self, cache_monitor_fixture):
+    def test_cache_metrics_integration(self, cache_monitor_fixture) -> None:
         """Test cache metrics are available to Python layer."""
         cache = cache_monitor_fixture
 
@@ -43,7 +39,7 @@ class TestRustPythonDataFlow:
         assert "hit_rate" in metrics
         assert "evictions" in metrics
 
-    def test_database_metrics_integration(self, monitoring_enabled, sample_query_metrics):
+    def test_database_metrics_integration(self, monitoring_enabled, sample_query_metrics) -> None:
         """Test database metrics flow to Python layer."""
         monitor = monitoring_enabled
 
@@ -63,7 +59,7 @@ class TestRustPythonDataFlow:
 class TestErrorHandlingScenarios:
     """Tests for error handling in integration."""
 
-    def test_failed_query_recovery(self, monitoring_enabled, make_query_metric):
+    def test_failed_query_recovery(self, monitoring_enabled, make_query_metric) -> None:
         """Test system recovers from failed queries."""
         monitor = monitoring_enabled
 
@@ -101,7 +97,7 @@ class TestErrorHandlingScenarios:
         assert stats.error_count == 1
         assert stats.success_count == 2
 
-    def test_timeout_handling(self, monitoring_enabled, make_query_metric):
+    def test_timeout_handling(self, monitoring_enabled, make_query_metric) -> None:
         """Test timeout handling in metrics."""
         monitor = monitoring_enabled
 
@@ -124,7 +120,7 @@ class TestErrorHandlingScenarios:
         assert len(slow) > 0
         assert slow[0].duration_ms == 30000.0
 
-    def test_partial_error_states(self, monitoring_enabled, make_query_metric):
+    def test_partial_error_states(self, monitoring_enabled, make_query_metric) -> None:
         """Test partial error states are handled correctly."""
         monitor = monitoring_enabled
 
@@ -152,10 +148,8 @@ class TestErrorHandlingScenarios:
         assert stats.error_count > 0
         assert (stats.success_count + stats.error_count) == 10
 
-    def test_graceful_degradation(self, monitoring_enabled):
+    def test_graceful_degradation(self, monitoring_enabled) -> None:
         """Test graceful degradation when metrics are unavailable."""
-        monitor = monitoring_enabled
-
         # No queries recorded yet
         db_sync = get_database_monitor_sync()
 
@@ -172,7 +166,7 @@ class TestErrorHandlingScenarios:
 class TestRuntimeConfigurationChanges:
     """Tests for runtime configuration changes."""
 
-    def test_threshold_adjustments(self, monitoring_enabled):
+    def test_threshold_adjustments(self, monitoring_enabled) -> None:
         """Test slow query threshold can be adjusted at runtime."""
         monitor = monitoring_enabled
 
@@ -187,8 +181,9 @@ class TestRuntimeConfigurationChanges:
         # Restore
         monitor._slow_query_threshold = original_threshold
 
-    def test_sampling_rate_changes(self, monitoring_enabled):
+    def test_sampling_rate_changes(self, monitoring_enabled) -> None:
         """Test sampling rate can be adjusted."""
+
         class Config:
             def __init__(self):
                 self._sampling_rate = 1.0
@@ -203,7 +198,6 @@ class TestRuntimeConfigurationChanges:
                 self._sampling_rate = max(0.0, min(1.0, value))
 
         config = Config()
-        original_rate = config.sampling_rate
 
         # Change rate
         new_rate = 0.5
@@ -214,7 +208,7 @@ class TestRuntimeConfigurationChanges:
         config.sampling_rate = 2.0
         assert config.sampling_rate == 1.0  # Clamped to max
 
-    def test_health_check_interval_changes(self, monitoring_enabled):
+    def test_health_check_interval_changes(self, monitoring_enabled) -> None:
         """Test health check interval can be adjusted."""
         monitor = monitoring_enabled
 
@@ -226,7 +220,7 @@ class TestRuntimeConfigurationChanges:
 class TestDataConsistency:
     """Tests for data consistency across components."""
 
-    def test_no_metrics_lost(self, monitoring_enabled, make_query_metric):
+    def test_no_metrics_lost(self, monitoring_enabled, make_query_metric) -> None:
         """Test no metrics are lost during recording."""
         monitor = monitoring_enabled
 
@@ -247,7 +241,7 @@ class TestDataConsistency:
 
         assert len(recent) == query_count
 
-    def test_health_state_consistency(self, monitoring_enabled, sample_query_metrics):
+    def test_health_state_consistency(self, monitoring_enabled, sample_query_metrics) -> None:
         """Test health state remains consistent."""
         monitor = monitoring_enabled
 
@@ -265,14 +259,14 @@ class TestDataConsistency:
         assert stats1.total_count == stats2.total_count
         assert stats1.success_rate == stats2.success_rate
 
-    def test_audit_log_completeness(self, sample_query_metrics):
+    def test_audit_log_completeness(self, sample_query_metrics) -> None:
         """Test audit logs capture all operations."""
         # All sample queries should be auditable
         for metric in sample_query_metrics:
             assert metric.query_type is not None
             assert metric.duration_ms >= 0
 
-    def test_statistics_accuracy(self, monitoring_enabled, sample_query_metrics):
+    def test_statistics_accuracy(self, monitoring_enabled, sample_query_metrics) -> None:
         """Test statistics accuracy is > 99.9%."""
         monitor = monitoring_enabled
 

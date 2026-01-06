@@ -23,11 +23,11 @@ class TestOrderBySchemaGeneration:
     """Test that orderBy parameter is auto-added to schema."""
 
     @pytest.fixture(autouse=True)
-    def auto_clear(self, clear_registry):
+    def auto_clear(self, clear_registry) -> None:
         """Use standard clear_registry fixture."""
         return
 
-    def test_list_query_has_order_by_parameter(self):
+    def test_list_query_has_order_by_parameter(self) -> None:
         """Queries returning list[FraiseType] should have orderBy parameter."""
 
         @fraiseql_type(sql_source="v_order_by_users")
@@ -47,7 +47,7 @@ class TestOrderBySchemaGeneration:
         assert field is not None, "Query field should exist"
         assert "orderBy" in field.args, "orderBy parameter should be auto-added"
 
-    def test_order_by_parameter_is_list_type(self):
+    def test_order_by_parameter_is_list_type(self) -> None:
         """OrderBy should be a list to support multiple sort criteria."""
 
         @fraiseql_type(sql_source="v_order_list_users")
@@ -66,7 +66,7 @@ class TestOrderBySchemaGeneration:
 
         assert isinstance(order_by_arg.type, GraphQLList)
 
-    def test_order_by_input_has_type_fields(self):
+    def test_order_by_input_has_type_fields(self) -> None:
         """OrderByInput should have fields matching the return type."""
 
         @fraiseql_type(sql_source="v_order_fields_users")
@@ -90,7 +90,7 @@ class TestOrderBySchemaGeneration:
         assert "age" in inner_type.fields
         assert "email" in inner_type.fields
 
-    def test_order_by_field_is_enum_type(self):
+    def test_order_by_field_is_enum_type(self) -> None:
         """Each field in OrderByInput should be OrderDirection enum."""
 
         @fraiseql_type(sql_source="v_order_enum_users")
@@ -114,7 +114,7 @@ class TestOrderBySchemaGeneration:
 
         assert isinstance(field_type, GraphQLEnumType)
 
-    def test_manual_order_by_not_duplicated(self):
+    def test_manual_order_by_not_duplicated(self) -> None:
         """If resolver already has orderBy, don't add another."""
 
         @fraiseql_type(sql_source="v_manual_order_users")
@@ -134,10 +134,10 @@ class TestOrderBySchemaGeneration:
         schema = build_fraiseql_schema()
         field = schema.query_type.fields.get("manualOrderUsers")
 
-        order_params = [k for k in field.args.keys() if "order" in k.lower()]
+        order_params = [k for k in field.args if "order" in k.lower()]
         assert len(order_params) == 1, f"Should not duplicate: {order_params}"
 
-    def test_single_return_type_no_order_by(self):
+    def test_single_return_type_no_order_by(self) -> None:
         """Single FraiseType return should NOT have orderBy."""
 
         @fraiseql_type(sql_source="v_single_user")
@@ -160,10 +160,10 @@ class TestPaginationSchemaGeneration:
     """Test that limit/offset parameters are auto-added to schema."""
 
     @pytest.fixture(autouse=True)
-    def auto_clear(self, clear_registry):
+    def auto_clear(self, clear_registry) -> None:
         return
 
-    def test_list_query_has_limit_parameter(self):
+    def test_list_query_has_limit_parameter(self) -> None:
         """Queries returning list[FraiseType] should have limit parameter."""
 
         @fraiseql_type(sql_source="v_limit_items")
@@ -181,7 +181,7 @@ class TestPaginationSchemaGeneration:
 
         assert "limit" in field.args
 
-    def test_list_query_has_offset_parameter(self):
+    def test_list_query_has_offset_parameter(self) -> None:
         """Queries returning list[FraiseType] should have offset parameter."""
 
         @fraiseql_type(sql_source="v_offset_items")
@@ -199,7 +199,7 @@ class TestPaginationSchemaGeneration:
 
         assert "offset" in field.args
 
-    def test_limit_and_offset_are_int_type(self):
+    def test_limit_and_offset_are_int_type(self) -> None:
         """Limit and offset should be Int type."""
 
         @fraiseql_type(sql_source="v_int_type_items")
@@ -217,7 +217,7 @@ class TestPaginationSchemaGeneration:
         assert field.args["limit"].type == GraphQLInt
         assert field.args["offset"].type == GraphQLInt
 
-    def test_manual_limit_not_duplicated(self):
+    def test_manual_limit_not_duplicated(self) -> None:
         """If resolver already has limit, don't add another."""
 
         @fraiseql_type(sql_source="v_manual_limit_items")
@@ -232,5 +232,5 @@ class TestPaginationSchemaGeneration:
         schema = build_fraiseql_schema()
         field = schema.query_type.fields.get("manualLimitItems")
 
-        limit_params = [k for k in field.args.keys() if k == "limit"]
+        limit_params = [k for k in field.args if k == "limit"]
         assert len(limit_params) == 1

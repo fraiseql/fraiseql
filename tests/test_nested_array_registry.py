@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3  # noqa: EXE001
 """Tests for the nested array registry system and decorators."""
 
 from fraiseql.fields import fraise_field

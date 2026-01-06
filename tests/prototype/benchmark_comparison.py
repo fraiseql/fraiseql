@@ -1,5 +1,4 @@
-"""
-Phase 0 Prototype: Benchmark Comparison
+"""Phase 0 Prototype: Benchmark Comparison
 
 Compares performance between:
 1. Python psycopg (baseline)
@@ -16,13 +15,13 @@ Usage:
 """
 
 import asyncio
-import time
 import sys
+import time
 from contextlib import asynccontextmanager
 
 # Check if psycopg is available (baseline)
 try:
-    import psycopg
+    import psycopg  # noqa: F401
     from psycopg_pool import AsyncConnectionPool
 
     HAS_PSYCOPG = True
@@ -61,11 +60,11 @@ DB_CONFIG = {
 class BenchmarkRunner:
     """Helper class to run and report benchmarks"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.results = {}
 
     @staticmethod
-    async def measure(name, coro, iterations=100):
+    async def measure(name, coro, iterations=100) -> None:
         """Measure execution time of an async function"""
         # Warmup
         await coro()
@@ -76,10 +75,9 @@ class BenchmarkRunner:
             await coro()
         end = time.perf_counter()
 
-        avg_ms = ((end - start) / iterations) * 1000
-        return avg_ms
+        return ((end - start) / iterations) * 1000
 
-    def record(self, category, implementation, metric, value):
+    def record(self, category, implementation, metric, value) -> None:
         """Record a benchmark result"""
         if category not in self.results:
             self.results[category] = {}
@@ -87,7 +85,7 @@ class BenchmarkRunner:
             self.results[category][implementation] = {}
         self.results[category][implementation][metric] = value
 
-    def print_results(self):
+    def print_results(self) -> None:
         """Print benchmark results with comparison"""
         print("\n" + "=" * 80)
         print("BENCHMARK RESULTS".center(80))
@@ -105,7 +103,7 @@ class BenchmarkRunner:
                 baseline = implementations["psycopg"]
                 prototype = implementations["rust"]
 
-                for metric in baseline.keys():
+                for metric in baseline:
                     base_val = baseline[metric]
                     proto_val = prototype[metric]
                     speedup = base_val / proto_val if proto_val > 0 else 0
@@ -126,7 +124,7 @@ class BenchmarkRunner:
 
 # Baseline: psycopg implementation
 @asynccontextmanager
-async def psycopg_pool():
+async def psycopg_pool() -> None:
     """Create psycopg connection pool"""
     if not HAS_PSYCOPG:
         yield None
@@ -146,14 +144,14 @@ async def psycopg_pool():
         await pool.close()
 
 
-async def psycopg_simple_query(pool):
+async def psycopg_simple_query(pool) -> None:
     """Execute simple query with psycopg"""
     async with pool.connection() as conn:
         cursor = await conn.execute("SELECT 1")
         await cursor.fetchone()
 
 
-async def psycopg_1000_rows(pool):
+async def psycopg_1000_rows(pool) -> None:
     """Execute 1000-row query with psycopg"""
     async with pool.connection() as conn:
         cursor = await conn.execute("SELECT generate_series(1, 1000) as num")
@@ -161,10 +159,10 @@ async def psycopg_1000_rows(pool):
         return len(rows)
 
 
-async def psycopg_concurrent_10(pool):
+async def psycopg_concurrent_10(pool) -> None:
     """Execute 10 concurrent queries with psycopg"""
 
-    async def query():
+    async def query() -> None:
         async with pool.connection() as conn:
             cursor = await conn.execute("SELECT 1")
             await cursor.fetchone()
@@ -175,7 +173,7 @@ async def psycopg_concurrent_10(pool):
 
 # Prototype: Rust implementation
 @asynccontextmanager
-async def rust_pool():
+async def rust_pool() -> None:
     """Create Rust prototype pool"""
     if not HAS_PROTOTYPE:
         yield None
@@ -189,25 +187,25 @@ async def rust_pool():
         yield None
 
 
-async def rust_simple_query(pool):
+async def rust_simple_query(pool) -> None:
     """Execute simple query with Rust"""
     await pool.execute_query("SELECT 1")
 
 
-async def rust_1000_rows(pool):
+async def rust_1000_rows(pool) -> None:
     """Execute 1000-row query with Rust"""
     results = await pool.execute_query("SELECT generate_series(1, 1000) as num")
     return len(results)
 
 
-async def rust_concurrent_10(pool):
+async def rust_concurrent_10(pool) -> None:
     """Execute 10 concurrent queries with Rust"""
     tasks = [pool.execute_query("SELECT 1") for _ in range(10)]
     await asyncio.gather(*tasks)
 
 
 # Main benchmark suite
-async def run_benchmarks():
+async def run_benchmarks() -> None:
     """Run all benchmarks"""
     runner = BenchmarkRunner()
 

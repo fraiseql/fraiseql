@@ -18,14 +18,13 @@ from fraiseql.federation import (
     extend_entity,
     external,
     get_default_resolver,
-    provides,
     requires,
     reset_default_resolver,
 )
 from fraiseql.federation.entities import EntitiesResolver
 
 
-def setup_function():
+def setup_function() -> None:
     """Clear registry and reset resolver before each test."""
     clear_entity_registry()
     reset_default_resolver()
@@ -34,8 +33,9 @@ def setup_function():
 class TestGatewayServiceQuery:
     """Tests for _service query response format for Apollo Gateway."""
 
-    def test_service_query_returns_valid_json(self):
+    def test_service_query_returns_valid_json(self) -> None:
         """Test that _service query returns valid JSON-serializable response."""
+
         @entity
         class User:
             id: str
@@ -48,8 +48,9 @@ class TestGatewayServiceQuery:
         json_str = json.dumps(service)
         assert len(json_str) > 0
 
-    def test_service_query_response_schema(self):
+    def test_service_query_response_schema(self) -> None:
         """Test that _service query response has correct schema."""
+
         @entity
         class Product:
             id: str
@@ -62,8 +63,9 @@ class TestGatewayServiceQuery:
         assert "sdl" in service
         assert isinstance(service["sdl"], str)
 
-    def test_service_query_sdl_contains_key_directive(self):
+    def test_service_query_sdl_contains_key_directive(self) -> None:
         """Test that SDL contains @key directives."""
+
         @entity
         class User:
             id: str
@@ -74,8 +76,9 @@ class TestGatewayServiceQuery:
         assert "@key" in service["sdl"]
         assert 'fields: "id"' in service["sdl"]
 
-    def test_service_query_with_multiple_entities(self):
+    def test_service_query_with_multiple_entities(self) -> None:
         """Test _service query with multiple federated entities."""
+
         @entity
         class User:
             id: str
@@ -99,8 +102,9 @@ class TestGatewayServiceQuery:
 class TestGatewayEntityResolution:
     """Tests for _entities query compatibility with Apollo Gateway."""
 
-    def test_entities_resolver_with_user_entities(self):
+    def test_entities_resolver_with_user_entities(self) -> None:
         """Test entity resolution for gateway _entities query."""
+
         @entity
         class User:
             id: str
@@ -117,8 +121,9 @@ class TestGatewayEntityResolution:
         assert requests[0].typename == "User"
         assert requests[0].key_value == "user-1"
 
-    def test_entities_resolver_supports_batch(self):
+    def test_entities_resolver_supports_batch(self) -> None:
         """Test that entities resolver supports batch resolution."""
+
         @entity
         class Product:
             id: str
@@ -135,8 +140,9 @@ class TestGatewayEntityResolution:
         requests = [resolver._parse_representation(rep) for rep in representations]
         assert len(requests) == 3
 
-    def test_entities_resolver_handles_composite_keys(self):
+    def test_entities_resolver_handles_composite_keys(self) -> None:
         """Test entity resolution with composite keys."""
+
         @entity(key=["org_id", "user_id"])
         class OrgUser:
             org_id: str
@@ -155,7 +161,7 @@ class TestGatewayEntityResolution:
 class TestGatewayDirectiveSupport:
     """Tests for directive compatibility with Apollo Gateway."""
 
-    def test_directives_reported_correctly(self):
+    def test_directives_reported_correctly(self) -> None:
         """Test that supported directives are reported for gateway."""
         resolver = get_default_resolver()
         directives = resolver.get_supported_directives()
@@ -166,8 +172,9 @@ class TestGatewayDirectiveSupport:
         assert directives["requires"] is True
         assert directives["provides"] is True
 
-    def test_federation_config_includes_directives(self):
+    def test_federation_config_includes_directives(self) -> None:
         """Test that federation config includes directive information."""
+
         @entity
         class User:
             id: str
@@ -178,8 +185,9 @@ class TestGatewayDirectiveSupport:
         assert "directives" in config
         assert config["version"] == 2
 
-    def test_external_directive_in_sdl(self):
+    def test_external_directive_in_sdl(self) -> None:
         """Test that @external directives appear in SDL for extensions."""
+
         @extend_entity(key="id")
         class Product:
             id: str = external()
@@ -190,8 +198,9 @@ class TestGatewayDirectiveSupport:
 
         assert "@external" in service["sdl"]
 
-    def test_requires_provides_directives_in_sdl(self):
+    def test_requires_provides_directives_in_sdl(self) -> None:
         """Test that computed field directives are in SDL."""
+
         @entity
         class Product:
             id: str
@@ -210,8 +219,9 @@ class TestGatewayDirectiveSupport:
 class TestGatewaySchemaComposition:
     """Tests for schema composition compatibility."""
 
-    def test_single_subgraph_schema(self):
+    def test_single_subgraph_schema(self) -> None:
         """Test SDL for single subgraph (users service)."""
+
         @entity
         class User:
             id: str
@@ -228,8 +238,9 @@ class TestGatewaySchemaComposition:
         assert "name: String!" in sdl
         assert "email: String!" in sdl
 
-    def test_extended_schema_composition(self):
+    def test_extended_schema_composition(self) -> None:
         """Test SDL for schema extension (reviews service extending products)."""
+
         @extend_entity(key="id")
         class Product:
             id: str = external()
@@ -243,8 +254,9 @@ class TestGatewaySchemaComposition:
         assert "extend type Product" in sdl
         assert "@external" in sdl
 
-    def test_multi_service_composition_pattern(self):
+    def test_multi_service_composition_pattern(self) -> None:
         """Test pattern for multi-service composition."""
+
         # Primary service: users
         @entity
         class User:
@@ -265,8 +277,9 @@ class TestGatewaySchemaComposition:
         assert "type User" in sdl
         assert "extend type" in sdl
 
-    def test_gateway_federation_config_format(self):
+    def test_gateway_federation_config_format(self) -> None:
         """Test federation config format matches Apollo Gateway expectations."""
+
         @entity
         class Product:
             id: str
@@ -284,8 +297,9 @@ class TestGatewaySchemaComposition:
 class TestGatewayErrorHandling:
     """Tests for proper error handling in gateway context."""
 
-    def test_unknown_entity_type_error(self):
+    def test_unknown_entity_type_error(self) -> None:
         """Test that unknown entity types are properly rejected."""
+
         @entity
         class User:
             id: str
@@ -296,8 +310,9 @@ class TestGatewayErrorHandling:
         with pytest.raises(ValueError, match="Unknown entity type"):
             resolver._parse_representation({"__typename": "UnknownType", "id": "123"})
 
-    def test_missing_key_field_error(self):
+    def test_missing_key_field_error(self) -> None:
         """Test that missing key fields are properly reported."""
+
         @entity
         class User:
             id: str
@@ -308,8 +323,9 @@ class TestGatewayErrorHandling:
         with pytest.raises(ValueError, match="Missing key field"):
             resolver._parse_representation({"__typename": "User"})
 
-    def test_missing_typename_error(self):
+    def test_missing_typename_error(self) -> None:
         """Test that missing __typename is properly reported."""
+
         @entity
         class User:
             id: str
@@ -324,7 +340,7 @@ class TestGatewayErrorHandling:
 class TestGatewayEdgeCases:
     """Tests for edge cases in gateway integration."""
 
-    def test_empty_schema_handling(self):
+    def test_empty_schema_handling(self) -> None:
         """Test handling of empty schema (no entities registered)."""
         # Don't register any entities
         resolver = get_default_resolver()
@@ -334,7 +350,7 @@ class TestGatewayEdgeCases:
         assert "sdl" in service
         assert service["sdl"] == ""
 
-    def test_schema_cache_invalidation(self):
+    def test_schema_cache_invalidation(self) -> None:
         """Test that schema cache is properly managed."""
         # Start with empty registry (from fixture)
         resolver = get_default_resolver()
@@ -359,8 +375,9 @@ class TestGatewayEdgeCases:
         assert "type User" in sdl_updated
         assert resolver._cached_sdl is not None
 
-    def test_composite_key_gateway_handling(self):
+    def test_composite_key_gateway_handling(self) -> None:
         """Test that composite keys work correctly with gateway."""
+
         @entity(key=["tenant_id", "user_id"])
         class TenantUser:
             tenant_id: str
@@ -374,8 +391,9 @@ class TestGatewayEdgeCases:
         assert "TenantUser" in sdl
         assert '@key(fields: "tenant_id user_id")' in sdl
 
-    def test_computed_field_resolution_in_gateway(self):
+    def test_computed_field_resolution_in_gateway(self) -> None:
         """Test computed fields work correctly in gateway context."""
+
         @entity
         class Order:
             id: str
@@ -397,8 +415,9 @@ class TestGatewayEdgeCases:
 class TestGatewayIntegrationFlow:
     """Tests for complete gateway integration flow."""
 
-    def test_complete_federation_gateway_flow(self):
+    def test_complete_federation_gateway_flow(self) -> None:
         """Test complete flow: _service query -> SDL -> gateway composition."""
+
         # Define entities
         @entity
         class User:
@@ -432,8 +451,9 @@ class TestGatewayIntegrationFlow:
         assert "User" in types
         assert "Post" in types
 
-    def test_multi_subgraph_federation_flow(self):
+    def test_multi_subgraph_federation_flow(self) -> None:
         """Test federation flow with multiple subgraphs."""
+
         # Primary service: users
         @entity
         class User:
@@ -455,8 +475,9 @@ class TestGatewayIntegrationFlow:
         assert len(config["sdl"]) > 0
         assert "extend type" in config["sdl"]
 
-    def test_gateway_cross_service_reference(self):
+    def test_gateway_cross_service_reference(self) -> None:
         """Test cross-service entity references."""
+
         @entity
         class User:
             id: str
@@ -480,8 +501,9 @@ class TestGatewayIntegrationFlow:
 class TestGatewayPerformance:
     """Tests for performance characteristics in gateway integration."""
 
-    def test_sdl_caching_performance(self):
+    def test_sdl_caching_performance(self) -> None:
         """Test that SDL caching improves performance."""
+
         @entity
         class Product:
             id: str
@@ -499,7 +521,7 @@ class TestGatewayPerformance:
         # Results should be identical
         assert sdl1 == sdl2
 
-    def test_resolver_singleton_efficiency(self):
+    def test_resolver_singleton_efficiency(self) -> None:
         """Test that singleton resolver is efficiently reused."""
         resolver1 = get_default_resolver()
         resolver2 = get_default_resolver()

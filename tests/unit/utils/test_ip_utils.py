@@ -15,7 +15,7 @@ class TestIPv4AddressValidation:
             "10.0.0.1",
             "127.0.0.1",
             "255.255.255.255",
-            "0.0.0.0",
+            "0.0.0.0",  # noqa: S104
             "172.16.0.1",
             "8.8.8.8",
             "1.1.1.1",
@@ -52,7 +52,7 @@ class TestIPv4AddressValidation:
     def test_ipv4_edge_cases(self) -> None:
         """Test edge cases for IPv4 validation."""
         # Test boundary values
-        assert is_ipv4_address("0.0.0.0") is True
+        assert is_ipv4_address("0.0.0.0") is True  # noqa: S104
         assert is_ipv4_address("255.255.255.255") is True
 
         # Test just over boundary
@@ -100,7 +100,7 @@ class TestIPv4MaskLength:
             ("224.0.0.0", 3),  # /3
             ("192.0.0.0", 2),  # /2
             ("128.0.0.0", 1),  # /1
-            ("0.0.0.0", 0),  # /0 - default route
+            ("0.0.0.0", 0),  # /0 - default route  # noqa: S104
         ],
     )
     def test_valid_netmask_lengths(self, netmask, expected_length) -> None:
@@ -132,7 +132,7 @@ class TestIPv4MaskLength:
 
     def test_zero_netmask(self) -> None:
         """Test special case of 0.0.0.0 netmask."""
-        assert ipv4_mask_len("0.0.0.0") == 0
+        assert ipv4_mask_len("0.0.0.0") == 0  # noqa: S104
 
     def test_netmask_error_message(self) -> None:
         """Test that error message includes the invalid netmask."""

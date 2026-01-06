@@ -3,13 +3,14 @@
 Tests the synchronous database monitor accessor layer.
 """
 
-import pytest
 from datetime import UTC, datetime
+
+import pytest
 
 from fraiseql.monitoring.db_monitor import (
     DatabaseMonitor,
-    QueryMetrics,
     PoolMetrics,
+    QueryMetrics,
 )
 from fraiseql.monitoring.runtime.db_monitor_sync import DatabaseMonitorSync
 
@@ -73,9 +74,7 @@ class TestDatabaseMonitorSync:
         assert queries[0].query_id == "q1"
         assert queries[0].duration_ms == 42.5
 
-    def test_get_recent_queries_multiple(
-        self, sync_monitor: DatabaseMonitorSync
-    ) -> None:
+    def test_get_recent_queries_multiple(self, sync_monitor: DatabaseMonitorSync) -> None:
         """Test getting multiple recent queries."""
         monitor = sync_monitor._monitor
 
@@ -95,9 +94,7 @@ class TestDatabaseMonitorSync:
         assert queries[0].query_id == "q4"
         assert queries[-1].query_id == "q0"
 
-    def test_get_recent_queries_with_limit(
-        self, sync_monitor: DatabaseMonitorSync
-    ) -> None:
+    def test_get_recent_queries_with_limit(self, sync_monitor: DatabaseMonitorSync) -> None:
         """Test getting recent queries respects limit."""
         monitor = sync_monitor._monitor
 
@@ -119,9 +116,7 @@ class TestDatabaseMonitorSync:
         queries = sync_monitor.get_slow_queries(limit=10)
         assert queries == []
 
-    def test_get_slow_queries_sorted_by_duration(
-        self, sync_monitor: DatabaseMonitorSync
-    ) -> None:
+    def test_get_slow_queries_sorted_by_duration(self, sync_monitor: DatabaseMonitorSync) -> None:
         """Test slow queries are sorted by duration (slowest first)."""
         monitor = sync_monitor._monitor
 
@@ -149,16 +144,12 @@ class TestDatabaseMonitorSync:
         assert slow[1].duration_ms == 150.0
         assert slow[2].duration_ms == 100.0
 
-    def test_get_queries_by_type_empty(
-        self, sync_monitor: DatabaseMonitorSync
-    ) -> None:
+    def test_get_queries_by_type_empty(self, sync_monitor: DatabaseMonitorSync) -> None:
         """Test getting query types when none exist."""
         types = sync_monitor.get_queries_by_type()
         assert types == {}
 
-    def test_get_queries_by_type_breakdown(
-        self, sync_monitor: DatabaseMonitorSync
-    ) -> None:
+    def test_get_queries_by_type_breakdown(self, sync_monitor: DatabaseMonitorSync) -> None:
         """Test query breakdown by type."""
         monitor = sync_monitor._monitor
 
@@ -183,9 +174,7 @@ class TestDatabaseMonitorSync:
         metrics = sync_monitor.get_pool_metrics()
         assert metrics is None
 
-    def test_get_pool_metrics_latest(
-        self, sync_monitor: DatabaseMonitorSync
-    ) -> None:
+    def test_get_pool_metrics_latest(self, sync_monitor: DatabaseMonitorSync) -> None:
         """Test getting the latest pool metrics."""
         monitor = sync_monitor._monitor
 
@@ -213,9 +202,7 @@ class TestDatabaseMonitorSync:
         assert stats.total_count == 0
         assert stats.success_count == 0
 
-    def test_get_statistics_success_rate(
-        self, sync_monitor: DatabaseMonitorSync
-    ) -> None:
+    def test_get_statistics_success_rate(self, sync_monitor: DatabaseMonitorSync) -> None:
         """Test success rate calculation."""
         monitor = sync_monitor._monitor
 

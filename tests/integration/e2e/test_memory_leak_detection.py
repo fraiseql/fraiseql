@@ -17,7 +17,7 @@ from fraiseql import fraise_type, query
 
 
 @pytest.fixture(scope="class")
-def memory_test_schema(meta_test_schema):
+def memory_test_schema(meta_test_schema) -> None:
     """Schema designed for memory leak testing."""
     # Clear any existing registrations
     meta_test_schema.clear()
@@ -56,7 +56,9 @@ def memory_test_schema(meta_test_schema):
 class TestMemoryLeakDetection:
     """Tests to detect memory leaks in long-running processes."""
 
-    async def test_no_memory_leak_in_repeated_queries(self, memory_test_schema, meta_test_pool):
+    async def test_no_memory_leak_in_repeated_queries(
+        self, memory_test_schema, meta_test_pool
+    ) -> None:
         """Ensure repeated query execution doesn't cause memory leaks."""
         schema = memory_test_schema.build_schema()
 
@@ -82,7 +84,7 @@ class TestMemoryLeakDetection:
 
         # If we get here without crashes, basic memory stability is maintained
 
-    async def test_schema_reuse_memory_efficiency(self, memory_test_schema, meta_test_pool):
+    async def test_schema_reuse_memory_efficiency(self, memory_test_schema, meta_test_pool) -> None:
         """Test that reusing the same schema doesn't accumulate memory."""
         schema = memory_test_schema.build_schema()
 
@@ -94,7 +96,7 @@ class TestMemoryLeakDetection:
         ]
 
         # Execute each query many times
-        for i in range(500):
+        for _i in range(500):
             for query_str in queries:
                 result = await graphql(schema, query_str)
                 assert result is not None
@@ -107,14 +109,14 @@ class TestMemoryLeakDetection:
         final_result = await graphql(schema, final_query)
         assert final_result is not None
 
-    async def test_connection_pool_memory_usage(self, memory_test_schema, meta_test_pool):
+    async def test_connection_pool_memory_usage(self, memory_test_schema, meta_test_pool) -> None:
         """Test that database connection pool doesn't leak memory."""
         schema = memory_test_schema.build_schema()
 
         query_str = "query { getUsers { id email } }"
 
         # Execute queries that use database connections
-        for i in range(200):
+        for _i in range(200):
             result = await graphql(schema, query_str)
             assert result is not None
 
@@ -127,7 +129,7 @@ class TestMemoryLeakDetection:
         # Force cleanup
         gc.collect()
 
-    async def test_introspection_memory_usage(self, memory_test_schema, meta_test_pool):
+    async def test_introspection_memory_usage(self, memory_test_schema, meta_test_pool) -> None:
         """Test that introspection queries don't cause memory issues."""
         schema = memory_test_schema.build_schema()
 
@@ -157,7 +159,7 @@ class TestMemoryLeakDetection:
         """
 
         # Execute introspection multiple times
-        for i in range(50):
+        for _i in range(50):
             result = await graphql(schema, introspection_query)
             assert result is not None
             assert result.data is not None
@@ -165,7 +167,7 @@ class TestMemoryLeakDetection:
         # Force garbage collection
         gc.collect()
 
-    async def test_complex_query_memory_usage(self, memory_test_schema, meta_test_pool):
+    async def test_complex_query_memory_usage(self, memory_test_schema, meta_test_pool) -> None:
         """Test memory usage with complex nested queries."""
         schema = memory_test_schema.build_schema()
 
@@ -184,14 +186,14 @@ class TestMemoryLeakDetection:
         """
 
         # Execute complex queries multiple times
-        for i in range(100):
+        for _i in range(100):
             result = await graphql(schema, complex_query)
             assert result is not None
 
         # Force cleanup
         gc.collect()
 
-    async def test_error_handling_memory_usage(self, memory_test_schema, meta_test_pool):
+    async def test_error_handling_memory_usage(self, memory_test_schema, meta_test_pool) -> None:
         """Test that error handling doesn't cause memory leaks."""
         schema = memory_test_schema.build_schema()
 
@@ -213,17 +215,18 @@ class TestMemoryLeakDetection:
         # Force cleanup
         gc.collect()
 
-    async def test_concurrent_execution_memory_usage(self, memory_test_schema, meta_test_pool):
+    async def test_concurrent_execution_memory_usage(
+        self, memory_test_schema, meta_test_pool
+    ) -> None:
         """Test memory usage under concurrent execution."""
         schema = memory_test_schema.build_schema()
 
-        async def execute_query():
+        async def execute_query() -> None:
             query_str = "query { getUsers { id email } }"
-            result = await graphql(schema, query_str)
-            return result
+            return await graphql(schema, query_str)
 
         # Execute concurrent queries
-        for batch in range(10):
+        for _batch in range(10):
             tasks = [execute_query() for _ in range(20)]
             results = await asyncio.gather(*tasks)
 
@@ -234,7 +237,9 @@ class TestMemoryLeakDetection:
         # Force cleanup
         gc.collect()
 
-    async def test_large_result_set_memory_handling(self, memory_test_schema, meta_test_pool):
+    async def test_large_result_set_memory_handling(
+        self, memory_test_schema, meta_test_pool
+    ) -> None:
         """Test memory handling with queries that could return large results."""
         schema = memory_test_schema.build_schema()
 
@@ -256,7 +261,7 @@ class TestMemoryLeakDetection:
         """
 
         # Execute multiple times
-        for i in range(100):
+        for _i in range(100):
             result = await graphql(schema, large_query)
             assert result is not None
 
@@ -267,25 +272,27 @@ class TestMemoryLeakDetection:
 class TestResourceLeakDetection:
     """Tests to detect resource leaks (connections, file handles, etc.)."""
 
-    async def test_database_connection_leak_detection(self, memory_test_schema, meta_test_pool):
+    async def test_database_connection_leak_detection(
+        self, memory_test_schema, meta_test_pool
+    ) -> None:
         """Detect database connection leaks."""
         schema = memory_test_schema.build_schema()
 
         query_str = "query { getUsers { id } }"
 
         # Execute many queries
-        for i in range(100):
+        for _i in range(100):
             result = await graphql(schema, query_str)
             assert result is not None
 
         # Verify connection pool is still healthy
-        pool_stats = meta_test_pool.get_stats() if hasattr(meta_test_pool, "get_stats") else None
+        meta_test_pool.get_stats() if hasattr(meta_test_pool, "get_stats") else None
 
         # Basic health check - can still execute queries
         final_result = await graphql(schema, query_str)
         assert final_result is not None
 
-    async def test_graphql_context_cleanup(self, memory_test_schema, meta_test_pool):
+    async def test_graphql_context_cleanup(self, memory_test_schema, meta_test_pool) -> None:
         """Test that GraphQL contexts are properly cleaned up."""
         schema = memory_test_schema.build_schema()
 
@@ -299,11 +306,11 @@ class TestResourceLeakDetection:
         # Force cleanup
         gc.collect()
 
-    async def test_schema_caching_memory_usage(self, memory_test_schema, meta_test_pool):
+    async def test_schema_caching_memory_usage(self, memory_test_schema, meta_test_pool) -> None:
         """Test that schema caching doesn't cause memory growth."""
         # Create multiple schemas (simulating different requests)
         schemas = []
-        for i in range(10):
+        for _i in range(10):
             schema = memory_test_schema.build_schema()
             schemas.append(schema)
 
@@ -316,7 +323,7 @@ class TestResourceLeakDetection:
         del schemas
         gc.collect()
 
-    async def test_long_running_process_stability(self, memory_test_schema, meta_test_pool):
+    async def test_long_running_process_stability(self, memory_test_schema, meta_test_pool) -> None:
         """Test stability over a simulated long-running process."""
         schema = memory_test_schema.build_schema()
 

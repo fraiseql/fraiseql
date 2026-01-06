@@ -109,10 +109,11 @@ class AllocationWithNesting:
 @pytest_asyncio.fixture
 async def graphql_app(
     clear_registry: None,
-) -> AsyncGenerator["FastAPI", None]:
+) -> AsyncGenerator["FastAPI"]:
     """Create FastAPI app with GraphQL endpoint."""
     from typing import Any
-    from unittest.mock import AsyncMock, MagicMock
+    from unittest.mock import MagicMock
+
     import psycopg_pool
 
     # Mock database query function
@@ -208,7 +209,7 @@ async def graphql_app(
 
 
 @pytest.mark.asyncio
-async def test_nested_field_selection_single_level(graphql_app: "FastAPI"):
+async def test_nested_field_selection_single_level(graphql_app: "FastAPI") -> None:
     """Test that field selection works for single-level nested JSONB objects.
 
     This is the PRIMARY test case demonstrating the bug.
@@ -273,7 +274,7 @@ async def test_nested_field_selection_single_level(graphql_app: "FastAPI"):
 
 
 @pytest.mark.asyncio
-async def test_nested_field_selection_multi_level(graphql_app: "FastAPI"):
+async def test_nested_field_selection_multi_level(graphql_app: "FastAPI") -> None:
     """Test that field selection works for multi-level nested JSONB objects.
 
     Tests that field selection cascades correctly through multiple nesting levels.
@@ -318,7 +319,7 @@ async def test_nested_field_selection_multi_level(graphql_app: "FastAPI"):
 
 
 @pytest.mark.asyncio
-async def test_nested_field_selection_array(graphql_app: "FastAPI"):
+async def test_nested_field_selection_array(graphql_app: "FastAPI") -> None:
     """Test that field selection works for arrays of nested JSONB objects.
 
     Tests that field selection applies to each element in an array of nested objects.
@@ -372,12 +373,12 @@ async def test_nested_field_selection_array(graphql_app: "FastAPI"):
 #
 #     Edge case: When nested object is null, should not throw errors.
 #     """
-#     # TODO: Create separate fixture for null case
+#     # TODO: Create separate fixture for null case  # noqa: TD002, TD003
 #     pass
 
 
 @pytest.mark.asyncio
-async def test_nested_field_selection_partial_fields(graphql_app: "FastAPI"):
+async def test_nested_field_selection_partial_fields(graphql_app: "FastAPI") -> None:
     """Test field selection with mix of requested and unrequested fields.
 
     Tests selecting some fields but not others from a nested object.

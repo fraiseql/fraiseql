@@ -1,5 +1,4 @@
-"""
-Tests for multi-field GraphQL error location reporting.
+"""Tests for multi-field GraphQL error location reporting.
 
 Tests that errors include line and column numbers for better debugging.
 """
@@ -12,7 +11,7 @@ from fraiseql.fastapi.routers import execute_multi_field_query
 
 
 @pytest.mark.asyncio
-async def test_error_includes_location(init_schema_registry_fixture):
+async def test_error_includes_location(init_schema_registry_fixture) -> None:
     """Test that errors include line and column location."""
     from graphql import (
         GraphQLField,
@@ -75,7 +74,7 @@ async def test_error_includes_location(init_schema_registry_fixture):
 
 
 @pytest.mark.asyncio
-async def test_multiple_errors_with_locations(init_schema_registry_fixture):
+async def test_multiple_errors_with_locations(init_schema_registry_fixture) -> None:
     """Test that each error has its own location."""
     from graphql import (
         GraphQLField,
@@ -83,7 +82,6 @@ async def test_multiple_errors_with_locations(init_schema_registry_fixture):
         GraphQLList,
         GraphQLObjectType,
         GraphQLSchema,
-        GraphQLString,
     )
 
     user_type = GraphQLObjectType(
@@ -134,7 +132,7 @@ async def test_multiple_errors_with_locations(init_schema_registry_fixture):
 
 
 @pytest.mark.asyncio
-async def test_success_no_error_locations(init_schema_registry_fixture):
+async def test_success_no_error_locations(init_schema_registry_fixture) -> None:
     """Test that successful queries don't have errors or locations."""
     from graphql import (
         GraphQLField,
@@ -142,7 +140,6 @@ async def test_success_no_error_locations(init_schema_registry_fixture):
         GraphQLList,
         GraphQLObjectType,
         GraphQLSchema,
-        GraphQLString,
     )
 
     user_type = GraphQLObjectType(
@@ -179,7 +176,7 @@ async def test_success_no_error_locations(init_schema_registry_fixture):
 
 
 @pytest.fixture
-def init_schema_registry_fixture():
+def init_schema_registry_fixture() -> None:
     """Initialize schema registry for multi-field error location tests."""
     import fraiseql._fraiseql_rs as fraiseql_rs
 

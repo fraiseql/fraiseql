@@ -24,7 +24,7 @@ from fraiseql.sql.where.operators.date_range import (
 class TestDateRangeBasicOperators:
     """Test basic date range comparison."""
 
-    def test_eq_date_range(self):
+    def test_eq_date_range(self) -> None:
         """Test date range equality."""
         path_sql = SQL("period")
         result = build_daterange_eq_sql(path_sql, "[2024-01-01,2024-01-31]")
@@ -32,14 +32,14 @@ class TestDateRangeBasicOperators:
         assert "=" in result_str
         assert "[2024-01-01,2024-01-31]" in result_str
 
-    def test_neq_date_range(self):
+    def test_neq_date_range(self) -> None:
         """Test date range inequality."""
         path_sql = SQL("period")
         result = build_daterange_neq_sql(path_sql, "[2024-01-01,2024-01-31]")
         result_str = str(result)
         assert "!=" in result_str
 
-    def test_in_date_ranges(self):
+    def test_in_date_ranges(self) -> None:
         """Test date range IN list."""
         path_sql = SQL("period")
         result = build_daterange_in_sql(
@@ -48,7 +48,7 @@ class TestDateRangeBasicOperators:
         result_str = str(result)
         assert "IN" in result_str
 
-    def test_notin_date_ranges(self):
+    def test_notin_date_ranges(self) -> None:
         """Test date range NOT IN list."""
         path_sql = SQL("period")
         result = build_daterange_notin_sql(path_sql, ["[2024-01-01,2024-01-31]"])
@@ -136,7 +136,7 @@ class TestDateRangeBasicOperators:
 class TestDateRangeOverlaps:
     """Test overlaps operator."""
 
-    def test_overlaps_basic(self):
+    def test_overlaps_basic(self) -> None:
         """Test if two ranges overlap."""
         path_sql = SQL("period")
         result = build_overlaps_sql(path_sql, "[2024-01-15,2024-02-15]")
@@ -144,7 +144,7 @@ class TestDateRangeOverlaps:
         assert "&&" in result_str  # PostgreSQL overlap operator
         assert "[2024-01-15,2024-02-15]" in result_str
 
-    def test_overlaps_partial(self):
+    def test_overlaps_partial(self) -> None:
         """Test partial overlap."""
         path_sql = SQL("period")
         result = build_overlaps_sql(path_sql, "[2024-01-15,2024-02-15]")
@@ -155,7 +155,7 @@ class TestDateRangeOverlaps:
 class TestDateRangeContains:
     """Test containment operators."""
 
-    def test_contains_date(self):
+    def test_contains_date(self) -> None:
         """Test if range contains a specific date."""
         path_sql = SQL("period")
         result = build_contains_date_sql(path_sql, "2024-06-15")
@@ -167,7 +167,7 @@ class TestDateRangeContains:
 class TestDateRangeAdjacency:
     """Test adjacent ranges."""
 
-    def test_adjacent_ranges(self):
+    def test_adjacent_ranges(self) -> None:
         """Test if ranges are adjacent."""
         path_sql = SQL("period")
         result = build_adjacent_sql(path_sql, "[2024-02-01,2024-02-28]")
@@ -178,28 +178,28 @@ class TestDateRangeAdjacency:
 class TestDateRangeOrdering:
     """Test range ordering operators."""
 
-    def test_strictly_left_range(self):
+    def test_strictly_left_range(self) -> None:
         """Test if range is entirely left of another."""
         path_sql = SQL("period")
         result = build_strictly_left_sql(path_sql, "[2024-02-01,2024-02-28]")
         result_str = str(result)
         assert "<<" in result_str  # PostgreSQL strictly left operator
 
-    def test_strictly_right_range(self):
+    def test_strictly_right_range(self) -> None:
         """Test if range is entirely right of another."""
         path_sql = SQL("period")
         result = build_strictly_right_sql(path_sql, "[2023-12-01,2023-12-31]")
         result_str = str(result)
         assert ">>" in result_str  # PostgreSQL strictly right operator
 
-    def test_not_left_range(self):
+    def test_not_left_range(self) -> None:
         """Test not left of range."""
         path_sql = SQL("period")
         result = build_not_left_sql(path_sql, "[2024-01-01,2024-01-31]")
         result_str = str(result)
         assert "&>" in result_str  # PostgreSQL not left of operator
 
-    def test_not_right_range(self):
+    def test_not_right_range(self) -> None:
         """Test not right of range."""
         path_sql = SQL("period")
         result = build_not_right_sql(path_sql, "[2024-01-01,2024-01-31]")
@@ -300,14 +300,14 @@ class TestDateRangeSpecificOperators:
 class TestDateRangeBoundaries:
     """Test boundary conditions."""
 
-    def test_inclusive_bounds(self):
+    def test_inclusive_bounds(self) -> None:
         """Test inclusive [) bounds."""
         path_sql = SQL("period")
         result = build_daterange_eq_sql(path_sql, "[2024-01-01,2024-01-31)")
         result_str = str(result)
         assert "[2024-01-01,2024-01-31)" in result_str
 
-    def test_exclusive_bounds(self):
+    def test_exclusive_bounds(self) -> None:
         """Test exclusive () bounds."""
         path_sql = SQL("period")
         result = build_daterange_eq_sql(path_sql, "(2024-01-01,2024-01-31)")
@@ -318,21 +318,21 @@ class TestDateRangeBoundaries:
 class TestDateRangeEdgeCases:
     """Test edge cases."""
 
-    def test_single_day_range(self):
+    def test_single_day_range(self) -> None:
         """Test range with single day."""
         path_sql = SQL("period")
         result = build_daterange_eq_sql(path_sql, "[2024-01-01,2024-01-01]")
         result_str = str(result)
         assert "[2024-01-01,2024-01-01]" in result_str
 
-    def test_month_boundary(self):
+    def test_month_boundary(self) -> None:
         """Test month boundary ranges."""
         path_sql = SQL("period")
         result = build_overlaps_sql(path_sql, "[2024-01-31,2024-02-01]")
         result_str = str(result)
         assert "[2024-01-31,2024-02-01]" in result_str
 
-    def test_year_boundary(self):
+    def test_year_boundary(self) -> None:
         """Test year boundary ranges."""
         path_sql = SQL("period")
         result = build_overlaps_sql(path_sql, "[2023-12-31,2024-01-01]")

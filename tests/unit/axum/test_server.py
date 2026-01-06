@@ -1,11 +1,12 @@
 """Unit tests for AxumServer."""
 
-import pytest
 from unittest.mock import MagicMock
 
+import pytest
+
+from fraiseql import fraise_type
 from fraiseql.axum.config import AxumFraiseQLConfig
 from fraiseql.axum.server import AxumServer
-from fraiseql import fraise_type
 
 
 class TestAxumServerInitialization:
@@ -147,7 +148,7 @@ class TestAxumServerTypeRegistration:
         server = AxumServer(config=config)
 
         # Should not raise error (placeholder)
-        server.add_middleware(None)  # type: ignore
+        server.add_middleware(None)  # type: ignore[misc]
 
 
 class TestAxumServerState:
@@ -186,7 +187,7 @@ class TestAxumServerConfiguration:
         """Test getting server configuration."""
         config = AxumFraiseQLConfig(
             database_url="postgresql://localhost/test",
-            axum_host="0.0.0.0",
+            axum_host="0.0.0.0",  # noqa: S104
             axum_port=3000
         )
         server = AxumServer(config=config)
@@ -194,7 +195,7 @@ class TestAxumServerConfiguration:
         retrieved_config = server.get_config()
 
         assert retrieved_config == config
-        assert retrieved_config.axum_host == "0.0.0.0"
+        assert retrieved_config.axum_host == "0.0.0.0"  # noqa: S104
         assert retrieved_config.axum_port == 3000
 
     def test_get_schema_without_server(self) -> None:
@@ -216,7 +217,7 @@ class TestAxumServerStringRepresentation:
         """Test __repr__ method."""
         config = AxumFraiseQLConfig(
             database_url="postgresql://localhost/test",
-            axum_host="0.0.0.0",
+            axum_host="0.0.0.0",  # noqa: S104
             axum_port=3000
         )
         server = AxumServer(config=config)
@@ -224,14 +225,14 @@ class TestAxumServerStringRepresentation:
         repr_str = repr(server)
 
         assert "AxumServer" in repr_str
-        assert "0.0.0.0" in repr_str
+        assert "0.0.0.0" in repr_str  # noqa: S104
         assert "3000" in repr_str
 
     def test_str(self) -> None:
         """Test __str__ method."""
         config = AxumFraiseQLConfig(
             database_url="postgresql://localhost/test",
-            axum_host="0.0.0.0",
+            axum_host="0.0.0.0",  # noqa: S104
             axum_port=3000
         )
         server = AxumServer(config=config)

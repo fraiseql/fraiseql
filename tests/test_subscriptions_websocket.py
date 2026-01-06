@@ -1,5 +1,4 @@
-"""
-Phase 2: Event Distribution Engine - Comprehensive Tests
+"""Phase 2: Event Distribution Engine - Comprehensive Tests
 
 Tests the parallel event dispatch system, channel indexing, response queuing,
 and security filter integration for GraphQL subscriptions.
@@ -12,21 +11,23 @@ These tests verify:
 5. End-to-end event delivery pipeline
 """
 
-import pytest
 import time
+
+import pytest
+
 from fraiseql import _fraiseql_rs
 
 
 class TestChannelIndexing:
     """Test channel indexing for O(1) subscription lookup"""
 
-    def test_subscriptions_by_channel_empty(self):
+    def test_subscriptions_by_channel_empty(self) -> None:
         """Test looking up subscriptions in non-existent channel"""
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
         subscriptions = executor.subscriptions_by_channel("nonexistent")
         assert subscriptions == []
 
-    def test_subscriptions_by_channel_single(self):
+    def test_subscriptions_by_channel_single(self) -> None:
         """Test looking up subscriptions in a channel with one subscription"""
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
 
@@ -54,7 +55,7 @@ class TestChannelIndexing:
         subscriptions = executor.subscriptions_by_channel("*")
         assert isinstance(subscriptions, list)
 
-    def test_subscriptions_by_channel_multiple(self):
+    def test_subscriptions_by_channel_multiple(self) -> None:
         """Test channel with multiple subscriptions from different connections"""
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
 
@@ -75,7 +76,7 @@ class TestChannelIndexing:
         # Verify subscriptions are registered
         assert len(sub_ids) == 3
 
-    def test_subscriptions_by_different_channels(self):
+    def test_subscriptions_by_different_channels(self) -> None:
         """Test channel isolation - subscriptions don't cross channels"""
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
 
@@ -112,12 +113,12 @@ class TestChannelIndexing:
 class TestResponseQueueing:
     """Test response queue management (FIFO delivery)"""
 
-    def test_queue_response_single(self):
+    def test_queue_response_single(self) -> None:
         """Test queuing a single response"""
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
 
         # Register subscription
-        sub_id = executor.register_subscription(
+        executor.register_subscription(
             connection_id="conn1",
             subscription_id="sub1",
             query="subscription { test }",
@@ -142,7 +143,7 @@ class TestResponseQueueing:
         # Note: In Phase 2, next_event would retrieve pre-serialized responses
         # This test just verifies the publish_event completes without error
 
-    def test_queue_response_multiple_fifo(self):
+    def test_queue_response_multiple_fifo(self) -> None:
         """Test FIFO queue behavior - responses delivered in order"""
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
 
@@ -169,7 +170,7 @@ class TestResponseQueueing:
         # Note: In Phase 2, responses are already serialized in queue
         # Just verify queue is working (non-None responses would be serialized bytes)
 
-    def test_queue_response_completed_subscription_empty(self):
+    def test_queue_response_completed_subscription_empty(self) -> None:
         """Test that completed subscriptions are cleaned up"""
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
 
@@ -194,7 +195,7 @@ class TestResponseQueueing:
 class TestDispatchMultipleSubscriptions:
     """Test parallel event dispatch to multiple subscriptions"""
 
-    def test_dispatch_to_single_subscription(self):
+    def test_dispatch_to_single_subscription(self) -> None:
         """Test dispatching event to a single subscription"""
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
 
@@ -219,7 +220,7 @@ class TestDispatchMultipleSubscriptions:
         # Verify subscription received the event
         # (In Phase 2, event would be in response queue)
 
-    def test_dispatch_to_multiple_subscriptions(self):
+    def test_dispatch_to_multiple_subscriptions(self) -> None:
         """Test dispatching single event to multiple subscriptions in parallel"""
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
 
@@ -247,13 +248,13 @@ class TestDispatchMultipleSubscriptions:
                 "name": "Alice",
             },
         )
-        dispatch_time = time.time() - start_time
+        time.time() - start_time
 
         # Dispatch to 5 subscriptions should be fast (parallel)
         # (< 1ms expected with futures::join_all)
         # Just verify it completes (no assertion on time in unit test)
 
-    def test_dispatch_respects_channel_filter(self):
+    def test_dispatch_respects_channel_filter(self) -> None:
         """Test that dispatch only sends to subscriptions subscribed to channel"""
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
 
@@ -292,7 +293,7 @@ class TestDispatchMultipleSubscriptions:
         # Only sub_users should receive event
         # sub_orders should not be notified (different channel)
 
-    def test_dispatch_includes_event_data(self):
+    def test_dispatch_includes_event_data(self) -> None:
         """Test that dispatched events include the event data"""
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
 
@@ -327,7 +328,7 @@ class TestDispatchMultipleSubscriptions:
 class TestSecurityFiltering:
     """Test security filter integration in event dispatch"""
 
-    def test_row_level_filtering_blocks_different_user(self):
+    def test_row_level_filtering_blocks_different_user(self) -> None:
         """Test that row-level filtering blocks events for other users"""
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
 
@@ -363,7 +364,7 @@ class TestSecurityFiltering:
         # user_1 subscription should receive event (user_id matches)
         # user_2 subscription should be filtered out (user_id doesn't match)
 
-    def test_tenant_isolation_blocks_different_tenant(self):
+    def test_tenant_isolation_blocks_different_tenant(self) -> None:
         """Test that tenant isolation prevents cross-tenant event delivery"""
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
 
@@ -399,7 +400,7 @@ class TestSecurityFiltering:
         # Tenant 1 subscription should receive
         # Tenant 2 subscription should be blocked (tenant_id doesn't match)
 
-    def test_security_violations_circuit_breaker(self):
+    def test_security_violations_circuit_breaker(self) -> None:
         """Test that subscriptions with excessive violations are denied"""
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
 
@@ -422,7 +423,7 @@ class TestSecurityFiltering:
 class TestEndToEndDispatch:
     """Test complete end-to-end event dispatch pipeline"""
 
-    def test_full_dispatch_workflow(self):
+    def test_full_dispatch_workflow(self) -> None:
         """Test complete workflow: register → publish → dispatch → queue"""
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
 
@@ -459,7 +460,7 @@ class TestEndToEndDispatch:
         # Step 4: Subscriptions would retrieve responses via next_event
         # (In Phase 2, responses are queued)
 
-    def test_wildcard_channel_subscriptions(self):
+    def test_wildcard_channel_subscriptions(self) -> None:
         """Test that subscriptions added to wildcard channel receive all events"""
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
 
@@ -493,7 +494,7 @@ class TestEndToEndDispatch:
 class TestPerformanceAndLoad:
     """Test performance characteristics of dispatch system"""
 
-    def test_dispatch_performance_single_subscription(self):
+    def test_dispatch_performance_single_subscription(self) -> None:
         """Test dispatch latency with single subscription"""
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
 
@@ -519,7 +520,7 @@ class TestPerformanceAndLoad:
         # Should complete quickly
         assert latency < 100  # milliseconds
 
-    def test_dispatch_performance_100_subscriptions(self):
+    def test_dispatch_performance_100_subscriptions(self) -> None:
         """Test dispatch latency with 100 parallel subscriptions"""
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
 
@@ -548,7 +549,7 @@ class TestPerformanceAndLoad:
         # Target: < 10ms for 100 subscriptions with futures::join_all
         assert latency < 100  # Allow some margin for CI/CD
 
-    def test_response_queue_throughput(self):
+    def test_response_queue_throughput(self) -> None:
         """Test response queue throughput - 1000 responses"""
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
 
@@ -570,7 +571,7 @@ class TestPerformanceAndLoad:
                 channel="test",
                 data={"user_id": 1, "tenant_id": 1, "seq": i},
             )
-        dispatch_time = (time.time() - start) * 1000  # ms
+        (time.time() - start) * 1000  # ms
 
         # Should handle high throughput efficiently
         # Target: < 100ms for 1000 events

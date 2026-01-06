@@ -19,7 +19,7 @@ from fraiseql.types import CIDR, DateRange, IpAddress, LTree
 from fraiseql.where_clause import ALL_OPERATORS
 
 
-async def ensure_extensions(conn, column_type: str):
+async def ensure_extensions(conn, column_type: str) -> None:
     """Ensure required PostgreSQL extensions are available for column type.
 
     Note: Extensions are already created globally in test fixtures, but this
@@ -37,7 +37,7 @@ async def ensure_extensions(conn, column_type: str):
 
 def format_insert_value(value, column_type: str) -> str:
     """Format value for INSERT statement based on PostgreSQL column type."""
-    if column_type.endswith("[]"):  # Array types
+    if column_type.endswith("[]"):  # Array types  # noqa: SIM102
         if isinstance(value, list):
             items = ",".join(f'"{v}"' for v in value)  # Use double quotes for array literals
             return f"{{{items}}}"  # PostgreSQL array literal syntax: {item1,item2}
@@ -64,7 +64,7 @@ def format_insert_value(value, column_type: str) -> str:
     return f"'{value}'" if isinstance(value, str) else str(value)
 
 
-def get_test_insert_value(operator: str):
+def get_test_insert_value(operator: str) -> None:
     """Get the appropriate insert value for database testing of an operator.
 
     Uses the same test values from get_test_params_for_operator() for consistency.
@@ -86,7 +86,7 @@ def snake_to_camel(name: str) -> str:
     return components[0] + "".join(x.title() for x in components[1:])
 
 
-def format_graphql_value(value):
+def format_graphql_value(value) -> None:
     """Format Python value as GraphQL-compatible string.
 
     GraphQL requires specific formatting for different value types:
@@ -135,10 +135,10 @@ def format_graphql_value(value):
     return str(value)
 
 
-def get_all_operators():
+def get_all_operators() -> None:
     """Auto-enumerate all WHERE operators from ALL_OPERATORS."""
     operators = []
-    for operator_name in ALL_OPERATORS.keys():
+    for operator_name in ALL_OPERATORS:
         # Skip internal/private operators
         if operator_name.startswith("_"):
             continue
@@ -147,7 +147,7 @@ def get_all_operators():
 
 
 @pytest.fixture(scope="class")
-def operator_test_schema(meta_test_schema):
+def operator_test_schema(meta_test_schema) -> None:
     """Schema registry prepared with operator test types for all filter categories."""
     # Clear any existing registrations
     meta_test_schema.clear()
@@ -282,7 +282,7 @@ def operator_test_schema(meta_test_schema):
 
 
 @pytest.mark.parametrize("operator", get_all_operators())
-async def test_operator_in_graphql_query_validation(operator, operator_test_schema):
+async def test_operator_in_graphql_query_validation(operator, operator_test_schema) -> None:
     """Every operator should pass GraphQL query validation without errors."""
     # Get appropriate test value and field for this operator
     test_value, field_name, query_name = get_test_params_for_operator(operator)
@@ -313,7 +313,7 @@ async def test_operator_in_graphql_query_validation(operator, operator_test_sche
 
 
 @pytest.mark.parametrize("operator", get_all_operators())
-async def test_operator_in_where_clause_with_database(operator, meta_test_pool):
+async def test_operator_in_where_clause_with_database(operator, meta_test_pool) -> None:
     """Every operator should work in WHERE clauses with real database operations."""
     # Convert operator name to camelCase for GraphQL
     graphql_operator = snake_to_camel(operator)
@@ -359,11 +359,11 @@ async def test_operator_in_where_clause_with_database(operator, meta_test_pool):
         # Determine Python type based on column type
         if column_type == "INTEGER":
             field_type = int
-        elif column_type == "FLOAT" or column_type == "DOUBLE PRECISION":
+        elif column_type in {"FLOAT", "DOUBLE PRECISION"}:
             field_type = float
         elif column_type == "TEXT[]":
             field_type = list[str]
-        elif column_type.startswith("VECTOR") or column_type.startswith("BIT("):
+        elif column_type.startswith(("VECTOR", "BIT(")):
             # VECTOR and BIT types both use list[float] to trigger VectorFilter
             # BIT is used for hamming/jaccard distance operators
             field_type = list[float]
@@ -438,7 +438,7 @@ STRING_OPERATORS_FOR_COMBINATION = ["eq", "neq", "contains", "in"]
 
 
 @pytest.mark.parametrize("operator", STRING_OPERATORS_FOR_COMBINATION)
-async def test_operator_combinations_with_and_or(operator, operator_test_schema):
+async def test_operator_combinations_with_and_or(operator, operator_test_schema) -> None:
     """Operators should work in AND/OR combinations."""
     # Use simple string operators for combination testing (all on StringFilter)
     test_value1, test_value2 = get_test_values_for_combination(operator)
@@ -489,7 +489,7 @@ async def test_operator_combinations_with_and_or(operator, operator_test_schema)
     )
 
 
-def get_test_params_for_operator(operator):
+def get_test_params_for_operator(operator) -> None:
     """Get test parameters appropriate for the given operator.
 
     Returns (test_value, field_name, query_name) tuple where:
@@ -648,7 +648,7 @@ def get_test_params_for_operator(operator):
     return test_configs.get(operator, ("test_value", "name", "getStrings"))
 
 
-def get_db_test_params_for_operator(operator):
+def get_db_test_params_for_operator(operator) -> None:
     """Get database test parameters for the given operator.
 
     Returns (test_value, field_name, table_name, column_type) tuple.
@@ -850,7 +850,7 @@ def get_db_test_params_for_operator(operator):
     return db_configs.get(operator, ("test_value", "name", "test_default_table", "TEXT"))
 
 
-def get_test_values_for_combination(operator):
+def get_test_values_for_combination(operator) -> None:
     """Get test values for operator combination testing (string operators only)."""
     combination_values = {
         "eq": ("test_name", "test_description"),

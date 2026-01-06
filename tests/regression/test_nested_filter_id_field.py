@@ -248,7 +248,7 @@ class TestNestedFilterIdField:
                     )
             await conn.commit()
 
-    async def test_nested_filter_on_related_id_fk_scenario(self, class_db_pool, setup_hybrid_table):
+    async def test_nested_filter_on_related_id_fk_scenario(self, class_db_pool, setup_hybrid_table) -> None:
         """Test nested filter using FK column for related object ID.
 
         Query: allocations(where: { machine: { id: { eq: $machineId } } })
@@ -295,7 +295,7 @@ class TestNestedFilterIdField:
                 f"Allocation machine id {machine['id']} does not match expected {test_data['machine2_id']}"
             )
 
-    async def test_nested_filter_on_related_field_jsonb_scenario(
+    async def test_nested_filter_on_related_field_jsonb_scenario(  # noqa: ANN201
         self, class_db_pool, setup_hybrid_table
     ):
         """Test nested filter using JSONB path for related object fields.
@@ -303,7 +303,7 @@ class TestNestedFilterIdField:
         Query: allocations(where: { device: { is_active: { eq: true } } })
         Expected SQL: WHERE data->'device'->>'is_active' = 'true'
         """
-        test_data = setup_hybrid_table
+        test_data = setup_hybrid_table  # noqa: F841
 
         register_type_for_view(
             "tv_allocation",
@@ -336,7 +336,7 @@ class TestNestedFilterIdField:
             assert device is not None, f"Device should not be None, alloc={alloc}"
             assert device["isActive"] is True, f"Device should be active, device={device}"
 
-    async def test_nested_filter_mixed_fk_and_jsonb(self, class_db_pool, setup_hybrid_table):
+    async def test_nested_filter_mixed_fk_and_jsonb(self, class_db_pool, setup_hybrid_table) -> None:
         """Test nested filter combining FK and JSONB paths.
 
         Query: allocations(where: {
@@ -385,7 +385,7 @@ class TestNestedFilterIdField:
             assert machine["id"] == str(test_data["machine2_id"]), "Should be machine2"
             assert "Printer" in machine["name"], f"Name should contain 'Printer', machine={machine}"
 
-    async def test_whereinput_and_dict_produce_same_results(
+    async def test_whereinput_and_dict_produce_same_results(  # noqa: ANN201
         self, class_db_pool, setup_hybrid_table
     ):
         """Ensure WhereInput and dict-based filters return identical results."""
@@ -433,7 +433,7 @@ class TestNestedFilterIdField:
 
         assert len(results_dict) == len(results_input) == test_data["machine2_count"]
 
-    async def test_nested_filter_on_field_literally_named_id(
+    async def test_nested_filter_on_field_literally_named_id(  # noqa: ANN201
         self, class_db_pool, setup_jsonb_table
     ):
         """Ensure we don't break tables with JSONB field literally called 'id'.
@@ -462,7 +462,7 @@ class TestNestedFilterIdField:
         doc = results[0]
         assert doc["metadata"]["id"] == "doc-123", "Should match the filtered id"
 
-    async def test_whereinput_nested_filter_generates_fk_sql(
+    async def test_whereinput_nested_filter_generates_fk_sql(  # noqa: ANN201
         self, class_db_pool, setup_hybrid_table, caplog
     ):
         """Verify WhereInput nested filters generate FK SQL, not JSONB SQL."""
@@ -516,7 +516,7 @@ class TestNestedFilterIdField:
         results = extract_graphql_data(result, "tv_allocation")
         assert len(results) == test_data["machine2_count"]
 
-    async def test_dict_and_whereinput_generate_identical_sql(
+    async def test_dict_and_whereinput_generate_identical_sql(  # noqa: ANN201
         self, class_db_pool, setup_hybrid_table
     ):
         """Verify dict and WhereInput generate identical SQL queries."""
@@ -582,10 +582,10 @@ class TestNestedFilterIdField:
 
         assert isinstance(sql_dict, Composed)
         assert isinstance(sql_input, Composed)
-        assert sql_dict.as_string(None) == sql_input.as_string(None)  # type: ignore
+        assert sql_dict.as_string(None) == sql_input.as_string(None)  # type: ignore[misc]
         assert params_dict == params_input
 
         # SQL should use FK column, not JSONB path
-        sql_str = sql_dict.as_string(None)  # type: ignore
+        sql_str = sql_dict.as_string(None)  # type: ignore[misc]
         assert "machine_id" in sql_str
         assert "data->'machine'" not in sql_str

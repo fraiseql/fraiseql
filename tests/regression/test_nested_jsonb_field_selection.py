@@ -63,7 +63,7 @@ class TestNestedJSONBFieldSelection:
     """Test class for nested JSONB field selection with composed views."""
 
     @pytest_asyncio.fixture(scope="class")
-    async def setup_jsonb_views(self, class_db_pool, test_schema):
+    async def setup_jsonb_views(self, class_db_pool, test_schema) -> None:
         """Create tables and composed JSONB views for testing."""
         async with class_db_pool.connection() as conn:
             await conn.execute(f"SET search_path TO {test_schema}, public")
@@ -204,15 +204,14 @@ class TestNestedJSONBFieldSelection:
         wrapped_pool = SchemaAwarePool(class_db_pool, test_schema)
         set_db_pool(wrapped_pool)
 
-        app = create_fraiseql_app(
+        return create_fraiseql_app(
             database_url="postgresql://test/test",
             types=[NetworkConfig, Allocation],
             queries=[allocations],
             production=False,
         )
-        return app
 
-    async def _execute_query(self, graphql_app, query_str: str):
+    async def _execute_query(self, graphql_app, query_str: str) -> None:
         """Execute GraphQL query."""
         from asgi_lifespan import LifespanManager
         from httpx import ASGITransport, AsyncClient

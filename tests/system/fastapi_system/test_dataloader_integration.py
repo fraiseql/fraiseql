@@ -45,7 +45,7 @@ class Post:
     id: UUID
     title: str
     content: str
-    authorId: UUID
+    authorId: UUID  # noqa: N815
 
     # Add field resolver for author
     @fraiseql.field

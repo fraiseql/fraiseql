@@ -11,7 +11,7 @@ class TestCascadePerformance:
     """Verify CASCADE filtering improves performance."""
 
     @pytest.mark.asyncio
-    async def test_response_size_reduction(self, cascade_http_client):
+    async def test_response_size_reduction(self, cascade_http_client) -> None:
         """Verify response size is smaller without CASCADE."""
         # Without CASCADE
         response_without = await cascade_http_client.post(

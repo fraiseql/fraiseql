@@ -1,22 +1,22 @@
 """Integration tests for complete GraphQL mutations via Rust backend."""
 
-import pytest
 import json
 from unittest.mock import AsyncMock, patch
 
+import pytest
 from src.fraiseql.core.graphql_pipeline import RustGraphQLPipeline
 
 
 class TestGraphQLMutationsIntegration:
     """Test complete mutation pipeline from GraphQL to database."""
 
-    def test_mutation_pipeline_creation(self):
+    def test_mutation_pipeline_creation(self) -> None:
         """Test that the mutation pipeline can be created."""
         pipeline = RustGraphQLPipeline()
         assert pipeline is not None
         assert hasattr(pipeline, "execute_mutation")
 
-    def test_mutation_definition_structure(self):
+    def test_mutation_definition_structure(self) -> None:
         """Test that mutation definitions have the expected structure."""
         mutation_def = {
             "operation": "mutation",
@@ -36,7 +36,7 @@ class TestGraphQLMutationsIntegration:
         assert "name" in mutation_def["input"]
 
     @pytest.mark.asyncio
-    async def test_create_user_mutation_mock(self):
+    async def test_create_user_mutation_mock(self) -> None:
         """Test create user mutation with mocked Rust backend."""
         pipeline = RustGraphQLPipeline()
 
@@ -76,7 +76,7 @@ class TestGraphQLMutationsIntegration:
             assert result["data"]["id"] == 1
 
     @pytest.mark.asyncio
-    async def test_update_user_mutation_mock(self):
+    async def test_update_user_mutation_mock(self) -> None:
         """Test update user mutation with mocked Rust backend."""
         pipeline = RustGraphQLPipeline()
 
@@ -104,7 +104,7 @@ class TestGraphQLMutationsIntegration:
             assert result["data"]["id"] == 1
 
     @pytest.mark.asyncio
-    async def test_delete_user_mutation_mock(self):
+    async def test_delete_user_mutation_mock(self) -> None:
         """Test delete user mutation with mocked Rust backend."""
         pipeline = RustGraphQLPipeline()
 
@@ -128,7 +128,7 @@ class TestGraphQLMutationsIntegration:
             assert result["data"]["success"] is True
 
     @pytest.mark.asyncio
-    async def test_mutation_error_handling(self):
+    async def test_mutation_error_handling(self) -> None:
         """Test error handling in mutation operations."""
         pipeline = RustGraphQLPipeline()
 
@@ -161,7 +161,7 @@ class TestMutationValidation:
     """Test mutation input validation and edge cases."""
 
     @pytest.mark.asyncio
-    async def test_mutation_missing_required_fields(self):
+    async def test_mutation_missing_required_fields(self) -> None:
         """Test mutation with missing required fields."""
         pipeline = RustGraphQLPipeline()
 
@@ -181,7 +181,7 @@ class TestMutationValidation:
             assert len(result["errors"]) == 1
 
     @pytest.mark.asyncio
-    async def test_mutation_invalid_type(self):
+    async def test_mutation_invalid_type(self) -> None:
         """Test mutation with invalid type."""
         pipeline = RustGraphQLPipeline()
 
@@ -200,7 +200,7 @@ class TestMutationValidation:
             assert result["data"] is None
             assert len(result["errors"]) == 1
 
-    def test_mutation_def_structure_validation(self):
+    def test_mutation_def_structure_validation(self) -> None:
         """Test that mutation definitions are properly structured."""
         # Valid insert mutation
         insert_def = {
@@ -239,7 +239,7 @@ class TestBulkOperations:
     """Test bulk mutation operations."""
 
     @pytest.mark.asyncio
-    async def test_bulk_mutation_execution(self):
+    async def test_bulk_mutation_execution(self) -> None:
         """Test executing multiple mutations in sequence."""
         pipeline = RustGraphQLPipeline()
 
@@ -277,7 +277,7 @@ class TestBulkOperations:
             assert all(result["errors"] is None for result in results)
 
     @pytest.mark.asyncio
-    async def test_bulk_operation_with_mixed_success_failure(self):
+    async def test_bulk_operation_with_mixed_success_failure(self) -> None:
         """Test bulk operations where some succeed and some fail."""
         pipeline = RustGraphQLPipeline()
 
@@ -306,8 +306,7 @@ class TestBulkOperations:
             call_count += 1
             if call_count == 1:
                 return '{"id": 1}'
-            else:
-                raise Exception("Duplicate email constraint")
+            raise Exception("Duplicate email constraint")  # noqa: TRY002
 
         with patch.object(pipeline._rust, "execute_mutation_async", side_effect=mock_execute):
             results = await pipeline.execute_bulk_operation(operations)

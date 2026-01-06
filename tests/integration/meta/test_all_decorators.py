@@ -18,7 +18,7 @@ from fraiseql.mutations import mutation
 from fraiseql.mutations.decorators import error, success
 
 
-def get_all_decorators():
+def get_all_decorators() -> None:
     """Auto-enumerate all decorators from FraiseQL modules."""
     decorators = {}
 
@@ -49,7 +49,7 @@ def get_all_decorators():
 
 
 @pytest.fixture(scope="class")
-def decorator_test_schema(meta_test_schema):
+def decorator_test_schema(meta_test_schema) -> None:
     """Schema registry prepared with decorator test types."""
     # Clear any existing registrations
     meta_test_schema.clear()
@@ -116,8 +116,10 @@ def decorator_test_schema(meta_test_schema):
     return meta_test_schema
 
 
-@pytest.mark.parametrize("decorator_name,decorator_fn", get_all_decorators().items())
-async def test_decorator_registers_with_schema(decorator_name, decorator_fn, decorator_test_schema):
+@pytest.mark.parametrize(("decorator_name", "decorator_fn"), get_all_decorators().items())
+async def test_decorator_registers_with_schema(
+    decorator_name, decorator_fn, decorator_test_schema
+) -> None:
     """Every decorator should successfully register with the GraphQL schema."""
     # Build the schema - this should not raise any errors
     schema = decorator_test_schema.build_schema()
@@ -149,14 +151,16 @@ async def test_decorator_registers_with_schema(decorator_name, decorator_fn, dec
 
 
 @pytest.mark.parametrize(
-    "decorator_name,decorator_fn",
+    ("decorator_name", "decorator_fn"),
     [
         ("query", query_decorator),
         ("subscription", subscription),
         ("connection", connection),
     ],
 )
-async def test_decorator_executes_in_graphql(decorator_name, decorator_fn, decorator_test_schema):
+async def test_decorator_executes_in_graphql(
+    decorator_name, decorator_fn, decorator_test_schema
+) -> None:
     """Decorators that create resolvers should execute without errors."""
     schema = decorator_test_schema.build_schema()
 
@@ -207,7 +211,7 @@ async def test_decorator_executes_in_graphql(decorator_name, decorator_fn, decor
 
 
 @pytest.mark.parametrize(
-    "decorator_name,decorator_fn",
+    ("decorator_name", "decorator_fn"),
     [
         ("mutation", mutation),
         ("success", success),
@@ -217,7 +221,7 @@ async def test_decorator_executes_in_graphql(decorator_name, decorator_fn, decor
 )
 async def test_mutation_decorators_build_schema(
     decorator_name, decorator_fn, decorator_test_schema
-):
+) -> None:
     """Mutation-related decorators should build valid schema."""
     schema = decorator_test_schema.build_schema()
 
@@ -240,12 +244,14 @@ async def test_mutation_decorators_build_schema(
 
 
 @pytest.mark.parametrize(
-    "decorator_name,decorator_fn",
+    ("decorator_name", "decorator_fn"),
     [
         ("field", field),
     ],
 )
-async def test_field_decorator_in_schema(decorator_name, decorator_fn, decorator_test_schema):
+async def test_field_decorator_in_schema(
+    decorator_name, decorator_fn, decorator_test_schema
+) -> None:
     """Field decorators should add fields to GraphQL types."""
     schema = decorator_test_schema.build_schema()
 
@@ -265,7 +271,7 @@ async def test_field_decorator_in_schema(decorator_name, decorator_fn, decorator
 
 
 @pytest.mark.parametrize(
-    "decorator_name,decorator_fn",
+    ("decorator_name", "decorator_fn"),
     [
         ("query", query_decorator),
         ("connection", connection),
@@ -273,7 +279,7 @@ async def test_field_decorator_in_schema(decorator_name, decorator_fn, decorator
 )
 async def test_decorator_combination_compatibility(
     decorator_name, decorator_fn, decorator_test_schema
-):
+) -> None:
     """Decorators should work in combination with each other."""
     schema = decorator_test_schema.build_schema()
 
@@ -303,7 +309,7 @@ async def test_decorator_combination_compatibility(
             ), f"Expected db error, got schema error: {result.errors}"
 
 
-async def test_decorator_error_handling(decorator_test_schema):
+async def test_decorator_error_handling(decorator_test_schema) -> None:
     """Decorators should handle errors gracefully during schema building."""
     # This test ensures decorators don't crash schema building
     # even if there are issues with their configuration
@@ -319,7 +325,7 @@ async def test_decorator_error_handling(decorator_test_schema):
     )
 
 
-async def test_decorator_schema_introspection(decorator_test_schema):
+async def test_decorator_schema_introspection(decorator_test_schema) -> None:
     """Decorators should be introspectable through GraphQL schema."""
     schema = decorator_test_schema.build_schema()
 

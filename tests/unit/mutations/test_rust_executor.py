@@ -6,7 +6,7 @@ import pytest
 
 
 @pytest.mark.asyncio
-async def test_execute_mutation_no_result():
+async def test_execute_mutation_no_result() -> None:
     """Test mutation execution when no result is returned."""
     from fraiseql.core.rust_pipeline import RustResponseBytes
     from fraiseql.mutations.rust_executor import execute_mutation_rust
@@ -44,7 +44,7 @@ async def test_execute_mutation_no_result():
 
 
 @pytest.mark.asyncio
-async def test_execute_mutation_simple_format():
+async def test_execute_mutation_simple_format() -> None:
     """Test mutation execution with simple format (just entity JSONB)."""
     from fraiseql.core.rust_pipeline import RustResponseBytes
     from fraiseql.mutations.rust_executor import execute_mutation_rust
@@ -86,7 +86,7 @@ async def test_execute_mutation_simple_format():
 
 
 @pytest.mark.asyncio
-async def test_execute_mutation_with_context_args():
+async def test_execute_mutation_with_context_args() -> None:
     """Test mutation execution with context arguments."""
     from fraiseql.core.rust_pipeline import RustResponseBytes
     from fraiseql.mutations.rust_executor import execute_mutation_rust
@@ -126,7 +126,7 @@ async def test_execute_mutation_with_context_args():
 
 
 @pytest.mark.asyncio
-async def test_execute_mutation_v2_format():
+async def test_execute_mutation_v2_format() -> None:
     """Test mutation execution with v2 format (has status field)."""
     from fraiseql.core.rust_pipeline import RustResponseBytes
     from fraiseql.mutations.rust_executor import execute_mutation_rust
@@ -177,7 +177,7 @@ async def test_execute_mutation_v2_format():
 
 
 @pytest.mark.asyncio
-async def test_execute_mutation_error_format():
+async def test_execute_mutation_error_format() -> None:
     """Test mutation execution with error format."""
     from fraiseql.core.rust_pipeline import RustResponseBytes
     from fraiseql.mutations.rust_executor import execute_mutation_rust
@@ -221,8 +221,8 @@ async def test_execute_mutation_error_format():
 
     # Verify SQL was called with correct parameters
     mock_cursor.execute.assert_called_once()
-    args, kwargs = mock_cursor.execute.call_args
-    query = args[0]
+    args, _kwargs = mock_cursor.execute.call_args
+    args[0]
     params = args[1]
 
     # Should have context args + input JSON

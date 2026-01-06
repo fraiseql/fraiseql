@@ -11,7 +11,7 @@ class TestGraphQLFixtures:
     @pytest.mark.asyncio
     async def test_setup_graphql_table_creates_table_and_view(
         self, db_connection, setup_graphql_table
-    ):
+    ) -> None:
         """setup_graphql_table should create table and view."""
         await setup_graphql_table("fixture_test")
 
@@ -38,7 +38,7 @@ class TestGraphQLFixtures:
     @pytest.mark.asyncio
     async def test_seed_graphql_data_inserts_records(
         self, db_connection, setup_graphql_table, seed_graphql_data
-    ):
+    ) -> None:
         """seed_graphql_data should insert JSONB records."""
         await setup_graphql_table("seed_test")
         await seed_graphql_data(
@@ -54,7 +54,7 @@ class TestGraphQLFixtures:
         assert row[0] == 2, "Should have 2 records"
 
     @pytest.mark.asyncio
-    async def test_gql_context_provides_repository(self, gql_context):
+    async def test_gql_context_provides_repository(self, gql_context) -> None:
         """gql_context should provide FraiseQLRepository."""
         from fraiseql.db import FraiseQLRepository
 

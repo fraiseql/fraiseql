@@ -15,7 +15,7 @@ from fraiseql.sql.where.operators.text import (
 class TestPatternContains:
     """Test contains operator."""
 
-    def test_contains_basic(self):
+    def test_contains_basic(self) -> None:
         """Test basic substring search."""
         path_sql = SQL("message")
         result = build_contains_sql(path_sql, "world")
@@ -23,7 +23,7 @@ class TestPatternContains:
         assert "LIKE" in result_str.upper()
         assert "%world%" in result_str
 
-    def test_contains_case_sensitive(self):
+    def test_contains_case_sensitive(self) -> None:
         """Test case-sensitive contains."""
         path_sql = SQL("message")
         result = build_contains_sql(path_sql, "World")
@@ -32,7 +32,7 @@ class TestPatternContains:
         assert "ILIKE" not in result_str.upper()
         assert "%World%" in result_str
 
-    def test_contains_case_insensitive(self):
+    def test_contains_case_insensitive(self) -> None:
         """Test case-insensitive contains (default)."""
         path_sql = SQL("message")
         result = build_contains_sql(path_sql, "world")
@@ -44,7 +44,7 @@ class TestPatternContains:
 class TestPatternStartsEnds:
     """Test startswith and endswith operators."""
 
-    def test_startswith_basic(self):
+    def test_startswith_basic(self) -> None:
         """Test prefix matching."""
         path_sql = SQL("message")
         result = build_startswith_sql(path_sql, "Hello")
@@ -52,7 +52,7 @@ class TestPatternStartsEnds:
         assert "LIKE" in result_str.upper()
         assert "Hello%" in result_str
 
-    def test_endswith_basic(self):
+    def test_endswith_basic(self) -> None:
         """Test suffix matching."""
         path_sql = SQL("message")
         result = build_endswith_sql(path_sql, "world")
@@ -60,7 +60,7 @@ class TestPatternStartsEnds:
         assert "LIKE" in result_str.upper()
         assert "%world" in result_str
 
-    def test_startswith_case_sensitive(self):
+    def test_startswith_case_sensitive(self) -> None:
         """Test case-sensitive prefix."""
         path_sql = SQL("message")
         result = build_startswith_sql(path_sql, "Hello")
@@ -72,7 +72,7 @@ class TestPatternStartsEnds:
 class TestPatternRegex:
     """Test regex pattern matching."""
 
-    def test_regex_basic(self):
+    def test_regex_basic(self) -> None:
         """Test basic regex matching."""
         path_sql = SQL("message")
         result = build_matches_sql(path_sql, r"^[A-Z]")
@@ -80,7 +80,7 @@ class TestPatternRegex:
         assert "~" in result_str
         assert r"^[A-Z]" in result_str
 
-    def test_regex_case_insensitive(self):
+    def test_regex_case_insensitive(self) -> None:
         """Test case-insensitive regex."""
         path_sql = SQL("message")
         result = build_imatches_sql(path_sql, r"hello")
@@ -88,7 +88,7 @@ class TestPatternRegex:
         assert "~*" in result_str  # PostgreSQL case-insensitive regex
         assert r"hello" in result_str
 
-    def test_regex_email_pattern(self):
+    def test_regex_email_pattern(self) -> None:
         """Test email regex pattern."""
         path_sql = SQL("email")
         email_pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
@@ -97,7 +97,7 @@ class TestPatternRegex:
         assert "~" in result_str
         assert "email" in result_str
 
-    def test_regex_not_matches(self):
+    def test_regex_not_matches(self) -> None:
         """Test negative regex matching."""
         path_sql = SQL("message")
         result = build_not_matches_sql(path_sql, r"error")
@@ -109,7 +109,7 @@ class TestPatternRegex:
 class TestPatternSpecialChars:
     """Test special character handling."""
 
-    def test_contains_with_percent(self):
+    def test_contains_with_percent(self) -> None:
         """Test % character in LIKE patterns."""
         path_sql = SQL("message")
         result = build_contains_sql(path_sql, "50%")
@@ -117,21 +117,21 @@ class TestPatternSpecialChars:
         # % should be properly escaped or handled
         assert "50%" in result_str
 
-    def test_contains_with_underscore(self):
+    def test_contains_with_underscore(self) -> None:
         """Test _ character in LIKE patterns."""
         path_sql = SQL("field")
         result = build_contains_sql(path_sql, "user_name")
         result_str = str(result)
         assert "user_name" in result_str
 
-    def test_contains_unicode(self):
+    def test_contains_unicode(self) -> None:
         """Test unicode characters."""
         path_sql = SQL("message")
         result = build_contains_sql(path_sql, "世界")
         result_str = str(result)
         assert "%世界%" in result_str
 
-    def test_contains_emoji(self):
+    def test_contains_emoji(self) -> None:
         """Test emoji characters."""
         path_sql = SQL("message")
         result = build_contains_sql(path_sql, "😀")
@@ -142,14 +142,14 @@ class TestPatternSpecialChars:
 class TestPatternEdgeCases:
     """Test pattern operator edge cases."""
 
-    def test_empty_pattern(self):
+    def test_empty_pattern(self) -> None:
         """Test empty string pattern."""
         path_sql = SQL("message")
         result = build_contains_sql(path_sql, "")
         result_str = str(result)
         assert "%%" in result_str
 
-    def test_special_regex_chars(self):
+    def test_special_regex_chars(self) -> None:
         """Test regex with special characters."""
         path_sql = SQL("message")
         result = build_matches_sql(path_sql, r"[0-9]+\.[0-9]+")
@@ -157,7 +157,7 @@ class TestPatternEdgeCases:
         assert "~" in result_str
         assert "message" in result_str
 
-    def test_regex_word_boundaries(self):
+    def test_regex_word_boundaries(self) -> None:
         """Test regex with word boundaries."""
         path_sql = SQL("message")
         result = build_matches_sql(path_sql, r"\bword\b")

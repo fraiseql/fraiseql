@@ -9,7 +9,7 @@ class TestCascadeEdgeCases:
     """Test edge cases and corner cases for CASCADE selection."""
 
     @pytest.mark.asyncio
-    async def test_cascade_with_minimal_selection_set(self, cascade_http_client):
+    async def test_cascade_with_minimal_selection_set(self, cascade_http_client) -> None:
         """CASCADE field with minimal selection set."""
         mutation = """
             mutation CreatePostWithEntity($input: CreatePostInput!) {
@@ -52,7 +52,7 @@ class TestCascadeEdgeCases:
         assert cascade["metadata"]["affectedCount"] == 2
 
     @pytest.mark.asyncio
-    async def test_cascade_field_not_in_success_type_selection(self, cascade_http_client):
+    async def test_cascade_field_not_in_success_type_selection(self, cascade_http_client) -> None:
         """No selection set on Success type at all."""
         mutation = """
             mutation CreatePostWithEntity($input: CreatePostInput!) {
@@ -86,7 +86,7 @@ class TestCascadeEdgeCases:
         assert "message" in response_data  # Only message should be present
 
     @pytest.mark.asyncio
-    async def test_cascade_with_nested_field_selections(self, cascade_http_client):
+    async def test_cascade_with_nested_field_selections(self, cascade_http_client) -> None:
         """CASCADE with nested field selections on cascade sub-fields."""
         mutation = """
             mutation CreatePostWithEntity($input: CreatePostInput!) {
@@ -135,7 +135,7 @@ class TestCascadeEdgeCases:
         assert "timestamp" in cascade["metadata"]
 
     @pytest.mark.asyncio
-    async def test_mutation_without_cascade_enabled(self, cascade_http_client):
+    async def test_mutation_without_cascade_enabled(self, cascade_http_client) -> None:
         """Mutation without enable_cascade should never return CASCADE."""
         # Use a mutation that doesn't have enable_cascade=True
         # (Assuming such a mutation exists in test schema)
@@ -175,7 +175,7 @@ class TestCascadeEdgeCases:
         assert "cascade" not in response_data
 
     @pytest.mark.asyncio
-    async def test_cascade_with_aliases(self, cascade_http_client):
+    async def test_cascade_with_aliases(self, cascade_http_client) -> None:
         """CASCADE field with GraphQL alias."""
         mutation = """
             mutation CreatePostWithEntity($input: CreatePostInput!) {
@@ -216,7 +216,7 @@ class TestCascadeEdgeCases:
         assert "updated" in response_data["cascade"]
 
     @pytest.mark.asyncio
-    async def test_cascade_selection_with_variables(self, cascade_http_client):
+    async def test_cascade_selection_with_variables(self, cascade_http_client) -> None:
         """CASCADE selection with GraphQL variables and directives."""
         mutation = """
             mutation CreatePostWithEntity($input: CreatePostInput!, $includeCascade: Boolean!) {
@@ -258,7 +258,9 @@ class TestCascadeEdgeCases:
         assert "cascade" not in response_data
 
     @pytest.mark.asyncio
-    async def test_concurrent_mutations_different_cascade_selections(self, cascade_http_client):
+    async def test_concurrent_mutations_different_cascade_selections(
+        self, cascade_http_client
+    ) -> None:
         """Multiple concurrent mutations with different CASCADE selections."""
         import asyncio
 
@@ -325,7 +327,7 @@ class TestCascadeNullHandling:
     """Test NULL and missing data handling."""
 
     @pytest.mark.asyncio
-    async def test_cascade_when_no_side_effects(self, cascade_http_client):
+    async def test_cascade_when_no_side_effects(self, cascade_http_client) -> None:
         """CASCADE requested but mutation has no side effects."""
         mutation = """
             mutation UpdatePostTitle($input: CreatePostInput!) {
@@ -375,7 +377,7 @@ class TestCascadeNullHandling:
         assert cascade["metadata"]["affectedCount"] == 0
 
     @pytest.mark.asyncio
-    async def test_cascade_with_null_fields(self, cascade_http_client):
+    async def test_cascade_with_null_fields(self, cascade_http_client) -> None:
         """CASCADE with null/missing optional fields."""
         mutation = """
             mutation CreatePostWithEntity($input: CreatePostInput!) {

@@ -3,8 +3,6 @@
 Tests for parsing, extraction, and injection of W3C Trace Context headers.
 """
 
-import pytest
-
 from fraiseql.tracing.w3c_context import (
     TraceContext,
     extract_trace_context,
@@ -158,9 +156,7 @@ class TestExtractTraceContext:
 
     def test_extract_from_w3c_traceparent(self) -> None:
         """Test extracting trace context from W3C traceparent header."""
-        headers = {
-            "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
-        }
+        headers = {"traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"}
         context = extract_trace_context(headers)
         assert context.trace_id == "4bf92f3577b34da6a3ce929d0e0e4736"
         assert context.parent_span_id == "00f067aa0ba902b7"

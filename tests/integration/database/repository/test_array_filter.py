@@ -22,7 +22,7 @@ class TestArrayFilter:
     """Test suite for array operators in ArrayFilter."""
 
     @pytest.fixture(scope="class")
-    def test_types(self, clear_registry_class):
+    def test_types(self, clear_registry_class) -> None:
         """Create test types inside a class-scoped fixture for proper isolation."""
 
         @fraiseql.type

@@ -35,7 +35,7 @@ class MockTurboRegistry:
     def get(self, query: str) -> Any | None:
         return self._queries.get(query)
 
-    def __len__(self) -> int:
+    def __len__(self) -> int:  # noqa: D105
         return len(self._queries)
 
 

@@ -481,7 +481,7 @@ class TestInputConversion:
         """Test that unsupported types raise TypeError."""
         from fraiseql.mutations.mutation_decorator import _to_dict
 
-        with pytest.raises(TypeError, match="Cannot convert.*to dictionary"):
+        with pytest.raises(TypeError, match="Cannot convert.*to dictionary"):  # noqa: RUF043
             _to_dict("string")
 
 

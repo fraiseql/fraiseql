@@ -809,8 +809,7 @@ class TestCSRFProtectionMiddlewareExtended:
     @pytest.fixture
     def app(self) -> FastAPI:
         """Create test app with middleware."""
-        app = FastAPI()
-        return app
+        return FastAPI()
 
     @pytest.fixture
     def middleware(self, app: FastAPI) -> CSRFProtectionMiddleware:

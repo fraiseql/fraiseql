@@ -18,15 +18,11 @@ pytestmark = pytest.mark.integration
 async def setup_row_constraints_schema(class_db_pool, test_schema) -> None:
     """Set up row constraints schema before running tests."""
     # Read and execute RBAC migration first
-    rbac_migration_path = Path(
-        "src/fraiseql/enterprise/migrations/002_rbac_tables.sql"
-    )
+    rbac_migration_path = Path("src/fraiseql/enterprise/migrations/002_rbac_tables.sql")
     rbac_migration_sql = rbac_migration_path.read_text()
 
     # Read and execute row constraints migration
-    row_constraints_path = Path(
-        "src/fraiseql/enterprise/migrations/005_row_constraint_tables.sql"
-    )
+    row_constraints_path = Path("src/fraiseql/enterprise/migrations/005_row_constraint_tables.sql")
     row_constraints_sql = row_constraints_path.read_text()
 
     async with class_db_pool.connection() as conn:
@@ -71,9 +67,7 @@ class TestRowConstraintTableStructure:
         assert "field_name" in column_names
 
     @pytest.mark.asyncio
-    async def test_tb_row_constraint_audit_table_exists(
-        self, db_repo
-    ) -> None:
+    async def test_tb_row_constraint_audit_table_exists(self, db_repo) -> None:
         """Verify tb_row_constraint_audit table exists."""
         result = await db_repo.run(
             DatabaseQuery(
@@ -228,7 +222,7 @@ class TestRowConstraintCreation:
         )
 
         # Try to insert duplicate - should fail
-        with pytest.raises(Exception):  # Database constraint violation
+        with pytest.raises(Exception):  # Database constraint violation  # noqa: B017
             await db_repo.run(
                 DatabaseQuery(
                     statement="""
@@ -236,9 +230,7 @@ class TestRowConstraintCreation:
                     (table_name, role_id, constraint_type, field_name)
                     VALUES ($1, $2, $3, $4)
                 """,
-                    params=[
-                        table_name, role_id, "ownership", "different_field"
-                    ],
+                    params=[table_name, role_id, "ownership", "different_field"],
                     fetch_result=False,
                 )
             )
@@ -345,9 +337,7 @@ class TestGetUserRowConstraintsFunctions:
     """Test PostgreSQL functions for constraint lookup."""
 
     @pytest.mark.asyncio
-    async def test_get_user_row_constraints_function_exists(
-        self, db_repo
-    ) -> None:
+    async def test_get_user_row_constraints_function_exists(self, db_repo) -> None:
         """Function get_user_row_constraints should exist."""
         result = await db_repo.run(
             DatabaseQuery(
@@ -363,9 +353,7 @@ class TestGetUserRowConstraintsFunctions:
         assert len(result) > 0, "Function should exist"
 
     @pytest.mark.asyncio
-    async def test_user_has_row_constraint_function_exists(
-        self, db_repo
-    ) -> None:
+    async def test_user_has_row_constraint_function_exists(self, db_repo) -> None:
         """Function user_has_row_constraint should exist."""
         result = await db_repo.run(
             DatabaseQuery(

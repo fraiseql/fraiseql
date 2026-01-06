@@ -19,7 +19,7 @@ from fraiseql.sql.where.operators.network import (
 class TestNetworkBasicOperators:
     """Test basic network comparison operators."""
 
-    def test_eq_ipv4(self):
+    def test_eq_ipv4(self) -> None:
         """Test IPv4 equality."""
         path_sql = SQL("ip_address")
         result = build_ip_eq_sql(path_sql, "192.168.1.1")
@@ -27,28 +27,28 @@ class TestNetworkBasicOperators:
         assert "::inet" in str(result)
         assert "192.168.1.1" in str(result)
 
-    def test_eq_ipv6(self):
+    def test_eq_ipv6(self) -> None:
         """Test IPv6 equality."""
         path_sql = SQL("ip_address")
         result = build_ip_eq_sql(path_sql, "2001:db8::1")
         assert "::inet" in str(result)
         assert "2001:db8::1" in str(result)
 
-    def test_neq_network(self):
+    def test_neq_network(self) -> None:
         """Test network inequality."""
         path_sql = SQL("network")
         result = build_ip_neq_sql(path_sql, "10.0.0.0/8")
         assert "::inet" in str(result)
         assert "!=" in str(result)
 
-    def test_in_operator(self):
+    def test_in_operator(self) -> None:
         """Test IP address IN list."""
         path_sql = SQL("ip_address")
         result = build_ip_in_sql(path_sql, ["192.168.1.1", "10.0.0.1"])
         assert "::inet" in str(result)
         assert "IN" in str(result)
 
-    def test_notin_operator(self):
+    def test_notin_operator(self) -> None:
         """Test IP address NOT IN list."""
         path_sql = SQL("ip_address")
         result = build_ip_notin_sql(path_sql, ["192.168.1.1", "10.0.0.1"])
@@ -135,7 +135,7 @@ class TestNetworkBasicOperators:
 class TestNetworkPrivatePublic:
     """Test private/public IP detection."""
 
-    def test_isprivate_operator(self):
+    def test_isprivate_operator(self) -> None:
         """Test isprivate operator for private IP ranges."""
         path_sql = SQL("ip_address")
         result = build_is_private_sql(path_sql, True)
@@ -143,7 +143,7 @@ class TestNetworkPrivatePublic:
         result_str = str(result)
         assert "192.168." in result_str or "10." in result_str or "172." in result_str
 
-    def test_ispublic_operator(self):
+    def test_ispublic_operator(self) -> None:
         """Test ispublic operator (not private)."""
         path_sql = SQL("ip_address")
         result = build_is_public_sql(path_sql, True)
@@ -154,14 +154,14 @@ class TestNetworkPrivatePublic:
 class TestNetworkSubnet:
     """Test subnet operations."""
 
-    def test_insubnet_ipv4(self):
+    def test_insubnet_ipv4(self) -> None:
         """Test if IP is in subnet (IPv4)."""
         path_sql = SQL("ip_address")
         result = build_in_subnet_sql(path_sql, "192.168.1.0/24")
         assert "<<=" in str(result)  # PostgreSQL subnet contains operator
         assert "192.168.1.0/24" in str(result)
 
-    def test_insubnet_ipv6(self):
+    def test_insubnet_ipv6(self) -> None:
         """Test if IP is in subnet (IPv6)."""
         path_sql = SQL("ip_address")
         result = build_in_subnet_sql(path_sql, "2001:db8::/32")
@@ -207,19 +207,19 @@ class TestNetworkSubnet:
 class TestNetworkEdgeCases:
     """Test edge cases for network operators."""
 
-    def test_localhost_ipv4(self):
+    def test_localhost_ipv4(self) -> None:
         """Test localhost handling."""
         path_sql = SQL("ip_address")
         result = build_ip_eq_sql(path_sql, "127.0.0.1")
         assert "127.0.0.1" in str(result)
 
-    def test_localhost_ipv6(self):
+    def test_localhost_ipv6(self) -> None:
         """Test IPv6 localhost."""
         path_sql = SQL("ip_address")
         result = build_ip_eq_sql(path_sql, "::1")
         assert "::1" in str(result)
 
-    def test_broadcast_address(self):
+    def test_broadcast_address(self) -> None:
         """Test broadcast address."""
         path_sql = SQL("ip_address")
         result = build_ip_eq_sql(path_sql, "255.255.255.255")

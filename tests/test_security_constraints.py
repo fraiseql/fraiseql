@@ -1,5 +1,4 @@
 """Tests for security constraints (rate limiting, IP filtering, complexity)."""
-# ruff: noqa
 
 import pytest
 
@@ -10,7 +9,7 @@ class TestRateLimiter:
     """Test rate limiting functionality."""
 
     @pytest.mark.asyncio
-    async def test_rate_limiter_allow(self):
+    async def test_rate_limiter_allow(self) -> None:
         """Test rate limiter allows requests under limit."""
         limiter = RateLimiter(max_requests=10, window_seconds=60)
 
@@ -18,7 +17,7 @@ class TestRateLimiter:
         assert await limiter.check("user:1") is True
 
     @pytest.mark.asyncio
-    async def test_rate_limiter_block(self):
+    async def test_rate_limiter_block(self) -> None:
         """Test rate limiter blocks requests over limit."""
         limiter = RateLimiter(max_requests=2, window_seconds=60)
 
@@ -30,7 +29,7 @@ class TestRateLimiter:
         assert await limiter.check("user:1") is False
 
     @pytest.mark.asyncio
-    async def test_rate_limiter_multi_user(self):
+    async def test_rate_limiter_multi_user(self) -> None:
         """Test rate limiter tracks users separately."""
         limiter = RateLimiter(max_requests=2, window_seconds=60)
 
@@ -45,7 +44,7 @@ class TestRateLimiter:
         assert await limiter.check("user:2") is False
 
     @pytest.mark.asyncio
-    async def test_rate_limiter_reset(self):
+    async def test_rate_limiter_reset(self) -> None:
         """Test rate limiter reset functionality."""
         limiter = RateLimiter(max_requests=1, window_seconds=60)
 
@@ -60,7 +59,7 @@ class TestRateLimiter:
         assert await limiter.check("user:1") is True
 
     @pytest.mark.asyncio
-    async def test_rate_limiter_different_keys(self):
+    async def test_rate_limiter_different_keys(self) -> None:
         """Test rate limiter with different key types."""
         limiter = RateLimiter(max_requests=1, window_seconds=60)
 
@@ -79,9 +78,9 @@ class TestIpFilter:
     """Test IP filtering functionality."""
 
     @pytest.mark.asyncio
-    async def test_ip_filter_allowlist(self):
+    async def test_ip_filter_allowlist(self) -> None:
         """Test IP allowlist."""
-        filter = IpFilter(allowlist=["192.168.1.0/24"])
+        filter = IpFilter(allowlist=["192.168.1.0/24"])  # noqa: A001
 
         # IP in range should be allowed
         assert await filter.check("192.168.1.100") is True
@@ -93,9 +92,9 @@ class TestIpFilter:
         assert await filter.check("192.168.2.1") is False
 
     @pytest.mark.asyncio
-    async def test_ip_filter_blocklist(self):
+    async def test_ip_filter_blocklist(self) -> None:
         """Test IP blocklist."""
-        filter = IpFilter(blocklist=["10.0.0.0/8"])
+        filter = IpFilter(blocklist=["10.0.0.0/8"])  # noqa: A001
 
         # IPs not in blocklist should be allowed
         assert await filter.check("192.168.1.100") is True
@@ -106,9 +105,9 @@ class TestIpFilter:
         assert await filter.check("10.255.255.255") is False
 
     @pytest.mark.asyncio
-    async def test_ip_filter_combined(self):
+    async def test_ip_filter_combined(self) -> None:
         """Test IP filter with both allowlist and blocklist."""
-        filter = IpFilter(
+        filter = IpFilter(  # noqa: A001
             allowlist=["192.168.0.0/16"],  # Allow 192.168.*.*
             blocklist=["192.168.1.0/24"],  # But block 192.168.1.*
         )
@@ -125,9 +124,9 @@ class TestIpFilter:
         assert await filter.check("10.0.0.1") is False
 
     @pytest.mark.asyncio
-    async def test_ip_filter_empty_allowlist(self):
+    async def test_ip_filter_empty_allowlist(self) -> None:
         """Test IP filter with empty allowlist (allow all)."""
-        filter = IpFilter(blocklist=["10.0.1.0/24"])
+        filter = IpFilter(blocklist=["10.0.1.0/24"])  # noqa: A001
 
         # Everything allowed except blocklist
         assert await filter.check("192.168.1.1") is True
@@ -138,9 +137,9 @@ class TestIpFilter:
         assert await filter.check("10.0.1.100") is False
 
     @pytest.mark.asyncio
-    async def test_ip_filter_invalid_ip(self):
+    async def test_ip_filter_invalid_ip(self) -> None:
         """Test IP filter with invalid IP."""
-        filter = IpFilter(allowlist=["192.168.1.0/24"])
+        filter = IpFilter(allowlist=["192.168.1.0/24"])  # noqa: A001
 
         # Invalid IPs should be blocked
         assert await filter.check("invalid") is False
@@ -148,9 +147,9 @@ class TestIpFilter:
         assert await filter.check("") is False
 
     @pytest.mark.asyncio
-    async def test_ip_filter_multiple_ranges(self):
+    async def test_ip_filter_multiple_ranges(self) -> None:
         """Test IP filter with multiple CIDR ranges."""
-        filter = IpFilter(allowlist=["192.168.1.0/24", "10.0.0.0/16"])
+        filter = IpFilter(allowlist=["192.168.1.0/24", "10.0.0.0/16"])  # noqa: A001
 
         # IPs in first range
         assert await filter.check("192.168.1.100") is True
@@ -167,7 +166,7 @@ class TestComplexityAnalyzer:
     """Test query complexity analysis."""
 
     @pytest.mark.asyncio
-    async def test_complexity_simple_query(self):
+    async def test_complexity_simple_query(self) -> None:
         """Test complexity analyzer with simple query."""
         analyzer = ComplexityAnalyzer(max_complexity=100)
 
@@ -176,12 +175,12 @@ class TestComplexityAnalyzer:
         assert await analyzer.check(simple) is True
 
     @pytest.mark.asyncio
-    async def test_complexity_complex_query(self):
+    async def test_complexity_complex_query(self) -> None:
         """Test complexity analyzer with complex query."""
         analyzer = ComplexityAnalyzer(max_complexity=50)
 
         # Complex nested query (high complexity)
-        complex = """
+        complex_query = """
         {
             users {
                 posts {
@@ -198,10 +197,10 @@ class TestComplexityAnalyzer:
             }
         }
         """
-        assert await analyzer.check(complex) is False
+        assert await analyzer.check(complex_query) is False
 
     @pytest.mark.asyncio
-    async def test_complexity_threshold(self):
+    async def test_complexity_threshold(self) -> None:
         """Test complexity analyzer with different thresholds."""
         # Very strict analyzer
         strict = ComplexityAnalyzer(max_complexity=20)
@@ -216,7 +215,7 @@ class TestComplexityAnalyzer:
         assert await relaxed.check(query) is True
 
     @pytest.mark.asyncio
-    async def test_complexity_flat_query(self):
+    async def test_complexity_flat_query(self) -> None:
         """Test complexity with flat query (many fields, no nesting)."""
         analyzer = ComplexityAnalyzer(max_complexity=100)
 
@@ -225,9 +224,9 @@ class TestComplexityAnalyzer:
         assert await analyzer.check(flat) is True
 
     @pytest.mark.asyncio
-    async def test_complexity_deep_nesting(self):
+    async def test_complexity_deep_nesting(self) -> None:
         """Test complexity with deeply nested query."""
-        analyzer = ComplexityAnalyzer(max_complexity=50)
+        analyzer = ComplexityAnalyzer(max_complexity=50)  # noqa: F841
 
         # Deeply nested (depth penalty)
         deep = "{ a { b { c { d { e { f { g { h { i { j } } } } } } } } } }"
@@ -238,7 +237,7 @@ class TestIntegration:
     """Integration tests combining multiple constraints."""
 
     @pytest.mark.asyncio
-    async def test_combined_constraints(self):
+    async def test_combined_constraints(self) -> None:
         """Test using multiple constraints together."""
         # Setup all constraints
         limiter = RateLimiter(max_requests=5, window_seconds=60)

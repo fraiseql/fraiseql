@@ -191,7 +191,7 @@ class TestJSONTypeSupport:
                         mutation {
                             createDocument(input: {
                                 title: "New Document"
-                                content: "{\\"text\\": \\"Hello World\\", \\"format\\": \\"markdown\\", \\"metadata\\": {\\"created\\": \\"2024-01-01\\"}}"  # noqa: E501
+                                content: "{\\"text\\": \\"Hello World\\", \\"format\\": \\"markdown\\", \\"metadata\\": {\\"created\\": \\"2024-01-01\\"}}"
                                 tags: ["new", "important"]
                             }) {
                                 id

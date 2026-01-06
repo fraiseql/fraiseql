@@ -89,7 +89,7 @@ class Post:
     id: UUID
     title: str
     content: str
-    authorId: UUID
+    authorId: UUID  # noqa: N815
 
     @fraiseql.dataloader_field(UserDataLoader, key_field="authorId")
     async def author(self, info) -> User | None:
@@ -128,8 +128,8 @@ class PostDataLoader(DataLoader[UUID, dict]):
 class Comment:
     id: UUID
     content: str
-    authorId: UUID
-    postId: UUID
+    authorId: UUID  # noqa: N815
+    postId: UUID  # noqa: N815
 
     @fraiseql.dataloader_field(UserDataLoader, key_field="authorId")
     async def author(self, info) -> User | None:
@@ -371,7 +371,7 @@ def test_dataloader_field_with_custom_resolver(register_test_queries) -> None:
     @fraiseql.type
     class CustomPost:
         id: UUID
-        authorId: UUID
+        authorId: UUID  # noqa: N815
 
         @fraiseql.dataloader_field(UserDataLoader, key_field="authorId")
         async def author(self, info) -> User | None:

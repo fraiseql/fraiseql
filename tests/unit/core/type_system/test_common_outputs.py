@@ -47,12 +47,12 @@ class TestMutationResultRow:
     def test_mutation_result_row_field_types(self) -> None:
         """Test MutationResultRow field type annotations."""
         annotations = MutationResultRow.__annotations__
-        assert annotations["id"] == uuid.UUID
-        assert annotations["status"] == str
-        assert annotations["updated_fields"] == list[str]
-        assert annotations["message"] == str
-        assert annotations["object_data"] == dict[str, typing.Any]
-        assert annotations["extra_metadata"] == dict[str, typing.Any]
+        assert annotations["id"] is uuid.UUID
+        assert annotations["status"] is str
+        assert annotations["updated_fields"] is list[str]
+        assert annotations["message"] is str
+        assert annotations["object_data"] is dict[str, typing.Any]
+        assert annotations["extra_metadata"] is dict[str, typing.Any]
 
     def test_mutation_result_row_empty_collections(self) -> None:
         """Test MutationResultRow with empty collections."""
@@ -232,7 +232,7 @@ class TestMutationStatusMap:
     )
     def test_status_http_codes(self, status, expected_http) -> None:
         """Test specific status to HTTP code mappings."""
-        error_code, http_status = MUTATION_STATUS_MAP[status]
+        _error_code, http_status = MUTATION_STATUS_MAP[status]
         assert http_status == expected_http
 
     def test_status_map_usage_example(self) -> None:
@@ -256,7 +256,7 @@ class TestMutationStatusMap:
         from fraiseql.types.common_outputs import JSONType
 
         # Should be a type alias for dict[str, object]
-        assert JSONType == dict[str, object]
+        assert JSONType is dict[str, object]
 
         # Should be usable in type annotations
         def process_json(data: JSONType) -> str:

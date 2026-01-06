@@ -3,7 +3,6 @@
 Tests for ORDER BY clause support in Rust query builder.
 """
 
-import pytest
 from psycopg.sql import SQL, Composed
 
 from fraiseql.sql.query_builder_adapter import build_sql_query
@@ -12,7 +11,7 @@ from fraiseql.sql.query_builder_adapter import build_sql_query
 class TestOrderBySupport:
     """Test ORDER BY support in Rust query builder."""
 
-    def test_simple_order_by_asc(self):
+    def test_simple_order_by_asc(self) -> None:
         """Test simple ORDER BY with ASC direction."""
         result = build_sql_query(
             table="v_users",
@@ -28,7 +27,7 @@ class TestOrderBySupport:
         assert "created_at" in sql_text
         assert "ASC" in sql_text
 
-    def test_simple_order_by_desc(self):
+    def test_simple_order_by_desc(self) -> None:
         """Test simple ORDER BY with DESC direction."""
         result = build_sql_query(
             table="v_users",
@@ -43,7 +42,7 @@ class TestOrderBySupport:
         assert "created_at" in sql_text
         assert "DESC" in sql_text
 
-    def test_multiple_order_by_columns(self):
+    def test_multiple_order_by_columns(self) -> None:
         """Test ORDER BY with multiple columns."""
         result = build_sql_query(
             table="v_users",
@@ -61,7 +60,7 @@ class TestOrderBySupport:
         assert "ASC" in sql_text
         assert "DESC" in sql_text
 
-    def test_three_column_order_by(self):
+    def test_three_column_order_by(self) -> None:
         """Test ORDER BY with three columns."""
         result = build_sql_query(
             table="v_users",
@@ -77,7 +76,7 @@ class TestOrderBySupport:
         assert "priority" in sql_text
         assert "created_at" in sql_text
 
-    def test_no_order_by(self):
+    def test_no_order_by(self) -> None:
         """Test query without ORDER BY."""
         result = build_sql_query(
             table="v_users",
@@ -92,7 +91,7 @@ class TestOrderBySupport:
         assert "SELECT" in sql_text
         assert "v_users" in sql_text
 
-    def test_order_by_with_where_clause(self):
+    def test_order_by_with_where_clause(self) -> None:
         """Test ORDER BY combined with WHERE clause."""
         where = SQL("WHERE ") + SQL("status = 'active'")
         result = build_sql_query(
@@ -110,7 +109,7 @@ class TestOrderBySupport:
         assert "created_at" in sql_text
         assert "DESC" in sql_text
 
-    def test_order_by_case_insensitive(self):
+    def test_order_by_case_insensitive(self) -> None:
         """Test ORDER BY direction is case-insensitive."""
         # Test lowercase
         result1 = build_sql_query(
@@ -134,7 +133,7 @@ class TestOrderBySupport:
         assert "ASC" in sql1 or "asc" in sql1
         assert "ASC" in sql2 or "asc" in sql2
 
-    def test_order_by_invalid_direction_defaults_to_asc(self):
+    def test_order_by_invalid_direction_defaults_to_asc(self) -> None:
         """Test ORDER BY with invalid direction (Rust defaults to ASC, Python passes through).
 
         Note: Python query builder passes through the direction as-is,
@@ -153,9 +152,9 @@ class TestOrderBySupport:
         assert "ORDER BY" in sql_text
         assert "created_at" in sql_text
         # Either Rust (ASC) or Python (INVALID) behavior is acceptable
-        assert ("ASC" in sql_text or "INVALID" in sql_text)
+        assert "ASC" in sql_text or "INVALID" in sql_text
 
-    def test_order_by_with_different_table(self):
+    def test_order_by_with_different_table(self) -> None:
         """Test ORDER BY works with different table names."""
         result = build_sql_query(
             table="v_products",
@@ -175,7 +174,7 @@ class TestOrderBySupport:
 class TestOrderByEdgeCases:
     """Test edge cases for ORDER BY support."""
 
-    def test_empty_order_by_list(self):
+    def test_empty_order_by_list(self) -> None:
         """Test empty ORDER BY list."""
         result = build_sql_query(
             table="v_users",
@@ -189,7 +188,7 @@ class TestOrderByEdgeCases:
         assert "SELECT" in sql_text
         assert "v_users" in sql_text
 
-    def test_order_by_with_special_characters_in_field_name(self):
+    def test_order_by_with_special_characters_in_field_name(self) -> None:
         """Test ORDER BY with field names containing special characters."""
         result = build_sql_query(
             table="v_users",
@@ -203,7 +202,7 @@ class TestOrderByEdgeCases:
         assert "ORDER BY" in sql_text
         assert "created_at_timestamp" in sql_text
 
-    def test_order_by_with_json_output(self):
+    def test_order_by_with_json_output(self) -> None:
         """Test ORDER BY combined with json_output flag."""
         result = build_sql_query(
             table="v_users",
@@ -217,7 +216,7 @@ class TestOrderByEdgeCases:
         assert "ORDER BY" in sql_text
         assert "created_at" in sql_text
 
-    def test_order_by_preserves_order(self):
+    def test_order_by_preserves_order(self) -> None:
         """Test ORDER BY preserves the order of columns."""
         result = build_sql_query(
             table="v_users",
@@ -240,7 +239,7 @@ class TestOrderByEdgeCases:
 class TestBackwardCompatibilityOrderBy:
     """Test backward compatibility for ORDER BY."""
 
-    def test_existing_queries_without_order_by_still_work(self):
+    def test_existing_queries_without_order_by_still_work(self) -> None:
         """Test that existing queries without ORDER BY still work."""
         result = build_sql_query(
             table="v_users",
@@ -254,7 +253,7 @@ class TestBackwardCompatibilityOrderBy:
         assert "SELECT" in sql_text
         assert "v_users" in sql_text
 
-    def test_mixed_parameters_work_together(self):
+    def test_mixed_parameters_work_together(self) -> None:
         """Test all parameters work together."""
         where = SQL("WHERE ") + SQL("status = 'active'")
         result = build_sql_query(

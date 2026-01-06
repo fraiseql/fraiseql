@@ -19,7 +19,7 @@ from fraiseql.fastapi import create_fraiseql_app
 class TestMultiFieldHTTP:
     """Test that multiple root query fields work via HTTP endpoint."""
 
-    async def test_two_fields_via_http(self, clear_registry):
+    async def test_two_fields_via_http(self, clear_registry) -> None:
         """Query with TWO root fields via HTTP should return BOTH fields."""
 
         @fraiseql.type(sql_source="users")
@@ -77,7 +77,7 @@ class TestMultiFieldHTTP:
             assert len(result["data"]["getPosts"]) == 2
             assert result["data"]["getPosts"][0]["id"] == 101
 
-    async def test_three_fields_via_http(self, clear_registry):
+    async def test_three_fields_via_http(self, clear_registry) -> None:
         """Query with THREE root fields via HTTP should return ALL three."""
 
         @fraiseql.type(sql_source="users")
@@ -134,7 +134,7 @@ class TestMultiFieldHTTP:
             assert len(result["data"]["getPosts"]) == 1
             assert len(result["data"]["getComments"]) == 1
 
-    async def test_five_fields_via_http_printoptim_scenario(self, clear_registry):
+    async def test_five_fields_via_http_printoptim_scenario(self, clear_registry) -> None:
         """Query with FIVE root fields (PrintOptim Issue #259 scenario)."""
 
         @fraiseql.type(sql_source="dns_servers")
@@ -217,7 +217,7 @@ class TestMultiFieldHTTP:
             assert result["data"]["gateways"][0]["ipAddress"] == "192.168.1.1"
             assert result["data"]["routers"][0]["hostname"] == "router-01"
 
-    async def test_single_field_via_http_still_works(self, clear_registry):
+    async def test_single_field_via_http_still_works(self, clear_registry) -> None:
         """Single field queries via HTTP should still work (regression protection)."""
 
         @fraiseql.type(sql_source="users")

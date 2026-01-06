@@ -224,9 +224,9 @@ class TestCompleteSQLValidation:
             print(f"  Generated SQL: {sql}")
 
             # Validate structure elements exist
-            if value_type == int:
+            if value_type is int:
                 assert "::integer" in sql, f"Missing integer casting for int list in: {sql}"
-            elif value_type == bool:
+            elif value_type is bool:
                 assert "::boolean" not in sql, (
                     f"Should not use boolean casting for bool list in: {sql}"
                 )
@@ -273,7 +273,7 @@ class TestCompleteSQLValidation:
 
             # 4. Proper operator spacing
             if " = " in sql:
-                assert " =  " not in sql and "=  " not in sql, (
+                assert " =  " not in sql and "=  " not in sql, (  # noqa: PT018
                     f"Improper operator spacing in: {sql}"
                 )
 

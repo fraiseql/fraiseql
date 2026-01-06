@@ -1,20 +1,17 @@
-"""
-Phase 3.2: Authentication Chaos Tests
+"""Phase 3.2: Authentication Chaos Tests
 
 Tests for authentication and authorization failures.
 Validates FraiseQL's security resilience under adverse auth conditions.
 """
 
-import pytest
-import time
 import random
 import statistics
+import time
+
 import jwt
-from datetime import datetime, timedelta
+import pytest
 from chaos.base import ChaosTestCase
-from chaos.fixtures import ToxiproxyManager
-from chaos.plugin import chaos_inject, FailureType
-from chaos.fraiseql_scenarios import MockFraiseQLClient, FraiseQLTestScenarios
+from chaos.fraiseql_scenarios import FraiseQLTestScenarios, MockFraiseQLClient
 
 
 class TestAuthenticationChaos(ChaosTestCase):
@@ -22,9 +19,8 @@ class TestAuthenticationChaos(ChaosTestCase):
 
     @pytest.mark.chaos
     @pytest.mark.chaos_auth
-    def test_jwt_expiration_during_request(self):
-        """
-        Test JWT token expiration during active request processing.
+    def test_jwt_expiration_during_request(self) -> None:
+        """Test JWT token expiration during active request processing.
 
         HYPOTHESIS: System should maintain 70%+ success rate with 15% token expirations
         VALIDATION: token_expirations > 0 AND success_rate >= 0.7
@@ -73,16 +69,15 @@ class TestAuthenticationChaos(ChaosTestCase):
                 # Deterministic failure injection - repeatable every run
                 if i in expiration_iterations:
                     raise jwt.ExpiredSignatureError("Token expired during request processing")
-                elif i in other_failure_iterations:
-                    raise Exception("JWT validation failed")
-                else:
-                    # Successful authentication
-                    auth_successes += 1
+                if i in other_failure_iterations:
+                    raise Exception("JWT validation failed")  # noqa: TRY002
+                # Successful authentication
+                auth_successes += 1
 
-                    # Process the request
-                    result = client.execute_query(operation)
-                    execution_time = result.get("_execution_time_ms", 15.0)
-                    self.metrics.record_query_time(execution_time)
+                # Process the request
+                result = client.execute_query(operation)
+                execution_time = result.get("_execution_time_ms", 15.0)
+                self.metrics.record_query_time(execution_time)
 
             except jwt.ExpiredSignatureError:
                 token_expirations += 1
@@ -108,9 +103,8 @@ class TestAuthenticationChaos(ChaosTestCase):
 
     @pytest.mark.chaos
     @pytest.mark.chaos_auth
-    def test_rbac_policy_failure(self):
-        """
-        Test RBAC policy evaluation failures.
+    def test_rbac_policy_failure(self) -> None:
+        """Test RBAC policy evaluation failures.
 
         Scenario: Authorization policy evaluation fails unexpectedly.
         Expected: FraiseQL handles RBAC failures securely (fail-closed).
@@ -153,9 +147,9 @@ class TestAuthenticationChaos(ChaosTestCase):
             try:
                 # Deterministic failure injection - repeatable every run
                 if i in policy_failure_iterations:
-                    raise Exception("RBAC policy evaluation failed")
-                elif i in denial_iterations:
-                    raise Exception("Access denied by RBAC policy")
+                    raise Exception("RBAC policy evaluation failed")  # noqa: TRY002
+                if i in denial_iterations:
+                    raise Exception("Access denied by RBAC policy")  # noqa: TRY002
 
                 # Policy check passed - proceed with operation
                 policy_successes += 1
@@ -191,9 +185,8 @@ class TestAuthenticationChaos(ChaosTestCase):
 
     @pytest.mark.chaos
     @pytest.mark.chaos_auth
-    def test_authentication_service_outage(self):
-        """
-        Test authentication service unavailability.
+    def test_authentication_service_outage(self) -> None:
+        """Test authentication service unavailability.
 
         Scenario: Authentication service becomes temporarily unavailable.
         Expected: FraiseQL handles auth service outages gracefully.
@@ -252,11 +245,10 @@ class TestAuthenticationChaos(ChaosTestCase):
                 if auth_service_available:
                     # Normal authentication - deterministic failures
                     if i in auth_failure_iterations:
-                        raise Exception("Authentication failed")
-                    else:
-                        result = client.execute_query(operation)
-                        execution_time = result.get("_execution_time_ms", 15.0)
-                        self.metrics.record_query_time(execution_time)
+                        raise Exception("Authentication failed")  # noqa: TRY002
+                    result = client.execute_query(operation)
+                    execution_time = result.get("_execution_time_ms", 15.0)
+                    self.metrics.record_query_time(execution_time)
                 else:
                     # Auth service unavailable - should handle gracefully
                     degraded_operations += 1
@@ -270,7 +262,7 @@ class TestAuthenticationChaos(ChaosTestCase):
                         )  # Slower due to auth issues
                         self.metrics.record_query_time(execution_time)
                     else:
-                        raise Exception("Authentication service unavailable")
+                        raise Exception("Authentication service unavailable")  # noqa: TRY002
 
                     # Deterministic service recovery (after 4 operations in outage)
                     if operations_in_outage >= 4:
@@ -303,9 +295,8 @@ class TestAuthenticationChaos(ChaosTestCase):
 
     @pytest.mark.chaos
     @pytest.mark.chaos_auth
-    def test_concurrent_authentication_load(self):
-        """
-        Test authentication under concurrent load.
+    def test_concurrent_authentication_load(self) -> None:
+        """Test authentication under concurrent load.
 
         Scenario: Multiple concurrent requests require authentication.
         Expected: FraiseQL handles concurrent auth load without degradation.
@@ -319,8 +310,8 @@ class TestAuthenticationChaos(ChaosTestCase):
         Configuration:
             Uses self.chaos_config (auto-injected by conftest.py fixture)
         """
-        import threading
         import queue
+        import threading
 
         client = MockFraiseQLClient()
         operation = FraiseQLTestScenarios.simple_user_query()
@@ -376,7 +367,7 @@ class TestAuthenticationChaos(ChaosTestCase):
         execution_times = []
 
         while not results_queue.empty():
-            result_type, thread_id, data = results_queue.get()
+            result_type, _thread_id, data = results_queue.get()
             if result_type == "success":
                 successes += 1
                 execution_times.append(data)
@@ -405,9 +396,8 @@ class TestAuthenticationChaos(ChaosTestCase):
 
     @pytest.mark.chaos
     @pytest.mark.chaos_auth
-    def test_jwt_signature_validation_failure(self):
-        """
-        Test JWT signature validation failures.
+    def test_jwt_signature_validation_failure(self) -> None:
+        """Test JWT signature validation failures.
 
         Scenario: JWT tokens have invalid signatures or are tampered with.
         Expected: FraiseQL rejects invalid tokens securely.
@@ -435,10 +425,10 @@ class TestAuthenticationChaos(ChaosTestCase):
         # Uses multiplier-based formula to ensure meaningful test on all hardware
         iterations = max(5, int(10 * self.chaos_config.load_multiplier))
 
-        for i in range(iterations):
+        for _i in range(iterations):
             try:
                 # Simulate token validation
-                token_type = random.random()
+                token_type = random.random()  # noqa: S311
                 if token_type < 0.7:  # 70% valid tokens
                     valid_tokens += 1
                     result = client.execute_query(operation)
@@ -447,7 +437,7 @@ class TestAuthenticationChaos(ChaosTestCase):
                 elif token_type < 0.85:  # 15% invalid signatures
                     raise jwt.InvalidSignatureError("Invalid JWT signature")
                 else:  # 15% tampered tokens
-                    raise Exception("JWT token appears to be tampered with")
+                    raise Exception("JWT token appears to be tampered with")  # noqa: TRY002
 
             except jwt.InvalidSignatureError:
                 invalid_signatures += 1
@@ -476,9 +466,8 @@ class TestAuthenticationChaos(ChaosTestCase):
 
     @pytest.mark.chaos
     @pytest.mark.chaos_auth
-    def test_role_based_access_control_failure(self):
-        """
-        Test comprehensive RBAC failure scenarios.
+    def test_role_based_access_control_failure(self) -> None:
+        """Test comprehensive RBAC failure scenarios.
 
         Scenario: Various RBAC policy failures and edge cases.
         Expected: FraiseQL maintains security posture under RBAC chaos.
@@ -536,17 +525,16 @@ class TestAuthenticationChaos(ChaosTestCase):
 
                 # Deterministic RBAC evaluation - repeatable every run
                 if i in permission_iterations:
-                    raise Exception("RBAC permission denied")
-                elif i in role_error_iterations:
-                    raise Exception("RBAC role evaluation failed")
-                elif i in other_error_iterations:
-                    raise Exception("RBAC policy evaluation error")
-                else:
-                    # Successful authorization
-                    rbac_successes += 1
-                    result = client.execute_query(operation)
-                    execution_time = result.get("_execution_time_ms", 20.0)
-                    self.metrics.record_query_time(execution_time)
+                    raise Exception("RBAC permission denied")  # noqa: TRY002
+                if i in role_error_iterations:
+                    raise Exception("RBAC role evaluation failed")  # noqa: TRY002
+                if i in other_error_iterations:
+                    raise Exception("RBAC policy evaluation error")  # noqa: TRY002
+                # Successful authorization
+                rbac_successes += 1
+                result = client.execute_query(operation)
+                execution_time = result.get("_execution_time_ms", 20.0)
+                self.metrics.record_query_time(execution_time)
 
             except Exception as e:
                 rbac_failures += 1

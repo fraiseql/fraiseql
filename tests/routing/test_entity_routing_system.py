@@ -16,7 +16,7 @@ class TestEntityRoutingSystem:
     """Test the complete entity routing system."""
 
     @pytest.fixture
-    def test_schema(self):
+    def test_schema(self) -> None:
         """Create a test GraphQL schema."""
         schema_def = """
             type Query {
@@ -57,7 +57,7 @@ class TestEntityRoutingSystem:
         return build_schema(schema_def)
 
     @pytest.fixture
-    def routing_config(self):
+    def routing_config(self) -> None:
         """Create entity routing configuration."""
         return EntityRoutingConfig(
             turbo_entities=["allocation", "contract", "machine"],
@@ -67,7 +67,7 @@ class TestEntityRoutingSystem:
         )
 
     @pytest.fixture
-    def fraiseql_config_with_routing(self, routing_config):
+    def fraiseql_config_with_routing(self, routing_config) -> None:
         """Create FraiseQLConfig with entity routing."""
         return FraiseQLConfig(
             database_url="postgresql://user:pass@localhost/test",
@@ -258,7 +258,7 @@ class TestEntityRoutingSystem:
         assert "dns_server" in metrics["normal_entities"]
 
     @pytest.mark.parametrize(
-        "turbo_entities,normal_entities,expected_error",
+        ("turbo_entities", "normal_entities", "expected_error"),
         [
             ([], [], None),  # Empty lists should be valid
             (["valid_entity"], [], None),  # Single entity in turbo

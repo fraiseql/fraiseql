@@ -20,7 +20,7 @@ from fraiseql.sql.graphql_where_generator import create_graphql_where_input
 from fraiseql.types.scalars import CIDRScalar, ColorScalar, CUSIPScalar
 
 
-def test_custom_scalar_filter_is_generated():
+def test_custom_scalar_filter_is_generated() -> None:
     """Filter generator should create ScalarNameFilter for custom scalars."""
 
     @fraise_type
@@ -52,7 +52,7 @@ def test_custom_scalar_filter_is_generated():
     assert ip_filter_type.__name__ == "NetworkAddressFilter"
 
 
-def test_custom_scalar_filter_has_standard_operators():
+def test_custom_scalar_filter_has_standard_operators() -> None:
     """Custom scalar filters should have eq, ne, in, notIn, etc."""
 
     @fraise_type
@@ -72,7 +72,7 @@ def test_custom_scalar_filter_has_standard_operators():
     assert cusip_filter_type.__name__ == "CUSIPFilter"
 
 
-def test_custom_scalar_filter_uses_scalar_type():
+def test_custom_scalar_filter_uses_scalar_type() -> None:
     """Filter operators should use the scalar type, not String."""
 
     @fraise_type
@@ -92,7 +92,7 @@ def test_custom_scalar_filter_uses_scalar_type():
     assert color_filter_type.__name__ == "ColorFilter"
 
 
-def test_filter_type_is_cached():
+def test_filter_type_is_cached() -> None:
     """Same scalar type should reuse the same filter type instance."""
 
     @fraise_type
@@ -130,7 +130,7 @@ def test_filter_type_is_cached():
     assert cusip_filter_a1 is cusip_filter_b
 
 
-def test_nullable_custom_scalar_filter():
+def test_nullable_custom_scalar_filter() -> None:
     """Nullable scalar fields should still get proper filters."""
     from typing import Optional
 
@@ -155,7 +155,7 @@ def test_nullable_custom_scalar_filter():
     assert cusip_filter_type.__name__ == "CUSIPFilter"
 
 
-def test_list_of_custom_scalars():
+def test_list_of_custom_scalars() -> None:
     """List fields with custom scalars should work."""
 
     @fraise_type
@@ -178,7 +178,7 @@ def test_list_of_custom_scalars():
     assert tags_filter_type.__name__ == "ArrayFilter"
 
 
-def test_mixed_field_types():
+def test_mixed_field_types() -> None:
     """Type with both custom scalars and regular fields."""
 
     @fraise_type
@@ -206,7 +206,7 @@ def test_mixed_field_types():
     assert get_filter_name("ip_address") == "NetworkAddressFilter"
 
 
-def test_built_in_scalar_types_unchanged():
+def test_built_in_scalar_types_unchanged() -> None:
     """Built-in scalars (UUID, DateTime) should still work."""
     import uuid
     from datetime import datetime

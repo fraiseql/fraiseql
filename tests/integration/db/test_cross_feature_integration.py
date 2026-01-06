@@ -1,5 +1,4 @@
-"""
-Integration tests for Phase 2.10: Cross-Feature Integration.
+"""Integration tests for Phase 2.10: Cross-Feature Integration.
 
 Tests interactions between multiple Phase 2 features:
 - Transactions + Streaming (chunked queries in transactions)
@@ -11,6 +10,7 @@ Uses testcontainers for automatic PostgreSQL provisioning.
 """
 
 import asyncio
+
 import pytest
 import pytest_asyncio
 
@@ -19,7 +19,7 @@ pytest_plugins = ["tests.fixtures.database.database_conftest"]
 
 
 @pytest_asyncio.fixture
-async def pool(postgres_url):
+async def pool(postgres_url) -> None:
     """Create database pool for testing using testcontainers PostgreSQL."""
     from fraiseql._fraiseql_rs import DatabasePool
 
@@ -44,7 +44,7 @@ async def pool(postgres_url):
 class TestTransactionWithStreaming:
     """Test transactions combined with streaming queries."""
 
-    async def test_chunked_query_in_transaction(self, pool):
+    async def test_chunked_query_in_transaction(self, pool) -> None:
         """Test that chunked queries work inside a transaction."""
         import json
 
@@ -77,7 +77,7 @@ class TestTransactionWithStreaming:
             await pool.rollback_transaction()
             raise
 
-    async def test_transaction_with_chunked_inserts(self, pool):
+    async def test_transaction_with_chunked_inserts(self, pool) -> None:
         """Test inserting data in chunks within a transaction."""
         import json
 
@@ -108,7 +108,7 @@ class TestTransactionWithStreaming:
             await pool.rollback_transaction()
             raise
 
-    async def test_rollback_doesnt_affect_streaming(self, pool):
+    async def test_rollback_doesnt_affect_streaming(self, pool) -> None:
         """Test that transaction rollback doesn't break streaming."""
         import json
 
@@ -135,7 +135,7 @@ class TestTransactionWithStreaming:
 class TestTransactionWithMetrics:
     """Test transactions with metrics tracking."""
 
-    async def test_transaction_queries_tracked(self, pool):
+    async def test_transaction_queries_tracked(self, pool) -> None:
         """Test that queries in transactions are tracked by metrics."""
         initial_metrics = pool.metrics()
         initial_count = initial_metrics["queries_executed"]
@@ -151,7 +151,7 @@ class TestTransactionWithMetrics:
         # 3 queries: BEGIN, SELECT 1, SELECT 2, COMMIT = 4 queries
         assert final_metrics["queries_executed"] >= initial_count + 4
 
-    async def test_transaction_errors_tracked(self, pool):
+    async def test_transaction_errors_tracked(self, pool) -> None:
         """Test that transaction errors are tracked by metrics."""
         initial_metrics = pool.metrics()
         initial_errors = initial_metrics["query_errors"]
@@ -160,7 +160,8 @@ class TestTransactionWithMetrics:
         await pool.begin_transaction()
         try:
             await pool.execute_query("INVALID SQL")
-        except:
+        except Exception:
+
             pass
         await pool.rollback_transaction()
 
@@ -168,7 +169,7 @@ class TestTransactionWithMetrics:
         final_metrics = pool.metrics()
         assert final_metrics["query_errors"] > initial_errors
 
-    async def test_rollback_tracked(self, pool):
+    async def test_rollback_tracked(self, pool) -> None:
         """Test that rollback queries are tracked."""
         initial_metrics = pool.metrics()
         initial_count = initial_metrics["queries_executed"]
@@ -185,7 +186,7 @@ class TestTransactionWithMetrics:
 class TestStreamingWithMetrics:
     """Test streaming queries with metrics tracking."""
 
-    async def test_chunked_queries_tracked(self, pool):
+    async def test_chunked_queries_tracked(self, pool) -> None:
         """Test that chunked queries are tracked by metrics."""
         import json
 
@@ -207,7 +208,7 @@ class TestStreamingWithMetrics:
         # Should have executed 5 chunked queries
         assert final_metrics["queries_executed"] >= initial_count + 5
 
-    async def test_concurrent_streaming_with_metrics(self, pool):
+    async def test_concurrent_streaming_with_metrics(self, pool) -> None:
         """Test metrics with concurrent streaming operations."""
         import json
 
@@ -236,7 +237,7 @@ class TestStreamingWithMetrics:
 class TestAllFeaturesTogether:
     """Test all Phase 2 features working together."""
 
-    async def test_transaction_streaming_metrics_integration(self, pool):
+    async def test_transaction_streaming_metrics_integration(self, pool) -> None:
         """Test transactions + streaming + metrics all working together."""
         import json
 
@@ -286,11 +287,11 @@ class TestAllFeaturesTogether:
             await pool.rollback_transaction()
             raise
 
-    async def test_concurrent_transactions_with_streaming_and_metrics(self, pool):
+    async def test_concurrent_transactions_with_streaming_and_metrics(self, pool) -> None:
         """Test concurrent transactions with streaming queries and metric tracking."""
         import json
 
-        async def transaction_with_streaming(tx_id: int):
+        async def transaction_with_streaming(tx_id: int) -> None:
             """Run a transaction that uses streaming and is tracked by metrics."""
             await pool.begin_transaction()
 
@@ -341,13 +342,13 @@ class TestAllFeaturesTogether:
 class TestErrorHandlingAcrossFeatures:
     """Test error handling when combining features."""
 
-    async def test_streaming_error_in_transaction(self, pool):
+    async def test_streaming_error_in_transaction(self, pool) -> None:
         """Test that streaming errors in transactions are handled correctly."""
         await pool.begin_transaction()
 
         try:
             # This should fail (invalid SQL)
-            with pytest.raises(Exception):
+            with pytest.raises(Exception):  # noqa: B017
                 await pool.execute_query_chunked(
                     "SELECT * FROM nonexistent_table", limit=10, offset=0
                 )
@@ -359,7 +360,7 @@ class TestErrorHandlingAcrossFeatures:
             await pool.rollback_transaction()
             raise
 
-    async def test_metrics_after_transaction_errors(self, pool):
+    async def test_metrics_after_transaction_errors(self, pool) -> None:
         """Test that metrics correctly track errors in transactions."""
         initial_metrics = pool.metrics()
         initial_errors = initial_metrics["query_errors"]
@@ -370,13 +371,15 @@ class TestErrorHandlingAcrossFeatures:
         # Error 1
         try:
             await pool.execute_query("INVALID SQL 1")
-        except:
+        except Exception:
+
             pass
 
         # Error 2
         try:
             await pool.execute_query("INVALID SQL 2")
-        except:
+        except Exception:
+
             pass
 
         await pool.rollback_transaction()

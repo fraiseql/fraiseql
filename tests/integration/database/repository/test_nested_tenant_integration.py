@@ -250,7 +250,7 @@ async def test_nested_organization_without_tenant_id() -> None:
         from fraiseql.cqrs.repository import CQRSRepository
 
         class TestRepository(CQRSRepository):
-            async def find_one(self, table: str, **kwargs) -> None:
+            async def find_one(self, table: str, **kwargs) -> None:  # noqa: ANN003
                 """Find one record from a table/view."""
                 where_conditions = []
                 params = []
@@ -427,7 +427,7 @@ async def test_comparison_with_and_without_embedded() -> None:
         from fraiseql.cqrs.repository import CQRSRepository
 
         class TestRepository(CQRSRepository):
-            async def find_one(self, table: str, **kwargs) -> None:
+            async def find_one(self, table: str, **kwargs) -> None:  # noqa: ANN003
                 """Find one record from a table/view."""
                 where_conditions = []
                 params = []

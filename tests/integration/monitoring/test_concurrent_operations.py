@@ -4,17 +4,22 @@ from __future__ import annotations
 
 import asyncio
 import time
+from typing import TYPE_CHECKING
 
 import pytest
 
 from fraiseql.monitoring.runtime.db_monitor_sync import get_database_monitor_sync
-from fraiseql.monitoring.db_monitor import QueryMetrics
+
+if TYPE_CHECKING:
+    from fraiseql.monitoring.db_monitor import QueryMetrics
 
 
 class TestConcurrentQueryOperations:
     """Tests for concurrent query monitoring."""
 
-    def test_multiple_simultaneous_queries(self, monitoring_enabled, sample_query_metrics, make_query_metric):
+    def test_multiple_simultaneous_queries(
+        self, monitoring_enabled, sample_query_metrics, make_query_metric
+    ) -> None:
         """Test metrics consistency with multiple simultaneous queries."""
         monitor = monitoring_enabled
 
@@ -41,7 +46,7 @@ class TestConcurrentQueryOperations:
 
         assert len(recent) == len(sample_query_metrics)
 
-    def test_concurrent_metrics_consistency(self, monitoring_enabled, make_query_metric):
+    def test_concurrent_metrics_consistency(self, monitoring_enabled, make_query_metric) -> None:
         """Test that metrics remain consistent under concurrent access."""
         monitor = monitoring_enabled
 
@@ -75,7 +80,7 @@ class TestConcurrentQueryOperations:
 
         assert len(recent) == query_count
 
-    def test_no_data_races_under_load(self, monitoring_enabled, make_query_metric):
+    def test_no_data_races_under_load(self, monitoring_enabled, make_query_metric) -> None:
         """Test no data races occur under concurrent load."""
         monitor = monitoring_enabled
 
@@ -111,7 +116,7 @@ class TestConcurrentQueryOperations:
 class TestHealthCheckUnderLoad:
     """Tests for health checks during concurrent operations."""
 
-    def test_health_check_during_queries(self, monitoring_enabled, sample_query_metrics):
+    def test_health_check_during_queries(self, monitoring_enabled, sample_query_metrics) -> None:
         """Test health check works correctly while queries are being recorded."""
         monitor = monitoring_enabled
 
@@ -124,10 +129,11 @@ class TestHealthCheckUnderLoad:
         import threading
 
         def add_more_queries():
-            from fraiseql.monitoring.db_monitor import QueryMetrics
             import hashlib
             import uuid
             from datetime import datetime
+
+            from fraiseql.monitoring.db_monitor import QueryMetrics
 
             for i in range(5):
                 sql = f"SELECT {i}"
@@ -135,7 +141,7 @@ class TestHealthCheckUnderLoad:
                     query_id=str(uuid.uuid4()),
                     query_hash=hashlib.sha256(sql.encode()).hexdigest(),
                     query_type="SELECT",
-                    timestamp=datetime.now(),
+                    timestamp=datetime.now(),  # noqa: DTZ005
                     duration_ms=3.0,
                     rows_affected=1,
                 )
@@ -156,7 +162,9 @@ class TestHealthCheckUnderLoad:
         assert stats is not None
         assert stats.total_count > 0
 
-    def test_health_response_time_under_load(self, monitoring_enabled, sample_query_metrics):
+    def test_health_response_time_under_load(
+        self, monitoring_enabled, sample_query_metrics
+    ) -> None:
         """Test health check responds quickly even under load."""
         monitor = monitoring_enabled
 
@@ -166,11 +174,12 @@ class TestHealthCheckUnderLoad:
                 monitor._recent_queries.append(metric)
 
         # Simulate continuous queries
-        import threading
-        from fraiseql.monitoring.db_monitor import QueryMetrics
         import hashlib
+        import threading
         import uuid
         from datetime import datetime
+
+        from fraiseql.monitoring.db_monitor import QueryMetrics
 
         stop_event = threading.Event()
 
@@ -182,7 +191,7 @@ class TestHealthCheckUnderLoad:
                     query_id=str(uuid.uuid4()),
                     query_hash=hashlib.sha256(sql.encode()).hexdigest(),
                     query_type="SELECT",
-                    timestamp=datetime.now(),
+                    timestamp=datetime.now(),  # noqa: DTZ005
                     duration_ms=5.0,
                     rows_affected=1,
                 )
@@ -211,7 +220,7 @@ class TestHealthCheckUnderLoad:
 class TestCacheImpactUnderLoad:
     """Tests for cache behavior under load."""
 
-    def test_cache_hit_rate_with_repeated_operations(self, cache_monitor_fixture):
+    def test_cache_hit_rate_with_repeated_operations(self, cache_monitor_fixture) -> None:
         """Test cache hit rate tracking under repeated operations."""
         cache = cache_monitor_fixture
 
@@ -220,13 +229,13 @@ class TestCacheImpactUnderLoad:
 
         # Simulate cache operations
         # In real scenario, this would come from actual cache hits/misses
-        initial_hits = metrics_before.get("hits", 0)
-        initial_misses = metrics_before.get("misses", 0)
+        metrics_before.get("hits", 0)
+        metrics_before.get("misses", 0)
 
         # The cache monitor should track these correctly
         assert "hit_rate" in metrics_before
 
-    def test_cache_health_stability(self, cache_monitor_fixture):
+    def test_cache_health_stability(self, cache_monitor_fixture) -> None:
         """Test cache health status remains stable."""
         cache = cache_monitor_fixture
 
@@ -242,24 +251,27 @@ class TestCacheImpactUnderLoad:
 class TestConnectionPoolUnderLoad:
     """Tests for PostgreSQL connection pool behavior."""
 
-    def test_pool_utilization_tracking(self, monitoring_enabled, db_monitor_sync):
+    def test_pool_utilization_tracking(self, monitoring_enabled, db_monitor_sync) -> None:
         """Test connection pool utilization is tracked correctly."""
-        from fraiseql.monitoring.db_monitor import PoolMetrics
         from datetime import datetime
+
+        from fraiseql.monitoring.db_monitor import PoolMetrics
 
         monitor = monitoring_enabled
 
         # Set pool metrics for high utilization (use _pool_states deque)
         with monitor._lock:
-            monitor._pool_states.append(PoolMetrics(
-                timestamp=datetime.now(),
-                total_connections=20,
-                active_connections=18,
-                idle_connections=2,
-                waiting_requests=5,
-                avg_wait_time_ms=15.0,
-                max_wait_time_ms=50.0,
-            ))
+            monitor._pool_states.append(
+                PoolMetrics(
+                    timestamp=datetime.now(),  # noqa: DTZ005
+                    total_connections=20,
+                    active_connections=18,
+                    idle_connections=2,
+                    waiting_requests=5,
+                    avg_wait_time_ms=15.0,
+                    max_wait_time_ms=50.0,
+                )
+            )
 
         pool = db_monitor_sync.get_pool_metrics()
 
@@ -267,55 +279,62 @@ class TestConnectionPoolUnderLoad:
         assert pool.get_utilization_percent() == 90.0
         assert pool.waiting_requests == 5
 
-    def test_pool_stress_recovery(self, monitoring_enabled, db_monitor_sync):
+    def test_pool_stress_recovery(self, monitoring_enabled, db_monitor_sync) -> None:
         """Test pool metrics during stress and recovery."""
-        from fraiseql.monitoring.db_monitor import PoolMetrics
         from datetime import datetime
 
+        from fraiseql.monitoring.db_monitor import PoolMetrics
+
         monitor = monitoring_enabled
-        now = datetime.now()
+        now = datetime.now()  # noqa: DTZ005
 
         # Start with normal load (use _pool_states deque)
         with monitor._lock:
-            monitor._pool_states.append(PoolMetrics(
-                timestamp=now,
-                total_connections=20,
-                active_connections=10,
-                idle_connections=10,
-                waiting_requests=0,
-                avg_wait_time_ms=1.0,
-                max_wait_time_ms=5.0,
-            ))
+            monitor._pool_states.append(
+                PoolMetrics(
+                    timestamp=now,
+                    total_connections=20,
+                    active_connections=10,
+                    idle_connections=10,
+                    waiting_requests=0,
+                    avg_wait_time_ms=1.0,
+                    max_wait_time_ms=5.0,
+                )
+            )
 
         normal = db_monitor_sync.get_pool_metrics()
         assert normal.get_utilization_percent() == 50.0
 
         # Stress the pool
         with monitor._lock:
-            monitor._pool_states.append(PoolMetrics(
-                timestamp=now,
-                total_connections=20,
-                active_connections=19,
-                idle_connections=1,
-                waiting_requests=10,
-                avg_wait_time_ms=50.0,
-                max_wait_time_ms=150.0,
-            ))
+            monitor._pool_states.append(
+                PoolMetrics(
+                    timestamp=now,
+                    total_connections=20,
+                    active_connections=19,
+                    idle_connections=1,
+                    waiting_requests=10,
+                    avg_wait_time_ms=50.0,
+                    max_wait_time_ms=150.0,
+                )
+            )
 
         stressed = db_monitor_sync.get_pool_metrics()
         assert stressed.get_utilization_percent() == 95.0
 
         # Recovery
         with monitor._lock:
-            monitor._pool_states.append(PoolMetrics(
-                timestamp=now,
-                total_connections=20,
-                active_connections=8,
-                idle_connections=12,
-                waiting_requests=0,
-                avg_wait_time_ms=1.5,
-                max_wait_time_ms=8.0,
-            ))
+            monitor._pool_states.append(
+                PoolMetrics(
+                    timestamp=now,
+                    total_connections=20,
+                    active_connections=8,
+                    idle_connections=12,
+                    waiting_requests=0,
+                    avg_wait_time_ms=1.5,
+                    max_wait_time_ms=8.0,
+                )
+            )
 
         recovered = db_monitor_sync.get_pool_metrics()
         assert recovered.get_utilization_percent() == 40.0
@@ -324,7 +343,7 @@ class TestConnectionPoolUnderLoad:
 class TestMetricsAggregationUnderLoad:
     """Tests for statistics aggregation under concurrent load."""
 
-    def test_statistics_accuracy_under_load(self, monitoring_enabled, make_query_metric):
+    def test_statistics_accuracy_under_load(self, monitoring_enabled, make_query_metric) -> None:
         """Test statistics remain accurate under load."""
         monitor = monitoring_enabled
 
@@ -362,12 +381,13 @@ class TestMetricsAggregationUnderLoad:
 
 
 @pytest.mark.asyncio
-async def test_async_concurrent_operations():
+async def test_async_concurrent_operations() -> None:
     """Test concurrent operations using async/await."""
-    from fraiseql.monitoring.db_monitor import QueryMetrics
     import hashlib
     import uuid
     from datetime import datetime
+
+    from fraiseql.monitoring.db_monitor import QueryMetrics
 
     async def simulate_query(query_id: int) -> QueryMetrics:
         """Simulate a query with some async delay."""
@@ -377,7 +397,7 @@ async def test_async_concurrent_operations():
             query_id=str(uuid.uuid4()),
             query_hash=hashlib.sha256(sql.encode()).hexdigest(),
             query_type="SELECT",
-            timestamp=datetime.now(),
+            timestamp=datetime.now(),  # noqa: DTZ005
             duration_ms=5.0 + query_id,
             rows_affected=query_id % 100,
         )

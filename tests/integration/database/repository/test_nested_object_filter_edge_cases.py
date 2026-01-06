@@ -178,7 +178,7 @@ def _parse_rust_response(result: RustResponseBytes | list[dict[str, Any]]) -> li
         # Extract data from GraphQL response structure
         if "data" in response_json:
             # Get the first key in data (the field name)
-            field_name = list(response_json["data"].keys())[0]
+            field_name = next(iter(response_json["data"].keys()))
             data = response_json["data"][field_name]
 
             # Normalize: always return a list for consistency
@@ -194,10 +194,10 @@ class TestNestedObjectFilterDatabaseEdgeCases:
     """End-to-end database integration tests for nested object filtering edge cases."""
 
     @pytest_asyncio.fixture(scope="class")
-    async def setup_edge_case_data(self, class_db_pool: psycopg_pool.AsyncConnectionPool):
+    async def setup_edge_case_data(self, class_db_pool: psycopg_pool.AsyncConnectionPool) -> None:
         """Set up test tables and data for edge case tests."""
         async with class_db_pool.connection() as conn:
-            await conn.execute(f"SET search_path TO {test_schema}, public")
+            await conn.execute(f"SET search_path TO {test_schema}, public")  # noqa: F405
             # Clean up any existing test data
 
             # Create test table with JSONB data column

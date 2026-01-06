@@ -1,29 +1,28 @@
-"""
-Phase 0 Verification Test
+"""Phase 0 Verification Test
 
 This test verifies that the Phase 0 chaos engineering infrastructure is working correctly.
 """
 
-import sys
 import os
+import sys
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # noqa: PTH120, PTH100
 
 from chaos.base import ChaosTestCase
-from chaos.plugin import chaos_inject, FailureType
+from chaos.plugin import FailureType, chaos_inject
 
 
 class TestPhase0Infrastructure(ChaosTestCase):
     """Test that Phase 0 infrastructure works."""
 
-    def test_baseline_loading(self):
+    def test_baseline_loading(self) -> None:
         """Test that baselines can be loaded."""
         baselines = self.load_baseline()
         assert isinstance(baselines, dict)
         assert len(baselines) > 0
         assert "simple_user_query" in baselines
 
-    def test_metrics_collection(self):
+    def test_metrics_collection(self) -> None:
         """Test that metrics collection works."""
         self.metrics.start_test()
         self.metrics.record_query_time(15.0)
@@ -35,7 +34,7 @@ class TestPhase0Infrastructure(ChaosTestCase):
         assert summary["error_count"] == 1
         assert summary["avg_query_time_ms"] == 15.0
 
-    def test_baseline_comparison(self):
+    def test_baseline_comparison(self) -> None:
         """Test baseline comparison functionality."""
         # Simulate a test result
         self.metrics.start_test()
@@ -47,13 +46,12 @@ class TestPhase0Infrastructure(ChaosTestCase):
         assert "baseline" in comparison
 
     @chaos_inject(FailureType.NETWORK_LATENCY, duration_ms=100)
-    def test_chaos_decorator(self):
+    def test_chaos_decorator(self) -> None:
         """Test that chaos injection decorator works."""
         # This test should have chaos injection metadata
-        pass
 
 
-def test_chaos_injector_creation():
+def test_chaos_injector_creation() -> None:
     """Test that chaos injector can be created."""
     from chaos.plugin import _chaos_injector
 

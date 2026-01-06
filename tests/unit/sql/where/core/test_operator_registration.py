@@ -17,7 +17,7 @@ from fraiseql.where_clause import ALL_OPERATORS, FieldCondition
 class TestOperatorRegistrationIntegrity:
     """Meta-tests to ensure operator strategies and validation are synchronized."""
 
-    def test_all_strategy_operators_are_in_all_operators(self):
+    def test_all_strategy_operators_are_in_all_operators(self) -> None:
         """All operators from registered strategies should be in ALL_OPERATORS.
 
         This is a META-TEST that catches missing operator registrations.
@@ -59,7 +59,7 @@ class TestOperatorRegistrationIntegrity:
             )
             pytest.fail(error_msg)
 
-    def test_network_operators_specifically_registered(self):
+    def test_network_operators_specifically_registered(self) -> None:
         """Network operators should all be in ALL_OPERATORS (regression test)."""
         # These operators exist in NetworkOperatorStrategy and MUST be in ALL_OPERATORS
         required_network_operators = [
@@ -90,7 +90,7 @@ class TestOperatorRegistrationIntegrity:
                 f"Add these to NETWORK_OPERATORS dict in where_clause.py"
             )
 
-    def test_postgresql_specific_operators_registered(self):
+    def test_postgresql_specific_operators_registered(self) -> None:
         """PostgreSQL-specific operators should be registered.
 
         Ensures operators from:
@@ -166,7 +166,7 @@ class TestNetworkOperatorValidation:
             "strictright",
         ],
     )
-    def test_network_operator_passes_field_condition_validation(self, operator):
+    def test_network_operator_passes_field_condition_validation(self, operator) -> None:
         """Network operators should pass FieldCondition validation.
 
         This test validates the complete pipeline from user input to validation.
@@ -192,7 +192,7 @@ class TestNetworkOperatorValidation:
         assert condition.value == value
 
     @pytest.mark.parametrize(
-        "operator,value",
+        ("operator", "value"),
         [
             ("isIPv4", True),
             ("isIPv6", True),
@@ -203,7 +203,7 @@ class TestNetworkOperatorValidation:
             ("overlaps", "172.16.0.0/12"),
         ],
     )
-    def test_network_operator_with_realistic_values(self, operator, value):
+    def test_network_operator_with_realistic_values(self, operator, value) -> None:
         """Network operators with realistic values should pass validation."""
         condition = FieldCondition(
             field_path=["server", "ipAddress"],
@@ -216,7 +216,7 @@ class TestNetworkOperatorValidation:
         assert condition.operator == operator
         assert condition.value == value
 
-    def test_network_operator_camelcase_variants(self):
+    def test_network_operator_camelcase_variants(self) -> None:
         """Both camelCase and lowercase variants should work."""
         # CamelCase variants
         camelcase_ops = {
@@ -258,7 +258,7 @@ class TestNetworkOperatorValidation:
             )
             assert condition.operator == operator
 
-    def test_network_operator_with_jsonb_path(self):
+    def test_network_operator_with_jsonb_path(self) -> None:
         """Network operators should work with JSONB paths."""
         condition = FieldCondition(
             field_path=["server", "ipAddress"],
@@ -272,7 +272,7 @@ class TestNetworkOperatorValidation:
         assert condition.operator == "isIPv4"
         assert condition.lookup_strategy == "jsonb_path"
 
-    def test_network_operator_invalid_operator_still_fails(self):
+    def test_network_operator_invalid_operator_still_fails(self) -> None:
         """Invalid operators should still fail validation."""
         with pytest.raises(ValueError, match="Invalid operator"):
             FieldCondition(
@@ -287,21 +287,21 @@ class TestNetworkOperatorValidation:
 class TestAllOperatorCategoriesRegistered:
     """Ensure all operator categories are properly registered."""
 
-    def test_comparison_operators_registered(self):
+    def test_comparison_operators_registered(self) -> None:
         """Basic comparison operators should be in ALL_OPERATORS."""
         comparison_ops = ["eq", "neq", "gt", "gte", "lt", "lte"]
 
         for op in comparison_ops:
             assert op in ALL_OPERATORS, f"Comparison operator '{op}' missing from ALL_OPERATORS"
 
-    def test_containment_operators_registered(self):
+    def test_containment_operators_registered(self) -> None:
         """Containment operators should be in ALL_OPERATORS."""
         containment_ops = ["in", "nin"]
 
         for op in containment_ops:
             assert op in ALL_OPERATORS, f"Containment operator '{op}' missing from ALL_OPERATORS"
 
-    def test_string_operators_registered(self):
+    def test_string_operators_registered(self) -> None:
         """String operators should be in ALL_OPERATORS."""
         string_ops = [
             "contains",
@@ -317,11 +317,11 @@ class TestAllOperatorCategoriesRegistered:
         for op in string_ops:
             assert op in ALL_OPERATORS, f"String operator '{op}' missing from ALL_OPERATORS"
 
-    def test_null_operators_registered(self):
+    def test_null_operators_registered(self) -> None:
         """NULL operators should be in ALL_OPERATORS."""
         assert "isnull" in ALL_OPERATORS, "NULL operator 'isnull' missing from ALL_OPERATORS"
 
-    def test_vector_operators_registered(self):
+    def test_vector_operators_registered(self) -> None:
         """Vector operators should be in ALL_OPERATORS."""
         vector_ops = [
             "cosine_distance",
@@ -334,7 +334,7 @@ class TestAllOperatorCategoriesRegistered:
         for op in vector_ops:
             assert op in ALL_OPERATORS, f"Vector operator '{op}' missing from ALL_OPERATORS"
 
-    def test_fulltext_operators_registered(self):
+    def test_fulltext_operators_registered(self) -> None:
         """Fulltext operators should be in ALL_OPERATORS."""
         fulltext_ops = [
             "matches",
@@ -350,7 +350,7 @@ class TestAllOperatorCategoriesRegistered:
         for op in fulltext_ops:
             assert op in ALL_OPERATORS, f"Fulltext operator '{op}' missing from ALL_OPERATORS"
 
-    def test_array_operators_registered(self):
+    def test_array_operators_registered(self) -> None:
         """Array operators should be in ALL_OPERATORS."""
         array_ops = [
             "array_eq",
@@ -370,7 +370,7 @@ class TestAllOperatorCategoriesRegistered:
         for op in array_ops:
             assert op in ALL_OPERATORS, f"Array operator '{op}' missing from ALL_OPERATORS"
 
-    def test_network_operators_registered(self):
+    def test_network_operators_registered(self) -> None:
         """Network operators should be in ALL_OPERATORS (regression test)."""
         network_ops = [
             "isIPv4",

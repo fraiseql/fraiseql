@@ -14,7 +14,7 @@ pytestmark = pytest.mark.unit
 
 
 @pytest.fixture(scope="module")
-def vault_container():
+def vault_container() -> None:
     """Start a Vault dev server container for testing.
 
     Vault dev mode characteristics:
@@ -58,7 +58,7 @@ def vault_container():
 
 
 @pytest.fixture
-async def vault_provider(vault_container):
+async def vault_provider(vault_container) -> None:
     """Create Vault KMS provider connected to test container."""
     import httpx
 
@@ -106,7 +106,7 @@ class TestVaultKMSProviderContainers:
     """Unit tests for Vault KMS provider using Testcontainers."""
 
     @pytest.mark.asyncio
-    async def test_encrypt_decrypt_roundtrip(self, vault_provider):
+    async def test_encrypt_decrypt_roundtrip(self, vault_provider) -> None:
         """Test full encryption/decryption cycle with Vault container."""
         test_data = b"Hello, World! This is test data for Vault unit test."
         key_id = "test-unit-key"
@@ -122,7 +122,7 @@ class TestVaultKMSProviderContainers:
         assert decrypted == test_data
 
     @pytest.mark.asyncio
-    async def test_data_key_generation(self, vault_provider):
+    async def test_data_key_generation(self, vault_provider) -> None:
         """Test data key generation with Vault container."""
         key_id = "test-data-key"
 
@@ -134,7 +134,7 @@ class TestVaultKMSProviderContainers:
         assert len(data_key.plaintext_key) == 32  # AES-256 key
 
     @pytest.mark.asyncio
-    async def test_different_keys_isolation(self, vault_provider):
+    async def test_different_keys_isolation(self, vault_provider) -> None:
         """Test that different keys produce different ciphertexts."""
         test_data = b"Same data, different keys"
         key1 = "test-key-1"
@@ -153,7 +153,7 @@ class TestVaultKMSProviderContainers:
         assert decrypted1 == decrypted2 == test_data
 
     @pytest.mark.asyncio
-    async def test_multiple_encrypt_operations(self, vault_provider):
+    async def test_multiple_encrypt_operations(self, vault_provider) -> None:
         """Test multiple encryption operations with same key."""
         test_data = b"Multiple encryptions"
         key_id = "test-multi-key"
@@ -171,12 +171,12 @@ class TestVaultKMSProviderContainers:
         assert decrypted1 == decrypted2 == test_data
 
     @pytest.mark.asyncio
-    async def test_provider_name(self, vault_provider):
+    async def test_provider_name(self, vault_provider) -> None:
         """Test that provider name is correct."""
         assert vault_provider.provider_name == "vault"
 
     @pytest.mark.asyncio
-    async def test_encrypt_empty_data(self, vault_provider):
+    async def test_encrypt_empty_data(self, vault_provider) -> None:
         """Test encryption of empty data."""
         test_data = b""
         key_id = "test-empty-key"
@@ -188,7 +188,7 @@ class TestVaultKMSProviderContainers:
         assert decrypted == test_data
 
     @pytest.mark.asyncio
-    async def test_encrypt_large_data(self, vault_provider):
+    async def test_encrypt_large_data(self, vault_provider) -> None:
         """Test encryption of larger data."""
         # Vault Transit can handle larger data than AWS KMS
         test_data = b"A" * 100000  # 100KB
@@ -201,7 +201,7 @@ class TestVaultKMSProviderContainers:
         assert decrypted == test_data
 
     @pytest.mark.asyncio
-    async def test_encrypt_with_context(self, vault_provider):
+    async def test_encrypt_with_context(self, vault_provider) -> None:
         """Test encryption with additional context."""
         test_data = b"Data with context"
         key_id = "test-context-key"
@@ -216,7 +216,7 @@ class TestVaultKMSProviderContainers:
         assert decrypted == test_data
 
     @pytest.mark.asyncio
-    async def test_reuse_same_key_multiple_times(self, vault_provider):
+    async def test_reuse_same_key_multiple_times(self, vault_provider) -> None:
         """Test that the same key can be reused for multiple operations."""
         key_id = "reusable-key"
 
@@ -229,6 +229,6 @@ class TestVaultKMSProviderContainers:
             encrypted_messages.append(encrypted)
 
         # Decrypt all messages
-        for original, encrypted in zip(messages, encrypted_messages):
+        for original, encrypted in zip(messages, encrypted_messages, strict=False):
             decrypted = await vault_provider.decrypt(encrypted)
             assert decrypted == original

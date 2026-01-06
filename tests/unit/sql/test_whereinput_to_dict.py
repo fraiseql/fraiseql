@@ -31,7 +31,7 @@ class User:
 class TestWhereInputToDict:
     """Test WhereInput to dict conversion."""
 
-    def test_simple_filter_conversion(self):
+    def test_simple_filter_conversion(self) -> None:
         """Test simple filter converts to operator dict."""
         UserWhereInput = create_graphql_where_input(User)
 
@@ -41,7 +41,7 @@ class TestWhereInputToDict:
 
         assert result == {"name": {"eq": "John"}}
 
-    def test_multiple_operators_on_same_field(self):
+    def test_multiple_operators_on_same_field(self) -> None:
         """Test multiple operators on same field."""
         UserWhereInput = create_graphql_where_input(User)
 
@@ -51,7 +51,7 @@ class TestWhereInputToDict:
 
         assert result == {"age": {"gte": 18, "lte": 65}}
 
-    def test_multiple_fields(self):
+    def test_multiple_fields(self) -> None:
         """Test multiple fields with filters."""
         UserWhereInput = create_graphql_where_input(User)
 
@@ -62,7 +62,7 @@ class TestWhereInputToDict:
 
         assert result == {"id": {"eq": user_id}, "name": {"contains": "john"}}
 
-    def test_or_operator_conversion(self):
+    def test_or_operator_conversion(self) -> None:
         """Test OR operator converts to list."""
         UserWhereInput = create_graphql_where_input(User)
 
@@ -77,7 +77,7 @@ class TestWhereInputToDict:
 
         assert result == {"OR": [{"name": {"eq": "John"}}, {"name": {"eq": "Jane"}}]}
 
-    def test_and_operator_conversion(self):
+    def test_and_operator_conversion(self) -> None:
         """Test AND operator converts to list."""
         UserWhereInput = create_graphql_where_input(User)
 
@@ -92,7 +92,7 @@ class TestWhereInputToDict:
 
         assert result == {"AND": [{"age": {"gte": 18}}, {"age": {"lte": 65}}]}
 
-    def test_not_operator_conversion(self):
+    def test_not_operator_conversion(self) -> None:
         """Test NOT operator converts correctly."""
         UserWhereInput = create_graphql_where_input(User)
 
@@ -104,7 +104,7 @@ class TestWhereInputToDict:
 
         assert result == {"name": {"eq": "Active"}, "NOT": {"age": {"lt": 18}}}
 
-    def test_nested_logical_operators(self):
+    def test_nested_logical_operators(self) -> None:
         """Test nested OR within AND."""
         UserWhereInput = create_graphql_where_input(User)
 
@@ -130,7 +130,7 @@ class TestWhereInputToDict:
         }
         assert result == expected
 
-    def test_none_values_ignored(self):
+    def test_none_values_ignored(self) -> None:
         """Test None values are not included in result."""
         UserWhereInput = create_graphql_where_input(User)
 
@@ -144,7 +144,7 @@ class TestWhereInputToDict:
         assert result == {"name": {"eq": "John"}}
         assert "age" not in result
 
-    def test_empty_filter_ignored(self):
+    def test_empty_filter_ignored(self) -> None:
         """Test filter with no operators set is ignored."""
         UserWhereInput = create_graphql_where_input(User)
 
@@ -155,7 +155,7 @@ class TestWhereInputToDict:
         # Empty filter should not appear in result
         assert result == {} or "name" not in result
 
-    def test_string_filter_operators(self):
+    def test_string_filter_operators(self) -> None:
         """Test all StringFilter operators."""
         UserWhereInput = create_graphql_where_input(User)
 
@@ -183,7 +183,7 @@ class TestWhereInputToDict:
         where = UserWhereInput(name=StringFilter(not_matches="^Admin"))
         assert where._to_whereinput_dict() == {"name": {"not_matches": "^Admin"}}
 
-    def test_int_filter_operators(self):
+    def test_int_filter_operators(self) -> None:
         """Test all IntFilter operators."""
         UserWhereInput = create_graphql_where_input(User)
 
@@ -203,21 +203,21 @@ class TestWhereInputToDict:
         where = UserWhereInput(age=IntFilter(lte=65))
         assert where._to_whereinput_dict() == {"age": {"lte": 65}}
 
-    def test_in_operator_conversion(self):
+    def test_in_operator_conversion(self) -> None:
         """Test IN operator for lists."""
         UserWhereInput = create_graphql_where_input(User)
 
         where = UserWhereInput(name=StringFilter(in_=["John", "Jane", "Jack"]))
         assert where._to_whereinput_dict() == {"name": {"in_": ["John", "Jane", "Jack"]}}
 
-    def test_nin_operator_conversion(self):
+    def test_nin_operator_conversion(self) -> None:
         """Test NOT IN operator for lists."""
         UserWhereInput = create_graphql_where_input(User)
 
         where = UserWhereInput(age=IntFilter(nin=[10, 20, 30]))
         assert where._to_whereinput_dict() == {"age": {"nin": [10, 20, 30]}}
 
-    def test_isnull_operator_conversion(self):
+    def test_isnull_operator_conversion(self) -> None:
         """Test ISNULL operator."""
         UserWhereInput = create_graphql_where_input(User)
 
@@ -229,7 +229,7 @@ class TestWhereInputToDict:
         where = UserWhereInput(name=StringFilter(isnull=False))
         assert where._to_whereinput_dict() == {"name": {"isnull": False}}
 
-    def test_neq_operator_conversion(self):
+    def test_neq_operator_conversion(self) -> None:
         """Test not equal operator."""
         UserWhereInput = create_graphql_where_input(User)
 
@@ -240,7 +240,7 @@ class TestWhereInputToDict:
 class TestNestedWhereInputToDict:
     """Test nested WhereInput conversion."""
 
-    def test_nested_whereinput_conversion(self):
+    def test_nested_whereinput_conversion(self) -> None:
         """Test nested WhereInput objects."""
 
         class Machine:
@@ -266,7 +266,7 @@ class TestNestedWhereInputToDict:
         expected = {"status": {"eq": "active"}, "machine": {"id": {"eq": machine_id}}}
         assert result == expected
 
-    def test_deeply_nested_whereinput(self):
+    def test_deeply_nested_whereinput(self) -> None:
         """Test multiple levels of nesting."""
 
         class Organization:
@@ -307,7 +307,7 @@ class TestNestedWhereInputToDict:
         }
         assert result == expected
 
-    def test_nested_with_logical_operators(self):
+    def test_nested_with_logical_operators(self) -> None:
         """Test nested WhereInput with OR/AND operators."""
 
         class Machine:
@@ -348,7 +348,7 @@ class TestNestedWhereInputToDict:
 class TestArrayFilterConversion:
     """Test ArrayFilter conversion to dict."""
 
-    def test_array_filter_basic_operators(self):
+    def test_array_filter_basic_operators(self) -> None:
         """Test basic array filter operators."""
 
         class Document:
@@ -369,7 +369,7 @@ class TestArrayFilterConversion:
         where = DocumentWhereInput(tags=ArrayFilter(contained_by=["python", "rust", "go"]))
         assert where._to_whereinput_dict() == {"tags": {"contained_by": ["python", "rust", "go"]}}
 
-    def test_array_filter_length_operators(self):
+    def test_array_filter_length_operators(self) -> None:
         """Test array length operators."""
 
         class Document:
@@ -394,7 +394,7 @@ class TestArrayFilterConversion:
 class TestFloatFilterConversion:
     """Test FloatFilter conversion to dict."""
 
-    def test_float_filter_operators(self):
+    def test_float_filter_operators(self) -> None:
         """Test float filter operators."""
 
         class Product:
@@ -415,7 +415,7 @@ class TestFloatFilterConversion:
 class TestEdgeCases:
     """Test edge cases and special scenarios."""
 
-    def test_filter_with_all_none_operators_ignored(self):
+    def test_filter_with_all_none_operators_ignored(self) -> None:
         """Test that filter with all None values is not included."""
         UserWhereInput = create_graphql_where_input(User)
 
@@ -427,7 +427,7 @@ class TestEdgeCases:
         # Should be empty since all operators are None
         assert result == {}
 
-    def test_mixed_none_and_valid_operators(self):
+    def test_mixed_none_and_valid_operators(self) -> None:
         """Test filter with some None and some valid operators."""
         UserWhereInput = create_graphql_where_input(User)
 
@@ -438,7 +438,7 @@ class TestEdgeCases:
         # Should only include non-None operators
         assert result == {"name": {"eq": "John"}}
 
-    def test_empty_or_list_ignored(self):
+    def test_empty_or_list_ignored(self) -> None:
         """Test that empty OR list is handled correctly."""
         UserWhereInput = create_graphql_where_input(User)
 
@@ -449,7 +449,7 @@ class TestEdgeCases:
         # Empty OR should be included as empty list
         assert result == {"OR": []}
 
-    def test_complex_real_world_scenario(self):
+    def test_complex_real_world_scenario(self) -> None:
         """Test complex real-world scenario with multiple filters."""
 
         class Machine:

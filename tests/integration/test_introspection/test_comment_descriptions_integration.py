@@ -50,7 +50,7 @@ class TestCommentDescriptionsIntegration:
         return PostgresIntrospector(class_db_pool)
 
     @pytest_asyncio.fixture(scope="class")
-    async def real_database_setup(self, class_db_pool, test_schema):
+    async def real_database_setup(self, class_db_pool, test_schema) -> None:
         """Set up a real PostgreSQL database with test schema and comments."""
         async with class_db_pool.connection() as conn:
             await conn.execute(f"SET search_path TO {test_schema}, public")
@@ -158,7 +158,7 @@ class TestCommentDescriptionsIntegration:
         mutation_generator: MutationGenerator,
         input_generator: InputGenerator,
         test_schema,
-    ):
+    ) -> None:
         """Test that all PostgreSQL comment types are properly converted to GraphQL descriptions."""
         pool = real_database_setup
 
@@ -331,7 +331,7 @@ class TestCommentDescriptionsIntegration:
             assert result is not None or result is None  # Accept either behavior
         except Exception as e:
             # If it raises, verify error message is meaningful
-            assert str(e) != ""  # Error should have a message
+            assert str(e) != ""  # Error should have a message  # noqa: PT017
 
     @pytest.mark.asyncio
     async def test_discover_views_with_sql_injection_safe_pattern(
@@ -357,7 +357,7 @@ class TestCommentDescriptionsIntegration:
                 assert isinstance(views, list)  # Should return a list, even if empty
             except Exception as e:
                 # If exception, it should NOT be a SQL execution error
-                assert "syntax error" not in str(e).lower()
+                assert "syntax error" not in str(e).lower()  # noqa: PT017
 
     @pytest.mark.asyncio
     async def test_discover_functions_nonexistent_schema(self, class_db_pool, test_schema) -> None:

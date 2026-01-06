@@ -1,16 +1,16 @@
 """Parity tests: Verify Rust backend matches psycopg backend exactly."""
 
-import pytest
 import json
 from unittest.mock import AsyncMock, patch
 
+import pytest
 from src.fraiseql.core.graphql_pipeline import RustGraphQLPipeline
 
 
 class TestRustPsycopgParity:
     """Test that Rust backend produces identical results to psycopg backend."""
 
-    def test_query_result_structure_parity(self):
+    def test_query_result_structure_parity(self) -> None:
         """Test that query results have identical structure."""
         # This test verifies that both backends return the same JSON structure
         rust_result = {
@@ -34,12 +34,14 @@ class TestRustPsycopgParity:
         assert len(rust_result["data"]) == len(psycopg_result["data"])
 
         # Field names should match (camelCase conversion)
-        for rust_item, psycopg_item in zip(rust_result["data"], psycopg_result["data"]):
+        for rust_item, psycopg_item in zip(
+            rust_result["data"], psycopg_result["data"], strict=False
+        ):
             assert rust_item.keys() == psycopg_item.keys()
             assert rust_item["id"] == psycopg_item["id"]
             assert rust_item["userName"] == psycopg_item["userName"]
 
-    def test_mutation_result_parity(self):
+    def test_mutation_result_parity(self) -> None:
         """Test that mutation results are identical."""
         rust_result = {
             "data": {"id": 1, "userName": "John", "userEmail": "john@example.com"},
@@ -53,7 +55,7 @@ class TestRustPsycopgParity:
 
         assert rust_result == psycopg_result
 
-    def test_error_format_parity(self):
+    def test_error_format_parity(self) -> None:
         """Test that error formats are identical."""
         rust_error = {
             "data": None,
@@ -78,7 +80,7 @@ class TestRustPsycopgParity:
         assert rust_error == psycopg_error
 
     @pytest.mark.asyncio
-    async def test_end_to_end_query_parity_simulation(self):
+    async def test_end_to_end_query_parity_simulation(self) -> None:
         """Simulate end-to-end parity testing."""
         pipeline = RustGraphQLPipeline()
 
@@ -109,9 +111,9 @@ class TestRustPsycopgParity:
             assert result == expected_result
 
     @pytest.mark.asyncio
-    async def test_data_type_parity(self):
+    async def test_data_type_parity(self) -> None:
         """Test that different data types are handled identically."""
-        pipeline = RustGraphQLPipeline()
+        RustGraphQLPipeline()
 
         # Test various PostgreSQL data types
         test_cases = [
@@ -129,7 +131,7 @@ class TestRustPsycopgParity:
             # This would test that both backends serialize/deserialize identically
             assert test_case["value"] == test_case["expected"]
 
-    def test_null_handling_parity(self):
+    def test_null_handling_parity(self) -> None:
         """Test NULL value handling is identical."""
         # Both backends should handle NULL values the same way
         rust_null_result = {"data": [{"id": 1, "optionalField": None}], "errors": None}
@@ -137,7 +139,7 @@ class TestRustPsycopgParity:
 
         assert rust_null_result == psycopg_null_result
 
-    def test_array_result_parity(self):
+    def test_array_result_parity(self) -> None:
         """Test array/list result parity."""
         rust_array_result = {
             "data": [{"id": 1, "tags": ["tag1", "tag2"]}, {"id": 2, "tags": ["tag3"]}],
@@ -151,7 +153,7 @@ class TestRustPsycopgParity:
 
         assert rust_array_result == psycopg_array_result
 
-    def test_json_field_parity(self):
+    def test_json_field_parity(self) -> None:
         """Test JSON field handling parity."""
         rust_json_result = {
             "data": [{"id": 1, "metadata": {"version": "1.0", "settings": {"theme": "dark"}}}],
@@ -169,7 +171,7 @@ class TestRustPsycopgParity:
 class TestPerformanceParity:
     """Test performance characteristics are within expected ranges."""
 
-    def test_memory_usage_estimate(self):
+    def test_memory_usage_estimate(self) -> None:
         """Test that memory usage is within expected bounds."""
         # Phase 4 should maintain Phase 3's memory efficiency
         # Large result sets should not cause exponential memory growth
@@ -178,7 +180,7 @@ class TestPerformanceParity:
         # In a real scenario, we'd measure actual memory usage
         assert True  # Placeholder assertion
 
-    def test_response_time_estimate(self):
+    def test_response_time_estimate(self) -> None:
         """Test that response times meet performance targets."""
         # Phase 4 should be 20-30% faster than psycopg for typical queries
 
@@ -186,7 +188,7 @@ class TestPerformanceParity:
         # In a real scenario, we'd measure actual response times
         assert True  # Placeholder assertion
 
-    def test_concurrent_request_handling(self):
+    def test_concurrent_request_handling(self) -> None:
         """Test that concurrent requests are handled efficiently."""
         # Both backends should handle concurrent requests without issues
 

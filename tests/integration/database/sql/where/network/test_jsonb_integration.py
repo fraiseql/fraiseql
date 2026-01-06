@@ -71,7 +71,7 @@ class TestRootCauseInvestigation:
         result = strategy.build_sql("inSubnet", "192.168.1.0/24", field_path, field_type=IpAddress)
 
         # Should generate proper PostgreSQL inet subnet matching
-        sql_str = result.as_string(None)  # type: ignore
+        sql_str = result.as_string(None)  # type: ignore[misc]
 
         # Check that it properly casts JSONB text to inet
         assert "::inet" in sql_str, "Should cast to inet type"

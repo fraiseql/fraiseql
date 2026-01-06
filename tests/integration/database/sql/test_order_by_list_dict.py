@@ -260,7 +260,7 @@ class TestOrderByIntegration:
 
         except Exception as e:
             # Should not get the original error
-            assert "SQL values must be strings" not in str(e)
+            assert "SQL values must be strings" not in str(e)  # noqa: PT017
             # Other errors (like mock-related) are acceptable for this test
 
 

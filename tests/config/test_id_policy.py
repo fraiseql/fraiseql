@@ -21,7 +21,7 @@ from fraiseql.types.scalars.graphql_utils import convert_scalar_to_graphql
 
 
 @pytest.fixture(autouse=True)
-def reset_config():
+def reset_config() -> None:
     """Reset SchemaConfig before and after each test."""
     SchemaConfig.reset()
     yield
@@ -31,20 +31,20 @@ def reset_config():
 class TestIDPolicyEnum:
     """Tests for IDPolicy enum."""
 
-    def test_default_policy_is_uuid(self):
+    def test_default_policy_is_uuid(self) -> None:
         """Test that default ID policy is UUID enforcement."""
         config = SchemaConfig.get_instance()
         assert config.id_policy == IDPolicy.UUID
 
-    def test_uuid_policy_enforces_uuid(self):
+    def test_uuid_policy_enforces_uuid(self) -> None:
         """Test that UUID policy indicates UUID enforcement."""
         assert IDPolicy.UUID.enforces_uuid() is True
 
-    def test_opaque_policy_does_not_enforce_uuid(self):
+    def test_opaque_policy_does_not_enforce_uuid(self) -> None:
         """Test that OPAQUE policy does not enforce UUID."""
         assert IDPolicy.OPAQUE.enforces_uuid() is False
 
-    def test_policy_values(self):
+    def test_policy_values(self) -> None:
         """Test that policy enum has correct string values."""
         assert IDPolicy.UUID.value == "uuid"
         assert IDPolicy.OPAQUE.value == "opaque"
@@ -53,17 +53,17 @@ class TestIDPolicyEnum:
 class TestIDPolicyConfiguration:
     """Tests for configuring ID policy."""
 
-    def test_set_uuid_policy(self):
+    def test_set_uuid_policy(self) -> None:
         """Test setting UUID policy explicitly."""
         SchemaConfig.set_config(id_policy=IDPolicy.UUID)
         assert SchemaConfig.get_instance().id_policy == IDPolicy.UUID
 
-    def test_set_opaque_policy(self):
+    def test_set_opaque_policy(self) -> None:
         """Test setting OPAQUE policy."""
         SchemaConfig.set_config(id_policy=IDPolicy.OPAQUE)
         assert SchemaConfig.get_instance().id_policy == IDPolicy.OPAQUE
 
-    def test_reset_restores_default(self):
+    def test_reset_restores_default(self) -> None:
         """Test that reset restores default UUID policy."""
         SchemaConfig.set_config(id_policy=IDPolicy.OPAQUE)
         assert SchemaConfig.get_instance().id_policy == IDPolicy.OPAQUE
@@ -75,7 +75,7 @@ class TestIDPolicyConfiguration:
 class TestIDPolicyTypeMapping:
     """Tests for type mapping based on ID policy."""
 
-    def test_uuid_policy_id_uses_id_scalar(self):
+    def test_uuid_policy_id_uses_id_scalar(self) -> None:
         """Test that ID maps to IDScalar with UUID policy."""
         SchemaConfig.set_config(id_policy=IDPolicy.UUID)
 
@@ -83,7 +83,7 @@ class TestIDPolicyTypeMapping:
         assert result is IDScalar
         assert result.name == "ID"
 
-    def test_opaque_policy_id_uses_graphql_id(self):
+    def test_opaque_policy_id_uses_graphql_id(self) -> None:
         """Test that ID maps to GraphQL's built-in ID with OPAQUE policy."""
         SchemaConfig.set_config(id_policy=IDPolicy.OPAQUE)
 
@@ -91,7 +91,7 @@ class TestIDPolicyTypeMapping:
         assert result is GraphQLID
         assert result.name == "ID"
 
-    def test_uuid_uuid_always_maps_to_uuid_scalar(self):
+    def test_uuid_uuid_always_maps_to_uuid_scalar(self) -> None:
         """Test that uuid.UUID always maps to UUIDScalar regardless of policy."""
         for policy in IDPolicy:
             SchemaConfig.set_config(id_policy=policy)
@@ -99,7 +99,7 @@ class TestIDPolicyTypeMapping:
             assert result is UUIDScalar
             assert result.name == "UUID"
 
-    def test_uuid_field_always_maps_to_uuid_scalar(self):
+    def test_uuid_field_always_maps_to_uuid_scalar(self) -> None:
         """Test that UUIDField always maps to UUIDScalar regardless of policy."""
         from fraiseql.types.scalars.uuid import UUIDField
 
@@ -114,7 +114,7 @@ class TestIDPolicySchemaBuilding:
     """Tests for schema building with different ID policies."""
 
     @pytest.fixture(autouse=True)
-    def clear_registry(self):
+    def clear_registry(self) -> None:
         """Clear the schema registry before and after each test."""
         from fraiseql.gql.builders.registry import SchemaRegistry
 
@@ -123,7 +123,7 @@ class TestIDPolicySchemaBuilding:
         yield
         registry.clear()
 
-    def test_schema_builds_with_uuid_policy(self):
+    def test_schema_builds_with_uuid_policy(self) -> None:
         """Test that schema builds correctly with UUID policy."""
         import fraiseql
 
@@ -149,7 +149,7 @@ class TestIDPolicySchemaBuilding:
         assert id_field is not None
         assert id_field.type.name == "ID"
 
-    def test_schema_builds_with_opaque_policy(self):
+    def test_schema_builds_with_opaque_policy(self) -> None:
         """Test that schema builds correctly with OPAQUE policy."""
         import fraiseql
 
@@ -179,7 +179,7 @@ class TestIDPolicySchemaBuilding:
 class TestIDPolicyDocumentation:
     """Tests documenting ID policy behavior for users."""
 
-    def test_example_uuid_policy_usage(self):
+    def test_example_uuid_policy_usage(self) -> None:
         """Document how to use UUID policy (default)."""
         # UUID policy is the default - no configuration needed
         # IDs must be valid UUIDs
@@ -192,7 +192,7 @@ class TestIDPolicyDocumentation:
         result = convert_scalar_to_graphql(ID)
         assert result is IDScalar
 
-    def test_example_opaque_policy_usage(self):
+    def test_example_opaque_policy_usage(self) -> None:
         """Document how to use OPAQUE policy for GraphQL spec compliance."""
         # Set OPAQUE policy when you need GraphQL spec-compliant IDs
         # that accept any string, not just UUIDs
@@ -206,7 +206,7 @@ class TestIDPolicyDocumentation:
         result = convert_scalar_to_graphql(ID)
         assert result is GraphQLID
 
-    def test_uuid_vs_id_semantic_difference(self):
+    def test_uuid_vs_id_semantic_difference(self) -> None:
         """Document the semantic difference between uuid.UUID and ID."""
         # uuid.UUID: A general-purpose UUID type
         # - Always maps to UUIDScalar (name="UUID")
@@ -238,7 +238,7 @@ class TestIDPolicyWhereFilters:
     UUID validation (if IDPolicy.UUID) happens at runtime, not at schema level.
     """
 
-    def test_uuid_policy_id_uses_id_filter(self):
+    def test_uuid_policy_id_uses_id_filter(self) -> None:
         """Test that ID fields use IDFilter with UUID policy.
 
         UUID validation happens at runtime, not via GraphQL type.
@@ -254,7 +254,7 @@ class TestIDPolicyWhereFilters:
         filter_type = _get_filter_type_for_field(ID)
         assert filter_type is IDFilter
 
-    def test_opaque_policy_id_uses_id_filter(self):
+    def test_opaque_policy_id_uses_id_filter(self) -> None:
         """Test that ID fields use IDFilter with OPAQUE policy."""
         from fraiseql.sql.graphql_where_generator import (
             IDFilter,
@@ -266,7 +266,7 @@ class TestIDPolicyWhereFilters:
         filter_type = _get_filter_type_for_field(ID)
         assert filter_type is IDFilter
 
-    def test_id_always_uses_id_filter_regardless_of_policy(self):
+    def test_id_always_uses_id_filter_regardless_of_policy(self) -> None:
         """Test that ID type always uses IDFilter for any policy.
 
         This is Scenario A: GraphQL schema uses ID scalar everywhere,
@@ -282,7 +282,7 @@ class TestIDPolicyWhereFilters:
             filter_type = _get_filter_type_for_field(ID)
             assert filter_type is IDFilter, f"ID should use IDFilter with {policy}"
 
-    def test_uuid_uuid_always_uses_uuid_filter(self):
+    def test_uuid_uuid_always_uses_uuid_filter(self) -> None:
         """Test that uuid.UUID always uses UUIDFilter regardless of policy."""
         from fraiseql.sql.graphql_where_generator import (
             UUIDFilter,
@@ -294,7 +294,7 @@ class TestIDPolicyWhereFilters:
             filter_type = _get_filter_type_for_field(uuid.UUID)
             assert filter_type is UUIDFilter
 
-    def test_id_filter_has_correct_operators(self):
+    def test_id_filter_has_correct_operators(self) -> None:
         """Test that IDFilter has the expected filter operators."""
         from fraiseql.sql.graphql_where_generator import IDFilter
 
@@ -309,12 +309,10 @@ class TestIDPolicyWhereFilters:
         assert "nin" in annotations
         assert "isnull" in annotations
 
-    def test_where_input_generation_respects_policy(self):
+    def test_where_input_generation_respects_policy(self) -> None:
         """Test that create_graphql_where_input respects ID policy."""
         import fraiseql
         from fraiseql.sql.graphql_where_generator import (
-            IDFilter,
-            UUIDFilter,
             create_graphql_where_input,
         )
 

@@ -49,7 +49,7 @@ class TestFieldAuthorization:
 
         @query
         def secure_data(info) -> SecureData:
-            return SecureData(public_info="public data")  # type: ignore
+            return SecureData(public_info="public data")  # type: ignore[misc]
 
         schema = build_fraiseql_schema(query_types=[secure_data])
 
@@ -100,7 +100,7 @@ class TestFieldAuthorization:
         """Test FieldAuthorizationError properties."""
         error = FieldAuthorizationError("Custom error message")
         assert str(error) == "Custom error message"
-        assert error.extensions["code"] == "FIELD_AUTHORIZATION_ERROR"  # type: ignore
+        assert error.extensions["code"] == "FIELD_AUTHORIZATION_ERROR"  # type: ignore[misc]
 
         # Default message
         error_default = FieldAuthorizationError()
@@ -121,7 +121,7 @@ class TestFieldAuthorization:
 
         @query
         def get_user(info) -> User:
-            return User(name="John Doe", email_value="john@example.com")  # type: ignore
+            return User(name="John Doe", email_value="john@example.com")  # type: ignore[misc]
 
         schema = build_fraiseql_schema(query_types=[get_user])
 
@@ -163,7 +163,7 @@ class TestFieldAuthorization:
 
         @query
         def get_user(info) -> User:
-            return User(name="Jane Doe", phone_value="+1234567890")  # type: ignore
+            return User(name="Jane Doe", phone_value="+1234567890")  # type: ignore[misc]
 
         schema = build_fraiseql_schema(query_types=[get_user])
 
@@ -208,7 +208,7 @@ class TestFieldAuthorization:
 
         @query
         def get_user(info) -> User:
-            return User(  # type: ignore
+            return User(  # type: ignore[misc]
                 name="Bob Smith",
                 email_value="bob@example.com",
                 phone_value="+9876543210",
@@ -234,14 +234,14 @@ class TestFieldAuthorization:
         assert result.data == {
             "getUser": {"name": "Bob Smith", "email": None, "phone": None, "ssn": None}
         }
-        assert len(result.errors) == 3  # type: ignore
+        assert len(result.errors) == 3  # type: ignore[misc]
 
         # 2. Authenticated - can see email
         result = graphql_sync(schema, query_str, context_value={"authenticated": True})
         assert result.data == {
             "getUser": {"name": "Bob Smith", "email": "bob@example.com", "phone": None, "ssn": None}
         }
-        assert len(result.errors) == 2  # type: ignore
+        assert len(result.errors) == 2  # type: ignore[misc]
 
         # 3. Admin - can see email and phone
         result = graphql_sync(
@@ -255,7 +255,7 @@ class TestFieldAuthorization:
                 "ssn": None,
             }
         }
-        assert len(result.errors) == 1  # type: ignore
+        assert len(result.errors) == 1  # type: ignore[misc]
 
         # 4. Superadmin - can see everything
         result = graphql_sync(
@@ -294,7 +294,7 @@ class TestFieldAuthorization:
         @query
         def user_profile(info, user_id: int) -> UserProfile:
             # Simulate fetching user profile
-            return UserProfile(  # type: ignore
+            return UserProfile(  # type: ignore[misc]
                 id=user_id,
                 name=f"User {user_id}",
                 private_notes_value=f"Private notes for user {user_id}",
@@ -345,7 +345,7 @@ class TestFieldAuthorization:
 
         @query
         async def async_data(info) -> AsyncData:
-            return AsyncData(id=1, secret_value="async secret data")  # type: ignore
+            return AsyncData(id=1, secret_value="async secret data")  # type: ignore[misc]
 
         schema = build_fraiseql_schema(query_types=[async_data])
 
@@ -399,7 +399,7 @@ class TestFieldAuthorization:
 
         # Test various scenarios
         info = MagicMock(spec=GraphQLResolveInfo)
-        resource = SecureResource(id=1, public_data="public")  # type: ignore
+        resource = SecureResource(id=1, public_data="public")  # type: ignore[misc]
 
         # For testing, we need to simulate how GraphQL would call this
         # The field decorator expects the method to be unbound
@@ -436,7 +436,7 @@ class TestFieldAuthorization:
             return db_permissions.get(f"{resource_id}:{permission}", False)
 
         # Create async permission check
-        async def can_view_financial_data(info, *args, **kwargs) -> bool:
+        async def can_view_financial_data(info, *args, **kwargs) -> bool:  # noqa: ANN002, ANN003
             user = info.context.get("user")
             if not user:
                 return False
@@ -453,7 +453,7 @@ class TestFieldAuthorization:
             async def financial_report(self, info) -> dict:
                 return {"revenue": 1000000, "profit": 100000}
 
-        company = Company(name="Test Corp")  # type: ignore
+        company = Company(name="Test Corp")  # type: ignore[misc]
         info = MagicMock(spec=GraphQLResolveInfo)
 
         # Get the unbound method for testing
@@ -477,7 +477,7 @@ class TestFieldAuthorization:
     def test_permission_with_field_arguments(self) -> None:
         """Test permissions that depend on field arguments."""
 
-        def can_access_user_data(info, *args, **kwargs) -> bool:
+        def can_access_user_data(info, *args, **kwargs) -> bool:  # noqa: ANN002, ANN003
             # Extract user_id from kwargs (field arguments)
             user_id = kwargs.get("user_id")
             if user_id is None and args:
@@ -503,7 +503,7 @@ class TestFieldAuthorization:
             def user_profile(self, info, user_id: int) -> dict:
                 return {"id": user_id, "email": f"user{user_id}@example.com"}
 
-        query = Query()  # type: ignore
+        query = Query()  # type: ignore[misc]
         info = MagicMock(spec=GraphQLResolveInfo)
         # Get the unbound method
         resolver = Query.user_profile
@@ -535,7 +535,7 @@ class TestFieldAuthorization:
                 self.requests = {}
                 self.max_requests = max_requests
 
-            def check_rate_limit(self, info, *args, **kwargs) -> bool:
+            def check_rate_limit(self, info, *args, **kwargs) -> bool:  # noqa: ANN002, ANN003
                 user = info.context.get("user")
                 if not user:
                     return False
@@ -558,7 +558,7 @@ class TestFieldAuthorization:
             def expensive_operation(self, info) -> str:
                 return "result"
 
-        query = ExpensiveQuery()  # type: ignore
+        query = ExpensiveQuery()  # type: ignore[misc]
         info = MagicMock(spec=GraphQLResolveInfo)
         info.context = {"user": {"id": 1}}
         resolver = ExpensiveQuery.expensive_operation
@@ -577,11 +577,11 @@ class TestFieldAuthorization:
         """Test mixing sync and async permission checks."""
 
         # Sync check
-        def is_authenticated(info, *args, **kwargs) -> bool:
+        def is_authenticated(info, *args, **kwargs) -> bool:  # noqa: ANN002, ANN003
             return info.context.get("user") is not None
 
         # Async check
-        async def has_premium_subscription(info, *args, **kwargs) -> bool:
+        async def has_premium_subscription(info, *args, **kwargs) -> bool:  # noqa: ANN002, ANN003
             await asyncio.sleep(0.01)  # Simulate async check
             user = info.context.get("user", {})
             return user.get("subscription") == "premium"
@@ -598,7 +598,7 @@ class TestFieldAuthorization:
             async def premium_data(self, info) -> str:
                 return "premium content"
 
-        content = PremiumContent(title="Premium Article")  # type: ignore
+        content = PremiumContent(title="Premium Article")  # type: ignore[misc]
         info = MagicMock(spec=GraphQLResolveInfo)
         resolver = PremiumContent.premium_data
 
@@ -623,7 +623,7 @@ class TestFieldAuthorization:
         def can_see_field(field_name: str):
             """Factory for field-specific permission checks."""
 
-            def check(info, *args, **kwargs) -> bool:
+            def check(info, *args, **kwargs) -> bool:  # noqa: ANN002, ANN003
                 user = info.context.get("user", {})
                 visible_fields = user.get("visible_fields", [])
                 return field_name in visible_fields
@@ -649,7 +649,7 @@ class TestFieldAuthorization:
             def address(self, info) -> str:
                 return "123 Main St"
 
-        obj = FlexibleObject(id=1)  # type: ignore
+        obj = FlexibleObject(id=1)  # type: ignore[misc]
         info = MagicMock(spec=GraphQLResolveInfo)
 
         # User with access to email only
@@ -672,7 +672,7 @@ class TestFieldAuthorization:
         """Test permissions that return specific error codes."""
 
         def check_subscription_tier(required_tier: str):
-            def check(info, *args, **kwargs) -> bool:
+            def check(info, *args, **kwargs) -> bool:  # noqa: ANN002, ANN003
                 user = info.context.get("user", {})
                 user_tier = user.get("tier", "free")
 
@@ -703,7 +703,7 @@ class TestFieldAuthorization:
             def enterprise_feature(self, info) -> str:
                 return "enterprise"
 
-        service = TieredService()  # type: ignore
+        service = TieredService()  # type: ignore[misc]
         info = MagicMock(spec=GraphQLResolveInfo)
 
         # Free user

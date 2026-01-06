@@ -28,7 +28,7 @@ except ImportError:
 
 
 @pytest.fixture(scope="class")
-def rust_test_schema(meta_test_schema):
+def rust_test_schema(meta_test_schema) -> None:
     """Schema registry with complex types for Rust pipeline testing."""
     # Clear any existing registrations
     meta_test_schema.clear()
@@ -94,14 +94,14 @@ def rust_test_schema(meta_test_schema):
 class TestRustPipelineAvailability:
     """Test that Rust pipeline components are available and functional."""
 
-    def test_rust_pipeline_can_be_imported(self):
+    def test_rust_pipeline_can_be_imported(self) -> None:
         """Rust pipeline should be importable without errors."""
         assert rust_pipeline is not None, "Rust pipeline module should be available"
         assert execute_via_rust_pipeline is not None, (
             "execute_via_rust_pipeline should be available"
         )
 
-    async def test_rust_pipeline_basic_functionality(self, meta_test_pool):
+    async def test_rust_pipeline_basic_functionality(self, meta_test_pool) -> None:
         """Rust pipeline should handle basic operations without crashing."""
         # Test basic functionality - this should not raise exceptions
         try:
@@ -112,11 +112,11 @@ class TestRustPipelineAvailability:
                 assert row[0] == 1, "Basic database operation should work"
         except Exception as e:
             # If it fails, it should fail gracefully with a clear error
-            assert "rust" in str(e).lower() or "pipeline" in str(e).lower(), (
+            assert "rust" in str(e).lower() or "pipeline" in str(e).lower(), (  # noqa: PT017
                 f"Rust pipeline error should mention rust or pipeline: {e}"
             )
 
-    def test_rust_pipeline_has_required_functions(self):
+    def test_rust_pipeline_has_required_functions(self) -> None:
         """Rust pipeline should export required functions."""
         assert hasattr(rust_pipeline, "execute_via_rust_pipeline"), (
             "Rust pipeline should have execute_via_rust_pipeline function"
@@ -127,7 +127,7 @@ class TestRustPipelineAvailability:
 class TestRustPipelineEquivalence:
     """Test that Rust and Python pipelines produce equivalent results."""
 
-    async def test_simple_query_equivalence(self, rust_test_schema, meta_test_pool):
+    async def test_simple_query_equivalence(self, rust_test_schema, meta_test_pool) -> None:
         """Simple queries should produce identical results in Rust and Python pipelines."""
         schema = rust_test_schema.build_schema()
 
@@ -147,7 +147,7 @@ class TestRustPipelineEquivalence:
         assert not result.errors, f"Query failed: {result.errors}"
         assert result.data is not None
 
-    async def test_filtered_query_equivalence(self, rust_test_schema, meta_test_pool):
+    async def test_filtered_query_equivalence(self, rust_test_schema, meta_test_pool) -> None:
         """Filtered queries should work consistently across pipelines."""
         schema = rust_test_schema.build_schema()
 
@@ -164,7 +164,7 @@ class TestRustPipelineEquivalence:
         result = await graphql(schema, query_str)
         assert not result.errors, f"Filtered query failed: {result.errors}"
 
-    async def test_complex_nested_query_equivalence(self, rust_test_schema, meta_test_pool):
+    async def test_complex_nested_query_equivalence(self, rust_test_schema, meta_test_pool) -> None:
         """Complex nested queries should work consistently."""
         schema = rust_test_schema.build_schema()
 
@@ -205,7 +205,7 @@ class TestRustPipelineEquivalence:
 class TestRustPipelineComplexQueries:
     """Test Rust pipeline with complex GraphQL operations."""
 
-    async def test_rust_pipeline_with_aggregations(self, rust_test_schema, meta_test_pool):
+    async def test_rust_pipeline_with_aggregations(self, rust_test_schema, meta_test_pool) -> None:
         """Rust pipeline should handle queries with aggregations."""
         schema = rust_test_schema.build_schema()
 
@@ -227,7 +227,9 @@ class TestRustPipelineComplexQueries:
         # Should handle the query structure without pipeline-specific errors
         assert result is not None
 
-    async def test_rust_pipeline_with_multiple_filters(self, rust_test_schema, meta_test_pool):
+    async def test_rust_pipeline_with_multiple_filters(
+        self, rust_test_schema, meta_test_pool
+    ) -> None:
         """Rust pipeline should handle complex WHERE clauses."""
         schema = rust_test_schema.build_schema()
 
@@ -256,7 +258,7 @@ class TestRustPipelineComplexQueries:
                 f"Rust pipeline error in complex query: {error_str}"
             )
 
-    async def test_rust_pipeline_with_pagination(self, rust_test_schema, meta_test_pool):
+    async def test_rust_pipeline_with_pagination(self, rust_test_schema, meta_test_pool) -> None:
         """Rust pipeline should handle pagination queries."""
         schema = rust_test_schema.build_schema()
 
@@ -281,7 +283,7 @@ class TestRustPipelineComplexQueries:
         result = await graphql(schema, query_str)
         assert result is not None
 
-    async def test_rust_pipeline_with_variables(self, rust_test_schema, meta_test_pool):
+    async def test_rust_pipeline_with_variables(self, rust_test_schema, meta_test_pool) -> None:
         """Rust pipeline should handle GraphQL variables."""
         schema = rust_test_schema.build_schema()
 
@@ -309,7 +311,7 @@ class TestRustPipelineComplexQueries:
 class TestRustPipelineErrorHandling:
     """Test that Rust pipeline handles errors gracefully."""
 
-    async def test_rust_pipeline_graceful_fallback(self, rust_test_schema, meta_test_pool):
+    async def test_rust_pipeline_graceful_fallback(self, rust_test_schema, meta_test_pool) -> None:
         """Rust pipeline should fallback gracefully on errors."""
         # This test ensures that if the Rust pipeline fails,
         # the system can still function (presumably falling back to Python)
@@ -349,12 +351,12 @@ class TestRustPipelineErrorHandling:
                 for indicator in crash_indicators:
                     assert indicator not in error.lower(), f"Pipeline crash detected: {error}"
 
-    async def test_rust_pipeline_with_invalid_sql(self, meta_test_pool):
+    async def test_rust_pipeline_with_invalid_sql(self, meta_test_pool) -> None:
         """Rust pipeline should handle invalid SQL gracefully."""
         try:
             # Try invalid SQL that should fail gracefully
             async with meta_test_pool.connection() as conn:
-                result = await conn.execute("SELECT * FROM nonexistent_table_invalid_sql_test")
+                await conn.execute("SELECT * FROM nonexistent_table_invalid_sql_test")
                 # If it succeeds, that's unexpected but not a crash
                 # If it fails, it should be a clean database error
         except Exception as e:
@@ -362,14 +364,14 @@ class TestRustPipelineErrorHandling:
             error_str = str(e).lower()
             crash_indicators = ["panic", "segmentation fault", "null pointer"]
             for indicator in crash_indicators:
-                assert indicator not in error_str, f"Rust pipeline crash on invalid SQL: {e}"
+                assert indicator not in error_str, f"Rust pipeline crash on invalid SQL: {e}"  # noqa: PT017
 
 
 @pytest.mark.skipif(not RUST_AVAILABLE, reason="Rust pipeline not available")
 class TestRustPipelinePerformance:
     """Test Rust pipeline performance characteristics."""
 
-    async def test_rust_pipeline_response_time(self, rust_test_schema, meta_test_pool):
+    async def test_rust_pipeline_response_time(self, rust_test_schema, meta_test_pool) -> None:
         """Rust pipeline should provide reasonable response times."""
         import time
 
@@ -400,7 +402,7 @@ class TestRustPipelinePerformance:
         # Should complete in reasonable time (< 1 second per query)
         assert avg_time < 1.0, f"Rust pipeline too slow: {avg_time:.3f}s average"
 
-    async def test_rust_pipeline_memory_usage(self, rust_test_schema, meta_test_pool):
+    async def test_rust_pipeline_memory_usage(self, rust_test_schema, meta_test_pool) -> None:
         """Rust pipeline should not have excessive memory usage."""
         # This is a basic test - in a real scenario you'd use memory profiling
         schema = rust_test_schema.build_schema()
@@ -427,7 +429,7 @@ class TestRustPipelinePerformance:
 class TestPipelineAvailability:
     """Test pipeline availability and basic functionality regardless of Rust."""
 
-    async def test_some_pipeline_is_available(self, rust_test_schema, meta_test_pool):
+    async def test_some_pipeline_is_available(self, rust_test_schema, meta_test_pool) -> None:
         """At minimum, Python pipeline should be available."""
         schema = rust_test_schema.build_schema()
 
@@ -445,7 +447,7 @@ class TestPipelineAvailability:
         # Should have some result (success or expected failure)
         assert result is not None, "No pipeline available for GraphQL execution"
 
-    def test_pipeline_choice_logic(self):
+    def test_pipeline_choice_logic(self) -> None:
         """System should have logic to choose appropriate pipeline."""
         # This tests the high-level pipeline selection logic
         # In practice, this might be environment-dependent
@@ -458,7 +460,7 @@ class TestPipelineAvailability:
         # Basic sanity check - graphql executor should be available
         assert graphql_executor is not None, "Core GraphQL execution not available"
 
-    async def test_fallback_mechanism(self, rust_test_schema, meta_test_pool):
+    async def test_fallback_mechanism(self, rust_test_schema, meta_test_pool) -> None:
         """System should have fallback mechanisms when preferred pipeline fails."""
         schema = rust_test_schema.build_schema()
 

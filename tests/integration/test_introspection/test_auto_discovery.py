@@ -81,10 +81,10 @@ class TestAutoDiscovery:
             )()
         ]
 
-        async def mock_discover_views(*args, **kwargs):
+        async def mock_discover_views(*args, **kwargs):  # noqa: ANN002, ANN003
             return mock_views
 
-        async def mock_discover_functions(*args, **kwargs):
+        async def mock_discover_functions(*args, **kwargs):  # noqa: ANN002, ANN003
             return mock_functions
 
         monkeypatch.setattr(auto_discovery.introspector, "discover_views", mock_discover_views)
@@ -95,13 +95,13 @@ class TestAutoDiscovery:
         # Mock the type generation methods
         mock_type_class = type("MockType", (), {"__name__": "User"})()
 
-        async def mock_generate_type(*args, **kwargs):
+        async def mock_generate_type(*args, **kwargs):  # noqa: ANN002, ANN003
             return mock_type_class
 
-        def mock_generate_queries(*args, **kwargs):
+        def mock_generate_queries(*args, **kwargs):  # noqa: ANN002, ANN003
             return [type("MockQuery", (), {})()]
 
-        async def mock_generate_mutation(*args, **kwargs):
+        async def mock_generate_mutation(*args, **kwargs):  # noqa: ANN002, ANN003
             return type("MockMutation", (), {})()
 
         monkeypatch.setattr(auto_discovery, "_generate_type_from_view", mock_generate_type)

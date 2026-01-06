@@ -13,7 +13,7 @@ from fraiseql.utils.introspection import describe_type
 
 
 @pytest.fixture(scope="class")
-def introspection_test_schema(meta_test_schema):
+def introspection_test_schema(meta_test_schema) -> None:
     """Schema registry with diverse types for introspection testing."""
     # Clear any existing registrations
     meta_test_schema.clear()
@@ -88,7 +88,7 @@ def introspection_test_schema(meta_test_schema):
 class TestIntrospectionIntegration:
     """Integration tests for introspection utilities with real schema data."""
 
-    def test_describe_input_type(self, introspection_test_schema):
+    def test_describe_input_type(self, introspection_test_schema) -> None:
         """describe_type should work correctly with @fraise_input decorated classes."""
         # Get the UserInput type from registered types
         user_input_type = None
@@ -116,14 +116,14 @@ class TestIntrospectionIntegration:
 
         # Check field metadata
         name_field = fields["name"]
-        assert name_field["type"] == str
+        assert name_field["type"] is str
         assert name_field["purpose"] == "input"
 
         age_field = fields["age"]
         assert age_field["type"] == (int | None)
         assert age_field["default"] is None  # Should have default value
 
-    def test_describe_output_type(self, introspection_test_schema):
+    def test_describe_output_type(self, introspection_test_schema) -> None:
         """describe_type should work correctly with @fraise_type decorated classes."""
         # Get the User type
         user_type = None
@@ -154,7 +154,7 @@ class TestIntrospectionIntegration:
 
         # Check field metadata
         id_field = fields["id"]
-        assert id_field["type"] == int
+        assert id_field["type"] is int
         # Note: "both" indicates field can be used in both input and output contexts
         assert id_field["purpose"] in ("output", "both")
 
@@ -162,7 +162,7 @@ class TestIntrospectionIntegration:
         assert age_field["type"] == (int | None)
         assert age_field["default"] is None
 
-    def test_describe_success_type(self, introspection_test_schema):
+    def test_describe_success_type(self, introspection_test_schema) -> None:
         """describe_type should work correctly with @success decorated classes."""
         # Get the CreateUserSuccess type
         success_type = None
@@ -188,10 +188,10 @@ class TestIntrospectionIntegration:
 
         # Check field metadata
         message_field = fields["message"]
-        assert message_field["type"] == str
+        assert message_field["type"] is str
         assert message_field["default"] == "User created successfully"
 
-    def test_describe_error_type(self, introspection_test_schema):
+    def test_describe_error_type(self, introspection_test_schema) -> None:
         """describe_type should work correctly with @error decorated classes."""
         # Get the CreateUserError type
         error_type = None
@@ -225,7 +225,7 @@ class TestIntrospectionIntegration:
         assert message_field["default"] is None or isinstance(message_field["default"], str)
 
         code_field = fields["code"]
-        assert code_field["type"] == int
+        assert code_field["type"] is int
         # Default may be 0 or None depending on error decorator implementation
         assert code_field["default"] in (0, None)
 
@@ -233,7 +233,7 @@ class TestIntrospectionIntegration:
         assert str(errors_field["type"]).startswith("list[")  # List type
         assert errors_field["default"] == []  # Empty list
 
-    def test_describe_type_with_invalid_type(self):
+    def test_describe_type_with_invalid_type(self) -> None:
         """describe_type should raise TypeError for non-FraiseQL types."""
 
         class NotAFraiseQLType:
@@ -242,7 +242,7 @@ class TestIntrospectionIntegration:
         with pytest.raises(TypeError, match="not a valid FraiseQL type"):
             describe_type(NotAFraiseQLType)
 
-    def test_introspection_with_schema_registry(self, introspection_test_schema):
+    def test_introspection_with_schema_registry(self, introspection_test_schema) -> None:
         """Introspection should work with all types registered in schema."""
         # Get all registered types
         registered_types = list(introspection_test_schema.types.values())
@@ -263,7 +263,7 @@ class TestIntrospectionIntegration:
             # Fields should be a dict
             assert isinstance(description["fields"], dict)
 
-    def test_field_descriptions_from_introspection(self, introspection_test_schema):
+    def test_field_descriptions_from_introspection(self, introspection_test_schema) -> None:
         """Field descriptions should be extractable from introspection data."""
         # Get User type
         user_type = None
@@ -298,7 +298,7 @@ class TestIntrospectionIntegration:
         assert field_descriptions["id"]["purpose"] in ("output", "both")
         assert field_descriptions["name"]["purpose"] in ("output", "both")
 
-    def test_introspection_performance(self, introspection_test_schema):
+    def test_introspection_performance(self, introspection_test_schema) -> None:
         """Introspection should perform well with multiple types."""
         import time
 
@@ -320,7 +320,7 @@ class TestIntrospectionIntegration:
             f"Introspection too slow: {duration:.3f}s for {len(registered_types)} types"
         )
 
-    def test_introspection_consistency(self, introspection_test_schema):
+    def test_introspection_consistency(self, introspection_test_schema) -> None:
         """Introspection results should be consistent across multiple calls."""
         # Get a type to test
         user_type = None

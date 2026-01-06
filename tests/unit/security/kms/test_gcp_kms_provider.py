@@ -12,7 +12,7 @@ from fraiseql.security.kms.infrastructure.gcp_kms import (
 
 
 class TestGCPKMSConfig:
-    def test_key_path_construction(self):
+    def test_key_path_construction(self) -> None:
         config = GCPKMSConfig(
             project_id="my-project",
             location="global",
@@ -21,7 +21,7 @@ class TestGCPKMSConfig:
         expected = "projects/my-project/locations/global/keyRings/my-keyring/cryptoKeys/my-key"
         assert config.key_path("my-key") == expected
 
-    def test_key_version_path(self):
+    def test_key_version_path(self) -> None:
         config = GCPKMSConfig(
             project_id="my-project",
             location="us-east1",
@@ -33,33 +33,33 @@ class TestGCPKMSConfig:
 
 class TestGCPKMSProvider:
     @pytest.fixture
-    def config(self):
+    def config(self) -> None:
         return GCPKMSConfig(
             project_id="my-project",
             location="global",
             key_ring="my-keyring",
         )
 
-    def test_extends_base_provider(self, config):
-        with patch("fraiseql.security.kms.infrastructure.gcp_kms.GCP_KMS_AVAILABLE", True):
+    def test_extends_base_provider(self, config) -> None:
+        with patch("fraiseql.security.kms.infrastructure.gcp_kms.GCP_KMS_AVAILABLE", True):  # noqa: SIM117
             with patch("fraiseql.security.kms.infrastructure.gcp_kms.kms_v1"):
                 provider = GCPKMSProvider(config)
                 assert isinstance(provider, BaseKMSProvider)
 
-    def test_provider_name(self, config):
-        with patch("fraiseql.security.kms.infrastructure.gcp_kms.GCP_KMS_AVAILABLE", True):
+    def test_provider_name(self, config) -> None:
+        with patch("fraiseql.security.kms.infrastructure.gcp_kms.GCP_KMS_AVAILABLE", True):  # noqa: SIM117
             with patch("fraiseql.security.kms.infrastructure.gcp_kms.kms_v1"):
                 provider = GCPKMSProvider(config)
                 assert provider.provider_name == "gcp"
 
     @pytest.mark.asyncio
-    async def test_do_encrypt_calls_gcp_api(self, config):
+    async def test_do_encrypt_calls_gcp_api(self, config) -> None:
         """_do_encrypt should call GCP Cloud KMS encrypt endpoint."""
         with (
             patch("fraiseql.security.kms.infrastructure.gcp_kms.GCP_KMS_AVAILABLE", True),
             patch("fraiseql.security.kms.infrastructure.gcp_kms.kms_v1") as mock_kms,
-            patch("fraiseql.security.kms.infrastructure.gcp_kms.types") as mock_types,
-            patch("fraiseql.security.kms.infrastructure.gcp_kms.gcp_exceptions") as mock_exc,
+            patch("fraiseql.security.kms.infrastructure.gcp_kms.types"),
+            patch("fraiseql.security.kms.infrastructure.gcp_kms.gcp_exceptions"),
         ):
             mock_client = AsyncMock()
             mock_kms.KeyManagementServiceAsyncClient.return_value = mock_client
@@ -80,13 +80,13 @@ class TestGCPKMSProvider:
             assert algo == "GOOGLE_SYMMETRIC_ENCRYPTION"
 
     @pytest.mark.asyncio
-    async def test_do_decrypt_calls_gcp_api(self, config):
+    async def test_do_decrypt_calls_gcp_api(self, config) -> None:
         """_do_decrypt should call GCP Cloud KMS decrypt endpoint."""
         with (
             patch("fraiseql.security.kms.infrastructure.gcp_kms.GCP_KMS_AVAILABLE", True),
             patch("fraiseql.security.kms.infrastructure.gcp_kms.kms_v1") as mock_kms,
-            patch("fraiseql.security.kms.infrastructure.gcp_kms.types") as mock_types,
-            patch("fraiseql.security.kms.infrastructure.gcp_kms.gcp_exceptions") as mock_exc,
+            patch("fraiseql.security.kms.infrastructure.gcp_kms.types"),
+            patch("fraiseql.security.kms.infrastructure.gcp_kms.gcp_exceptions"),
         ):
             mock_client = AsyncMock()
             mock_kms.KeyManagementServiceAsyncClient.return_value = mock_client

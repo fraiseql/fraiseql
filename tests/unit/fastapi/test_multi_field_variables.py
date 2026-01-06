@@ -11,14 +11,13 @@ from fraiseql.fastapi.routers import execute_multi_field_query
 
 
 @pytest.mark.asyncio
-async def test_multi_field_query_with_variables(init_schema_registry_fixture):
+async def test_multi_field_query_with_variables(init_schema_registry_fixture) -> None:
     """Test multi-field query with variables in field arguments."""
     from graphql import (
         GraphQLArgument,
         GraphQLField,
         GraphQLInt,
         GraphQLList,
-        GraphQLNonNull,
         GraphQLObjectType,
         GraphQLSchema,
         GraphQLString,
@@ -44,7 +43,7 @@ async def test_multi_field_query_with_variables(init_schema_registry_fixture):
     )
 
     # Create resolvers that use variables via field arguments
-    async def resolve_users(info):
+    async def resolve_users(info) -> None:
         # Access variable through field arguments
         min_age = None
         if info.field_nodes and info.field_nodes[0].arguments:
@@ -71,7 +70,7 @@ async def test_multi_field_query_with_variables(init_schema_registry_fixture):
 
         return users
 
-    async def resolve_posts(info):
+    async def resolve_posts(info) -> None:
         # Access variable for author_id filter
         author_id = None
         if info.field_nodes and info.field_nodes[0].arguments:
@@ -159,7 +158,7 @@ async def test_multi_field_query_with_variables(init_schema_registry_fixture):
 
 
 @pytest.mark.asyncio
-async def test_multi_field_query_with_optional_variables(init_schema_registry_fixture):
+async def test_multi_field_query_with_optional_variables(init_schema_registry_fixture) -> None:
     """Test multi-field query with optional variables (some fields use them, some don't)."""
     from graphql import (
         GraphQLArgument,
@@ -187,7 +186,7 @@ async def test_multi_field_query_with_optional_variables(init_schema_registry_fi
         },
     )
 
-    async def resolve_users(info):
+    async def resolve_users(info) -> None:
         # Uses variable
         limit = 10  # default
         if info.field_nodes and info.field_nodes[0].arguments:
@@ -202,7 +201,7 @@ async def test_multi_field_query_with_optional_variables(init_schema_registry_fi
         users = [{"id": i, "name": f"User{i}"} for i in range(1, 11)]
         return users[:limit]
 
-    async def resolve_posts(info):
+    async def resolve_posts(info) -> None:
         # No variables - returns all posts
         return [
             {"id": 101, "title": "Post 1"},
@@ -253,7 +252,7 @@ async def test_multi_field_query_with_optional_variables(init_schema_registry_fi
 
 
 @pytest.mark.asyncio
-async def test_multi_field_query_with_no_variables(init_schema_registry_fixture):
+async def test_multi_field_query_with_no_variables(init_schema_registry_fixture) -> None:
     """Test multi-field query with no variables at all."""
     from graphql import (
         GraphQLField,
@@ -272,10 +271,10 @@ async def test_multi_field_query_with_no_variables(init_schema_registry_fixture)
         },
     )
 
-    async def resolve_users(info):
+    async def resolve_users(info) -> None:
         return [{"id": 1, "name": "Alice"}]
 
-    async def resolve_posts(info):
+    async def resolve_posts(info) -> None:
         return [{"id": 101, "title": "Post 1"}]
 
     query_type = GraphQLObjectType(
@@ -308,7 +307,7 @@ async def test_multi_field_query_with_no_variables(init_schema_registry_fixture)
 
 
 @pytest.fixture(scope="module", autouse=True)
-def init_schema_registry_fixture():
+def init_schema_registry_fixture() -> None:
     """Initialize schema registry for multi-field variable tests."""
     import fraiseql._fraiseql_rs as fraiseql_rs
 

@@ -8,12 +8,12 @@ from fraiseql import _get_fraiseql_rs
 
 
 @pytest.fixture
-def fraiseql_rs():
+def fraiseql_rs() -> None:
     """Get Rust module."""
     return _get_fraiseql_rs()
 
 
-def test_rust_filters_success_fields_correctly(fraiseql_rs):
+def test_rust_filters_success_fields_correctly(fraiseql_rs) -> None:
     """Verify Rust only returns requested fields in Success response.
 
     This is the PRIMARY test for field selection. If this fails, field selection is broken.
@@ -81,7 +81,7 @@ def test_rust_filters_success_fields_correctly(fraiseql_rs):
     print(f"✅ Rust filtering works: only {list(data.keys())} present")
 
 
-def test_rust_returns_all_fields_when_all_requested(fraiseql_rs):
+def test_rust_returns_all_fields_when_all_requested(fraiseql_rs) -> None:
     """Verify all fields returned when all are requested."""
     fake_result = {
         "status": "success",
@@ -126,7 +126,7 @@ def test_rust_returns_all_fields_when_all_requested(fraiseql_rs):
     print(f"✅ All fields present when requested: {sorted(data.keys())}")
 
 
-def test_rust_backward_compat_none_selection(fraiseql_rs):
+def test_rust_backward_compat_none_selection(fraiseql_rs) -> None:
     """Verify None selection returns all fields (backward compatibility)."""
     fake_result = {
         "status": "success",
@@ -169,7 +169,7 @@ def test_rust_backward_compat_none_selection(fraiseql_rs):
     print("✅ Backward compat: None selection returns all fields")
 
 
-def test_rust_error_response_field_filtering(fraiseql_rs):
+def test_rust_error_response_field_filtering(fraiseql_rs) -> None:
     """Verify Error responses respect field selection (v1.8.1+).
 
     Tests Error type field filtering with proper v1.8.1 semantics:
@@ -232,7 +232,7 @@ def test_rust_error_response_field_filtering(fraiseql_rs):
     print(f"✅ Error response filtering works: {list(data.keys())}")
 
 
-def test_error_type_filters_auto_injected_fields(fraiseql_rs):
+def test_error_type_filters_auto_injected_fields(fraiseql_rs) -> None:
     """Verify Error types filter auto-injected fields (code, status, message, errors)."""
     fake_error = {
         "status": "failed:not_found",
@@ -278,7 +278,7 @@ def test_error_type_filters_auto_injected_fields(fraiseql_rs):
     print(f"✅ Error type filtering: only code present: {list(data.keys())}")
 
 
-def test_error_type_all_auto_injected_fields(fraiseql_rs):
+def test_error_type_all_auto_injected_fields(fraiseql_rs) -> None:
     """Verify Error types return all auto-injected fields when requested."""
     fake_error = {
         "status": "failed:conflict",
@@ -322,7 +322,7 @@ def test_error_type_all_auto_injected_fields(fraiseql_rs):
     print(f"✅ All Error auto-injected fields present: {sorted(data.keys())}")
 
 
-def test_error_type_code_computation(fraiseql_rs):
+def test_error_type_code_computation(fraiseql_rs) -> None:
     """Verify Error type 'code' field is computed correctly from status."""
     test_cases = [
         ("failed:not_found", 404),
@@ -331,7 +331,7 @@ def test_error_type_code_computation(fraiseql_rs):
         ("noop:invalid_id", 422),
     ]
 
-    for status, expected_code in test_cases:
+    for status, _expected_code in test_cases:
         fake_error = {
             "status": status,
             "message": "Test error",
@@ -369,7 +369,7 @@ def test_error_type_code_computation(fraiseql_rs):
     print("✅ Error code computation works for all status types")
 
 
-def test_error_type_does_not_have_success_fields(fraiseql_rs):
+def test_error_type_does_not_have_success_fields(fraiseql_rs) -> None:
     """Verify Error types never have Success-only fields (id, updatedFields)."""
     fake_error = {
         "status": "failed:validation",
@@ -415,7 +415,7 @@ def test_error_type_does_not_have_success_fields(fraiseql_rs):
     print(f"✅ Error types correctly exclude Success-only fields: {list(data.keys())}")
 
 
-def test_cascade_field_selection(fraiseql_rs):
+def test_cascade_field_selection(fraiseql_rs) -> None:
     """Verify cascade field respects field selection."""
     fake_result = {
         "status": "success",
@@ -483,7 +483,7 @@ def test_cascade_field_selection(fraiseql_rs):
     print(f"✅ Cascade field included when requested: {list(reservations[0].keys())}")
 
 
-def test_empty_cascade_selection(fraiseql_rs):
+def test_empty_cascade_selection(fraiseql_rs) -> None:
     """Verify empty cascade field selection returns only __typename."""
     fake_result = {
         "status": "success",
@@ -536,7 +536,7 @@ def test_empty_cascade_selection(fraiseql_rs):
     print(f"✅ Cascade with selections present: {list(reservations[0].keys())}")
 
 
-def test_multiple_entity_fields_selection(fraiseql_rs):
+def test_multiple_entity_fields_selection(fraiseql_rs) -> None:
     """Verify field selection with multiple entity fields (v1.8.1 feature)."""
     # Error response with conflict entity
     fake_error = {
@@ -601,7 +601,7 @@ def test_multiple_entity_fields_selection(fraiseql_rs):
     print(f"✅ Multiple entity fields work: {list(data.keys())}")
 
 
-def test_multiple_entity_fields_success_type(fraiseql_rs):
+def test_multiple_entity_fields_success_type(fraiseql_rs) -> None:
     """Verify field selection with multiple entities in Success type."""
     fake_result = {
         "status": "updated",
@@ -654,7 +654,7 @@ def test_multiple_entity_fields_success_type(fraiseql_rs):
     print(f"✅ Multiple entities in Success: {list(data.keys())}")
 
 
-def test_nested_entity_field_selection(fraiseql_rs):
+def test_nested_entity_field_selection(fraiseql_rs) -> None:
     """Verify nested entity fields respect selection (e.g., machine.contract.customer)."""
     fake_result = {
         "status": "success",

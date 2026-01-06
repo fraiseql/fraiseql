@@ -8,9 +8,9 @@ from datetime import UTC, datetime
 import pytest
 from click.testing import CliRunner
 
-from fraiseql.monitoring.db_monitor import DatabaseMonitor, QueryMetrics
-from fraiseql.monitoring.runtime.db_monitor_sync import DatabaseMonitorSync, set_database_monitor
 from fraiseql.cli.monitoring.database_commands import database
+from fraiseql.monitoring.db_monitor import DatabaseMonitor, QueryMetrics
+from fraiseql.monitoring.runtime.db_monitor_sync import set_database_monitor
 
 
 @pytest.fixture
@@ -31,7 +31,6 @@ def test_monitor() -> DatabaseMonitor:
 def monitor_with_queries(test_monitor: DatabaseMonitor) -> DatabaseMonitor:
     """Create a monitor populated with test data."""
     # Clear the singleton instance and reset
-    from fraiseql.monitoring.runtime.db_monitor_sync import DatabaseMonitorSync
     test_monitor._recent_queries.clear()
 
     for i in range(5):
@@ -47,6 +46,7 @@ def monitor_with_queries(test_monitor: DatabaseMonitor) -> DatabaseMonitor:
 
     # Update the singleton to use this monitor
     from fraiseql.monitoring.runtime.db_monitor_sync import set_database_monitor
+
     set_database_monitor(test_monitor)
 
     return test_monitor

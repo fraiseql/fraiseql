@@ -45,7 +45,7 @@ class TestMutationGenerationIntegration:
         return PostgresIntrospector(class_db_pool)
 
     @pytest_asyncio.fixture(scope="class")
-    async def test_mutation_function(self, class_db_pool, test_schema):
+    async def test_mutation_function(self, class_db_pool, test_schema) -> None:
         """Create a test mutation function for introspection."""
         import uuid
 
@@ -97,7 +97,7 @@ class TestMutationGenerationIntegration:
             await conn.commit()
 
     @pytest.mark.asyncio
-    async def test_full_mutation_generation_pipeline(
+    async def test_full_mutation_generation_pipeline(  # noqa: ANN201
         self,
         introspector: PostgresIntrospector,
         metadata_parser: MetadataParser,
@@ -152,7 +152,7 @@ class TestMutationGenerationIntegration:
             function_metadata,
             annotation,
             type_registry,
-            introspector,  # type: ignore
+            introspector,  # type: ignore[misc]
         )
 
         # Then: Mutation is generated successfully
@@ -161,7 +161,7 @@ class TestMutationGenerationIntegration:
         assert mutation.__name__.startswith("CreateUser")
 
     @pytest.mark.asyncio
-    async def test_mutation_generation_with_missing_types_fails(
+    async def test_mutation_generation_with_missing_types_fails(  # noqa: ANN201
         self,
         introspector: PostgresIntrospector,
         metadata_parser: MetadataParser,
@@ -200,7 +200,7 @@ class TestMutationGenerationIntegration:
         assert mutation is None
 
     @pytest.mark.asyncio
-    async def test_input_type_generation_filters_parameters(
+    async def test_input_type_generation_filters_parameters(  # noqa: ANN201
         self,
         introspector: PostgresIntrospector,
         metadata_parser: MetadataParser,

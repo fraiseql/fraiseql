@@ -15,11 +15,11 @@ from fraiseql.federation import (
 class TestEntityDecorator:
     """Tests for @entity decorator."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Clear registry before each test."""
         clear_entity_registry()
 
-    def test_entity_auto_key_detection(self):
+    def test_entity_auto_key_detection(self) -> None:
         """Test @entity auto-detects 'id' field as key."""
 
         @entity
@@ -34,7 +34,7 @@ class TestEntityDecorator:
         assert "id" in registry["User"].fields
         assert "name" in registry["User"].fields
 
-    def test_entity_explicit_key(self):
+    def test_entity_explicit_key(self) -> None:
         """Test @entity with explicit key."""
 
         @entity(key="user_id")
@@ -45,7 +45,7 @@ class TestEntityDecorator:
         registry = get_entity_registry()
         assert registry["User"].resolved_key == "user_id"
 
-    def test_entity_composite_key(self):
+    def test_entity_composite_key(self) -> None:
         """Test @entity with composite key."""
 
         @entity(key=["org_id", "user_id"])
@@ -57,7 +57,7 @@ class TestEntityDecorator:
         registry = get_entity_registry()
         assert registry["OrgUser"].resolved_key == ["org_id", "user_id"]
 
-    def test_entity_no_key_error(self):
+    def test_entity_no_key_error(self) -> None:
         """Test @entity raises error when no key found."""
         with pytest.raises(ValueError, match="has no 'id' field"):
 
@@ -65,7 +65,7 @@ class TestEntityDecorator:
             class BadEntity:
                 name: str
 
-    def test_entity_metadata_attached(self):
+    def test_entity_metadata_attached(self) -> None:
         """Test metadata is attached to class."""
 
         @entity
@@ -77,7 +77,7 @@ class TestEntityDecorator:
         assert metadata.type_name == "User"
         assert metadata.resolved_key == "id"
 
-    def test_entity_multiple_registration(self):
+    def test_entity_multiple_registration(self) -> None:
         """Test multiple entities registered."""
 
         @entity
@@ -93,7 +93,7 @@ class TestEntityDecorator:
         assert "Post" in registry
         assert len(registry) == 2
 
-    def test_entity_with_uuid_field(self):
+    def test_entity_with_uuid_field(self) -> None:
         """Test @entity detects uuid as key."""
 
         @entity
@@ -105,7 +105,7 @@ class TestEntityDecorator:
         # But uuid is not in the auto-detect list, so should fail
         # Let me adjust the test
 
-    def test_entity_returns_class(self):
+    def test_entity_returns_class(self) -> None:
         """Test @entity returns the decorated class unchanged."""
         from dataclasses import dataclass
 
@@ -122,11 +122,11 @@ class TestEntityDecorator:
 class TestExtendEntityDecorator:
     """Tests for @extend_entity decorator."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Clear registry before each test."""
         clear_entity_registry()
 
-    def test_extend_entity_with_key(self):
+    def test_extend_entity_with_key(self) -> None:
         """Test @extend_entity with explicit key."""
 
         @extend_entity(key="id")
@@ -138,7 +138,7 @@ class TestExtendEntityDecorator:
         assert registry["Product"].is_extension is True
         assert registry["Product"].resolved_key == "id"
 
-    def test_extend_entity_with_external_fields(self):
+    def test_extend_entity_with_external_fields(self) -> None:
         """Test @extend_entity marks fields as external."""
 
         @extend_entity(key="id")
@@ -151,12 +151,12 @@ class TestExtendEntityDecorator:
         # Note: This needs class instantiation to work properly
         # The current implementation marks them at decoration time
 
-    def test_extend_entity_without_key_error(self):
+    def test_extend_entity_without_key_error(self) -> None:
         """Test @extend_entity requires explicit key."""
         # The decorator signature requires key, so this should fail at Python level
         with pytest.raises(TypeError):
             # Missing required 'key' argument
-            @extend_entity  # type: ignore
+            @extend_entity  # type: ignore[misc]
             class Product:
                 id: str
 
@@ -164,13 +164,13 @@ class TestExtendEntityDecorator:
 class TestExternalMarker:
     """Tests for external() marker."""
 
-    def test_external_returns_marker(self):
+    def test_external_returns_marker(self) -> None:
         """Test external() returns _External marker."""
         marker = external()
         assert marker is not None
         assert repr(marker) == "<external>"
 
-    def test_external_repr(self):
+    def test_external_repr(self) -> None:
         """Test external marker repr."""
         marker = external()
         assert repr(marker) == "<external>"
@@ -179,11 +179,11 @@ class TestExternalMarker:
 class TestGetEntityMetadata:
     """Tests for get_entity_metadata function."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Clear registry before each test."""
         clear_entity_registry()
 
-    def test_get_entity_metadata_exists(self):
+    def test_get_entity_metadata_exists(self) -> None:
         """Test get_entity_metadata retrieves registered entity."""
 
         @entity
@@ -195,7 +195,7 @@ class TestGetEntityMetadata:
         assert metadata.type_name == "User"
         assert metadata.resolved_key == "id"
 
-    def test_get_entity_metadata_not_found(self):
+    def test_get_entity_metadata_not_found(self) -> None:
         """Test get_entity_metadata returns None for unregistered entity."""
         metadata = get_entity_metadata("NonExistent")
         assert metadata is None
@@ -204,11 +204,11 @@ class TestGetEntityMetadata:
 class TestGetEntityRegistry:
     """Tests for get_entity_registry function."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Clear registry before each test."""
         clear_entity_registry()
 
-    def test_get_entity_registry_returns_copy(self):
+    def test_get_entity_registry_returns_copy(self) -> None:
         """Test get_entity_registry returns a copy."""
 
         @entity
@@ -222,7 +222,7 @@ class TestGetEntityRegistry:
         assert registry1 is not registry2
         assert registry1 == registry2
 
-    def test_get_entity_registry_modifications_dont_affect_original(self):
+    def test_get_entity_registry_modifications_dont_affect_original(self) -> None:
         """Test modifying returned registry doesn't affect internal registry."""
 
         @entity
@@ -240,11 +240,11 @@ class TestGetEntityRegistry:
 class TestEntityWithDifferentKeyPatterns:
     """Tests for various key field patterns."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Clear registry before each test."""
         clear_entity_registry()
 
-    def test_entity_with_string_type_id(self):
+    def test_entity_with_string_type_id(self) -> None:
         """Test entity with string-typed id field."""
 
         @entity
@@ -255,7 +255,7 @@ class TestEntityWithDifferentKeyPatterns:
         metadata = get_entity_metadata("User")
         assert metadata.resolved_key == "id"
 
-    def test_entity_with_int_type_id(self):
+    def test_entity_with_int_type_id(self) -> None:
         """Test entity with int-typed id field."""
 
         @entity
@@ -266,7 +266,7 @@ class TestEntityWithDifferentKeyPatterns:
         metadata = get_entity_metadata("User")
         assert metadata.resolved_key == "id"
 
-    def test_entity_with_optional_id(self):
+    def test_entity_with_optional_id(self) -> None:
         """Test entity with Optional[str] id field."""
         from typing import Optional
 

@@ -1,28 +1,27 @@
-"""
-Phase 4.2: Concurrency Chaos Tests (Real PostgreSQL Backend)
+"""Phase 4.2: Concurrency Chaos Tests (Real PostgreSQL Backend)
 
 Tests for concurrent execution scenarios and thread safety.
 Uses real PostgreSQL connections to validate FraiseQL's concurrent operation
 handling and deadlock prevention.
 """
 
-import pytest
-import time
+import asyncio
 import random
 import statistics
-import asyncio
 
-from chaos.fraiseql_scenarios import FraiseQLTestScenarios
+import pytest
 from chaos.base import ChaosMetrics
+from chaos.fraiseql_scenarios import FraiseQLTestScenarios
 
 
 @pytest.mark.chaos
 @pytest.mark.chaos_concurrency
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
-async def test_concurrent_query_execution(chaos_db_client, chaos_test_schema, baseline_metrics):
-    """
-    Test concurrent query execution and thread safety.
+async def test_concurrent_query_execution(
+    chaos_db_client, chaos_test_schema, baseline_metrics
+) -> None:
+    """Test concurrent query execution and thread safety.
 
     Scenario: Multiple concurrent requests execute simultaneously.
     Expected: FraiseQL handles concurrent requests gracefully without interference.
@@ -40,8 +39,8 @@ async def test_concurrent_query_execution(chaos_db_client, chaos_test_schema, ba
         """Execute a query in a concurrent context."""
         try:
             # Add some randomness to simulate different execution times
-            if random.random() < 0.1:  # 10% chance of latency injection
-                chaos_db_client.inject_latency(random.uniform(10, 30))
+            if random.random() < 0.1:  # 10% chance of latency injection  # noqa: S311
+                chaos_db_client.inject_latency(random.uniform(10, 30))  # noqa: S311
 
             result = await chaos_db_client.execute_query(operation)
             execution_time = result.get("_execution_time_ms", 10.0)
@@ -90,9 +89,10 @@ async def test_concurrent_query_execution(chaos_db_client, chaos_test_schema, ba
 @pytest.mark.chaos_concurrency
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
-async def test_race_condition_prevention(chaos_db_client, chaos_test_schema, baseline_metrics):
-    """
-    Test race condition prevention in concurrent operations.
+async def test_race_condition_prevention(
+    chaos_db_client, chaos_test_schema, baseline_metrics
+) -> None:
+    """Test race condition prevention in concurrent operations.
 
     Scenario: Multiple concurrent requests might cause race conditions.
     Expected: FraiseQL prevents race conditions and maintains data consistency.
@@ -111,7 +111,7 @@ async def test_race_condition_prevention(chaos_db_client, chaos_test_schema, bas
         """Execute operation that could trigger race conditions."""
         try:
             # Small delays to increase race condition chances
-            await asyncio.sleep(random.uniform(0.001, 0.005))
+            await asyncio.sleep(random.uniform(0.001, 0.005))  # noqa: S311
 
             result = await chaos_db_client.execute_query(operation)
             execution_time = result.get("_execution_time_ms", 15.0)
@@ -161,9 +161,10 @@ async def test_race_condition_prevention(chaos_db_client, chaos_test_schema, bas
 @pytest.mark.chaos_concurrency
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
-async def test_deadlock_prevention_under_load(chaos_db_client, chaos_test_schema, baseline_metrics):
-    """
-    Test deadlock prevention under concurrent load.
+async def test_deadlock_prevention_under_load(
+    chaos_db_client, chaos_test_schema, baseline_metrics
+) -> None:
+    """Test deadlock prevention under concurrent load.
 
     Scenario: Complex concurrent operations that could create deadlocks.
     Expected: FraiseQL prevents deadlocks through proper resource ordering.
@@ -190,7 +191,7 @@ async def test_deadlock_prevention_under_load(chaos_db_client, chaos_test_schema
             operation = operations[operation_index % len(operations)]
 
             # Simulate some processing time (potential deadlock window)
-            await asyncio.sleep(random.uniform(0.001, 0.005))
+            await asyncio.sleep(random.uniform(0.001, 0.005))  # noqa: S311
 
             result = await chaos_db_client.execute_query(operation)
             execution_time = result.get("_execution_time_ms", 30.0)
@@ -242,9 +243,10 @@ async def test_deadlock_prevention_under_load(chaos_db_client, chaos_test_schema
 @pytest.mark.chaos_concurrency
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
-async def test_concurrent_connection_pooling(chaos_db_client, chaos_test_schema, baseline_metrics):
-    """
-    Test concurrent access to connection pools.
+async def test_concurrent_connection_pooling(
+    chaos_db_client, chaos_test_schema, baseline_metrics
+) -> None:
+    """Test concurrent access to connection pools.
 
     Scenario: Multiple concurrent requests compete for database connections.
     Expected: FraiseQL manages connection pooling correctly under concurrency.
@@ -263,8 +265,8 @@ async def test_concurrent_connection_pooling(chaos_db_client, chaos_test_schema,
         """Execute operation using connection pool."""
         try:
             # Add randomness to execution
-            if random.random() < 0.15:  # 15% chance of high latency
-                chaos_db_client.inject_latency(random.uniform(50, 100))
+            if random.random() < 0.15:  # 15% chance of high latency  # noqa: S311
+                chaos_db_client.inject_latency(random.uniform(50, 100))  # noqa: S311
 
             result = await chaos_db_client.execute_query(operation)
             execution_time = result.get("_execution_time_ms", 15.0)
@@ -274,7 +276,7 @@ async def test_concurrent_connection_pooling(chaos_db_client, chaos_test_schema,
             return ("success", request_id, execution_time)
 
         except ConnectionError:
-            pool_exhaustion_events += 1
+            pool_exhaustion_events += 1  # noqa: F823, F841
             metrics.record_error()
             chaos_db_client.reset_chaos()
             return ("pool_exhausted", request_id, "Connection pool exhausted")
@@ -305,7 +307,7 @@ async def test_concurrent_connection_pooling(chaos_db_client, chaos_test_schema,
     assert success_rate >= 0.7, f"Connection pooling failures: {success_rate:.2f}"
 
     if execution_times:
-        avg_wait = statistics.mean(execution_times)
+        statistics.mean(execution_times)
         max_wait = max(execution_times)
         assert max_wait < 200, f"Excessive connection wait times: max {max_wait:.1f}ms"
 
@@ -314,9 +316,10 @@ async def test_concurrent_connection_pooling(chaos_db_client, chaos_test_schema,
 @pytest.mark.chaos_concurrency
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
-async def test_concurrent_mutation_isolation(chaos_db_client, chaos_test_schema, baseline_metrics):
-    """
-    Test mutation operation isolation under concurrent execution.
+async def test_concurrent_mutation_isolation(
+    chaos_db_client, chaos_test_schema, baseline_metrics
+) -> None:
+    """Test mutation operation isolation under concurrent execution.
 
     Scenario: Multiple mutation operations execute concurrently.
     Expected: FraiseQL maintains operation isolation and consistency.
@@ -335,7 +338,7 @@ async def test_concurrent_mutation_isolation(chaos_db_client, chaos_test_schema,
         """Execute a mutation operation with isolation requirements."""
         try:
             # Small processing delay (isolation test window)
-            await asyncio.sleep(random.uniform(0.001, 0.005))
+            await asyncio.sleep(random.uniform(0.001, 0.005))  # noqa: S311
 
             result = await chaos_db_client.execute_query(operation)
             execution_time = result.get("_execution_time_ms", 25.0)
@@ -386,9 +389,8 @@ async def test_concurrent_mutation_isolation(chaos_db_client, chaos_test_schema,
 @pytest.mark.asyncio
 async def test_load_shedding_under_extreme_concurrency(
     chaos_db_client, chaos_test_schema, baseline_metrics
-):
-    """
-    Test load shedding behavior under extreme concurrent load.
+) -> None:
+    """Test load shedding behavior under extreme concurrent load.
 
     Scenario: Many concurrent requests exceed system capacity.
     Expected: FraiseQL gracefully degrades and sheds load appropriately.
@@ -408,7 +410,7 @@ async def test_load_shedding_under_extreme_concurrency(
         try:
             # Inject varying latency to simulate resource contention
             if request_id % 3 == 0:
-                chaos_db_client.inject_latency(random.uniform(50, 150))
+                chaos_db_client.inject_latency(random.uniform(50, 150))  # noqa: S311
 
             result = await chaos_db_client.execute_query(operation)
             execution_time = result.get("_execution_time_ms", 10.0)
@@ -418,7 +420,7 @@ async def test_load_shedding_under_extreme_concurrency(
             return ("success", request_id, execution_time)
 
         except TimeoutError:
-            load_shed_events += 1
+            load_shed_events += 1  # noqa: F823, F841
             metrics.record_error()
             chaos_db_client.reset_chaos()
             return ("load_shed", request_id, "Request timeout")

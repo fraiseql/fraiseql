@@ -4,7 +4,7 @@ import pytest
 
 
 @pytest.mark.asyncio
-async def test_validation_error_detected(db_connection, clear_registry):
+async def test_validation_error_detected(db_connection, clear_registry) -> None:
     """Test that validation: prefix is detected as error."""
     # Create mutation_response type
     await db_connection.execute("""
@@ -81,7 +81,7 @@ async def test_validation_error_detected(db_connection, clear_registry):
 
 
 @pytest.mark.asyncio
-async def test_conflict_error_detected(db_connection, clear_registry):
+async def test_conflict_error_detected(db_connection, clear_registry) -> None:
     """Test that conflict: prefix is detected as error."""
     # Create mutation_response type
     await db_connection.execute("""
@@ -155,7 +155,7 @@ async def test_conflict_error_detected(db_connection, clear_registry):
 
 
 @pytest.mark.asyncio
-async def test_noop_returns_success_type(db_connection, clear_registry):
+async def test_noop_returns_success_type(db_connection, clear_registry) -> None:
     """Test that noop: prefix returns success type (not error)."""
     # Create mutation_response type
     await db_connection.execute("""
@@ -231,7 +231,7 @@ async def test_noop_returns_success_type(db_connection, clear_registry):
 
 
 @pytest.mark.asyncio
-async def test_timeout_error_detected(db_connection, clear_registry):
+async def test_timeout_error_detected(db_connection, clear_registry) -> None:
     """Test that timeout: prefix is detected as error."""
     # Create mutation_response type
     await db_connection.execute("""

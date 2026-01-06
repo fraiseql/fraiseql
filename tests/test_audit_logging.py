@@ -1,19 +1,19 @@
 """Tests for audit logging (Phase 14)."""
-# ruff: noqa
+# ruff: noqa: F401
 
 import json
 
 import pytest
 import pytest_asyncio
-
 from fraiseql._fraiseql_rs import DatabasePool as RustDatabasePool
+
 from fraiseql.enterprise.security import AuditLevel, AuditLogger
 
 pytestmark = [pytest.mark.integration, pytest.mark.database]
 
 
 @pytest_asyncio.fixture(scope="class")
-async def pool(postgres_url, class_db_pool):
+async def pool(postgres_url, class_db_pool) -> None:
     """Create Rust database pool for testing."""
     # Use the class-scoped pool URL with url= keyword argument
     pool = RustDatabasePool(url=postgres_url)
@@ -56,7 +56,7 @@ async def pool(postgres_url, class_db_pool):
 
 
 @pytest_asyncio.fixture
-async def logger(pool):
+async def logger(pool) -> None:
     """Create audit logger for testing."""
     return AuditLogger(pool)
 
@@ -65,7 +65,7 @@ class TestAuditLogger:
     """Test audit logger functionality."""
 
     @pytest.mark.asyncio
-    async def test_log_info_query(self, logger):
+    async def test_log_info_query(self, logger) -> None:
         """Test logging an INFO level query."""
         entry_id = await logger.log(
             level=AuditLevel.INFO,
@@ -83,7 +83,7 @@ class TestAuditLogger:
         assert entry_id > 0
 
     @pytest.mark.asyncio
-    async def test_log_error_mutation(self, logger):
+    async def test_log_error_mutation(self, logger) -> None:
         """Test logging an ERROR level mutation with error message."""
         entry_id = await logger.log(
             level=AuditLevel.ERROR,
@@ -102,7 +102,7 @@ class TestAuditLogger:
         assert entry_id > 0
 
     @pytest.mark.asyncio
-    async def test_log_warn_query(self, logger):
+    async def test_log_warn_query(self, logger) -> None:
         """Test logging a WARN level query."""
         entry_id = await logger.log(
             level=AuditLevel.WARN,
@@ -120,7 +120,7 @@ class TestAuditLogger:
         assert entry_id > 0
 
     @pytest.mark.asyncio
-    async def test_log_with_complex_variables(self, logger):
+    async def test_log_with_complex_variables(self, logger) -> None:
         """Test logging with complex nested variables."""
         variables = {
             "input": {
@@ -147,7 +147,7 @@ class TestAuditLogger:
         assert entry_id > 0
 
     @pytest.mark.asyncio
-    async def test_get_recent_logs_all(self, logger):
+    async def test_get_recent_logs_all(self, logger) -> None:
         """Test retrieving all recent logs for a tenant."""
         # Log a few entries
         await logger.log(
@@ -194,7 +194,7 @@ class TestAuditLogger:
             assert "user_agent" in log
 
     @pytest.mark.asyncio
-    async def test_get_recent_logs_filter_by_level(self, logger):
+    async def test_get_recent_logs_filter_by_level(self, logger) -> None:
         """Test retrieving logs filtered by level."""
         # Log entries at different levels
         await logger.log(
@@ -232,7 +232,7 @@ class TestAuditLogger:
             assert log["tenant_id"] == 3
 
     @pytest.mark.asyncio
-    async def test_get_recent_logs_limit(self, logger):
+    async def test_get_recent_logs_limit(self, logger) -> None:
         """Test that limit parameter works."""
         # Log 5 entries
         for i in range(5):
@@ -255,7 +255,7 @@ class TestAuditLogger:
         assert len(logs) <= 10  # reasonable upper bound
 
     @pytest.mark.asyncio
-    async def test_multi_tenant_isolation(self, logger):
+    async def test_multi_tenant_isolation(self, logger) -> None:
         """Test that logs are properly isolated by tenant."""
         # Log for tenant 5
         await logger.log(
@@ -296,7 +296,7 @@ class TestAuditLogger:
             assert log["tenant_id"] == 6
 
     @pytest.mark.asyncio
-    async def test_log_without_optional_fields(self, logger):
+    async def test_log_without_optional_fields(self, logger) -> None:
         """Test logging with minimal required fields (no error, no duration)."""
         entry_id = await logger.log(
             level=AuditLevel.INFO,
@@ -319,7 +319,7 @@ class TestAuditLogger:
         assert logs[0]["duration_ms"] is None
 
     @pytest.mark.asyncio
-    async def test_variables_json_roundtrip(self, logger):
+    async def test_variables_json_roundtrip(self, logger) -> None:
         """Test that variables are correctly serialized and deserialized."""
         original_vars = {
             "userId": 123,
@@ -327,7 +327,7 @@ class TestAuditLogger:
             "options": {"limit": 10, "offset": 0},
         }
 
-        entry_id = await logger.log(
+        entry_id = await logger.log(  # noqa: F841
             level=AuditLevel.INFO,
             user_id=11,
             tenant_id=8,
@@ -350,13 +350,13 @@ class TestAuditLogger:
 class TestAuditLevel:
     """Test AuditLevel enum."""
 
-    def test_audit_level_values(self):
+    def test_audit_level_values(self) -> None:
         """Test that AuditLevel enum has correct values."""
         assert AuditLevel.INFO.value == "INFO"
         assert AuditLevel.WARN.value == "WARN"
         assert AuditLevel.ERROR.value == "ERROR"
 
-    def test_audit_level_members(self):
+    def test_audit_level_members(self) -> None:
         """Test that all expected members exist."""
         levels = [AuditLevel.INFO, AuditLevel.WARN, AuditLevel.ERROR]
         assert len(levels) == 3
@@ -366,7 +366,7 @@ class TestIntegration:
     """Integration tests combining multiple features."""
 
     @pytest.mark.asyncio
-    async def test_complete_audit_workflow(self, logger):
+    async def test_complete_audit_workflow(self, logger) -> None:
         """Test complete workflow: log multiple entries and retrieve them."""
         tenant_id = 99
 
@@ -427,11 +427,15 @@ class TestIntegration:
         assert len(all_logs) >= 4
 
         # Retrieve only ERROR logs
-        error_logs = await logger.get_recent_logs(tenant_id=tenant_id, level=AuditLevel.ERROR, limit=10)
+        error_logs = await logger.get_recent_logs(
+            tenant_id=tenant_id, level=AuditLevel.ERROR, limit=10
+        )
         assert len(error_logs) >= 1
         assert all(log["level"] == "ERROR" for log in error_logs)
 
         # Retrieve only WARN logs
-        warn_logs = await logger.get_recent_logs(tenant_id=tenant_id, level=AuditLevel.WARN, limit=10)
+        warn_logs = await logger.get_recent_logs(
+            tenant_id=tenant_id, level=AuditLevel.WARN, limit=10
+        )
         assert len(warn_logs) >= 1
         assert all(log["level"] == "WARN" for log in warn_logs)

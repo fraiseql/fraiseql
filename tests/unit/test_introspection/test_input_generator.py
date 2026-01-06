@@ -36,7 +36,7 @@ class TestInputGenerator:
     @pytest.mark.asyncio
     async def test_generate_input_type_basic(
         self, input_generator: InputGenerator, mock_introspector
-    ):
+    ) -> None:
         """Test generating input type from function parameters."""
         # Given: Function with basic parameters
         function_metadata = FunctionMetadata(
@@ -77,7 +77,7 @@ class TestInputGenerator:
     @pytest.mark.asyncio
     async def test_generate_input_type_with_optional(
         self, input_generator: InputGenerator, mock_introspector
-    ):
+    ) -> None:
         """Test generating input type with optional parameters."""
         # Given: Function with default parameter
         function_metadata = FunctionMetadata(
@@ -116,7 +116,7 @@ class TestInputGenerator:
     @pytest.mark.asyncio
     async def test_generate_input_type_filters_input_pk(
         self, input_generator: InputGenerator, mock_introspector
-    ):
+    ) -> None:
         """Test that input_pk parameters are filtered out."""
         # Given: Function with input_pk parameter
         function_metadata = FunctionMetadata(
@@ -150,7 +150,7 @@ class TestInputGenerator:
     @pytest.mark.asyncio
     async def test_generate_input_type_various_types(
         self, input_generator: InputGenerator, mock_introspector
-    ):
+    ) -> None:
         """Test generating input type with various PostgreSQL types."""
         # Given: Function with various parameter types
         function_metadata = FunctionMetadata(
@@ -188,7 +188,7 @@ class TestInputGenerator:
     @pytest.mark.asyncio
     async def test_function_to_input_name_conversion(
         self, input_generator: InputGenerator, mock_introspector
-    ):
+    ) -> None:
         """Test function name to input class name conversion."""
         # Test various function name patterns
         test_cases = [
@@ -218,7 +218,7 @@ class TestInputGenerator:
     @pytest.mark.asyncio
     async def test_generate_input_from_composite_type(
         self, input_generator: InputGenerator, mock_introspector
-    ):
+    ) -> None:
         """Test input generation from composite type (SpecQL pattern)."""
         from fraiseql.introspection.postgres_introspector import (
             CompositeAttribute,
@@ -290,12 +290,12 @@ class TestInputGenerator:
         assert "status" in input_cls.__annotations__
 
         # Then: Types are correct
-        assert input_cls.__annotations__["email"] == str
+        assert input_cls.__annotations__["email"] is str
 
     @pytest.mark.asyncio
     async def test_generate_input_from_parameters_legacy(
         self, input_generator: InputGenerator, mock_introspector
-    ):
+    ) -> None:
         """Test input generation from parameters (legacy pattern).
 
         Verifies backward compatibility with non-SpecQL functions.
@@ -331,7 +331,7 @@ class TestInputGenerator:
     @pytest.mark.asyncio
     async def test_generate_input_excludes_auth_params(
         self, input_generator: InputGenerator, mock_introspector
-    ):
+    ) -> None:
         """Test that auth_ parameters are excluded from GraphQL input schema."""
         # Given: Function with auth params (should be excluded)
         function_metadata = FunctionMetadata(
@@ -377,7 +377,7 @@ class TestInputGenerator:
     @pytest.mark.asyncio
     async def test_composite_attribute_comments_stored(
         self, input_generator: InputGenerator, mock_introspector
-    ):
+    ) -> None:
         """Test that composite type attribute comments are captured in input fields."""
         from fraiseql.introspection.postgres_introspector import (
             CompositeAttribute,
@@ -427,7 +427,7 @@ class TestInputGenerator:
     @pytest.mark.asyncio
     async def test_composite_type_comment_used_as_input_description(
         self, input_generator: InputGenerator, mock_introspector
-    ):
+    ) -> None:
         """Test that PostgreSQL composite type comments become GraphQL input type descriptions."""
         from fraiseql.introspection.postgres_introspector import (
             CompositeAttribute,

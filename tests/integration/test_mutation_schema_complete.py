@@ -54,7 +54,7 @@ def clean_registry() -> None:
 
 
 @pytest.mark.asyncio
-async def test_schema_includes_auto_populated_fields(clear_registry):
+async def test_schema_includes_auto_populated_fields(clear_registry) -> None:
     """Test that auto-populated fields are included in the GraphQL schema."""
     # Re-register types that were cleared by the fixture
     from fraiseql import fraise_input, fraise_type, mutation, query, success
@@ -127,7 +127,7 @@ async def test_schema_includes_auto_populated_fields(clear_registry):
 
 
 @pytest.mark.asyncio
-async def test_field_types_correct(clear_registry):
+async def test_field_types_correct(clear_registry) -> None:
     """Auto-populated fields should have correct GraphQL types."""
     # Re-register types that were cleared by the fixture
     from fraiseql import fraise_input, fraise_type, mutation, query, success

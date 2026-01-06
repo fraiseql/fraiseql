@@ -8,7 +8,7 @@ Tests the analysis helpers for audit logs, including:
 - Time-based pattern analysis
 """
 
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -123,7 +123,7 @@ def sample_events() -> list[AuditEvent]:
 class TestSuspiciousActivityDetection:
     """Tests for detecting suspicious activity."""
 
-    async def test_detect_rapid_auth_failures(self, sample_events):
+    async def test_detect_rapid_auth_failures(self, sample_events) -> None:
         """Detects rapid authentication failures."""
         analyzer = AuditAnalyzer()
         auth_events = [e for e in sample_events if "auth" in e.event_type]
@@ -132,19 +132,18 @@ class TestSuspiciousActivityDetection:
         assert suspicious["rapid_auth_failures"] is not None
         assert suspicious["rapid_auth_failures"]["count"] >= 5
 
-    async def test_detect_high_error_rate(self, sample_events):
+    async def test_detect_high_error_rate(self, sample_events) -> None:
         """Detects high error rate."""
         # Create high error rate scenario
         high_error_events = [
-            e for e in sample_events
-            if e.result == "error" and "auth" in e.event_type
+            e for e in sample_events if e.result == "error" and "auth" in e.event_type
         ]
         suspicious = AuditAnalyzer.detect_suspicious_activity(high_error_events)
 
         # All events are errors, so error rate is 1.0
         assert suspicious["high_error_rate"] is not None
 
-    async def test_detect_privilege_escalation(self, sample_events):
+    async def test_detect_privilege_escalation(self, sample_events) -> None:
         """Detects denied access attempts (privilege escalation)."""
         denied_events = [e for e in sample_events if e.is_denied()]
         suspicious = AuditAnalyzer.detect_suspicious_activity(denied_events)
@@ -152,7 +151,7 @@ class TestSuspiciousActivityDetection:
         assert suspicious["privilege_escalation"] is not None
         assert suspicious["privilege_escalation"]["denied_count"] >= 3
 
-    async def test_no_suspicious_activity_clean_events(self):
+    async def test_no_suspicious_activity_clean_events(self) -> None:
         """Returns clean dict for normal events."""
         normal_events = [
             AuditEvent(
@@ -173,7 +172,7 @@ class TestSuspiciousActivityDetection:
 class TestUserActivitySummary:
     """Tests for summarizing user activity."""
 
-    async def test_summarize_user_activity(self, sample_events):
+    async def test_summarize_user_activity(self, sample_events) -> None:
         """Summarizes user activity correctly."""
         user_events = [e for e in sample_events if e.user_id == "user-1"]
         stats = AuditAnalyzer.summarize_user_activity(user_events)
@@ -183,7 +182,7 @@ class TestUserActivitySummary:
         assert stats.error_count == 0
         assert stats.error_rate == 0.0
 
-    async def test_summary_calculates_percentiles(self, sample_events):
+    async def test_summary_calculates_percentiles(self, sample_events) -> None:
         """Summary calculates duration percentiles."""
         user_events = [e for e in sample_events if e.user_id == "user-2"]
         stats = AuditAnalyzer.summarize_user_activity(user_events)
@@ -191,7 +190,7 @@ class TestUserActivitySummary:
         assert stats.p50_duration_ms > 0
         assert stats.avg_duration_ms > 0
 
-    async def test_summary_identifies_most_common_action(self):
+    async def test_summary_identifies_most_common_action(self) -> None:
         """Summary identifies most common action."""
         events = [
             AuditEvent(
@@ -220,7 +219,7 @@ class TestUserActivitySummary:
 
         assert stats.most_common_action == "read"
 
-    async def test_summary_empty_events(self):
+    async def test_summary_empty_events(self) -> None:
         """Summary handles empty events list."""
         stats = AuditAnalyzer.summarize_user_activity([])
         assert stats.total_count == 0
@@ -230,7 +229,7 @@ class TestUserActivitySummary:
 class TestSlowOperationIdentification:
     """Tests for identifying slow operations."""
 
-    async def test_identify_slow_operations(self, sample_events):
+    async def test_identify_slow_operations(self, sample_events) -> None:
         """Identifies slow operations by percentile."""
         slow_ops = AuditAnalyzer.identify_slow_operations(
             sample_events,
@@ -241,7 +240,7 @@ class TestSlowOperationIdentification:
         assert len(slow_ops) > 0
         assert all(isinstance(op, AuditEvent) for op in slow_ops)
 
-    async def test_slow_operations_are_actually_slow(self, sample_events):
+    async def test_slow_operations_are_actually_slow(self, sample_events) -> None:
         """Identified slow operations are slower than threshold."""
         with_durations = [e for e in sample_events if e.duration_ms]
         slow_ops = AuditAnalyzer.identify_slow_operations(with_durations, percentile=0.5)
@@ -251,7 +250,7 @@ class TestSlowOperationIdentification:
             threshold = durations[len(durations) // 2]
             assert all(op.duration_ms >= threshold for op in slow_ops)
 
-    async def test_slow_operations_empty_if_no_duration(self):
+    async def test_slow_operations_empty_if_no_duration(self) -> None:
         """Returns empty list if no operations have duration."""
         events_no_duration = [
             AuditEvent(
@@ -268,7 +267,7 @@ class TestSlowOperationIdentification:
 class TestErrorPatternAnalysis:
     """Tests for analyzing error patterns."""
 
-    async def test_analyze_error_patterns(self, sample_events):
+    async def test_analyze_error_patterns(self, sample_events) -> None:
         """Analyzes error reasons and their frequency."""
         error_patterns = AuditAnalyzer.analyze_error_patterns(sample_events)
 
@@ -277,19 +276,16 @@ class TestErrorPatternAnalysis:
         assert "Invalid credentials" in error_patterns
         assert error_patterns["Invalid credentials"] >= 3
 
-    async def test_error_patterns_counts(self, sample_events):
+    async def test_error_patterns_counts(self, sample_events) -> None:
         """Error patterns have correct counts."""
         error_patterns = AuditAnalyzer.analyze_error_patterns(sample_events)
 
         # Verify counts are correct
         for reason, count in error_patterns.items():
-            matching = sum(
-                1 for e in sample_events
-                if e.is_error() and e.reason == reason
-            )
+            matching = sum(1 for e in sample_events if e.is_error() and e.reason == reason)
             assert matching == count
 
-    async def test_error_patterns_empty(self):
+    async def test_error_patterns_empty(self) -> None:
         """Handles events with no errors."""
         no_error_events = [
             AuditEvent(
@@ -306,7 +302,7 @@ class TestErrorPatternAnalysis:
 class TestMostActiveUsers:
     """Tests for identifying most active users."""
 
-    async def test_identify_most_active_users(self, sample_events):
+    async def test_identify_most_active_users(self, sample_events) -> None:
         """Identifies most active users."""
         top_users = AuditAnalyzer.identify_most_active_users(sample_events, top_n=5)
 
@@ -315,7 +311,7 @@ class TestMostActiveUsers:
         # Should be tuples of (user_id, count)
         assert all(isinstance(item, tuple) and len(item) == 2 for item in top_users)
 
-    async def test_users_ranked_correctly(self, sample_events):
+    async def test_users_ranked_correctly(self, sample_events) -> None:
         """Users are ranked by activity count."""
         top_users = AuditAnalyzer.identify_most_active_users(sample_events, top_n=10)
 
@@ -327,7 +323,7 @@ class TestMostActiveUsers:
 class TestResourceAnalysis:
     """Tests for analyzing resource access."""
 
-    async def test_identify_most_active_resources(self, sample_events):
+    async def test_identify_most_active_resources(self, sample_events) -> None:
         """Identifies most frequently accessed resources."""
         sample_events.append(
             AuditEvent(
@@ -352,7 +348,7 @@ class TestResourceAnalysis:
 class TestEventTypeDistribution:
     """Tests for event type distribution analysis."""
 
-    async def test_get_event_type_distribution(self, sample_events):
+    async def test_get_event_type_distribution(self, sample_events) -> None:
         """Gets distribution of event types."""
         distribution = AuditAnalyzer.get_event_type_distribution(sample_events)
 
@@ -362,7 +358,7 @@ class TestEventTypeDistribution:
         # Counts should match
         assert sum(distribution.values()) == len(sample_events)
 
-    async def test_distribution_counts_correct(self, sample_events):
+    async def test_distribution_counts_correct(self, sample_events) -> None:
         """Distribution counts are correct."""
         distribution = AuditAnalyzer.get_event_type_distribution(sample_events)
 
@@ -374,7 +370,7 @@ class TestEventTypeDistribution:
 class TestTimeBasedPatterns:
     """Tests for time-based pattern analysis."""
 
-    async def test_identify_time_based_patterns(self, sample_events):
+    async def test_identify_time_based_patterns(self, sample_events) -> None:
         """Analyzes time-based patterns."""
         patterns = AuditAnalyzer.identify_time_based_patterns(sample_events)
 
@@ -383,7 +379,7 @@ class TestTimeBasedPatterns:
         assert "events_by_weekday" in patterns
         assert "unusual_hour_count" in patterns
 
-    async def test_unusual_hour_detection(self):
+    async def test_unusual_hour_detection(self) -> None:
         """Detects events at unusual hours."""
         # Create events at unusual hours
         unusual_events = [
@@ -415,7 +411,7 @@ class TestTimeBasedPatterns:
 class TestUserComparison:
     """Tests for comparing users."""
 
-    async def test_compare_users(self, sample_events):
+    async def test_compare_users(self, sample_events) -> None:
         """Compares activity between two users."""
         user1_events = [e for e in sample_events if e.user_id == "user-1"]
         user2_events = [e for e in sample_events if e.user_id == "user-2"]
@@ -432,7 +428,7 @@ class TestUserComparison:
 class TestAnomalyDetection:
     """Tests for anomaly detection."""
 
-    async def test_identify_anomalies(self, sample_events):
+    async def test_identify_anomalies(self, sample_events) -> None:
         """Identifies anomalous events based on duration."""
         operations = [e for e in sample_events if e.duration_ms]
         anomalies = AuditAnalyzer.identify_anomalies(operations, std_devs=1.0)
@@ -442,7 +438,7 @@ class TestAnomalyDetection:
         if anomalies:
             assert all(isinstance(e, AuditEvent) for e in anomalies)
 
-    async def test_anomalies_have_high_duration(self, sample_events):
+    async def test_anomalies_have_high_duration(self, sample_events) -> None:
         """Anomalies have significantly higher duration."""
         operations = [e for e in sample_events if e.duration_ms]
         anomalies = AuditAnalyzer.identify_anomalies(operations, std_devs=2.0)

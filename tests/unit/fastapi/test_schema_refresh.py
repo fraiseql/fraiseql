@@ -42,12 +42,12 @@ class TestSchemaRefresh:
             app.state.graphql_schema = new_schema
             return new_schema
 
-        app.refresh_schema = mock_refresh_schema  # type: ignore
+        app.refresh_schema = mock_refresh_schema  # type: ignore[misc]
 
         # Call refresh_schema and verify it works
-        result = await app.refresh_schema()  # type: ignore
+        result = await app.refresh_schema()  # type: ignore[misc]
         assert result is not None
-        assert "testMutation" in app.state.graphql_schema.mutation_type.fields  # type: ignore
+        assert "testMutation" in app.state.graphql_schema.mutation_type.fields  # type: ignore[misc]
 
     async def test_refresh_schema_preserves_existing_types(self) -> None:
         """Test that refresh_schema() preserves original types and mutations.
@@ -77,12 +77,12 @@ class TestSchemaRefresh:
             app.state.graphql_schema = new_schema
             return new_schema
 
-        app.refresh_schema = mock_refresh_schema  # type: ignore
+        app.refresh_schema = mock_refresh_schema  # type: ignore[misc]
 
         # Call refresh_schema and verify it works
-        result = await app.refresh_schema()  # type: ignore
+        result = await app.refresh_schema()  # type: ignore[misc]
         assert result is not None
-        assert "testMutation" in app.state.graphql_schema.mutation_type.fields  # type: ignore
+        assert "testMutation" in app.state.graphql_schema.mutation_type.fields  # type: ignore[misc]
 
     async def test_refresh_schema_clears_caches(self) -> None:
         """Test that refresh_schema() properly clears all internal caches.
@@ -108,9 +108,9 @@ class TestSchemaRefresh:
             app.state.graphql_schema = new_schema
             return new_schema
 
-        app.refresh_schema = mock_refresh_schema  # type: ignore
+        app.refresh_schema = mock_refresh_schema  # type: ignore[misc]
 
         # Call refresh_schema and verify it works
-        result = await app.refresh_schema()  # type: ignore
+        result = await app.refresh_schema()  # type: ignore[misc]
         assert result is not None
-        assert "testMutation" in app.state.graphql_schema.mutation_type.fields  # type: ignore
+        assert "testMutation" in app.state.graphql_schema.mutation_type.fields  # type: ignore[misc]

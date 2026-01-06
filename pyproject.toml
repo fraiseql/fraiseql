@@ -355,6 +355,7 @@ ignore = [
   "D101",    # Missing class docstrings in tests
   "D102",    # Missing method docstrings in tests
   "D103",    # Missing function docstrings in tests
+  "E501",    # Long lines OK in tests (docstrings, SQL, etc.)
 ]
 "benchmarks/**/*.py" = [
   "T201",   # Print statements OK in benchmarks

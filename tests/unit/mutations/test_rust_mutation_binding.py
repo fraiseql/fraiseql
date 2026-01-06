@@ -12,13 +12,13 @@ requires_rust = pytest.mark.skipif(_fraiseql_rs is None, reason="Rust extension 
 
 
 @requires_rust
-def test_rust_binding_exists():
+def test_rust_binding_exists() -> None:
     """Test that build_mutation_response is exposed to Python."""
     assert hasattr(_fraiseql_rs, "build_mutation_response")
 
 
 @requires_rust
-def test_rust_binding_simple_format():
+def test_rust_binding_simple_format() -> None:
     """Test simple format (just entity JSONB) transformation."""
     import json
 
@@ -42,7 +42,7 @@ def test_rust_binding_simple_format():
 
 
 @requires_rust
-def test_rust_binding_v2_success():
+def test_rust_binding_v2_success() -> None:
     """Test v2 format (full mutation_result) transformation."""
     import json
 
@@ -75,7 +75,7 @@ def test_rust_binding_v2_success():
 
 
 @requires_rust
-def test_rust_binding_error():
+def test_rust_binding_error() -> None:
     """Test error mutation transformation with validation error."""
     import json
 
@@ -108,7 +108,7 @@ def test_rust_binding_error():
 
 
 @requires_rust
-def test_rust_binding_invalid_json():
+def test_rust_binding_invalid_json() -> None:
     """Test error handling for invalid JSON."""
     with pytest.raises(ValueError, match="Invalid JSON"):
         _fraiseql_rs.build_mutation_response(

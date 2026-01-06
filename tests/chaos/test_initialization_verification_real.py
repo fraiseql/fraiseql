@@ -1,24 +1,24 @@
-"""
-Phase 0 Verification Test (Real PostgreSQL Backend)
+"""Phase 0 Verification Test (Real PostgreSQL Backend)
 
 This test verifies that the Phase 0 chaos engineering infrastructure works correctly
 with real PostgreSQL database backend.
 """
 
-import pytest
 import asyncio
 
-from chaos.fraiseql_scenarios import FraiseQLTestScenarios
+import pytest
 from chaos.base import ChaosMetrics
+from chaos.fraiseql_scenarios import FraiseQLTestScenarios
 
 
 @pytest.mark.chaos
 @pytest.mark.chaos_verification
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
-async def test_real_client_initialization(chaos_db_client, chaos_test_schema, baseline_metrics):
-    """
-    Test that real database client initializes correctly.
+async def test_real_client_initialization(
+    chaos_db_client, chaos_test_schema, baseline_metrics
+) -> None:
+    """Test that real database client initializes correctly.
 
     Verifies the chaos_db_client fixture works with real PostgreSQL.
     """
@@ -47,9 +47,10 @@ async def test_real_client_initialization(chaos_db_client, chaos_test_schema, ba
 @pytest.mark.chaos_verification
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
-async def test_metrics_collection_real_db(chaos_db_client, chaos_test_schema, baseline_metrics):
-    """
-    Test that metrics collection works with real database.
+async def test_metrics_collection_real_db(
+    chaos_db_client, chaos_test_schema, baseline_metrics
+) -> None:
+    """Test that metrics collection works with real database.
 
     Verifies ChaosMetrics properly tracks queries against real database.
     """
@@ -59,7 +60,7 @@ async def test_metrics_collection_real_db(chaos_db_client, chaos_test_schema, ba
     metrics.start_test()
 
     # Execute multiple queries
-    for i in range(5):
+    for _i in range(5):
         try:
             result = await chaos_db_client.execute_query(operation)
             execution_time = result.get("_execution_time_ms", 10.0)
@@ -78,9 +79,10 @@ async def test_metrics_collection_real_db(chaos_db_client, chaos_test_schema, ba
 @pytest.mark.chaos_verification
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
-async def test_baseline_execution_real_db(chaos_db_client, chaos_test_schema, baseline_metrics):
-    """
-    Test baseline performance measurement against real database.
+async def test_baseline_execution_real_db(
+    chaos_db_client, chaos_test_schema, baseline_metrics
+) -> None:
+    """Test baseline performance measurement against real database.
 
     Verifies baseline metrics can be established with real PostgreSQL.
     """
@@ -110,9 +112,8 @@ async def test_baseline_execution_real_db(chaos_db_client, chaos_test_schema, ba
 @pytest.mark.chaos_verification
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
-async def test_chaos_injection_basic(chaos_db_client, chaos_test_schema, baseline_metrics):
-    """
-    Test basic chaos injection with real database.
+async def test_chaos_injection_basic(chaos_db_client, chaos_test_schema, baseline_metrics) -> None:
+    """Test basic chaos injection with real database.
 
     Verifies chaos injection (latency) works with real PostgreSQL.
     """
@@ -175,9 +176,8 @@ async def test_chaos_injection_basic(chaos_db_client, chaos_test_schema, baselin
 @pytest.mark.chaos_verification
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
-async def test_fixture_isolation(chaos_db_client, chaos_test_schema, baseline_metrics):
-    """
-    Test that schema isolation works with real database fixtures.
+async def test_fixture_isolation(chaos_db_client, chaos_test_schema, baseline_metrics) -> None:
+    """Test that schema isolation works with real database fixtures.
 
     Verifies each test gets isolated schema with proper cleanup.
     """
@@ -206,9 +206,10 @@ async def test_fixture_isolation(chaos_db_client, chaos_test_schema, baseline_me
 @pytest.mark.chaos_verification
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
-async def test_concurrent_verification(chaos_db_client, chaos_test_schema, baseline_metrics):
-    """
-    Test concurrent query execution with real database.
+async def test_concurrent_verification(
+    chaos_db_client, chaos_test_schema, baseline_metrics
+) -> None:
+    """Test concurrent query execution with real database.
 
     Verifies asyncio concurrency works properly with real PostgreSQL.
     """

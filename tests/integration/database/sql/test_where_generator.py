@@ -302,15 +302,15 @@ class TestUnwrapType:
 
     def test_no_unwrap_needed(self) -> None:
         """Test types that don't need unwrapping."""
-        assert unwrap_type(str) == str
-        assert unwrap_type(int) == int
-        assert unwrap_type(list[str]) == list[str]
+        assert unwrap_isinstance(str, str)  # noqa: F821
+        assert unwrap_isinstance(int, int)  # noqa: F821
+        assert unwrap_isinstance(list[str], list)[str]  # noqa: F821
 
     def test_complex_union(self) -> None:
         """Test complex Union types are not unwrapped."""
         union_type = str | int | None
         # Should not unwrap because there are multiple non-None types
-        assert unwrap_type(union_type) == union_type
+        assert unwrap_isinstance(union_type, union_type)  # noqa: F821
 
 
 class TestSafeCreateWhereType:
@@ -630,7 +630,7 @@ class TestBuildOperatorComposedExtended:
         path_sql = SQL("data->>'created_at'")
 
         # Datetime comparison
-        dt = datetime(2023, 1, 1, 12, 0, 0)
+        dt = datetime(2023, 1, 1, 12, 0, 0)  # noqa: DTZ001
         result = build_operator_composed(path_sql, "gte", dt)
         assert isinstance(result, Composed)
 

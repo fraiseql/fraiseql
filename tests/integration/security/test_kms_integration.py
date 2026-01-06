@@ -33,7 +33,7 @@ class TestVaultIntegration:
         return VaultKMSProvider(config)
 
     @pytest.mark.asyncio
-    async def test_encrypt_decrypt_roundtrip(self, vault_provider: VaultKMSProvider):
+    async def test_encrypt_decrypt_roundtrip(self, vault_provider: VaultKMSProvider) -> None:
         """Full encryption/decryption with real Vault."""
         test_data = b"Hello, World! This is test data for Vault KMS integration."
         key_id = "test-integration-key"
@@ -49,7 +49,7 @@ class TestVaultIntegration:
         assert decrypted == test_data
 
     @pytest.mark.asyncio
-    async def test_data_key_generation(self, vault_provider: VaultKMSProvider):
+    async def test_data_key_generation(self, vault_provider: VaultKMSProvider) -> None:
         """Data key generation with real Vault."""
         key_id = "test-data-key"
 
@@ -61,7 +61,7 @@ class TestVaultIntegration:
         assert len(data_key.plaintext_key) == 32  # AES-256 key
 
     @pytest.mark.asyncio
-    async def test_different_keys_isolation(self, vault_provider: VaultKMSProvider):
+    async def test_different_keys_isolation(self, vault_provider: VaultKMSProvider) -> None:
         """Ensure different keys produce different ciphertexts."""
         test_data = b"Same data, different keys"
         key1 = "test-key-1"
@@ -95,7 +95,9 @@ class TestAWSKMSIntegration:
         return AWSKMSProvider(config)
 
     @pytest.mark.asyncio
-    async def test_encrypt_decrypt_roundtrip(self, aws_provider: AWSKMSProvider, kms_key_id: str):
+    async def test_encrypt_decrypt_roundtrip(
+        self, aws_provider: AWSKMSProvider, kms_key_id: str
+    ) -> None:
         """Full encryption/decryption with mocked AWS KMS."""
         test_data = b"Hello, World! This is test data for AWS KMS integration."
 
@@ -110,7 +112,7 @@ class TestAWSKMSIntegration:
         assert decrypted == test_data
 
     @pytest.mark.asyncio
-    async def test_generate_data_key(self, aws_provider: AWSKMSProvider, kms_key_id: str):
+    async def test_generate_data_key(self, aws_provider: AWSKMSProvider, kms_key_id: str) -> None:
         """Generate data key with AWS KMS."""
         # Generate data key
         data_key = await aws_provider.generate_data_key(key_id=kms_key_id)
@@ -120,7 +122,7 @@ class TestAWSKMSIntegration:
         assert len(data_key.plaintext_key) == 32  # AES-256 key
 
     @pytest.mark.asyncio
-    async def test_context_encryption(self, aws_provider: AWSKMSProvider, kms_key_id: str):
+    async def test_context_encryption(self, aws_provider: AWSKMSProvider, kms_key_id: str) -> None:
         """Test encryption with additional authenticated data (context)."""
         test_data = b"Data with context"
         context = {"user_id": "12345", "action": "test"}

@@ -1,6 +1,5 @@
 """Tests for Federation Standard directives (@requires, @provides)."""
 
-
 from fraiseql.federation.directives import (
     DirectiveMetadata,
     get_directives,
@@ -13,7 +12,7 @@ from fraiseql.federation.directives import (
 class TestRequiresMarker:
     """Tests for @requires directive marker."""
 
-    def test_requires_with_space_separated_fields(self):
+    def test_requires_with_space_separated_fields(self) -> None:
         """Test parsing space-separated field list."""
 
         @requires("price currency")
@@ -24,7 +23,7 @@ class TestRequiresMarker:
         assert metadata.has_requires()
         assert metadata.get_required_fields() == ["price", "currency"]
 
-    def test_requires_with_comma_separated_fields(self):
+    def test_requires_with_comma_separated_fields(self) -> None:
         """Test parsing comma-separated field list."""
 
         @requires("latitude, longitude")
@@ -35,7 +34,7 @@ class TestRequiresMarker:
         assert metadata.has_requires()
         assert metadata.get_required_fields() == ["latitude", "longitude"]
 
-    def test_requires_with_list_fields(self):
+    def test_requires_with_list_fields(self) -> None:
         """Test passing fields as list."""
 
         @requires(["field1", "field2", "field3"])
@@ -46,7 +45,7 @@ class TestRequiresMarker:
         assert metadata.has_requires()
         assert metadata.get_required_fields() == ["field1", "field2", "field3"]
 
-    def test_requires_single_field(self):
+    def test_requires_single_field(self) -> None:
         """Test with single field."""
 
         @requires("id")
@@ -57,7 +56,7 @@ class TestRequiresMarker:
         assert metadata.has_requires()
         assert metadata.get_required_fields() == ["id"]
 
-    def test_requires_field_set(self):
+    def test_requires_field_set(self) -> None:
         """Test that field_set is properly populated."""
 
         @requires("a b c")
@@ -72,7 +71,7 @@ class TestRequiresMarker:
 class TestProvidesMarker:
     """Tests for @provides directive marker."""
 
-    def test_provides_with_space_separated_fields(self):
+    def test_provides_with_space_separated_fields(self) -> None:
         """Test parsing space-separated field list."""
 
         @provides("id name")
@@ -83,7 +82,7 @@ class TestProvidesMarker:
         assert metadata.has_provides()
         assert metadata.get_provided_fields() == ["id", "name"]
 
-    def test_provides_with_comma_separated_fields(self):
+    def test_provides_with_comma_separated_fields(self) -> None:
         """Test parsing comma-separated field list."""
 
         @provides("user_id, created_at")
@@ -94,7 +93,7 @@ class TestProvidesMarker:
         assert metadata.has_provides()
         assert metadata.get_provided_fields() == ["user_id", "created_at"]
 
-    def test_provides_with_list_fields(self):
+    def test_provides_with_list_fields(self) -> None:
         """Test passing fields as list."""
 
         @provides(["id", "title", "author_id"])
@@ -105,7 +104,7 @@ class TestProvidesMarker:
         assert metadata.has_provides()
         assert metadata.get_provided_fields() == ["id", "title", "author_id"]
 
-    def test_provides_single_field(self):
+    def test_provides_single_field(self) -> None:
         """Test with single field."""
 
         @provides("id")
@@ -120,7 +119,7 @@ class TestProvidesMarker:
 class TestCombinedDirectives:
     """Tests for combining @requires and @provides on same method."""
 
-    def test_both_requires_and_provides(self):
+    def test_both_requires_and_provides(self) -> None:
         """Test method with both directives."""
 
         @requires("price")
@@ -134,7 +133,7 @@ class TestCombinedDirectives:
         assert metadata.get_required_fields() == ["price"]
         assert metadata.get_provided_fields() == ["formatted_price"]
 
-    def test_provides_then_requires(self):
+    def test_provides_then_requires(self) -> None:
         """Test decorator order: @provides then @requires."""
 
         @provides("result")
@@ -152,7 +151,7 @@ class TestCombinedDirectives:
 class TestGetDirectives:
     """Tests for get_directives helper function."""
 
-    def test_no_directives(self):
+    def test_no_directives(self) -> None:
         """Test function without directives."""
 
         def plain_method(self):
@@ -164,7 +163,7 @@ class TestGetDirectives:
         assert metadata.get_required_fields() == []
         assert metadata.get_provided_fields() == []
 
-    def test_get_directives_repr(self):
+    def test_get_directives_repr(self) -> None:
         """Test DirectiveMetadata repr."""
 
         @requires("a b")
@@ -180,7 +179,7 @@ class TestGetDirectives:
 class TestGetMethodDirectives:
     """Tests for get_method_directives class introspection."""
 
-    def test_get_method_directives_from_class(self):
+    def test_get_method_directives_from_class(self) -> None:
         """Test extracting all method directives from a class."""
 
         class Product:
@@ -214,7 +213,7 @@ class TestGetMethodDirectives:
         assert directives["reviews"].has_provides()
         assert directives["reviews"].get_provided_fields() == ["id"]
 
-    def test_get_method_directives_empty_class(self):
+    def test_get_method_directives_empty_class(self) -> None:
         """Test class with no directive-marked methods."""
 
         class User:
@@ -227,7 +226,7 @@ class TestGetMethodDirectives:
         directives = get_method_directives(User)
         assert len(directives) == 0
 
-    def test_get_method_directives_multiple_methods(self):
+    def test_get_method_directives_multiple_methods(self) -> None:
         """Test class with multiple directive-marked methods."""
 
         class Document:
@@ -267,7 +266,7 @@ class TestGetMethodDirectives:
         assert directives["summary"].get_required_fields() == ["title", "content"]
         assert directives["related_documents"].get_provided_fields() == ["id", "title"]
 
-    def test_get_method_directives_ignores_private_methods(self):
+    def test_get_method_directives_ignores_private_methods(self) -> None:
         """Test that private methods are ignored."""
 
         class Service:
@@ -295,7 +294,7 @@ class TestGetMethodDirectives:
 class TestDirectiveMetadata:
     """Tests for DirectiveMetadata class."""
 
-    def test_both_directives(self):
+    def test_both_directives(self) -> None:
         """Test metadata with both directives."""
         from fraiseql.federation.directives import _ProvidesMarker, _RequiresMarker
 
@@ -309,7 +308,7 @@ class TestDirectiveMetadata:
         assert metadata.get_required_fields() == ["a", "b"]
         assert metadata.get_provided_fields() == ["x", "y"]
 
-    def test_only_requires(self):
+    def test_only_requires(self) -> None:
         """Test metadata with only requires."""
         from fraiseql.federation.directives import _RequiresMarker
 
@@ -321,7 +320,7 @@ class TestDirectiveMetadata:
         assert metadata.get_required_fields() == ["field1", "field2"]
         assert metadata.get_provided_fields() == []
 
-    def test_only_provides(self):
+    def test_only_provides(self) -> None:
         """Test metadata with only provides."""
         from fraiseql.federation.directives import _ProvidesMarker
 
@@ -333,7 +332,7 @@ class TestDirectiveMetadata:
         assert metadata.get_required_fields() == []
         assert metadata.get_provided_fields() == ["field1", "field2"]
 
-    def test_no_directives(self):
+    def test_no_directives(self) -> None:
         """Test metadata with no directives."""
         metadata = DirectiveMetadata()
 
@@ -346,7 +345,7 @@ class TestDirectiveMetadata:
 class TestEdgeCases:
     """Tests for edge cases and special scenarios."""
 
-    def test_empty_field_string(self):
+    def test_empty_field_string(self) -> None:
         """Test with empty field string."""
 
         @requires("")
@@ -357,7 +356,7 @@ class TestEdgeCases:
         assert metadata.has_requires()
         assert metadata.get_required_fields() == []
 
-    def test_whitespace_only_fields(self):
+    def test_whitespace_only_fields(self) -> None:
         """Test with whitespace-only field string."""
 
         @requires("   ")
@@ -368,7 +367,7 @@ class TestEdgeCases:
         assert metadata.has_requires()
         assert metadata.get_required_fields() == []
 
-    def test_field_with_trailing_comma(self):
+    def test_field_with_trailing_comma(self) -> None:
         """Test field names with trailing commas."""
 
         @requires("field1, field2, field3,")
@@ -378,7 +377,7 @@ class TestEdgeCases:
         metadata = get_directives(method)
         assert metadata.get_required_fields() == ["field1", "field2", "field3"]
 
-    def test_underscore_field_names(self):
+    def test_underscore_field_names(self) -> None:
         """Test with underscore in field names."""
 
         @requires("field_one field_two")
@@ -388,7 +387,7 @@ class TestEdgeCases:
         metadata = get_directives(method)
         assert metadata.get_required_fields() == ["field_one", "field_two"]
 
-    def test_numeric_field_names(self):
+    def test_numeric_field_names(self) -> None:
         """Test with numeric field names."""
 
         @requires("field1 field2")
@@ -398,7 +397,7 @@ class TestEdgeCases:
         metadata = get_directives(method)
         assert metadata.get_required_fields() == ["field1", "field2"]
 
-    def test_directive_on_async_method(self):
+    def test_directive_on_async_method(self) -> None:
         """Test directives work on async methods."""
 
         @requires("id")
@@ -409,7 +408,7 @@ class TestEdgeCases:
         assert metadata.has_requires()
         assert metadata.get_required_fields() == ["id"]
 
-    def test_directive_on_classmethod(self):
+    def test_directive_on_classmethod(self) -> None:
         """Test directives work on class methods."""
 
         @requires("field")
@@ -421,7 +420,7 @@ class TestEdgeCases:
         assert metadata.has_requires()
         assert metadata.get_required_fields() == ["field"]
 
-    def test_directive_on_staticmethod(self):
+    def test_directive_on_staticmethod(self) -> None:
         """Test directives work on static methods."""
 
         @requires("field")

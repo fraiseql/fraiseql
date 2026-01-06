@@ -1,5 +1,4 @@
-"""
-Tests for fragment spreads and inline fragments in multi-field GraphQL queries.
+"""Tests for fragment spreads and inline fragments in multi-field GraphQL queries.
 
 Tests that fragment spreads (...FragmentName) and inline fragments (... on Type)
 are properly expanded at the root level of multi-field queries.
@@ -13,7 +12,7 @@ from fraiseql.fastapi.routers import execute_multi_field_query
 
 
 @pytest.mark.asyncio
-async def test_fragment_spread_at_root(init_schema_registry_fixture):
+async def test_fragment_spread_at_root(init_schema_registry_fixture) -> None:
     """Test that named fragment spreads are expanded at root level."""
     from graphql import (
         GraphQLField,
@@ -80,7 +79,7 @@ async def test_fragment_spread_at_root(init_schema_registry_fixture):
 
 
 @pytest.mark.asyncio
-async def test_inline_fragment_at_root(init_schema_registry_fixture):
+async def test_inline_fragment_at_root(init_schema_registry_fixture) -> None:
     """Test that inline fragments work at root level."""
     from graphql import (
         GraphQLField,
@@ -128,7 +127,7 @@ async def test_inline_fragment_at_root(init_schema_registry_fixture):
 
 
 @pytest.mark.asyncio
-async def test_fragment_with_directive(init_schema_registry_fixture):
+async def test_fragment_with_directive(init_schema_registry_fixture) -> None:
     """Test that directives work on fragment spreads."""
     from graphql import (
         GraphQLField,
@@ -136,7 +135,6 @@ async def test_fragment_with_directive(init_schema_registry_fixture):
         GraphQLList,
         GraphQLObjectType,
         GraphQLSchema,
-        GraphQLString,
     )
 
     user_type = GraphQLObjectType(
@@ -183,7 +181,7 @@ async def test_fragment_with_directive(init_schema_registry_fixture):
 
 
 @pytest.mark.asyncio
-async def test_nested_fragment_spread(init_schema_registry_fixture):
+async def test_nested_fragment_spread(init_schema_registry_fixture) -> None:
     """Test that fragment spreads work within nested selections."""
     from graphql import (
         GraphQLField,
@@ -247,7 +245,7 @@ async def test_nested_fragment_spread(init_schema_registry_fixture):
 
 
 @pytest.mark.asyncio
-async def test_deeply_nested_fragments(init_schema_registry_fixture):
+async def test_deeply_nested_fragments(init_schema_registry_fixture) -> None:
     """Test fragment spreads at multiple nesting levels."""
     from graphql import (
         GraphQLField,
@@ -322,7 +320,7 @@ async def test_deeply_nested_fragments(init_schema_registry_fixture):
 
 
 @pytest.mark.asyncio
-async def test_nested_fragment_with_alias(init_schema_registry_fixture):
+async def test_nested_fragment_with_alias(init_schema_registry_fixture) -> None:
     """Test that fragment spreads work correctly with field aliases in nested selections."""
     from graphql import (
         GraphQLField,
@@ -382,9 +380,9 @@ async def test_nested_fragment_with_alias(init_schema_registry_fixture):
 
 
 @pytest.mark.asyncio
-async def test_fragment_cycle_detection(init_schema_registry_fixture):
+async def test_fragment_cycle_detection(init_schema_registry_fixture) -> None:
     """Test that circular fragment references are detected and rejected."""
-    from graphql import GraphQLObjectType, GraphQLField, GraphQLList, GraphQLSchema, GraphQLString
+    from graphql import GraphQLField, GraphQLList, GraphQLObjectType, GraphQLSchema, GraphQLString
 
     user_type = GraphQLObjectType(
         "User",
@@ -426,9 +424,9 @@ async def test_fragment_cycle_detection(init_schema_registry_fixture):
 
 
 @pytest.mark.asyncio
-async def test_fragment_self_reference_cycle(init_schema_registry_fixture):
+async def test_fragment_self_reference_cycle(init_schema_registry_fixture) -> None:
     """Test that self-referencing fragments are detected."""
-    from graphql import GraphQLObjectType, GraphQLField, GraphQLList, GraphQLSchema, GraphQLString
+    from graphql import GraphQLField, GraphQLList, GraphQLObjectType, GraphQLSchema, GraphQLString
 
     user_type = GraphQLObjectType(
         "User",
@@ -466,9 +464,9 @@ async def test_fragment_self_reference_cycle(init_schema_registry_fixture):
 
 
 @pytest.mark.asyncio
-async def test_deep_fragment_cycle(init_schema_registry_fixture):
+async def test_deep_fragment_cycle(init_schema_registry_fixture) -> None:
     """Test cycle detection in deeply nested fragment chains."""
-    from graphql import GraphQLObjectType, GraphQLField, GraphQLList, GraphQLSchema, GraphQLString
+    from graphql import GraphQLField, GraphQLList, GraphQLObjectType, GraphQLSchema, GraphQLString
 
     user_type = GraphQLObjectType(
         "User",
@@ -514,9 +512,9 @@ async def test_deep_fragment_cycle(init_schema_registry_fixture):
 
 
 @pytest.mark.asyncio
-async def test_valid_fragment_no_cycle(init_schema_registry_fixture):
+async def test_valid_fragment_no_cycle(init_schema_registry_fixture) -> None:
     """Test that valid fragments without cycles work correctly."""
-    from graphql import GraphQLObjectType, GraphQLField, GraphQLList, GraphQLSchema, GraphQLString
+    from graphql import GraphQLField, GraphQLList, GraphQLObjectType, GraphQLSchema, GraphQLString
 
     user_type = GraphQLObjectType(
         "User",
@@ -571,7 +569,7 @@ async def test_valid_fragment_no_cycle(init_schema_registry_fixture):
 
 
 @pytest.fixture
-def init_schema_registry_fixture():
+def init_schema_registry_fixture() -> None:
     """Initialize schema registry for fragment tests."""
     import fraiseql._fraiseql_rs as fraiseql_rs
 

@@ -2,7 +2,6 @@
 
 This test reproduces a critical bug in FraiseQL v0.5.7:
 """
-
 from __future__ import annotations
 
 """
@@ -18,7 +17,7 @@ This test follows FraiseQL repository testing patterns:
 - Uses FraiseQL's transaction-based test isolation
 """
 
-import uuid
+import uuid  # noqa: TC003
 from typing import get_type_hints
 
 import pytest

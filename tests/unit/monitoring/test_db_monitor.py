@@ -9,7 +9,7 @@ Tests for:
 - Performance reports
 """
 
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -71,7 +71,7 @@ def sample_queries() -> list[QueryMetrics]:
 class TestQueryMetrics:
     """Tests for QueryMetrics dataclass."""
 
-    def test_query_metrics_creation(self):
+    def test_query_metrics_creation(self) -> None:
         """QueryMetrics creates successfully."""
         now = datetime.now(UTC)
         metrics = QueryMetrics(
@@ -85,7 +85,7 @@ class TestQueryMetrics:
         assert metrics.query_type == "SELECT"
         assert metrics.duration_ms == 50.0
 
-    def test_query_success_check(self):
+    def test_query_success_check(self) -> None:
         """is_success() works correctly."""
         metrics = QueryMetrics(
             query_id="q-1",
@@ -96,7 +96,7 @@ class TestQueryMetrics:
         )
         assert metrics.is_success() is True
 
-    def test_query_error_check(self):
+    def test_query_error_check(self) -> None:
         """is_failed() works correctly."""
         metrics = QueryMetrics(
             query_id="q-1",
@@ -113,7 +113,7 @@ class TestQueryMetrics:
 class TestPoolMetrics:
     """Tests for PoolMetrics dataclass."""
 
-    def test_pool_metrics_creation(self):
+    def test_pool_metrics_creation(self) -> None:
         """PoolMetrics creates successfully."""
         metrics = PoolMetrics(
             timestamp=datetime.now(UTC),
@@ -124,7 +124,7 @@ class TestPoolMetrics:
         assert metrics.total_connections == 10
         assert metrics.active_connections == 7
 
-    def test_pool_utilization_calculation(self):
+    def test_pool_utilization_calculation(self) -> None:
         """get_utilization_percent() calculates correctly."""
         metrics = PoolMetrics(
             timestamp=datetime.now(UTC),
@@ -134,7 +134,7 @@ class TestPoolMetrics:
         )
         assert metrics.get_utilization_percent() == 70.0
 
-    def test_pool_utilization_empty(self):
+    def test_pool_utilization_empty(self) -> None:
         """get_utilization_percent() handles empty pool."""
         metrics = PoolMetrics(
             timestamp=datetime.now(UTC),
@@ -147,7 +147,7 @@ class TestPoolMetrics:
 class TestTransactionMetrics:
     """Tests for TransactionMetrics dataclass."""
 
-    def test_transaction_metrics_creation(self):
+    def test_transaction_metrics_creation(self) -> None:
         """TransactionMetrics creates successfully."""
         now = datetime.now(UTC)
         metrics = TransactionMetrics(
@@ -157,7 +157,7 @@ class TestTransactionMetrics:
         assert metrics.transaction_id == "txn-1"
         assert metrics.is_active() is True
 
-    def test_transaction_committed(self):
+    def test_transaction_committed(self) -> None:
         """Committed transaction status works."""
         now = datetime.now(UTC)
         metrics = TransactionMetrics(
@@ -170,7 +170,7 @@ class TestTransactionMetrics:
         assert metrics.is_committed() is True
         assert metrics.is_active() is False
 
-    def test_transaction_rolled_back(self):
+    def test_transaction_rolled_back(self) -> None:
         """Rolled back transaction status works."""
         now = datetime.now(UTC)
         metrics = TransactionMetrics(
@@ -187,7 +187,7 @@ class TestTransactionMetrics:
 class TestDatabaseMonitor:
     """Tests for DatabaseMonitor class."""
 
-    async def test_monitor_initialization(self):
+    async def test_monitor_initialization(self) -> None:
         """Monitor initializes correctly."""
         monitor = DatabaseMonitor(
             max_recent_queries=1000,
@@ -197,7 +197,7 @@ class TestDatabaseMonitor:
         assert await monitor.get_query_count() == 0
         assert await monitor.get_slow_query_count() == 0
 
-    async def test_record_query(self, sample_queries):
+    async def test_record_query(self, sample_queries) -> None:
         """record_query() stores metrics."""
         monitor = DatabaseMonitor()
         await monitor.record_query(sample_queries[0])
@@ -205,7 +205,7 @@ class TestDatabaseMonitor:
         count = await monitor.get_query_count()
         assert count == 1
 
-    async def test_record_multiple_queries(self, sample_queries):
+    async def test_record_multiple_queries(self, sample_queries) -> None:
         """Multiple queries can be recorded."""
         monitor = DatabaseMonitor()
         for query in sample_queries:
@@ -214,7 +214,7 @@ class TestDatabaseMonitor:
         count = await monitor.get_query_count()
         assert count == len(sample_queries)
 
-    async def test_get_recent_queries(self, sample_queries):
+    async def test_get_recent_queries(self, sample_queries) -> None:
         """get_recent_queries() returns recent queries."""
         monitor = DatabaseMonitor()
         for query in sample_queries:
@@ -225,7 +225,7 @@ class TestDatabaseMonitor:
         # Should be most recent first
         assert recent[0].query_id == "q-4"
 
-    async def test_get_slow_queries(self, sample_queries):
+    async def test_get_slow_queries(self, sample_queries) -> None:
         """get_slow_queries() returns only slow queries."""
         monitor = DatabaseMonitor()
         for query in sample_queries:
@@ -235,7 +235,7 @@ class TestDatabaseMonitor:
         assert len(slow) == 2  # q-2 and q-4 are slow
         assert all(q.is_slow for q in slow)
 
-    async def test_get_slow_queries_sorted(self, sample_queries):
+    async def test_get_slow_queries_sorted(self, sample_queries) -> None:
         """get_slow_queries() returns sorted by duration."""
         monitor = DatabaseMonitor()
         for query in sample_queries:
@@ -245,7 +245,7 @@ class TestDatabaseMonitor:
         durations = [q.duration_ms for q in slow]
         assert durations == sorted(durations, reverse=True)
 
-    async def test_get_queries_by_type(self, sample_queries):
+    async def test_get_queries_by_type(self, sample_queries) -> None:
         """get_queries_by_type() groups by type."""
         monitor = DatabaseMonitor()
         for query in sample_queries:
@@ -256,7 +256,7 @@ class TestDatabaseMonitor:
         assert by_type["INSERT"] == 1
         assert by_type["UPDATE"] == 1
 
-    async def test_record_pool_state(self):
+    async def test_record_pool_state(self) -> None:
         """record_pool_state() stores pool metrics."""
         monitor = DatabaseMonitor()
         pool = PoolMetrics(
@@ -270,7 +270,7 @@ class TestDatabaseMonitor:
         assert current is not None
         assert current.active_connections == 7
 
-    async def test_get_pool_history(self):
+    async def test_get_pool_history(self) -> None:
         """get_pool_history() returns historical pool states."""
         monitor = DatabaseMonitor()
         now = datetime.now(UTC)
@@ -286,7 +286,7 @@ class TestDatabaseMonitor:
         history = await monitor.get_pool_history(limit=10)
         assert len(history) == 3
 
-    async def test_transaction_tracking(self):
+    async def test_transaction_tracking(self) -> None:
         """Transaction lifecycle is tracked."""
         monitor = DatabaseMonitor()
         txn_id = "txn-1"
@@ -299,7 +299,7 @@ class TestDatabaseMonitor:
         # Verify transaction exists and is committed
         # (would need to expose get_transaction in real implementation)
 
-    async def test_get_query_statistics(self, sample_queries):
+    async def test_get_query_statistics(self, sample_queries) -> None:
         """get_query_statistics() calculates stats."""
         monitor = DatabaseMonitor()
         for query in sample_queries:
@@ -311,7 +311,7 @@ class TestDatabaseMonitor:
         assert stats.slow_count == 2
         assert stats.error_count == 1
 
-    async def test_statistics_percentiles(self, sample_queries):
+    async def test_statistics_percentiles(self, sample_queries) -> None:
         """Statistics include percentiles."""
         monitor = DatabaseMonitor()
         for query in sample_queries:
@@ -324,19 +324,17 @@ class TestDatabaseMonitor:
         # P99 should be slowest
         assert stats.p99_duration_ms >= stats.p95_duration_ms
 
-    async def test_statistics_average(self, sample_queries):
+    async def test_statistics_average(self, sample_queries) -> None:
         """Statistics average duration calculated."""
         monitor = DatabaseMonitor()
         for query in sample_queries:
             await monitor.record_query(query)
 
         stats = await monitor.get_query_statistics()
-        expected_avg = sum(q.duration_ms for q in sample_queries) / len(
-            sample_queries
-        )
+        expected_avg = sum(q.duration_ms for q in sample_queries) / len(sample_queries)
         assert abs(stats.avg_duration_ms - expected_avg) < 0.01
 
-    async def test_get_performance_report(self, sample_queries):
+    async def test_get_performance_report(self, sample_queries) -> None:
         """get_performance_report() generates report."""
         monitor = DatabaseMonitor()
         for query in sample_queries:
@@ -352,7 +350,7 @@ class TestDatabaseMonitor:
         assert report.query_stats.total_count == len(sample_queries)
         assert len(report.slow_queries) == 2
 
-    async def test_performance_report_summary(self, sample_queries):
+    async def test_performance_report_summary(self, sample_queries) -> None:
         """Performance report summary string is valid."""
         monitor = DatabaseMonitor()
         for query in sample_queries:
@@ -369,7 +367,7 @@ class TestDatabaseMonitor:
         assert "Total Queries" in summary
         assert "Slow Queries" in summary
 
-    async def test_clear_metrics(self, sample_queries):
+    async def test_clear_metrics(self, sample_queries) -> None:
         """clear() removes all metrics."""
         monitor = DatabaseMonitor()
         for query in sample_queries:
@@ -379,7 +377,7 @@ class TestDatabaseMonitor:
         assert await monitor.get_query_count() == 0
         assert await monitor.get_slow_query_count() == 0
 
-    async def test_monitor_thread_safety(self):
+    async def test_monitor_thread_safety(self) -> None:
         """Monitor handles concurrent access safely."""
         monitor = DatabaseMonitor()
         now = datetime.now(UTC)
@@ -410,14 +408,14 @@ class TestDatabaseMonitor:
 class TestEdgeCases:
     """Tests for edge cases."""
 
-    async def test_empty_monitor_statistics(self):
+    async def test_empty_monitor_statistics(self) -> None:
         """Statistics work with no queries."""
         monitor = DatabaseMonitor()
         stats = await monitor.get_query_statistics()
         assert stats.total_count == 0
         assert stats.avg_duration_ms == 0.0
 
-    async def test_empty_monitor_report(self):
+    async def test_empty_monitor_report(self) -> None:
         """Report works with no queries."""
         monitor = DatabaseMonitor()
         now = datetime.now(UTC)
@@ -427,7 +425,7 @@ class TestEdgeCases:
         )
         assert report.query_stats.total_count == 0
 
-    async def test_single_query_statistics(self):
+    async def test_single_query_statistics(self) -> None:
         """Statistics work with single query."""
         monitor = DatabaseMonitor()
         query = QueryMetrics(
@@ -445,7 +443,7 @@ class TestEdgeCases:
         assert stats.min_duration_ms == 50.0
         assert stats.max_duration_ms == 50.0
 
-    async def test_pool_metrics_with_zero_connections(self):
+    async def test_pool_metrics_with_zero_connections(self) -> None:
         """Pool metrics handle zero connections."""
         monitor = DatabaseMonitor()
         pool = PoolMetrics(
@@ -459,7 +457,7 @@ class TestEdgeCases:
         assert current is not None
         assert current.get_utilization_percent() == 0.0
 
-    async def test_query_with_all_fields(self):
+    async def test_query_with_all_fields(self) -> None:
         """Query metrics can include all optional fields."""
         now = datetime.now(UTC)
         query = QueryMetrics(

@@ -1,18 +1,15 @@
-"""
-Phase 2.2: Data Consistency Chaos Tests (Real PostgreSQL Backend)
+"""Phase 2.2: Data Consistency Chaos Tests (Real PostgreSQL Backend)
 
 Tests for data consistency issues and transactional integrity under chaos.
 Uses real PostgreSQL to validate FraiseQL's handling of transaction rollbacks,
 partial updates, and constraint violations.
 """
 
-import pytest
-import time
-import statistics
 import asyncio
 
-from chaos.fraiseql_scenarios import FraiseQLTestScenarios
+import pytest
 from chaos.base import ChaosMetrics
+from chaos.fraiseql_scenarios import FraiseQLTestScenarios
 
 
 @pytest.mark.chaos
@@ -21,9 +18,8 @@ from chaos.base import ChaosMetrics
 @pytest.mark.asyncio
 async def test_transaction_rollback_recovery(
     chaos_db_client, chaos_test_schema, baseline_metrics, chaos_config
-):
-    """
-    Test recovery from transaction rollbacks.
+) -> None:
+    """Test recovery from transaction rollbacks.
 
     Scenario: Transactions are rolled back due to conflicts or errors.
     Expected: FraiseQL handles rollbacks gracefully and maintains consistency.
@@ -51,7 +47,7 @@ async def test_transaction_rollback_recovery(
                 metrics.record_query_time(execution_time)
 
                 # Then simulate rollback
-                raise Exception("Transaction rolled back due to conflict")
+                raise Exception("Transaction rolled back due to conflict")  # noqa: TRY002
 
             result = await chaos_db_client.execute_query(operation)
             execution_time = result.get("_execution_time_ms", 30.0)
@@ -85,9 +81,8 @@ async def test_transaction_rollback_recovery(
 @pytest.mark.asyncio
 async def test_partial_update_failure_recovery(
     chaos_db_client, chaos_test_schema, baseline_metrics, chaos_config
-):
-    """
-    Test recovery from partial update failures.
+) -> None:
+    """Test recovery from partial update failures.
 
     Scenario: Multi-field updates fail partway through execution.
     Expected: FraiseQL handles partial failures and maintains data consistency.
@@ -112,7 +107,7 @@ async def test_partial_update_failure_recovery(
             if result.get("data"):
                 # Simulate partial failure detection
                 if i % 2 == 1:  # Every other operation has partial failure
-                    raise Exception("Partial update failure: only some fields updated")
+                    raise Exception("Partial update failure: only some fields updated")  # noqa: TRY002
 
                 execution_time = result.get("_execution_time_ms", 75.0)
                 metrics.record_query_time(execution_time)
@@ -143,9 +138,8 @@ async def test_partial_update_failure_recovery(
 @pytest.mark.asyncio
 async def test_constraint_violation_handling(
     chaos_db_client, chaos_test_schema, baseline_metrics, chaos_config
-):
-    """
-    Test handling of database constraint violations.
+) -> None:
+    """Test handling of database constraint violations.
 
     Scenario: Operations violate database constraints (unique, foreign key, check).
     Expected: FraiseQL handles constraint violations with appropriate error responses.
@@ -167,9 +161,8 @@ async def test_constraint_violation_handling(
             # Simulate constraint violation scenarios
             if i % 3 == 1:  # Every 3rd operation violates constraints
                 if i % 2 == 1:
-                    raise Exception("Constraint violation: unique key constraint")
-                else:
-                    raise Exception("Constraint violation: foreign key constraint")
+                    raise Exception("Constraint violation: unique key constraint")  # noqa: TRY002
+                raise Exception("Constraint violation: foreign key constraint")  # noqa: TRY002
 
             result = await chaos_db_client.execute_query(operation)
             execution_time = result.get("_execution_time_ms", 25.0)
@@ -202,9 +195,8 @@ async def test_constraint_violation_handling(
 @pytest.mark.asyncio
 async def test_transaction_isolation_anomaly_simulation(
     chaos_db_client, chaos_test_schema, baseline_metrics, chaos_config
-):
-    """
-    Test handling of transaction isolation anomalies.
+) -> None:
+    """Test handling of transaction isolation anomalies.
 
     Scenario: Concurrent transactions create isolation anomalies (dirty reads, etc).
     Expected: FraiseQL maintains transactional consistency under concurrent load.
@@ -246,7 +238,7 @@ async def test_transaction_isolation_anomaly_simulation(
 
             return (thread_id, anomalies_detected, successful_reads)
 
-        except Exception as e:
+        except Exception:
             metrics.record_error()
             return (thread_id, anomalies_detected, successful_reads)
 
@@ -262,7 +254,7 @@ async def test_transaction_isolation_anomaly_simulation(
 
     for result in results:
         if isinstance(result, tuple):
-            thread_id, anom_count, success_count = result
+            _thread_id, anom_count, success_count = result
             anomalies += anom_count
             successes += success_count
 
@@ -279,9 +271,8 @@ async def test_transaction_isolation_anomaly_simulation(
 @pytest.mark.asyncio
 async def test_data_corruption_detection(
     chaos_db_client, chaos_test_schema, baseline_metrics, chaos_config
-):
-    """
-    Test detection of data corruption scenarios.
+) -> None:
+    """Test detection of data corruption scenarios.
 
     Scenario: Database returns corrupted or inconsistent data.
     Expected: FraiseQL detects corruption and handles appropriately.
@@ -336,9 +327,8 @@ async def test_data_corruption_detection(
 @pytest.mark.asyncio
 async def test_cascading_failure_prevention(
     chaos_db_client, chaos_test_schema, baseline_metrics, chaos_config
-):
-    """
-    Test prevention of cascading failures in data operations.
+) -> None:
+    """Test prevention of cascading failures in data operations.
 
     Scenario: One failed operation shouldn't cause cascading failures.
     Expected: FraiseQL contains failures and maintains system stability.
@@ -366,7 +356,7 @@ async def test_cascading_failure_prevention(
 
             # Dependent complex operation
             if i % 2 == 1:  # Primary fails on odd iterations
-                raise Exception("Primary operation failed")
+                raise Exception("Primary operation failed")  # noqa: TRY002
 
             # If primary succeeds, execute dependent operation
             complex_result = await chaos_db_client.execute_query(complex_op)

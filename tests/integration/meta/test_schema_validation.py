@@ -11,7 +11,7 @@ import pytest
 class TestSchemaValidationInfrastructure:
     """Test core schema validation infrastructure components."""
 
-    async def test_meta_test_pool_fixture_works(self, meta_test_pool):
+    async def test_meta_test_pool_fixture_works(self, meta_test_pool) -> None:
         """meta_test_pool fixture should provide a working connection pool."""
         # Should be an AsyncConnectionPool
         assert meta_test_pool is not None
@@ -23,7 +23,7 @@ class TestSchemaValidationInfrastructure:
             row = await result.fetchone()
             assert row[0] == 1
 
-    async def test_meta_test_schema_fixture_works(self, meta_test_schema):
+    async def test_meta_test_schema_fixture_works(self, meta_test_schema) -> None:
         """meta_test_schema fixture should provide schema registry."""
         assert meta_test_schema is not None
         # Should be a SchemaRegistry instance

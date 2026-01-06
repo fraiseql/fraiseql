@@ -265,7 +265,7 @@ class TestConvertTypeToGraphQLOutput:
         """Test conversion of simple FraiseQL output class."""
 
         @fraise_type
-        class UserGQLConversion_1:
+        class UserGQLConversion_1:  # noqa: N801
             name: str
             age: int
 
@@ -341,7 +341,7 @@ class TestConvertTypeToGraphQLOutput:
             city: str
 
         @fraise_type
-        class UserGQLConversion_2:
+        class UserGQLConversion_2:  # noqa: N801
             name: str
             address: Address
 
@@ -550,7 +550,7 @@ class TestMissingFieldsInComplexTypes:
         """Test that optional JSONField can be missing."""
 
         @fraise_input
-        class CreateUserInputTestGQLConversion_2:
+        class CreateUserInputTestGQLConversion_2:  # noqa: N801
             name: str
             metadata: JSONField | None = None
 
@@ -676,7 +676,7 @@ class TestInvalidJSONFieldData:
         """Test invalid JSON literal (e.g., non-JSON string)."""
         invalid_json = '{"key": "value",}'  # Invalid JSON syntax (extra comma)
 
-        with pytest.raises(GraphQLError, match="JSON cannot represent.*literal of type str"):
+        with pytest.raises(GraphQLError, match="JSON cannot represent.*literal of type str"):  # noqa: RUF043
             # Ensure that parsing invalid JSON literals raises an error
             parse_json_literal(invalid_json)  # type: ignore[arg-type]
 

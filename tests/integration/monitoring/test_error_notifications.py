@@ -20,10 +20,10 @@ pytestmark = pytest.mark.integration
 
 
 @pytest_asyncio.fixture(scope="class")
-async def error_tracker(class_db_pool, test_schema):
+async def error_tracker(class_db_pool, test_schema) -> None:
     """Create error tracker instance for testing."""
     # Read and execute schema
-    with open("src/fraiseql/monitoring/schema.sql") as f:
+    with open("src/fraiseql/monitoring/schema.sql") as f:  # noqa: ASYNC230, PTH123
         schema_sql = f.read()
 
     # Run the async setup
@@ -43,7 +43,7 @@ async def error_tracker(class_db_pool, test_schema):
 
 
 @pytest_asyncio.fixture(scope="class")
-async def notification_manager(class_db_pool, test_schema):
+async def notification_manager(class_db_pool, test_schema) -> None:
     """Create notification manager instance for testing."""
     yield NotificationManager(class_db_pool)
 
@@ -260,7 +260,7 @@ class TestWebhookChannel:
             mock_request = AsyncMock(return_value=mock_response)
             mock_client.return_value.__aenter__.return_value.request = mock_request
 
-            success, error_msg = await channel.send(error, config)
+            success, _error_msg = await channel.send(error, config)
 
             assert success is True
             # Verify PUT method was used
@@ -362,7 +362,7 @@ class TestNotificationManager:
                 "SELECT COUNT(*) FROM tb_error_notification_log WHERE error_id = %s",
                 (error_id,),
             )
-            result = await cur.fetchone()
+            await cur.fetchone()
             # Note: Might be 0 if async task hasn't completed yet
             # This is expected behavior for fire-and-forget notifications
 
@@ -415,7 +415,7 @@ class TestNotificationManager:
             await cur.execute(
                 "SELECT COUNT(*) FROM tb_error_notification_log WHERE status = 'sent'"
             )
-            result = await cur.fetchone()
+            await cur.fetchone()
             # Should have at most 1 successful notification due to rate limiting
 
 
@@ -437,7 +437,7 @@ class TestErrorTrackerNotificationIntegration:
             try:
                 raise ValueError("Test error")
             except ValueError as e:
-                error_id = await error_tracker.capture_exception(e)
+                await error_tracker.capture_exception(e)
 
             # Give async task time to complete
             await asyncio.sleep(0.1)

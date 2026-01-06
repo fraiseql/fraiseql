@@ -146,7 +146,7 @@ class TestMutationErrorConfig:
         config = DEFAULT_ERROR_CONFIG
 
         assert not config.is_error_status("")
-        assert not config.is_error_status(None)  # type: ignore
+        assert not config.is_error_status(None)  # type: ignore[misc]
 
     def test_case_insensitive_matching(self) -> None:
         """Test that status matching is case-insensitive."""

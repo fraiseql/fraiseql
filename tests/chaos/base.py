@@ -1,15 +1,14 @@
-"""
-Chaos Engineering Base Classes and Infrastructure
+"""Chaos Engineering Base Classes and Infrastructure
 
 This module provides the foundation for chaos engineering tests in FraiseQL,
 including metrics collection, test case management, and chaos injection utilities.
 """
 
-import time
 import statistics
+import time
 import unittest
-from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -35,33 +34,33 @@ class ChaosMetrics:
     chaos_recovery_time: Optional[float] = None
     chaos_active_duration_ms: Optional[float] = None
 
-    def start_test(self):
+    def start_test(self) -> None:
         """Mark the start of a chaos test."""
         self.start_time = time.time()
 
-    def end_test(self):
+    def end_test(self) -> None:
         """Mark the end of a chaos test."""
         self.end_time = time.time()
         if self.start_time:
             self.duration_ms = (self.end_time - self.start_time) * 1000
 
-    def record_query_time(self, duration_ms: float):
+    def record_query_time(self, duration_ms: float) -> None:
         """Record a query execution time."""
         self.query_times_ms.append(duration_ms)
 
-    def record_error(self):
+    def record_error(self) -> None:
         """Record an error occurrence."""
         self.error_count += 1
 
-    def record_retry(self):
+    def record_retry(self) -> None:
         """Record a retry attempt."""
         self.retry_count += 1
 
-    def start_chaos_injection(self):
+    def start_chaos_injection(self) -> None:
         """Mark when chaos injection begins."""
         self.chaos_injection_time = time.time()
 
-    def end_chaos_injection(self):
+    def end_chaos_injection(self) -> None:
         """Mark when chaos injection ends."""
         recovery_time = time.time()
         if self.chaos_injection_time:
@@ -86,13 +85,12 @@ class ChaosMetrics:
 
 
 class ChaosTestCase(unittest.TestCase):
-    """
-    Base class for chaos engineering tests.
+    """Base class for chaos engineering tests.
 
     Provides common functionality for chaos test setup, execution, and cleanup.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs):  # noqa: ANN002, ANN003
         super().__init__(*args, **kwargs)
         self.metrics = ChaosMetrics()
         self.chaos_active = False
@@ -100,7 +98,7 @@ class ChaosTestCase(unittest.TestCase):
         # Pytest fixture support - allow pytest to inject fixtures
         self._pytest_fixtures = {}
 
-    def setup_method(self, method=None):
+    def setup_method(self, method=None) -> None:
         """Setup called before each test method."""
         self.metrics = ChaosMetrics()
         self.metrics.start_test()
@@ -109,7 +107,7 @@ class ChaosTestCase(unittest.TestCase):
             for name, value in self.__pytest_meta__.items():
                 setattr(self, name, value)
 
-    def teardown_method(self, method=None):
+    def teardown_method(self, method=None) -> None:
         """Teardown called after each test method."""
         self.metrics.end_test()
         self._save_results()
@@ -121,7 +119,7 @@ class ChaosTestCase(unittest.TestCase):
         baseline_file = baseline_file or self.baseline_file
 
         try:
-            with open(baseline_file, "r") as f:
+            with open(baseline_file) as f:  # noqa: PTH123
                 return json.load(f)
         except FileNotFoundError:
             return {}
@@ -160,7 +158,7 @@ class ChaosTestCase(unittest.TestCase):
         import json
         import os
 
-        os.makedirs("tests/chaos/results", exist_ok=True)
+        os.makedirs("tests/chaos/results", exist_ok=True)  # noqa: PTH103
         result_file = f"tests/chaos/results/{self.__class__.__name__}.json"
 
         results = {
@@ -170,12 +168,11 @@ class ChaosTestCase(unittest.TestCase):
             "chaos_active": self.chaos_active,
         }
 
-        with open(result_file, "w") as f:
+        with open(result_file, "w") as f:  # noqa: PTH123
             json.dump(results, f, indent=2)
 
-    def inject_chaos(self, failure_type: str, duration: int, **kwargs):
-        """
-        Inject chaos into the system.
+    def inject_chaos(self, failure_type: str, duration: int, **kwargs) -> None:  # noqa: ANN003
+        """Inject chaos into the system.
 
         This is a placeholder - actual implementation will be in subclasses
         or through decorators.

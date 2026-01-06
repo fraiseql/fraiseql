@@ -1,6 +1,5 @@
 """Tests for computed fields with @requires and @provides directives."""
 
-
 from fraiseql.federation.computed_fields import (
     ComputedField,
     ComputedFieldValidator,
@@ -15,7 +14,7 @@ from fraiseql.federation.directives import provides, requires
 class TestComputedField:
     """Tests for ComputedField metadata class."""
 
-    def test_create_computed_field_requires(self):
+    def test_create_computed_field_requires(self) -> None:
         """Test creating computed field with requirements."""
         field = ComputedField(
             "discounted_price",
@@ -27,7 +26,7 @@ class TestComputedField:
         assert field.has_requirements() is True
         assert field.has_provisions() is False
 
-    def test_create_computed_field_provides(self):
+    def test_create_computed_field_provides(self) -> None:
         """Test creating computed field with provisions."""
         field = ComputedField(
             "summary",
@@ -40,7 +39,7 @@ class TestComputedField:
         assert field.has_requirements() is False
         assert field.is_async is True
 
-    def test_computed_field_both_directives(self):
+    def test_computed_field_both_directives(self) -> None:
         """Test computed field with both requires and provides."""
         field = ComputedField(
             "transform",
@@ -53,13 +52,13 @@ class TestComputedField:
         assert field.get_required_fields() == ["input"]
         assert field.get_provided_fields() == ["output"]
 
-    def test_computed_field_no_directives(self):
+    def test_computed_field_no_directives(self) -> None:
         """Test computed field with no directives."""
         field = ComputedField("plain_method")
         assert field.has_requirements() is False
         assert field.has_provisions() is False
 
-    def test_computed_field_repr(self):
+    def test_computed_field_repr(self) -> None:
         """Test repr of computed field."""
         field = ComputedField(
             "method",
@@ -77,12 +76,12 @@ class TestComputedField:
 class TestComputedFieldValidator:
     """Tests for ComputedFieldValidator class."""
 
-    def test_validator_init(self):
+    def test_validator_init(self) -> None:
         """Test validator initialization."""
         validator = ComputedFieldValidator()
         assert validator.get_errors() == []
 
-    def test_validate_requires_all_exist(self):
+    def test_validate_requires_all_exist(self) -> None:
         """Test validation when all required fields exist."""
         validator = ComputedFieldValidator()
         all_fields = {"id", "price", "name"}
@@ -92,7 +91,7 @@ class TestComputedFieldValidator:
         assert valid is True
         assert validator.get_errors() == []
 
-    def test_validate_requires_missing_fields(self):
+    def test_validate_requires_missing_fields(self) -> None:
         """Test validation with missing required fields."""
         validator = ComputedFieldValidator()
         all_fields = {"id", "price"}
@@ -105,7 +104,7 @@ class TestComputedFieldValidator:
         assert "discount" in errors[0]
         assert "tax" in errors[0]
 
-    def test_validate_provides_valid(self):
+    def test_validate_provides_valid(self) -> None:
         """Test validation of provisions."""
         validator = ComputedFieldValidator()
         all_fields = {"id", "price", "name"}
@@ -114,7 +113,7 @@ class TestComputedFieldValidator:
         valid = validator.validate_provides("method", provided, all_fields)
         assert valid is True
 
-    def test_validate_provides_empty(self):
+    def test_validate_provides_empty(self) -> None:
         """Test validation with empty provisions."""
         validator = ComputedFieldValidator()
         all_fields = {"id", "price"}
@@ -124,7 +123,7 @@ class TestComputedFieldValidator:
         assert valid is False
         assert len(validator.get_errors()) > 0
 
-    def test_validate_computed_field_complete(self):
+    def test_validate_computed_field_complete(self) -> None:
         """Test complete validation of a computed field."""
         validator = ComputedFieldValidator()
         field = ComputedField(
@@ -138,7 +137,7 @@ class TestComputedFieldValidator:
         assert valid is True
         assert validator.get_errors() == []
 
-    def test_clear_errors(self):
+    def test_clear_errors(self) -> None:
         """Test clearing error list."""
         validator = ComputedFieldValidator()
         validator.errors.append("error 1")
@@ -151,7 +150,7 @@ class TestComputedFieldValidator:
 class TestExtractComputedFields:
     """Tests for extract_computed_fields helper function."""
 
-    def test_extract_no_computed_fields(self):
+    def test_extract_no_computed_fields(self) -> None:
         """Test extracting from class with no computed fields."""
 
         class User:
@@ -161,7 +160,7 @@ class TestExtractComputedFields:
         fields = extract_computed_fields(User)
         assert fields == {}
 
-    def test_extract_with_requires(self):
+    def test_extract_with_requires(self) -> None:
         """Test extracting method with @requires."""
 
         @extend_entity(key="id")
@@ -178,7 +177,7 @@ class TestExtractComputedFields:
         assert fields["discounted_price"].requires == ["price"]
         assert fields["discounted_price"].has_requirements() is True
 
-    def test_extract_with_provides(self):
+    def test_extract_with_provides(self) -> None:
         """Test extracting method with @provides."""
 
         @extend_entity(key="id")
@@ -195,7 +194,7 @@ class TestExtractComputedFields:
         assert set(fields["summary"].provides) == {"id", "title"}
         assert fields["summary"].is_async is True
 
-    def test_extract_multiple_computed_fields(self):
+    def test_extract_multiple_computed_fields(self) -> None:
         """Test extracting multiple computed fields."""
 
         @extend_entity(key="id")
@@ -222,7 +221,7 @@ class TestExtractComputedFields:
         assert "comment_count" in fields
         assert "metadata" in fields
 
-    def test_extract_with_both_directives(self):
+    def test_extract_with_both_directives(self) -> None:
         """Test method with both @requires and @provides."""
 
         @extend_entity(key="id")
@@ -246,7 +245,7 @@ class TestExtractComputedFields:
 class TestFieldDependencies:
     """Tests for field dependency analysis."""
 
-    def test_simple_dependency(self):
+    def test_simple_dependency(self) -> None:
         """Test simple field dependency."""
 
         @extend_entity(key="id")
@@ -262,7 +261,7 @@ class TestFieldDependencies:
         assert "discounted" in deps
         assert deps["discounted"] == {"price"}
 
-    def test_multiple_dependencies(self):
+    def test_multiple_dependencies(self) -> None:
         """Test field with multiple dependencies."""
 
         @extend_entity(key="id")
@@ -278,7 +277,7 @@ class TestFieldDependencies:
         deps = get_all_field_dependencies(Product)
         assert deps["final_price"] == {"price", "discount"}
 
-    def test_multiple_computed_fields_dependencies(self):
+    def test_multiple_computed_fields_dependencies(self) -> None:
         """Test dependencies of multiple computed fields."""
 
         @extend_entity(key="id")
@@ -304,7 +303,7 @@ class TestFieldDependencies:
 class TestValidateComputedFields:
     """Tests for validate_all_computed_fields function."""
 
-    def test_validate_all_valid(self):
+    def test_validate_all_valid(self) -> None:
         """Test validation when all computed fields are valid."""
 
         @extend_entity(key="id")
@@ -321,7 +320,7 @@ class TestValidateComputedFields:
         assert valid is True
         assert errors == []
 
-    def test_validate_missing_requirement(self):
+    def test_validate_missing_requirement(self) -> None:
         """Test validation with missing required field."""
 
         @extend_entity(key="id")
@@ -339,7 +338,7 @@ class TestValidateComputedFields:
         assert len(errors) > 0
         assert "discount" in errors[0]
 
-    def test_validate_multiple_errors(self):
+    def test_validate_multiple_errors(self) -> None:
         """Test validation with multiple errors."""
 
         @extend_entity(key="id")
@@ -364,7 +363,7 @@ class TestValidateComputedFields:
 class TestComputedFieldsIntegration:
     """Integration tests for computed fields with external fields."""
 
-    def test_product_review_computed_fields(self):
+    def test_product_review_computed_fields(self) -> None:
         """Test computed fields in product review extension."""
 
         @extend_entity(key="id")
@@ -399,7 +398,7 @@ class TestComputedFieldsIntegration:
         assert "average_rating" in fields
         assert "product_summary" in fields
 
-    def test_user_posts_computed_fields(self):
+    def test_user_posts_computed_fields(self) -> None:
         """Test computed fields in user posts extension."""
 
         @extend_entity(key="id")
@@ -422,7 +421,7 @@ class TestComputedFieldsIntegration:
         assert deps["post_count"] == {"posts"}
         assert deps["most_recent_post"] == {"posts"}
 
-    def test_validate_real_world_scenario(self):
+    def test_validate_real_world_scenario(self) -> None:
         """Test validation with real-world scenario."""
 
         @extend_entity(key="id")

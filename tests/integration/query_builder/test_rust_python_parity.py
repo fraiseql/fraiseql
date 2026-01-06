@@ -19,7 +19,7 @@ pytest.importorskip("fraiseql._fraiseql_rs")
 class TestSimpleQueries:
     """Test simple SELECT queries for parity."""
 
-    def test_simple_select_single_field(self):
+    def test_simple_select_single_field(self) -> None:
         """Test SELECT with single field."""
         table = "v_users"
         field_paths = [FieldPath("id")]
@@ -38,7 +38,7 @@ class TestSimpleQueries:
         assert "SELECT" in python_normalized
         assert table in python_normalized
 
-    def test_simple_select_multiple_fields(self):
+    def test_simple_select_multiple_fields(self) -> None:
         """Test SELECT with multiple fields."""
         table = "v_users"
         field_paths = [FieldPath("id"), FieldPath("name"), FieldPath("email")]
@@ -55,7 +55,7 @@ class TestSimpleQueries:
         assert "SELECT" in python_normalized
         assert table in python_normalized
 
-    def test_select_with_limit(self):
+    def test_select_with_limit(self) -> None:
         """Test SELECT with LIMIT (via adapter in future)."""
         table = "v_users"
         field_paths = [FieldPath("id")]
@@ -75,7 +75,7 @@ class TestSimpleQueries:
 class TestFieldPaths:
     """Test various field path patterns."""
 
-    def test_nested_field_path(self):
+    def test_nested_field_path(self) -> None:
         """Test nested field paths (a.b.c)."""
         table = "v_users"
         field_paths = [
@@ -94,7 +94,7 @@ class TestFieldPaths:
         # Should handle nested paths
         assert "SELECT" in str(python_sql)
 
-    def test_array_field_path(self):
+    def test_array_field_path(self) -> None:
         """Test array field paths (items[])."""
         table = "v_users"
         field_paths = [FieldPath("id"), FieldPath("roles[]")]
@@ -112,7 +112,7 @@ class TestFieldPaths:
 class TestOrderBy:
     """Test ORDER BY clause generation."""
 
-    def test_order_by_single_field_asc(self):
+    def test_order_by_single_field_asc(self) -> None:
         """Test ORDER BY with single field ascending."""
         table = "v_users"
         field_paths = [FieldPath("id"), FieldPath("name")]
@@ -130,7 +130,7 @@ class TestOrderBy:
         assert "ORDER BY" in python_str
         assert "ASC" in python_str
 
-    def test_order_by_multiple_fields(self):
+    def test_order_by_multiple_fields(self) -> None:
         """Test ORDER BY with multiple fields."""
         table = "v_users"
         field_paths = [FieldPath("id")]
@@ -151,7 +151,7 @@ class TestOrderBy:
 class TestJsonOutput:
     """Test JSON output formatting."""
 
-    def test_json_output_enabled(self):
+    def test_json_output_enabled(self) -> None:
         """Test with json_output=True."""
         table = "v_users"
         field_paths = [FieldPath("id"), FieldPath("name")]
@@ -167,7 +167,7 @@ class TestJsonOutput:
         python_str = str(python_sql)
         assert "SELECT" in python_str
 
-    def test_json_output_with_typename(self):
+    def test_json_output_with_typename(self) -> None:
         """Test JSON output with __typename field."""
         table = "v_users"
         field_paths = [FieldPath("id")]
@@ -187,7 +187,7 @@ class TestJsonOutput:
 class TestRawJsonOutput:
     """Test raw JSON text output."""
 
-    def test_raw_json_output(self):
+    def test_raw_json_output(self) -> None:
         """Test with raw_json_output=True."""
         table = "v_users"
         field_paths = [FieldPath("id")]
@@ -208,7 +208,7 @@ class TestRawJsonOutput:
 class TestFieldLimitThreshold:
     """Test field limit threshold for large field counts."""
 
-    def test_field_limit_threshold_exceeded(self):
+    def test_field_limit_threshold_exceeded(self) -> None:
         """Test that large field counts use full data column."""
         table = "v_users"
         # Create many field paths
@@ -231,7 +231,7 @@ class TestFieldLimitThreshold:
 class TestCamelCase:
     """Test automatic camelCase conversion."""
 
-    def test_auto_camel_case(self):
+    def test_auto_camel_case(self) -> None:
         """Test with auto_camel_case=True."""
         table = "v_users"
         field_paths = [FieldPath("first_name"), FieldPath("last_name")]
@@ -252,7 +252,7 @@ class TestCamelCase:
 class TestWhereClause:
     """Test WHERE clause generation (future Phase 7.1)."""
 
-    def test_simple_where_equality(self):
+    def test_simple_where_equality(self) -> None:
         """Test simple WHERE clause with equality."""
         table = "v_users"
         field_paths = [FieldPath("id")]
@@ -275,7 +275,7 @@ class TestWhereClause:
 class TestGroupBy:
     """Test GROUP BY clause generation (future Phase 7.1)."""
 
-    def test_simple_group_by(self):
+    def test_simple_group_by(self) -> None:
         """Test simple GROUP BY."""
         table = "v_users"
         field_paths = [FieldPath("status")]

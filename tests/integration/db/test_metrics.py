@@ -1,5 +1,4 @@
-"""
-Integration tests for Phase 2.5: Pool Metrics.
+"""Integration tests for Phase 2.5: Pool Metrics.
 
 Tests metrics collection and reporting:
 - Query execution tracking
@@ -18,7 +17,7 @@ pytest_plugins = ["tests.fixtures.database.database_conftest"]
 
 
 @pytest_asyncio.fixture
-async def pool(postgres_url):
+async def pool(postgres_url) -> None:
     """Create database pool for testing using testcontainers PostgreSQL."""
     from fraiseql._fraiseql_rs import DatabasePool
 
@@ -30,7 +29,7 @@ async def pool(postgres_url):
 class TestBasicMetrics:
     """Test basic metrics collection."""
 
-    async def test_initial_metrics(self, pool):
+    async def test_initial_metrics(self, pool) -> None:
         """Test initial metrics are zero."""
         metrics = pool.metrics()
 
@@ -40,7 +39,7 @@ class TestBasicMetrics:
         assert metrics["health_check_failures"] == 0
         assert metrics["query_success_rate"] == 1.0  # 100% when no queries
 
-    async def test_query_execution_tracking(self, pool):
+    async def test_query_execution_tracking(self, pool) -> None:
         """Test that successful queries are tracked."""
         # Execute a query
         await pool.execute_query("SELECT 1")
@@ -50,7 +49,7 @@ class TestBasicMetrics:
         assert metrics["query_errors"] == 0
         assert metrics["query_success_rate"] == 1.0
 
-    async def test_multiple_queries_tracked(self, pool):
+    async def test_multiple_queries_tracked(self, pool) -> None:
         """Test that multiple queries increment counter."""
         # Execute 5 queries
         for _ in range(5):
@@ -60,17 +59,17 @@ class TestBasicMetrics:
         assert metrics["queries_executed"] == 5
         assert metrics["query_errors"] == 0
 
-    async def test_error_tracking(self, pool):
+    async def test_error_tracking(self, pool) -> None:
         """Test that query errors are tracked."""
         # Execute invalid query
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017
             await pool.execute_query("INVALID SQL")
 
         metrics = pool.metrics()
         assert metrics["queries_executed"] == 0
         assert metrics["query_errors"] == 1
 
-    async def test_mixed_success_and_errors(self, pool):
+    async def test_mixed_success_and_errors(self, pool) -> None:
         """Test tracking both successful and failed queries."""
         # 3 successful queries
         await pool.execute_query("SELECT 1")
@@ -78,7 +77,7 @@ class TestBasicMetrics:
         await pool.execute_query("SELECT 3")
 
         # 1 failed query
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017
             await pool.execute_query("INVALID SQL")
 
         metrics = pool.metrics()
@@ -90,7 +89,7 @@ class TestBasicMetrics:
 class TestSuccessRate:
     """Test success rate calculations."""
 
-    async def test_success_rate_all_successful(self, pool):
+    async def test_success_rate_all_successful(self, pool) -> None:
         """Test success rate is 100% with all successful queries."""
         for _ in range(10):
             await pool.execute_query("SELECT 1")
@@ -98,16 +97,16 @@ class TestSuccessRate:
         metrics = pool.metrics()
         assert metrics["query_success_rate"] == 1.0
 
-    async def test_success_rate_all_failed(self, pool):
+    async def test_success_rate_all_failed(self, pool) -> None:
         """Test success rate is 0% with all failed queries."""
         for _ in range(5):
-            with pytest.raises(Exception):
+            with pytest.raises(Exception):  # noqa: B017
                 await pool.execute_query("INVALID SQL")
 
         metrics = pool.metrics()
         assert metrics["query_success_rate"] == 0.0
 
-    async def test_success_rate_calculation(self, pool):
+    async def test_success_rate_calculation(self, pool) -> None:
         """Test success rate calculation with mixed results."""
         # 7 successful
         for _ in range(7):
@@ -115,7 +114,7 @@ class TestSuccessRate:
 
         # 3 failed
         for _ in range(3):
-            with pytest.raises(Exception):
+            with pytest.raises(Exception):  # noqa: B017
                 await pool.execute_query("INVALID SQL")
 
         metrics = pool.metrics()
@@ -125,7 +124,7 @@ class TestSuccessRate:
 class TestMetricsStructure:
     """Test metrics dictionary structure."""
 
-    async def test_metrics_keys(self, pool):
+    async def test_metrics_keys(self, pool) -> None:
         """Test that metrics dict has all expected keys."""
         metrics = pool.metrics()
 
@@ -140,7 +139,7 @@ class TestMetricsStructure:
 
         assert set(metrics.keys()) == expected_keys
 
-    async def test_metrics_types(self, pool):
+    async def test_metrics_types(self, pool) -> None:
         """Test that metric values have correct types."""
         await pool.execute_query("SELECT 1")
         metrics = pool.metrics()
@@ -156,7 +155,7 @@ class TestMetricsStructure:
 class TestConcurrentMetrics:
     """Test metrics with concurrent operations."""
 
-    async def test_concurrent_queries_tracked(self, pool):
+    async def test_concurrent_queries_tracked(self, pool) -> None:
         """Test that concurrent queries are all tracked."""
         import asyncio
 
@@ -167,17 +166,18 @@ class TestConcurrentMetrics:
         assert metrics["queries_executed"] == 20
         assert metrics["query_errors"] == 0
 
-    async def test_concurrent_mixed_operations(self, pool):
+    async def test_concurrent_mixed_operations(self, pool) -> None:
         """Test metrics with concurrent successes and failures."""
         import asyncio
 
-        async def success_query():
+        async def success_query() -> None:
             await pool.execute_query("SELECT 1")
 
-        async def fail_query():
+        async def fail_query() -> None:
             try:
                 await pool.execute_query("INVALID SQL")
-            except:
+            except Exception:
+
                 pass
 
         # 10 successes and 5 failures concurrently

@@ -5,7 +5,7 @@ import json
 from fraiseql.mutations.decorators import error, success
 
 
-def test_decorator_adds_fields_to_gql_fields():
+def test_decorator_adds_fields_to_gql_fields() -> None:
     """Verify Python decorator adds auto-populated fields to __gql_fields__."""
 
     @success
@@ -27,7 +27,7 @@ def test_decorator_adds_fields_to_gql_fields():
     print(f"✅ Python decorator: All fields present: {sorted(gql_fields.keys())}")
 
 
-def test_failure_decorator_adds_fields():
+def test_failure_decorator_adds_fields() -> None:
     """Verify @error decorator adds auto-populated fields (v1.8.1)."""
 
     @error
@@ -50,7 +50,7 @@ def test_failure_decorator_adds_fields():
     print(f"✅ Failure decorator: Fields present: {sorted(gql_fields.keys())}")
 
 
-def test_rust_field_filtering():
+def test_rust_field_filtering() -> None:
     """Verify Rust filters fields based on selection."""
     from fraiseql import _get_fraiseql_rs
 
@@ -103,7 +103,7 @@ def test_rust_field_filtering():
     print(f"✅ Rust filtering: Only requested fields present: {list(data.keys())}")
 
 
-def test_rust_no_selection_returns_all():
+def test_rust_no_selection_returns_all() -> None:
     """Verify backward compatibility - no selection returns all fields."""
     from fraiseql import _get_fraiseql_rs
 
@@ -150,7 +150,7 @@ def test_rust_no_selection_returns_all():
     print(f"✅ Backward compat: All fields present with None selection: {list(data.keys())}")
 
 
-def test_partial_field_selection():
+def test_partial_field_selection() -> None:
     """Verify partial field selection works correctly."""
     from fraiseql import _get_fraiseql_rs
 

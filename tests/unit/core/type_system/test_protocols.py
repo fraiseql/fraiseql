@@ -160,7 +160,7 @@ class TestFraiseQLProtocols:
 
         # Should satisfy protocols
         output: FraiseQLOutputType = MinimalOutput()
-        input: FraiseQLInputType = MinimalInput()
+        input: FraiseQLInputType = MinimalInput()  # noqa: A001
 
         assert output.__gql_typename__ == "Minimal"
         assert input.__gql_typename__ == "MinimalInput"

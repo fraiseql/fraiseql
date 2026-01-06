@@ -10,12 +10,12 @@ from fraiseql import _get_fraiseql_rs
 
 
 @pytest.fixture
-def fraiseql_rs():
+def fraiseql_rs() -> None:
     """Get Rust module."""
     return _get_fraiseql_rs()
 
 
-def test_named_fragment_support_exists():
+def test_named_fragment_support_exists() -> None:
     """Verify named fragment support exists in the codebase."""
     from fraiseql.mutations.mutation_decorator import _extract_mutation_selected_fields
 
@@ -33,7 +33,7 @@ def test_named_fragment_support_exists():
     print("✅ Named fragment support exists in codebase")
 
 
-def test_named_fragment_with_inline_fragments():
+def test_named_fragment_with_inline_fragments() -> None:
     """Verify field extraction can handle mixed fragment scenarios without crashing."""
     from fraiseql.mutations.mutation_decorator import _extract_mutation_selected_fields
 
@@ -72,7 +72,7 @@ def test_named_fragment_with_inline_fragments():
     print(f"✅ Fragment extraction handles inline fragments: {selected_fields}")
 
 
-def test_rust_with_named_fragment_fields(fraiseql_rs):
+def test_rust_with_named_fragment_fields(fraiseql_rs) -> None:
     """Verify Rust layer respects field selection from named fragments."""
     fake_result = {
         "status": "success",
@@ -117,7 +117,7 @@ def test_rust_with_named_fragment_fields(fraiseql_rs):
     print(f"✅ Rust respects named fragment selection: {list(data.keys())}")
 
 
-def test_empty_named_fragment():
+def test_empty_named_fragment() -> None:
     """Verify empty named fragment doesn't crash field extraction."""
     from fraiseql.mutations.mutation_decorator import _extract_mutation_selected_fields
 
@@ -144,7 +144,7 @@ def test_empty_named_fragment():
     print("✅ Empty named fragment handled gracefully")
 
 
-def test_missing_named_fragment():
+def test_missing_named_fragment() -> None:
     """Verify missing named fragment doesn't crash field extraction."""
     from fraiseql.mutations.mutation_decorator import _extract_mutation_selected_fields
 

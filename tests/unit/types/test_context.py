@@ -1,6 +1,5 @@
 """Unit tests for type-safe GraphQL context."""
 
-
 import pytest
 
 from fraiseql import GraphQLContext, build_context
@@ -20,7 +19,7 @@ class FakeRepository(CQRSRepository):
 class TestGraphQLContext:
     """Tests for GraphQLContext dataclass."""
 
-    def test_create_with_defaults(self):
+    def test_create_with_defaults(self) -> None:
         """Test creating context with minimal required fields."""
         db = FakeRepository()
         context = GraphQLContext(db=db)
@@ -34,7 +33,7 @@ class TestGraphQLContext:
         assert context.authenticated is False
         assert context._extras == {}
 
-    def test_create_with_user(self):
+    def test_create_with_user(self) -> None:
         """Test creating context with authenticated user."""
         db = FakeRepository()
         user = UserContext(user_id="user_123", roles=["admin"])
@@ -46,7 +45,7 @@ class TestGraphQLContext:
         assert context.user.user_id == "user_123"
         assert context.authenticated is True
 
-    def test_create_with_all_fields(self):
+    def test_create_with_all_fields(self) -> None:
         """Test creating context with all fields."""
         db = FakeRepository()
         user = UserContext(user_id="user_123")
@@ -70,7 +69,7 @@ class TestGraphQLContext:
         assert context.config is None
         assert context.authenticated is True
 
-    def test_from_dict_basic(self):
+    def test_from_dict_basic(self) -> None:
         """Test creating context from dictionary."""
         db = FakeRepository()
         context_dict = {"db": db}
@@ -81,7 +80,7 @@ class TestGraphQLContext:
         assert context.user is None
         assert context.authenticated is False
 
-    def test_from_dict_with_user(self):
+    def test_from_dict_with_user(self) -> None:
         """Test creating context from dictionary with user."""
         db = FakeRepository()
         user = UserContext(user_id="user_123")
@@ -93,7 +92,7 @@ class TestGraphQLContext:
         assert context.user is user
         assert context.authenticated is True
 
-    def test_from_dict_with_extras(self):
+    def test_from_dict_with_extras(self) -> None:
         """Test creating context from dictionary with extra fields."""
         db = FakeRepository()
         context_dict = {"db": db, "custom_field": "value1", "another_field": 42}
@@ -104,20 +103,18 @@ class TestGraphQLContext:
         assert context.get_extra("custom_field") == "value1"
         assert context.get_extra("another_field") == 42
 
-    def test_from_dict_missing_db_raises(self):
+    def test_from_dict_missing_db_raises(self) -> None:
         """Test from_dict raises if db is missing."""
         context_dict = {"user": None}
 
         with pytest.raises(KeyError, match="must contain 'db' key"):
             GraphQLContext.from_dict(context_dict)
 
-    def test_to_dict(self):
+    def test_to_dict(self) -> None:
         """Test converting context back to dictionary."""
         db = FakeRepository()
         user = UserContext(user_id="user_123")
-        context = GraphQLContext(
-            db=db, user=user, authenticated=True, _extras={"custom": "value"}
-        )
+        context = GraphQLContext(db=db, user=user, authenticated=True, _extras={"custom": "value"})
 
         context_dict = context.to_dict()
 
@@ -126,7 +123,7 @@ class TestGraphQLContext:
         assert context_dict["authenticated"] is True
         assert context_dict["custom"] == "value"
 
-    def test_get_extra_default(self):
+    def test_get_extra_default(self) -> None:
         """Test getting extra field with default."""
         db = FakeRepository()
         context = GraphQLContext(db=db, _extras={"key1": "value1"})
@@ -135,7 +132,7 @@ class TestGraphQLContext:
         assert context.get_extra("nonexistent") is None
         assert context.get_extra("nonexistent", "default") == "default"
 
-    def test_set_extra(self):
+    def test_set_extra(self) -> None:
         """Test setting extra field."""
         db = FakeRepository()
         context = GraphQLContext(db=db)
@@ -150,7 +147,7 @@ class TestGraphQLContext:
 class TestBuildContext:
     """Tests for build_context helper function."""
 
-    def test_build_context_minimal(self):
+    def test_build_context_minimal(self) -> None:
         """Test building context with minimal parameters."""
         db = FakeRepository()
         context = build_context(db=db)
@@ -159,7 +156,7 @@ class TestBuildContext:
         assert context.user is None
         assert context.authenticated is False
 
-    def test_build_context_with_user(self):
+    def test_build_context_with_user(self) -> None:
         """Test building context with user."""
         db = FakeRepository()
         user = UserContext(user_id="user_123", roles=["admin"])
@@ -171,7 +168,7 @@ class TestBuildContext:
         # authenticated should be inferred from user
         assert context.authenticated is True
 
-    def test_build_context_with_all_parameters(self):
+    def test_build_context_with_all_parameters(self) -> None:
         """Test building context with all parameters."""
         db = FakeRepository()
         user = UserContext(user_id="user_123")
@@ -194,7 +191,7 @@ class TestBuildContext:
         assert context.config is None
         assert context.authenticated is True
 
-    def test_build_context_with_extras(self):
+    def test_build_context_with_extras(self) -> None:
         """Test building context with extra keyword arguments."""
         db = FakeRepository()
         context = build_context(
@@ -206,7 +203,7 @@ class TestBuildContext:
         assert context.get_extra("tenant_id") == "tenant_abc"
         assert context.get_extra("custom_data") == {"key": "value"}
 
-    def test_build_context_authenticated_inference(self):
+    def test_build_context_authenticated_inference(self) -> None:
         """Test automatic authentication status inference."""
         db = FakeRepository()
         user = UserContext(user_id="user_123")
@@ -223,7 +220,7 @@ class TestBuildContext:
         context3 = build_context(db=db, user=user, authenticated=False)
         assert context3.authenticated is False
 
-    def test_build_context_round_trip(self):
+    def test_build_context_round_trip(self) -> None:
         """Test converting context to dict and back."""
         db = FakeRepository()
         user = UserContext(user_id="user_123")
@@ -246,7 +243,7 @@ class TestBuildContext:
 class TestContextIntegration:
     """Integration tests for context usage patterns."""
 
-    def test_resolver_pattern_with_type_safety(self):
+    def test_resolver_pattern_with_type_safety(self) -> None:
         """Test typical resolver usage with type-safe context."""
         # Simulate a resolver
         db = FakeRepository()
@@ -259,7 +256,7 @@ class TestContextIntegration:
         assert context.user.user_id == "user_123"
         assert context.user.email == "user@example.com"
 
-    def test_context_with_custom_extensions(self):
+    def test_context_with_custom_extensions(self) -> None:
         """Test extending context with custom fields."""
         db = FakeRepository()
         context = build_context(
@@ -274,7 +271,7 @@ class TestContextIntegration:
         assert context.get_extra("span_id") == "span_xyz"
         assert context.get_extra("tenant_id") == "tenant_123"
 
-    def test_fastapi_context_building(self):
+    def test_fastapi_context_building(self) -> None:
         """Test building context similar to FastAPI integration."""
         # Simulate FastAPI context building
         db = FakeRepository()

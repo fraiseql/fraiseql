@@ -12,11 +12,11 @@ import asyncio
 import json
 import time
 from pathlib import Path
-from typing import Any, Dict, AsyncGenerator
+from typing import Any, AsyncGenerator, Dict
 
-import pytest
 import psycopg
 import psycopg_pool
+import pytest
 import pytest_asyncio
 
 from tests.chaos.fraiseql_scenarios import GraphQLOperation
@@ -49,26 +49,26 @@ class RealFraiseQLClient:
         self.latency_ms = 0
         self.packet_loss_rate = 0.0
 
-    def inject_connection_failure(self):
+    def inject_connection_failure(self) -> None:
         """Simulate connection failure."""
         self.connection_disabled = True
 
-    def inject_latency(self, latency_ms: int):
+    def inject_latency(self, latency_ms: int) -> None:
         """Simulate network latency."""
         self.latency_ms = latency_ms
 
-    def inject_packet_loss(self, loss_rate: float):
+    def inject_packet_loss(self, loss_rate: float) -> None:
         """Simulate packet loss."""
         self.packet_loss_rate = loss_rate
 
-    def reset_chaos(self):
+    def reset_chaos(self) -> None:
         """Reset all chaos conditions."""
         self.connection_disabled = False
         self.latency_ms = 0
         self.packet_loss_rate = 0.0
 
     async def execute_query(
-        self, operation: GraphQLOperation, timeout: float = 30.0
+        self, operation: GraphQLOperation, timeout: float = 30.0  # noqa: ASYNC109
     ) -> Dict[str, Any]:
         """Execute a GraphQL operation against the database.
 
@@ -98,11 +98,11 @@ class RealFraiseQLClient:
 
         # Check for chaos conditions
         if self.connection_disabled:
-            time.sleep(0.001)  # Fast failure
+            time.sleep(0.001)  # Fast failure  # noqa: ASYNC251
             raise ConnectionError("Connection refused (chaos injection)")
 
-        if random.random() < self.packet_loss_rate:
-            time.sleep(0.001)  # Fast failure
+        if random.random() < self.packet_loss_rate:  # noqa: S311
+            time.sleep(0.001)  # Fast failure  # noqa: ASYNC251
             raise ConnectionError("Packet loss (chaos injection)")
 
         try:
@@ -125,10 +125,10 @@ class RealFraiseQLClient:
 
                 return result
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             raise TimeoutError(f"Query execution timeout after {timeout}s")
-        except Exception as e:
-            raise e
+        except Exception:
+            raise
 
     async def _execute_test_query(
         self, conn: psycopg.AsyncConnection, operation: GraphQLOperation
@@ -153,8 +153,7 @@ class RealFraiseQLClient:
                         "server_time": row[1].isoformat(),
                     }
                 }
-            else:
-                return {"data": {"connected": False}}
+            return {"data": {"connected": False}}
 
         except Exception as e:
             # Return error response in GraphQL format
@@ -169,7 +168,7 @@ class RealFraiseQLClient:
             }
 
     async def execute_mutation(
-        self, operation: GraphQLOperation, timeout: float = 30.0
+        self, operation: GraphQLOperation, timeout: float = 30.0  # noqa: ASYNC109
     ) -> Dict[str, Any]:
         """Execute a mutation operation (similar to query but for writes)."""
         # For chaos testing, mutations also just verify the connection works
@@ -277,7 +276,7 @@ def baseline_metrics() -> Dict[str, Any]:
     baseline_file = Path(__file__).parent / "baseline_metrics.json"
 
     if baseline_file.exists():
-        with open(baseline_file) as f:
+        with open(baseline_file) as f:  # noqa: PTH123
             return json.load(f)
     else:
         # Return sensible defaults if baseline file doesn't exist
@@ -300,6 +299,6 @@ def baseline_metrics() -> Dict[str, Any]:
         }
 
 
-def pytest_configure(config):
+def pytest_configure(config) -> None:
     """Register chaos-specific pytest markers."""
     config.addinivalue_line("markers", "chaos_real_db: chaos tests using real PostgreSQL database")

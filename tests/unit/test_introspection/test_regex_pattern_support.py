@@ -1,6 +1,5 @@
 """Tests for regex pattern support in PostgresIntrospector (Issue #149)."""
 
-import re
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -12,7 +11,7 @@ class TestRegexPatternValidation:
     """Test regex pattern validation when use_regex=True."""
 
     @pytest.fixture
-    def mock_pool(self):
+    def mock_pool(self) -> None:
         """Create a mock connection pool."""
         pool = MagicMock()
         conn = MagicMock()
@@ -21,12 +20,12 @@ class TestRegexPatternValidation:
         return pool
 
     @pytest.fixture
-    def introspector(self, mock_pool):
+    def introspector(self, mock_pool) -> None:
         """Create PostgresIntrospector instance."""
         return PostgresIntrospector(mock_pool)
 
     @pytest.mark.asyncio
-    async def test_discover_views_invalid_regex_raises_valueerror(self, introspector):
+    async def test_discover_views_invalid_regex_raises_valueerror(self, introspector) -> None:
         """Invalid regex pattern should raise ValueError with descriptive message."""
         with pytest.raises(ValueError, match="Invalid regex pattern"):
             await introspector.discover_views(
@@ -35,7 +34,7 @@ class TestRegexPatternValidation:
             )
 
     @pytest.mark.asyncio
-    async def test_discover_functions_invalid_regex_raises_valueerror(self, introspector):
+    async def test_discover_functions_invalid_regex_raises_valueerror(self, introspector) -> None:
         """Invalid regex pattern should raise ValueError with descriptive message."""
         with pytest.raises(ValueError, match="Invalid regex pattern"):
             await introspector.discover_functions(
@@ -44,7 +43,7 @@ class TestRegexPatternValidation:
             )
 
     @pytest.mark.asyncio
-    async def test_discover_views_valid_regex_no_error(self, introspector, mock_pool):
+    async def test_discover_views_valid_regex_no_error(self, introspector, mock_pool) -> None:
         """Valid regex pattern should not raise validation error."""
         # Setup mock to return empty results
         conn = mock_pool.connection.return_value.__aenter__.return_value
@@ -60,7 +59,7 @@ class TestRegexPatternValidation:
         assert result == []
 
     @pytest.mark.asyncio
-    async def test_discover_functions_valid_regex_no_error(self, introspector, mock_pool):
+    async def test_discover_functions_valid_regex_no_error(self, introspector, mock_pool) -> None:
         """Valid regex pattern should not raise validation error."""
         # Setup mock to return empty results
         conn = mock_pool.connection.return_value.__aenter__.return_value
@@ -80,7 +79,7 @@ class TestRegexPatternMatching:
     """Test that regex patterns use PostgreSQL ~ operator."""
 
     @pytest.fixture
-    def mock_pool(self):
+    def mock_pool(self) -> None:
         """Create a mock connection pool."""
         pool = MagicMock()
         conn = MagicMock()
@@ -89,12 +88,12 @@ class TestRegexPatternMatching:
         return pool
 
     @pytest.fixture
-    def introspector(self, mock_pool):
+    def introspector(self, mock_pool) -> None:
         """Create PostgresIntrospector instance."""
         return PostgresIntrospector(mock_pool)
 
     @pytest.mark.asyncio
-    async def test_discover_views_regex_uses_tilde_operator(self, introspector, mock_pool):
+    async def test_discover_views_regex_uses_tilde_operator(self, introspector, mock_pool) -> None:
         """When use_regex=True, query should use PostgreSQL ~ operator."""
         conn = mock_pool.connection.return_value.__aenter__.return_value
         views_result = MagicMock()
@@ -110,7 +109,7 @@ class TestRegexPatternMatching:
         assert "LIKE" not in query, "Query should not use LIKE when use_regex=True"
 
     @pytest.mark.asyncio
-    async def test_discover_views_default_uses_like_operator(self, introspector, mock_pool):
+    async def test_discover_views_default_uses_like_operator(self, introspector, mock_pool) -> None:
         """Default behavior (use_regex=False) should use LIKE operator."""
         conn = mock_pool.connection.return_value.__aenter__.return_value
         views_result = MagicMock()
@@ -125,7 +124,9 @@ class TestRegexPatternMatching:
         assert "LIKE" in query, "Query should use LIKE operator by default"
 
     @pytest.mark.asyncio
-    async def test_discover_functions_regex_uses_tilde_operator(self, introspector, mock_pool):
+    async def test_discover_functions_regex_uses_tilde_operator(
+        self, introspector, mock_pool
+    ) -> None:
         """When use_regex=True, query should use PostgreSQL ~ operator."""
         conn = mock_pool.connection.return_value.__aenter__.return_value
         func_result = MagicMock()
@@ -141,7 +142,9 @@ class TestRegexPatternMatching:
         assert "LIKE" not in query, "Query should not use LIKE when use_regex=True"
 
     @pytest.mark.asyncio
-    async def test_discover_functions_default_uses_like_operator(self, introspector, mock_pool):
+    async def test_discover_functions_default_uses_like_operator(
+        self, introspector, mock_pool
+    ) -> None:
         """Default behavior (use_regex=False) should use LIKE operator."""
         conn = mock_pool.connection.return_value.__aenter__.return_value
         func_result = MagicMock()
@@ -160,7 +163,7 @@ class TestBackwardCompatibility:
     """Test that default behavior remains unchanged (backward compatible)."""
 
     @pytest.fixture
-    def mock_pool(self):
+    def mock_pool(self) -> None:
         """Create a mock connection pool."""
         pool = MagicMock()
         conn = MagicMock()
@@ -169,12 +172,12 @@ class TestBackwardCompatibility:
         return pool
 
     @pytest.fixture
-    def introspector(self, mock_pool):
+    def introspector(self, mock_pool) -> None:
         """Create PostgresIntrospector instance."""
         return PostgresIntrospector(mock_pool)
 
     @pytest.mark.asyncio
-    async def test_discover_views_default_pattern_unchanged(self, introspector, mock_pool):
+    async def test_discover_views_default_pattern_unchanged(self, introspector, mock_pool) -> None:
         """Default pattern 'v_%' should work as before."""
         conn = mock_pool.connection.return_value.__aenter__.return_value
         views_result = MagicMock()
@@ -190,7 +193,9 @@ class TestBackwardCompatibility:
         assert params[1] == "v_%", "Default pattern should be 'v_%'"
 
     @pytest.mark.asyncio
-    async def test_discover_functions_default_pattern_unchanged(self, introspector, mock_pool):
+    async def test_discover_functions_default_pattern_unchanged(
+        self, introspector, mock_pool
+    ) -> None:
         """Default pattern 'fn_%' should work as before."""
         conn = mock_pool.connection.return_value.__aenter__.return_value
         func_result = MagicMock()
@@ -206,7 +211,7 @@ class TestBackwardCompatibility:
         assert params[1] == "fn_%", "Default pattern should be 'fn_%'"
 
     @pytest.mark.asyncio
-    async def test_discover_views_explicit_use_regex_false(self, introspector, mock_pool):
+    async def test_discover_views_explicit_use_regex_false(self, introspector, mock_pool) -> None:
         """Explicit use_regex=False should behave same as default."""
         conn = mock_pool.connection.return_value.__aenter__.return_value
         views_result = MagicMock()

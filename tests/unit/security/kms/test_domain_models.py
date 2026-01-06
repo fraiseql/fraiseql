@@ -16,7 +16,7 @@ from fraiseql.security.kms.domain.models import (
 class TestKeyReference:
     """Tests for KeyReference value object."""
 
-    def test_is_immutable(self):
+    def test_is_immutable(self) -> None:
         """KeyReference should be immutable (frozen dataclass)."""
         ref = KeyReference(
             provider="vault",
@@ -28,7 +28,7 @@ class TestKeyReference:
         with pytest.raises((AttributeError, TypeError)):
             ref.key_id = "other-key"
 
-    def test_qualified_id(self):
+    def test_qualified_id(self) -> None:
         """Should generate qualified ID as provider:key_id."""
         ref = KeyReference(
             provider="vault",
@@ -39,7 +39,7 @@ class TestKeyReference:
         )
         assert ref.qualified_id == "vault:my-key"
 
-    def test_equality(self):
+    def test_equality(self) -> None:
         """Two references with same values should be equal."""
         now = datetime.now(UTC)
         ref1 = KeyReference(
@@ -62,7 +62,7 @@ class TestKeyReference:
 class TestEncryptedData:
     """Tests for EncryptedData value object."""
 
-    def test_to_dict_serialization(self):
+    def test_to_dict_serialization(self) -> None:
         """Should serialize to dictionary correctly."""
         now = datetime.now(UTC)
         key_ref = KeyReference(
@@ -91,7 +91,7 @@ class TestEncryptedData:
 class TestDataKeyPair:
     """Tests for DataKeyPair value object."""
 
-    def test_contains_both_keys(self):
+    def test_contains_both_keys(self) -> None:
         """Should contain both plaintext and encrypted keys."""
         now = datetime.now(UTC)
         key_ref = KeyReference(
@@ -122,17 +122,17 @@ class TestDataKeyPair:
 class TestKeyPurpose:
     """Tests for KeyPurpose enum."""
 
-    def test_encrypt_decrypt_value(self):
+    def test_encrypt_decrypt_value(self) -> None:
         assert KeyPurpose.ENCRYPT_DECRYPT.value == "encrypt_decrypt"
 
-    def test_sign_verify_value(self):
+    def test_sign_verify_value(self) -> None:
         assert KeyPurpose.SIGN_VERIFY.value == "sign_verify"
 
 
 class TestRotationPolicy:
     """Tests for RotationPolicy value object."""
 
-    def test_disabled_rotation(self):
+    def test_disabled_rotation(self) -> None:
         policy = RotationPolicy(
             enabled=False,
             rotation_period_days=0,
@@ -141,7 +141,7 @@ class TestRotationPolicy:
         )
         assert policy.enabled is False
 
-    def test_enabled_rotation_with_schedule(self):
+    def test_enabled_rotation_with_schedule(self) -> None:
         now = datetime.now(UTC)
         policy = RotationPolicy(
             enabled=True,

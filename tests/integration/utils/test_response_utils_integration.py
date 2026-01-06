@@ -14,7 +14,7 @@ from fraiseql.utils.field_descriptions import extract_field_descriptions
 
 
 @pytest.fixture(scope="class")
-def response_utils_test_schema(meta_test_schema):
+def response_utils_test_schema(meta_test_schema) -> None:
     """Schema registry with types that have field descriptions for testing."""
     # Clear any existing registrations
     meta_test_schema.clear()
@@ -77,7 +77,7 @@ def response_utils_test_schema(meta_test_schema):
 class TestFieldDescriptionsIntegration:
     """Integration tests for field description extraction with real schemas."""
 
-    def test_extract_field_descriptions_from_real_types(self, response_utils_test_schema):
+    def test_extract_field_descriptions_from_real_types(self, response_utils_test_schema) -> None:
         """Field description extraction should work with real @fraise_type decorated classes."""
         # Get User type from schema
         user_type = None
@@ -105,7 +105,7 @@ class TestFieldDescriptionsIntegration:
         assert "email" in descriptions, "Should extract description for 'email' field"
         assert "Email address" in descriptions["email"]
 
-    def test_field_descriptions_with_docstring_extraction(self, response_utils_test_schema):
+    def test_field_descriptions_with_docstring_extraction(self, response_utils_test_schema) -> None:
         """Field descriptions should be extracted from class docstrings."""
         # Get User type
         user_type = None
@@ -130,7 +130,7 @@ class TestFieldDescriptionsIntegration:
         assert "Unique identifier" in id_desc or "Primary key" in id_desc
         assert "email address" in email_desc.lower()
 
-    def test_field_descriptions_with_computed_fields(self, response_utils_test_schema):
+    def test_field_descriptions_with_computed_fields(self, response_utils_test_schema) -> None:
         """Field descriptions should work with computed fields (methods)."""
         # Get User type
         user_type = None
@@ -141,13 +141,13 @@ class TestFieldDescriptionsIntegration:
 
         assert user_type is not None
 
-        descriptions = extract_field_descriptions(user_type)
+        extract_field_descriptions(user_type)
 
         # Note: computed methods are not included in field descriptions
         # as they are not fields, just methods
         # assert "display_name" in descriptions
 
-    def test_field_descriptions_consistency(self, response_utils_test_schema):
+    def test_field_descriptions_consistency(self, response_utils_test_schema) -> None:
         """Field description extraction should be consistent across multiple calls."""
         # Get User type
         user_type = None
@@ -166,7 +166,7 @@ class TestFieldDescriptionsIntegration:
         # Should be identical
         assert desc1 == desc2 == desc3
 
-    def test_field_descriptions_with_all_registered_types(self, response_utils_test_schema):
+    def test_field_descriptions_with_all_registered_types(self, response_utils_test_schema) -> None:
         """Field description extraction should work for all types in schema."""
         # Get all registered types
         registered_types = list(response_utils_test_schema.types.values())
@@ -180,12 +180,11 @@ class TestFieldDescriptionsIntegration:
 
             # Should have reasonable content
             if hasattr(type_cls, "__annotations__"):
-                annotations = type_cls.__annotations__
                 # Should have at least some descriptions for annotated fields
                 # (though not all fields may have descriptions)
                 assert len(descriptions) >= 0
 
-    async def test_field_descriptions_in_graphql_schema(self, response_utils_test_schema):
+    async def test_field_descriptions_in_graphql_schema(self, response_utils_test_schema) -> None:
         """Field descriptions should be available in the built GraphQL schema."""
         schema = response_utils_test_schema.build_schema()
 
@@ -214,7 +213,9 @@ class TestFieldDescriptionsIntegration:
 class TestResponseFormattingIntegration:
     """Integration tests for response formatting utilities."""
 
-    async def test_response_structure_with_field_descriptions(self, response_utils_test_schema):
+    async def test_response_structure_with_field_descriptions(
+        self, response_utils_test_schema
+    ) -> None:
         """GraphQL responses should include properly described fields."""
         schema = response_utils_test_schema.build_schema()
 
@@ -240,7 +241,7 @@ class TestResponseFormattingIntegration:
         assert result.data is not None
         assert "getUsers" in result.data
 
-    async def test_response_with_optional_fields(self, response_utils_test_schema):
+    async def test_response_with_optional_fields(self, response_utils_test_schema) -> None:
         """Responses should handle optional fields correctly."""
         schema = response_utils_test_schema.build_schema()
 
@@ -260,7 +261,7 @@ class TestResponseFormattingIntegration:
         assert not result.errors, f"Query with optional fields failed: {result.errors}"
         assert result.data is not None
 
-    async def test_response_with_list_fields(self, response_utils_test_schema):
+    async def test_response_with_list_fields(self, response_utils_test_schema) -> None:
         """Responses should handle list fields correctly."""
         schema = response_utils_test_schema.build_schema()
 
@@ -283,7 +284,7 @@ class TestResponseFormattingIntegration:
 class TestSchemaMetadataIntegration:
     """Integration tests for schema metadata and introspection."""
 
-    async def test_schema_introspection_with_descriptions(self, response_utils_test_schema):
+    async def test_schema_introspection_with_descriptions(self, response_utils_test_schema) -> None:
         """Schema introspection should include field descriptions."""
         schema = response_utils_test_schema.build_schema()
 
@@ -324,7 +325,7 @@ class TestSchemaMetadataIntegration:
             len(fields_with_descriptions) >= 0
         )  # May be 0 if descriptions not set in GraphQL schema
 
-    async def test_schema_field_types_preservation(self, response_utils_test_schema):
+    async def test_schema_field_types_preservation(self, response_utils_test_schema) -> None:
         """Field types should be preserved correctly in GraphQL schema."""
         schema = response_utils_test_schema.build_schema()
 

@@ -1,5 +1,4 @@
-"""
-Test adaptive configuration fixtures.
+"""Test adaptive configuration fixtures.
 
 This test verifies that the environment detection and adaptive config
 fixtures work correctly.
@@ -9,7 +8,7 @@ import pytest
 
 
 @pytest.mark.chaos
-def test_environment_info_fixture(environment_info):
+def test_environment_info_fixture(environment_info) -> None:
     """Test that environment_info fixture works."""
     assert environment_info is not None
     assert hasattr(environment_info, "hardware")
@@ -25,7 +24,7 @@ def test_environment_info_fixture(environment_info):
     assert environment_info.hardware.cpu_freq_mhz >= 0
 
 
-def test_chaos_config_fixture(chaos_config):
+def test_chaos_config_fixture(chaos_config) -> None:
     """Test that chaos_config fixture works."""
     assert chaos_config is not None
 
@@ -44,7 +43,7 @@ def test_chaos_config_fixture(chaos_config):
     assert 0.5 <= chaos_config.load_multiplier <= 4.0
 
 
-def test_config_scales_with_environment(chaos_config, environment_info):
+def test_config_scales_with_environment(chaos_config, environment_info) -> None:
     """Test that config adapts to environment."""
     # High-end systems should have higher concurrent values
     if environment_info.hardware.profile_name == "high":

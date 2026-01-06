@@ -28,9 +28,7 @@ class TestCacheMetrics:
 
     def test_cache_metrics_custom_values(self) -> None:
         """Test creating CacheMetrics with custom values."""
-        metrics = CacheMetrics(
-            hits=100, misses=50, errors=5, evictions=10, memory_bytes=1024
-        )
+        metrics = CacheMetrics(hits=100, misses=50, errors=5, evictions=10, memory_bytes=1024)
         assert metrics.hits == 100
         assert metrics.misses == 50
         assert metrics.errors == 5

@@ -44,7 +44,7 @@ async def test_graphnoterouter_handles_rustresponsebytes() -> None:
 
     original_execute_graphql = gql_module.execute_graphql
 
-    async def mock_execute_graphql(*args, **kwargs) -> None:
+    async def mock_execute_graphql(*args, **kwargs) -> None:  # noqa: ANN002, ANN003
         return rust_response
 
     gql_module.execute_graphql = mock_execute_graphql
@@ -89,7 +89,7 @@ async def test_graphnoterouter_handles_normal_executionresult() -> None:
 
     original_execute_graphql = gql_module.execute_graphql
 
-    async def mock_execute_graphql(*args, **kwargs) -> None:
+    async def mock_execute_graphql(*args, **kwargs) -> None:  # noqa: ANN002, ANN003
         return ExecutionResult(data={"hello": "world"}, errors=None)
 
     gql_module.execute_graphql = mock_execute_graphql
@@ -139,7 +139,7 @@ async def test_graphnoterouter_handles_errors_in_executionresult() -> None:
 
     from graphql import GraphQLError
 
-    async def mock_execute_graphql(*args, **kwargs) -> None:
+    async def mock_execute_graphql(*args, **kwargs) -> None:  # noqa: ANN002, ANN003
         return ExecutionResult(data=None, errors=[GraphQLError("Test error")])
 
     gql_module.execute_graphql = mock_execute_graphql

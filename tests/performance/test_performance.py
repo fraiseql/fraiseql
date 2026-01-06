@@ -16,10 +16,9 @@ import logging
 import time
 import uuid
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 import pytest
-from psycopg import AsyncConnection
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 
@@ -78,7 +77,7 @@ class RealisticPerformanceAssessment:
     """Helper to measure performance using realistic tv_ tables."""
 
     @classmethod
-    async def setup_tv_user_table(cls, pool: AsyncConnectionPool):
+    async def setup_tv_user_table(cls, pool: AsyncConnectionPool) -> None:
         """Create realistic tv_user table with indices."""
         async with pool.connection() as conn:
             # Create tv_user table (realistic structure)
@@ -107,7 +106,7 @@ class RealisticPerformanceAssessment:
             )
 
     @classmethod
-    async def setup_tv_post_table(cls, pool: AsyncConnectionPool):
+    async def setup_tv_post_table(cls, pool: AsyncConnectionPool) -> None:
         """Create realistic tv_post table with indices and nested data."""
         async with pool.connection() as conn:
             # Create tv_post table
@@ -136,7 +135,7 @@ class RealisticPerformanceAssessment:
             )
 
     @classmethod
-    async def cleanup_tables(cls, pool: AsyncConnectionPool):
+    async def cleanup_tables(cls, pool: AsyncConnectionPool) -> None:
         """Clean up test tables for next test run."""
         async with pool.connection() as conn:
             # Truncate tables to clear data (ignore if tables don't exist)
@@ -235,7 +234,7 @@ class RealisticPerformanceAssessment:
         cls,
         pool: AsyncConnectionPool,
         query: str,
-        params: list[Any] = None,
+        params: list[Any] | None = None,
         query_description: str = "",
     ) -> TimingBreakdown:
         """Measure realistic query execution.
@@ -259,7 +258,7 @@ class RealisticPerformanceAssessment:
             pool_acquire_ms = (pool_acquire_end - pool_acquire_start) * 1000
 
             # Phase 2: Execute query
-            query_start = time.perf_counter()
+            time.perf_counter()
             async with conn.cursor(row_factory=dict_row) as cursor:
                 fetch_start = time.perf_counter()
                 await cursor.execute(query, params)
@@ -312,7 +311,7 @@ class RealisticPerformanceAssessment:
 class TestRealisticPerformance:
     """Performance tests using realistic tv_ materialized tables."""
 
-    async def test_single_user_lookup(self, class_db_pool):
+    async def test_single_user_lookup(self, class_db_pool) -> None:
         """Measure: SELECT data FROM tv_user WHERE id = ?
 
         This is the most common FraiseQL query pattern.
@@ -350,11 +349,11 @@ class TestRealisticPerformance:
         logger.info(f"Driver overhead: {driver_pct:.1f}%")
         assert driver_pct < 20  # Driver should be <20% for single row
 
-    async def test_user_list_by_tenant(self, class_db_pool):
+    async def test_user_list_by_tenant(self, class_db_pool) -> None:
         """Measure: SELECT data FROM tv_user WHERE tenant_id = ? LIMIT 100
 
         Multi-row list query for a tenant.
-        100 users × 5KB = ~500KB of JSONB data.
+        100 users x 5KB = ~500KB of JSONB data.
         """
         # Setup
         await RealisticPerformanceAssessment.cleanup_tables(class_db_pool)
@@ -390,7 +389,7 @@ class TestRealisticPerformance:
         rust_pct = 100 * assessment.rust_ms / assessment.total_request_ms
         logger.info(f"Rust pipeline: {rust_pct:.1f}%")
 
-    async def test_post_with_nested_author_comments(self, class_db_pool):
+    async def test_post_with_nested_author_comments(self, class_db_pool) -> None:
         """Measure: SELECT data FROM tv_post WHERE id = ?
 
         Single post fetch with nested author and comments.
@@ -429,7 +428,7 @@ class TestRealisticPerformance:
         # Post with nested author and comments: ~5KB (content * 100)
         assert assessment.result_size_bytes > 5000
 
-    async def test_multi_condition_where_clause(self, class_db_pool):
+    async def test_multi_condition_where_clause(self, class_db_pool) -> None:
         """Measure: SELECT data FROM tv_user WHERE tenant_id = ? AND identifier = ?
 
         FraiseQL WHERE clause with multiple conditions.
@@ -463,7 +462,7 @@ class TestRealisticPerformance:
         assert assessment.total_request_ms > 0
         assert assessment.result_row_count == 1
 
-    async def test_large_result_set_scaling(self, class_db_pool):
+    async def test_large_result_set_scaling(self, class_db_pool) -> None:
         """Measure timing as result size grows: 10, 100, 500, 1000 rows.
 
         Shows how Rust pipeline scales with JSONB size.
@@ -508,7 +507,7 @@ class TestRealisticPerformance:
             rust_pct = results[size]["breakdown_percentages"]["rust_pipeline"]
             logger.info(f"{size:4d} rows → {total:7.2f}ms (Rust: {rust_pct:5.1f}%)")
 
-    async def test_concurrent_multi_tenant_queries(self, class_db_pool):
+    async def test_concurrent_multi_tenant_queries(self, class_db_pool) -> None:
         """Measure concurrent queries from different tenants.
 
         Tests connection pool efficiency under concurrent load.
@@ -525,7 +524,7 @@ class TestRealisticPerformance:
         async with class_db_pool.connection() as conn:
             for tenant_id in tenant_ids:
                 user_ids = []
-                for i in range(10):
+                for _i in range(10):
                     user_id = uuid.uuid4()
                     user_payload = RealisticPerformanceAssessment._generate_user_payload(
                         str(user_id), global_user_idx
@@ -590,7 +589,7 @@ class TestRealisticPerformance:
 class TestRealisticProfile:
     """Detailed profiling of realistic FraiseQL patterns."""
 
-    async def test_typical_fraiseql_request(self, class_db_pool):
+    async def test_typical_fraiseql_request(self, class_db_pool) -> None:
         """Profile a typical FraiseQL request end-to-end.
 
         Real-world scenario:

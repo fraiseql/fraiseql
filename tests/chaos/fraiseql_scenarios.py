@@ -1,15 +1,13 @@
-"""
-FraiseQL Test Scenarios for Chaos Engineering
+"""FraiseQL Test Scenarios for Chaos Engineering
 
 This module provides realistic test scenarios that interact with actual FraiseQL
 operations, making chaos engineering tests more valuable and representative.
 """
 
-import time
-import json
 import random
-from typing import Dict, Any, List, Optional
+import time
 from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -113,14 +111,14 @@ class FraiseQLTestScenarios:
         """Batch query for multiple users."""
         return GraphQLOperation(
             name=f"batch_users_query_{count}",
-            query=f"""
-            query GetUsers($ids: [ID!]!) {{
-                users(ids: $ids) {{
+            query="""
+            query GetUsers($ids: [ID!]!) {
+                users(ids: $ids) {
                     id
                     name
                     email
-                }}
-            }}
+                }
+            }
             """,
             variables={"ids": [f"user_{i}" for i in range(count)]},
             expected_complexity=count * 3,
@@ -181,8 +179,7 @@ class FraiseQLTestScenarios:
 
 
 class MockFraiseQLClient:
-    """
-    Mock FraiseQL client for chaos testing.
+    """Mock FraiseQL client for chaos testing.
 
     This simulates FraiseQL behavior without requiring a full running instance.
     In production, this would be replaced with actual HTTP calls to FraiseQL.
@@ -197,27 +194,26 @@ class MockFraiseQLClient:
         self.latency_ms = 0
         self.packet_loss_rate = 0.0
 
-    def inject_connection_failure(self):
+    def inject_connection_failure(self) -> None:
         """Simulate connection failure."""
         self.connection_disabled = True
 
-    def inject_latency(self, latency_ms: int):
+    def inject_latency(self, latency_ms: int) -> None:
         """Simulate network latency."""
         self.latency_ms = latency_ms
 
-    def inject_packet_loss(self, loss_rate: float):
+    def inject_packet_loss(self, loss_rate: float) -> None:
         """Simulate packet loss."""
         self.packet_loss_rate = loss_rate
 
-    def reset_chaos(self):
+    def reset_chaos(self) -> None:
         """Reset all chaos conditions."""
         self.connection_disabled = False
         self.latency_ms = 0
         self.packet_loss_rate = 0.0
 
     def execute_query(self, operation: GraphQLOperation, timeout: float = 30.0) -> Dict[str, Any]:
-        """
-        Execute a GraphQL operation against FraiseQL.
+        """Execute a GraphQL operation against FraiseQL.
 
         Simulates realistic FraiseQL behavior including:
         - Connection acquisition time
@@ -231,7 +227,7 @@ class MockFraiseQLClient:
             time.sleep(0.001)  # Fast failure
             raise ConnectionError("Connection refused (chaos injection)")
 
-        if random.random() < self.packet_loss_rate:
+        if random.random() < self.packet_loss_rate:  # noqa: S311
             time.sleep(0.001)  # Fast failure
             raise ConnectionError("Packet loss (chaos injection)")
 
@@ -258,9 +254,9 @@ class MockFraiseQLClient:
 
             return response
 
-        except Exception as e:
+        except Exception:
             self._release_connection()
-            raise e
+            raise
 
     def _acquire_connection(self):
         """Simulate connection pool acquisition."""
@@ -277,8 +273,7 @@ class MockFraiseQLClient:
             self.active_connections -= 1
 
     def _calculate_execution_time(self, complexity: int) -> float:
-        """
-        Calculate realistic execution time based on query complexity.
+        """Calculate realistic execution time based on query complexity.
 
         This simulates FraiseQL's actual performance characteristics.
         """
@@ -313,7 +308,7 @@ class MockFraiseQLClient:
                 }
             }
 
-        elif "GetUsers" in operation.query:
+        if "GetUsers" in operation.query:
             user_ids = operation.variables.get("ids", []) if operation.variables else []
             users = []
             for user_id in user_ids[:10]:  # Limit to 10 users
@@ -327,7 +322,7 @@ class MockFraiseQLClient:
 
             return {"data": {"users": users}}
 
-        elif "CreatePost" in operation.query:
+        if "CreatePost" in operation.query:
             return {
                 "data": {
                     "createPost": {
@@ -339,7 +334,7 @@ class MockFraiseQLClient:
                 }
             }
 
-        elif "SearchPosts" in operation.query:
+        if "SearchPosts" in operation.query:
             return {
                 "data": {
                     "searchPosts": {
@@ -406,8 +401,7 @@ def execute_with_retry(
 
     if last_error:
         raise last_error
-    else:
-        raise RuntimeError("Retry logic failed without specific error")
+    raise RuntimeError("Retry logic failed without specific error")
 
 
 # Test scenario collections

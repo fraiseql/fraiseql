@@ -58,7 +58,7 @@ async def message_stream(info, channel: str) -> AsyncGenerator[Message]:
 
 @subscription
 @cache(ttl=5.0)
-async def channel_stats(info, channelId: UUID) -> AsyncGenerator[Channel]:
+async def channel_stats(info, channelId: UUID) -> AsyncGenerator[Channel]:  # noqa: N803
     """Subscribe to channel statistics."""
     # Simulate periodic updates
     for i in range(2):

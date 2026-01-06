@@ -20,19 +20,19 @@ import pytest_asyncio
 
 
 @pytest.fixture
-def gql_mock_pool(db_connection):
+def gql_mock_pool(db_connection) -> None:
     """Create a mock pool that wraps db_connection for FraiseQLRepository.
 
     This follows the pattern from test_graphql_query_execution_complete.py.
 
     Usage:
-        def test_something(gql_mock_pool):
+        def test_something(gql_mock_pool) -> None:
             repo = FraiseQLRepository(pool=gql_mock_pool)
     """
     mock_pool = MagicMock()
 
     @asynccontextmanager
-    async def mock_connection():
+    async def mock_connection() -> None:
         yield db_connection
 
     mock_pool.connection = mock_connection
@@ -40,11 +40,11 @@ def gql_mock_pool(db_connection):
 
 
 @pytest.fixture
-def gql_context(gql_mock_pool):
+def gql_context(gql_mock_pool) -> None:
     """Create GraphQL context dict with FraiseQLRepository.
 
     Usage:
-        async def test_query(gql_context):
+        async def test_query(gql_context) -> None:
             result = await execute_graphql(schema, query, context_value=gql_context)
     """
     from fraiseql.db import FraiseQLRepository
@@ -53,7 +53,7 @@ def gql_context(gql_mock_pool):
 
 
 @pytest_asyncio.fixture
-async def setup_graphql_table(db_connection, clear_registry):
+async def setup_graphql_table(db_connection, clear_registry) -> None:
     """Factory fixture to create JSONB-backed tables and views.
 
     Creates:
@@ -61,12 +61,12 @@ async def setup_graphql_table(db_connection, clear_registry):
     - v_{name}: View selecting id and data
 
     Usage:
-        async def test_something(setup_graphql_table):
+        async def test_something(setup_graphql_table) -> None:
             await setup_graphql_table("users")
             # Creates tb_users and v_users
     """
 
-    async def _setup(table_name: str, extra_columns: str | None = None):
+    async def _setup(table_name: str, extra_columns: str | None = None) -> None:
         columns = "id UUID PRIMARY KEY DEFAULT gen_random_uuid(), data JSONB NOT NULL"
         if extra_columns:
             columns = f"{columns}, {extra_columns}"
@@ -85,11 +85,11 @@ async def setup_graphql_table(db_connection, clear_registry):
 
 
 @pytest_asyncio.fixture
-async def seed_graphql_data(db_connection):
+async def seed_graphql_data(db_connection) -> None:
     """Factory fixture to seed JSONB data into tables.
 
     Usage:
-        async def test_something(setup_graphql_table, seed_graphql_data):
+        async def test_something(setup_graphql_table, seed_graphql_data) -> None:
             await setup_graphql_table("users")
             await seed_graphql_data("tb_users", [
                 {"name": "Alice", "age": 30},
@@ -98,7 +98,7 @@ async def seed_graphql_data(db_connection):
     """
     import json
 
-    async def _seed(table_name: str, records: list[dict[str, Any]]):
+    async def _seed(table_name: str, records: list[dict[str, Any]]) -> None:
         for record in records:
             json_str = json.dumps(record).replace("'", "''")
             await db_connection.execute(f"""

@@ -16,29 +16,29 @@ from fraiseql.security.kms.domain.models import (
 class MockProvider(BaseKMSProvider):
     """Mock provider for testing."""
 
-    def __init__(self, name: str):
+    def __init__(self, name: str) -> None:
         self._name = name
 
     @property
     def provider_name(self) -> str:
         return self._name
 
-    async def _do_encrypt(self, plaintext, key_id, context):
+    async def _do_encrypt(self, plaintext, key_id, context) -> None:
         return b"encrypted:" + plaintext, "mock-algo"
 
-    async def _do_decrypt(self, ciphertext, key_id, context):
+    async def _do_decrypt(self, ciphertext, key_id, context) -> None:
         return ciphertext.replace(b"encrypted:", b"")
 
-    async def _do_generate_data_key(self, key_id, context):
+    async def _do_generate_data_key(self, key_id, context) -> None:
         return b"0" * 32, b"encrypted-key"
 
-    async def _do_rotate_key(self, key_id):
+    async def _do_rotate_key(self, key_id) -> None:
         pass
 
-    async def _do_get_key_info(self, key_id):
+    async def _do_get_key_info(self, key_id) -> None:
         return {"alias": None, "created_at": datetime.now(UTC)}
 
-    async def _do_get_rotation_policy(self, key_id):
+    async def _do_get_rotation_policy(self, key_id) -> None:
         return {"enabled": False, "period_days": 0}
 
 
@@ -46,12 +46,12 @@ class TestKeyManager:
     """Tests for KeyManager."""
 
     @pytest.fixture
-    def mock_provider(self):
+    def mock_provider(self) -> None:
         """Create a mock KMS provider."""
         return MockProvider("mock")
 
     @pytest.fixture
-    def key_manager(self, mock_provider):
+    def key_manager(self, mock_provider) -> None:
         """Create KeyManager with mock provider."""
         return KeyManager(
             providers={"mock": mock_provider},
@@ -60,7 +60,7 @@ class TestKeyManager:
         )
 
     @pytest.mark.asyncio
-    async def test_encrypt_with_default_key(self, key_manager, mock_provider):
+    async def test_encrypt_with_default_key(self, key_manager, mock_provider) -> None:
         """Should encrypt using default key when no key specified."""
         result = await key_manager.encrypt(b"plaintext")
 
@@ -69,7 +69,7 @@ class TestKeyManager:
         assert result.key_reference.key_id == "default-key"
 
     @pytest.mark.asyncio
-    async def test_encrypt_with_specific_key(self, key_manager, mock_provider):
+    async def test_encrypt_with_specific_key(self, key_manager, mock_provider) -> None:
         """Should encrypt using specified key."""
         result = await key_manager.encrypt(b"plaintext", key_id="my-key")
 
@@ -77,7 +77,7 @@ class TestKeyManager:
         assert result.key_reference.key_id == "my-key"
 
     @pytest.mark.asyncio
-    async def test_encrypt_with_context(self, key_manager, mock_provider):
+    async def test_encrypt_with_context(self, key_manager, mock_provider) -> None:
         """Should pass context to provider."""
         context = {"purpose": "test"}
         result = await key_manager.encrypt(
@@ -89,7 +89,7 @@ class TestKeyManager:
         assert result.context == context
 
     @pytest.mark.asyncio
-    async def test_decrypt_calls_provider(self, key_manager, mock_provider):
+    async def test_decrypt_calls_provider(self, key_manager, mock_provider) -> None:
         """Should decrypt using provider."""
         encrypted = EncryptedData(
             ciphertext=b"encrypted:secret",
@@ -110,7 +110,7 @@ class TestKeyManager:
         assert result == b"secret"
 
     @pytest.mark.asyncio
-    async def test_decrypt_with_context_override(self, key_manager, mock_provider):
+    async def test_decrypt_with_context_override(self, key_manager, mock_provider) -> None:
         """Should override context when decrypting."""
         encrypted = EncryptedData(
             ciphertext=b"encrypted:secret",
@@ -136,11 +136,11 @@ class TestKeyManagerStartup:
     """Tests for startup-time key management."""
 
     @pytest.fixture
-    def vault_provider(self):
+    def vault_provider(self) -> None:
         return MockProvider("vault")
 
     @pytest.mark.asyncio
-    async def test_initialize_data_key(self, vault_provider):
+    async def test_initialize_data_key(self, vault_provider) -> None:
         """Should generate and cache data key at startup."""
         manager = KeyManager(
             providers={"vault": vault_provider},
@@ -154,7 +154,7 @@ class TestKeyManagerStartup:
         assert manager.get_cached_data_key() is not None
 
     @pytest.mark.asyncio
-    async def test_local_encrypt_uses_cached_key(self, vault_provider):
+    async def test_local_encrypt_uses_cached_key(self, vault_provider) -> None:
         """Should use cached data key for local encryption (no KMS call)."""
         manager = KeyManager(
             providers={"vault": vault_provider},
@@ -169,7 +169,7 @@ class TestKeyManagerStartup:
         assert encrypted is not None
 
     @pytest.mark.asyncio
-    async def test_local_decrypt_uses_cached_key(self, vault_provider):
+    async def test_local_decrypt_uses_cached_key(self, vault_provider) -> None:
         """Should use cached data key for local decryption."""
         manager = KeyManager(
             providers={"vault": vault_provider},
@@ -184,7 +184,7 @@ class TestKeyManagerStartup:
         assert decrypted == b"sensitive data"
 
     @pytest.mark.asyncio
-    async def test_rotate_data_key(self, vault_provider):
+    async def test_rotate_data_key(self, vault_provider) -> None:
         """Should rotate data key via KMS."""
         manager = KeyManager(
             providers={"vault": vault_provider},
@@ -192,7 +192,7 @@ class TestKeyManagerStartup:
             default_key_id="master-key",
         )
         await manager.initialize()
-        old_key = manager.get_cached_data_key()
+        manager.get_cached_data_key()
 
         await manager.rotate_data_key()
 
@@ -201,7 +201,7 @@ class TestKeyManagerStartup:
         assert new_key is not None
         assert len(new_key) == 32
 
-    def test_local_encrypt_fails_without_initialization(self, vault_provider):
+    def test_local_encrypt_fails_without_initialization(self, vault_provider) -> None:
         """Should raise if local_encrypt called before initialize()."""
         manager = KeyManager(
             providers={"vault": vault_provider},

@@ -1,5 +1,4 @@
-"""
-Tests for multi-field GraphQL default variable values.
+"""Tests for multi-field GraphQL default variable values.
 
 Tests that default values in variable declarations are properly applied
 when variables are not provided or partially provided.
@@ -13,7 +12,7 @@ from fraiseql.fastapi.routers import execute_multi_field_query
 
 
 @pytest.mark.asyncio
-async def test_variable_with_default_value(init_schema_registry_fixture):
+async def test_variable_with_default_value(init_schema_registry_fixture) -> None:
     """Test that default variable values are applied when variable not provided."""
     from graphql import (
         GraphQLArgument,
@@ -66,7 +65,7 @@ async def test_variable_with_default_value(init_schema_registry_fixture):
 
 
 @pytest.mark.asyncio
-async def test_variable_overrides_default(init_schema_registry_fixture):
+async def test_variable_overrides_default(init_schema_registry_fixture) -> None:
     """Test that provided variable overrides the default."""
     from graphql import (
         GraphQLArgument,
@@ -120,7 +119,7 @@ async def test_variable_overrides_default(init_schema_registry_fixture):
 
 
 @pytest.mark.asyncio
-async def test_multiple_variable_defaults(init_schema_registry_fixture):
+async def test_multiple_variable_defaults(init_schema_registry_fixture) -> None:
     """Test multiple variables with different defaults."""
     from graphql import (
         GraphQLArgument,
@@ -185,7 +184,7 @@ async def test_multiple_variable_defaults(init_schema_registry_fixture):
 
 
 @pytest.fixture
-def init_schema_registry_fixture():
+def init_schema_registry_fixture() -> None:
     """Initialize schema registry for multi-field variable defaults tests."""
     import fraiseql._fraiseql_rs as fraiseql_rs
 

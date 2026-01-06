@@ -37,7 +37,7 @@ def aws_kms_mock() -> Generator[None]:
 
 
 @pytest.fixture
-def aws_kms_client(aws_kms_mock):
+def aws_kms_client(aws_kms_mock) -> None:
     """Get boto3 KMS client configured for mocked AWS.
 
     Returns:

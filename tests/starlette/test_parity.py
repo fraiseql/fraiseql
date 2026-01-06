@@ -39,16 +39,7 @@ For manual verification during development:
 4. Use the test templates in this file as reference queries
 """
 
-import json
 import pytest
-from typing import Any
-
-from fastapi.testclient import TestClient
-from starlette.testclient import TestClient as StarletteTestClient
-
-from fraiseql.starlette.app import create_starlette_app
-from fraiseql.fastapi.app import create_fraiseql_app
-
 
 # ============================================================================
 # Test Cases (Documentation and Reference)
@@ -81,7 +72,7 @@ class TestValidQueryParity:
         self,
         starlette_client,
         fastapi_client,
-    ):
+    ) -> None:
         """Both servers execute simple queries identically."""
         query = """
         query {
@@ -122,7 +113,7 @@ class TestValidQueryParity:
         self,
         starlette_client,
         fastapi_client,
-    ):
+    ) -> None:
         """Both servers handle query variables identically."""
         query = """
         query GetUser($id: ID!) {
@@ -165,7 +156,7 @@ class TestValidQueryParity:
         self,
         starlette_client,
         fastapi_client,
-    ):
+    ) -> None:
         """Both servers handle nested queries identically."""
         query = """
         query {
@@ -204,7 +195,6 @@ class TestValidQueryParity:
 # ============================================================================
 
 
-
 @pytest.mark.skip(reason="Requires database fixtures to be implemented")
 class TestInvalidQueryParity:
     """Test that invalid queries are handled consistently."""
@@ -214,7 +204,7 @@ class TestInvalidQueryParity:
         self,
         starlette_client,
         fastapi_client,
-    ):
+    ) -> None:
         """Both servers reject requests without query field."""
         # Send request without 'query' field
         starlette_response = starlette_client.post(
@@ -240,7 +230,7 @@ class TestInvalidQueryParity:
         self,
         starlette_client,
         fastapi_client,
-    ):
+    ) -> None:
         """Both servers reject invalid JSON."""
         # Send invalid JSON
         starlette_response = starlette_client.post(
@@ -264,7 +254,7 @@ class TestInvalidQueryParity:
         self,
         starlette_client,
         fastapi_client,
-    ):
+    ) -> None:
         """Both servers reject queries with syntax errors."""
         # Invalid GraphQL syntax
         query = "query { invalid syntax }"
@@ -296,7 +286,6 @@ class TestInvalidQueryParity:
 # ============================================================================
 
 
-
 @pytest.mark.skip(reason="Requires database fixtures to be implemented")
 class TestAuthenticationParity:
     """Test that authentication flows work identically."""
@@ -306,7 +295,7 @@ class TestAuthenticationParity:
         self,
         starlette_client,
         fastapi_client,
-    ):
+    ) -> None:
         """Both servers handle unauthenticated requests identically."""
         query = """
         query {
@@ -343,7 +332,7 @@ class TestAuthenticationParity:
         self,
         starlette_client,
         fastapi_client,
-    ):
+    ) -> None:
         """Both servers process auth headers identically."""
         query = """
         query {
@@ -377,7 +366,6 @@ class TestAuthenticationParity:
 # ============================================================================
 
 
-
 @pytest.mark.skip(reason="Requires database fixtures to be implemented")
 class TestHealthCheckParity:
     """Test that health checks work consistently."""
@@ -387,7 +375,7 @@ class TestHealthCheckParity:
         self,
         starlette_client,
         fastapi_client,
-    ):
+    ) -> None:
         """Both servers have working health check endpoints."""
         starlette_response = starlette_client.get("/health")
         fastapi_response = fastapi_client.get("/health")
@@ -413,7 +401,6 @@ class TestHealthCheckParity:
 # ============================================================================
 
 
-
 @pytest.mark.skip(reason="Requires database fixtures to be implemented")
 class TestAPQParity:
     """Test that APQ caching works identically across servers."""
@@ -423,7 +410,7 @@ class TestAPQParity:
         self,
         starlette_client,
         fastapi_client,
-    ):
+    ) -> None:
         """Both servers deduplicate identical queries via APQ."""
         query = """
         query {
@@ -469,7 +456,7 @@ class TestAPQParity:
         self,
         starlette_client,
         fastapi_client,
-    ):
+    ) -> None:
         """Critical Fix v1.9.4: APQ must not cache responses.
 
         This test verifies that field selection is respected even when
@@ -549,7 +536,7 @@ class TestAPQParity:
         self,
         starlette_client,
         fastapi_client,
-    ):
+    ) -> None:
         """Both servers handle APQ field selection identically.
 
         This verifies that Starlette and FastAPI produce identical behavior
@@ -609,14 +596,11 @@ class TestAPQParity:
         starlette_data_full = starlette_full.json().get("data", {})
         starlette_data_partial = starlette_partial.json().get("data", {})
 
-        fastapi_data_full = fastapi_full.json().get("data", {})
-        fastapi_data_partial = fastapi_partial.json().get("data", {})
+        fastapi_full.json().get("data", {})
+        fastapi_partial.json().get("data", {})
 
         # If we have user data, verify field counts differ appropriately
-        if (
-            starlette_data_full.get("users")
-            and starlette_data_partial.get("users")
-        ):
+        if starlette_data_full.get("users") and starlette_data_partial.get("users"):
             # Full should have more fields than partial
             full_user = starlette_data_full["users"][0]
             partial_user = starlette_data_partial["users"][0]
@@ -628,7 +612,6 @@ class TestAPQParity:
 # ============================================================================
 
 
-
 @pytest.mark.skip(reason="Requires database fixtures to be implemented")
 class TestFieldSelectionParity:
     """Test that field selection works identically."""
@@ -638,7 +621,7 @@ class TestFieldSelectionParity:
         self,
         starlette_client,
         fastapi_client,
-    ):
+    ) -> None:
         """Both servers respect field selections."""
         # Request only 'id' and 'name'
         query = """
@@ -664,14 +647,14 @@ class TestFieldSelectionParity:
         fastapi_json = fastapi_response.json()
 
         # Both should only return requested fields
-        if "data" in starlette_json and starlette_json["data"]:
+        if starlette_json.get("data"):
             users = starlette_json["data"].get("users", [])
             if users:
                 # Each user should have only id and name (and __typename)
                 user = users[0]
                 assert set(user.keys()) <= {"id", "name", "__typename"}
 
-        if "data" in fastapi_json and fastapi_json["data"]:
+        if fastapi_json.get("data"):
             users = fastapi_json["data"].get("users", [])
             if users:
                 user = users[0]
@@ -682,7 +665,7 @@ class TestFieldSelectionParity:
         self,
         starlette_client,
         fastapi_client,
-    ):
+    ) -> None:
         """Both servers return all fields when requested."""
         # Request all available fields
         query = """
@@ -716,7 +699,7 @@ class TestFieldSelectionParity:
         self,
         starlette_client,
         fastapi_client,
-    ):
+    ) -> None:
         """Critical Fix v1.9.3-v1.9.4: ID fields use IDFilter in WHERE clauses.
 
         This test verifies that ID fields in WHERE clauses work correctly.
@@ -764,7 +747,7 @@ class TestFieldSelectionParity:
         self,
         starlette_client,
         fastapi_client,
-    ):
+    ) -> None:
         """Both servers support ID field operators in WHERE clauses.
 
         IDFilter supports: eq, neq, in_, nin (in, notIn), isnull
@@ -807,7 +790,7 @@ class TestFieldSelectionParity:
         self,
         starlette_client,
         fastapi_client,
-    ):
+    ) -> None:
         """Both servers handle ID filtering with field selection correctly.
 
         This verifies that when filtering by ID, field selection is still
@@ -839,7 +822,7 @@ class TestFieldSelectionParity:
 
         if starlette_response.status_code == 200:
             starlette_data = starlette_response.json()
-            fastapi_data = fastapi_response.json()
+            fastapi_response.json()
 
             # If we have users, verify only requested fields are present
             if (
@@ -851,13 +834,12 @@ class TestFieldSelectionParity:
                 assert "id" in user
                 assert "name" in user
                 # Should NOT have other fields like email (not requested)
-                assert "email" not in user or "email" not in user.keys()
+                assert "email" not in user or "email" not in user
 
 
 # ============================================================================
 # Error Propagation Tests
 # ============================================================================
-
 
 
 @pytest.mark.skip(reason="Requires database fixtures to be implemented")
@@ -869,7 +851,7 @@ class TestErrorPropagationParity:
         self,
         starlette_client,
         fastapi_client,
-    ):
+    ) -> None:
         """Both servers handle resolver errors consistently."""
         # Query that might cause an error (depends on schema)
         query = """
@@ -899,11 +881,11 @@ class TestErrorPropagationParity:
 
 
 __all__ = [
-    "TestValidQueryParity",
-    "TestInvalidQueryParity",
-    "TestAuthenticationParity",
-    "TestHealthCheckParity",
     "TestAPQParity",
-    "TestFieldSelectionParity",
+    "TestAuthenticationParity",
     "TestErrorPropagationParity",
+    "TestFieldSelectionParity",
+    "TestHealthCheckParity",
+    "TestInvalidQueryParity",
+    "TestValidQueryParity",
 ]

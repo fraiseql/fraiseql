@@ -149,5 +149,5 @@ def test_datetime_utc_normalization() -> None:
         pass
 
     # Test naive datetime (assumes UTC)
-    dt_naive = datetime(2025, 5, 1, 12, 0, 0, tzinfo=None)
+    dt_naive = datetime(2025, 5, 1, 12, 0, 0, tzinfo=None)  # noqa: DTZ001
     assert serialize_datetime(dt_naive) == "2025-05-01T12:00:00Z"

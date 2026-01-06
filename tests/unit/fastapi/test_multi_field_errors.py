@@ -20,7 +20,7 @@ from fraiseql.fastapi.routers import execute_multi_field_query
 
 
 @pytest.mark.asyncio
-async def test_single_field_error_others_succeed(init_schema_registry_fixture):
+async def test_single_field_error_others_succeed(init_schema_registry_fixture) -> None:
     """Test that when one field fails, others still return data."""
     # Create types
     user_type = GraphQLObjectType(
@@ -40,18 +40,18 @@ async def test_single_field_error_others_succeed(init_schema_registry_fixture):
     )
 
     # Create resolvers
-    async def resolve_users(info):
+    async def resolve_users(info) -> None:
         """Resolver that succeeds."""
         return [
             {"id": 1, "name": "Alice"},
             {"id": 2, "name": "Bob"},
         ]
 
-    async def resolve_posts(info):
+    async def resolve_posts(info) -> None:
         """Resolver that fails."""
         raise RuntimeError("Database connection failed")
 
-    async def resolve_comments(info):
+    async def resolve_comments(info) -> None:
         """Resolver that succeeds."""
         return [
             {"id": 101, "text": "Great post!"},
@@ -119,7 +119,7 @@ async def test_single_field_error_others_succeed(init_schema_registry_fixture):
 
 
 @pytest.mark.asyncio
-async def test_multiple_field_errors(init_schema_registry_fixture):
+async def test_multiple_field_errors(init_schema_registry_fixture) -> None:
     """Test that multiple field failures are collected."""
     user_type = GraphQLObjectType(
         "User",
@@ -130,13 +130,13 @@ async def test_multiple_field_errors(init_schema_registry_fixture):
     )
 
     # All resolvers fail with different errors
-    async def resolve_users(info):
+    async def resolve_users(info) -> None:
         raise ValueError("Invalid user query")
 
-    async def resolve_posts(info):
+    async def resolve_posts(info) -> None:
         raise RuntimeError("Database timeout")
 
-    async def resolve_comments(info):
+    async def resolve_comments(info) -> None:
         raise PermissionError("Access denied")
 
     query_type = GraphQLObjectType(
@@ -183,7 +183,7 @@ async def test_multiple_field_errors(init_schema_registry_fixture):
 
 
 @pytest.mark.asyncio
-async def test_error_with_alias(init_schema_registry_fixture):
+async def test_error_with_alias(init_schema_registry_fixture) -> None:
     """Test that error paths use the alias (response key) when present."""
     user_type = GraphQLObjectType(
         "User",
@@ -193,10 +193,10 @@ async def test_error_with_alias(init_schema_registry_fixture):
         },
     )
 
-    async def resolve_users(info):
+    async def resolve_users(info) -> None:
         raise ValueError("User resolver failed")
 
-    async def resolve_posts(info):
+    async def resolve_posts(info) -> None:
         return [{"id": 1, "name": "Post 1"}]
 
     query_type = GraphQLObjectType(
@@ -233,7 +233,7 @@ async def test_error_with_alias(init_schema_registry_fixture):
 
 
 @pytest.mark.asyncio
-async def test_all_fields_succeed_no_errors_key(init_schema_registry_fixture):
+async def test_all_fields_succeed_no_errors_key(init_schema_registry_fixture) -> None:
     """Test that when all fields succeed, no 'errors' key is present."""
     user_type = GraphQLObjectType(
         "User",
@@ -243,10 +243,10 @@ async def test_all_fields_succeed_no_errors_key(init_schema_registry_fixture):
         },
     )
 
-    async def resolve_users(info):
+    async def resolve_users(info) -> None:
         return [{"id": 1, "name": "Alice"}]
 
-    async def resolve_posts(info):
+    async def resolve_posts(info) -> None:
         return [{"id": 101, "name": "Post 1"}]
 
     query_type = GraphQLObjectType(
@@ -277,7 +277,7 @@ async def test_all_fields_succeed_no_errors_key(init_schema_registry_fixture):
 
 
 @pytest.mark.asyncio
-async def test_error_in_single_object_field(init_schema_registry_fixture):
+async def test_error_in_single_object_field(init_schema_registry_fixture) -> None:
     """Test error handling for non-list fields (single objects)."""
     user_type = GraphQLObjectType(
         "User",
@@ -287,10 +287,10 @@ async def test_error_in_single_object_field(init_schema_registry_fixture):
         },
     )
 
-    async def resolve_current_user(info):
+    async def resolve_current_user(info) -> None:
         raise RuntimeError("Session expired")
 
-    async def resolve_admin_user(info):
+    async def resolve_admin_user(info) -> None:
         return {"id": 999, "name": "Admin"}
 
     query_type = GraphQLObjectType(
@@ -326,7 +326,7 @@ async def test_error_in_single_object_field(init_schema_registry_fixture):
 
 
 @pytest.fixture(scope="module", autouse=True)
-def init_schema_registry_fixture():
+def init_schema_registry_fixture() -> None:
     """Initialize schema registry for error handling tests."""
     import fraiseql._fraiseql_rs as fraiseql_rs
 

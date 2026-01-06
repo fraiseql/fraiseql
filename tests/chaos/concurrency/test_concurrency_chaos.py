@@ -1,20 +1,18 @@
-"""
-Phase 4.2: Concurrency Chaos Tests
+"""Phase 4.2: Concurrency Chaos Tests
 
 Tests for concurrent execution scenarios and thread safety.
 Validates FraiseQL's concurrent operation handling and deadlock prevention.
 """
 
-import pytest
-import time
 import random
 import statistics
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+import pytest
 from chaos.base import ChaosTestCase
-from chaos.fixtures import ToxiproxyManager
-from chaos.plugin import chaos_inject, FailureType
-from chaos.fraiseql_scenarios import MockFraiseQLClient, FraiseQLTestScenarios
+from chaos.fraiseql_scenarios import FraiseQLTestScenarios, MockFraiseQLClient
 
 
 class TestConcurrencyChaos(ChaosTestCase):
@@ -22,9 +20,8 @@ class TestConcurrencyChaos(ChaosTestCase):
 
     @pytest.mark.chaos
     @pytest.mark.chaos_concurrency
-    def test_thread_pool_exhaustion(self):
-        """
-        Test thread pool exhaustion and concurrent request handling.
+    def test_thread_pool_exhaustion(self) -> None:
+        """Test thread pool exhaustion and concurrent request handling.
 
         Scenario: Concurrent requests exhaust available thread pools.
         Expected: FraiseQL handles thread exhaustion gracefully with queuing.
@@ -43,7 +40,7 @@ class TestConcurrencyChaos(ChaosTestCase):
             """Execute a request in a concurrent context."""
             try:
                 # Add some randomness to simulate different execution times
-                delay = random.uniform(0.010, 0.030)  # 10-30ms
+                delay = random.uniform(0.010, 0.030)  # 10-30ms  # noqa: S311
                 time.sleep(delay)
 
                 result = client.execute_query(operation)
@@ -94,9 +91,8 @@ class TestConcurrencyChaos(ChaosTestCase):
 
     @pytest.mark.chaos
     @pytest.mark.chaos_concurrency
-    def test_lock_contention_simulation(self):
-        """
-        Test lock contention and synchronization overhead.
+    def test_lock_contention_simulation(self) -> None:
+        """Test lock contention and synchronization overhead.
 
         Scenario: Multiple threads contend for shared resources with locking.
         Expected: FraiseQL handles lock contention gracefully.
@@ -144,7 +140,7 @@ class TestConcurrencyChaos(ChaosTestCase):
                     else:
                         # Lock contention - wait and retry
                         contention_events += 1
-                        wait_increment = random.uniform(0.001, 0.005)
+                        wait_increment = random.uniform(0.001, 0.005)  # noqa: S311
                         time.sleep(wait_increment)
                         wait_time += wait_increment
 
@@ -163,7 +159,6 @@ class TestConcurrencyChaos(ChaosTestCase):
         # Scale num_threads based on hardware (6 on baseline, 3-24 adaptive)
         # Uses multiplier-based formula to ensure meaningful test on all hardware
         num_threads = max(3, int(6 * self.chaos_config.load_multiplier))
-        results = []
         errors = []
 
         threads = []
@@ -179,12 +174,12 @@ class TestConcurrencyChaos(ChaosTestCase):
         # For this test, we'll simulate the results
         simulated_results = []
         for i in range(num_threads):
-            if random.random() < 0.8:  # 80% success rate
+            if random.random() < 0.8:  # 80% success rate  # noqa: S311
                 simulated_results.append(
                     {
                         "thread_id": i,
-                        "execution_time": 25.0 + random.uniform(-5, 15),
-                        "wait_time": random.uniform(0, 0.050),
+                        "execution_time": 25.0 + random.uniform(-5, 15),  # noqa: S311
+                        "wait_time": random.uniform(0, 0.050),  # noqa: S311
                         "success": True,
                     }
                 )
@@ -210,7 +205,7 @@ class TestConcurrencyChaos(ChaosTestCase):
 
         if simulated_results:
             wait_times = [r["wait_time"] for r in simulated_results]
-            avg_wait = statistics.mean(wait_times)
+            statistics.mean(wait_times)
             max_wait = max(wait_times)
             assert max_wait < 0.100, f"Excessive lock wait times: max {max_wait:.3f}s"
 
@@ -220,9 +215,8 @@ class TestConcurrencyChaos(ChaosTestCase):
 
     @pytest.mark.chaos
     @pytest.mark.chaos_concurrency
-    def test_race_condition_prevention(self):
-        """
-        Test race condition prevention in concurrent operations.
+    def test_race_condition_prevention(self) -> None:
+        """Test race condition prevention in concurrent operations.
 
         Scenario: Multiple threads perform operations that could cause race conditions.
         Expected: FraiseQL prevents race conditions and maintains data consistency.
@@ -340,9 +334,8 @@ class TestConcurrencyChaos(ChaosTestCase):
 
     @pytest.mark.chaos
     @pytest.mark.chaos_concurrency
-    def test_deadlock_prevention_comprehensive(self):
-        """
-        Test comprehensive deadlock prevention across different operation types.
+    def test_deadlock_prevention_comprehensive(self) -> None:
+        """Test comprehensive deadlock prevention across different operation types.
 
         Scenario: Complex concurrent operations that could create deadlocks.
         Expected: FraiseQL prevents deadlocks through proper resource ordering.
@@ -466,9 +459,8 @@ class TestConcurrencyChaos(ChaosTestCase):
 
     @pytest.mark.chaos
     @pytest.mark.chaos_concurrency
-    def test_concurrent_connection_pooling(self):
-        """
-        Test concurrent access to connection pools.
+    def test_concurrent_connection_pooling(self) -> None:
+        """Test concurrent access to connection pools.
 
         Scenario: Multiple threads compete for database connections.
         Expected: FraiseQL manages connection pooling correctly under concurrency.
@@ -508,17 +500,16 @@ class TestConcurrencyChaos(ChaosTestCase):
                         "wait_time": wait_time,
                         "success": True,
                     }
-                else:
-                    # Connection pool exhausted
-                    pool_exhaustion_events += 1
-                    wait_time = time.time() - wait_start
+                # Connection pool exhausted
+                pool_exhaustion_events += 1
+                wait_time = time.time() - wait_start
 
-                    return {
-                        "thread_id": thread_id,
-                        "error": "Connection pool exhausted",
-                        "wait_time": wait_time,
-                        "success": False,
-                    }
+                return {
+                    "thread_id": thread_id,
+                    "error": "Connection pool exhausted",
+                    "wait_time": wait_time,
+                    "success": False,
+                }
 
             finally:
                 if connection_acquired:
@@ -540,12 +531,12 @@ class TestConcurrencyChaos(ChaosTestCase):
 
         # Collect results (simplified - in practice use a queue)
         for i in range(num_concurrent_requests):
-            if random.random() < 0.85:  # 85% get connections
+            if random.random() < 0.85:  # 85% get connections  # noqa: S311
                 results.append(
                     {
                         "thread_id": i,
-                        "execution_time": 15.0 + random.uniform(-3, 10),
-                        "wait_time": random.uniform(0, 0.050),
+                        "execution_time": 15.0 + random.uniform(-3, 10),  # noqa: S311
+                        "wait_time": random.uniform(0, 0.050),  # noqa: S311
                         "success": True,
                     }
                 )
@@ -583,9 +574,8 @@ class TestConcurrencyChaos(ChaosTestCase):
 
     @pytest.mark.chaos
     @pytest.mark.chaos_concurrency
-    def test_atomic_operation_isolation(self):
-        """
-        Test atomic operation isolation under concurrent execution.
+    def test_atomic_operation_isolation(self) -> None:
+        """Test atomic operation isolation under concurrent execution.
 
         Scenario: Multiple atomic operations execute concurrently.
         Expected: FraiseQL maintains operation isolation and consistency.
@@ -614,7 +604,7 @@ class TestConcurrencyChaos(ChaosTestCase):
                 new_counter = current_counter + 1
 
                 # Simulate processing time (isolation test window)
-                time.sleep(random.uniform(0.001, 0.005))
+                time.sleep(random.uniform(0.001, 0.005))  # noqa: S311
 
                 # Phase 3: Write back state
                 with state_lock:
@@ -662,12 +652,12 @@ class TestConcurrencyChaos(ChaosTestCase):
 
         # Simulate results
         for i in range(num_threads):
-            if random.random() < 0.95:  # 95% success rate for atomic operations
+            if random.random() < 0.95:  # 95% success rate for atomic operations  # noqa: S311
                 results.append(
                     {
                         "thread_id": i,
-                        "execution_time": 25.0 + random.uniform(-5, 10),
-                        "isolation_violation": random.random() < 0.05,  # 5% isolation violations
+                        "execution_time": 25.0 + random.uniform(-5, 10),  # noqa: S311
+                        "isolation_violation": random.random() < 0.05,  # 5% isolation violations  # noqa: S311
                         "success": True,
                     }
                 )

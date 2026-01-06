@@ -1,7 +1,7 @@
 """End-to-end tests for Rust mutation pipeline."""
 
 
-def test_rust_pipeline_integration_placeholder():
+def test_rust_pipeline_integration_placeholder() -> None:
     """Placeholder test for Rust mutation pipeline integration.
 
     This test serves as a marker for the comprehensive integration tests
@@ -19,7 +19,7 @@ def test_rust_pipeline_integration_placeholder():
     assert True
 
 
-def test_mutation_dict_response_structure():
+def test_mutation_dict_response_structure() -> None:
     """Test that mutations return dict structures as expected from Rust pipeline."""
     # Simulate the structure that the Rust pipeline should return
     mock_response = {

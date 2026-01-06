@@ -21,56 +21,56 @@ from fraiseql.sql.where.operators.port import (
 class TestPortBasicOperators:
     """Test basic Port operators (eq, neq, in, notin)."""
 
-    def test_port_eq(self):
+    def test_port_eq(self) -> None:
         """Test port equality operator."""
         path_sql = SQL("data->>'port'")
         result = build_port_eq_sql(path_sql, 8080)
         sql_str = result.as_string(None)
         assert sql_str == "(data->>'port')::integer = 8080"
 
-    def test_port_neq(self):
+    def test_port_neq(self) -> None:
         """Test port inequality operator."""
         path_sql = SQL("data->>'port'")
         result = build_port_neq_sql(path_sql, 80)
         sql_str = result.as_string(None)
         assert sql_str == "(data->>'port')::integer != 80"
 
-    def test_port_in(self):
+    def test_port_in(self) -> None:
         """Test port IN operator."""
         path_sql = SQL("data->>'service_port'")
         result = build_port_in_sql(path_sql, [80, 443, 8080])
         sql_str = result.as_string(None)
         assert sql_str == "(data->>'service_port')::integer IN (80, 443, 8080)"
 
-    def test_port_notin(self):
+    def test_port_notin(self) -> None:
         """Test port NOT IN operator."""
         path_sql = SQL("data->>'excluded_port'")
         result = build_port_notin_sql(path_sql, [22, 23, 3389])
         sql_str = result.as_string(None)
         assert sql_str == "(data->>'excluded_port')::integer NOT IN (22, 23, 3389)"
 
-    def test_port_gt(self):
+    def test_port_gt(self) -> None:
         """Test port greater than operator."""
         path_sql = SQL("data->>'port'")
         result = build_port_gt_sql(path_sql, 1024)
         sql_str = result.as_string(None)
         assert sql_str == "(data->>'port')::integer > 1024"
 
-    def test_port_gte(self):
+    def test_port_gte(self) -> None:
         """Test port greater than or equal operator."""
         path_sql = SQL("data->>'port'")
         result = build_port_gte_sql(path_sql, 1024)
         sql_str = result.as_string(None)
         assert sql_str == "(data->>'port')::integer >= 1024"
 
-    def test_port_lt(self):
+    def test_port_lt(self) -> None:
         """Test port less than operator."""
         path_sql = SQL("data->>'port'")
         result = build_port_lt_sql(path_sql, 65535)
         sql_str = result.as_string(None)
         assert sql_str == "(data->>'port')::integer < 65535"
 
-    def test_port_lte(self):
+    def test_port_lte(self) -> None:
         """Test port less than or equal operator."""
         path_sql = SQL("data->>'port'")
         result = build_port_lte_sql(path_sql, 65535)
@@ -230,7 +230,7 @@ class TestPortComparisonOperators:
 class TestPortBoundaryValues:
     """Test port operators with boundary values."""
 
-    def test_port_boundary_values(self):
+    def test_port_boundary_values(self) -> None:
         """Test port operators with boundary values."""
         path_sql = SQL("data->>'port'")
 

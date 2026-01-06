@@ -14,22 +14,22 @@ from fraiseql.security.kms.infrastructure.aws_kms import (
 class TestAWSKMSConfig:
     """Tests for AWSKMSConfig."""
 
-    def test_default_region(self):
+    def test_default_region(self) -> None:
         """Default region should be us-east-1."""
         config = AWSKMSConfig()
         assert config.region_name == "us-east-1"
 
-    def test_custom_region(self):
+    def test_custom_region(self) -> None:
         """Custom region should be respected."""
         config = AWSKMSConfig(region_name="eu-west-1")
         assert config.region_name == "eu-west-1"
 
-    def test_default_profile(self):
+    def test_default_profile(self) -> None:
         """Default profile should be None."""
         config = AWSKMSConfig()
         assert config.profile_name is None
 
-    def test_custom_profile(self):
+    def test_custom_profile(self) -> None:
         """Custom profile should be respected."""
         config = AWSKMSConfig(profile_name="my-profile")
         assert config.profile_name == "my-profile"
@@ -39,23 +39,23 @@ class TestAWSKMSProvider:
     """Tests for AWSKMSProvider."""
 
     @pytest.fixture
-    def config(self):
+    def config(self) -> None:
         return AWSKMSConfig(region_name="us-east-1")
 
     @pytest.fixture
-    def provider(self, config):
+    def provider(self, config) -> None:
         return AWSKMSProvider(config)
 
-    def test_extends_base_provider(self, provider):
+    def test_extends_base_provider(self, provider) -> None:
         """Should extend BaseKMSProvider."""
         assert isinstance(provider, BaseKMSProvider)
 
-    def test_provider_name(self, provider):
+    def test_provider_name(self, provider) -> None:
         """Provider name should be 'aws'."""
         assert provider.provider_name == "aws"
 
     @pytest.mark.asyncio
-    async def test_do_encrypt_calls_aws_kms_api(self, provider):
+    async def test_do_encrypt_calls_aws_kms_api(self, provider) -> None:
         """_do_encrypt should call AWS KMS encrypt API."""
         with (
             patch("fraiseql.security.kms.infrastructure.aws_kms.boto3") as mock_boto3,
@@ -72,7 +72,7 @@ class TestAWSKMSProvider:
             }
             mock_client.encrypt.return_value = mock_response
 
-            ciphertext, algo = await provider._do_encrypt(
+            _ciphertext, algo = await provider._do_encrypt(
                 b"plaintext",
                 "arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012",
                 {"purpose": "test"},
@@ -82,7 +82,7 @@ class TestAWSKMSProvider:
             assert algo == "SYMMETRIC_DEFAULT"
 
     @pytest.mark.asyncio
-    async def test_do_decrypt_calls_aws_kms_api(self, provider):
+    async def test_do_decrypt_calls_aws_kms_api(self, provider) -> None:
         """_do_decrypt should call AWS KMS decrypt API."""
         with (
             patch("fraiseql.security.kms.infrastructure.aws_kms.boto3") as mock_boto3,
@@ -109,7 +109,7 @@ class TestAWSKMSProvider:
             assert result == b"decrypted-data"
 
     @pytest.mark.asyncio
-    async def test_do_generate_data_key_calls_aws_kms_api(self, provider):
+    async def test_do_generate_data_key_calls_aws_kms_api(self, provider) -> None:
         """_do_generate_data_key should call AWS KMS generate_data_key API."""
         with (
             patch("fraiseql.security.kms.infrastructure.aws_kms.boto3") as mock_boto3,

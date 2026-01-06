@@ -7,7 +7,6 @@ Tests cover queries, mutations, and error handling through the full FastAPI HTTP
 """
 
 import json
-from uuid import UUID
 
 import pytest
 import pytest_asyncio
@@ -87,7 +86,7 @@ class TestFastAPIJSONBIntegration:
     """
 
     @pytest.fixture(scope="class")
-    def clear_registry_fixture(self, clear_registry_class):
+    def clear_registry_fixture(self, clear_registry_class) -> None:
         """Clear registry before class tests."""
         return
 
@@ -212,7 +211,7 @@ class TestFastAPIJSONBIntegration:
     @pytest.mark.asyncio
     async def test_fastapi_list_query_with_jsonb_entities(
         self, class_db_pool, setup_fastapi_jsonb_test, fastapi_app
-    ):
+    ) -> None:
         """Test FastAPI HTTP endpoint with list query returning JSONB entities.
 
         🔴 RED Phase: This test validates the complete HTTP stack with RustResponseBytes
@@ -292,7 +291,7 @@ class TestFastAPIJSONBIntegration:
     @pytest.mark.asyncio
     async def test_fastapi_single_query_with_jsonb_entity(
         self, class_db_pool, setup_fastapi_jsonb_test, fastapi_app
-    ):
+    ) -> None:
         """Test FastAPI HTTP endpoint with single-object query returning JSONB entity.
 
         🔴 RED Phase: This test validates single object queries through HTTP
@@ -318,7 +317,8 @@ class TestFastAPIJSONBIntegration:
 
         # Make HTTP request
         response = client.post(
-            "/graphql", json={"query": query_str, "variables": {"id": "00000000-0000-0000-0000-000000000001"}}
+            "/graphql",
+            json={"query": query_str, "variables": {"id": "00000000-0000-0000-0000-000000000001"}},
         )
 
         # ASSERTION 1: HTTP status should be 200
@@ -349,7 +349,7 @@ class TestFastAPIJSONBIntegration:
     @pytest.mark.asyncio
     async def test_fastapi_mutation_with_jsonb_entity(
         self, class_db_pool, setup_fastapi_jsonb_test, fastapi_app
-    ):
+    ) -> None:
         """Test FastAPI HTTP endpoint with mutation creating JSONB entity.
 
         🔴 RED Phase: This test validates mutations through HTTP stack
@@ -429,7 +429,7 @@ class TestFastAPIJSONBIntegration:
     @pytest.mark.asyncio
     async def test_fastapi_error_handling_with_graphql_errors(
         self, class_db_pool, setup_fastapi_jsonb_test, fastapi_app
-    ):
+    ) -> None:
         """Test that FastAPI router handles GraphQL errors correctly.
 
         This validates that errors are still returned properly even when
@@ -462,7 +462,7 @@ class TestFastAPIJSONBIntegration:
     @pytest.mark.asyncio
     async def test_fastapi_rustresponsebytes_content_type(
         self, class_db_pool, setup_fastapi_jsonb_test, fastapi_app
-    ):
+    ) -> None:
         """Test that RustResponseBytes returns proper content-type header.
 
         This validates that when RustResponseBytes is returned, the HTTP

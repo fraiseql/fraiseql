@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3  # noqa: EXE001
 """Comprehensive tests for AND/OR/NOT logical operators in nested array filtering.
 
 This test module specifically covers complex logical operator scenarios that can be

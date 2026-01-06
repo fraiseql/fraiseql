@@ -16,7 +16,7 @@ pytestmark = pytest.mark.unit
 
 
 @pytest.fixture
-def clean_registries():
+def clean_registries() -> None:
     """Clean all registries before and after each test."""
     from fraiseql.gql.builders.registry import SchemaRegistry
     from fraiseql.mutations.decorators import clear_mutation_registries
@@ -35,7 +35,7 @@ def clean_registries():
 class TestConnectionPoolDefaults:
     """Tests for default connection pool parameter values."""
 
-    def test_production_defaults_to_20_connections(self, clean_registries):
+    def test_production_defaults_to_20_connections(self, clean_registries) -> None:
         """Test that production mode defaults to pool_size=20."""
 
         @fraise_type
@@ -49,7 +49,7 @@ class TestConnectionPoolDefaults:
 
         # Mock schema registry to avoid initialization
         with patch("fraiseql._fraiseql_rs.initialize_schema_registry"):
-            app = create_fraiseql_app(
+            create_fraiseql_app(
                 database_url="postgresql://test@localhost/test",
                 types=[User],
                 queries=[users],
@@ -62,7 +62,7 @@ class TestConnectionPoolDefaults:
             config = get_fraiseql_config()
             assert config.database_pool_size == 20, "Production should default to 20 connections"
 
-    def test_development_defaults_to_10_connections(self, clean_registries):
+    def test_development_defaults_to_10_connections(self, clean_registries) -> None:
         """Test that development mode defaults to pool_size=10."""
 
         @fraise_type
@@ -75,7 +75,7 @@ class TestConnectionPoolDefaults:
             return []
 
         with patch("fraiseql._fraiseql_rs.initialize_schema_registry"):
-            app = create_fraiseql_app(
+            create_fraiseql_app(
                 database_url="postgresql://test@localhost/test",
                 types=[User],
                 queries=[users],
@@ -91,7 +91,7 @@ class TestConnectionPoolDefaults:
 class TestConnectionPoolCustomParameters:
     """Tests for custom connection pool parameters."""
 
-    def test_custom_pool_size(self, clean_registries):
+    def test_custom_pool_size(self, clean_registries) -> None:
         """Test that custom pool_size is applied."""
 
         @fraise_type
@@ -104,7 +104,7 @@ class TestConnectionPoolCustomParameters:
             return []
 
         with patch("fraiseql._fraiseql_rs.initialize_schema_registry"):
-            app = create_fraiseql_app(
+            create_fraiseql_app(
                 database_url="postgresql://test@localhost/test",
                 types=[User],
                 queries=[users],
@@ -116,7 +116,7 @@ class TestConnectionPoolCustomParameters:
             config = get_fraiseql_config()
             assert config.database_pool_size == 30
 
-    def test_custom_max_overflow(self, clean_registries):
+    def test_custom_max_overflow(self, clean_registries) -> None:
         """Test that custom max_overflow is applied."""
 
         @fraise_type
@@ -129,7 +129,7 @@ class TestConnectionPoolCustomParameters:
             return []
 
         with patch("fraiseql._fraiseql_rs.initialize_schema_registry"):
-            app = create_fraiseql_app(
+            create_fraiseql_app(
                 database_url="postgresql://test@localhost/test",
                 types=[User],
                 queries=[users],
@@ -141,7 +141,7 @@ class TestConnectionPoolCustomParameters:
             config = get_fraiseql_config()
             assert config.database_max_overflow == 20
 
-    def test_custom_timeout(self, clean_registries):
+    def test_custom_timeout(self, clean_registries) -> None:
         """Test that custom timeout is applied."""
 
         @fraise_type
@@ -154,7 +154,7 @@ class TestConnectionPoolCustomParameters:
             return []
 
         with patch("fraiseql._fraiseql_rs.initialize_schema_registry"):
-            app = create_fraiseql_app(
+            create_fraiseql_app(
                 database_url="postgresql://test@localhost/test",
                 types=[User],
                 queries=[users],
@@ -166,7 +166,7 @@ class TestConnectionPoolCustomParameters:
             config = get_fraiseql_config()
             assert config.database_pool_timeout == 60
 
-    def test_custom_recycle(self, clean_registries):
+    def test_custom_recycle(self, clean_registries) -> None:
         """Test that custom recycle time is applied."""
 
         @fraise_type
@@ -179,7 +179,7 @@ class TestConnectionPoolCustomParameters:
             return []
 
         with patch("fraiseql._fraiseql_rs.initialize_schema_registry"):
-            app = create_fraiseql_app(
+            create_fraiseql_app(
                 database_url="postgresql://test@localhost/test",
                 types=[User],
                 queries=[users],
@@ -191,7 +191,7 @@ class TestConnectionPoolCustomParameters:
             config = get_fraiseql_config()
             assert config.database_pool_recycle == 7200
 
-    def test_all_custom_parameters(self, clean_registries):
+    def test_all_custom_parameters(self, clean_registries) -> None:
         """Test that all custom pool parameters can be set together."""
 
         @fraise_type
@@ -204,7 +204,7 @@ class TestConnectionPoolCustomParameters:
             return []
 
         with patch("fraiseql._fraiseql_rs.initialize_schema_registry"):
-            app = create_fraiseql_app(
+            create_fraiseql_app(
                 database_url="postgresql://test@localhost/test",
                 types=[User],
                 queries=[users],
@@ -226,7 +226,7 @@ class TestConnectionPoolCustomParameters:
 class TestConnectionPoolWithConfig:
     """Tests for connection pool parameters when FraiseQLConfig is provided."""
 
-    def test_parameters_override_config(self, clean_registries):
+    def test_parameters_override_config(self, clean_registries) -> None:
         """Test that explicit parameters override config values."""
 
         @fraise_type
@@ -246,7 +246,7 @@ class TestConnectionPoolWithConfig:
         )
 
         with patch("fraiseql._fraiseql_rs.initialize_schema_registry"):
-            app = create_fraiseql_app(
+            create_fraiseql_app(
                 types=[User],
                 queries=[users],
                 config=config,
@@ -262,7 +262,7 @@ class TestConnectionPoolWithConfig:
 class TestBackwardCompatibility:
     """Tests for backward compatibility - ensure existing code still works."""
 
-    def test_app_creation_without_pool_parameters(self, clean_registries):
+    def test_app_creation_without_pool_parameters(self, clean_registries) -> None:
         """Test that app can be created without any pool parameters."""
 
         @fraise_type
@@ -276,7 +276,7 @@ class TestBackwardCompatibility:
 
         with patch("fraiseql._fraiseql_rs.initialize_schema_registry"):
             # This should work exactly as before WP-027
-            app = create_fraiseql_app(
+            create_fraiseql_app(
                 database_url="postgresql://test@localhost/test",
                 types=[User],
                 queries=[users],

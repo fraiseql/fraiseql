@@ -3,7 +3,6 @@
 Tests for WHERE clause pass-through to Rust query builder.
 """
 
-import pytest
 from psycopg.sql import SQL, Composed, Identifier, Literal
 
 from fraiseql.sql.query_builder_adapter import build_sql_query
@@ -13,7 +12,7 @@ from fraiseql.sql.sql_to_string import sql_to_string
 class TestWHERESQLPassThrough:
     """Test WHERE SQL pass-through to Rust query builder."""
 
-    def test_simple_where_clause(self):
+    def test_simple_where_clause(self) -> None:
         """Test simple WHERE clause pass-through."""
         # Build WHERE clause
         where = SQL("WHERE ") + Identifier("status") + SQL(" = ") + Literal("active")
@@ -33,7 +32,7 @@ class TestWHERESQLPassThrough:
         assert "status" in sql_text
         assert "active" in sql_text
 
-    def test_complex_where_clause(self):
+    def test_complex_where_clause(self) -> None:
         """Test complex WHERE clause with multiple conditions."""
         # Build WHERE clause: WHERE status = 'active' AND age > 18
         where = (
@@ -63,7 +62,7 @@ class TestWHERESQLPassThrough:
         assert "age" in sql_text
         assert "18" in sql_text
 
-    def test_where_clause_with_null(self):
+    def test_where_clause_with_null(self) -> None:
         """Test WHERE clause with NULL comparison."""
         # Build WHERE clause: WHERE email IS NOT NULL
         where = SQL("WHERE ") + Identifier("email") + SQL(" IS NOT NULL")
@@ -82,7 +81,7 @@ class TestWHERESQLPassThrough:
         assert "email" in sql_text
         assert "IS NOT NULL" in sql_text
 
-    def test_where_clause_with_in_operator(self):
+    def test_where_clause_with_in_operator(self) -> None:
         """Test WHERE clause with IN operator."""
         # Build WHERE clause: WHERE status IN ('active', 'pending')
         where = (
@@ -111,7 +110,7 @@ class TestWHERESQLPassThrough:
         assert "active" in sql_text
         assert "pending" in sql_text
 
-    def test_where_clause_with_like_operator(self):
+    def test_where_clause_with_like_operator(self) -> None:
         """Test WHERE clause with LIKE operator."""
         # Build WHERE clause: WHERE name LIKE '%John%'
         where = SQL("WHERE ") + Identifier("name") + SQL(" LIKE ") + Literal("%John%")
@@ -131,7 +130,7 @@ class TestWHERESQLPassThrough:
         assert "LIKE" in sql_text
         assert "John" in sql_text
 
-    def test_no_where_clause(self):
+    def test_no_where_clause(self) -> None:
         """Test query without WHERE clause."""
         # Build query without WHERE
         result = build_sql_query(
@@ -144,17 +143,14 @@ class TestWHERESQLPassThrough:
         # Verify result
         sql_text = result.as_string(None)
         # Should not contain WHERE keyword
-        assert "WHERE" not in sql_text or "WHERE" in sql_text  # May or may not have WHERE from other sources
+        assert (
+            "WHERE" not in sql_text or "WHERE" in sql_text
+        )  # May or may not have WHERE from other sources
 
-    def test_where_clause_with_jsonb_operator(self):
+    def test_where_clause_with_jsonb_operator(self) -> None:
         """Test WHERE clause with JSONB operator."""
         # Build WHERE clause: WHERE data @> '{"role": "admin"}'
-        where = (
-            SQL("WHERE ")
-            + Identifier("data")
-            + SQL(" @> ")
-            + Literal('{"role": "admin"}')
-        )
+        where = SQL("WHERE ") + Identifier("data") + SQL(" @> ") + Literal('{"role": "admin"}')
 
         # Build query
         result = build_sql_query(
@@ -176,13 +172,13 @@ class TestWHERESQLPassThrough:
 class TestSQLToString:
     """Test SQL to string conversion utility."""
 
-    def test_simple_sql_conversion(self):
+    def test_simple_sql_conversion(self) -> None:
         """Test simple SQL object to string conversion."""
         sql_obj = SQL("SELECT * FROM users")
         result = sql_to_string(sql_obj)
         assert result == "SELECT * FROM users"
 
-    def test_composed_sql_conversion(self):
+    def test_composed_sql_conversion(self) -> None:
         """Test Composed SQL object to string conversion."""
         sql_obj = SQL("WHERE ") + Identifier("status") + SQL(" = ") + Literal("active")
         result = sql_to_string(sql_obj)
@@ -191,19 +187,19 @@ class TestSQLToString:
         assert "status" in result
         assert "active" in result
 
-    def test_none_sql_conversion(self):
+    def test_none_sql_conversion(self) -> None:
         """Test None returns None."""
         result = sql_to_string(None)
         assert result is None
 
-    def test_identifier_quoting(self):
+    def test_identifier_quoting(self) -> None:
         """Test identifier quoting in conversion."""
         sql_obj = Identifier("my_table")
         result = sql_to_string(sql_obj)
         # psycopg quotes identifiers with double quotes
         assert '"my_table"' in result or "my_table" in result
 
-    def test_literal_quoting(self):
+    def test_literal_quoting(self) -> None:
         """Test literal quoting in conversion."""
         sql_obj = Literal("test value")
         result = sql_to_string(sql_obj)
@@ -214,7 +210,7 @@ class TestSQLToString:
 class TestBackwardCompatibility:
     """Test backward compatibility with existing queries."""
 
-    def test_existing_queries_still_work(self):
+    def test_existing_queries_still_work(self) -> None:
         """Test that existing queries without WHERE still work."""
         # Build query without WHERE (existing behavior)
         result = build_sql_query(
@@ -229,7 +225,7 @@ class TestBackwardCompatibility:
         assert "SELECT" in sql_text
         assert "v_users" in sql_text
 
-    def test_mixed_parameters_still_work(self):
+    def test_mixed_parameters_still_work(self) -> None:
         """Test mixed parameters (WHERE + ORDER BY)."""
         # Build WHERE clause
         where = SQL("WHERE ") + Identifier("status") + SQL(" = ") + Literal("active")

@@ -13,20 +13,20 @@ from fraiseql.security.kms.infrastructure.local import (
 
 class TestLocalKMSProvider:
     @pytest.fixture
-    def provider(self):
+    def provider(self) -> None:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             config = LocalKMSConfig(master_key=b"0" * 32)
             return LocalKMSProvider(config)
 
-    def test_extends_base_provider(self, provider):
+    def test_extends_base_provider(self, provider) -> None:
         assert isinstance(provider, BaseKMSProvider)
 
-    def test_provider_name(self, provider):
+    def test_provider_name(self, provider) -> None:
         assert provider.provider_name == "local"
 
     @pytest.mark.asyncio
-    async def test_encrypt_decrypt_roundtrip(self, provider):
+    async def test_encrypt_decrypt_roundtrip(self, provider) -> None:
         """Should encrypt and decrypt data correctly."""
         plaintext = b"sensitive data"
 
@@ -36,14 +36,14 @@ class TestLocalKMSProvider:
         assert decrypted == plaintext
 
     @pytest.mark.asyncio
-    async def test_generate_data_key(self, provider):
+    async def test_generate_data_key(self, provider) -> None:
         """Should generate a valid data key pair."""
         pair = await provider.generate_data_key("test-key")
 
         assert len(pair.plaintext_key) == 32
         assert len(pair.encrypted_key.ciphertext) > 0
 
-    def test_warns_about_production_use(self):
+    def test_warns_about_production_use(self) -> None:
         """Should warn that this is for development only."""
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")

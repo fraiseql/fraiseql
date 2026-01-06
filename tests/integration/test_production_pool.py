@@ -1,5 +1,4 @@
-"""
-Integration tests for production DatabasePool.
+"""Integration tests for production DatabasePool.
 
 Validates that production pool passes all prototype tests and adds
 production-specific test cases.
@@ -8,6 +7,7 @@ Uses testcontainers for automatic PostgreSQL provisioning.
 """
 
 import asyncio
+
 import pytest
 import pytest_asyncio
 
@@ -16,7 +16,7 @@ pytest_plugins = ["tests.fixtures.database.database_conftest"]
 
 
 @pytest_asyncio.fixture
-async def pool(postgres_url):
+async def pool(postgres_url) -> None:
     """Create production pool for testing using testcontainers PostgreSQL."""
     from fraiseql._fraiseql_rs import DatabasePool
 
@@ -28,17 +28,17 @@ async def pool(postgres_url):
 class TestBasicQueries:
     """Test basic query execution."""
 
-    async def test_simple_query(self, pool):
+    async def test_simple_query(self, pool) -> None:
         """Test simple SELECT query."""
         results = await pool.execute_query("SELECT 1 as num")
         assert len(results) == 1
 
-    async def test_empty_result(self, pool):
+    async def test_empty_result(self, pool) -> None:
         """Test query with no results."""
         results = await pool.execute_query("SELECT 1 WHERE FALSE")
         assert len(results) == 0
 
-    async def test_multiple_rows(self, pool):
+    async def test_multiple_rows(self, pool) -> None:
         """Test query returning multiple rows."""
         results = await pool.execute_query("SELECT generate_series(1, 10) as num")
         assert len(results) == 10
@@ -47,10 +47,10 @@ class TestBasicQueries:
 class TestConcurrentQueries:
     """Test concurrent query execution."""
 
-    async def test_concurrent_queries(self, pool):
+    async def test_concurrent_queries(self, pool) -> None:
         """Test running multiple queries concurrently."""
 
-        async def query():
+        async def query() -> None:
             return await pool.execute_query("SELECT 1")
 
         # Run 20 concurrent queries
@@ -58,10 +58,10 @@ class TestConcurrentQueries:
         assert len(results) == 20
         assert all(len(r) == 1 for r in results)
 
-    async def test_pool_not_exhausted(self, pool):
+    async def test_pool_not_exhausted(self, pool) -> None:
         """Test that pool doesn't get exhausted."""
         # Get stats before
-        stats_before = pool.stats()
+        pool.stats()
 
         # Run queries
         await asyncio.gather(*[pool.execute_query("SELECT 1") for _ in range(50)])
@@ -74,12 +74,12 @@ class TestConcurrentQueries:
 class TestHealthCheck:
     """Test health check functionality."""
 
-    async def test_health_check_passes(self, pool):
+    async def test_health_check_passes(self, pool) -> None:
         """Test health check on healthy pool."""
         is_healthy = await pool.health_check()
         assert is_healthy is True
 
-    async def test_health_check_after_queries(self, pool):
+    async def test_health_check_after_queries(self, pool) -> None:
         """Test health check after executing queries."""
         # Run some queries
         await pool.execute_query("SELECT 1")
@@ -92,7 +92,7 @@ class TestHealthCheck:
 class TestPoolStats:
     """Test pool statistics."""
 
-    async def test_stats_structure(self, pool):
+    async def test_stats_structure(self, pool) -> None:
         """Test stats return correct structure."""
         stats = pool.stats()
 
@@ -103,7 +103,7 @@ class TestPoolStats:
 
         assert stats["max_size"] == 10  # from fixture
 
-    async def test_stats_accuracy(self, pool):
+    async def test_stats_accuracy(self, pool) -> None:
         """Test stats reflect actual pool state."""
         stats = pool.stats()
 
@@ -116,7 +116,7 @@ class TestPoolStats:
 class TestContextManager:
     """Test async context manager."""
 
-    async def test_context_manager_cleanup(self, postgres_url):
+    async def test_context_manager_cleanup(self, postgres_url) -> None:
         """Test that context manager closes pool."""
         from fraiseql._fraiseql_rs import DatabasePool
 
@@ -132,14 +132,14 @@ class TestContextManager:
 class TestURLParsing:
     """Test connection URL parsing."""
 
-    def test_url_creation(self):
+    def test_url_creation(self) -> None:
         """Test pool creation from URL."""
         from fraiseql._fraiseql_rs import DatabasePool
 
         pool = DatabasePool(url="postgresql://user:pass@localhost:5432/testdb")
         assert pool is not None
 
-    def test_url_overrides_params(self):
+    def test_url_overrides_params(self) -> None:
         """Test that URL takes precedence over individual params."""
         from fraiseql._fraiseql_rs import DatabasePool
 
@@ -151,14 +151,14 @@ class TestURLParsing:
 class TestErrorHandling:
     """Test error handling."""
 
-    async def test_invalid_query(self, pool):
+    async def test_invalid_query(self, pool) -> None:
         """Test that invalid SQL raises error."""
-        with pytest.raises(Exception):  # PyRuntimeError
+        with pytest.raises(Exception):  # PyRuntimeError  # noqa: B017
             await pool.execute_query("INVALID SQL")
 
-    async def test_missing_table(self, pool):
+    async def test_missing_table(self, pool) -> None:
         """Test querying non-existent table."""
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017
             await pool.execute_query("SELECT * FROM nonexistent_table_xyz")
 
 
@@ -166,16 +166,16 @@ class TestErrorHandling:
 class TestPerformance:
     """Performance benchmarks (optional, run with --benchmark)."""
 
-    async def test_query_latency(self, pool, benchmark):
+    async def test_query_latency(self, pool, benchmark) -> None:
         """Benchmark single query latency."""
 
-        async def query():
+        async def query() -> None:
             return await pool.execute_query("SELECT 1")
 
         result = await benchmark(query)
         assert len(result) == 1
 
-    async def test_concurrent_throughput(self, pool):
+    async def test_concurrent_throughput(self, pool) -> None:
         """Test concurrent query throughput."""
         import time
 

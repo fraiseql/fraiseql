@@ -12,7 +12,7 @@ from fraiseql.fastapi.routers import execute_multi_field_query
 
 
 @pytest.mark.asyncio
-async def test_skip_directive_on_root_field_true(init_schema_registry_fixture):
+async def test_skip_directive_on_root_field_true(init_schema_registry_fixture) -> None:
     """Test @skip(if: true) on root field - field should be excluded."""
     from graphql import (
         GraphQLField,
@@ -39,10 +39,10 @@ async def test_skip_directive_on_root_field_true(init_schema_registry_fixture):
         },
     )
 
-    async def resolve_users(info):
+    async def resolve_users(info) -> None:
         return [{"id": 1, "name": "Alice"}]
 
-    async def resolve_posts(info):
+    async def resolve_posts(info) -> None:
         return [{"id": 101, "title": "Post 1"}]
 
     query_type = GraphQLObjectType(
@@ -77,7 +77,7 @@ async def test_skip_directive_on_root_field_true(init_schema_registry_fixture):
 
 
 @pytest.mark.asyncio
-async def test_skip_directive_on_root_field_false(init_schema_registry_fixture):
+async def test_skip_directive_on_root_field_false(init_schema_registry_fixture) -> None:
     """Test @skip(if: false) on root field - field should be included."""
     from graphql import (
         GraphQLField,
@@ -96,10 +96,10 @@ async def test_skip_directive_on_root_field_false(init_schema_registry_fixture):
         },
     )
 
-    async def resolve_users(info):
+    async def resolve_users(info) -> None:
         return [{"id": 1, "name": "Alice"}]
 
-    async def resolve_posts(info):
+    async def resolve_posts(info) -> None:
         return [{"id": 101, "title": "Post 1"}]
 
     post_type = GraphQLObjectType(
@@ -142,7 +142,7 @@ async def test_skip_directive_on_root_field_false(init_schema_registry_fixture):
 
 
 @pytest.mark.asyncio
-async def test_skip_directive_with_variable(init_schema_registry_fixture):
+async def test_skip_directive_with_variable(init_schema_registry_fixture) -> None:
     """Test @skip(if: $var) with variable."""
     from graphql import (
         GraphQLField,
@@ -169,10 +169,10 @@ async def test_skip_directive_with_variable(init_schema_registry_fixture):
         },
     )
 
-    async def resolve_users(info):
+    async def resolve_users(info) -> None:
         return [{"id": 1, "name": "Alice"}]
 
-    async def resolve_posts(info):
+    async def resolve_posts(info) -> None:
         return [{"id": 101, "title": "Post 1"}]
 
     query_type = GraphQLObjectType(
@@ -212,7 +212,7 @@ async def test_skip_directive_with_variable(init_schema_registry_fixture):
 
 
 @pytest.mark.asyncio
-async def test_include_directive_on_root_field_true(init_schema_registry_fixture):
+async def test_include_directive_on_root_field_true(init_schema_registry_fixture) -> None:
     """Test @include(if: true) on root field - field should be included."""
     from graphql import (
         GraphQLField,
@@ -239,10 +239,10 @@ async def test_include_directive_on_root_field_true(init_schema_registry_fixture
         },
     )
 
-    async def resolve_users(info):
+    async def resolve_users(info) -> None:
         return [{"id": 1, "name": "Alice"}]
 
-    async def resolve_posts(info):
+    async def resolve_posts(info) -> None:
         return [{"id": 101, "title": "Post 1"}]
 
     query_type = GraphQLObjectType(
@@ -275,7 +275,7 @@ async def test_include_directive_on_root_field_true(init_schema_registry_fixture
 
 
 @pytest.mark.asyncio
-async def test_include_directive_on_root_field_false(init_schema_registry_fixture):
+async def test_include_directive_on_root_field_false(init_schema_registry_fixture) -> None:
     """Test @include(if: false) on root field - field should be excluded."""
     from graphql import (
         GraphQLField,
@@ -302,10 +302,10 @@ async def test_include_directive_on_root_field_false(init_schema_registry_fixtur
         },
     )
 
-    async def resolve_users(info):
+    async def resolve_users(info) -> None:
         return [{"id": 1, "name": "Alice"}]
 
-    async def resolve_posts(info):
+    async def resolve_posts(info) -> None:
         return [{"id": 101, "title": "Post 1"}]
 
     query_type = GraphQLObjectType(
@@ -338,7 +338,7 @@ async def test_include_directive_on_root_field_false(init_schema_registry_fixtur
 
 
 @pytest.mark.asyncio
-async def test_skip_directive_on_sub_fields(init_schema_registry_fixture):
+async def test_skip_directive_on_sub_fields(init_schema_registry_fixture) -> None:
     """Test @skip directive on sub-fields."""
     from graphql import (
         GraphQLField,
@@ -358,7 +358,7 @@ async def test_skip_directive_on_sub_fields(init_schema_registry_fixture):
         },
     )
 
-    async def resolve_users(info):
+    async def resolve_users(info) -> None:
         return [{"id": 1, "name": "Alice", "email": "alice@example.com"}]
 
     query_type = GraphQLObjectType(
@@ -394,7 +394,7 @@ async def test_skip_directive_on_sub_fields(init_schema_registry_fixture):
 
 
 @pytest.mark.asyncio
-async def test_include_directive_on_sub_fields(init_schema_registry_fixture):
+async def test_include_directive_on_sub_fields(init_schema_registry_fixture) -> None:
     """Test @include directive on sub-fields."""
     from graphql import (
         GraphQLField,
@@ -414,7 +414,7 @@ async def test_include_directive_on_sub_fields(init_schema_registry_fixture):
         },
     )
 
-    async def resolve_users(info):
+    async def resolve_users(info) -> None:
         return [{"id": 1, "name": "Alice", "email": "alice@example.com"}]
 
     query_type = GraphQLObjectType(
@@ -450,7 +450,7 @@ async def test_include_directive_on_sub_fields(init_schema_registry_fixture):
 
 
 @pytest.mark.asyncio
-async def test_skip_takes_precedence_over_include(init_schema_registry_fixture):
+async def test_skip_takes_precedence_over_include(init_schema_registry_fixture) -> None:
     """Test that @skip takes precedence when both directives are present."""
     from graphql import (
         GraphQLField,
@@ -477,10 +477,10 @@ async def test_skip_takes_precedence_over_include(init_schema_registry_fixture):
         },
     )
 
-    async def resolve_users(info):
+    async def resolve_users(info) -> None:
         return [{"id": 1, "name": "Alice"}]
 
-    async def resolve_posts(info):
+    async def resolve_posts(info) -> None:
         return [{"id": 101, "title": "Post 1"}]
 
     query_type = GraphQLObjectType(
@@ -522,7 +522,7 @@ async def test_skip_takes_precedence_over_include(init_schema_registry_fixture):
 
 
 @pytest.fixture(scope="module", autouse=True)
-def init_schema_registry_fixture():
+def init_schema_registry_fixture() -> None:
     """Initialize schema registry for directive tests."""
     import fraiseql._fraiseql_rs as fraiseql_rs
 

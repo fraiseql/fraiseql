@@ -17,28 +17,28 @@ from fraiseql.sql.where.operators.email import (
 class TestEmailBasicOperators:
     """Test basic Email operators (eq, neq, in, notin)."""
 
-    def test_email_eq(self):
+    def test_email_eq(self) -> None:
         """Test email equality operator."""
         path_sql = SQL("data->>'email'")
         result = build_email_eq_sql(path_sql, "user@example.com")
         sql_str = result.as_string(None)
         assert sql_str == "data->>'email' = 'user@example.com'"
 
-    def test_email_neq(self):
+    def test_email_neq(self) -> None:
         """Test email inequality operator."""
         path_sql = SQL("data->>'email'")
         result = build_email_neq_sql(path_sql, "spam@example.com")
         sql_str = result.as_string(None)
         assert sql_str == "data->>'email' != 'spam@example.com'"
 
-    def test_email_in(self):
+    def test_email_in(self) -> None:
         """Test email IN operator."""
         path_sql = SQL("data->>'email'")
         result = build_email_in_sql(path_sql, ["admin@example.com", "support@example.com"])
         sql_str = result.as_string(None)
         assert sql_str == "data->>'email' IN ('admin@example.com', 'support@example.com')"
 
-    def test_email_notin(self):
+    def test_email_notin(self) -> None:
         """Test email NOT IN operator."""
         path_sql = SQL("data->>'email'")
         result = build_email_notin_sql(path_sql, ["banned@spam.com", "blocked@spam.com"])
@@ -144,14 +144,14 @@ class TestEmailBasicOperators:
 class TestEmailSpecialCases:
     """Test email operators with special cases."""
 
-    def test_email_with_special_chars(self):
+    def test_email_with_special_chars(self) -> None:
         """Test email with special characters."""
         path_sql = SQL("data->>'email'")
         result = build_email_eq_sql(path_sql, "user+tag@sub.domain.example.com")
         sql_str = result.as_string(None)
         assert "user+tag@sub.domain.example.com" in sql_str
 
-    def test_email_with_numbers(self):
+    def test_email_with_numbers(self) -> None:
         """Test email with numbers."""
         path_sql = SQL("data->>'email'")
         result = build_email_eq_sql(path_sql, "user123@example456.com")

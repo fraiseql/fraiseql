@@ -1,23 +1,24 @@
 """Tests for query plan caching."""
 
 import pytest
+
 from fraiseql.core.graphql_parser import RustGraphQLParser
 from fraiseql.core.query_builder import RustQueryBuilder
 
 
 @pytest.fixture
-def parser():
+def parser() -> None:
     return RustGraphQLParser()
 
 
 @pytest.fixture
-def builder():
+def builder() -> None:
     RustQueryBuilder.clear_cache()  # Clean slate
     return RustQueryBuilder()
 
 
 @pytest.fixture
-def test_schema():
+def test_schema() -> None:
     return {
         "tables": {
             "users": {  # GraphQL field name as key
@@ -40,7 +41,7 @@ def test_schema():
 
 
 @pytest.mark.asyncio
-async def test_cache_hit(parser, builder, test_schema):
+async def test_cache_hit(parser, builder, test_schema) -> None:
     """Test that identical queries hit cache."""
     query = "query { users { id } }"
 
@@ -65,7 +66,7 @@ async def test_cache_hit(parser, builder, test_schema):
 
 
 @pytest.mark.asyncio
-async def test_cache_miss_different_query(parser, builder, test_schema):
+async def test_cache_miss_different_query(parser, builder, test_schema) -> None:
     """Test that different queries are not cached together."""
     query1 = "query { users { id } }"
     query2 = "query { posts { id } }"
@@ -81,7 +82,7 @@ async def test_cache_miss_different_query(parser, builder, test_schema):
 
 
 @pytest.mark.asyncio
-async def test_cache_clear(parser, builder, test_schema):
+async def test_cache_clear(parser, builder, test_schema) -> None:
     """Test cache invalidation."""
     query = "query { users { id } }"
     parsed = await parser.parse(query)
@@ -90,7 +91,7 @@ async def test_cache_clear(parser, builder, test_schema):
     builder.build_cached(parsed, test_schema)
 
     stats_before = RustQueryBuilder.get_stats()
-    initial_cached = stats_before["cached_plans"]
+    stats_before["cached_plans"]
 
     # Clear cache
     RustQueryBuilder.clear_cache()
@@ -102,7 +103,7 @@ async def test_cache_clear(parser, builder, test_schema):
 
 
 @pytest.mark.asyncio
-async def test_cache_stats(parser, builder, test_schema):
+async def test_cache_stats(parser, builder, test_schema) -> None:
     """Test cache statistics."""
     query = "query { users { id } }"
 
@@ -119,7 +120,7 @@ async def test_cache_stats(parser, builder, test_schema):
 
 
 @pytest.mark.asyncio
-async def test_cache_with_parameters(parser, builder, test_schema):
+async def test_cache_with_parameters(parser, builder, test_schema) -> None:
     """Test caching with parameterized queries."""
     query1 = 'query { users(where: {status: "active"}) { id } }'
     query2 = 'query { users(where: {status: "inactive"}) { id } }'

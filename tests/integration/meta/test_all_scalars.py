@@ -71,10 +71,10 @@ from fraiseql.types.scalars import (
     VectorScalar,
     VINScalar,
 )
-from fraiseql.types.scalars import __all__ as ALL_SCALARS
+from fraiseql.types.scalars import __all__ as ALL_SCALARS  # noqa: N812
 
 
-def get_all_scalar_types():
+def get_all_scalar_types() -> None:
     """Auto-enumerate all custom scalars from the scalars module."""
     import fraiseql.types.scalars as scalars_module
 
@@ -91,7 +91,7 @@ def get_all_scalar_types():
 
 
 @pytest.fixture(scope="class")
-def scalar_test_schema(meta_test_schema):
+def scalar_test_schema(meta_test_schema) -> None:
     """Schema registry prepared with scalar test types."""
     # Clear any existing registrations
     meta_test_schema.clear()
@@ -103,7 +103,7 @@ def scalar_test_schema(meta_test_schema):
 
     # Manually register all scalars to ensure they're available
     # This simulates what would happen in real usage when scalars are used in field types
-    for scalar_name, scalar_class in get_all_scalar_types():
+    for _scalar_name, scalar_class in get_all_scalar_types():
         meta_test_schema.register_scalar(scalar_class)
 
     # Register a simple query
@@ -118,8 +118,8 @@ def scalar_test_schema(meta_test_schema):
     return meta_test_schema
 
 
-@pytest.mark.parametrize("scalar_name,scalar_class", get_all_scalar_types())
-def test_scalar_in_schema_registration(scalar_name, scalar_class, scalar_test_schema):
+@pytest.mark.parametrize(("scalar_name", "scalar_class"), get_all_scalar_types())
+def test_scalar_in_schema_registration(scalar_name, scalar_class, scalar_test_schema) -> None:
     """Every scalar should be registrable in a GraphQL schema."""
     # Build the schema using the prepared registry from the fixture
     schema = scalar_test_schema.build_schema()
@@ -136,8 +136,8 @@ def test_scalar_in_schema_registration(scalar_name, scalar_class, scalar_test_sc
     )
 
 
-@pytest.mark.parametrize("scalar_name,scalar_class", get_all_scalar_types())
-async def test_scalar_in_graphql_query(scalar_name, scalar_class, scalar_test_schema):
+@pytest.mark.parametrize(("scalar_name", "scalar_class"), get_all_scalar_types())
+async def test_scalar_in_graphql_query(scalar_name, scalar_class, scalar_test_schema) -> None:
     """Every scalar should work as a query argument without validation errors."""
     from graphql import graphql
 
@@ -185,7 +185,7 @@ async def test_scalar_in_graphql_query(scalar_name, scalar_class, scalar_test_sc
 
 
 @pytest.mark.parametrize(
-    "scalar_name,scalar_class",
+    ("scalar_name", "scalar_class"),
     [
         ("CIDRScalar", CIDRScalar),
         ("CUSIPScalar", CUSIPScalar),
@@ -201,7 +201,7 @@ async def test_scalar_in_graphql_query(scalar_name, scalar_class, scalar_test_sc
         ("UUIDScalar", UUIDScalar),
     ],
 )
-async def test_scalar_in_where_clause(scalar_name, scalar_class, meta_test_pool):
+async def test_scalar_in_where_clause(scalar_name, scalar_class, meta_test_pool) -> None:
     """Every scalar should work in WHERE clauses with database roundtrip."""
     from graphql import graphql
 
@@ -351,8 +351,8 @@ async def test_scalar_in_where_clause(scalar_name, scalar_class, meta_test_pool)
             await conn.commit()
 
 
-@pytest.mark.parametrize("scalar_name,scalar_class", get_all_scalar_types())
-async def test_scalar_database_roundtrip(scalar_name, scalar_class, meta_test_pool):
+@pytest.mark.parametrize(("scalar_name", "scalar_class"), get_all_scalar_types())
+async def test_scalar_database_roundtrip(scalar_name, scalar_class, meta_test_pool) -> None:
     """Every scalar should persist/retrieve correctly from database."""
     # Create a temporary table for this scalar
     table_name = f"test_{scalar_name.lower()}_roundtrip"
@@ -413,7 +413,7 @@ async def test_scalar_database_roundtrip(scalar_name, scalar_class, meta_test_po
     # but the important thing is no errors occurred
 
 
-def get_test_value_for_scalar(scalar_class):
+def get_test_value_for_scalar(scalar_class) -> None:
     """Get a test value appropriate for the given scalar type."""
     # Comprehensive map of scalar classes to valid test values
     test_values = {
@@ -424,7 +424,7 @@ def get_test_value_for_scalar(scalar_class):
         IpAddressScalar: "192.168.1.1",
         JSONScalar: {"key": "value", "number": 42},
         UUIDScalar: "550e8400-e29b-41d4-a716-446655440000",
-        IDScalar: "550e8400-e29b-41d4-a716-446655440001",  # ID enforces UUID format
+        IDScalar: "550e8400-e29b-41d4-a716-446655440001",  # ID enforces UUID format  # noqa: F821
         # Network & Infrastructure
         MacAddressScalar: "00:1B:63:84:45:E6",
         SubnetMaskScalar: "255.255.255.0",
@@ -494,7 +494,7 @@ def get_test_value_for_scalar(scalar_class):
     return test_values[scalar_class]
 
 
-def get_postgres_type_for_scalar(scalar_class):
+def get_postgres_type_for_scalar(scalar_class) -> None:
     """Get the appropriate PostgreSQL type for a scalar."""
     # Map scalars to PostgreSQL types
     type_mapping = {
@@ -504,7 +504,7 @@ def get_postgres_type_for_scalar(scalar_class):
         IpAddressScalar: "INET",
         JSONScalar: "JSONB",
         UUIDScalar: "UUID",
-        IDScalar: "UUID",  # ID enforces UUID format
+        IDScalar: "UUID",  # ID enforces UUID format  # noqa: F821
     }
 
     return type_mapping.get(scalar_class, "TEXT")

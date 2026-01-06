@@ -11,23 +11,23 @@ from fraiseql.tracing.graphql_tracing import (
 class TestTracingConfig:
     """Tests for TracingConfig."""
 
-    def test_default_trace_resolvers_true(self):
+    def test_default_trace_resolvers_true(self) -> None:
         config = TracingConfig()
         assert config.trace_resolvers is True
 
-    def test_default_include_variables_false(self):
+    def test_default_include_variables_false(self) -> None:
         """Should not include variables by default (security)."""
         config = TracingConfig()
         assert config.include_variables is False
 
-    def test_default_sanitize_variables_patterns(self):
+    def test_default_sanitize_variables_patterns(self) -> None:
         """Should have default patterns for sensitive variable names."""
         config = TracingConfig()
         assert "password" in config.sanitize_patterns
         assert "token" in config.sanitize_patterns
         assert "secret" in config.sanitize_patterns
 
-    def test_max_query_length_default(self):
+    def test_max_query_length_default(self) -> None:
         config = TracingConfig()
         assert config.max_query_length == 1000
 
@@ -36,21 +36,21 @@ class TestVariableSanitization:
     """Tests for variable sanitization in tracing."""
 
     @pytest.fixture
-    def tracer_with_sanitization(self):
+    def tracer_with_sanitization(self) -> None:
         config = TracingConfig(
             include_variables=True,
             sanitize_variables=True,
         )
         return GraphQLTracer(config)
 
-    def test_sanitizes_password_variables(self, tracer_with_sanitization):
+    def test_sanitizes_password_variables(self, tracer_with_sanitization) -> None:
         """Should mask password-like variable values."""
         variables = {"username": "alice", "password": "secret123"}
         sanitized = tracer_with_sanitization._sanitize_variables(variables)
         assert sanitized["username"] == "alice"
         assert sanitized["password"] == "[REDACTED]"
 
-    def test_sanitizes_nested_sensitive_fields(self, tracer_with_sanitization):
+    def test_sanitizes_nested_sensitive_fields(self, tracer_with_sanitization) -> None:
         """Should mask nested sensitive fields."""
         variables = {
             "input": {
@@ -62,7 +62,7 @@ class TestVariableSanitization:
         assert sanitized["input"]["email"] == "alice@example.com"
         assert sanitized["input"]["apiToken"] == "[REDACTED]"
 
-    def test_custom_sanitize_patterns(self):
+    def test_custom_sanitize_patterns(self) -> None:
         """Should support custom sanitization patterns."""
         config = TracingConfig(
             include_variables=True,
@@ -79,21 +79,21 @@ class TestGraphQLTracer:
     """Tests for GraphQLTracer."""
 
     @pytest.fixture
-    def tracer(self):
+    def tracer(self) -> None:
         return GraphQLTracer(TracingConfig())
 
-    def test_detects_query_operation(self, tracer):
+    def test_detects_query_operation(self, tracer) -> None:
         assert tracer._detect_operation_type("query { users }") == "query"
         assert tracer._detect_operation_type("{ users }") == "query"
 
-    def test_detects_mutation_operation(self, tracer):
+    def test_detects_mutation_operation(self, tracer) -> None:
         assert tracer._detect_operation_type("mutation { createUser }") == "mutation"
 
-    def test_detects_subscription_operation(self, tracer):
+    def test_detects_subscription_operation(self, tracer) -> None:
         result = tracer._detect_operation_type("subscription { onUserCreated }")
         assert result == "subscription"
 
-    def test_truncates_long_queries(self, tracer):
+    def test_truncates_long_queries(self, tracer) -> None:
         long_query = "query { " + "x" * 2000 + " }"
         truncated = tracer._truncate_query(long_query)
         assert len(truncated) <= tracer._config.max_query_length + 3

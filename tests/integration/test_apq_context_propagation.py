@@ -117,11 +117,11 @@ class TestContextExtraction:
         """Verify that context is built before APQ processing."""
         call_order = []
 
-        def mock_build_context(*args, **kwargs) -> None:
+        def mock_build_context(*args, **kwargs) -> None:  # noqa: ANN002, ANN003
             call_order.append("build_context")
             return {"user": {"metadata": {"tenant_id": "test"}}}
 
-        def mock_apq_processing(*args, **kwargs) -> None:
+        def mock_apq_processing(*args, **kwargs) -> None:  # noqa: ANN002, ANN003
             call_order.append("apq_processing")
 
         with (

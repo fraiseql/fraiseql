@@ -330,7 +330,7 @@ def test_fraiseql_json_encoder_handles_fraiseql_types() -> None:
         id=uuid.UUID("12345678-1234-1234-1234-123456789abc"),
         name="John Doe",
         email="john@example.com",
-        created_at=datetime(2024, 1, 15, 10, 30, 0),
+        created_at=datetime(2024, 1, 15, 10, 30, 0),  # noqa: DTZ001
     )
 
     encoder = FraiseQLJSONEncoder()

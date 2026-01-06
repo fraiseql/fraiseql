@@ -211,13 +211,12 @@ class TestJSONBNestedCamelCase:
         wrapped_pool = SchemaAwarePool(class_db_pool, test_schema)
         set_db_pool(wrapped_pool)
 
-        app = create_fraiseql_app(
+        return create_fraiseql_app(
             database_url="postgresql://test/test",
             types=[NetworkConfiguration, DnsServer, SmtpServer, PrintServer, Gateway],
             queries=[network_configuration, network_configurations],
             production=False,
         )
-        return app
 
     async def _execute_query(self, graphql_app, query_str: str, variables: dict | None = None):
         """Execute GraphQL query and return response."""

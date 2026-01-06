@@ -22,7 +22,7 @@ class TestHash:
 
     def test_hash_creation(self) -> None:
         """Test creating a valid hash."""
-        hash = Hash(
+        hash = Hash(  # noqa: A001
             algorithm=HashAlgorithm.SHA256,
             value="abc123def456",
         )
@@ -31,7 +31,7 @@ class TestHash:
 
     def test_hash_string_representation(self) -> None:
         """Test hash string format."""
-        hash = Hash(algorithm=HashAlgorithm.SHA256, value="abc123")
+        hash = Hash(algorithm=HashAlgorithm.SHA256, value="abc123")  # noqa: A001
         assert str(hash) == "SHA-256:abc123"
 
     def test_hash_invalid_value(self) -> None:
@@ -46,9 +46,9 @@ class TestHash:
 
     def test_hash_immutability(self) -> None:
         """Test that Hash is immutable (frozen dataclass)."""
-        hash = Hash(algorithm=HashAlgorithm.SHA256, value="abc123")
+        hash = Hash(algorithm=HashAlgorithm.SHA256, value="abc123")  # noqa: A001
         with pytest.raises(AttributeError):
-            hash.value = "def456"  # type: ignore
+            hash.value = "def456"  # type: ignore[misc]
 
 
 class TestLicense:
@@ -56,7 +56,7 @@ class TestLicense:
 
     def test_license_creation(self) -> None:
         """Test creating a license."""
-        license = License(
+        license = License(  # noqa: A001
             id="MIT",
             name="MIT License",
             url="https://opensource.org/licenses/MIT",
@@ -167,7 +167,7 @@ class TestComponent:
         identifier = ComponentIdentifier(name="test", version="1.0.0", purl="pkg:pypi/test@1.0.0")
         component = Component(identifier=identifier)
 
-        license = License(id="MIT", name="MIT License")
+        license = License(id="MIT", name="MIT License")  # noqa: A001
         component.add_license(license)
 
         assert len(component.licenses) == 1
@@ -178,7 +178,7 @@ class TestComponent:
         identifier = ComponentIdentifier(name="test", version="1.0.0", purl="pkg:pypi/test@1.0.0")
         component = Component(identifier=identifier)
 
-        license = License(id="MIT", name="MIT License")
+        license = License(id="MIT", name="MIT License")  # noqa: A001
         component.add_license(license)
 
         with pytest.raises(ValueError, match="License MIT already exists"):
@@ -189,7 +189,7 @@ class TestComponent:
         identifier = ComponentIdentifier(name="test", version="1.0.0", purl="pkg:pypi/test@1.0.0")
         component = Component(identifier=identifier)
 
-        hash = Hash(algorithm=HashAlgorithm.SHA256, value="abc123")
+        hash = Hash(algorithm=HashAlgorithm.SHA256, value="abc123")  # noqa: A001
         component.add_hash(hash)
 
         assert len(component.hashes) == 1

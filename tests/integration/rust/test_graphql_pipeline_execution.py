@@ -1,27 +1,27 @@
 """Basic integration test for Phase 4 GraphQL pipeline."""
 
-import pytest
 import json
 from unittest.mock import AsyncMock, patch
 
+import pytest
 from src.fraiseql.core.graphql_pipeline import (
     RustGraphQLPipeline,
-    execute_graphql_query,
     execute_graphql_mutation,
+    execute_graphql_query,
 )
 
 
 class TestGraphQLPipelineBasic:
     """Basic tests for the GraphQL pipeline interface."""
 
-    def test_pipeline_creation(self):
+    def test_pipeline_creation(self) -> None:
         """Test that the pipeline can be created."""
         pipeline = RustGraphQLPipeline()
         assert pipeline is not None
         assert hasattr(pipeline, "execute_query")
         assert hasattr(pipeline, "execute_mutation")
 
-    def test_query_definition_structure(self):
+    def test_query_definition_structure(self) -> None:
         """Test that query definitions have the expected structure."""
         query_def = {
             "operation": "query",
@@ -40,7 +40,7 @@ class TestGraphQLPipelineBasic:
         assert query_def["table"] == "users"
         assert "id" in query_def["fields"]
 
-    def test_mutation_definition_structure(self):
+    def test_mutation_definition_structure(self) -> None:
         """Test that mutation definitions have the expected structure."""
         mutation_def = {
             "operation": "mutation",
@@ -59,7 +59,7 @@ class TestGraphQLPipelineBasic:
         assert mutation_def["table"] == "users"
 
     @pytest.mark.asyncio
-    async def test_execute_query_with_mock(self):
+    async def test_execute_query_with_mock(self) -> None:
         """Test execute_query with mocked Rust backend."""
         pipeline = RustGraphQLPipeline()
 
@@ -90,7 +90,7 @@ class TestGraphQLPipelineBasic:
             assert result["data"][0]["name"] == "Test User"
 
     @pytest.mark.asyncio
-    async def test_execute_mutation_with_mock(self):
+    async def test_execute_mutation_with_mock(self) -> None:
         """Test execute_mutation with mocked Rust backend."""
         pipeline = RustGraphQLPipeline()
 
@@ -125,7 +125,7 @@ class TestGraphQLPipelineBasic:
             assert result["data"]["name"] == "John"
 
     @pytest.mark.asyncio
-    async def test_error_handling(self):
+    async def test_error_handling(self) -> None:
         """Test error handling in pipeline operations."""
         pipeline = RustGraphQLPipeline()
 
@@ -145,21 +145,16 @@ class TestGraphQLPipelineBasic:
             assert result["errors"][0]["message"] == "Database error"
             assert result["errors"][0]["extensions"]["code"] == "INTERNAL_ERROR"
 
-    def test_convenience_functions(self):
+    def test_convenience_functions(self) -> None:
         """Test that convenience functions exist."""
         # These are just smoke tests to ensure the functions exist
         # They would need proper async testing in a real test environment
-        import asyncio
 
         async def test_functions():
             # Test convenience functions exist (would need real Rust backend)
             pass
 
         # Just verify the functions can be imported
-        from src.fraiseql.core.graphql_pipeline import (
-            execute_graphql_query,
-            execute_graphql_mutation,
-        )
 
         assert callable(execute_graphql_query)
         assert callable(execute_graphql_mutation)
@@ -168,7 +163,7 @@ class TestGraphQLPipelineBasic:
 class TestPhase4Integration:
     """Integration tests for Phase 4 functionality."""
 
-    def test_rust_backend_available(self):
+    def test_rust_backend_available(self) -> None:
         """Test that the Rust backend interface is available."""
         try:
             from src.fraiseql.core.graphql_pipeline import pipeline
@@ -179,7 +174,7 @@ class TestPhase4Integration:
             # Rust extension not available - this is expected in some environments
             pytest.skip("Rust extension not available")
 
-    def test_fallback_behavior(self):
+    def test_fallback_behavior(self) -> None:
         """Test fallback behavior when Rust extension is not available."""
         # This would test the fallback implementations
         # For now, just ensure the module can be imported

@@ -1,5 +1,4 @@
-"""
-Phase 1.1: Database Connection Chaos Tests (Real PostgreSQL Backend)
+"""Phase 1.1: Database Connection Chaos Tests (Real PostgreSQL Backend)
 
 Tests for database connection failures and recovery scenarios using actual
 PostgreSQL connections and the real FraiseQL client.
@@ -8,13 +7,13 @@ This version validates real resilience to PostgreSQL connectivity issues
 through actual network failures and recovery, not simulations.
 """
 
-import pytest
-import time
-import statistics
 import asyncio
+import statistics
+import time
 
-from chaos.fraiseql_scenarios import FraiseQLTestScenarios
+import pytest
 from chaos.base import ChaosMetrics
+from chaos.fraiseql_scenarios import FraiseQLTestScenarios
 
 
 @pytest.mark.chaos
@@ -23,9 +22,8 @@ from chaos.base import ChaosMetrics
 @pytest.mark.asyncio
 async def test_connection_refused_recovery(
     chaos_db_client, chaos_test_schema, baseline_metrics, chaos_config
-):
-    """
-    Test recovery from database connection refused errors.
+) -> None:
+    """Test recovery from database connection refused errors.
 
     Scenario: Database connections are disabled (simulated via client),
     then re-enabled. FraiseQL should handle failures gracefully and recover.
@@ -86,7 +84,7 @@ async def test_connection_refused_recovery(
             # Expected: connection refused
             errors_during_chaos += 1
             metrics.record_error()
-        except Exception as e:
+        except Exception:
             # Other errors during chaos
             errors_during_chaos += 1
             metrics.record_error()
@@ -110,7 +108,7 @@ async def test_connection_refused_recovery(
             execution_time = result.get("_execution_time_ms", 10.0)
             recovery_times.append(execution_time)
             metrics.record_query_time(execution_time)
-        except Exception as e:
+        except Exception:
             recovery_errors += 1
             metrics.record_error()
 
@@ -136,9 +134,8 @@ async def test_connection_refused_recovery(
 @pytest.mark.asyncio
 async def test_pool_exhaustion_recovery(
     chaos_db_client, chaos_test_schema, baseline_metrics, chaos_config
-):
-    """
-    Test recovery from database connection pool exhaustion.
+) -> None:
+    """Test recovery from database connection pool exhaustion.
 
     Scenario: Simulate pool exhaustion by injecting latency,
     then verify recovery when latency is removed.
@@ -164,7 +161,7 @@ async def test_pool_exhaustion_recovery(
             execution_time = result.get("_execution_time_ms", 50.0)
             baseline_times.append(execution_time)
             metrics.record_query_time(execution_time)
-        except Exception as e:
+        except Exception:
             metrics.record_error()
 
     avg_baseline = statistics.mean(baseline_times) if baseline_times else 50.0
@@ -192,10 +189,10 @@ async def test_pool_exhaustion_recovery(
             chaos_times.append(execution_time)
             metrics.record_query_time(execution_time)
             completed += 1
-        except asyncio.TimeoutError:
+        except TimeoutError:
             timeouts += 1
             metrics.record_error()
-        except Exception as e:
+        except Exception:
             timeouts += 1
             metrics.record_error()
 
@@ -242,9 +239,8 @@ async def test_pool_exhaustion_recovery(
 @pytest.mark.asyncio
 async def test_slow_connection_establishment(
     chaos_db_client, chaos_test_schema, baseline_metrics, chaos_config
-):
-    """
-    Test handling of slow database connection establishment.
+) -> None:
+    """Test handling of slow database connection establishment.
 
     Scenario: Simulate progressively increasing latency,
     verifying FraiseQL adapts to slower connections.
@@ -289,12 +285,12 @@ async def test_slow_connection_establishment(
 
         for _ in range(iterations):
             try:
-                start = time.time()
+                time.time()
                 result = await chaos_db_client.execute_query(operation)
                 execution_time = result.get("_execution_time_ms", latency_ms + 10)
                 connection_times.append(execution_time)
                 metrics.record_query_time(execution_time)
-            except Exception as e:
+            except Exception:
                 metrics.record_error()
 
         # Verify operation completed with expected latency
@@ -344,9 +340,8 @@ async def test_slow_connection_establishment(
 @pytest.mark.asyncio
 async def test_mid_query_connection_drop(
     chaos_db_client, chaos_test_schema, baseline_metrics, chaos_config
-):
-    """
-    Test recovery from mid-query connection drops.
+) -> None:
+    """Test recovery from mid-query connection drops.
 
     Scenario: Inject connection failures at various points during query execution.
 
@@ -380,7 +375,7 @@ async def test_mid_query_connection_drop(
             except Exception:
                 metrics.record_error()
 
-        avg_baseline = statistics.mean(baseline_times) if baseline_times else 50.0
+        statistics.mean(baseline_times) if baseline_times else 50.0
 
         # Inject chaos: Connection failures after specified time
         chaos_db_client.inject_latency(drop_after_ms)
@@ -411,7 +406,7 @@ async def test_mid_query_connection_drop(
                 execution_time = result.get("_execution_time_ms", 50.0)
                 metrics.record_query_time(execution_time)
                 chaos_queries += 1
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 interrupted_queries += 1
                 metrics.record_error()
             except Exception:

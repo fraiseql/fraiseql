@@ -14,27 +14,27 @@ from fraiseql.middleware.body_size_limiter import (
 class TestBodySizeConfig:
     """Tests for BodySizeConfig."""
 
-    def test_default_max_size_is_1mb(self):
+    def test_default_max_size_is_1mb(self) -> None:
         """Default max body size should be 1MB."""
         config = BodySizeConfig()
         assert config.max_body_size == 1_048_576  # 1MB in bytes
 
-    def test_custom_max_size(self):
+    def test_custom_max_size(self) -> None:
         """Custom max body size should be respected."""
         config = BodySizeConfig(max_body_size=500_000)
         assert config.max_body_size == 500_000
 
-    def test_exempt_paths_default_empty(self):
+    def test_exempt_paths_default_empty(self) -> None:
         """Exempt paths should default to empty list."""
         config = BodySizeConfig()
         assert config.exempt_paths == []
 
-    def test_human_readable_size_mb(self):
+    def test_human_readable_size_mb(self) -> None:
         """Should provide human-readable size string for MB."""
         config = BodySizeConfig(max_body_size=1_048_576)
         assert config.human_readable_size == "1.0 MB"
 
-    def test_human_readable_size_kb(self):
+    def test_human_readable_size_kb(self) -> None:
         """Should provide human-readable size string for KB."""
         config = BodySizeConfig(max_body_size=512_000)
         # 512000 / 1024 = 500.0
@@ -45,7 +45,7 @@ class TestBodySizeLimiterMiddleware:
     """Tests for BodySizeLimiterMiddleware."""
 
     @pytest.fixture
-    def app_with_middleware(self):
+    def app_with_middleware(self) -> None:
         """Create FastAPI app with body size limiter."""
         app = FastAPI()
         config = BodySizeConfig(max_body_size=1000)  # 1KB for testing
@@ -62,11 +62,11 @@ class TestBodySizeLimiterMiddleware:
         return app
 
     @pytest.fixture
-    def client(self, app_with_middleware):
+    def client(self, app_with_middleware) -> None:
         """Create test client."""
         return TestClient(app_with_middleware)
 
-    def test_allows_small_request(self, client):
+    def test_allows_small_request(self, client) -> None:
         """Requests under limit should succeed."""
         response = client.post(
             "/graphql",
@@ -74,7 +74,7 @@ class TestBodySizeLimiterMiddleware:
         )
         assert response.status_code == 200
 
-    def test_rejects_large_request(self, client):
+    def test_rejects_large_request(self, client) -> None:
         """Requests over limit should be rejected with 413."""
         large_query = "x" * 2000  # 2KB, over 1KB limit
         response = client.post(
@@ -84,12 +84,12 @@ class TestBodySizeLimiterMiddleware:
         assert response.status_code == 413
         assert "Request body too large" in response.json()["detail"]
 
-    def test_get_requests_not_limited(self, client):
+    def test_get_requests_not_limited(self, client) -> None:
         """GET requests should not be size-limited."""
         response = client.get("/health")
         assert response.status_code == 200
 
-    def test_exempt_paths_not_limited(self):
+    def test_exempt_paths_not_limited(self) -> None:
         """Exempt paths should bypass size limit."""
         app = FastAPI()
         config = BodySizeConfig(
@@ -106,7 +106,7 @@ class TestBodySizeLimiterMiddleware:
         response = client.post("/upload", content=b"x" * 200)
         assert response.status_code == 200
 
-    def test_content_length_header_checked_first(self, client):
+    def test_content_length_header_checked_first(self, client) -> None:
         """Should reject based on Content-Length header before reading body."""
         response = client.post(
             "/graphql",
@@ -115,7 +115,7 @@ class TestBodySizeLimiterMiddleware:
         )
         assert response.status_code == 413
 
-    def test_rejects_chunked_transfer_over_limit(self):
+    def test_rejects_chunked_transfer_over_limit(self) -> None:
         """Should reject chunked requests that exceed limit (no Content-Length)."""
         app = FastAPI()
         config = BodySizeConfig(max_body_size=100)
@@ -134,7 +134,7 @@ class TestBodySizeLimiterMiddleware:
         )
         assert response.status_code == 413
 
-    def test_streaming_body_cutoff(self):
+    def test_streaming_body_cutoff(self) -> None:
         """Should stop reading body once limit exceeded (DoS protection)."""
         app = FastAPI()
         config = BodySizeConfig(max_body_size=1000)
@@ -153,7 +153,7 @@ class TestBodySizeLimiterMiddleware:
 class TestRequestTooLargeError:
     """Tests for RequestTooLargeError exception."""
 
-    def test_error_message_includes_limit(self):
+    def test_error_message_includes_limit(self) -> None:
         """Error message should include the limit."""
         error = RequestTooLargeError(
             max_size=1_000_000,
@@ -162,7 +162,7 @@ class TestRequestTooLargeError:
         # 1,000,000 bytes is approximately 976.6 KB
         assert "976.6 KB" in str(error) or "1000000" in str(error)
 
-    def test_error_has_status_code_413(self):
+    def test_error_has_status_code_413(self) -> None:
         """Error should have HTTP 413 status code."""
         error = RequestTooLargeError(max_size=1000, actual_size=2000)
         assert error.status_code == 413

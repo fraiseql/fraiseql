@@ -13,7 +13,7 @@ pytestmark = pytest.mark.integration
 
 
 @pytest.mark.asyncio
-async def test_cascade_with_nested_entity_fields(cascade_http_client):
+async def test_cascade_with_nested_entity_fields(cascade_http_client) -> None:
     """Test that CASCADE doesn't break nested entity field access.
 
     CRITICAL: This tests the bug pattern from fraiseql_cascade_bug_report.md where
@@ -144,7 +144,7 @@ async def test_cascade_with_nested_entity_fields(cascade_http_client):
 
 
 @pytest.mark.asyncio
-async def test_cascade_entity_fields_without_querying_cascade(cascade_http_client):
+async def test_cascade_entity_fields_without_querying_cascade(cascade_http_client) -> None:
     """Test entity fields work when CASCADE metadata is not queried.
 
     This tests that entity fields remain accessible even when the client
@@ -198,7 +198,7 @@ async def test_cascade_entity_fields_without_querying_cascade(cascade_http_clien
 
 
 @pytest.mark.asyncio
-async def test_cascade_with_only_cascade_no_entity_query(cascade_http_client):
+async def test_cascade_with_only_cascade_no_entity_query(cascade_http_client) -> None:
     """Test that CASCADE works when entity fields are not queried.
 
     This verifies CASCADE metadata is accessible independently of entity fields.
@@ -241,7 +241,7 @@ async def test_cascade_with_only_cascade_no_entity_query(cascade_http_client):
 
 
 @pytest.mark.asyncio
-async def test_cascade_end_to_end(cascade_http_client):
+async def test_cascade_end_to_end(cascade_http_client) -> None:
     """Test complete cascade flow from PostgreSQL function to GraphQL response.
 
     Uses cascade_client fixture which includes:
@@ -348,7 +348,7 @@ async def test_cascade_end_to_end(cascade_http_client):
     assert "timestamp" in cascade["metadata"]
 
 
-def test_cascade_with_error_response():
+def test_cascade_with_error_response() -> None:
     """Test cascade behavior validation when mutation returns an error.
 
     This is a unit test that validates error response structure expectations
@@ -409,7 +409,7 @@ def test_cascade_with_error_response():
     assert validate_cascade_structure(success_result["cascade"])
 
 
-def test_cascade_large_payload():
+def test_cascade_large_payload() -> None:
     """Test cascade with multiple entities and operations using mock data."""
     # Large cascade payload with multiple entities
     large_cascade = {
@@ -447,7 +447,7 @@ def test_cascade_large_payload():
     assert large_cascade["metadata"]["affectedCount"] == 17
 
 
-def test_cascade_disabled_by_default():
+def test_cascade_disabled_by_default() -> None:
     """Test that cascade validation fails when cascade data is None or empty."""
     # When cascade is disabled, the cascade field should be None or empty
     empty_cascade_response = {"cascade": None}
@@ -469,7 +469,7 @@ def test_cascade_disabled_by_default():
     assert len(empty_structure["deleted"]) == 0
 
 
-def test_cascade_malformed_data_handling():
+def test_cascade_malformed_data_handling() -> None:
     """Test handling of malformed cascade data."""
     # Missing required keys
     malformed_1 = {"updated": []}  # Missing deleted, invalidations, metadata
@@ -513,20 +513,20 @@ def test_cascade_malformed_data_handling():
 class MockApolloClient:
     """Mock Apollo Client for testing cache integration."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.cache = MagicMock()
         self.mutate = AsyncMock()
 
-    def writeFragment(self, options):
+    def writeFragment(self, options) -> None:
         """Mock cache write operation - forwards to cache mock."""
         return self.cache.writeFragment(options)
 
-    def evict(self, options):
+    def evict(self, options) -> None:
         """Mock cache eviction - forwards to cache mock."""
         return self.cache.evict(options)
 
 
-def test_apollo_client_cascade_integration():
+def test_apollo_client_cascade_integration() -> None:
     """Test Apollo Client cache updates from cascade data."""
     client = MockApolloClient()
 
@@ -570,7 +570,7 @@ def test_apollo_client_cascade_integration():
     assert client.cache.evict.call_count == 1
 
 
-def test_cascade_data_validation():
+def test_cascade_data_validation() -> None:
     """Test validation of cascade data structure."""
     # Valid cascade data
     valid_cascade = {
@@ -622,7 +622,7 @@ def validate_cascade_structure(cascade: Dict[str, Any]) -> bool:
 
 
 @pytest.mark.asyncio
-async def test_schema_validation_with_success_type_fields(cascade_http_client):
+async def test_schema_validation_with_success_type_fields(cascade_http_client) -> None:
     """Test that Rust schema validation works with success_type_fields parameter.
 
     Validates that the Rust transformer correctly validates that all expected fields

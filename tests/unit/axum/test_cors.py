@@ -281,10 +281,7 @@ class TestCORSIntegration:
         assert cors.allow_credentials is True
         assert cors.max_age == 0
         assert len(cors.allow_origins) > 0
-        assert all(
-            "localhost" in origin or "127.0.0.1" in origin
-            for origin in cors.allow_origins
-        )
+        assert all("localhost" in origin or "127.0.0.1" in origin for origin in cors.allow_origins)
 
     def test_production_setup(self) -> None:
         """Test typical production CORS setup."""
@@ -296,10 +293,12 @@ class TestCORSIntegration:
 
     def test_production_multi_env_setup(self) -> None:
         """Test production setup across multiple environments."""
-        cors = CORSConfig.multi_tenant([
-            "staging.example.com",
-            "app.example.com",
-        ])
+        cors = CORSConfig.multi_tenant(
+            [
+                "staging.example.com",
+                "app.example.com",
+            ]
+        )
 
         assert len(cors.allow_origins) == 2
         assert all(origin.startswith("https://") for origin in cors.allow_origins)

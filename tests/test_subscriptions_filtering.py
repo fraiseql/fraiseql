@@ -1,5 +1,4 @@
-"""
-Phase 3: Python Resolver Integration - Unit Tests
+"""Phase 3: Python Resolver Integration - Unit Tests
 
 Tests the Python resolver registration and invocation functionality.
 These tests verify that:
@@ -10,14 +9,14 @@ These tests verify that:
 """
 
 import pytest
-import json
+
 from fraiseql import _fraiseql_rs
 
 
 class TestResolverRegistration:
     """Test resolver registration functionality (Task 3.1)"""
 
-    def test_register_resolver_basic(self):
+    def test_register_resolver_basic(self) -> None:
         """Test registering a basic Python resolver function"""
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
 
@@ -40,7 +39,7 @@ class TestResolverRegistration:
         executor.register_resolver(sub_id, test_resolver)
         # Should not raise an exception
 
-    def test_register_resolver_requires_callable(self):
+    def test_register_resolver_requires_callable(self) -> None:
         """Test that resolver must be callable"""
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
 
@@ -59,7 +58,7 @@ class TestResolverRegistration:
         with pytest.raises(TypeError):
             executor.register_resolver(sub_id, "not_a_function")
 
-    def test_register_resolver_requires_subscription_id(self):
+    def test_register_resolver_requires_subscription_id(self) -> None:
         """Test that subscription_id cannot be empty"""
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
 
@@ -70,7 +69,7 @@ class TestResolverRegistration:
         with pytest.raises(ValueError):
             executor.register_resolver("", test_resolver)
 
-    def test_register_multiple_resolvers(self):
+    def test_register_multiple_resolvers(self) -> None:
         """Test registering multiple resolver functions"""
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
 
@@ -106,7 +105,7 @@ class TestResolverRegistration:
         executor.register_resolver(sub_id_2, resolver_2)
         # Should not raise exceptions
 
-    def test_register_resolver_overwrites_previous(self):
+    def test_register_resolver_overwrites_previous(self) -> None:
         """Test that registering a new resolver overwrites the previous one"""
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
 
@@ -137,7 +136,7 @@ class TestResolverRegistration:
 class TestResolverInvocation:
     """Test resolver invocation functionality (Task 3.2)"""
 
-    def test_invoke_resolver_simple_transformation(self):
+    def test_invoke_resolver_simple_transformation(self) -> None:
         """Test invoking a resolver to transform event data"""
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
 
@@ -181,7 +180,7 @@ class TestResolverInvocation:
         response = executor.next_event(sub_id)
         assert response is not None, "Expected response from resolver"
 
-    def test_invoke_resolver_no_resolver_registered(self):
+    def test_invoke_resolver_no_resolver_registered(self) -> None:
         """Test publishing event with no resolver (should echo event data)"""
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
 
@@ -208,7 +207,7 @@ class TestResolverInvocation:
         # Response should contain the event data
         assert response is not None
 
-    def test_invoke_resolver_with_dict_return(self):
+    def test_invoke_resolver_with_dict_return(self) -> None:
         """Test resolver that returns a dictionary"""
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
 
@@ -239,7 +238,7 @@ class TestResolverInvocation:
         response = executor.next_event(sub_id)
         assert response is not None
 
-    def test_invoke_resolver_with_nested_data(self):
+    def test_invoke_resolver_with_nested_data(self) -> None:
         """Test resolver handling nested event data"""
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
 
@@ -279,7 +278,7 @@ class TestResolverInvocation:
         response = executor.next_event(sub_id)
         assert response is not None
 
-    def test_invoke_resolver_with_list_return(self):
+    def test_invoke_resolver_with_list_return(self) -> None:
         """Test resolver that returns a list"""
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
 
@@ -311,7 +310,7 @@ class TestResolverInvocation:
         response = executor.next_event(sub_id)
         assert response is not None
 
-    def test_invoke_resolver_with_json_serializable_types(self):
+    def test_invoke_resolver_with_json_serializable_types(self) -> None:
         """Test resolver with various JSON-serializable types"""
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
 
@@ -350,7 +349,7 @@ class TestResolverInvocation:
 class TestResolverErrorHandling:
     """Test error handling in resolver invocation (Task 3.4 - basic)"""
 
-    def test_resolver_exception_handling(self):
+    def test_resolver_exception_handling(self) -> None:
         """Test that resolver exceptions are caught and handled gracefully"""
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
 
@@ -377,7 +376,7 @@ class TestResolverErrorHandling:
             data={"user_id": 1, "tenant_id": 1},
         )
 
-    def test_resolver_with_missing_fields(self):
+    def test_resolver_with_missing_fields(self) -> None:
         """Test resolver handling missing fields gracefully"""
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
 
@@ -408,7 +407,7 @@ class TestResolverErrorHandling:
         response = executor.next_event(sub_id)
         assert response is not None
 
-    def test_resolver_with_invalid_return_type(self):
+    def test_resolver_with_invalid_return_type(self) -> None:
         """Test resolver that returns non-JSON-serializable value (Phase 3.4)"""
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
 
@@ -424,7 +423,6 @@ class TestResolverErrorHandling:
 
         class CustomObject:
             """Non-serializable object"""
-            pass
 
         def bad_resolver(event_data):
             # Return something that cannot be JSON serialized
@@ -445,7 +443,7 @@ class TestResolverErrorHandling:
 class TestResolverIntegration:
     """Test resolver integration with event dispatch (Task 3.5 - partial)"""
 
-    def test_multiple_subscriptions_different_resolvers(self):
+    def test_multiple_subscriptions_different_resolvers(self) -> None:
         """Test multiple subscriptions with different resolvers"""
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
 
@@ -490,7 +488,7 @@ class TestResolverIntegration:
             },
         )
 
-    def test_resolver_with_subscription_context(self):
+    def test_resolver_with_subscription_context(self) -> None:
         """Test resolver accessing subscription context (variables, etc)"""
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
 
@@ -528,7 +526,7 @@ class TestResolverIntegration:
 class TestResolverPerformance:
     """Test resolver performance characteristics"""
 
-    def test_resolver_invocation_latency(self):
+    def test_resolver_invocation_latency(self) -> None:
         """Test that resolver invocation completes in reasonable time"""
         import time
 
@@ -561,7 +559,7 @@ class TestResolverPerformance:
         # Should complete quickly (< 100ms)
         assert elapsed < 0.1, f"Resolver invocation took {elapsed}s, expected < 0.1s"
 
-    def test_resolver_with_many_subscriptions(self):
+    def test_resolver_with_many_subscriptions(self) -> None:
         """Test resolver performance with many subscriptions"""
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
 
@@ -592,10 +590,10 @@ class TestResolverPerformance:
 class TestResolverConcurrency:
     """Test concurrent resolver execution (Task 3.5)"""
 
-    def test_concurrent_resolver_execution(self):
+    def test_concurrent_resolver_execution(self) -> None:
         """Test that multiple resolvers can execute concurrently (Phase 3.5)"""
-        import time
         import threading
+        import time
 
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
 
@@ -631,7 +629,7 @@ class TestResolverConcurrency:
             channel="test",
             data={"value": 42, "user_id": 1, "tenant_id": 1},
         )
-        elapsed = time.perf_counter() - start_time
+        time.perf_counter() - start_time
 
         # Verify all resolvers were called
         assert len(call_times) > 0, "At least one resolver should have been called"
@@ -645,10 +643,9 @@ class TestResolverConcurrency:
 
         assert responses_received > 0, "At least one response should be received"
 
-    def test_concurrent_event_publishing(self):
+    def test_concurrent_event_publishing(self) -> None:
         """Test concurrent event publishing with multiple threads (Phase 3.5)"""
         import threading
-        import time
 
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
 
@@ -704,7 +701,7 @@ class TestResolverConcurrency:
 class TestResolverEndToEnd:
     """End-to-end workflow tests (Task 3.5)"""
 
-    def test_complete_subscription_workflow(self):
+    def test_complete_subscription_workflow(self) -> None:
         """Test complete workflow: register -> add resolver -> publish -> retrieve (Phase 3.5)"""
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
 
@@ -755,7 +752,7 @@ class TestResolverEndToEnd:
         # Response is pre-serialized bytes, just verify it's not empty
         assert len(response) > 0, "Response should contain data"
 
-    def test_multiple_resolvers_different_subscriptions(self):
+    def test_multiple_resolvers_different_subscriptions(self) -> None:
         """Test multiple subscriptions with different resolvers (Phase 3.5)"""
         executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
 

@@ -15,7 +15,7 @@ class TestCascadeSelectionFiltering:
     """Test CASCADE field selection awareness."""
 
     @pytest.mark.asyncio
-    async def test_cascade_not_returned_when_not_requested(self, cascade_http_client):
+    async def test_cascade_not_returned_when_not_requested(self, cascade_http_client) -> None:
         """CASCADE should NOT be in response when not requested in selection."""
         mutation = """
             mutation CreatePostWithEntity($input: CreatePostInput!) {
@@ -63,7 +63,7 @@ class TestCascadeSelectionFiltering:
         assert response_data["post"]["title"] == "Test Post"
 
     @pytest.mark.asyncio
-    async def test_cascade_returned_when_requested(self, cascade_http_client):
+    async def test_cascade_returned_when_requested(self, cascade_http_client) -> None:
         """CASCADE should be in response when explicitly requested."""
         mutation = """
             mutation CreatePostWithEntity($input: CreatePostInput!) {
@@ -140,7 +140,7 @@ class TestCascadeSelectionFiltering:
         assert "entity" in first_update
 
     @pytest.mark.asyncio
-    async def test_partial_cascade_selection_updated_only(self, cascade_http_client):
+    async def test_partial_cascade_selection_updated_only(self, cascade_http_client) -> None:
         """Only requested CASCADE fields should be returned (updated only)."""
         mutation = """
             mutation CreatePostWithEntity($input: CreatePostInput!) {
@@ -190,7 +190,7 @@ class TestCascadeSelectionFiltering:
         assert "metadata" not in cascade, "metadata not requested, should not be in response"
 
     @pytest.mark.asyncio
-    async def test_partial_cascade_selection_metadata_only(self, cascade_http_client):
+    async def test_partial_cascade_selection_metadata_only(self, cascade_http_client) -> None:
         """Only metadata requested in CASCADE."""
         mutation = """
             mutation CreatePostWithEntity($input: CreatePostInput!) {
@@ -236,7 +236,7 @@ class TestCascadeSelectionFiltering:
         assert "invalidations" not in cascade
 
     @pytest.mark.asyncio
-    async def test_cascade_with_error_response(self, cascade_http_client):
+    async def test_cascade_with_error_response(self, cascade_http_client) -> None:
         """CASCADE should not be present in error responses when not requested."""
         mutation = """
             mutation CreatePostWithEntity($input: CreatePostInput!) {
@@ -282,10 +282,12 @@ class TestCascadeSelectionFiltering:
                 pass
         else:
             # Unexpected response structure
-            assert False, f"Unexpected response structure: {result}"
+            raise AssertionError(f"Unexpected response structure: {result}")
 
     @pytest.mark.asyncio
-    async def test_multiple_mutations_with_different_cascade_selections(self, cascade_http_client):
+    async def test_multiple_mutations_with_different_cascade_selections(
+        self, cascade_http_client
+    ) -> None:
         """Multiple mutations in one query with different CASCADE selections."""
         mutation = """
             mutation MultiplePosts($input1: CreatePostInput!, $input2: CreatePostInput!) {
@@ -348,7 +350,7 @@ class TestCascadeSelectionPayloadSize:
     """Test that selection filtering reduces payload size."""
 
     @pytest.mark.asyncio
-    async def test_response_size_without_cascade(self, cascade_http_client):
+    async def test_response_size_without_cascade(self, cascade_http_client) -> None:
         """Measure response size when CASCADE not requested."""
         mutation = """
             mutation CreatePostWithEntity($input: CreatePostInput!) {
@@ -377,10 +379,9 @@ class TestCascadeSelectionPayloadSize:
 
         # Measure size
         result_json = json.dumps(result)
-        size_with_cascade = len(result_json.encode("utf-8"))
+        return len(result_json.encode("utf-8"))
 
         # Store for comparison
-        return size_with_cascade
 
         # Size with cascade should be significantly larger
         # This will be verified once bug is fixed

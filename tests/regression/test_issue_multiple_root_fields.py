@@ -23,7 +23,7 @@ from fraiseql import fraise_type, query
 class TestMultipleRootQueryFields:
     """Test that multiple root query fields all appear in response."""
 
-    async def test_two_root_fields(self, clear_registry):
+    async def test_two_root_fields(self, clear_registry) -> None:
         """Query with TWO root fields should return BOTH fields."""
 
         @fraise_type(sql_source="users")
@@ -80,7 +80,7 @@ class TestMultipleRootQueryFields:
         assert len(result.data["getPosts"]) == 2
         assert result.data["getPosts"][0]["id"] == 101
 
-    async def test_three_root_fields(self, clear_registry):
+    async def test_three_root_fields(self, clear_registry) -> None:
         """Query with THREE root fields should return ALL three fields."""
 
         @fraise_type(sql_source="users")
@@ -135,7 +135,7 @@ class TestMultipleRootQueryFields:
         assert len(result.data["getPosts"]) == 1
         assert len(result.data["getComments"]) == 1
 
-    async def test_five_root_fields_printoptim_scenario(self, clear_registry):
+    async def test_five_root_fields_printoptim_scenario(self, clear_registry) -> None:
         """Query with FIVE root fields (real PrintOptim scenario)."""
 
         @fraise_type(sql_source="dns_servers")
@@ -215,7 +215,7 @@ class TestMultipleRootQueryFields:
         assert result.data["gateways"][0]["ipAddress"] == "192.168.1.1"
         assert result.data["routers"][0]["hostname"] == "router-01"
 
-    async def test_single_field_still_works(self, clear_registry):
+    async def test_single_field_still_works(self, clear_registry) -> None:
         """Single field queries should still work (fast path unchanged)."""
 
         @fraise_type(sql_source="users")

@@ -1,5 +1,4 @@
-"""
-Tests for nested field error handling in multi-field GraphQL queries.
+"""Tests for nested field error handling in multi-field GraphQL queries.
 
 Note: This phase documents the current limitation rather than implementing
 full nested field error recovery, which is complex and requires both Python
@@ -17,7 +16,7 @@ from fraiseql.fastapi.routers import execute_multi_field_query
 
 
 @pytest.mark.asyncio
-async def test_nested_field_error_fails_parent(init_schema_registry_fixture):
+async def test_nested_field_error_fails_parent(init_schema_registry_fixture) -> None:
     """Document that nested field errors fail the parent field by design.
 
     This is an intentional architectural decision in FraiseQL. Due to the use
@@ -91,7 +90,7 @@ async def test_nested_field_error_fails_parent(init_schema_registry_fixture):
 
 
 @pytest.fixture
-def init_schema_registry_fixture():
+def init_schema_registry_fixture() -> None:
     """Initialize schema registry for nested field error tests."""
     import fraiseql._fraiseql_rs as fraiseql_rs
 

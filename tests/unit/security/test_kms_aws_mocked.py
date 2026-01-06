@@ -14,7 +14,7 @@ pytestmark = pytest.mark.unit
 
 
 @pytest.fixture
-def aws_credentials():
+def aws_credentials() -> None:
     """Mock AWS credentials for moto."""
     os.environ["AWS_ACCESS_KEY_ID"] = "testing"
     os.environ["AWS_SECRET_ACCESS_KEY"] = "testing"
@@ -26,7 +26,7 @@ def aws_credentials():
 class TestAWSKMSProviderMocked:
     """Unit tests for AWS KMS provider using Moto mocks."""
 
-    def setup_kms_key(self):
+    def setup_kms_key(self) -> None:
         """Helper to set up a test KMS key."""
         import boto3
 
@@ -44,7 +44,7 @@ class TestAWSKMSProviderMocked:
         return client, key_id
 
     @pytest.mark.asyncio
-    async def test_encrypt_decrypt_roundtrip(self, aws_credentials):
+    async def test_encrypt_decrypt_roundtrip(self, aws_credentials) -> None:
         """Test full encryption/decryption cycle with mocked AWS KMS."""
         with mock_aws():
             _, key_id = self.setup_kms_key()
@@ -64,7 +64,7 @@ class TestAWSKMSProviderMocked:
             assert decrypted == test_data
 
     @pytest.mark.asyncio
-    async def test_encrypt_with_alias(self, aws_credentials):
+    async def test_encrypt_with_alias(self, aws_credentials) -> None:
         """Test encryption using key alias instead of key ID."""
         with mock_aws():
             _, _ = self.setup_kms_key()
@@ -83,7 +83,7 @@ class TestAWSKMSProviderMocked:
             assert decrypted == test_data
 
     @pytest.mark.asyncio
-    async def test_generate_data_key(self, aws_credentials):
+    async def test_generate_data_key(self, aws_credentials) -> None:
         """Test data key generation with mocked AWS KMS."""
         with mock_aws():
             _, key_id = self.setup_kms_key()
@@ -98,7 +98,7 @@ class TestAWSKMSProviderMocked:
             assert len(data_key.plaintext_key) == 32  # AES-256 key
 
     @pytest.mark.asyncio
-    async def test_context_encryption(self, aws_credentials):
+    async def test_context_encryption(self, aws_credentials) -> None:
         """Test encryption with additional authenticated data (context)."""
         with mock_aws():
             _, key_id = self.setup_kms_key()
@@ -117,7 +117,7 @@ class TestAWSKMSProviderMocked:
             assert decrypted == test_data
 
     @pytest.mark.asyncio
-    async def test_different_keys_produce_different_ciphertexts(self, aws_credentials):
+    async def test_different_keys_produce_different_ciphertexts(self, aws_credentials) -> None:
         """Test that different keys produce different ciphertexts for same plaintext."""
         with mock_aws():
             import boto3
@@ -149,7 +149,7 @@ class TestAWSKMSProviderMocked:
             assert decrypted1 == decrypted2 == test_data
 
     @pytest.mark.asyncio
-    async def test_provider_name(self, aws_credentials):
+    async def test_provider_name(self, aws_credentials) -> None:
         """Test that provider name is correct."""
         with mock_aws():
             config = AWSKMSConfig(region_name="us-east-1")
@@ -157,7 +157,7 @@ class TestAWSKMSProviderMocked:
             assert aws_provider.provider_name == "aws"
 
     @pytest.mark.asyncio
-    async def test_encrypt_empty_data(self, aws_credentials):
+    async def test_encrypt_empty_data(self, aws_credentials) -> None:
         """Test that AWS KMS rejects empty data (expected behavior)."""
         from fraiseql.security.kms import EncryptionError
 
@@ -173,7 +173,7 @@ class TestAWSKMSProviderMocked:
                 await aws_provider.encrypt(test_data, key_id=key_id)
 
     @pytest.mark.asyncio
-    async def test_encrypt_large_data(self, aws_credentials):
+    async def test_encrypt_large_data(self, aws_credentials) -> None:
         """Test encryption of larger data (within KMS limits)."""
         with mock_aws():
             _, key_id = self.setup_kms_key()

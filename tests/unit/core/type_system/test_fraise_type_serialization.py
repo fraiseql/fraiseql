@@ -76,7 +76,7 @@ class TestFraiseTypeJSONSerialization:
             id=uuid.uuid4(),
             name="John Doe",
             email="john@example.com",
-            created_at=datetime(2024, 1, 15, 10, 30, 0),
+            created_at=datetime(2024, 1, 15, 10, 30, 0),  # noqa: DTZ001
             is_active=True,
         )
 
@@ -172,7 +172,7 @@ class TestFraiseTypeJSONSerialization:
             total: float
             created_at: datetime
 
-        order = Order(id=uuid.uuid4(), total=99.99, created_at=datetime(2024, 1, 15, 14, 30, 0))
+        order = Order(id=uuid.uuid4(), total=99.99, created_at=datetime(2024, 1, 15, 14, 30, 0))  # noqa: DTZ001
 
         content = {"data": {"order": order}, "errors": None}
 

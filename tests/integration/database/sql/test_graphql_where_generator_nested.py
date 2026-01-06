@@ -253,4 +253,4 @@ class TestNestedObjectFiltering:
             # If this doesn't fail at runtime, type checkers should catch it
         except (TypeError, ValueError) as e:
             # Expected to fail with clear error about wrong filter type
-            assert "MachineWhereInput" in str(e) or "filter type" in str(e)
+            assert "MachineWhereInput" in str(e) or "filter type" in str(e)  # noqa: PT017

@@ -15,7 +15,7 @@ from fraiseql.security.kms.infrastructure.vault import (
 class TestVaultConfig:
     """Tests for VaultConfig."""
 
-    def test_default_mount_path(self):
+    def test_default_mount_path(self) -> None:
         """Default mount path should be 'transit'."""
         config = VaultConfig(
             vault_addr="http://localhost:8200",
@@ -23,7 +23,7 @@ class TestVaultConfig:
         )
         assert config.mount_path == "transit"
 
-    def test_api_url_construction(self):
+    def test_api_url_construction(self) -> None:
         """Should construct correct API URL."""
         config = VaultConfig(
             vault_addr="http://localhost:8200",
@@ -37,26 +37,26 @@ class TestVaultKMSProvider:
     """Tests for VaultKMSProvider."""
 
     @pytest.fixture
-    def config(self):
+    def config(self) -> None:
         return VaultConfig(
             vault_addr="http://localhost:8200",
             token="test-token",
         )
 
     @pytest.fixture
-    def provider(self, config):
+    def provider(self, config) -> None:
         return VaultKMSProvider(config)
 
-    def test_extends_base_provider(self, provider):
+    def test_extends_base_provider(self, provider) -> None:
         """Should extend BaseKMSProvider."""
         assert isinstance(provider, BaseKMSProvider)
 
-    def test_provider_name(self, provider):
+    def test_provider_name(self, provider) -> None:
         """Provider name should be 'vault'."""
         assert provider.provider_name == "vault"
 
     @pytest.mark.asyncio
-    async def test_do_encrypt_calls_vault_api(self, provider):
+    async def test_do_encrypt_calls_vault_api(self, provider) -> None:
         """_do_encrypt should call Vault transit/encrypt endpoint."""
         with patch("httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
@@ -69,7 +69,7 @@ class TestVaultKMSProvider:
             mock_response.raise_for_status = MagicMock()
             mock_client.post.return_value = mock_response
 
-            ciphertext, algo = await provider._do_encrypt(
+            _ciphertext, algo = await provider._do_encrypt(
                 b"plaintext",
                 "my-key",
                 {"purpose": "test"},
@@ -79,7 +79,7 @@ class TestVaultKMSProvider:
             assert algo == "aes256-gcm96"
 
     @pytest.mark.asyncio
-    async def test_do_decrypt_calls_vault_api(self, provider):
+    async def test_do_decrypt_calls_vault_api(self, provider) -> None:
         """_do_decrypt should call Vault transit/decrypt endpoint."""
         with patch("httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()

@@ -22,7 +22,7 @@ from fraiseql.sql.where.operators.arrays import (
 class TestArrayBasicOperators:
     """Test basic array comparison operators."""
 
-    def test_eq_array(self):
+    def test_eq_array(self) -> None:
         """Test array equality."""
         path_sql = SQL("tags")
         value = ["python", "testing", "sql"]
@@ -34,7 +34,7 @@ class TestArrayBasicOperators:
         assert "testing" in result_str
         assert "sql" in result_str
 
-    def test_neq_array(self):
+    def test_neq_array(self) -> None:
         """Test array inequality."""
         path_sql = SQL("categories")
         value = ["news", "tech"]
@@ -49,7 +49,7 @@ class TestArrayBasicOperators:
 class TestArrayContainmentOperators:
     """Test array containment operators."""
 
-    def test_contains_array(self):
+    def test_contains_array(self) -> None:
         """Test array contains operator (@>)."""
         path_sql = SQL("permissions")
         value = ["read", "write"]
@@ -60,7 +60,7 @@ class TestArrayContainmentOperators:
         assert "read" in result_str
         assert "write" in result_str
 
-    def test_contained_by_array(self):
+    def test_contained_by_array(self) -> None:
         """Test array contained by operator (<@)."""
         path_sql = SQL("user_roles")
         value = ["admin", "moderator", "user"]
@@ -76,7 +76,7 @@ class TestArrayContainmentOperators:
 class TestArrayOverlapsOperators:
     """Test array overlaps operators."""
 
-    def test_overlaps_native_array(self):
+    def test_overlaps_native_array(self) -> None:
         """Test overlaps with native PostgreSQL array column."""
         path_sql = SQL("tags_array")  # Native column (using SQL for simplicity)
         value = ["python", "javascript"]
@@ -86,7 +86,7 @@ class TestArrayOverlapsOperators:
         assert '"python"' in result_str
         assert '"javascript"' in result_str
 
-    def test_overlaps_jsonb_array(self):
+    def test_overlaps_jsonb_array(self) -> None:
         """Test overlaps with JSONB array field."""
         path_sql = SQL("data->tags")  # JSONB path
         value = ["react", "vue"]
@@ -100,7 +100,7 @@ class TestArrayOverlapsOperators:
 class TestArrayLengthOperators:
     """Test array length comparison operators."""
 
-    def test_len_eq_array(self):
+    def test_len_eq_array(self) -> None:
         """Test array length equality."""
         path_sql = SQL("items")
         result = build_array_len_eq_sql(path_sql, 5)
@@ -109,7 +109,7 @@ class TestArrayLengthOperators:
         assert ") = " in result_str
         assert "5" in result_str
 
-    def test_len_neq_array(self):
+    def test_len_neq_array(self) -> None:
         """Test array length inequality."""
         path_sql = SQL("tags")
         result = build_array_len_neq_sql(path_sql, 0)
@@ -118,7 +118,7 @@ class TestArrayLengthOperators:
         assert ") != " in result_str
         assert "0" in result_str
 
-    def test_len_gt_array(self):
+    def test_len_gt_array(self) -> None:
         """Test array length greater than."""
         path_sql = SQL("comments")
         result = build_array_len_gt_sql(path_sql, 10)
@@ -127,7 +127,7 @@ class TestArrayLengthOperators:
         assert ") > " in result_str
         assert "10" in result_str
 
-    def test_len_gte_array(self):
+    def test_len_gte_array(self) -> None:
         """Test array length greater than or equal."""
         path_sql = SQL("replies")
         result = build_array_len_gte_sql(path_sql, 1)
@@ -136,7 +136,7 @@ class TestArrayLengthOperators:
         assert ") >= " in result_str
         assert "1" in result_str
 
-    def test_len_lt_array(self):
+    def test_len_lt_array(self) -> None:
         """Test array length less than."""
         path_sql = SQL("images")
         result = build_array_len_lt_sql(path_sql, 3)
@@ -145,7 +145,7 @@ class TestArrayLengthOperators:
         assert ") < " in result_str
         assert "3" in result_str
 
-    def test_len_lte_array(self):
+    def test_len_lte_array(self) -> None:
         """Test array length less than or equal."""
         path_sql = SQL("attachments")
         result = build_array_len_lte_sql(path_sql, 5)
@@ -158,7 +158,7 @@ class TestArrayLengthOperators:
 class TestArrayElementOperators:
     """Test array element comparison operators."""
 
-    def test_any_eq_array(self):
+    def test_any_eq_array(self) -> None:
         """Test array any element equals."""
         path_sql = SQL("keywords")
         result = build_array_any_eq_sql(path_sql, "python")
@@ -167,7 +167,7 @@ class TestArrayElementOperators:
         assert "jsonb_array_elements_text(" in result_str
         assert "python" in result_str
 
-    def test_all_eq_array(self):
+    def test_all_eq_array(self) -> None:
         """Test array all elements equal."""
         path_sql = SQL("categories")
         result = build_array_all_eq_sql(path_sql, "featured")
@@ -180,7 +180,7 @@ class TestArrayElementOperators:
 class TestArrayEdgeCases:
     """Test array operator edge cases."""
 
-    def test_empty_array(self):
+    def test_empty_array(self) -> None:
         """Test operations with empty array."""
         path_sql = SQL("tags")
         value = []
@@ -188,7 +188,7 @@ class TestArrayEdgeCases:
         result_str = str(result)
         assert "[]" in result_str or "[]" in result_str
 
-    def test_single_element_array(self):
+    def test_single_element_array(self) -> None:
         """Test operations with single element array."""
         path_sql = SQL("status")
         value = ["active"]
@@ -197,7 +197,7 @@ class TestArrayEdgeCases:
         assert "active" in result_str
         assert " @> " in result_str
 
-    def test_array_with_numbers(self):
+    def test_array_with_numbers(self) -> None:
         """Test array with numeric values."""
         path_sql = SQL("scores")
         value = [85, 92, 78]
@@ -207,7 +207,7 @@ class TestArrayEdgeCases:
         assert "92" in result_str
         assert "78" in result_str
 
-    def test_array_with_special_chars(self):
+    def test_array_with_special_chars(self) -> None:
         """Test array with special characters."""
         path_sql = SQL("names")
         value = ["O'Connor", "Smith-Jones", "user@example.com"]
@@ -218,11 +218,11 @@ class TestArrayEdgeCases:
         assert "Smith-Jones" in sql_str
         assert "user@example.com" in sql_str
 
-    def test_overlaps_fallback(self):
+    def test_overlaps_fallback(self) -> None:
         """Test overlaps operator fallback for non-list values."""
         path_sql = SQL("data->tags")
         value = "single_value"  # Not a list
-        result = build_array_overlaps_sql(path_sql, value)  # type: ignore
+        result = build_array_overlaps_sql(path_sql, value)  # type: ignore[misc]
         result_str = str(result)
         assert " ? " in result_str
         assert "single_value" in result_str

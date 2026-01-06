@@ -184,7 +184,7 @@ class TestMutationNameResolution:
         )
 
     @pytest.mark.parametrize(
-        "mutation_class,expected_resolver_name,expected_input_type",
+        ("mutation_class", "expected_resolver_name", "expected_input_type"),
         [
             (CreateItem, "create_item", CreateItemInput),
             (CreateItemComponent, "create_item_component", CreateItemComponentInput),
@@ -192,7 +192,7 @@ class TestMutationNameResolution:
     )
     def test_each_mutation_has_correct_metadata(
         self, mutation_class, expected_resolver_name, expected_input_type
-    ):
+    ) -> None:
         """Test that each mutation has the correct metadata individually."""
         resolver = mutation_class.__fraiseql_resolver__
         definition = mutation_class.__fraiseql_mutation__

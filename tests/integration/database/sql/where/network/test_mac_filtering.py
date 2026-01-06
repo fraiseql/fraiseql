@@ -2,7 +2,7 @@ import pytest
 
 pytestmark = pytest.mark.database
 
-#!/usr/bin/env python3
+#!/usr/bin/env python3  # noqa: EXE001, EXE005
 """End-to-end integration tests for MAC address filtering functionality.
 
 This module tests the complete MAC address filtering pipeline:

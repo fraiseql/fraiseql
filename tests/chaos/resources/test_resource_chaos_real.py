@@ -1,34 +1,33 @@
-"""
-Phase 4.1: Resource Chaos Tests (Real PostgreSQL Backend)
+"""Phase 4.1: Resource Chaos Tests (Real PostgreSQL Backend)
 
 Tests for system resource failures and exhaustion scenarios.
 Uses real PostgreSQL connections to validate FraiseQL's resource management
 and graceful degradation under resource constraints.
 """
 
-import pytest
-import time
+import asyncio
 import random
 import statistics
-import asyncio
 
-from chaos.fraiseql_scenarios import FraiseQLTestScenarios
+import pytest
 from chaos.base import ChaosMetrics
+from chaos.fraiseql_scenarios import FraiseQLTestScenarios
 
 
 @pytest.mark.chaos
 @pytest.mark.chaos_resources
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
-async def test_memory_pressure_handling(chaos_db_client, chaos_test_schema, baseline_metrics):
-    """
-    Test memory pressure handling and graceful degradation.
+async def test_memory_pressure_handling(
+    chaos_db_client, chaos_test_schema, baseline_metrics
+) -> None:
+    """Test memory pressure handling and graceful degradation.
 
     Scenario: System memory becomes constrained, forcing garbage collection and memory management.
     Expected: FraiseQL handles memory pressure gracefully without crashes.
     """
     metrics = ChaosMetrics()
-    operation = FraiseQLTestScenarios.complex_nested_query()
+    FraiseQLTestScenarios.complex_nested_query()
 
     metrics.start_test()
 
@@ -86,15 +85,14 @@ async def test_memory_pressure_handling(chaos_db_client, chaos_test_schema, base
 @pytest.mark.chaos_resources
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
-async def test_cpu_spike_resilience(chaos_db_client, chaos_test_schema, baseline_metrics):
-    """
-    Test CPU spike handling and computational resource management.
+async def test_cpu_spike_resilience(chaos_db_client, chaos_test_schema, baseline_metrics) -> None:
+    """Test CPU spike handling and computational resource management.
 
     Scenario: CPU usage spikes due to computational intensive operations.
     Expected: FraiseQL manages CPU resources and maintains responsiveness.
     """
     metrics = ChaosMetrics()
-    operation = FraiseQLTestScenarios.complex_nested_query()
+    FraiseQLTestScenarios.complex_nested_query()
 
     metrics.start_test()
 
@@ -156,9 +154,8 @@ async def test_cpu_spike_resilience(chaos_db_client, chaos_test_schema, baseline
 @pytest.mark.chaos_resources
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
-async def test_disk_io_contention(chaos_db_client, chaos_test_schema, baseline_metrics):
-    """
-    Test disk I/O contention and storage resource management.
+async def test_disk_io_contention(chaos_db_client, chaos_test_schema, baseline_metrics) -> None:
+    """Test disk I/O contention and storage resource management.
 
     Scenario: Disk I/O becomes contended due to concurrent operations.
     Expected: FraiseQL handles I/O contention gracefully with queuing.
@@ -173,15 +170,15 @@ async def test_disk_io_contention(chaos_db_client, chaos_test_schema, baseline_m
     io_times = []
     io_contention_events = 0
 
-    for i in range(io_operations):
+    for _i in range(io_operations):
         try:
             # Simulate I/O operation with potential contention
             base_io_time = 15  # 15ms base I/O time
 
             # Simulate contention (random I/O delays)
-            if random.random() < 0.25:  # 25% chance of I/O contention
+            if random.random() < 0.25:  # 25% chance of I/O contention  # noqa: S311
                 io_contention_events += 1
-                contention_delay = random.uniform(50, 150)  # 50-150ms additional delay
+                contention_delay = random.uniform(50, 150)  # 50-150ms additional delay  # noqa: S311
                 base_io_time += contention_delay
 
             # Inject latency to simulate I/O delays
@@ -221,9 +218,10 @@ async def test_disk_io_contention(chaos_db_client, chaos_test_schema, baseline_m
 @pytest.mark.chaos_resources
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
-async def test_resource_exhaustion_recovery(chaos_db_client, chaos_test_schema, baseline_metrics):
-    """
-    Test resource exhaustion scenarios and recovery mechanisms.
+async def test_resource_exhaustion_recovery(
+    chaos_db_client, chaos_test_schema, baseline_metrics
+) -> None:
+    """Test resource exhaustion scenarios and recovery mechanisms.
 
     Scenario: System resources become exhausted, then gradually recover.
     Expected: FraiseQL handles resource exhaustion gracefully and recovers.
@@ -315,9 +313,10 @@ async def test_resource_exhaustion_recovery(chaos_db_client, chaos_test_schema, 
 @pytest.mark.chaos_resources
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
-async def test_system_resource_monitoring(chaos_db_client, chaos_test_schema, baseline_metrics):
-    """
-    Test system resource monitoring and adaptive behavior.
+async def test_system_resource_monitoring(
+    chaos_db_client, chaos_test_schema, baseline_metrics
+) -> None:
+    """Test system resource monitoring and adaptive behavior.
 
     Scenario: System monitors resource usage and adapts behavior accordingly.
     Expected: FraiseQL adapts to resource constraints intelligently.
@@ -373,9 +372,8 @@ async def test_system_resource_monitoring(chaos_db_client, chaos_test_schema, ba
 @pytest.mark.asyncio
 async def test_cascading_resource_failure_prevention(
     chaos_db_client, chaos_test_schema, baseline_metrics, chaos_config
-):
-    """
-    Test prevention of cascading resource failures.
+) -> None:
+    """Test prevention of cascading resource failures.
 
     Scenario: One resource failure triggers cascading effects on other resources.
     Expected: FraiseQL contains resource failures and prevents cascading degradation.

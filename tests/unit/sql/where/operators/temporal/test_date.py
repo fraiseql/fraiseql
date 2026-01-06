@@ -21,21 +21,21 @@ from fraiseql.sql.where.operators.date import (
 class TestDateBasicOperators:
     """Test basic Date operators (eq, neq, in, notin)."""
 
-    def test_date_eq(self):
+    def test_date_eq(self) -> None:
         """Test date equality operator."""
         path_sql = SQL("data->>'birth_date'")
         result = build_date_eq_sql(path_sql, "2023-07-15")
         sql_str = result.as_string(None)
         assert sql_str == "(data->>'birth_date')::date = '2023-07-15'::date"
 
-    def test_date_neq(self):
+    def test_date_neq(self) -> None:
         """Test date inequality operator."""
         path_sql = SQL("data->>'birth_date'")
         result = build_date_neq_sql(path_sql, "2023-07-15")
         sql_str = result.as_string(None)
         assert sql_str == "(data->>'birth_date')::date != '2023-07-15'::date"
 
-    def test_date_in(self):
+    def test_date_in(self) -> None:
         """Test date IN operator."""
         path_sql = SQL("data->>'event_date'")
         result = build_date_in_sql(path_sql, ["2023-01-01", "2023-12-31"])
@@ -43,7 +43,7 @@ class TestDateBasicOperators:
         expected = "(data->>'event_date')::date IN ('2023-01-01'::date, '2023-12-31'::date)"
         assert expected == sql_str
 
-    def test_date_notin(self):
+    def test_date_notin(self) -> None:
         """Test date NOT IN operator."""
         path_sql = SQL("data->>'excluded_date'")
         result = build_date_notin_sql(path_sql, ["2023-01-01", "2023-12-25"])
@@ -137,28 +137,28 @@ class TestDateBasicOperators:
 class TestDateComparisonOperators:
     """Test Date comparison operators (gt, gte, lt, lte)."""
 
-    def test_date_gt(self):
+    def test_date_gt(self) -> None:
         """Test date greater than operator."""
         path_sql = SQL("data->>'created_date'")
         result = build_date_gt_sql(path_sql, "2023-01-01")
         sql_str = result.as_string(None)
         assert sql_str == "(data->>'created_date')::date > '2023-01-01'::date"
 
-    def test_date_gte(self):
+    def test_date_gte(self) -> None:
         """Test date greater than or equal operator."""
         path_sql = SQL("data->>'start_date'")
         result = build_date_gte_sql(path_sql, "2023-06-01")
         sql_str = result.as_string(None)
         assert sql_str == "(data->>'start_date')::date >= '2023-06-01'::date"
 
-    def test_date_lt(self):
+    def test_date_lt(self) -> None:
         """Test date less than operator."""
         path_sql = SQL("data->>'expiry_date'")
         result = build_date_lt_sql(path_sql, "2024-12-31")
         sql_str = result.as_string(None)
         assert sql_str == "(data->>'expiry_date')::date < '2024-12-31'::date"
 
-    def test_date_lte(self):
+    def test_date_lte(self) -> None:
         """Test date less than or equal operator."""
         path_sql = SQL("data->>'deadline'")
         result = build_date_lte_sql(path_sql, "2023-12-31")

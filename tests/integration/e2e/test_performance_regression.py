@@ -17,7 +17,7 @@ from fraiseql import fraise_type, query
 
 
 @pytest.fixture(scope="class")
-def performance_schema(meta_test_schema):
+def performance_schema(meta_test_schema) -> None:
     """Schema optimized for performance testing."""
     # Clear any existing registrations
     meta_test_schema.clear()
@@ -56,7 +56,7 @@ def performance_schema(meta_test_schema):
 class TestPerformanceBaseline:
     """Tests to detect performance regressions in query execution."""
 
-    async def test_baseline_query_performance(self, performance_schema, meta_test_pool):
+    async def test_baseline_query_performance(self, performance_schema, meta_test_pool) -> None:
         """Establish baseline performance for simple queries."""
         schema = performance_schema.build_schema()
 
@@ -89,7 +89,7 @@ class TestPerformanceBaseline:
             "max_time": max(times),
         }
 
-    async def test_complex_query_performance(self, performance_schema, meta_test_pool):
+    async def test_complex_query_performance(self, performance_schema, meta_test_pool) -> None:
         """Test performance of complex nested queries."""
         schema = performance_schema.build_schema()
 
@@ -122,11 +122,11 @@ class TestPerformanceBaseline:
         # Complex queries should still be reasonably fast
         assert avg_time < 0.5, f"Complex query too slow: {avg_time:.4f}s"
 
-    async def test_concurrent_load_performance(self, performance_schema, meta_test_pool):
+    async def test_concurrent_load_performance(self, performance_schema, meta_test_pool) -> None:
         """Test performance under concurrent load."""
         schema = performance_schema.build_schema()
 
-        async def execute_query(query_id: int):
+        async def execute_query(query_id: int) -> None:
             query_str = "query { getUsers { id } }"
             start = time.perf_counter()
             result = await graphql(schema, query_str)
@@ -155,7 +155,7 @@ class TestPerformanceBaseline:
                 f"Low throughput at concurrency {concurrency}: {throughput:.2f} req/s"
             )
 
-    async def test_memory_usage_under_load(self, performance_schema, meta_test_pool):
+    async def test_memory_usage_under_load(self, performance_schema, meta_test_pool) -> None:
         """Monitor memory usage patterns under sustained load."""
         schema = performance_schema.build_schema()
 
@@ -172,7 +172,9 @@ class TestPerformanceBaseline:
                 # For now, we just ensure the system is still responsive
                 assert True, f"System still operational after {i} queries"
 
-    async def test_database_connection_pool_performance(self, performance_schema, meta_test_pool):
+    async def test_database_connection_pool_performance(
+        self, performance_schema, meta_test_pool
+    ) -> None:
         """Test that database connection pool doesn't become a bottleneck."""
         schema = performance_schema.build_schema()
 
@@ -181,7 +183,7 @@ class TestPerformanceBaseline:
         # Execute many queries quickly
         start_time = time.perf_counter()
 
-        for i in range(50):
+        for _i in range(50):
             result = await graphql(schema, query_str)
             assert result is not None
 
@@ -191,7 +193,7 @@ class TestPerformanceBaseline:
         # Connection pool should not add significant overhead
         assert avg_time < 0.1, f"Connection pool bottleneck detected: {avg_time:.4f}s per query"
 
-    async def test_schema_building_performance(self, performance_schema, meta_test_pool):
+    async def test_schema_building_performance(self, performance_schema, meta_test_pool) -> None:
         """Test that schema building remains fast."""
         # Measure schema building time
         start_time = time.perf_counter()
@@ -203,7 +205,7 @@ class TestPerformanceBaseline:
         assert schema is not None
         assert build_time < 1.0, f"Schema building too slow: {build_time:.4f}s"
 
-    async def test_introspection_performance(self, performance_schema, meta_test_pool):
+    async def test_introspection_performance(self, performance_schema, meta_test_pool) -> None:
         """Test that GraphQL introspection remains performant."""
         schema = performance_schema.build_schema()
 
@@ -231,7 +233,7 @@ class TestPerformanceBaseline:
 class TestPerformanceBenchmarks:
     """Performance benchmarks for tracking over time."""
 
-    async def test_query_throughput_benchmark(self, performance_schema, meta_test_pool):
+    async def test_query_throughput_benchmark(self, performance_schema, meta_test_pool) -> None:
         """Benchmark query throughput for regression detection."""
         schema = performance_schema.build_schema()
 
@@ -266,7 +268,7 @@ class TestPerformanceBenchmarks:
         assert throughput > 10, f"Low throughput: {throughput:.2f} queries/second"
         assert avg_latency < 0.1, f"High latency: {avg_latency:.4f}s per query"
 
-    async def test_memory_efficiency_benchmark(self, performance_schema, meta_test_pool):
+    async def test_memory_efficiency_benchmark(self, performance_schema, meta_test_pool) -> None:
         """Benchmark memory efficiency for large result sets."""
         schema = performance_schema.build_schema()
 

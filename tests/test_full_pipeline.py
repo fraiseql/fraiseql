@@ -1,12 +1,13 @@
 """Tests for unified Rust GraphQL pipeline (Phase 9)."""
 
-import pytest
 import json
+
+import pytest
 from fraiseql._fraiseql_rs import PyGraphQLPipeline
 
 
 @pytest.fixture
-def test_schema():
+def test_schema() -> None:
     """Test schema for Phase 9 pipeline."""
     return {
         "tables": {
@@ -23,19 +24,19 @@ def test_schema():
 
 
 @pytest.fixture
-def pipeline(test_schema):
+def pipeline(test_schema) -> None:
     """Create PyGraphQLPipeline instance."""
     schema_json = json.dumps(test_schema)
     return PyGraphQLPipeline(schema_json)
 
 
 @pytest.fixture
-def user_context():
+def user_context() -> None:
     """Standard user context for tests."""
     return {"user_id": "test_user", "permissions": ["read"], "roles": ["user"]}
 
 
-def test_simple_query(pipeline, user_context):
+def test_simple_query(pipeline, user_context) -> None:
     """Test simple GraphQL query through unified pipeline."""
     query = """
     query {
@@ -55,7 +56,7 @@ def test_simple_query(pipeline, user_context):
     assert len(data["data"]["users"]) > 0
 
 
-def test_query_with_where(pipeline, user_context):
+def test_query_with_where(pipeline, user_context) -> None:
     """Test query with WHERE clause."""
     query = """
     query {
@@ -73,7 +74,7 @@ def test_query_with_where(pipeline, user_context):
     assert "users" in data["data"]
 
 
-def test_query_with_limit(pipeline, user_context):
+def test_query_with_limit(pipeline, user_context) -> None:
     """Test pagination with LIMIT."""
     query = """
     query {
@@ -90,7 +91,7 @@ def test_query_with_limit(pipeline, user_context):
     assert len(data["data"]["users"]) <= 5
 
 
-def test_query_with_variables(pipeline, user_context):
+def test_query_with_variables(pipeline, user_context) -> None:
     """Test query with variables (variables not yet implemented in Phase 9 mock)."""
     query = """
     query GetUsers($limit: Int) {
@@ -108,15 +109,15 @@ def test_query_with_variables(pipeline, user_context):
     assert "users" in data["data"]
 
 
-def test_invalid_query(pipeline, user_context):
+def test_invalid_query(pipeline, user_context) -> None:
     """Test error handling for invalid queries."""
     query = "invalid graphql syntax {{{"
 
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017
         pipeline.execute(query, {}, user_context)
 
 
-def test_mutation_mock(pipeline, user_context):
+def test_mutation_mock(pipeline, user_context) -> None:
     """Test mutation (mocked in Phase 9 - mutations not yet supported)."""
     query = """
     mutation {
@@ -128,11 +129,11 @@ def test_mutation_mock(pipeline, user_context):
     """
 
     # Mutations not supported in Phase 9 mock, should raise error
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017
         pipeline.execute(query, {}, user_context)
 
 
-def test_cache_functionality(pipeline, user_context):
+def test_cache_functionality(pipeline, user_context) -> None:
     """Test that caching works (same query returns same results)."""
     query = "query { users { id } }"
 
@@ -148,7 +149,7 @@ def test_cache_functionality(pipeline, user_context):
     assert data1 == data2
 
 
-def test_complex_where_clause(pipeline, user_context):
+def test_complex_where_clause(pipeline, user_context) -> None:
     """Test complex WHERE clause with AND/OR."""
     query = """
     query {

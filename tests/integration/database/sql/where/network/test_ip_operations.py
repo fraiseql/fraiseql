@@ -98,7 +98,7 @@ class TestIPAddressValidation:
             "172.16.0.1",
             "8.8.8.8",
             "127.0.0.1",
-            "0.0.0.0",
+            "0.0.0.0",  # noqa: S104
             "255.255.255.255",
         ]
 
@@ -242,7 +242,7 @@ class TestNetworkFilterSQL:
         """Test SQL generation for private IP filtering."""
         from fraiseql.sql.network_utils import generate_private_ip_sql
 
-        sql, params = generate_private_ip_sql("data->>'ip_address'", True)
+        sql, params = generate_private_ip_sql("data->>'ip_address'", True)  # noqa: RUF059
 
         # Should check RFC 1918 ranges
         assert "10.0.0.0/8" in sql or "192.168.0.0/16" in sql or "172.16.0.0/12" in sql
@@ -252,7 +252,7 @@ class TestNetworkFilterSQL:
         """Test SQL generation for IPv4 filtering."""
         from fraiseql.sql.network_utils import generate_ipv4_sql
 
-        sql, params = generate_ipv4_sql("data->>'ip_address'", True)
+        sql, params = generate_ipv4_sql("data->>'ip_address'", True)  # noqa: RUF059
 
         # Should check for IPv4 format (family = 4 or pattern matching)
         assert "family(" in sql.lower() or "inet" in sql.lower()
@@ -391,7 +391,7 @@ class TestNetworkOperatorIntegration:
         )
 
         # Should generate PostgreSQL inet range comparison
-        sql_str = result.as_string(None)  # type: ignore
+        sql_str = result.as_string(None)  # type: ignore[misc]
         assert "&&" in sql_str  # inet overlaps operator
 
     @pytest.mark.asyncio
@@ -410,7 +410,7 @@ class TestNetworkOperatorIntegration:
         )
 
         # Should use CIDR range checks for private IPs (no inet_public() in PostgreSQL)
-        sql_str = result.as_string(None)  # type: ignore
+        sql_str = result.as_string(None)  # type: ignore[misc]
         assert "10.0.0.0/8" in sql_str  # RFC 1918 private range
         assert "192.168.0.0/16" in sql_str  # RFC 1918 private range
         assert "::inet" in sql_str

@@ -17,12 +17,12 @@ import pytest_asyncio
 
 # Check if LangChain is available
 try:
-    from langchain_core.documents import Document  # type: ignore
+    from langchain_core.documents import Document  # type: ignore[misc]
 
     LANGCHAIN_AVAILABLE = True
 except ImportError:
     LANGCHAIN_AVAILABLE = False
-    Document = Mock  # type: ignore
+    Document = Mock  # type: ignore[misc]
 
 from fraiseql.integrations.langchain import FraiseQLVectorStore
 
@@ -33,7 +33,7 @@ pytestmark = pytest.mark.integration
 class MockEmbeddings:
     """Mock embeddings class for testing."""
 
-    def __init__(self, dimension: int = 384):
+    def __init__(self, dimension: int = 384) -> None:
         self.dimension = dimension
 
     async def aembed_documents(self, texts: List[str]) -> List[List[float]]:
@@ -50,7 +50,7 @@ class MockEmbeddings:
 
 
 @pytest_asyncio.fixture
-async def vectorstore_table(class_db_pool, test_schema, pgvector_available):
+async def vectorstore_table(class_db_pool, test_schema, pgvector_available) -> None:
     """Create a test table for vectorstore integration tests."""
     if not pgvector_available:
         pytest.skip("pgvector extension not available")
@@ -138,7 +138,7 @@ class TestLangChainVectorStoreIntegration:
 
         # Verify IDs were returned
         assert len(ids) == 3
-        assert all(isinstance(id, str) for id in ids)
+        assert all(isinstance(id, str) for id in ids)  # noqa: A001
         assert len(set(ids)) == 3  # All IDs unique
 
     @pytest.mark.skipif(not LANGCHAIN_AVAILABLE, reason="LangChain not available")

@@ -73,7 +73,7 @@ class TestBuildFindQueryUsesUnifiedWhere:
         # Patch _build_where_clause to verify it's called
         with patch.object(repo, "_build_where_clause", wraps=repo._build_where_clause) as mock_bwc:
             # Call _build_find_query
-            query = repo._build_find_query("tv_allocation", where=where, jsonb_column="data")
+            repo._build_find_query("tv_allocation", where=where, jsonb_column="data")
 
             # Verify _build_where_clause was called
             mock_bwc.assert_called_once()
@@ -111,7 +111,7 @@ class TestBuildFindQueryUsesUnifiedWhere:
         original_bwc = repo._build_where_clause
         received_kwargs = {}
 
-        def capture_kwargs(view_name, **kwargs):
+        def capture_kwargs(view_name, **kwargs):  # noqa: ANN003
             received_kwargs.update(kwargs)
             return original_bwc(view_name, **kwargs)
 
@@ -139,7 +139,7 @@ class TestBuildFindQueryUsesUnifiedWhere:
         call_count = 0
         original_bwc = repo._build_where_clause
 
-        def count_calls(view_name, **kwargs):
+        def count_calls(view_name, **kwargs):  # noqa: ANN003
             nonlocal call_count
             if "tenant_id" in kwargs:
                 call_count += 1

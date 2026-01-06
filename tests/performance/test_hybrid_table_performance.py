@@ -15,10 +15,10 @@ class MockPool:
 class MockConnection:
     """Mock connection for performance testing."""
 
-    async def __aenter__(self) -> None:
+    async def __aenter__(self) -> None:  # noqa: D105
         return self
 
-    async def __aexit__(self, *args) -> None:
+    async def __aexit__(self, *args) -> None:  # noqa: D105, ANN002
         pass
 
     def cursor(self) -> None:
@@ -28,16 +28,16 @@ class MockConnection:
 class MockCursor:
     """Mock cursor that simulates information_schema queries."""
 
-    async def __aenter__(self) -> None:
+    async def __aenter__(self) -> None:  # noqa: D105
         return self
 
-    async def __aexit__(self, *args) -> None:
+    async def __aexit__(self, *args) -> None:  # noqa: D105, ANN002
         pass
 
     async def execute(self, query, params=None) -> None:
         # Simulate slow information_schema query
         if "information_schema" in query:
-            time.sleep(0.01)  # Simulate 10ms DB query
+            time.sleep(0.01)  # Simulate 10ms DB query  # noqa: ASYNC251
 
     async def fetchall(self) -> None:
         # Return mock column data

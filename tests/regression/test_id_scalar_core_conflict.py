@@ -28,7 +28,6 @@ import uuid
 import pytest
 from graphql import (
     GraphQLID,
-    GraphQLObjectType,
     GraphQLSchema,
     graphql,
     print_schema,
@@ -42,7 +41,7 @@ from fraiseql.types.scalars.graphql_utils import convert_scalar_to_graphql
 
 
 @pytest.fixture(autouse=True)
-def clear_registry():
+def clear_registry() -> None:
     """Clear the schema registry and reset config before and after each test."""
     from fraiseql.gql.builders.registry import SchemaRegistry
 
@@ -57,23 +56,23 @@ def clear_registry():
 class TestIDTypeFixed:
     """Test suite verifying ID type fix (no longer conflicts with GraphQL core)."""
 
-    def test_id_is_newtype_based_on_str(self):
+    def test_id_is_newtype_based_on_str(self) -> None:
         """Verify ID is a NewType based on str (like Strawberry)."""
         assert hasattr(ID, "__supertype__")
         assert ID.__supertype__ is str
 
-    def test_id_maps_to_id_scalar(self):
+    def test_id_maps_to_id_scalar(self) -> None:
         """Verify ID maps to IDScalar (named 'ID' for cache, enforces UUID)."""
         graphql_type = convert_scalar_to_graphql(ID)
         assert graphql_type is IDScalar
         assert graphql_type.name == "ID"
 
-    def test_id_enforces_uuid_format(self):
+    def test_id_enforces_uuid_format(self) -> None:
         """Verify ID (via IDScalar) enforces UUID format."""
         valid_uuid = uuid.uuid4()
         assert IDScalar.serialize(valid_uuid) == str(valid_uuid)
 
-    def test_schema_with_id_type_no_redefinition_error(self):
+    def test_schema_with_id_type_no_redefinition_error(self) -> None:
         """Test that building schema with ID type doesn't cause redefinition error."""
         # This test should FAIL if there's an ID scalar redefinition bug
 
@@ -91,7 +90,7 @@ class TestIDTypeFixed:
         assert schema is not None
         assert isinstance(schema, GraphQLSchema)
 
-    def test_schema_introspection_id_type_consistency(self):
+    def test_schema_introspection_id_type_consistency(self) -> None:
         """Test that ID type appears consistently in schema introspection."""
 
         @fraiseql.type
@@ -130,9 +129,11 @@ class TestIDTypeFixed:
 
         # ID type should be recognized as SCALAR with name "ID"
         assert id_field["type"]["kind"] == "SCALAR"
-        assert id_field["type"]["name"] == "ID"  # FraiseQL uses custom IDScalar (named "ID" for cache)
+        assert (
+            id_field["type"]["name"] == "ID"
+        )  # FraiseQL uses custom IDScalar (named "ID" for cache)
 
-    def test_schema_print_no_duplicate_id_definition(self):
+    def test_schema_print_no_duplicate_id_definition(self) -> None:
         """Test that schema printing doesn't include duplicate ID definitions."""
 
         @fraiseql.type
@@ -157,7 +158,7 @@ class TestIDTypeFixed:
             "possible redefinition conflict"
         )
 
-    def test_multiple_types_with_id_field(self):
+    def test_multiple_types_with_id_field(self) -> None:
         """Test that multiple types using ID don't cause conflicts."""
 
         @fraiseql.type
@@ -188,9 +189,7 @@ class TestIDTypeFixed:
             return []
 
         # All types with ID should work together without conflicts
-        schema = fraiseql.build_fraiseql_schema(
-            query_types=[users, posts, comments]
-        )
+        schema = fraiseql.build_fraiseql_schema(query_types=[users, posts, comments])
 
         assert schema is not None
 
@@ -203,7 +202,7 @@ class TestIDTypeFixed:
         assert post_type is not None
         assert comment_type is not None
 
-    def test_id_field_resolves_correctly_with_uuid(self):
+    def test_id_field_resolves_correctly_with_uuid(self) -> None:
         """Test that ID field correctly resolves UUID values."""
 
         @fraiseql.type
@@ -234,11 +233,10 @@ class TestIDTypeFixed:
 
         # Should not have serialization errors
         assert result.errors is None or not any(
-            "ID" in str(e) and "serialize" in str(e).lower()
-            for e in result.errors
+            "ID" in str(e) and "serialize" in str(e).lower() for e in result.errors
         )
 
-    def test_schema_type_map_contains_id_scalar(self):
+    def test_schema_type_map_contains_id_scalar(self) -> None:
         """Test that schema type_map contains ID scalar for ID fields."""
 
         @fraiseql.type
@@ -255,13 +253,10 @@ class TestIDTypeFixed:
         assert "ID" in schema.type_map, "ID scalar should be in schema type_map"
 
         # FraiseQL's custom ID scalar replaces the built-in
-        id_types = [
-            name for name in schema.type_map.keys()
-            if name == "ID"
-        ]
+        id_types = [name for name in schema.type_map if name == "ID"]
         assert len(id_types) == 1, "Expected exactly 1 'ID' type in schema"
 
-    def test_schema_uses_custom_id_scalar(self):
+    def test_schema_uses_custom_id_scalar(self) -> None:
         """Test that schema uses custom ID scalar (named 'ID' for cache compatibility)."""
 
         @fraiseql.type
@@ -274,7 +269,7 @@ class TestIDTypeFixed:
 
         schema = fraiseql.build_fraiseql_schema(query_types=[things])
 
-        sdl = print_schema(schema)
+        print_schema(schema)
 
         # Custom ID scalar with UUID validation is in the schema
         # It's named "ID" for Apollo/Relay cache compatibility
@@ -290,16 +285,16 @@ class TestIDTypeFixed:
 class TestIDTypeImports:
     """Tests for ID type imports."""
 
-    def test_fraiseql_id_and_graphql_id_importable(self):
+    def test_fraiseql_id_and_graphql_id_importable(self) -> None:
         """Test that both FraiseQL ID and GraphQL ID can be imported."""
         from graphql import GraphQLID as CoreID
 
-        from fraiseql.types import ID as FraiseqlID
+        from fraiseql.types import ID as FraiseqlID  # noqa: N811
 
         assert CoreID is not None
         assert FraiseqlID is not None
 
-    def test_uuid_uuid_maps_to_uuid_scalar(self):
+    def test_uuid_uuid_maps_to_uuid_scalar(self) -> None:
         """Test that uuid.UUID maps to UUIDScalar (not IDScalar).
 
         SEMANTIC FIX: uuid.UUID is a generic UUID type, not specifically an identifier.
@@ -311,7 +306,7 @@ class TestIDTypeImports:
         assert result is UUIDScalar
         assert result.name == "UUID"
 
-    def test_id_maps_to_id_scalar_with_uuid_policy(self):
+    def test_id_maps_to_id_scalar_with_uuid_policy(self) -> None:
         """Test that ID (NewType) maps to IDScalar when using UUID policy (default)."""
         # Ensure UUID policy is active (default)
         SchemaConfig.set_config(id_policy=IDPolicy.UUID)
@@ -320,7 +315,7 @@ class TestIDTypeImports:
         assert result is IDScalar
         assert result.name == "ID"
 
-    def test_id_maps_to_graphql_id_with_opaque_policy(self):
+    def test_id_maps_to_graphql_id_with_opaque_policy(self) -> None:
         """Test that ID maps to GraphQL's built-in ID with OPAQUE policy."""
         SchemaConfig.set_config(id_policy=IDPolicy.OPAQUE)
 
@@ -328,7 +323,7 @@ class TestIDTypeImports:
         assert result is GraphQLID
         assert result.name == "ID"
 
-    def test_uuid_uuid_unchanged_by_policy(self):
+    def test_uuid_uuid_unchanged_by_policy(self) -> None:
         """Test that uuid.UUID always maps to UUIDScalar regardless of policy."""
         for policy in IDPolicy:
             SchemaConfig.set_config(id_policy=policy)

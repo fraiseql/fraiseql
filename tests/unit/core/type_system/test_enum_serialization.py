@@ -91,7 +91,7 @@ def test_enum_with_mutation_return() -> None:
                 "testMutation": GraphQLField(
                     output_type,
                     args={"input": GraphQLArgument(input_type)},
-                    resolve=lambda obj, info, input: {
+                    resolve=lambda obj, info, input: {  # noqa: A006
                         "status": input["status"],  # This should be the primitive value
                         "message": "Success",
                     },

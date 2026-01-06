@@ -13,11 +13,11 @@ from graphql import graphql
 # Import schema_builder to ensure SchemaRegistry is patched
 import fraiseql.gql.schema_builder  # noqa: F401
 from fraiseql import fraise_type, query
-from fraiseql.types.scalars import IpAddressScalar  # type: ignore
+from fraiseql.types.scalars import IpAddressScalar  # type: ignore[misc]
 
 
 @pytest.fixture(scope="class")
-def network_test_schema(meta_test_schema):
+def network_test_schema(meta_test_schema) -> None:
     """Schema registry with network-related types for testing."""
     # Clear any existing registrations
     meta_test_schema.clear()
@@ -45,7 +45,7 @@ def network_test_schema(meta_test_schema):
 class TestNetworkOperatorsE2E:
     """End-to-end tests for network operators with real PostgreSQL data."""
 
-    async def test_network_operators_table_creation(self, meta_test_pool):
+    async def test_network_operators_table_creation(self, meta_test_pool) -> None:
         """Network operators require proper PostgreSQL table setup."""
         table_name = "test_network_operators"
 
@@ -94,7 +94,7 @@ class TestNetworkOperatorsE2E:
             await conn.commit()
 
     @pytest.mark.parametrize(
-        "ip_address,expected_is_ipv4",
+        "ip_address,expected_is_ipv4",  # noqa: PT006
         [
             ("192.168.1.1", True),
             ("10.0.0.1", True),
@@ -103,7 +103,7 @@ class TestNetworkOperatorsE2E:
             ("8.8.8.8", True),
         ],
     )
-    async def test_isipv4_operator_e2e(self, meta_test_pool, ip_address, expected_is_ipv4):
+    async def test_isipv4_operator_e2e(self, meta_test_pool, ip_address, expected_is_ipv4) -> None:
         """Test isIPv4 operator end-to-end with real PostgreSQL data."""
         table_name = "test_isipv4"
 
@@ -137,7 +137,7 @@ class TestNetworkOperatorsE2E:
             await conn.commit()
 
     @pytest.mark.parametrize(
-        "ip_address,subnet,expected_in_subnet",
+        "ip_address,subnet,expected_in_subnet",  # noqa: PT006
         [
             ("192.168.1.1", "192.168.1.0/24", True),
             ("192.168.1.1", "192.168.2.0/24", False),
@@ -147,7 +147,7 @@ class TestNetworkOperatorsE2E:
             ("2001:db8::1", "2001:db9::/32", False),
         ],
     )
-    async def test_insubnet_operator_e2e(
+    async def test_insubnet_operator_e2e(  # noqa: ANN201
         self, meta_test_pool, ip_address, subnet, expected_in_subnet
     ):
         """Test inSubnet operator end-to-end with real PostgreSQL data."""
@@ -190,7 +190,7 @@ class TestNetworkOperatorsE2E:
             await conn.execute(f"DROP TABLE IF EXISTS {table_name}")
             await conn.commit()
 
-    async def test_network_operators_in_graphql_schema_registration(self, network_test_schema):
+    async def test_network_operators_in_graphql_schema_registration(self, network_test_schema) -> None:
         """Network operators should be available in GraphQL schema with IpAddressScalar."""
         schema = network_test_schema.build_schema()
 
@@ -213,7 +213,7 @@ class TestNetworkOperatorsE2E:
         # The field type should be IpAddressString (the GraphQL scalar name)
         assert ip_address_field.type.name == "IpAddressString"
 
-    async def test_network_operators_graphql_query_parsing(self, network_test_schema):
+    async def test_network_operators_graphql_query_parsing(self, network_test_schema) -> None:
         """Network operators should parse correctly in GraphQL queries."""
         schema = network_test_schema.build_schema()
 
@@ -256,7 +256,7 @@ class TestNetworkOperatorsE2E:
             result = await graphql(schema, query_str)
             assert not result.errors, f"GraphQL query failed: {query_str}\nErrors: {result.errors}"
 
-    async def test_network_operators_combined_with_other_operators(self, network_test_schema):
+    async def test_network_operators_combined_with_other_operators(self, network_test_schema) -> None:
         """Network operators should work in combination with other WHERE operators."""
         schema = network_test_schema.build_schema()
 
@@ -300,7 +300,7 @@ class TestNetworkOperatorsE2E:
                 f"Combined operator query failed: {query_str}\nErrors: {result.errors}"
             )
 
-    async def test_network_operators_with_null_values(self, network_test_schema):
+    async def test_network_operators_with_null_values(self, network_test_schema) -> None:
         """Network operators should handle null values gracefully."""
         schema = network_test_schema.build_schema()
 
@@ -317,7 +317,7 @@ class TestNetworkOperatorsE2E:
         result = await graphql(schema, query_str)
         assert not result.errors, f"Null handling query failed: {result.errors}"
 
-    async def test_network_operators_schema_introspection(self, network_test_schema):
+    async def test_network_operators_schema_introspection(self, network_test_schema) -> None:
         """Network operators should be introspectable through GraphQL schema."""
         schema = network_test_schema.build_schema()
 
@@ -354,7 +354,7 @@ class TestNetworkOperatorsE2E:
             "strictright",
         ],
     )
-    async def test_all_network_operators_registered(self, operator_name):
+    async def test_all_network_operators_registered(self, operator_name) -> None:
         """All network operators should be registered in ALL_OPERATORS."""
         from fraiseql.where_clause import ALL_OPERATORS
 
@@ -363,7 +363,7 @@ class TestNetworkOperatorsE2E:
         )
 
         # Also check camelCase variants
-        camel_case_op = operator_name  # Most are already camelCase
+        camel_case_op = operator_name  # Most are already camelCase  # noqa: F841
         if operator_name in ["isipv4", "isipv6", "isprivate", "ispublic", "insubnet", "inrange"]:
             # These have camelCase equivalents
             camel_equivalent = {
@@ -378,7 +378,7 @@ class TestNetworkOperatorsE2E:
                 f"CamelCase variant '{camel_equivalent}' not in ALL_OPERATORS"
             )
 
-    async def test_network_operators_error_handling(self, network_test_schema):
+    async def test_network_operators_error_handling(self, network_test_schema) -> None:
         """Network operators should provide helpful error messages for invalid inputs."""
         schema = network_test_schema.build_schema()
 
@@ -398,7 +398,7 @@ class TestNetworkOperatorsE2E:
         # The important thing is no crashes occur
         assert result is not None, "GraphQL execution should not crash"
 
-    async def test_network_operators_with_large_dataset_simulation(self, network_test_schema):
+    async def test_network_operators_with_large_dataset_simulation(self, network_test_schema) -> None:
         """Network operators should work efficiently with larger datasets."""
         schema = network_test_schema.build_schema()
 

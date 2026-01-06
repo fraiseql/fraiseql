@@ -222,13 +222,12 @@ class TestIssue112NestedJSONBTypename:
         wrapped_pool = SchemaAwarePool(class_db_pool, test_schema)
         set_db_pool(wrapped_pool)
 
-        app = create_fraiseql_app(
+        return create_fraiseql_app(
             database_url="postgresql://test/test",  # Dummy URL since we're injecting pool
             types=[Equipment, Assignment],
             queries=[assignments],
             production=False,
         )
-        return app
 
     async def _execute_query(self, graphql_app, query_str: str):
         """Helper method to execute GraphQL queries with async client."""

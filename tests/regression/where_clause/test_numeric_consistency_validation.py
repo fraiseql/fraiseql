@@ -97,7 +97,7 @@ class TestNumericCastingConsistency:
             if op in ("eq", "neq"):
                 assert "true" in sql_str, "Should convert True to 'true'"
             elif op in ("in", "notin"):
-                assert "true" in sql_str and "false" in sql_str, (
+                assert "true" in sql_str and "false" in sql_str, (  # noqa: PT018
                     "Should convert boolean list items to strings"
                 )
 
@@ -172,7 +172,7 @@ class TestCastingEdgeCases:
         has_casting = "::numeric" in sql_str
         print(f"List operations use ::numeric casting: {has_casting}")
         # Values should remain as integers
-        assert "80" in sql_str and "443" in sql_str and "8080" in sql_str, (
+        assert "80" in sql_str and "443" in sql_str and "8080" in sql_str, (  # noqa: PT018
             "Integer values should be present"
         )
 

@@ -1,4 +1,4 @@
-"""SQL rendering utilities for test assertions.
+r"""SQL rendering utilities for test assertions.
 
 This module provides utilities to render psycopg.sql composed objects
 into valid SQL strings for assertion testing.

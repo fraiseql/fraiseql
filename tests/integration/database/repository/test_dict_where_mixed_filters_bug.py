@@ -51,7 +51,7 @@ def _parse_rust_response(result) -> list[dict[str, Any]] | dict[str, Any]:
         # Extract data from GraphQL response structure
         if "data" in response_json:
             # Get the first key in data (the field name)
-            field_name = list(response_json["data"].keys())[0]
+            field_name = next(iter(response_json["data"].keys()))
             data = response_json["data"][field_name]
 
             # Normalize: always return a list for consistency
@@ -67,7 +67,7 @@ def _parse_rust_response(result) -> list[dict[str, Any]] | dict[str, Any]:
 class TestDictWhereMixedFiltersBug:
     """Test suite to reproduce and fix the dict WHERE mixed filters bug."""
 
-    @pytest_asyncio.fixture(scope="class")
+    @pytest_asyncio.fixture(scope="class")  # noqa: F405
     async def setup_test_tables(
         self, class_db_pool, test_schema
     ) -> AsyncGenerator[dict[str, UUID]]:

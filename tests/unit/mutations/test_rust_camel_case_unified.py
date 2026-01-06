@@ -7,7 +7,7 @@ in the Rust build_mutation_response function.
 import json
 
 
-def test_rust_build_mutation_response_with_camel_case_true():
+def test_rust_build_mutation_response_with_camel_case_true() -> None:
     """Verify Rust converts to camelCase when auto_camel_case=True."""
     import fraiseql._fraiseql_rs as fraiseql_rs
 
@@ -53,7 +53,7 @@ def test_rust_build_mutation_response_with_camel_case_true():
     assert "dns_server_name" not in test_server, "Fields should NOT be snake_case"
 
 
-def test_rust_build_mutation_response_with_camel_case_false():
+def test_rust_build_mutation_response_with_camel_case_false() -> None:
     """Verify Rust preserves snake_case when auto_camel_case=False."""
     import fraiseql._fraiseql_rs as fraiseql_rs
 
@@ -99,7 +99,7 @@ def test_rust_build_mutation_response_with_camel_case_false():
     assert "dnsServerName" not in test_server, "Fields should NOT be camelCase"
 
 
-def test_rust_mutation_default_auto_camel_case_is_true():
+def test_rust_mutation_default_auto_camel_case_is_true() -> None:
     """Verify that auto_camel_case defaults to True for backward compatibility."""
     import fraiseql._fraiseql_rs as fraiseql_rs
 

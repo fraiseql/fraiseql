@@ -10,39 +10,39 @@ class TestBooleanOperatorStrategy:
     """Test boolean operator strategy."""
 
     @pytest.fixture
-    def strategy(self):
+    def strategy(self) -> None:
         """Create boolean operator strategy instance."""
         return BooleanOperatorStrategy()
 
     @pytest.fixture
-    def path_sql(self):
+    def path_sql(self) -> None:
         """Standard path SQL for testing."""
         return Identifier("field")
 
-    def test_does_not_support_operators_without_type(self, strategy):
+    def test_does_not_support_operators_without_type(self, strategy) -> None:
         """Test that boolean operators require type hints."""
         assert not strategy.supports_operator("eq", None)
         assert not strategy.supports_operator("neq", None)
         assert not strategy.supports_operator("isnull", None)
 
-    def test_supports_operators_with_bool_type(self, strategy):
+    def test_supports_operators_with_bool_type(self, strategy) -> None:
         """Test that operators are supported for bool fields."""
         assert strategy.supports_operator("eq", bool)
         assert strategy.supports_operator("neq", bool)
         assert strategy.supports_operator("isnull", bool)
 
-    def test_does_not_support_non_bool_types(self, strategy):
+    def test_does_not_support_non_bool_types(self, strategy) -> None:
         """Test that non-boolean types are not supported."""
         assert not strategy.supports_operator("eq", str)
         assert not strategy.supports_operator("eq", int)
 
-    def test_does_not_support_unsupported_operators(self, strategy):
+    def test_does_not_support_unsupported_operators(self, strategy) -> None:
         """Test that unsupported operators are rejected."""
         assert not strategy.supports_operator("gt", bool)
         assert not strategy.supports_operator("contains", bool)
         assert not strategy.supports_operator("in", bool)
 
-    def test_equality_operators(self, strategy, path_sql):
+    def test_equality_operators(self, strategy, path_sql) -> None:
         """Test equality operators."""
         sql = strategy.build_sql("eq", True, path_sql, field_type=bool)
         assert sql is not None
@@ -57,7 +57,7 @@ class TestBooleanOperatorStrategy:
         assert sql is not None
         assert "!=" in sql.as_string(None)
 
-    def test_isnull_operator(self, strategy, path_sql):
+    def test_isnull_operator(self, strategy, path_sql) -> None:
         """Test NULL checking."""
         sql = strategy.build_sql("isnull", True, path_sql, field_type=bool)
         assert sql is not None
@@ -67,13 +67,13 @@ class TestBooleanOperatorStrategy:
         assert sql is not None
         assert "IS NOT NULL" in sql.as_string(None)
 
-    def test_jsonb_casting(self, strategy, path_sql):
+    def test_jsonb_casting(self, strategy, path_sql) -> None:
         """Test that JSONB fields are cast to boolean."""
         sql = strategy.build_sql("eq", True, path_sql, field_type=bool, jsonb_column="data")
         assert sql is not None
         assert "::boolean" in sql.as_string(None)
 
-    def test_unsupported_operator_returns_none(self, strategy, path_sql):
+    def test_unsupported_operator_returns_none(self, strategy, path_sql) -> None:
         """Test that unsupported operators return None."""
         sql = strategy.build_sql("unknown_op", True, path_sql, field_type=bool)
         assert sql is None

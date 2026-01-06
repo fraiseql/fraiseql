@@ -1,19 +1,17 @@
-"""
-Phase 3.1: Cache Chaos Tests (Real PostgreSQL Backend)
+"""Phase 3.1: Cache Chaos Tests (Real PostgreSQL Backend)
 
 Tests for cache invalidation, corruption, and backend failures.
 Uses real PostgreSQL connections to validate FraiseQL's cache resilience
 and performance under adverse cache conditions.
 """
 
-import pytest
-import time
+import asyncio
 import random
 import statistics
-import asyncio
 
-from chaos.fraiseql_scenarios import FraiseQLTestScenarios
+import pytest
 from chaos.base import ChaosMetrics
+from chaos.fraiseql_scenarios import FraiseQLTestScenarios
 
 
 @pytest.mark.chaos
@@ -22,9 +20,8 @@ from chaos.base import ChaosMetrics
 @pytest.mark.asyncio
 async def test_cache_invalidation_storm(
     chaos_db_client, chaos_test_schema, baseline_metrics, chaos_config
-):
-    """
-    Test cache invalidation storm resilience.
+) -> None:
+    """Test cache invalidation storm resilience.
 
     Scenario: Massive cache invalidation causes cache thrashing.
     Expected: FraiseQL handles cache misses gracefully with database fallback.
@@ -48,9 +45,9 @@ async def test_cache_invalidation_storm(
         # Simulate cache invalidation storm (first half of operations)
         current_hit_rate = storm_cache_hit_rate if i < total_operations // 2 else cache_hit_rate
 
-        if random.random() < current_hit_rate:
+        if random.random() < current_hit_rate:  # noqa: S311
             # Cache hit - fast response
-            execution_time = 5.0 + random.uniform(-1, 1)  # ~5ms cache hit
+            execution_time = 5.0 + random.uniform(-1, 1)  # ~5ms cache hit  # noqa: S311
             cache_hits += 1
         else:
             # Cache miss - database query
@@ -65,7 +62,7 @@ async def test_cache_invalidation_storm(
         metrics.record_query_time(execution_time)
 
         # Simulate storm: invalidate cache entries randomly
-        if i < total_operations // 2 and random.random() < 0.3:  # 30% invalidation rate
+        if i < total_operations // 2 and random.random() < 0.3:  # 30% invalidation rate  # noqa: S311
             # Cache invalidation causes next request to miss
             pass
 
@@ -86,9 +83,8 @@ async def test_cache_invalidation_storm(
 @pytest.mark.asyncio
 async def test_cache_corruption_handling(
     chaos_db_client, chaos_test_schema, baseline_metrics, chaos_config
-):
-    """
-    Test cache corruption detection and recovery.
+) -> None:
+    """Test cache corruption detection and recovery.
 
     Scenario: Cache contains corrupted data.
     Expected: FraiseQL detects corruption and falls back to database.
@@ -104,12 +100,12 @@ async def test_cache_corruption_handling(
     # Uses multiplier-based formula to ensure meaningful test on all hardware
     total_operations = max(7, int(15 * chaos_config.load_multiplier))
 
-    for i in range(total_operations):
+    for _i in range(total_operations):
         try:
             # Simulate cache access
-            if random.random() < 0.85:  # 85% cache hit rate
+            if random.random() < 0.85:  # 85% cache hit rate  # noqa: S311
                 # Check for corruption
-                if random.random() < 0.15:  # 15% of cache entries corrupted
+                if random.random() < 0.15:  # 15% of cache entries corrupted  # noqa: S311
                     # Corrupted cache entry detected
                     corruption_detected += 1
                     metrics.record_error()
@@ -121,7 +117,7 @@ async def test_cache_corruption_handling(
                     successful_fallbacks += 1
                 else:
                     # Valid cache hit
-                    execution_time = 4.0 + random.uniform(-0.5, 0.5)
+                    execution_time = 4.0 + random.uniform(-0.5, 0.5)  # noqa: S311
                     metrics.record_query_time(execution_time)
             else:
                 # Cache miss - direct database query
@@ -154,9 +150,8 @@ async def test_cache_corruption_handling(
 @pytest.mark.asyncio
 async def test_cache_backend_failure(
     chaos_db_client, chaos_test_schema, baseline_metrics, chaos_config
-):
-    """
-    Test cache backend failure and recovery.
+) -> None:
+    """Test cache backend failure and recovery.
 
     Scenario: Cache backend becomes unavailable.
     Expected: FraiseQL degrades gracefully to database-only operation.
@@ -256,15 +251,14 @@ async def test_cache_backend_failure(
 @pytest.mark.asyncio
 async def test_cache_stampede_prevention(
     chaos_db_client, chaos_test_schema, baseline_metrics, chaos_config
-):
-    """
-    Test cache stampede prevention under concurrent load.
+) -> None:
+    """Test cache stampede prevention under concurrent load.
 
     Scenario: Multiple concurrent requests try to populate same cache entry.
     Expected: FraiseQL prevents cache stampede with proper synchronization.
     """
     metrics = ChaosMetrics()
-    operation = FraiseQLTestScenarios.simple_user_query()
+    FraiseQLTestScenarios.simple_user_query()
 
     metrics.start_test()
 
@@ -281,7 +275,7 @@ async def test_cache_stampede_prevention(
 
         try:
             # Check if cache needs population (simulate cache miss)
-            if not cache_populated and random.random() < 0.7:  # 70% chance of cache miss
+            if not cache_populated and random.random() < 0.7:  # 70% chance of cache miss  # noqa: S311
                 # This would be a stampede scenario in real systems
                 stampede_events += 1
 
@@ -296,7 +290,7 @@ async def test_cache_stampede_prevention(
                 execution_time = 50.0  # Includes population time
             else:
                 # Cache hit
-                execution_time = 4.0 + random.uniform(-0.5, 0.5)
+                execution_time = 4.0 + random.uniform(-0.5, 0.5)  # noqa: S311
 
             metrics.record_query_time(execution_time)
             return ("success", thread_id, execution_time)

@@ -1,22 +1,23 @@
 """Tests for Rust SQL query builder."""
 
 import pytest
+
 from fraiseql.core.graphql_parser import RustGraphQLParser
 from fraiseql.core.query_builder import RustQueryBuilder
 
 
 @pytest.fixture
-def parser():
+def parser() -> None:
     return RustGraphQLParser()
 
 
 @pytest.fixture
-def builder():
+def builder() -> None:
     return RustQueryBuilder()
 
 
 @pytest.fixture
-def test_schema():
+def test_schema() -> None:
     return {
         "tables": {
             "users": {  # GraphQL field name as key
@@ -32,7 +33,7 @@ def test_schema():
 
 
 @pytest.mark.asyncio
-async def test_build_simple_query(parser, builder, test_schema):
+async def test_build_simple_query(parser, builder, test_schema) -> None:
     """Test building simple SELECT query."""
     query = "query { users { id name } }"
     parsed = await parser.parse(query)
@@ -45,7 +46,7 @@ async def test_build_simple_query(parser, builder, test_schema):
 
 
 @pytest.mark.asyncio
-async def test_build_query_with_where(parser, builder, test_schema):
+async def test_build_query_with_where(parser, builder, test_schema) -> None:
     """Test building query with WHERE clause."""
     query = """
         query {
@@ -62,7 +63,7 @@ async def test_build_query_with_where(parser, builder, test_schema):
 
 
 @pytest.mark.asyncio
-async def test_build_query_with_limit(parser, builder, test_schema):
+async def test_build_query_with_limit(parser, builder, test_schema) -> None:
     """Test building query with LIMIT."""
     query = "query { users(limit: 10) { id } }"
     parsed = await parser.parse(query)
@@ -72,7 +73,7 @@ async def test_build_query_with_limit(parser, builder, test_schema):
 
 
 @pytest.mark.asyncio
-async def test_build_query_with_offset(parser, builder, test_schema):
+async def test_build_query_with_offset(parser, builder, test_schema) -> None:
     """Test building query with pagination."""
     query = "query { users(limit: 10, offset: 20) { id } }"
     parsed = await parser.parse(query)
@@ -83,7 +84,7 @@ async def test_build_query_with_offset(parser, builder, test_schema):
 
 
 @pytest.mark.asyncio
-async def test_build_query_with_complex_where(parser, builder, test_schema):
+async def test_build_query_with_complex_where(parser, builder, test_schema) -> None:
     """Test building query with complex WHERE clause."""
     query = """
         query {
@@ -107,7 +108,7 @@ async def test_build_query_with_complex_where(parser, builder, test_schema):
 
 
 @pytest.mark.asyncio
-async def test_parameters_are_collected(parser, builder, test_schema):
+async def test_parameters_are_collected(parser, builder, test_schema) -> None:
     """Test that parameters are properly collected."""
     query = """
         query {

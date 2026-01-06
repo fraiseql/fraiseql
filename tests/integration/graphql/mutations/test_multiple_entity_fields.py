@@ -14,7 +14,7 @@ pytestmark = pytest.mark.integration
 
 
 @pytest.mark.asyncio
-async def test_success_with_multiple_entities():
+async def test_success_with_multiple_entities() -> None:
     """Test Success response with multiple entity fields at root level.
 
     Use case: Update operation showing before and after states.
@@ -112,7 +112,7 @@ async def test_success_with_multiple_entities():
 
 
 @pytest.mark.asyncio
-async def test_error_with_conflict_entity():
+async def test_error_with_conflict_entity() -> None:
     """Test Error response with conflict entity.
 
     Use case: Create operation failed due to existing entity.

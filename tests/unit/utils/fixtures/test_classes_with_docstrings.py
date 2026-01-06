@@ -6,7 +6,7 @@ These classes must be in a separate file so that inspect.getsource() can find th
 from dataclasses import dataclass
 from uuid import UUID
 
-from fraiseql import fraise_field, fraise_type
+from fraiseql import fraise_type
 
 
 @fraise_type

@@ -16,7 +16,7 @@ class TestUnifiedCamelCase:
     """Test that mutations use Rust camelCase conversion consistently."""
 
     @pytest.fixture(scope="class")
-    async def setup_test_schema(self, class_db_pool, test_schema, clear_registry_class):
+    async def setup_test_schema(self, class_db_pool, test_schema, clear_registry_class) -> None:
         """Set up test schema with a simple table and function."""
         async with class_db_pool.connection() as conn:
             await conn.execute(f"SET search_path TO {test_schema}, public")
@@ -87,7 +87,7 @@ class TestUnifiedCamelCase:
 
     async def test_mutation_with_auto_camel_case_true(
         self, db_connection, setup_test_schema, clear_registry
-    ):
+    ) -> None:
         """Verify mutation returns camelCase field names when auto_camel_case=True."""
         # Create a mock config with auto_camel_case=True
         from types import SimpleNamespace
@@ -141,7 +141,7 @@ class TestUnifiedCamelCase:
 
     async def test_mutation_with_auto_camel_case_false(
         self, db_connection, setup_test_schema, clear_registry
-    ):
+    ) -> None:
         """Verify mutation preserves snake_case when auto_camel_case=False."""
         # Create a mock config with auto_camel_case=False
         from types import SimpleNamespace
@@ -194,7 +194,7 @@ class TestUnifiedCamelCase:
 
     async def test_mutation_default_config_uses_camel_case(
         self, db_connection, setup_test_schema, clear_registry
-    ):
+    ) -> None:
         """Verify mutation defaults to camelCase when no config provided."""
         # Execute mutation without config (should default to auto_camel_case=True)
         result = await execute_mutation_rust(

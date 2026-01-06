@@ -1,6 +1,7 @@
 """Unit tests for AxumFraiseQLConfig."""
 
 import os
+
 import pytest
 from pydantic import ValidationError
 
@@ -33,7 +34,7 @@ class TestAxumFraiseQLConfigCreation:
             production_mode=True,
             enable_introspection=False,
             enable_playground=False,
-            axum_host="0.0.0.0",
+            axum_host="0.0.0.0",  # noqa: S104
             axum_port=3000,
             axum_workers=4,
             cors_origins=["https://example.com"],
@@ -47,7 +48,7 @@ class TestAxumFraiseQLConfigCreation:
         assert config.production_mode is True
         assert config.enable_introspection is False
         assert config.enable_playground is False
-        assert config.axum_host == "0.0.0.0"
+        assert config.axum_host == "0.0.0.0"  # noqa: S104
         assert config.axum_port == 3000
         assert config.axum_workers == 4
         assert config.cors_origins == ["https://example.com"]
@@ -116,7 +117,7 @@ class TestAxumFraiseQLConfigValidation:
     def test_database_url_required(self) -> None:
         """Test that database_url is required."""
         with pytest.raises(ValidationError) as exc_info:
-            AxumFraiseQLConfig()  # type: ignore
+            AxumFraiseQLConfig()  # type: ignore[misc]
 
         errors = exc_info.value.errors()
         assert any(err["loc"] == ("database_url",) for err in errors)
@@ -246,7 +247,7 @@ class TestAxumFraiseQLConfigProperties:
         """Test server_url property."""
         config = AxumFraiseQLConfig(
             database_url="postgresql://localhost/test",
-            axum_host="0.0.0.0",
+            axum_host="0.0.0.0",  # noqa: S104
             axum_port=3000
         )
 
@@ -281,7 +282,7 @@ class TestAxumFraiseQLConfigEnvironment:
         env_vars = {
             "FRAISEQL_DATABASE_URL": "postgresql://prod/db",
             "FRAISEQL_ENV": "production",
-            "FRAISEQL_HOST": "0.0.0.0",
+            "FRAISEQL_HOST": "0.0.0.0",  # noqa: S104
             "FRAISEQL_PORT": "3000",
             "FRAISEQL_WORKERS": "8",
             "FRAISEQL_AUTH_ENABLED": "true",
@@ -296,7 +297,7 @@ class TestAxumFraiseQLConfigEnvironment:
             config = AxumFraiseQLConfig.from_env()
             assert config.database_url == "postgresql://prod/db"
             assert config.environment == "production"
-            assert config.axum_host == "0.0.0.0"
+            assert config.axum_host == "0.0.0.0"  # noqa: S104
             assert config.axum_port == 3000
             assert config.axum_workers == 8
             assert config.auth_enabled is True
@@ -326,7 +327,7 @@ class TestAxumFraiseQLConfigSerialization:
         """Test converting config to dictionary."""
         config = AxumFraiseQLConfig(
             database_url="postgresql://localhost/test",
-            axum_host="0.0.0.0",
+            axum_host="0.0.0.0",  # noqa: S104
             axum_port=3000
         )
 
@@ -334,7 +335,7 @@ class TestAxumFraiseQLConfigSerialization:
 
         assert isinstance(config_dict, dict)
         assert config_dict["database_url"] == "postgresql://localhost/test"
-        assert config_dict["axum_host"] == "0.0.0.0"
+        assert config_dict["axum_host"] == "0.0.0.0"  # noqa: S104
         assert config_dict["axum_port"] == 3000
 
     def test_to_dict_excludes_none(self) -> None:
@@ -353,14 +354,14 @@ class TestAxumFraiseQLConfigSerialization:
         """Test string representation."""
         config = AxumFraiseQLConfig(
             database_url="postgresql://localhost/test",
-            axum_host="0.0.0.0",
+            axum_host="0.0.0.0",  # noqa: S104
             axum_port=3000
         )
 
         str_repr = str(config)
 
         assert "AxumFraiseQLConfig" in str_repr
-        assert "0.0.0.0" in str_repr
+        assert "0.0.0.0" in str_repr  # noqa: S104
         assert "3000" in str_repr
 
 

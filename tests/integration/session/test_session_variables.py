@@ -22,7 +22,7 @@ class TestSessionVariablesAcrossExecutionModes:
         # Track executed SQL statements
         executed_statements = []
 
-        async def track_execute(sql, *args) -> None:
+        async def track_execute(sql, *args) -> None:  # noqa: ANN002
             # Store both raw SQL and string representation
             executed_statements.append(sql)
 
@@ -54,7 +54,7 @@ class TestSessionVariablesAcrossExecutionModes:
         # Track executed SQL statements
         executed_statements = []
 
-        async def track_execute(sql, *args) -> None:
+        async def track_execute(sql, *args) -> None:  # noqa: ANN002
             executed_statements.append({"sql": sql, "args": args})
 
         mock_conn.execute = track_execute
@@ -87,7 +87,7 @@ class TestSessionVariablesAcrossExecutionModes:
         mock_cursor = AsyncMock()
         executed_statements = []
 
-        async def track_execute(sql, *args) -> None:
+        async def track_execute(sql, *args) -> None:  # noqa: ANN002
             # Handle both SQL objects and strings
             if hasattr(sql, "__sql__"):
                 sql_str = str(sql.as_string(mock_cursor))
@@ -125,7 +125,8 @@ class TestSessionVariablesAcrossExecutionModes:
             if hasattr(stmt, "as_string"):
                 try:
                     executed_sql_str.append(stmt.as_string(None))
-                except:
+                except Exception:
+
                     executed_sql_str.append(str(stmt))
             else:
                 executed_sql_str.append(str(stmt))

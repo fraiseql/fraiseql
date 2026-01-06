@@ -19,7 +19,7 @@ pytestmark = pytest.mark.integration
 
 # Check if Connection type exists
 try:
-    from fraiseql.types.generic import Connection
+    from fraiseql.types.generic import Connection  # noqa: F401
 
     HAS_CONNECTION = True
 except ImportError:
@@ -31,10 +31,10 @@ class TestRelaySchemaGeneration:
     """Test that Relay parameters are auto-added to schema."""
 
     @pytest.fixture(autouse=True)
-    def auto_clear(self, clear_registry):
+    def auto_clear(self, clear_registry) -> None:
         return
 
-    def test_connection_query_has_first_parameter(self):
+    def test_connection_query_has_first_parameter(self) -> None:
         """Connection queries should have 'first' parameter."""
         from fraiseql.types.generic import Connection
 
@@ -54,7 +54,7 @@ class TestRelaySchemaGeneration:
         assert field is not None
         assert "first" in field.args
 
-    def test_connection_query_has_after_parameter(self):
+    def test_connection_query_has_after_parameter(self) -> None:
         """Connection queries should have 'after' parameter."""
         from fraiseql.types.generic import Connection
 
@@ -72,7 +72,7 @@ class TestRelaySchemaGeneration:
 
         assert "after" in field.args
 
-    def test_connection_query_has_last_and_before(self):
+    def test_connection_query_has_last_and_before(self) -> None:
         """Connection queries should have 'last' and 'before' parameters."""
         from fraiseql.types.generic import Connection
 
@@ -91,7 +91,7 @@ class TestRelaySchemaGeneration:
         assert "last" in field.args
         assert "before" in field.args
 
-    def test_first_is_int_after_is_string(self):
+    def test_first_is_int_after_is_string(self) -> None:
         """First should be Int, after should be String."""
         from fraiseql.types.generic import Connection
 
@@ -110,7 +110,7 @@ class TestRelaySchemaGeneration:
         assert field.args["first"].type == GraphQLInt
         assert field.args["after"].type == GraphQLString
 
-    def test_connection_also_has_where_and_order_by(self):
+    def test_connection_also_has_where_and_order_by(self) -> None:
         """Connection queries should have where and orderBy."""
         from fraiseql.types.generic import Connection
 
@@ -130,7 +130,7 @@ class TestRelaySchemaGeneration:
         assert "where" in field.args
         assert "orderBy" in field.args
 
-    def test_list_query_no_relay_params(self):
+    def test_list_query_no_relay_params(self) -> None:
         """Regular list queries should NOT get Relay parameters."""
 
         @fraiseql_type(sql_source="v_list_no_relay")
@@ -158,7 +158,7 @@ class TestRelayValidation:
     @pytest.mark.asyncio
     async def test_negative_first_returns_error(
         self, clear_registry, db_connection, gql_context, setup_graphql_table
-    ):
+    ) -> None:
         """Negative first should return error."""
         from fraiseql.graphql.execute import execute_graphql
         from fraiseql.types.generic import Connection
@@ -186,7 +186,7 @@ class TestRelayValidation:
     @pytest.mark.asyncio
     async def test_negative_last_returns_error(
         self, clear_registry, db_connection, gql_context, setup_graphql_table
-    ):
+    ) -> None:
         """Negative last should return error."""
         from fraiseql.graphql.execute import execute_graphql
         from fraiseql.types.generic import Connection

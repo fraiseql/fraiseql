@@ -165,7 +165,7 @@ async def test_graphql_test_client_handles_errors() -> None:
 
     # Create schema with a field that raises an error
     def error_resolver(obj, info) -> None:
-        raise Exception("Something went wrong")
+        raise Exception("Something went wrong")  # noqa: TRY002
 
     schema = GraphQLSchema(
         query=GraphQLObjectType(

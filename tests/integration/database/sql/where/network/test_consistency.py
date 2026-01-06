@@ -30,8 +30,8 @@ class TestNetworkOperatorConsistencyBug:
         subnet_sql = registry.build_sql("inSubnet", "1.1.1.0/24", field_path, field_type=IpAddress)
 
         # The issue: eq uses host() but inSubnet doesn't
-        eq_str = eq_sql.as_string(None)  # type: ignore
-        subnet_str = subnet_sql.as_string(None)  # type: ignore
+        eq_str = eq_sql.as_string(None)  # type: ignore[misc]
+        subnet_str = subnet_sql.as_string(None)  # type: ignore[misc]
 
         # Both should consistently handle IP address casting
         if "host(" in eq_str:
@@ -56,8 +56,8 @@ class TestNetworkOperatorConsistencyBug:
         # Test isPrivate
         private_sql = registry.build_sql("isPrivate", True, field_path, field_type=IpAddress)
 
-        eq_str = eq_sql.as_string(None)  # type: ignore
-        private_str = private_sql.as_string(None)  # type: ignore
+        eq_str = eq_sql.as_string(None)  # type: ignore[misc]
+        private_str = private_sql.as_string(None)  # type: ignore[misc]
 
         # Both should handle the same field consistently
         # If eq uses host(), isPrivate should account for this
@@ -76,8 +76,8 @@ class TestNetworkOperatorConsistencyBug:
             "inSubnet", "192.168.1.0/24", field_path, field_type=IpAddress
         )
 
-        eq_str = eq_sql.as_string(None)  # type: ignore
-        subnet_str = subnet_sql.as_string(None)  # type: ignore
+        eq_str = eq_sql.as_string(None)  # type: ignore[misc]
+        subnet_str = subnet_sql.as_string(None)  # type: ignore[misc]
 
         # The real issue: different casting approaches
         uses_host_for_eq = "host(" in eq_str

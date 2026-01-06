@@ -8,20 +8,19 @@ import pytest
 
 
 @pytest.fixture
-def rust_pool(postgres_url):
+def rust_pool(postgres_url) -> None:
     """Create a Rust DatabasePool for testing."""
     from fraiseql._fraiseql_rs import DatabasePool
 
     # Create pool from URL
-    pool = DatabasePool(url=postgres_url)
-    yield pool
+    return DatabasePool(url=postgres_url)
     # Pool cleanup happens automatically when it goes out of scope
 
 
 class TestUnifiedPipeline:
     """Test Phase 9 unified GraphQL execution pipeline."""
 
-    def test_pipeline_initialization(self, rust_pool):
+    def test_pipeline_initialization(self, rust_pool) -> None:
         """Test that the unified pipeline can be initialized with a database pool."""
         from fraiseql._fraiseql_rs import initialize_graphql_pipeline
 
@@ -34,7 +33,7 @@ class TestUnifiedPipeline:
         # If we got here, initialization succeeded
         assert True
 
-    def test_pipeline_execute_query(self, rust_pool):
+    def test_pipeline_execute_query(self, rust_pool) -> None:
         """Test that the unified pipeline can execute a GraphQL query."""
         from fraiseql._fraiseql_rs import execute_graphql_query, initialize_graphql_pipeline
 
@@ -61,10 +60,9 @@ class TestUnifiedPipeline:
         except Exception as e:
             # For now, we accept errors as the schema is minimal
             # The important thing is that the pipeline executed
-            assert "Pipeline not initialized" not in str(e)
+            assert "Pipeline not initialized" not in str(e)  # noqa: PT017
 
     @pytest.mark.skip(reason="Requires full schema setup - will implement after basic tests pass")
-    def test_pipeline_with_real_query(self, rust_pool):
+    def test_pipeline_with_real_query(self, rust_pool) -> None:
         """Test pipeline with a real query against the database."""
-        # TODO: Implement once we have a test schema set up
-        pass
+        # TODO: Implement once we have a test schema set up  # noqa: TD002, TD003

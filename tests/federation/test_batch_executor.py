@@ -5,13 +5,14 @@ and integration with DataLoader.
 """
 
 import asyncio
+
 import pytest
 
-from fraiseql.federation import entity, clear_entity_registry
+from fraiseql.federation import clear_entity_registry, entity
 from fraiseql.federation.batch_executor import (
     BatchExecutor,
-    PerRequestBatchExecutor,
     ConcurrentBatchExecutor,
+    PerRequestBatchExecutor,
 )
 from fraiseql.federation.dataloader import EntityDataLoader
 
@@ -19,11 +20,11 @@ from fraiseql.federation.dataloader import EntityDataLoader
 class MockConnection:
     """Mock database connection."""
 
-    def __init__(self, pool):
+    def __init__(self, pool) -> None:
         """Initialize mock connection with reference to pool."""
         self.pool = pool
 
-    async def fetch(self, sql, *params):
+    async def fetch(self, sql, *params) -> None:  # noqa: ANN002
         """Mock database query execution."""
         self.pool.queries_executed += 1
 
@@ -49,12 +50,12 @@ class MockConnection:
 class MockAsyncPool:
     """Mock async connection pool for testing."""
 
-    def __init__(self, data=None):
+    def __init__(self, data=None) -> None:
         """Initialize mock pool with test data."""
         self.data = data or {}
         self.queries_executed = 0
 
-    def acquire(self):
+    def acquire(self) -> None:
         """Return async context manager for connection."""
         return MockConnectionContext(self)
 
@@ -62,29 +63,26 @@ class MockAsyncPool:
 class MockConnectionContext:
     """Async context manager for mock connections."""
 
-    def __init__(self, pool):
+    def __init__(self, pool) -> None:
         """Initialize context manager."""
         self.pool = pool
         self.conn = None
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> None:
         """Async context manager entry."""
         self.conn = MockConnection(self.pool)
         return self.conn
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
         """Async context manager exit."""
-        pass
 
 
 class MockResolver:
     """Mock EntitiesResolver for testing."""
 
-    pass
-
 
 @pytest.fixture
-def clear_entities():
+def clear_entities() -> None:
     """Clear entity registry."""
     clear_entity_registry()
     yield
@@ -92,7 +90,7 @@ def clear_entities():
 
 
 @pytest.fixture
-def mock_pool():
+def mock_pool() -> None:
     """Create mock pool with test data."""
     data = {
         ("User", "user-1"): {"name": "Alice"},
@@ -104,7 +102,7 @@ def mock_pool():
 
 
 @pytest.fixture
-def executor():
+def executor() -> None:
     """Create batch executor."""
     return BatchExecutor(batch_window_ms=1.0)
 
@@ -113,8 +111,9 @@ class TestBatchExecutor:
     """Test basic batch execution."""
 
     @pytest.mark.asyncio
-    async def test_batch_execute_single_type(self, executor, mock_pool, clear_entities):
+    async def test_batch_execute_single_type(self, executor, mock_pool, clear_entities) -> None:
         """Test executing batch with single entity type."""
+
         @entity
         class User:
             id: str
@@ -132,8 +131,9 @@ class TestBatchExecutor:
         assert mock_pool.queries_executed == 1
 
     @pytest.mark.asyncio
-    async def test_batch_execute_multiple_types(self, executor, mock_pool, clear_entities):
+    async def test_batch_execute_multiple_types(self, executor, mock_pool, clear_entities) -> None:
         """Test executing batch with multiple types."""
+
         @entity
         class User:
             id: str
@@ -156,8 +156,9 @@ class TestBatchExecutor:
         assert mock_pool.queries_executed == 2
 
     @pytest.mark.asyncio
-    async def test_batch_context_manager(self, executor, mock_pool, clear_entities):
+    async def test_batch_context_manager(self, executor, mock_pool, clear_entities) -> None:
         """Test batch context manager."""
+
         @entity
         class User:
             id: str
@@ -182,8 +183,9 @@ class TestBatchExecutor:
     @pytest.mark.asyncio
     async def test_context_manager_prevents_manual_flush(
         self, executor, mock_pool, clear_entities
-    ):
+    ) -> None:
         """Test that context manager handles flush automatically."""
+
         @entity
         class User:
             id: str
@@ -206,15 +208,16 @@ class TestPerRequestBatchExecutor:
     """Test per-request batch execution."""
 
     @pytest.mark.asyncio
-    async def test_execute_request(self, mock_pool, clear_entities):
+    async def test_execute_request(self, mock_pool, clear_entities) -> None:
         """Test per-request execution."""
+
         @entity
         class User:
             id: str
 
         executor = PerRequestBatchExecutor(batch_window_ms=1.0)
 
-        async def handler(loader):
+        async def handler(loader) -> None:
             # Load both users - they'll be batched together
             user1 = await loader.load("User", "id", "user-1")
             user2 = await loader.load("User", "id", "user-2")
@@ -228,8 +231,9 @@ class TestPerRequestBatchExecutor:
         assert mock_pool.queries_executed == 2
 
     @pytest.mark.asyncio
-    async def test_execute_request_auto_flush(self, mock_pool, clear_entities):
+    async def test_execute_request_auto_flush(self, mock_pool, clear_entities) -> None:
         """Test that execute_request auto-flushes."""
+
         @entity
         class User:
             id: str
@@ -238,11 +242,10 @@ class TestPerRequestBatchExecutor:
 
         calls = []
 
-        async def handler(loader):
+        async def handler(loader) -> None:
             calls.append("handler_start")
             # Request is made but not flushed
-            task = asyncio.create_task(loader.load("User", "id", "user-1"))
-            return task
+            return asyncio.create_task(loader.load("User", "id", "user-1"))
 
         task = await executor.execute_request(handler, MockResolver(), mock_pool)
 
@@ -256,8 +259,9 @@ class TestConcurrentBatchExecutor:
     """Test concurrent batch execution."""
 
     @pytest.mark.asyncio
-    async def test_execute_concurrent_batches(self, mock_pool, clear_entities):
+    async def test_execute_concurrent_batches(self, mock_pool, clear_entities) -> None:
         """Test executing multiple batches concurrently."""
+
         @entity
         class User:
             id: str
@@ -269,9 +273,7 @@ class TestConcurrentBatchExecutor:
             [("User", "id", "user-1")],  # Duplicate - should still execute separately
         ]
 
-        results = await executor.execute_concurrent(
-            request_groups, MockResolver(), mock_pool
-        )
+        results = await executor.execute_concurrent(request_groups, MockResolver(), mock_pool)
 
         assert len(results) == 2
         assert len(results[0]) == 2
@@ -280,8 +282,9 @@ class TestConcurrentBatchExecutor:
         assert mock_pool.queries_executed == 2
 
     @pytest.mark.asyncio
-    async def test_execute_grouped_by_typename(self, mock_pool, clear_entities):
+    async def test_execute_grouped_by_typename(self, mock_pool, clear_entities) -> None:
         """Test executing requests grouped by typename."""
+
         @entity
         class User:
             id: str
@@ -313,8 +316,9 @@ class TestConcurrentBatchExecutor:
         assert mock_pool.queries_executed == 2
 
     @pytest.mark.asyncio
-    async def test_concurrent_preserves_order(self, mock_pool, clear_entities):
+    async def test_concurrent_preserves_order(self, mock_pool, clear_entities) -> None:
         """Test that concurrent execution preserves request order."""
+
         @entity
         class User:
             id: str
@@ -326,9 +330,7 @@ class TestConcurrentBatchExecutor:
             [("User", "id", "user-1"), ("User", "id", "user-2")],
         ]
 
-        results = await executor.execute_concurrent(
-            request_groups, MockResolver(), mock_pool
-        )
+        results = await executor.execute_concurrent(request_groups, MockResolver(), mock_pool)
 
         # First group: user-2, user-1
         assert results[0][0]["name"] == "Bob"
@@ -343,7 +345,7 @@ class TestBatchExecutorEdgeCases:
     """Test edge cases."""
 
     @pytest.mark.asyncio
-    async def test_empty_request_list(self, executor, mock_pool, clear_entities):
+    async def test_empty_request_list(self, executor, mock_pool, clear_entities) -> None:
         """Test executing empty request list."""
         results = await executor.batch_execute([], MockResolver(), mock_pool)
 
@@ -351,8 +353,9 @@ class TestBatchExecutorEdgeCases:
         assert mock_pool.queries_executed == 0
 
     @pytest.mark.asyncio
-    async def test_batch_with_missing_entities(self, executor, mock_pool, clear_entities):
+    async def test_batch_with_missing_entities(self, executor, mock_pool, clear_entities) -> None:
         """Test batch with some missing entities."""
+
         @entity
         class User:
             id: str
@@ -371,22 +374,22 @@ class TestBatchExecutorEdgeCases:
         assert results[2] is not None
 
     @pytest.mark.asyncio
-    async def test_concurrent_error_handling(self, mock_pool, clear_entities):
+    async def test_concurrent_error_handling(self, mock_pool, clear_entities) -> None:
         """Test error handling in concurrent execution."""
 
         class FailingConnection:
-            async def fetch(self, sql, *params):
+            async def fetch(self, sql, *params) -> None:  # noqa: ANN002
                 raise RuntimeError("Database error")
 
         class FailingConnectionContext:
-            async def __aenter__(self):
+            async def __aenter__(self) -> None:
                 return FailingConnection()
 
-            async def __aexit__(self, exc_type, exc_val, exc_tb):
+            async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
                 pass
 
         class FailingPool:
-            def acquire(self):
+            def acquire(self) -> None:
                 return FailingConnectionContext()
 
         @entity
@@ -401,13 +404,12 @@ class TestBatchExecutorEdgeCases:
         ]
 
         with pytest.raises(RuntimeError):
-            await executor.execute_concurrent(
-                request_groups, MockResolver(), FailingPool()
-            )
+            await executor.execute_concurrent(request_groups, MockResolver(), FailingPool())
 
     @pytest.mark.asyncio
-    async def test_batch_context_with_exception(self, executor, mock_pool, clear_entities):
+    async def test_batch_context_with_exception(self, executor, mock_pool, clear_entities) -> None:
         """Test that context manager flushes even on exception."""
+
         @entity
         class User:
             id: str

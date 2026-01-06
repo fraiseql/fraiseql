@@ -1,6 +1,5 @@
-#!/usr/bin/env python3
-"""
-Chaos Engineering Baseline Metrics Collector
+#!/usr/bin/env python3  # noqa: EXE001
+"""Chaos Engineering Baseline Metrics Collector
 
 This script collects baseline performance metrics for FraiseQL operations
 to establish statistical baselines for chaos engineering tests.
@@ -8,11 +7,12 @@ to establish statistical baselines for chaos engineering tests.
 Run this script to generate baseline_metrics.json with confidence intervals.
 """
 
-import time
-import statistics
 import json
-from typing import Dict, List, Any
+import statistics
+import sys
+import time
 from pathlib import Path
+from typing import Any, Dict, List
 
 
 class BaselineCollector:
@@ -117,12 +117,11 @@ class BaselineCollector:
 
         if f + 1 < len(data_sorted):
             return data_sorted[f] + c * (data_sorted[f + 1] - data_sorted[f])
-        else:
-            return data_sorted[f]
+        return data_sorted[f]
 
     def _measure_simple_query(self) -> float:
         """Measure a simple GraphQL query."""
-        # TODO: Implement actual FraiseQL query measurement
+        # TODO: Implement actual FraiseQL query measurement  # noqa: TD002, TD003
         # For now, simulate with a small delay
         start = time.time()
         time.sleep(0.015)  # Simulate 15ms query
@@ -130,28 +129,28 @@ class BaselineCollector:
 
     def _measure_complex_query(self) -> float:
         """Measure a complex nested GraphQL query."""
-        # TODO: Implement actual complex query measurement
+        # TODO: Implement actual complex query measurement  # noqa: TD002, TD003
         start = time.time()
         time.sleep(0.045)  # Simulate 45ms complex query
         return (time.time() - start) * 1000
 
     def _measure_db_connection(self) -> float:
         """Measure database connection time."""
-        # TODO: Implement actual DB connection measurement
+        # TODO: Implement actual DB connection measurement  # noqa: TD002, TD003
         start = time.time()
         time.sleep(0.005)  # Simulate 5ms connection
         return (time.time() - start) * 1000
 
     def _measure_authentication(self) -> float:
         """Measure authentication time."""
-        # TODO: Implement actual JWT authentication measurement
+        # TODO: Implement actual JWT authentication measurement  # noqa: TD002, TD003
         start = time.time()
         time.sleep(0.002)  # Simulate 2ms auth
         return (time.time() - start) * 1000
 
     def _measure_cache_operation(self) -> float:
         """Measure cache read/write time."""
-        # TODO: Implement actual cache operation measurement
+        # TODO: Implement actual cache operation measurement  # noqa: TD002, TD003
         start = time.time()
         time.sleep(0.001)  # Simulate 1ms cache operation
         return (time.time() - start) * 1000
@@ -160,7 +159,7 @@ class BaselineCollector:
         """Save baselines to JSON file."""
         self.baseline_file.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(self.baseline_file, "w") as f:
+        with open(self.baseline_file, "w") as f:  # noqa: PTH123
             json.dump(baselines, f, indent=2)
 
     def validate_baselines(self, baselines: Dict[str, Any]) -> bool:
@@ -194,7 +193,7 @@ class BaselineCollector:
         return True
 
 
-def main():
+def main() -> int | None:
     """Main entry point."""
     collector = BaselineCollector(samples=15)  # 15 samples for better statistics
 
@@ -204,9 +203,8 @@ def main():
         if collector.validate_baselines(baselines):
             print("\n🎉 Baselines ready for chaos engineering!")
             return 0
-        else:
-            print("\n⚠️  Baselines collected but quality issues detected")
-            return 1
+        print("\n⚠️  Baselines collected but quality issues detected")
+        return 1
 
     except Exception as e:
         print(f"\n❌ Baseline collection failed: {e}")
@@ -214,4 +212,4 @@ def main():
 
 
 if __name__ == "__main__":
-    exit(main())
+    sys.exit(main())

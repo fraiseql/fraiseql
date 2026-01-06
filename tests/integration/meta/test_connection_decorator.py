@@ -17,14 +17,14 @@ class User:
 
 
 @pytest.fixture
-def connection_schema():
+def connection_schema() -> None:
     """Create schema with connection decorator."""
     registry = SchemaRegistry.get_instance()
     registry.clear()
 
     @query_decorator
     @connection(node_type=User)
-    async def users_connection(info):
+    async def users_connection(info) -> None:
         """Get users connection."""
         return []
 
@@ -34,7 +34,7 @@ def connection_schema():
     return registry.build_schema()
 
 
-async def test_connection_schema_generation(connection_schema):
+async def test_connection_schema_generation(connection_schema) -> None:
     """Connection decorator should generate proper GraphQL schema."""
     query_type = connection_schema.query_type
     assert query_type is not None
@@ -54,7 +54,7 @@ async def test_connection_schema_generation(connection_schema):
     assert "where" in field.args
 
 
-async def test_connection_type_fields(connection_schema):
+async def test_connection_type_fields(connection_schema) -> None:
     """UserConnection type should have correct fields."""
     query_type = connection_schema.query_type
     field = query_type.fields["usersConnection"]
@@ -66,7 +66,7 @@ async def test_connection_type_fields(connection_schema):
     assert "totalCount" in connection_type.fields
 
 
-async def test_edge_type_fields(connection_schema):
+async def test_edge_type_fields(connection_schema) -> None:
     """UserEdge type should have node and cursor."""
     query_type = connection_schema.query_type
     field = query_type.fields["usersConnection"]
@@ -81,7 +81,7 @@ async def test_edge_type_fields(connection_schema):
     assert "cursor" in edge_type.fields
 
 
-async def test_page_info_type_fields(connection_schema):
+async def test_page_info_type_fields(connection_schema) -> None:
     """PageInfo type should have pagination fields."""
     query_type = connection_schema.query_type
     field = query_type.fields["usersConnection"]
@@ -97,7 +97,7 @@ async def test_page_info_type_fields(connection_schema):
     assert "endCursor" in page_info_type.fields
 
 
-async def test_connection_query_execution_without_db(connection_schema):
+async def test_connection_query_execution_without_db(connection_schema) -> None:
     """Connection query should execute (will fail without db, but schema is valid)."""
     query = """
     query {
@@ -134,7 +134,7 @@ async def test_connection_query_execution_without_db(connection_schema):
         ), f"Expected db error, got: {result.errors}"
 
 
-async def test_connection_decorator_schema_has_args(connection_schema):
+async def test_connection_decorator_schema_has_args(connection_schema) -> None:
     """Connection decorator should generate schema with pagination arguments."""
     query_type = connection_schema.query_type
     field = query_type.fields["usersConnection"]
@@ -149,7 +149,7 @@ async def test_connection_decorator_schema_has_args(connection_schema):
     print("✅ Schema has all pagination arguments")
 
 
-async def test_multiple_connection_types_coexist(connection_schema):
+async def test_multiple_connection_types_coexist(connection_schema) -> None:
     """Multiple Connection types (User, Post) should coexist."""
 
     # Create second type
@@ -162,7 +162,7 @@ async def test_multiple_connection_types_coexist(connection_schema):
 
     @query_decorator
     @connection(node_type=Post)
-    async def posts_connection(info):
+    async def posts_connection(info) -> None:
         return []
 
     registry.register_type(Post)
@@ -191,7 +191,7 @@ async def test_multiple_connection_types_coexist(connection_schema):
     assert posts_page_info.of_type.name == "PageInfo"
 
 
-async def test_connection_introspection(connection_schema):
+async def test_connection_introspection(connection_schema) -> None:
     """GraphQL introspection should show Connection types."""
     introspection_query = """
     query {

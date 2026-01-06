@@ -8,7 +8,7 @@ pytestmark = pytest.mark.integration
 
 
 @pytest.mark.asyncio
-async def test_cascade_data_not_included_when_not_requested(cascade_http_client):
+async def test_cascade_data_not_included_when_not_requested(cascade_http_client) -> None:
     """CRITICAL TEST: Verify CASCADE data is NOT included when not in GraphQL selection.
 
     This tests that PostgreSQL may return CASCADE data, but Rust should filter it
@@ -79,7 +79,7 @@ async def test_cascade_data_not_included_when_not_requested(cascade_http_client)
 
 
 @pytest.mark.asyncio
-async def test_cascade_data_included_when_requested(cascade_http_client):
+async def test_cascade_data_included_when_requested(cascade_http_client) -> None:
     """Verify CASCADE data IS included when requested in GraphQL selection."""
     # Query WITH cascade field in selection
     mutation_query = """

@@ -12,16 +12,14 @@ from __future__ import annotations
 
 import time
 
-import pytest
-
-from fraiseql.monitoring.runtime.db_monitor_sync import get_database_monitor_sync
 from fraiseql.monitoring.runtime.cache_monitor_sync import cache_monitor_sync
+from fraiseql.monitoring.runtime.db_monitor_sync import get_database_monitor_sync
 
 
 class TestOperationMonitoringOverhead:
     """Tests for operation monitoring overhead metrics."""
 
-    def test_rust_operation_overhead_target(self, monitoring_enabled):
+    def test_rust_operation_overhead_target(self, monitoring_enabled) -> None:
         """Test Rust operation overhead is < 0.15ms."""
         monitor = monitoring_enabled
 
@@ -30,13 +28,13 @@ class TestOperationMonitoringOverhead:
         for _ in range(100):
             # In real scenario, this would be called from Rust
             pass
-        elapsed_ms = (time.perf_counter() - start) * 1000
+        (time.perf_counter() - start) * 1000
 
         # Rust overhead should be negligible (< 0.15ms per operation)
         # Since we're testing the wrapper, verify structure is in place
         assert monitor is not None
 
-    def test_python_operation_overhead_target(self, monitoring_enabled, make_query_metric):
+    def test_python_operation_overhead_target(self, monitoring_enabled, make_query_metric) -> None:
         """Test Python operation overhead is < 1.0ms."""
         monitor = monitoring_enabled
 
@@ -55,7 +53,7 @@ class TestOperationMonitoringOverhead:
         assert elapsed_ms < 1.0
         assert len(monitor._recent_queries) == 1
 
-    def test_metrics_collection_consistency(self, monitoring_enabled, make_query_metric):
+    def test_metrics_collection_consistency(self, monitoring_enabled, make_query_metric) -> None:
         """Test metrics collection is consistent across 1000 operations."""
         monitor = monitoring_enabled
 
@@ -80,7 +78,7 @@ class TestOperationMonitoringOverhead:
         avg_per_op_ms = elapsed_ms / operation_count
         assert avg_per_op_ms < 0.5  # Well under Python target of 1.0ms
 
-    def test_memory_footprint_stability(self, monitoring_enabled, make_query_metric):
+    def test_memory_footprint_stability(self, monitoring_enabled, make_query_metric) -> None:
         """Test memory footprint remains stable with large operation count."""
         monitor = monitoring_enabled
 
@@ -109,7 +107,7 @@ class TestOperationMonitoringOverhead:
 class TestHealthCheckPerformance:
     """Tests for health check performance targets."""
 
-    def test_health_check_combined_time(self, monitoring_enabled, sample_query_metrics):
+    def test_health_check_combined_time(self, monitoring_enabled, sample_query_metrics) -> None:
         """Test all health checks complete in < 100ms."""
         monitor = monitoring_enabled
 
@@ -140,7 +138,7 @@ class TestHealthCheckPerformance:
         assert stats is not None
         assert cache_metrics is not None
 
-    def test_database_health_check_target(self, monitoring_enabled, sample_query_metrics):
+    def test_database_health_check_target(self, monitoring_enabled, sample_query_metrics) -> None:
         """Test database health check is < 50ms."""
         monitor = monitoring_enabled
 
@@ -158,7 +156,7 @@ class TestHealthCheckPerformance:
         assert elapsed_ms < 50.0
         assert stats is not None
 
-    def test_cache_health_check_target(self):
+    def test_cache_health_check_target(self) -> None:
         """Test cache health check is < 10ms."""
         start = time.perf_counter()
         metrics = cache_monitor_sync.get_metrics_dict()
@@ -168,7 +166,9 @@ class TestHealthCheckPerformance:
         assert elapsed_ms < 10.0
         assert metrics is not None
 
-    def test_slow_query_detection_performance(self, monitoring_enabled, sample_query_metrics):
+    def test_slow_query_detection_performance(
+        self, monitoring_enabled, sample_query_metrics
+    ) -> None:
         """Test slow query detection performance."""
         monitor = monitoring_enabled
 
@@ -193,7 +193,7 @@ class TestHealthCheckPerformance:
 class TestAuditQueryPerformance:
     """Tests for audit query performance."""
 
-    def test_recent_operations_query_time(self, monitoring_enabled, sample_query_metrics):
+    def test_recent_operations_query_time(self, monitoring_enabled, sample_query_metrics) -> None:
         """Test recent operations query is < 50ms."""
         monitor = monitoring_enabled
 
@@ -210,7 +210,7 @@ class TestAuditQueryPerformance:
         assert elapsed_ms < 50.0
         assert len(recent) == 5
 
-    def test_slow_operations_query_time(self, monitoring_enabled, sample_query_metrics):
+    def test_slow_operations_query_time(self, monitoring_enabled, sample_query_metrics) -> None:
         """Test slow operations query is < 100ms."""
         monitor = monitoring_enabled
 
@@ -230,7 +230,7 @@ class TestAuditQueryPerformance:
         assert elapsed_ms < 100.0
         assert len(slow) > 0
 
-    def test_filtered_query_performance(self, monitoring_enabled, make_query_metric):
+    def test_filtered_query_performance(self, monitoring_enabled, make_query_metric) -> None:
         """Test filtered query performance with large dataset."""
         monitor = monitoring_enabled
 
@@ -259,7 +259,7 @@ class TestAuditQueryPerformance:
 class TestCLICommandResponseTime:
     """Tests for CLI command response times."""
 
-    def test_database_recent_cli_command(self, monitoring_enabled, sample_query_metrics):
+    def test_database_recent_cli_command(self, monitoring_enabled, sample_query_metrics) -> None:
         """Test database recent CLI command response < 100ms."""
         monitor = monitoring_enabled
 
@@ -276,7 +276,7 @@ class TestCLICommandResponseTime:
         assert elapsed_ms < 100.0
         assert len(recent) > 0
 
-    def test_database_slow_cli_command(self, monitoring_enabled, sample_query_metrics):
+    def test_database_slow_cli_command(self, monitoring_enabled, sample_query_metrics) -> None:
         """Test database slow CLI command response < 150ms."""
         monitor = monitoring_enabled
 
@@ -295,7 +295,7 @@ class TestCLICommandResponseTime:
         assert elapsed_ms < 150.0
         assert len(slow) > 0
 
-    def test_cache_stats_cli_command(self):
+    def test_cache_stats_cli_command(self) -> None:
         """Test cache stats CLI command response < 50ms."""
         start = time.perf_counter()
         metrics = cache_monitor_sync.get_metrics_dict()
@@ -304,7 +304,7 @@ class TestCLICommandResponseTime:
         assert elapsed_ms < 50.0
         assert metrics is not None
 
-    def test_health_status_cli_command(self, monitoring_enabled, sample_query_metrics):
+    def test_health_status_cli_command(self, monitoring_enabled, sample_query_metrics) -> None:
         """Test health status CLI command response < 200ms."""
         monitor = monitoring_enabled
 
@@ -326,7 +326,9 @@ class TestCLICommandResponseTime:
 class TestStatisticsAggregationPerformance:
     """Tests for statistics aggregation performance."""
 
-    def test_statistics_calculation_consistency(self, monitoring_enabled, make_query_metric):
+    def test_statistics_calculation_consistency(
+        self, monitoring_enabled, make_query_metric
+    ) -> None:
         """Test statistics calculation is consistent and fast."""
         monitor = monitoring_enabled
 
@@ -357,7 +359,7 @@ class TestStatisticsAggregationPerformance:
         assert stats1.total_count == stats2.total_count == stats3.total_count
         assert stats1.success_rate == stats2.success_rate == stats3.success_rate
 
-    def test_large_dataset_aggregation(self, monitoring_enabled, make_query_metric):
+    def test_large_dataset_aggregation(self, monitoring_enabled, make_query_metric) -> None:
         """Test statistics aggregation with large dataset."""
         monitor = monitoring_enabled
 
@@ -375,7 +377,7 @@ class TestStatisticsAggregationPerformance:
         db_sync = get_database_monitor_sync()
 
         start = time.perf_counter()
-        stats = db_sync.get_statistics()
+        db_sync.get_statistics()
         elapsed_ms = (time.perf_counter() - start) * 1000
 
         # Even with 10K queries, stats should compute quickly
@@ -386,7 +388,9 @@ class TestStatisticsAggregationPerformance:
 class TestMetricsRetrievalPerformance:
     """Tests for metrics retrieval performance."""
 
-    def test_recent_queries_retrieval_performance(self, monitoring_enabled, make_query_metric):
+    def test_recent_queries_retrieval_performance(
+        self, monitoring_enabled, make_query_metric
+    ) -> None:
         """Test recent queries retrieval is efficient."""
         monitor = monitoring_enabled
 
@@ -415,7 +419,9 @@ class TestMetricsRetrievalPerformance:
         assert len(recent_100) == 100
         assert len(recent_500) == 500
 
-    def test_slow_queries_retrieval_scalability(self, monitoring_enabled, make_query_metric):
+    def test_slow_queries_retrieval_scalability(
+        self, monitoring_enabled, make_query_metric
+    ) -> None:
         """Test slow queries retrieval scales with dataset."""
         monitor = monitoring_enabled
 

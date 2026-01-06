@@ -3,7 +3,7 @@
 from fraiseql.mutations.decorators import error, success
 
 
-def test_success_type_fields_canary():
+def test_success_type_fields_canary() -> None:
     """Canary: Success type fields should not change unexpectedly."""
 
     @success
@@ -23,7 +23,7 @@ def test_success_type_fields_canary():
     )
 
 
-def test_error_type_fields_canary():
+def test_error_type_fields_canary() -> None:
     """Canary: Error type fields should not change unexpectedly."""
 
     @error
@@ -43,7 +43,7 @@ def test_error_type_fields_canary():
     )
 
 
-def test_error_type_no_update_fields_canary():
+def test_error_type_no_update_fields_canary() -> None:
     """Canary: Error types should NOT have updatedFields or id."""
 
     @error
@@ -61,7 +61,7 @@ def test_error_type_no_update_fields_canary():
     )
 
 
-def test_success_type_no_error_fields_canary():
+def test_success_type_no_error_fields_canary() -> None:
     """Canary: Success types should NOT have code or errors."""
 
     @success
@@ -79,7 +79,7 @@ def test_success_type_no_error_fields_canary():
     )
 
 
-def test_success_type_graphql_fields_canary():
+def test_success_type_graphql_fields_canary() -> None:
     """Canary: Success type GraphQL fields should not include errors."""
 
     @success
@@ -96,7 +96,7 @@ def test_success_type_graphql_fields_canary():
     )
 
 
-def test_error_type_graphql_fields_canary():
+def test_error_type_graphql_fields_canary() -> None:
     """Canary: Error type GraphQL fields should include code but not updatedFields/id."""
 
     @error

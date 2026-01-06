@@ -174,7 +174,7 @@ class TestNestedObjectFilterLogicalOperatorsDatabase:
     ) -> AsyncGenerator[dict[str, uuid.UUID]]:
         """Set up test tables and data for nested object filtering tests."""
         async with class_db_pool.connection() as conn:
-            await conn.execute(f"SET search_path TO {test_schema}, public")
+            await conn.execute(f"SET search_path TO {test_schema}, public")  # noqa: F405
             # Clean up any existing test data
 
             # Create test table with JSONB data column

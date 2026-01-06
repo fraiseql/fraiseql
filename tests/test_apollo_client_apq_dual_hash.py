@@ -39,7 +39,7 @@ class TestApolloClientAPQDualHash:
 
     def test_turbo_query_with_apollo_client_hash(
         self, sample_query_with_params, apollo_client_hash
-    ):
+    ) -> None:
         """Test creating a TurboQuery with apollo_client_hash field."""
         # RED PHASE: This should fail because apollo_client_hash doesn't exist yet
         turbo_query = TurboQuery(
@@ -71,7 +71,7 @@ class TestApolloClientAPQDualHash:
         sample_query_with_params,
         fraiseql_server_hash,
         apollo_client_hash,
-    ):
+    ) -> None:
         """Test registering a query with dual-hash support."""
         registry = TurboRegistry()
 
@@ -107,7 +107,7 @@ class TestApolloClientAPQDualHash:
         sample_query_with_params,
         fraiseql_server_hash,
         apollo_client_hash,
-    ):
+    ) -> None:
         """Test that dual-hash registration doesn't duplicate entries."""
         registry = TurboRegistry()
 
@@ -184,7 +184,7 @@ class TestApolloClientAPQDualHash:
         sample_query_with_params,
         fraiseql_server_hash,
         apollo_client_hash,
-    ):
+    ) -> None:
         """Test that get() works when query text hashes to apollo_client_hash.
 
         This reproduces the GetAllocations bug: when a query is registered with

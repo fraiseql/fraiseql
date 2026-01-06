@@ -3,8 +3,8 @@
 Tests for observability settings in FraiseQLConfig.
 """
 
-import os
 import pytest
+
 from fraiseql.fastapi.config import FraiseQLConfig
 
 
@@ -13,9 +13,7 @@ class TestObservabilityConfiguration:
 
     def test_observability_defaults(self) -> None:
         """Test default observability configuration values."""
-        config = FraiseQLConfig(
-            database_url="postgresql://localhost/test"
-        )
+        config = FraiseQLConfig(database_url="postgresql://localhost/test")
 
         # All observability features enabled by default
         assert config.observability_enabled is True
@@ -72,9 +70,7 @@ class TestObservabilityConfiguration:
 
     def test_slow_query_threshold_defaults(self) -> None:
         """Test slow query threshold default value."""
-        config = FraiseQLConfig(
-            database_url="postgresql://localhost/test"
-        )
+        config = FraiseQLConfig(database_url="postgresql://localhost/test")
         assert config.slow_query_threshold_ms == 100
 
     def test_slow_query_threshold_can_be_set(self) -> None:
@@ -101,9 +97,7 @@ class TestObservabilityConfiguration:
 
     def test_privacy_settings(self) -> None:
         """Test privacy-related settings."""
-        config = FraiseQLConfig(
-            database_url="postgresql://localhost/test"
-        )
+        config = FraiseQLConfig(database_url="postgresql://localhost/test")
 
         # Privacy settings disabled by default (secure by default)
         assert config.include_query_bodies is False
@@ -122,9 +116,7 @@ class TestObservabilityConfiguration:
 
     def test_audit_log_retention_defaults(self) -> None:
         """Test audit log retention default."""
-        config = FraiseQLConfig(
-            database_url="postgresql://localhost/test"
-        )
+        config = FraiseQLConfig(database_url="postgresql://localhost/test")
         assert config.audit_log_retention_days == 90
 
     def test_audit_log_retention_can_be_set(self) -> None:
@@ -145,9 +137,7 @@ class TestObservabilityConfiguration:
 
     def test_health_check_timeout_defaults(self) -> None:
         """Test health check timeout default."""
-        config = FraiseQLConfig(
-            database_url="postgresql://localhost/test"
-        )
+        config = FraiseQLConfig(database_url="postgresql://localhost/test")
         assert config.health_check_timeout_ms == 5000
 
     def test_health_check_timeout_can_be_set(self) -> None:

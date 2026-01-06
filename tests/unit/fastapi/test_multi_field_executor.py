@@ -13,7 +13,7 @@ from fraiseql.core.rust_pipeline import RustResponseBytes
 from fraiseql.fastapi.routers import _extract_root_query_fields, execute_multi_field_query
 
 
-def test_extract_root_query_fields_two_fields():
+def test_extract_root_query_fields_two_fields() -> None:
     """Test extracting two root fields from a query."""
     query = """
     {
@@ -45,7 +45,7 @@ def test_extract_root_query_fields_two_fields():
     assert fields[1]["selections"][1] == {"field_name": "hostname", "alias": None}
 
 
-def test_extract_root_query_fields_single_field():
+def test_extract_root_query_fields_single_field() -> None:
     """Test extracting a single root field."""
     query = """
     {
@@ -65,7 +65,7 @@ def test_extract_root_query_fields_single_field():
     assert fields[0]["selections"][1] == {"field_name": "userName", "alias": None}
 
 
-def test_extract_root_query_fields_no_selections():
+def test_extract_root_query_fields_no_selections() -> None:
     """Test extracting fields with no sub-selections."""
     query = """
     {
@@ -83,7 +83,7 @@ def test_extract_root_query_fields_no_selections():
     assert fields[1]["selections"] == []
 
 
-def test_extract_root_query_fields_skips_introspection():
+def test_extract_root_query_fields_skips_introspection() -> None:
     """Test that introspection fields (__schema, __type) are skipped."""
     query = """
     {
@@ -105,7 +105,7 @@ def test_extract_root_query_fields_skips_introspection():
     assert fields[0]["field_name"] == "users"
 
 
-def test_extract_root_query_fields_with_aliases():
+def test_extract_root_query_fields_with_aliases() -> None:
     """Test extracting fields with aliases."""
     query = """
     {
@@ -143,7 +143,7 @@ def test_extract_root_query_fields_with_aliases():
 
 
 @pytest.mark.asyncio
-async def test_execute_multi_field_query_basic(init_schema_registry_fixture):
+async def test_execute_multi_field_query_basic(init_schema_registry_fixture) -> None:
     """Test basic multi-field query execution.
 
     This test uses mock resolvers that return simple data.
@@ -233,7 +233,7 @@ async def test_execute_multi_field_query_basic(init_schema_registry_fixture):
 
 
 @pytest.fixture(scope="module", autouse=True)
-def init_schema_registry_fixture():
+def init_schema_registry_fixture() -> None:
     """Initialize schema registry for multi-field executor tests."""
     import fraiseql._fraiseql_rs as fraiseql_rs
 

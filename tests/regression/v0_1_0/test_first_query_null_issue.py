@@ -47,7 +47,7 @@ async def user(info: GraphQLResolveInfo, id: uuid.UUID) -> Optional[User]:
     """Get a user by ID."""
     # Convert to UUID if string
     if isinstance(id, str):
-        id = uuid.UUID(id)
+        id = uuid.UUID(id)  # noqa: A001
 
     # Mock database lookup
     user_data = MOCK_USERS.get(id)
@@ -120,7 +120,7 @@ def test_first_query_returns_null_simple() -> None:
         # Assertions
         first_query_user = result1.get("data", {}).get("user")
         second_query_user = result2.get("data", {}).get("user")
-        users_data = result3.get("data", {}).get("users", [])
+        result3.get("data", {}).get("users", [])
 
         # The bug: first query returns null, second query works
         if first_query_user is None and second_query_user is not None:

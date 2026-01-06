@@ -25,7 +25,7 @@ class TestAPQDisabledMode:
 
         # APQ request with hash only - in disabled mode, this should be treated
         # as a regular request (no query), which would fail
-        request = GraphQLRequest(
+        GraphQLRequest(
             extensions={
                 "persistedQuery": {
                     "version": 1,
@@ -173,7 +173,7 @@ class TestAPQModeRouterIntegration:
     """
 
     @pytest.fixture
-    def noop_lifespan(self):
+    def noop_lifespan(self) -> None:
         """No-op lifespan for tests that don't need a database."""
         from contextlib import asynccontextmanager
 
@@ -184,7 +184,7 @@ class TestAPQModeRouterIntegration:
         return _noop_lifespan
 
     @pytest.fixture
-    def hello_query(self, clear_registry):
+    def hello_query(self, clear_registry) -> None:
         """Create a simple hello query function."""
         import fraiseql
 
@@ -196,7 +196,7 @@ class TestAPQModeRouterIntegration:
         return hello
 
     @pytest.fixture
-    def app_required_mode(self, noop_lifespan, hello_query, clear_registry):
+    def app_required_mode(self, noop_lifespan, hello_query, clear_registry) -> None:
         """Create a FastAPI app with apq_mode='required'."""
         from fraiseql.fastapi import FraiseQLConfig, create_fraiseql_app
         from fraiseql.fastapi.config import APQMode
@@ -210,7 +210,7 @@ class TestAPQModeRouterIntegration:
         return create_fraiseql_app(config=config, queries=[hello_query], lifespan=noop_lifespan)
 
     @pytest.fixture
-    def app_disabled_mode(self, noop_lifespan, hello_query, clear_registry):
+    def app_disabled_mode(self, noop_lifespan, hello_query, clear_registry) -> None:
         """Create a FastAPI app with apq_mode='disabled'."""
         from fraiseql.fastapi import FraiseQLConfig, create_fraiseql_app
         from fraiseql.fastapi.config import APQMode
@@ -224,7 +224,7 @@ class TestAPQModeRouterIntegration:
         return create_fraiseql_app(config=config, queries=[hello_query], lifespan=noop_lifespan)
 
     @pytest.fixture
-    def app_optional_mode(self, noop_lifespan, hello_query, clear_registry):
+    def app_optional_mode(self, noop_lifespan, hello_query, clear_registry) -> None:
         """Create a FastAPI app with apq_mode='optional' (default)."""
         from fraiseql.fastapi import FraiseQLConfig, create_fraiseql_app
         from fraiseql.fastapi.config import APQMode

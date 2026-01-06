@@ -17,21 +17,21 @@ from fraiseql.sql.where.operators.mac_address import (
 class TestMacAddressBasicOperators:
     """Test basic MAC address operators (eq, neq, in, notin)."""
 
-    def test_mac_eq(self):
+    def test_mac_eq(self) -> None:
         """Test MAC address equality operator."""
         path_sql = SQL("data->>'mac_address'")
         result = build_mac_eq_sql(path_sql, "00:11:22:33:44:55")
         sql_str = result.as_string(None)
         assert sql_str == "(data->>'mac_address')::macaddr = '00:11:22:33:44:55'::macaddr"
 
-    def test_mac_neq(self):
+    def test_mac_neq(self) -> None:
         """Test MAC address inequality operator."""
         path_sql = SQL("data->>'mac_address'")
         result = build_mac_neq_sql(path_sql, "ff:ff:ff:ff:ff:ff")
         sql_str = result.as_string(None)
         assert sql_str == "(data->>'mac_address')::macaddr != 'ff:ff:ff:ff:ff:ff'::macaddr"
 
-    def test_mac_in(self):
+    def test_mac_in(self) -> None:
         """Test MAC address IN operator."""
         path_sql = SQL("data->>'device_mac'")
         result = build_mac_in_sql(
@@ -41,7 +41,7 @@ class TestMacAddressBasicOperators:
         expected = "(data->>'device_mac')::macaddr IN ('00:11:22:33:44:55'::macaddr, 'aa:bb:cc:dd:ee:ff'::macaddr, '12:34:56:78:9a:bc'::macaddr)"
         assert expected == sql_str
 
-    def test_mac_notin(self):
+    def test_mac_notin(self) -> None:
         """Test MAC address NOT IN operator."""
         path_sql = SQL("data->>'mac_address'")
         result = build_mac_notin_sql(path_sql, ["00:00:00:00:00:00", "ff:ff:ff:ff:ff:ff"])
@@ -144,28 +144,28 @@ class TestMacAddressBasicOperators:
 class TestMacAddressSpecialCases:
     """Test MAC address operators with special cases."""
 
-    def test_mac_uppercase(self):
+    def test_mac_uppercase(self) -> None:
         """Test MAC address with uppercase letters."""
         path_sql = SQL("data->>'mac_address'")
         result = build_mac_eq_sql(path_sql, "AA:BB:CC:DD:EE:FF")
         sql_str = result.as_string(None)
         assert "AA:BB:CC:DD:EE:FF" in sql_str
 
-    def test_mac_mixed_case(self):
+    def test_mac_mixed_case(self) -> None:
         """Test MAC address with mixed case."""
         path_sql = SQL("data->>'mac_address'")
         result = build_mac_eq_sql(path_sql, "Aa:Bb:Cc:Dd:Ee:Ff")
         sql_str = result.as_string(None)
         assert "Aa:Bb:Cc:Dd:Ee:Ff" in sql_str
 
-    def test_mac_broadcast(self):
+    def test_mac_broadcast(self) -> None:
         """Test broadcast MAC address."""
         path_sql = SQL("data->>'mac_address'")
         result = build_mac_eq_sql(path_sql, "ff:ff:ff:ff:ff:ff")
         sql_str = result.as_string(None)
         assert "ff:ff:ff:ff:ff:ff" in sql_str
 
-    def test_mac_zero(self):
+    def test_mac_zero(self) -> None:
         """Test zero MAC address."""
         path_sql = SQL("data->>'mac_address'")
         result = build_mac_eq_sql(path_sql, "00:00:00:00:00:00")

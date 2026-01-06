@@ -176,7 +176,7 @@ class TestHybridTableNestedObjectFiltering:
     @pytest.mark.asyncio
     async def test_nested_object_filter_on_hybrid_table(
         self, class_db_pool, test_schema, setup_hybrid_allocation_table
-    ):
+    ) -> None:
         """Test the exact scenario from the issue: nested machine.id filtering.
 
         This should use the SQL column machine_id for efficient filtering,
@@ -294,7 +294,7 @@ class TestHybridTableNestedObjectFiltering:
         repo = FraiseQLRepository(class_db_pool, context={"mode": "development"})
 
         MachineWhereInput = create_graphql_where_input(Machine)
-        LocationWhereInput = create_graphql_where_input(Location)
+        create_graphql_where_input(Location)
         AllocationWhereInput = create_graphql_where_input(Allocation)
 
         # Complex filter with both machine and location nested filters

@@ -16,8 +16,6 @@ field selection. The bug was that response caching broke field selection:
 See: fraiseql_rs/src/apq/mod.rs for canonical Rust implementation.
 """
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 from fraiseql.fastapi.routers import GraphQLRequest
 
 
@@ -70,10 +68,8 @@ class TestAPQFieldSelection:
 
     def test_routers_no_response_caching_import(self) -> None:
         """Verify routers.py does not import response caching functions."""
-        import os
-
         routers_path = "/home/lionel/code/fraiseql/src/fraiseql/fastapi/routers.py"
-        with open(routers_path, "r") as f:
+        with open(routers_path) as f:  # noqa: PTH123
             content = f.read()
 
         # Should NOT import handle_apq_request_with_cache
@@ -84,8 +80,7 @@ class TestAPQFieldSelection:
 
         # Should NOT import store_response_in_cache
         assert "store_response_in_cache" not in content, (
-            "routers.py should NOT import store_response_in_cache "
-            "(response caching is disabled)"
+            "routers.py should NOT import store_response_in_cache (response caching is disabled)"
         )
 
         # Should NOT call apq_backend.store_cached_response
@@ -97,7 +92,7 @@ class TestAPQFieldSelection:
     def test_routers_has_architectural_comment_about_apq(self) -> None:
         """Verify routers.py documents why response caching is disabled."""
         routers_path = "/home/lionel/code/fraiseql/src/fraiseql/fastapi/routers.py"
-        with open(routers_path, "r") as f:
+        with open(routers_path) as f:  # noqa: PTH123
             content = f.read()
 
         # Should document the architectural decision
@@ -118,13 +113,11 @@ class TestAPQFieldSelection:
     def test_apq_correct_behavior_documented(self) -> None:
         """Verify correct APQ behavior is documented in routers.py."""
         routers_path = "/home/lionel/code/fraiseql/src/fraiseql/fastapi/routers.py"
-        with open(routers_path, "r") as f:
+        with open(routers_path) as f:  # noqa: PTH123
             content = f.read()
 
         # Should document the 4 steps of correct behavior
-        assert "Store query by hash" in content, (
-            "Correct behavior step 1: Store query by hash"
-        )
+        assert "Store query by hash" in content, "Correct behavior step 1: Store query by hash"
         assert "retrieve query by hash" in content, (
             "Correct behavior step 2: Retrieve query by hash"
         )
@@ -139,13 +132,11 @@ class TestAPQFieldSelection:
         """Verify Rust APQ module only handles queries, not responses."""
         apq_path = "/home/lionel/code/fraiseql/fraiseql_rs/src/apq/mod.rs"
 
-        with open(apq_path, "r") as f:
+        with open(apq_path) as f:  # noqa: PTH123
             content = f.read()
 
         # Should NOT have response caching methods
-        assert "store_cached_response" not in content, (
-            "Rust APQ module should NOT cache responses"
-        )
+        assert "store_cached_response" not in content, "Rust APQ module should NOT cache responses"
         assert "get_cached_response" not in content, (
             "Rust APQ module should NOT retrieve cached responses"
         )
@@ -162,7 +153,7 @@ class TestAPQFieldSelection:
         """Verify ApqStorage trait only defines query methods, not response caching."""
         storage_path = "/home/lionel/code/fraiseql/fraiseql_rs/src/apq/storage.rs"
 
-        with open(storage_path, "r") as f:
+        with open(storage_path) as f:  # noqa: PTH123
             content = f.read()
 
         # Should NOT have response caching trait methods
@@ -186,8 +177,7 @@ class TestAPQFieldSelectionScenarios:
     """Real-world scenarios demonstrating why response caching breaks field selection."""
 
     def test_scenario_same_query_different_fields(self) -> None:
-        """
-        Scenario: Two clients query the same persisted query but with different field selections.
+        """Scenario: Two clients query the same persisted query but with different field selections.
 
         Without the fix (with caching):
         - Client 1 queries: { user { id name } }
@@ -207,7 +197,7 @@ class TestAPQFieldSelectionScenarios:
 
         # The fact that routers.py doesn't cache responses ensures this works
         routers_path = "/home/lionel/code/fraiseql/src/fraiseql/fastapi/routers.py"
-        with open(routers_path, "r") as f:
+        with open(routers_path) as f:  # noqa: PTH123
             content = f.read()
 
         # Should NOT cache responses
@@ -218,22 +208,20 @@ class TestAPQFieldSelectionScenarios:
         # Result: Field selection is properly applied each time
 
     def test_scenario_apollo_client_field_selection(self) -> None:
-        """
-        Apollo Client uses APQ to reduce bandwidth by sending query hash.
+        """Apollo Client uses APQ to reduce bandwidth by sending query hash.
+
         But it still includes field selection in the request.
 
         The server must honor the field selection, not return cached full responses.
         """
         # Verify the code path allows normal GraphQL execution
         routers_path = "/home/lionel/code/fraiseql/src/fraiseql/fastapi/routers.py"
-        with open(routers_path, "r") as f:
+        with open(routers_path) as f:  # noqa: PTH123
             content = f.read()
 
         # APQ hash-only requests should fall through to normal query execution
         # (no response caching shortcut)
-        assert "return cached_response" not in content, (
-            "Should NOT return cached responses"
-        )
+        assert "return cached_response" not in content, "Should NOT return cached responses"
 
         # Query should be retrieved and executed normally
         assert "get_persisted_query" in content, (
@@ -241,8 +229,7 @@ class TestAPQFieldSelectionScenarios:
         )
 
     def test_scenario_field_security_with_apq(self) -> None:
-        """
-        Security implication: Response caching can leak data.
+        """Security implication: Response caching can leak data.
 
         Example:
         - Admin user queries: { user { id name salary } }
@@ -253,7 +240,7 @@ class TestAPQFieldSelectionScenarios:
         # Each request must execute independently to respect field selection
         # and authorization
         routers_path = "/home/lionel/code/fraiseql/src/fraiseql/fastapi/routers.py"
-        with open(routers_path, "r") as f:
+        with open(routers_path) as f:  # noqa: PTH123
             content = f.read()
 
         # Response caching is disabled, ensuring field security

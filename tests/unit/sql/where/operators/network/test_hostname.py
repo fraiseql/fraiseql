@@ -17,21 +17,21 @@ from fraiseql.sql.where.operators.hostname import (
 class TestHostnameBasicOperators:
     """Test basic Hostname operators (eq, neq, in, notin)."""
 
-    def test_hostname_eq(self):
+    def test_hostname_eq(self) -> None:
         """Test hostname equality operator."""
         path_sql = SQL("data->>'hostname'")
         result = build_hostname_eq_sql(path_sql, "api.example.com")
         sql_str = result.as_string(None)
         assert sql_str == "data->>'hostname' = 'api.example.com'"
 
-    def test_hostname_neq(self):
+    def test_hostname_neq(self) -> None:
         """Test hostname inequality operator."""
         path_sql = SQL("data->>'hostname'")
         result = build_hostname_neq_sql(path_sql, "old-server.example.com")
         sql_str = result.as_string(None)
         assert sql_str == "data->>'hostname' != 'old-server.example.com'"
 
-    def test_hostname_in(self):
+    def test_hostname_in(self) -> None:
         """Test hostname IN operator."""
         path_sql = SQL("data->>'server'")
         result = build_hostname_in_sql(
@@ -43,7 +43,7 @@ class TestHostnameBasicOperators:
             == "data->>'server' IN ('web1.example.com', 'web2.example.com', 'web3.example.com')"
         )
 
-    def test_hostname_notin(self):
+    def test_hostname_notin(self) -> None:
         """Test hostname NOT IN operator."""
         path_sql = SQL("data->>'server'")
         result = build_hostname_notin_sql(path_sql, ["blacklist1.com", "blacklist2.com"])
@@ -151,21 +151,21 @@ class TestHostnameBasicOperators:
 class TestHostnameSpecialCases:
     """Test hostname operators with special cases."""
 
-    def test_hostname_with_subdomain(self):
+    def test_hostname_with_subdomain(self) -> None:
         """Test hostname with multiple subdomains."""
         path_sql = SQL("data->>'hostname'")
         result = build_hostname_eq_sql(path_sql, "deep.sub.domain.example.com")
         sql_str = result.as_string(None)
         assert "deep.sub.domain.example.com" in sql_str
 
-    def test_hostname_localhost(self):
+    def test_hostname_localhost(self) -> None:
         """Test localhost hostname."""
         path_sql = SQL("data->>'hostname'")
         result = build_hostname_eq_sql(path_sql, "localhost")
         sql_str = result.as_string(None)
         assert "localhost" in sql_str
 
-    def test_hostname_with_hyphen(self):
+    def test_hostname_with_hyphen(self) -> None:
         """Test hostname with hyphens."""
         path_sql = SQL("data->>'hostname'")
         result = build_hostname_eq_sql(path_sql, "my-api-server.example.com")

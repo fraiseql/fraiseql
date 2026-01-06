@@ -5,20 +5,20 @@ including parsing, SQL building, caching, execution, and response transformation
 """
 
 import json
+
 import pytest
 
 
 @pytest.fixture
-def rust_pool(postgres_url):
+def rust_pool(postgres_url) -> None:
     """Create a Rust DatabasePool for testing."""
     from fraiseql._fraiseql_rs import DatabasePool
 
-    pool = DatabasePool(url=postgres_url)
-    yield pool
+    return DatabasePool(url=postgres_url)
 
 
 @pytest.fixture
-async def setup_test_table(db_connection):
+async def setup_test_table(db_connection) -> None:
     """Create a test table with sample data."""
     async with db_connection.cursor() as cur:
         # Create test table
@@ -50,7 +50,7 @@ async def setup_test_table(db_connection):
 class TestUnifiedPipelineIntegration:
     """Comprehensive integration tests for the unified pipeline."""
 
-    def test_pipeline_initialization_with_pool(self, rust_pool):
+    def test_pipeline_initialization_with_pool(self, rust_pool) -> None:
         """Test that the pipeline can be initialized with a database pool."""
         from fraiseql._fraiseql_rs import initialize_graphql_pipeline
 
@@ -59,9 +59,9 @@ class TestUnifiedPipelineIntegration:
 
         assert True  # If we got here, initialization succeeded
 
-    def test_pipeline_parses_simple_query(self, rust_pool):
+    def test_pipeline_parses_simple_query(self, rust_pool) -> None:
         """Test that the pipeline can parse a simple GraphQL query."""
-        from fraiseql._fraiseql_rs import initialize_graphql_pipeline, execute_graphql_query
+        from fraiseql._fraiseql_rs import execute_graphql_query, initialize_graphql_pipeline
 
         schema_json = '{"tables": {}, "types": {}}'
         initialize_graphql_pipeline(schema_json, rust_pool)
@@ -89,13 +89,13 @@ class TestUnifiedPipelineIntegration:
 
         except Exception as e:
             # Parsing errors should not contain "Pipeline not initialized"
-            assert "Pipeline not initialized" not in str(e)
+            assert "Pipeline not initialized" not in str(e)  # noqa: PT017
             # Query parsing should succeed (execution may fail due to schema)
-            assert "parse" not in str(e).lower() or "fragment" in str(e).lower()
+            assert "parse" not in str(e).lower() or "fragment" in str(e).lower()  # noqa: PT017
 
-    def test_pipeline_validates_complexity(self, rust_pool):
+    def test_pipeline_validates_complexity(self, rust_pool) -> None:
         """Test that the pipeline validates query complexity."""
-        from fraiseql._fraiseql_rs import initialize_graphql_pipeline, execute_graphql_query
+        from fraiseql._fraiseql_rs import execute_graphql_query, initialize_graphql_pipeline
 
         schema_json = '{"tables": {}, "types": {}}'
         initialize_graphql_pipeline(schema_json, rust_pool)
@@ -136,13 +136,13 @@ class TestUnifiedPipelineIntegration:
             # Complex queries may be rejected or succeed
             assert isinstance(result, dict)
 
-        except Exception as e:
+        except Exception:
             # Complexity validation is working
             assert True
 
-    def test_pipeline_handles_variables(self, rust_pool):
+    def test_pipeline_handles_variables(self, rust_pool) -> None:
         """Test that the pipeline processes GraphQL variables."""
-        from fraiseql._fraiseql_rs import initialize_graphql_pipeline, execute_graphql_query
+        from fraiseql._fraiseql_rs import execute_graphql_query, initialize_graphql_pipeline
 
         schema_json = '{"tables": {}, "types": {}}'
         initialize_graphql_pipeline(schema_json, rust_pool)
@@ -167,11 +167,11 @@ class TestUnifiedPipelineIntegration:
 
         except Exception as e:
             # Variable processing should not fail
-            assert "variable" not in str(e).lower() or "undefined" in str(e).lower()
+            assert "variable" not in str(e).lower() or "undefined" in str(e).lower()  # noqa: PT017
 
-    def test_pipeline_validates_fragments(self, rust_pool):
+    def test_pipeline_validates_fragments(self, rust_pool) -> None:
         """Test that the pipeline validates GraphQL fragments."""
-        from fraiseql._fraiseql_rs import initialize_graphql_pipeline, execute_graphql_query
+        from fraiseql._fraiseql_rs import execute_graphql_query, initialize_graphql_pipeline
 
         schema_json = '{"tables": {}, "types": {}}'
         initialize_graphql_pipeline(schema_json, rust_pool)
@@ -202,11 +202,11 @@ class TestUnifiedPipelineIntegration:
 
         except Exception as e:
             # Fragment validation should work
-            assert "Pipeline not initialized" not in str(e)
+            assert "Pipeline not initialized" not in str(e)  # noqa: PT017
 
-    def test_pipeline_returns_json_bytes(self, rust_pool):
+    def test_pipeline_returns_json_bytes(self, rust_pool) -> None:
         """Test that the pipeline returns properly formatted JSON bytes."""
-        from fraiseql._fraiseql_rs import initialize_graphql_pipeline, execute_graphql_query
+        from fraiseql._fraiseql_rs import execute_graphql_query, initialize_graphql_pipeline
 
         schema_json = '{"tables": {}, "types": {}}'
         initialize_graphql_pipeline(schema_json, rust_pool)
@@ -231,12 +231,13 @@ class TestUnifiedPipelineIntegration:
 
         except Exception as e:
             # Accept errors as schema is minimal
-            assert "Pipeline not initialized" not in str(e)
+            assert "Pipeline not initialized" not in str(e)  # noqa: PT017
 
-    def test_pipeline_concurrent_queries(self, rust_pool):
+    def test_pipeline_concurrent_queries(self, rust_pool) -> None:
         """Test that the pipeline can handle concurrent query execution."""
-        from fraiseql._fraiseql_rs import initialize_graphql_pipeline, execute_graphql_query
         import concurrent.futures
+
+        from fraiseql._fraiseql_rs import execute_graphql_query, initialize_graphql_pipeline
 
         schema_json = '{"tables": {}, "types": {}}'
         initialize_graphql_pipeline(schema_json, rust_pool)
@@ -245,7 +246,7 @@ class TestUnifiedPipelineIntegration:
         variables = {}
         user_context = {"user_id": None, "permissions": [], "roles": []}
 
-        def execute_query():
+        def execute_query() -> None:
             try:
                 result_bytes = execute_graphql_query(query, variables, user_context)
                 return json.loads(result_bytes.decode("utf-8"))
@@ -262,22 +263,21 @@ class TestUnifiedPipelineIntegration:
         assert all(isinstance(r, dict) for r in results)
 
     @pytest.mark.skip(reason="Requires full schema and table setup")
-    def test_pipeline_end_to_end_query(self, rust_pool, setup_test_table):
+    def test_pipeline_end_to_end_query(self, rust_pool, setup_test_table) -> None:
         """Test complete end-to-end query execution with real data."""
         # This would require:
         # 1. Full schema definition with table metadata
         # 2. GraphQL type definitions
         # 3. Schema serialization
         # Future enhancement
-        pass
 
 
 class TestPipelineCaching:
     """Test query plan caching in the unified pipeline."""
 
-    def test_cache_hit_on_repeated_query(self, rust_pool):
+    def test_cache_hit_on_repeated_query(self, rust_pool) -> None:
         """Test that the pipeline caches query plans."""
-        from fraiseql._fraiseql_rs import initialize_graphql_pipeline, execute_graphql_query
+        from fraiseql._fraiseql_rs import execute_graphql_query, initialize_graphql_pipeline
 
         schema_json = '{"tables": {}, "types": {}}'
         initialize_graphql_pipeline(schema_json, rust_pool)
@@ -303,9 +303,9 @@ class TestPipelineCaching:
 class TestPipelineErrorHandling:
     """Test error handling in the unified pipeline."""
 
-    def test_invalid_query_syntax(self, rust_pool):
+    def test_invalid_query_syntax(self, rust_pool) -> None:
         """Test that the pipeline handles invalid GraphQL syntax."""
-        from fraiseql._fraiseql_rs import initialize_graphql_pipeline, execute_graphql_query
+        from fraiseql._fraiseql_rs import execute_graphql_query, initialize_graphql_pipeline
 
         schema_json = '{"tables": {}, "types": {}}'
         initialize_graphql_pipeline(schema_json, rust_pool)
@@ -322,9 +322,9 @@ class TestPipelineErrorHandling:
         # Error should be about parsing, not initialization
         assert "Pipeline not initialized" not in str(exc_info.value)
 
-    def test_empty_query(self, rust_pool):
+    def test_empty_query(self, rust_pool) -> None:
         """Test that the pipeline handles empty queries."""
-        from fraiseql._fraiseql_rs import initialize_graphql_pipeline, execute_graphql_query
+        from fraiseql._fraiseql_rs import execute_graphql_query, initialize_graphql_pipeline
 
         schema_json = '{"tables": {}, "types": {}}'
         initialize_graphql_pipeline(schema_json, rust_pool)
@@ -334,10 +334,10 @@ class TestPipelineErrorHandling:
         user_context = {"user_id": None, "permissions": [], "roles": []}
 
         # Should raise an error
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017
             execute_graphql_query(query, variables, user_context)
 
-    def test_uninitialized_pipeline(self):
+    def test_uninitialized_pipeline(self) -> None:
         """Test that executing without initialization fails gracefully."""
         from fraiseql._fraiseql_rs import execute_graphql_query
 

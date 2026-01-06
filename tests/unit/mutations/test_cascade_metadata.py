@@ -1,13 +1,14 @@
 """Tests for CascadeMetadata type - graphql-cascade spec compliance."""
 
 import pytest
+
 from fraiseql.mutations.types import CascadeMetadata
 
 
 class TestCascadeMetadataSpecCompliance:
     """Test CascadeMetadata adheres to graphql-cascade specification."""
 
-    def test_required_fields(self):
+    def test_required_fields(self) -> None:
         """Test all required fields per spec."""
         metadata = CascadeMetadata(
             timestamp="2025-12-15T10:00:00Z",
@@ -19,7 +20,7 @@ class TestCascadeMetadataSpecCompliance:
         assert metadata.depth == 2
         assert metadata.transaction_id is None
 
-    def test_depth_is_required(self):
+    def test_depth_is_required(self) -> None:
         """Depth is required per spec - must be provided."""
         with pytest.raises(TypeError):
             CascadeMetadata(
@@ -28,7 +29,7 @@ class TestCascadeMetadataSpecCompliance:
                 # depth missing - should raise
             )
 
-    def test_transaction_id_optional(self):
+    def test_transaction_id_optional(self) -> None:
         """Transaction ID is optional per spec."""
         # Without transaction_id
         metadata1 = CascadeMetadata(
@@ -47,7 +48,7 @@ class TestCascadeMetadataSpecCompliance:
         )
         assert metadata2.transaction_id == "12345678"
 
-    def test_all_fields_populated(self):
+    def test_all_fields_populated(self) -> None:
         """Test all spec fields together."""
         metadata = CascadeMetadata(
             timestamp="2025-12-15T14:30:00.123Z",
@@ -60,7 +61,7 @@ class TestCascadeMetadataSpecCompliance:
         assert metadata.depth == 5
         assert metadata.transaction_id == "987654321"
 
-    def test_depth_minimum_zero(self):
+    def test_depth_minimum_zero(self) -> None:
         """Depth minimum is 0 per spec."""
         metadata = CascadeMetadata(
             timestamp="2025-12-15T10:00:00Z",
@@ -69,7 +70,7 @@ class TestCascadeMetadataSpecCompliance:
         )
         assert metadata.depth == 0
 
-    def test_affected_count_minimum_zero(self):
+    def test_affected_count_minimum_zero(self) -> None:
         """Affected count minimum is 0 per spec."""
         metadata = CascadeMetadata(
             timestamp="2025-12-15T10:00:00Z",

@@ -17,13 +17,13 @@ class TestDictNormalization:
     These tests will FAIL until Phase 2 implements _normalize_dict_where().
     """
 
-    def test_normalize_simple_dict(self):
+    def test_normalize_simple_dict(self) -> None:
         """Test normalizing simple dict WHERE clause."""
         where = {"status": {"eq": "active"}}
 
         # This will fail until we implement normalization
-        repo = FraiseQLRepository(None)  # type: ignore
-        clause = repo._normalize_where(  # type: ignore
+        repo = FraiseQLRepository(None)  # type: ignore[misc]
+        clause = repo._normalize_where(  # type: ignore[misc]
             where, view_name="tv_allocation", table_columns={"status"}
         )
 
@@ -34,12 +34,12 @@ class TestDictNormalization:
         assert clause.conditions[0].value == "active"
         assert clause.conditions[0].lookup_strategy == "sql_column"
 
-    def test_normalize_nested_jsonb_dict(self):
+    def test_normalize_nested_jsonb_dict(self) -> None:
         """Test normalizing nested JSONB filter."""
         where = {"device": {"name": {"eq": "Printer"}}}
 
-        repo = FraiseQLRepository(None)  # type: ignore
-        clause = repo._normalize_where(  # type: ignore
+        repo = FraiseQLRepository(None)  # type: ignore[misc]
+        clause = repo._normalize_where(  # type: ignore[misc]
             where, view_name="tv_allocation", table_columns={"machine_id", "data"}
         )
 
@@ -49,27 +49,27 @@ class TestDictNormalization:
         assert clause.conditions[0].lookup_strategy == "jsonb_path"
         assert clause.conditions[0].jsonb_path == ["device", "name"]
 
-    def test_normalize_multiple_conditions(self):
+    def test_normalize_multiple_conditions(self) -> None:
         """Test normalizing multiple conditions."""
         where = {
             "status": {"eq": "active"},
             "machine": {"id": {"eq": uuid.UUID("12345678-1234-1234-1234-123456789abc")}},
         }
 
-        repo = FraiseQLRepository(None)  # type: ignore
-        clause = repo._normalize_where(  # type: ignore
+        repo = FraiseQLRepository(None)  # type: ignore[misc]
+        clause = repo._normalize_where(  # type: ignore[misc]
             where, view_name="tv_allocation", table_columns={"status", "machine_id", "data"}
         )
 
         assert len(clause.conditions) == 2
         # Should have both status and machine.id conditions
 
-    def test_normalize_in_operator(self):
+    def test_normalize_in_operator(self) -> None:
         """Test normalizing IN operator."""
         where = {"status": {"in": ["active", "pending"]}}
 
-        repo = FraiseQLRepository(None)  # type: ignore
-        clause = repo._normalize_where(  # type: ignore
+        repo = FraiseQLRepository(None)  # type: ignore[misc]
+        clause = repo._normalize_where(  # type: ignore[misc]
             where, view_name="tv_allocation", table_columns={"status"}
         )
 
@@ -77,12 +77,12 @@ class TestDictNormalization:
         assert clause.conditions[0].operator == "in"
         assert clause.conditions[0].value == ["active", "pending"]
 
-    def test_normalize_or_clause(self):
+    def test_normalize_or_clause(self) -> None:
         """Test normalizing OR logical operator."""
         where = {"OR": [{"status": {"eq": "active"}}, {"status": {"eq": "pending"}}]}
 
-        repo = FraiseQLRepository(None)  # type: ignore
-        clause = repo._normalize_where(  # type: ignore
+        repo = FraiseQLRepository(None)  # type: ignore[misc]
+        clause = repo._normalize_where(  # type: ignore[misc]
             where, view_name="tv_allocation", table_columns={"status"}
         )
 
@@ -98,12 +98,12 @@ class TestDictNormalization:
             assert nested.conditions[0].operator == "eq"
             assert nested.conditions[0].value in ("active", "pending")
 
-    def test_normalize_not_clause(self):
+    def test_normalize_not_clause(self) -> None:
         """Test normalizing NOT logical operator."""
         where = {"status": {"eq": "active"}, "NOT": {"machine_id": {"isnull": True}}}
 
-        repo = FraiseQLRepository(None)  # type: ignore
-        clause = repo._normalize_where(  # type: ignore
+        repo = FraiseQLRepository(None)  # type: ignore[misc]
+        clause = repo._normalize_where(  # type: ignore[misc]
             where, view_name="tv_allocation", table_columns={"status", "machine_id"}
         )
 
@@ -111,7 +111,7 @@ class TestDictNormalization:
         assert clause.not_clause is not None
         assert len(clause.not_clause.conditions) == 1
 
-    def test_normalize_mixed_fk_and_jsonb(self):
+    def test_normalize_mixed_fk_and_jsonb(self) -> None:
         """Test normalizing mixed FK and JSONB filters on same object."""
         where = {
             "machine": {
@@ -120,40 +120,40 @@ class TestDictNormalization:
             }
         }
 
-        repo = FraiseQLRepository(None)  # type: ignore
-        clause = repo._normalize_where(  # type: ignore
+        repo = FraiseQLRepository(None)  # type: ignore[misc]
+        clause = repo._normalize_where(  # type: ignore[misc]
             where, view_name="tv_allocation", table_columns={"machine_id", "data"}
         )
 
         assert len(clause.conditions) == 2
         # First condition should use FK
-        fk_cond = [c for c in clause.conditions if c.field_path == ["machine", "id"]][0]
+        fk_cond = [c for c in clause.conditions if c.field_path == ["machine", "id"]][0]  # noqa: RUF015
         assert fk_cond.lookup_strategy == "fk_column"
         assert fk_cond.target_column == "machine_id"
 
         # Second condition should use JSONB
-        jsonb_cond = [c for c in clause.conditions if c.field_path == ["machine", "name"]][0]
+        jsonb_cond = [c for c in clause.conditions if c.field_path == ["machine", "name"]][0]  # noqa: RUF015
         assert jsonb_cond.lookup_strategy == "jsonb_path"
         assert jsonb_cond.jsonb_path == ["machine", "name"]
 
-    def test_normalize_contains_operator(self):
+    def test_normalize_contains_operator(self) -> None:
         """Test normalizing string contains operator."""
         where = {"name": {"contains": "test"}}
 
-        repo = FraiseQLRepository(None)  # type: ignore
-        clause = repo._normalize_where(  # type: ignore
+        repo = FraiseQLRepository(None)  # type: ignore[misc]
+        clause = repo._normalize_where(  # type: ignore[misc]
             where, view_name="tv_allocation", table_columns={"name"}
         )
 
         assert len(clause.conditions) == 1
         assert clause.conditions[0].operator == "contains"
 
-    def test_normalize_isnull_operator(self):
+    def test_normalize_isnull_operator(self) -> None:
         """Test normalizing IS NULL operator."""
         where = {"machine_id": {"isnull": True}}
 
-        repo = FraiseQLRepository(None)  # type: ignore
-        clause = repo._normalize_where(  # type: ignore
+        repo = FraiseQLRepository(None)  # type: ignore[misc]
+        clause = repo._normalize_where(  # type: ignore[misc]
             where, view_name="tv_allocation", table_columns={"machine_id"}
         )
 
@@ -161,12 +161,12 @@ class TestDictNormalization:
         assert clause.conditions[0].operator == "isnull"
         assert clause.conditions[0].value is True
 
-    def test_normalize_scalar_value_wraps_in_eq(self):
+    def test_normalize_scalar_value_wraps_in_eq(self) -> None:
         """Test scalar value gets wrapped in eq operator."""
         where = {"status": "active"}
 
-        repo = FraiseQLRepository(None)  # type: ignore
-        clause = repo._normalize_where(  # type: ignore
+        repo = FraiseQLRepository(None)  # type: ignore[misc]
+        clause = repo._normalize_where(  # type: ignore[misc]
             where, view_name="tv_allocation", table_columns={"status"}
         )
 
@@ -174,7 +174,7 @@ class TestDictNormalization:
         assert clause.conditions[0].operator == "eq"
         assert clause.conditions[0].value == "active"
 
-    def test_normalize_whereinput_with_string_filter(self):
+    def test_normalize_whereinput_with_string_filter(self) -> None:
         """Test normalizing WhereInput with StringFilter."""
         from fraiseql.sql import StringFilter, create_graphql_where_input
         from tests.regression.test_nested_filter_id_field import Allocation
@@ -183,8 +183,8 @@ class TestDictNormalization:
 
         where_input = AllocationWhereInput(status=StringFilter(eq="active"))
 
-        repo = FraiseQLRepository(None)  # type: ignore
-        clause = repo._normalize_where(  # type: ignore
+        repo = FraiseQLRepository(None)  # type: ignore[misc]
+        clause = repo._normalize_where(  # type: ignore[misc]
             where_input, view_name="tv_allocation", table_columns={"status", "data"}
         )
 
@@ -192,7 +192,7 @@ class TestDictNormalization:
         assert clause.conditions[0].operator == "eq"
         assert clause.conditions[0].value == "active"
 
-    def test_normalize_whereinput_with_multiple_filters(self):
+    def test_normalize_whereinput_with_multiple_filters(self) -> None:
         """Test normalizing WhereInput with multiple fields."""
         from fraiseql.sql import StringFilter, UUIDFilter, create_graphql_where_input
         from tests.regression.test_nested_filter_id_field import Allocation, Machine
@@ -206,14 +206,14 @@ class TestDictNormalization:
             machine=MachineWhereInput(id=UUIDFilter(eq=machine_id)),
         )
 
-        repo = FraiseQLRepository(None)  # type: ignore
-        clause = repo._normalize_where(  # type: ignore
+        repo = FraiseQLRepository(None)  # type: ignore[misc]
+        clause = repo._normalize_where(  # type: ignore[misc]
             where_input, view_name="tv_allocation", table_columns={"status", "machine_id", "data"}
         )
 
         assert len(clause.conditions) == 2
 
-    def test_normalize_whereinput_with_or_operator(self):
+    def test_normalize_whereinput_with_or_operator(self) -> None:
         """Test normalizing WhereInput with OR operator."""
         from fraiseql.sql import StringFilter, create_graphql_where_input
         from tests.regression.test_nested_filter_id_field import Allocation
@@ -227,8 +227,8 @@ class TestDictNormalization:
             ]
         )
 
-        repo = FraiseQLRepository(None)  # type: ignore
-        clause = repo._normalize_where(  # type: ignore
+        repo = FraiseQLRepository(None)  # type: ignore[misc]
+        clause = repo._normalize_where(  # type: ignore[misc]
             where_input, view_name="tv_allocation", table_columns={"status"}
         )
 
@@ -250,7 +250,7 @@ class TestNormalizationEquivalence:
     These tests will FAIL until both Phase 2 and Phase 3 are complete.
     """
 
-    def test_dict_and_whereinput_produce_identical_whereclause(self):
+    def test_dict_and_whereinput_produce_identical_whereclause(self) -> None:
         """Test dict and WhereInput normalize to identical WhereClause."""
         from fraiseql.sql import UUIDFilter, create_graphql_where_input
         from tests.regression.test_nested_filter_id_field import Allocation, Machine
@@ -266,13 +266,13 @@ class TestNormalizationEquivalence:
         # WhereInput version
         where_input = AllocationWhereInput(machine=MachineWhereInput(id=UUIDFilter(eq=machine_id)))
 
-        repo = FraiseQLRepository(None)  # type: ignore
+        repo = FraiseQLRepository(None)  # type: ignore[misc]
 
-        clause_dict = repo._normalize_where(  # type: ignore
+        clause_dict = repo._normalize_where(  # type: ignore[misc]
             where_dict, view_name="tv_allocation", table_columns={"machine_id", "data"}
         )
 
-        clause_input = repo._normalize_where(  # type: ignore
+        clause_input = repo._normalize_where(  # type: ignore[misc]
             where_input, view_name="tv_allocation", table_columns={"machine_id", "data"}
         )
 

@@ -16,10 +16,10 @@ class MockCursorContext:
     def __init__(self, cursor: AsyncMock) -> None:
         self.cursor = cursor
 
-    async def __aenter__(self) -> AsyncMock:
+    async def __aenter__(self) -> AsyncMock:  # noqa: D105
         return self.cursor
 
-    async def __aexit__(self, *args: object) -> None:
+    async def __aexit__(self, *args: object) -> None:  # noqa: D105
         pass
 
 

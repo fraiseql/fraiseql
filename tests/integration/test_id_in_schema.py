@@ -1,7 +1,5 @@
 """Integration tests for ID type in schema."""
 
-import uuid
-
 import pytest
 from graphql import graphql
 
@@ -10,7 +8,7 @@ from fraiseql.types import ID
 
 
 @pytest.fixture
-async def schema_with_id(class_db_pool):
+async def schema_with_id(class_db_pool) -> None:
     """Create schema with ID type."""
 
     @fraiseql.type
@@ -51,7 +49,7 @@ async def schema_with_id(class_db_pool):
         await conn.execute("DROP TABLE IF EXISTS tb_user")
 
 
-async def test_id_in_graphql_query(schema_with_id):
+async def test_id_in_graphql_query(schema_with_id) -> None:
     """Test ID type in GraphQL query."""
     query = """
         query {
@@ -71,7 +69,7 @@ async def test_id_in_graphql_query(schema_with_id):
     # The test mainly verifies that ID type is recognized in schema
 
 
-async def test_id_type_in_schema_introspection(schema_with_id):
+async def test_id_type_in_schema_introspection(schema_with_id) -> None:
     """Test that ID appears correctly in schema introspection."""
     introspection_query = """
         query {

@@ -17,7 +17,7 @@ class TestAutoGenerationIntegration:
     """Test auto-generation works with actual database queries."""
 
     @pytest.fixture(scope="class")
-    def clear_registry_fixture(self, clear_registry_class):
+    def clear_registry_fixture(self, clear_registry_class) -> None:
         """Clear registry before class tests."""
         return
 

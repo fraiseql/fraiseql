@@ -356,7 +356,7 @@ class TestMetricsMiddleware:
 
         # Mock call_next to raise error
         async def call_next(req) -> None:
-            raise Exception("Test error")
+            raise Exception("Test error")  # noqa: TRY002
 
         # Should propagate error
         with pytest.raises(Exception, match="Test error"):

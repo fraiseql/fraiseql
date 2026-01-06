@@ -1,17 +1,12 @@
-"""
-Phase 2.2: Data Consistency Chaos Tests
+"""Phase 2.2: Data Consistency Chaos Tests
 
 Tests for data consistency issues and transactional integrity under chaos.
 Validates FraiseQL's handling of transaction rollbacks, partial updates, and constraint violations.
 """
 
 import pytest
-import time
-import statistics
 from chaos.base import ChaosTestCase
-from chaos.fixtures import ToxiproxyManager
-from chaos.plugin import chaos_inject, FailureType
-from chaos.fraiseql_scenarios import MockFraiseQLClient, FraiseQLTestScenarios
+from chaos.fraiseql_scenarios import FraiseQLTestScenarios, MockFraiseQLClient
 
 
 class TestDataConsistencyChaos(ChaosTestCase):
@@ -19,9 +14,8 @@ class TestDataConsistencyChaos(ChaosTestCase):
 
     @pytest.mark.chaos
     @pytest.mark.chaos_database
-    def test_transaction_rollback_recovery(self):
-        """
-        Test recovery from transaction rollbacks.
+    def test_transaction_rollback_recovery(self) -> None:
+        """Test recovery from transaction rollbacks.
 
         Scenario: Transactions are rolled back due to conflicts or errors.
         Expected: FraiseQL handles rollbacks gracefully and maintains consistency.
@@ -49,7 +43,7 @@ class TestDataConsistencyChaos(ChaosTestCase):
                     self.metrics.record_query_time(execution_time)
 
                     # Then simulate rollback
-                    raise Exception("Transaction rolled back due to conflict")
+                    raise Exception("Transaction rolled back due to conflict")  # noqa: TRY002
 
                 result = client.execute_query(operation)
                 execution_time = result.get("_execution_time_ms", 30.0)
@@ -80,9 +74,8 @@ class TestDataConsistencyChaos(ChaosTestCase):
 
     @pytest.mark.chaos
     @pytest.mark.chaos_database
-    def test_partial_update_failure_recovery(self):
-        """
-        Test recovery from partial update failures.
+    def test_partial_update_failure_recovery(self) -> None:
+        """Test recovery from partial update failures.
 
         Scenario: Multi-field updates fail partway through execution.
         Expected: FraiseQL handles partial failures and maintains data consistency.
@@ -109,7 +102,7 @@ class TestDataConsistencyChaos(ChaosTestCase):
                 if "errors" not in result and result.get("data"):
                     # Simulate partial failure detection
                     if i % 2 == 1:  # Every other operation has partial failure
-                        raise Exception("Partial update failure: only some fields updated")
+                        raise Exception("Partial update failure: only some fields updated")  # noqa: TRY002
 
                     execution_time = result.get("_execution_time_ms", 75.0)
                     self.metrics.record_query_time(execution_time)
@@ -135,9 +128,8 @@ class TestDataConsistencyChaos(ChaosTestCase):
 
     @pytest.mark.chaos
     @pytest.mark.chaos_database
-    def test_constraint_violation_handling(self):
-        """
-        Test handling of database constraint violations.
+    def test_constraint_violation_handling(self) -> None:
+        """Test handling of database constraint violations.
 
         Scenario: Operations violate database constraints (unique, foreign key, check constraints).
         Expected: FraiseQL handles constraint violations with appropriate error responses.
@@ -159,9 +151,8 @@ class TestDataConsistencyChaos(ChaosTestCase):
                 # Simulate constraint violation scenarios
                 if i % 3 == 1:  # Every 3rd operation violates constraints
                     if i % 2 == 1:
-                        raise Exception("Constraint violation: unique key constraint")
-                    else:
-                        raise Exception("Constraint violation: foreign key constraint")
+                        raise Exception("Constraint violation: unique key constraint")  # noqa: TRY002
+                    raise Exception("Constraint violation: foreign key constraint")  # noqa: TRY002
 
                 result = client.execute_query(operation)
                 execution_time = result.get("_execution_time_ms", 25.0)
@@ -189,15 +180,14 @@ class TestDataConsistencyChaos(ChaosTestCase):
 
     @pytest.mark.chaos
     @pytest.mark.chaos_database
-    def test_transaction_isolation_anomaly_simulation(self):
-        """
-        Test handling of transaction isolation anomalies.
+    def test_transaction_isolation_anomaly_simulation(self) -> None:
+        """Test handling of transaction isolation anomalies.
 
         Scenario: Concurrent transactions create isolation anomalies (dirty reads, non-repeatable reads, phantom reads).
         Expected: FraiseQL maintains transactional consistency under concurrent load.
         """
-        import threading
         import queue
+        import threading
 
         client = MockFraiseQLClient()
         read_operation = FraiseQLTestScenarios.simple_user_query()
@@ -262,7 +252,7 @@ class TestDataConsistencyChaos(ChaosTestCase):
         errors = 0
 
         while not results_queue.empty():
-            result_type, thread_id, data = results_queue.get()
+            result_type, _thread_id, data = results_queue.get()
             if result_type == "anomaly":
                 anomalies += 1
                 self.metrics.record_error()
@@ -286,9 +276,8 @@ class TestDataConsistencyChaos(ChaosTestCase):
 
     @pytest.mark.chaos
     @pytest.mark.chaos_database
-    def test_data_corruption_detection(self):
-        """
-        Test detection of data corruption scenarios.
+    def test_data_corruption_detection(self) -> None:
+        """Test detection of data corruption scenarios.
 
         Scenario: Database returns corrupted or inconsistent data.
         Expected: FraiseQL detects corruption and handles appropriately.
@@ -341,9 +330,8 @@ class TestDataConsistencyChaos(ChaosTestCase):
 
     @pytest.mark.chaos
     @pytest.mark.chaos_database
-    def test_cascading_failure_prevention(self):
-        """
-        Test prevention of cascading failures in data operations.
+    def test_cascading_failure_prevention(self) -> None:
+        """Test prevention of cascading failures in data operations.
 
         Scenario: One failed operation shouldn't cause cascading failures in dependent operations.
         Expected: FraiseQL contains failures and maintains system stability.
@@ -371,7 +359,7 @@ class TestDataConsistencyChaos(ChaosTestCase):
 
                 # Dependent complex operation
                 if i % 2 == 1:  # Primary fails on odd iterations
-                    raise Exception("Primary operation failed")
+                    raise Exception("Primary operation failed")  # noqa: TRY002
 
                 # If primary succeeds, execute dependent operation
                 complex_result = client.execute_query(complex_op)

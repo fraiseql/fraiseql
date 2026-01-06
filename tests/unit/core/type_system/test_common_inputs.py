@@ -41,8 +41,8 @@ class TestDeletionInput:
         """Test DeletionInput field type annotations."""
         # Check type hints
         annotations = DeletionInput.__annotations__
-        assert annotations["id"] == uuid.UUID
-        assert annotations["hard_delete"] == bool
+        assert annotations["id"] is uuid.UUID
+        assert annotations["hard_delete"] is bool
 
     def test_deletion_input_default_values(self) -> None:
         """Test DeletionInput default value behavior."""

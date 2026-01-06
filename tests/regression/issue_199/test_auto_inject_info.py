@@ -19,7 +19,7 @@ Issue: https://github.com/fraiseql/fraiseql/issues/199
 
 import uuid
 from typing import Any
-from unittest.mock import MagicMock, Mock
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -45,7 +45,7 @@ class User:
 # ============================================================================
 
 
-async def test_query_decorator_auto_injects_info_into_context():
+async def test_query_decorator_auto_injects_info_into_context() -> None:
     """Test that @fraiseql.query decorator injects info into context['graphql_info'].
 
     This is the core behavior that enables auto-extraction in repository methods.
@@ -66,14 +66,14 @@ async def test_query_decorator_auto_injects_info_into_context():
         return []
 
     # Call the decorated function
-    result = await users(mock_info)
+    await users(mock_info)
 
     # Verify injection happened
     assert "graphql_info" in mock_info.context
     assert mock_info.context["graphql_info"] is mock_info
 
 
-async def test_db_find_extracts_info_from_context():
+async def test_db_find_extracts_info_from_context() -> None:
     """Test that db.find() extracts info from context when not explicitly provided.
 
     This enables the pattern:
@@ -89,10 +89,9 @@ async def test_db_find_extracts_info_from_context():
 
     # We'll verify this with integration tests instead of unit tests
     # to avoid complex async mock setup
-    pass
 
 
-async def test_db_find_one_extracts_info_from_context():
+async def test_db_find_one_extracts_info_from_context() -> None:
     """Test that db.find_one() extracts info from context when not explicitly provided."""
     # This test verifies the logic exists in db.py:742-743
     # The actual extraction logic is already implemented:
@@ -101,10 +100,9 @@ async def test_db_find_one_extracts_info_from_context():
 
     # We'll verify this with integration tests instead of unit tests
     # to avoid complex async mock setup
-    pass
 
 
-async def test_field_selection_works_without_explicit_info_parameter():
+async def test_field_selection_works_without_explicit_info_parameter() -> None:
     """Test that field selection is enabled when info is auto-extracted from context.
 
     This is the key performance optimization - Rust zero-copy projection should
@@ -117,7 +115,6 @@ async def test_field_selection_works_without_explicit_info_parameter():
 
     # We'll verify this with end-to-end integration tests
     # that use a real database and GraphQL schema
-    pass
 
 
 # ============================================================================
@@ -125,7 +122,7 @@ async def test_field_selection_works_without_explicit_info_parameter():
 # ============================================================================
 
 
-async def test_explicit_info_parameter_takes_precedence():
+async def test_explicit_info_parameter_takes_precedence() -> None:
     """Test that explicit info=info parameter still works and takes precedence.
 
     Ensures backwards compatibility with existing code.
@@ -139,10 +136,9 @@ async def test_explicit_info_parameter_takes_precedence():
     # If info is provided explicitly, it's used directly
 
     # We'll verify this with integration tests
-    pass
 
 
-async def test_existing_resolvers_unchanged():
+async def test_existing_resolvers_unchanged() -> None:
     """Test that existing resolvers with explicit info=info continue to work.
 
     Validates that the change is backwards compatible.
@@ -178,7 +174,7 @@ async def test_existing_resolvers_unchanged():
 # ============================================================================
 
 
-async def test_nested_resolver_field_selection():
+async def test_nested_resolver_field_selection() -> None:
     """Test that nested resolvers (field → query) maintain field selection.
 
     Example:
@@ -190,10 +186,9 @@ async def test_nested_resolver_field_selection():
     """
     # This test will be expanded in REFACTOR phase
     # For now, just verify the structure
-    pass
 
 
-async def test_multiple_queries_in_single_request():
+async def test_multiple_queries_in_single_request() -> None:
     """Test that multiple queries in a single GraphQL request each get correct info.
 
     Example:
@@ -203,10 +198,9 @@ async def test_multiple_queries_in_single_request():
         }
     """
     # This test will be expanded in REFACTOR phase
-    pass
 
 
-async def test_opt_out_with_explicit_none():
+async def test_opt_out_with_explicit_none() -> None:
     """Test that passing info=None explicitly disables field selection.
 
     Use case: Force returning all columns for debugging/admin tools.
@@ -217,7 +211,6 @@ async def test_opt_out_with_explicit_none():
     # Passing info=None explicitly will skip the extraction
 
     # We'll verify this with integration tests
-    pass
 
 
 # ============================================================================
@@ -225,7 +218,7 @@ async def test_opt_out_with_explicit_none():
 # ============================================================================
 
 
-async def test_rust_pipeline_activated_with_auto_inject():
+async def test_rust_pipeline_activated_with_auto_inject() -> None:
     """Test that Rust zero-copy pipeline is activated when info is auto-injected.
 
     This is the critical performance optimization - without info, Python serialization
@@ -235,17 +228,15 @@ async def test_rust_pipeline_activated_with_auto_inject():
     # 1. Field selection metadata is extracted from auto-injected info
     # 2. Rust pipeline is invoked (not Python serialization)
     # 3. Only selected fields are included in response
-    pass
 
 
-async def test_no_performance_regression():
+async def test_no_performance_regression() -> None:
     """Test that auto-injection doesn't introduce performance overhead.
 
     The injection should be zero-cost - just storing a reference in context dict.
     """
     # Benchmark test - will be expanded in QA phase
     # Should verify that decorator overhead is < 0.1ms
-    pass
 
 
 # ============================================================================
@@ -254,7 +245,7 @@ async def test_no_performance_regression():
 
 
 @pytest.fixture
-def mock_graphql_info():
+def mock_graphql_info() -> None:
     """Create a mock GraphQLResolveInfo object for testing."""
     info = MagicMock()
     info.context = {}
@@ -265,8 +256,7 @@ def mock_graphql_info():
 
 
 @pytest.fixture
-def mock_repository():
+def mock_repository() -> None:
     """Create a mock FraiseQLRepository for testing."""
     mock_conn = MagicMock()
-    repo = FraiseQLRepository(mock_conn)
-    return repo
+    return FraiseQLRepository(mock_conn)

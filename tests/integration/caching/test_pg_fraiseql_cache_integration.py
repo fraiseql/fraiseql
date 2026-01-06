@@ -225,7 +225,7 @@ class TestExtensionDetection:
         # Track call count to know which query is being executed
         call_count = 0
 
-        async def mock_execute(query, *args) -> None:
+        async def mock_execute(query, *args) -> None:  # noqa: ANN002
             nonlocal call_count
             call_count += 1
             # First two calls are CREATE TABLE queries (succeed)
@@ -337,7 +337,7 @@ class TestTenantIdInCacheKeys:
     @pytest.mark.asyncio
     async def test_cached_repository_passes_tenant_id_to_cache_key(
         self, mock_pool, mock_cache_backend
-    ):
+    ) -> None:
         """Test that CachedRepository extracts and passes tenant_id to cache key builder.
 
         Expected behavior:
@@ -396,7 +396,7 @@ class TestTenantIdInCacheKeys:
     @pytest.mark.asyncio
     async def test_different_tenants_get_different_cache_entries(
         self, mock_pool, mock_cache_backend
-    ):
+    ) -> None:
         """Test that different tenants don't share cache entries (SECURITY TEST).
 
         Expected behavior:
@@ -618,7 +618,7 @@ class TestVersionChecking:
         async def mock_execute(query, params=None) -> None:
             # Track what gets cached during SET
             if "INSERT INTO" in query and params:
-                key, value_json, expires = params
+                key, value_json, _expires = params
                 cached_data[key] = json.loads(value_json)
 
         async def mock_fetchone() -> None:
@@ -636,7 +636,7 @@ class TestVersionChecking:
             return [("user", 42)]
 
         # Initial setup mocks for extension detection
-        initial_fetchone = AsyncMock(return_value=("1.0",))
+        AsyncMock(return_value=("1.0",))
 
         # Track call count to return correct data
         fetchone_call_count = 0
@@ -672,7 +672,7 @@ class TestVersionChecking:
         await cache.set("test_key", [{"id": 1, "name": "Alice"}], ttl=300, versions={"user": 42})
 
         # Step 2: Get cached value (should include version metadata)
-        result, cached_versions = await cache.get_with_metadata("test_key")
+        _result, cached_versions = await cache.get_with_metadata("test_key")
         assert cached_versions == {"user": 42}, (
             f"Should cache with version 42, got {cached_versions}"
         )
@@ -710,7 +710,7 @@ class TestVersionChecking:
         async def mock_fetchall() -> None:
             # Get the last execute call
             if execute_calls:
-                last_query, last_params = execute_calls[-1]
+                _last_query, last_params = execute_calls[-1]
                 if last_params:
                     tenant_id = last_params[0]
                     if tenant_id == tenant_a:

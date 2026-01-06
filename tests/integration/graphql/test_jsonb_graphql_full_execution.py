@@ -11,7 +11,6 @@ Related: /tmp/JSONB_ISSUE_ANALYSIS_PRINTOPTIM_VS_FRAISEQL.md
 """
 
 import json
-from uuid import UUID
 
 import pytest
 import pytest_asyncio
@@ -116,7 +115,7 @@ class TestJSONBFullGraphQLExecution:
     """
 
     @pytest_asyncio.fixture(scope="class")
-    async def setup_graphql_jsonb_test(self, class_db_pool, test_schema):
+    async def setup_graphql_jsonb_test(self, class_db_pool, test_schema) -> None:
         """Create test data and register types for GraphQL execution."""
         # Register type with has_jsonb_data=True
         register_type_for_view(
@@ -173,7 +172,7 @@ class TestJSONBFullGraphQLExecution:
     @pytest.mark.asyncio
     async def test_graphql_list_query_with_jsonb_entities(
         self, class_db_pool, test_schema, setup_graphql_jsonb_test
-    ):
+    ) -> None:
         """Test GraphQL list query with JSONB entities through typed resolver.
 
         This is the CRITICAL test that reproduces PrintOptim's issue:
@@ -264,7 +263,7 @@ class TestJSONBFullGraphQLExecution:
     @pytest.mark.asyncio
     async def test_graphql_single_query_with_jsonb_entity(
         self, class_db_pool, test_schema, setup_graphql_jsonb_test
-    ):
+    ) -> None:
         """Test GraphQL single-object query with JSONB entity through typed resolver.
 
         Similar to the list query test, but for single objects.
@@ -355,7 +354,7 @@ class TestJSONBFullGraphQLExecution:
     @pytest.mark.asyncio
     async def test_mutation_with_jsonb_entity(
         self, class_db_pool, test_schema, setup_graphql_jsonb_test
-    ):
+    ) -> None:
         """Test GraphQL mutation with JSONB entity.
 
         PrintOptim reported that mutations work correctly while queries fail.

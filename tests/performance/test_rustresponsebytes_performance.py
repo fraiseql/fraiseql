@@ -87,9 +87,9 @@ class TestDetectionOverhead:
         def simulate_detection_path(result: Any) -> bool:
             """Simulate the 3-layer detection path."""
             # Layer 1: execute_graphql() detection
-            if isinstance(result, RustResponseBytes):
+            if isinstance(result, RustResponseBytes):  # noqa: SIM102
                 # Layer 2: UnifiedExecutor detection
-                if isinstance(result, RustResponseBytes):
+                if isinstance(result, RustResponseBytes):  # noqa: SIM102
                     # Layer 3: FastAPI Router detection
                     if isinstance(result, RustResponseBytes):
                         return True
@@ -360,8 +360,8 @@ class TestLatencyUnderLoad:
             start = time.perf_counter()
 
             # Simulate full detection path
-            if isinstance(rust_bytes, RustResponseBytes):
-                if isinstance(rust_bytes, RustResponseBytes):
+            if isinstance(rust_bytes, RustResponseBytes):  # noqa: SIM102
+                if isinstance(rust_bytes, RustResponseBytes):  # noqa: SIM102
                     if isinstance(rust_bytes, RustResponseBytes):
                         _ = bytes(rust_bytes)
 

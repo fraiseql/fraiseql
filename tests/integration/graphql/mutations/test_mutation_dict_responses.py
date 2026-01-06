@@ -28,7 +28,7 @@ class CreateUserMutation:
     error: CreateUserError
 
 
-def test_class_based_mutation_registered():
+def test_class_based_mutation_registered() -> None:
     """Test that class-based mutations are registered correctly."""
     # Class-based mutations return dict structures
 

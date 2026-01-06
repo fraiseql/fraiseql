@@ -116,8 +116,8 @@ class TestNestedInputJSONSerialization:
         # Standard JSON.dumps still fails, which is expected - users should use FraiseQLJSONEncoder
         try:
             json.dumps(nested_address)
-            assert False, "Standard JSON should still fail without custom encoder"
+            raise AssertionError("Standard JSON should still fail without custom encoder")
         except TypeError as e:
-            assert "Object of type CreateNestedPublicAddressInput is not JSON serializable" in str(
+            assert "Object of type CreateNestedPublicAddressInput is not JSON serializable" in str(  # noqa: PT017
                 e
             )

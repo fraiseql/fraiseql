@@ -22,7 +22,7 @@ class Cascade:
 class TestSchemaGenerationV180:
     """Test schema generation for v1.8.0."""
 
-    def test_generate_union_type(self):
+    def test_generate_union_type(self) -> None:
         """Schema generation creates union type."""
 
         class CreateMachineSuccess:
@@ -58,7 +58,7 @@ class TestSchemaGenerationV180:
 class TestTypeConversion:
     """Test _python_type_to_graphql with comprehensive examples."""
 
-    def test_basic_types(self):
+    def test_basic_types(self) -> None:
         """Convert basic Python types to GraphQL."""
         schema = MutationSchema(
             mutation_name="Test",
@@ -73,7 +73,7 @@ class TestTypeConversion:
         assert schema._python_type_to_graphql(bool) == "Boolean!"
         assert schema._python_type_to_graphql(float) == "Float!"
 
-    def test_optional_types(self):
+    def test_optional_types(self) -> None:
         """Convert optional types (nullable)."""
         schema = MutationSchema(
             mutation_name="Test",
@@ -87,7 +87,7 @@ class TestTypeConversion:
         assert schema._python_type_to_graphql(str | None) == "String"
         assert schema._python_type_to_graphql(Machine | None) == "Machine"
 
-    def test_list_types(self):
+    def test_list_types(self) -> None:
         """Convert list types to GraphQL arrays."""
         schema = MutationSchema(
             mutation_name="Test",
@@ -111,7 +111,7 @@ class TestTypeConversion:
         # Nullable list with nullable items
         assert schema._python_type_to_graphql(list[int | None] | None) == "[Int]"
 
-    def test_dict_types(self):
+    def test_dict_types(self) -> None:
         """Convert dict types to JSON scalar."""
         schema = MutationSchema(
             mutation_name="Test",
@@ -125,7 +125,7 @@ class TestTypeConversion:
         assert schema._python_type_to_graphql(dict[str, int]) == "JSON"
         assert schema._python_type_to_graphql(dict[str, list[Machine]]) == "JSON"
 
-    def test_custom_types(self):
+    def test_custom_types(self) -> None:
         """Convert custom types (dataclasses, models) to GraphQL types."""
         schema = MutationSchema(
             mutation_name="Test",
@@ -143,9 +143,9 @@ class TestTypeConversion:
 
         assert schema._python_type_to_graphql(User) == "User!"
 
-    def test_nested_optional_lists(self):
+    def test_nested_optional_lists(self) -> None:
         """Handle complex nested types."""
-        schema = MutationSchema(
+        MutationSchema(
             mutation_name="Test",
             success_type=type("S", (), {}),
             error_type=type("E", (), {}),
@@ -154,11 +154,11 @@ class TestTypeConversion:
 
         # list[list[int]]
         inner_list = list[int]  # [Int!]!
-        outer_list = list[inner_list]  # [[Int!]!!]!
+        list[inner_list]  # [[Int!]!!]!
         # Note: This gets complex - the implementation may need adjustment
         # For v1.8.0, we'll focus on simple list[X] patterns
 
-    def test_unsupported_types_raise_errors(self):
+    def test_unsupported_types_raise_errors(self) -> None:
         """Unsupported types raise clear errors."""
         schema = MutationSchema(
             mutation_name="Test",
@@ -183,7 +183,7 @@ class TestTypeConversion:
 class TestEntityFieldDetection:
     """Test _is_entity_field with various patterns."""
 
-    def test_exact_entity_match(self):
+    def test_exact_entity_match(self) -> None:
         """Field named 'entity' is always detected."""
         schema = MutationSchema(
             mutation_name="CreateMachine",
@@ -196,7 +196,7 @@ class TestEntityFieldDetection:
         assert schema._is_entity_field("Entity") is True  # Case insensitive
         assert schema._is_entity_field("ENTITY") is True
 
-    def test_mutation_name_derived(self):
+    def test_mutation_name_derived(self) -> None:
         """Entity field derived from mutation name."""
         schema = MutationSchema(
             mutation_name="CreateMachine",
@@ -229,7 +229,7 @@ class TestEntityFieldDetection:
         # "UpdateUser" → "user"
         assert schema._is_entity_field("user") is True
 
-    def test_plural_entity_names(self):
+    def test_plural_entity_names(self) -> None:
         """Handle plural entity names."""
         schema = MutationSchema(
             mutation_name="CreateMachines",
@@ -244,7 +244,7 @@ class TestEntityFieldDetection:
         # Also accepts singular
         assert schema._is_entity_field("machine") is True
 
-    def test_common_entity_field_names(self):
+    def test_common_entity_field_names(self) -> None:
         """Recognize common patterns."""
         schema = MutationSchema(
             mutation_name="ProcessData",
@@ -258,7 +258,7 @@ class TestEntityFieldDetection:
         assert schema._is_entity_field("item") is True
         assert schema._is_entity_field("record") is True
 
-    def test_non_entity_fields(self):
+    def test_non_entity_fields(self) -> None:
         """Non-entity fields are not detected."""
         schema = MutationSchema(
             mutation_name="CreateMachine",
@@ -272,7 +272,7 @@ class TestEntityFieldDetection:
         assert schema._is_entity_field("updated_fields") is False
         assert schema._is_entity_field("metadata") is False
 
-    def test_success_type_entity_non_nullable(self):
+    def test_success_type_entity_non_nullable(self) -> None:
         """Success type entity is generated as non-nullable."""
 
         class CreateMachineSuccess:
@@ -293,7 +293,7 @@ class TestEntityFieldDetection:
         # Check that machine field is non-nullable
         assert "machine: Machine!" in sdl
 
-    def test_error_type_has_code_field(self):
+    def test_error_type_has_code_field(self) -> None:
         """Error type includes code field."""
 
         class CreateMachineSuccess:
@@ -312,7 +312,7 @@ class TestEntityFieldDetection:
         # Check code field exists and is non-nullable
         assert "code: Int!" in sdl
 
-    def test_nullable_entity_raises_error(self):
+    def test_nullable_entity_raises_error(self) -> None:
         """Nullable entity in Success type raises error."""
 
         class CreateMachineSuccess:
@@ -330,7 +330,7 @@ class TestEntityFieldDetection:
         with pytest.raises(ValueError, match="nullable entity"):
             generate_mutation_schema("CreateMachine", CreateMachineSuccess, CreateMachineError)
 
-    def test_missing_code_field_raises_error(self):
+    def test_missing_code_field_raises_error(self) -> None:
         """Missing code field in Error type raises error."""
 
         class CreateMachineSuccess:
@@ -350,7 +350,7 @@ class TestEntityFieldDetection:
 class TestSchemaValidator:
     """Test schema validation."""
 
-    def test_valid_mutation_types(self):
+    def test_valid_mutation_types(self) -> None:
         """Valid mutation types pass validation."""
 
         class CreateMachineSuccess:
@@ -368,7 +368,7 @@ class TestSchemaValidator:
         )
         assert errors == []
 
-    def test_missing_entity_field(self):
+    def test_missing_entity_field(self) -> None:
         """Missing entity field is detected."""
 
         class CreateMachineSuccess:
@@ -387,7 +387,7 @@ class TestSchemaValidator:
         assert len(errors) == 1
         assert "Missing entity field" in errors[0]
 
-    def test_nullable_entity_field(self):
+    def test_nullable_entity_field(self) -> None:
         """Nullable entity field is detected."""
 
         class CreateMachineSuccess:
@@ -406,7 +406,7 @@ class TestSchemaValidator:
         assert len(errors) == 1
         assert "Must be non-null" in errors[0]
 
-    def test_missing_code_field(self):
+    def test_missing_code_field(self) -> None:
         """Missing code field in Error type is detected."""
 
         class CreateMachineSuccess:
@@ -425,7 +425,7 @@ class TestSchemaValidator:
         assert len(errors) == 1
         assert "Missing required field 'code: int'" in errors[0]
 
-    def test_missing_status_field(self):
+    def test_missing_status_field(self) -> None:
         """Missing status field in Error type is detected."""
 
         class CreateMachineSuccess:
@@ -444,7 +444,7 @@ class TestSchemaValidator:
         assert len(errors) == 1
         assert "Missing required field 'status: str'" in errors[0]
 
-    def test_missing_message_field(self):
+    def test_missing_message_field(self) -> None:
         """Missing message field in Error type is detected."""
 
         class CreateMachineSuccess:

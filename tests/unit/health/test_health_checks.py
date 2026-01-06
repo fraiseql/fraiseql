@@ -9,10 +9,7 @@ Tests for:
 - HealthCheckAggregator status aggregation
 """
 
-from datetime import UTC, datetime, timedelta
-
-import pytest
-
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 from fraiseql.health import (
@@ -29,7 +26,7 @@ from fraiseql.health import (
 class TestHealthCheckResult:
     """Tests for HealthCheckResult dataclass."""
 
-    def test_result_creation(self):
+    def test_result_creation(self) -> None:
         """HealthCheckResult creates successfully."""
         result = HealthCheckResult(
             status="healthy",
@@ -40,7 +37,7 @@ class TestHealthCheckResult:
         assert result.message == "All systems operational"
         assert result.response_time_ms == 45.2
 
-    def test_result_is_healthy(self):
+    def test_result_is_healthy(self) -> None:
         """is_healthy() returns True for healthy status."""
         result = HealthCheckResult(
             status="healthy",
@@ -51,7 +48,7 @@ class TestHealthCheckResult:
         assert result.is_degraded() is False
         assert result.is_unhealthy() is False
 
-    def test_result_is_degraded(self):
+    def test_result_is_degraded(self) -> None:
         """is_degraded() returns True for degraded status."""
         result = HealthCheckResult(
             status="degraded",
@@ -62,7 +59,7 @@ class TestHealthCheckResult:
         assert result.is_healthy() is False
         assert result.is_unhealthy() is False
 
-    def test_result_is_unhealthy(self):
+    def test_result_is_unhealthy(self) -> None:
         """is_unhealthy() returns True for unhealthy status."""
         result = HealthCheckResult(
             status="unhealthy",
@@ -78,7 +75,7 @@ class TestHealthCheckResult:
 class TestHealthStatus:
     """Tests for HealthStatus dataclass."""
 
-    def test_status_creation(self):
+    def test_status_creation(self) -> None:
         """HealthStatus creates successfully."""
         now = datetime.now(UTC)
         status = HealthStatus(
@@ -91,7 +88,7 @@ class TestHealthStatus:
         assert status.timestamp == now
         assert status.checks_executed == 4
 
-    def test_status_is_healthy(self):
+    def test_status_is_healthy(self) -> None:
         """is_healthy() works correctly."""
         status = HealthStatus(
             overall_status="healthy",
@@ -101,7 +98,7 @@ class TestHealthStatus:
         assert status.is_degraded() is False
         assert status.is_unhealthy() is False
 
-    def test_status_summary_string(self):
+    def test_status_summary_string(self) -> None:
         """get_summary_string() generates readable summary."""
         status = HealthStatus(
             overall_status="healthy",
@@ -121,7 +118,7 @@ class TestHealthStatus:
 class TestDatabaseHealthCheck:
     """Tests for DatabaseHealthCheck."""
 
-    async def test_database_check_with_healthy_metrics(self):
+    async def test_database_check_with_healthy_metrics(self) -> None:
         """Database check passes with good metrics."""
         # Create mock monitor with good stats
         monitor = MagicMock()
@@ -151,7 +148,7 @@ class TestDatabaseHealthCheck:
         assert result.status == "healthy"
         assert "healthy" in result.message.lower()
 
-    async def test_database_check_high_pool_utilization(self):
+    async def test_database_check_high_pool_utilization(self) -> None:
         """Database check warns on high pool utilization."""
         monitor = MagicMock()
 
@@ -178,7 +175,7 @@ class TestDatabaseHealthCheck:
         # Should at least complete without error
         assert result.status in ["healthy", "degraded", "unhealthy"]
 
-    async def test_database_check_high_error_rate(self):
+    async def test_database_check_high_error_rate(self) -> None:
         """Database check detects high error rate."""
         monitor = MagicMock()
 
@@ -205,7 +202,7 @@ class TestDatabaseHealthCheck:
         # With 30% errors, should be degraded or unhealthy
         assert result.status in ["degraded", "unhealthy"]
 
-    async def test_database_check_exception_handling(self):
+    async def test_database_check_exception_handling(self) -> None:
         """Database check handles exceptions gracefully."""
         check = DatabaseHealthCheck(monitor=None)
 
@@ -219,7 +216,7 @@ class TestDatabaseHealthCheck:
 class TestCacheHealthCheck:
     """Tests for CacheHealthCheck."""
 
-    async def test_cache_check_healthy(self):
+    async def test_cache_check_healthy(self) -> None:
         """Cache check passes with good hit rate."""
         monitor = MagicMock()
 
@@ -234,7 +231,7 @@ class TestCacheHealthCheck:
         # 75% hit rate should be healthy
         assert result.is_healthy()
 
-    async def test_cache_check_low_hit_rate(self):
+    async def test_cache_check_low_hit_rate(self) -> None:
         """Cache check warns on low hit rate."""
         monitor = MagicMock()
 
@@ -252,7 +249,7 @@ class TestCacheHealthCheck:
         # 25% hit rate should be degraded or unhealthy
         assert result.status in ["degraded", "unhealthy"]
 
-    async def test_cache_check_exception_handling(self):
+    async def test_cache_check_exception_handling(self) -> None:
         """Cache check handles exceptions gracefully."""
         check = CacheHealthCheck(monitor=None)
 
@@ -265,7 +262,7 @@ class TestCacheHealthCheck:
 class TestGraphQLHealthCheck:
     """Tests for GraphQLHealthCheck."""
 
-    async def test_graphql_check_healthy(self):
+    async def test_graphql_check_healthy(self) -> None:
         """GraphQL check passes with good success rate."""
         monitor = MagicMock()
 
@@ -284,7 +281,7 @@ class TestGraphQLHealthCheck:
 
         assert result.is_healthy()
 
-    async def test_graphql_check_high_error_rate(self):
+    async def test_graphql_check_high_error_rate(self) -> None:
         """GraphQL check detects high error rate."""
         monitor = MagicMock()
 
@@ -307,7 +304,7 @@ class TestGraphQLHealthCheck:
         # 20% success rate should be unhealthy
         assert result.status in ["unhealthy", "degraded"]
 
-    async def test_graphql_check_exception_handling(self):
+    async def test_graphql_check_exception_handling(self) -> None:
         """GraphQL check handles exceptions gracefully."""
         check = GraphQLHealthCheck(monitor=None)
 
@@ -319,12 +316,12 @@ class TestGraphQLHealthCheck:
 class TestTracingHealthCheck:
     """Tests for TracingHealthCheck."""
 
-    async def test_tracing_check_creation(self):
+    async def test_tracing_check_creation(self) -> None:
         """TracingHealthCheck creates successfully."""
         check = TracingHealthCheck()
         assert check is not None
 
-    async def test_tracing_check_result(self):
+    async def test_tracing_check_result(self) -> None:
         """Tracing check returns valid result."""
         check = TracingHealthCheck()
         result = await check.check()
@@ -337,7 +334,7 @@ class TestTracingHealthCheck:
 class TestHealthCheckAggregator:
     """Tests for HealthCheckAggregator."""
 
-    async def test_aggregator_all_healthy(self):
+    async def test_aggregator_all_healthy(self) -> None:
         """Aggregator shows healthy when all checks pass."""
         # Create mock monitors
         db_monitor = MagicMock()
@@ -391,7 +388,7 @@ class TestHealthCheckAggregator:
         assert status.checks_executed == 4
         assert status.timestamp is not None
 
-    async def test_aggregator_degraded_status(self):
+    async def test_aggregator_degraded_status(self) -> None:
         """Aggregator shows degraded when some checks warn."""
         aggregator = HealthCheckAggregator()
 
@@ -400,7 +397,7 @@ class TestHealthCheckAggregator:
         # Status should be valid
         assert status.overall_status in ["healthy", "degraded", "unhealthy"]
 
-    async def test_aggregator_database_check_only(self):
+    async def test_aggregator_database_check_only(self) -> None:
         """Aggregator can run database check only."""
         monitor = MagicMock()
         stats = MagicMock()
@@ -424,7 +421,7 @@ class TestHealthCheckAggregator:
 
         assert result.status in ["healthy", "degraded", "unhealthy"]
 
-    async def test_aggregator_cache_check_only(self):
+    async def test_aggregator_cache_check_only(self) -> None:
         """Aggregator can run cache check only."""
         monitor = MagicMock()
         monitor.get_hit_rate = AsyncMock(return_value=0.85)
@@ -438,7 +435,7 @@ class TestHealthCheckAggregator:
 
         assert result.status in ["healthy", "degraded", "unhealthy"]
 
-    async def test_aggregator_graphql_check_only(self):
+    async def test_aggregator_graphql_check_only(self) -> None:
         """Aggregator can run GraphQL check only."""
         monitor = MagicMock()
         stats = MagicMock()
@@ -457,7 +454,7 @@ class TestHealthCheckAggregator:
 
         assert result.status in ["healthy", "degraded", "unhealthy"]
 
-    async def test_aggregator_tracing_check_only(self):
+    async def test_aggregator_tracing_check_only(self) -> None:
         """Aggregator can run tracing check only."""
         check = TracingHealthCheck()
         aggregator = HealthCheckAggregator(tracing_check=check)
@@ -466,7 +463,7 @@ class TestHealthCheckAggregator:
 
         assert result.status in ["healthy", "degraded", "unhealthy"]
 
-    async def test_aggregator_check_time(self):
+    async def test_aggregator_check_time(self) -> None:
         """Aggregator records check duration."""
         aggregator = HealthCheckAggregator()
 
@@ -475,7 +472,7 @@ class TestHealthCheckAggregator:
         assert status.check_duration_ms > 0
         assert status.check_duration_ms < 10000  # Should be fast
 
-    async def test_aggregator_timestamp(self):
+    async def test_aggregator_timestamp(self) -> None:
         """Aggregator includes check timestamp."""
         aggregator = HealthCheckAggregator()
 

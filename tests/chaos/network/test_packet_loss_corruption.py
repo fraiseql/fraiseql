@@ -1,18 +1,17 @@
-"""
-Phase 1.3: Packet Loss & Corruption Chaos Tests
+"""Phase 1.3: Packet Loss & Corruption Chaos Tests
 
 Tests for packet loss, corruption, and network reliability scenarios.
 Validates FraiseQL's handling of unreliable network conditions.
 """
 
-import pytest
-import time
 import random
 import statistics
+import time
+
+import pytest
 from chaos.base import ChaosTestCase
 from chaos.fixtures import ToxiproxyManager
-from chaos.plugin import chaos_inject, FailureType
-from chaos.fraiseql_scenarios import MockFraiseQLClient, FraiseQLTestScenarios
+from chaos.fraiseql_scenarios import FraiseQLTestScenarios, MockFraiseQLClient
 
 
 class TestPacketLossCorruptionChaos(ChaosTestCase):
@@ -20,16 +19,15 @@ class TestPacketLossCorruptionChaos(ChaosTestCase):
 
     @pytest.mark.chaos
     @pytest.mark.chaos_network
-    def test_packet_loss_recovery(self):
-        """
-        Test recovery from packet loss at different severity levels.
+    def test_packet_loss_recovery(self) -> None:
+        """Test recovery from packet loss at different severity levels.
 
         Scenario: Network drops packets at specified rate.
         Expected: FraiseQL handles packet loss with retries and timeouts.
         """
         toxiproxy = ToxiproxyManager()
         for loss_percentage in [0.01, 0.05, 0.1]:
-            proxy = toxiproxy.create_proxy("fraiseql_postgres", "0.0.0.0:5433", "postgres:5432")
+            toxiproxy.create_proxy("fraiseql_postgres", "0.0.0.0:5433", "postgres:5432")
 
             # Create FraiseQL client for testing
             client = MockFraiseQLClient()
@@ -45,12 +43,12 @@ class TestPacketLossCorruptionChaos(ChaosTestCase):
             # Uses multiplier-based formula to ensure meaningful test on all hardware
             iterations = max(5, int(10 * self.chaos_config.load_multiplier))
 
-            for i in range(iterations):
+            for _i in range(iterations):
                 result = client.execute_query(operation)
                 execution_time = result.get("_execution_time_ms", 10.0)
                 baseline_times.append(execution_time)
                 self.metrics.record_query_time(execution_time)
-                baseline_successes += 1
+                baseline_successes += 1  # noqa: SIM113
 
             avg_baseline = statistics.mean(baseline_times)
 
@@ -67,11 +65,11 @@ class TestPacketLossCorruptionChaos(ChaosTestCase):
             # Uses multiplier-based formula to ensure meaningful test on all hardware
             iterations = max(10, int(20 * self.chaos_config.load_multiplier))
 
-            for i in range(iterations):  # More samples for statistical significance
+            for _i in range(iterations):  # More samples for statistical significance
                 start = time.time()
                 try:
                     # Simulate operation that may fail due to packet loss
-                    if random.random() < loss_percentage:
+                    if random.random() < loss_percentage:  # noqa: S311
                         # Packet loss - operation fails
                         raise ConnectionError("Packet loss")
 
@@ -85,14 +83,15 @@ class TestPacketLossCorruptionChaos(ChaosTestCase):
 
                     # Simulate retry logic
                     retry_count += 1
-                    if random.random() < 0.7:  # 70% retry success rate
+                    if random.random() < 0.7:  # 70% retry success rate  # noqa: S311
                         time.sleep(0.050)  # Retry delay
                         try:
                             time.sleep(0.010)
                             chaos_times.append((time.time() - start) * 1000)
                             chaos_successes += 1
                             retry_count -= 1  # Successful retry
-                        except:
+                        except Exception:
+
                             pass  # Retry failed
 
             self.metrics.record_query_time(statistics.mean(chaos_times) if chaos_times else 1000.0)
@@ -108,11 +107,11 @@ class TestPacketLossCorruptionChaos(ChaosTestCase):
             # Uses multiplier-based formula to ensure meaningful test on all hardware
             iterations = max(5, int(10 * self.chaos_config.load_multiplier))
 
-            for i in range(iterations):
+            for _i in range(iterations):
                 start = time.time()
                 time.sleep(0.010)
                 recovery_times.append((time.time() - start) * 1000)
-                recovery_successes += 1
+                recovery_successes += 1  # noqa: SIM113
 
             avg_recovery = statistics.mean(recovery_times)
 
@@ -140,15 +139,14 @@ class TestPacketLossCorruptionChaos(ChaosTestCase):
 
     @pytest.mark.chaos
     @pytest.mark.chaos_network
-    def test_packet_corruption_handling(self):
-        """
-        Test handling of corrupted packets.
+    def test_packet_corruption_handling(self) -> None:
+        """Test handling of corrupted packets.
 
         Scenario: Network delivers corrupted data.
         Expected: FraiseQL detects corruption and handles appropriately.
         """
         toxiproxy = ToxiproxyManager()
-        proxy = toxiproxy.create_proxy("fraiseql_postgres", "0.0.0.0:5433", "postgres:5432")
+        toxiproxy.create_proxy("fraiseql_postgres", "0.0.0.0:5433", "postgres:5432")
 
         self.metrics.start_test()
 
@@ -168,19 +166,18 @@ class TestPacketLossCorruptionChaos(ChaosTestCase):
             # Uses multiplier-based formula to ensure meaningful test on all hardware
             iterations = max(7, int(15 * self.chaos_config.load_multiplier))
 
-            for i in range(iterations):
-                if random.random() < corruption_rate:
+            for _i in range(iterations):
+                if random.random() < corruption_rate:  # noqa: S311
                     # Corrupted packet - operation fails
                     corrupt_failures += 1
                     self.metrics.record_error()
+                # Normal operation, but may still fail due to impact
+                elif random.random() >= impact_rate:  # noqa: S311
+                    corrupt_successes += 1
+                    self.metrics.record_query_time(10.0 + random.uniform(-2, 2))  # noqa: S311
                 else:
-                    # Normal operation, but may still fail due to impact
-                    if random.random() >= impact_rate:
-                        corrupt_successes += 1
-                        self.metrics.record_query_time(10.0 + random.uniform(-2, 2))
-                    else:
-                        corrupt_failures += 1
-                        self.metrics.record_error()
+                    corrupt_failures += 1
+                    self.metrics.record_error()
 
             success_rate = corrupt_successes / 15.0
             expected_min_success = 1.0 - corruption_rate - impact_rate
@@ -195,9 +192,8 @@ class TestPacketLossCorruptionChaos(ChaosTestCase):
 
     @pytest.mark.chaos
     @pytest.mark.chaos_network
-    def test_out_of_order_delivery(self):
-        """
-        Test handling of out-of-order packet delivery.
+    def test_out_of_order_delivery(self) -> None:
+        """Test handling of out-of-order packet delivery.
 
         Scenario: Network delivers packets in wrong order.
         Expected: FraiseQL handles reordering gracefully (TCP handles this).
@@ -205,7 +201,7 @@ class TestPacketLossCorruptionChaos(ChaosTestCase):
         toxiproxy = ToxiproxyManager()
         # Note: Out-of-order delivery is primarily handled by TCP
         # This test simulates application-level reordering effects
-        proxy = toxiproxy.create_proxy("fraiseql_postgres", "0.0.0.0:5433", "postgres:5432")
+        toxiproxy.create_proxy("fraiseql_postgres", "0.0.0.0:5433", "postgres:5432")
 
         self.metrics.start_test()
 
@@ -216,7 +212,7 @@ class TestPacketLossCorruptionChaos(ChaosTestCase):
         # Uses multiplier-based formula to ensure meaningful test on all hardware
         iterations = max(5, int(10 * self.chaos_config.load_multiplier))
 
-        for i in range(iterations):
+        for _i in range(iterations):
             # Simulate packets arriving out of order
             packet_delays = [0.010, 0.015, 0.008, 0.012, 0.009]  # Varied delays
             random.shuffle(packet_delays)  # Out of order
@@ -243,9 +239,8 @@ class TestPacketLossCorruptionChaos(ChaosTestCase):
 
     @pytest.mark.chaos
     @pytest.mark.chaos_network
-    def test_duplicate_packet_handling(self):
-        """
-        Test handling of duplicate packet delivery.
+    def test_duplicate_packet_handling(self) -> None:
+        """Test handling of duplicate packet delivery.
 
         Scenario: Network delivers duplicate packets.
         Expected: FraiseQL handles duplicates gracefully (TCP handles this).
@@ -253,7 +248,7 @@ class TestPacketLossCorruptionChaos(ChaosTestCase):
         toxiproxy = ToxiproxyManager()
         # Note: Duplicate packets are primarily handled by TCP
         # This test simulates application-level duplicate handling
-        proxy = toxiproxy.create_proxy("fraiseql_postgres", "0.0.0.0:5433", "postgres:5432")
+        toxiproxy.create_proxy("fraiseql_postgres", "0.0.0.0:5433", "postgres:5432")
 
         self.metrics.start_test()
 
@@ -264,13 +259,13 @@ class TestPacketLossCorruptionChaos(ChaosTestCase):
         # Uses multiplier-based formula to ensure meaningful test on all hardware
         iterations = max(4, int(8 * self.chaos_config.load_multiplier))
 
-        for i in range(iterations):
+        for _i in range(iterations):
             # Simulate receiving some packets twice
             packet_count = 5
-            duplicates = random.randint(0, 2)  # 0-2 duplicates
+            duplicates = random.randint(0, 2)  # 0-2 duplicates  # noqa: S311
 
             start = time.time()
-            for i in range(packet_count + duplicates):
+            for _i in range(packet_count + duplicates):
                 time.sleep(0.002)  # 2ms per packet
 
             total_time = (time.time() - start) * 1000
@@ -291,9 +286,8 @@ class TestPacketLossCorruptionChaos(ChaosTestCase):
 
     @pytest.mark.chaos
     @pytest.mark.chaos_network
-    def test_adaptive_retry_under_packet_loss(self):
-        """
-        Test adaptive retry strategies under packet loss.
+    def test_adaptive_retry_under_packet_loss(self) -> None:
+        """Test adaptive retry strategies under packet loss.
 
         Scenario: System adapts retry count based on packet loss conditions.
         Expected: FraiseQL implements intelligent retry logic.
@@ -313,7 +307,7 @@ class TestPacketLossCorruptionChaos(ChaosTestCase):
                 success = False
 
                 while retries < 5 and not success:  # Max 5 retries
-                    if random.random() >= packet_loss_rate:
+                    if random.random() >= packet_loss_rate:  # noqa: S311
                         success = True
                         successful_operations += 1
                     else:
@@ -336,7 +330,7 @@ class TestPacketLossCorruptionChaos(ChaosTestCase):
             # Should use more retries under higher loss
             # Note: Mock tests use random simulation which has high variance in retry counts
             # The success rate assertion above is the primary validation - retry counts are informational
-            expected_avg_retries = packet_loss_rate * 3  # Rough estimate
+            packet_loss_rate * 3  # Rough estimate
 
             # For mock tests with random simulation, retry counts have too much variance to assert
             # Only validate that higher loss rates trend toward more retries (informational check)
@@ -350,15 +344,14 @@ class TestPacketLossCorruptionChaos(ChaosTestCase):
 
     @pytest.mark.chaos
     @pytest.mark.chaos_network
-    def test_network_recovery_after_corruption(self):
-        """
-        Test network recovery after corruption chaos.
+    def test_network_recovery_after_corruption(self) -> None:
+        """Test network recovery after corruption chaos.
 
         Scenario: Heavy packet corruption followed by network recovery.
         Expected: FraiseQL recovers quickly when network improves.
         """
         toxiproxy = ToxiproxyManager()
-        proxy = toxiproxy.create_proxy("fraiseql_postgres", "0.0.0.0:5433", "postgres:5432")
+        toxiproxy.create_proxy("fraiseql_postgres", "0.0.0.0:5433", "postgres:5432")
 
         self.metrics.start_test()
 
@@ -368,7 +361,7 @@ class TestPacketLossCorruptionChaos(ChaosTestCase):
         # Uses multiplier-based formula to ensure meaningful test on all hardware
         iterations = max(3, int(5 * self.chaos_config.load_multiplier))
 
-        for i in range(iterations):
+        for _i in range(iterations):
             start = time.time()
             time.sleep(0.010)
             baseline_times.append((time.time() - start) * 1000)
@@ -386,15 +379,15 @@ class TestPacketLossCorruptionChaos(ChaosTestCase):
         # Uses multiplier-based formula to ensure meaningful test on all hardware
         iterations = max(4, int(8 * self.chaos_config.load_multiplier))
 
-        for i in range(iterations):
+        for _i in range(iterations):
             start = time.time()
             try:
                 # High chance of failure under corruption
-                if random.random() < 0.25:  # 25% failure rate
+                if random.random() < 0.25:  # 25% failure rate  # noqa: S311
                     raise ConnectionError("Network corruption")
 
                 # Variable timing due to corruption
-                delay = 0.010 + random.uniform(0, 0.200)  # 10-210ms
+                delay = 0.010 + random.uniform(0, 0.200)  # 10-210ms  # noqa: S311
                 time.sleep(delay)
                 corruption_times.append((time.time() - start) * 1000)
 
@@ -410,7 +403,7 @@ class TestPacketLossCorruptionChaos(ChaosTestCase):
         # Uses multiplier-based formula to ensure meaningful test on all hardware
         iterations = max(3, int(5 * self.chaos_config.load_multiplier))
 
-        for i in range(iterations):
+        for _i in range(iterations):
             start = time.time()
             time.sleep(0.010)  # Should be back to normal
             recovery_times.append((time.time() - start) * 1000)

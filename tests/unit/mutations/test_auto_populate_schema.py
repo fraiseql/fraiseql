@@ -10,7 +10,7 @@ class Machine:
     name: str
 
 
-def test_success_decorator_adds_fields_to_gql_fields():
+def test_success_decorator_adds_fields_to_gql_fields() -> None:
     """Auto-populated fields should be in __gql_fields__ for schema generation."""
 
     @success
@@ -28,11 +28,11 @@ def test_success_decorator_adds_fields_to_gql_fields():
     assert "id" in gql_fields, "Auto-injected id missing (entity detected)"
 
     # Verify field types
-    assert gql_fields["status"].field_type == str
-    assert gql_fields["message"].field_type == str | None
+    assert gql_fields["status"].field_type is str
+    assert gql_fields["message"].field_type is str | None
 
 
-def test_failure_decorator_adds_fields():
+def test_failure_decorator_adds_fields() -> None:
     """Failure types should also get auto-populated fields."""
 
     @error
@@ -49,10 +49,10 @@ def test_failure_decorator_adds_fields():
     assert "id" not in gql_fields  # Errors don't create entities (v1.8.1)
 
     # Verify field types
-    assert gql_fields["code"].field_type == int  # Error code is integer
+    assert gql_fields["code"].field_type is int  # Error code is integer
 
 
-def test_no_entity_field_no_id():
+def test_no_entity_field_no_id() -> None:
     """ID should not be added when no entity field present."""
 
     @success
@@ -71,7 +71,7 @@ def test_no_entity_field_no_id():
     assert "id" not in gql_fields
 
 
-def test_user_defined_fields_not_overridden():
+def test_user_defined_fields_not_overridden() -> None:
     """User's explicit field definitions should be preserved."""
 
     @success

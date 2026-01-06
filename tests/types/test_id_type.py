@@ -15,21 +15,21 @@ from graphql import GraphQLID
 from fraiseql.types import ID
 from fraiseql.types.scalars import IDScalar
 from fraiseql.types.scalars.graphql_utils import convert_scalar_to_graphql
-from fraiseql.types.scalars.id_scalar import ID as IdScalarID
+from fraiseql.types.scalars.id_scalar import ID as IdScalarID  # noqa: N811
 
 
-def test_id_importable():
+def test_id_importable() -> None:
     """Test that ID is importable from fraiseql.types."""
     assert ID is not None
 
 
-def test_id_is_newtype():
+def test_id_is_newtype() -> None:
     """Test that ID is a NewType based on str."""
     assert hasattr(ID, "__supertype__")
     assert ID.__supertype__ is str
 
 
-def test_id_callable_returns_str():
+def test_id_callable_returns_str() -> None:
     """Test that ID(value) returns the value unchanged (NewType behavior)."""
     test_value = "550e8400-e29b-41d4-a716-446655440000"
     result = ID(test_value)
@@ -37,7 +37,7 @@ def test_id_callable_returns_str():
     assert isinstance(result, str)
 
 
-def test_id_maps_to_graphql_id():
+def test_id_maps_to_graphql_id() -> None:
     """Test that ID maps to GraphQL's built-in ID scalar."""
     graphql_type = convert_scalar_to_graphql(ID)
     assert graphql_type is GraphQLID
@@ -45,7 +45,7 @@ def test_id_maps_to_graphql_id():
     assert graphql_type.name == "ID"
 
 
-def test_id_scalar_is_graphql_id():
+def test_id_scalar_is_graphql_id() -> None:
     """Test that IDScalar is GraphQL's built-in ID scalar.
 
     We use GraphQL's built-in ID to avoid "Redefinition of reserved type 'ID'"
@@ -54,7 +54,7 @@ def test_id_scalar_is_graphql_id():
     assert IDScalar is GraphQLID
 
 
-def test_id_scalar_accepts_any_string():
+def test_id_scalar_accepts_any_string() -> None:
     """Test that IDScalar (GraphQLID) accepts any string.
 
     Note: UUID validation happens at input validation layer via id_policy,
@@ -75,7 +75,7 @@ def test_id_scalar_accepts_any_string():
     assert IDScalar.serialize(uuid.UUID(valid_uuid)) == valid_uuid
 
 
-def test_id_scalar_parse_returns_string():
+def test_id_scalar_parse_returns_string() -> None:
     """Test that parsing ID returns a string (not UUID object).
 
     GraphQL's built-in ID scalar returns strings. UUID parsing, if needed,
@@ -88,6 +88,6 @@ def test_id_scalar_parse_returns_string():
     assert parsed == uuid_str
 
 
-def test_id_same_from_types_and_id_scalar_module():
+def test_id_same_from_types_and_id_scalar_module() -> None:
     """Test that ID from types and id_scalar module is the same."""
     assert ID is IdScalarID

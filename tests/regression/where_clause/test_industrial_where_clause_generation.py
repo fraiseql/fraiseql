@@ -295,7 +295,7 @@ class TestREDPhaseProductionScenarios:
         self, class_db_pool, setup_realistic_network_devices
     ) -> None:
         """Test hostname filtering with .local domains works correctly."""
-        setup_realistic_network_devices
+        setup_realistic_network_devices  # noqa: B018
 
         register_type_for_view(
             "network_devices",
@@ -322,7 +322,7 @@ class TestREDPhaseProductionScenarios:
         self, class_db_pool, setup_realistic_network_devices
     ) -> None:
         """Test port filtering with numeric values works correctly."""
-        setup_realistic_network_devices
+        setup_realistic_network_devices  # noqa: B018
 
         register_type_for_view(
             "network_devices",
@@ -346,7 +346,7 @@ class TestREDPhaseProductionScenarios:
         self, class_db_pool, setup_realistic_network_devices
     ) -> None:
         """Test boolean filtering works correctly."""
-        setup_realistic_network_devices
+        setup_realistic_network_devices  # noqa: B018
 
         register_type_for_view(
             "network_devices",
@@ -370,9 +370,9 @@ class TestREDPhaseProductionScenarios:
     @pytest.mark.asyncio
     async def test_production_mixed_filtering_comprehensive(
         self, class_db_pool, setup_realistic_network_devices
-    ):
+    ) -> None:
         """Test mixed filters combining hostname, port, and boolean work correctly."""
-        setup_realistic_network_devices
+        setup_realistic_network_devices  # noqa: B018
 
         register_type_for_view(
             "network_devices",

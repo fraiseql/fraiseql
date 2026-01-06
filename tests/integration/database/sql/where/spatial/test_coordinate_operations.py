@@ -26,7 +26,7 @@ class TestCoordinateFilterOperations:
         coord = (45.5, -122.6)  # Seattle coordinates
         sql = registry.build_sql("eq", coord, path_sql, field_type=Coordinate)
 
-        sql_str = sql.as_string(None)  # type: ignore
+        sql_str = sql.as_string(None)  # type: ignore[misc]
         assert "::point" in sql_str, "Missing point cast"
         assert " = " in sql_str, "Missing equality operator"
         # Should convert (lat, lng) to POINT(lng, lat)
@@ -40,7 +40,7 @@ class TestCoordinateFilterOperations:
         coord = (47.6097, -122.3425)  # Pike Place Market
         sql = registry.build_sql("neq", coord, path_sql, field_type=Coordinate)
 
-        sql_str = sql.as_string(None)  # type: ignore  # type: ignore
+        sql_str = sql.as_string(None)  # type: ignore[misc]  # type: ignore[misc]
         assert "::point" in sql_str
         assert "!=" in sql_str
         assert "POINT( -122.3425, 47.6097)" in sql_str
@@ -58,7 +58,7 @@ class TestCoordinateFilterOperations:
 
         sql = registry.build_sql("in", coords, path_sql, field_type=Coordinate)
 
-        sql_str = sql.as_string(None)  # type: ignore
+        sql_str = sql.as_string(None)  # type: ignore[misc]
         assert "::point" in sql_str
         assert "IN (" in sql_str
         # Check that all coordinates are present with correct lng,lat order
@@ -75,7 +75,7 @@ class TestCoordinateFilterOperations:
 
         sql = registry.build_sql("notin", coords, path_sql, field_type=Coordinate)
 
-        sql_str = sql.as_string(None)  # type: ignore
+        sql_str = sql.as_string(None)  # type: ignore[misc]
         assert "::point" in sql_str
         assert "NOT IN (" in sql_str
         assert "POINT(0, 0)" in sql_str
@@ -96,7 +96,7 @@ class TestCoordinateFilterOperations:
             field_type=Coordinate,
         )
 
-        sql_str = sql.as_string(None)  # type: ignore
+        sql_str = sql.as_string(None)  # type: ignore[misc]
         # Default method is Haversine (no extension dependencies)
         assert "ASIN" in sql_str, "Missing Haversine formula"
         assert "::point" in sql_str, "Missing point cast"
@@ -111,17 +111,17 @@ class TestCoordinateFilterOperations:
         # North pole
         north_pole = (90, 45)
         sql = registry.build_sql("eq", north_pole, path_sql, field_type=Coordinate)
-        assert "POINT(45, 90)" in sql.as_string(None)  # type: ignore
+        assert "POINT(45, 90)" in sql.as_string(None)  # type: ignore[misc]
 
         # South pole
         south_pole = (-90, 135)
         sql = registry.build_sql("eq", south_pole, path_sql, field_type=Coordinate)
-        assert "POINT(135,  -90)" in sql.as_string(None)  # type: ignore
+        assert "POINT(135,  -90)" in sql.as_string(None)  # type: ignore[misc]
 
         # International date line
         date_line = (0, 180)
         sql = registry.build_sql("eq", date_line, path_sql, field_type=Coordinate)
-        assert "POINT(180, 0)" in sql.as_string(None)  # type: ignore
+        assert "POINT(180, 0)" in sql.as_string(None)  # type: ignore[misc]
 
     def test_coordinate_type_validation(self) -> None:
         """Test that coordinate operations require Coordinate field type."""
@@ -130,11 +130,11 @@ class TestCoordinateFilterOperations:
 
         # Should work with Coordinate type
         sql = registry.build_sql("eq", (45.5, -122.6), path_sql, field_type=Coordinate)
-        assert "::point" in sql.as_string(None)  # type: ignore
+        assert "::point" in sql.as_string(None)  # type: ignore[misc]
 
         # Should NOT use point casting with wrong field type
         sql = registry.build_sql("eq", (45.5, -122.6), path_sql, field_type=str)
-        sql_str = sql.as_string(None)  # type: ignore
+        sql_str = sql.as_string(None)  # type: ignore[misc]
         assert "::point" not in sql_str, "Should not use point casting for non-Coordinate types"
 
     def test_coordinate_distance_within_validation(self) -> None:
@@ -150,7 +150,7 @@ class TestCoordinateFilterOperations:
             "distance_within", (center, distance_meters), path_sql, field_type=Coordinate
         )
         # Default method is Haversine
-        assert "ASIN" in sql.as_string(None) or "ST_DWithin" in sql.as_string(None)  # type: ignore
+        assert "ASIN" in sql.as_string(None) or "ST_DWithin" in sql.as_string(None)  # type: ignore[misc]
 
         # Invalid: not a tuple
         with pytest.raises(TypeError, match="distance_within operator requires a tuple"):
@@ -247,7 +247,7 @@ class TestCoordinateFilterOperations:
             value=(center, distance_meters),
             field_type=Coordinate,
         )
-        assert "ASIN" in sql.as_string(None)  # type: ignore, "Should use Haversine by default"
+        assert "ASIN" in sql.as_string(None)  # type: ignore[misc], "Should use Haversine by default"
 
         # Test PostGIS
         os.environ["FRAISEQL_COORDINATE_DISTANCE_METHOD"] = "postgis"
@@ -257,7 +257,7 @@ class TestCoordinateFilterOperations:
             value=(center, distance_meters),
             field_type=Coordinate,
         )
-        assert "ST_DWithin" in sql.as_string(None)  # type: ignore, "Should use PostGIS when configured"
+        assert "ST_DWithin" in sql.as_string(None)  # type: ignore[misc], "Should use PostGIS when configured"
 
         # Test earthdistance
         os.environ["FRAISEQL_COORDINATE_DISTANCE_METHOD"] = "earthdistance"
@@ -267,7 +267,7 @@ class TestCoordinateFilterOperations:
             value=(center, distance_meters),
             field_type=Coordinate,
         )
-        assert "earth_distance" in sql.as_string(None)  # type: ignore, "Should use earthdistance when configured"
+        assert "earth_distance" in sql.as_string(None)  # type: ignore[misc], "Should use earthdistance when configured"
 
         # Cleanup
         os.environ.pop("FRAISEQL_COORDINATE_DISTANCE_METHOD", None)
@@ -298,5 +298,5 @@ class TestCoordinateFilterOperations:
             sql = registry.build_sql(
                 operator=op, value="(45.5, -122.6)", path_sql=path_sql, field_type=Coordinate
             )
-            sql_str = sql.as_string(None)  # type: ignore
+            sql_str = sql.as_string(None)  # type: ignore[misc]
             assert "::point" not in sql_str, f"Operator {op} should not use point casting"
