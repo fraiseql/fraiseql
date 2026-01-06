@@ -177,10 +177,7 @@ fn validate_uuid_format(id: &str) -> Result<(), IDValidationError> {
             return Err(IDValidationError {
                 value: id.to_string(),
                 policy: IDPolicy::UUID,
-                message: format!(
-                    "UUID segment {} contains non-hexadecimal characters: '{}'",
-                    i, part
-                ),
+                message: format!("UUID segment {i} contains non-hexadecimal characters: '{part}'"),
             });
         }
     }
@@ -208,6 +205,10 @@ fn validate_uuid_format(id: &str) -> Result<(), IDValidationError> {
 /// ];
 /// assert!(validate_ids(&ids, IDPolicy::UUID).is_ok());
 /// ```
+///
+/// # Errors
+///
+/// Returns `IDValidationError` if any ID fails validation.
 pub fn validate_ids(ids: &[&str], policy: IDPolicy) -> Result<(), IDValidationError> {
     for id in ids {
         validate_id(id, policy)?;

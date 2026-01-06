@@ -169,7 +169,6 @@ class MutationGenerator:
             context_params=context_params,  # ADD THIS
         )
 
-
     def _create_mutation_class(
         self,
         function_metadata: FunctionMetadata,
@@ -201,7 +200,6 @@ class MutationGenerator:
                 "__module__": "fraiseql.introspection.generated",
             },
         )
-
 
     def _function_to_mutation_class_name(self, function_name: str) -> str:
         """Convert fn_create_user → CreateUser."""

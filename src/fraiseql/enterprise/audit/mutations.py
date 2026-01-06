@@ -72,7 +72,6 @@ class LogAuditEvent:
         RETURNING id
         """
 
-
     @staticmethod
     def execute(
         event_type: str,

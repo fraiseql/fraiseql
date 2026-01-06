@@ -1,3 +1,4 @@
+#![allow(clippy::excessive_nesting)]
 //! GraphQL response filtering based on field selection
 //!
 //! This module provides utilities to parse GraphQL queries and filter response data
@@ -82,10 +83,7 @@ pub fn extract_selections(query: &str, _operation_name: Option<&str>) -> Vec<Fie
 /// # Returns
 ///
 /// Filtered response object with only requested fields
-pub fn filter_response_by_selection(
-    response_data: &Value,
-    selections: &[FieldSelection],
-) -> Value {
+pub fn filter_response_by_selection(response_data: &Value, selections: &[FieldSelection]) -> Value {
     if selections.is_empty() {
         // No selections specified, return empty object (safest approach)
         return json!({});
@@ -96,7 +94,8 @@ pub fn filter_response_by_selection(
             let mut filtered = Map::new();
 
             for selection in selections {
-                if let Some(field_value) = obj.get(selection.field_name())
+                if let Some(field_value) = obj
+                    .get(selection.field_name())
                     .or_else(|| obj.get(selection.response_key()))
                 {
                     let response_key = selection.response_key().to_string();
@@ -106,7 +105,8 @@ pub fn filter_response_by_selection(
                         filtered.insert(response_key, field_value.clone());
                     } else {
                         // Object field with nested selections - recurse
-                        let filtered_value = filter_response_by_selection(field_value, &selection.selections);
+                        let filtered_value =
+                            filter_response_by_selection(field_value, &selection.selections);
                         filtered.insert(response_key, filtered_value);
                     }
                 }
@@ -175,7 +175,10 @@ fn parse_selection_set(input: &str) -> Result<Vec<FieldSelection>, String> {
             '$' => {
                 // Variable - skip it
                 chars.next();
-                while chars.peek().map_or(false, |&c| c.is_alphanumeric() || c == '_') {
+                while chars
+                    .peek()
+                    .map_or(false, |&c| c.is_alphanumeric() || c == '_')
+                {
                     chars.next();
                 }
             }
@@ -203,7 +206,10 @@ fn parse_field(
     let mut name = String::new();
 
     // Read field name
-    while chars.peek().map_or(false, |&c| c.is_alphanumeric() || c == '_') {
+    while chars
+        .peek()
+        .map_or(false, |&c| c.is_alphanumeric() || c == '_')
+    {
         name.push(chars.next().unwrap());
     }
 
@@ -215,7 +221,10 @@ fn parse_field(
         chars.next(); // consume ':'
         skip_whitespace(chars);
         let mut alias_name = String::new();
-        while chars.peek().map_or(false, |&c| c.is_alphanumeric() || c == '_') {
+        while chars
+            .peek()
+            .map_or(false, |&c| c.is_alphanumeric() || c == '_')
+        {
             alias_name.push(chars.next().unwrap());
         }
         skip_whitespace(chars);
@@ -233,8 +242,11 @@ fn parse_field(
     // Check for directives (@skip, @include, etc.)
     while chars.peek() == Some(&'@') {
         chars.next(); // consume '@'
-        // Skip directive name
-        while chars.peek().map_or(false, |&c| c.is_alphanumeric() || c == '_') {
+                      // Skip directive name
+        while chars
+            .peek()
+            .map_or(false, |&c| c.is_alphanumeric() || c == '_')
+        {
             chars.next();
         }
         // Skip directive arguments if present
@@ -283,7 +295,10 @@ fn parse_selection_set_until_close(
             Some(&'$') => {
                 // Variable fragment spread - skip
                 chars.next();
-                while chars.peek().map_or(false, |&c| c.is_alphanumeric() || c == '_') {
+                while chars
+                    .peek()
+                    .map_or(false, |&c| c.is_alphanumeric() || c == '_')
+                {
                     chars.next();
                 }
             }
@@ -301,19 +316,18 @@ fn parse_selection_set_until_close(
                 // Check if it's an inline fragment (... on Type)
                 if chars.peek().map_or(false, |&c| c.is_alphabetic()) {
                     let mut word = String::new();
-                    while chars.peek().map_or(false, |&c| c.is_alphanumeric() || c == '_') {
+                    while chars
+                        .peek()
+                        .map_or(false, |&c| c.is_alphanumeric() || c == '_')
+                    {
                         word.push(chars.next().unwrap());
                     }
 
                     // If it's "on", parse inline fragment
                     if word == "on" {
                         skip_whitespace(chars);
-                        // Skip type name
-                        while chars.peek().map_or(false, |&c| c.is_alphanumeric() || c == '_') {
-                            chars.next();
-                        }
+                        skip_type_name(chars);
                         skip_whitespace(chars);
-
                         // Parse nested selections for inline fragment
                         if chars.peek() == Some(&'{') {
                             chars.next(); // consume '{'
@@ -340,13 +354,23 @@ fn skip_whitespace(chars: &mut std::iter::Peekable<std::str::Chars>) {
     }
 }
 
+/// Skip a GraphQL type name (alphanumeric and underscore characters)
+fn skip_type_name(chars: &mut std::iter::Peekable<std::str::Chars>) {
+    while chars
+        .peek()
+        .map_or(false, |&c| c.is_alphanumeric() || c == '_')
+    {
+        chars.next();
+    }
+}
+
 /// Skip to a target character (for arguments)
-fn skip_to_next_significant(chars: &mut std::iter::Peekable<std::str::Chars>, target: char) {
+fn skip_to_next_significant(chars: &mut std::iter::Peekable<std::str::Chars>, _target: char) {
     let mut depth = 1;
     while depth > 0 && chars.peek().is_some() {
         match chars.next() {
-            Some('(') | Some('{') | Some('[') => depth += 1,
-            Some(')') | Some('}') | Some(']') if depth > 0 => depth -= 1,
+            Some('(' | '{' | '[') => depth += 1,
+            Some(')' | '}' | ']') if depth > 0 => depth -= 1,
             _ => {}
         }
     }
@@ -432,13 +456,11 @@ mod tests {
         let selections = vec![FieldSelection {
             name: "user".to_string(),
             alias: Some("myself".to_string()),
-            selections: vec![
-                FieldSelection {
-                    name: "id".to_string(),
-                    alias: None,
-                    selections: Vec::new(),
-                },
-            ],
+            selections: vec![FieldSelection {
+                name: "id".to_string(),
+                alias: None,
+                selections: Vec::new(),
+            }],
         }];
 
         let filtered = filter_response_by_selection(&response, &selections);

@@ -95,6 +95,11 @@ impl WhereClauseBuilder {
         field_name: &str,
         condition_value: &JsonValue,
     ) -> Result<String> {
+        // Validate ID fields if policy requires it
+        if field_name == "id" && self.schema.id_policy.enforces_uuid() {
+            self.validate_id_values_in_condition(condition_value)?;
+        }
+
         // Determine if field is SQL column, FK, or JSONB
         let column_expr = if self.schema.is_sql_column(&self.view_name, field_name) {
             // Direct SQL column
@@ -129,6 +134,53 @@ impl WhereClauseBuilder {
             }
             _ => Err(anyhow!("Invalid field condition for {field_name}")),
         }
+    }
+
+    /// Validate ID values in WHERE clause condition
+    fn validate_id_values_in_condition(&self, condition_value: &JsonValue) -> Result<()> {
+        match condition_value {
+            JsonValue::Object(ops) => self.validate_id_operators(ops),
+            JsonValue::String(id_str) => self.validate_id_string(id_str),
+            _ => Ok(()), // Other types don't need validation
+        }
+    }
+
+    /// Validate ID in comparison operators
+    fn validate_id_operators(&self, ops: &serde_json::Map<String, JsonValue>) -> Result<()> {
+        for (op, val) in ops {
+            match op.as_str() {
+                "eq" | "neq" | "ne" | "gt" | "gte" | "ge" | "lt" | "lte" | "le" | "like"
+                | "contains" => {
+                    if let JsonValue::String(id_str) = val {
+                        self.validate_id_string(id_str)?;
+                    }
+                }
+                "in" => self.validate_id_array(val)?,
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+
+    /// Validate ID string value
+    fn validate_id_string(&self, id_str: &str) -> Result<()> {
+        crate::validation::id_policy::validate_id(id_str, self.schema.id_policy)
+            .map_err(|e| anyhow!("Invalid ID in WHERE clause: {}", e.message))
+    }
+
+    /// Validate ID values in array (for IN clause)
+    fn validate_id_array(&self, val: &JsonValue) -> Result<()> {
+        let JsonValue::Array(items) = val else {
+            return Ok(());
+        };
+
+        for item in items {
+            if let JsonValue::String(id_str) = item {
+                crate::validation::id_policy::validate_id(id_str, self.schema.id_policy)
+                    .map_err(|e| anyhow!("Invalid ID in WHERE clause IN list: {}", e.message))?;
+            }
+        }
+        Ok(())
     }
 
     /// Build SQL for comparison operator.
@@ -325,6 +377,7 @@ mod tests {
         SchemaMetadata {
             tables,
             types: std::collections::HashMap::default(),
+            id_policy: crate::validation::id_policy::IDPolicy::default(),
         }
     }
 }

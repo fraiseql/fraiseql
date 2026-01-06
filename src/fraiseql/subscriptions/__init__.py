@@ -97,7 +97,6 @@ def simple_subscription(
         # Apply subscription decorator last (it needs to register with schema)
         return subscription(result)  # type: ignore[assignment]
 
-
     # Allow usage with or without parentheses
     if fn is not None:
         # Called as @simple_subscription (without parentheses)

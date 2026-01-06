@@ -111,7 +111,6 @@ class PlaygroundConfig:
   </body>
 </html>"""
 
-
     def _format_subscription_endpoint(self) -> str:
         """Format subscription endpoint config for HTML."""
         if self.subscriptions_endpoint:

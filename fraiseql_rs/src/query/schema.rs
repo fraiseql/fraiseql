@@ -1,5 +1,6 @@
 //! Schema metadata for query building.
 
+use crate::validation::id_policy::IDPolicy;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -11,6 +12,9 @@ pub struct SchemaMetadata {
     pub tables: HashMap<String, TableSchema>,
     /// Map of type names to their definitions
     pub types: HashMap<String, TypeDefinition>,
+    /// ID policy for the schema (UUID or OPAQUE)
+    #[serde(default)]
+    pub id_policy: IDPolicy,
 }
 
 /// Schema for a single database view/table.

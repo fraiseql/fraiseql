@@ -197,7 +197,6 @@ class InputGenerator:
             },
         )
 
-
     def _composite_type_to_class_name(self, composite_type_name: str) -> str:
         """Convert composite type name to GraphQL input class name.
 
@@ -331,7 +330,6 @@ class InputGenerator:
 
         # Create input class
         return type(class_name, (object,), {"__annotations__": annotations})
-
 
     def _function_to_input_name(self, function_name: str) -> str:
         """Convert fn_create_user → CreateUserInput."""

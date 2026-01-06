@@ -273,7 +273,6 @@ class OpenAPIConfig:
   </body>
 </html>"""
 
-
     def generate_redoc_html(self) -> str:
         """Generate HTML for ReDoc UI.
 
@@ -310,7 +309,6 @@ class OpenAPIConfig:
     <script src="https://cdn.jsdelivr.net/npm/redoc@next/bundles/redoc.standalone.js"></script>
   </body>
 </html>"""
-
 
     def to_dict(self) -> dict:
         """Convert to dictionary for serialization.

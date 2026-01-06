@@ -120,6 +120,7 @@ impl PyAxumServer {
         let schema = SchemaMetadata {
             tables: HashMap::new(),
             types: HashMap::new(),
+            id_policy: crate::validation::id_policy::IDPolicy::default(),
         };
 
         let pipeline = Arc::new(GraphQLPipeline::new(schema, cache, pool));

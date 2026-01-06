@@ -338,6 +338,10 @@ class QueryDebugger:
         self.end_time: Optional[float] = None
 
     async def __aenter__(self) -> "QueryDebugger":
+        """Enter the async context manager.
+
+        Starts timing query execution.
+        """
         self.start_time = time.perf_counter()
         # Known limitation: Query execution hooking not yet implemented
         # GitHub issue: Hook into query execution to capture queries for debugging
@@ -349,6 +353,10 @@ class QueryDebugger:
         exc_val: BaseException | None,
         exc_tb: types.TracebackType | None,
     ) -> None:
+        """Exit the async context manager.
+
+        Stops timing query execution.
+        """
         self.end_time = time.perf_counter()
 
     def add_query(self, sql: str, params: dict[str, Any], duration_ms: float) -> None:

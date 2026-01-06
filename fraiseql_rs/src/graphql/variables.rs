@@ -4,6 +4,8 @@
 //! and default value handling according to the GraphQL specification.
 
 use crate::graphql::types::{GraphQLType, ParsedQuery, VariableDefinition};
+use crate::query::schema::SchemaMetadata;
+use crate::validation::id_policy::IDPolicy;
 use std::collections::HashMap;
 
 /// Variable processing result
@@ -20,6 +22,10 @@ pub struct VariableResult {
 pub struct VariableProcessor {
     /// Variable definitions from the query
     definitions: HashMap<String, VariableDefinition>,
+    /// Schema metadata (for ID policy validation)
+    schema: Option<SchemaMetadata>,
+    /// ID policy for validation
+    id_policy: IDPolicy,
 }
 
 impl VariableProcessor {
@@ -33,7 +39,28 @@ impl VariableProcessor {
             .map(|var| (var.name.clone(), var.clone()))
             .collect();
 
-        Self { definitions }
+        Self {
+            definitions,
+            schema: None,
+            id_policy: IDPolicy::default(),
+        }
+    }
+
+    /// Create a new variable processor with schema and ID policy
+    #[must_use]
+    pub fn with_schema(query: &ParsedQuery, schema: SchemaMetadata, id_policy: IDPolicy) -> Self {
+        // Extract variable definitions from query
+        let definitions = query
+            .variables
+            .iter()
+            .map(|var| (var.name.clone(), var.clone()))
+            .collect();
+
+        Self {
+            definitions,
+            schema: Some(schema),
+            id_policy,
+        }
     }
 
     /// Process and validate variables against their definitions
@@ -46,9 +73,15 @@ impl VariableProcessor {
         let mut errors = Vec::new();
 
         for (var_name, definition) in &self.definitions {
-            match Self::process_variable(var_name, definition, input_variables) {
+            match self.process_variable(var_name, definition, input_variables) {
                 Ok(value) => {
-                    processed.insert(var_name.clone(), value);
+                    if self.should_skip_id_validation(&value, definition) {
+                        processed.insert(var_name.clone(), value);
+                    } else if let Err(e) = self.validate_id_value(&value, var_name) {
+                        errors.push(e);
+                    } else {
+                        processed.insert(var_name.clone(), value);
+                    }
                 }
                 Err(error) => {
                     errors.push(error);
@@ -71,6 +104,7 @@ impl VariableProcessor {
 
     /// Process a single variable
     fn process_variable(
+        &self,
         var_name: &str,
         definition: &VariableDefinition,
         input_variables: &HashMap<String, serde_json::Value>,
@@ -177,6 +211,38 @@ impl VariableProcessor {
         // ID is serialized as String
         Self::coerce_to_string(value)
     }
+
+    /// Check if ID validation should be skipped
+    fn should_skip_id_validation(
+        &self,
+        value: &serde_json::Value,
+        definition: &VariableDefinition,
+    ) -> bool {
+        !self.id_policy.enforces_uuid()
+            || definition.var_type.name != "ID"
+            || !matches!(value, serde_json::Value::String(_))
+    }
+
+    /// Validate ID value and return error string if invalid
+    fn validate_id_value(&self, value: &serde_json::Value, var_name: &str) -> Result<(), String> {
+        if let serde_json::Value::String(id_str) = value {
+            crate::validation::id_policy::validate_id(id_str, self.id_policy)
+                .map_err(|e| format!("Invalid ID in variable '${var_name}': {}", e.message))
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Static helper for testing - process variable without schema/policy
+    #[cfg(test)]
+    fn process_variable_static(
+        var_name: &str,
+        definition: &VariableDefinition,
+        input_variables: &HashMap<String, serde_json::Value>,
+    ) -> Result<serde_json::Value, String> {
+        let processor = Self::new(&ParsedQuery::default());
+        processor.process_variable(var_name, definition, input_variables)
+    }
 }
 
 #[cfg(test)]
@@ -215,8 +281,6 @@ mod tests {
 
     #[test]
     fn test_int_coercion() {
-        let _processor = VariableProcessor::new(&ParsedQuery::default());
-
         let var_def = VariableDefinition {
             name: "test".to_string(),
             var_type: GraphQLType {
@@ -228,7 +292,7 @@ mod tests {
             default_value: None,
         };
 
-        let result = VariableProcessor::process_variable(
+        let result = VariableProcessor::process_variable_static(
             "test",
             &var_def,
             &HashMap::from([("test".to_string(), serde_json::json!(42))]),
@@ -240,8 +304,6 @@ mod tests {
 
     #[test]
     fn test_string_coercion_from_int() {
-        let _processor = VariableProcessor::new(&ParsedQuery::default());
-
         let var_def = VariableDefinition {
             name: "test".to_string(),
             var_type: GraphQLType {
@@ -253,7 +315,7 @@ mod tests {
             default_value: None,
         };
 
-        let result = VariableProcessor::process_variable(
+        let result = VariableProcessor::process_variable_static(
             "test",
             &var_def,
             &HashMap::from([("test".to_string(), serde_json::json!(123))]),
@@ -265,8 +327,6 @@ mod tests {
 
     #[test]
     fn test_float_coercion() {
-        let _processor = VariableProcessor::new(&ParsedQuery::default());
-
         let var_def = VariableDefinition {
             name: "test".to_string(),
             var_type: GraphQLType {
@@ -278,7 +338,7 @@ mod tests {
             default_value: None,
         };
 
-        let result = VariableProcessor::process_variable(
+        let result = VariableProcessor::process_variable_static(
             "test",
             &var_def,
             &HashMap::from([("test".to_string(), serde_json::json!(2.5))]),
@@ -290,8 +350,6 @@ mod tests {
 
     #[test]
     fn test_boolean_coercion() {
-        let _processor = VariableProcessor::new(&ParsedQuery::default());
-
         let var_def = VariableDefinition {
             name: "test".to_string(),
             var_type: GraphQLType {
@@ -303,7 +361,7 @@ mod tests {
             default_value: None,
         };
 
-        let result = VariableProcessor::process_variable(
+        let result = VariableProcessor::process_variable_static(
             "test",
             &var_def,
             &HashMap::from([("test".to_string(), serde_json::json!(true))]),
@@ -363,8 +421,6 @@ mod tests {
 
     #[test]
     fn test_invalid_variable_type() {
-        let _processor = VariableProcessor::new(&ParsedQuery::default());
-
         let var_def = VariableDefinition {
             name: "test".to_string(),
             var_type: GraphQLType {
@@ -376,7 +432,7 @@ mod tests {
             default_value: None,
         };
 
-        let result = VariableProcessor::process_variable(
+        let result = VariableProcessor::process_variable_static(
             "test",
             &var_def,
             &HashMap::from([("test".to_string(), serde_json::json!("not_a_number"))]),
@@ -384,5 +440,91 @@ mod tests {
 
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("Int"));
+    }
+
+    #[test]
+    fn test_id_variable_validation_with_uuid_policy() {
+        let query = ParsedQuery {
+            variables: vec![VariableDefinition {
+                name: "userId".to_string(),
+                var_type: GraphQLType {
+                    name: "ID".to_string(),
+                    nullable: false,
+                    list: false,
+                    list_nullable: false,
+                },
+                default_value: None,
+            }],
+            ..Default::default()
+        };
+
+        let schema = SchemaMetadata {
+            tables: Default::default(),
+            types: Default::default(),
+            id_policy: crate::validation::id_policy::IDPolicy::UUID,
+        };
+
+        let processor = VariableProcessor::with_schema(
+            &query,
+            schema,
+            crate::validation::id_policy::IDPolicy::UUID,
+        );
+
+        // Valid UUID should pass
+        let result = processor.process_variables(&HashMap::from([(
+            "userId".to_string(),
+            serde_json::json!("550e8400-e29b-41d4-a716-446655440000"),
+        )]));
+        assert!(result.errors.is_empty());
+
+        // Invalid ID should fail
+        let result = processor.process_variables(&HashMap::from([(
+            "userId".to_string(),
+            serde_json::json!("not-a-uuid"),
+        )]));
+        assert!(!result.errors.is_empty());
+        assert!(result.errors[0].contains("Invalid ID"));
+    }
+
+    #[test]
+    fn test_id_variable_validation_with_opaque_policy() {
+        let query = ParsedQuery {
+            variables: vec![VariableDefinition {
+                name: "userId".to_string(),
+                var_type: GraphQLType {
+                    name: "ID".to_string(),
+                    nullable: false,
+                    list: false,
+                    list_nullable: false,
+                },
+                default_value: None,
+            }],
+            ..Default::default()
+        };
+
+        let schema = SchemaMetadata {
+            tables: Default::default(),
+            types: Default::default(),
+            id_policy: crate::validation::id_policy::IDPolicy::OPAQUE,
+        };
+
+        let processor = VariableProcessor::with_schema(
+            &query,
+            schema,
+            crate::validation::id_policy::IDPolicy::OPAQUE,
+        );
+
+        // Any string should pass with OPAQUE policy
+        let result = processor.process_variables(&HashMap::from([(
+            "userId".to_string(),
+            serde_json::json!("anything-goes"),
+        )]));
+        assert!(result.errors.is_empty());
+
+        let result = processor.process_variables(&HashMap::from([(
+            "userId".to_string(),
+            serde_json::json!("12345"),
+        )]));
+        assert!(result.errors.is_empty());
     }
 }

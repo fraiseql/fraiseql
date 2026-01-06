@@ -38,12 +38,24 @@ impl InputProcessingConfig {
     /// Get default set of common ID field names
     fn default_id_field_names() -> HashSet<String> {
         [
-            "id", "userId", "user_id", "postId", "post_id", "commentId", "comment_id",
-            "authorId", "author_id", "ownerId", "owner_id", "creatorId", "creator_id",
-            "tenantId", "tenant_id",
+            "id",
+            "userId",
+            "user_id",
+            "postId",
+            "post_id",
+            "commentId",
+            "comment_id",
+            "authorId",
+            "author_id",
+            "ownerId",
+            "owner_id",
+            "creatorId",
+            "creator_id",
+            "tenantId",
+            "tenant_id",
         ]
         .iter()
-        .map(|s| s.to_string())
+        .map(|s| (*s).to_string())
         .collect()
     }
 
@@ -53,6 +65,7 @@ impl InputProcessingConfig {
     }
 
     /// Create a configuration for strict UUID validation
+    #[must_use]
     pub fn strict_uuid() -> Self {
         Self {
             id_policy: IDPolicy::UUID,
@@ -62,6 +75,7 @@ impl InputProcessingConfig {
     }
 
     /// Create a configuration for opaque IDs (GraphQL spec compliant)
+    #[must_use]
     pub fn opaque() -> Self {
         Self {
             id_policy: IDPolicy::OPAQUE,
@@ -85,6 +99,10 @@ impl InputProcessingConfig {
 ///
 /// `Ok(processed_variables)` with validated data, or
 /// `Err(ProcessingError)` if validation fails
+///
+/// # Errors
+///
+/// Returns `ProcessingError` if any ID field fails validation according to the configured policy.
 ///
 /// # Examples
 ///
@@ -112,7 +130,7 @@ pub fn process_variables(
         Value::Object(obj) => {
             let mut result = Map::new();
 
-            for (key, value) in obj.iter() {
+            for (key, value) in obj {
                 let processed_value = process_value(value, config, key)?;
                 result.insert(key.clone(), processed_value);
             }
@@ -135,7 +153,7 @@ fn process_value(
         Value::String(s) if config.id_field_names.contains(field_name) => {
             validate_id(s, config.id_policy).map_err(|e| ProcessingError {
                 field_path: field_name.to_string(),
-                reason: format!("Invalid ID value: {}", e),
+                reason: format!("Invalid ID value: {e}"),
             })?;
             Ok(Value::String(s.clone()))
         }
@@ -144,7 +162,7 @@ fn process_value(
         Value::Object(obj) => {
             let mut result = Map::new();
 
-            for (key, nested_value) in obj.iter() {
+            for (key, nested_value) in obj {
                 let processed = process_value(nested_value, config, key)?;
                 result.insert(key.clone(), processed);
             }
@@ -158,7 +176,7 @@ fn process_value(
                 .iter()
                 .enumerate()
                 .map(|(idx, item)| {
-                    let array_field = format!("{}[{}]", field_name, idx);
+                    let array_field = format!("{field_name}[{idx}]");
                     process_value(item, config, &array_field)
                 })
                 .collect();
@@ -191,6 +209,7 @@ impl std::error::Error for ProcessingError {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn test_process_valid_uuid_id() {

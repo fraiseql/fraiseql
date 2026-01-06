@@ -1978,7 +1978,6 @@ class FraiseQLRepository:
                 jsonb_column=jsonb_column if use_jsonb_path else None,
             )
 
-
         except Exception as e:
             # If strategy system fails, fall back to basic condition building
             logger.warning(f"Operator strategy failed for {field_name} {operator} {value}: {e}")
