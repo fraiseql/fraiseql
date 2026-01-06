@@ -10,7 +10,7 @@
 //! - Position 7: cascade (JSONB) - Contains cascade operation data
 //! - Position 8: metadata (JSONB)
 
-use super::{MutationResult, MutationStatus};
+use super::MutationResult;
 use serde_json::Value;
 
 /// PostgreSQL app.mutation_response composite type structure (8 fields)
@@ -98,7 +98,7 @@ impl PostgresMutationResponse {
         let entity_type = self.entity_type;
 
         MutationResult {
-            status: MutationStatus::from_str(&self.status),
+            status: self.status.parse().unwrap(),
             message: self.message,
             entity_id: self.entity_id,
             entity_type,               // From Position 4

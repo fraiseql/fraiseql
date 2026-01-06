@@ -308,6 +308,8 @@ pub fn filter_cascade_data(cascade_json: &str, selections_json: Option<&str>) ->
 ///
 /// Raises:
 ///     ValueError: If JSON is malformed or transformation fails
+// TODO: Refactor to use MutationConfig struct (see issue fraiseql-issue-too-many-args.md)
+#[allow(clippy::too_many_arguments)]
 #[pyfunction]
 #[pyo3(signature = (mutation_json, field_name, success_type, error_type, entity_field_name=None, entity_type=None, cascade_selections=None, auto_camel_case=true, success_type_fields=None))]
 pub fn build_mutation_response(

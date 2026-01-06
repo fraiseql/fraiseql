@@ -362,24 +362,24 @@ fn test_build_simple_format_array_response() {
     #[test]
     fn test_mutation_status_parsing() {
         // Test success status
-        let status = MutationStatus::from_str("success");
+        let status = MutationStatus::parse_status("success");
         assert!(status.is_success());
         assert!(!status.is_error());
         assert!(!status.is_noop());
 
         // Test new status
-        let status = MutationStatus::from_str("new");
+        let status = MutationStatus::parse_status("new");
         assert!(status.is_success());
         assert!(!status.is_error());
 
         // Test noop status - v1.8.0: noop is now error type
-        let status = MutationStatus::from_str("noop:unchanged");
+        let status = MutationStatus::parse_status("noop:unchanged");
         assert!(status.is_noop());
         assert!(status.is_error()); // NEW: noop is error
         assert!(!status.is_success());
 
         // Test error status
-        let status = MutationStatus::from_str("failed:validation");
+        let status = MutationStatus::parse_status("failed:validation");
         assert!(status.is_error());
         assert!(!status.is_success());
         assert!(!status.is_noop());
@@ -388,19 +388,19 @@ fn test_build_simple_format_array_response() {
     #[test]
     fn test_mutation_status_codes() {
         // HTTP codes are always 200 for GraphQL
-        assert_eq!(MutationStatus::from_str("success").http_code(), 200);
-        assert_eq!(MutationStatus::from_str("noop:unchanged").http_code(), 200);
-        assert_eq!(MutationStatus::from_str("failed:not_found").http_code(), 200);
+        assert_eq!(MutationStatus::parse_status("success").http_code(), 200);
+        assert_eq!(MutationStatus::parse_status("noop:unchanged").http_code(), 200);
+        assert_eq!(MutationStatus::parse_status("failed:not_found").http_code(), 200);
 
         // Application codes provide REST-like semantics
-        assert_eq!(MutationStatus::from_str("success").application_code(), 200);
-        assert_eq!(MutationStatus::from_str("noop:unchanged").application_code(), 422);
+        assert_eq!(MutationStatus::parse_status("success").application_code(), 200);
+        assert_eq!(MutationStatus::parse_status("noop:unchanged").application_code(), 422);
         assert_eq!(
-            MutationStatus::from_str("failed:not_found").application_code(),
+            MutationStatus::parse_status("failed:not_found").application_code(),
             404
         );
-        assert_eq!(MutationStatus::from_str("failed:validation").application_code(), 422);
-        assert_eq!(MutationStatus::from_str("failed:conflict").application_code(), 409);
+        assert_eq!(MutationStatus::parse_status("failed:validation").application_code(), 422);
+        assert_eq!(MutationStatus::parse_status("failed:conflict").application_code(), 409);
     }
 
 // ============================================================================
@@ -676,16 +676,16 @@ mod test_status_taxonomy {
     // SUCCESS KEYWORDS (no colon)
     #[test]
     fn test_success_keywords() {
-        assert!(MutationStatus::from_str("success").is_success());
-        assert!(MutationStatus::from_str("created").is_success());
-        assert!(MutationStatus::from_str("updated").is_success());
-        assert!(MutationStatus::from_str("deleted").is_success());
+        assert!(MutationStatus::parse_status("success").is_success());
+        assert!(MutationStatus::parse_status("created").is_success());
+        assert!(MutationStatus::parse_status("updated").is_success());
+        assert!(MutationStatus::parse_status("deleted").is_success());
     }
 
     // ERROR PREFIXES (colon-separated)
     #[test]
     fn test_failed_prefix() {
-        let status = MutationStatus::from_str("failed:validation");
+        let status = MutationStatus::parse_status("failed:validation");
         assert!(status.is_error());
         match status {
             MutationStatus::Error(full_status) => assert_eq!(full_status, "failed:validation"),
@@ -695,70 +695,70 @@ mod test_status_taxonomy {
 
     #[test]
     fn test_unauthorized_prefix() {
-        let status = MutationStatus::from_str("unauthorized:token_expired");
+        let status = MutationStatus::parse_status("unauthorized:token_expired");
         assert!(status.is_error());
     }
 
     #[test]
     fn test_forbidden_prefix() {
-        let status = MutationStatus::from_str("forbidden:insufficient_permissions");
+        let status = MutationStatus::parse_status("forbidden:insufficient_permissions");
         assert!(status.is_error());
     }
 
     #[test]
     fn test_not_found_prefix() {
-        let status = MutationStatus::from_str("not_found:user_missing");
+        let status = MutationStatus::parse_status("not_found:user_missing");
         assert!(status.is_error());
     }
 
     #[test]
     fn test_conflict_prefix() {
-        let status = MutationStatus::from_str("conflict:duplicate_email");
+        let status = MutationStatus::parse_status("conflict:duplicate_email");
         assert!(status.is_error());
     }
 
     #[test]
     fn test_timeout_prefix() {
-        let status = MutationStatus::from_str("timeout:database_query");
+        let status = MutationStatus::parse_status("timeout:database_query");
         assert!(status.is_error());
     }
 
     // NOOP PREFIX (success with no changes)
     #[test]
     fn test_noop_prefix() {
-        let status = MutationStatus::from_str("noop:unchanged");
+        let status = MutationStatus::parse_status("noop:unchanged");
         assert!(status.is_noop());
         assert!(status.is_error()); // v1.8.0: noop is error type
         match status {
-            MutationStatus::Noop(reason) => assert_eq!(reason, "unchanged"),
+            MutationStatus::Noop(reason) => assert_eq!(reason, "noop:unchanged"),
             _ => panic!("Expected Noop variant"),
         }
     }
 
     #[test]
     fn test_noop_duplicate() {
-        let status = MutationStatus::from_str("noop:duplicate");
+        let status = MutationStatus::parse_status("noop:duplicate");
         assert!(status.is_noop());
     }
 
     // CASE INSENSITIVITY
     #[test]
     fn test_case_insensitive_error_prefix() {
-        assert!(MutationStatus::from_str("FAILED:validation").is_error());
-        assert!(MutationStatus::from_str("Unauthorized:token").is_error());
-        assert!(MutationStatus::from_str("Conflict:DUPLICATE").is_error());
+        assert!(MutationStatus::parse_status("FAILED:validation").is_error());
+        assert!(MutationStatus::parse_status("Unauthorized:token").is_error());
+        assert!(MutationStatus::parse_status("Conflict:DUPLICATE").is_error());
     }
 
     #[test]
     fn test_case_insensitive_success() {
-        assert!(MutationStatus::from_str("SUCCESS").is_success());
-        assert!(MutationStatus::from_str("Created").is_success());
+        assert!(MutationStatus::parse_status("SUCCESS").is_success());
+        assert!(MutationStatus::parse_status("Created").is_success());
     }
 
     // EDGE CASES
     #[test]
     fn test_status_with_multiple_colons() {
-        let status = MutationStatus::from_str("failed:validation:email_invalid");
+        let status = MutationStatus::parse_status("failed:validation:email_invalid");
         assert!(status.is_error());
         match status {
             MutationStatus::Error(full_status) => {
@@ -770,7 +770,7 @@ mod test_status_taxonomy {
 
     #[test]
     fn test_error_prefix_without_reason() {
-        let status = MutationStatus::from_str("failed:");
+        let status = MutationStatus::parse_status("failed:");
         assert!(status.is_error());
         match status {
             MutationStatus::Error(full_status) => assert_eq!(full_status, "failed:"),
@@ -781,13 +781,13 @@ mod test_status_taxonomy {
     #[test]
     fn test_unknown_status_becomes_success() {
         // Unknown statuses default to success for backward compatibility
-        let status = MutationStatus::from_str("unknown_status");
+        let status = MutationStatus::parse_status("unknown_status");
         assert!(status.is_success());
     }
 
     #[test]
     fn test_empty_status() {
-        let status = MutationStatus::from_str("");
+        let status = MutationStatus::parse_status("");
         assert!(status.is_success());
     }
 }

@@ -13,7 +13,7 @@ mod test_status_taxonomy {
     // SUCCESS KEYWORDS (no colon) - should all be Success variants
     #[test]
     fn test_success_keywords_success() {
-        let status = MutationStatus::from_str("success");
+        let status = MutationStatus::parse_status("success");
         assert!(status.is_success(), "success should be Success");
         assert!(!status.is_error(), "success should not be Error");
         assert!(!status.is_noop(), "success should not be Noop");
@@ -21,7 +21,7 @@ mod test_status_taxonomy {
 
     #[test]
     fn test_success_keywords_created() {
-        let status = MutationStatus::from_str("created");
+        let status = MutationStatus::parse_status("created");
         assert!(status.is_success(), "created should be Success");
         assert!(!status.is_error(), "created should not be Error");
         assert!(!status.is_noop(), "created should not be Noop");
@@ -29,7 +29,7 @@ mod test_status_taxonomy {
 
     #[test]
     fn test_success_keywords_updated() {
-        let status = MutationStatus::from_str("updated");
+        let status = MutationStatus::parse_status("updated");
         assert!(status.is_success(), "updated should be Success");
         assert!(!status.is_error(), "updated should not be Error");
         assert!(!status.is_noop(), "updated should not be Noop");
@@ -37,7 +37,7 @@ mod test_status_taxonomy {
 
     #[test]
     fn test_success_keywords_deleted() {
-        let status = MutationStatus::from_str("deleted");
+        let status = MutationStatus::parse_status("deleted");
         assert!(status.is_success(), "deleted should be Success");
         assert!(!status.is_error(), "deleted should not be Error");
         assert!(!status.is_noop(), "deleted should not be Noop");
@@ -45,7 +45,7 @@ mod test_status_taxonomy {
 
     #[test]
     fn test_success_keywords_new() {
-        let status = MutationStatus::from_str("new");
+        let status = MutationStatus::parse_status("new");
         assert!(status.is_success(), "new should be Success");
         assert!(!status.is_error(), "new should not be Error");
         assert!(!status.is_noop(), "new should not be Noop");
@@ -53,7 +53,7 @@ mod test_status_taxonomy {
 
     #[test]
     fn test_success_keywords_completed() {
-        let status = MutationStatus::from_str("completed");
+        let status = MutationStatus::parse_status("completed");
         assert!(status.is_success(), "completed should be Success");
         assert!(!status.is_error(), "completed should not be Error");
         assert!(!status.is_noop(), "completed should not be Noop");
@@ -61,7 +61,7 @@ mod test_status_taxonomy {
 
     #[test]
     fn test_success_keywords_ok() {
-        let status = MutationStatus::from_str("ok");
+        let status = MutationStatus::parse_status("ok");
         assert!(status.is_success(), "ok should be Success");
         assert!(!status.is_error(), "ok should not be Error");
         assert!(!status.is_noop(), "ok should not be Noop");
@@ -70,7 +70,7 @@ mod test_status_taxonomy {
     // ERROR PREFIXES (colon-separated) - should all be Error variants
     #[test]
     fn test_error_prefixes_failed() {
-        let status = MutationStatus::from_str("failed:validation");
+        let status = MutationStatus::parse_status("failed:validation");
         assert!(status.is_error(), "failed:validation should be Error");
         assert!(
             !status.is_success(),
@@ -81,7 +81,7 @@ mod test_status_taxonomy {
 
     #[test]
     fn test_error_prefixes_unauthorized() {
-        let status = MutationStatus::from_str("unauthorized:token");
+        let status = MutationStatus::parse_status("unauthorized:token");
         assert!(status.is_error(), "unauthorized:token should be Error");
         assert!(
             !status.is_success(),
@@ -92,7 +92,7 @@ mod test_status_taxonomy {
 
     #[test]
     fn test_error_prefixes_forbidden() {
-        let status = MutationStatus::from_str("forbidden:access");
+        let status = MutationStatus::parse_status("forbidden:access");
         assert!(status.is_error(), "forbidden:access should be Error");
         assert!(
             !status.is_success(),
@@ -103,7 +103,7 @@ mod test_status_taxonomy {
 
     #[test]
     fn test_error_prefixes_not_found() {
-        let status = MutationStatus::from_str("not_found:resource");
+        let status = MutationStatus::parse_status("not_found:resource");
         assert!(status.is_error(), "not_found:resource should be Error");
         assert!(
             !status.is_success(),
@@ -114,7 +114,7 @@ mod test_status_taxonomy {
 
     #[test]
     fn test_error_prefixes_conflict() {
-        let status = MutationStatus::from_str("conflict:duplicate");
+        let status = MutationStatus::parse_status("conflict:duplicate");
         assert!(status.is_error(), "conflict:duplicate should be Error");
         assert!(
             !status.is_success(),
@@ -125,7 +125,7 @@ mod test_status_taxonomy {
 
     #[test]
     fn test_error_prefixes_timeout() {
-        let status = MutationStatus::from_str("timeout:expired");
+        let status = MutationStatus::parse_status("timeout:expired");
         assert!(status.is_error(), "timeout:expired should be Error");
         assert!(
             !status.is_success(),
@@ -137,7 +137,7 @@ mod test_status_taxonomy {
     // NOOP PREFIX (validation/business rule failure) - should be Noop variant AND Error type
     #[test]
     fn test_noop_prefix_unchanged() {
-        let status = MutationStatus::from_str("noop:unchanged");
+        let status = MutationStatus::parse_status("noop:unchanged");
         assert!(status.is_noop(), "noop:unchanged should be Noop");
         assert!(!status.is_success(), "noop:unchanged should not be Success");
         assert!(status.is_error(), "noop:unchanged should be Error (v1.8.0)"); // NEW
@@ -145,7 +145,7 @@ mod test_status_taxonomy {
 
     #[test]
     fn test_noop_prefix_no_changes() {
-        let status = MutationStatus::from_str("noop:no_changes");
+        let status = MutationStatus::parse_status("noop:no_changes");
         assert!(status.is_noop(), "noop:no_changes should be Noop");
         assert!(
             !status.is_success(),
@@ -157,7 +157,7 @@ mod test_status_taxonomy {
     // CASE INSENSITIVITY - should handle mixed case
     #[test]
     fn test_case_insensitivity_failed_uppercase() {
-        let status = MutationStatus::from_str("FAILED:validation");
+        let status = MutationStatus::parse_status("FAILED:validation");
         assert!(status.is_error(), "FAILED:validation should be Error");
         assert!(
             !status.is_success(),
@@ -168,7 +168,7 @@ mod test_status_taxonomy {
 
     #[test]
     fn test_case_insensitivity_unauthorized_mixed() {
-        let status = MutationStatus::from_str("Unauthorized:token");
+        let status = MutationStatus::parse_status("Unauthorized:token");
         assert!(status.is_error(), "Unauthorized:token should be Error");
         assert!(
             !status.is_success(),
@@ -179,7 +179,7 @@ mod test_status_taxonomy {
 
     #[test]
     fn test_case_insensitivity_conflict_uppercase() {
-        let status = MutationStatus::from_str("Conflict:DUPLICATE");
+        let status = MutationStatus::parse_status("Conflict:DUPLICATE");
         assert!(status.is_error(), "Conflict:DUPLICATE should be Error");
         assert!(
             !status.is_success(),
@@ -190,7 +190,7 @@ mod test_status_taxonomy {
 
     #[test]
     fn test_case_insensitivity_noop_mixed() {
-        let status = MutationStatus::from_str("Noop:Unchanged");
+        let status = MutationStatus::parse_status("Noop:Unchanged");
         assert!(status.is_noop(), "Noop:Unchanged should be Noop");
         assert!(!status.is_success(), "Noop:Unchanged should not be Success");
         assert!(status.is_error(), "Noop:Unchanged should be Error (v1.8.0)"); // NEW
@@ -199,7 +199,7 @@ mod test_status_taxonomy {
     // EDGE CASES
     #[test]
     fn test_edge_cases_multiple_colons() {
-        let status = MutationStatus::from_str("failed:validation:extra:colons");
+        let status = MutationStatus::parse_status("failed:validation:extra:colons");
         assert!(
             status.is_error(),
             "failed:validation:extra:colons should be Error"
@@ -216,7 +216,7 @@ mod test_status_taxonomy {
 
     #[test]
     fn test_edge_cases_empty_reason() {
-        let status = MutationStatus::from_str("failed:");
+        let status = MutationStatus::parse_status("failed:");
         assert!(status.is_error(), "failed: should be Error");
         assert!(!status.is_success(), "failed: should not be Success");
         assert!(!status.is_noop(), "failed: should not be Noop");
@@ -224,7 +224,7 @@ mod test_status_taxonomy {
 
     #[test]
     fn test_edge_cases_unknown_status_defaults_to_success() {
-        let status = MutationStatus::from_str("unknown_status");
+        let status = MutationStatus::parse_status("unknown_status");
         assert!(
             status.is_success(),
             "unknown_status should default to Success"
@@ -235,7 +235,7 @@ mod test_status_taxonomy {
 
     #[test]
     fn test_edge_cases_random_string() {
-        let status = MutationStatus::from_str("some_random_string");
+        let status = MutationStatus::parse_status("some_random_string");
         assert!(
             status.is_success(),
             "some_random_string should default to Success"
@@ -246,7 +246,7 @@ mod test_status_taxonomy {
 
     #[test]
     fn test_edge_cases_empty_string() {
-        let status = MutationStatus::from_str("");
+        let status = MutationStatus::parse_status("");
         assert!(
             status.is_success(),
             "empty string should default to Success"
@@ -258,7 +258,7 @@ mod test_status_taxonomy {
     // ADDITIONAL EDGE CASES
     #[test]
     fn test_edge_cases_noop_empty_reason() {
-        let status = MutationStatus::from_str("noop:");
+        let status = MutationStatus::parse_status("noop:");
         assert!(status.is_noop(), "noop: should be Noop");
         assert!(!status.is_success(), "noop: should not be Success");
         assert!(status.is_error(), "noop: should be Error (v1.8.0)"); // NEW
@@ -266,7 +266,7 @@ mod test_status_taxonomy {
 
     #[test]
     fn test_edge_cases_noop_uppercase() {
-        let status = MutationStatus::from_str("NOOP:UNCHANGED");
+        let status = MutationStatus::parse_status("NOOP:UNCHANGED");
         assert!(status.is_noop(), "NOOP:UNCHANGED should be Noop");
         assert!(!status.is_success(), "NOOP:UNCHANGED should not be Success");
         assert!(status.is_error(), "NOOP:UNCHANGED should be Error (v1.8.0)"); // NEW
@@ -278,7 +278,7 @@ mod test_status_taxonomy {
 
     #[test]
     fn test_noop_is_error_v1_8() {
-        let status = MutationStatus::from_str("noop:unchanged");
+        let status = MutationStatus::parse_status("noop:unchanged");
         assert!(status.is_noop());
         assert!(status.is_error()); // ✅ v1.8.0: noop is error
         assert!(!status.is_success());
@@ -288,7 +288,7 @@ mod test_status_taxonomy {
 
     #[test]
     fn test_not_found_is_error() {
-        let status = MutationStatus::from_str("not_found:user");
+        let status = MutationStatus::parse_status("not_found:user");
         assert!(!status.is_noop());
         assert!(status.is_error());
         assert!(!status.is_success());
@@ -298,14 +298,14 @@ mod test_status_taxonomy {
 
     #[test]
     fn test_conflict_is_error() {
-        let status = MutationStatus::from_str("conflict:duplicate");
+        let status = MutationStatus::parse_status("conflict:duplicate");
         assert!(status.is_error());
         assert_eq!(status.application_code(), 409);
     }
 
     #[test]
     fn test_success_is_not_error() {
-        let status = MutationStatus::from_str("created");
+        let status = MutationStatus::parse_status("created");
         assert!(status.is_success());
         assert!(!status.is_error());
         assert!(!status.is_noop());
@@ -315,9 +315,9 @@ mod test_status_taxonomy {
     #[test]
     fn test_is_graphql_success_method() {
         // Only true success returns true for is_graphql_success
-        assert!(MutationStatus::from_str("created").is_graphql_success());
-        assert!(MutationStatus::from_str("success").is_graphql_success());
-        assert!(!MutationStatus::from_str("noop:unchanged").is_graphql_success());
-        assert!(!MutationStatus::from_str("failed:validation").is_graphql_success());
+        assert!(MutationStatus::parse_status("created").is_graphql_success());
+        assert!(MutationStatus::parse_status("success").is_graphql_success());
+        assert!(!MutationStatus::parse_status("noop:unchanged").is_graphql_success());
+        assert!(!MutationStatus::parse_status("failed:validation").is_graphql_success());
     }
 }

@@ -10,6 +10,8 @@ use serde_json::{json, Map, Value};
 ///
 /// This is the main entry point that dispatches to success or error builders
 /// based on the mutation status.
+// TODO: Refactor to use MutationConfig struct (see issue fraiseql-issue-too-many-args.md)
+#[allow(clippy::too_many_arguments)]
 pub fn build_graphql_response(
     result: &MutationResult,
     field_name: &str,
@@ -113,7 +115,7 @@ pub fn build_success_response(
              This indicates a logic error: non-success statuses (noop:*, failed:*, etc.) \
              should return Error type, not Success type.",
             success_type,
-            result.status.to_string()
+            result.status
         ));
     }
 
@@ -320,25 +322,6 @@ fn map_status_to_code(status: &MutationStatus) -> i32 {
     }
 }
 
-/// Build error response object
-///
-/// Key behaviors:
-/// - Extract error code from status string (part after ':')
-/// - Auto-generate errors array if not in metadata
-/// - Map status to HTTP code
-#[deprecated(
-    since = "1.8.0",
-    note = "Use build_error_response_with_code instead"
-)]
-pub fn build_error_response(
-    result: &MutationResult,
-    error_type: &str,
-    auto_camel_case: bool,
-) -> Result<Value, String> {
-    // Delegate to new function
-    build_error_response_with_code(result, error_type, auto_camel_case, None)
-}
-
 /// Transform entity: add __typename and convert keys to camelCase
 fn transform_entity(entity: &Value, entity_type: &str, auto_camel_case: bool) -> Value {
     match entity {
@@ -393,10 +376,6 @@ fn transform_value(value: &Value, auto_camel_case: bool) -> Value {
     }
 }
 
-/// Transform error object to camelCase
-fn transform_error(error: &Value, auto_camel_case: bool) -> Value {
-    transform_value(error, auto_camel_case)
-}
 
 #[cfg(test)]
 mod tests {
@@ -503,42 +482,13 @@ mod tests {
             is_simple_format: false,
         };
 
-        let response = build_error_response(&result, "CreateUserError", true).unwrap();
+        let response = build_error_response_with_code(&result, "CreateUserError", true, None).unwrap();
         let obj = response.as_object().unwrap();
 
         assert_eq!(obj["__typename"], "CreateUserError");
         assert_eq!(obj["message"], "Validation failed");
         assert_eq!(obj["status"], "failed:validation");
         assert_eq!(obj["code"], 422); // HTTP code for validation error
-
-        let errors = obj["errors"].as_array().unwrap();
-        assert_eq!(errors.len(), 1);
-        assert_eq!(errors[0]["field"], "email");
-        assert_eq!(errors[0]["code"], "invalid");
-    }
-
-    #[test]
-    fn test_error_code_extraction() {
-        let result = MutationResult {
-            status: MutationStatus::Error("failed:validation".to_string()),
-            message: "Validation failed".to_string(),
-            entity_id: None,
-            entity_type: None,
-            entity: None,
-            updated_fields: None,
-            cascade: None,
-            metadata: None, // No errors in metadata
-            is_simple_format: false,
-        };
-
-        let response = build_error_response(&result, "CreateUserError", true).unwrap();
-        let obj = response.as_object().unwrap();
-
-        // Auto-generated error with extracted code
-        let errors = obj["errors"].as_array().unwrap();
-        assert_eq!(errors.len(), 1);
-        assert_eq!(errors[0]["code"], "validation");
-        assert_eq!(errors[0]["message"], "Validation failed");
     }
 
     #[test]
@@ -567,7 +517,7 @@ mod tests {
                 is_simple_format: false,
             };
 
-            let response = build_error_response(&result, "TestError", true).unwrap();
+            let response = build_error_response_with_code(&result, "TestError", true, None).unwrap();
             let obj = response.as_object().unwrap();
             assert_eq!(
                 obj["code"], expected_code,

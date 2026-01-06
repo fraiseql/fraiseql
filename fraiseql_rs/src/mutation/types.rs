@@ -44,14 +44,16 @@ pub enum StatusKind {
     Error(String),   // failed:reason, not_found:reason, etc.
 }
 
-impl StatusKind {
+impl std::str::FromStr for StatusKind {
+    type Err = std::convert::Infallible;
+
     /// Parse status string into classification
-    pub fn from_str(status: &str) -> Self {
+    fn from_str(status: &str) -> Result<Self, Self::Err> {
         let status_lower = status.to_lowercase();
 
         #[allow(clippy::if_same_then_else)]
         // Error prefixes
-        if status_lower.starts_with("failed:")
+        let result = if status_lower.starts_with("failed:")
             || status_lower.starts_with("unauthorized:")
             || status_lower.starts_with("forbidden:")
             || status_lower.starts_with("not_found:")
@@ -74,8 +76,13 @@ impl StatusKind {
         // Unknown - default to success (backward compat)
         else {
             StatusKind::Success(status.to_string())
-        }
+        };
+
+        Ok(result)
     }
+}
+
+impl StatusKind {
 
     pub fn is_success(&self) -> bool {
         matches!(self, StatusKind::Success(_))
@@ -151,23 +158,23 @@ mod tests {
 
     #[test]
     fn test_status_kind_success() {
-        assert!(StatusKind::from_str("success").is_success());
-        assert!(StatusKind::from_str("created").is_success());
-        assert!(StatusKind::from_str("UPDATED").is_success());
+        assert!("success".parse::<StatusKind>().unwrap().is_success());
+        assert!("created".parse::<StatusKind>().unwrap().is_success());
+        assert!("UPDATED".parse::<StatusKind>().unwrap().is_success());
     }
 
     #[test]
     fn test_status_kind_error() {
-        let status = StatusKind::from_str("failed:validation");
+        let status: StatusKind = "failed:validation".parse().unwrap();
         assert!(status.is_error());
         assert_eq!(status.http_code(), 422);
     }
 
     #[test]
     fn test_status_kind_http_codes() {
-        assert_eq!(StatusKind::from_str("not_found:user").http_code(), 404);
-        assert_eq!(StatusKind::from_str("unauthorized:token").http_code(), 401);
-        assert_eq!(StatusKind::from_str("conflict:duplicate").http_code(), 409);
+        assert_eq!("not_found:user".parse::<StatusKind>().unwrap().http_code(), 404);
+        assert_eq!("unauthorized:token".parse::<StatusKind>().unwrap().http_code(), 401);
+        assert_eq!("conflict:duplicate".parse::<StatusKind>().unwrap().http_code(), 409);
     }
 
     #[test]

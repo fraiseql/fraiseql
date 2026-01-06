@@ -16,7 +16,7 @@ pub use entity_processor::{
 };
 pub use parser::parse_mutation_response;
 pub use postgres_composite::PostgresMutationResponse;
-pub use response_builder::{build_error_response, build_graphql_response, build_success_response};
+pub use response_builder::{build_graphql_response, build_success_response};
 pub use types::{FullResponse, MutationResponse, SimpleResponse, StatusKind};
 
 #[cfg(test)]
@@ -45,6 +45,8 @@ use serde_json::Value;
 /// * `cascade_selections` - Optional cascade field selections JSON
 /// * `auto_camel_case` - Whether to convert field names and JSON keys to camelCase
 /// * `success_type_fields` - Optional list of expected fields in success type for validation
+// TODO: Refactor to use MutationConfig struct (see issue fraiseql-issue-too-many-args.md)
+#[allow(clippy::too_many_arguments)]
 pub fn build_mutation_response(
     mutation_json: &str,
     field_name: &str,
@@ -166,7 +168,9 @@ impl std::fmt::Display for MutationStatus {
     }
 }
 
-impl MutationStatus {
+impl std::str::FromStr for MutationStatus {
+    type Err = std::convert::Infallible;
+
     /// Parse status string into enum with minimal taxonomy
     ///
     /// # Status Categories
@@ -185,16 +189,16 @@ impl MutationStatus {
     ///
     /// # Examples
     /// ```
-    /// assert!(MutationStatus::from_str("success").is_success());
-    /// assert!(MutationStatus::from_str("failed:validation").is_error());
-    /// assert!(MutationStatus::from_str("noop:unchanged").is_noop());
-    /// assert!(MutationStatus::from_str("CONFLICT:duplicate").is_error());
+    /// assert!("success".parse::<MutationStatus>().unwrap().is_success());
+    /// assert!("failed:validation".parse::<MutationStatus>().unwrap().is_error());
+    /// assert!("noop:unchanged".parse::<MutationStatus>().unwrap().is_noop());
+    /// assert!("CONFLICT:duplicate".parse::<MutationStatus>().unwrap().is_error());
     /// ```
-    pub fn from_str(status: &str) -> Self {
+    fn from_str(status: &str) -> Result<Self, Self::Err> {
         let status_lower = status.to_lowercase();
 
         // ERROR PREFIXES - Return Error type with full status string
-        if status_lower.starts_with("failed:")
+        let result = if status_lower.starts_with("failed:")
             || status_lower.starts_with("unauthorized:")
             || status_lower.starts_with("forbidden:")
             || status_lower.starts_with("not_found:")
@@ -218,7 +222,16 @@ impl MutationStatus {
         else {
             // Note: In production, this should log a warning
             MutationStatus::Success(status.to_string())
-        }
+        };
+
+        Ok(result)
+    }
+}
+
+impl MutationStatus {
+    /// Convenience method for parsing status strings (infallible)
+    pub fn parse_status(status: &str) -> Self {
+        status.parse().unwrap()
     }
 
     pub fn is_success(&self) -> bool {
@@ -423,7 +436,7 @@ impl MutationResult {
         let metadata = v.get("metadata").filter(|m| !m.is_null()).cloned();
 
         Ok(MutationResult {
-            status: MutationStatus::from_str(status_str),
+            status: status_str.parse().unwrap(),
             message,
             entity_id,
             entity_type,
