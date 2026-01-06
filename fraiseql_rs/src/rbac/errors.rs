@@ -336,7 +336,7 @@ mod tests {
 
     #[test]
     fn test_uuid_error_conversion_to_rbac_error() {
-        let uuid_result: Result<uuid::Uuid> = uuid::Uuid::parse_str("invalid-uuid");
+        let uuid_result = uuid::Uuid::parse_str("invalid-uuid");
         let error = uuid_result.err().unwrap();
         let rbac_error = RbacError::from(error);
 
