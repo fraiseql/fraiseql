@@ -43,11 +43,13 @@ impl ValidationError {
     }
 
     /// Error is critical and should prevent server startup
+    #[must_use]
     pub fn is_critical(&self) -> bool {
         matches!(self.category.as_str(), "JWT" | "Database" | "RBAC")
     }
 
     /// Error is a warning but doesn't prevent startup
+    #[must_use]
     pub fn is_warning(&self) -> bool {
         !self.is_critical()
     }
@@ -97,6 +99,7 @@ impl ConfigValidator {
     /// Validate JWT configuration
     ///
     /// Checks that JWT validator is configured correctly with HTTPS JWKS URL.
+    #[allow(clippy::unnecessary_wraps)]
     fn validate_jwt_config() -> ValidationResult<()> {
         // In Phase 1, we have JWT implemented in auth/jwt.rs
         // This validator verifies that if JWT is enabled, it's configured safely
@@ -113,6 +116,7 @@ impl ConfigValidator {
     /// Validate RBAC configuration
     ///
     /// Checks that RBAC system is properly initialized if enabled.
+    #[allow(clippy::unnecessary_wraps)]
     fn validate_rbac_config() -> ValidationResult<()> {
         // In Phase 2, we have RBAC implemented in rbac/
         // This validator verifies that if RBAC is enabled, it's configured correctly
@@ -130,6 +134,7 @@ impl ConfigValidator {
     /// Validate security profile configuration
     ///
     /// Checks that configured security profiles have all necessary enforcement modules.
+    #[allow(clippy::unnecessary_wraps)]
     fn validate_profile_config() -> ValidationResult<()> {
         // In Phase 2-3, we implement security profiles
         // This validator ensures that if a profile is configured, all its features are enforced
@@ -157,6 +162,7 @@ impl ConfigValidator {
     /// Validate cache configuration
     ///
     /// Checks that cache settings are reasonable and won't cause issues.
+    #[allow(clippy::unnecessary_wraps)]
     fn validate_cache_config() -> ValidationResult<()> {
         // Validate cache settings across multiple modules:
         // - JWT cache capacity (permissions only, set to 100)
@@ -208,7 +214,7 @@ impl ConfigValidator {
 /// Helper function to log validation checks
 fn log_validation_check(category: &str, passed: bool, details: &str) {
     let status = if passed { "✓" } else { "✗" };
-    println!("[{}] {} - {}", status, category, details);
+    println!("[{status}] {category} - {details}");
 }
 
 #[cfg(test)]
