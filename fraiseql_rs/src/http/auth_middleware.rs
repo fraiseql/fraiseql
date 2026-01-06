@@ -280,9 +280,15 @@ pub fn claims_to_user_context(claims: Claims) -> UserContext {
 
 /// Convert `AuthError` to `HttpAuthError`
 ///
-/// Maps auth module errors to appropriate HTTP status codes:
-/// - `InvalidToken`, `TokenExpired`, `InvalidAudience`, `InvalidIssuer` → 401 Unauthorized
-/// - `KeyNotFound`, `JwksFetchFailed`, `HttpError` → 500 Internal Server Error
+/// Maps auth module errors to appropriate HTTP status codes and specific error codes:
+/// - `InvalidToken` → 401 Unauthorized (code: TOKEN_INVALID)
+/// - `TokenExpired` → 401 Unauthorized (code: TOKEN_EXPIRED)
+/// - `InvalidAudience` → 401 Unauthorized (code: INVALID_AUDIENCE)
+/// - `InvalidIssuer` → 401 Unauthorized (code: INVALID_ISSUER)
+/// - `KeyNotFound`, `JwksFetchFailed`, `HttpError`, `CacheError`, `JsonError` → 500 Internal Server Error
+///
+/// Specific error codes allow clients to distinguish between different authentication
+/// failure modes and adjust their behavior accordingly (e.g., refresh token on expiration).
 ///
 /// # Arguments
 ///
@@ -290,34 +296,64 @@ pub fn claims_to_user_context(claims: Claims) -> UserContext {
 ///
 /// # Returns
 ///
-/// An `HttpAuthError` with appropriate status code and message
+/// An `HttpAuthError` with appropriate status code, specific error code, and message
 fn convert_auth_error_to_http(auth_err: &AuthError) -> HttpAuthError {
     match auth_err {
-        // Authentication failures → 401 Unauthorized
+        // Token validation failures → 401 Unauthorized with specific codes
         AuthError::InvalidToken(reason) => {
-            HttpAuthError::unauthorized(format!("Invalid token: {reason}"))
+            let mut err = HttpAuthError::unauthorized(format!("Invalid token: {reason}"));
+            err.code = "TOKEN_INVALID".to_string();
+            err
         }
-        AuthError::TokenExpired => HttpAuthError::unauthorized("Token has expired"),
-        AuthError::InvalidAudience => HttpAuthError::unauthorized("Token audience is invalid"),
-        AuthError::InvalidIssuer => HttpAuthError::unauthorized("Token issuer is invalid"),
+        AuthError::TokenExpired => {
+            let mut err = HttpAuthError::unauthorized("Token has expired");
+            err.code = "TOKEN_EXPIRED".to_string();
+            err
+        }
+        AuthError::InvalidAudience => {
+            let mut err = HttpAuthError::unauthorized("Token audience is invalid");
+            err.code = "INVALID_AUDIENCE".to_string();
+            err
+        }
+        AuthError::InvalidIssuer => {
+            let mut err = HttpAuthError::unauthorized("Token issuer is invalid");
+            err.code = "INVALID_ISSUER".to_string();
+            err
+        }
 
-        // Server-side errors → 500 Internal Server Error
+        // Key management errors → 500 Internal Server Error
         AuthError::KeyNotFound(kid) => {
-            HttpAuthError::internal_error(format!("Key not found in JWKS: {kid}"))
-        }
-        AuthError::JwksFetchFailed(reason) => {
-            HttpAuthError::internal_error(format!("Failed to fetch JWKS: {reason}"))
-        }
-        AuthError::HttpError(reason) => {
-            HttpAuthError::internal_error(format!("HTTP error: {reason}"))
+            let mut err = HttpAuthError::internal_error(format!("Key not found in JWKS: {kid}"));
+            err.code = "KEY_NOT_FOUND".to_string();
+            err
         }
 
-        // Cache and JSON errors → 500 Internal Server Error
-        AuthError::CacheError(reason) => {
-            HttpAuthError::internal_error(format!("Cache error: {reason}"))
+        // JWKS fetching errors → 500 Internal Server Error
+        AuthError::JwksFetchFailed(reason) => {
+            let mut err = HttpAuthError::internal_error(format!("Failed to fetch JWKS: {reason}"));
+            err.code = "JWKS_FETCH_FAILED".to_string();
+            err
         }
+
+        // HTTP transport errors → 500 Internal Server Error
+        AuthError::HttpError(reason) => {
+            let mut err = HttpAuthError::internal_error(format!("HTTP error: {reason}"));
+            err.code = "HTTP_ERROR".to_string();
+            err
+        }
+
+        // Cache errors → 500 Internal Server Error
+        AuthError::CacheError(reason) => {
+            let mut err = HttpAuthError::internal_error(format!("Cache error: {reason}"));
+            err.code = "CACHE_ERROR".to_string();
+            err
+        }
+
+        // JSON parsing errors → 500 Internal Server Error
         AuthError::JsonError(reason) => {
-            HttpAuthError::internal_error(format!("JSON error: {reason}"))
+            let mut err = HttpAuthError::internal_error(format!("JSON error: {reason}"));
+            err.code = "JSON_PARSE_ERROR".to_string();
+            err
         }
     }
 }
@@ -520,6 +556,7 @@ mod tests {
         let auth_err = AuthError::InvalidToken("bad sig".to_string());
         let http_err = convert_auth_error_to_http(&auth_err);
         assert_eq!(http_err.status_code, StatusCode::UNAUTHORIZED);
+        assert_eq!(http_err.code, "TOKEN_INVALID");
         assert!(http_err.message.contains("Invalid token"));
     }
 
@@ -528,15 +565,24 @@ mod tests {
         let auth_err = AuthError::TokenExpired;
         let http_err = convert_auth_error_to_http(&auth_err);
         assert_eq!(http_err.status_code, StatusCode::UNAUTHORIZED);
+        assert_eq!(http_err.code, "TOKEN_EXPIRED");
         assert!(http_err.message.contains("expired"));
     }
 
     #[test]
-    fn test_convert_auth_error_jwks_fetch_failed() {
-        let auth_err = AuthError::JwksFetchFailed("connection timeout".to_string());
+    fn test_convert_auth_error_invalid_audience() {
+        let auth_err = AuthError::InvalidAudience;
         let http_err = convert_auth_error_to_http(&auth_err);
-        assert_eq!(http_err.status_code, StatusCode::INTERNAL_SERVER_ERROR);
-        assert!(http_err.message.contains("JWKS"));
+        assert_eq!(http_err.status_code, StatusCode::UNAUTHORIZED);
+        assert_eq!(http_err.code, "INVALID_AUDIENCE");
+    }
+
+    #[test]
+    fn test_convert_auth_error_invalid_issuer() {
+        let auth_err = AuthError::InvalidIssuer;
+        let http_err = convert_auth_error_to_http(&auth_err);
+        assert_eq!(http_err.status_code, StatusCode::UNAUTHORIZED);
+        assert_eq!(http_err.code, "INVALID_ISSUER");
     }
 
     #[test]
@@ -544,6 +590,40 @@ mod tests {
         let auth_err = AuthError::KeyNotFound("kid-123".to_string());
         let http_err = convert_auth_error_to_http(&auth_err);
         assert_eq!(http_err.status_code, StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(http_err.code, "KEY_NOT_FOUND");
         assert!(http_err.message.contains("kid-123"));
+    }
+
+    #[test]
+    fn test_convert_auth_error_jwks_fetch_failed() {
+        let auth_err = AuthError::JwksFetchFailed("connection timeout".to_string());
+        let http_err = convert_auth_error_to_http(&auth_err);
+        assert_eq!(http_err.status_code, StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(http_err.code, "JWKS_FETCH_FAILED");
+        assert!(http_err.message.contains("JWKS"));
+    }
+
+    #[test]
+    fn test_convert_auth_error_http_error() {
+        let auth_err = AuthError::HttpError("connection refused".to_string());
+        let http_err = convert_auth_error_to_http(&auth_err);
+        assert_eq!(http_err.status_code, StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(http_err.code, "HTTP_ERROR");
+    }
+
+    #[test]
+    fn test_convert_auth_error_cache_error() {
+        let auth_err = AuthError::CacheError("eviction failed".to_string());
+        let http_err = convert_auth_error_to_http(&auth_err);
+        assert_eq!(http_err.status_code, StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(http_err.code, "CACHE_ERROR");
+    }
+
+    #[test]
+    fn test_convert_auth_error_json_error() {
+        let auth_err = AuthError::JsonError("unexpected field".to_string());
+        let http_err = convert_auth_error_to_http(&auth_err);
+        assert_eq!(http_err.status_code, StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(http_err.code, "JSON_PARSE_ERROR");
     }
 }
