@@ -505,7 +505,7 @@ mod tests {
 
     #[test]
     fn test_jwks_cache_creation() {
-        let cache = JWKSCache::new();
+        let _cache = JWKSCache::new();
         // Cache should be creatable and not panic
         assert!(true, "Cache creation should succeed");
     }

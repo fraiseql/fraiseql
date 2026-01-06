@@ -124,7 +124,7 @@ mod tests {
                 "user": {
                     "id": 1,
                     "name": "John",
-                    "salary": 100000
+                    "salary": 100_000
                 }
             },
             "errors": null

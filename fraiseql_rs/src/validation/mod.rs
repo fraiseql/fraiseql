@@ -1,4 +1,4 @@
-//! Input validation for FraiseQL GraphQL operations
+//! Input validation for `FraiseQL` GraphQL operations
 //!
 //! This module provides validation utilities for GraphQL inputs, particularly
 //! for enforcing ID policies and ensuring data integrity.

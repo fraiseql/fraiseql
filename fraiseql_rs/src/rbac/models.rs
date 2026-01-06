@@ -476,7 +476,7 @@ mod tests {
         // At exact expiration time, role should be considered expired (now >= expires_at)
         // Since we just created it, the now in the test might be >= expires_at
         // This is correct behavior - expiration is exclusive end time
-        let result = user_role.is_valid();
+        let _result = user_role.is_valid();
         // Result may be true or false depending on exact timing; just verify no panic
         assert!(true, "Should handle boundary condition without panicking");
     }

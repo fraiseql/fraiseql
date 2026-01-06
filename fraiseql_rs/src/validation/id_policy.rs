@@ -2,11 +2,11 @@
 //!
 //! This module provides validation for ID fields based on the configured ID policy.
 //!
-//! **Design Pattern**: FraiseQL supports two ID policies:
-//! 1. **UUID**: IDs must be valid UUIDs (FraiseQL's opinionated default)
+//! **Design Pattern**: `FraiseQL` supports two ID policies:
+//! 1. **UUID**: IDs must be valid UUIDs (`FraiseQL`'s opinionated default)
 //! 2. **OPAQUE**: IDs accept any string (GraphQL spec-compliant)
 //!
-//! This module enforces UUID format validation when IDPolicy::UUID is configured.
+//! This module enforces UUID format validation when `IDPolicy::UUID` is configured.
 //!
 //! # Example
 //!
@@ -27,10 +27,9 @@
 use serde::{Deserialize, Serialize};
 
 /// ID Policy determines how GraphQL ID scalar type behaves
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum IDPolicy {
-    /// IDs must be valid UUIDs (FraiseQL's opinionated default)
+    /// IDs must be valid UUIDs (`FraiseQL`'s opinionated default)
     #[serde(rename = "uuid")]
     #[default]
     UUID,
@@ -42,19 +41,20 @@ pub enum IDPolicy {
 
 impl IDPolicy {
     /// Check if this policy enforces UUID format for IDs
+    #[must_use]
     pub fn enforces_uuid(self) -> bool {
-        self == IDPolicy::UUID
+        self == Self::UUID
     }
 
     /// Get the policy name as a string
-    pub fn as_str(self) -> &'static str {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
         match self {
-            IDPolicy::UUID => "uuid",
-            IDPolicy::OPAQUE => "opaque",
+            Self::UUID => "uuid",
+            Self::OPAQUE => "opaque",
         }
     }
 }
-
 
 impl std::fmt::Display for IDPolicy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -92,6 +92,11 @@ impl std::error::Error for IDValidationError {}
 ///
 /// `Ok(())` if the ID is valid for the policy, `Err(IDValidationError)` otherwise
 ///
+/// # Errors
+///
+/// Returns `IDValidationError` if the ID does not conform to the specified policy.
+/// For `IDPolicy::UUID`, the ID must be a valid UUID. For `IDPolicy::OPAQUE`, any string is valid.
+///
 /// # Examples
 ///
 /// ```ignore
@@ -113,7 +118,7 @@ pub fn validate_id(id: &str, policy: IDPolicy) -> Result<(), IDValidationError> 
 /// Validate that an ID is a valid UUID string
 ///
 /// **Security Note**: This validation happens at the Rust layer for defense-in-depth.
-/// Python layer validation via IDPolicy is the primary enforcement mechanism.
+/// Python layer validation via `IDPolicy` is the primary enforcement mechanism.
 ///
 /// UUID format validation requires:
 /// - 36 characters total

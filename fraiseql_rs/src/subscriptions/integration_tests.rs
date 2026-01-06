@@ -1926,7 +1926,7 @@ mod tests {
 
         // Should deliver majority of events despite queue saturation
         assert!(
-            total_received >= 250000,
+            total_received >= 250_000,
             "Should deliver at least 50% of events"
         );
     }
@@ -2205,7 +2205,7 @@ mod tests {
         let bus_clone = bus.clone();
         let chaos_clone = chaos.clone();
         let publisher = tokio::spawn(async move {
-            let mut published = 0;
+            let mut event_count = 0;
             for i in 0..100 {
                 // Check if Redis is down, would normally fallback
                 if chaos_clone.is_redis_down() {
@@ -2217,10 +2217,10 @@ mod tests {
                             "chaos-redis".to_string(),
                         )))
                         .await;
-                    published += 1;
+                    event_count += 1;
                 }
             }
-            published
+            event_count
         });
 
         // Receive events despite Redis being down
@@ -2232,17 +2232,17 @@ mod tests {
             }
         }
 
-        let published = publisher.await.ok().unwrap_or(0);
+        let events_published = publisher.await.ok().unwrap_or(0);
         chaos.restore_redis();
         let elapsed = start_time.elapsed();
 
         println!("\n📊 CHAOS TEST: Redis Unavailability with Fallback");
         println!("  ⚠️  Redis was down for {:.2}s", elapsed.as_secs_f64());
-        println!("  📤 Published (via fallback): {}", published);
+        println!("  📤 Published (via fallback): {}", events_published);
         println!("  📥 Received: {}", received);
 
         assert!(
-            published >= 90,
+            events_published >= 90,
             "Should publish via fallback despite Redis down"
         );
         assert!(received >= 45, "Should receive messages from fallback");
@@ -2540,7 +2540,7 @@ mod tests {
             }
         }
 
-        let published = publisher.await.ok().unwrap_or(0);
+        let events_count = publisher.await.ok().unwrap_or(0);
 
         // Restore both
         chaos.restore_redis();
@@ -2550,11 +2550,11 @@ mod tests {
 
         println!("\n📊 CHAOS TEST: Simultaneous Redis & PostgreSQL Failure");
         println!("  ⚠️  Both systems down for {:.2}s", elapsed.as_secs_f64());
-        println!("  📤 Published (in-memory fallback): {}", published);
+        println!("  📤 Published (in-memory fallback): {}", events_count);
         println!("  📥 Received: {}", received);
 
         // Should still work on in-memory fallback
-        assert!(published >= 90, "Should publish via in-memory fallback");
+        assert!(events_count >= 90, "Should publish via in-memory fallback");
         assert!(received >= 45, "Should receive from in-memory");
     }
 
@@ -2659,7 +2659,7 @@ mod tests {
         let bus_clone = bus.clone();
         let chaos_clone = chaos.clone();
         let publisher = tokio::spawn(async move {
-            let mut published = 0;
+            let mut event_count = 0;
             for i in 0..10 {
                 if !chaos_clone.should_fail() {
                     let _ = bus_clone
@@ -2669,10 +2669,10 @@ mod tests {
                             "recovery".to_string(),
                         )))
                         .await;
-                    published += 1;
+                    event_count += 1;
                 }
             }
-            published
+            event_count
         });
 
         let mut phase2_received = 0;
@@ -2693,7 +2693,7 @@ mod tests {
         let bus_clone = bus.clone();
         let chaos_clone = chaos.clone();
         let publisher = tokio::spawn(async move {
-            let mut published = 0;
+            let mut event_count = 0;
             for i in 0..10 {
                 if !chaos_clone.should_fail() {
                     let _ = bus_clone
@@ -2703,10 +2703,10 @@ mod tests {
                             "recovery".to_string(),
                         )))
                         .await;
-                    published += 1;
+                    event_count += 1;
                 }
             }
-            published
+            event_count
         });
 
         let mut phase3_received = 0;
@@ -3269,7 +3269,7 @@ mod tests {
             ],
             "metadata": {
                 "source": "mobile",
-                "timestamp": 1609459200
+                "timestamp": 1_609_459_200
             }
         });
 

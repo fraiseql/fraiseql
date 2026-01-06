@@ -152,11 +152,11 @@ mod tests {
         let text_msg = Message::Text("test".to_string());
         assert!(matches!(text_msg, Message::Text(_)));
 
-        let ping = Message::Ping(vec![1, 2, 3]);
-        assert!(matches!(ping, Message::Ping(_)));
+        // Test ping message
+        assert!(matches!(Message::Ping(vec![1, 2, 3]), Message::Ping(_)));
 
-        let pong = Message::Pong(vec![1, 2, 3]);
-        assert!(matches!(pong, Message::Pong(_)));
+        // Test pong message
+        assert!(matches!(Message::Pong(vec![1, 2, 3]), Message::Pong(_)));
     }
 
     #[test]
@@ -255,14 +255,14 @@ mod tests {
     #[test]
     fn test_ping_pong_cycle() {
         // Test ping/pong message creation
-        let ping_data = vec![1, 2, 3, 4, 5];
-        let ping = Message::Ping(ping_data.clone());
+        let payload = vec![1, 2, 3, 4, 5];
+        let ping_message = Message::Ping(payload.clone());
 
         // In a real connection, the server responds with pong
-        let pong = Message::Pong(ping_data);
+        let pong_response = Message::Pong(payload);
 
-        assert!(matches!(ping, Message::Ping(_)));
-        assert!(matches!(pong, Message::Pong(_)));
+        assert!(matches!(ping_message, Message::Ping(_)));
+        assert!(matches!(pong_response, Message::Pong(_)));
     }
 
     #[test]

@@ -370,12 +370,7 @@ async fn graphql_handler(
 
     // Return response bytes directly with proper content-type header
     // Optimization: avoids unnecessary JSON re-serialization
-    (
-        status_code,
-        [("content-type", "application/json")],
-        body,
-    )
-        .into_response()
+    (status_code, [("content-type", "application/json")], body).into_response()
 }
 
 /// Detect GraphQL operation type from query string
@@ -474,6 +469,7 @@ pub fn validate_metrics_token(auth_header: &str, expected_token: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::Value as JsonValue;
 
     // =========================================================================
     // REQUEST PARSING TESTS
