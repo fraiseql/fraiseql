@@ -2,7 +2,12 @@
 //!
 //! Generates cache keys from GraphQL queries and extracts accessed entities
 //! for cascade-driven invalidation.
+//!
+//! **SECURITY CRITICAL**: Cache keys include normalized variables to prevent
+//! data leakage between requests with different variable values.
+//! See: fraiseql_rs/src/apq/hasher.rs for SHA-256 variable hashing implementation.
 
+use crate::apq::hash_query_with_variables;
 use crate::graphql::types::ParsedQuery;
 use serde_json::Value;
 use std::collections::HashSet;
@@ -87,42 +92,33 @@ impl QueryCacheKey {
 
     /// Generate stable cache key from query and variables
     ///
-    /// Uses query structure + variable values for stable key generation
+    /// Uses query structure + SHA-256 hashed variables for stable key generation
+    ///
+    /// **SECURITY CRITICAL**: Variables are normalized and hashed to ensure
+    /// different variable values always produce different cache keys.
+    /// This prevents data leakage where different users could receive
+    /// cached responses from other users with the same query but different variables.
     fn generate_cache_key<S: ::std::hash::BuildHasher>(
         query: &ParsedQuery,
         variables: &std::collections::HashMap<String, Value, S>,
     ) -> String {
-        // Build key from root field name and variable values
+        // Build key from root field name
         let default_field = "unknown".to_string();
         let root_field = query.selections.first().map_or(&default_field, |s| &s.name);
 
-        // Hash variable values if present
-        let vars_hash = if variables.is_empty() {
-            "no-vars".to_string()
-        } else {
-            // Create sorted variable hash for stability
-            let mut var_parts = Vec::new();
-            let mut var_keys: Vec<_> = variables.keys().collect();
-            var_keys.sort();
+        // Convert HashMap variables to JSON object for SHA-256 hashing
+        let mut vars_object = serde_json::Map::new();
+        for (key, value) in variables {
+            vars_object.insert(key.clone(), value.clone());
+        }
+        let vars_json = Value::Object(vars_object);
 
-            for key in var_keys {
-                if let Some(val) = variables.get(key) {
-                    // Use JSON string representation for stable hashing
-                    let val_str = match val {
-                        Value::String(s) => s.clone(),
-                        Value::Number(n) => n.to_string(),
-                        Value::Bool(b) => b.to_string(),
-                        _ => serde_json::to_string(val).unwrap_or_default(),
-                    };
-                    var_parts.push(format!("{key}:{val_str}"));
-                }
-            }
-            var_parts.join("|")
-        };
+        // Use APQ's SHA-256 variable hashing for cache key
+        // This creates a deterministic hash that includes variable values
+        let cache_hash = hash_query_with_variables(root_field, &vars_json);
 
-        // Use sha256 hash for query structure (stable across runs)
-        // For now, use simple string key with field + variables
-        format!("query:{root_field}:{vars_hash}")
+        // Format as cache key with field name for readability
+        format!("query:{root_field}:{cache_hash}")
     }
 
     /// Extract entities accessed by this query
