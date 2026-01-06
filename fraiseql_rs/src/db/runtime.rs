@@ -147,6 +147,10 @@ pub fn is_initialized() -> bool {
 /// - **Subsequent calls**: <1μs (reuses cached runtime)
 /// - **Overall benefit**: 50-70% throughput improvement for FFI-heavy workloads
 ///
+/// # Panics
+///
+/// Panics if the FFI runtime cannot be created (should not happen under normal circumstances).
+///
 /// # Example
 ///
 /// ```rust
@@ -160,6 +164,7 @@ pub fn is_initialized() -> bool {
 /// let rt2 = ffi_runtime();
 /// assert_eq!(rt2.block_on(async { 100 }), 100);
 /// ```
+#[must_use]
 pub fn ffi_runtime() -> &'static Runtime {
     FFI_RUNTIME.with(|rt_cell| {
         let mut rt_opt = rt_cell.borrow_mut();
@@ -174,7 +179,8 @@ pub fn ffi_runtime() -> &'static Runtime {
         }
 
         // Safety: We just ensured it's Some above
-        unsafe { &*(rt_opt.as_ref().unwrap() as *const Runtime) }
+        #[allow(clippy::unwrap_used)]
+        unsafe { &*std::ptr::from_ref::<Runtime>(rt_opt.as_ref().unwrap()) }
     })
 }
 
