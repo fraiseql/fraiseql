@@ -129,8 +129,10 @@ impl WhereMerger {
                 if !conflicts.is_empty() {
                     match strategy {
                         ConflictStrategy::Error => {
-                            #[allow(clippy::unwrap_used)]
-                            return Err(conflicts.into_iter().next().unwrap());
+                            // Safe: we've verified conflicts is not empty above
+                            let first_conflict = conflicts.into_iter().next()
+                                .expect("verified conflicts not empty");
+                            return Err(first_conflict);
                         }
                         ConflictStrategy::Override => {
                             // Auth filter takes precedence
@@ -143,7 +145,7 @@ impl WhereMerger {
                 }
 
                 // Merge using AND composition
-                Ok(Self::compose_and(explicit, auth))
+                Ok(Some(Self::compose_and(explicit, auth)))
             }
         }
     }
@@ -249,27 +251,22 @@ impl WhereMerger {
     /// - Flattening existing AND clauses
     /// - Creating new AND for non-AND clauses
     /// - Avoiding nested AND structures
-    #[allow(clippy::unnecessary_wraps)]
-    fn compose_and(clause1: &Value, clause2: &Value) -> Option<Value> {
+    fn compose_and(clause1: &Value, clause2: &Value) -> Value {
         // If clause1 is already AND, extend it
-        if clause1.get("AND").is_some() {
-            if let Some(mut and_parts) = clause1.get("AND").and_then(|v| v.as_array().cloned()) {
-                and_parts.push(clause2.clone());
-                return Some(json!({"AND": and_parts}));
-            }
+        if let Some(mut and_parts) = clause1.get("AND").and_then(|v| v.as_array().cloned()) {
+            and_parts.push(clause2.clone());
+            return json!({"AND": and_parts});
         }
 
         // If clause2 is already AND, prepend clause1
-        if clause2.get("AND").is_some() {
-            if let Some(and_parts) = clause2.get("AND").and_then(|v| v.as_array().cloned()) {
-                let mut result = vec![clause1.clone()];
-                result.extend(and_parts);
-                return Some(json!({"AND": result}));
-            }
+        if let Some(and_parts) = clause2.get("AND").and_then(|v| v.as_array().cloned()) {
+            let mut result = vec![clause1.clone()];
+            result.extend(and_parts);
+            return json!({"AND": result});
         }
 
         // Create new AND composition
-        Some(json!({"AND": [clause1.clone(), clause2.clone()]}))
+        json!({"AND": [clause1.clone(), clause2.clone()]})
     }
 
     /// Validate WHERE clause structure

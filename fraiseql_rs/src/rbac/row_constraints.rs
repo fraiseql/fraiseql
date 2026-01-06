@@ -150,10 +150,14 @@ struct ConstraintCache {
 }
 
 impl ConstraintCache {
+    /// Default cache capacity when requested capacity is 0 or invalid
+    const DEFAULT_CAPACITY: usize = 100;
+
     /// Create new constraint cache with given capacity
     fn new(capacity: usize) -> Self {
-        #[allow(clippy::unwrap_used)]
-        let capacity = NonZeroUsize::new(capacity).unwrap_or(NonZeroUsize::new(100).unwrap());
+        let capacity = NonZeroUsize::new(capacity)
+            .or_else(|| NonZeroUsize::new(Self::DEFAULT_CAPACITY))
+            .expect("DEFAULT_CAPACITY must be > 0");
         Self {
             cache: Mutex::new(LruCache::new(capacity)),
             ttl: Duration::from_secs(300), // 5 minute TTL

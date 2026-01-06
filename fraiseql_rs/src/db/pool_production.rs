@@ -285,15 +285,10 @@ impl ProductionPool {
 fn is_deadlock_error(error: &tokio_postgres::Error) -> bool {
     // Check if this is a database error with the deadlock error code
     // PostgreSQL error code for deadlock detected: 40P01
-    #[allow(clippy::option_if_let_else)]
-    if let Some(db_error) = error
+    error
         .source()
         .and_then(|e| e.downcast_ref::<tokio_postgres::error::DbError>())
-    {
-        db_error.code().code() == "40P01"
-    } else {
-        false
-    }
+        .is_some_and(|db_error| db_error.code().code() == "40P01")
 }
 
 /// Pool statistics for monitoring.

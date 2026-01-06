@@ -69,7 +69,7 @@ impl VariableProcessor {
         let mut errors = Vec::new();
 
         for (var_name, definition) in &self.definitions {
-            match self.process_variable(var_name, definition, input_variables) {
+            match Self::process_variable(var_name, definition, input_variables) {
                 Ok(value) => {
                     if self.should_skip_id_validation(&value, definition) {
                         processed.insert(var_name.clone(), value);
@@ -99,9 +99,7 @@ impl VariableProcessor {
     }
 
     /// Process a single variable
-    #[allow(clippy::unused_self)]
     fn process_variable(
-        &self,
         var_name: &str,
         definition: &VariableDefinition,
         input_variables: &HashMap<String, serde_json::Value>,
