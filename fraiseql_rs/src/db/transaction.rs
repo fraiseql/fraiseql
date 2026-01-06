@@ -7,6 +7,7 @@ use crate::db::{
     pool_production::ProductionPool,
 };
 use tokio_postgres::IsolationLevel;
+use std::time::{Duration, Instant};
 
 /// Transaction wrapper with ACID guarantees.
 ///
@@ -15,6 +16,7 @@ use tokio_postgres::IsolationLevel;
 /// - Savepoints for nested transactions
 /// - Isolation level control
 /// - Query execution within transaction context
+/// - Transaction timeout enforcement (default 30 seconds)
 ///
 /// Note: This is a simplified implementation that uses SQL BEGIN/COMMIT
 /// for compatibility with the pool architecture.
@@ -26,6 +28,10 @@ pub struct Transaction {
     active: bool,
     /// Savepoint stack for nested transactions
     savepoints: Vec<String>,
+    /// Transaction start time for timeout tracking
+    start_time: Instant,
+    /// Transaction timeout duration
+    timeout: Duration,
 }
 
 impl Transaction {
@@ -60,6 +66,8 @@ impl Transaction {
             pool: pool.clone(),
             active: true,
             savepoints: Vec::new(),
+            start_time: Instant::now(),
+            timeout: Duration::from_secs(30), // Default 30-second transaction timeout
         })
     }
 
@@ -103,6 +111,8 @@ impl Transaction {
             pool: pool.clone(),
             active: true,
             savepoints: Vec::new(),
+            start_time: Instant::now(),
+            timeout: Duration::from_secs(30), // Default 30-second transaction timeout
         })
     }
 
@@ -130,6 +140,15 @@ impl Transaction {
                 "Transaction is not active".to_string(),
             ));
         }
+
+        // Check if transaction has exceeded its timeout
+        if self.start_time.elapsed() > self.timeout {
+            return Err(DatabaseError::QueryExecution(format!(
+                "Transaction timeout exceeded: {} seconds",
+                self.timeout.as_secs()
+            )));
+        }
+
         self.pool.execute_query(sql).await
     }
 
@@ -139,13 +158,24 @@ impl Transaction {
     ///
     /// # Errors
     ///
-    /// Returns `DatabaseError::QueryExecution` if execution fails.
+    /// Returns `DatabaseError::QueryExecution` if:
+    /// - Transaction has exceeded its timeout
+    /// - Execution fails
     pub async fn execute(&self, sql: &str) -> DatabaseResult<Vec<serde_json::Value>> {
         if !self.active {
             return Err(DatabaseError::QueryExecution(
                 "Transaction is not active".to_string(),
             ));
         }
+
+        // Check if transaction has exceeded its timeout
+        if self.start_time.elapsed() > self.timeout {
+            return Err(DatabaseError::QueryExecution(format!(
+                "Transaction timeout exceeded: {} seconds",
+                self.timeout.as_secs()
+            )));
+        }
+
         self.pool.execute_query(sql).await
     }
 

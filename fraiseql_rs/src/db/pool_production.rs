@@ -9,6 +9,9 @@ use deadpool_postgres::{
     Manager, ManagerConfig, Pool, RecyclingMethod, Runtime as DeadpoolRuntime,
 };
 use std::sync::Arc;
+use std::time::Duration;
+use tokio::time::sleep;
+use std::error::Error;
 
 /// Production database pool with SSL/TLS support.
 ///
@@ -165,46 +168,63 @@ impl ProductionPool {
     ///
     /// For `FraiseQL`: assumes JSONB data in column 0 (CQRS pattern).
     ///
+    /// Includes automatic retry logic for deadlock errors with exponential backoff
+    /// (up to 3 attempts with 10ms, 50ms, 100ms delays).
+    ///
     /// # Errors
     ///
     /// Returns `DatabaseError::QueryExecution` if:
-    /// - Query execution fails
+    /// - Query execution fails (after retries)
     /// - Connection cannot be acquired
     pub async fn execute_query(&self, sql: &str) -> DatabaseResult<Vec<serde_json::Value>> {
-        let client = self.get_connection().await?;
+        const MAX_RETRIES: u32 = 3;
+        let mut attempt = 0;
 
-        let rows = match client.query(sql, &[]).await {
-            Ok(rows) => {
-                self.metrics.record_query_executed();
-                rows
-            }
-            Err(e) => {
-                self.metrics.record_query_error();
-                return Err(DatabaseError::QueryExecution(e.to_string()));
-            }
-        };
+        loop {
+            attempt += 1;
+            let client = self.get_connection().await?;
 
-        // Extract JSONB from column 0 (FraiseQL CQRS pattern)
-        // Each row MUST have a valid JSONB value at column 0
-        let mut results = Vec::new();
-        for (row_idx, row) in rows.iter().enumerate() {
-            match row.try_get::<_, serde_json::Value>(0) {
-                Ok(value) => results.push(value),
+            let rows = match client.query(sql, &[]).await {
+                Ok(rows) => {
+                    self.metrics.record_query_executed();
+                    rows
+                }
                 Err(e) => {
                     self.metrics.record_query_error();
-                    return Err(DatabaseError::ColumnAccess {
-                        index: 0,
-                        expected_type: "jsonb",
-                        reason: format!(
-                            "Failed to extract JSONB from column 0 in row {}: {}",
-                            row_idx, e
-                        ),
-                    });
+
+                    // Check if this is a deadlock error (PostgreSQL error code 40P01)
+                    if is_deadlock_error(&e) && attempt < MAX_RETRIES {
+                        let backoff_ms = 10 * u64::pow(5, attempt - 1); // 10ms, 50ms, 100ms
+                        sleep(Duration::from_millis(backoff_ms)).await;
+                        continue; // Retry with exponential backoff
+                    }
+
+                    return Err(DatabaseError::QueryExecution(e.to_string()));
+                }
+            };
+
+            // Extract JSONB from column 0 (FraiseQL CQRS pattern)
+            // Each row MUST have a valid JSONB value at column 0
+            let mut results = Vec::new();
+            for (row_idx, row) in rows.iter().enumerate() {
+                match row.try_get::<_, serde_json::Value>(0) {
+                    Ok(value) => results.push(value),
+                    Err(e) => {
+                        self.metrics.record_query_error();
+                        return Err(DatabaseError::ColumnAccess {
+                            index: 0,
+                            expected_type: "jsonb",
+                            reason: format!(
+                                "Failed to extract JSONB from column 0 in row {}: {}",
+                                row_idx, e
+                            ),
+                        });
+                    }
                 }
             }
-        }
 
-        Ok(results)
+            return Ok(results);
+        }
     }
 
     /// Get pool statistics.
@@ -248,6 +268,20 @@ impl ProductionPool {
     #[must_use]
     pub fn metrics(&self) -> crate::db::metrics::MetricsSnapshot {
         self.metrics.snapshot()
+    }
+}
+
+/// Detects if a database error is a deadlock error (PostgreSQL error code 40P01).
+///
+/// Deadlock errors are serialization conflicts that can be safely retried.
+/// This function enables automatic retry logic with exponential backoff.
+fn is_deadlock_error(error: &tokio_postgres::Error) -> bool {
+    // Check if this is a database error with the deadlock error code
+    // PostgreSQL error code for deadlock detected: 40P01
+    if let Some(db_error) = error.source().and_then(|e| e.downcast_ref::<tokio_postgres::error::DbError>()) {
+        db_error.code().code() == "40P01"
+    } else {
+        false
     }
 }
 
