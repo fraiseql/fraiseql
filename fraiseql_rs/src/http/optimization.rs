@@ -410,7 +410,7 @@ mod tests {
 
     #[test]
     fn test_rate_limit_info_headers() {
-        let info = RateLimitInfo::new(1000, 999, 1234567890);
+        let info = RateLimitInfo::new(1000, 999, 1_234_567_890);
         let headers = info.to_headers();
 
         assert_eq!(headers[0].0, "X-RateLimit-Limit");

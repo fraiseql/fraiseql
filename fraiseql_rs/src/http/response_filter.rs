@@ -416,7 +416,7 @@ mod tests {
             "id": 1,
             "name": "John",
             "email": "john@example.com",
-            "salary": 100000
+            "salary": 100_000
         });
 
         let selections = vec![
@@ -549,7 +549,7 @@ mod tests {
                 "id": 123,
                 "name": "Alice",
                 "email": "alice@example.com",
-                "salary": 150000,
+                "salary": 150_000,
                 "ssn": "123-45-6789"
             }
         });

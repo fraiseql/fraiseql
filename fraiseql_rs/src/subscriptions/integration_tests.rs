@@ -1430,7 +1430,7 @@ mod tests {
                     // Verify payload size
                     let payload_str = event.data["payload"].as_str().unwrap_or("");
                     assert!(
-                        payload_str.len() > 100000,
+                        payload_str.len() > 100_000,
                         "Payload should be ~100KB, got {}",
                         payload_str.len()
                     );
@@ -1919,7 +1919,7 @@ mod tests {
         println!(
             "  📥 Received: {}/50,0000 ({}% delivery)",
             total_received,
-            (total_received as f64 / 500000.0) * 100.0
+            (total_received as f64 / 500_000.0) * 100.0
         );
         println!("  ⏱ Time: {:.2}s", elapsed.as_secs_f64());
         report.print();

@@ -255,7 +255,7 @@ mod tests {
             ],
             "metadata": {
                 "source": "web",
-                "timestamp": 1609459200
+                "timestamp": 1_609_459_200
             }
         });
 
