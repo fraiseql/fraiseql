@@ -12,7 +12,7 @@
 //! - **Variable analysis**: Queries with variables are penalized (unpredictable cost)
 //! - **Fragment spread evaluation**: Properly accounts for fragment reuse
 //! - **Argument value analysis**: Actual argument complexity from JSON values
-//! - **DoS prevention**: Catches complex queries even with obfuscation
+//! - **`DoS` prevention**: Catches complex queries even with `obfuscation`
 
 use crate::graphql::types::ParsedQuery;
 use std::collections::HashMap;
@@ -57,9 +57,9 @@ impl Default for ComplexityConfig {
             depth_multiplier: 1.5,
             field_overrides: HashMap::new(),
             type_multipliers: HashMap::new(),
-            variable_penalty: 10,    // Variables add unpredictability
-            fragment_penalty: 5,     // Fragment definitions add reuse potential
-            argument_cost: 2,        // Arguments increase query complexity
+            variable_penalty: 10, // Variables add unpredictability
+            fragment_penalty: 5,  // Fragment definitions add reuse potential
+            argument_cost: 2,     // Arguments increase query complexity
         }
     }
 }
@@ -138,15 +138,15 @@ impl ComplexityAnalyzer {
         };
 
         // 3. Variable penalty (AST analysis)
-        let variable_penalty = if !query.variables.is_empty() {
-            (query.variables.len() as u32).saturating_mul(self.config.variable_penalty)
-        } else {
+        let variable_penalty = if query.variables.is_empty() {
             0
+        } else {
+            (query.variables.len() as u32).saturating_mul(self.config.variable_penalty)
         };
 
         // 4. Fragment penalty (proper AST analysis)
-        let fragment_penalty = (query.fragments.len() as u32)
-            .saturating_mul(self.config.fragment_penalty);
+        let fragment_penalty =
+            (query.fragments.len() as u32).saturating_mul(self.config.fragment_penalty);
 
         // 5. Argument analysis
         let mut total_arguments = 0u32;
@@ -250,8 +250,7 @@ impl ComplexityAnalyzer {
             .directives
             .iter()
             .find(|d| d.name == "include")
-            .map(|_| true)
-            .unwrap_or(true); // Default is to include
+            .is_some_and(|_| true); // Default is to include if present
 
         // If the field is always skipped, return 0 complexity
         if should_skip {
@@ -282,8 +281,8 @@ impl ComplexityAnalyzer {
 
         // 4. Add complexity for arguments (AST analysis)
         // More arguments = more unpredictable query cost
-        let arg_complexity = (selection.arguments.len() as u32)
-            .saturating_mul(self.config.argument_cost);
+        let arg_complexity =
+            (selection.arguments.len() as u32).saturating_mul(self.config.argument_cost);
         complexity = complexity.saturating_add(arg_complexity);
 
         // 5. Add complexity for nested fields (recursive AST traversal)
