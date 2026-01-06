@@ -8,10 +8,10 @@ use crate::db::{
 use deadpool_postgres::{
     Manager, ManagerConfig, Pool, RecyclingMethod, Runtime as DeadpoolRuntime,
 };
+use std::error::Error;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
-use std::error::Error;
 
 /// Production database pool with SSL/TLS support.
 ///
@@ -49,6 +49,14 @@ impl ProductionPool {
     /// # Ok::<(), fraiseql_rs::db::errors::DatabaseError>(())
     /// ```
     pub fn new(config: DatabaseConfig) -> DatabaseResult<Self> {
+        // Validate pool configuration
+        // Ensure wait_timeout is set to prevent pool exhaustion
+        if config.wait_timeout.is_none() {
+            return Err(DatabaseError::Configuration(
+                "wait_timeout must be configured to prevent pool exhaustion".to_string(),
+            ));
+        }
+
         // Build tokio-postgres config
         let mut pg_config = tokio_postgres::Config::new();
         pg_config.host(&config.host);
@@ -278,7 +286,10 @@ impl ProductionPool {
 fn is_deadlock_error(error: &tokio_postgres::Error) -> bool {
     // Check if this is a database error with the deadlock error code
     // PostgreSQL error code for deadlock detected: 40P01
-    if let Some(db_error) = error.source().and_then(|e| e.downcast_ref::<tokio_postgres::error::DbError>()) {
+    if let Some(db_error) = error
+        .source()
+        .and_then(|e| e.downcast_ref::<tokio_postgres::error::DbError>())
+    {
         db_error.code().code() == "40P01"
     } else {
         false

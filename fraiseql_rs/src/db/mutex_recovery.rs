@@ -61,7 +61,7 @@ pub fn recover_from_poisoned<T>(result: LockResult<MutexGuard<'_, T>>) -> MutexG
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Arc;
+    use std::sync::{Arc, Mutex};
 
     #[test]
     fn test_recovery_from_non_poisoned_mutex() {
@@ -139,7 +139,10 @@ mod tests {
 
         // The mutex is now "recovered" and subsequent operations should work normally
         let second_lock = mutex.lock();
-        assert!(second_lock.is_err(), "Mutex is still marked as poisoned after first recovery");
+        assert!(
+            second_lock.is_err(),
+            "Mutex is still marked as poisoned after first recovery"
+        );
 
         // But we can still recover again
         let final_guard = recover_from_poisoned(second_lock);
