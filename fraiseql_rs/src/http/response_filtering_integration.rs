@@ -43,6 +43,7 @@ impl Default for ResponseFilteringConfig {
 /// # Returns
 ///
 /// Filtered response data, or original response if filtering fails or is disabled
+#[must_use]
 pub fn filter_graphql_response(
     response_data: &Value,
     query: &str,
@@ -73,15 +74,15 @@ pub fn filter_graphql_response(
 /// # Returns
 ///
 /// Filtered response with only requested fields in the data section
+#[must_use]
 pub fn filter_complete_graphql_response(
     response: &Value,
     query: &str,
     operation_name: Option<&str>,
 ) -> Value {
     // Extract data field
-    let data = match response.get("data") {
-        Some(d) => d,
-        None => return response.clone(),
+    let Some(data) = response.get("data") else {
+        return response.clone();
     };
 
     // Filter the data field
