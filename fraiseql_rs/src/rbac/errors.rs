@@ -135,3 +135,212 @@ impl From<RbacError> for pyo3::PyErr {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ========================================================================
+    // Test Suite 1: Permission Denied Errors
+    // ========================================================================
+
+    #[test]
+    fn test_permission_denied_error_with_user_id() {
+        let error = RbacError::PermissionDenied {
+            resource: "document".to_string(),
+            action: "delete".to_string(),
+            user_id: Some("user-123".to_string()),
+        };
+
+        let message = error.to_string();
+        assert!(message.contains("Permission denied"));
+        assert!(message.contains("document"));
+        assert!(message.contains("delete"));
+        assert!(message.contains("user-123"));
+    }
+
+    #[test]
+    fn test_permission_denied_error_without_user_id() {
+        let error = RbacError::PermissionDenied {
+            resource: "document".to_string(),
+            action: "delete".to_string(),
+            user_id: None,
+        };
+
+        let message = error.to_string();
+        assert!(message.contains("Permission denied"));
+        assert!(message.contains("document"));
+        assert!(message.contains("delete"));
+        assert!(!message.contains("user-"), "Should not include user ID");
+    }
+
+    // ========================================================================
+    // Test Suite 2: Missing Role Errors
+    // ========================================================================
+
+    #[test]
+    fn test_missing_role_error() {
+        let error = RbacError::MissingRole {
+            required_role: "admin".to_string(),
+            available_roles: vec!["user".to_string(), "viewer".to_string()],
+        };
+
+        let message = error.to_string();
+        assert!(message.contains("Missing required role"));
+        assert!(message.contains("admin"));
+        assert!(message.contains("user"));
+        assert!(message.contains("viewer"));
+    }
+
+    #[test]
+    fn test_missing_role_with_no_available_roles() {
+        let error = RbacError::MissingRole {
+            required_role: "admin".to_string(),
+            available_roles: vec![],
+        };
+
+        let message = error.to_string();
+        assert!(message.contains("Missing required role"));
+        assert!(message.contains("admin"));
+    }
+
+    // ========================================================================
+    // Test Suite 3: Resource Not Found Errors
+    // ========================================================================
+
+    #[test]
+    fn test_user_not_found_error() {
+        let error = RbacError::UserNotFound("user-uuid-123".to_string());
+        let message = error.to_string();
+
+        assert!(message.contains("User not found"));
+        assert!(message.contains("user-uuid-123"));
+    }
+
+    #[test]
+    fn test_role_not_found_error() {
+        let error = RbacError::RoleNotFound("admin".to_string());
+        let message = error.to_string();
+
+        assert!(message.contains("Role not found"));
+        assert!(message.contains("admin"));
+    }
+
+    #[test]
+    fn test_permission_not_found_error() {
+        let error = RbacError::PermissionNotFound("document:delete".to_string());
+        let message = error.to_string();
+
+        assert!(message.contains("Permission not found"));
+        assert!(message.contains("document:delete"));
+    }
+
+    // ========================================================================
+    // Test Suite 4: Invalid Permission Format Errors
+    // ========================================================================
+
+    #[test]
+    fn test_invalid_permission_format_error() {
+        let error = RbacError::InvalidPermissionFormat("invalid-format".to_string());
+        let message = error.to_string();
+
+        assert!(message.contains("Invalid permission format"));
+        assert!(message.contains("invalid-format"));
+        assert!(message.contains("Expected 'resource:action'"));
+    }
+
+    // ========================================================================
+    // Test Suite 5: Hierarchy Cycle Errors
+    // ========================================================================
+
+    #[test]
+    fn test_hierarchy_cycle_error() {
+        let cycle = vec![
+            "admin".to_string(),
+            "manager".to_string(),
+            "admin".to_string(),
+        ];
+        let error = RbacError::HierarchyCycle(cycle.clone());
+        let message = error.to_string();
+
+        assert!(message.contains("Role hierarchy cycle detected"));
+        assert!(message.contains("admin"));
+        assert!(message.contains("manager"));
+    }
+
+    // ========================================================================
+    // Test Suite 6: Cache & Config Errors
+    // ========================================================================
+
+    #[test]
+    fn test_cache_error() {
+        let error = RbacError::CacheError("Cache capacity exceeded".to_string());
+        let message = error.to_string();
+
+        assert!(message.contains("Cache error"));
+        assert!(message.contains("Cache capacity exceeded"));
+    }
+
+    #[test]
+    fn test_config_error() {
+        let error = RbacError::ConfigError("Invalid JWT configuration".to_string());
+        let message = error.to_string();
+
+        assert!(message.contains("Configuration error"));
+        assert!(message.contains("Invalid JWT configuration"));
+    }
+
+    #[test]
+    fn test_database_error() {
+        let error = RbacError::Database("Connection timeout".to_string());
+        let message = error.to_string();
+
+        assert!(message.contains("Database error"));
+        assert!(message.contains("Connection timeout"));
+    }
+
+    // ========================================================================
+    // Test Suite 7: Error Type Safety
+    // ========================================================================
+
+    #[test]
+    fn test_error_implements_std_error_trait() {
+        let error: Box<dyn std::error::Error> = Box::new(RbacError::PermissionDenied {
+            resource: "document".to_string(),
+            action: "read".to_string(),
+            user_id: None,
+        });
+
+        // Should be able to call Error trait methods
+        let _message = error.to_string();
+    }
+
+    #[test]
+    fn test_multiple_error_types_can_be_collected() {
+        let errors: Vec<RbacError> = vec![
+            RbacError::UserNotFound("user1".to_string()),
+            RbacError::RoleNotFound("admin".to_string()),
+            RbacError::PermissionDenied {
+                resource: "doc".to_string(),
+                action: "read".to_string(),
+                user_id: None,
+            },
+        ];
+
+        assert_eq!(errors.len(), 3);
+    }
+
+    // ========================================================================
+    // Test Suite 8: UUID Parsing Error Conversion
+    // ========================================================================
+
+    #[test]
+    fn test_uuid_error_conversion_to_rbac_error() {
+        let uuid_result: Result<uuid::Uuid> = uuid::Uuid::parse_str("invalid-uuid");
+        let error = uuid_result.err().unwrap();
+        let rbac_error = RbacError::from(error);
+
+        let message = rbac_error.to_string();
+        assert!(message.contains("UUID parsing error"));
+    }
+}

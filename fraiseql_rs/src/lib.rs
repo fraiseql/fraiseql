@@ -63,6 +63,7 @@ pub mod rbac;
 pub mod response;
 pub mod schema_registry;
 pub mod security;
+pub mod startup; // Phase 1: Server startup and configuration validation
 pub mod subscriptions; // Phase 15b: Real-time subscriptions
 pub mod validation; // Input validation (ID policy, etc.)
 
