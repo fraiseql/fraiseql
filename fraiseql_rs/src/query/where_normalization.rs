@@ -77,6 +77,7 @@ impl Default for NormalizedWhere {
 /// assert!(result.sql.contains("status = $1"));
 /// ```
 #[must_use]
+// API boundary parameter type acceptable
 #[allow(clippy::implicit_hasher)]
 pub fn normalize_dict_where(
     where_dict: &HashMap<String, JsonValue>,

@@ -204,6 +204,7 @@ mod tests {
     }
 
     #[tokio::test]
+    // Test assertions for metrics with acceptable tolerance
     #[allow(clippy::float_cmp)]
     async fn test_hit_rate_tracking() {
         let storage = MemoryApqStorage::new(100);

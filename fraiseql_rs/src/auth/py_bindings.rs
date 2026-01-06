@@ -40,6 +40,7 @@ impl From<UserContext> for PyUserContext {
 ///
 /// Provides token validation with Auth0 and custom JWT support.
 #[pyclass]
+// PyO3 FFI fields accessed from Python, not visible to Rust
 #[allow(dead_code)]
 pub struct PyAuthProvider {
     // The actual auth provider (Auth0 or CustomJWT)

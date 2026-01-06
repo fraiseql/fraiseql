@@ -60,6 +60,7 @@ impl<'a> MutationConfig<'a> {
 
     /// Set entity field name and type (builder pattern)
     #[must_use]
+    // Builder methods with `mut self` cannot be const
     #[allow(clippy::missing_const_for_fn)]
     pub fn with_entity(mut self, field_name: &'a str, entity_type: &'a str) -> Self {
         self.entity_field_name = Some(field_name);
@@ -69,6 +70,7 @@ impl<'a> MutationConfig<'a> {
 
     /// Set entity options with Option types (builder pattern)
     #[must_use]
+    // Builder methods with `mut self` cannot be const
     #[allow(clippy::missing_const_for_fn)]
     pub fn with_entity_options(
         mut self,
@@ -82,6 +84,7 @@ impl<'a> MutationConfig<'a> {
 
     /// Set cascade selections (builder pattern)
     #[must_use]
+    // Builder methods with `mut self` cannot be const
     #[allow(clippy::missing_const_for_fn)]
     pub fn with_cascade_selections(mut self, selections: Option<&'a str>) -> Self {
         self.cascade_selections = selections;
@@ -90,6 +93,7 @@ impl<'a> MutationConfig<'a> {
 
     /// Set auto camelCase conversion (builder pattern)
     #[must_use]
+    // Builder methods with `mut self` cannot be const
     #[allow(clippy::missing_const_for_fn)]
     pub fn with_auto_camel_case(mut self, enabled: bool) -> Self {
         self.auto_camel_case = enabled;
@@ -98,6 +102,7 @@ impl<'a> MutationConfig<'a> {
 
     /// Set success type fields (builder pattern)
     #[must_use]
+    // Builder methods with `mut self` cannot be const
     #[allow(clippy::missing_const_for_fn)]
     pub fn with_success_type_fields(mut self, fields: Option<&'a [String]>) -> Self {
         self.success_type_fields = fields;
@@ -106,6 +111,7 @@ impl<'a> MutationConfig<'a> {
 
     /// Set error type fields (builder pattern)
     #[must_use]
+    // Builder methods with `mut self` cannot be const
     #[allow(clippy::missing_const_for_fn)]
     pub fn with_error_type_fields(mut self, fields: Option<&'a [String]>) -> Self {
         self.error_type_fields = fields;
@@ -171,6 +177,7 @@ impl StatusKind {
     pub fn from_str(status: &str) -> Self {
         let status_lower = status.to_lowercase();
 
+        // Branches handle different error scenarios
         #[allow(clippy::if_same_then_else)]
         // Error prefixes
         if status_lower.starts_with("failed:")

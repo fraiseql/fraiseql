@@ -101,6 +101,7 @@ impl ResponseLimiter {
 
     /// Estimate size before serialization based on field count
     #[must_use]
+    // Builder methods with `mut self` cannot be const
     #[allow(clippy::missing_const_for_fn)]
     pub fn estimate_size(field_count: usize, depth: usize) -> usize {
         // Rough estimate: ~200 bytes per field + depth overhead

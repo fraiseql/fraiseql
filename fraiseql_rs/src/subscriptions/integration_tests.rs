@@ -869,6 +869,7 @@ mod tests {
     // ============================================================================
 
     #[tokio::test]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_event_bus_throughput_with_rapid_events() {
         use crate::subscriptions::event_bus::{Event, EventBus, InMemoryEventBus};
@@ -974,6 +975,7 @@ mod tests {
     // Tests for 1,000+ concurrent connections, memory stability, and throughput
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_load_1000_concurrent_connections() {
         use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus};
@@ -1085,6 +1087,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    // Multi-level formatting more readable
     #[allow(clippy::excessive_nesting, clippy::uninlined_format_args)]
     async fn test_load_sustained_throughput_100_events_per_second() {
         use crate::subscriptions::event_bus::{Event, EventBus, InMemoryEventBus};
@@ -1156,6 +1159,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_load_memory_stability_with_event_creation() {
         use crate::subscriptions::event_bus::{Event, EventBus, InMemoryEventBus};
@@ -1383,6 +1387,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_load_large_event_payload() {
         use crate::subscriptions::event_bus::{Event, EventBus, InMemoryEventBus};
@@ -1452,6 +1457,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    // Full pattern match more maintainable
     #[allow(clippy::excessive_nesting, clippy::single_match)]
     async fn test_load_subscription_churn() {
         use crate::subscriptions::event_bus::{Event, EventBus, InMemoryEventBus};
@@ -1530,6 +1536,7 @@ mod tests {
     // Extreme concurrency, network latency, failures, and memory pressure
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_stress_10000_concurrent_connections() {
         use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus};
@@ -1594,6 +1601,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_stress_50000_subscriptions_cascade() {
         use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus};
@@ -1660,6 +1668,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_stress_latency_1000ms_connections() {
         use crate::subscriptions::event_bus::{Event, EventBus, InMemoryEventBus};
@@ -1723,6 +1732,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_stress_jitter_50_500ms_latency() {
         use crate::subscriptions::event_bus::{Event, EventBus, InMemoryEventBus};
@@ -1789,6 +1799,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_stress_random_connection_drops() {
         use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus};
@@ -1837,6 +1848,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_stress_memory_saturation_event_queue() {
         use crate::subscriptions::event_bus::{Event, EventBus, InMemoryEventBus};
@@ -1932,6 +1944,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_stress_large_payload_memory_limits() {
         use crate::subscriptions::event_bus::{Event, EventBus, InMemoryEventBus};
@@ -2017,6 +2030,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_stress_thundering_herd_recovery() {
         use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus};
@@ -2089,6 +2103,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_stress_combined_latency_payload_subscribers() {
         use crate::subscriptions::event_bus::{Event, EventBus, InMemoryEventBus};
@@ -2182,6 +2197,7 @@ mod tests {
     // Test failure scenarios: Redis down, PostgreSQL down, cascading failures
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_chaos_redis_unavailability_with_fallback() {
         use crate::subscriptions::chaos_utils::ChaosController;
@@ -2249,6 +2265,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_chaos_partial_failure_injection() {
         use crate::subscriptions::chaos_utils::ChaosController;
@@ -2306,6 +2323,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_chaos_circuit_breaker_pattern() {
         use crate::subscriptions::chaos_utils::{CircuitBreaker, CircuitState};
@@ -2374,6 +2392,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_chaos_cascading_failure_recovery() {
         use crate::subscriptions::chaos_utils::ChaosController;
@@ -2487,6 +2506,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_chaos_simultaneous_redis_postgres_failure() {
         use crate::subscriptions::chaos_utils::ChaosController;
@@ -2559,6 +2579,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_chaos_failure_during_subscription_creation() {
         use crate::subscriptions::chaos_utils::ChaosController;
@@ -2617,6 +2638,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_chaos_recovery_with_gradual_restoration() {
         use crate::subscriptions::chaos_utils::ChaosController;
@@ -2770,6 +2792,7 @@ mod tests {
     // Test isolation of events by user_id and tenant_id
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_row_filter_user_id_isolation() {
         use crate::subscriptions::row_filter::RowFilterContext;
@@ -2799,6 +2822,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_row_filter_tenant_id_isolation() {
         use crate::subscriptions::row_filter::RowFilterContext;
@@ -2828,6 +2852,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_row_filter_combined_user_and_tenant() {
         use crate::subscriptions::row_filter::RowFilterContext;
@@ -2867,6 +2892,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_row_filter_all_events_without_filtering() {
         use crate::subscriptions::row_filter::RowFilterContext;
@@ -2888,6 +2914,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_row_filter_partial_result_filtering() {
         use crate::subscriptions::row_filter::RowFilterContext;
@@ -2981,6 +3008,7 @@ mod tests {
     // Test subgraph ownership validation for subscriptions
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_federation_context_isolation() {
         use crate::subscriptions::federation_context::FederationContext;
@@ -3006,6 +3034,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_federation_cross_subgraph_rejected() {
         use crate::subscriptions::federation_context::FederationContext;
@@ -3026,6 +3055,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_federation_context_stored_in_metadata() {
         // Verify federation context can be stored in connection metadata
@@ -3050,6 +3080,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_federation_context_validation_on_subscription() {
         use crate::subscriptions::federation_context::FederationContext;
@@ -3083,6 +3114,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_federation_multiple_subgraphs_isolated() {
         use crate::subscriptions::federation_context::FederationContext;
@@ -3135,6 +3167,7 @@ mod tests {
     // Test tenant-based event routing and filtering
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_multitenant_channel_routing() {
         use crate::subscriptions::tenant_context::TenantContext;
@@ -3162,6 +3195,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_multitenant_event_filtering() {
         use crate::subscriptions::tenant_context::TenantContext;
@@ -3199,6 +3233,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_multitenant_cross_tenant_rejection() {
         use crate::subscriptions::tenant_context::TenantContext;
@@ -3224,6 +3259,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_multitenant_wildcard_subscriptions() {
         use crate::subscriptions::tenant_context::TenantContext;
@@ -3252,6 +3288,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_multitenant_tenant_id_extraction() {
         use crate::subscriptions::tenant_context::TenantContext;
@@ -3298,6 +3335,7 @@ mod tests {
     // Test subscription variable validation against authenticated context
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_scope_user_id_mismatch_rejected() {
         use crate::subscriptions::scope_validator::ScopeValidator;
@@ -3326,6 +3364,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_scope_tenant_id_mismatch_rejected() {
         use crate::subscriptions::scope_validator::ScopeValidator;
@@ -3354,6 +3393,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_scope_variable_extraction() {
         use crate::subscriptions::scope_validator::{ScopeLevel, ScopeValidator};
@@ -3401,6 +3441,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_scope_wildcard_allowed() {
         use crate::subscriptions::scope_validator::ScopeValidator;
@@ -3428,6 +3469,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_scope_explicit_scope_validated() {
         use crate::subscriptions::scope_validator::ScopeValidator;
@@ -3473,6 +3515,7 @@ mod tests {
     // Test field-level access control integration
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_rbac_field_permission_check() {
         use crate::subscriptions::rbac_integration::RBACContext;
@@ -3505,6 +3548,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_rbac_missing_permission_rejected() {
         use crate::subscriptions::rbac_integration::RBACContext;
@@ -3528,6 +3572,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_rbac_cache_performance() {
         use crate::subscriptions::rbac_integration::RBACContext;
@@ -3561,6 +3606,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_rbac_audit_logging() {
         use crate::subscriptions::rbac_integration::RBACContext;
@@ -3591,6 +3637,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_rbac_multiple_fields_partial_access() {
         use crate::subscriptions::rbac_integration::RBACContext;
@@ -4553,6 +4600,7 @@ mod tests {
     }
 
     #[tokio::test]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_perf_concurrent_filtering_scale() {
         println!("\n=== test_perf_concurrent_filtering_scale ===");
@@ -4656,6 +4704,7 @@ mod tests {
     }
 
     #[tokio::test]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     async fn test_perf_rejection_categorization_cost() {
         println!("\n=== test_perf_rejection_categorization_cost ===");

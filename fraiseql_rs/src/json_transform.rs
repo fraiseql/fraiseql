@@ -718,6 +718,7 @@ fn transform_nested_field_with_aliases(
 }
 
 #[cfg(test)]
+// Safe: validated by prior condition or test-only code
 #[allow(clippy::unwrap_used)] // Tests can use unwrap for simplicity
 mod tests {
     use super::*;

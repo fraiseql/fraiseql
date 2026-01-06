@@ -27,6 +27,7 @@ impl PyPermissionResolver {
     ///
     /// Returns a Python error if the database pool is not initialized.
     #[new]
+    // PyO3 requires owned values for FFI boundary
     #[allow(clippy::needless_pass_by_value)] // PyO3 requires Py<T> to be passed by value
     pub fn new(pool: Py<crate::db::pool::DatabasePool>, cache_capacity: usize) -> PyResult<Self> {
         Python::with_gil(|py| {
@@ -120,6 +121,7 @@ impl PyPermissionResolver {
 #[derive(Debug)]
 #[pyclass]
 pub struct PyFieldAuthChecker {
+    // PyO3 FFI fields accessed from Python, not visible to Rust
     #[allow(dead_code)]
     checker: super::field_auth::FieldAuthChecker,
 }
@@ -191,6 +193,7 @@ impl PyRowConstraintResolver {
     ///
     /// Returns a Python error if the database pool is not initialized.
     #[new]
+    // PyO3 requires owned values for FFI boundary
     #[allow(clippy::needless_pass_by_value)] // PyO3 requires Py<T> to be passed by value
     pub fn new(pool: Py<crate::db::pool::DatabasePool>, cache_capacity: usize) -> PyResult<Self> {
         Python::with_gil(|py| {

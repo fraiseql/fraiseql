@@ -64,6 +64,7 @@ impl PyIpFilter {
     ///
     /// Returns `PyErr` if IP addresses are invalid
     #[new]
+    // PyO3 requires owned values for FFI boundary
     #[allow(clippy::needless_pass_by_value)] // PyO3 requires owned Vec
     fn new(allowlist: Vec<String>, blocklist: Vec<String>) -> PyResult<Self> {
         let filter = IpFilter::new(&allowlist, &blocklist)
@@ -132,6 +133,7 @@ impl PyAuditLogger {
     ///
     /// Returns `PyErr` if variables JSON is invalid or database logging fails
     #[allow(clippy::too_many_arguments)]
+    // PyO3 requires owned values for FFI boundary
     #[allow(clippy::needless_pass_by_value)] // PyO3 requires owned String
     fn log<'py>(
         &self,

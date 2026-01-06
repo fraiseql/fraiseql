@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 
 /// Parsed GraphQL query in Rust.
 #[pyclass]
+// PyO3 FFI requires unsafe deserialization
 #[allow(clippy::unsafe_derive_deserialize)] // PyO3 generates unsafe methods for FFI
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ParsedQuery {

@@ -27,6 +27,7 @@ use uuid::Uuid;
 ///
 /// This context is created when the request arrives and updated when the response is sent.
 #[derive(Debug, Clone)]
+// Non-standard identifier formatting
 #[allow(clippy::doc_markdown)]
 pub struct OperationMetricsContext {
     /// Unique operation instance ID

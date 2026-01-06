@@ -165,6 +165,11 @@ impl ConstraintCache {
     }
 
     /// Get constraint from cache if available and not expired
+    ///
+    /// # Note on Return Type
+    /// Returns `Option<Option<RowConstraint>>` where the outer Option represents
+    /// cache hit/miss and the inner Option represents whether a constraint exists.
+    // Caching returns Option<Option<T>>: Some=found, None=not cached
     #[allow(clippy::option_option)]
     fn get(
         &self,

@@ -150,6 +150,7 @@ mod tests {
     }
 
     #[test]
+    // Test assertions for metrics with acceptable tolerance
     #[allow(clippy::float_cmp)]
     fn test_success_rates() {
         let metrics = PoolMetrics::new();
@@ -164,6 +165,7 @@ mod tests {
     }
 
     #[test]
+    // Test assertions for metrics with acceptable tolerance
     #[allow(clippy::float_cmp)]
     fn test_success_rate_no_queries() {
         let metrics = PoolMetrics::new();

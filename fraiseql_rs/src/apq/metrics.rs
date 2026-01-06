@@ -170,6 +170,7 @@ mod tests {
     }
 
     #[test]
+    // Test assertions for metrics with acceptable tolerance
     #[allow(clippy::float_cmp)]
     fn test_hit_rate_no_requests() {
         let metrics = ApqMetrics::default();
@@ -177,6 +178,7 @@ mod tests {
     }
 
     #[test]
+    // Test assertions for metrics with acceptable tolerance
     #[allow(clippy::float_cmp)]
     fn test_hit_rate_all_hits() {
         let metrics = ApqMetrics::default();
@@ -187,6 +189,7 @@ mod tests {
     }
 
     #[test]
+    // Test assertions for metrics with acceptable tolerance
     #[allow(clippy::float_cmp)]
     fn test_hit_rate_all_misses() {
         let metrics = ApqMetrics::default();

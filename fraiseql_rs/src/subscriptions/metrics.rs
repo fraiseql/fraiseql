@@ -283,6 +283,7 @@ impl SubscriptionMetrics {
 }
 
 impl Default for SubscriptionMetrics {
+    // Placeholder for future enhancement
     #[allow(clippy::unimplemented)]
     fn default() -> Self {
         // This won't be called in practice, but needed for trait completeness

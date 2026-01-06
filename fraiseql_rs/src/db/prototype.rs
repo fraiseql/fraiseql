@@ -188,6 +188,7 @@ impl PrototypePool {
                     } else {
                         // Fallback: Build JSON object from all columns
                         let mut map = serde_json::Map::new();
+                        // Complex transformation requires nesting
                         #[allow(clippy::excessive_nesting)]
                         for (idx, column) in row.columns().iter().enumerate() {
                             let key = column.name().to_string();

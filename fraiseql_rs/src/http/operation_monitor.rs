@@ -41,6 +41,7 @@ impl OperationMonitorConfig {
 
     /// Set slow query threshold
     #[must_use]
+    // Builder methods with `mut self` cannot be const
     #[allow(clippy::missing_const_for_fn)]
     pub fn with_query_threshold(mut self, threshold_ms: f64) -> Self {
         self.slow_query_threshold_ms = threshold_ms;
@@ -49,6 +50,7 @@ impl OperationMonitorConfig {
 
     /// Set slow mutation threshold
     #[must_use]
+    // Builder methods with `mut self` cannot be const
     #[allow(clippy::missing_const_for_fn)]
     pub fn with_mutation_threshold(mut self, threshold_ms: f64) -> Self {
         self.slow_mutation_threshold_ms = threshold_ms;
@@ -57,6 +59,7 @@ impl OperationMonitorConfig {
 
     /// Set slow subscription threshold
     #[must_use]
+    // Builder methods with `mut self` cannot be const
     #[allow(clippy::missing_const_for_fn)]
     pub fn with_subscription_threshold(mut self, threshold_ms: f64) -> Self {
         self.slow_subscription_threshold_ms = threshold_ms;
@@ -65,6 +68,7 @@ impl OperationMonitorConfig {
 
     /// Set maximum recent operations capacity
     #[must_use]
+    // Builder methods with `mut self` cannot be const
     #[allow(clippy::missing_const_for_fn)]
     pub fn with_max_recent_operations(mut self, max: usize) -> Self {
         self.max_recent_operations = max;
@@ -73,6 +77,7 @@ impl OperationMonitorConfig {
 
     /// Set sampling rate
     #[must_use]
+    // Builder methods with `mut self` cannot be const
     #[allow(clippy::missing_const_for_fn)]
     pub fn with_sampling_rate(mut self, rate: f64) -> Self {
         self.sampling_rate = rate.clamp(0.0, 1.0);

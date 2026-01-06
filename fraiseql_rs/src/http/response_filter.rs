@@ -211,6 +211,7 @@ fn parse_field(
         .peek()
         .is_some_and(|&c| c.is_alphanumeric() || c == '_')
     {
+        // Safe: validated by prior condition or test-only code
         #[allow(clippy::unwrap_used)]
         name.push(chars.next().unwrap());
     }
@@ -227,6 +228,7 @@ fn parse_field(
             .peek()
             .is_some_and(|&c| c.is_alphanumeric() || c == '_')
         {
+            // Safe: validated by prior condition or test-only code
             #[allow(clippy::unwrap_used)]
             alias_name.push(chars.next().unwrap());
         }
@@ -323,6 +325,7 @@ fn parse_selection_set_until_close(
                         .peek()
                         .is_some_and(|&c| c.is_alphanumeric() || c == '_')
                     {
+                        // Safe: validated by prior condition or test-only code
                         #[allow(clippy::unwrap_used)]
                         word.push(chars.next().unwrap());
                     }

@@ -356,6 +356,7 @@ mod integration_tests {
     // =========================================================================
 
     #[test]
+    // Complex transformation requires nesting
     #[allow(clippy::excessive_nesting)]
     fn test_concurrent_metrics_recording() {
         let metrics = std::sync::Arc::new(crate::http::HttpMetrics::new());
