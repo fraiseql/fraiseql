@@ -41,6 +41,7 @@ impl OperationMonitorConfig {
 
     /// Set slow query threshold
     #[must_use]
+    #[allow(clippy::missing_const_for_fn)]
     pub fn with_query_threshold(mut self, threshold_ms: f64) -> Self {
         self.slow_query_threshold_ms = threshold_ms;
         self
@@ -48,6 +49,7 @@ impl OperationMonitorConfig {
 
     /// Set slow mutation threshold
     #[must_use]
+    #[allow(clippy::missing_const_for_fn)]
     pub fn with_mutation_threshold(mut self, threshold_ms: f64) -> Self {
         self.slow_mutation_threshold_ms = threshold_ms;
         self
@@ -55,6 +57,7 @@ impl OperationMonitorConfig {
 
     /// Set slow subscription threshold
     #[must_use]
+    #[allow(clippy::missing_const_for_fn)]
     pub fn with_subscription_threshold(mut self, threshold_ms: f64) -> Self {
         self.slow_subscription_threshold_ms = threshold_ms;
         self
@@ -62,6 +65,7 @@ impl OperationMonitorConfig {
 
     /// Set maximum recent operations capacity
     #[must_use]
+    #[allow(clippy::missing_const_for_fn)]
     pub fn with_max_recent_operations(mut self, max: usize) -> Self {
         self.max_recent_operations = max;
         self
@@ -69,6 +73,7 @@ impl OperationMonitorConfig {
 
     /// Set sampling rate
     #[must_use]
+    #[allow(clippy::missing_const_for_fn)]
     pub fn with_sampling_rate(mut self, rate: f64) -> Self {
         self.sampling_rate = rate.clamp(0.0, 1.0);
         self
@@ -262,9 +267,10 @@ impl GraphQLOperationMonitor {
         self.storage.lock().map_or_else(
             |_| Vec::new(),
             |storage| {
-                let slow_ops = operation_type
-                    .map(|op_type| storage.get_slow_operations_by_type(op_type))
-                    .unwrap_or_else(|| storage.get_slow_operations());
+                let slow_ops = operation_type.map_or_else(
+                    || storage.get_slow_operations(),
+                    |op_type| storage.get_slow_operations_by_type(op_type),
+                );
 
                 if let Some(lim) = limit {
                     slow_ops.into_iter().rev().take(lim).collect()
