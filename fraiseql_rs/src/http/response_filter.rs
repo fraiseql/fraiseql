@@ -33,11 +33,13 @@ pub struct FieldSelection {
 
 impl FieldSelection {
     /// Get the response key (alias or field name)
+    #[must_use]
     pub fn response_key(&self) -> &str {
         self.alias.as_deref().unwrap_or(&self.name)
     }
 
     /// Get the field name
+    #[must_use]
     pub fn field_name(&self) -> &str {
         &self.name
     }
@@ -60,6 +62,7 @@ impl FieldSelection {
 /// # Returns
 ///
 /// Vector of top-level field selections, or empty vec if parsing fails
+#[must_use]
 pub fn extract_selections(query: &str, _operation_name: Option<&str>) -> Vec<FieldSelection> {
     // Simple recursive descent parser for GraphQL selection sets
     // This is a lightweight parser - for complex queries with fragments,
@@ -80,6 +83,7 @@ pub fn extract_selections(query: &str, _operation_name: Option<&str>) -> Vec<Fie
 /// # Returns
 ///
 /// Filtered response object with only requested fields
+#[must_use]
 pub fn filter_response_by_selection(response_data: &Value, selections: &[FieldSelection]) -> Value {
     if selections.is_empty() {
         // No selections specified, return empty object (safest approach)
@@ -207,6 +211,7 @@ fn parse_field(
         .peek()
         .is_some_and(|&c| c.is_alphanumeric() || c == '_')
     {
+        #[allow(clippy::unwrap_used)]
         name.push(chars.next().unwrap());
     }
 
@@ -222,6 +227,7 @@ fn parse_field(
             .peek()
             .is_some_and(|&c| c.is_alphanumeric() || c == '_')
         {
+            #[allow(clippy::unwrap_used)]
             alias_name.push(chars.next().unwrap());
         }
         skip_whitespace(chars);
@@ -317,6 +323,7 @@ fn parse_selection_set_until_close(
                         .peek()
                         .is_some_and(|&c| c.is_alphanumeric() || c == '_')
                     {
+                        #[allow(clippy::unwrap_used)]
                         word.push(chars.next().unwrap());
                     }
 
