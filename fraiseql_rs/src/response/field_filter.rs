@@ -34,8 +34,8 @@ pub enum FilterError {
 impl fmt::Display for FilterError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            FilterError::QueryParseError(msg) => write!(f, "Query parse error: {}", msg),
-            FilterError::InvalidConfiguration(msg) => write!(f, "Invalid configuration: {}", msg),
+            Self::QueryParseError(msg) => write!(f, "Query parse error: {msg}"),
+            Self::InvalidConfiguration(msg) => write!(f, "Invalid configuration: {msg}"),
         }
     }
 }
@@ -55,11 +55,13 @@ pub struct FieldSelection {
 
 impl FieldSelection {
     /// Get the response key (alias or field name)
+    #[must_use]
     pub fn response_key(&self) -> &str {
         self.alias.as_deref().unwrap_or(&self.name)
     }
 
     /// Get the field name
+    #[must_use]
     pub fn field_name(&self) -> &str {
         &self.name
     }
@@ -80,6 +82,10 @@ impl FieldFilter {
     /// # Returns
     ///
     /// Filtered response object with only requested fields, or error if parsing fails
+    ///
+    /// # Errors
+    ///
+    /// Returns `FilterError::QueryParseError` if the query cannot be parsed.
     pub fn filter_response(response_data: &Value, query: &str) -> Result<Value, FilterError> {
         let selections = extract_selections(query)?;
         Ok(Self::filter_by_selections(response_data, &selections))
@@ -95,6 +101,7 @@ impl FieldFilter {
     /// # Returns
     ///
     /// Filtered response object with only requested fields
+    #[must_use]
     pub fn filter_by_selections(response_data: &Value, selections: &[FieldSelection]) -> Value {
         if selections.is_empty() {
             // No selections specified, return empty object (safest approach)
@@ -149,6 +156,7 @@ impl FieldFilter {
     /// # Returns
     ///
     /// True if filtering would result in empty response
+    #[must_use]
     pub fn is_empty_after_filtering(response_data: &Value, selections: &[FieldSelection]) -> bool {
         let filtered = Self::filter_by_selections(response_data, selections);
         match filtered {
@@ -241,6 +249,7 @@ fn parse_field(chars: &mut std::iter::Peekable<std::str::Chars>) -> Result<Field
         .peek()
         .is_some_and(|&c| c.is_alphanumeric() || c == '_')
     {
+        #[allow(clippy::unwrap_used)]
         name.push(chars.next().unwrap());
     }
 
@@ -256,6 +265,7 @@ fn parse_field(chars: &mut std::iter::Peekable<std::str::Chars>) -> Result<Field
             .peek()
             .is_some_and(|&c| c.is_alphanumeric() || c == '_')
         {
+            #[allow(clippy::unwrap_used)]
             alias_name.push(chars.next().unwrap());
         }
         skip_whitespace(chars);
@@ -351,6 +361,7 @@ fn parse_selection_set_until_close(
                         .peek()
                         .is_some_and(|&c| c.is_alphanumeric() || c == '_')
                     {
+                        #[allow(clippy::unwrap_used)]
                         word.push(chars.next().unwrap());
                     }
 
