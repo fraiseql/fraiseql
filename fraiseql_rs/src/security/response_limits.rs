@@ -46,18 +46,17 @@ pub enum SizeError {
 impl fmt::Display for SizeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            SizeError::TooLarge {
+            Self::TooLarge {
                 actual_size,
                 max_size,
             } => {
                 write!(
                     f,
-                    "Response size {} exceeds maximum {} bytes",
-                    actual_size, max_size
+                    "Response size {actual_size} exceeds maximum {max_size} bytes"
                 )
             }
-            SizeError::SerializationError(msg) => {
-                write!(f, "Failed to determine response size: {}", msg)
+            Self::SerializationError(msg) => {
+                write!(f, "Failed to determine response size: {msg}")
             }
         }
     }
@@ -73,11 +72,17 @@ pub struct ResponseLimiter {
 
 impl ResponseLimiter {
     /// Create a new response limiter
-    pub fn new() -> Self {
+    #[must_use]
+    pub const fn new() -> Self {
         Self {}
     }
 
     /// Check if response size is within limits for the profile
+    ///
+    /// # Errors
+    ///
+    /// Returns `SizeError::TooLarge` if the response exceeds the limit for the profile.
+    #[allow(clippy::missing_const_for_fn)]
     pub fn check_size(
         response_size_bytes: usize,
         profile: &SecurityProfile,
@@ -95,6 +100,8 @@ impl ResponseLimiter {
     }
 
     /// Estimate size before serialization based on field count
+    #[must_use]
+    #[allow(clippy::missing_const_for_fn)]
     pub fn estimate_size(field_count: usize, depth: usize) -> usize {
         // Rough estimate: ~200 bytes per field + depth overhead
         let base_size = field_count * 200;
@@ -103,11 +110,13 @@ impl ResponseLimiter {
     }
 
     /// Get the size limit for a profile
-    pub fn get_limit(profile: &SecurityProfile) -> usize {
+    #[must_use]
+    pub const fn get_limit(profile: &SecurityProfile) -> usize {
         profile.max_response_size_bytes()
     }
 
     /// Get size usage percentage
+    #[must_use]
     pub fn get_usage_percentage(actual_size: usize, profile: &SecurityProfile) -> f32 {
         let max = profile.max_response_size_bytes();
         if max == usize::MAX {
