@@ -181,7 +181,9 @@ class TestInputGenerator:
         assert annotations["name"] is str
         assert annotations["price"].__name__ == "Decimal"  # numeric -> Decimal
         assert annotations["in_stock"] is bool
-        assert str(annotations["tags"]) == "typing.List[str]"  # text[] -> List[str]
+        # text[] -> List[str] (supports both old typing.List[str] and modern list[str] styles)
+        tags_annotation = str(annotations["tags"])
+        assert tags_annotation in ("typing.List[str]", "list[str]")
 
     @pytest.mark.asyncio
     async def test_function_to_input_name_conversion(

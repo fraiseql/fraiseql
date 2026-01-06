@@ -20,6 +20,7 @@ from .optimization.decorators import dataloader_field
 from .subscriptions import subscription
 from .types import fraise_input, fraise_type
 from .types.common import MutationResultBase
+from .types.context import GraphQLContext, build_context
 from .types.definitions import UNSET
 from .types.enum import fraise_enum
 from .types.errors import Error
@@ -33,6 +34,7 @@ from .types.generic import (
 from .types.interface import fraise_interface
 from .types.scalars.date import DateField as Date
 from .types.scalars.email_address import EmailAddressField as EmailAddress
+from .types.scalars.id_scalar import IDField as ID  # noqa: N814
 from .types.scalars.json import JSONField as JSON  # noqa: N814
 
 # Core aliases (internal - not exported to prevent shadowing builtins)
@@ -127,6 +129,7 @@ def __getattr__(name: str):
 __all__ = [
     "ALWAYS_DATA_CONFIG",
     "DEFAULT_ERROR_CONFIG",
+    "ID",
     "JSON",
     "STRICT_STATUS_CONFIG",
     "UNSET",
@@ -141,11 +144,13 @@ __all__ = [
     "EmailAddress",
     "Error",
     "FraiseQLConfig",
+    "GraphQLContext",
     "MutationErrorConfig",
     "MutationResultBase",
     "PageInfo",
     "PaginatedResponse",
     "UserContext",
+    "build_context",
     "build_fraiseql_schema",
     "connection",
     "create_connection",

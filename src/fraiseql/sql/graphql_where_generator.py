@@ -606,21 +606,22 @@ def _create_custom_scalar_filter(scalar_type: GraphQLScalarType) -> type:
 
     # Create the filter class with standard operators
     # We use manual class creation since make_dataclass can't handle fraise_field
+    # Note: We use str for scalar type fields since custom scalars are serialized as strings
     class CustomScalarFilter:
         """Filter operations for custom scalar types."""
 
         # Equality and comparison operators
-        eq: scalar_type | None = None
-        ne: scalar_type | None = None
+        eq: str | None = None
+        ne: str | None = None
 
         # List membership operators (with GraphQL name mapping)
-        in_: list[scalar_type] | None = fraise_field(default=None, graphql_name="in")
-        not_in: list[scalar_type] | None = fraise_field(default=None, graphql_name="notIn")
+        in_: list[str] | None = fraise_field(default=None, graphql_name="in")
+        not_in: list[str] | None = fraise_field(default=None, graphql_name="notIn")
 
         # String pattern matching operators (may be useful for custom scalars)
-        contains: scalar_type | None = None
-        starts_with: scalar_type | None = fraise_field(default=None, graphql_name="startsWith")
-        ends_with: scalar_type | None = fraise_field(default=None, graphql_name="endsWith")
+        contains: str | None = None
+        starts_with: str | None = fraise_field(default=None, graphql_name="startsWith")
+        ends_with: str | None = fraise_field(default=None, graphql_name="endsWith")
 
     # Set the class name dynamically
     CustomScalarFilter.__name__ = filter_name
