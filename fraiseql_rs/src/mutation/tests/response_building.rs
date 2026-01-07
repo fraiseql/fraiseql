@@ -34,19 +34,18 @@ fn test_build_simple_format_response() {
         is_simple_format: true,
     };
 
-    let response = build_graphql_response(
-        &result,
-        "createUser",
-        "CreateUserSuccess",
-        "CreateUserError",
-        Some("user"),
-        Some("User"),
-        true,
-        None,
-        None,
-        None,
-    )
-    .unwrap();
+    let config = MutationConfig {
+        field_name: "createUser",
+        success_type: "CreateUserSuccess",
+        error_type: "CreateUserError",
+        entity_field_name: Some("user"),
+        entity_type: Some("User"),
+        cascade_selections: None,
+        auto_camel_case: true,
+        success_type_fields: None,
+        error_type_fields: None,
+    };
+    let response = build_graphql_response(&result, &config).unwrap();
 
     let data = &response["data"]["createUser"];
     assert_eq!(data["__typename"], "CreateUserSuccess");
@@ -69,19 +68,18 @@ fn test_build_simple_format_with_status_data_field() {
         is_simple_format: true,
     };
 
-    let response = build_graphql_response(
-        &result,
-        "createTask",
-        "CreateTaskSuccess",
-        "CreateTaskError",
-        Some("task"),
-        Some("Task"),
-        true,
-        None,
-        None,
-        None,
-    )
-    .unwrap();
+    let config = MutationConfig {
+        field_name: "createTask",
+        success_type: "CreateTaskSuccess",
+        error_type: "CreateTaskError",
+        entity_field_name: Some("task"),
+        entity_type: Some("Task"),
+        cascade_selections: None,
+        auto_camel_case: true,
+        success_type_fields: None,
+        error_type_fields: None,
+    };
+    let response = build_graphql_response(&result, &config).unwrap();
 
     let data = &response["data"]["createTask"];
     assert_eq!(data["task"]["statusData"], "pending");
@@ -104,19 +102,18 @@ fn test_build_simple_format_array_response() {
         is_simple_format: true,
     };
 
-    let response = build_graphql_response(
-        &result,
-        "createUsers",
-        "CreateUsersSuccess",
-        "CreateUsersError",
-        Some("users"),
-        Some("User"),
-        true,
-        None,
-        None,
-        None,
-    )
-    .unwrap();
+    let config = MutationConfig {
+        field_name: "createUsers",
+        success_type: "CreateUsersSuccess",
+        error_type: "CreateUsersError",
+        entity_field_name: Some("users"),
+        entity_type: Some("User"),
+        cascade_selections: None,
+        auto_camel_case: true,
+        success_type_fields: None,
+        error_type_fields: None,
+    };
+    let response = build_graphql_response(&result, &config).unwrap();
 
     let data = &response["data"]["createUsers"];
     assert_eq!(data["users"][0]["id"], "1");
@@ -148,19 +145,18 @@ fn test_build_simple_format_response_with_cascade() {
         is_simple_format: true,
     };
 
-    let response = build_graphql_response(
-        &result,
-        "updatePost",
-        "UpdatePostSuccess",
-        "UpdatePostError",
-        Some("post"),
-        Some("Post"),
-        true,
-        None,                         // success_type_fields
-        None,                         // error_type_fields
-        Some(r#"{"cascade": true}"#), // cascade_selections
-    )
-    .unwrap();
+    let config = MutationConfig {
+        field_name: "updatePost",
+        success_type: "UpdatePostSuccess",
+        error_type: "UpdatePostError",
+        entity_field_name: Some("post"),
+        entity_type: Some("Post"),
+        cascade_selections: Some(r#"{"cascade": true}"#),
+        auto_camel_case: true,
+        success_type_fields: None,
+        error_type_fields: None,
+    };
+    let response = build_graphql_response(&result, &config).unwrap();
 
     let data = &response["data"]["updatePost"];
     assert_eq!(data["post"]["id"], "post-123");
@@ -206,19 +202,18 @@ fn test_build_full_success_response() {
         is_simple_format: false,
     };
 
-    let response = build_graphql_response(
-        &result,
-        "createUser",
-        "CreateUserSuccess",
-        "CreateUserError",
-        Some("user"),
-        Some("User"),
-        true,
-        None,
-        None,
-        None,
-    )
-    .unwrap();
+    let config = MutationConfig {
+        field_name: "createUser",
+        success_type: "CreateUserSuccess",
+        error_type: "CreateUserError",
+        entity_field_name: Some("user"),
+        entity_type: Some("User"),
+        cascade_selections: None,
+        auto_camel_case: true,
+        success_type_fields: None,
+        error_type_fields: None,
+    };
+    let response = build_graphql_response(&result, &config).unwrap();
 
     let data = &response["data"]["createUser"];
     assert_eq!(data["__typename"], "CreateUserSuccess");
@@ -241,19 +236,18 @@ fn test_build_full_error_response() {
         is_simple_format: false,
     };
 
-    let response = build_graphql_response(
-        &result,
-        "createUser",
-        "CreateUserSuccess",
-        "CreateUserError",
-        None,
-        None,
-        true,
-        None,
-        None,
-        None,
-    )
-    .unwrap();
+    let config = MutationConfig {
+        field_name: "createUser",
+        success_type: "CreateUserSuccess",
+        error_type: "CreateUserError",
+        entity_field_name: None,
+        entity_type: None,
+        cascade_selections: None,
+        auto_camel_case: true,
+        success_type_fields: None,
+        error_type_fields: None,
+    };
+    let response = build_graphql_response(&result, &config).unwrap();
 
     let data = &response["data"]["createUser"];
     assert_eq!(data["__typename"], "CreateUserError");
@@ -604,19 +598,18 @@ fn test_noop_returns_error_type_v1_8() {
         is_simple_format: false,
     };
 
-    let response = build_graphql_response(
-        &result,
-        "createMachine",
-        "CreateMachineSuccess",
-        "CreateMachineError",
-        Some("machine"),
-        Some("Machine"),
-        true,
-        None,
-        None,
-        Some(r#"{"status": true}"#),
-    )
-    .unwrap();
+    let config = MutationConfig {
+        field_name: "createMachine",
+        success_type: "CreateMachineSuccess",
+        error_type: "CreateMachineError",
+        entity_field_name: Some("machine"),
+        entity_type: Some("Machine"),
+        cascade_selections: Some(r#"{"status": true}"#),
+        auto_camel_case: true,
+        success_type_fields: None,
+        error_type_fields: None,
+    };
+    let response = build_graphql_response(&result, &config).unwrap();
 
     let data = &response["data"]["createMachine"];
     assert_eq!(data["__typename"], "CreateMachineError");
@@ -640,19 +633,18 @@ fn test_not_found_returns_error_type_with_404() {
         is_simple_format: false,
     };
 
-    let response = build_graphql_response(
-        &result,
-        "deleteMachine",
-        "DeleteMachineSuccess",
-        "DeleteMachineError",
-        None,
-        None,
-        true,
-        None,
-        None,
-        None,
-    )
-    .unwrap();
+    let config = MutationConfig {
+        field_name: "deleteMachine",
+        success_type: "DeleteMachineSuccess",
+        error_type: "DeleteMachineError",
+        entity_field_name: None,
+        entity_type: None,
+        cascade_selections: None,
+        auto_camel_case: true,
+        success_type_fields: None,
+        error_type_fields: None,
+    };
+    let response = build_graphql_response(&result, &config).unwrap();
     let data = &response["data"]["deleteMachine"];
 
     assert_eq!(data["__typename"], "DeleteMachineError");
@@ -674,19 +666,18 @@ fn test_conflict_returns_error_type_with_409() {
         is_simple_format: false,
     };
 
-    let response = build_graphql_response(
-        &result,
-        "createMachine",
-        "CreateMachineSuccess",
-        "CreateMachineError",
-        None,
-        None,
-        true,
-        None,
-        None,
-        None,
-    )
-    .unwrap();
+    let config = MutationConfig {
+        field_name: "createMachine",
+        success_type: "CreateMachineSuccess",
+        error_type: "CreateMachineError",
+        entity_field_name: None,
+        entity_type: None,
+        cascade_selections: None,
+        auto_camel_case: true,
+        success_type_fields: None,
+        error_type_fields: None,
+    };
+    let response = build_graphql_response(&result, &config).unwrap();
     let data = &response["data"]["createMachine"];
 
     assert_eq!(data["__typename"], "CreateMachineError");
@@ -709,18 +700,18 @@ fn test_success_with_null_entity_returns_error() {
         is_simple_format: false,
     };
 
-    let response = build_graphql_response(
-        &result,
-        "createMachine",
-        "CreateMachineSuccess",
-        "CreateMachineError",
-        Some("machine"),
-        None,
-        true,
-        None,
-        None,
-        None,
-    );
+    let config = MutationConfig {
+        field_name: "createMachine",
+        success_type: "CreateMachineSuccess",
+        error_type: "CreateMachineError",
+        entity_field_name: Some("machine"),
+        entity_type: None,
+        cascade_selections: None,
+        auto_camel_case: true,
+        success_type_fields: None,
+        error_type_fields: None,
+    };
+    let response = build_graphql_response(&result, &config);
     assert!(response.is_err());
     let error_msg = response.unwrap_err();
     assert!(error_msg.contains("Success type"));
@@ -741,19 +732,18 @@ fn test_success_always_has_entity() {
         is_simple_format: false,
     };
 
-    let response = build_graphql_response(
-        &result,
-        "createMachine",
-        "CreateMachineSuccess",
-        "CreateMachineError",
-        Some("machine"),
-        None,
-        true,
-        None,
-        None,
-        None,
-    )
-    .unwrap();
+    let config = MutationConfig {
+        field_name: "createMachine",
+        success_type: "CreateMachineSuccess",
+        error_type: "CreateMachineError",
+        entity_field_name: Some("machine"),
+        entity_type: None,
+        cascade_selections: None,
+        auto_camel_case: true,
+        success_type_fields: None,
+        error_type_fields: None,
+    };
+    let response = build_graphql_response(&result, &config).unwrap();
     let data = &response["data"]["createMachine"];
 
     assert_eq!(data["__typename"], "CreateMachineSuccess");
@@ -775,19 +765,18 @@ fn test_error_response_includes_cascade() {
         is_simple_format: false,
     };
 
-    let response = build_graphql_response(
-        &result,
-        "createMachine",
-        "CreateMachineSuccess",
-        "CreateMachineError",
-        None,
-        None,
-        true,
-        None,
-        None,
-        Some(r#"{"status": true, "reason": true}"#),
-    )
-    .unwrap();
+    let config = MutationConfig {
+        field_name: "createMachine",
+        success_type: "CreateMachineSuccess",
+        error_type: "CreateMachineError",
+        entity_field_name: None,
+        entity_type: None,
+        cascade_selections: Some(r#"{"status": true, "reason": true}"#),
+        auto_camel_case: true,
+        success_type_fields: None,
+        error_type_fields: None,
+    };
+    let response = build_graphql_response(&result, &config).unwrap();
     let data = &response["data"]["createMachine"];
 
     assert_eq!(data["__typename"], "CreateMachineError");
@@ -810,19 +799,18 @@ fn test_cascade_never_nested_in_entity() {
         "cascade": {"updated": []}
     }"#;
 
-    let result = build_mutation_response(
-        json,
-        "createPost",
-        "CreatePostSuccess",
-        "CreatePostError",
-        Some("post"),
-        Some("Post"),
-        None,
-        true,
-        None,
-        None,
-    )
-    .unwrap();
+    let config = MutationConfig {
+        field_name: "createPost",
+        success_type: "CreatePostSuccess",
+        error_type: "CreatePostError",
+        entity_field_name: Some("post"),
+        entity_type: Some("Post"),
+        cascade_selections: None,
+        auto_camel_case: true,
+        success_type_fields: None,
+        error_type_fields: None,
+    };
+    let result = build_mutation_response(json, &config).unwrap();
 
     let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
     let success = &response["data"]["createPost"];
@@ -887,19 +875,18 @@ fn test_cascade_never_copied_from_entity_wrapper() {
         }
     }"#;
 
-    let result = build_mutation_response(
-        json,
-        "createAllocation",
-        "CreateAllocationSuccess",
-        "CreateAllocationError",
-        Some("allocation"),
-        Some("Allocation"),
-        None,
-        true,
-        None,
-        None,
-    )
-    .unwrap();
+    let config = MutationConfig {
+        field_name: "createAllocation",
+        success_type: "CreateAllocationSuccess",
+        error_type: "CreateAllocationError",
+        entity_field_name: Some("allocation"),
+        entity_type: Some("Allocation"),
+        cascade_selections: None,
+        auto_camel_case: true,
+        success_type_fields: None,
+        error_type_fields: None,
+    };
+    let result = build_mutation_response(json, &config).unwrap();
 
     let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
     let success = &response["data"]["createAllocation"];
@@ -938,19 +925,18 @@ fn test_cascade_never_copied_from_entity_wrapper() {
 #[test]
 fn test_typename_always_present() {
     let json = r#"{"id": "123"}"#;
-    let result = build_mutation_response(
-        json,
-        "test",
-        "TestSuccess",
-        "TestError",
-        Some("entity"),
-        Some("Entity"),
-        None,
-        true,
-        None,
-        None,
-    )
-    .unwrap();
+    let config = MutationConfig {
+        field_name: "test",
+        success_type: "TestSuccess",
+        error_type: "TestError",
+        entity_field_name: Some("entity"),
+        entity_type: Some("Entity"),
+        cascade_selections: None,
+        auto_camel_case: true,
+        success_type_fields: None,
+        error_type_fields: None,
+    };
+    let result = build_mutation_response(json, &config).unwrap();
 
     let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
 
@@ -968,19 +954,18 @@ fn test_typename_matches_entity_type() {
         "entity": {"id": "123"}
     }"#;
 
-    let result = build_mutation_response(
-        json,
-        "test",
-        "TestSuccess",
-        "TestError",
-        Some("entity"),
-        Some("CustomType"),
-        None,
-        true,
-        None,
-        None,
-    )
-    .unwrap();
+    let config = MutationConfig {
+        field_name: "test",
+        success_type: "TestSuccess",
+        error_type: "TestError",
+        entity_field_name: Some("entity"),
+        entity_type: Some("CustomType"),
+        cascade_selections: None,
+        auto_camel_case: true,
+        success_type_fields: None,
+        error_type_fields: None,
+    };
+    let result = build_mutation_response(json, &config).unwrap();
 
     let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
 
@@ -999,19 +984,18 @@ fn test_typename_matches_entity_type() {
 fn test_ambiguous_status_treated_as_simple() {
     // Has "status" field but value is not a valid mutation status
     let json = r#"{"status": "active", "name": "User"}"#;
-    let result = build_mutation_response(
-        json,
-        "test",
-        "TestSuccess",
-        "TestError",
-        Some("entity"),
-        Some("Entity"),
-        None,
-        true,
-        None,
-        None,
-    )
-    .unwrap();
+    let config = MutationConfig {
+        field_name: "test",
+        success_type: "TestSuccess",
+        error_type: "TestError",
+        entity_field_name: Some("entity"),
+        entity_type: Some("Entity"),
+        cascade_selections: None,
+        auto_camel_case: true,
+        success_type_fields: None,
+        error_type_fields: None,
+    };
+    let result = build_mutation_response(json, &config).unwrap();
 
     let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
 
@@ -1032,19 +1016,18 @@ fn test_null_entity() {
         "entity": null
     }"#;
 
-    let result = build_mutation_response(
-        json,
-        "test",
-        "TestSuccess",
-        "TestError",
-        None,
-        None,
-        None,
-        true,
-        None,
-        None,
-    )
-    .unwrap();
+    let config = MutationConfig {
+        field_name: "test",
+        success_type: "TestSuccess",
+        error_type: "TestError",
+        entity_field_name: None,
+        entity_type: None,
+        cascade_selections: None,
+        auto_camel_case: true,
+        success_type_fields: None,
+        error_type_fields: None,
+    };
+    let result = build_mutation_response(json, &config).unwrap();
 
     let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
 
@@ -1064,19 +1047,18 @@ fn test_array_of_entities() {
         {"id": "2", "name": "Bob"}
     ]"#;
 
-    let result = build_mutation_response(
-        json,
-        "listUsers",
-        "ListUsersSuccess",
-        "ListUsersError",
-        Some("users"),
-        Some("User"),
-        None,
-        true,
-        None,
-        None,
-    )
-    .unwrap();
+    let config = MutationConfig {
+        field_name: "listUsers",
+        success_type: "ListUsersSuccess",
+        error_type: "ListUsersError",
+        entity_field_name: Some("users"),
+        entity_type: Some("User"),
+        cascade_selections: None,
+        auto_camel_case: true,
+        success_type_fields: None,
+        error_type_fields: None,
+    };
+    let result = build_mutation_response(json, &config).unwrap();
 
     let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
 
@@ -1103,19 +1085,18 @@ fn test_deeply_nested_objects() {
         }
     }"#;
 
-    let result = build_mutation_response(
-        json,
-        "test",
-        "TestSuccess",
-        "TestError",
-        Some("entity"),
-        Some("Entity"),
-        None,
-        true,
-        None,
-        None,
-    )
-    .unwrap();
+    let config = MutationConfig {
+        field_name: "test",
+        success_type: "TestSuccess",
+        error_type: "TestError",
+        entity_field_name: Some("entity"),
+        entity_type: Some("Entity"),
+        cascade_selections: None,
+        auto_camel_case: true,
+        success_type_fields: None,
+        error_type_fields: None,
+    };
+    let result = build_mutation_response(json, &config).unwrap();
 
     let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
 
@@ -1138,19 +1119,18 @@ fn test_special_characters_in_fields() {
         "field_with_quotes": "He said \"hello\""
     }"#;
 
-    let result = build_mutation_response(
-        json,
-        "test",
-        "TestSuccess",
-        "TestError",
-        Some("entity"),
-        Some("Entity"),
-        None,
-        false,
-        None, // No camelCase
-        None,
-    )
-    .unwrap();
+    let config = MutationConfig {
+        field_name: "test",
+        success_type: "TestSuccess",
+        error_type: "TestError",
+        entity_field_name: Some("entity"),
+        entity_type: Some("Entity"),
+        cascade_selections: None,
+        auto_camel_case: false,
+        success_type_fields: None,
+        error_type_fields: None,
+    };
+    let result = build_mutation_response(json, &config).unwrap();
 
     let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
 
@@ -1189,19 +1169,18 @@ fn test_success_response_field_filtering_all_fields() {
         "user".to_string(),
     ];
 
-    let response = build_graphql_response(
-        &result,
-        "createUser",
-        "CreateUserSuccess",
-        "CreateUserError",
-        Some("user"),
-        Some("User"),
-        true,
-        Some(&selected_fields),
-        None,
-        None,
-    )
-    .unwrap();
+    let config = MutationConfig {
+        field_name: "createUser",
+        success_type: "CreateUserSuccess",
+        error_type: "CreateUserError",
+        entity_field_name: Some("user"),
+        entity_type: Some("User"),
+        cascade_selections: None,
+        auto_camel_case: true,
+        success_type_fields: Some(&selected_fields),
+        error_type_fields: None,
+    };
+    let response = build_graphql_response(&result, &config).unwrap();
 
     let data = &response["data"]["createUser"];
     assert_eq!(data["__typename"], "CreateUserSuccess");
@@ -1230,19 +1209,18 @@ fn test_success_response_field_filtering_partial_fields() {
     // Request only status and user
     let selected_fields = vec!["status".to_string(), "user".to_string()];
 
-    let response = build_graphql_response(
-        &result,
-        "createUser",
-        "CreateUserSuccess",
-        "CreateUserError",
-        Some("user"),
-        Some("User"),
-        true,
-        Some(&selected_fields),
-        None,
-        None,
-    )
-    .unwrap();
+    let config = MutationConfig {
+        field_name: "createUser",
+        success_type: "CreateUserSuccess",
+        error_type: "CreateUserError",
+        entity_field_name: Some("user"),
+        entity_type: Some("User"),
+        cascade_selections: None,
+        auto_camel_case: true,
+        success_type_fields: Some(&selected_fields),
+        error_type_fields: None,
+    };
+    let response = build_graphql_response(&result, &config).unwrap();
 
     let data = &response["data"]["createUser"];
     assert_eq!(data["__typename"], "CreateUserSuccess");
@@ -1271,19 +1249,18 @@ fn test_success_response_field_filtering_no_filtering() {
     };
 
     // No field filtering (None)
-    let response = build_graphql_response(
-        &result,
-        "createUser",
-        "CreateUserSuccess",
-        "CreateUserError",
-        Some("user"),
-        Some("User"),
-        true,
-        None, // No filtering
-        None,
-        None,
-    )
-    .unwrap();
+    let config = MutationConfig {
+        field_name: "createUser",
+        success_type: "CreateUserSuccess",
+        error_type: "CreateUserError",
+        entity_field_name: Some("user"),
+        entity_type: Some("User"),
+        cascade_selections: None,
+        auto_camel_case: true,
+        success_type_fields: None,
+        error_type_fields: None,
+    };
+    let response = build_graphql_response(&result, &config).unwrap();
 
     let data = &response["data"]["createUser"];
     assert_eq!(data["__typename"], "CreateUserSuccess");
@@ -1313,19 +1290,18 @@ fn test_error_response_field_filtering() {
     // Request only status and message
     let selected_fields = vec!["status".to_string(), "message".to_string()];
 
-    let response = build_graphql_response(
-        &result,
-        "createUser",
-        "CreateUserSuccess",
-        "CreateUserError",
-        None,
-        None,
-        true,
-        Some(&selected_fields),
-        None,
-        None,
-    )
-    .unwrap();
+    let config = MutationConfig {
+        field_name: "createUser",
+        success_type: "CreateUserSuccess",
+        error_type: "CreateUserError",
+        entity_field_name: None,
+        entity_type: None,
+        cascade_selections: None,
+        auto_camel_case: true,
+        success_type_fields: None,
+        error_type_fields: Some(&selected_fields),
+    };
+    let response = build_graphql_response(&result, &config).unwrap();
 
     let data = &response["data"]["createUser"];
     assert_eq!(data["__typename"], "CreateUserError");

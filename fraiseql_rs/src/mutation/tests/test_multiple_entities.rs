@@ -35,19 +35,18 @@ fn test_success_with_multiple_entities() {
         }
     }"#;
 
-    let result = build_mutation_response(
-        json,
-        "updateMachine",
-        "UpdateMachineSuccess",
-        "UpdateMachineError",
-        Some("machine"), // Primary entity field
-        Some("Machine"),
-        None,
-        true,
-        None,
-        None,
-    )
-    .unwrap();
+    let config = MutationConfig {
+        field_name: "updateMachine",
+        success_type: "UpdateMachineSuccess",
+        error_type: "UpdateMachineError",
+        entity_field_name: Some("machine"),
+        entity_type: Some("Machine"),
+        cascade_selections: None,
+        auto_camel_case: true,
+        success_type_fields: None,
+        error_type_fields: None,
+    };
+    let result = build_mutation_response(json, &config).unwrap();
 
     let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
     let success = &response["data"]["updateMachine"];
@@ -105,19 +104,18 @@ fn test_error_with_conflict_entity() {
         }
     }"#;
 
-    let result = build_mutation_response(
-        json,
-        "createMachine",
-        "CreateMachineSuccess",
-        "CreateMachineError",
-        Some("machine"), // Would be used for success, ignored for error
-        Some("Machine"),
-        None,
-        true,
-        None,
-        None,
-    )
-    .unwrap();
+    let config = MutationConfig {
+        field_name: "createMachine",
+        success_type: "CreateMachineSuccess",
+        error_type: "CreateMachineError",
+        entity_field_name: Some("machine"),
+        entity_type: Some("Machine"),
+        cascade_selections: None,
+        auto_camel_case: true,
+        success_type_fields: None,
+        error_type_fields: None,
+    };
+    let result = build_mutation_response(json, &config).unwrap();
 
     let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
     let error = &response["data"]["createMachine"];
@@ -173,19 +171,18 @@ fn test_multiple_entities_field_selection() {
         "newLocation".to_string(),
     ];
 
-    let result = build_mutation_response(
-        json,
-        "updateMachine",
-        "UpdateMachineSuccess",
-        "UpdateMachineError",
-        Some("machine"),
-        Some("Machine"),
-        None,
-        true,
-        Some(&selected_fields),
-        None,
-    )
-    .unwrap();
+    let config = MutationConfig {
+        field_name: "updateMachine",
+        success_type: "UpdateMachineSuccess",
+        error_type: "UpdateMachineError",
+        entity_field_name: Some("machine"),
+        entity_type: Some("Machine"),
+        cascade_selections: None,
+        auto_camel_case: true,
+        success_type_fields: Some(&selected_fields),
+        error_type_fields: None,
+    };
+    let result = build_mutation_response(json, &config).unwrap();
 
     let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
     let success = &response["data"]["updateMachine"];

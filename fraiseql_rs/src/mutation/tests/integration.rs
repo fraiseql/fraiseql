@@ -26,18 +26,18 @@ fn test_build_error_response_validation() {
         "metadata": null
     }"#;
 
-    let result = build_mutation_response(
-        mutation_json,
-        "createUser",
-        "CreateUserSuccess",
-        "CreateUserError",
-        Some("user"),
-        Some("User"),
-        None,
-        true,
-        None,
-        None,
-    );
+    let config = MutationConfig {
+        field_name: "createUser",
+        success_type: "CreateUserSuccess",
+        error_type: "CreateUserError",
+        entity_field_name: Some("user"),
+        entity_type: Some("User"),
+        cascade_selections: None,
+        auto_camel_case: true,
+        success_type_fields: None,
+        error_type_fields: None,
+    };
+    let result = build_mutation_response(mutation_json, &config);
 
     assert!(result.is_ok());
     let response_bytes = result.unwrap();
@@ -70,18 +70,18 @@ fn test_build_error_response_conflict() {
         "metadata": null
     }"#;
 
-    let result = build_mutation_response(
-        mutation_json,
-        "createUser",
-        "CreateUserSuccess",
-        "CreateUserError",
-        Some("user"),
-        Some("User"),
-        None,
-        true,
-        None,
-        None,
-    );
+    let config = MutationConfig {
+        field_name: "createUser",
+        success_type: "CreateUserSuccess",
+        error_type: "CreateUserError",
+        entity_field_name: Some("user"),
+        entity_type: Some("User"),
+        cascade_selections: None,
+        auto_camel_case: true,
+        success_type_fields: None,
+        error_type_fields: None,
+    };
+    let result = build_mutation_response(mutation_json, &config);
 
     assert!(result.is_ok());
     let response_bytes = result.unwrap();
@@ -112,18 +112,18 @@ fn test_build_noop_response() {
         "metadata": null
     }"#;
 
-    let result = build_mutation_response(
-        mutation_json,
-        "createUser",
-        "CreateUserSuccess",
-        "CreateUserError",
-        Some("user"),
-        Some("User"),
-        None,
-        true,
-        None,
-        None,
-    );
+    let config = MutationConfig {
+        field_name: "createUser",
+        success_type: "CreateUserSuccess",
+        error_type: "CreateUserError",
+        entity_field_name: Some("user"),
+        entity_type: Some("User"),
+        cascade_selections: None,
+        auto_camel_case: true,
+        success_type_fields: None,
+        error_type_fields: None,
+    };
+    let result = build_mutation_response(mutation_json, &config);
 
     assert!(result.is_ok());
     let response_bytes = result.unwrap();
@@ -153,18 +153,18 @@ fn test_build_success_response() {
         "metadata": null
     }"#;
 
-    let result = build_mutation_response(
-        mutation_json,
-        "createUser",
-        "CreateUserSuccess",
-        "CreateUserError",
-        Some("user"),
-        Some("User"),
-        None,
-        true,
-        None,
-        None,
-    );
+    let config = MutationConfig {
+        field_name: "createUser",
+        success_type: "CreateUserSuccess",
+        error_type: "CreateUserError",
+        entity_field_name: Some("user"),
+        entity_type: Some("User"),
+        cascade_selections: None,
+        auto_camel_case: true,
+        success_type_fields: None,
+        error_type_fields: None,
+    };
+    let result = build_mutation_response(mutation_json, &config);
 
     assert!(result.is_ok());
     let response_bytes = result.unwrap();
@@ -193,18 +193,18 @@ fn test_unauthorized_error() {
         "metadata": null
     }"#;
 
-    let result = build_mutation_response(
-        mutation_json,
-        "updateProfile",
-        "UpdateProfileSuccess",
-        "UpdateProfileError",
-        None,
-        None,
-        None,
-        true,
-        None,
-        None,
-    );
+    let config = MutationConfig {
+        field_name: "updateProfile",
+        success_type: "UpdateProfileSuccess",
+        error_type: "UpdateProfileError",
+        entity_field_name: None,
+        entity_type: None,
+        cascade_selections: None,
+        auto_camel_case: true,
+        success_type_fields: None,
+        error_type_fields: None,
+    };
+    let result = build_mutation_response(mutation_json, &config);
 
     assert!(result.is_ok());
     let response_bytes = result.unwrap();
@@ -230,18 +230,18 @@ fn test_timeout_error() {
         "metadata": null
     }"#;
 
-    let result = build_mutation_response(
-        mutation_json,
-        "processLargeDataset",
-        "ProcessSuccess",
-        "ProcessError",
-        None,
-        None,
-        None,
-        true,
-        None,
-        None,
-    );
+    let config = MutationConfig {
+        field_name: "processLargeDataset",
+        success_type: "ProcessSuccess",
+        error_type: "ProcessError",
+        entity_field_name: None,
+        entity_type: None,
+        cascade_selections: None,
+        auto_camel_case: true,
+        success_type_fields: None,
+        error_type_fields: None,
+    };
+    let result = build_mutation_response(mutation_json, &config);
 
     assert!(result.is_ok());
     let response_bytes = result.unwrap();
@@ -389,19 +389,19 @@ fn test_error_response_includes_errors_array() {
         "metadata": null
     }"#;
 
-    let result = build_mutation_response(
-        mutation_json,
-        "createUser",
-        "CreateUserSuccess",
-        "CreateUserError",
-        Some("user"),
-        Some("User"),
-        None,
-        true,
-        None,
-        None,
-    )
-    .unwrap();
+    let config = MutationConfig {
+        field_name: "createUser",
+        success_type: "CreateUserSuccess",
+        error_type: "CreateUserError",
+        entity_field_name: Some("user"),
+        entity_type: Some("User"),
+        cascade_selections: None,
+        auto_camel_case: true,
+        success_type_fields: None,
+        error_type_fields: None,
+    };
+    let result = build_mutation_response(mutation_json, &config)
+        .unwrap();
 
     let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
     let error_response = &response["data"]["createUser"];
@@ -438,19 +438,19 @@ fn test_error_response_with_explicit_errors() {
         }
     }"#;
 
-    let result = build_mutation_response(
-        mutation_json,
-        "createUser",
-        "CreateUserSuccess",
-        "CreateUserError",
-        Some("user"),
-        Some("User"),
-        None,
-        true,
-        None,
-        None,
-    )
-    .unwrap();
+    let config = MutationConfig {
+        field_name: "createUser",
+        success_type: "CreateUserSuccess",
+        error_type: "CreateUserError",
+        entity_field_name: Some("user"),
+        entity_type: Some("User"),
+        cascade_selections: None,
+        auto_camel_case: true,
+        success_type_fields: None,
+        error_type_fields: None,
+    };
+    let result = build_mutation_response(mutation_json, &config)
+        .unwrap();
 
     let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
     let error_response = &response["data"]["createUser"];

@@ -235,8 +235,7 @@ impl VariableProcessor {
         definition: &VariableDefinition,
         input_variables: &HashMap<String, serde_json::Value>,
     ) -> Result<serde_json::Value, String> {
-        let processor = Self::new(&ParsedQuery::default());
-        processor.process_variable(var_name, definition, input_variables)
+        Self::process_variable(var_name, definition, input_variables)
     }
 }
 
