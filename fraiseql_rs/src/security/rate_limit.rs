@@ -257,7 +257,6 @@ struct FixedWindow {
 #[inline]
 fn current_timestamp() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map_or_else(
-        #[allow(clippy::used_underscore_binding)]
         |e| {
             // System clock is before Unix epoch - should never happen in production
             // Log and return 0 to avoid panic
@@ -265,6 +264,8 @@ fn current_timestamp() -> u64 {
             {
                 eprintln!("ERROR: System clock before Unix epoch: {e}");
             }
+            #[cfg(not(debug_assertions))]
+            let _ = &e; // Suppress unused warning in release
             0
         },
         |d| d.as_secs(),
