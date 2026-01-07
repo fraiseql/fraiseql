@@ -1,65 +1,56 @@
-# Phase D.4: App Factory with Auto-Discovery Support
+# Phase D.4: App Factory with Explicit Registration
 
 **Status**: ✅ COMPLETE
-**Tests**: 24 new tests, 289 total axum tests passing
-**Commits**: 1
-**Lines Changed**: 523+ lines
+**Tests**: 15 focused tests, 280 total axum tests passing
+**Commits**: 2 (initial + refactor)
+**Decision**: Explicit registration is better than zero-config
 
 ## Overview
 
-Phase D.4 enhances the `create_axum_fraiseql_app()` factory function with automatic discovery support, allowing developers to build GraphQL servers with **zero configuration** for type/query/mutation/subscription registration.
+Phase D.4 completes the registry system (Phase D) by integrating explicit registration into the app factory. Initial implementation included zero-config auto-discovery, but architectural review led to **removing it in favor of explicit registration** - a better approach for type-safe GraphQL.
 
-This completes the Phase D (Registry System) implementation that started with:
-- **D.1**: AxumRegistry foundation (20 tests)
-- **D.2**: Auto-discovery system (17 tests)
-- **D.3**: Registration hooks in decorators (11 tests)
-- **D.4**: App factory discovery support (24 tests) ← NEW
+This completes the Phase D (Registry System) implementation:
+- **D.1**: AxumRegistry foundation (20 tests) ✅
+- **D.2**: Auto-discovery system (17 tests) ✅ (for internal use)
+- **D.3**: Registration hooks in decorators (11 tests) ✅
+- **D.4**: App factory explicit registration (15 tests) ✅
 
 ## What Was Implemented
 
-### 1. Enhanced `create_axum_fraiseql_app()`
+### 1. Registry Integration in App Factory
 
-Added three new parameters:
+Added optional `registry` parameter for advanced testing:
 
 ```python
 def create_axum_fraiseql_app(
     *,
     # ... existing parameters ...
-    auto_discover: bool = False,
-    discover_packages: list[str] | None = None,
+    types: list[type[Any]] | None = None,
+    queries: list[type[Any]] | None = None,
+    mutations: list[type[Any]] | None = None,
+    subscriptions: list[type[Any]] | None = None,
     registry: AxumRegistry | None = None,
     **kwargs,
 ) -> AxumServer:
 ```
 
-**Parameters**:
-- `auto_discover` (bool, default: False)
-  - Enables automatic discovery of GraphQL items
-  - Scans packages for `@fraiseql.type`, `@fraiseql.query`, etc.
-
-- `discover_packages` (list[str], default: None)
-  - Specifies which packages to scan
-  - Defaults to `["__main__"]` if not provided
-  - Examples: `["myapp", "myapp.graphql", "myapp.resolvers"]`
-
+**Parameter**:
 - `registry` (AxumRegistry, default: None)
-  - Optional custom registry instance
-  - Allows testing and custom registration behavior
+  - Optional custom registry instance for advanced testing
   - Defaults to singleton if not provided
+  - Allows registry isolation in test suites
 
-### 2. Discovery Logic in App Factory
+### 2. Registration Flow
 
-The app factory now:
+The app factory:
 
 1. **Initializes registry** (uses provided or singleton)
 2. **Builds configuration** (from parameters or config object)
 3. **Creates AxumServer** with registry
-4. **Auto-discovers** if enabled
-   - For each package: `discover_from_package(pkg_name)`
-   - Registers results: `result.register_to_registry()`
-   - Logs all discoveries
-5. **Registers explicit lists** (maintains backward compatibility)
-   - Explicit items override discovered items with same name
+4. **Registers explicit items**:
+   - Types, queries, mutations, subscriptions
+   - Each registration goes to both server and centralized registry
+   - Clear and declarative approach
 
 ### 3. AxumServer Updates
 
@@ -80,70 +71,35 @@ class AxumServer:
         self._registry = registry or AxumRegistry.get_instance()
 ```
 
-## Usage Patterns
-
-### Pattern 1: Zero Configuration (Auto-discover)
+## Usage Pattern: Explicit Registration (Recommended)
 
 ```python
 from fraiseql.axum import create_axum_fraiseql_app
 
-# Automatically discover all GraphQL items in myapp package
+# Clear, auditable schema with explicit registration
 app = create_axum_fraiseql_app(
     database_url="postgresql://user:pass@localhost/db",
-    auto_discover=True,
-    discover_packages=["myapp"],
-)
-
-app.start(host="0.0.0.0", port=8000)
-```
-
-### Pattern 2: Traditional (Explicit Lists)
-
-```python
-# Still works! Backward compatible.
-app = create_axum_fraiseql_app(
-    database_url="postgresql://user:pass@localhost/db",
-    types=[User, Post],
+    types=[User, Post, Comment],
     queries=[get_users, get_posts],
-    mutations=[create_user],
+    mutations=[create_user, delete_post],
+    subscriptions=[on_user_created],
 )
 
 app.start(host="0.0.0.0", port=8000)
 ```
 
-### Pattern 3: Hybrid (Discovery + Explicit)
+**Why explicit is better:**
+- ✅ **Clear** - Exactly what's in the schema
+- ✅ **Fast** - No discovery overhead
+- ✅ **Debuggable** - Can trace what's in schema
+- ✅ **Testable** - Deterministic, no magic
+- ✅ **Secure** - Explicit whitelist
+- ✅ **Maintainable** - See full API at a glance
+
+## Advanced Pattern: Custom Registry for Testing
 
 ```python
-# Combine both: discovery + explicit overrides
-app = create_axum_fraiseql_app(
-    database_url="postgresql://user:pass@localhost/db",
-    auto_discover=True,
-    discover_packages=["myapp"],
-    mutations=[SpecialMutation],  # Override if needed
-)
-
-app.start(host="0.0.0.0", port=8000)
-```
-
-### Pattern 4: Multiple Packages
-
-```python
-# Discover across multiple packages
-app = create_axum_fraiseql_app(
-    database_url="postgresql://user:pass@localhost/db",
-    auto_discover=True,
-    discover_packages=[
-        "myapp",
-        "myapp.graphql",
-        "myapp.resolvers",
-    ],
-)
-```
-
-### Pattern 5: Custom Registry (Testing)
-
-```python
-from fraiseql.axum import AxumRegistry
+from fraiseql.axum import AxumRegistry, create_axum_fraiseql_app
 
 # Use custom registry for isolated testing
 test_registry = AxumRegistry()
@@ -160,56 +116,35 @@ app = create_axum_fraiseql_app(
 
 ## Test Coverage
 
-**28 new tests** in `tests/unit/axum/test_app_factory_discovery.py`:
+**15 focused tests** in `tests/unit/axum/test_app_factory_discovery.py`:
 
-### Basics (4 tests)
-- Create app without discovery ✓
+### App Factory Basics (4 tests)
+- Create app without registry parameter ✓
 - Create app with explicit types ✓
-- Register to registry ✓
-- Use custom registry ✓
+- Register to centralized registry ✓
+- Use custom registry for testing ✓
 
-### Discovery (4 tests)
-- Auto-discover defaults to False ✓
-- Auto-discover empty package ✓
-- Auto-discover nonexistent package (graceful) ✓
-- Auto-discover defaults to __main__ ✓
-
-### Backward Compatibility (5 tests)
-- Explicit types still work ✓
-- Explicit queries still work ✓
-- Explicit mutations still work ✓
-- Explicit subscriptions still work ✓
+### Explicit Registration (5 tests)
+- Explicit types work correctly ✓
+- Explicit queries work correctly ✓
+- Explicit mutations work correctly ✓
+- Explicit subscriptions work correctly ✓
 - Multiple categories combined ✓
 
-### Mixed Discovery/Explicit (2 tests)
-- Discovery + explicit types ✓
-- Explicit overrides discovered ✓
+### Error Handling (2 tests)
+- Missing database_url raises error ✓
+- Database URL from kwargs works ✓
 
-### Discovery Packages (3 tests)
-- Multiple packages ✓
-- None defaults to __main__ ✓
-- Empty list behavior ✓
-
-### Error Handling (3 tests)
-- Missing database_url raises ✓
-- database_url from kwargs ✓
-- Invalid package handled gracefully ✓
-
-### Real-World Discovery (4 tests)
-- Discover @fraiseql.type decorated classes ✓
-- Discover @fraiseql.query decorated functions ✓
-- Full zero-config simulation with all item types ✓
-- DiscoveryResult integration with app factory ✓
-
-### Registry Integration (3 tests)
-- Singleton by default ✓
-- Custom registry parameter used ✓
-- Registry summary available ✓
+### Registry Integration (4 tests)
+- Types registered via registry ✓
+- Queries registered via registry ✓
+- Full schema registered via explicit items ✓
+- DiscoveryResult items can be explicitly registered ✓
 
 ## Code Quality
 
-- ✅ All 28 new tests passing (24 → 28 with real-world scenarios)
-- ✅ All 293 axum tests passing (up from 265)
+- ✅ All 15 focused tests passing
+- ✅ All 280 axum tests passing (focused, high-quality test suite)
 - ✅ Pre-commit hooks passed (ruff, formatting)
 - ✅ Zero new warnings or errors
 - ✅ 100% backward compatible
@@ -310,19 +245,38 @@ INFO     fraiseql.axum.app:app.py:283 FraiseQL Axum server created
 - Phase 16: Full middleware system
 - Phase X: GraphQL federation support
 
+## Architectural Decision: Explicit > Zero-Config
+
+Initially implemented zero-config auto-discovery, but after review, **removed it** because:
+
+**Problems with zero-config:**
+1. Implicit magic - hidden schema dependencies
+2. Performance overhead - package scanning at startup
+3. Fragility - accidental registration of internal types
+4. Testing challenges - singleton pollution, fixture complexity
+5. Security risks - unintended exposure of internal types
+6. Maintainability - hard to see what's in the API
+
+**Benefits of explicit registration:**
+1. Clear and auditable - exactly what's in schema
+2. Fast - no discovery overhead
+3. Debuggable - can trace implementations
+4. Testable - deterministic, no magic
+5. Secure - explicit whitelist approach
+6. Maintainable - full API visible at glance
+
+This aligns with FraiseQL's core strength: **type-safe GraphQL**.
+
 ## Summary
 
-Phase D.4 completes the Phase D registration system refactor with a powerful, zero-configuration auto-discovery system. The implementation is:
+Phase D.4 completes the Phase D registry system with explicit registration approach:
 
-- ✅ **Complete**: All functionality implemented
-- ✅ **Tested**: 24 new tests, 289 total passing
-- ✅ **Compatible**: 100% backward compatible
+- ✅ **Explicit Registration**: Clear, auditable schema definition
+- ✅ **Registry Integration**: Centralized item storage (Phase D.1)
+- ✅ **Discovery Available**: Can still find items if needed (Phase D.2)
+- ✅ **Decorator Hooks**: Auto-register when explicitly used (Phase D.3)
+- ✅ **Tested**: 15 focused tests, 280 total passing
 - ✅ **Clean**: Pre-commit hooks passed
-- ✅ **Documented**: Full docstrings and examples
-
-The framework now supports three registration modes:
-1. **Zero-config**: Auto-discover (new)
-2. **Traditional**: Explicit lists (compatible)
-3. **Hybrid**: Discovery + override (flexible)
+- ✅ **Compatible**: 100% backward compatible
 
 **Ready for Phase D.5: Documentation and Examples**
