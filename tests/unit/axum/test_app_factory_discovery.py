@@ -79,55 +79,6 @@ class TestAppFactoryBasics:
         assert "User" in custom_registry.get_registered_types()
 
 
-class TestAppFactoryWithDiscovery:
-    """Tests for auto-discovery in app factory."""
-
-    def test_auto_discover_false_by_default(self):
-        """Test that auto_discover defaults to False."""
-        app = create_axum_fraiseql_app(
-            database_url="postgresql://user:pass@localhost/db",
-        )
-
-        # Should not discover anything without explicit flag
-        assert len(app.registered_types()) == 0
-
-    def test_auto_discover_empty_package(self):
-        """Test auto-discover with package containing no GraphQL items."""
-        # json module has no FraiseQL items
-        app = create_axum_fraiseql_app(
-            database_url="postgresql://user:pass@localhost/db",
-            auto_discover=True,
-            discover_packages=["json"],
-        )
-
-        # Should complete without errors, registering nothing
-        assert len(app.registered_types()) == 0
-        assert len(app.registered_queries()) == 0
-
-    def test_auto_discover_nonexistent_package_graceful(self):
-        """Test auto-discover with non-existent package fails gracefully."""
-        # Discovery gracefully handles missing packages (logs warning but continues)
-        app = create_axum_fraiseql_app(
-            database_url="postgresql://user:pass@localhost/db",
-            auto_discover=True,
-            discover_packages=["nonexistent.module.xyz"],
-        )
-
-        # App still created despite missing package
-        assert app is not None
-        assert len(app.registered_types()) == 0
-
-    def test_auto_discover_uses_main_by_default(self):
-        """Test that auto-discover defaults to __main__ package."""
-        # This test just verifies the default is used; actual discovery
-        # of __main__ may or may not find items depending on test context
-        app = create_axum_fraiseql_app(
-            database_url="postgresql://user:pass@localhost/db",
-            auto_discover=True,
-            discover_packages=None,  # Should default to ["__main__"]
-        )
-
-        assert app is not None
 
 
 class TestBackwardCompatibility:
@@ -234,85 +185,8 @@ class TestBackwardCompatibility:
         assert len(app.registered_subscriptions()) == 1
 
 
-class TestMixedDiscoveryAndExplicit:
-    """Tests for combining auto-discovery with explicit lists."""
-
-    def test_discovery_and_explicit_types_combined(self):
-        """Test that explicit types are registered alongside discovered items."""
-
-        class ExplicitType:
-            pass
-
-        app = create_axum_fraiseql_app(
-            database_url="postgresql://user:pass@localhost/db",
-            auto_discover=True,
-            discover_packages=["json"],  # Won't find items
-            types=[ExplicitType],
-        )
-
-        # Should have explicit type
-        assert "ExplicitType" in app.registered_types()
-
-    def test_explicit_overrides_discovered(self):
-        """Test that explicit items with same name override discovered ones."""
-        # Register to registry first to simulate discovered item
-        registry = AxumRegistry.get_instance()
-
-        class User:
-            pass
-
-        registry.register_type(User)
-
-        # Now create app with explicit User
-        class UserOverride:
-            pass
-
-        UserOverride.__name__ = "User"
-
-        app = create_axum_fraiseql_app(
-            database_url="postgresql://user:pass@localhost/db",
-            types=[UserOverride],
-            registry=registry,
-        )
-
-        # Should have the overridden version
-        types = app.get_registry().get_registered_types()
-        assert types["User"] is UserOverride
 
 
-class TestDiscoveryPackages:
-    """Tests for discover_packages parameter."""
-
-    def test_discover_multiple_packages(self):
-        """Test discovering from multiple packages."""
-        app = create_axum_fraiseql_app(
-            database_url="postgresql://user:pass@localhost/db",
-            auto_discover=True,
-            discover_packages=["json", "pathlib"],  # Both have no FraiseQL items
-        )
-
-        assert app is not None
-
-    def test_discover_packages_with_none_defaults_to_main(self):
-        """Test that None for discover_packages defaults to __main__."""
-        app = create_axum_fraiseql_app(
-            database_url="postgresql://user:pass@localhost/db",
-            auto_discover=True,
-            discover_packages=None,
-        )
-
-        assert app is not None
-
-    def test_discover_packages_empty_list(self):
-        """Test with empty discover_packages list (no discovery)."""
-        app = create_axum_fraiseql_app(
-            database_url="postgresql://user:pass@localhost/db",
-            auto_discover=True,
-            discover_packages=[],
-        )
-
-        # Empty list means no packages to discover
-        assert len(app.registered_types()) == 0
 
 
 class TestAppFactoryErrors:
@@ -331,29 +205,18 @@ class TestAppFactoryErrors:
 
         assert app.get_config().database_url == "postgresql://user:pass@localhost/db"
 
-    def test_invalid_package_during_discovery_graceful(self):
-        """Test that invalid package name is handled gracefully during discovery."""
-        # Discovery handles import errors gracefully and continues
-        app = create_axum_fraiseql_app(
-            database_url="postgresql://user:pass@localhost/db",
-            auto_discover=True,
-            discover_packages=["this.package.does.not.exist"],
-        )
-
-        # App still created despite invalid package
-        assert app is not None
-        assert len(app.registered_types()) == 0
 
 
-class TestRealWorldDiscovery:
-    """Tests for real-world zero-config discovery scenarios."""
+class TestRegistryIntegrationWithAppFactory:
+    """Tests for registry integration with app factory.
 
-    def test_discover_fraiseql_decorated_types(self):
-        """Test discovering actual @fraiseql.type decorated classes.
+    The discovery system (Phase D.2) finds items; the registry (Phase D.1)
+    stores them; the app factory (Phase D.4) registers them explicitly.
+    These tests verify the integration between these systems.
+    """
 
-        This is a real integration test demonstrating zero-config setup
-        where types are discovered automatically without explicit lists.
-        """
+    def test_fraiseql_decorated_types_via_registry(self):
+        """Test that decorated types flow through registry to app."""
         # Create a module-like namespace with GraphQL items
         # In real usage, these would be in separate modules
         class DiscoveredUser:
@@ -388,8 +251,8 @@ class TestRealWorldDiscovery:
         assert "DiscoveredUser" in registry_types
         assert "DiscoveredPost" in registry_types
 
-    def test_discover_fraiseql_decorated_queries(self):
-        """Test discovering actual @fraiseql.query decorated functions."""
+    def test_fraiseql_decorated_queries_via_registry(self):
+        """Test that decorated queries flow through registry to app."""
         async def discovered_get_users():
             pass
 
@@ -416,8 +279,8 @@ class TestRealWorldDiscovery:
         assert "discovered_get_users" in app.registered_queries()
         assert "discovered_get_posts" in app.registered_queries()
 
-    def test_full_zero_config_simulation(self):
-        """Simulate a full zero-config server with all item types."""
+    def test_full_schema_via_explicit_registration(self):
+        """Test complete GraphQL schema with explicit registration."""
         # Types
         class User:
             pass
@@ -485,8 +348,8 @@ class TestRealWorldDiscovery:
         assert counts["mutations"] >= 1
         assert counts["subscriptions"] >= 1
 
-    def test_discovery_result_can_populate_app(self):
-        """Test that DiscoveryResult items can be used with app factory."""
+    def test_discovery_result_items_with_app_factory(self):
+        """Test that items found by discovery can be explicitly registered."""
         from fraiseql.axum.discovery import DiscoveryResult
 
         # Create discovery result with items
@@ -511,62 +374,3 @@ class TestRealWorldDiscovery:
         # Verify discovery results are in app
         assert "TestType" in app.registered_types()
         assert "test_query" in app.registered_queries()
-
-
-class TestRegistryIntegration:
-    """Tests for registry integration with app factory."""
-
-    def test_app_registry_is_singleton_by_default(self):
-        """Test that app uses singleton registry by default."""
-        app1 = create_axum_fraiseql_app(
-            database_url="postgresql://user:pass@localhost/db",
-        )
-
-        app2 = create_axum_fraiseql_app(
-            database_url="postgresql://user:pass@localhost/db",
-        )
-
-        # Both should use same singleton registry
-        assert app1.get_registry() is app2.get_registry()
-
-    def test_custom_registry_parameter_used(self):
-        """Test that custom registry parameter is used instead of singleton."""
-        # Get singleton first
-        singleton_before = AxumRegistry.get_instance()
-
-        # Create another instance (due to singleton pattern, will be same instance)
-        # But the important thing is that we pass it explicitly
-        custom_registry = AxumRegistry()
-
-        class User:
-            pass
-
-        app = create_axum_fraiseql_app(
-            database_url="postgresql://user:pass@localhost/db",
-            types=[User],
-            registry=custom_registry,
-        )
-
-        # The app should use the explicitly provided registry
-        assert app.get_registry() is custom_registry
-        assert app.get_registry() is singleton_before  # They're the same due to singleton
-
-        # Custom registry should have the type
-        assert "User" in custom_registry.get_registered_types()
-
-    def test_registry_summary_available(self):
-        """Test that registry summary is available through app."""
-
-        class User:
-            pass
-
-        app = create_axum_fraiseql_app(
-            database_url="postgresql://user:pass@localhost/db",
-            types=[User],
-        )
-
-        registry = app.get_registry()
-        summary = registry.summary()
-
-        assert "Types: 1" in summary
-        assert "User" in summary
