@@ -60,6 +60,11 @@ Differences from FastAPI:
 
 from fraiseql.axum.app import create_axum_fraiseql_app
 from fraiseql.axum.config import AxumFraiseQLConfig
+from fraiseql.axum.discovery import (
+    DiscoveryResult,
+    discover_from_module,
+    discover_from_package,
+)
 from fraiseql.axum.registry import AxumRegistry
 from fraiseql.axum.server import AxumServer
 
@@ -67,7 +72,10 @@ __all__ = [
     "AxumFraiseQLConfig",
     "AxumRegistry",
     "AxumServer",
+    "DiscoveryResult",
     "create_axum_fraiseql_app",
+    "discover_from_module",
+    "discover_from_package",
 ]
 
 __version__ = "0.1.0"  # Phase 2 development version
