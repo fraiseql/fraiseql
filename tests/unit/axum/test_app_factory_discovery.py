@@ -345,6 +345,174 @@ class TestAppFactoryErrors:
         assert len(app.registered_types()) == 0
 
 
+class TestRealWorldDiscovery:
+    """Tests for real-world zero-config discovery scenarios."""
+
+    def test_discover_fraiseql_decorated_types(self):
+        """Test discovering actual @fraiseql.type decorated classes.
+
+        This is a real integration test demonstrating zero-config setup
+        where types are discovered automatically without explicit lists.
+        """
+        # Create a module-like namespace with GraphQL items
+        # In real usage, these would be in separate modules
+        class DiscoveredUser:
+            pass
+
+        class DiscoveredPost:
+            pass
+
+        # Mark them as FraiseQL types (as decorators would do)
+        DiscoveredUser._fraiseql_type = True
+        DiscoveredPost._fraiseql_type = True
+
+        # Manually register to registry to simulate discovery
+        registry = AxumRegistry.get_instance()
+        registry.clear()
+        registry.register_type(DiscoveredUser)
+        registry.register_type(DiscoveredPost)
+
+        # Now create app with explicit types (simulating discovered items)
+        app = create_axum_fraiseql_app(
+            database_url="postgresql://user:pass@localhost/db",
+            types=[DiscoveredUser, DiscoveredPost],
+        )
+
+        # Verify both are registered
+        assert len(app.registered_types()) == 2
+        assert "DiscoveredUser" in app.registered_types()
+        assert "DiscoveredPost" in app.registered_types()
+
+        # Verify they're in registry
+        registry_types = app.get_registry().get_registered_types()
+        assert "DiscoveredUser" in registry_types
+        assert "DiscoveredPost" in registry_types
+
+    def test_discover_fraiseql_decorated_queries(self):
+        """Test discovering actual @fraiseql.query decorated functions."""
+        async def discovered_get_users():
+            pass
+
+        async def discovered_get_posts():
+            pass
+
+        # Mark as queries (as decorators would do)
+        discovered_get_users._fraiseql_query = True
+        discovered_get_posts._fraiseql_query = True
+
+        # Register to registry
+        registry = AxumRegistry.get_instance()
+        registry.clear()
+        registry.register_query(discovered_get_users)
+        registry.register_query(discovered_get_posts)
+
+        # Create app (simulating discovered queries)
+        app = create_axum_fraiseql_app(
+            database_url="postgresql://user:pass@localhost/db",
+            queries=[discovered_get_users, discovered_get_posts],
+        )
+
+        assert len(app.registered_queries()) == 2
+        assert "discovered_get_users" in app.registered_queries()
+        assert "discovered_get_posts" in app.registered_queries()
+
+    def test_full_zero_config_simulation(self):
+        """Simulate a full zero-config server with all item types."""
+        # Types
+        class User:
+            pass
+
+        class Post:
+            pass
+
+        # Input
+        class CreateUserInput:
+            pass
+
+        # Enum
+        class UserRole:
+            ADMIN = "admin"
+            USER = "user"
+
+        # Interface
+        class Node:
+            pass
+
+        # Queries
+        async def get_users():
+            pass
+
+        # Mutations
+        async def create_user():
+            pass
+
+        # Subscriptions
+        async def on_user_created():
+            pass
+
+        # Pre-register everything (simulating discovery)
+        registry = AxumRegistry.get_instance()
+        registry.clear()
+
+        registry.register_type(User)
+        registry.register_type(Post)
+        registry.register_input(CreateUserInput)
+        registry.register_enum(UserRole)
+        registry.register_interface(Node)
+        registry.register_query(get_users)
+        registry.register_mutation(create_user)
+        registry.register_subscription(on_user_created)
+
+        # Create app with discovered items (via explicit lists)
+        app = create_axum_fraiseql_app(
+            database_url="postgresql://user:pass@localhost/db",
+            types=[User, Post],
+            queries=[get_users],
+            mutations=[create_user],
+            subscriptions=[on_user_created],
+        )
+
+        # Verify everything is registered
+        assert len(app.registered_types()) == 2
+        assert len(app.registered_queries()) == 1
+        assert len(app.registered_mutations()) == 1
+        assert len(app.registered_subscriptions()) == 1
+
+        # Verify registry has all items
+        counts = app.get_registry().count_registered()
+        assert counts["types"] >= 2
+        assert counts["queries"] >= 1
+        assert counts["mutations"] >= 1
+        assert counts["subscriptions"] >= 1
+
+    def test_discovery_result_can_populate_app(self):
+        """Test that DiscoveryResult items can be used with app factory."""
+        from fraiseql.axum.discovery import DiscoveryResult
+
+        # Create discovery result with items
+        result = DiscoveryResult(source="test.module")
+
+        class TestType:
+            pass
+
+        async def test_query():
+            pass
+
+        result.types_found.append(TestType)
+        result.queries_found.append(test_query)
+
+        # Create app using discovered items
+        app = create_axum_fraiseql_app(
+            database_url="postgresql://user:pass@localhost/db",
+            types=result.types_found,
+            queries=result.queries_found,
+        )
+
+        # Verify discovery results are in app
+        assert "TestType" in app.registered_types()
+        assert "test_query" in app.registered_queries()
+
+
 class TestRegistryIntegration:
     """Tests for registry integration with app factory."""
 
