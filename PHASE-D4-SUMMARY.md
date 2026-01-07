@@ -160,7 +160,7 @@ app = create_axum_fraiseql_app(
 
 ## Test Coverage
 
-**24 new tests** in `tests/unit/axum/test_app_factory_discovery.py`:
+**28 new tests** in `tests/unit/axum/test_app_factory_discovery.py`:
 
 ### Basics (4 tests)
 - Create app without discovery ✓
@@ -195,6 +195,12 @@ app = create_axum_fraiseql_app(
 - database_url from kwargs ✓
 - Invalid package handled gracefully ✓
 
+### Real-World Discovery (4 tests)
+- Discover @fraiseql.type decorated classes ✓
+- Discover @fraiseql.query decorated functions ✓
+- Full zero-config simulation with all item types ✓
+- DiscoveryResult integration with app factory ✓
+
 ### Registry Integration (3 tests)
 - Singleton by default ✓
 - Custom registry parameter used ✓
@@ -202,8 +208,8 @@ app = create_axum_fraiseql_app(
 
 ## Code Quality
 
-- ✅ All 24 new tests passing
-- ✅ All 289 axum tests passing (up from 265)
+- ✅ All 28 new tests passing (24 → 28 with real-world scenarios)
+- ✅ All 293 axum tests passing (up from 265)
 - ✅ Pre-commit hooks passed (ruff, formatting)
 - ✅ Zero new warnings or errors
 - ✅ 100% backward compatible
