@@ -22,14 +22,19 @@ def query(fn: F) -> F: ...
 def query() -> Callable[[F], F]: ...
 
 
-def query(fn: F | None = None) -> F | Callable[[F], F]:
+def query(fn: F | None = None, *, auto_register: bool = True) -> F | Callable[[F], F]:
     """Decorator to mark a function as a GraphQL query.
 
     This decorator automatically registers the function with the GraphQL schema,
     eliminating the need to manually pass queries to create_fraiseql_app.
 
+    When used with the Axum server, queries are automatically registered to
+    AxumRegistry for auto-discovery (unless auto_register=False).
+
     Args:
         fn: The query function to decorate (when used without parentheses)
+        auto_register: If True (default), automatically register with AxumRegistry
+            for Axum server discovery. Set to False to skip registration.
 
     Returns:
         The decorated function with GraphQL query metadata
@@ -168,6 +173,15 @@ def query(fn: F | None = None) -> F | Callable[[F], F]:
         # Register the wrapper (not the original function)
         registry.register_query(wrapper)
 
+        # Mark this function as a FraiseQL query (for discovery)
+        wrapper._fraiseql_query = True
+
+        # Register with AxumRegistry if enabled (Phase D.3)
+        if auto_register:
+            from fraiseql.axum.registration_hooks import register_query_hook
+
+            register_query_hook(wrapper)
+
         # Log current state
         logger.debug(
             "Total queries registered after '%s': %d",
@@ -190,15 +204,20 @@ def subscription(fn: F) -> F: ...
 def subscription() -> Callable[[F], F]: ...
 
 
-def subscription(fn: F | None = None) -> F | Callable[[F], F]:
+def subscription(fn: F | None = None, *, auto_register: bool = True) -> F | Callable[[F], F]:
     """Decorator to mark a function as a GraphQL subscription.
 
     This decorator automatically registers the function with the GraphQL schema
     for real-time subscriptions. Subscriptions must be async generator functions
     that yield values over time.
 
+    When used with the Axum server, subscriptions are automatically registered to
+    AxumRegistry for auto-discovery (unless auto_register=False).
+
     Args:
         fn: The subscription function to decorate (when used without parentheses)
+        auto_register: If True (default), automatically register with AxumRegistry
+            for Axum server discovery. Set to False to skip registration.
 
     Returns:
         The decorated async generator function with GraphQL subscription metadata
@@ -297,6 +316,16 @@ def subscription(fn: F | None = None) -> F | Callable[[F], F]:
         # Register with schema
         registry = SchemaRegistry.get_instance()
         registry.register_subscription(func)
+
+        # Mark this function as a FraiseQL subscription (for discovery)
+        func._fraiseql_subscription = True
+
+        # Register with AxumRegistry if enabled (Phase D.3)
+        if auto_register:
+            from fraiseql.axum.registration_hooks import register_subscription_hook
+
+            register_subscription_hook(func)
+
         return func
 
     if fn is None:

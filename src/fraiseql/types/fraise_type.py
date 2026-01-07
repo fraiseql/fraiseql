@@ -37,12 +37,16 @@ def fraise_type(  # type: ignore[misc]
     jsonb_column: str | None = ...,  # Use ... as sentinel for "not specified"
     implements: list[type] | None = None,
     resolve_nested: bool = False,
+    auto_register: bool = True,
 ) -> T | Callable[[T], T]:
     """Decorator to define a FraiseQL GraphQL output type.
 
     This decorator transforms a Python dataclass into a GraphQL type that can be
     used in your schema. It supports automatic SQL query generation when a sql_source
     is provided.
+
+    When used with the Axum server, types are automatically registered to AxumRegistry
+    for auto-discovery (unless auto_register=False).
 
     Args:
         sql_source: Optional table or view name to bind this type to for automatic
@@ -56,6 +60,9 @@ def fraise_type(  # type: ignore[misc]
             type, FraiseQL will attempt to resolve it via a separate query to its
             sql_source. If False (default), assumes the data is embedded in the
             parent's JSONB and won't create a separate resolver.
+        auto_register: If True (default), automatically register this type with
+            AxumRegistry for Axum server discovery. Set to False to skip registration
+            (e.g., for internal types not exposed in the GraphQL schema).
 
     Returns:
         The decorated class enhanced with FraiseQL capabilities.
@@ -203,6 +210,15 @@ def fraise_type(  # type: ignore[misc]
             from fraiseql.gql.schema_builder import SchemaRegistry
 
             SchemaRegistry.get_instance().register_type(cls)
+
+        # Mark this class as a FraiseQL type (for discovery)
+        cls._fraiseql_type = True
+
+        # Register with AxumRegistry if enabled (Phase D.3)
+        if auto_register:
+            from fraiseql.axum.registration_hooks import register_type_hook
+
+            register_type_hook(cls)
 
         return cls
 
