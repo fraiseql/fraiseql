@@ -9,6 +9,7 @@ from collections.abc import Callable, Coroutine
 from typing import Any
 
 from fraiseql.axum.config import AxumFraiseQLConfig
+from fraiseql.axum.registry import AxumRegistry
 from fraiseql.axum.server import AxumServer
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,9 @@ def create_axum_fraiseql_app(
     redoc_url: str | None = "/redoc",
     openapi_url: str | None = "/openapi.json",
     include_in_schema: bool = True,
+    auto_discover: bool = False,
+    discover_packages: list[str] | None = None,
+    registry: AxumRegistry | None = None,
     **kwargs: Any,
 ) -> AxumServer:
     """Create Axum-based FraiseQL server (7-10x faster than FastAPI).
@@ -71,6 +75,13 @@ def create_axum_fraiseql_app(
         redoc_url: URL for ReDoc docs (default: "/redoc"). Set to None to disable.
         openapi_url: URL for OpenAPI JSON (default: "/openapi.json"). Set to None to disable.
         include_in_schema: Include in OpenAPI schema (default: True).
+        auto_discover: If True, automatically discover types/queries/mutations/subscriptions
+            by scanning packages (default: False). Can be combined with explicit lists.
+        discover_packages: List of package names to scan for GraphQL items when
+            auto_discover=True. If not provided, defaults to ["__main__"]. Examples:
+            ["myapp", "myapp.graphql", "myapp.resolvers"].
+        registry: Optional AxumRegistry instance. If not provided, uses the singleton
+            instance. Can be used to customize registration behavior.
         **kwargs: Additional configuration parameters (merged into config).
 
     Returns:
@@ -135,6 +146,29 @@ def create_axum_fraiseql_app(
             assert response.status_code == 200
         ```
 
+    Example (with auto-discovery):
+        ```python
+        # Automatically discover types/queries/mutations in myapp package
+        app = create_axum_fraiseql_app(
+            database_url="postgresql://user:pass@localhost/db",
+            auto_discover=True,
+            discover_packages=["myapp"],  # Scans for @fraiseql.type, @fraiseql.query, etc.
+        )
+
+        app.start(host="0.0.0.0", port=8000)
+        ```
+
+    Example (hybrid: discovery + explicit):
+        ```python
+        # Combine auto-discovery with explicit lists (explicit overrides)
+        app = create_axum_fraiseql_app(
+            database_url="postgresql://user:pass@localhost/db",
+            auto_discover=True,
+            discover_packages=["myapp", "myapp.graphql"],
+            mutations=[CustomMutation],  # Explicit override if needed
+        )
+        ```
+
     Performance:
         - 7-10x faster than FastAPI due to Rust implementation
         - Sub-millisecond query latency typical
@@ -164,6 +198,13 @@ def create_axum_fraiseql_app(
         - AxumServer: Server wrapper class
         - create_fraiseql_app: FastAPI version (for comparison)
     """
+    # Initialize registry (use provided or singleton)
+    if registry is None:
+        registry = AxumRegistry.get_instance()
+    else:
+        # If custom registry provided, use it instead of singleton
+        logger.debug("Using custom AxumRegistry instance")
+
     # Build configuration from parameters
     if config is None:
         # Extract database_url from kwargs if not provided directly
@@ -194,24 +235,58 @@ def create_axum_fraiseql_app(
     # Validate database connection is possible (will fail on .start() if not)
     logger.debug(f"Creating FraiseQL Axum server: {config}")
 
-    # Create AxumServer wrapper
-    server = AxumServer(config=config)
+    # Create AxumServer wrapper with registry
+    server = AxumServer(config=config, registry=registry)
 
-    # Register GraphQL types, mutations, queries, subscriptions
+    # Phase D.4: Auto-discover GraphQL items if requested
+    if auto_discover:
+        from fraiseql.axum.discovery import discover_from_package
+
+        packages = discover_packages or ["__main__"]
+        for pkg_name in packages:
+            try:
+                logger.debug(f"Auto-discovering GraphQL items in package: {pkg_name}")
+                result = discover_from_package(pkg_name)
+
+                # Register discovered items
+                result.register_to_registry()
+
+                # Log discovery results
+                total = result.count_total()
+                if total > 0:
+                    logger.info(f"Auto-discovered {total} GraphQL items in {pkg_name}")
+                    logger.debug(f"Discovery summary:\n{result.summary()}")
+                else:
+                    logger.debug(f"No GraphQL items found in {pkg_name}")
+
+                # Log any errors
+                if result.errors:
+                    logger.warning(
+                        f"Encountered {len(result.errors)} errors during discovery in {pkg_name}"
+                    )
+                    for error in result.errors:
+                        logger.debug(f"Discovery error: {error}")
+
+            except Exception as e:
+                logger.exception(f"Failed to auto-discover package {pkg_name}: {e}")
+                raise
+
+    # Register explicit lists (allows combining with auto-discovery)
+    # Note: Explicit items override discovered items with same name
     if types:
-        logger.debug(f"Registering {len(types)} types")
+        logger.debug(f"Registering {len(types)} types (explicit)")
         server.register_types(types)
 
     if mutations:
-        logger.debug(f"Registering {len(mutations)} mutations")
+        logger.debug(f"Registering {len(mutations)} mutations (explicit)")
         server.register_mutations(mutations)
 
     if queries:
-        logger.debug(f"Registering {len(queries)} queries")
+        logger.debug(f"Registering {len(queries)} queries (explicit)")
         server.register_queries(queries)
 
     if subscriptions:
-        logger.debug(f"Registering {len(subscriptions)} subscriptions")
+        logger.debug(f"Registering {len(subscriptions)} subscriptions (explicit)")
         server.register_subscriptions(subscriptions)
 
     # Add middleware (Phase 16)

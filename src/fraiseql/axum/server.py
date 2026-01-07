@@ -18,6 +18,7 @@ except ImportError:
 
 
 from fraiseql.axum.config import AxumFraiseQLConfig
+from fraiseql.axum.registry import AxumRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -40,13 +41,20 @@ class AxumServer:
         _mutations: Registered mutations
         _queries: Registered queries
         _subscriptions: Registered subscriptions
+        _registry: AxumRegistry for centralized registration (Phase D.4)
     """
 
-    def __init__(self, config: AxumFraiseQLConfig):
+    def __init__(
+        self,
+        config: AxumFraiseQLConfig,
+        registry: AxumRegistry | None = None,
+    ):
         """Initialize Axum server.
 
         Args:
             config: AxumFraiseQLConfig instance
+            registry: Optional AxumRegistry instance. If not provided, uses singleton.
+                Useful for testing or custom registration behavior.
 
         Raises:
             ImportError: If PyAxumServer FFI binding not available (raised on start)
@@ -58,6 +66,7 @@ class AxumServer:
         self._mutations: dict[str, type[Any]] = {}
         self._queries: dict[str, type[Any]] = {}
         self._subscriptions: dict[str, type[Any]] = {}
+        self._registry = registry or AxumRegistry.get_instance()
 
         logger.debug(f"Initialized AxumServer: {config}")
 
@@ -72,6 +81,8 @@ class AxumServer:
         for type_ in types:
             type_name = getattr(type_, "__name__", str(type_))
             self._types[type_name] = type_
+            # Also register to centralized registry (Phase D.4)
+            self._registry.register_type(type_)
         logger.debug(f"Registered {len(types)} GraphQL types")
 
     def register_mutations(self, mutations: list[type[Any]]) -> None:
@@ -83,6 +94,8 @@ class AxumServer:
         for mut in mutations:
             mut_name = getattr(mut, "__name__", str(mut))
             self._mutations[mut_name] = mut
+            # Also register to centralized registry (Phase D.4)
+            self._registry.register_mutation(mut)
         logger.debug(f"Registered {len(mutations)} mutations")
 
     def register_queries(self, queries: list[type[Any]]) -> None:
@@ -94,6 +107,8 @@ class AxumServer:
         for query in queries:
             query_name = getattr(query, "__name__", str(query))
             self._queries[query_name] = query
+            # Also register to centralized registry (Phase D.4)
+            self._registry.register_query(query)
         logger.debug(f"Registered {len(queries)} queries")
 
     def register_subscriptions(self, subscriptions: list[type[Any]]) -> None:
@@ -105,6 +120,8 @@ class AxumServer:
         for sub in subscriptions:
             sub_name = getattr(sub, "__name__", str(sub))
             self._subscriptions[sub_name] = sub
+            # Also register to centralized registry (Phase D.4)
+            self._registry.register_subscription(sub)
         logger.debug(f"Registered {len(subscriptions)} subscriptions")
 
     def add_middleware(self, middleware: Any) -> None:
@@ -361,6 +378,14 @@ class AxumServer:
             AxumFraiseQLConfig instance
         """
         return self._config
+
+    def get_registry(self) -> AxumRegistry:
+        """Get server registry (Phase D.4).
+
+        Returns:
+            AxumRegistry instance
+        """
+        return self._registry
 
     def get_schema(self) -> dict[str, Any]:
         """Get GraphQL schema introspection.
