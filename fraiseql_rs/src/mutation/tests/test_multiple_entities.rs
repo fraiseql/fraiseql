@@ -1,7 +1,53 @@
-/// Tests for multiple entity fields in Success/Error types
-///
-/// This pattern is used in `PrintOptim` for conflict scenarios, before/after states,
-/// and related entities in mutation responses.
+//! Tests for multiple entity fields in Success/Error types
+//!
+//! This test module validates response handling for mutations that return multiple
+//! related entities alongside the primary entity. This pattern is extensively used
+//! in `PrintOptim` for scenarios involving:
+//!
+//! - **Before/After States**: Update operations showing previous and new values
+//! - **Conflict Resolution**: Error responses showing the conflicting entity
+//! - **Related Entities**: Mutations affecting multiple entity types (location updates,
+//!   cascade deletes, etc.)
+//! - **Field Selection**: Client-side filtering of which entities to return
+//!
+//! # Use Cases from `PrintOptim`
+//!
+//! 1. **Machine Location Update**: Returns `machine` + `previous_location` + `new_location`
+//! 2. **Conflict Detection**: Create fails due to existing entity, returns `conflict_machine`
+//! 3. **Cascade Updates**: Update triggers related entity changes, returns all affected
+//! 4. **Multi-step Operations**: Complex mutations returning intermediate and final states
+//!
+//! # Response Structure
+//!
+//! The mutation response wraps multiple entities:
+//!
+//! ```json
+//! {
+//!     "status": "updated",
+//!     "message": "Machine location updated",
+//!     "entity_type": "Machine",
+//!     "entity": {
+//!         "machine": { "id": "123", "name": "Printer-01" },
+//!         "previous_location": { "id": "old-456", "name": "Warehouse A" },
+//!         "new_location": { "id": "new-789", "name": "Warehouse B" }
+//!     }
+//! }
+//! ```
+//!
+//! The GraphQL response builder:
+//! 1. Extracts the primary entity field (e.g., "machine")
+//! 2. Places it at root level in the GraphQL response
+//! 3. Copies additional wrapper fields to root (auto-camelCased)
+//! 4. Applies field selection for client-requested fields only
+//!
+//! # Test Coverage
+//!
+//! - Success responses with multiple entity fields
+//! - Error responses with conflict entities
+//! - Field selection filtering (include only requested fields)
+//! - CamelCase conversion for wrapper fields
+//! - Entity extraction and root-level placement
+
 use super::*;
 
 #[test]

@@ -1,4 +1,85 @@
-// fraiseql_rs/src/mutation/parser.rs
+//! Mutation response format detection and parsing
+//!
+//! This module provides automatic detection and parsing of `PostgreSQL` mutation response
+//! formats. It supports two distinct response patterns, each suitable for different
+//! mutation scenarios:
+//!
+//! # Format Auto-Detection
+//!
+//! The format is determined by the presence of a valid `status` field:
+//!
+//! | Condition | Format |
+//! |-----------|--------|
+//! | Has `status` field with valid value | Full |
+//! | No `status` field OR invalid value | Simple |
+//!
+//! Valid status values:
+//! - Success: `"success"`, `"created"`, `"updated"`, `"deleted"`, etc.
+//! - Error: `"failed:reason"`, `"not_found:..."`, `"unauthorized:..."`, etc.
+//! - No-op: `"noop:reason"`
+//!
+//! # Full Format
+//!
+//! Used when the response includes mutation metadata:
+//!
+//! ```json
+//! {
+//!     "status": "created",
+//!     "message": "User created successfully",
+//!     "entity_type": "User",
+//!     "entity": { "id": "123", "name": "Alice" },
+//!     "updated_fields": ["name", "email"],
+//!     "cascade": { "updated": [...] },
+//!     "metadata": { "timing_ms": 25 }
+//! }
+//! ```
+//!
+//! Required fields: `status`, `message`
+//! Optional fields: `entity`, `entity_type`, `updated_fields`, `cascade`, `metadata`
+//!
+//! # Simple Format
+//!
+//! Used for direct entity returns without mutation metadata:
+//!
+//! ```json
+//! {
+//!     "id": "123",
+//!     "name": "Alice",
+//!     "email": "alice@example.com"
+//! }
+//! ```
+//!
+//! The entire JSON value becomes the entity data.
+//!
+//! # Backward Compatibility
+//!
+//! - Cascade data supports both `"cascade"` and `"_cascade"` field names
+//! - Missing `message` field defaults to empty string in full format
+//! - Invalid `status` values trigger fallback to simple format
+//!
+//! # Examples
+//!
+//! ## Detecting Format
+//!
+//! ```rust,ignore
+//! // Full format (has valid status)
+//! let json = r#"{"status": "success", "message": "OK"}"#;
+//! let response = parse_mutation_response(json, None)?;
+//! assert!(matches!(response, MutationResponse::Full(_)));
+//!
+//! // Simple format (no status or invalid status)
+//! let json = r#"{"id": "123", "name": "Test"}"#;
+//! let response = parse_mutation_response(json, None)?;
+//! assert!(matches!(response, MutationResponse::Simple(_)));
+//! ```
+//!
+//! # Use in Response Building
+//!
+//! The parser is used by the response builder to:
+//! 1. Detect mutation response format
+//! 2. Extract and validate required fields
+//! 3. Prepare data for GraphQL schema mapping
+//! 4. Handle entity and cascade field transformations
 
 use crate::mutation::types::{FullResponse, MutationError, MutationResponse, SimpleResponse};
 use serde_json::Value;

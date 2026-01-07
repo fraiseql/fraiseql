@@ -1,4 +1,69 @@
-// fraiseql_rs/src/mutation/types.rs
+//! Core types for GraphQL mutation response handling
+//!
+//! This module provides the fundamental types and abstractions for building GraphQL
+//! mutation responses from `PostgreSQL` mutation functions. It handles response format
+//! detection, status classification, and error handling.
+//!
+//! # Mutation Response Formats
+//!
+//! `FraiseQL` supports two mutation response formats, automatically detected based on
+//! response structure:
+//!
+//! ## Full Format
+//! Complete mutation response with structured metadata:
+//! ```json
+//! {
+//!     "status": "success",
+//!     "message": "User created successfully",
+//!     "entity_type": "User",
+//!     "entity": { "id": "123", "name": "Alice" },
+//!     "updated_fields": ["name", "email"],
+//!     "cascade": { "updated": [{"table": "posts", "count": 2}] },
+//!     "metadata": { "timing_ms": 45 }
+//! }
+//! ```
+//!
+//! ## Simple Format
+//! Entity-only response (no status field):
+//! ```json
+//! { "id": "123", "name": "Alice", "email": "alice@example.com" }
+//! ```
+//!
+//! # Status Classification
+//!
+//! Response status strings are parsed and classified into three categories:
+//! - **Success**: `"success"`, `"created"`, `"updated"`, `"deleted"`, etc.
+//! - **Error**: `"failed:reason"`, `"not_found:..."`, `"conflict:..."`, etc.
+//! - **No-op**: `"noop:reason"` (operation recognized but no changes made)
+//!
+//! Status is automatically mapped to HTTP codes (200, 404, 409, 422, 500, etc.)
+//!
+//! # Builder Pattern
+//!
+//! [`MutationConfig`] uses a fluent builder API for ergonomic construction:
+//!
+//! ```rust,ignore
+//! let config = MutationConfig::new("createUser", "CreateUserSuccess", "CreateUserError")
+//!     .with_entity("user", "User")
+//!     .with_auto_camel_case(true)
+//!     .with_cascade_selections(Some(cascade_json));
+//! ```
+//!
+//! # Use Cases
+//!
+//! - **`PrintOptim`**: Before/after states, conflict resolution, location updates
+//! - **Multi-entity responses**: Returns primary entity + related entities (`previous_location`, `new_location`)
+//! - **Cascade updates**: Track related entity updates triggered by mutation
+//! - **Field selection**: Client-side filtering of response fields
+//!
+//! # Module Contents
+//!
+//! - [`MutationConfig`] - Configuration for response building with builder methods
+//! - [`MutationResponse`] - Auto-detected format enum (Simple or Full)
+//! - [`SimpleResponse`] - Entity-only response wrapper
+//! - [`FullResponse`] - Complete mutation response with metadata
+//! - [`StatusKind`] - Status classification with HTTP code mapping
+//! - [`MutationError`] - Error types for mutation processing
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
