@@ -400,8 +400,7 @@ fn test_error_response_includes_errors_array() {
         success_type_fields: None,
         error_type_fields: None,
     };
-    let result = build_mutation_response(mutation_json, &config)
-        .unwrap();
+    let result = build_mutation_response(mutation_json, &config).unwrap();
 
     let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
     let error_response = &response["data"]["createUser"];
@@ -449,8 +448,7 @@ fn test_error_response_with_explicit_errors() {
         success_type_fields: None,
         error_type_fields: None,
     };
-    let result = build_mutation_response(mutation_json, &config)
-        .unwrap();
+    let result = build_mutation_response(mutation_json, &config).unwrap();
 
     let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
     let error_response = &response["data"]["createUser"];

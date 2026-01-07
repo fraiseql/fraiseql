@@ -22,14 +22,14 @@
 //! ```
 
 use pyo3::prelude::*;
-use pyo3::types::PyDict;
+use pyo3_async_runtimes::tokio::future_into_py;
 use serde_json::{json, Value as JsonValue};
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::cache::QueryPlanCache;
-use crate::db::{ffi_runtime, DatabaseConfig, DatabasePool, ProductionPool};
-use crate::http::axum_server::{AppState, GraphQLRequest};
+use crate::db::{DatabaseConfig, DatabasePool, ProductionPool};
+use crate::http::axum_server::AppState;
 use crate::http::metrics::HttpMetrics;
 use crate::pipeline::unified::{GraphQLPipeline, UserContext};
 use crate::query::schema::SchemaMetadata;
@@ -139,7 +139,9 @@ impl PyAxumServer {
         })
     }
 
-    /// Execute a GraphQL query
+    /// Execute a GraphQL query asynchronously.
+    ///
+    /// This is an async method - call it with await from Python.
     ///
     /// # Arguments
     ///
@@ -167,19 +169,27 @@ impl PyAxumServer {
     /// # Example
     ///
     /// ```python
-    /// result = server.execute_query(
-    ///     'query GetUser($id: ID!) { user(id: $id) { id name } }',
-    ///     variables='{"id": "123"}',
-    ///     operation_name="GetUser"
-    /// )
-    /// print(result)  # {"data": {"user": {...}}, "errors": null}
+    /// import asyncio
+    /// from fraiseql._fraiseql_rs import PyAxumServer
+    ///
+    /// async def main():
+    ///     server = PyAxumServer.new("postgresql://localhost/db")
+    ///     result = await server.execute_query(
+    ///         'query GetUser($id: ID!) { user(id: $id) { id name } }',
+    ///         variables='{"id": "123"}',
+    ///         operation_name="GetUser"
+    ///     )
+    ///     print(result)  # {"data": {"user": {...}}, "errors": null}
+    ///
+    /// asyncio.run(main())
     /// ```
-    pub fn execute_query(
+    pub fn execute_query<'py>(
         &self,
+        py: Python<'py>,
         query: String,
         variables: Option<String>,
-        operation_name: Option<String>,
-    ) -> PyResult<PyObject> {
+        _operation_name: Option<String>,
+    ) -> PyResult<Bound<'py, PyAny>> {
         // Parse variables from JSON string if provided
         let variables_map = if let Some(vars_json) = variables {
             match serde_json::from_str::<HashMap<String, JsonValue>>(&vars_json) {
@@ -187,84 +197,60 @@ impl PyAxumServer {
                 Err(e) => {
                     return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
                         "Invalid variables JSON: {e}"
-                    )))
+                    )));
                 }
             }
         } else {
             HashMap::new()
         };
 
-        // Create GraphQL request
-        let request = GraphQLRequest {
-            query,
-            operation_name,
-            variables: if variables_map.is_empty() {
-                None
-            } else {
-                Some(
-                    serde_json::to_value(&variables_map)
-                        .unwrap_or_else(|_| JsonValue::Object(serde_json::Map::new())),
-                )
-            },
-        };
+        // Clone state for async block
+        let state = Arc::clone(&self.state);
 
-        // Create anonymous user context (no authentication for now)
-        let user_context = UserContext {
-            user_id: None,
-            permissions: vec!["public".to_string()],
-            roles: vec![],
-            exp: u64::MAX,
-        };
+        future_into_py(py, async move {
+            // Create anonymous user context (no authentication for now)
+            let user_context = UserContext {
+                user_id: None,
+                permissions: vec!["public".to_string()],
+                roles: vec![],
+                exp: u64::MAX,
+            };
 
-        // Execute query through pipeline (this is async, so we block in a tokio runtime)
-        let result = if let Ok(handle) = tokio::runtime::Handle::try_current() {
-            // We're already in a tokio context (e.g., called from async Python)
-            handle.block_on(self.state.pipeline.execute(
-                &request.query,
-                variables_map,
-                user_context,
-            ))
-        } else {
-            // Use thread-local cached FFI runtime (avoids 100-200ms overhead per call)
-            let rt = ffi_runtime();
-            rt.block_on(
-                self.state
-                    .pipeline
-                    .execute(&request.query, variables_map, user_context),
-            )
-        };
+            // Execute query through pipeline
+            let result = state
+                .pipeline
+                .execute(&query, variables_map, user_context)
+                .await;
 
-        // Convert result to Python dict
-        Python::with_gil(|py| {
-            let response_dict = PyDict::new(py);
-
+            // Convert result to Python dict-like structure
             match result {
                 Ok(response_bytes) => {
                     // Parse response bytes back to JSON
                     match serde_json::from_slice::<JsonValue>(&response_bytes) {
                         Ok(data) => {
-                            response_dict.set_item("data", data.to_string())?;
-                            response_dict.set_item("errors", py.None())?;
+                            let response = json!({
+                                "data": data,
+                                "errors": serde_json::Value::Null
+                            });
+                            Ok(response.to_string())
                         }
                         Err(e) => {
-                            let error_msg = format!("Failed to parse response: {e}");
-                            response_dict.set_item("data", py.None())?;
-                            response_dict.set_item(
-                                "errors",
-                                vec![json!({"message": error_msg}).to_string()],
-                            )?;
+                            let response = json!({
+                                "data": serde_json::Value::Null,
+                                "errors": [{"message": format!("Failed to parse response: {e}")}]
+                            });
+                            Ok(response.to_string())
                         }
                     }
                 }
                 Err(e) => {
-                    let error_msg = format!("Query execution failed: {e}");
-                    response_dict.set_item("data", py.None())?;
-                    response_dict
-                        .set_item("errors", vec![json!({"message": error_msg}).to_string()])?;
+                    let response = json!({
+                        "data": serde_json::Value::Null,
+                        "errors": [{"message": format!("Query execution failed: {e}")}]
+                    });
+                    Ok(response.to_string())
                 }
             }
-
-            Ok(response_dict.into())
         })
     }
 

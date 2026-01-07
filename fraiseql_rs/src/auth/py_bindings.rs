@@ -1,10 +1,11 @@
 //! `PyO3` bindings for authentication module (Phase 10).
 
+use pyo3::exceptions::PyException;
 use pyo3::prelude::*;
+use pyo3_async_runtimes::tokio::future_into_py;
 use std::sync::Arc;
 
 use crate::auth::provider::{Auth0Provider, AuthProvider, CustomJWTProvider};
-use crate::db::ffi_runtime;
 use crate::pipeline::unified::UserContext;
 
 /// Python wrapper for `UserContext` (exposed from Rust to Python)
@@ -167,50 +168,26 @@ impl PyAuthProvider {
     ///
     ///     asyncio.run(main())
     ///     ```
-    /// Validate a JWT token (blocks until validation completes).
-    ///
-    /// For best compatibility with Python async code, call this from
-    /// an executor like `asyncio.to_thread.run_in_executor()` or
-    /// concurrent.futures.ThreadPoolExecutor.
     ///
     /// # Errors
     ///
     /// Returns a Python `RuntimeError` if:
-    /// - No tokio runtime is available (must call from async context or use executor)
     /// - Token validation fails (expired, invalid signature, wrong audience, etc.)
     /// - Token format is invalid or malformed
-    ///
-    /// Example:
-    ///     ```python
-    ///     import asyncio
-    ///     auth = PyAuthProvider.auth0("example.auth0.com", ["https://api.example.com"])
-    ///
-    ///     async def validate(token):
-    ///         loop = asyncio.get_event_loop()
-    ///         user = await loop.run_in_executor(None, auth.validate_token_blocking, token)
-    ///         return user
-    ///     ```
-    pub fn validate_token_blocking(&self, token: &str) -> PyResult<PyUserContext> {
+    pub fn validate_token<'py>(
+        &self,
+        py: Python<'py>,
+        token: String,
+    ) -> PyResult<Bound<'py, PyAny>> {
         let provider = self.provider.clone();
-
-        // Try to use existing tokio runtime, or use thread-local cached FFI runtime
-        // Use existing runtime if available (e.g., when called from Rust async context)
-        let context = tokio::runtime::Handle::try_current().map_or_else(
-            |_| {
-                // Use thread-local cached FFI runtime (avoids 100-200ms overhead per call)
-                let rt = ffi_runtime();
-                rt.block_on(provider.validate_token(token))
-            },
-            |handle| handle.block_on(provider.validate_token(token)),
-        );
-
-        let user_context = context.map_err(|e| {
-            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
-                "Token validation failed: {e}"
-            ))
-        })?;
-
-        Ok(PyUserContext::from(user_context))
+        future_into_py(py, async move {
+            match provider.validate_token(&token).await {
+                Ok(context) => Ok(PyUserContext::from(context)),
+                Err(e) => Err(PyException::new_err(format!(
+                    "Token validation failed: {e}"
+                ))),
+            }
+        })
     }
 
     /// Get provider type (for debugging)
