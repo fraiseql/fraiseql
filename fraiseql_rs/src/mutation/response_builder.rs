@@ -257,17 +257,20 @@ pub fn build_success_response(
             }
         }
 
-        // Report validation results
-        if !missing_fields.is_empty() {
-            eprintln!(
-                "Schema validation warning: Missing expected fields in {success_type}: {missing_fields:?}"
-            );
-        }
+        // Report validation results (logged at trace level in production)
+        #[cfg(debug_assertions)]
+        {
+            if !missing_fields.is_empty() {
+                eprintln!(
+                    "Schema validation warning: Missing expected fields in {success_type}: {missing_fields:?}"
+                );
+            }
 
-        if !extra_fields.is_empty() {
-            eprintln!(
-                "Schema validation warning: Extra fields in {success_type} not in schema: {extra_fields:?}"
-            );
+            if !extra_fields.is_empty() {
+                eprintln!(
+                    "Schema validation warning: Extra fields in {success_type} not in schema: {extra_fields:?}"
+                );
+            }
         }
     }
 
@@ -289,24 +292,27 @@ pub fn build_error_response_with_code(
     error_type_fields: Option<&[String]>,
     cascade_selections: Option<&str>,
 ) -> Result<Value, String> {
-    // DEBUG: Log function call and parameters
-    eprintln!("\n╔══════════════════════════════════════════════════════════════╗");
-    eprintln!("║ DEBUG: build_error_response_with_code() called              ║");
-    eprintln!("╠══════════════════════════════════════════════════════════════╣");
-    eprintln!("  error_type: {error_type}");
-    eprintln!("  auto_camel_case: {auto_camel_case}");
-    eprintln!("  error_type_fields: {error_type_fields:?}");
-    eprintln!("  result.status: {}", result.status);
-    eprintln!("  result.message: {:?}", result.message);
-    eprintln!(
-        "  result.entity: {}",
-        if result.entity.is_some() {
-            "Some(...)"
-        } else {
-            "None"
-        }
-    );
-    eprintln!("╚══════════════════════════════════════════════════════════════╝\n");
+    // Debug logging only in debug builds
+    #[cfg(debug_assertions)]
+    {
+        eprintln!("\n╔══════════════════════════════════════════════════════════════╗");
+        eprintln!("║ DEBUG: build_error_response_with_code() called              ║");
+        eprintln!("╠══════════════════════════════════════════════════════════════╣");
+        eprintln!("  error_type: {error_type}");
+        eprintln!("  auto_camel_case: {auto_camel_case}");
+        eprintln!("  error_type_fields: {error_type_fields:?}");
+        eprintln!("  result.status: {}", result.status);
+        eprintln!("  result.message: {:?}", result.message);
+        eprintln!(
+            "  result.entity: {}",
+            if result.entity.is_some() {
+                "Some(...)"
+            } else {
+                "None"
+            }
+        );
+        eprintln!("╚══════════════════════════════════════════════════════════════╝\n");
+    }
 
     let mut obj = Map::new();
 
