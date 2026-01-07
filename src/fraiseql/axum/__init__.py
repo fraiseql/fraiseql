@@ -60,10 +60,12 @@ Differences from FastAPI:
 
 from fraiseql.axum.app import create_axum_fraiseql_app
 from fraiseql.axum.config import AxumFraiseQLConfig
+from fraiseql.axum.registry import AxumRegistry
 from fraiseql.axum.server import AxumServer
 
 __all__ = [
     "AxumFraiseQLConfig",
+    "AxumRegistry",
     "AxumServer",
     "create_axum_fraiseql_app",
 ]
