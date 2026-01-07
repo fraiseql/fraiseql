@@ -496,9 +496,7 @@ class AxumRegistry:
 
         if self._subscriptions:
             sub_names = ", ".join(self._subscriptions.keys())
-            summary_lines.append(
-                f"  Subscriptions: {counts['subscriptions']} ({sub_names})"
-            )
+            summary_lines.append(f"  Subscriptions: {counts['subscriptions']} ({sub_names})")
 
         if counts["total"] == 0:
             summary_lines.append("  (empty)")

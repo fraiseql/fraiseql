@@ -128,7 +128,9 @@ def handle_apq_request_with_cache(
                 if selection_set:
                     fragments = extract_fragments(query_text)
                     cached_response = filter_response_by_selection(
-                        cached_response, selection_set, fragments,
+                        cached_response,
+                        selection_set,
+                        fragments,
                     )
 
             return cached_response

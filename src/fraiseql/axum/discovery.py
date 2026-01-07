@@ -87,7 +87,6 @@ import importlib
 import importlib.util
 import inspect
 import logging
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Iterator
@@ -307,8 +306,7 @@ def discover_from_module(module_name: str) -> DiscoveryResult:
         logger.error(f"Error scanning module {module_name}: {e}")
 
     logger.debug(
-        f"Discovered {result.count_total()} items in {module_name}, "
-        f"{len(result.errors)} errors"
+        f"Discovered {result.count_total()} items in {module_name}, {len(result.errors)} errors"
     )
 
     return result
@@ -441,9 +439,7 @@ def _is_fraiseql_query(obj: Any) -> bool:
 def _is_fraiseql_subscription(obj: Any) -> bool:
     """Check if object is a @fraiseql.subscription decorated function."""
     # Check for _fraiseql_subscription marker
-    return hasattr(obj, "_fraiseql_subscription") and getattr(
-        obj, "_fraiseql_subscription", False
-    )
+    return hasattr(obj, "_fraiseql_subscription") and getattr(obj, "_fraiseql_subscription", False)
 
 
 def _walk_package_modules(package_name: str, package_path: Path) -> Iterator[str]:

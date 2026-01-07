@@ -501,7 +501,9 @@ def convert_type_to_graphql_output(
                             )
 
                             enhanced_resolver = create_nested_array_field_resolver_with_where(
-                                name, field_type, field,
+                                name,
+                                field_type,
+                                field,
                             )
 
                             # Wrap with enum serialization
@@ -619,7 +621,8 @@ def convert_type_to_graphql_output(
                                             origin_type = non_none_types[0]
 
                                     if isinstance(origin_type, type) and issubclass(
-                                        origin_type, Enum,
+                                        origin_type,
+                                        Enum,
                                     ):
                                         # Field type is an enum, return the member for GraphQL
                                         return value
@@ -652,7 +655,8 @@ def convert_type_to_graphql_output(
                                                             item_type = non_none_types[0]
 
                                                     if isinstance(item_type, type) and issubclass(
-                                                        item_type, Enum,
+                                                        item_type,
+                                                        Enum,
                                                     ):
                                                         result.append(item)
                                                     else:
@@ -666,7 +670,8 @@ def convert_type_to_graphql_output(
                                             list_item_type = _extract_list_item_type(field_type)
 
                                             if list_item_type and hasattr(
-                                                list_item_type, "__fraiseql_definition__",
+                                                list_item_type,
+                                                "__fraiseql_definition__",
                                             ):
                                                 # Convert dict to typed object
                                                 if hasattr(list_item_type, "from_dict"):
@@ -692,7 +697,8 @@ def convert_type_to_graphql_output(
 
                                     # Check if the field type is a FraiseQL type
                                     if hasattr(
-                                        actual_field_type, "__fraiseql_definition__",
+                                        actual_field_type,
+                                        "__fraiseql_definition__",
                                     ) and hasattr(actual_field_type, "from_dict"):
                                         return actual_field_type.from_dict(value)
 
@@ -768,7 +774,9 @@ def convert_type_to_graphql_output(
                                 if asyncio.iscoroutinefunction(method):
 
                                     async def async_resolver(
-                                        obj: Any, info: GraphQLResolveInfo, **kwargs: Any,
+                                        obj: Any,
+                                        info: GraphQLResolveInfo,
+                                        **kwargs: Any,
                                     ) -> Any:
                                         # Call the method with the object instance and info
                                         return await method(obj, info, **kwargs)
@@ -776,7 +784,9 @@ def convert_type_to_graphql_output(
                                     return async_resolver
 
                                 def sync_resolver(
-                                    obj: Any, info: GraphQLResolveInfo, **kwargs: Any,
+                                    obj: Any,
+                                    info: GraphQLResolveInfo,
+                                    **kwargs: Any,
                                 ) -> Any:
                                     # Call the method with the object instance and info
                                     return method(obj, info, **kwargs)
@@ -871,7 +881,9 @@ def convert_type_to_graphql_output(
 
                 # Create interface type with type resolver
                 def resolve_type(
-                    obj: Any, info: GraphQLResolveInfo, type_: GraphQLType,
+                    obj: Any,
+                    info: GraphQLResolveInfo,
+                    type_: GraphQLType,
                 ) -> str | None:
                     """Resolve the concrete type for an interface."""
                     if hasattr(obj, "__class__") and hasattr(obj.__class__, "__name__"):
@@ -938,10 +950,12 @@ def _create_connection_type(node_type: type) -> GraphQLObjectType:
                 description="List of edges in this connection",
             ),
             "pageInfo": GraphQLField(
-                GraphQLNonNull(page_info_type), description="Information about pagination",
+                GraphQLNonNull(page_info_type),
+                description="Information about pagination",
             ),
             "totalCount": GraphQLField(
-                GraphQLInt, description="Total number of items (if includeTotal was enabled)",
+                GraphQLInt,
+                description="Total number of items (if includeTotal was enabled)",
             ),
         },
         description=f"A connection to a list of {node_name} items.",
@@ -976,7 +990,8 @@ def _create_edge_type(node_type: type, edge_name: str, registry: Any) -> GraphQL
                 description=f"The {node_type.__name__} at the end of this edge",
             ),
             "cursor": GraphQLField(
-                GraphQLNonNull(GraphQLString), description="Cursor for this node",
+                GraphQLNonNull(GraphQLString),
+                description="Cursor for this node",
             ),
         },
         description=f"An edge in a {node_type.__name__} connection.",
@@ -1021,10 +1036,12 @@ def _get_or_create_page_info_type(registry: Any) -> GraphQLObjectType:
                 description="Whether more items exist before this page",
             ),
             "startCursor": GraphQLField(
-                GraphQLString, description="Cursor for the first item in this page",
+                GraphQLString,
+                description="Cursor for the first item in this page",
             ),
             "endCursor": GraphQLField(
-                GraphQLString, description="Cursor for the last item in this page",
+                GraphQLString,
+                description="Cursor for the last item in this page",
             ),
         },
         description="Information about pagination in a connection.",

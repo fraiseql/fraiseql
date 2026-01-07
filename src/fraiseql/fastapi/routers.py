@@ -246,7 +246,8 @@ def _extract_field_location(field_node: Any) -> dict[str, int] | None:
 
 
 def _extract_variable_defaults(
-    query_string: str, operation_name: str | None = None,
+    query_string: str,
+    operation_name: str | None = None,
 ) -> dict[str, Any]:
     """Extract default values for variables from operation definition.
 
@@ -360,7 +361,10 @@ def _expand_fragment_spread(
 
         # Extract sub-selections using recursive field extraction
         sub_selections = extract_field_selections(
-            selection.selection_set, document, variables, None,
+            selection.selection_set,
+            document,
+            variables,
+            None,
         )
 
         fields.append(
@@ -417,7 +421,10 @@ def _expand_inline_fragment(
 
         # Extract sub-selections using recursive field extraction
         sub_selections = extract_field_selections(
-            selection.selection_set, document, variables, None,
+            selection.selection_set,
+            document,
+            variables,
+            None,
         )
 
         fields.append(
@@ -515,7 +522,10 @@ def extract_field_selections(
                 # Add to visited set and recursively extract fields from fragment
                 updated_visited = visited_fragments | {fragment_name}
                 fragment_fields = extract_field_selections(
-                    fragment_def.selection_set, document, variables, updated_visited,
+                    fragment_def.selection_set,
+                    document,
+                    variables,
+                    updated_visited,
                 )
                 fields.extend(fragment_fields)
             continue
@@ -557,7 +567,9 @@ def extract_field_selections(
 
 
 def _extract_root_query_fields(
-    query_string: str, operation_name: str | None = None, variables: dict[str, Any] | None = None,
+    query_string: str,
+    operation_name: str | None = None,
+    variables: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Extract root-level query fields with their selections, applying directive filtering.
 
@@ -628,7 +640,10 @@ def _extract_root_query_fields(
 
                 # Extract sub-field selections with aliases and directives
                 sub_selections = extract_field_selections(
-                    selection.selection_set, document, variables, None,
+                    selection.selection_set,
+                    document,
+                    variables,
+                    None,
                 )
 
                 fields.append(
@@ -1120,7 +1135,8 @@ def create_graphql_router(
             if not sha256_hash or not isinstance(sha256_hash, str) or not sha256_hash.strip():
                 logger.debug("APQ request failed: invalid hash format")
                 return create_apq_error_response(
-                    "PERSISTED_QUERY_NOT_FOUND", "PersistedQueryNotFound",
+                    "PERSISTED_QUERY_NOT_FOUND",
+                    "PersistedQueryNotFound",
                 )
 
             # Get APQ backend for caching
@@ -1146,7 +1162,10 @@ def create_graphql_router(
 
                 # 1. Try cached response first (JSON passthrough)
                 cached_response = handle_apq_request_with_cache(
-                    request, apq_backend, config, context=context,
+                    request,
+                    apq_backend,
+                    config,
+                    context=context,
                 )
                 if cached_response:
                     logger.debug(f"APQ cache hit: {sha256_hash[:8]}...")
@@ -1166,7 +1185,8 @@ def create_graphql_router(
                 if not persisted_query_text:
                     logger.debug(f"APQ request failed: hash not found: {sha256_hash[:8]}...")
                     return create_apq_error_response(
-                        "PERSISTED_QUERY_NOT_FOUND", "PersistedQueryNotFound",
+                        "PERSISTED_QUERY_NOT_FOUND",
+                        "PersistedQueryNotFound",
                     )
 
                 # Replace request query with persisted query for normal execution
@@ -1227,7 +1247,10 @@ def create_graphql_router(
                 )
                 try:
                     result = await execute_multi_field_query(
-                        schema, request.query, request.variables, context,
+                        schema,
+                        request.query,
+                        request.variables,
+                        context,
                     )
                     # execute_multi_field_query returns RustResponseBytes
                     return Response(
