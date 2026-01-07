@@ -257,6 +257,7 @@ struct FixedWindow {
 #[inline]
 fn current_timestamp() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map_or_else(
+        #[allow(clippy::used_underscore_binding)]
         |e| {
             // System clock is before Unix epoch - should never happen in production
             // Log and return 0 to avoid panic

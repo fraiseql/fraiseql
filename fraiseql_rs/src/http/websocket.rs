@@ -100,12 +100,14 @@ async fn handle_socket(socket: WebSocket) {
 
                 // For Commit 3: Simple echo
                 // In Commit 4: Parse as GraphQL message and route accordingly
+                #[allow(clippy::used_underscore_binding)]
                 if let Err(e) = sender.send(Message::Text(text)).await {
                     debug_log!("Error sending response: {e}");
                     break;
                 }
             }
 
+            #[allow(clippy::used_underscore_binding)]
             Ok(Message::Close(close_frame)) => {
                 debug_log!(
                     "WebSocket close received: {:?}",
@@ -116,6 +118,7 @@ async fn handle_socket(socket: WebSocket) {
 
             Ok(Message::Ping(data)) => {
                 // Respond to ping with pong
+                #[allow(clippy::used_underscore_binding)]
                 if let Err(e) = sender.send(Message::Pong(data)).await {
                     debug_log!("Error sending pong: {e}");
                     break;
@@ -127,6 +130,7 @@ async fn handle_socket(socket: WebSocket) {
                 debug_log!("Pong received, connection alive");
             }
 
+            #[allow(clippy::used_underscore_binding)]
             Err(e) => {
                 debug_log!("WebSocket error: {e}");
                 break;
