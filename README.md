@@ -68,6 +68,7 @@ app = create_fraiseql_app(
 ## Is This For You?
 
 **✅ Perfect if you:**
+
 - Build high-performance APIs with PostgreSQL
 - Want 7-10x faster JSON processing
 - Need enterprise security & compliance
@@ -75,6 +76,7 @@ app = create_fraiseql_app(
 - Use LLMs for code generation
 
 **❌ Consider alternatives if:**
+
 - You need multi-database support (PostgreSQL-only)
 - Building your first GraphQL API (use simpler frameworks)
 - Don't use JSONB columns in PostgreSQL
@@ -146,10 +148,14 @@ class UserType:
 ### The Solution (FraiseQL)
 
 ```sql
+
 -- PostgreSQL view defines what's exposed
 CREATE VIEW v_user AS
 SELECT id,
-  jsonb_build_object('id', id, 'email', email) as data
+  jsonb_build_object(
+   'id', id,
+    'email', email
+  ) as data
 FROM tb_user;
 -- password_hash and api_key aren't in JSONB = impossible to leak
 ```
@@ -189,7 +195,7 @@ from fraiseql.types import EmailAddress, PhoneNumber, IPv1.9.5, Money, LTree
 class User:
     email: EmailAddress      # Validated emails
     phone: PhoneNumber       # International phone numbers
-    ip: IPv1.9.5                 # IP addresses with subnet operations
+    ip: IPv4                 # IP addresses with subnet operations
     balance: Money           # Currency with precision
     location: LTree          # Hierarchical paths
 ```

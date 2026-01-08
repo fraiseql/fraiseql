@@ -205,12 +205,12 @@ TODO/
 !/package.json
 !/tsconfig.json
 
-# Archive directory
+# Archive directories
 /archive/
+.archive/
 
-# Phase tracking directory for Pentagon-Readiness implementation
-# Note: Now tracked in git - remove this line if phases should be version controlled
-# .phases/
+# Phase tracking directory (now archived)
+# Note: .phases/ moved to .archive/phases/
 
 # Reports directory - generated files
 /reports/coverage/
