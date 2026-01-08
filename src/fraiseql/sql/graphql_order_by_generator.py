@@ -3,6 +3,14 @@
 This module provides utilities to dynamically generate GraphQL input types
 for ordering. These types can be used directly in GraphQL resolvers and are
 automatically converted to SQL ORDER BY clauses.
+
+Phase A.4: Schema Loader Integration
+====================================
+
+Optional integration with fraiseql.gql.schema_loader provides pre-built schemas
+from Rust (via fraiseql_rs FFI). When available, schema metadata can be accessed
+via get_order_by_schema_from_loader() for performance optimization. Falls back to
+Python generation if schema_loader is not available.
 """
 
 from dataclasses import make_dataclass
@@ -19,6 +27,24 @@ T = TypeVar("T")
 _order_by_input_cache: dict[type, type] = {}
 # Stack to track types being generated to detect circular references
 _generation_stack: set[type] = set()
+
+
+def get_order_by_schema_from_loader() -> dict[str, Any] | None:
+    """Get order by schema from Rust via schema_loader if available.
+
+    Phase A.4: Optional integration with schema_loader for pre-built schemas.
+    Falls back gracefully if schema_loader is not available.
+
+    Returns:
+        Order by schema dict from Rust, or None if not available.
+    """
+    try:
+        from fraiseql.gql.schema_loader import get_order_by_schema
+
+        return get_order_by_schema()
+    except ImportError:
+        # schema_loader not available - will use Python generation
+        return None
 
 
 # Import OrderDirection from order_by_generator
