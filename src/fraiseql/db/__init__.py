@@ -45,6 +45,23 @@ from fraiseql.db.registry import (
     register_type_for_view,
 )
 
+# Extract 4: Query building (pure Python, no database execution)
+from fraiseql.db.query_builder import (
+    DatabaseQuery,
+    build_basic_dict_condition,
+    build_dict_where_condition,
+    build_find_one_query,
+    build_find_query,
+    build_where_clause,
+    normalize_where,
+)
+
+# Extract 5: Session management (PostgreSQL session variables for RLS)
+from fraiseql.db.session import (
+    clear_session_variables,
+    set_session_variables,
+)
+
 # Backward compatibility: old name for is_rust_response_null
 _is_rust_response_null = is_rust_response_null
 
@@ -61,17 +78,26 @@ except ImportError:
 
 __all__ = [
     "_NULL_RESPONSE_CACHE",
-    "FraiseQLRepository",
     "_is_rust_response_null",
     "_table_metadata",
     "_type_registry",
+    "build_basic_dict_condition",
+    "build_dict_where_condition",
+    "build_find_one_query",
+    "build_find_query",
+    "build_where_clause",
+    "clear_session_variables",
     "clear_type_registry",
     "create_legacy_pool",
     "create_production_pool",
     "create_prototype_pool",
+    "DatabaseQuery",
     "execute_query_via_rust",
     "execute_transaction",
     "execute_via_rust_pipeline",
+    "FraiseQLRepository",
     "is_rust_response_null",
+    "normalize_where",
     "register_type_for_view",
+    "set_session_variables",
 ]
