@@ -35,6 +35,9 @@ deadpool-postgres = "0.14"
 deadpool = "0.12"
 async-trait = "0.1"
 
+# Phase 3: SQLx for real database backend with connection pooling
+sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "json", "macros"] }
+
 # SSL/TLS support for PostgreSQL (Phase 1: Production Pool)
 native-tls = "0.2"
 postgres-native-tls = "0.5"
