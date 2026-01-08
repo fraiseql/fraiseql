@@ -1,12 +1,12 @@
 {
   "test_class": "TestPacketLossCorruptionChaos",
-  "timestamp": 1767798016.7934737,
+  "timestamp": 1767856516.44381,
   "metrics": {
-    "duration_ms": 1957.8211307525635,
+    "duration_ms": 1972.0458984375,
     "query_count": 123,
-    "avg_query_time_ms": 10.863385420351511,
-    "p95_query_time_ms": 11.745262145996094,
-    "error_count": 17,
+    "avg_query_time_ms": 10.797868043103515,
+    "p95_query_time_ms": 10.945892333984375,
+    "error_count": 12,
     "retry_count": 0,
     "chaos_active_duration_ms": null
   },
