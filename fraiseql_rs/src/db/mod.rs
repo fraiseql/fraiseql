@@ -13,6 +13,7 @@
 //! - `health.rs`: Health check utilities (Phase 1)
 //! - `transaction.rs`: ACID transaction support
 //! - `types.rs`: Type definitions and configurations
+//! - `query_builder.rs`: SQL query building (Phase 2 - Python migration)
 //! - `where_builder.rs`: WHERE clause construction
 //! - `query.rs`: Query execution and result handling
 
@@ -25,6 +26,7 @@ pub mod pool_config;
 pub mod pool_production;
 pub mod prototype; // Phase 0: Async bridge prototype
 pub mod query;
+pub mod query_builder;
 pub mod runtime;
 pub mod transaction;
 pub mod types;
@@ -40,6 +42,7 @@ pub use pool_config::{DatabaseConfig, SslMode};
 pub use pool_production::{PoolStats, ProductionPool};
 pub use prototype::PrototypePool; // Phase 0: Export prototype for testing
 pub use query::QueryExecutor;
+pub use query_builder::{OrderByInput, QueryBuilder, QueryType, SqlQuery};
 pub use runtime::{ffi_runtime, init_runtime, runtime, RuntimeConfig, RuntimeStats};
 pub use transaction::Transaction;
 pub use types::*;
