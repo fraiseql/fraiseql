@@ -15,9 +15,13 @@ use std::collections::HashMap;
 /// Query type enumeration
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum QueryType {
+    /// SELECT query for retrieving data
     Select,
+    /// INSERT query for adding new rows
     Insert,
+    /// UPDATE query for modifying existing rows
     Update,
+    /// DELETE query for removing rows
     Delete,
 }
 
@@ -160,14 +164,14 @@ impl QueryBuilder {
 
     /// Add LIMIT
     #[must_use]
-    pub fn limit(mut self, limit: i64) -> Self {
+    pub const fn limit(mut self, limit: i64) -> Self {
         self.limit = Some(limit);
         self
     }
 
     /// Add OFFSET
     #[must_use]
-    pub fn offset(mut self, offset: i64) -> Self {
+    pub const fn offset(mut self, offset: i64) -> Self {
         self.offset = Some(offset);
         self
     }
@@ -193,12 +197,12 @@ impl QueryBuilder {
     /// ```
     #[must_use]
     pub fn build_select(self) -> SqlQuery {
+        use std::fmt::Write;
         let mut sql = String::new();
 
         // SELECT clause
         if self.select_all_as_json {
             if let Some(ref jsonb_col) = self.jsonb_column {
-                use std::fmt::Write;
                 let _ = write!(sql, "SELECT {jsonb_col}::text");
             } else {
                 sql.push_str("SELECT row_to_json(t)::text");
@@ -209,14 +213,12 @@ impl QueryBuilder {
             } else {
                 self.columns.join(", ")
             };
-            use std::fmt::Write;
             let _ = write!(sql, "SELECT {columns}");
         }
 
         // FROM clause with schema if present
         sql.push_str(" FROM ");
         if let Some(ref schema) = self.schema {
-            use std::fmt::Write;
             let _ = write!(sql, "{schema}.{}", self.table);
         } else {
             sql.push_str(&self.table);
@@ -228,6 +230,7 @@ impl QueryBuilder {
         }
 
         // WHERE clause
+        #[allow(clippy::option_if_let_else)]
         let params = if let Some(where_builder) = self.where_builder {
             let (where_sql, params) = where_builder.build();
             if !where_sql.is_empty() {
@@ -242,20 +245,17 @@ impl QueryBuilder {
         // ORDER BY
         if let Some(order_by) = self.order_by {
             if let Some(order_sql) = order_by.to_sql() {
-                use std::fmt::Write;
                 let _ = write!(sql, " ORDER BY {order_sql}");
             }
         }
 
         // LIMIT
         if let Some(limit) = self.limit {
-            use std::fmt::Write;
             let _ = write!(sql, " LIMIT {limit}");
         }
 
         // OFFSET
         if let Some(offset) = self.offset {
-            use std::fmt::Write;
             let _ = write!(sql, " OFFSET {offset}");
         }
 
@@ -279,10 +279,9 @@ impl QueryBuilder {
     ///     .value("email", QueryParam::Text("john@example.com".into()))
     ///     .build_insert();
     /// ```
+    #[must_use] 
     pub fn build_insert(mut self) -> SqlQuery {
-        if self.values.is_empty() {
-            panic!("INSERT requires at least one value");
-        }
+        assert!(!self.values.is_empty(), "INSERT requires at least one value");
 
         let column_names: Vec<String> = self.values.keys().cloned().collect();
         let mut params = Vec::new();
@@ -294,23 +293,23 @@ impl QueryBuilder {
 
         let columns_str = column_names.join(", ");
 
-        let mut sql = format!(
-            "INSERT INTO {} ({}) VALUES ({})",
-            self.table,
-            columns_str,
-            placeholders.join(", ")
-        );
-
         // If schema is specified, include it in table name
-        if let Some(ref schema) = self.schema {
-            sql = format!(
+        let sql = if let Some(ref schema) = self.schema {
+            format!(
                 "INSERT INTO {}.{} ({}) VALUES ({})",
                 schema,
                 self.table,
                 columns_str,
                 placeholders.join(", ")
-            );
-        }
+            )
+        } else {
+            format!(
+                "INSERT INTO {} ({}) VALUES ({})",
+                self.table,
+                columns_str,
+                placeholders.join(", ")
+            )
+        };
 
         // Collect parameters in the same order as columns
         for col in column_names {
@@ -339,10 +338,9 @@ impl QueryBuilder {
     ///     .where_clause(/* ... */)
     ///     .build_update();
     /// ```
+    #[must_use] 
     pub fn build_update(self) -> SqlQuery {
-        if self.values.is_empty() {
-            panic!("UPDATE requires at least one value");
-        }
+        assert!(!self.values.is_empty(), "UPDATE requires at least one value");
 
         let mut sql = if let Some(schema) = self.schema {
             format!("UPDATE {}.{} SET ", schema, self.table)
@@ -367,7 +365,8 @@ impl QueryBuilder {
                 // Adjust parameter numbering for WHERE clause parameters
                 let param_offset = params.len();
                 let adjusted_where = adjust_param_numbers(&where_sql, param_offset);
-                sql.push_str(&format!(" {}", adjusted_where));
+                sql.push(' ');
+                sql.push_str(&adjusted_where);
                 params.extend(where_params);
             }
         }
@@ -388,6 +387,7 @@ impl QueryBuilder {
     ///     .where_clause(/* ... */)
     ///     .build_delete();
     /// ```
+    #[must_use] 
     pub fn build_delete(self) -> SqlQuery {
         let mut sql = if let Some(schema) = self.schema {
             format!("DELETE FROM {}.{}", schema, self.table)
@@ -395,10 +395,12 @@ impl QueryBuilder {
             format!("DELETE FROM {}", self.table)
         };
 
+        #[allow(clippy::option_if_let_else)]
         let params = if let Some(where_builder) = self.where_builder {
             let (where_sql, params) = where_builder.build();
             if !where_sql.is_empty() {
-                sql.push_str(&format!(" {}", where_sql));
+                sql.push(' ');
+                sql.push_str(&where_sql);
             }
             params
         } else {

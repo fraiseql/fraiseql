@@ -724,7 +724,7 @@ pub fn execute_mutation_async(mutation_def: &str) -> PyResult<String> {
 /// Process GraphQL request end-to-end with unified Rust pipeline (Phase 3a).
 ///
 /// **Single FFI Entry Point**: This binding replaces the need for multiple FFI calls
-/// (execute_query_async + execute_mutation_async + build_multi_field_response).
+/// (`execute_query_async` + `execute_mutation_async` + `build_multi_field_response`).
 /// All GraphQL processing happens in Rust with zero FFI overhead.
 ///
 /// # Architecture
