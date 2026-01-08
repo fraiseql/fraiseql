@@ -65,16 +65,8 @@ from fraiseql.db.session import (
 # Backward compatibility: old name for is_rust_response_null
 _is_rust_response_null = is_rust_response_null
 
-# Main repository class - imported from the interim location
-# This will eventually be from fraiseql.db.repository, but during migration
-# it comes from the core module
-try:
-    # Try to import from repository.py (if it exists)
-    from fraiseql.db.repository import FraiseQLRepository
-except ImportError:
-    # Fall back to importing from core (monolithic db_core.py)
-    # This maintains backward compatibility during the refactoring
-    from fraiseql.db_core import FraiseQLRepository  # type: ignore[import,no-redef]
+# Main repository class - now fully extracted to repository.py
+from fraiseql.db.repository import FraiseQLRepository
 
 __all__ = [
     "_NULL_RESPONSE_CACHE",
