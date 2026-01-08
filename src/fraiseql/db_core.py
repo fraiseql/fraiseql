@@ -1,4 +1,36 @@
-"""Database utilities and repository layer for FraiseQL using psycopg and connection pooling.
+"""⚠️ DEPRECATED: This module has been refactored into modular components.
+
+DEPRECATION NOTICE
+==================
+As of Phase 5.3, db_core.py is deprecated and kept for backward compatibility.
+This file will be removed in v3.0.
+
+The monolithic db.py file has been refactored into organized, single-responsibility modules:
+
+NEW STRUCTURE (Use these instead):
+- fraiseql.db.repository: FraiseQLRepository (main user-facing API)
+- fraiseql.db.query_builder: Pure Python query construction
+- fraiseql.db.session: PostgreSQL session variables for RLS
+- fraiseql.db.registry: Type registry and metadata
+- fraiseql.db.pool: Connection pool factories
+- fraiseql.db.executor: Rust pipeline coordination
+
+MIGRATION PATH
+==============
+All imports from this module should be updated to use the new modular structure.
+The public API is unchanged - just the imports are different.
+
+BEFORE (OLD):
+    from fraiseql.db_core import FraiseQLRepository
+    from fraiseql.db_core import build_find_query
+
+AFTER (NEW):
+    from fraiseql.db import FraiseQLRepository
+    from fraiseql.db import build_find_query
+
+Both paths work identically, but prefer the new modular structure.
+
+---
 
 Phase 1: Migration Strategy
 ---------------------------
