@@ -6,12 +6,17 @@ optimized PostgreSQL queries using `jsonb_build_object` for minimal post-process
 """
 
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, NamedTuple
 
 from psycopg import sql
 from psycopg.sql import SQL, Composed, Identifier
 
-from fraiseql.core.ast_parser import FieldPath
+
+class FieldPath(NamedTuple):
+    """Represents a flattened JSON path and alias extracted from a GraphQL selection set."""
+
+    alias: str
+    path: list[str]
 
 
 def _get_graphql_field_type(typename: str | None, field_alias: str) -> type | None:
