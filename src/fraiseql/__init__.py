@@ -123,6 +123,14 @@ def __getattr__(name: str):
         globals()["_fraiseql_rs"] = rs
         return rs
 
+    # Phase 1 Greenfield: Expose GraphQLEngine from Rust API layer
+    if name == "GraphQLEngine":
+        rs = _get_fraiseql_rs()
+        if rs is not None:
+            # Rust exports as PyGraphQLEngine, but we expose as GraphQLEngine for clean API
+            return getattr(rs, "PyGraphQLEngine", None)
+        raise AttributeError(f"Rust extension not available")
+
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 
@@ -145,6 +153,7 @@ __all__ = [
     "Error",
     "FraiseQLConfig",
     "GraphQLContext",
+    "GraphQLEngine",  # Phase 1 Greenfield: New public API
     "MutationErrorConfig",
     "MutationResultBase",
     "PageInfo",

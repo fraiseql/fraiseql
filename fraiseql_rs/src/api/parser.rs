@@ -146,15 +146,24 @@ pub fn parse_graphql_query(query_string: &str) -> Result<ParsedQuery, ApiError> 
         query::Definition::Operation(op) => {
             // Determine operation type and extract fields
             let (operation_type, operation_name, selection_set, variable_definitions) = match op {
-                OperationDefinition::Query(q) => {
-                    (OperationType::Query, q.name.clone(), &q.selection_set, &q.variable_definitions)
-                }
-                OperationDefinition::Mutation(m) => {
-                    (OperationType::Mutation, m.name.clone(), &m.selection_set, &m.variable_definitions)
-                }
-                OperationDefinition::Subscription(s) => {
-                    (OperationType::Subscription, s.name.clone(), &s.selection_set, &s.variable_definitions)
-                }
+                OperationDefinition::Query(q) => (
+                    OperationType::Query,
+                    q.name.clone(),
+                    &q.selection_set,
+                    &q.variable_definitions,
+                ),
+                OperationDefinition::Mutation(m) => (
+                    OperationType::Mutation,
+                    m.name.clone(),
+                    &m.selection_set,
+                    &m.variable_definitions,
+                ),
+                OperationDefinition::Subscription(s) => (
+                    OperationType::Subscription,
+                    s.name.clone(),
+                    &s.selection_set,
+                    &s.variable_definitions,
+                ),
                 OperationDefinition::SelectionSet(sel_set) => {
                     (OperationType::Query, None, sel_set, &Vec::new())
                 }
@@ -193,11 +202,9 @@ pub fn parse_graphql_query(query_string: &str) -> Result<ParsedQuery, ApiError> 
                 directives: vec![], // TODO: Parse operation-level directives
             })
         }
-        query::Definition::Fragment(_) => {
-            Err(ApiError::QueryError(
-                "Fragment definitions are not yet supported".to_string(),
-            ))
-        }
+        query::Definition::Fragment(_) => Err(ApiError::QueryError(
+            "Fragment definitions are not yet supported".to_string(),
+        )),
     }
 }
 
@@ -273,13 +280,11 @@ fn value_to_argument(value: &query::Value<String>) -> ArgumentValue {
         query::Value::List(items) => {
             ArgumentValue::List(items.iter().map(value_to_argument).collect())
         }
-        query::Value::Object(obj) => {
-            ArgumentValue::Object(
-                obj.iter()
-                    .map(|(k, v)| (k.clone(), value_to_argument(v)))
-                    .collect(),
-            )
-        }
+        query::Value::Object(obj) => ArgumentValue::Object(
+            obj.iter()
+                .map(|(k, v)| (k.clone(), value_to_argument(v)))
+                .collect(),
+        ),
     }
 }
 
@@ -375,10 +380,18 @@ mod tests {
         let query = "{ u: user(id: \"1\") { id } p: posts { id } }";
         let parsed = parse_graphql_query(query).unwrap();
 
-        let user_field = parsed.root_fields.iter().find(|f| f.name == "user").unwrap();
+        let user_field = parsed
+            .root_fields
+            .iter()
+            .find(|f| f.name == "user")
+            .unwrap();
         assert_eq!(user_field.alias, Some("u".to_string()));
 
-        let posts_field = parsed.root_fields.iter().find(|f| f.name == "posts").unwrap();
+        let posts_field = parsed
+            .root_fields
+            .iter()
+            .find(|f| f.name == "posts")
+            .unwrap();
         assert_eq!(posts_field.alias, Some("p".to_string()));
     }
 

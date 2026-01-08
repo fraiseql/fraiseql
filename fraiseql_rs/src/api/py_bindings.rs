@@ -110,8 +110,12 @@ impl PyGraphQLEngine {
             }
             Err(_) => {
                 // No tokio runtime, create a new one
-                let rt = tokio::runtime::Runtime::new()
-                    .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(format!("Failed to create Tokio runtime: {}", e)))?;
+                let rt = tokio::runtime::Runtime::new().map_err(|e| {
+                    pyo3::exceptions::PyRuntimeError::new_err(format!(
+                        "Failed to create Tokio runtime: {}",
+                        e
+                    ))
+                })?;
                 rt.block_on(self.inner.execute_query(request))
             }
         }
@@ -168,12 +172,18 @@ impl PyGraphQLEngine {
         let response = match tokio::runtime::Handle::try_current() {
             Ok(handle) => {
                 // We're in a tokio context, use block_in_place
-                tokio::task::block_in_place(|| handle.block_on(self.inner.execute_mutation(request)))
+                tokio::task::block_in_place(|| {
+                    handle.block_on(self.inner.execute_mutation(request))
+                })
             }
             Err(_) => {
                 // No tokio runtime, create a new one
-                let rt = tokio::runtime::Runtime::new()
-                    .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(format!("Failed to create Tokio runtime: {}", e)))?;
+                let rt = tokio::runtime::Runtime::new().map_err(|e| {
+                    pyo3::exceptions::PyRuntimeError::new_err(format!(
+                        "Failed to create Tokio runtime: {}",
+                        e
+                    ))
+                })?;
                 rt.block_on(self.inner.execute_mutation(request))
             }
         }
@@ -208,10 +218,9 @@ impl PyGraphQLEngine {
     /// Configuration as dictionary
     fn config(&self, py: Python) -> PyResult<Py<PyDict>> {
         // Serialize config to JSON and parse back as Python dict
-        let config_json_str =
-            serde_json::to_string(self.inner.config()).map_err(|e| {
-                pyo3::exceptions::PyValueError::new_err(format!("Failed to serialize config: {e}"))
-            })?;
+        let config_json_str = serde_json::to_string(self.inner.config()).map_err(|e| {
+            pyo3::exceptions::PyValueError::new_err(format!("Failed to serialize config: {e}"))
+        })?;
 
         // Use Python's json module to parse
         json_to_dict(py, &config_json_str)
@@ -324,8 +333,9 @@ fn response_to_dict(
         "extensions": response.extensions,
     });
 
-    let json_str = serde_json::to_string(&response_json)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("Failed to serialize response: {e}")))?;
+    let json_str = serde_json::to_string(&response_json).map_err(|e| {
+        pyo3::exceptions::PyValueError::new_err(format!("Failed to serialize response: {e}"))
+    })?;
 
     json_to_dict(py, &json_str)
 }

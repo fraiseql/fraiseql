@@ -26,12 +26,12 @@
 //! ```
 
 pub mod errors;
-pub mod traits;
 pub mod memory;
+pub mod traits;
 
 pub use errors::CacheError;
-pub use traits::{CacheBackend, CacheEntry};
 pub use memory::MemoryCache;
+pub use traits::{CacheBackend, CacheEntry};
 
 /// Result type for cache operations
 pub type CacheResult<T> = Result<T, CacheError>;

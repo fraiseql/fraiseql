@@ -12,11 +12,11 @@
 
 use crate::api::cache::CacheBackend;
 use crate::api::error::ApiError;
-use crate::api::planner::{ExecutionPlan, ResultMapping, ResponseMetadata};
+use crate::api::planner::{ExecutionPlan, ResponseMetadata, ResultMapping};
 use crate::api::storage::StorageBackend;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 /// Result of executing a single SQL query
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -101,7 +101,12 @@ impl Executor {
 
         for sql_query in &plan.sql_queries {
             // Generate cache key for SELECT queries
-            let cache_key = if sql_query.sql.trim_start().to_uppercase().starts_with("SELECT") {
+            let cache_key = if sql_query
+                .sql
+                .trim_start()
+                .to_uppercase()
+                .starts_with("SELECT")
+            {
                 Some(format!("query:{}", sql_query.sql))
             } else {
                 None
@@ -116,8 +121,13 @@ impl Executor {
                     }
                     Ok(None) => {
                         // Cache miss - query storage
-                        let query_result = self.storage.query(&sql_query.sql, &sql_query.parameters).await
-                            .map_err(|e| ApiError::InternalError(format!("Query execution failed: {}", e)))?;
+                        let query_result = self
+                            .storage
+                            .query(&sql_query.sql, &sql_query.parameters)
+                            .await
+                            .map_err(|e| {
+                                ApiError::InternalError(format!("Query execution failed: {}", e))
+                            })?;
 
                         // Cache the results for future queries
                         let results_value = serde_json::json!(query_result.rows);
@@ -127,15 +137,25 @@ impl Executor {
                     }
                     Err(_e) => {
                         // Cache error - fall back to storage
-                        let query_result = self.storage.query(&sql_query.sql, &sql_query.parameters).await
-                            .map_err(|e| ApiError::InternalError(format!("Query execution failed: {}", e)))?;
+                        let query_result = self
+                            .storage
+                            .query(&sql_query.sql, &sql_query.parameters)
+                            .await
+                            .map_err(|e| {
+                                ApiError::InternalError(format!("Query execution failed: {}", e))
+                            })?;
                         query_result.rows
                     }
                 }
             } else {
                 // Mutation query - execute directly without caching
-                let execute_result = self.storage.execute(&sql_query.sql, &sql_query.parameters).await
-                    .map_err(|e| ApiError::InternalError(format!("Mutation execution failed: {}", e)))?;
+                let execute_result = self
+                    .storage
+                    .execute(&sql_query.sql, &sql_query.parameters)
+                    .await
+                    .map_err(|e| {
+                        ApiError::InternalError(format!("Mutation execution failed: {}", e))
+                    })?;
 
                 // Invalidate cache on mutations
                 // In Phase 3+, this would be more selective based on affected tables
@@ -149,7 +169,11 @@ impl Executor {
             };
 
             // Transform using result mapping
-            let transformed = self.transform_results(&sql_results, &plan.result_mapping, &plan.response_metadata)?;
+            let transformed = self.transform_results(
+                &sql_results,
+                &plan.result_mapping,
+                &plan.response_metadata,
+            )?;
 
             // Add to result map
             result_map.insert(sql_query.root_field.clone(), transformed);
@@ -179,7 +203,6 @@ impl Executor {
         Ok(results)
     }
 
-
     /// Transform SQL results using result mapping and metadata
     fn transform_results(
         &self,
@@ -198,7 +221,11 @@ impl Executor {
 
                 // Apply column-to-field mapping
                 for (column, value) in obj.iter() {
-                    let field_name = mapping.column_to_field.get(column).map(|s| s.as_str()).unwrap_or(column);
+                    let field_name = mapping
+                        .column_to_field
+                        .get(column)
+                        .map(|s| s.as_str())
+                        .unwrap_or(column);
 
                     // Apply aliases if present
                     let final_name = if let Some(alias) = metadata.aliases.get(field_name) {
@@ -212,7 +239,10 @@ impl Executor {
 
                 // Add __typename if requested (Phase 3+)
                 if metadata.include_typename {
-                    transformed_obj.insert("__typename".to_string(), serde_json::json!(&metadata.return_type));
+                    transformed_obj.insert(
+                        "__typename".to_string(),
+                        serde_json::json!(&metadata.return_type),
+                    );
                 }
 
                 transformed.push(serde_json::Value::Object(transformed_obj));
@@ -231,10 +261,10 @@ impl Executor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::api::cache::{CacheBackend, CacheError};
     use crate::api::parser::parse_graphql_query;
     use crate::api::planner::Planner;
-    use crate::api::storage::{StorageBackend, QueryResult, ExecuteResult, StorageError};
-    use crate::api::cache::{CacheBackend, CacheError};
+    use crate::api::storage::{ExecuteResult, QueryResult, StorageBackend, StorageError};
     use async_trait::async_trait;
 
     /// Mock storage backend for testing
@@ -269,8 +299,12 @@ mod tests {
             })
         }
 
-        async fn begin_transaction(&self) -> Result<Box<dyn crate::api::storage::Transaction>, StorageError> {
-            Err(StorageError::ConnectionError("Not implemented in mock".to_string()))
+        async fn begin_transaction(
+            &self,
+        ) -> Result<Box<dyn crate::api::storage::Transaction>, StorageError> {
+            Err(StorageError::ConnectionError(
+                "Not implemented in mock".to_string(),
+            ))
         }
 
         async fn health_check(&self) -> Result<(), StorageError> {
@@ -377,12 +411,10 @@ mod tests {
     #[test]
     fn test_transform_results_simple() {
         let executor = create_test_executor();
-        let sql_results = vec![
-            serde_json::json!({
-                "id": "1",
-                "name": "Test"
-            }),
-        ];
+        let sql_results = vec![serde_json::json!({
+            "id": "1",
+            "name": "Test"
+        })];
 
         let mapping = ResultMapping {
             column_to_field: HashMap::new(),
@@ -406,12 +438,10 @@ mod tests {
     #[test]
     fn test_transform_results_with_aliases() {
         let executor = create_test_executor();
-        let sql_results = vec![
-            serde_json::json!({
-                "id": "1",
-                "name": "Test"
-            }),
-        ];
+        let sql_results = vec![serde_json::json!({
+            "id": "1",
+            "name": "Test"
+        })];
 
         let mut aliases = HashMap::new();
         aliases.insert("id".to_string(), "user_id".to_string());

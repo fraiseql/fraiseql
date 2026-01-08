@@ -18,12 +18,12 @@
 //! ```
 
 pub mod errors;
-pub mod traits;
 pub mod postgres;
+pub mod traits;
 
 pub use errors::StorageError;
-pub use traits::{StorageBackend, Transaction, QueryResult, ExecuteResult};
 pub use postgres::PostgresBackend;
+pub use traits::{ExecuteResult, QueryResult, StorageBackend, Transaction};
 
 /// Result type for storage operations
 pub type StorageResult<T> = Result<T, StorageError>;

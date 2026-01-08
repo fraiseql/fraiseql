@@ -3,15 +3,15 @@
 //! Phase 2: Implements the complete query execution pipeline:
 //! Parser → Planner → Executor
 
-use crate::api::error::ApiError;
-use crate::api::types::{QueryRequest, MutationRequest, GraphQLResponse};
-use crate::api::parser::{parse_graphql_query, parse_graphql_mutation};
-use crate::api::planner::Planner;
-use crate::api::executor::Executor;
-use crate::api::storage::StorageBackend;
 use crate::api::cache::MemoryCache;
-use std::sync::Arc;
+use crate::api::error::ApiError;
+use crate::api::executor::Executor;
+use crate::api::parser::{parse_graphql_mutation, parse_graphql_query};
+use crate::api::planner::Planner;
+use crate::api::storage::StorageBackend;
+use crate::api::types::{GraphQLResponse, MutationRequest, QueryRequest};
 use serde_json::json;
+use std::sync::Arc;
 
 /// Main public API for FraiseQL Rust engine
 ///
@@ -154,57 +154,54 @@ impl GraphQLEngine {
     /// # Note
     /// This function uses `block_on` to convert async PostgreSQL backend creation
     /// into a synchronous context. The Tokio runtime is initialized on module load.
-    fn initialize_storage(
-        config: &serde_json::Value,
-    ) -> Result<Arc<dyn StorageBackend>, ApiError> {
-        // Get storage config
-        let storage_config = config.get("db");
+    fn initialize_storage(config: &serde_json::Value) -> Result<Arc<dyn StorageBackend>, ApiError> {
+        // Fail-fast: Database configuration is REQUIRED
+        let storage_config = config.get("db").ok_or_else(|| {
+            ApiError::InternalError(
+                "Database configuration required: add 'db' to engine config with PostgreSQL connection URL"
+                    .to_string(),
+            )
+        })?;
 
-        match storage_config {
-            None => {
-                // Default: placeholder storage (for testing without database)
-                Ok(Arc::new(PlaceholderStorage))
-            }
-            Some(storage_cfg) => {
-                // Extract database URL
-                let db_url = storage_cfg
-                    .get("url")
-                    .or_else(|| storage_cfg.as_str().map(|_| storage_cfg))
-                    .and_then(|v| v.as_str());
+        // Extract database URL - supports both formats:
+        // 1. Simple string: "db": "postgres://..."
+        // 2. Object with URL: "db": { "url": "postgres://..." }
+        let db_url = storage_config
+            .get("url")
+            .or_else(|| {
+                // Try direct string format
+                storage_config.as_str().map(|_| storage_config)
+            })
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| {
+                ApiError::InternalError(
+                    "Invalid database configuration: 'db' must be a connection string or object with 'url' field"
+                        .to_string(),
+                )
+            })?;
 
-                match db_url {
-                    None => {
-                        // If no URL provided, use placeholder
-                        Ok(Arc::new(PlaceholderStorage))
-                    }
-                    Some(url) => {
-                        // Validate PostgreSQL URL format
-                        if !url.starts_with("postgres://") && !url.starts_with("postgresql://") {
-                            return Err(ApiError::InternalError(format!(
-                                "Invalid database URL (must be postgres://...): {}",
-                                url
-                            )));
-                        }
-
-                        // Extract pool configuration with defaults
-                        let pool_size = storage_cfg
-                            .get("pool_size")
-                            .and_then(|v| v.as_u64())
-                            .unwrap_or(10) as u32;
-
-                        let timeout_secs = storage_cfg
-                            .get("timeout_seconds")
-                            .and_then(|v| v.as_u64())
-                            .unwrap_or(30);
-
-                        // Create real PostgreSQL backend using Tokio runtime
-                        // The Tokio runtime is initialized on module import (see lib.rs)
-                        let backend = Self::create_postgres_backend(url, pool_size, timeout_secs)?;
-                        Ok(backend)
-                    }
-                }
-            }
+        // Validate PostgreSQL URL format
+        if !db_url.starts_with("postgres://") && !db_url.starts_with("postgresql://") {
+            return Err(ApiError::InternalError(format!(
+                "Invalid database URL scheme (must be postgres:// or postgresql://): {}",
+                db_url
+            )));
         }
+
+        // Extract pool configuration with defaults
+        let pool_size = storage_config
+            .get("pool_size")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(10) as u32;
+
+        let timeout_secs = storage_config
+            .get("timeout_seconds")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(30);
+
+        // Create real PostgreSQL backend using Tokio runtime
+        // The Tokio runtime is initialized on module import (see lib.rs)
+        Self::create_postgres_backend(db_url, pool_size, timeout_secs)
     }
 
     /// Create a PostgreSQL backend asynchronously
@@ -228,7 +225,11 @@ impl GraphQLEngine {
             .map(|handle| {
                 // We're already in a tokio context, use block_in_place
                 let backend = tokio::task::block_in_place(|| {
-                    handle.block_on(crate::api::storage::PostgresBackend::new(url, pool_size, timeout_secs))
+                    handle.block_on(crate::api::storage::PostgresBackend::new(
+                        url,
+                        pool_size,
+                        timeout_secs,
+                    ))
                 });
                 backend
             })
@@ -239,7 +240,11 @@ impl GraphQLEngine {
                     .ok();
 
                 if let Some(new_rt) = new_rt {
-                    new_rt.block_on(crate::api::storage::PostgresBackend::new(url, pool_size, timeout_secs))
+                    new_rt.block_on(crate::api::storage::PostgresBackend::new(
+                        url,
+                        pool_size,
+                        timeout_secs,
+                    ))
                 } else {
                     Err(crate::api::storage::StorageError::ConnectionError(
                         "Could not create Tokio runtime for PostgreSQL connection pool".to_string(),
@@ -282,11 +287,18 @@ impl GraphQLEngine {
             .map_err(|e| ApiError::QueryError(format!("Parse error: {}", e)))?;
 
         // Step 2: Plan query (build SQL)
-        let plan = self.inner.planner.plan_query(parsed)
+        let plan = self
+            .inner
+            .planner
+            .plan_query(parsed)
             .map_err(|e| ApiError::QueryError(format!("Plan error: {}", e)))?;
 
         // Step 3: Execute query (run SQL and transform results)
-        let result = self.inner.executor.execute(&plan).await
+        let result = self
+            .inner
+            .executor
+            .execute(&plan)
+            .await
             .map_err(|e| ApiError::QueryError(format!("Execution error: {}", e)))?;
 
         // Step 4: Return GraphQL response
@@ -319,7 +331,10 @@ impl GraphQLEngine {
     /// };
     /// let response = engine.execute_mutation(request).await?;
     /// ```
-    pub async fn execute_mutation(&self, request: MutationRequest) -> Result<GraphQLResponse, ApiError> {
+    pub async fn execute_mutation(
+        &self,
+        request: MutationRequest,
+    ) -> Result<GraphQLResponse, ApiError> {
         // Phase 2: Execute mutation through the pipeline
 
         // Step 1: Parse GraphQL mutation
@@ -327,11 +342,18 @@ impl GraphQLEngine {
             .map_err(|e| ApiError::MutationError(format!("Parse error: {}", e)))?;
 
         // Step 2: Plan mutation (build SQL)
-        let plan = self.inner.planner.plan_mutation(parsed)
+        let plan = self
+            .inner
+            .planner
+            .plan_mutation(parsed)
             .map_err(|e| ApiError::MutationError(format!("Plan error: {}", e)))?;
 
         // Step 3: Execute mutation (run SQL in transaction and transform results)
-        let result = self.inner.executor.execute(&plan).await
+        let result = self
+            .inner
+            .executor
+            .execute(&plan)
+            .await
             .map_err(|e| ApiError::MutationError(format!("Execution error: {}", e)))?;
 
         // Step 4: Return GraphQL response
@@ -394,66 +416,10 @@ impl GraphQLEngine {
     }
 }
 
-/// Placeholder storage backend for Phase 3
-///
-/// This is a temporary implementation to allow compilation during Phase 3.
-/// Phase 3+ will replace with real PostgreSQL backend.
-struct PlaceholderStorage;
-
-#[async_trait::async_trait]
-impl StorageBackend for PlaceholderStorage {
-    async fn query(
-        &self,
-        _sql: &str,
-        _params: &[serde_json::Value],
-    ) -> Result<crate::api::storage::QueryResult, crate::api::storage::StorageError> {
-        Ok(crate::api::storage::QueryResult {
-            rows: vec![
-                json!({"id": "1", "name": "Sample"}),
-            ],
-            row_count: 1,
-            execution_time_ms: 0,
-        })
-    }
-
-    async fn execute(
-        &self,
-        _sql: &str,
-        _params: &[serde_json::Value],
-    ) -> Result<crate::api::storage::ExecuteResult, crate::api::storage::StorageError> {
-        Ok(crate::api::storage::ExecuteResult {
-            rows_affected: 0,
-            last_insert_id: None,
-            execution_time_ms: 0,
-        })
-    }
-
-    async fn begin_transaction(&self) -> Result<Box<dyn crate::api::storage::Transaction>, crate::api::storage::StorageError> {
-        Err(crate::api::storage::StorageError::ConnectionError(
-            "Transactions not implemented in placeholder".to_string(),
-        ))
-    }
-
-    async fn health_check(&self) -> Result<(), crate::api::storage::StorageError> {
-        Ok(())
-    }
-
-    fn backend_name(&self) -> &str {
-        "placeholder_storage"
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::collections::HashMap;
-
-    #[test]
-    fn test_engine_creation() {
-        let config = r#"{"db": "test"}"#;
-        let engine = GraphQLEngine::new(config);
-        assert!(engine.is_ok());
-    }
 
     #[test]
     fn test_engine_creation_invalid_json() {
@@ -463,62 +429,26 @@ mod tests {
     }
 
     #[test]
-    fn test_engine_is_ready() {
-        let config = r#"{"db": "test"}"#;
-        let engine = GraphQLEngine::new(config).unwrap();
-        assert!(engine.is_ready());
+    fn test_engine_creation_missing_db() {
+        let config = r#"{"cache": "memory"}"#;
+        let engine = GraphQLEngine::new(config);
+        assert!(engine.is_err());
+        if let Err(e) = engine {
+            assert!(e
+                .to_string()
+                .contains("Database configuration required"));
+        }
     }
 
     #[test]
-    fn test_engine_version() {
-        let config = r#"{"db": "test"}"#;
-        let engine = GraphQLEngine::new(config).unwrap();
-        assert!(!engine.version().is_empty());
+    fn test_engine_creation_invalid_url_scheme() {
+        let config = r#"{"db": "mysql://localhost/db"}"#;
+        let engine = GraphQLEngine::new(config);
+        assert!(engine.is_err());
+        if let Err(e) = engine {
+            assert!(e.to_string().contains("Invalid database URL scheme"));
+        }
     }
-
-    #[test]
-    fn test_engine_config() {
-        let config = r#"{"db": "test", "cache": "redis"}"#;
-        let engine = GraphQLEngine::new(config).unwrap();
-        assert_eq!(engine.config()["db"], "test");
-        assert_eq!(engine.config()["cache"], "redis");
-    }
-
-    #[tokio::test]
-    async fn test_query_placeholder() {
-        let config = r#"{"db": "test"}"#;
-        let engine = GraphQLEngine::new(config).unwrap();
-
-        let request = QueryRequest {
-            query: "{ users { id } }".to_string(),
-            variables: HashMap::new(),
-            operation_name: None,
-        };
-
-        let response = engine.execute_query(request).await;
-        assert!(response.is_ok());
-        let resp = response.unwrap();
-        assert!(resp.data.is_some());
-        assert!(resp.errors.is_none());
-    }
-
-    #[tokio::test]
-    async fn test_mutation_placeholder() {
-        let config = r#"{"db": "test"}"#;
-        let engine = GraphQLEngine::new(config).unwrap();
-
-        let request = MutationRequest {
-            mutation: "mutation { createUser(name: \"test\") { id } }".to_string(),
-            variables: HashMap::new(),
-        };
-
-        let response = engine.execute_mutation(request).await;
-        assert!(response.is_ok());
-        let resp = response.unwrap();
-        assert!(resp.data.is_some());
-        assert!(resp.errors.is_none());
-    }
-
     // Phase 3: Dependency Injection Tests
 
     #[test]
@@ -569,23 +499,27 @@ mod tests {
     }
 
     #[test]
-    fn test_storage_initialization_default() {
+    fn test_storage_initialization_missing_db_config() {
         let config = serde_json::json!({});
         let storage = GraphQLEngine::initialize_storage(&config);
-        assert!(storage.is_ok());
-        // Should return PlaceholderStorage when no DB config
-        assert_eq!(storage.unwrap().backend_name(), "placeholder_storage");
+        assert!(storage.is_err());
+        if let Err(e) = storage {
+            assert!(e
+                .to_string()
+                .contains("Database configuration required"));
+        }
     }
 
     #[test]
-    fn test_storage_initialization_no_url() {
+    fn test_storage_initialization_missing_url() {
         let config = serde_json::json!({
             "db": {}
         });
         let storage = GraphQLEngine::initialize_storage(&config);
-        assert!(storage.is_ok());
-        // Should return PlaceholderStorage when no URL provided
-        assert_eq!(storage.unwrap().backend_name(), "placeholder_storage");
+        assert!(storage.is_err());
+        if let Err(e) = storage {
+            assert!(e.to_string().contains("must be a connection string"));
+        }
     }
 
     #[test]

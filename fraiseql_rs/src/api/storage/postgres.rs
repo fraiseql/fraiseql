@@ -45,15 +45,18 @@ impl PostgresBackend {
         timeout_secs: u64,
     ) -> Result<Self, StorageError> {
         // Validate PostgreSQL URL format
-        if !connection_string.starts_with("postgresql://") && !connection_string.starts_with("postgres://") {
+        if !connection_string.starts_with("postgresql://")
+            && !connection_string.starts_with("postgres://")
+        {
             return Err(StorageError::ConfigError(
                 "Invalid PostgreSQL connection string (must start with postgres:// or postgresql://)".to_string(),
             ));
         }
 
         // Parse connection options
-        let connect_options = PgConnectOptions::from_str(connection_string)
-            .map_err(|e| StorageError::ConnectionError(format!("Invalid connection string: {}", e)))?;
+        let connect_options = PgConnectOptions::from_str(connection_string).map_err(|e| {
+            StorageError::ConnectionError(format!("Invalid connection string: {}", e))
+        })?;
 
         // Create connection pool with specified size
         let pool = PgPoolOptions::new()
@@ -61,7 +64,9 @@ impl PostgresBackend {
             .acquire_timeout(Duration::from_secs(timeout_secs))
             .connect_with(connect_options)
             .await
-            .map_err(|e| StorageError::ConnectionError(format!("Failed to create connection pool: {}", e)))?;
+            .map_err(|e| {
+                StorageError::ConnectionError(format!("Failed to create connection pool: {}", e))
+            })?;
 
         Ok(PostgresBackend { pool })
     }
@@ -111,10 +116,9 @@ impl StorageBackend for PostgresBackend {
         // Execute INSERT/UPDATE/DELETE statement
         let start = std::time::Instant::now();
 
-        let result = sqlx::query(sql)
-            .execute(&self.pool)
-            .await
-            .map_err(|e| StorageError::DatabaseError(format!("Statement execution failed: {}", e)))?;
+        let result = sqlx::query(sql).execute(&self.pool).await.map_err(|e| {
+            StorageError::DatabaseError(format!("Statement execution failed: {}", e))
+        })?;
 
         let execution_time_ms = start.elapsed().as_millis() as u64;
         let rows_affected = result.rows_affected();
@@ -163,7 +167,9 @@ mod tests {
 
         assert!(result.is_err());
         if let Err(e) = result {
-            assert!(e.to_string().contains("Invalid PostgreSQL connection string"));
+            assert!(e
+                .to_string()
+                .contains("Invalid PostgreSQL connection string"));
         }
     }
 
@@ -207,7 +213,7 @@ mod tests {
     // Phase 3.1 Tests (placeholders - require real database for full testing)
 
     #[tokio::test]
-    #[ignore]  // Requires running PostgreSQL database
+    #[ignore] // Requires running PostgreSQL database
     async fn test_postgres_real_connection() {
         // This test requires:
         // 1. PostgreSQL running on localhost
@@ -223,7 +229,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]  // Requires running PostgreSQL database
+    #[ignore] // Requires running PostgreSQL database
     async fn test_postgres_query_real() {
         // Test real query execution against database
         let backend = PostgresBackend::new("postgresql://localhost/fraiseql", 10, 30)
@@ -238,7 +244,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]  // Requires running PostgreSQL database
+    #[ignore] // Requires running PostgreSQL database
     async fn test_postgres_execute_real() {
         // Test real statement execution
         // Note: This would require a test table
@@ -246,9 +252,7 @@ mod tests {
             .await
             .expect("Failed to create backend");
 
-        let result = backend
-            .execute("SELECT 1 WHERE false", &[])
-            .await;
+        let result = backend.execute("SELECT 1 WHERE false", &[]).await;
 
         // This should succeed even with no rows affected
         assert!(result.is_ok());

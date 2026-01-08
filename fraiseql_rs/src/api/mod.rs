@@ -13,32 +13,33 @@
 //! result = engine.execute_query("{ users { id name } }", {})
 //! ```
 
+pub mod cache;
 pub mod engine;
 pub mod error;
-pub mod types;
-pub mod py_bindings;
+pub mod executor;
 pub mod parser;
 pub mod planner;
-pub mod executor;
+pub mod py_bindings;
 pub mod storage;
-pub mod cache;
+pub mod types;
 
 #[cfg(test)]
 mod integration_tests;
 
 // Re-export public types for convenience
+pub use cache::{CacheBackend, CacheError, MemoryCache};
 pub use engine::GraphQLEngine;
 pub use error::ApiError;
-pub use types::{
-    QueryRequest, MutationRequest, GraphQLResponse,
-    GraphQLError, SourceLocation, PathElement,
+pub use executor::{ExecutionError, ExecutionResult, Executor};
+pub use parser::{
+    parse_graphql_mutation, parse_graphql_query, FieldSelection, OperationType, ParsedQuery,
 };
+pub use planner::{ExecutionPlan, Planner, ResponseMetadata, ResultMapping, SqlQuery};
 pub use py_bindings::PyGraphQLEngine;
-pub use parser::{ParsedQuery, OperationType, FieldSelection, parse_graphql_query, parse_graphql_mutation};
-pub use planner::{Planner, ExecutionPlan, SqlQuery, ResultMapping, ResponseMetadata};
-pub use executor::{Executor, ExecutionResult, ExecutionError};
-pub use storage::{StorageBackend, PostgresBackend, StorageError};
-pub use cache::{CacheBackend, MemoryCache, CacheError};
+pub use storage::{PostgresBackend, StorageBackend, StorageError};
+pub use types::{
+    GraphQLError, GraphQLResponse, MutationRequest, PathElement, QueryRequest, SourceLocation,
+};
 
 /// Check if module is available
 pub fn is_available() -> bool {

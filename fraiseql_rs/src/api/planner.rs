@@ -185,17 +185,20 @@ impl Planner {
         // Build SQL query for each root field
         for root_field in &parsed.root_fields {
             // Get field mapping from schema
-            let field_mapping = self.schema.field_mappings.get(&root_field.name).ok_or_else(
-                || {
+            let field_mapping = self
+                .schema
+                .field_mappings
+                .get(&root_field.name)
+                .ok_or_else(|| {
                     ApiError::QueryError(format!("Unknown field: {}", root_field.name))
-                },
-            )?;
+                })?;
 
             // Build WHERE clause from field arguments
             let where_clause = self.build_where_clause(&root_field.arguments)?;
 
             // Build SELECT clause from nested selections
-            let (select_list, column_map) = self.build_select_list(&root_field.nested_selections)?;
+            let (select_list, column_map) =
+                self.build_select_list(&root_field.nested_selections)?;
             column_to_field.extend(column_map);
             selected_columns.extend(select_list.iter().cloned());
 
@@ -256,7 +259,10 @@ impl Planner {
     }
 
     /// Build WHERE clause from field arguments
-    fn build_where_clause(&self, arguments: &std::collections::HashMap<String, crate::api::parser::ArgumentValue>) -> Result<String, ApiError> {
+    fn build_where_clause(
+        &self,
+        arguments: &std::collections::HashMap<String, crate::api::parser::ArgumentValue>,
+    ) -> Result<String, ApiError> {
         if arguments.is_empty() {
             return Ok(String::new());
         }
@@ -273,7 +279,10 @@ impl Planner {
     }
 
     /// Build SELECT clause from nested field selections
-    fn build_select_list(&self, selections: &[FieldSelection]) -> Result<(Vec<String>, HashMap<String, String>), ApiError> {
+    fn build_select_list(
+        &self,
+        selections: &[FieldSelection],
+    ) -> Result<(Vec<String>, HashMap<String, String>), ApiError> {
         let mut columns = Vec::new();
         let mut column_map = HashMap::new();
 

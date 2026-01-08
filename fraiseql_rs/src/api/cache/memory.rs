@@ -74,13 +74,10 @@ impl CacheBackend for MemoryCache {
         value: serde_json::Value,
         ttl_seconds: u64,
     ) -> Result<(), CacheError> {
-        let expires_at = SystemTime::now()
-            + std::time::Duration::from_secs(ttl_seconds);
+        let expires_at = SystemTime::now() + std::time::Duration::from_secs(ttl_seconds);
 
-        self.data.insert(
-            key.to_string(),
-            CacheEntry { value, expires_at },
-        );
+        self.data
+            .insert(key.to_string(), CacheEntry { value, expires_at });
 
         Ok(())
     }
@@ -159,10 +156,7 @@ mod tests {
         cache.set("key3", json!({"id": 3}), 3600).await.unwrap();
 
         cache
-            .delete_many(&[
-                "key1".to_string(),
-                "key2".to_string(),
-            ])
+            .delete_many(&["key1".to_string(), "key2".to_string()])
             .await
             .unwrap();
 

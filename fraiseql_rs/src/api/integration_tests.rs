@@ -16,8 +16,8 @@ mod tests {
     use crate::api::storage::{ExecuteResult, QueryResult, StorageBackend, StorageError};
     use async_trait::async_trait;
     use serde_json::json;
-    use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
 
     /// Test storage backend that tracks query execution count
     struct CountingStorage {
@@ -67,7 +67,9 @@ mod tests {
             })
         }
 
-        async fn begin_transaction(&self) -> Result<Box<dyn crate::api::storage::Transaction>, StorageError> {
+        async fn begin_transaction(
+            &self,
+        ) -> Result<Box<dyn crate::api::storage::Transaction>, StorageError> {
             Err(StorageError::ConnectionError(
                 "Transactions not implemented in test".to_string(),
             ))
@@ -147,7 +149,8 @@ mod tests {
         assert!(cached.is_ok());
 
         // Execute a mutation (should clear cache)
-        let mutation_parsed = parse_graphql_query("mutation { createUser(name: \"test\") { id } }").unwrap();
+        let mutation_parsed =
+            parse_graphql_query("mutation { createUser(name: \"test\") { id } }").unwrap();
         let mutation_plan = planner.plan_mutation(mutation_parsed).unwrap();
         let _result2 = executor.execute(&mutation_plan).await;
 
@@ -212,7 +215,9 @@ mod tests {
                 ))
             }
 
-            async fn begin_transaction(&self) -> Result<Box<dyn crate::api::storage::Transaction>, StorageError> {
+            async fn begin_transaction(
+                &self,
+            ) -> Result<Box<dyn crate::api::storage::Transaction>, StorageError> {
                 Err(StorageError::ConnectionError(
                     "Transactions not available".to_string(),
                 ))
@@ -323,7 +328,9 @@ mod tests {
         assert!(cache.get("key3").await.unwrap().is_some());
 
         // Delete multiple keys
-        let result = cache.delete_many(&["key2".to_string(), "key3".to_string()]).await;
+        let result = cache
+            .delete_many(&["key2".to_string(), "key3".to_string()])
+            .await;
         assert!(result.is_ok());
 
         // Verify all are gone
