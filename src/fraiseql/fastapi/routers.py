@@ -23,6 +23,7 @@ from fraiseql.analysis.query_analyzer import QueryAnalyzer
 from fraiseql.auth.base import AuthProvider
 from fraiseql.core.graphql_parser import RustGraphQLParser
 from fraiseql.core.rust_pipeline import RustResponseBytes
+from fraiseql.core.unified_ffi_adapter import build_multi_field_response_via_unified
 from fraiseql.execution.mode_selector import ModeSelector
 from fraiseql.execution.unified_executor import UnifiedExecutor
 from fraiseql.fastapi.config import FraiseQLConfig, IntrospectionPolicy
@@ -913,8 +914,8 @@ async def execute_multi_field_query(
     # partial failures with independent nested field errors, FraiseQL's view-based
     # architecture makes this impractical to implement safely.
 
-    # Call Rust to build the multi-field response
-    response_bytes = fraiseql_rs.build_multi_field_response(field_data_list)
+    # Call adapter to build the multi-field response (unified FFI)
+    response_bytes = build_multi_field_response_via_unified(field_data_list)
 
     # If there are errors, inject them into the response
     if errors:

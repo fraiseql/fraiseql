@@ -12,6 +12,8 @@ from typing import Any
 from psycopg import AsyncConnection
 from psycopg.sql import SQL, Composed
 
+from fraiseql.core.unified_ffi_adapter import build_graphql_response_via_unified
+
 
 # Lazy-load the Rust extension to avoid circular import issues
 def _get_fraiseql_rs():
@@ -306,7 +308,7 @@ async def execute_via_rust_pipeline(
             rows = await cursor.fetchall()
 
             if not rows:
-                response_bytes = fraiseql_rs.build_graphql_response(
+                response_bytes = build_graphql_response_via_unified(
                     json_strings=[],
                     field_name=field_name,
                     type_name=None,
@@ -322,14 +324,13 @@ async def execute_via_rust_pipeline(
             # Extract JSON strings (PostgreSQL returns as text)
             json_strings = [row[0] for row in rows if row[0] is not None]
 
-            # Pass field_selections directly to Rust (PyO3 will handle conversion)
-            # DON'T convert to JSON string - PyO3 needs Python objects
-            response_bytes = fraiseql_rs.build_graphql_response(
+            # Pass field_selections directly (converted to JSON in adapter)
+            response_bytes = build_graphql_response_via_unified(
                 json_strings=json_strings,
                 field_name=field_name,
                 type_name=type_name,
                 field_paths=field_paths,
-                field_selections=field_selections,  # Pass list directly, not JSON string
+                field_selections=json.dumps(field_selections) if field_selections else None,
                 is_list=True,
                 include_graphql_wrapper=include_graphql_wrapper,
             )
@@ -343,7 +344,7 @@ async def execute_via_rust_pipeline(
         row = await cursor.fetchone()
 
         if not row or row[0] is None:
-            response_bytes = fraiseql_rs.build_graphql_response(
+            response_bytes = build_graphql_response_via_unified(
                 json_strings=[],
                 field_name=field_name,
                 type_name=None,
@@ -358,14 +359,13 @@ async def execute_via_rust_pipeline(
 
         json_string = row[0]
 
-        # Pass field_selections directly to Rust (PyO3 will handle conversion)
-        # DON'T convert to JSON string - PyO3 needs Python objects
-        response_bytes = fraiseql_rs.build_graphql_response(
+        # Pass field_selections (converted to JSON in adapter)
+        response_bytes = build_graphql_response_via_unified(
             json_strings=[json_string],
             field_name=field_name,
             type_name=type_name,
             field_paths=field_paths,
-            field_selections=field_selections,  # Pass list directly, not JSON string
+            field_selections=json.dumps(field_selections) if field_selections else None,
             is_list=False,
             include_graphql_wrapper=include_graphql_wrapper,
         )

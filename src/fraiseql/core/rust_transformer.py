@@ -7,6 +7,8 @@ fraiseql-rs Rust extension for high-performance JSON transformation.
 import logging
 from typing import Any
 
+from fraiseql.core.unified_ffi_adapter import build_graphql_response_via_unified
+
 
 # Lazy-load the Rust extension to avoid circular import issues
 def _get_fraiseql_rs():
@@ -82,8 +84,8 @@ class RustTransformer:
         Returns:
             GraphQL response JSON string with camelCase + __typename
         """
-        # Use build_graphql_response for single object
-        response_bytes = fraiseql_rs.build_graphql_response(
+        # Use adapter for single object transformation
+        response_bytes = build_graphql_response_via_unified(
             json_strings=[json_str],
             field_name="data",  # Generic wrapper field
             type_name=root_type,
