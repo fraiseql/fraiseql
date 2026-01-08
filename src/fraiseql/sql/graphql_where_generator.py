@@ -18,6 +18,14 @@ Key Features:
 - Caching to prevent duplicate filter generation
 - Full GraphQL schema integration
 
+Phase A.3: Schema Loader Integration
+====================================
+
+Optional integration with fraiseql.gql.schema_loader provides pre-built schemas
+from Rust (via fraiseql_rs FFI). When available, schema metadata can be accessed
+via get_filter_schema_from_loader() for performance optimization. Falls back to
+Python generation if schema_loader is not available.
+
 Example:
     @fraise_type
     class NetworkDevice:
@@ -69,6 +77,27 @@ _where_input_cache: dict[type, type] = {}
 _generation_stack: set[type] = set()
 # Cache for custom scalar filter types
 _custom_scalar_filter_cache: dict[GraphQLScalarType, type] = {}
+
+
+def get_filter_schema_from_loader(type_name: str) -> dict[str, Any] | None:
+    """Get filter schema from Rust via schema_loader if available.
+
+    Phase A.3: Optional integration with schema_loader for pre-built schemas.
+    Falls back gracefully if schema_loader is not available.
+
+    Args:
+        type_name: Name of the filter type (e.g., "String", "Int", "Array")
+
+    Returns:
+        Filter schema dict from Rust, or None if not available.
+    """
+    try:
+        from fraiseql.gql.schema_loader import get_filter_schema
+
+        return get_filter_schema(type_name)
+    except (ImportError, KeyError):
+        # schema_loader not available or type not found - will use Python generation
+        return None
 
 
 # Base operator filter types for GraphQL inputs
