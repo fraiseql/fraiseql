@@ -25,7 +25,7 @@ def parse_graphql_result(result: Any) -> tuple[dict | None, list | None]:
     Returns:
         (data, errors) tuple
     """
-    from fraiseql.core.rust_pipeline import RustResponseBytes
+    from fraiseql.core.types import RustResponseBytes
 
     if isinstance(result, RustResponseBytes):
         json_result = result.to_json()

@@ -10,7 +10,7 @@ import json
 
 import pytest
 
-from fraiseql.core.rust_pipeline import RustResponseBytes
+from fraiseql.core.types import RustResponseBytes
 
 
 class TestRustResponseBytesSchemaType:

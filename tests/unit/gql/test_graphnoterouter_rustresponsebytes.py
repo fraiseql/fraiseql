@@ -12,7 +12,7 @@ import pytest
 from graphql import ExecutionResult, GraphQLField, GraphQLObjectType, GraphQLSchema, GraphQLString
 from starlette.requests import Request
 
-from fraiseql.core.rust_pipeline import RustResponseBytes
+from fraiseql.core.types import RustResponseBytes
 from fraiseql.gql.graphql_entrypoint import GraphNoteRouter
 
 

@@ -10,7 +10,7 @@ from graphql import (
     parse,
 )
 
-from fraiseql.core.rust_pipeline import RustResponseBytes
+from fraiseql.core.types import RustResponseBytes
 
 logger = logging.getLogger(__name__)
 
@@ -289,7 +289,7 @@ def _clean_fraise_types(obj: Any, _seen: set | None = None) -> Any:
 
     # 🚀 DIRECT PATH: Handle RustResponseBytes - pass through as-is
     # RustResponseBytes is already the complete GraphQL response and should not be processed
-    from fraiseql.core.rust_pipeline import RustResponseBytes
+    from fraiseql.core.types import RustResponseBytes
 
     if isinstance(obj, RustResponseBytes):
         logger.info("Detected RustResponseBytes - passing through directly")

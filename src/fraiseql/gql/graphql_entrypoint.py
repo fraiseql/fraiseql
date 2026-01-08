@@ -9,7 +9,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import Route, Router
 
-from fraiseql.core.rust_pipeline import RustResponseBytes
+from fraiseql.core.types import RustResponseBytes
 from fraiseql.fastapi.json_encoder import FraiseQLJSONResponse, clean_unset_values
 from fraiseql.gql.schema_builder import SchemaRegistry
 from fraiseql.graphql.execute import execute_graphql

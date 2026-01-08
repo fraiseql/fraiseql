@@ -9,7 +9,7 @@ import json
 import pytest
 from graphql import GraphQLField, GraphQLList, GraphQLObjectType, GraphQLSchema, GraphQLString
 
-from fraiseql.core.rust_pipeline import RustResponseBytes
+from fraiseql.core.types import RustResponseBytes
 from fraiseql.fastapi.routers import _extract_root_query_fields, execute_multi_field_query
 
 

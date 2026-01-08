@@ -7,7 +7,7 @@ automatically caches query results and invalidates cache on mutations.
 import logging
 from typing import Any
 
-from fraiseql.core.rust_pipeline import RustResponseBytes
+from fraiseql.core.types import RustResponseBytes
 from fraiseql.db import FraiseQLRepository
 
 from .cache_key import CacheKeyBuilder

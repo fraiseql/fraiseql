@@ -83,7 +83,7 @@ async def test_graphql_simple_query_returns_data(db_connection) -> None:
     )
 
     # Verify direct path success
-    from fraiseql.core.rust_pipeline import RustResponseBytes
+    from fraiseql.core.types import RustResponseBytes
 
     if isinstance(result, RustResponseBytes):
         data = result.to_json()
@@ -162,7 +162,7 @@ async def test_graphql_list_query_returns_array(db_connection) -> None:
     )
 
     # Verify direct path success
-    from fraiseql.core.rust_pipeline import RustResponseBytes
+    from fraiseql.core.types import RustResponseBytes
 
     if isinstance(result, RustResponseBytes):
         data = result.to_json()
@@ -242,7 +242,7 @@ async def test_graphql_field_selection(db_connection) -> None:
     )
 
     # Verify direct path success
-    from fraiseql.core.rust_pipeline import RustResponseBytes
+    from fraiseql.core.types import RustResponseBytes
 
     if isinstance(result, RustResponseBytes):
         data = result.to_json()
@@ -340,7 +340,7 @@ async def test_graphql_with_where_filter(db_connection) -> None:
     )
 
     # Verify direct path success
-    from fraiseql.core.rust_pipeline import RustResponseBytes
+    from fraiseql.core.types import RustResponseBytes
 
     if isinstance(result, RustResponseBytes):
         data = result.to_json()

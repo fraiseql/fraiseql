@@ -9,7 +9,7 @@ RustResponseBytes and passes it through directly without wrapping in ExecutionRe
 import pytest
 from graphql import GraphQLField, GraphQLList, GraphQLObjectType, GraphQLSchema, GraphQLString
 
-from fraiseql.core.rust_pipeline import RustResponseBytes
+from fraiseql.core.types import RustResponseBytes
 from fraiseql.graphql.execute import execute_graphql
 
 

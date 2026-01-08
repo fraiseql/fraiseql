@@ -44,12 +44,9 @@ from graphql import (
     GraphQLType,
     GraphQLUnionType,
 )
-from psycopg.sql import SQL, Composed
 
 from fraiseql.config.schema_config import SchemaConfig
-from fraiseql.core.translate_query import translate_query
 from fraiseql.mutations.decorators import FraiseUnion
-from fraiseql.sql.where_generator import DynamicType
 from fraiseql.types.scalars.graphql_utils import convert_scalar_to_graphql
 from fraiseql.types.scalars.json import JSONScalar, parse_json_value
 from fraiseql.utils.annotations import (
@@ -1054,35 +1051,7 @@ def _get_or_create_page_info_type(registry: Any) -> GraphQLObjectType:
     return page_info_type
 
 
-def translate_query_from_type(
-    query: str,
-    root_type: type[Any],
-    *,
-    where: DynamicType | None = None,
-    auto_camel_case: bool = False,
-) -> SQL | Composed:
-    """Missing docstring."""
-    if (
-        not hasattr(root_type, "__gql_typename__")
-        or not hasattr(root_type, "__gql_table__")
-        or root_type.__gql_table__ is None
-    ):
-        msg = (
-            f"{root_type.__name__} must be a FraiseQL output type decorated "
-            f"with @fraise_type and linked to a SQL table"
-        )
-        raise ValueError(
-            msg,
-        )
-    where_clause: SQL | None = None
-    if where:
-        where_clause = where.to_sql()
-    table: str = cast("str", root_type.__gql_table__)
-    typename: str = cast("str", root_type.__gql_typename__)
-    return translate_query(
-        query=query,
-        table=table,
-        typename=typename,
-        where_clause=where_clause,
-        auto_camel_case=auto_camel_case,
-    )
+# NOTE: translate_query_from_type() has been removed.
+# Query translation is now handled by the Rust pipeline exclusively.
+# This function was part of the Python execution layer that has been deprecated
+# in favor of the unified Rust FFI adapter. See fraiseql_rs for the implementation.

@@ -4,7 +4,7 @@ Tests the _is_rust_response_null() function which uses O(1) byte pattern
 matching to detect null results from the Rust pipeline without JSON parsing.
 """
 
-from fraiseql.core.rust_pipeline import RustResponseBytes
+from fraiseql.core.types import RustResponseBytes
 from fraiseql.db import _is_rust_response_null
 
 

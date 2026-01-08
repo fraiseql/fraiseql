@@ -14,7 +14,7 @@ JSON parsing overhead on common response patterns.
 import logging
 from typing import Any
 
-from fraiseql.core.rust_pipeline import RustResponseBytes, execute_via_rust_pipeline
+from fraiseql.core.types import RustResponseBytes
 
 logger = logging.getLogger(__name__)
 

@@ -97,7 +97,7 @@ class UnifiedExecutor:
             # 🚀 RUST RESPONSE BYTES PASS-THROUGH (Unified Executor):
             # Check if execution returned RustResponseBytes directly (zero-copy path)
             # This happens when resolvers return JSONB entities via Rust pipeline
-            from fraiseql.core.rust_pipeline import RustResponseBytes
+            from fraiseql.core.types import RustResponseBytes
 
             if isinstance(execution_result, RustResponseBytes):
                 # Return RustResponseBytes directly - it will be handled by the router

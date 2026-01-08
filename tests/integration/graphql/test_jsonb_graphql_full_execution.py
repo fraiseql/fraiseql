@@ -20,7 +20,7 @@ pytestmark = pytest.mark.database
 # Import database fixtures
 
 import fraiseql
-from fraiseql.core.rust_pipeline import RustResponseBytes
+from fraiseql.core.types import RustResponseBytes
 from fraiseql.db import FraiseQLRepository, register_type_for_view
 from fraiseql.gql.schema_builder import build_fraiseql_schema
 from fraiseql.graphql.execute import execute_graphql

@@ -26,7 +26,7 @@ from typing import Any
 
 import pytest
 
-from fraiseql.core.rust_pipeline import RustResponseBytes
+from fraiseql.core.types import RustResponseBytes
 
 # ============================================================================
 # Test 1: Detection Overhead Benchmarks

@@ -8,7 +8,7 @@ from typing import Any
 
 from starlette.responses import Response
 
-from fraiseql.core.rust_pipeline import RustResponseBytes
+from fraiseql.core.types import RustResponseBytes
 
 
 def handle_graphql_response(result: Any) -> Response:

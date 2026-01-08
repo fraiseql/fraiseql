@@ -14,7 +14,7 @@ import pytest_asyncio
 from tests.fixtures.database.database_conftest import *  # noqa: F403
 
 import fraiseql
-from fraiseql.core.rust_pipeline import RustResponseBytes
+from fraiseql.core.types import RustResponseBytes
 
 pytestmark = [pytest.mark.integration, pytest.mark.database]
 

@@ -20,10 +20,6 @@ Philosophy: "Python API Exposure + Rust Core"
 # The original db.py file is renamed db_core.py to avoid conflicts with this __init__.py
 # This __init__.py exports the public API from extracted modules
 
-# Extract 1: Connection pool factories
-# Re-export the original execute_via_rust_pipeline for backward compatibility with tests
-from fraiseql.core.rust_pipeline import execute_via_rust_pipeline
-
 # Extract 3: Rust coordination boundary
 from fraiseql.db.executor import (
     _NULL_RESPONSE_CACHE,  # Internal cache for tests
@@ -37,14 +33,6 @@ from fraiseql.db.pool import (
     create_prototype_pool,
 )
 
-# Extract 2: Type registry and metadata management
-from fraiseql.db.registry import (
-    _table_metadata,
-    _type_registry,
-    clear_type_registry,
-    register_type_for_view,
-)
-
 # Extract 4: Query building (pure Python, no database execution)
 from fraiseql.db.query_builder import (
     DatabaseQuery,
@@ -54,6 +42,14 @@ from fraiseql.db.query_builder import (
     build_find_query,
     build_where_clause,
     normalize_where,
+)
+
+# Extract 2: Type registry and metadata management
+from fraiseql.db.registry import (
+    _table_metadata,
+    _type_registry,
+    clear_type_registry,
+    register_type_for_view,
 )
 
 # Extract 5: Session management (PostgreSQL session variables for RLS)
@@ -70,6 +66,8 @@ from fraiseql.db.repository import FraiseQLRepository
 
 __all__ = [
     "_NULL_RESPONSE_CACHE",
+    "DatabaseQuery",
+    "FraiseQLRepository",
     "_is_rust_response_null",
     "_table_metadata",
     "_type_registry",
@@ -83,11 +81,8 @@ __all__ = [
     "create_legacy_pool",
     "create_production_pool",
     "create_prototype_pool",
-    "DatabaseQuery",
     "execute_query_via_rust",
     "execute_transaction",
-    "execute_via_rust_pipeline",
-    "FraiseQLRepository",
     "is_rust_response_null",
     "normalize_where",
     "register_type_for_view",

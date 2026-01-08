@@ -22,7 +22,7 @@ pytestmark = pytest.mark.database
 from tests.fixtures.database.database_conftest import *  # noqa: F403
 
 import fraiseql
-from fraiseql.core.rust_pipeline import RustResponseBytes
+from fraiseql.core.types import RustResponseBytes
 from fraiseql.db import register_type_for_view
 
 

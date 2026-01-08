@@ -15,7 +15,7 @@ from typing import Any, Generic, Type, TypeVar
 
 from graphql import ExecutionResult, GraphQLSchema
 
-from fraiseql.core.rust_pipeline import RustResponseBytes
+from fraiseql.core.types import RustResponseBytes
 from fraiseql.graphql.execute import execute_graphql
 
 T = TypeVar("T")

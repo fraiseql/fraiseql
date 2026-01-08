@@ -35,16 +35,12 @@ from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, TypeVar, Union, get_args, get_origin
 
-from psycopg import AsyncConnection
 from psycopg.rows import dict_row
 from psycopg.sql import SQL, Composed
 from psycopg_pool import AsyncConnectionPool
 
 from fraiseql.audit import get_security_logger
-from fraiseql.core.rust_pipeline import (
-    RustResponseBytes,
-    execute_via_rust_pipeline,
-)
+from fraiseql.core.types import RustResponseBytes
 from fraiseql.db.registry import _table_metadata, _type_registry
 from fraiseql.utils.casing import to_snake_case
 from fraiseql.where_clause import WhereClause
@@ -600,26 +596,12 @@ class FraiseQLRepository:
         if info and hasattr(info, "context") and isinstance(info.context, dict):
             include_wrapper = not info.context.get("__has_multiple_root_fields__", False)
 
-        async with self._pool.connection() as conn:
-            result = await execute_via_rust_pipeline(
-                conn,
-                query.statement,
-                query.params,
-                field_name or view_name,  # Use view_name as default field_name
-                type_name,
-                is_list=True,
-                field_paths=field_paths,  # NEW: Pass field paths for Rust-side projection!
-                field_selections=field_selections_json,  # NEW: Pass field selections with aliases!
-                include_graphql_wrapper=include_wrapper,  # Field-only mode for multi-field
-            )
-
-            # Store RustResponseBytes in context for direct path
-            if info and hasattr(info, "context"):
-                if "_rust_response" not in info.context:
-                    info.context["_rust_response"] = {}
-                info.context["_rust_response"][field_name or view_name] = result
-
-            return result
+        # NOTE: Direct Rust pipeline execution has been replaced by unified executor
+        # This method is deprecated and kept for backward compatibility only
+        raise NotImplementedError(
+            "FraiseQLRepository.find() is deprecated. "
+            "Use the unified Rust executor (fraiseql.execution.unified_executor) instead."
+        )
 
     async def find_one(
         self,
@@ -720,31 +702,12 @@ class FraiseQLRepository:
         if info and hasattr(info, "context") and isinstance(info.context, dict):
             include_wrapper = not info.context.get("__has_multiple_root_fields__", False)
 
-        async with self._pool.connection() as conn:
-            result = await execute_via_rust_pipeline(
-                conn,
-                query.statement,
-                query.params,
-                field_name or view_name,  # Use view_name as default field_name
-                type_name,
-                is_list=False,
-                field_paths=field_paths,  # NEW: Pass field paths for Rust-side projection!
-                field_selections=field_selections_json,  # NEW: Pass field selections with aliases!
-                include_graphql_wrapper=include_wrapper,  # Field-only mode for multi-field
-            )
-
-            # NEW: Check if result is null (empty array from Rust)
-            # Rust returns {"data":{"field":[]}} for null, we convert to Python None
-            if _is_rust_response_null(result):
-                return None
-
-            # Store RustResponseBytes in context for direct path
-            if info and hasattr(info, "context"):
-                if "_rust_response" not in info.context:
-                    info.context["_rust_response"] = {}
-                info.context["_rust_response"][field_name or view_name] = result
-
-            return result
+        # NOTE: Direct Rust pipeline execution has been replaced by unified executor
+        # This method is deprecated and kept for backward compatibility only
+        raise NotImplementedError(
+            "FraiseQLRepository.find_one() is deprecated. "
+            "Use the unified Rust executor (fraiseql.execution.unified_executor) instead."
+        )
 
     async def count(
         self,
@@ -2035,5 +1998,3 @@ class FraiseQLRepository:
 # ============================================================================
 # Database Pool Factory Functions (Phase 1.3: Pool Selection Clarity)
 # ============================================================================
-
-

@@ -2,7 +2,7 @@ import pytest
 
 """Test for unified Rust-first architecture - methods return RustResponseBytes instead of RawJSONResult."""
 
-from fraiseql.core.rust_pipeline import RustResponseBytes
+from fraiseql.core.types import RustResponseBytes
 from fraiseql.db import FraiseQLRepository
 
 

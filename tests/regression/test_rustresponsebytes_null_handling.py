@@ -158,7 +158,7 @@ async def test_rustresponsebytes_non_null_still_works(postgres_url) -> None:
     """
     import psycopg_pool
 
-    from fraiseql.core.rust_pipeline import RustResponseBytes
+    from fraiseql.core.types import RustResponseBytes
     from fraiseql.db import _table_metadata
 
     # Clear any existing metadata for test_users from previous tests

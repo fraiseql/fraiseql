@@ -116,7 +116,7 @@ async def test_graphql_test_client_handles_rustresponsebytes() -> None:
     )
     from tests.utils.graphql_test_client import GraphQLTestClient
 
-    from fraiseql.core.rust_pipeline import RustResponseBytes
+    from fraiseql.core.types import RustResponseBytes
 
     # Create a schema that returns list of products
     schema = GraphQLSchema(

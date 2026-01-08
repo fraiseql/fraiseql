@@ -3,7 +3,7 @@
 import json
 from typing import Any, Union
 
-from fraiseql.core.rust_pipeline import RustResponseBytes
+from fraiseql.core.types import RustResponseBytes
 
 
 def extract_graphql_data(

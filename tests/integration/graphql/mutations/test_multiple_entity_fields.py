@@ -26,7 +26,7 @@ async def test_success_with_multiple_entities() -> None:
         "new_location": {...}
     }
     """
-    from fraiseql.core.rust_pipeline import RustResponseBytes
+    from fraiseql.core.types import RustResponseBytes
     from fraiseql.mutations.rust_executor import execute_mutation_rust
 
     # Mock connection - mutation_response with wrapper containing multiple entities
@@ -122,7 +122,7 @@ async def test_error_with_conflict_entity() -> None:
         "conflict_machine": {...}
     }
     """
-    from fraiseql.core.rust_pipeline import RustResponseBytes
+    from fraiseql.core.types import RustResponseBytes
     from fraiseql.mutations.rust_executor import execute_mutation_rust
 
     # Mock connection - mutation_response with conflict entity

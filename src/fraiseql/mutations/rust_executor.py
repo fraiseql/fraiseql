@@ -7,7 +7,7 @@ import json
 import logging
 from typing import Any
 
-from fraiseql.core.rust_pipeline import RustResponseBytes
+from fraiseql.core.types import RustResponseBytes
 from fraiseql.utils.casing import dict_keys_to_snake_case
 
 logger = logging.getLogger(__name__)
