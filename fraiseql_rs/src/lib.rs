@@ -44,29 +44,34 @@ use pyo3::types::PyDict;
 use std::sync::{Arc, Mutex};
 
 // Sub-modules
-pub mod apq; // Phase 15a: Automatic Persisted Queries (APQ)
-pub mod auth;
-pub mod cache;
+// Phase 1 Greenfield: Public API layer - single entry point for Python
+pub mod api; // Phase 1 Greenfield: New public API layer with GraphQLEngine
+
+// All other modules are INTERNAL to Rust and hidden from Python
+// Python only imports from the `api` module
+pub(crate) mod apq; // Phase 15a: Automatic Persisted Queries (APQ)
+pub(crate) mod auth;
+pub(crate) mod cache;
 mod camel_case;
-pub mod cascade;
-pub mod core;
-pub mod db;
-pub mod federation; // Phase 17: Apollo Federation support
-pub mod graphql;
-pub mod http;
-pub mod json_transform;
-pub mod mutation;
-pub mod mutations;
-pub mod pipeline;
-pub mod query;
-pub mod rbac;
-pub mod response;
-pub mod schema_generators; // Phase A.1: Schema export for Python
-pub mod schema_registry;
-pub mod security;
-pub mod startup; // Phase 1: Server startup and configuration validation
-pub mod subscriptions; // Phase 15b: Real-time subscriptions
-pub mod validation; // Input validation (ID policy, etc.)
+pub(crate) mod cascade;
+pub(crate) mod core;
+pub(crate) mod db;
+pub(crate) mod federation; // Phase 17: Apollo Federation support
+pub(crate) mod graphql;
+pub(crate) mod http;
+pub(crate) mod json_transform;
+pub(crate) mod mutation;
+pub(crate) mod mutations;
+pub(crate) mod pipeline;
+pub(crate) mod query;
+pub(crate) mod rbac;
+pub(crate) mod response;
+pub(crate) mod schema_generators; // Phase A.1: Schema export for Python
+pub(crate) mod schema_registry;
+pub(crate) mod security;
+pub(crate) mod startup; // Phase 1: Server startup and configuration validation
+pub(crate) mod subscriptions; // Phase 15b: Real-time subscriptions
+pub(crate) mod validation; // Input validation (ID policy, etc.)
 
 /// Version of the `fraiseql_rs` module
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -977,6 +982,8 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
             "__version__",
             "__doc__",
             "__author__",
+            // Phase 1 Greenfield: New public API
+            "GraphQLEngine",
             "to_camel_case",
             "transform_keys",
             "transform_json",
@@ -1013,6 +1020,9 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
             "PyAxumServer",
         ],
     )?;
+
+    // Add Phase 1 Greenfield: New public API
+    m.add_class::<api::py_bindings::PyGraphQLEngine>()?;
 
     // Add functions
     m.add_function(wrap_pyfunction!(to_camel_case, m)?)?;

@@ -162,10 +162,9 @@ mod tests {
         let result = runtime.block_on(result_future);
 
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Invalid PostgreSQL connection string"));
+        if let Err(e) = result {
+            assert!(e.to_string().contains("Invalid PostgreSQL connection string"));
+        }
     }
 
     #[test]
