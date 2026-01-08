@@ -154,10 +154,8 @@ fraiseql_rs/src/http/           # ✅ CORE (framework-agnostic)
 ├── response.rs                 # Response building
 ├── error.rs                    # Error handling
 └── adapters/
-    ├── rust/                   # Rust server adapters
-    │   ├── axum.rs            # Axum integration
-    │   ├── actix.rs           # Actix-web integration
-    │   └── hyper.rs           # Hyper integration
+    ├── rust/                   # Rust server adapter
+    │   └── axum.rs            # Axum integration
     └── python/                 # Python server adapters
         ├── fastapi.rs         # FastAPI integration
         ├── starlette.rs       # Starlette integration
@@ -183,26 +181,14 @@ src/fraiseql/http/             # ✅ MIDDLEWARE (composable, framework-agnostic)
 
 #### Framework Options (Choose Based on Needs)
 
-**Rust Servers (Performance)**:
+**Rust Server (Performance)**:
 
 ```
-Option 1: Axum (Recommended for v2.0)
+Axum (Recommended for v2.0)
 ├── Performance: 7-10x faster than Python
 ├── Ecosystem: Modern async Rust, growing community
 ├── Best for: New applications, performance-critical
 └── Files: fraiseql_rs/src/http/adapters/rust/axum.rs
-
-Option 2: Actix-web (Proven, Good for Migrations)
-├── Performance: Excellent, battle-tested
-├── Ecosystem: Mature, many integrations
-├── Best for: Migrating from v1.8.x, proven track record
-└── Files: fraiseql_rs/src/http/adapters/rust/actix.rs
-
-Option 3: Hyper (Low-Level Control)
-├── Performance: Excellent, fine-grained control
-├── Ecosystem: Minimal, for custom use
-├── Best for: Custom protocols, embedded use cases
-└── Files: fraiseql_rs/src/http/adapters/rust/hyper.rs
 ```
 
 **Python Servers (Compatibility)**:
@@ -235,8 +221,7 @@ Option 5: Starlette (Lightweight Python)
 │ Rust (Fast)  │ Python (Compat) │
 ├──────────────┼─────────────────┤
 │ • Axum       │ • FastAPI       │
-│ • Actix      │ • Starlette     │
-│ • Hyper      │                 │
+│              │ • Starlette     │
 └──────────────┴────────┬────────┘
                         ↓
          ┌──────────────────────────┐

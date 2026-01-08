@@ -8,11 +8,11 @@
 
 ## The Strategy
 
-**Axum / Starlette / FastAPI** - Support all three (plus Actix and Hyper).
+**Axum / FastAPI / Starlette** - Three focused HTTP servers.
 
 A pragmatic approach that:
 - ✅ Keeps Python servers (FastAPI, Starlette) fully supported
-- ✅ Adds native Rust servers (Axum, Actix, Hyper) for performance
+- ✅ Adds native Rust server (Axum) for performance
 - ✅ Allows teams to choose their path
 - ✅ Enables gradual migration from Python to Rust
 
@@ -25,8 +25,6 @@ v2.0 Server Options:
 
 Rust Servers (High Performance):
   🟢 Axum (Modern, recommended default)
-  🟢 Actix-web (Proven, excellent for migrations)
-  🟢 Hyper (Low-level control)
 
 Python Servers (Backward Compatible):
   🟢 FastAPI (Same as v1.8.x, fully supported)
@@ -84,12 +82,6 @@ All share:
 - Large ecosystem
 - Easy to migrate to Axum later
 
-### Advanced Users
-
-**Actix-web**: For teams familiar with Actix or needing proven stability
-
-**Hyper**: For custom protocols or embedded use cases
-
 ---
 
 ## Key Benefits of This Approach
@@ -110,11 +102,10 @@ v2.0 FastAPI → v2.0 Axum (when team ready)
   → 7-10x performance improvement
 ```
 
-### 3. Flexible Framework Choice
+### 3. Clear Framework Choice
 ```
 - Team prefers Python? → FastAPI/Starlette
-- Performance critical? → Axum/Actix
-- Custom protocol? → Hyper
+- Performance critical? → Axum
 - Existing framework? → Custom adapter
 ```
 
@@ -132,15 +123,15 @@ No differences between server choices
 
 ## Server Comparison
 
-| Aspect | Axum | Actix | Hyper | FastAPI | Starlette |
-|--------|------|-------|-------|---------|-----------|
-| **Speed** | 7-10x* | 7-10x* | 7-10x* | 1x baseline | 1x baseline |
-| **Language** | Rust | Rust | Rust | Python | Python |
-| **Maturity** | Growing | Mature | Mature | Mature | Mature |
-| **Best For** | New apps | Migrations | Custom | Python teams | Minimal |
-| **Learning** | Moderate | Moderate | High | Low | Low |
-| **Status v2.0** | Primary | Supported | Supported | Supported | Supported |
-| **Cost** | Free | Free | Free | Free | Free |
+| Aspect | Axum | FastAPI | Starlette |
+|--------|------|---------|-----------|
+| **Speed** | 7-10x* | 1x baseline | 1x baseline |
+| **Language** | Rust | Python | Python |
+| **Maturity** | Growing | Mature | Mature |
+| **Best For** | New apps, performance | Python teams | Minimal Python |
+| **Learning** | Moderate | Low | Low |
+| **Status v2.0** | Primary Rust option | Fully supported | Fully supported |
+| **Cost** | Free | Free | Free |
 
 *Compared to Python servers
 
@@ -186,7 +177,7 @@ v2.0 with Custom HTTP Adapter
 ## Timeline
 
 ### v2.0.0 Release
-- ✅ **All servers supported**: Axum, Actix, Hyper, FastAPI, Starlette
+- ✅ **All servers supported**: Axum, FastAPI, Starlette
 - ✅ **Full feature parity**: All features work on all servers
 - ✅ **Same middleware**: Shared across all options
 - ✅ **Backward compatible**: FastAPI/Starlette work exactly like v1.8.x
@@ -211,11 +202,9 @@ Create modular HTTP core:
 - Middleware pipeline system
 - Response building, error handling
 
-### Phase 2: Rust Adapters (Weeks 6-10)
-Implement Rust servers:
-- Axum adapter (first, recommended)
-- Actix adapter
-- Hyper adapter
+### Phase 2: Rust Adapter (Weeks 6-10)
+Implement Rust server:
+- Axum adapter (focused, modern)
 
 ### Phase 3: Python Adapters (Weeks 11-14)
 Maintain Python servers:
@@ -262,10 +251,10 @@ Comprehensive testing:
 ## Success Criteria
 
 ✅ **v2.0 Launch**:
-- [ ] 5 servers fully supported (Axum, Actix, Hyper, FastAPI, Starlette)
+- [ ] 3 servers fully supported (Axum, FastAPI, Starlette)
 - [ ] Zero breaking changes for FastAPI/Starlette users
 - [ ] Same middleware across all servers
-- [ ] 7-10x performance improvement available via Rust servers
+- [ ] 7-10x performance improvement available via Axum
 - [ ] Clear migration documentation
 
 ✅ **v2.0+ Growth**:
@@ -304,11 +293,11 @@ This **multi-framework strategy** balances:
 
 | Goal | Solution |
 |------|----------|
-| **Maximum Performance** | Rust servers (Axum, Actix, Hyper) - 7-10x faster |
-| **Backward Compatibility** | Python servers (FastAPI, Starlette) - unchanged |
-| **Flexibility** | 5 options + custom adapters |
-| **Gradual Migration** | Start Python, move to Rust when ready |
-| **Pragmatism** | Support what users need, today and future |
+| **Maximum Performance** | Axum (Rust) - 7-10x faster |
+| **Backward Compatibility** | FastAPI/Starlette (Python) - unchanged |
+| **Clear Choice** | 3 focused options + custom adapters |
+| **Gradual Migration** | Start Python, move to Axum when ready |
+| **Pragmatism** | Support what users need, minimize maintenance |
 
 FraiseQL v2.0 provides **the best of both worlds** - performance when you need it, compatibility when you want it.
 

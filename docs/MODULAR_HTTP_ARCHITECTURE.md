@@ -11,7 +11,7 @@
 
 FraiseQL v2.0 introduces a **flexible, modular HTTP architecture** that supports both Rust (for performance) and Python (for compatibility) servers. This enables:
 
-- **Rust servers**: Axum (recommended), Actix-web (proven), Hyper (low-level) - 7-10x faster
+- **Rust server**: Axum (recommended) - 7-10x faster
 - **Python servers**: FastAPI, Starlette - backward compatible with v1.8.x
 - **Composable middleware**: Same middleware across all servers
 - **Gradual migration**: Start with Python, move to Rust servers when ready
@@ -32,10 +32,10 @@ This provides a **pragmatic balance** between performance (Rust) and compatibili
                          ↓
 ┌──────────────────────────────────────────────────────────────┐
 │              Framework Adapter Layer                          │
-│  ┌──────────────┬──────────────┬──────────────┬────────────┐ │
-│  │    Axum      │  Actix-web   │    Hyper     │   Custom   │ │
-│  │ (Recommended)│ (Proven)     │ (Low-level)  │ (User)     │ │
-│  └──────────────┴──────────────┴──────────────┴────────────┘ │
+│  ┌──────────────┬────────────────┬──────────────────────────┐ │
+│  │    Axum      │    FastAPI     │      Starlette           │ │
+│  │  (Rust)      │    (Python)    │      (Python)            │ │
+│  └──────────────┴────────────────┴──────────────────────────┘ │
 └────────────────────────┬─────────────────────────────────────┘
                          ↓
 ┌──────────────────────────────────────────────────────────────┐
@@ -143,7 +143,7 @@ pub trait MiddlewareComponent {
 ```
 
 **Benefits**:
-- Core logic doesn't depend on Axum, Actix, or any specific framework
+- Core logic doesn't depend on any specific framework
 - Easy to add new framework adapters
 - Consistent behavior across all adapters
 
@@ -227,67 +227,7 @@ let server = AxumServer::new(graphql_core)
 
 ---
 
-### Option 2: Actix-web (Proven)
-
-**Best for**: Migrations from v1.x, proven stability
-
-**Characteristics**:
-- Mature, battle-tested framework
-- Excellent for migrating FastAPI users
-- Strong ecosystem
-- High performance
-
-**When to use**:
-- Migrating from FastAPI (v1.8.x)
-- Teams experienced with Actix
-- Need proven track record
-
-**Setup**:
-```rust
-use fraiseql::http::adapters::actix::ActixServer;
-
-let server = ActixServer::new(graphql_core)
-    .with_default_middleware()
-    .bind("0.0.0.0:8000")
-    .run()
-    .await?;
-```
-
-**Location**: `fraiseql_rs/src/http/adapters/actix/`
-
----
-
-### Option 3: Hyper (Low-Level)
-
-**Best for**: Custom HTTP control, embedded use cases
-
-**Characteristics**:
-- Low-level HTTP library
-- Maximum control over HTTP details
-- Minimal overhead
-- Requires more manual setup
-
-**When to use**:
-- Embedded in existing infrastructure
-- Need fine-grained HTTP control
-- Custom protocols needed
-
-**Setup**:
-```rust
-use fraiseql::http::adapters::hyper::HyperServer;
-
-let server = HyperServer::new(graphql_core)
-    .with_custom_handler(my_handler)
-    .bind("0.0.0.0:8000")
-    .run()
-    .await?;
-```
-
-**Location**: `fraiseql_rs/src/http/adapters/hyper/`
-
----
-
-### Option 4: Custom Adapter
+### Option 2: Custom Adapter
 
 **Best for**: Existing framework, unique requirements
 
@@ -444,8 +384,7 @@ v2.0.0: Axum (Rust) → Shared GraphQL Engine
 ```
 
 **Step 2: Choose adapter**
-- **Recommended**: Axum (better performance)
-- **Alternative**: Actix-web (more familiar if coming from FastAPI)
+- **Recommended**: Axum (better performance, modern Rust)
 
 **Step 3: Migrate configuration**
 ```rust
@@ -470,12 +409,11 @@ let server = AxumServer::new(core)
 
 ### For Starlette Users (v1.8.x)
 
-**Status**: Starlette server not available in v2.0
+**Status**: Starlette server fully supported in v2.0
 
 **Migration options**:
-1. **Upgrade to v2.0 with Actix-web** (similar architecture)
-2. **Upgrade to v2.0 with Axum** (recommended for new development)
-3. **Stick with v1.8.x** (not recommended long-term)
+1. **Upgrade to v2.0 with Starlette** (same as v1.8.x, zero changes)
+2. **Upgrade to v2.0 with Axum** (recommended for new development, 7-10x faster)
 
 ### For Axum Experimental Users (v1.x)
 
@@ -528,9 +466,9 @@ v2.0:   p99 ~20-30ms
 ### v2.0 (Current)
 
 Adapters shipping with v2.0:
-- ✅ Axum (primary, recommended)
-- ✅ Actix-web (proven, migration-friendly)
-- ✅ Hyper (low-level control)
+- ✅ Axum (Rust, recommended)
+- ✅ FastAPI (Python, v1.8.x compatible)
+- ✅ Starlette (Python, lightweight)
 
 Middleware included:
 - ✅ Authentication (Auth0, JWT, custom)
@@ -630,11 +568,11 @@ let server = AxumServer::new(core)
 
 ## FAQ
 
-**Q: Why remove Python servers?**
-A: v2.0 is a major version shift to native Rust for performance. Python servers eliminated Python/Rust boundary crossing. Users can still run v1.8.x if preferred.
+**Q: Are Python servers still supported?**
+A: Yes! v2.0 includes full FastAPI and Starlette support, identical to v1.8.x. Upgrade to Axum when your team is ready for 7-10x performance improvement.
 
 **Q: Which adapter should I use?**
-A: **Axum (recommended)** for new applications. **Actix-web** for migrating from FastAPI. **Hyper** for custom control.
+A: **Axum** (recommended) for new applications and best performance. **FastAPI** for Python teams (same as v1.8.x). **Starlette** for minimal Python deployments.
 
 **Q: Can I use my existing framework?**
 A: Yes! Implement a custom adapter. See `custom_template.rs` for template.

@@ -37,7 +37,7 @@ This checklist tracks preparation across:
 
 - [x] Create `docs/DEPRECATION_POLICY.md` - Comprehensive policy
 - [x] Document modular HTTP architecture (v2.0 approach)
-- [x] Document HTTP server adapters (Axum, Actix, Hyper, custom)
+- [x] Document HTTP server adapters (Axum, FastAPI, Starlette, custom)
 - [x] Document legacy Python servers (FastAPI, Starlette archived)
 - [x] Define 3-phase lifecycle (announcement, maintenance, removal)
 - [x] Create deprecation timeline
@@ -53,7 +53,7 @@ This checklist tracks preparation across:
   - [x] Rust extension structure (including modular HTTP)
   - [x] Modular HTTP architecture (framework-agnostic)
   - [x] Middleware modularity and composition
-  - [x] Framework adapters (Axum, Actix, Hyper, custom)
+  - [x] Framework adapters (Axum, FastAPI, Starlette, custom)
   - [x] Test suite organization
   - [x] Naming conventions
   - [x] Design patterns

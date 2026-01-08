@@ -49,9 +49,7 @@ HTTP Request
     ↓
 Framework Choice
 ├─ Rust Native (High Performance)
-│  ├─ Axum (modern, recommended Rust default)
-│  ├─ Actix-web (proven, battle-tested)
-│  └─ Hyper (low-level HTTP control)
+│  └─ Axum (modern, recommended default)
 │
 └─ Python Traditional (Compatibility)
    ├─ FastAPI (Python, v1.8.x pattern)
@@ -86,21 +84,7 @@ HTTP Response
 - **Performance**: 7-10x faster than Python servers
 - **Best for**: New v2.0 applications, performance-critical deployments
 - **Ecosystem**: Modern async Rust, growing community
-- **Recommendation**: **Start here** for new projects
-
-##### Actix-web (Proven Rust Server)
-
-- **Performance**: Excellent, mature performance
-- **Best for**: Migrating from v1.8.x FastAPI, proven track record
-- **Ecosystem**: Mature, excellent integrations
-- **Recommendation**: Good for teams familiar with Actix
-
-##### Hyper (Low-Level Rust Server)
-
-- **Performance**: Excellent, maximum control
-- **Best for**: Custom protocols, embedded use cases, fine-grained HTTP
-- **Ecosystem**: Minimal, low-level control
-- **Recommendation**: Advanced use cases, custom requirements
+- **Recommendation**: **Start here** for new projects, primary Rust option
 
 ---
 
@@ -166,8 +150,8 @@ Modular Middleware (Rust-backed, framework-agnostic)
 - **Python needed**: FastAPI or Starlette (compatible)
 
 **Timeline**:
-- **v2.0.0**: All servers (Axum, Actix, Hyper, FastAPI, Starlette) fully supported
-- **v2.1.0**: All servers maintained, emphasis on Rust servers
+- **v2.0.0**: All servers (Axum, FastAPI, Starlette) fully supported
+- **v2.1.0**: All servers maintained, emphasis on Axum
 - **v3.0.0+**: Python servers may be deprecated (depends on adoption)
 
 ---
