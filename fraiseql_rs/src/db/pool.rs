@@ -1,4 +1,11 @@
 //! Database connection pool (production implementation).
+//!
+//! # Architecture
+//! - `ProductionPool` (deadpool-based) implements `PoolBackend` trait
+//! - Storage layer uses `PoolBackend` abstraction, not concrete pool types
+//! - Enables swapping pool implementations without changing storage code
+
+pub mod traits;
 
 use crate::db::{
     pool_config::{DatabaseConfig, SslMode},
@@ -9,6 +16,8 @@ use pyo3::types::PyDict;
 use pyo3_async_runtimes::tokio::future_into_py;
 use std::str::FromStr;
 use std::sync::Arc;
+
+pub use traits::{PoolBackend, PoolError, PoolResult};
 
 /// Python-facing database pool with context manager support.
 #[pyclass(name = "DatabasePool")]

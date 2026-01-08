@@ -143,7 +143,6 @@ impl GraphQLEngine {
     /// ```json
     /// {
     ///   "db": {
-    ///     "type": "postgres",
     ///     "url": "postgres://user:pass@localhost/db",
     ///     "pool_size": 10,
     ///     "timeout_seconds": 30
@@ -152,9 +151,11 @@ impl GraphQLEngine {
     /// ```
     ///
     /// # Note
-    /// This function uses `block_on` to convert async PostgreSQL backend creation
-    /// into a synchronous context. The Tokio runtime is initialized on module load.
+    /// This function creates a ProductionPool (deadpool-based) and wraps it
+    /// in the PostgresBackend storage layer using the PoolBackend abstraction.
     fn initialize_storage(config: &serde_json::Value) -> Result<Arc<dyn StorageBackend>, ApiError> {
+        use crate::db::{DatabaseConfig, PoolBackend, ProductionPool};
+
         // Fail-fast: Database configuration is REQUIRED
         let storage_config = config.get("db").ok_or_else(|| {
             ApiError::InternalError(
@@ -180,85 +181,33 @@ impl GraphQLEngine {
                 )
             })?;
 
-        // Validate PostgreSQL URL format
-        if !db_url.starts_with("postgres://") && !db_url.starts_with("postgresql://") {
-            return Err(ApiError::InternalError(format!(
-                "Invalid database URL scheme (must be postgres:// or postgresql://): {}",
-                db_url
-            )));
-        }
+        // Parse connection string into DatabaseConfig
+        let db_config = DatabaseConfig::from_url(db_url)
+            .map_err(|e| ApiError::InternalError(format!("Invalid database URL: {}", e)))?;
 
         // Extract pool configuration with defaults
         let pool_size = storage_config
             .get("pool_size")
             .and_then(|v| v.as_u64())
-            .unwrap_or(10) as u32;
+            .unwrap_or(10) as usize;
 
-        let timeout_secs = storage_config
-            .get("timeout_seconds")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(30);
+        let db_config = db_config.with_max_size(pool_size);
 
-        // Create real PostgreSQL backend using Tokio runtime
-        // The Tokio runtime is initialized on module import (see lib.rs)
-        Self::create_postgres_backend(db_url, pool_size, timeout_secs)
-    }
+        // Create production pool (deadpool-based)
+        let pool = ProductionPool::new(db_config).map_err(|e| {
+            ApiError::InternalError(format!("Failed to create connection pool: {}", e))
+        })?;
 
-    /// Create a PostgreSQL backend asynchronously
-    ///
-    /// # Arguments
-    /// * `url` - PostgreSQL connection URL
-    /// * `pool_size` - Maximum number of connections
-    /// * `timeout_secs` - Connection acquisition timeout
-    ///
-    /// # Returns
-    /// * Arc<dyn StorageBackend> - PostgreSQL backend ready for queries
-    /// * ApiError - If backend creation fails
-    fn create_postgres_backend(
-        url: &str,
-        pool_size: u32,
-        timeout_secs: u64,
-    ) -> Result<Arc<dyn StorageBackend>, ApiError> {
-        // Use tokio runtime to create backend
-        let rt = tokio::runtime::Handle::try_current()
-            .ok()
-            .map(|handle| {
-                // We're already in a tokio context, use block_in_place
-                let backend = tokio::task::block_in_place(|| {
-                    handle.block_on(crate::api::storage::PostgresBackend::new(
-                        url,
-                        pool_size,
-                        timeout_secs,
-                    ))
-                });
-                backend
-            })
-            .unwrap_or_else(|| {
-                // No tokio runtime, create new runtime
-                let new_rt = tokio::runtime::Runtime::new()
-                    .map_err(|e| format!("Failed to create Tokio runtime: {}", e))
-                    .ok();
+        // Wrap pool as Arc<dyn PoolBackend> for storage layer
+        let pool_backend: Arc<dyn PoolBackend> = Arc::new(pool);
 
-                if let Some(new_rt) = new_rt {
-                    new_rt.block_on(crate::api::storage::PostgresBackend::new(
-                        url,
-                        pool_size,
-                        timeout_secs,
-                    ))
-                } else {
-                    Err(crate::api::storage::StorageError::ConnectionError(
-                        "Could not create Tokio runtime for PostgreSQL connection pool".to_string(),
-                    ))
-                }
-            });
+        // Create PostgreSQL storage backend with pool abstraction
+        let storage =
+            crate::api::storage::PostgresBackend::with_pool(pool_backend).map_err(|e| {
+                ApiError::InternalError(format!("Failed to create storage backend: {}", e))
+            })?;
 
-        match rt {
-            Ok(backend) => Ok(Arc::new(backend)),
-            Err(e) => Err(ApiError::InternalError(format!(
-                "Failed to create PostgreSQL backend: {}",
-                e
-            ))),
-        }
+        Ok(Arc::new(storage))
     }
 
     /// Execute a GraphQL query
@@ -434,9 +383,7 @@ mod tests {
         let engine = GraphQLEngine::new(config);
         assert!(engine.is_err());
         if let Err(e) = engine {
-            assert!(e
-                .to_string()
-                .contains("Database configuration required"));
+            assert!(e.to_string().contains("Database configuration required"));
         }
     }
 
@@ -504,9 +451,7 @@ mod tests {
         let storage = GraphQLEngine::initialize_storage(&config);
         assert!(storage.is_err());
         if let Err(e) = storage {
-            assert!(e
-                .to_string()
-                .contains("Database configuration required"));
+            assert!(e.to_string().contains("Database configuration required"));
         }
     }
 

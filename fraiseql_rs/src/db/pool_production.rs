@@ -291,6 +291,51 @@ fn is_deadlock_error(error: &tokio_postgres::Error) -> bool {
         .is_some_and(|db_error| db_error.code().code() == "40P01")
 }
 
+/// Implement PoolBackend trait for ProductionPool.
+///
+/// This allows ProductionPool to be used as a trait object (Arc<dyn PoolBackend>)
+/// by the storage layer, enabling abstraction over pool implementations.
+#[async_trait::async_trait]
+impl crate::db::pool::traits::PoolBackend for ProductionPool {
+    async fn query(
+        &self,
+        sql: &str,
+    ) -> crate::db::pool::traits::PoolResult<Vec<serde_json::Value>> {
+        self.execute_query(sql)
+            .await
+            .map_err(|e| crate::db::pool::traits::PoolError::QueryExecution(e.to_string()))
+    }
+
+    async fn execute(&self, sql: &str) -> crate::db::pool::traits::PoolResult<u64> {
+        let client = self.get_connection().await.map_err(|e| {
+            crate::db::pool::traits::PoolError::ConnectionAcquisition(e.to_string())
+        })?;
+
+        client
+            .execute(sql, &[])
+            .await
+            .map(|count| count as u64)
+            .map_err(|e| crate::db::pool::traits::PoolError::QueryExecution(e.to_string()))
+    }
+
+    fn pool_info(&self) -> serde_json::Value {
+        let stats = self.stats();
+        serde_json::json!({
+            "backend": "deadpool-postgres",
+            "database": self.config.database,
+            "host": self.config.host,
+            "port": self.config.port,
+            "pool_size": stats.size,
+            "pool_available": stats.available,
+            "pool_max_size": stats.max_size,
+        })
+    }
+
+    fn backend_name(&self) -> &str {
+        "deadpool-postgres"
+    }
+}
+
 /// Pool statistics for monitoring.
 #[derive(Debug, Clone)]
 pub struct PoolStats {

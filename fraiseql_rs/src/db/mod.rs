@@ -21,7 +21,7 @@ pub mod errors;
 pub mod health;
 pub mod metrics;
 pub mod mutex_recovery;
-pub mod pool;
+pub mod pool; // Pool abstraction traits
 pub mod pool_config;
 pub mod pool_production;
 pub mod prototype; // Phase 0: Async bridge prototype
@@ -37,7 +37,7 @@ pub use errors::{DatabaseError, DatabaseResult};
 pub use health::{HealthCheckResult, PoolHealthStats};
 pub use metrics::{MetricsSnapshot, PoolMetrics};
 pub use mutex_recovery::recover_from_poisoned;
-pub use pool::DatabasePool;
+pub use pool::{DatabasePool, PoolBackend, PoolError, PoolResult}; // Pool abstraction + Python binding
 pub use pool_config::{DatabaseConfig, SslMode};
 pub use pool_production::{PoolStats, ProductionPool};
 pub use prototype::PrototypePool; // Phase 0: Export prototype for testing
