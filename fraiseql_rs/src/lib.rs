@@ -61,6 +61,7 @@ pub mod pipeline;
 pub mod query;
 pub mod rbac;
 pub mod response;
+pub mod schema_generators; // Phase A.1: Schema export for Python
 pub mod schema_registry;
 pub mod security;
 pub mod startup; // Phase 1: Server startup and configuration validation
@@ -917,6 +918,34 @@ pub fn build_multi_field_response(fields: Vec<MultiFieldDef>) -> PyResult<Vec<u8
     pipeline::builder::build_multi_field_response(fields)
 }
 
+/// Export GraphQL schema generators for filter and orderby types (Phase A.1).
+///
+/// Returns a JSON string containing complete schema for `WhereInput` and `OrderByInput`
+/// type generation. This eliminates the need for Python runtime type introspection.
+///
+/// # Returns
+///
+/// JSON string with structure:
+/// ```json
+/// {
+///   "version": "1.0",
+///   "filter_schemas": {
+///     "String": {"fields": {"eq": {...}, ...}},
+///     ...
+///   },
+///   "order_by_schemas": {...}
+/// }
+/// ```
+///
+/// # Errors
+///
+/// Cannot fail - always returns valid JSON string.
+#[pyfunction]
+pub fn export_schema_generators() -> PyResult<String> {
+    let schema = schema_generators::export_schema_generators();
+    Ok(schema.to_string())
+}
+
 /// A Python module implemented in Rust for ultra-fast GraphQL transformations.
 ///
 /// This module provides:
@@ -954,6 +983,7 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
             "test_function",
             "build_graphql_response",
             "build_multi_field_response",
+            "export_schema_generators",
             "initialize_schema_registry",
             "filter_cascade_data",
             "build_mutation_response",
@@ -993,6 +1023,9 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Add zero-copy pipeline exports
     m.add_function(wrap_pyfunction!(build_graphql_response, m)?)?;
     m.add_function(wrap_pyfunction!(build_multi_field_response, m)?)?;
+
+    // Add schema generators (Phase A.1: Schema export for Python)
+    m.add_function(wrap_pyfunction!(export_schema_generators, m)?)?;
 
     // Add schema registry initialization
     m.add_function(wrap_pyfunction!(initialize_schema_registry, m)?)?;
