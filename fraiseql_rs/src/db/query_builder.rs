@@ -279,9 +279,12 @@ impl QueryBuilder {
     ///     .value("email", QueryParam::Text("john@example.com".into()))
     ///     .build_insert();
     /// ```
-    #[must_use] 
+    #[must_use]
     pub fn build_insert(mut self) -> SqlQuery {
-        assert!(!self.values.is_empty(), "INSERT requires at least one value");
+        assert!(
+            !self.values.is_empty(),
+            "INSERT requires at least one value"
+        );
 
         let column_names: Vec<String> = self.values.keys().cloned().collect();
         let mut params = Vec::new();
@@ -338,9 +341,12 @@ impl QueryBuilder {
     ///     .where_clause(/* ... */)
     ///     .build_update();
     /// ```
-    #[must_use] 
+    #[must_use]
     pub fn build_update(self) -> SqlQuery {
-        assert!(!self.values.is_empty(), "UPDATE requires at least one value");
+        assert!(
+            !self.values.is_empty(),
+            "UPDATE requires at least one value"
+        );
 
         let mut sql = if let Some(schema) = self.schema {
             format!("UPDATE {}.{} SET ", schema, self.table)
@@ -387,7 +393,7 @@ impl QueryBuilder {
     ///     .where_clause(/* ... */)
     ///     .build_delete();
     /// ```
-    #[must_use] 
+    #[must_use]
     pub fn build_delete(self) -> SqlQuery {
         let mut sql = if let Some(schema) = self.schema {
             format!("DELETE FROM {}.{}", schema, self.table)
