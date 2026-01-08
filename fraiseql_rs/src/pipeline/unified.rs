@@ -642,6 +642,29 @@ impl PyGraphQLPipeline {
     }
 }
 
+// Rust-only methods (not exposed to Python)
+impl PyGraphQLPipeline {
+    /// Internal method to execute GraphQL query from FFI (Rust-to-Rust call).
+    ///
+    /// This method is called from the unified FFI binding `process_graphql_request()`
+    /// and executes the entire GraphQL pipeline in Rust without any Python overhead.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Query execution fails
+    /// - Response building fails
+    pub fn execute_sync_internal(
+        &self,
+        query_string: &str,
+        variables: &HashMap<String, serde_json::Value>,
+        user_context: UserContext,
+    ) -> anyhow::Result<Vec<u8>> {
+        self.pipeline
+            .execute_sync(query_string, variables, user_context)
+    }
+}
+
 /// Convert `PyDict` to `HashMap` for variables.
 fn dict_to_hashmap(dict: &Bound<'_, PyDict>) -> PyResult<HashMap<String, JsonValue>> {
     let mut result = HashMap::new();

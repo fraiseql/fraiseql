@@ -617,4 +617,3 @@ def test_rust_build_find_query_with_limit():
 
 **Status**: PROPOSAL
 **Recommend**: Proceed with Phase 1-2 as proof of concept
-
