@@ -71,7 +71,7 @@ class TestRustSchemaExport:
             "istartswith",
             "endswith",
             "iendswith",
-            "in",
+            "in_",  # Python keyword, use underscore
             "nin",
             "isnull",
         ]
@@ -89,7 +89,7 @@ class TestRustSchemaExport:
         operators = int_filter["fields"]
 
         # Numeric operators
-        expected_ops = ["eq", "neq", "lt", "lte", "gt", "gte", "in", "nin"]
+        expected_ops = ["eq", "neq", "lt", "lte", "gt", "gte", "in_", "nin"]  # in_ due to Python keyword
 
         for op in expected_ops:
             assert op in operators, f"Missing operator '{op}' in Int filter"
@@ -156,9 +156,9 @@ class TestSchemaStructure:
         schema = json.loads(schema_json)
         string_filter = schema["filter_schemas"]["String"]
 
-        # 'in' and 'nin' should be list types
-        assert "in" in string_filter["fields"]
-        in_type = string_filter["fields"]["in"]["type"]
+        # 'in_' and 'nin' should be list types (in_ due to Python keyword)
+        assert "in_" in string_filter["fields"]
+        in_type = string_filter["fields"]["in_"]["type"]
         assert "list" in in_type.lower() or "[" in in_type
 
         assert "nin" in string_filter["fields"]

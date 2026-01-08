@@ -36,8 +36,9 @@ pub fn export_schema_generators() -> Value {
                     "matches": {"type": "String", "nullable": true},
                     "imatches": {"type": "String", "nullable": true},
                     "not_matches": {"type": "String", "nullable": true},
-                    "in": {"type": "[String!]", "nullable": true},
+                    "in_": {"type": "[String!]", "nullable": true},
                     "nin": {"type": "[String!]", "nullable": true},
+                    "notin": {"type": "[String!]", "nullable": true},
                     "isnull": {"type": "Boolean", "nullable": true},
                 }
             },
@@ -49,7 +50,7 @@ pub fn export_schema_generators() -> Value {
                     "lte": {"type": "Int", "nullable": true},
                     "gt": {"type": "Int", "nullable": true},
                     "gte": {"type": "Int", "nullable": true},
-                    "in": {"type": "[Int!]", "nullable": true},
+                    "in_": {"type": "[Int!]", "nullable": true},
                     "nin": {"type": "[Int!]", "nullable": true},
                     "isnull": {"type": "Boolean", "nullable": true},
                 }
@@ -62,8 +63,21 @@ pub fn export_schema_generators() -> Value {
                     "lte": {"type": "Float", "nullable": true},
                     "gt": {"type": "Float", "nullable": true},
                     "gte": {"type": "Float", "nullable": true},
-                    "in": {"type": "[Float!]", "nullable": true},
+                    "in_": {"type": "[Float!]", "nullable": true},
                     "nin": {"type": "[Float!]", "nullable": true},
+                    "isnull": {"type": "Boolean", "nullable": true},
+                }
+            },
+            "Decimal": {
+                "fields": {
+                    "eq": {"type": "Decimal", "nullable": true},
+                    "neq": {"type": "Decimal", "nullable": true},
+                    "lt": {"type": "Decimal", "nullable": true},
+                    "lte": {"type": "Decimal", "nullable": true},
+                    "gt": {"type": "Decimal", "nullable": true},
+                    "gte": {"type": "Decimal", "nullable": true},
+                    "in_": {"type": "[Decimal!]", "nullable": true},
+                    "nin": {"type": "[Decimal!]", "nullable": true},
                     "isnull": {"type": "Boolean", "nullable": true},
                 }
             },
@@ -78,9 +92,40 @@ pub fn export_schema_generators() -> Value {
                 "fields": {
                     "eq": {"type": "ID", "nullable": true},
                     "neq": {"type": "ID", "nullable": true},
-                    "in": {"type": "[ID!]", "nullable": true},
+                    "in_": {"type": "[ID!]", "nullable": true},
                     "nin": {"type": "[ID!]", "nullable": true},
                     "isnull": {"type": "Boolean", "nullable": true},
+                }
+            },
+            "Array": {
+                "fields": {
+                    "eq": {"type": "[Any!]", "nullable": true},
+                    "neq": {"type": "[Any!]", "nullable": true},
+                    "isnull": {"type": "Boolean", "nullable": true},
+                    "contains": {"type": "[Any!]", "nullable": true},
+                    "contained_by": {"type": "[Any!]", "nullable": true},
+                    "strictly_contains": {"type": "[Any!]", "nullable": true},
+                    "overlaps": {"type": "[Any!]", "nullable": true},
+                    "len_eq": {"type": "Int", "nullable": true},
+                    "len_neq": {"type": "Int", "nullable": true},
+                    "len_gt": {"type": "Int", "nullable": true},
+                    "len_gte": {"type": "Int", "nullable": true},
+                    "len_lt": {"type": "Int", "nullable": true},
+                    "len_lte": {"type": "Int", "nullable": true},
+                    "any_eq": {"type": "String", "nullable": true},
+                    "all_eq": {"type": "String", "nullable": true},
+                    "in_array": {"type": "String", "nullable": true},
+                    "array_eq": {"type": "[Any!]", "nullable": true},
+                    "array_neq": {"type": "[Any!]", "nullable": true},
+                    "array_contains": {"type": "[Any!]", "nullable": true},
+                    "array_contained_by": {"type": "[Any!]", "nullable": true},
+                    "array_overlaps": {"type": "[Any!]", "nullable": true},
+                    "array_length_eq": {"type": "Int", "nullable": true},
+                    "array_length_gt": {"type": "Int", "nullable": true},
+                    "array_length_gte": {"type": "Int", "nullable": true},
+                    "array_length_lt": {"type": "Int", "nullable": true},
+                    "array_any_eq": {"type": "String", "nullable": true},
+                    "array_all_eq": {"type": "String", "nullable": true},
                 }
             },
             "Date": {
@@ -91,7 +136,7 @@ pub fn export_schema_generators() -> Value {
                     "lte": {"type": "Date", "nullable": true},
                     "gt": {"type": "Date", "nullable": true},
                     "gte": {"type": "Date", "nullable": true},
-                    "in": {"type": "[Date!]", "nullable": true},
+                    "in_": {"type": "[Date!]", "nullable": true},
                     "nin": {"type": "[Date!]", "nullable": true},
                     "isnull": {"type": "Boolean", "nullable": true},
                 }
@@ -104,7 +149,7 @@ pub fn export_schema_generators() -> Value {
                     "lte": {"type": "DateTime", "nullable": true},
                     "gt": {"type": "DateTime", "nullable": true},
                     "gte": {"type": "DateTime", "nullable": true},
-                    "in": {"type": "[DateTime!]", "nullable": true},
+                    "in_": {"type": "[DateTime!]", "nullable": true},
                     "nin": {"type": "[DateTime!]", "nullable": true},
                     "isnull": {"type": "Boolean", "nullable": true},
                 }
@@ -113,21 +158,99 @@ pub fn export_schema_generators() -> Value {
                 "fields": {
                     "eq": {"type": "UUID", "nullable": true},
                     "neq": {"type": "UUID", "nullable": true},
-                    "in": {"type": "[UUID!]", "nullable": true},
+                    "in_": {"type": "[UUID!]", "nullable": true},
                     "nin": {"type": "[UUID!]", "nullable": true},
                     "isnull": {"type": "Boolean", "nullable": true},
                 }
             },
-            "Decimal": {
+            "NetworkAddress": {
                 "fields": {
-                    "eq": {"type": "Decimal", "nullable": true},
-                    "neq": {"type": "Decimal", "nullable": true},
-                    "lt": {"type": "Decimal", "nullable": true},
-                    "lte": {"type": "Decimal", "nullable": true},
-                    "gt": {"type": "Decimal", "nullable": true},
-                    "gte": {"type": "Decimal", "nullable": true},
-                    "in": {"type": "[Decimal!]", "nullable": true},
-                    "nin": {"type": "[Decimal!]", "nullable": true},
+                    "eq": {"type": "String", "nullable": true},
+                    "neq": {"type": "String", "nullable": true},
+                    "isnull": {"type": "Boolean", "nullable": true},
+                    "in_": {"type": "[String!]", "nullable": true},
+                    "nin": {"type": "[String!]", "nullable": true},
+                    "family": {"type": "Int", "nullable": true},
+                    "host_mask": {"type": "String", "nullable": true},
+                    "network_mask": {"type": "String", "nullable": true},
+                    "broadcast": {"type": "String", "nullable": true},
+                    "prefix": {"type": "Int", "nullable": true},
+                    "contains": {"type": "String", "nullable": true},
+                    "contained_by": {"type": "String", "nullable": true},
+                    "contained_by_or_equals": {"type": "String", "nullable": true},
+                    "contains_or_equals": {"type": "String", "nullable": true},
+                    "overlaps": {"type": "String", "nullable": true},
+                    "left_of": {"type": "String", "nullable": true},
+                    "right_of": {"type": "String", "nullable": true},
+                    "strictly_left_of": {"type": "String", "nullable": true},
+                    "strictly_right_of": {"type": "String", "nullable": true},
+                    "in_range": {"type": "IPRange", "nullable": true},
+                }
+            },
+            "MacAddress": {
+                "fields": {
+                    "eq": {"type": "String", "nullable": true},
+                    "neq": {"type": "String", "nullable": true},
+                    "isnull": {"type": "Boolean", "nullable": true},
+                    "in_": {"type": "[String!]", "nullable": true},
+                    "nin": {"type": "[String!]", "nullable": true},
+                }
+            },
+            "LTree": {
+                "fields": {
+                    "eq": {"type": "String", "nullable": true},
+                    "neq": {"type": "String", "nullable": true},
+                    "isnull": {"type": "Boolean", "nullable": true},
+                    "in_": {"type": "[String!]", "nullable": true},
+                    "nin": {"type": "[String!]", "nullable": true},
+                    "descendant": {"type": "String", "nullable": true},
+                    "ancestor": {"type": "String", "nullable": true},
+                    "matches": {"type": "String", "nullable": true},
+                    "ltree": {"type": "String", "nullable": true},
+                    "lquery": {"type": "String", "nullable": true},
+                }
+            },
+            "DateRange": {
+                "fields": {
+                    "eq": {"type": "String", "nullable": true},
+                    "neq": {"type": "String", "nullable": true},
+                    "isnull": {"type": "Boolean", "nullable": true},
+                    "contains": {"type": "String", "nullable": true},
+                    "contained_by": {"type": "String", "nullable": true},
+                    "overlaps": {"type": "String", "nullable": true},
+                    "strictly_left_of": {"type": "String", "nullable": true},
+                    "strictly_right_of": {"type": "String", "nullable": true},
+                    "adjacent_to": {"type": "String", "nullable": true},
+                }
+            },
+            "FullText": {
+                "fields": {
+                    "match_": {"type": "String", "nullable": true},
+                    "plain_match": {"type": "String", "nullable": true},
+                    "phrase_match": {"type": "String", "nullable": true},
+                    "websearch": {"type": "String", "nullable": true},
+                    "isnull": {"type": "Boolean", "nullable": true},
+                }
+            },
+            "JSONB": {
+                "fields": {
+                    "eq": {"type": "String", "nullable": true},
+                    "neq": {"type": "String", "nullable": true},
+                    "isnull": {"type": "Boolean", "nullable": true},
+                    "contains": {"type": "String", "nullable": true},
+                    "contained_by": {"type": "String", "nullable": true},
+                    "has_key": {"type": "String", "nullable": true},
+                    "has_keys": {"type": "[String!]", "nullable": true},
+                    "has_any_keys": {"type": "[String!]", "nullable": true},
+                    "path_contains": {"type": "String", "nullable": true},
+                    "path_exists": {"type": "String", "nullable": true},
+                }
+            },
+            "Vector": {
+                "fields": {
+                    "match_": {"type": "String", "nullable": true},
+                    "eq": {"type": "String", "nullable": true},
+                    "neq": {"type": "String", "nullable": true},
                     "isnull": {"type": "Boolean", "nullable": true},
                 }
             },
