@@ -1,10 +1,10 @@
 {
   "test_class": "TestConcurrencyChaos",
-  "timestamp": 1767859922.6097307,
+  "timestamp": 1767887597.5175295,
   "metrics": {
-    "duration_ms": 61.629533767700195,
+    "duration_ms": 63.013315200805664,
     "query_count": 8,
-    "avg_query_time_ms": 10.735541582107544,
+    "avg_query_time_ms": 10.754257440567017,
     "p95_query_time_ms": null,
     "error_count": 0,
     "retry_count": 0,

@@ -7,6 +7,7 @@ Phase 7 Implementation - Production Integration
 """
 
 import logging
+import os
 import random
 import time
 from collections.abc import Sequence
@@ -229,6 +230,16 @@ def _should_use_rust() -> bool:
     if not RUST_AVAILABLE:
         return False
 
+    # Explicit disable - prefer Python (for debugging/fallback)
+    # Environment variable: FRAISEQL_USE_PYTHON_QUERY_BUILDER=true
+    use_python = os.getenv("FRAISEQL_USE_PYTHON_QUERY_BUILDER", "false").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    if use_python:
+        return False
+
     # Explicit enable/disable
     if USE_RUST_QUERY_BUILDER:
         return True
@@ -236,9 +247,10 @@ def _should_use_rust() -> bool:
     # Gradual rollout percentage
     if RUST_QUERY_BUILDER_PERCENTAGE > 0:
         # NOTE: S311 suppressed - random is fine for traffic sampling (not cryptographic)
-        return random.randint(1, 100) <= RUST_QUERY_BUILDER_PERCENTAGE
+        return random.randint(1, 100) <= RUST_QUERY_BUILDER_PERCENTAGE  # noqa: S311
 
-    return False
+    # Default to Rust (Phase A: all systems use Rust query builder)
+    return True
 
 
 def _build_with_rust(
