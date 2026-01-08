@@ -8,4 +8,3 @@ pub mod memory;
 pub mod postgresql;
 
 pub use memory::MemoryApqStorage;
-pub use postgresql::PostgresApqStorage;

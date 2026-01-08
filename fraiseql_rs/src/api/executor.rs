@@ -15,7 +15,6 @@ use crate::api::error::ApiError;
 use crate::api::planner::{ExecutionPlan, ResponseMetadata, ResultMapping};
 use crate::api::storage::StorageBackend;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::sync::Arc;
 
 /// Result of executing a single SQL query

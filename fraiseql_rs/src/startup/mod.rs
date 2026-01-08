@@ -6,4 +6,3 @@
 
 pub mod config_validator;
 
-pub use config_validator::{ConfigValidator, ValidationError};

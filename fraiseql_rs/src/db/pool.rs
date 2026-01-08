@@ -17,7 +17,7 @@ use pyo3_async_runtimes::tokio::future_into_py;
 use std::str::FromStr;
 use std::sync::Arc;
 
-pub use traits::{PoolBackend, PoolError, PoolResult};
+pub use traits::PoolBackend;
 
 /// Python-facing database pool with context manager support.
 #[pyclass(name = "DatabasePool")]
@@ -159,7 +159,7 @@ impl DatabasePool {
     /// # Example
     ///
     /// ```python
-    /// results = await pool.execute_query("SELECT data FROM tv_users LIMIT 10")
+    /// results = await pool.execute_query("SELECT data FROM tv_user LIMIT 10")
     /// print(f"Got {len(results)} results")
     /// ```
     #[pyo3(name = "execute_query")]

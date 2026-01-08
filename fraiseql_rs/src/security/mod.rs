@@ -25,12 +25,7 @@ pub mod response_limits; // Phase 1: Response size limiting for REGULATED profil
 pub mod validators;
 
 // Re-export main types for HTTP layer integration
-pub use audit::{AuditEntry, AuditLevel, AuditLogger};
-pub use constraints::{ComplexityAnalyzer, IpFilter, RateLimiter};
-pub use error_redactor::ErrorRedactor;
-pub use errors::{Result as SecurityResult, SecurityError};
-pub use field_masking::{FieldMasker, FieldSensitivity};
+pub use errors::SecurityError;
 pub use profiles::SecurityProfile;
-pub use rate_limit::{RateLimit, RateLimitStrategy, RateLimiter as RateLimitChecker};
-pub use response_limits::ResponseLimiter;
+pub use rate_limit::RateLimiter as RateLimitChecker;
 pub use validators::{QueryLimits, QueryValidator};

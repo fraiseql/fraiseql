@@ -9,8 +9,6 @@ pub mod jwt;
 pub mod provider;
 pub mod py_bindings;
 
-pub use cache::UserContextCache;
 pub use errors::AuthError;
 pub use jwt::{Claims, JWTValidator};
-pub use provider::{Auth0Provider, AuthProvider, CustomJWTProvider};
 pub use py_bindings::{PyAuthProvider, PyUserContext};

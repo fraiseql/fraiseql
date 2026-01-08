@@ -14,7 +14,6 @@
 //! let results = pool.query("SELECT * FROM users").await?;
 //! ```
 
-use crate::db::errors::DatabaseResult;
 use async_trait::async_trait;
 
 /// Result type for pool operations
@@ -64,8 +63,8 @@ pub trait PoolBackend: Send + Sync {
     ///
     /// # Example
     /// ```rust,ignore
-    /// let results = pool.query("SELECT data FROM users_view").await?;
-    /// // Each element is a JSONB document
+    /// let results = pool.query("SELECT data FROM tv_user LIMIT 10").await?;
+    /// // Each element is a JSONB document from the projection table
     /// ```
     async fn query(&self, sql: &str) -> PoolResult<Vec<serde_json::Value>>;
 

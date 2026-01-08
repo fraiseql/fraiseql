@@ -68,14 +68,12 @@ mod tests_monitoring;
 
 // Re-export key types and functions for convenience
 pub use cache_key::QueryCacheKey;
-pub use coherency_validator::{CoherencyValidationResult, CoherencyValidator};
-pub use executor::{execute_query_with_cache, invalidate_cache_from_cascade};
+pub use executor::execute_query_with_cache;
 pub use http_integration::{
-    clear_cache, execute_cached_query, get_cache_metrics, invalidate_cached_queries, CacheConfig,
+    get_cache_metrics, CacheConfig,
 };
-pub use monitoring::{CacheHealthThresholds, CacheMonitor, HealthReport, HealthStatus};
-pub use mutation_invalidator::{extract_cascade_from_response, invalidate_cache_on_mutation};
-pub use query_result::{CacheMetrics, CachedResult, QueryResultCache, QueryResultCacheConfig};
+pub use mutation_invalidator::invalidate_cache_on_mutation;
+pub use query_result::{CacheMetrics, QueryResultCache, QueryResultCacheConfig};
 
 use anyhow::{anyhow, Result};
 use lru::LruCache;

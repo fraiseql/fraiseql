@@ -5,6 +5,7 @@
 //! - Query execution with streaming results
 //! - Transaction management
 //! - Connection lifecycle management
+//! - Safe parameter binding (Phase 3.2)
 //!
 //! Architecture:
 //! - `pool.rs`: Connection pool management
@@ -16,11 +17,13 @@
 //! - `query_builder.rs`: SQL query building (Phase 2 - Python migration)
 //! - `where_builder.rs`: WHERE clause construction
 //! - `query.rs`: Query execution and result handling
+//! - `parameter_binding.rs`: Safe parameter binding (Phase 3.2)
 
 pub mod errors;
 pub mod health;
 pub mod metrics;
 pub mod mutex_recovery;
+pub mod parameter_binding; // Phase 3.2: Safe parameter binding
 pub mod pool; // Pool abstraction traits
 pub mod pool_config;
 pub mod pool_production;
@@ -33,17 +36,8 @@ pub mod types;
 pub mod where_builder;
 
 // Re-export main types
-pub use errors::{DatabaseError, DatabaseResult};
-pub use health::{HealthCheckResult, PoolHealthStats};
-pub use metrics::{MetricsSnapshot, PoolMetrics};
 pub use mutex_recovery::recover_from_poisoned;
-pub use pool::{DatabasePool, PoolBackend, PoolError, PoolResult}; // Pool abstraction + Python binding
+pub use pool::{DatabasePool, PoolBackend}; // Pool abstraction + Python binding
 pub use pool_config::{DatabaseConfig, SslMode};
-pub use pool_production::{PoolStats, ProductionPool};
-pub use prototype::PrototypePool; // Phase 0: Export prototype for testing
-pub use query::QueryExecutor;
-pub use query_builder::{OrderByInput, QueryBuilder, QueryType, SqlQuery};
-pub use runtime::{ffi_runtime, init_runtime, runtime, RuntimeConfig, RuntimeStats};
-pub use transaction::Transaction;
-pub use types::*;
-pub use where_builder::{WhereBuilder, WhereCondition};
+pub use pool_production::ProductionPool;
+// Phase 0: Export prototype for testing

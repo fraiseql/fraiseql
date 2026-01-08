@@ -1,4 +1,9 @@
 //! Type definitions and configurations for database operations.
+//!
+//! # Phase 3.2: Query Execution Foundation
+//!
+//! This module defines the types used for query execution and parameter binding.
+//! Note: FraiseQL uses JSONB data extraction from column 0, not row-by-row transformation.
 
 use std::time::Duration;
 
@@ -122,14 +127,24 @@ impl From<uuid::Uuid> for QueryParam {
     }
 }
 
-/// Result of a database query
-#[derive(Debug)]
+/// Result of a SELECT query
+///
+/// This structure represents the results of a SELECT query with:
+/// - Number of rows affected
+/// - Column metadata
+/// - Rows as QueryParam vectors (matches PostgreSQL column types)
+///
+/// # Note
+///
+/// FraiseQL's CQRS pattern extracts JSONB directly from column 0 via the pool.
+/// This type is used by the query executor for intermediate representation.
+#[derive(Debug, Clone)]
 pub struct QueryResult {
     /// Number of rows affected by the query
     pub rows_affected: u64,
     /// Column names in result set
     pub columns: Vec<String>,
-    /// Query result rows
+    /// Query result rows (each row is a vector of QueryParam values)
     pub rows: Vec<Vec<QueryParam>>,
 }
 

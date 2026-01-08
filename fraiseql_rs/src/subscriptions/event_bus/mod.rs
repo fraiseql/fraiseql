@@ -6,8 +6,6 @@
 pub mod postgresql;
 pub mod redis;
 
-pub use postgresql::PostgreSQLEventBus;
-pub use redis::RedisEventBus;
 
 use crate::subscriptions::SubscriptionError;
 use serde::{Deserialize, Serialize};

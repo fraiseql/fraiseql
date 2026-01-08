@@ -14,7 +14,6 @@
 use super::traits::{ExecuteResult, QueryResult, StorageBackend, Transaction};
 use super::StorageError;
 use crate::db::pool::PoolBackend;
-use serde_json::json;
 use std::sync::Arc;
 
 /// PostgreSQL storage backend using pluggable pool abstraction

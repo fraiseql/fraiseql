@@ -178,7 +178,7 @@ impl Planner {
     /// Internal: Plan a query or mutation operation
     fn plan_operation(&self, parsed: ParsedQuery) -> Result<ExecutionPlan, ApiError> {
         let mut sql_queries = Vec::new();
-        let mut nested_plans = HashMap::new();
+        let nested_plans = HashMap::new();
         let mut column_to_field = HashMap::new();
         let mut selected_columns = Vec::new();
 

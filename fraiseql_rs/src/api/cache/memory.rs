@@ -7,7 +7,7 @@ use super::traits::CacheBackend;
 use super::CacheError;
 use dashmap::DashMap;
 use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::SystemTime;
 
 /// In-memory cache backend using DashMap for concurrent access
 pub struct MemoryCache {

@@ -19,7 +19,7 @@ pub mod metrics;
 pub mod py_bindings;
 pub mod storage;
 
-pub use hasher::{hash_query, hash_query_with_variables, verify_hash, verify_hash_with_variables};
+pub use hasher::{hash_query_with_variables, verify_hash};
 pub use metrics::ApqMetrics;
 pub use storage::{ApqError, ApqStats, ApqStorage};
 

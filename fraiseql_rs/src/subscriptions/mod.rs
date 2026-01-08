@@ -47,35 +47,13 @@ pub mod stress_utils;
 #[cfg(test)]
 pub mod chaos_utils;
 
-pub use auth_middleware::{AuthContext, AuthMiddleware};
-pub use config::{
-    EventBusConfig, RateLimiterConfig, SubscriptionConfig, SubscriptionLimits, WebSocketConfig,
-};
-pub use connection_manager::ConnectionManager;
-pub use connection_pool::{ConnectionPoolManager, PoolConfig, PoolStats};
-pub use consumer_group::{ConsumerGroupId, ConsumerGroupManager, ConsumerId};
-pub use error_recovery::{
-    CircuitBreaker, CircuitState, FallbackRegistry, RecoveryStrategy, RetryConfig,
-};
-pub use event_bus::{Event, EventBus, EventStream, InMemoryEventBus};
-pub use event_filter::{EventFilter, FilterCondition, SecurityAwareEventFilter};
-pub use executor::{SubscriptionExecutor, SubscriptionState};
+pub use config::SubscriptionLimits;
 pub use federation_context::FederationContext;
-pub use heartbeat::{ConnectionHeartbeat, HeartbeatMonitor, HeartbeatState};
-pub use metrics::{SecurityMetrics, SubscriptionMetrics};
-pub use protocol::{GraphQLMessage, SubscriptionMessage, SubscriptionPayload};
-pub use py_bindings::{
-    init_subscriptions, PyEventBusConfig, PyGraphQLMessage, PySubscriptionExecutor,
-    PySubscriptionPayload,
-};
-pub use rate_limiter::SubscriptionRateLimiter;
-pub use rbac_integration::{RBACCheckResult, RBACContext};
-pub use resource_limits::{ResourceLimiter, ResourceLimits, ResourceStats};
+pub use rbac_integration::RBACContext;
 pub use row_filter::RowFilterContext;
-pub use scope_validator::{ScopeLevel, ScopeValidator};
+pub use scope_validator::ScopeValidator;
 pub use security_integration::SubscriptionSecurityContext;
 pub use tenant_context::TenantContext;
-pub use websocket::{WebSocketConnection, WebSocketServer};
 
 /// Subscription error type
 #[derive(Debug, thiserror::Error)]

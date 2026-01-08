@@ -91,43 +91,6 @@ pub mod response_filtering_integration;
 pub mod security_middleware;
 pub mod websocket;
 
-pub use auth_middleware::{claims_to_user_context, extract_and_validate_jwt, HttpAuthError};
-pub use axum_server::{
-    create_router, detect_operation, validate_metrics_token, GraphQLError, GraphQLRequest,
-    GraphQLResponse,
-};
-pub use batch_requests::{
-    BatchGraphQLRequest, BatchGraphQLResponse, BatchProcessingConfig, BatchProcessor, BatchStats,
-    DeduplicationKey, SingleGraphQLRequest, SingleGraphQLResponse,
-};
-pub use connection_pool::{ConnectionPoolConfig, SocketConfig, TokioRuntimeConfig};
-pub use graphql_operation_detector::{GraphQLOperationDetector, OperationInfo};
-pub use http2_buffer_tuning::{
-    Http2BufferConfig, Http2FlowControlConfig, Http2TuningProfile, TuningRecommendation,
-};
-pub use http2_config::{Http2Config, Http2Stats};
-pub use http2_metrics::{Http2Metrics, Http2MetricsSnapshot};
-pub use metrics::HttpMetrics;
-pub use middleware::{CompressionAlgorithm, CompressionConfig, HttpError};
-pub use observability_middleware::{ObservabilityContext, ResponseStatus};
-pub use operation_metrics::{
-    GraphQLOperationType, OperationMetrics, OperationStatistics, OperationStatus,
-};
-pub use operation_metrics_middleware::{
-    inject_trace_headers, OperationMetricsContext, OperationMetricsMiddleware,
-};
-pub use operation_monitor::{GraphQLOperationMonitor, OperationMonitorConfig};
-pub use optimization::{
-    CacheStats, ConnectionPoolStats, HealthStatus, OptimizationConfig, PerformanceStats,
-    RateLimitConfig, RateLimitInfo,
-};
-pub use py_bindings::PyAxumServer;
-pub use response_filter::{extract_selections, filter_response_by_selection, FieldSelection};
-pub use response_filtering_integration::{
-    filter_complete_graphql_response, filter_graphql_response, ResponseFilteringConfig,
-};
-pub use security_middleware::{check_rate_limit, validate_graphql_request, HttpSecurityError};
-pub use websocket::websocket_handler;
 
 #[cfg(test)]
 mod http2_integration_tests;

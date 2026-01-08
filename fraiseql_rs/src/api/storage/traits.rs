@@ -5,7 +5,6 @@
 use super::StorageError;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use std::time::SystemTime;
 
 /// Result of executing a database query
 #[derive(Debug, Clone, Serialize, Deserialize)]
