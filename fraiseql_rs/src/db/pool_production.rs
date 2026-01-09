@@ -3,7 +3,9 @@
 use crate::db::{
     errors::{DatabaseError, DatabaseResult},
     metrics::PoolMetrics,
+    parameter_binding::{prepare_parameters, validate_parameter_count},
     pool_config::{DatabaseConfig, SslMode},
+    types::QueryParam,
 };
 use deadpool_postgres::{
     Manager, ManagerConfig, Pool, RecyclingMethod, Runtime as DeadpoolRuntime,
@@ -12,6 +14,7 @@ use std::error::Error;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
+use tokio_postgres::types::ToSql;
 
 /// Production database pool with SSL/TLS support.
 ///
@@ -234,6 +237,96 @@ impl ProductionPool {
         }
     }
 
+    /// Execute a query with bound parameters.
+    ///
+    /// For `FraiseQL`: assumes JSONB data in column 0 (CQRS pattern).
+    ///
+    /// This method:
+    /// 1. Validates parameter count matches placeholders in SQL
+    /// 2. Validates each parameter (type checking, NaN detection, etc.)
+    /// 3. Executes query with deadlock retry logic
+    /// 4. Extracts JSONB from column 0
+    ///
+    /// # Arguments
+    /// * `sql` - SQL query with $1, $2, etc. placeholders
+    /// * `params` - Parameters to bind (must match placeholder count)
+    ///
+    /// # Errors
+    ///
+    /// Returns `DatabaseError::QueryExecution` if:
+    /// - Parameter count doesn't match placeholders
+    /// - Parameter validation fails
+    /// - Query execution fails
+    /// - JSONB extraction fails
+    pub async fn execute_query_with_params(
+        &self,
+        sql: &str,
+        params: &[QueryParam],
+    ) -> DatabaseResult<Vec<serde_json::Value>> {
+        const MAX_RETRIES: u32 = 3;
+
+        // Phase 3.2: Validate parameters before execution
+        prepare_parameters(params)
+            .map_err(|e| DatabaseError::QueryExecution(e.to_string()))?;
+        validate_parameter_count(sql, params)
+            .map_err(|e| DatabaseError::QueryExecution(e.to_string()))?;
+
+        let mut attempt = 0;
+
+        loop {
+            attempt += 1;
+            let client = self.get_connection().await?;
+
+            // Convert QueryParam to tokio_postgres parameter references
+            let pg_params: Vec<Box<dyn ToSql + Sync>> = params
+                .iter()
+                .map(|p| convert_query_param_to_sql(p))
+                .collect();
+
+            let pg_param_refs: Vec<&(dyn ToSql + Sync)> = pg_params
+                .iter()
+                .map(|p| p.as_ref())
+                .collect();
+
+            let rows = match client.query(sql, &pg_param_refs).await {
+                Ok(rows) => {
+                    self.metrics.record_query_executed();
+                    rows
+                }
+                Err(e) => {
+                    self.metrics.record_query_error();
+
+                    // Check if this is a deadlock error (PostgreSQL error code 40P01)
+                    if is_deadlock_error(&e) && attempt < MAX_RETRIES {
+                        let backoff_ms = 10 * u64::pow(5, attempt - 1); // 10ms, 50ms, 100ms
+                        sleep(Duration::from_millis(backoff_ms)).await;
+                        continue; // Retry with exponential backoff
+                    }
+
+                    return Err(DatabaseError::QueryExecution(e.to_string()));
+                }
+            };
+
+            // Extract JSONB from column 0 (FraiseQL CQRS pattern)
+            // Each row MUST have a valid JSONB value at column 0
+            let mut results = Vec::new();
+            for (row_idx, row) in rows.iter().enumerate() {
+                match row.try_get::<_, serde_json::Value>(0) {
+                    Ok(value) => results.push(value),
+                    Err(e) => {
+                        self.metrics.record_query_error();
+                        return Err(DatabaseError::QueryExecution(format!(
+                            "Failed to extract JSONB from column 0 in row {}: {}",
+                            row_idx, e
+                        )));
+                    }
+                }
+            }
+
+            return Ok(results);
+        }
+    }
+
     /// Get pool statistics.
     ///
     /// Thread-safe: deadpool-postgres uses Arc internally.
@@ -275,6 +368,37 @@ impl ProductionPool {
     #[must_use]
     pub fn metrics(&self) -> crate::db::metrics::MetricsSnapshot {
         self.metrics.snapshot()
+    }
+}
+
+/// Converts a `QueryParam` to a boxed `ToSql` for tokio_postgres.
+///
+/// This enables safe parameter binding in prepared statements. Each `QueryParam`
+/// variant is mapped to a tokio_postgres type that implements `ToSql`.
+///
+/// For types like Timestamp and UUID that may not be directly supported by the
+/// basic tokio_postgres, we serialize them to string representations which
+/// PostgreSQL can then parse.
+///
+/// # Arguments
+/// * `param` - The parameter to convert
+///
+/// # Returns
+/// A boxed trait object implementing `ToSql + Sync`
+fn convert_query_param_to_sql(param: &QueryParam) -> Box<dyn ToSql + Sync> {
+    match param {
+        QueryParam::Null => Box::new(None::<String>),
+        QueryParam::Bool(b) => Box::new(*b),
+        QueryParam::Int(i) => Box::new(*i),
+        QueryParam::BigInt(i) => Box::new(*i),
+        QueryParam::Float(f) => Box::new(*f),
+        QueryParam::Double(f) => Box::new(*f),
+        QueryParam::Text(s) => Box::new(s.clone()),
+        QueryParam::Json(v) => Box::new(v.clone()),
+        // For types that may not have direct ToSql support, convert to string
+        // PostgreSQL will parse these appropriately
+        QueryParam::Timestamp(ts) => Box::new(ts.to_string()),
+        QueryParam::Uuid(u) => Box::new(u.to_string()),
     }
 }
 
@@ -389,5 +513,62 @@ mod tests {
             assert_eq!(pool.config().database, "testdb");
             assert_eq!(pool.config().max_size, 15);
         }
+    }
+
+    #[test]
+    fn test_query_param_conversion() {
+        // Test that QueryParam values can be converted to ToSql
+        let params = vec![
+            QueryParam::Bool(true),
+            QueryParam::Int(42),
+            QueryParam::BigInt(1234567890),
+            QueryParam::Float(3.14),
+            QueryParam::Double(2.718),
+            QueryParam::Text("hello".to_string()),
+            QueryParam::Null,
+        ];
+
+        // Should not panic when converting
+        for param in &params {
+            let _ = convert_query_param_to_sql(param);
+        }
+    }
+
+    #[test]
+    fn test_parameter_count_validation() {
+        // Test that parameter count validation works
+        use crate::db::parameter_binding::validate_parameter_count;
+
+        let sql = "SELECT * FROM users WHERE id = $1 AND name = $2";
+        let params_correct = vec![QueryParam::BigInt(1), QueryParam::Text("test".to_string())];
+        let params_wrong = vec![QueryParam::BigInt(1)];
+
+        // Correct count should pass
+        assert!(validate_parameter_count(sql, &params_correct).is_ok());
+
+        // Wrong count should fail
+        assert!(validate_parameter_count(sql, &params_wrong).is_err());
+    }
+
+    #[test]
+    fn test_query_param_validation() {
+        // Test that invalid parameters are caught
+        use crate::db::parameter_binding::prepare_parameters;
+
+        let valid_params = vec![
+            QueryParam::BigInt(123),
+            QueryParam::Text("test".to_string()),
+            QueryParam::Bool(true),
+        ];
+
+        assert!(prepare_parameters(&valid_params).is_ok());
+
+        // Test that NaN is rejected
+        let invalid_params = vec![QueryParam::Double(f64::NAN)];
+        assert!(prepare_parameters(&invalid_params).is_err());
+
+        // Test that Infinity is rejected
+        let invalid_params_inf = vec![QueryParam::Double(f64::INFINITY)];
+        assert!(prepare_parameters(&invalid_params_inf).is_err());
     }
 }
