@@ -14,8 +14,6 @@
 //! - `health.rs`: Health check utilities (Phase 1)
 //! - `transaction.rs`: ACID transaction support
 //! - `types.rs`: Type definitions and configurations
-//! - `query_builder.rs`: SQL query building (Phase 2 - Python migration)
-//! - `where_builder.rs`: WHERE clause construction
 //! - `query.rs`: Query execution and result handling
 //! - `parameter_binding.rs`: Safe parameter binding (Phase 3.2)
 
@@ -29,11 +27,9 @@ pub mod pool_config;
 pub mod pool_production;
 pub mod prototype; // Phase 0: Async bridge prototype
 pub mod query;
-pub mod query_builder;
 pub mod runtime;
 pub mod transaction;
 pub mod types;
-pub mod where_builder;
 
 // Re-export main types
 pub use mutex_recovery::recover_from_poisoned;

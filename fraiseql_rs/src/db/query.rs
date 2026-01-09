@@ -4,7 +4,6 @@
 //! Full implementation with parameter binding in Phase 2.5
 
 use crate::db::types::{DatabaseError, DatabaseResult, QueryParam, QueryResult};
-use crate::db::where_builder::WhereBuilder;
 use bytes::BytesMut;
 use std::fmt::Write;
 use tokio_postgres::{types::ToSql, Client, Row};
@@ -34,7 +33,7 @@ impl<'a> QueryExecutor<'a> {
         &mut self,
         table: &str,
         columns: &[&str],
-        where_clause: Option<WhereBuilder>,
+        where_clause: Option<(String, Vec<QueryParam>)>,
         order_by: Option<&str>,
         limit: Option<i64>,
         offset: Option<i64>,
@@ -111,7 +110,7 @@ impl<'a> QueryExecutor<'a> {
         &mut self,
         table: &str,
         updates: &std::collections::HashMap<&str, QueryParam>,
-        where_clause: Option<WhereBuilder>,
+        where_clause: Option<(String, Vec<QueryParam>)>,
     ) -> DatabaseResult<u64> {
         let (sql, params) = Self::build_update_sql_with_params(table, updates, where_clause);
 
@@ -142,9 +141,9 @@ impl<'a> QueryExecutor<'a> {
     pub async fn execute_delete(
         &mut self,
         table: &str,
-        where_clause: Option<WhereBuilder>,
+        where_clause: Option<(String, Vec<QueryParam>)>,
     ) -> DatabaseResult<u64> {
-        let (where_sql, params) = where_clause.map_or((String::new(), vec![]), WhereBuilder::build);
+        let (where_sql, params) = where_clause.unwrap_or((String::new(), vec![]));
 
         let sql = if where_sql.is_empty() {
             format!("DELETE FROM {table}")
@@ -172,7 +171,7 @@ impl<'a> QueryExecutor<'a> {
     fn build_select_sql(
         table: &str,
         columns: &[&str],
-        where_clause: Option<&WhereBuilder>,
+        where_clause: Option<&(String, Vec<QueryParam>)>,
         order_by: Option<&str>,
         limit: Option<i64>,
         offset: Option<i64>,
@@ -180,10 +179,9 @@ impl<'a> QueryExecutor<'a> {
         let column_list = columns.join(", ");
         let mut sql = format!("SELECT {column_list} FROM {table}");
 
-        if let Some(builder) = where_clause {
-            let (where_sql, _) = builder.clone().build();
+        if let Some((where_sql, _)) = where_clause {
             if !where_sql.is_empty() {
-                sql.push_str(&where_sql);
+                sql.push_str(where_sql);
             }
         }
 
@@ -215,7 +213,7 @@ impl<'a> QueryExecutor<'a> {
     fn build_update_sql_with_params(
         table: &str,
         updates: &std::collections::HashMap<&str, QueryParam>,
-        where_clause: Option<WhereBuilder>,
+        where_clause: Option<(String, Vec<QueryParam>)>,
     ) -> (String, Vec<QueryParam>) {
         let mut params = Self::hashmap_to_params(updates);
         let param_offset = params.len();
@@ -229,8 +227,7 @@ impl<'a> QueryExecutor<'a> {
         let set_sql = set_clauses.join(", ");
         let mut sql = format!("UPDATE {table} SET {set_sql}");
 
-        if let Some(builder) = where_clause {
-            let (where_sql, where_params) = builder.build();
+        if let Some((where_sql, where_params)) = where_clause {
             if !where_sql.is_empty() {
                 // Adjust parameter indices in WHERE clause by offsetting all $N placeholders
                 let mut adjusted_where_sql = where_sql;
@@ -249,12 +246,9 @@ impl<'a> QueryExecutor<'a> {
         (sql, params)
     }
 
-    /// Extract parameters from WHERE builder.
-    fn extract_params(where_clause: Option<&WhereBuilder>) -> Vec<QueryParam> {
-        where_clause.map_or(vec![], |builder| {
-            let (_, params) = builder.clone().build();
-            params
-        })
+    /// Extract parameters from WHERE clause tuple.
+    fn extract_params(where_clause: Option<&(String, Vec<QueryParam>)>) -> Vec<QueryParam> {
+        where_clause.map_or(vec![], |(_, params)| params.clone())
     }
 
     /// Convert `HashMap` updates to parameter vector.

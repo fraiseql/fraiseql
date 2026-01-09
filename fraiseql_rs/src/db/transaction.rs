@@ -435,8 +435,8 @@ impl Drop for Transaction {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::{DatabaseConfig};
     use crate::db::pool_config::SslMode;
+    use crate::db::DatabaseConfig;
 
     #[tokio::test]
     #[ignore = "Requires PostgreSQL database connection"]
