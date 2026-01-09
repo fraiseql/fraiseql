@@ -5,12 +5,12 @@
 //!
 //! **SECURITY CRITICAL**: Cache keys include normalized variables to prevent
 //! data leakage between requests with different variable values.
+//! See: `fraiseql_rs/src/apq/hasher.rs` for SHA-256 variable hashing implementation.
 
+use crate::apq::hash_query_with_variables;
 use crate::graphql::types::ParsedQuery;
 use serde_json::Value;
-use std::collections::hash_map::DefaultHasher;
 use std::collections::HashSet;
-use std::hash::{Hash, Hasher};
 
 /// Cache key information for a GraphQL query
 #[derive(Debug, Clone)]
@@ -106,19 +106,16 @@ impl QueryCacheKey {
         let default_field = "unknown".to_string();
         let root_field = query.selections.first().map_or(&default_field, |s| &s.name);
 
-        // Create cache key from query field and variables
-        // Simple approach: concatenate field name with JSON-encoded variables
+        // Convert HashMap variables to JSON object for SHA-256 hashing
         let mut vars_object = serde_json::Map::new();
         for (key, value) in variables {
             vars_object.insert(key.clone(), value.clone());
         }
         let vars_json = Value::Object(vars_object);
 
-        // Use field name and variables hash for cache key
-        let vars_str = serde_json::to_string(&vars_json).unwrap_or_default();
-        let mut hasher = DefaultHasher::new();
-        vars_str.hash(&mut hasher);
-        let cache_hash = format!("{:x}", hasher.finish());
+        // Use APQ's SHA-256 variable hashing for cache key
+        // This creates a deterministic hash that includes variable values
+        let cache_hash = hash_query_with_variables(root_field, &vars_json);
 
         // Format as cache key with field name for readability
         format!("query:{root_field}:{cache_hash}")
