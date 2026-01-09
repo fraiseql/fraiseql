@@ -14,6 +14,5 @@ pub mod auto_detect;
 pub mod directives;
 pub mod entities_resolver;
 
-
 /// Version of federation support
 pub const FEDERATION_VERSION: &str = "2.5";

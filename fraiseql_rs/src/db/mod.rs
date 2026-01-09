@@ -38,6 +38,6 @@ pub mod where_builder;
 // Re-export main types
 pub use mutex_recovery::recover_from_poisoned;
 pub use pool::{DatabasePool, PoolBackend}; // Pool abstraction + Python binding
-pub use pool_config::{DatabaseConfig, SslMode};
+pub use pool_config::DatabaseConfig;
 pub use pool_production::ProductionPool;
 // Phase 0: Export prototype for testing

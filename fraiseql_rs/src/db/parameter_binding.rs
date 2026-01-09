@@ -35,8 +35,8 @@
 //! The actual binding is delegated to the underlying database driver (sqlx, deadpool, etc.)
 //! which uses prepared statements and parameterized queries internally.
 
-use crate::db::types::QueryParam;
 use crate::db::pool::traits::{PoolError, PoolResult};
+use crate::db::types::QueryParam;
 
 /// Validates and prepares parameters for query execution.
 ///
@@ -63,7 +63,7 @@ use crate::db::pool::traits::{PoolError, PoolResult};
 ///
 /// prepare_parameters(&params)?;  // Returns Ok(())
 /// ```
-#[allow(dead_code)]  // Phase 3.2+: Used by ProductionPool implementation
+#[allow(dead_code)] // Phase 3.2+: Used by ProductionPool implementation
 pub fn prepare_parameters(params: &[QueryParam]) -> PoolResult<()> {
     for (index, param) in params.iter().enumerate() {
         validate_parameter(index, param)?;
@@ -152,7 +152,7 @@ fn validate_parameter(index: usize, param: &QueryParam) -> PoolResult<()> {
 /// let param = QueryParam::Text("hello".to_string());
 /// assert_eq!(format_parameter(&param), "Text(hello)");
 /// ```
-#[allow(dead_code)]  // Phase 3.2+: Used by error handling in ProductionPool
+#[allow(dead_code)] // Phase 3.2+: Used by error handling in ProductionPool
 pub fn format_parameter(param: &QueryParam) -> String {
     match param {
         QueryParam::Null => "NULL".to_string(),
@@ -199,6 +199,16 @@ pub fn format_parameter(param: &QueryParam) -> String {
 /// let sql = "SELECT * FROM users WHERE id = $1 AND name = $2";
 /// assert_eq!(count_placeholders(sql), 2);
 /// ```
+fn skip_placeholder_digits(chars: &mut std::iter::Peekable<std::str::Chars>) {
+    while let Some(&ch) = chars.peek() {
+        if ch.is_ascii_digit() {
+            chars.next();
+        } else {
+            break;
+        }
+    }
+}
+
 pub fn count_placeholders(sql: &str) -> usize {
     let mut count = 0;
     let mut chars = sql.chars().peekable();
@@ -211,13 +221,7 @@ pub fn count_placeholders(sql: &str) -> usize {
                     count += 1;
                     // Skip the digit(s)
                     chars.next();
-                    while let Some(&next_ch) = chars.peek() {
-                        if next_ch.is_ascii_digit() {
-                            chars.next();
-                        } else {
-                            break;
-                        }
-                    }
+                    skip_placeholder_digits(&mut chars);
                 }
             }
         }
@@ -266,10 +270,7 @@ mod tests {
 
     #[test]
     fn test_prepare_parameters_with_null() {
-        let params = vec![
-            QueryParam::Null,
-            QueryParam::Text("test".to_string()),
-        ];
+        let params = vec![QueryParam::Null, QueryParam::Text("test".to_string())];
 
         assert!(prepare_parameters(&params).is_ok());
     }
@@ -313,9 +314,7 @@ mod tests {
         assert_eq!(count_placeholders("SELECT * FROM users"), 0);
         assert_eq!(count_placeholders("SELECT * FROM users WHERE id = $1"), 1);
         assert_eq!(
-            count_placeholders(
-                "SELECT * FROM users WHERE id = $1 AND name = $2 AND status = $3"
-            ),
+            count_placeholders("SELECT * FROM users WHERE id = $1 AND name = $2 AND status = $3"),
             3
         );
     }
@@ -323,13 +322,19 @@ mod tests {
     #[test]
     fn test_count_placeholders_with_double_digit() {
         // PostgreSQL doesn't really support $10+, but our counter should handle it
-        assert_eq!(count_placeholders("INSERT INTO t VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)"), 10);
+        assert_eq!(
+            count_placeholders("INSERT INTO t VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)"),
+            10
+        );
     }
 
     #[test]
     fn test_count_placeholders_false_positive() {
         // $ not followed by digit is not a placeholder
-        assert_eq!(count_placeholders("SELECT price FROM products WHERE price > $100"), 0);
+        assert_eq!(
+            count_placeholders("SELECT price FROM products WHERE price > $100"),
+            0
+        );
     }
 
     #[test]

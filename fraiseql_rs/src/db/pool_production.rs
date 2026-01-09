@@ -568,5 +568,4 @@ mod tests {
         let invalid_params_inf = vec![QueryParam::Double(f64::INFINITY)];
         assert!(prepare_parameters(&invalid_params_inf).is_err());
     }
-
 }

@@ -5,4 +5,3 @@
 //! implementations in the Rust pipeline.
 
 pub mod config_validator;
-

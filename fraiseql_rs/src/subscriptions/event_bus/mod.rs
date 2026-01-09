@@ -6,7 +6,6 @@
 pub mod postgresql;
 pub mod redis;
 
-
 use crate::subscriptions::SubscriptionError;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

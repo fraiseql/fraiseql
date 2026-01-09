@@ -91,7 +91,6 @@ pub mod response_filtering_integration;
 pub mod security_middleware;
 pub mod websocket;
 
-
 #[cfg(test)]
 mod http2_integration_tests;
 

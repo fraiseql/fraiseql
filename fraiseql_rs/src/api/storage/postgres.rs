@@ -118,6 +118,7 @@ impl StorageBackend for PostgresBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     // Mock PoolBackend for testing
     struct MockPool;

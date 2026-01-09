@@ -82,6 +82,31 @@ impl Executor {
         Executor { storage, cache }
     }
 
+    /// Execute a SELECT query, checking cache first
+    async fn execute_select_query(
+        &self,
+        sql: &str,
+        parameters: &[serde_json::Value],
+        cache_key: &str,
+    ) -> Result<Vec<serde_json::Value>, ApiError> {
+        // Try cache first
+        match self.cache.get(cache_key).await {
+            Ok(Some(cached_value)) => Ok(vec![cached_value]),
+            Ok(None) | Err(_) => {
+                // Cache miss or error - query storage
+                let query_result = self.storage.query(sql, parameters).await.map_err(|e| {
+                    ApiError::InternalError(format!("Query execution failed: {}", e))
+                })?;
+
+                // Cache the results for future queries
+                let results_value = serde_json::json!(query_result.rows);
+                let _ = self.cache.set(cache_key, results_value, 3600).await;
+
+                Ok(query_result.rows)
+            }
+        }
+    }
+
     /// Execute an execution plan and return GraphQL-formatted results
     ///
     /// # Arguments
@@ -100,52 +125,21 @@ impl Executor {
 
         for sql_query in &plan.sql_queries {
             // Generate cache key for SELECT queries
-            let cache_key = if sql_query
+            let is_select = sql_query
                 .sql
                 .trim_start()
                 .to_uppercase()
-                .starts_with("SELECT")
-            {
-                Some(format!("query:{}", sql_query.sql))
+                .starts_with("SELECT");
+            let cache_key = if is_select {
+                format!("query:{}", sql_query.sql)
             } else {
-                None
+                String::new()
             };
 
-            // Try to get from cache first
-            let sql_results = if let Some(key) = &cache_key {
-                match self.cache.get(key).await {
-                    Ok(Some(cached_value)) => {
-                        // Return cached results as single value
-                        vec![cached_value]
-                    }
-                    Ok(None) => {
-                        // Cache miss - query storage
-                        let query_result = self
-                            .storage
-                            .query(&sql_query.sql, &sql_query.parameters)
-                            .await
-                            .map_err(|e| {
-                                ApiError::InternalError(format!("Query execution failed: {}", e))
-                            })?;
-
-                        // Cache the results for future queries
-                        let results_value = serde_json::json!(query_result.rows);
-                        let _ = self.cache.set(key, results_value.clone(), 3600).await;
-
-                        query_result.rows
-                    }
-                    Err(_e) => {
-                        // Cache error - fall back to storage
-                        let query_result = self
-                            .storage
-                            .query(&sql_query.sql, &sql_query.parameters)
-                            .await
-                            .map_err(|e| {
-                                ApiError::InternalError(format!("Query execution failed: {}", e))
-                            })?;
-                        query_result.rows
-                    }
-                }
+            // Execute query based on type
+            let sql_results = if is_select {
+                self.execute_select_query(&sql_query.sql, &sql_query.parameters, &cache_key)
+                    .await?
             } else {
                 // Mutation query - execute directly without caching
                 let execute_result = self
@@ -202,6 +196,43 @@ impl Executor {
         Ok(results)
     }
 
+    /// Transform a single result object by applying column mapping and aliases
+    fn transform_result_object(
+        &self,
+        obj: &serde_json::Map<String, serde_json::Value>,
+        mapping: &ResultMapping,
+        metadata: &ResponseMetadata,
+    ) -> serde_json::Map<String, serde_json::Value> {
+        let mut transformed_obj = serde_json::Map::new();
+
+        // Apply column-to-field mapping and aliases
+        for (column, value) in obj.iter() {
+            let field_name = mapping
+                .column_to_field
+                .get(column)
+                .map(|s| s.as_str())
+                .unwrap_or(column);
+
+            let final_name = metadata
+                .aliases
+                .get(field_name)
+                .map(|s| s.as_str())
+                .unwrap_or(field_name);
+
+            transformed_obj.insert(final_name.to_string(), value.clone());
+        }
+
+        // Add __typename if requested (Phase 3+)
+        if metadata.include_typename {
+            transformed_obj.insert(
+                "__typename".to_string(),
+                serde_json::json!(&metadata.return_type),
+            );
+        }
+
+        transformed_obj
+    }
+
     /// Transform SQL results using result mapping and metadata
     fn transform_results(
         &self,
@@ -216,34 +247,7 @@ impl Executor {
 
         for result in sql_results {
             if let serde_json::Value::Object(obj) = result {
-                let mut transformed_obj = serde_json::Map::new();
-
-                // Apply column-to-field mapping
-                for (column, value) in obj.iter() {
-                    let field_name = mapping
-                        .column_to_field
-                        .get(column)
-                        .map(|s| s.as_str())
-                        .unwrap_or(column);
-
-                    // Apply aliases if present
-                    let final_name = if let Some(alias) = metadata.aliases.get(field_name) {
-                        alias.as_str()
-                    } else {
-                        field_name
-                    };
-
-                    transformed_obj.insert(final_name.to_string(), value.clone());
-                }
-
-                // Add __typename if requested (Phase 3+)
-                if metadata.include_typename {
-                    transformed_obj.insert(
-                        "__typename".to_string(),
-                        serde_json::json!(&metadata.return_type),
-                    );
-                }
-
+                let transformed_obj = self.transform_result_object(obj, mapping, metadata);
                 transformed.push(serde_json::Value::Object(transformed_obj));
             }
         }
@@ -265,6 +269,7 @@ mod tests {
     use crate::api::planner::Planner;
     use crate::api::storage::{ExecuteResult, QueryResult, StorageBackend, StorageError};
     use async_trait::async_trait;
+    use std::collections::HashMap;
 
     /// Mock storage backend for testing
     struct MockStorage;

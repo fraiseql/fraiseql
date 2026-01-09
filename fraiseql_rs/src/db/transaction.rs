@@ -435,7 +435,8 @@ impl Drop for Transaction {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::{DatabaseConfig, SslMode};
+    use crate::db::{DatabaseConfig};
+    use crate::db::pool_config::SslMode;
 
     #[tokio::test]
     #[ignore = "Requires PostgreSQL database connection"]
@@ -540,10 +541,7 @@ mod tests {
 
         let tx = Transaction::begin(&pool).await.unwrap();
 
-        let params = vec![
-            QueryParam::BigInt(1),
-            QueryParam::Text("test".to_string()),
-        ];
+        let params = vec![QueryParam::BigInt(1), QueryParam::Text("test".to_string())];
 
         // This will execute: SELECT * FROM users WHERE id = $1 AND status = $2
         // Note: We don't check the results in this unit test, just that it doesn't panic

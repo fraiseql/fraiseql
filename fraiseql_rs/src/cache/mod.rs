@@ -69,9 +69,7 @@ mod tests_monitoring;
 // Re-export key types and functions for convenience
 pub use cache_key::QueryCacheKey;
 pub use executor::execute_query_with_cache;
-pub use http_integration::{
-    get_cache_metrics, CacheConfig,
-};
+pub use http_integration::{get_cache_metrics, CacheConfig};
 pub use mutation_invalidator::invalidate_cache_on_mutation;
 pub use query_result::{CacheMetrics, QueryResultCache, QueryResultCacheConfig};
 
