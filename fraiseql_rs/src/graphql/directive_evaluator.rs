@@ -133,7 +133,8 @@ impl DirectiveEvaluator {
             Ok(JsonValue::String(s)) if s.starts_with('$') => {
                 // Variable reference
                 let var_name = &s[1..]; // Remove $ prefix
-                let val = variables.get(var_name)
+                let val = variables
+                    .get(var_name)
                     .ok_or_else(|| DirectiveError::UndefinedVariable(var_name.to_string()))?;
 
                 match val {
@@ -146,7 +147,8 @@ impl DirectiveEvaluator {
                 // Try parsing as plain string for variable reference
                 if value_json.starts_with('$') {
                     let var_name = &value_json[1..];
-                    let val = variables.get(var_name)
+                    let val = variables
+                        .get(var_name)
                         .ok_or_else(|| DirectiveError::UndefinedVariable(var_name.to_string()))?;
 
                     match val {
@@ -244,7 +246,10 @@ mod tests {
 
     #[test]
     fn test_include_with_variable() {
-        let field = make_field("email", vec![make_directive("include", "\"$includeEmail\"")]);
+        let field = make_field(
+            "email",
+            vec![make_directive("include", "\"$includeEmail\"")],
+        );
         let mut variables = HashMap::new();
         variables.insert("includeEmail".to_string(), JsonValue::Bool(false));
 
@@ -279,9 +284,15 @@ mod tests {
     fn test_variable_type_mismatch() {
         let field = make_field("email", vec![make_directive("skip", "\"$notABool\"")]);
         let mut variables = HashMap::new();
-        variables.insert("notABool".to_string(), JsonValue::String("hello".to_string()));
+        variables.insert(
+            "notABool".to_string(),
+            JsonValue::String("hello".to_string()),
+        );
 
         let result = DirectiveEvaluator::evaluate_directives(&field, &variables);
-        assert!(matches!(result, Err(DirectiveError::VariableTypeMismatch(_))));
+        assert!(matches!(
+            result,
+            Err(DirectiveError::VariableTypeMismatch(_))
+        ));
     }
 }

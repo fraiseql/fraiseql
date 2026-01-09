@@ -91,7 +91,8 @@ impl FragmentResolver {
                 visited_fragments.insert(fragment_name.clone());
 
                 // Recursively resolve the fragment's selections
-                let resolved = self.resolve_selections(&fragment.selections, depth + 1, visited_fragments)?;
+                let resolved =
+                    self.resolve_selections(&fragment.selections, depth + 1, visited_fragments)?;
                 result.extend(resolved);
 
                 // Unmark for other paths
@@ -213,10 +214,10 @@ mod tests {
 
     #[test]
     fn test_simple_fragment_spread_resolution() {
-        let fragment = make_fragment("UserFields", vec![
-            make_field("id", vec![]),
-            make_field("name", vec![]),
-        ]);
+        let fragment = make_fragment(
+            "UserFields",
+            vec![make_field("id", vec![]), make_field("name", vec![])],
+        );
 
         let selections = vec![FieldSelection {
             name: "...UserFields".to_string(),
@@ -253,21 +254,22 @@ mod tests {
     #[test]
     fn test_nested_fragment_spreads() {
         // Fragment A references fields
-        let fragment_a = make_fragment("FragmentA", vec![
-            make_field("id", vec![]),
-        ]);
+        let fragment_a = make_fragment("FragmentA", vec![make_field("id", vec![])]);
 
         // Fragment B spreads Fragment A
-        let fragment_b = make_fragment("FragmentB", vec![
-            FieldSelection {
-                name: "...FragmentA".to_string(),
-                alias: None,
-                arguments: vec![],
-                nested_fields: vec![],
-                directives: vec![],
-            },
-            make_field("name", vec![]),
-        ]);
+        let fragment_b = make_fragment(
+            "FragmentB",
+            vec![
+                FieldSelection {
+                    name: "...FragmentA".to_string(),
+                    alias: None,
+                    arguments: vec![],
+                    nested_fields: vec![],
+                    directives: vec![],
+                },
+                make_field("name", vec![]),
+            ],
+        );
 
         // Query spreads Fragment B
         let selections = vec![FieldSelection {
@@ -288,10 +290,7 @@ mod tests {
 
     #[test]
     fn test_inline_fragment_matching_type() {
-        let selections = vec![
-            make_field("id", vec![]),
-            make_field("name", vec![]),
-        ];
+        let selections = vec![make_field("id", vec![]), make_field("name", vec![])];
 
         let result = FragmentResolver::evaluate_inline_fragment(&selections, Some("User"), "User");
 
@@ -301,23 +300,16 @@ mod tests {
 
     #[test]
     fn test_inline_fragment_non_matching_type() {
-        let selections = vec![
-            make_field("id", vec![]),
-            make_field("name", vec![]),
-        ];
+        let selections = vec![make_field("id", vec![]), make_field("name", vec![])];
 
-        let result =
-            FragmentResolver::evaluate_inline_fragment(&selections, Some("User"), "Post");
+        let result = FragmentResolver::evaluate_inline_fragment(&selections, Some("User"), "Post");
 
         assert_eq!(result.len(), 0);
     }
 
     #[test]
     fn test_inline_fragment_without_type_condition() {
-        let selections = vec![
-            make_field("id", vec![]),
-            make_field("name", vec![]),
-        ];
+        let selections = vec![make_field("id", vec![]), make_field("name", vec![])];
 
         let result = FragmentResolver::evaluate_inline_fragment(&selections, None, "User");
 
@@ -326,10 +318,7 @@ mod tests {
 
     #[test]
     fn test_merge_non_conflicting_fields() {
-        let base = vec![
-            make_field("id", vec![]),
-            make_field("name", vec![]),
-        ];
+        let base = vec![make_field("id", vec![]), make_field("name", vec![])];
 
         let additional = vec![make_field("email", vec![])];
 
