@@ -1,6 +1,8 @@
 //! GraphQL parsing and advanced features module.
 
 pub mod complexity;
+pub mod directive_evaluator;
+pub mod fragment_resolver;
 pub mod fragments;
 pub mod parser;
 pub mod types;
