@@ -283,18 +283,37 @@ await migrator.apply_changes([
 ```
 GraphQL Query
      ↓
-Parse & Validate (Rust)
+Parse GraphQL (Phase 1 - Rust)
      ↓
-Query Planning (Rust)
+Process Advanced Selections (Phase 5 - Rust)
+├─ Resolve Fragments (@see fragment_resolver.rs)
+├─ Evaluate Directives (@see directive_evaluator.rs)
+└─ Finalize Selections (@see advanced_selections.rs)
      ↓
-SQL Generation (Rust)
+Validate Schema (Phase 2-3 - Rust)
      ↓
-Execution (PostgreSQL)
+Query Planning (Phase 4 - Rust)
      ↓
-Result Processing (Rust)
+SQL Generation (Phase 4 - Rust)
      ↓
-GraphQL Serialization (Rust)
+Execution (Phase 6 - PostgreSQL)
+     ↓
+Result Processing (Phase 7 - Rust)
+     ↓
+GraphQL Serialization (Phase 7 - Rust)
 ```
+
+#### Phase 5: Advanced Selections (Fragment & Directive Processing)
+
+**Newly Integrated Phase** (January 2026):
+
+Fragment resolution and directive evaluation are now core parts of the execution pipeline:
+
+- **Fragment Resolution**: Handles named fragments (`...FragmentName`) and inline fragments (`... on Type`)
+- **Directive Evaluation**: Processes `@skip` and `@include` directives with variable support
+- **Selection Coordination**: Builds final field selection set from fragments, directives, and explicit fields
+
+These features enable complex GraphQL operations to be executed efficiently within the Rust pipeline with zero Python GIL overhead.
 
 ### Caching Layers
 
