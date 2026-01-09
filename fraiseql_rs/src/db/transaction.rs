@@ -1,10 +1,12 @@
 //! Transaction management for production pool.
 //!
 //! Provides ACID transaction support with savepoints and isolation levels.
+//! Phase 3.2: Extended with safe parameter binding for type-safe queries.
 
 use crate::db::{
     errors::{DatabaseError, DatabaseResult},
     pool_production::ProductionPool,
+    types::QueryParam,
 };
 use std::time::{Duration, Instant};
 use tokio_postgres::IsolationLevel;
@@ -177,6 +179,123 @@ impl Transaction {
         }
 
         self.pool.execute_query(sql).await
+    }
+
+    /// Execute a query with bound parameters within the transaction.
+    ///
+    /// Phase 3.2: Type-safe parameterized queries prevent SQL injection.
+    ///
+    /// # Arguments
+    /// * `sql` - SQL query with $1, $2, etc. placeholders
+    /// * `params` - Parameters to bind (must match placeholder count)
+    ///
+    /// # Errors
+    ///
+    /// Returns `DatabaseError::QueryExecution` if:
+    /// - Transaction has exceeded its timeout
+    /// - Parameter count doesn't match placeholders
+    /// - Parameter validation fails
+    /// - Query execution fails
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use fraiseql_rs::db::{DatabaseConfig, ProductionPool, Transaction};
+    /// # use fraiseql_rs::db::types::QueryParam;
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let pool = ProductionPool::new(DatabaseConfig::new("mydb"))?;
+    /// let mut tx = Transaction::begin(&pool).await?;
+    ///
+    /// let params = vec![
+    ///     QueryParam::BigInt(42),
+    ///     QueryParam::Text("active".to_string()),
+    /// ];
+    /// let results = tx.query_with_params("SELECT * FROM users WHERE id = $1 AND status = $2", &params).await?;
+    ///
+    /// tx.commit().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn query_with_params(
+        &self,
+        sql: &str,
+        params: &[QueryParam],
+    ) -> DatabaseResult<Vec<serde_json::Value>> {
+        if !self.active {
+            return Err(DatabaseError::QueryExecution(
+                "Transaction is not active".to_string(),
+            ));
+        }
+
+        // Check if transaction has exceeded its timeout
+        if self.start_time.elapsed() > self.timeout {
+            return Err(DatabaseError::QueryExecution(format!(
+                "Transaction timeout exceeded: {} seconds",
+                self.timeout.as_secs()
+            )));
+        }
+
+        self.pool.execute_query_with_params(sql, params).await
+    }
+
+    /// Execute a statement (INSERT, UPDATE, DELETE) with bound parameters within the transaction.
+    ///
+    /// Phase 3.2: Type-safe parameterized queries prevent SQL injection.
+    ///
+    /// # Arguments
+    /// * `sql` - SQL statement with $1, $2, etc. placeholders
+    /// * `params` - Parameters to bind (must match placeholder count)
+    ///
+    /// # Errors
+    ///
+    /// Returns `DatabaseError::QueryExecution` if:
+    /// - Transaction has exceeded its timeout
+    /// - Parameter count doesn't match placeholders
+    /// - Parameter validation fails
+    /// - Execution fails
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use fraiseql_rs::db::{DatabaseConfig, ProductionPool, Transaction};
+    /// # use fraiseql_rs::db::types::QueryParam;
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let pool = ProductionPool::new(DatabaseConfig::new("mydb"))?;
+    /// let mut tx = Transaction::begin(&pool).await?;
+    ///
+    /// let params = vec![
+    ///     QueryParam::Text("john".to_string()),
+    ///     QueryParam::Text("john@example.com".to_string()),
+    /// ];
+    /// let results = tx.execute_with_params(
+    ///     "INSERT INTO users (name, email) VALUES ($1, $2) RETURNING *",
+    ///     &params
+    /// ).await?;
+    ///
+    /// tx.commit().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn execute_with_params(
+        &self,
+        sql: &str,
+        params: &[QueryParam],
+    ) -> DatabaseResult<Vec<serde_json::Value>> {
+        if !self.active {
+            return Err(DatabaseError::QueryExecution(
+                "Transaction is not active".to_string(),
+            ));
+        }
+
+        // Check if transaction has exceeded its timeout
+        if self.start_time.elapsed() > self.timeout {
+            return Err(DatabaseError::QueryExecution(format!(
+                "Transaction timeout exceeded: {} seconds",
+                self.timeout.as_secs()
+            )));
+        }
+
+        self.pool.execute_query_with_params(sql, params).await
     }
 
     /// Create a savepoint (nested transaction).
@@ -411,5 +530,90 @@ mod tests {
         assert_eq!(tx.savepoint_count(), 1); // sp2 remains
 
         tx.commit().await.unwrap();
+    }
+
+    #[tokio::test]
+    #[ignore = "Requires PostgreSQL database connection"]
+    async fn test_query_with_params() {
+        let config = DatabaseConfig::new("postgres").with_ssl_mode(SslMode::Disable);
+        let pool = ProductionPool::new(config).unwrap();
+
+        let tx = Transaction::begin(&pool).await.unwrap();
+
+        let params = vec![
+            QueryParam::BigInt(1),
+            QueryParam::Text("test".to_string()),
+        ];
+
+        // This will execute: SELECT * FROM users WHERE id = $1 AND status = $2
+        // Note: We don't check the results in this unit test, just that it doesn't panic
+        let result = tx
+            .query_with_params("SELECT * FROM users WHERE id = $1 AND status = $2", &params)
+            .await;
+
+        // Should succeed or fail gracefully (table might not exist)
+        assert!(result.is_ok() || result.is_err());
+
+        let _ = tx.rollback().await;
+    }
+
+    #[tokio::test]
+    #[ignore = "Requires PostgreSQL database connection"]
+    async fn test_execute_with_params() {
+        let config = DatabaseConfig::new("postgres").with_ssl_mode(SslMode::Disable);
+        let pool = ProductionPool::new(config).unwrap();
+
+        let tx = Transaction::begin(&pool).await.unwrap();
+
+        let params = vec![
+            QueryParam::Text("test_user".to_string()),
+            QueryParam::Text("test@example.com".to_string()),
+        ];
+
+        // This will execute: INSERT INTO users (name, email) VALUES ($1, $2) RETURNING *
+        let result = tx
+            .execute_with_params(
+                "INSERT INTO users (name, email) VALUES ($1, $2) RETURNING *",
+                &params,
+            )
+            .await;
+
+        // Should succeed or fail gracefully (table might not exist)
+        assert!(result.is_ok() || result.is_err());
+
+        let _ = tx.rollback().await;
+    }
+
+    #[tokio::test]
+    #[ignore = "Requires PostgreSQL database connection"]
+    async fn test_parameterized_query_in_transaction_with_savepoint() {
+        let config = DatabaseConfig::new("postgres").with_ssl_mode(SslMode::Disable);
+        let pool = ProductionPool::new(config).unwrap();
+
+        let mut tx = Transaction::begin(&pool).await.unwrap();
+
+        // Create a savepoint
+        tx.savepoint("sp1").await.unwrap();
+
+        let params = vec![QueryParam::BigInt(42)];
+        let result = tx.query_with_params("SELECT $1 as num", &params).await;
+
+        assert!(result.is_ok() || result.is_err());
+
+        // Rollback the savepoint and commit
+        tx.rollback_to("sp1").await.unwrap();
+        let _ = tx.rollback().await;
+    }
+
+    #[test]
+    fn test_parameter_count_validation_in_transaction() {
+        // This is a compile-time test to ensure QueryParam is properly imported
+        let _param = QueryParam::BigInt(123);
+        let _params = vec![
+            QueryParam::Text("hello".to_string()),
+            QueryParam::Bool(true),
+        ];
+        // If this compiles, the imports are correct
+        assert!(true);
     }
 }

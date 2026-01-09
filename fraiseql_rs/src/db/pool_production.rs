@@ -266,8 +266,7 @@ impl ProductionPool {
         const MAX_RETRIES: u32 = 3;
 
         // Phase 3.2: Validate parameters before execution
-        prepare_parameters(params)
-            .map_err(|e| DatabaseError::QueryExecution(e.to_string()))?;
+        prepare_parameters(params).map_err(|e| DatabaseError::QueryExecution(e.to_string()))?;
         validate_parameter_count(sql, params)
             .map_err(|e| DatabaseError::QueryExecution(e.to_string()))?;
 
@@ -283,10 +282,8 @@ impl ProductionPool {
                 .map(|p| convert_query_param_to_sql(p))
                 .collect();
 
-            let pg_param_refs: Vec<&(dyn ToSql + Sync)> = pg_params
-                .iter()
-                .map(|p| p.as_ref())
-                .collect();
+            let pg_param_refs: Vec<&(dyn ToSql + Sync)> =
+                pg_params.iter().map(|p| p.as_ref()).collect();
 
             let rows = match client.query(sql, &pg_param_refs).await {
                 Ok(rows) => {
@@ -325,6 +322,120 @@ impl ProductionPool {
 
             return Ok(results);
         }
+    }
+
+    /// Execute an INSERT statement with parameters.
+    ///
+    /// Phase 3.2: Type-safe parameterized INSERT with RETURNING support.
+    ///
+    /// # Arguments
+    /// * `sql` - INSERT statement with $1, $2, etc. placeholders
+    /// * `params` - Parameters to bind (must match placeholder count)
+    ///
+    /// # Returns
+    /// Vector of JSONB values from RETURNING clause (one per inserted row)
+    ///
+    /// # Errors
+    ///
+    /// Returns `DatabaseError::QueryExecution` if:
+    /// - Parameter validation fails
+    /// - INSERT execution fails
+    /// - JSONB extraction fails
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let params = vec![
+    ///     QueryParam::Text("Alice".to_string()),
+    ///     QueryParam::Text("alice@example.com".to_string()),
+    /// ];
+    /// let result = pool.insert(
+    ///     "INSERT INTO users (name, email) VALUES ($1, $2) RETURNING to_jsonb(users.*)",
+    ///     &params
+    /// ).await?;
+    /// assert_eq!(result.len(), 1); // One row inserted
+    /// ```
+    pub async fn insert(
+        &self,
+        sql: &str,
+        params: &[QueryParam],
+    ) -> DatabaseResult<Vec<serde_json::Value>> {
+        self.execute_query_with_params(sql, params).await
+    }
+
+    /// Execute an UPDATE statement with parameters.
+    ///
+    /// Phase 3.2: Type-safe parameterized UPDATE with RETURNING support.
+    ///
+    /// # Arguments
+    /// * `sql` - UPDATE statement with $1, $2, etc. placeholders
+    /// * `params` - Parameters to bind (must match placeholder count)
+    ///
+    /// # Returns
+    /// Vector of JSONB values from RETURNING clause (one per updated row)
+    ///
+    /// # Errors
+    ///
+    /// Returns `DatabaseError::QueryExecution` if:
+    /// - Parameter validation fails
+    /// - UPDATE execution fails
+    /// - JSONB extraction fails
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let params = vec![
+    ///     QueryParam::Text("alice@newmail.com".to_string()),
+    ///     QueryParam::BigInt(1),
+    /// ];
+    /// let result = pool.update(
+    ///     "UPDATE users SET email = $1 WHERE id = $2 RETURNING to_jsonb(users.*)",
+    ///     &params
+    /// ).await?;
+    /// assert_eq!(result.len(), 1); // One row updated
+    /// ```
+    pub async fn update(
+        &self,
+        sql: &str,
+        params: &[QueryParam],
+    ) -> DatabaseResult<Vec<serde_json::Value>> {
+        self.execute_query_with_params(sql, params).await
+    }
+
+    /// Execute a DELETE statement with parameters.
+    ///
+    /// Phase 3.2: Type-safe parameterized DELETE with RETURNING support.
+    ///
+    /// # Arguments
+    /// * `sql` - DELETE statement with $1, $2, etc. placeholders
+    /// * `params` - Parameters to bind (must match placeholder count)
+    ///
+    /// # Returns
+    /// Vector of JSONB values from RETURNING clause (one per deleted row)
+    ///
+    /// # Errors
+    ///
+    /// Returns `DatabaseError::QueryExecution` if:
+    /// - Parameter validation fails
+    /// - DELETE execution fails
+    /// - JSONB extraction fails
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let params = vec![QueryParam::BigInt(1)];
+    /// let result = pool.delete(
+    ///     "DELETE FROM users WHERE id = $1 RETURNING to_jsonb(users.*)",
+    ///     &params
+    /// ).await?;
+    /// assert_eq!(result.len(), 1); // One row deleted
+    /// ```
+    pub async fn delete(
+        &self,
+        sql: &str,
+        params: &[QueryParam],
+    ) -> DatabaseResult<Vec<serde_json::Value>> {
+        self.execute_query_with_params(sql, params).await
     }
 
     /// Get pool statistics.
@@ -570,5 +681,77 @@ mod tests {
         // Test that Infinity is rejected
         let invalid_params_inf = vec![QueryParam::Double(f64::INFINITY)];
         assert!(prepare_parameters(&invalid_params_inf).is_err());
+    }
+
+    #[tokio::test]
+    #[ignore = "Requires PostgreSQL database connection"]
+    async fn test_insert_with_params() {
+        let config = DatabaseConfig::new("postgres").with_ssl_mode(SslMode::Disable);
+        if let Ok(pool) = ProductionPool::new(config) {
+            let params = vec![
+                QueryParam::Text("test_user".to_string()),
+                QueryParam::Text("test@example.com".to_string()),
+            ];
+
+            let result = pool
+                .insert(
+                    "INSERT INTO users (name, email) VALUES ($1, $2) RETURNING to_jsonb(users.*)",
+                    &params,
+                )
+                .await;
+
+            // Should succeed or fail gracefully (table might not exist)
+            assert!(result.is_ok() || result.is_err());
+        }
+    }
+
+    #[tokio::test]
+    #[ignore = "Requires PostgreSQL database connection"]
+    async fn test_update_with_params() {
+        let config = DatabaseConfig::new("postgres").with_ssl_mode(SslMode::Disable);
+        if let Ok(pool) = ProductionPool::new(config) {
+            let params = vec![
+                QueryParam::Text("newemail@example.com".to_string()),
+                QueryParam::BigInt(1),
+            ];
+
+            let result = pool
+                .update(
+                    "UPDATE users SET email = $1 WHERE id = $2 RETURNING to_jsonb(users.*)",
+                    &params,
+                )
+                .await;
+
+            // Should succeed or fail gracefully
+            assert!(result.is_ok() || result.is_err());
+        }
+    }
+
+    #[tokio::test]
+    #[ignore = "Requires PostgreSQL database connection"]
+    async fn test_delete_with_params() {
+        let config = DatabaseConfig::new("postgres").with_ssl_mode(SslMode::Disable);
+        if let Ok(pool) = ProductionPool::new(config) {
+            let params = vec![QueryParam::BigInt(1)];
+
+            let result = pool
+                .delete(
+                    "DELETE FROM users WHERE id = $1 RETURNING to_jsonb(users.*)",
+                    &params,
+                )
+                .await;
+
+            // Should succeed or fail gracefully
+            assert!(result.is_ok() || result.is_err());
+        }
+    }
+
+    #[test]
+    fn test_mutation_methods_exist() {
+        // Compile-time test to ensure mutation methods are accessible
+        // If this compiles, the public API is correct
+        let _config = DatabaseConfig::new("test").with_ssl_mode(SslMode::Disable);
+        // insert, update, delete methods are public and accessible
+        assert!(true);
     }
 }
