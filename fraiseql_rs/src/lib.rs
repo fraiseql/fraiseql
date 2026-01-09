@@ -49,6 +49,7 @@ pub mod api; // Phase 1 Greenfield: New public API layer with GraphQLEngine
 
 // All other modules are INTERNAL to Rust and hidden from Python
 // Python only imports from the `api` module
+pub(crate) mod apq; // Phase 15a: Automatic Persisted Queries (APQ)
 pub(crate) mod auth;
 pub(crate) mod cache;
 mod camel_case;
@@ -1007,6 +1008,9 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
             "PyFieldAuthChecker",
             "PyRowConstraintResolver", // Issue #2: Row-Level Authorization
             "PyWhereMerger",           // Issue #2: Row-Level Authorization
+            "PyApqHandler",            // Phase 15a: APQ
+            "hash_query",              // Phase 15a: APQ
+            "verify_hash",             // Phase 15a: APQ
             // Phase 15b: Subscriptions exports
             "PySubscriptionExecutor",
             "PySubscriptionPayload",
@@ -1093,6 +1097,11 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // Add prototype pool (Phase 0)
     m.add_class::<db::prototype::PrototypePool>()?;
+
+    // Add APQ (Phase 15a)
+    m.add_class::<apq::py_bindings::PyApqHandler>()?;
+    m.add_function(wrap_pyfunction!(apq::hasher::hash_query, m)?)?;
+    m.add_function(wrap_pyfunction!(apq::hasher::verify_hash, m)?)?;
 
     // Add Axum HTTP server PyO3 bindings (Phase 16)
     m.add_class::<http::py_bindings::PyAxumServer>()?;
