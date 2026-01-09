@@ -13,15 +13,17 @@ Protocol flow:
 Reference: https://github.com/enisdenjo/graphql-ws/blob/master/PROTOCOL.md
 """
 
-import asyncio
 import logging
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from fraiseql.subscriptions.http_adapter import (
     SubscriptionProtocolHandler,
     WebSocketAdapter,
 )
+
+if TYPE_CHECKING:
+    import asyncio
 
 logger = logging.getLogger(__name__)
 

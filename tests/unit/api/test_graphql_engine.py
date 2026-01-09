@@ -1,18 +1,18 @@
-"""
-Unit tests for Phase 1 Greenfield GraphQLEngine API.
+"""Unit tests for Phase 1 Greenfield GraphQLEngine API.
 
 Tests the new public API boundary that Python code uses to interact with
 the Rust engine. All internal implementation details are hidden from Python.
 """
 
 import pytest
+
 from fraiseql import GraphQLEngine
 
 
 class TestGraphQLEngineCreation:
     """Test engine instantiation and configuration."""
 
-    def test_engine_creation_with_valid_config(self):
+    def test_engine_creation_with_valid_config(self) -> None:
         """Test creating an engine with valid JSON configuration."""
         config = '{"db": "postgres://localhost/testdb"}'
         engine = GraphQLEngine(config)
@@ -21,31 +21,31 @@ class TestGraphQLEngineCreation:
         assert engine.is_ready()
         assert engine.version() != ""
 
-    def test_engine_creation_with_empty_config(self):
+    def test_engine_creation_with_empty_config(self) -> None:
         """Test creating an engine with minimal config."""
-        config = '{}'
+        config = "{}"
         engine = GraphQLEngine(config)
 
         assert engine is not None
         assert engine.is_ready()
 
-    def test_engine_creation_with_invalid_json_fails(self):
+    def test_engine_creation_with_invalid_json_fails(self) -> None:
         """Test that invalid JSON config raises error."""
         config = "not valid json"
 
         with pytest.raises(Exception):
             GraphQLEngine(config)
 
-    def test_engine_creation_with_complex_config(self):
+    def test_engine_creation_with_complex_config(self) -> None:
         """Test creating engine with complex configuration."""
-        config = '''
+        config = """
         {
             "db": "postgres://localhost/testdb",
             "cache": "redis://localhost:6379",
             "pool_size": 10,
             "features": ["caching", "subscription", "federation"]
         }
-        '''
+        """
         engine = GraphQLEngine(config)
 
         assert engine is not None
@@ -61,33 +61,33 @@ class TestGraphQLEngineProperties:
         config = '{"db": "postgres://localhost/testdb"}'
         return GraphQLEngine(config)
 
-    def test_engine_version(self, engine):
+    def test_engine_version(self, engine) -> None:
         """Test retrieving engine version."""
         version = engine.version()
         assert isinstance(version, str)
         assert len(version) > 0
         # Version should follow semantic versioning
-        assert version.count('.') >= 2
+        assert version.count(".") >= 2
 
-    def test_engine_is_ready(self, engine):
+    def test_engine_is_ready(self, engine) -> None:
         """Test is_ready() returns boolean."""
         ready = engine.is_ready()
         assert isinstance(ready, bool)
         assert ready is True  # Phase 1: always ready
 
-    def test_engine_config(self, engine):
+    def test_engine_config(self, engine) -> None:
         """Test retrieving engine configuration."""
         config = engine.config()
         assert isinstance(config, dict)
         assert config.get("db") == "postgres://localhost/testdb"
 
-    def test_engine_repr(self, engine):
+    def test_engine_repr(self, engine) -> None:
         """Test string representation of engine."""
         repr_str = repr(engine)
         assert "GraphQLEngine" in repr_str
         assert "ready=True" in repr_str or "ready" in repr_str
 
-    def test_engine_str(self, engine):
+    def test_engine_str(self, engine) -> None:
         """Test string conversion of engine."""
         str_repr = str(engine)
         assert "GraphQLEngine" in str_repr
@@ -102,7 +102,7 @@ class TestGraphQLEngineQueries:
         config = '{"db": "postgres://localhost/testdb"}'
         return GraphQLEngine(config)
 
-    def test_execute_query_simple(self, engine):
+    def test_execute_query_simple(self, engine) -> None:
         """Test executing a simple GraphQL query."""
         result = engine.execute_query("{ users { id name } }")
 
@@ -111,7 +111,7 @@ class TestGraphQLEngineQueries:
         assert "errors" in result or result["errors"] is None
         assert "extensions" in result
 
-    def test_execute_query_with_variables(self, engine):
+    def test_execute_query_with_variables(self, engine) -> None:
         """Test executing query with variables."""
         query = """
         query GetUser($id: ID!) {
@@ -124,7 +124,7 @@ class TestGraphQLEngineQueries:
         assert isinstance(result, dict)
         assert "data" in result
 
-    def test_execute_query_with_operation_name(self, engine):
+    def test_execute_query_with_operation_name(self, engine) -> None:
         """Test executing multi-operation query with operation name."""
         query = """
         query GetUser { user { id } }
@@ -135,7 +135,7 @@ class TestGraphQLEngineQueries:
         assert isinstance(result, dict)
         assert "data" in result
 
-    def test_execute_query_response_structure(self, engine):
+    def test_execute_query_response_structure(self, engine) -> None:
         """Test that query response has correct structure."""
         result = engine.execute_query("{ test }")
 
@@ -149,14 +149,14 @@ class TestGraphQLEngineQueries:
         if extensions:
             assert isinstance(extensions, dict)
 
-    def test_execute_query_with_empty_variables(self, engine):
+    def test_execute_query_with_empty_variables(self, engine) -> None:
         """Test query with explicit empty variables dict."""
         result = engine.execute_query("{ users }", {})
 
         assert isinstance(result, dict)
         assert "data" in result
 
-    def test_execute_query_with_none_variables(self, engine):
+    def test_execute_query_with_none_variables(self, engine) -> None:
         """Test query with None variables (should default to empty)."""
         result = engine.execute_query("{ users }", None)
 
@@ -173,7 +173,7 @@ class TestGraphQLEngineMutations:
         config = '{"db": "postgres://localhost/testdb"}'
         return GraphQLEngine(config)
 
-    def test_execute_mutation_simple(self, engine):
+    def test_execute_mutation_simple(self, engine) -> None:
         """Test executing a simple GraphQL mutation."""
         mutation = 'mutation { createUser(name: "John") { id } }'
         result = engine.execute_mutation(mutation)
@@ -183,7 +183,7 @@ class TestGraphQLEngineMutations:
         assert "errors" in result or result["errors"] is None
         assert "extensions" in result
 
-    def test_execute_mutation_with_variables(self, engine):
+    def test_execute_mutation_with_variables(self, engine) -> None:
         """Test executing mutation with variables."""
         mutation = """
         mutation CreateUser($name: String!) {
@@ -196,26 +196,26 @@ class TestGraphQLEngineMutations:
         assert isinstance(result, dict)
         assert "data" in result
 
-    def test_execute_mutation_response_structure(self, engine):
+    def test_execute_mutation_response_structure(self, engine) -> None:
         """Test that mutation response has correct structure."""
-        result = engine.execute_mutation('mutation { test { id } }')
+        result = engine.execute_mutation("mutation { test { id } }")
 
         # Response should have these keys
         assert "data" in result
         assert "errors" in result
         assert "extensions" in result
 
-    def test_execute_mutation_with_empty_variables(self, engine):
+    def test_execute_mutation_with_empty_variables(self, engine) -> None:
         """Test mutation with explicit empty variables dict."""
-        mutation = 'mutation { updateUser { id } }'
+        mutation = "mutation { updateUser { id } }"
         result = engine.execute_mutation(mutation, {})
 
         assert isinstance(result, dict)
         assert "data" in result
 
-    def test_execute_mutation_with_none_variables(self, engine):
+    def test_execute_mutation_with_none_variables(self, engine) -> None:
         """Test mutation with None variables (should default to empty)."""
-        result = engine.execute_mutation('mutation { deleteUser { success } }', None)
+        result = engine.execute_mutation("mutation { deleteUser { success } }", None)
 
         assert isinstance(result, dict)
         assert "data" in result
@@ -224,7 +224,7 @@ class TestGraphQLEngineMutations:
 class TestGraphQLEngineAPIBoundary:
     """Test that API boundary correctly hides internal types."""
 
-    def test_engine_is_only_public_type(self):
+    def test_engine_is_only_public_type(self) -> None:
         """Verify GraphQLEngine is the only public type from the public API."""
         # GraphQLEngine should be accessible from fraiseql
         from fraiseql import GraphQLEngine as PublicEngine
@@ -239,9 +239,9 @@ class TestGraphQLEngineAPIBoundary:
         assert hasattr(_fraiseql_rs, "PyGraphQLPipeline")  # Internal, starts with Py
         assert hasattr(_fraiseql_rs, "PrototypePool")  # Internal implementation detail
 
-    def test_engine_methods_return_python_types(self):
+    def test_engine_methods_return_python_types(self) -> None:
         """Verify engine methods return standard Python types."""
-        engine = GraphQLEngine('{}')
+        engine = GraphQLEngine("{}")
 
         # These should return Python primitives/collections
         assert isinstance(engine.version(), str)
@@ -259,7 +259,7 @@ class TestGraphQLEngineAPIBoundary:
 class TestGraphQLEngineThreadSafety:
     """Test that engine can be safely used from multiple threads."""
 
-    def test_engine_creation_thread_safe(self):
+    def test_engine_creation_thread_safe(self) -> None:
         """Test creating engines from different logical contexts."""
         config1 = '{"db": "postgres://localhost/db1"}'
         config2 = '{"db": "postgres://localhost/db2"}'
@@ -277,7 +277,7 @@ class TestGraphQLEngineThreadSafety:
         assert config1_result.get("db") == "postgres://localhost/db1"
         assert config2_result.get("db") == "postgres://localhost/db2"
 
-    def test_engine_is_shared_reference(self):
+    def test_engine_is_shared_reference(self) -> None:
         """Test that engine uses Arc internally (thread-safe shared reference)."""
         config = '{"db": "postgres://localhost/testdb"}'
         engine1 = GraphQLEngine(config)

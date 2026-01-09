@@ -16,14 +16,14 @@ def clear_registry():
 class TestAxumRegistry:
     """Tests for AxumRegistry singleton and registration."""
 
-    def test_singleton_pattern(self):
+    def test_singleton_pattern(self) -> None:
         """Test that AxumRegistry is a singleton."""
         registry1 = AxumRegistry.get_instance()
         registry2 = AxumRegistry.get_instance()
 
         assert registry1 is registry2, "Registry should be a singleton"
 
-    def test_register_type(self):
+    def test_register_type(self) -> None:
         """Test registering a GraphQL type."""
         registry = AxumRegistry.get_instance()
 
@@ -36,7 +36,7 @@ class TestAxumRegistry:
         assert "User" in types
         assert types["User"] is User
 
-    def test_register_types_batch(self):
+    def test_register_types_batch(self) -> None:
         """Test batch registration of types."""
         registry = AxumRegistry.get_instance()
 
@@ -55,7 +55,7 @@ class TestAxumRegistry:
         assert len(types) == 3
         assert all(name in types for name in ["User", "Post", "Comment"])
 
-    def test_register_query(self):
+    def test_register_query(self) -> None:
         """Test registering a query."""
         registry = AxumRegistry.get_instance()
 
@@ -68,7 +68,7 @@ class TestAxumRegistry:
         assert "get_users" in queries
         assert queries["get_users"] is get_users
 
-    def test_register_mutation(self):
+    def test_register_mutation(self) -> None:
         """Test registering a mutation."""
         registry = AxumRegistry.get_instance()
 
@@ -81,7 +81,7 @@ class TestAxumRegistry:
         assert "create_user" in mutations
         assert mutations["create_user"] is create_user
 
-    def test_register_subscription(self):
+    def test_register_subscription(self) -> None:
         """Test registering a subscription."""
         registry = AxumRegistry.get_instance()
 
@@ -94,7 +94,7 @@ class TestAxumRegistry:
         assert "on_user_created" in subscriptions
         assert subscriptions["on_user_created"] is on_user_created
 
-    def test_register_input(self):
+    def test_register_input(self) -> None:
         """Test registering an input type."""
         registry = AxumRegistry.get_instance()
 
@@ -107,7 +107,7 @@ class TestAxumRegistry:
         assert "CreateUserInput" in inputs
         assert inputs["CreateUserInput"] is CreateUserInput
 
-    def test_register_enum(self):
+    def test_register_enum(self) -> None:
         """Test registering an enum type."""
         registry = AxumRegistry.get_instance()
 
@@ -121,7 +121,7 @@ class TestAxumRegistry:
         assert "UserRole" in enums
         assert enums["UserRole"] is UserRole
 
-    def test_register_interface(self):
+    def test_register_interface(self) -> None:
         """Test registering an interface."""
         registry = AxumRegistry.get_instance()
 
@@ -134,7 +134,7 @@ class TestAxumRegistry:
         assert "Node" in interfaces
         assert interfaces["Node"] is Node
 
-    def test_count_registered(self):
+    def test_count_registered(self) -> None:
         """Test count_registered method."""
         registry = AxumRegistry.get_instance()
 
@@ -162,7 +162,7 @@ class TestAxumRegistry:
         assert counts["mutations"] == 1
         assert counts["total"] == 4
 
-    def test_summary(self):
+    def test_summary(self) -> None:
         """Test summary method."""
         registry = AxumRegistry.get_instance()
 
@@ -180,7 +180,7 @@ class TestAxumRegistry:
         assert "User" in summary
         assert "get_users" in summary
 
-    def test_clear(self):
+    def test_clear(self) -> None:
         """Test clearing the registry."""
         registry = AxumRegistry.get_instance()
 
@@ -201,7 +201,7 @@ class TestAxumRegistry:
         assert len(registry.get_registered_types()) == 0
         assert len(registry.get_registered_queries()) == 0
 
-    def test_to_lists(self):
+    def test_to_lists(self) -> None:
         """Test to_lists conversion method."""
         registry = AxumRegistry.get_instance()
 
@@ -229,7 +229,7 @@ class TestAxumRegistry:
         assert get_users in queries
         assert len(subscriptions) == 0
 
-    def test_empty_registry_summary(self):
+    def test_empty_registry_summary(self) -> None:
         """Test summary of empty registry."""
         registry = AxumRegistry.get_instance()
 
@@ -237,7 +237,7 @@ class TestAxumRegistry:
         assert "(empty)" in summary
         assert "AxumRegistry Summary:" in summary
 
-    def test_register_with_custom_name(self):
+    def test_register_with_custom_name(self) -> None:
         """Test that items are registered by __name__ attribute."""
         registry = AxumRegistry.get_instance()
 
@@ -254,7 +254,7 @@ class TestAxumRegistry:
 class TestAxumRegistryIsolation:
     """Tests for registry isolation between tests."""
 
-    def test_isolation_between_tests(self):
+    def test_isolation_between_tests(self) -> None:
         """Test that clear() provides test isolation."""
         registry = AxumRegistry.get_instance()
 
@@ -267,7 +267,7 @@ class TestAxumRegistryIsolation:
         # clear_registry fixture clears before next test
         # This test checks that the fixture works
 
-    def test_isolation_second_test(self):
+    def test_isolation_second_test(self) -> None:
         """Second test to verify isolation from previous test."""
         registry = AxumRegistry.get_instance()
         # Should be empty due to clear_registry fixture
@@ -277,7 +277,7 @@ class TestAxumRegistryIsolation:
 class TestAxumRegistryEdgeCases:
     """Tests for edge cases and error conditions."""
 
-    def test_register_duplicate_types(self):
+    def test_register_duplicate_types(self) -> None:
         """Test registering the same type twice (should overwrite)."""
         registry = AxumRegistry.get_instance()
 
@@ -290,7 +290,7 @@ class TestAxumRegistryEdgeCases:
         types = registry.get_registered_types()
         assert len(types) == 1  # Should still be 1, not 2
 
-    def test_batch_register_empty_list(self):
+    def test_batch_register_empty_list(self) -> None:
         """Test batch registering empty lists."""
         registry = AxumRegistry.get_instance()
 
@@ -302,7 +302,7 @@ class TestAxumRegistryEdgeCases:
         counts = registry.count_registered()
         assert counts["total"] == 0
 
-    def test_get_returns_copy(self):
+    def test_get_returns_copy(self) -> None:
         """Test that getter methods return copies, not references."""
         registry = AxumRegistry.get_instance()
 

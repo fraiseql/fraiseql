@@ -129,7 +129,7 @@ def __getattr__(name: str):
         if rs is not None:
             # Rust exports as PyGraphQLEngine, but we expose as GraphQLEngine for clean API
             return getattr(rs, "PyGraphQLEngine", None)
-        raise AttributeError(f"Rust extension not available")
+        raise AttributeError("Rust extension not available")
 
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 

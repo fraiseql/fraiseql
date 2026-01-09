@@ -19,7 +19,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
-from psycopg.sql import Composed, Identifier, Literal, SQL
+from psycopg.sql import SQL, Composed, Identifier, Literal
 
 from fraiseql.db.registry import _table_metadata
 from fraiseql.sql.operators import get_default_registry as get_operator_registry
@@ -243,7 +243,13 @@ def build_where_clause(
                 # Use JSONB path for fields in data column
                 jsonb_col = jsonb_column or "data"
                 condition = Composed(
-                    [Identifier(jsonb_col), SQL(" ->> "), Literal(db_field), SQL(" = "), Literal(value)]
+                    [
+                        Identifier(jsonb_col),
+                        SQL(" ->> "),
+                        Literal(db_field),
+                        SQL(" = "),
+                        Literal(value),
+                    ]
                 )
             else:
                 # Use direct column reference
@@ -463,7 +469,7 @@ def _should_use_jsonb_path(
     view_lower = view_name.lower()
     if any(p in view_lower for p in known_regular_patterns):
         return False
-    elif any(p in view_lower for p in known_hybrid_patterns):
+    if any(p in view_lower for p in known_hybrid_patterns):
         return True
 
     # Conservative default: assume regular table

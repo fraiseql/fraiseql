@@ -5,7 +5,6 @@ These tests verify that Python can load and cache schemas exported from Rust,
 eliminating the need for runtime schema generation.
 """
 
-import json
 import pytest
 
 # Import fraiseql_rs through fraiseql to ensure proper initialization
@@ -15,7 +14,7 @@ except ImportError:
     fraiseql_rs = None
 
 
-def skip_if_no_rust():
+def skip_if_no_rust() -> None:
     """Skip test if fraiseql_rs is not available."""
     if fraiseql_rs is None:
         pytest.skip("fraiseql_rs not available")
@@ -24,7 +23,7 @@ def skip_if_no_rust():
 class TestSchemaLoaderBasics:
     """Test basic schema loader functionality."""
 
-    def test_schema_loader_can_import_rust_schema(self):
+    def test_schema_loader_can_import_rust_schema(self) -> None:
         """RED: Python schema loader can import Rust-exported schema."""
         skip_if_no_rust()
         # This will fail until schema_loader module is created
@@ -34,7 +33,7 @@ class TestSchemaLoaderBasics:
         assert schema is not None
         assert isinstance(schema, dict)
 
-    def test_loaded_schema_has_required_keys(self):
+    def test_loaded_schema_has_required_keys(self) -> None:
         """RED: Loaded schema has filter_schemas and order_by_schemas."""
         skip_if_no_rust()
         from fraiseql.gql.schema_loader import load_schema
@@ -44,10 +43,10 @@ class TestSchemaLoaderBasics:
         assert "order_by_schemas" in schema
         assert "version" in schema
 
-    def test_schema_loader_caches_schema(self):
+    def test_schema_loader_caches_schema(self) -> None:
         """RED: Schema loader caches loaded schema in memory."""
         skip_if_no_rust()
-        from fraiseql.gql.schema_loader import load_schema, _get_cached_schema
+        from fraiseql.gql.schema_loader import load_schema
 
         # First load
         schema1 = load_schema()
@@ -58,10 +57,10 @@ class TestSchemaLoaderBasics:
         # Should be the same object in memory
         assert schema1 is schema2
 
-    def test_cached_schema_can_be_retrieved(self):
+    def test_cached_schema_can_be_retrieved(self) -> None:
         """RED: Can retrieve cached schema without reloading."""
         skip_if_no_rust()
-        from fraiseql.gql.schema_loader import load_schema, _get_cached_schema
+        from fraiseql.gql.schema_loader import _get_cached_schema, load_schema
 
         # Load once
         load_schema()
@@ -76,16 +75,16 @@ class TestSchemaLoaderBasics:
 class TestSchemaLoaderIntegration:
     """Test schema loader integration with type generation."""
 
-    def test_schema_loader_provides_string_filter_schema(self):
+    def test_schema_loader_provides_string_filter_schema(self) -> None:
         """RED: Loaded schema provides String filter schema."""
         skip_if_no_rust()
-        from fraiseql.gql.schema_loader import load_schema, get_filter_schema
+        from fraiseql.gql.schema_loader import get_filter_schema
 
         string_schema = get_filter_schema("String")
         assert string_schema is not None
         assert "fields" in string_schema
 
-    def test_get_filter_schema_returns_all_operators(self):
+    def test_get_filter_schema_returns_all_operators(self) -> None:
         """RED: get_filter_schema returns complete operator list."""
         skip_if_no_rust()
         from fraiseql.gql.schema_loader import get_filter_schema
@@ -103,10 +102,10 @@ class TestSchemaLoaderIntegration:
         for op in expected_ops:
             assert op in operators, f"Missing operator '{op}' in String filter"
 
-    def test_get_filter_schema_for_all_types(self):
+    def test_get_filter_schema_for_all_types(self) -> None:
         """RED: get_filter_schema works for all filter types."""
         skip_if_no_rust()
-        from fraiseql.gql.schema_loader import load_schema, get_filter_schema
+        from fraiseql.gql.schema_loader import get_filter_schema, load_schema
 
         schema = load_schema()
         filter_types = schema["filter_schemas"].keys()
@@ -121,7 +120,7 @@ class TestSchemaLoaderIntegration:
 class TestSchemaLoaderTypeGeneration:
     """Test integration with GraphQL type generation."""
 
-    def test_can_get_operators_for_type_generation(self):
+    def test_can_get_operators_for_type_generation(self) -> None:
         """RED: Can retrieve operators for a type from loaded schema."""
         skip_if_no_rust()
         from fraiseql.gql.schema_loader import get_filter_operators
@@ -132,7 +131,7 @@ class TestSchemaLoaderTypeGeneration:
         assert "eq" in ops
         assert "in_" in ops  # Python keyword handling
 
-    def test_get_filter_operators_returns_type_info(self):
+    def test_get_filter_operators_returns_type_info(self) -> None:
         """RED: Filter operators include type and nullable information."""
         skip_if_no_rust()
         from fraiseql.gql.schema_loader import get_filter_operators
@@ -140,14 +139,14 @@ class TestSchemaLoaderTypeGeneration:
         ops = get_filter_operators("String")
 
         # Each operator should have type info
-        for op_name, op_def in ops.items():
+        for op_def in ops.values():
             assert "type" in op_def
             assert "nullable" in op_def
 
-    def test_order_by_schema_available(self):
+    def test_order_by_schema_available(self) -> None:
         """RED: OrderBy schema is available via schema loader."""
         skip_if_no_rust()
-        from fraiseql.gql.schema_loader import load_schema, get_order_by_schema
+        from fraiseql.gql.schema_loader import get_order_by_schema
 
         order_by = get_order_by_schema()
         assert order_by is not None

@@ -2,7 +2,6 @@
 
 import pytest
 
-from fraiseql.axum.registry import AxumRegistry
 from fraiseql.axum.registration_hooks import (
     register_enum_hook,
     register_input_hook,
@@ -11,6 +10,7 @@ from fraiseql.axum.registration_hooks import (
     register_subscription_hook,
     register_type_hook,
 )
+from fraiseql.axum.registry import AxumRegistry
 
 
 @pytest.fixture(autouse=True)
@@ -24,7 +24,7 @@ def clear_registry():
 class TestTypeRegistrationHook:
     """Tests for register_type_hook."""
 
-    def test_register_type_hook(self):
+    def test_register_type_hook(self) -> None:
         """Test that register_type_hook registers a type."""
         class User:
             pass
@@ -36,7 +36,7 @@ class TestTypeRegistrationHook:
         assert "User" in types
         assert types["User"] is User
 
-    def test_register_type_hook_multiple(self):
+    def test_register_type_hook_multiple(self) -> None:
         """Test registering multiple types."""
         class User:
             pass
@@ -57,7 +57,7 @@ class TestTypeRegistrationHook:
 class TestInputRegistrationHook:
     """Tests for register_input_hook."""
 
-    def test_register_input_hook(self):
+    def test_register_input_hook(self) -> None:
         """Test that register_input_hook registers an input."""
         class CreateUserInput:
             pass
@@ -73,7 +73,7 @@ class TestInputRegistrationHook:
 class TestEnumRegistrationHook:
     """Tests for register_enum_hook."""
 
-    def test_register_enum_hook(self):
+    def test_register_enum_hook(self) -> None:
         """Test that register_enum_hook registers an enum."""
         class UserRole:
             ADMIN = "admin"
@@ -90,7 +90,7 @@ class TestEnumRegistrationHook:
 class TestInterfaceRegistrationHook:
     """Tests for register_interface_hook."""
 
-    def test_register_interface_hook(self):
+    def test_register_interface_hook(self) -> None:
         """Test that register_interface_hook registers an interface."""
         class Node:
             pass
@@ -106,7 +106,7 @@ class TestInterfaceRegistrationHook:
 class TestQueryRegistrationHook:
     """Tests for register_query_hook."""
 
-    def test_register_query_hook(self):
+    def test_register_query_hook(self) -> None:
         """Test that register_query_hook registers a query."""
         async def get_users():
             pass
@@ -122,7 +122,7 @@ class TestQueryRegistrationHook:
 class TestSubscriptionRegistrationHook:
     """Tests for register_subscription_hook."""
 
-    def test_register_subscription_hook(self):
+    def test_register_subscription_hook(self) -> None:
         """Test that register_subscription_hook registers a subscription."""
         async def on_user_created():
             pass
@@ -138,7 +138,7 @@ class TestSubscriptionRegistrationHook:
 class TestHooksErrorHandling:
     """Tests for error handling in hooks."""
 
-    def test_hook_with_invalid_type(self):
+    def test_hook_with_invalid_type(self) -> None:
         """Test that hooks handle invalid types gracefully."""
         # Passing None should not raise
         try:
@@ -146,20 +146,20 @@ class TestHooksErrorHandling:
         except Exception:
             pytest.fail("Hook should handle None gracefully")
 
-    def test_hook_with_missing_name(self):
+    def test_hook_with_missing_name(self) -> None:
         """Test hook with object missing __name__ attribute."""
         class NoName:
             pass
 
         # Remove __name__ (shouldn't happen in practice, but test robustness)
-        obj = NoName()
+        NoName()
         # Can't remove __name__ from instances, so this test verifies the pattern
 
 
 class TestHooksWithRegistry:
     """Tests for hooks integration with registry."""
 
-    def test_hooks_populate_registry(self):
+    def test_hooks_populate_registry(self) -> None:
         """Test that hooks properly populate the registry."""
         class User:
             pass
@@ -192,7 +192,7 @@ class TestHooksWithRegistry:
         assert counts["subscriptions"] == 1
         assert counts["total"] == 5
 
-    def test_hooks_summary(self):
+    def test_hooks_summary(self) -> None:
         """Test that registry summary reflects hooked registrations."""
         class User:
             pass

@@ -575,7 +575,7 @@ class FraiseQLRepository:
                 jsonb_column = metadata["jsonb_column"]
 
         # 3. Build SQL query
-        query = self._build_find_query(
+        self._build_find_query(
             view_name,
             field_paths=field_paths,
             info=info,
@@ -584,7 +584,7 @@ class FraiseQLRepository:
         )
 
         # 4. Get type name for Rust transformation
-        type_name = self._get_cached_type_name(view_name)
+        self._get_cached_type_name(view_name)
 
         # Extract field_name from info if not explicitly provided
         if not field_name and info and hasattr(info, "field_name"):
@@ -592,9 +592,8 @@ class FraiseQLRepository:
 
         # 5. Execute via Rust pipeline (ALWAYS)
         # Check if this is part of a multi-field query to use field-only mode
-        include_wrapper = True
         if info and hasattr(info, "context") and isinstance(info.context, dict):
-            include_wrapper = not info.context.get("__has_multiple_root_fields__", False)
+            not info.context.get("__has_multiple_root_fields__", False)
 
         # NOTE: Direct Rust pipeline execution has been replaced by unified executor
         # This method is deprecated and kept for backward compatibility only
@@ -631,7 +630,6 @@ class FraiseQLRepository:
 
         # 1. Extract field paths and build field selections from GraphQL info
         field_paths = None
-        field_selections_json = None
         if info:
             from fraiseql.core.ast_parser import extract_field_paths_from_info
             from fraiseql.core.selection_tree import GraphQLSchemaWrapper, build_selection_tree
@@ -658,7 +656,7 @@ class FraiseQLRepository:
 
                     # Serialize to JSON format for Rust
                     # Use "materialized_path" (dot-separated string) as expected by Rust
-                    field_selections_json = [
+                    [
                         {
                             "materialized_path": ".".join(sel.path)
                             if isinstance(sel.path, list)
@@ -681,7 +679,7 @@ class FraiseQLRepository:
                 jsonb_column = metadata["jsonb_column"]
 
         # 3. Build query (automatically adds LIMIT 1)
-        query = self._build_find_one_query(
+        self._build_find_one_query(
             view_name,
             field_paths=field_paths,
             info=info,
@@ -690,7 +688,7 @@ class FraiseQLRepository:
         )
 
         # 4. Get type name
-        type_name = self._get_cached_type_name(view_name)
+        self._get_cached_type_name(view_name)
 
         # Extract field_name from info if not explicitly provided
         if not field_name and info and hasattr(info, "field_name"):
@@ -698,9 +696,8 @@ class FraiseQLRepository:
 
         # 5. Execute via Rust pipeline (ALWAYS)
         # Check if this is part of a multi-field query to use field-only mode
-        include_wrapper = True
         if info and hasattr(info, "context") and isinstance(info.context, dict):
-            include_wrapper = not info.context.get("__has_multiple_root_fields__", False)
+            not info.context.get("__has_multiple_root_fields__", False)
 
         # NOTE: Direct Rust pipeline execution has been replaced by unified executor
         # This method is deprecated and kept for backward compatibility only

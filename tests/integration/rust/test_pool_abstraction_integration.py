@@ -14,10 +14,9 @@ end-to-end with actual PostgreSQL connections. Note: Internal Rust APIs
 implementation details. These tests focus on the public GraphQL engine API.
 """
 
-import pytest
 import json
-import asyncio
-from typing import AsyncGenerator
+
+import pytest
 
 # These will be imported from the Rust extension
 pytest_plugins = ["tests.integration.rust.conftest"]
@@ -28,15 +27,15 @@ class TestPoolAbstractionIntegration:
     """Integration tests for pool abstraction layer."""
 
     @pytest.mark.asyncio
-    async def test_postgres_url_format(self, postgres_url):
+    async def test_postgres_url_format(self, postgres_url) -> None:
         """Validate postgres_url fixture provides correct format."""
         # URL should be properly formatted
-        assert postgres_url.startswith("postgresql://") or postgres_url.startswith("postgres://")
+        assert postgres_url.startswith(("postgresql://", "postgres://"))
         assert "@" in postgres_url  # Should have credentials
         assert "/" in postgres_url.split("@")[1]  # Should have database name
 
     @pytest.mark.asyncio
-    async def test_engine_initialization_with_pool(self, postgres_url):
+    async def test_engine_initialization_with_pool(self, postgres_url) -> None:
         """Test engine initializes with pool abstraction."""
         try:
             import fraiseql
@@ -47,7 +46,7 @@ class TestPoolAbstractionIntegration:
         if rs is None:
             pytest.skip("Rust extension not available")
 
-        GraphQLEngine = rs.PyGraphQLEngine if hasattr(rs, 'PyGraphQLEngine') else None
+        GraphQLEngine = rs.PyGraphQLEngine if hasattr(rs, "PyGraphQLEngine") else None
         if GraphQLEngine is None:
             pytest.skip("GraphQLEngine not available")
 
@@ -61,7 +60,7 @@ class TestPoolAbstractionIntegration:
         assert engine.is_ready()
 
     @pytest.mark.asyncio
-    async def test_real_query_execution(self, postgres_url, db_connection):
+    async def test_real_query_execution(self, postgres_url, db_connection) -> None:
         """Test real query execution through the pool abstraction.
 
         This validates:
@@ -110,7 +109,7 @@ class TestPoolAbstractionIntegration:
             await db_connection.commit()
 
     @pytest.mark.asyncio
-    async def test_health_check(self, postgres_url):
+    async def test_health_check(self, postgres_url) -> None:
         """Test pool health check works."""
         try:
             import fraiseql
@@ -121,7 +120,7 @@ class TestPoolAbstractionIntegration:
         if rs is None:
             pytest.skip("Rust extension not available")
 
-        GraphQLEngine = rs.PyGraphQLEngine if hasattr(rs, 'PyGraphQLEngine') else None
+        GraphQLEngine = rs.PyGraphQLEngine if hasattr(rs, "PyGraphQLEngine") else None
         if GraphQLEngine is None:
             pytest.skip("GraphQLEngine not available")
 
@@ -134,7 +133,7 @@ class TestPoolAbstractionIntegration:
         assert engine.is_ready()
 
     @pytest.mark.asyncio
-    async def test_multiple_engine_instances(self, postgres_url):
+    async def test_multiple_engine_instances(self, postgres_url) -> None:
         """Test multiple engine instances can coexist.
 
         This validates the pool abstraction supports multiple independent
@@ -149,7 +148,7 @@ class TestPoolAbstractionIntegration:
         if rs is None:
             pytest.skip("Rust extension not available")
 
-        GraphQLEngine = rs.PyGraphQLEngine if hasattr(rs, 'PyGraphQLEngine') else None
+        GraphQLEngine = rs.PyGraphQLEngine if hasattr(rs, "PyGraphQLEngine") else None
         if GraphQLEngine is None:
             pytest.skip("GraphQLEngine not available")
 
@@ -172,7 +171,7 @@ class TestPoolConfigurationOptions:
     """Test pool configuration options."""
 
     @pytest.mark.asyncio
-    async def test_engine_with_pool_size_config(self, postgres_url):
+    async def test_engine_with_pool_size_config(self, postgres_url) -> None:
         """Test engine accepts pool_size configuration."""
         try:
             import fraiseql
@@ -183,7 +182,7 @@ class TestPoolConfigurationOptions:
         if rs is None:
             pytest.skip("Rust extension not available")
 
-        GraphQLEngine = rs.PyGraphQLEngine if hasattr(rs, 'PyGraphQLEngine') else None
+        GraphQLEngine = rs.PyGraphQLEngine if hasattr(rs, "PyGraphQLEngine") else None
         if GraphQLEngine is None:
             pytest.skip("GraphQLEngine not available")
 
@@ -200,7 +199,7 @@ class TestPoolConfigurationOptions:
         assert engine is not None
 
     @pytest.mark.asyncio
-    async def test_engine_with_simple_url_format(self, postgres_url):
+    async def test_engine_with_simple_url_format(self, postgres_url) -> None:
         """Test engine accepts simple URL format for db config."""
         try:
             import fraiseql
@@ -211,7 +210,7 @@ class TestPoolConfigurationOptions:
         if rs is None:
             pytest.skip("Rust extension not available")
 
-        GraphQLEngine = rs.PyGraphQLEngine if hasattr(rs, 'PyGraphQLEngine') else None
+        GraphQLEngine = rs.PyGraphQLEngine if hasattr(rs, "PyGraphQLEngine") else None
         if GraphQLEngine is None:
             pytest.skip("GraphQLEngine not available")
 
@@ -224,7 +223,7 @@ class TestPoolConfigurationOptions:
         assert engine is not None
 
     @pytest.mark.asyncio
-    async def test_engine_missing_db_config_handling(self):
+    async def test_engine_missing_db_config_handling(self) -> None:
         """Test engine handles missing db config gracefully."""
         try:
             import fraiseql
@@ -235,7 +234,7 @@ class TestPoolConfigurationOptions:
         if rs is None:
             pytest.skip("Rust extension not available")
 
-        GraphQLEngine = rs.PyGraphQLEngine if hasattr(rs, 'PyGraphQLEngine') else None
+        GraphQLEngine = rs.PyGraphQLEngine if hasattr(rs, "PyGraphQLEngine") else None
         if GraphQLEngine is None:
             pytest.skip("GraphQLEngine not available")
 
@@ -253,7 +252,7 @@ class TestPoolConfigurationOptions:
             assert "Database configuration" in str(e) or "db" in str(e).lower()
 
     @pytest.mark.asyncio
-    async def test_engine_invalid_url_scheme_handling(self):
+    async def test_engine_invalid_url_scheme_handling(self) -> None:
         """Test engine handles invalid database URL scheme."""
         try:
             import fraiseql
@@ -264,7 +263,7 @@ class TestPoolConfigurationOptions:
         if rs is None:
             pytest.skip("Rust extension not available")
 
-        GraphQLEngine = rs.PyGraphQLEngine if hasattr(rs, 'PyGraphQLEngine') else None
+        GraphQLEngine = rs.PyGraphQLEngine if hasattr(rs, "PyGraphQLEngine") else None
         if GraphQLEngine is None:
             pytest.skip("GraphQLEngine not available")
 
@@ -288,7 +287,7 @@ class TestArchitectureValidation:
     """Validate the refactored architecture removes duplication."""
 
     @pytest.mark.asyncio
-    async def test_pool_backend_abstraction_in_use(self, postgres_url):
+    async def test_pool_backend_abstraction_in_use(self, postgres_url) -> None:
         """Test that engine uses pool backend abstraction.
 
         The engine should:
@@ -306,7 +305,7 @@ class TestArchitectureValidation:
         if rs is None:
             pytest.skip("Rust extension not available")
 
-        GraphQLEngine = rs.PyGraphQLEngine if hasattr(rs, 'PyGraphQLEngine') else None
+        GraphQLEngine = rs.PyGraphQLEngine if hasattr(rs, "PyGraphQLEngine") else None
         if GraphQLEngine is None:
             pytest.skip("GraphQLEngine not available")
 

@@ -5,8 +5,8 @@ These tests verify that graphql_where_generator can use pre-built Rust schemas
 instead of generating filter types at runtime.
 """
 
+
 import pytest
-from uuid import UUID
 
 try:
     from fraiseql import fraiseql_rs
@@ -14,7 +14,7 @@ except ImportError:
     fraiseql_rs = None
 
 
-def skip_if_no_rust():
+def skip_if_no_rust() -> None:
     """Skip test if fraiseql_rs is not available."""
     if fraiseql_rs is None:
         pytest.skip("fraiseql_rs not available")
@@ -23,7 +23,7 @@ def skip_if_no_rust():
 class TestWhereGeneratorSchemaLoaderIntegration:
     """Test WHERE generator integration with schema_loader."""
 
-    def test_where_generator_can_use_schema_loader(self):
+    def test_where_generator_can_use_schema_loader(self) -> None:
         """RED: WHERE generator can access loaded schema for filter info."""
         skip_if_no_rust()
         from fraiseql.gql.schema_loader import load_schema
@@ -40,12 +40,13 @@ class TestWhereGeneratorSchemaLoaderIntegration:
         assert "fields" in string_schema
         assert len(string_schema["fields"]) > 0
 
-    def test_where_generator_string_filter_operators_match_schema(self):
+    def test_where_generator_string_filter_operators_match_schema(self) -> None:
         """RED: String filter operators from schema match where_generator definition."""
         skip_if_no_rust()
+        from typing import get_type_hints
+
         from fraiseql.gql.schema_loader import get_filter_operators
         from fraiseql.sql.graphql_where_generator import StringFilter
-        from typing import get_type_hints
 
         # Get operators from schema loader
         schema_operators = get_filter_operators("String")
@@ -63,12 +64,13 @@ class TestWhereGeneratorSchemaLoaderIntegration:
         for op in operator_names:
             assert op in class_operators, f"Schema has '{op}' but not in StringFilter"
 
-    def test_where_generator_int_filter_operators_match_schema(self):
+    def test_where_generator_int_filter_operators_match_schema(self) -> None:
         """RED: Int filter operators from schema match where_generator definition."""
         skip_if_no_rust()
+        from typing import get_type_hints
+
         from fraiseql.gql.schema_loader import get_filter_operators
         from fraiseql.sql.graphql_where_generator import IntFilter
-        from typing import get_type_hints
 
         schema_operators = get_filter_operators("Int")
         operator_names = set(schema_operators.keys())
@@ -80,12 +82,13 @@ class TestWhereGeneratorSchemaLoaderIntegration:
         for op in operator_names:
             assert op in class_operators, f"Schema has '{op}' but not in IntFilter"
 
-    def test_where_generator_float_filter_operators_match_schema(self):
+    def test_where_generator_float_filter_operators_match_schema(self) -> None:
         """RED: Float filter operators from schema match where_generator definition."""
         skip_if_no_rust()
+        from typing import get_type_hints
+
         from fraiseql.gql.schema_loader import get_filter_operators
         from fraiseql.sql.graphql_where_generator import FloatFilter
-        from typing import get_type_hints
 
         schema_operators = get_filter_operators("Float")
         operator_names = set(schema_operators.keys())
@@ -97,12 +100,13 @@ class TestWhereGeneratorSchemaLoaderIntegration:
         for op in operator_names:
             assert op in class_operators, f"Schema has '{op}' but not in FloatFilter"
 
-    def test_where_generator_array_filter_operators_match_schema(self):
+    def test_where_generator_array_filter_operators_match_schema(self) -> None:
         """RED: Array filter operators from schema match where_generator definition."""
         skip_if_no_rust()
+        from typing import get_type_hints
+
         from fraiseql.gql.schema_loader import get_filter_operators
         from fraiseql.sql.graphql_where_generator import ArrayFilter
-        from typing import get_type_hints
 
         schema_operators = get_filter_operators("Array")
         operator_names = set(schema_operators.keys())
@@ -114,7 +118,7 @@ class TestWhereGeneratorSchemaLoaderIntegration:
         for op in operator_names:
             assert op in class_operators, f"Schema has '{op}' but not in ArrayFilter"
 
-    def test_all_base_filter_types_available_in_schema_and_generator(self):
+    def test_all_base_filter_types_available_in_schema_and_generator(self) -> None:
         """RED: All base filter types available in both schema and generator."""
         skip_if_no_rust()
         from fraiseql.gql.schema_loader import load_schema
@@ -136,7 +140,7 @@ class TestWhereGeneratorSchemaLoaderIntegration:
                 f"{filter_class_name} not found in where_generator"
             )
 
-    def test_schema_operator_types_are_valid(self):
+    def test_schema_operator_types_are_valid(self) -> None:
         """RED: Schema operator definitions have required fields."""
         skip_if_no_rust()
         from fraiseql.gql.schema_loader import get_filter_operators
@@ -151,10 +155,10 @@ class TestWhereGeneratorSchemaLoaderIntegration:
 class TestWhereGeneratorWithCachedSchema:
     """Test WHERE generator performance with cached schema."""
 
-    def test_schema_caching_improves_performance(self):
+    def test_schema_caching_improves_performance(self) -> None:
         """RED: Schema caching provides fast repeated access."""
         skip_if_no_rust()
-        from fraiseql.gql.schema_loader import load_schema, _get_cached_schema
+        from fraiseql.gql.schema_loader import _get_cached_schema, load_schema
 
         # First load
         schema1 = load_schema()

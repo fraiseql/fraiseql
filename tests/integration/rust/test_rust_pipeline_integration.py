@@ -17,8 +17,9 @@ from fraiseql import fraise_type, query
 
 try:
     # Try to import Rust pipeline components
-    from fraiseql.core import rust_pipeline
     from fraiseql.core.rust_pipeline import execute_via_rust_pipeline
+
+    from fraiseql.core import rust_pipeline
 
     RUST_AVAILABLE = True
 except ImportError:

@@ -20,7 +20,7 @@ def clear_registry():
 class TestAppFactoryBasics:
     """Tests for basic app factory functionality."""
 
-    def test_create_app_without_discovery(self):
+    def test_create_app_without_discovery(self) -> None:
         """Test creating app without auto-discovery (backward compatibility)."""
         app = create_axum_fraiseql_app(
             database_url="postgresql://user:pass@localhost/db",
@@ -31,7 +31,7 @@ class TestAppFactoryBasics:
         assert len(app.registered_types()) == 0
         assert len(app.registered_queries()) == 0
 
-    def test_create_app_with_explicit_types(self):
+    def test_create_app_with_explicit_types(self) -> None:
         """Test creating app with explicit types (backward compatibility)."""
 
         class User:
@@ -45,7 +45,7 @@ class TestAppFactoryBasics:
         assert len(app.registered_types()) == 1
         assert "User" in app.registered_types()
 
-    def test_create_app_registers_to_registry(self):
+    def test_create_app_registers_to_registry(self) -> None:
         """Test that explicit registration also registers to registry."""
 
         class User:
@@ -61,7 +61,7 @@ class TestAppFactoryBasics:
         assert "User" in types
         assert types["User"] is User
 
-    def test_create_app_with_custom_registry(self):
+    def test_create_app_with_custom_registry(self) -> None:
         """Test creating app with custom registry instance."""
         custom_registry = AxumRegistry()
         custom_registry.clear()
@@ -84,7 +84,7 @@ class TestAppFactoryBasics:
 class TestBackwardCompatibility:
     """Tests for backward compatibility with explicit lists."""
 
-    def test_explicit_types_still_work(self):
+    def test_explicit_types_still_work(self) -> None:
         """Test that explicit types parameter still works."""
 
         class User:
@@ -102,7 +102,7 @@ class TestBackwardCompatibility:
         assert "User" in app.registered_types()
         assert "Post" in app.registered_types()
 
-    def test_explicit_queries_still_work(self):
+    def test_explicit_queries_still_work(self) -> None:
         """Test that explicit queries parameter still works."""
 
         async def get_users():
@@ -120,7 +120,7 @@ class TestBackwardCompatibility:
         assert "get_users" in app.registered_queries()
         assert "get_posts" in app.registered_queries()
 
-    def test_explicit_mutations_still_work(self):
+    def test_explicit_mutations_still_work(self) -> None:
         """Test that explicit mutations parameter still works."""
 
         async def create_user():
@@ -138,7 +138,7 @@ class TestBackwardCompatibility:
         assert "create_user" in app.registered_mutations()
         assert "delete_user" in app.registered_mutations()
 
-    def test_explicit_subscriptions_still_work(self):
+    def test_explicit_subscriptions_still_work(self) -> None:
         """Test that explicit subscriptions parameter still works."""
 
         async def on_user_created():
@@ -156,7 +156,7 @@ class TestBackwardCompatibility:
         assert "on_user_created" in app.registered_subscriptions()
         assert "on_user_updated" in app.registered_subscriptions()
 
-    def test_multiple_explicit_categories(self):
+    def test_multiple_explicit_categories(self) -> None:
         """Test combining multiple explicit categories."""
 
         class User:
@@ -192,12 +192,12 @@ class TestBackwardCompatibility:
 class TestAppFactoryErrors:
     """Tests for error handling in app factory."""
 
-    def test_missing_database_url_raises_error(self):
+    def test_missing_database_url_raises_error(self) -> None:
         """Test that missing database_url raises ValueError."""
         with pytest.raises(ValueError, match="database_url is required"):
             create_axum_fraiseql_app()
 
-    def test_database_url_from_kwargs(self):
+    def test_database_url_from_kwargs(self) -> None:
         """Test that database_url can be passed via kwargs."""
         app = create_axum_fraiseql_app(
             database_url="postgresql://user:pass@localhost/db",
@@ -215,7 +215,7 @@ class TestRegistryIntegrationWithAppFactory:
     These tests verify the integration between these systems.
     """
 
-    def test_fraiseql_decorated_types_via_registry(self):
+    def test_fraiseql_decorated_types_via_registry(self) -> None:
         """Test that decorated types flow through registry to app."""
         # Create a module-like namespace with GraphQL items
         # In real usage, these would be in separate modules
@@ -251,7 +251,7 @@ class TestRegistryIntegrationWithAppFactory:
         assert "DiscoveredUser" in registry_types
         assert "DiscoveredPost" in registry_types
 
-    def test_fraiseql_decorated_queries_via_registry(self):
+    def test_fraiseql_decorated_queries_via_registry(self) -> None:
         """Test that decorated queries flow through registry to app."""
         async def discovered_get_users():
             pass
@@ -279,7 +279,7 @@ class TestRegistryIntegrationWithAppFactory:
         assert "discovered_get_users" in app.registered_queries()
         assert "discovered_get_posts" in app.registered_queries()
 
-    def test_full_schema_via_explicit_registration(self):
+    def test_full_schema_via_explicit_registration(self) -> None:
         """Test complete GraphQL schema with explicit registration."""
         # Types
         class User:
@@ -348,7 +348,7 @@ class TestRegistryIntegrationWithAppFactory:
         assert counts["mutations"] >= 1
         assert counts["subscriptions"] >= 1
 
-    def test_discovery_result_items_with_app_factory(self):
+    def test_discovery_result_items_with_app_factory(self) -> None:
         """Test that items found by discovery can be explicitly registered."""
         from fraiseql.axum.discovery import DiscoveryResult
 

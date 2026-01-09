@@ -40,7 +40,7 @@ async def set_session_variables(cursor_or_conn: Any, context: dict[str, Any]) ->
             - contact_id or user_id: Contact/user identifier (optional)
             - is_super_admin: Boolean flag for super admin (optional)
     """
-    from psycopg.sql import Literal, SQL
+    from psycopg.sql import SQL, Literal
 
     # Check if this is a cursor (psycopg) or connection (asyncpg)
     is_cursor = hasattr(cursor_or_conn, "execute") and hasattr(cursor_or_conn, "fetchone")

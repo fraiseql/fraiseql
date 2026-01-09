@@ -3,9 +3,9 @@
 Measures the performance impact of using Rust-exported schemas vs Python generation.
 """
 
-import pytest
 import time
-from typing import Any
+
+import pytest
 
 try:
     from fraiseql import fraiseql_rs
@@ -13,7 +13,7 @@ except ImportError:
     fraiseql_rs = None
 
 
-def skip_if_no_rust():
+def skip_if_no_rust() -> None:
     """Skip test if fraiseql_rs is not available."""
     if fraiseql_rs is None:
         pytest.skip("fraiseql_rs not available")
@@ -22,7 +22,7 @@ def skip_if_no_rust():
 class TestPhaseAPerformance:
     """Performance benchmarks for Phase A schema optimization."""
 
-    def test_schema_loader_cached_access_performance(self, benchmark):
+    def test_schema_loader_cached_access_performance(self, benchmark) -> None:
         """Benchmark cached schema_loader access performance."""
         skip_if_no_rust()
         from fraiseql.gql.schema_loader import load_schema
@@ -39,7 +39,7 @@ class TestPhaseAPerformance:
         assert isinstance(result, dict)
         print(f"\nCached schema loader access: {result}")
 
-    def test_rust_schema_export_performance(self, benchmark):
+    def test_rust_schema_export_performance(self, benchmark) -> None:
         """Benchmark Rust schema export FFI call."""
         skip_if_no_rust()
 
@@ -50,25 +50,25 @@ class TestPhaseAPerformance:
         assert isinstance(result, str)
         print(f"\nRust schema export: {result[:50]}...")
 
-    def test_schema_loader_caching_benefit(self):
+    def test_schema_loader_caching_benefit(self) -> None:
         """Verify caching provides benefit."""
         skip_if_no_rust()
-        from fraiseql.gql.schema_loader import load_schema, _get_cached_schema
+        from fraiseql.gql.schema_loader import load_schema
 
         # First load
         start = time.perf_counter()
-        schema1 = load_schema()
+        load_schema()
         first_load_time = time.perf_counter() - start
 
         # Subsequent loads (cached)
         times = []
         for _ in range(10):
             start = time.perf_counter()
-            schema = load_schema()
+            load_schema()
             times.append(time.perf_counter() - start)
 
         cached_avg = sum(times) / len(times)
-        cache_speedup = first_load_time / cached_avg if cached_avg > 0 else float('inf')
+        cache_speedup = first_load_time / cached_avg if cached_avg > 0 else float("inf")
 
         print(f"\nFirst load: {first_load_time:.6f}s")
         print(f"Cached avg (10 iterations): {cached_avg:.6f}s")
@@ -82,11 +82,12 @@ class TestPhaseAPerformance:
 class TestPhaseAMemoryUsage:
     """Test memory characteristics of Phase A."""
 
-    def test_schema_loader_memory_efficiency(self):
+    def test_schema_loader_memory_efficiency(self) -> None:
         """Verify schema loader uses reasonable memory."""
         skip_if_no_rust()
-        from fraiseql.gql.schema_loader import load_schema
         import sys
+
+        from fraiseql.gql.schema_loader import load_schema
 
         schema = load_schema()
 
@@ -100,11 +101,11 @@ class TestPhaseAMemoryUsage:
         # Schema should be reasonable size (< 1 MB)
         assert size_bytes < 1_000_000, f"Schema too large: {size_mb:.2f} MB"
 
-    def test_multiple_schema_loads_use_same_object(self):
+    def test_multiple_schema_loads_use_same_object(self) -> None:
         """Verify caching prevents duplicate objects."""
         skip_if_no_rust()
+
         from fraiseql.gql.schema_loader import load_schema
-        import sys
 
         schemas = [load_schema() for _ in range(5)]
 
@@ -120,7 +121,7 @@ class TestPhaseAMemoryUsage:
 class TestPhaseAIntegrationPerformance:
     """Test performance of integrated schema_loader in generators."""
 
-    def test_where_generator_with_schema_loader(self):
+    def test_where_generator_with_schema_loader(self) -> None:
         """Test WHERE generator can access schema efficiently."""
         skip_if_no_rust()
         from fraiseql.sql.graphql_where_generator import get_filter_schema_from_loader
@@ -134,7 +135,7 @@ class TestPhaseAIntegrationPerformance:
         assert schema is not None
         assert "fields" in schema
 
-    def test_order_by_generator_with_schema_loader(self):
+    def test_order_by_generator_with_schema_loader(self) -> None:
         """Test OrderBy generator can access schema efficiently."""
         skip_if_no_rust()
         from fraiseql.sql.graphql_order_by_generator import get_order_by_schema_from_loader

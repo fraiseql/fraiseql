@@ -1,5 +1,4 @@
-"""
-Tests for the unified FFI binding `process_graphql_request()`.
+"""Tests for the unified FFI binding `process_graphql_request()`.
 
 Phase 3a Implementation Tests:
 - Validates that process_graphql_request() accepts GraphQL requests as JSON
@@ -9,14 +8,16 @@ Phase 3a Implementation Tests:
 """
 
 import json
+
 import pytest
+
 from fraiseql import fraiseql_rs
 
 
 class TestProcessGraphQLRequest:
     """Test suite for unified FFI GraphQL request processing."""
 
-    def test_simple_graphql_query_parsed_correctly(self):
+    def test_simple_graphql_query_parsed_correctly(self) -> None:
         """Verify that process_graphql_request() parses GraphQL queries."""
         request = {
             "query": "{ users { id name } }",
@@ -37,7 +38,7 @@ class TestProcessGraphQLRequest:
             # If schema not initialized, that's expected for this test
             assert "not initialized" in str(e) or "GraphQL execution failed" in str(e)
 
-    def test_request_without_query_field_raises_error(self):
+    def test_request_without_query_field_raises_error(self) -> None:
         """Verify that missing 'query' field raises proper error."""
         request = {
             "variables": {},
@@ -51,7 +52,7 @@ class TestProcessGraphQLRequest:
 
         assert "Missing 'query' field" in str(exc_info.value)
 
-    def test_invalid_json_request_raises_error(self):
+    def test_invalid_json_request_raises_error(self) -> None:
         """Verify that invalid JSON raises proper error."""
         invalid_json = "{ this is not valid json }"
 
@@ -63,7 +64,7 @@ class TestProcessGraphQLRequest:
 
         assert "Invalid GraphQL request JSON" in str(exc_info.value)
 
-    def test_request_with_variables_parsed_correctly(self):
+    def test_request_with_variables_parsed_correctly(self) -> None:
         """Verify that variables are extracted from request."""
         request = {
             "query": "query GetUser($id: ID!) { user(id: $id) { name } }",
@@ -85,7 +86,7 @@ class TestProcessGraphQLRequest:
             # Schema not initialized is expected
             assert "not initialized" in str(e) or "GraphQL execution failed" in str(e)
 
-    def test_context_json_optional_parameter(self):
+    def test_context_json_optional_parameter(self) -> None:
         """Verify that context_json parameter is optional."""
         request = {
             "query": "{ users { id } }",
@@ -102,7 +103,7 @@ class TestProcessGraphQLRequest:
             # Schema not initialized is expected
             assert "not initialized" in str(e)
 
-    def test_response_is_valid_json_string(self):
+    def test_response_is_valid_json_string(self) -> None:
         """Verify that response is returned as valid JSON string."""
         request = {
             "query": "{ __typename }",
@@ -121,7 +122,7 @@ class TestProcessGraphQLRequest:
             # Schema not initialized is expected
             assert "not initialized" in str(e)
 
-    def test_pipeline_not_initialized_error(self):
+    def test_pipeline_not_initialized_error(self) -> None:
         """Verify error when pipeline is not initialized."""
         request = {
             "query": "{ users { id } }",
@@ -137,7 +138,7 @@ class TestProcessGraphQLRequest:
         error_msg = str(exc_info.value)
         assert "not initialized" in error_msg or "GraphQL execution failed" in error_msg
 
-    def test_complex_nested_query_structure(self):
+    def test_complex_nested_query_structure(self) -> None:
         """Test with complex nested GraphQL query."""
         request = {
             "query": """
@@ -172,12 +173,12 @@ class TestProcessGraphQLRequest:
 class TestFFIBoundaryBehavior:
     """Test FFI boundary behavior - verify no GIL contention."""
 
-    def test_function_exists_and_callable(self):
+    def test_function_exists_and_callable(self) -> None:
         """Verify process_graphql_request exists in fraiseql_rs module."""
         assert hasattr(fraiseql_rs, "process_graphql_request")
         assert callable(fraiseql_rs.process_graphql_request)
 
-    def test_accepts_string_parameters(self):
+    def test_accepts_string_parameters(self) -> None:
         """Verify function accepts string parameters correctly."""
         request = {
             "query": "{ test }",
@@ -194,7 +195,7 @@ class TestFFIBoundaryBehavior:
         error_msg = str(exc_info.value)
         assert "TypeError" not in error_msg  # Should not be type error
 
-    def test_returns_string_response(self):
+    def test_returns_string_response(self) -> None:
         """Verify function returns string (not bytes or other type)."""
         request = {
             "query": "{ __typename }",
@@ -207,11 +208,11 @@ class TestFFIBoundaryBehavior:
             )
             # Should return string, not bytes
             assert isinstance(result, str)
-        except Exception as e:
+        except Exception:
             # If error, should still be Exception not type mismatch
             pass
 
-    def test_utf8_encoding_handling(self):
+    def test_utf8_encoding_handling(self) -> None:
         """Test UTF-8 encoding in responses."""
         request = {
             "query": "{ users { name } }",
@@ -227,7 +228,7 @@ class TestFFIBoundaryBehavior:
             assert isinstance(response_json, str)
             # Should be parseable as JSON
             json.loads(response_json)
-        except Exception as e:
+        except Exception:
             # Schema not initialized is expected
             pass
 

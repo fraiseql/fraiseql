@@ -21,7 +21,7 @@ def clear_registry():
 class TestDiscoveryResult:
     """Tests for DiscoveryResult dataclass."""
 
-    def test_discovery_result_init(self):
+    def test_discovery_result_init(self) -> None:
         """Test DiscoveryResult initialization."""
         result = DiscoveryResult(source="test.module")
 
@@ -31,7 +31,7 @@ class TestDiscoveryResult:
         assert result.queries_found == []
         assert result.errors == []
 
-    def test_count_total(self):
+    def test_count_total(self) -> None:
         """Test count_total method."""
         result = DiscoveryResult(source="test")
 
@@ -46,7 +46,7 @@ class TestDiscoveryResult:
 
         assert result.count_total() == 2
 
-    def test_summary_empty(self):
+    def test_summary_empty(self) -> None:
         """Test summary with no items."""
         result = DiscoveryResult(source="test.empty")
 
@@ -54,7 +54,7 @@ class TestDiscoveryResult:
         assert "Discovery Result for test.empty:" in summary
         assert "(no items found)" in summary
 
-    def test_summary_with_items(self):
+    def test_summary_with_items(self) -> None:
         """Test summary with items."""
         result = DiscoveryResult(source="test.types")
 
@@ -71,7 +71,7 @@ class TestDiscoveryResult:
         assert "User" in summary
         assert "Post" in summary
 
-    def test_summary_with_errors(self):
+    def test_summary_with_errors(self) -> None:
         """Test summary with errors."""
         result = DiscoveryResult(source="test.error")
 
@@ -82,7 +82,7 @@ class TestDiscoveryResult:
         assert "Errors: 1" in summary
         assert "ImportError" in summary
 
-    def test_register_to_registry(self):
+    def test_register_to_registry(self) -> None:
         """Test registering items to registry."""
         result = DiscoveryResult(source="test.registry")
 
@@ -105,7 +105,7 @@ class TestDiscoveryResult:
 class TestDiscoverFromModule:
     """Tests for discover_from_module function."""
 
-    def test_discover_nonexistent_module(self):
+    def test_discover_nonexistent_module(self) -> None:
         """Test discovering from non-existent module."""
         result = discover_from_module("nonexistent.module.that.does.not.exist")
 
@@ -113,7 +113,7 @@ class TestDiscoverFromModule:
         assert isinstance(result.errors[0], ImportError)
         assert result.count_total() == 0
 
-    def test_discover_empty_module(self):
+    def test_discover_empty_module(self) -> None:
         """Test discovering from module with no GraphQL items."""
         # Use a real empty module
         result = discover_from_module("json")  # Standard library with no FraiseQL items
@@ -122,7 +122,7 @@ class TestDiscoverFromModule:
         assert result.count_total() == 0
         assert len(result.errors) == 0
 
-    def test_discover_result_has_source(self):
+    def test_discover_result_has_source(self) -> None:
         """Test that DiscoveryResult has correct source."""
         result = discover_from_module("json")
 
@@ -132,14 +132,14 @@ class TestDiscoverFromModule:
 class TestDiscoverFromPackage:
     """Tests for discover_from_package function."""
 
-    def test_discover_nonexistent_package(self):
+    def test_discover_nonexistent_package(self) -> None:
         """Test discovering from non-existent package."""
         result = discover_from_package("nonexistent.package.xyz")
 
         assert len(result.errors) > 0
         assert result.count_total() == 0
 
-    def test_discover_package_result_has_source(self):
+    def test_discover_package_result_has_source(self) -> None:
         """Test that DiscoveryResult has correct source for package."""
         result = discover_from_package("fraiseql.axum")
 
@@ -150,7 +150,7 @@ class TestDiscoverFromPackage:
 class TestDiscoveryIntegration:
     """Integration tests for discovery with registry."""
 
-    def test_discovery_auto_registers(self):
+    def test_discovery_auto_registers(self) -> None:
         """Test that discovery result can register to registry."""
         result = DiscoveryResult(source="test.types")
 
@@ -177,7 +177,7 @@ class TestDiscoveryIntegration:
         assert registry.count_registered()["types"] == 2
         assert registry.count_registered()["queries"] == 1
 
-    def test_discovery_with_all_item_types(self):
+    def test_discovery_with_all_item_types(self) -> None:
         """Test discovery and registration of all item types."""
         result = DiscoveryResult(source="test.all")
 
@@ -228,14 +228,14 @@ class TestDiscoveryIntegration:
 class TestDiscoveryEdgeCases:
     """Tests for edge cases in discovery."""
 
-    def test_discovery_empty_source(self):
+    def test_discovery_empty_source(self) -> None:
         """Test DiscoveryResult with empty source."""
         result = DiscoveryResult(source="")
 
         assert result.source == ""
         assert result.count_total() == 0
 
-    def test_discovery_result_with_duplicates(self):
+    def test_discovery_result_with_duplicates(self) -> None:
         """Test DiscoveryResult with duplicate items."""
         result = DiscoveryResult(source="test.dupes")
 
@@ -249,7 +249,7 @@ class TestDiscoveryEdgeCases:
         # Should count both (duplicates not deduplicated at discovery level)
         assert result.count_total() == 2
 
-    def test_discovery_summary_long_lists(self):
+    def test_discovery_summary_long_lists(self) -> None:
         """Test summary formatting with many items."""
         result = DiscoveryResult(source="test.many")
 
@@ -266,7 +266,7 @@ class TestDiscoveryEdgeCases:
         assert "Types: 5" in summary
         assert "Type0" in summary
 
-    def test_discovery_result_mixed_errors_and_items(self):
+    def test_discovery_result_mixed_errors_and_items(self) -> None:
         """Test DiscoveryResult with both items and errors."""
         result = DiscoveryResult(source="test.mixed")
 

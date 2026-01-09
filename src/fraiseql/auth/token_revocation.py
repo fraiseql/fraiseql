@@ -20,8 +20,6 @@ if TYPE_CHECKING:
     from psycopg_pool import AsyncConnectionPool
 
 try:
-    from psycopg_pool import AsyncConnectionPool
-
     PSYCOPG_AVAILABLE = True
 except ImportError:
     PSYCOPG_AVAILABLE = False
