@@ -10,6 +10,7 @@ use std::sync::Arc;
 use crate::cache::{CachedQueryPlan, QueryPlanCache};
 use crate::db::pool::DatabasePool;
 use crate::graphql::{
+    advanced_selections::AdvancedSelectionProcessor,
     complexity::{ComplexityAnalyzer, ComplexityConfig},
     fragments::FragmentGraph,
     types::ParsedQuery,
@@ -98,17 +99,21 @@ impl GraphQLPipeline {
     async fn execute_query_async(
         &self,
         parsed_query: &ParsedQuery,
-        _variables: &HashMap<String, JsonValue>,
+        variables: &HashMap<String, JsonValue>,
     ) -> Result<Vec<u8>> {
+        // Phase 5: Process advanced selections (resolve fragments, evaluate directives)
+        let processed_query = Self::process_advanced_selections(parsed_query, variables)?;
+
         // Phase 7 + 8: Build SQL (with caching)
-        let signature = crate::cache::signature::generate_signature(parsed_query);
+        // Use processed query signature (includes fragment and directive processing)
+        let signature = crate::cache::signature::generate_signature(&processed_query);
         let sql = if let Ok(Some(cached_plan)) = self.cache.get(&signature) {
             // Cache hit - use cached SQL
             cached_plan.sql_template
         } else {
-            // Cache miss - build SQL
+            // Cache miss - build SQL from processed query
             let composer = SQLComposer::new(self.schema.clone());
-            let sql_query = composer.compose(parsed_query)?;
+            let sql_query = composer.compose(&processed_query)?;
 
             // Store in cache asynchronously (spawn background task)
             let cache_clone = Arc::clone(&self.cache);
@@ -136,8 +141,8 @@ impl GraphQLPipeline {
         // Phase 1 + 2 + 3: Database execution (async)
         let db_results = self.execute_database_query_async(&sql).await?;
 
-        // Phase 3 + 4: Transform to GraphQL response
-        let response = Self::build_graphql_response(parsed_query, db_results)?;
+        // Phase 3 + 4: Transform to GraphQL response (using processed query with finalized selections)
+        let response = Self::build_graphql_response(&processed_query, db_results)?;
 
         // Return JSON bytes
         Ok(serde_json::to_vec(&response)?)
@@ -150,18 +155,21 @@ impl GraphQLPipeline {
     async fn execute_mutation_async(
         &self,
         parsed_query: &ParsedQuery,
-        _variables: &HashMap<String, JsonValue>,
+        variables: &HashMap<String, JsonValue>,
         user_context: &UserContext,
     ) -> Result<Vec<u8>> {
+        // Phase 5: Process advanced selections (resolve fragments, evaluate directives)
+        let processed_query = Self::process_advanced_selections(parsed_query, variables)?;
+
         // Phase 7: Build mutation SQL (no caching for mutations)
         let composer = SQLComposer::new(self.schema.clone());
-        let sql_query = composer.compose(parsed_query)?;
+        let sql_query = composer.compose(&processed_query)?;
 
         // Log mutation for audit trail
         eprintln!(
             "[MUTATION] User: {:?}, Operation: {}, Timestamp: {:?}",
             user_context.user_id,
-            parsed_query.root_field,
+            processed_query.root_field,
             std::time::SystemTime::now()
         );
 
@@ -169,8 +177,8 @@ impl GraphQLPipeline {
         // Mutations should typically run in a transaction for atomicity
         let db_results = self.execute_database_query_async(&sql_query.sql).await?;
 
-        // Phase 3 + 4: Transform to GraphQL response
-        let response = Self::build_graphql_response(parsed_query, db_results)?;
+        // Phase 3 + 4: Transform to GraphQL response (using processed query with finalized selections)
+        let response = Self::build_graphql_response(&processed_query, db_results)?;
 
         // Return JSON bytes
         Ok(serde_json::to_vec(&response)?)
@@ -202,15 +210,19 @@ impl GraphQLPipeline {
         // Phase 13: Advanced GraphQL Features Validation
         Self::validate_advanced_graphql_features(&parsed_query, variables)?;
 
+        // Phase 5: Process advanced selections (resolve fragments, evaluate directives)
+        let processed_query = Self::process_advanced_selections(&parsed_query, variables)?;
+
         // Phase 7 + 8: Build SQL (with caching)
-        let signature = crate::cache::signature::generate_signature(&parsed_query);
+        // Use processed query signature (includes fragment and directive processing)
+        let signature = crate::cache::signature::generate_signature(&processed_query);
         let sql = if let Ok(Some(cached_plan)) = self.cache.get(&signature) {
             // Cache hit - use cached SQL
             cached_plan.sql_template
         } else {
-            // Cache miss - build SQL
+            // Cache miss - build SQL from processed query
             let composer = SQLComposer::new(self.schema.clone());
-            let sql_query = composer.compose(&parsed_query)?;
+            let sql_query = composer.compose(&processed_query)?;
 
             // Store in cache
             let cached_plan = CachedQueryPlan {
@@ -234,8 +246,8 @@ impl GraphQLPipeline {
         // Phase 1 + 2 + 3: Database execution (real production database)
         let db_results = self.execute_database_query(&sql)?;
 
-        // Phase 3 + 4: Transform to GraphQL response
-        let response = Self::build_graphql_response(&parsed_query, db_results)?;
+        // Phase 3 + 4: Transform to GraphQL response (using processed query with finalized selections)
+        let response = Self::build_graphql_response(&processed_query, db_results)?;
 
         // Return JSON bytes
         Ok(serde_json::to_vec(&response)?)
@@ -273,6 +285,40 @@ impl GraphQLPipeline {
             .map_err(|e| anyhow::anyhow!("Complexity validation error: {e}"))?;
 
         Ok(())
+    }
+
+    /// Process advanced GraphQL selections (Phase 5).
+    ///
+    /// This processes fragments and directives:
+    /// 1. Resolves fragment spreads to actual field selections
+    /// 2. Evaluates @skip and @include directives
+    /// 3. Finalizes and deduplicates selection sets
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Fragment resolution fails
+    /// - Directive evaluation fails
+    /// - Selection processing fails
+    fn process_advanced_selections(
+        query: &ParsedQuery,
+        variables: &HashMap<String, JsonValue>,
+    ) -> Result<ParsedQuery> {
+        // Convert JsonValue variables to serde_json::Value for AdvancedSelectionProcessor
+        let var_map: HashMap<String, serde_json::Value> = variables
+            .iter()
+            .map(|(k, v)| (k.clone(), serde_json::to_value(v).unwrap_or(serde_json::Value::Null)))
+            .collect();
+
+        // Process advanced selections (fragments + directives)
+        let processed = AdvancedSelectionProcessor::process(query, &var_map)
+            .map_err(|e| anyhow::anyhow!("Advanced selection processing error: {e}"))?;
+
+        // Convert ProcessedQuery back to ParsedQuery with processed selections
+        let mut result = query.clone();
+        result.selections = processed.selections;
+
+        Ok(result)
     }
 
     /// Phase 14: RBAC Authorization Check
@@ -510,13 +556,17 @@ impl GraphQLPipeline {
             ));
         }
 
+        // Phase 5: Process advanced selections (resolve fragments, evaluate directives)
+        let processed_query = Self::process_advanced_selections(&parsed_query, variables)?;
+
         // Phase 7 + 8: Build SQL (with caching)
-        let signature = crate::cache::signature::generate_signature(&parsed_query);
+        // Use processed query signature (includes fragment and directive processing)
+        let signature = crate::cache::signature::generate_signature(&processed_query);
         let sql = if let Ok(Some(cached_plan)) = self.cache.get(&signature) {
             cached_plan.sql_template
         } else {
             let composer = SQLComposer::new(self.schema.clone());
-            let sql_query = composer.compose(&parsed_query)?;
+            let sql_query = composer.compose(&processed_query)?;
 
             // Store in cache asynchronously
             let cache_clone = Arc::clone(&self.cache);
