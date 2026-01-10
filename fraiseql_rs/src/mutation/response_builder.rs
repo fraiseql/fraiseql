@@ -4,7 +4,7 @@
 
 #![allow(clippy::excessive_nesting)] // TODO Phase 4.1: Refactor nested blocks
 
-use super::{MutationResult, MutationStatus};
+use super::{filter_entity_fields, MutationResult, MutationStatus};
 use crate::camel_case::to_camel_case;
 use serde_json::{json, Map, Value};
 
@@ -24,6 +24,7 @@ pub fn build_graphql_response(
     success_type_fields: Option<&Vec<String>>,
     error_type_fields: Option<&Vec<String>>,
     cascade_selections: Option<&str>,
+    entity_selections: Option<&str>,
 ) -> Result<Value, String> {
     // Success status returns Success type, all others return Error type
     let response_obj = if result.status.is_success() {
@@ -34,6 +35,7 @@ pub fn build_graphql_response(
             auto_camel_case,
             success_type_fields,
             cascade_selections,
+            entity_selections,
         )?
     } else {
         // NEW: Error response includes REST-like code
@@ -44,6 +46,7 @@ pub fn build_graphql_response(
             auto_camel_case,
             error_type_fields, // Use error type field selection
             cascade_selections,
+            entity_selections, // Also support entity filtering in error responses
         )?
     };
 
@@ -89,6 +92,8 @@ fn add_cascade_if_selected(
 /// - Wrapper fields promoted to success level
 /// - __typename added to response and entity
 /// - camelCase applied if requested
+/// - Entity fields filtered based on GraphQL selections (GitHub issue #525)
+#[allow(clippy::too_many_arguments)]
 pub fn build_success_response(
     result: &MutationResult,
     success_type: &str,
@@ -96,6 +101,7 @@ pub fn build_success_response(
     auto_camel_case: bool,
     success_type_fields: Option<&Vec<String>>,
     cascade_selections: Option<&str>,
+    entity_selections: Option<&str>,
 ) -> Result<Value, String> {
     let mut obj = Map::new();
 
@@ -190,7 +196,18 @@ pub fn build_success_response(
                 entity
             };
 
-            let transformed = transform_entity(actual_entity, entity_type, auto_camel_case);
+            let mut transformed = transform_entity(actual_entity, entity_type, auto_camel_case);
+
+            // Apply entity field filtering if selections provided (GitHub issue #525)
+            if let Some(selections_json) = entity_selections {
+                // Parse selections JSON
+                if let Ok(selections) = serde_json::from_str::<Value>(selections_json) {
+                    // Filter entity fields based on GraphQL query
+                    transformed = filter_entity_fields(&transformed, &selections);
+                }
+                // If parsing fails, silently skip filtering (backward compat)
+            }
+
             obj.insert(field_name, transformed);
 
             // If entity was a wrapper, copy other fields from it (like "message")
@@ -293,6 +310,7 @@ pub fn build_error_response_with_code(
     auto_camel_case: bool,
     error_type_fields: Option<&Vec<String>>,
     cascade_selections: Option<&str>,
+    entity_selections: Option<&str>,
 ) -> Result<Value, String> {
     // DEBUG: Log function call and parameters
     eprintln!("\n╔══════════════════════════════════════════════════════════════╗");
@@ -378,7 +396,28 @@ pub fn build_error_response_with_code(
                 };
                 // Only add if not already present AND field is selected
                 if !obj.contains_key(&field_key) && is_selected(&field_key) {
-                    obj.insert(field_key, transform_value(value, auto_camel_case));
+                    let mut transformed_value = transform_value(value, auto_camel_case);
+
+                    // Apply entity field filtering if selections provided (GitHub issue #525)
+                    // Check if this field might be an entity object (has selections defined)
+                    if let Some(selections_json) = entity_selections {
+                        if let Ok(selections_obj) = serde_json::from_str::<Value>(selections_json) {
+                            // Check if there are selections for this specific field
+                            if let Some(selections) = selections_obj.as_object() {
+                                if selections.contains_key(key) {
+                                    // This field has specific selections - apply filtering
+                                    if let Some(field_selections) = selections.get(key) {
+                                        transformed_value = filter_entity_fields(
+                                            &transformed_value,
+                                            field_selections,
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    obj.insert(field_key, transformed_value);
                 }
             }
         }

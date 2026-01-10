@@ -41,6 +41,7 @@ async def execute_mutation_rust(
     success_type_class: Type | None = None,
     success_type_fields: list[str] | None = None,
     error_type_fields: list[str] | None = None,
+    entity_selections: str | None = None,
 ) -> RustResponseBytes:
     """Execute mutation via Rust-first pipeline.
 
@@ -63,6 +64,8 @@ async def execute_mutation_rust(
             If provided, will flatten entity JSONB fields to match Success type schema.
         success_type_fields: List of field names expected in Success type for validation.
         error_type_fields: List of field names expected in Error type for field selection.
+        entity_selections: Optional entity field selections JSON (GitHub issue #525).
+            Specifies which fields to include in nested entity objects.
 
     Returns:
         RustResponseBytes ready for HTTP response
@@ -131,6 +134,7 @@ async def execute_mutation_rust(
             auto_camel_case,  # Pass config flag
             success_type_fields,  # Success type field list
             error_type_fields,  # Error type field list
+            None,  # entity_selections (not needed for error case)
         )
         return RustResponseBytes(response_bytes)
 
@@ -212,6 +216,7 @@ async def execute_mutation_rust(
         auto_camel_case,  # Pass config flag
         success_type_fields,  # Pass field list for schema validation
         error_type_fields,  # Pass error type field list for auto-injection
+        entity_selections,  # Pass entity field selections (GitHub issue #525)
     )
 
     # Validate Rust response structure

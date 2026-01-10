@@ -8,6 +8,7 @@ use serde_json::{json, Value};
 
 // Test modules - organized by pipeline stage
 mod classification; // Stage 2: Status taxonomy
+mod entity_field_filtering; // Entity field filtering (GitHub issue #525)
 mod integration; // Stage 4: End-to-end
 mod parsing; // Stage 1: JSON → MutationResult
 mod properties; // Property-based tests

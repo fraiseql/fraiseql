@@ -2,6 +2,7 @@
 //!
 //! Transforms PostgreSQL mutation_response JSON into GraphQL responses.
 
+mod entity_filter;
 mod entity_processor;
 mod parser;
 mod postgres_composite;
@@ -9,6 +10,7 @@ mod response_builder;
 mod types;
 
 pub use crate::cascade::{filter_cascade_by_selections, CascadeSelections};
+pub use entity_filter::filter_entity_fields;
 pub use entity_processor::{
     add_typename_to_entity, process_cascade, process_entity, process_entity_with_typename,
     ProcessedEntity,
@@ -45,6 +47,7 @@ use serde_json::Value;
 /// * `auto_camel_case` - Whether to convert field names and JSON keys to camelCase
 /// * `success_type_fields` - Optional list of expected fields in success type for validation
 /// * `error_type_fields` - Optional list of expected fields in error type for field selection
+/// * `entity_selections` - Optional JSON string of entity field selections (GitHub issue #525)
 #[allow(clippy::too_many_arguments)]
 pub fn build_mutation_response(
     mutation_json: &str,
@@ -57,6 +60,7 @@ pub fn build_mutation_response(
     auto_camel_case: bool,
     success_type_fields: Option<Vec<String>>,
     error_type_fields: Option<Vec<String>>,
+    entity_selections: Option<&str>,
 ) -> Result<Vec<u8>, String> {
     // Step 1: Try parsing as PostgreSQL 8-field mutation_response FIRST
     let result = match postgres_composite::PostgresMutationResponse::from_json(mutation_json) {
@@ -84,6 +88,7 @@ pub fn build_mutation_response(
         success_type_fields.as_ref(),
         error_type_fields.as_ref(),
         cascade_selections,
+        entity_selections,
     )?;
 
     // Step 3: Serialize to bytes
@@ -108,6 +113,7 @@ mod integration_tests {
             true,
             None,
             None,
+            None, // entity_selections
         )
         .unwrap();
 
@@ -140,6 +146,7 @@ mod integration_tests {
             true,
             None,
             None,
+            None, // entity_selections
         )
         .unwrap();
 
