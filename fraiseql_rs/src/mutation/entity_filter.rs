@@ -91,10 +91,21 @@ pub fn filter_entity_fields(entity: &Value, selections: &Value) -> Value {
     // Build filtered object with only selected fields
     let mut filtered = Map::new();
 
+    // ALWAYS preserve __typename (GraphQL introspection field)
+    // __typename should be available even when not explicitly requested
+    if let Some(typename_val) = entity_map.get("__typename") {
+        filtered.insert("__typename".to_string(), typename_val.clone());
+    }
+
     for field_value in fields {
         let Some(field_name) = field_value.as_str() else {
             continue; // Skip non-string field names
         };
+
+        // Skip __typename since we already added it above
+        if field_name == "__typename" {
+            continue;
+        }
 
         // Get field value from entity
         let Some(field_val) = entity_map.get(field_name) else {
@@ -235,5 +246,64 @@ mod tests {
         assert_eq!(result["a"]["b"]["c"], "value");
         assert!(result["a"].get("id").is_none());
         assert!(result["a"]["b"].get("id").is_none());
+    }
+
+    #[test]
+    fn test_typename_always_preserved() {
+        // __typename should be preserved even when not in selection
+        let entity = json!({
+            "__typename": "User",
+            "id": "123",
+            "name": "John",
+            "email": "john@example.com",
+        });
+
+        let selections = json!({
+            "fields": ["id", "name"]
+        });
+
+        let result = filter_entity_fields(&entity, &selections);
+
+        // __typename should be present
+        assert_eq!(result["__typename"], "User");
+        // Selected fields should be present
+        assert_eq!(result["id"], "123");
+        assert_eq!(result["name"], "John");
+        // Unselected field should be filtered out
+        assert!(result.get("email").is_none());
+    }
+
+    #[test]
+    fn test_typename_preserved_in_nested_objects() {
+        let entity = json!({
+            "__typename": "User",
+            "id": "123",
+            "address": {
+                "__typename": "Address",
+                "id": "addr-1",
+                "city": "Paris",
+                "country": "France",
+            }
+        });
+
+        let selections = json!({
+            "fields": ["id", "address"],
+            "address": {
+                "fields": ["id", "city"]
+            }
+        });
+
+        let result = filter_entity_fields(&entity, &selections);
+
+        // Top-level __typename preserved
+        assert_eq!(result["__typename"], "User");
+        assert_eq!(result["id"], "123");
+
+        // Nested __typename preserved
+        assert_eq!(result["address"]["__typename"], "Address");
+        assert_eq!(result["address"]["id"], "addr-1");
+        assert_eq!(result["address"]["city"], "Paris");
+        // Unselected nested field filtered out
+        assert!(result["address"].get("country").is_none());
     }
 }
