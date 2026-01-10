@@ -1,3 +1,14 @@
+---
+title: Multi-Tenancy
+description: Tenant isolation patterns with PostgreSQL RLS and data partitioning
+tags:
+  - multi-tenancy
+  - isolation
+  - RLS
+  - PostgreSQL
+  - security
+---
+
 # Multi-Tenancy
 
 Comprehensive guide to implementing multi-tenant architectures in FraiseQL with complete data isolation, tenant context propagation, and scalable database patterns.
@@ -8,8 +19,8 @@ Multi-tenancy allows a single application instance to serve multiple organizatio
 
 **Prerequisites**: Before implementing multi-tenancy, ensure you understand:
 - [CQRS Pattern](../core/concepts-glossary.md#cqrs-command-query-responsibility-segregation) - Foundation for tenant isolation
-- [Security Basics](../production/security/) - RLS and access control fundamentals
-- [Context Propagation](../advanced/where-input-types/) - Dynamic filtering patterns
+- [Security Basics](../production/security.md) - RLS and access control fundamentals
+- [Context Propagation](../advanced/where-input-types.md) - Dynamic filtering patterns
 
 **Key Strategies:**
 - Row-level security (RLS) with tenant_id filtering
@@ -118,22 +129,6 @@ FraiseQL automatically sets these based on your context:
 2. **Application**: Middleware sets tenant context
 3. **Database**: RLS policies enforce row-level filtering
 4. **Caching**: Tenant-scoped cache invalidation
-
-**[🔒 Isolation Details](../diagrams/multi-tenant-isolation/)** - Complete tenant security architecture
-
-## Table of Contents
-
-- [How RLS Works (Common Misconception)](#how-rls-works-common-misconception)
-- [Architecture Patterns](#architecture-patterns)
-- [Row-Level Security](#row-level-security)
-- [Tenant Context](#tenant-context)
-- [Database Pool Strategies](#database-pool-strategies)
-- [Tenant Resolution](#tenant-context)
-- [Cross-Tenant Queries](#cross-tenant-queries)
-- [Tenant-Aware Caching](#tenant-aware-caching)
-- [Data Export & Import](#data-export-import)
-- [Tenant Provisioning](#tenant-provisioning)
-- [Performance Optimization](#performance-optimization)
 
 ## Architecture Patterns
 
@@ -329,13 +324,13 @@ FraiseQL automatically adds tenant_id filters when context is set:
 
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type_
 class Order:
-    id: UUID
-    tenant_id: UUID  # Automatically filtered
-    user_id: UUID
+    id: ID
+    tenant_id: ID  # Automatically filtered
+    user_id: ID
     total: float
     status: str
 
@@ -353,7 +348,7 @@ async def get_orders(info: GraphQLResolveInfo) -> list[Order]:
         return [Order(**row) for row in await result.fetchall()]
 
 @fraiseql.query
-async def get_order(info: GraphQLResolveInfo, order_id: UUID) -> Order | None:
+async def get_order(info: GraphQLResolveInfo, order_id: ID) -> Order | None:
     """Get specific order - tenant isolation enforced."""
     tenant_id = info.context["tenant_id"]
 
@@ -994,7 +989,7 @@ large_tenant_pool = DatabasePool(
 
 ## Next Steps
 
-- [Authentication](authentication/) - Tenant-scoped authentication
-- [Bounded Contexts](bounded-contexts/) - Multi-tenant DDD patterns
-- [Performance](../performance/index/) - Query optimization per tenant
-- [Security](../production/security/) - Tenant isolation security
+- [Authentication](authentication.md) - Tenant-scoped authentication
+- [Bounded Contexts](bounded-contexts.md) - Multi-tenant DDD patterns
+- [Performance](../performance/index.md) - Query optimization per tenant
+- [Security](../production/security.md) - Tenant isolation security

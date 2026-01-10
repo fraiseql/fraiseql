@@ -304,6 +304,15 @@ def convert_type_to_graphql_input(
     if isinstance(typ, GraphQLScalarType):
         return typ
 
+    # Handle NewType types (like ID = NewType("ID", str))
+    # NewType creates a callable that has __supertype__ attribute
+    if hasattr(typ, "__supertype__"):
+        try:
+            return convert_scalar_to_graphql(typ)
+        except TypeError:
+            # Fall back to supertype
+            return convert_type_to_graphql_input(typ.__supertype__)
+
     # Handle scalar types using the existing scalar mapping utility
     if isinstance(typ, type):
         try:
@@ -430,6 +439,15 @@ def convert_type_to_graphql_output(
             f"Enum {typ.__name__} must be decorated with @fraise_enum to be used in GraphQL schema"
         )
         raise TypeError(msg)
+
+    # Handle NewType types (like ID = NewType("ID", str))
+    # NewType creates a callable that has __supertype__ attribute
+    if hasattr(typ, "__supertype__"):
+        try:
+            return convert_scalar_to_graphql(typ)
+        except TypeError:
+            # Fall back to supertype
+            return convert_type_to_graphql_output(typ.__supertype__)
 
     # Handle built-in scalar types with caching
     try:

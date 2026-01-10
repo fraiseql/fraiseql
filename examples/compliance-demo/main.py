@@ -19,6 +19,7 @@ from uuid import UUID
 
 from fraiseql import FraiseQL, create_fraiseql_app
 from fraiseql.security import SecurityProfile
+from fraiseql.types import ID
 
 # ============================================================================
 # CONFIGURATION
@@ -37,7 +38,7 @@ fraiseql = FraiseQL()
 class Document:
     """Document with integrity checksum."""
 
-    id: UUID
+    id: ID
     title: str
     content: str
     classification: str  # public, confidential, secret
@@ -52,7 +53,7 @@ class Document:
 class DocumentWithAudit:
     """Document with audit statistics."""
 
-    id: UUID
+    id: ID
     title: str
     content: str
     classification: str
@@ -69,11 +70,11 @@ class DocumentWithAudit:
 class AuditEntry:
     """Cryptographic audit trail entry."""
 
-    id: UUID
+    id: ID
     sequence_number: int
     event_type: str
     resource_type: str
-    resource_id: UUID
+    resource_id: ID
     actor: str
     action_details: dict
     ip_address: str | None
@@ -90,11 +91,11 @@ class AuditEntry:
 class AuditEntryWithValidation:
     """Audit entry with chain validation."""
 
-    id: UUID
+    id: ID
     sequence_number: int
     event_type: str
     resource_type: str
-    resource_id: UUID
+    resource_id: ID
     actor: str
     action_details: dict
     timestamp: datetime
@@ -108,7 +109,7 @@ class AuditEntryWithValidation:
 class SLSAProvenance:
     """SLSA provenance attestation."""
 
-    id: UUID
+    id: ID
     artifact_name: str
     artifact_version: str
     artifact_digest: str
@@ -125,7 +126,7 @@ class SLSAProvenance:
 class KMSKey:
     """KMS key metadata."""
 
-    id: UUID
+    id: ID
     key_id: str
     key_provider: str  # aws-kms, gcp-kms, hashicorp-vault
     key_purpose: str  # audit-signing, data-encryption, document-signing
@@ -159,7 +160,7 @@ class Query:
         return await db.find("v_document", where=where, limit=limit)
 
     @fraiseql.field
-    async def document(self, info, id: UUID) -> DocumentWithAudit | None:
+    async def document(self, info, id: ID) -> DocumentWithAudit | None:
         """Get single document with audit statistics."""
         db = fraiseql.get_db(info.context)
         return await db.find_one("tv_document", where={"id": id})
@@ -169,7 +170,7 @@ class Query:
         self,
         info,
         resource_type: str | None = None,
-        resource_id: UUID | None = None,
+        resource_id: ID | None = None,
         limit: int = 100,
     ) -> list[AuditEntry]:
         """List audit trail entries.

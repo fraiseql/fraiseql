@@ -180,8 +180,8 @@ query GetPostsWithTypedAuthor {
 1. **Reusable Fragments**: Define fragments for commonly used field sets
 2. **Type Safety**: Ensure fragment types match the GraphQL schema
 3. **Performance**: Fragments don't add query overhead in FraiseQL
-4. **Avoid Cycles**: Don't create circular fragment references (see [fragment cycles guide](fragment-cycles/))
+4. **Avoid Cycles**: Don't create circular fragment references (see [fragment cycles guide](fragment-cycles.md))
 
 ## Error Handling
 
-Fragments in nested selections follow the same validation rules as root-level fragments. See the [fragment cycles guide](fragment-cycles/) for information about cycle detection and error handling.
+Fragments in nested selections follow the same validation rules as root-level fragments. See the [fragment cycles guide](fragment-cycles.md) for information about cycle detection and error handling.

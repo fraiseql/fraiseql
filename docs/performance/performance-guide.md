@@ -2,7 +2,6 @@
 
 🟡 **Production** - Performance expectations, methodology, and optimization guidance.
 
-**📍 Navigation**: [← Main README](../README/) • [Performance Docs →](./index/) • [Benchmarks →](../benchmarks/)
 
 ## Executive Summary
 
@@ -371,28 +370,10 @@ WHERE schemaname = 'public' AND tablename LIKE 'v_%';
 
 ---
 
-## Conclusion
-
-FraiseQL provides **excellent performance** for typical GraphQL applications with minimal configuration. The exclusive Rust pipeline delivers:
-
-- **2-4x faster** than traditional frameworks
-- **Sub-10ms responses** for optimized queries
-- **85-95% cache hit rates** in production
-- **Operational simplicity** with PostgreSQL → Rust → HTTP architecture
-
-**Performance matters most when**:
-- Building high-throughput APIs
-- Serving mobile/web applications
-- Optimizing for cost and operational complexity
-
-**Focus on developer productivity first** - FraiseQL's Rust pipeline performance advantages compound with good application design.
-
 ## Related Documentation
 
-- [Benchmarks](../benchmarks/) - Detailed performance benchmarks and methodology
-- [Rust Pipeline Architecture](../rust/rust-first-pipeline/) - Technical details of the performance optimizations
-- [APQ Caching Guide](./apq-optimization-guide/) - Automatic Persisted Queries optimization
-- [Caching Guide](./caching/) - Application-level caching strategies
+- [APQ Caching Guide](./apq-optimization-guide.md) - Automatic Persisted Queries optimization
+- [Caching Guide](./caching.md) - Application-level caching strategies
 
 ---
 

@@ -4,8 +4,35 @@ This directory contains architectural documentation for FraiseQL.
 
 ## Key Documents
 
-### Direct Path Implementation
-**[direct-path-implementation.md](./direct-path-implementation/)** - Complete documentation of the direct path pipeline that bypasses GraphQL resolvers for maximum performance.
+### Core Architecture
+
+**[Request Flow](./request-flow.md)** - Complete end-to-end request processing pipeline with performance characteristics
+- HTTP → FastAPI → GraphQL Parser → Rust Pipeline → PostgreSQL
+- Query vs Mutation execution paths
+- Caching layers and monitoring points
+- 25-60x performance improvement over traditional frameworks
+
+**[Trinity Pattern](./trinity-pattern.md)** - Three-identifier database design pattern
+- `pk_*` (INTEGER) - Fast internal joins
+- `id` (UUID) - Stable public API
+- `identifier` (TEXT) - Human-readable slugs
+- 7.7x faster joins with optimal storage
+
+**[Type System](./type-system.md)** - Type mapping between Python, GraphQL, and PostgreSQL
+- Automatic type conversion
+- Nullability handling
+- Custom scalars and enums
+- Nested object patterns
+
+**[CQRS Design](./cqrs-design.md)** - Command Query Responsibility Segregation pattern
+- View-based queries (read-optimized)
+- Function-based mutations (write-controlled)
+- Schema separation and security
+- Integration with Trinity Pattern
+
+### Implementation Details
+
+**[direct-path-implementation.md](./direct-path-implementation.md)** - Direct path pipeline that bypasses GraphQL resolvers
 
 **Status**: ✅ Implemented and working
 - GraphQL → SQL → Rust → HTTP pipeline
@@ -13,11 +40,10 @@ This directory contains architectural documentation for FraiseQL.
 - Full WHERE clause support
 - Automatic fallback to traditional GraphQL
 
-### Type System
-**[type-operator-architecture.md](./type-operator-architecture/)** - Documentation of FraiseQL's type system and operator strategies for WHERE clauses.
+**[type-operator-architecture.md](./type-operator-architecture.md)** - Type system and operator strategies for WHERE clauses
 
 ### Architectural Decisions
-**[decisions/](./decisions/)** - Records of key architectural decisions and their rationale.
+**[decisions/](./decisions/README.md)** - Records of key architectural decisions and their rationale
 
 ## Architectural Topics
 
@@ -43,6 +69,6 @@ GraphQL Query → Parser → SQL + WHERE → JSONB → Rust → HTTP
 
 ## Related Documentation
 
-- [Advanced Patterns](../advanced/)
-- [Enterprise Features](../enterprise/)
+- [Advanced Patterns](../advanced/advanced-patterns.md)
+- [Enterprise Features](../advanced/advanced-patterns.md)
 - [Examples](../../examples/)

@@ -145,7 +145,7 @@ def test_build_graphql_response_with_field_selections_and_aliases() -> None:
         field_name="user",
         type_name="User",
         field_paths=None,
-        field_selections=json.dumps(field_selections),
+        field_selections=field_selections,  # Pass list directly, not JSON string
     )
 
     result = response_bytes.decode("utf-8")
@@ -189,7 +189,7 @@ def test_build_graphql_response_field_projection_filters_unselected_fields() -> 
         field_name="user",
         type_name="User",
         field_paths=None,
-        field_selections=json.dumps(field_selections),
+        field_selections=field_selections,  # Pass list directly, not JSON string
         is_list=False,  # Single object response
     )
 
@@ -226,7 +226,7 @@ def test_build_graphql_response_field_projection_always_includes_typename() -> N
         field_name="user",
         type_name="User",
         field_paths=None,
-        field_selections=json.dumps(field_selections),
+        field_selections=field_selections,  # Pass list directly, not JSON string
         is_list=False,  # Single object response
     )
 
@@ -260,7 +260,7 @@ def test_build_graphql_response_with_nested_object_aliases() -> None:
         field_name="user",
         type_name="User",
         field_paths=None,
-        field_selections=json.dumps(field_selections),
+        field_selections=field_selections,  # Pass list directly, not JSON string
     )
 
     result = response_bytes.decode("utf-8")

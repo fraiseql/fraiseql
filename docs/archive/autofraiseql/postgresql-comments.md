@@ -132,7 +132,7 @@ COMMENT ON FUNCTION app.fn_create_user(jsonb) IS 'Creates a new user account wit
 ```graphql
 type UserProfile {
   """User profile data with contact information"""
-  id: UUID!
+  id: ID!
   email: String!
   name: String!
   createdAt: DateTime!

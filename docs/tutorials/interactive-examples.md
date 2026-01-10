@@ -24,12 +24,12 @@ FROM tb_user u;
 
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 from datetime import datetime
 
 @type(sql_source="v_user")
 class User:
-    id: UUID
+    id: ID
     email: str
     name: str
     created_at: datetime
@@ -84,7 +84,7 @@ async def users(self, info, email_filter: str | None = None) -> list[User]:
     if email_filter:
         filters['email__icontains'] = email_filter
 
-    return await repo.find_rust("v_user", "users", info, **filters)
+    return await repo.find("v_user", "users", info, **filters)
 ```
 
 ### GraphQL: Query with Arguments
@@ -143,10 +143,11 @@ JOIN tb_user u ON p.author_id = u.id;
 
 ```python
 import fraiseql
+from fraiseql.types import ID
 
 @type(sql_source="v_post_with_author")
 class Post:
-    id: UUID
+    id: ID
     title: str
     content: str
     author: User  # Nested User type
@@ -155,7 +156,7 @@ class Post:
 # User type defined separately
 @type(sql_source="v_user")
 class User:
-    id: UUID
+    id: ID
     name: str
     email: str
 ```
@@ -231,16 +232,17 @@ $$ LANGUAGE plpgsql;
 
 ```python
 from fraiseql import mutation, input
+from fraiseql.types import ID
 
 @input
 class CreatePostInput:
     title: str
     content: str
-    author_id: UUID
+    author_id: ID
 
 @fraiseql.mutation
 async def create_post(self, info, input: CreatePostInput) -> Post:
-    # Call database function
+    # Call PostgreSQL function
     post_id = await db.execute_scalar(
         "SELECT fn_create_post($1, $2, $3)",
         [input.title, input.content, input.author_id]
@@ -323,10 +325,11 @@ $$ LANGUAGE plpgsql;
 
 ```python
 import fraiseql
+from fraiseql.types import ID
 
 @type(sql_source="tv_post_stats")
 class PostStats:
-    post_id: UUID
+    post_id: ID
     title: str
     comment_count: int
     avg_rating: float | None
@@ -380,7 +383,7 @@ query GetPostAnalytics {
 
 ### Next Steps
 
-- [Quickstart Guide](../getting-started/quickstart/) - Get running in 5 minutes
-- [Understanding FraiseQL](../guides/understanding-fraiseql/) - Architecture deep dive
-- [Database API](../core/database-api/) - Repository patterns
+- [Quickstart Guide](../getting-started/quickstart.md) - Get running in 5 minutes
+- [Understanding FraiseQL](../guides/understanding-fraiseql.md) - Architecture deep dive
+- [Database API](../core/database-api.md) - Repository patterns
 - Examples (../../examples/) - Complete working applications

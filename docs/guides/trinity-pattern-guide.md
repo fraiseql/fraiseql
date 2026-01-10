@@ -1,3 +1,14 @@
+---
+title: Trinity Pattern Guide
+description: Complete guide to three-tier identifier system
+tags:
+  - trinity
+  - identifiers
+  - pattern
+  - UUID
+  - guide
+---
+
 # Trinity Pattern Complete Guide
 
 The Trinity Pattern is FraiseQL's three-identifier system for optimal performance, security, and user experience. Every entity in FraiseQL uses three types of identifiers working together.
@@ -157,9 +168,11 @@ FROM tb_post;
 ### GraphQL Type Definition
 
 ```python
+from fraiseql.types import ID
+
 @fraiseql.type(sql_source="v_post", jsonb_column="data")
 class Post:
-    id: UUID          # ✅ Public
+    id: ID          # ✅ Public
     identifier: str   # ✅ Public
     title: str
     content: str
@@ -421,10 +434,8 @@ $$ LANGUAGE plpgsql;
 
 ## 🔗 Related Documentation
 
-- [JSONB View Pattern](../database/view-strategies/)
-- [Foreign Key Patterns](../database/README/)
-- [Migration Guide](../mutations/migration-guide/)
-- [Verification Tools](../testing/developer-guide/)
+- [Migration Guide](../archive/mutations/migration-guide.md)
+- [Verification Tools](../archive/testing/developer-guide.md)
 
 ## 🎯 Summary
 

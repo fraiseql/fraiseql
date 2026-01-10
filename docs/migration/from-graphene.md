@@ -108,10 +108,10 @@ JOIN tb_user u ON p.author_id = u.id;
 **Migration Path:**
 1. Keep Django models for existing app
 2. Create PostgreSQL views pointing to Django tables
-3. Gradually migrate logic to database functions
+3. Gradually migrate logic to PostgreSQL functions
 4. Eventually remove Django ORM
 
-**See:** [Trinity Pattern Guide](../core/trinity-pattern/)
+**See:** [Trinity Pattern Guide](../core/trinity-pattern.md)
 
 ---
 
@@ -143,21 +143,21 @@ class PostType(DjangoObjectType):
 **After (FraiseQL):**
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type(sql_source="v_user")
 class User:
-    id: UUID
+    id: ID
     email: str
     name: str
     created_at: str  # ISO 8601 timestamp
 
 @fraiseql.type(sql_source="v_post")
 class Post:
-    id: UUID
+    id: ID
     title: str
     content: str
-    author_id: UUID
+    author_id: ID
     created_at: str
 
     @fraiseql.field
@@ -204,7 +204,7 @@ class Query(graphene.ObjectType):
 @fraiseql.query
 class Query:
     @fraiseql.field
-    async def user(self, info, id: UUID) -> User | None:
+    async def user(self, info, id: ID) -> User | None:
         """Get user by ID"""
         db = fraiseql.get_db(info.context)
         return await db.find_one("v_user", where={"id": id})
@@ -276,7 +276,7 @@ query {
 - `isnull` (null checks)
 - `like`, `ilike` (SQL LIKE with explicit wildcards)
 
-See [Filter Operators Reference](../advanced/filter-operators/) for complete list
+See [Filter Operators Reference](../advanced/filter-operators.md) for complete list
 
 ---
 
@@ -310,19 +310,16 @@ class CreateUser:
     email: str
     name: str
 
-# Database function
-CREATE OR REPLACE FUNCTION fn_create_user(
-    input_email TEXT,
-    input_name TEXT
-) RETURNS UUID AS $$
-DECLARE
-    new_user_id UUID;
-BEGIN
-    INSERT INTO tb_user (email, name)
-    VALUES (input_email, input_name)
-    RETURNING id INTO new_user_id;
+# Database function:
+# See [canonical fn_create_user()](../examples/canonical-examples.md#create-user-function)
+# for the complete implementation with validation and error handling.
 
-    RETURN new_user_id;
+# Simple version for migration reference:
+```sql
+CREATE OR REPLACE FUNCTION fn_create_user(p_email TEXT, p_name TEXT)
+RETURNS UUID AS $$
+BEGIN
+    INSERT INTO tb_user (email, name) VALUES (p_email, p_name) RETURNING id;
 END;
 $$ LANGUAGE plpgsql;
 ```
@@ -362,7 +359,7 @@ class CreatePost:
     """Create a new post"""
     title: str
     content: str
-    author_id: UUID
+    author_id: ID
 
 # Database function
 CREATE OR REPLACE FUNCTION fn_create_post(
@@ -387,7 +384,7 @@ $$ LANGUAGE plpgsql;
 - Client cache automatically invalidated
 - No manual refetch needed
 
-**See:** [CASCADE Documentation](../features/graphql-cascade/)
+**See:** [CASCADE Documentation](../features/graphql-cascade.md)
 
 ---
 
@@ -434,9 +431,9 @@ urlpatterns = [
 ```python
 @fraiseql.type(sql_source="v_post")
 class Post:
-    id: UUID
+    id: ID
     title: str
-    author_id: UUID
+    author_id: ID
 
     @fraiseql.dataloader_field(
         loader_class=UserLoader,
@@ -517,7 +514,7 @@ urlpatterns = [
 ### Test Strategy
 
 1. **Unit Tests**: Convert Graphene resolver tests
-2. **Integration Tests**: Test database functions
+2. **Integration Tests**: Test PostgreSQL functions
 3. **Performance Tests**: Validate speed improvements
 
 ### Example Test Migration
@@ -577,7 +574,7 @@ def resolve_user(self, info, id):
     return db.find_one("v_user", where={"id": id})
 
 # ✅ Correct
-async def user(self, info, id: UUID) -> User | None:
+async def user(self, info, id: ID) -> User | None:
     return await db.find_one("v_user", where={"id": id})
 ```
 
@@ -664,7 +661,7 @@ Requests per second: 1,500  # 10x improvement
 - [ ] Views created (`v_*` for all tables)
 - [ ] Types converted to FraiseQL `@type` decorators
 - [ ] Queries migrated to async `db.find()`
-- [ ] Mutations converted to database functions
+- [ ] Mutations converted to PostgreSQL functions
 - [ ] CASCADE enabled where appropriate
 - [ ] DataLoaders replaced with `@dataloader_field`
 - [ ] Tests updated to async
@@ -711,7 +708,7 @@ urlpatterns = [
 
 ## Support
 
-- **Documentation**: [FraiseQL Docs](../README/)
+- **Documentation**: [FraiseQL Docs](../README.md)
 - **Discord**: [Join Community](https://discord.gg/fraiseql)
 - **GitHub**: [Report Issues](https://github.com/fraiseql/fraiseql/issues)
 
@@ -719,9 +716,9 @@ urlpatterns = [
 
 ## Next Steps
 
-1. Read [Trinity Pattern Guide](../core/trinity-pattern/)
-2. Review [CASCADE Documentation](../features/graphql-cascade/)
-3. Check [Production Deployment Checklist](../deployment/production-deployment/)
+1. Read [Trinity Pattern Guide](../core/trinity-pattern.md)
+2. Review [CASCADE Documentation](../features/graphql-cascade.md)
+3. Check [Production Deployment Checklist](../tutorials/production-deployment.md)
 4. Join Discord for migration support
 
 **Estimated Total Time:** 1-2 weeks for 2 engineers

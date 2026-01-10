@@ -83,7 +83,7 @@ COMMENT ON FUNCTION app.fn_create_user(text, text) IS 'Creates a new user accoun
 # Automatic GraphQL schema
 type UserProfile {
   """User profile data with contact information"""
-  id: UUID!
+  id: ID!
   email: String!
   name: String!
   createdAt: DateTime!

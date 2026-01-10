@@ -1,8 +1,18 @@
+---
+title: Configuration
+description: Application configuration, environment variables, and settings
+tags:
+  - configuration
+  - settings
+  - environment
+  - config
+---
+
 # Configuration
 
 FraiseQLConfig class for comprehensive application configuration.
 
-**📖 Before configuring**: Make sure FraiseQL is [installed](../getting-started/installation/) and your environment is set up.
+**📖 Before configuring**: Make sure FraiseQL is [installed](../getting-started/installation.md) and your environment is set up.
 
 ## Overview
 
@@ -561,7 +571,51 @@ config = FraiseQLConfig(
 app = create_fraiseql_app(types=[User, Post, Comment], config=config)
 ```
 
+## Schema Configuration
+
+`SchemaConfig` controls GraphQL schema generation behavior, separate from runtime `FraiseQLConfig`.
+
+### ID Policy (v1.9.2+)
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| id_policy | IDPolicy | UUID | How ID scalars behave |
+| camel_case_fields | bool | True | Convert snake_case to camelCase |
+
+**ID Policies:**
+
+| Policy | Description | Use Case |
+|--------|-------------|----------|
+| `IDPolicy.UUID` | IDs must be valid UUIDs (default) | FraiseQL opinionated apps |
+| `IDPolicy.OPAQUE` | IDs accept any string | GraphQL spec compliance |
+
+**Examples:**
+```python
+from fraiseql.config.schema_config import SchemaConfig, IDPolicy
+
+# Default: UUID enforcement (recommended)
+SchemaConfig.set_config(id_policy=IDPolicy.UUID)
+
+# GraphQL spec-compliant: accepts any string
+SchemaConfig.set_config(id_policy=IDPolicy.OPAQUE)
+
+# Disable camelCase conversion
+SchemaConfig.set_config(camel_case_fields=False)
+```
+
+**Type Mapping by Policy:**
+
+| Python Type | `UUID` Policy | `OPAQUE` Policy |
+|-------------|---------------|-----------------|
+| `ID` | `IDScalar` (enforces UUID) | `GraphQLID` (any string) |
+| `uuid.UUID` | `UUIDScalar` (name="UUID") | `UUIDScalar` (name="UUID") |
+
+**Important**: `uuid.UUID` always maps to `UUIDScalar`, regardless of policy. Only the `ID` type annotation is affected by the policy.
+
+See [ID Type](id-type.md) for detailed ID documentation.
+
 ## See Also
 
-- [API Reference - Config](../reference/config/) - Complete config reference
-- [Deployment](../production/deployment/) - Production deployment guides
+- [ID Type](id-type.md) - ID type and policy documentation
+- [API Reference - Config](../reference/config.md) - Complete config reference
+- [Deployment](../production/deployment.md) - Production deployment guides

@@ -37,6 +37,7 @@ from fraiseql.types.scalars import (
     HostnameScalar,
     HTMLScalar,
     IBANScalar,
+    IDScalar,
     ImageScalar,
     IpAddressScalar,
     ISINScalar,
@@ -424,6 +425,7 @@ def get_test_value_for_scalar(scalar_class):
         IpAddressScalar: "192.168.1.1",
         JSONScalar: {"key": "value", "number": 42},
         UUIDScalar: "550e8400-e29b-41d4-a716-446655440000",
+        IDScalar: "550e8400-e29b-41d4-a716-446655440001",  # ID enforces UUID format
         # Network & Infrastructure
         MacAddressScalar: "00:1B:63:84:45:E6",
         SubnetMaskScalar: "255.255.255.0",
@@ -503,6 +505,7 @@ def get_postgres_type_for_scalar(scalar_class):
         IpAddressScalar: "INET",
         JSONScalar: "JSONB",
         UUIDScalar: "UUID",
+        IDScalar: "UUID",  # ID enforces UUID format
     }
 
     return type_mapping.get(scalar_class, "TEXT")

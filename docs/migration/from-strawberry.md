@@ -111,7 +111,7 @@ CREATE VIEW v_user AS SELECT * FROM tb_user;
 CREATE VIEW v_post AS SELECT * FROM tb_post;
 ```
 
-**See:** [Trinity Pattern Guide](../core/trinity-pattern/) for details.
+**See:** [Trinity Pattern Guide](../core/trinity-pattern.md) for details.
 
 ---
 
@@ -141,21 +141,21 @@ class Post:
 **After (FraiseQL):**
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type(sql_source="v_user")
 class User:
-    id: UUID
+    id: ID
     email: str
     name: str | None
     created_at: str  # ISO 8601 timestamp
 
 @fraiseql.type(sql_source="v_post")
 class Post:
-    id: UUID
+    id: ID
     title: str
     content: str
-    author_id: UUID
+    author_id: ID
     created_at: str
 
     @fraiseql.field
@@ -207,7 +207,7 @@ class Query:
 @fraiseql.query
 class Query:
     @fraiseql.field
-    async def user(self, info, id: UUID) -> User | None:
+    async def user(self, info, id: ID) -> User | None:
         """Get user by ID"""
         db = fraiseql.get_db(info.context)
         return await db.find_one("v_user", where={"id": id})
@@ -330,18 +330,15 @@ class CreateUser:
     name: str
 
 # Database function:
-CREATE OR REPLACE FUNCTION fn_create_user(
-    input_email TEXT,
-    input_name TEXT
-) RETURNS UUID AS $$
-DECLARE
-    new_user_id UUID;
-BEGIN
-    INSERT INTO tb_user (email, name)
-    VALUES (input_email, input_name)
-    RETURNING id INTO new_user_id;
+# See [canonical fn_create_user()](../examples/canonical-examples.md#create-user-function)
+# for the complete implementation with validation and error handling.
 
-    RETURN new_user_id;
+# Simple version for migration reference:
+```sql
+CREATE OR REPLACE FUNCTION fn_create_user(p_email TEXT, p_name TEXT)
+RETURNS UUID AS $$
+BEGIN
+    INSERT INTO tb_user (email, name) VALUES (p_email, p_name) RETURNING id;
 END;
 $$ LANGUAGE plpgsql;
 ```
@@ -357,7 +354,7 @@ async def create_post(
     self,
     title: str,
     content: str,
-    author_id: UUID
+    author_id: ID
 ) -> Post:
     # Create post
     async with db_pool.acquire() as conn:
@@ -394,7 +391,7 @@ class CreatePost:
     """Create a new post"""
     title: str
     content: str
-    author_id: UUID
+    author_id: ID
 
 # Database function:
 CREATE OR REPLACE FUNCTION fn_create_post(
@@ -419,7 +416,7 @@ $$ LANGUAGE plpgsql;
 - Invalidates client cache for affected entities
 - No manual cache updates needed in frontend
 
-**See:** [CASCADE Documentation](../features/graphql-cascade/)
+**See:** [CASCADE Documentation](../features/graphql-cascade.md)
 
 ---
 
@@ -444,7 +441,7 @@ user_loader = DataLoader(load_fn=load_users)
 
 @strawberry.type
 class Post:
-    author_id: UUID
+    author_id: ID
 
     @strawberry.field
     async def author(self, info) -> User:
@@ -455,9 +452,9 @@ class Post:
 ```python
 @fraiseql.type(sql_source="v_post")
 class Post:
-    id: UUID
+    id: ID
     title: str
-    author_id: UUID
+    author_id: ID
 
     @fraiseql.dataloader_field(
         loader_class=UserLoader,
@@ -520,7 +517,7 @@ app = create_fraiseql_app(
 ### Test Strategy
 
 1. **Unit Tests**: Convert Strawberry resolver tests to FraiseQL
-2. **Integration Tests**: Test database functions
+2. **Integration Tests**: Test PostgreSQL functions
 3. **E2E Tests**: GraphQL queries through HTTP
 
 ### Example Test Migration
@@ -644,7 +641,7 @@ Requests/sec: 12,000  # 10x improvement
 - [ ] Views created (`v_*` for all tables)
 - [ ] Types converted to FraiseQL decorators
 - [ ] Queries migrated to use `db.find()` / `db.find_one()`
-- [ ] Mutations converted to database functions
+- [ ] Mutations converted to PostgreSQL functions
 - [ ] CASCADE enabled for mutations that need it
 - [ ] DataLoaders converted to `@dataloader_field`
 - [ ] Tests updated and passing
@@ -655,7 +652,7 @@ Requests/sec: 12,000  # 10x improvement
 
 ## Support
 
-- **Documentation**: [FraiseQL Docs](../README/)
+- **Documentation**: [FraiseQL Docs](../README.md)
 - **Discord**: [Join Community](https://discord.gg/fraiseql)
 - **GitHub**: [Report Issues](https://github.com/fraiseql/fraiseql/issues)
 
@@ -663,9 +660,9 @@ Requests/sec: 12,000  # 10x improvement
 
 ## Next Steps
 
-1. Read [Trinity Pattern Guide](../core/trinity-pattern/)
-2. Review [CASCADE Documentation](../features/graphql-cascade/)
-3. Check [Production Deployment Checklist](../deployment/production-deployment/)
+1. Read [Trinity Pattern Guide](../core/trinity-pattern.md)
+2. Review [CASCADE Documentation](../features/graphql-cascade.md)
+3. Check [Production Deployment Checklist](../tutorials/production-deployment.md)
 4. Join Discord for migration support
 
 **Estimated Total Time:** 2-3 weeks for 2 engineers

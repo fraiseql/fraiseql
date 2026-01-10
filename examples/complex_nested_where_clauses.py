@@ -13,6 +13,7 @@ from typing import Optional
 from uuid import UUID
 
 import fraiseql
+from fraiseql.types import ID
 
 
 # Complex nested types for demonstration
@@ -29,7 +30,7 @@ class User:
         is_active: Whether account is enabled
         created_at: Account creation timestamp
     """
-    id: UUID
+    id: ID
     username: str
     email: str
     age: int
@@ -50,8 +51,8 @@ class Order:
         created_at: Order creation timestamp
         items_count: Number of items in order
     """
-    id: UUID
-    user_id: UUID
+    id: ID
+    user_id: ID
     total_amount: Decimal
     status: str
     created_at: datetime
@@ -72,7 +73,7 @@ class Product:
         is_featured: Whether product is featured
         created_at: Product creation date
     """
-    id: UUID
+    id: ID
     name: str
     category_path: str  # Will use LTree filter
     price: Decimal

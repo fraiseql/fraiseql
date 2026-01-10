@@ -1,3 +1,16 @@
+---
+title: Production Security
+description: SQL injection prevention, authentication, rate limiting, CORS, and compliance patterns
+tags:
+  - security
+  - production
+  - authentication
+  - rate-limiting
+  - CORS
+  - compliance
+  - SQL-injection
+---
+
 # Production Security
 
 Comprehensive security guide for production FraiseQL deployments: SQL injection prevention, query complexity limits, rate limiting, CORS, authentication, PII handling, and compliance patterns.
@@ -15,17 +28,6 @@ Production security requires defense in depth: multiple layers of protection fro
 - Sensitive data handling
 - Audit logging
 - Compliance (GDPR, SOC2)
-
-## Table of Contents
-
-- [SQL Injection Prevention](#sql-injection-prevention)
-- [Query Complexity Limits](#query-complexity-limits)
-- [Rate Limiting](#rate-limiting)
-- [CORS Configuration](#cors-configuration)
-- [Authentication Security](#authentication-security)
-- [Sensitive Data Handling](#sensitive-data-handling)
-- [Audit Logging](#audit-logging)
-- [Compliance](#compliance)
 
 ## SQL Injection Prevention
 
@@ -463,7 +465,7 @@ from dataclasses import dataclass
 @dataclass
 class User:
     """User with PII protection."""
-    id: UUID
+    id: ID
     email: str
     name: str
     _ssn: str | None = None  # Private field
@@ -486,7 +488,7 @@ class User:
 # GraphQL type
 @fraiseql.type_
 class UserGQL:
-    id: UUID
+    id: ID
     email: str
     name: str
 
@@ -733,7 +735,7 @@ async def admin_update_user(info, user_id: str, data: dict) -> User:
 ## Next Steps
 
 - [Security Example](../../examples/security/) - Complete security implementation
-- [Authentication](../advanced/authentication/) - Authentication patterns
-- [Monitoring](monitoring/) - Security monitoring
-- [Deployment](deployment/) - Secure deployment
-- [Audit Logging](../advanced/event-sourcing/) - Complete audit trails
+- [Authentication](../advanced/authentication.md) - Authentication patterns
+- [Monitoring](monitoring.md) - Security monitoring
+- [Deployment](deployment.md) - Secure deployment
+- [Audit Logging](../advanced/event-sourcing.md) - Complete audit trails

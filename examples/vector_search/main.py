@@ -6,12 +6,13 @@ from uuid import UUID
 
 from fraiseql import fraise_query, fraise_type
 from fraiseql.fastapi import FraiseQLApp
+from fraiseql.types import ID
 
 
 @fraise_type
 class Document:
     """Document with vector embeddings and binary hash for similarity search."""
-    id: UUID
+    id: ID
     title: str
     content: str
     embedding: List[float]  # Vector embedding (384 dimensions)

@@ -4,7 +4,7 @@ Complete guides for deploying, monitoring, and running FraiseQL in production en
 
 ## Deployment
 
-- **[Deployment Guide](deployment/)** - Production deployment strategies
+- **[Deployment Guide](deployment.md)** - Production deployment strategies
   - Docker and Docker Compose setup
   - Environment configuration
   - Database connection pooling (PgBouncer recommended)
@@ -12,31 +12,31 @@ Complete guides for deploying, monitoring, and running FraiseQL in production en
 
 ## Monitoring & Observability
 
-- **[Monitoring](monitoring/)** - Built-in monitoring and error tracking
+- **[Monitoring](monitoring.md)** - Built-in monitoring and error tracking
   - PostgreSQL-based error tracking (replaces Sentry)
   - Custom notification channels (Email, Slack, Webhook)
   - Error fingerprinting and grouping
   - OpenTelemetry integration
-- **[Observability](observability/)** - Logging, tracing, and metrics
+- **[Observability](observability.md)** - Logging, tracing, and metrics
   - Structured logging patterns
   - Distributed tracing with OpenTelemetry
   - Performance metrics collection
   - Grafana dashboard integration
-- **[Health Checks](health-checks/)** - Application health monitoring
+- **[Health Checks](health-checks.md)** - Application health monitoring
   - Liveness and readiness probes
   - Database connection health
   - Custom health check endpoints
 
 ## Security
 
-- **[Security Guide](security/)** - Production security hardening
+- **[Security Guide](security.md)** - Production security hardening
   - Row-Level Security (RLS) implementation
   - Authentication and authorization patterns
   - CORS configuration
   - SQL injection prevention
   - Cryptographic audit logging (SHA-256 + HMAC)
   - Rate limiting and DDoS protection
-- **[Security Policy](../../SECURITY/)** - Vulnerability reporting and security updates
+- **[Security Policy](../../SECURITY.md)** - Vulnerability reporting and security updates
 
 ## Cost Optimization
 
@@ -46,7 +46,7 @@ Complete guides for deploying, monitoring, and running FraiseQL in production en
 - **Observability**: PostgreSQL-based metrics (replaces APM tools)
 - **Centralized Storage**: One database to backup and monitor
 
-See [Monitoring Guide](monitoring/) for migration from Redis/Sentry.
+See [Monitoring Guide](monitoring.md) for migration from Redis/Sentry.
 
 ## Production Checklist
 
@@ -81,9 +81,9 @@ Before deploying to production:
 
 ## Performance & Scaling
 
-- **[Performance Guide](../performance/index/)** - Optimization strategies
-- **[APQ Configuration](../performance/apq-optimization-guide/)** - Automatic Persisted Queries
-- **[Rust Pipeline](../performance/rust-pipeline-optimization/)** - Rust acceleration setup
+- **[Performance Guide](../performance/index.md)** - Optimization strategies
+- **[APQ Configuration](../performance/apq-optimization-guide.md)** - Automatic Persisted Queries
+- **[Rust Pipeline](../performance/rust-pipeline-optimization.md)** - Rust acceleration setup
 
 ## Platform-Specific Guides
 
@@ -96,7 +96,7 @@ Before deploying to production:
 - **GCP**: Cloud Run + Cloud SQL
 - **Azure**: Container Instances + PostgreSQL Flexible Server
 
-**Note**: Detailed Kubernetes manifests and cloud-specific configurations coming soon. For now, use Docker Compose template in [Deployment Guide](deployment/).
+**Note**: Detailed Kubernetes manifests and cloud-specific configurations coming soon. For now, use Docker Compose template in [Deployment Guide](deployment.md).
 
 ## Quick Start - Production Deployment
 
@@ -117,6 +117,6 @@ curl http://localhost:8000/health
 
 ## Support & Troubleshooting
 
-- **[Troubleshooting Guide](../guides/troubleshooting/)** - Common production issues
-- **[Security Issues](../../SECURITY/)** - Report security vulnerabilities
+- **[Troubleshooting Guide](../guides/troubleshooting.md)** - Common production issues
+- **[Security Issues](../../SECURITY.md)** - Report security vulnerabilities
 - **[GitHub Issues](../issues)** - Bug reports and feature requests

@@ -8,6 +8,7 @@ from uuid import UUID
 from pydantic import Field
 
 import fraiseql
+from fraiseql.types import ID
 from fraiseql import fraise_field
 
 # Base Audit Pattern
@@ -18,10 +19,10 @@ class AuditTrail:
     """Complete audit trail information."""
 
     created_at: datetime
-    created_by_id: UUID
+    created_by_id: ID
     created_by_name: str
     updated_at: datetime | None = None
-    updated_by_id: UUID | None = None
+    updated_by_id: ID | None = None
     updated_by_name: str | None = None
     version: int
     change_reason: str | None = None
@@ -37,7 +38,7 @@ class AuditTrail:
 class Organization:
     """Organization with complete enterprise features."""
 
-    id: UUID  # Exposed as GraphQL ID
+    id: ID  # Exposed as GraphQL ID
     name: str
     identifier: str  # Business identifier (ORG-2024-ACME)
 
@@ -58,7 +59,7 @@ class Organization:
 class User:
     """User with comprehensive audit and role management."""
 
-    id: UUID
+    id: ID
     email: str
     name: str
     identifier: str  # USER-JOHN-SMITH-001
@@ -78,10 +79,10 @@ class User:
 
     # Enterprise features
     audit_trail: AuditTrail
-    organization_id: UUID
+    organization_id: ID
     department: str | None = None
     job_title: str | None = None
-    manager_id: UUID | None = None
+    manager_id: ID | None = None
 
     # Usage tracking
     last_login_at: datetime | None = None
@@ -98,7 +99,7 @@ class User:
 class Project:
     """Project entity demonstrating complex business logic."""
 
-    id: UUID
+    id: ID
     name: str
     identifier: str  # PROJ-2024-Q1-WEBSITE
 
@@ -108,8 +109,8 @@ class Project:
     priority: str = "medium"  # low, medium, high, critical
 
     # Relationships
-    organization_id: UUID
-    owner_id: UUID
+    organization_id: ID
+    owner_id: ID
     team_member_ids: list[UUID] = fraise_field(default_factory=list)
 
     # Timeline
@@ -138,7 +139,7 @@ class Project:
 class Task:
     """Task with nested relationships and complex validation."""
 
-    id: UUID
+    id: ID
     title: str
     identifier: str  # TASK-PROJ-001-SETUP
 
@@ -148,10 +149,10 @@ class Task:
     priority: str = "medium"
 
     # Relationships
-    project_id: UUID
-    assignee_id: UUID | None = None
-    reporter_id: UUID
-    parent_task_id: UUID | None = None
+    project_id: ID
+    assignee_id: ID | None = None
+    reporter_id: ID
+    parent_task_id: ID | None = None
 
     # Timeline
     due_date: datetime | None = None
@@ -206,10 +207,10 @@ class CreateUserInput:
     phone: Annotated[str, Field(pattern=r"^\+?[1-9]\d{1,14}$")] | None = None
 
     # Organizational assignment
-    organization_id: UUID
+    organization_id: ID
     department: str | None = None
     job_title: str | None = None
-    manager_id: UUID | None = None
+    manager_id: ID | None = None
 
     # Initial roles and permissions
     roles: list[str] = fraise_field(default_factory=lambda: ["user"])
@@ -227,8 +228,8 @@ class CreateProjectInput:
     description: Annotated[str, Field(max_length=2000) | None] = None
 
     # Project setup
-    organization_id: UUID
-    owner_id: UUID
+    organization_id: ID
+    owner_id: ID
     status: str = "draft"
     priority: str = "medium"
 
@@ -246,7 +247,7 @@ class CreateProjectInput:
 
     # Enterprise metadata
     _change_reason: str | None = None
-    _template_id: UUID | None = None  # For project templates
+    _template_id: ID | None = None  # For project templates
 
 
 @fraiseql.input
@@ -257,9 +258,9 @@ class CreateTaskInput:
     description: Annotated[str, Field(max_length=2000) | None] = None
 
     # Task assignment
-    project_id: UUID
-    assignee_id: UUID | None = None
-    parent_task_id: UUID | None = None
+    project_id: ID
+    assignee_id: ID | None = None
+    parent_task_id: ID | None = None
 
     # Planning
     priority: str = "medium"
@@ -271,7 +272,7 @@ class CreateTaskInput:
 
     # Enterprise metadata
     _change_reason: str | None = None
-    _copy_from_task_id: UUID | None = None
+    _copy_from_task_id: ID | None = None
 
 
 # Success Types with Rich Metadata

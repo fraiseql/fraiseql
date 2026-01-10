@@ -20,19 +20,6 @@ FraiseQL provides a sophisticated caching system that stores query results in Po
 | Complex aggregation | 200-500ms | 0.5-2ms | **200-500x** |
 | Multi-tenant query | 100-300ms | 0.5-2ms | **100-300x** |
 
-## Table of Contents
-
-- [Quick Start](#quick-start)
-- [PostgreSQL Cache Backend](#postgresql-cache-backend)
-- [Configuration](#configuration)
-- [Multi-Tenant Security](#multi-tenant-security)
-- [Domain-Based Invalidation](#domain-based-invalidation)
-- [Usage Patterns](#usage-patterns)
-- [Cache Key Strategy](#cache-key-strategy)
-- [Monitoring & Metrics](#monitoring-metrics)
-- [Best Practices](#best-practices)
-- [Troubleshooting](#troubleshooting)
-
 ## Quick Start
 
 ### Basic Setup
@@ -1025,7 +1012,7 @@ async def check_cache_extension():
 
 ## Next Steps
 
-- [Performance Optimization](index/) - Full performance stack (Rust, APQ, TurboRouter)
-- [Multi-Tenancy](../advanced/multi-tenancy/) - Tenant-aware caching patterns
-- [Monitoring](../production/monitoring/) - Production monitoring setup
-- [Security](../production/security/) - Cache security best practices
+- [Performance Optimization](index.md) - Full performance stack (Rust, APQ, TurboRouter)
+- [Multi-Tenancy](../advanced/multi-tenancy.md) - Tenant-aware caching patterns
+- [Monitoring](../production/monitoring.md) - Production monitoring setup
+- [Security](../production/security.md) - Cache security best practices

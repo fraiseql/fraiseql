@@ -1,0 +1,146 @@
+name: Chaos Engineering Tests
+
+# Optional workflow for chaos engineering test execution
+# These tests validate system resilience and recovery behavior
+# Separate from standard CI/CD to avoid slowing down PR validation
+#
+# Execution times:
+# - Full chaos suite: 45-60 minutes (real Docker PostgreSQL containers)
+# - Purpose: Validate resilience, not correctness
+# - Trigger: Manual (workflow_dispatch) or scheduled (weekly)
+
+on:
+  workflow_dispatch:
+    description: 'Manually trigger chaos engineering test suite'
+  schedule:
+    # Run weekly on Sunday at 2 AM UTC
+    - cron: '0 2 * * 0'
+
+concurrency:
+  group: chaos-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  chaos-tests:
+    name: Chaos Engineering Test Suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 90  # Give plenty of time for container startup and test execution
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+
+    - name: Setup Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+
+    - name: Install maturin
+      run: uv tool install maturin
+
+    - name: Setup environment and install dependencies
+      run: |
+        # Create virtual environment with uv
+        uv venv
+
+        # Install build dependencies first (required for some packages like thrift)
+        uv pip install setuptools wheel
+
+        # Install all dependencies
+        uv pip install ".[dev,all]"
+
+        # Build and install Rust extension with modern maturin+uv integration
+        uv run maturin develop --uv
+
+    - name: Verify Docker and Environment
+      run: |
+        echo "=== Environment Verification ==="
+        uv run python --version
+        uv --version
+        uv run pytest --version
+        docker --version
+        echo "✅ All dependencies verified"
+
+    - name: Run chaos engineering tests
+      timeout-minutes: 75
+      run: |
+        echo "=== Chaos Engineering Test Suite ==="
+        echo "⏱️  Expected execution time: 45-60 minutes (includes container startup)"
+        echo ""
+        echo "Test categories:"
+        echo "  • Network chaos (latency, packet loss)"
+        echo "  • Database chaos (deadlocks, constraints)"
+        echo "  • Cache chaos (invalidation, corruption)"
+        echo "  • Authentication chaos (expiration, service outages)"
+        echo "  • Resource chaos (exhaustion, recovery)"
+        echo "  • Concurrency chaos (deadlocks, race conditions)"
+        echo ""
+
+        # Run all chaos tests marked with chaos_real_db
+        # These tests use real PostgreSQL via testcontainers (Docker)
+        uv run pytest tests/chaos \
+          -m chaos_real_db \
+          -v \
+          --tb=short \
+          --disable-warnings \
+          || {
+            echo "❌ Chaos engineering tests failed"
+            exit 1
+          }
+
+        echo "✅ Chaos engineering test suite completed"
+
+    - name: Generate chaos test report
+      if: always()
+      run: |
+        echo "=== Chaos Test Summary ==="
+        echo "Total tests run: $(uv run pytest tests/chaos -m chaos_real_db --collect-only -q 2>/dev/null | wc -l)"
+        echo ""
+        echo "Test execution completed at: $(date)"
+        echo "Workflow: Manual or Scheduled"
+        echo "Purpose: Resilience and recovery validation"
+
+    - name: Upload chaos test results
+      if: always()
+      uses: actions/upload-artifact@v6
+      with:
+        name: chaos-test-results
+        path: |
+          .pytest_cache/
+          htmlcov/
+        if-no-files-found: ignore
+
+  # Chaos test summary job
+  chaos-summary:
+    name: Chaos Tests Summary
+    runs-on: ubuntu-latest
+    needs: [chaos-tests]
+    if: always()
+    steps:
+      - name: Check chaos test results
+        run: |
+          if [[ "${{ needs.chaos-tests.result }}" == "success" ]]; then
+            echo "✅ All chaos engineering tests passed"
+            echo "System resilience validated under:"
+            echo "  • Network chaos conditions"
+            echo "  • Database failure scenarios"
+            echo "  • Cache invalidation patterns"
+            echo "  • Authentication service outages"
+            echo "  • Resource exhaustion"
+            echo "  • Concurrent load stress"
+          else
+            echo "❌ Some chaos engineering tests failed"
+            echo "Review the detailed logs above for failure analysis"
+            exit 1
+          fi

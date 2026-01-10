@@ -293,41 +293,171 @@ pub fn transform_with_selections(
     selections: &[Value],
     registry: &SchemaRegistry,
 ) -> Value {
-    // Build alias map and allowed fields from selections
-    let (alias_map, allowed_fields) = build_alias_map(selections);
+    // Build alias map, allowed fields, and selected paths from selections
+    let (alias_map, allowed_fields, selected_paths) = build_alias_map(selections);
 
     // Transform with aliases and field projection applied
     transform_with_aliases(
         value,
-        current_type,
+        Some(current_type),
         "",
         &alias_map,
         &allowed_fields,
+        &selected_paths,
         registry,
     )
 }
 
+/// Convert a dot-separated path to full camelCase
+///
+/// Example: "user_profile.contact_info" → "userProfile.contactInfo"
+///
+/// Performance: Uses String builder to avoid intermediate Vec allocation
+#[inline]
+fn to_camel_case_path(path: &str) -> String {
+    if !path.contains('_') {
+        return path.to_string();
+    }
+
+    let mut result = String::with_capacity(path.len());
+    let mut segments = path.split('.');
+
+    if let Some(first) = segments.next() {
+        result.push_str(&to_camel_case(first));
+
+        for segment in segments {
+            result.push('.');
+            result.push_str(&to_camel_case(segment));
+        }
+    }
+
+    result
+}
+
+/// Convert a path to partial camelCase (parent segments camelCase, last segment unchanged)
+///
+/// This matches Python's materialized path format where GraphQL field names (camelCase)
+/// are used for parent paths, but database column names (snake_case) for the current field.
+///
+/// Examples:
+/// - "dns_1.ip_address" → "dns1.ip_address" (parent camelCase, child unchanged)
+/// - "user.profile.bio" → "user.profile.bio" (no underscores, unchanged)
+#[inline]
+fn to_partial_camel_case_path(path: &str) -> Option<String> {
+    let last_dot = path.rfind('.')?;
+    let parent = &path[..last_dot];
+    let child = &path[last_dot + 1..];
+
+    if !parent.contains('_') {
+        return None; // No conversion needed
+    }
+
+    let camel_parent = to_camel_case_path(parent);
+    Some(format!("{}.{}", camel_parent, child))
+}
+
+/// Check if a selection path matches a field path (exact or prefix match)
+///
+/// Matches if:
+/// 1. Exact match: selection == field_path
+/// 2. Prefix match: selection starts with field_path + "." (i.e., selection is a child)
+///
+/// The byte-level check (`selection.as_bytes()[field_path.len()] == b'.'`) ensures
+/// we don't match "userinfo" when checking "user" prefix.
+#[inline]
+fn path_matches_selection(
+    selection: &str,
+    field_path: &str,
+    camel_field_path: &str,
+    partial_camel_path: Option<&str>,
+) -> bool {
+    // Exact match check for all three variants
+    if selection == field_path || selection == camel_field_path {
+        return true;
+    }
+
+    if let Some(partial) = partial_camel_path {
+        if selection == partial {
+            return true;
+        }
+    }
+
+    // Prefix match check (selection is a child of this field)
+    for candidate in [field_path, camel_field_path] {
+        if selection.len() > candidate.len() + 1
+            && selection.starts_with(candidate)
+            && selection.as_bytes()[candidate.len()] == b'.'
+        {
+            return true;
+        }
+    }
+
+    if let Some(partial) = partial_camel_path {
+        if selection.len() > partial.len() + 1
+            && selection.starts_with(partial)
+            && selection.as_bytes()[partial.len()] == b'.'
+        {
+            return true;
+        }
+    }
+
+    false
+}
+
 /// Build a mapping from materialized paths to aliases and allowed field names
+///
+/// **Performance Optimization**: Pre-computes all three path variants (snake_case,
+/// camelCase, partial camelCase) and stores them in `selected_paths`. This trades
+/// memory (3x HashSet size) for speed (O(1) lookups instead of O(N) path conversions
+/// per field).
 ///
 /// Returns a tuple of:
 /// - HashMap: materialized path -> alias
 /// - HashSet: allowed root-level field names for field projection
+/// - HashSet: all selected materialized paths WITH all three variants pre-computed
 fn build_alias_map(
     selections: &[Value],
 ) -> (
     std::collections::HashMap<String, String>,
     std::collections::HashSet<String>,
+    std::collections::HashSet<String>,
 ) {
     let mut alias_map = std::collections::HashMap::new();
     let mut allowed_fields = std::collections::HashSet::new();
+    let mut selected_paths = std::collections::HashSet::new();
 
     for selection in selections {
         // Extract materialized_path (required)
         if let Some(path) = selection.get("materialized_path").and_then(|v| v.as_str()) {
+            // **Performance Optimization**: Pre-compute all three path variants upfront
+            // This trades memory for speed - we compute paths once here instead of
+            // O(N fields) times during transformation.
+            //
+            // Three variants needed to match Python's materialized paths:
+            // 1. Original (snake_case): "dns_1.ip_address" (database column names)
+            // 2. Full camelCase: "dns1.ipAddress" (GraphQL response format)
+            // 3. Partial camelCase: "dns1.ip_address" (Python's GraphQL field name + db column)
+            selected_paths.insert(path.to_string());
+
+            // Add full camelCase variant if path contains underscores
+            if path.contains('_') {
+                let camel_path = to_camel_case_path(path);
+                selected_paths.insert(camel_path);
+
+                // Add partial camelCase variant if it's different from original
+                if let Some(partial_path) = to_partial_camel_case_path(path) {
+                    selected_paths.insert(partial_path);
+                }
+            }
+
             // Extract root-level field name for field projection (always add to allowed_fields)
             // e.g., "profile.bio" -> "profile", "id" -> "id"
             if let Some(first_segment) = path.split('.').next() {
                 allowed_fields.insert(first_segment.to_string());
+                // Also add camelCase variant of root field
+                if first_segment.contains('_') {
+                    allowed_fields.insert(to_camel_case(first_segment));
+                }
             }
 
             // Extract alias (optional) - only add to alias_map if present
@@ -337,7 +467,7 @@ fn build_alias_map(
         }
     }
 
-    (alias_map, allowed_fields)
+    (alias_map, allowed_fields, selected_paths)
 }
 
 /// Transform JSON value with alias support and field projection
@@ -360,6 +490,7 @@ fn build_alias_map(
 /// * `current_path` - Materialized path to current position (e.g., "user.posts")
 /// * `alias_map` - Precomputed map from paths to aliases
 /// * `allowed_fields` - Set of allowed root-level field names (None for no filtering)
+/// * `selected_paths` - Set of all selected materialized paths (for nested field filtering)
 /// * `registry` - Schema registry for type resolution
 ///
 /// # Performance
@@ -369,22 +500,30 @@ fn build_alias_map(
 /// - Minimal allocations (path string constructed once per field)
 fn transform_with_aliases(
     value: &Value,
-    current_type: &str,
+    current_type: Option<&str>,
     current_path: &str,
     alias_map: &std::collections::HashMap<String, String>,
     allowed_fields: &std::collections::HashSet<String>,
+    selected_paths: &std::collections::HashSet<String>,
     registry: &SchemaRegistry,
 ) -> Value {
     match value {
         Value::Object(map) => {
-            // Pre-allocate result map (field count + __typename)
-            let mut result = Map::with_capacity(map.len() + 1);
+            // Pre-allocate result map (field count + optional __typename)
+            let capacity = if current_type.is_some() {
+                map.len() + 1
+            } else {
+                map.len()
+            };
+            let mut result = Map::with_capacity(capacity);
 
-            // Inject __typename first (GraphQL convention)
-            result.insert(
-                "__typename".to_string(),
-                Value::String(current_type.to_string()),
-            );
+            // Inject __typename first (GraphQL convention) if type is known
+            if let Some(type_name) = current_type {
+                result.insert(
+                    "__typename".to_string(),
+                    Value::String(type_name.to_string()),
+                );
+            }
 
             // OPTIMIZATION: Clone map once, then use .remove() to take ownership of values
             // This trades 1 map clone for N field clones (where N = number of fields)
@@ -402,12 +541,40 @@ fn transform_with_aliases(
                     format!("{}.{}", current_path, key)
                 };
 
-                // Field projection: skip fields not in allowed set (only at root level)
-                // Check both snake_case key (from JSON) and camelCase version (for cases like dns_1/dns1)
-                if current_path.is_empty()
-                    && !allowed_fields.contains(key)
-                    && !allowed_fields.contains(&to_camel_case(key))
-                {
+                // Field projection: Check if this field is allowed at current path level
+                // At root level: check allowed_fields directly
+                // At nested level: check if any selection starts with current path + field
+                let is_field_allowed = if current_path.is_empty() {
+                    // Root level: check if field is in allowed set
+                    allowed_fields.contains(key) || allowed_fields.contains(&to_camel_case(key))
+                } else {
+                    // Nested level: check if field_path (or any of its variants) is in selected_paths
+                    //
+                    // **Performance Optimization**: Since we pre-computed all path variants in
+                    // `build_alias_map()`, we can now use simple HashSet lookups instead of
+                    // computing variants for every field. This reduces O(N fields × 3 path builds)
+                    // to O(N fields × 1 path build).
+                    //
+                    // The `path_matches_selection` helper checks:
+                    // 1. Exact match: field_path is in selected_paths
+                    // 2. Prefix match: any selected path is a child of field_path
+                    //
+                    // We only need to build camel_field_path and partial_camel_path here
+                    // because we're checking against the pre-computed set.
+                    let camel_field_path = to_camel_case_path(&field_path);
+                    let partial_camel_path = to_partial_camel_case_path(&field_path);
+
+                    selected_paths.iter().any(|selection| {
+                        path_matches_selection(
+                            selection,
+                            &field_path,
+                            &camel_field_path,
+                            partial_camel_path.as_deref(),
+                        )
+                    })
+                };
+
+                if !is_field_allowed {
                     continue;
                 }
 
@@ -422,18 +589,22 @@ fn transform_with_aliases(
                 };
 
                 // Transform value based on schema type
-                let transformed_val = match registry.get_field_type(current_type, key) {
+                let field_type_opt =
+                    current_type.and_then(|type_name| registry.get_field_type(type_name, key));
+
+                let transformed_val = match field_type_opt {
                     Some(field_info) if field_info.is_nested_object() => {
                         // Nested object or array - recursively transform with updated path
                         // Still need to borrow here for nested transformation
                         let val = owned_map.get(key).unwrap();
                         transform_nested_field_with_aliases(
                             val,
-                            field_info.type_name(),
+                            Some(field_info.type_name()),
                             field_info.is_list(),
                             &field_path,
                             alias_map,
                             allowed_fields,
+                            selected_paths,
                             registry,
                         )
                     }
@@ -442,8 +613,34 @@ fn transform_with_aliases(
                         owned_map.remove(key).unwrap()
                     }
                     None => {
-                        // Field not in schema - take ownership and transform recursively
-                        transform_value(owned_map.remove(key).unwrap())
+                        // Field not in schema
+                        // Check if we have nested selections for this field in selected_paths
+                        let has_nested_selections = selected_paths.iter().any(|path| {
+                            path.len() > field_path.len() + 1
+                                && path.starts_with(&field_path)
+                                && path.as_bytes()[field_path.len()] == b'.'
+                        });
+
+                        if has_nested_selections {
+                            // Field has nested selections, so recursively transform with filtering
+                            let val = owned_map.get(key).unwrap();
+                            // Determine if it's a list by checking the value type
+                            let is_list = matches!(val, Value::Array(_));
+                            // Type not in schema - pass None to skip __typename injection
+                            transform_nested_field_with_aliases(
+                                val,
+                                None,
+                                is_list,
+                                &field_path,
+                                alias_map,
+                                allowed_fields,
+                                selected_paths,
+                                registry,
+                            )
+                        } else {
+                            // No nested selections - use generic transformation
+                            transform_value(owned_map.remove(key).unwrap())
+                        }
                     }
                 };
 
@@ -463,11 +660,12 @@ fn transform_with_aliases(
 #[inline]
 fn transform_nested_field_with_aliases(
     value: &Value,
-    nested_type: &str,
+    nested_type: Option<&str>,
     is_list: bool,
     current_path: &str,
     alias_map: &std::collections::HashMap<String, String>,
     allowed_fields: &std::collections::HashSet<String>,
+    selected_paths: &std::collections::HashSet<String>,
     registry: &SchemaRegistry,
 ) -> Value {
     if is_list {
@@ -484,6 +682,7 @@ fn transform_nested_field_with_aliases(
                             current_path,
                             alias_map,
                             allowed_fields,
+                            selected_paths,
                             registry,
                         ),
                     })
@@ -503,6 +702,7 @@ fn transform_nested_field_with_aliases(
                 current_path,
                 alias_map,
                 allowed_fields,
+                selected_paths,
                 registry,
             ),
         }

@@ -1,6 +1,52 @@
+---
+title: Quick Reference
+description: One-page cheatsheet for common FraiseQL patterns and commands
+tags:
+  - quick-reference
+  - cheatsheet
+  - patterns
+  - commands
+  - examples
+---
+
 # FraiseQL Quick Reference
 
 One-page cheatsheet for common FraiseQL patterns, commands, and advanced type operations.
+
+## 💡 Import Best Practices
+
+**Always use namespaced imports to avoid shadowing Python builtins:**
+
+```python
+# ✅ RECOMMENDED (safe, clear)
+import fraiseql
+
+@fraiseql.type(sql_source="v_user")
+class User: ...
+
+@fraiseql.input
+class CreateUserInput: ...
+```
+
+**Alternative - explicit imports:**
+
+```python
+# ✅ SAFE (explicit names don't shadow builtins)
+from fraiseql import fraise_type, fraise_input, query, mutation
+
+@fraise_type(sql_source="v_user")
+class User: ...
+```
+
+**⚠️ AVOID - Shadows Python builtins:**
+
+```python
+# ❌ DANGEROUS - shadows builtin type() and input()
+from fraiseql import type, input  # Don't do this!
+
+@type  # Now you can't use Python's type() function!
+class User: ...
+```
 
 ## Essential Commands
 
@@ -26,11 +72,11 @@ make test                                       # Run tests
 ### Define a Type
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type(sql_source="v_user")
 class User:
-    id: UUID
+    id: ID
     name: str
     email: str
     posts: list['Post']  # Forward reference for relationships
@@ -50,13 +96,14 @@ async def users(info) -> list[User]:
 ### Query - Get by ID
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.query
-async def user(info, id: UUID) -> User | None:
+async def user(info, id: ID) -> User | None:
     """Get user by ID."""
     db = info.context["db"]
-    return await db.get_by_id("users", id)
+    # field_name auto-inferred from function name "user"
+    return await db.find_one("v_user", id=id)
 ```
 
 ### Query - Filter with Where Input Types
@@ -92,7 +139,7 @@ def create_user(input: CreateUserInput) -> User:
 ### Mutation - Update
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.input
 class UpdateUserInput:
@@ -100,7 +147,7 @@ class UpdateUserInput:
     email: str | None = None
 
 @fraiseql.mutation
-def update_user(id: UUID, input: UpdateUserInput) -> User:
+def update_user(id: ID, input: UpdateUserInput) -> User:
     """Update user."""
     pass  # Framework calls fn_update_user
 ```
@@ -108,14 +155,14 @@ def update_user(id: UUID, input: UpdateUserInput) -> User:
 ### Mutation - Delete
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 class DeleteResult:
     success: bool
     error: str | None
 
 @fraiseql.mutation
-def delete_user(id: UUID) -> DeleteResult:
+def delete_user(id: ID) -> DeleteResult:
     """Delete user."""
     pass  # Framework calls fn_delete_user
 ```
@@ -447,21 +494,8 @@ WHERE status != 'deleted';
 ```
 
 ### Function (Business Logic)
-```sql
--- fn_create_user - Write operations (returns public UUID)
-CREATE OR REPLACE FUNCTION fn_create_user(user_data JSONB)
-RETURNS UUID AS $$
-DECLARE
-    new_id UUID;
-BEGIN
-    INSERT INTO tb_user (name, email)
-    VALUES (user_data->>'name', user_data->>'email')
-    RETURNING id INTO new_id;  -- Return public UUID, not pk_user
 
-    RETURN new_id;
-END;
-$$ LANGUAGE plpgsql;
-```
+See [canonical fn_create_user()](../examples/canonical-examples.md#create-user-function) for complete example with validation.
 
 ### Trigger (Auto-updates)
 ```sql
@@ -537,13 +571,13 @@ from fraiseql.db import FraiseQLRepository
 from fraiseql.fastapi import FraiseQLRouter
 
 # Types
-from uuid import UUID
+from fraiseql.types import ID
 from datetime import datetime
 ```
 
 ## Need More Help?
 
-- [First Hour Guide](../getting-started/first-hour/) - Progressive tutorial
-- [Troubleshooting](../guides/troubleshooting/) - Common issues
-- [Understanding FraiseQL](../guides/understanding-fraiseql/) - Architecture overview
+- [First Hour Guide](../getting-started/first-hour.md) - Progressive tutorial
+- [Troubleshooting](../guides/troubleshooting.md) - Common issues
+- [Understanding FraiseQL](../guides/understanding-fraiseql.md) - Architecture overview
 - [Examples](../../examples/) - Working applications

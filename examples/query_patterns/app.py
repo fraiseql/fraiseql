@@ -9,13 +9,14 @@ This example demonstrates all three ways to register queries:
 from uuid import UUID
 
 import fraiseql
+from fraiseql.types import ID
 from fraiseql.fastapi import create_fraiseql_app
 
 
 # Define your types
 @fraiseql.type
 class User:
-    id: UUID
+    id: ID
     name: str
     email: str
     role: str
@@ -23,17 +24,17 @@ class User:
 
 @fraiseql.type
 class Post:
-    id: UUID
+    id: ID
     title: str
     content: str
-    author_id: UUID
+    author_id: ID
     published: bool
 
 
 # Pattern 1: Using @fraiseql.query decorator (RECOMMENDED)
 # These queries are automatically registered when the module is imported
 @fraiseql.query
-async def get_user(info, id: UUID) -> User:
+async def get_user(info, id: ID) -> User:
     """Get a user by ID."""
     # In a real app, you'd fetch from database
     return User(id=id, name="John Doe", email="john@example.com", role="admin")

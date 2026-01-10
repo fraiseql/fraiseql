@@ -1,0 +1,1 @@
+test sql_parsing/simple ... bench:          85 ns/iter (+/- 2)

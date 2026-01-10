@@ -9,6 +9,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 
 import fraiseql
+from fraiseql.types import ID
 from fraiseql import subscription
 from fraiseql.gql.schema_builder import build_fraiseql_schema
 from fraiseql.subscriptions import SubscriptionManager
@@ -17,7 +18,7 @@ from fraiseql.subscriptions import SubscriptionManager
 # Define types
 @fraiseql.type
 class Task:
-    id: UUID
+    id: ID
     title: str
     status: str
     created_at: str

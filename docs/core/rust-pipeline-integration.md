@@ -1,3 +1,16 @@
+---
+title: Rust Pipeline Architecture
+description: How FraiseQL integrates Python and Rust for 5-7x faster JSON transformation and zero-copy performance
+tags:
+  - rust
+  - python
+  - architecture
+  - performance
+  - PyO3
+  - pipeline
+  - integration
+---
+
 # Python ↔ Rust Integration
 
 This guide explains how FraiseQL's Python code integrates with the Rust pipeline.
@@ -16,30 +29,47 @@ This architecture is unique to FraiseQL. No other GraphQL framework combines:
 - Rust-powered JSON transformation
 - Direct UTF-8 byte output to HTTP
 
-```
-┌─────────────────────────────────────────────┐
-│           Python Layer                      │
-│  - GraphQL schema definition                │
-│  - Query resolvers                          │
-│  - Database queries (PostgreSQL)            │
-│  - Business logic                           │
-└──────────────────┬──────────────────────────┘
-                   │
-                   │ JSONB strings
-                   ▼
-┌─────────────────────────────────────────────┐
-│           Rust Layer (fraiseql-rs)          │
-│  - JSON concatenation                       │
-│  - GraphQL response wrapping                │
-│  - snake_case → camelCase                   │
-│  - __typename injection                     │
-│  - Field projection                         │
-└──────────────────┬──────────────────────────┘
-                   │
-                   │ UTF-8 bytes
-                   ▼
-                 FastAPI → HTTP
+```mermaid
+graph TB
+    Client[GraphQL Client]
+    Python[Python Layer<br/>GraphQL Schema, Resolvers, Business Logic]
+    Postgres[(PostgreSQL<br/>JSONB Views)]
+    Rust[Rust Pipeline fraiseql-rs<br/>JSON Transform, camelCase, __typename]
+    HTTP[FastAPI HTTP Response]
 
+    Client -->|GraphQL Query| Python
+    Python -->|SQL Query| Postgres
+    Postgres -->|JSONB Strings| Python
+    Python -->|Vec&lt;String&gt;| Rust
+    Rust -->|UTF-8 Bytes| HTTP
+    HTTP -->|JSON Response| Client
+
+    style Rust fill:#f96,stroke:#333,stroke-width:4px
+    style Python fill:#69f,stroke:#333,stroke-width:2px
+    style Postgres fill:#336791,stroke:#333,stroke-width:2px,color:#fff
+```
+
+## Request Flow Diagram
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant FastAPI
+    participant Python as Python Resolver
+    participant PostgreSQL
+    participant Rust as fraiseql_rs
+
+    Client->>FastAPI: POST /graphql<br/>{query: "{ users { id firstName } }"}
+    FastAPI->>Python: Execute GraphQL query
+    Python->>PostgreSQL: SELECT data FROM v_user
+    PostgreSQL->>Python: [<br/> '{"id": "...", "first_name": "Alice"}',<br/> '{"id": "...", "first_name": "Bob"}'<br/>]
+    Python->>Rust: build_graphql_response(<br/> json_strings=Vec&lt;String&gt;,<br/> field_name="users",<br/> type_name="User"<br/>)
+    Rust->>Rust: Concatenate JSON array
+    Rust->>Rust: Transform snake_case → camelCase
+    Rust->>Rust: Inject __typename="User"
+    Rust->>Python: Vec&lt;u8&gt; (UTF-8 bytes)
+    Python->>FastAPI: RustResponseBytes
+    FastAPI->>Client: HTTP 200 OK<br/>{"data": {"users": [...]}}
 ```
 
 ## The Boundary
@@ -48,23 +78,26 @@ This architecture is unique to FraiseQL. No other GraphQL framework combines:
 - Define GraphQL types and queries
 - Execute PostgreSQL queries
 - Collect JSONB strings from database
+- Call Rust pipeline with JSON strings
 
 ### What Rust Does:
+- Concatenate JSON array
 - Transform JSONB to GraphQL JSON
 - Convert field names to camelCase
 - Inject __typename
-- Output UTF-8 bytes for HTTP
+- Return UTF-8 bytes directly for HTTP
 
 ## Code Example
 
 ### Python Side:
 ```python
 import fraiseql
+from fraiseql.types import ID
 
 # 1. Define GraphQL type
 @fraiseql.type(sql_source="v_user")
 class User:
-    id: UUID
+    id: ID
     first_name: str  # Python uses snake_case
     created_at: datetime
 

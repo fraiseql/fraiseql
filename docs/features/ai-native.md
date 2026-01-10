@@ -1,3 +1,14 @@
+---
+title: AI-Native Features
+description: Built-in AI and ML integration features
+tags:
+  - AI
+  - machine-learning
+  - LLM
+  - embeddings
+  - features
+---
+
 # AI-Native Architecture
 
 FraiseQL is designed from the ground up for AI and LLM integration. Unlike traditional frameworks that confuse AI models with complex ORM abstractions, FraiseQL speaks the languages AI understands best: SQL and Python.
@@ -34,20 +45,20 @@ FraiseQL enables you to write complete business logic in a single Python file th
 import fraiseql
 import fraiseql
 from decimal import Decimal
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type(sql_source="v_user")
 class User:
     """User with account balance."""
-    id: UUID
+    id: ID
     email: str
     balance: Decimal
 
 @fraiseql.type(sql_source="v_order")
 class Order:
     """Order with all items and totals."""
-    id: UUID
-    user_id: UUID
+    id: ID
+    user_id: ID
     items: list['OrderItem']
     total: Decimal
     status: str
@@ -55,8 +66,8 @@ class Order:
 @fraiseql.type(sql_source="v_order_item")
 class OrderItem:
     """Order item with product details."""
-    id: UUID
-    product_id: UUID
+    id: ID
+    product_id: ID
     quantity: int
     price: Decimal
     product_name: str
@@ -64,13 +75,13 @@ class OrderItem:
 @input
 class ProcessOrderInput:
     """Input for processing an order."""
-    order_id: UUID
+    order_id: ID
 
 @fraiseql.type
 class ProcessOrderResult:
     """Result of order processing."""
     success: bool
-    order_id: UUID
+    order_id: ID
     message: str
     new_balance: Decimal | None = None
 
@@ -190,7 +201,7 @@ GROUP BY u.id, u.name, u.email, u.country;
 @fraiseql.type(sql_source="v_user")
 class User:
     """User with statistics and order data."""
-    id: UUID
+    id: ID
     name: str
     email: str
     country: str
@@ -252,7 +263,7 @@ ORDER BY total_orders DESC LIMIT 10;
 # ~10 tokens of simple Python
 @fraiseql.type(sql_source="v_user")
 class User:
-    id: UUID
+    id: ID
     name: str
     total_orders: int
     avg_order_value: Decimal
@@ -290,20 +301,11 @@ FraiseQL's GraphQL schema provides structured, type-safe interfaces that LLMs ca
 - Prompt engineering for schema understanding
 - Error handling and recovery
 
-## Table of Contents
-
-- [Schema Introspection for LLMs](#schema-introspection-for-llms)
-- [Prompt Engineering](#prompt-engineering)
-- [Query Generation](#query-generation)
-- [Safety Mechanisms](#safety-mechanisms)
-- [Error Handling](#error-handling)
-- [Best Practices](#best-practices)
-
 ## Schema Introspection for LLMs
 
 ### GraphQL Schema as LLM Context
 
-GraphQL schema provides perfect structure for LLM understanding:
+GraphQL schema provides structured context for LLM understanding:
 
 ```python
 import fraiseql
@@ -765,7 +767,7 @@ def simplify_query(query_text: str) -> str:
 
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type(sql_source="v_user")
 class User:
@@ -782,14 +784,14 @@ class User:
         orders: All orders placed by this user, sorted by creation date descending
     """
 
-    id: UUID
+    id: ID
     email: str
     name: str
     created_at: datetime
     orders: list['Order']
 
 @fraiseql.query
-async def user(info, id: UUID) -> User | None:
+async def user(info, id: ID) -> User | None:
     """Get a single user by ID.
 
     Args:
@@ -1004,7 +1006,7 @@ async def execute_llm_query_with_logging(
 
 ## Next Steps
 
-- [Security](../production/security/) - Securing LLM endpoints
-- [Performance](../performance/index/) - Optimizing LLM-generated queries
-- [Authentication](../advanced/authentication/) - User context for LLM queries
-- [Monitoring](../production/monitoring/) - Tracking LLM query patterns
+- [Security](../production/security.md) - Securing LLM endpoints
+- [Performance](../performance/index.md) - Optimizing LLM-generated queries
+- [Authentication](../advanced/authentication.md) - User context for LLM queries
+- [Monitoring](../production/monitoring.md) - Tracking LLM query patterns

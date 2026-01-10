@@ -762,7 +762,7 @@ async def test_jaccard_distance_filter(db_pool, binary_vector_test_setup) -> Non
 # Fingerprint matching with Hamming distance
 @fraise_type
 class ImageFingerprint:
-    id: UUID
+    id: ID
     name: str
     fingerprint: str  # bit(256) in PostgreSQL
     category: str

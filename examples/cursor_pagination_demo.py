@@ -18,6 +18,7 @@ from typing import Any
 from uuid import UUID
 
 import fraiseql
+from fraiseql.types import ID
 from fraiseql import Connection
 
 
@@ -142,7 +143,7 @@ async def published_posts_connection(
 @fraiseql.query
 async def user_posts_connection(
     info,
-    user_id: UUID,
+    user_id: ID,
     first: int | None = None,
     after: str | None = None,
     where: dict[str, Any] | None = None,

@@ -1,3 +1,15 @@
+---
+title: CLI Reference
+description: Complete command-line interface reference for FraiseQL development tools
+tags:
+  - CLI
+  - command-line
+  - tools
+  - development
+  - scaffolding
+  - codegen
+---
+
 # CLI Reference
 
 Complete command-line interface reference for FraiseQL. The CLI provides project scaffolding, development server, code generation, and SQL utilities.
@@ -468,6 +480,7 @@ fraiseql generate crud Product
 **Generated Structure:**
 ```python
 import fraiseql
+from fraiseql.types import ID
 
 @fraiseql.input
 class CreateUserInput:
@@ -475,7 +488,7 @@ class CreateUserInput:
 
 @input
 class UpdateUserInput:
-    id: UUID
+    id: ID
     name: str | None
 
 @success
@@ -494,8 +507,9 @@ class UserResult:
 
 @fraiseql.mutation
 async def create_user(input: CreateUserInput, repository: CQRSRepository) -> UserResult:
-    # TODO: Implement creation logic
-    ...
+    # Call your CQRS repository methods
+    result = await repository.create(input)
+    return UserResult(user=result)
 ```
 
 **Next Steps:**
@@ -909,10 +923,10 @@ echo "FRAISEQL_DATABASE_URL=postgresql://localhost/mydb" >> .env
 
 ## See Also
 
-- [5-Minute Quickstart](../getting-started/quickstart/) - Get started quickly
-- [Database API](../core/database-api/) - Repository patterns
-- [Production Deployment](../tutorials/production-deployment/) - Deployment guide
-- [Configuration](../core/configuration/) - Application configuration
+- [5-Minute Quickstart](../getting-started/quickstart.md) - Get started quickly
+- [Database API](../core/database-api.md) - Repository patterns
+- [Production Deployment](../tutorials/production-deployment.md) - Deployment guide
+- [Configuration](../core/configuration.md) - Application configuration
 
 ---
 

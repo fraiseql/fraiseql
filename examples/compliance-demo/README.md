@@ -574,9 +574,9 @@ hmac_signature = response.mac
 
 ## 📚 Related Examples
 
-- [`../multi-tenant-saas/`](../multi-tenant-saas/) - Multi-tenancy with RLS
-- [`../blog_enterprise/`](../blog_enterprise/) - Enterprise CQRS patterns
-- [`../security/`](../security/) - Additional security features
+- [`../multi-tenant-saas/`](../multi-tenant-saas/README.md) - Multi-tenancy with RLS
+- [`../blog_enterprise/`](../blog_enterprise/README.md) - Enterprise CQRS patterns
+- [`../security/`](../security/README.md) - Additional security features
 
 ## 📄 Further Reading
 

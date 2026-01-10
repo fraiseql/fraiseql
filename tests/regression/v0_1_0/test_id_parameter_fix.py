@@ -9,27 +9,29 @@ import fraiseql
 from fraiseql import mutation, query, subscription
 from fraiseql.config.schema_config import SchemaConfig
 from fraiseql.gql.builders import SchemaComposer, SchemaRegistry
+from fraiseql.types import ID
 
 
 @fraiseql.type
 class Item:
-    id: UUID
+    id: ID
     type: str
     class_name: str
 
 
 # Query with Python reserved words as parameters
 @query
-async def get_item(info, id_: UUID, type_: str = "default") -> Item | None:
+async def get_item(info, id_: ID, type_: str = "default") -> Item | None:
     """Get item by ID and type - uses trailing underscore for Python reserved words."""
-    return Item(id=id_, type=type_, class_name="TestClass")
+    # IDScalar parses the id to uuid.UUID
+    return Item(id=str(id_), type=type_, class_name="TestClass")
 
 
 # Mutation with reserved word parameter
 @mutation
-async def create_item(info, id_: UUID, class_: str) -> Item:
+async def create_item(info, id_: ID, class_: str) -> Item:
     """Create item with reserved word parameters."""
-    return Item(id=id_, type="created", class_name=class_)
+    return Item(id=str(id_), type="created", class_name=class_)
 
 
 # Subscription with reserved word parameter
@@ -45,9 +47,12 @@ async def watch_items(info, type_: str) -> AsyncGenerator[Item]:
 
 class TestReservedWordParameters:
     def setup_method(self) -> None:
-        """Clear registry before each test."""
+        """Clear registry and type cache before each test."""
         SchemaRegistry._instance = None
         SchemaConfig._instance = None
+        # Also clear the GraphQL type cache
+        from fraiseql.core.graphql_type import _graphql_type_cache
+        _graphql_type_cache.clear()
 
     def test_graphql_schema_removes_trailing_underscore(self) -> None:
         """Test that GraphQL schema exposes 'id' not 'id_'."""

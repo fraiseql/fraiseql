@@ -1,5 +1,5 @@
 # Trivy Vulnerability Exceptions for International Compliance
-# Last Updated: 2025-12-19
+# Last Updated: 2025-12-22
 # Review Schedule: Monthly
 # Approval: Security Team
 # Compliance: US (NIST/FedRAMP), EU (NIS2/GDPR), UK (NCSC), ISO 27001, SOC 2
@@ -130,18 +130,6 @@ CVE-2022-0563
 # Mitigation: Enhanced monitoring, update when patches available
 # -----------------------------------------------------------------------------
 
-# : util-linux heap buffer overread in setpwnam()
-# Justification: Recently disclosed (2025), no fixed version available yet
-# Impact: Heap buffer overread when processing 256-byte usernames
-# Mitigation:
-#   - Application does not process usernames of this length
-#   - Container user management is static (no runtime user creation)
-#   - Non-root execution limits exploitation potential
-# Status: MONITORING - Update to util-linux 2.41-6+ when available
-# Review Date: Weekly until patch available
-# Escalation: If proof-of-concept published, migrate to distroless immediately
-#   # KEEP VISIBLE - Do not ignore, monitor actively
-
 # CVE-2025-9820: GnuTLS vulnerability (GNUTLS-SA-2025-11-18)
 # Justification: Recently disclosed, details not fully public
 # Impact: TLS library vulnerability, severity unclear
@@ -151,30 +139,7 @@ CVE-2022-0563
 #   - Container-to-container communication over trusted network
 # Status: MONITORING - Update when fixed version available
 # Review Date: Weekly until patch available
-# CVE-2025-9820  # KEEP VISIBLE - Do not ignore, monitor actively
-
-# : ncurses stack buffer overflow
-# Justification: Recently disclosed (2025), no fixed version available
-# Impact: Requires attacker-controlled terminal input to ncurses application
-# Mitigation:
-#   - No interactive terminal access in production containers
-#   - Application is web API (FastAPI), does not use ncurses
-#   - ncurses is transitive dependency from base image
-# Status: MONITORING - Update when fixed version available
-# Review Date: Monthly (low risk due to no ncurses usage)
-#   # KEEP VISIBLE - Do not ignore, monitor actively
-
-# : shadow-utils subordinate ID configuration
-# Justification: Default configuration issue in /etc/login.defs
-# Impact: Could allow unprivileged user to gain subordinate UIDs/GIDs
-# Mitigation:
-#   - Container uses single non-root user 'fraiseql'
-#   - No user namespace remapping configured
-#   - No user login functionality in container
-#   - /etc/login.defs not modified from secure defaults
-# Status: MONITORING - Update when fixed version available
-# Review Date: Monthly
-#   # KEEP VISIBLE - Do not ignore, monitor actively
+CVE-2025-9820 # KEEP VISIBLE - Do not ignore, monitor actively
 
 # =============================================================================
 # CATEGORY 6: LOW SEVERITY CVEs (All Documented & Accepted)
@@ -202,8 +167,8 @@ CVE-2022-0563
 # -----------------------------------------------------------------------------
 
 # Legacy CVEs - Utilities Not Used
-CVE-2010-4756  # glibc glob DoS - no user glob input
-CVE-2011-3374  # apt gpg keys - apt not used at runtime
+CVE-2010-4756 # glibc glob DoS - no user glob input
+CVE-2011-3374 # apt gpg keys - apt not used at runtime
 CVE-2017-18018 # coreutils chown race - chown not used at runtime
 
 # Vendor-Disputed CVEs - Not Security Issues
@@ -212,13 +177,11 @@ CVE-2019-1010022 # glibc stack guard - vendor: "not a real threat"
 CVE-2019-1010023 # glibc ldd - vendor: "not a real threat"
 CVE-2019-1010024 # glibc ASLR bypass - vendor: "not a vulnerability"
 CVE-2019-1010025 # glibc heap addresses - vendor: "ASLR bypass not vuln"
-CVE-2019-9192  # glibc regex - vendor: "crafted pattern only"
+CVE-2019-9192 # glibc regex - vendor: "crafted pattern only"
 CVE-2021-45346 # SQLite corrupted DB - vendor dispute + PostgreSQL-only
 
 # Recent LOW CVEs - Preconditions Not Met
-CVE-2025-5278  # coreutils sort - sort command not used
-  # ncurses - no terminal/TTY in production
- # shadow-utils - static UID only, no subuid allocation
+CVE-2025-5278 # coreutils sort - sort command not used
 
 # Temporary/Unassigned Identifiers
 TEMP-0841856-B18BAF # bash privilege escalation - no shell access

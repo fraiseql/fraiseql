@@ -122,7 +122,7 @@ vector_patterns = [
 ```python
 @type(sql_source="v_document")
 class Document:
-    id: UUID
+    id: ID
     tags: list[str]              # → ArrayFilter (no vector pattern)
     scores: list[float]           # → ArrayFilter (no vector pattern)
     embedding: list[float]        # → VectorFilter (matches "embedding")

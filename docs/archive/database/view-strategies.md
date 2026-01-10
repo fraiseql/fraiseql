@@ -66,14 +66,14 @@ import fraiseql
 
 @fraiseql.type(sql_source="v_user")
 class User:
-    id: UUID
+    id: ID
     first_name: str
     last_name: str
     email: str
     posts_json: list[dict]  # JSON, not transformed
 
 @fraiseql.query
-async def user(info, id: UUID) -> User:
+async def user(info, id: ID) -> User:
     repo = info.context["db"]
     return await repo.find_one("v_user", id=id)
 ```
@@ -154,14 +154,14 @@ import fraiseql
 
 @fraiseql.type(sql_source="tv_user", jsonb_column="data")
 class User:
-    id: UUID
+    id: ID
     first_name: str
     last_name: str
     email: str
     user_posts: list[Post]  # Transformed from JSONB
 
 @fraiseql.query
-async def user(info, id: UUID) -> User:
+async def user(info, id: ID) -> User:
     repo = info.context["db"]
     return await repo.find_one("tv_user", id=id)
 ```

@@ -1,3 +1,14 @@
+---
+title: Trinity Pattern
+description: Three-tier identifier system for internal/external/display IDs
+tags:
+  - trinity
+  - identifiers
+  - pattern
+  - UUID
+  - architecture
+---
+
 # Trinity Pattern - FraiseQL's Database Architecture
 
 **Time to Complete:** 10-15 minutes
@@ -171,9 +182,11 @@ WHERE id = $1;
 
 **GraphQL Schema Updates**:
 ```python
+from fraiseql.types import ID
+
 @fraiseql.type(sql_source="v_user")
 class User:
-    id: UUID
+    id: ID
     email: str
     first_name: str
     last_name: str
@@ -257,11 +270,12 @@ GROUP BY u.id, u.tenant_id, u.email, u.first_name, u.last_name, u.created_at, u.
 
 ```python
 import fraiseql
+from fraiseql.types import ID
 
 @fraiseql.type(sql_source="v_user")
 class User:
     """User account."""
-    id: UUID
+    id: ID
     email: str
     first_name: str
     last_name: str
@@ -270,7 +284,7 @@ class User:
 @fraiseql.type(sql_source="tv_user_with_posts")
 class UserWithPosts:
     """User with their posts."""
-    id: UUID
+    id: ID
     email: str
     first_name: str
     last_name: str
@@ -278,7 +292,7 @@ class UserWithPosts:
     created_at: datetime
 
 @fraiseql.query
-async def user_with_posts(info, id: UUID) -> UserWithPosts:
+async def user_with_posts(info, id: ID) -> UserWithPosts:
     """Get user with all their posts."""
     db = info.context["db"]
     return await db.find_one("tv_user_with_posts", where={"id": id})
@@ -383,7 +397,7 @@ WHERE tenant_id = current_setting('app.tenant_id')::uuid;
 -- Step 4: Update application to use v_user
 ```
 
-See [Migration Guide](./migrations/) for detailed steps.
+See [Migration Guide](./migrations.md) for detailed steps.
 
 ---
 
@@ -481,10 +495,8 @@ SELECT
 
 ## Next Steps
 
-- [Database Naming Conventions](../database/table-naming-conventions/) - Complete naming reference
-- [Migration Guide](./migrations/) - Migrate from simple tables
-- [View Strategies](../database/view-strategies/) - Advanced view patterns
-- [Performance Tuning](../performance/performance-guide/) - Optimize your trinity pattern
+- [Migration Guide](./migrations.md) - Migrate from simple tables
+- [Performance Tuning](../performance/performance-guide.md) - Optimize your trinity pattern
 
 ---
 

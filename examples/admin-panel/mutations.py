@@ -6,6 +6,7 @@ Mutation resolvers for admin actions with automatic audit logging.
 from uuid import UUID
 
 import fraiseql
+from fraiseql.types import ID
 from fraiseql import Info
 from fraiseql.auth import requires_role
 
@@ -24,7 +25,7 @@ async def log_admin_action(
     info: Info,
     action: str,
     target_type: str,
-    target_id: UUID,
+    target_id: ID,
     details: dict
 ) -> None:
     """Log admin action to audit trail.
@@ -53,7 +54,7 @@ async def log_admin_action(
 @requires_role("admin")
 async def update_customer_status(
     info: Info,
-    customer_id: UUID,
+    customer_id: ID,
     new_status: str,
     reason: str
 ) -> CustomerInfo:
@@ -99,7 +100,7 @@ async def update_customer_status(
 @requires_role("customer_support", "admin")
 async def update_ticket_status(
     info: Info,
-    ticket_id: UUID,
+    ticket_id: ID,
     new_status: str,
     resolution_notes: str | None = None
 ) -> SupportTicket:
@@ -143,8 +144,8 @@ async def update_ticket_status(
 @requires_role("customer_support", "admin")
 async def assign_ticket(
     info: Info,
-    ticket_id: UUID,
-    assigned_to_id: UUID
+    ticket_id: ID,
+    assigned_to_id: ID
 ) -> SupportTicket:
     """Assign support ticket to an agent.
 
@@ -217,7 +218,7 @@ async def update_order_status(
 @requires_role("operations", "admin")
 async def mark_order_shipped(
     info: Info,
-    order_id: UUID,
+    order_id: ID,
     tracking_number: str
 ) -> Order:
     """Mark order as shipped with tracking information.
@@ -371,7 +372,7 @@ async def create_deal(
 @requires_role("admin")
 async def refund_order(
     info: Info,
-    order_id: UUID,
+    order_id: ID,
     reason: str,
     partial_amount: float | None = None
 ) -> Order:

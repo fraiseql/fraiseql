@@ -2,7 +2,7 @@
 
 Repository pattern for async database operations with type safety, structured queries, and JSONB views.
 
-**📍 Navigation**: [← Queries & Mutations](queries-and-mutations/) • [Performance →](../performance/index/) • [Database Patterns →](../advanced/database-patterns/)
+**📍 Navigation**: [← Queries & Mutations](queries-and-mutations.md) • [Performance →](../performance/index.md) • [Database Patterns →](../advanced/database-patterns.md)
 
 ## Overview
 
@@ -22,7 +22,7 @@ FraiseQL provides a repository layer for database operations that:
 │ GraphQL     │───▶│ Repository  │───▶│ PostgreSQL  │───▶│   Rust      │
 │ Resolver    │    │  Method     │    │   View      │    │ Pipeline    │
 │             │    │             │    │             │    │             │
-│ @query      │    │ find_rust() │    │ SELECT *    │    │ Transform   │
+│ @query      │    │ find()      │    │ SELECT data │    │ Transform   │
 │ def users:  │    │             │    │ FROM v_user │    │ JSONB→GraphQL│
 └─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
 ```
@@ -33,7 +33,6 @@ FraiseQL provides a repository layer for database operations that:
 3. **PostgreSQL** executes view and returns JSONB results
 4. **Rust Pipeline** transforms JSONB to GraphQL response format
 
-**[📊 Detailed Query Flow](../diagrams/request-flow/)** - Complete request lifecycle
 
 ## FraiseQLRepository
 
@@ -41,48 +40,52 @@ Core repository class for async database operations with exclusive Rust pipeline
 
 ### Key Methods
 
-#### find_rust(view_name, field_name, info, **kwargs)
-Execute query using exclusive Rust pipeline and return RustResponseBytes.
+#### find(view_name, field_name, **kwargs)
+Execute query using the exclusive Rust pipeline with automatic field selection.
 
-**Fastest method** - PostgreSQL → Rust → HTTP with zero Python string operations.
+**Fastest path** - PostgreSQL → Rust → HTTP with zero Python string operations.
 
 ```python
-# Exclusive Rust pipeline methods:
-users = await db.find_rust("v_user", "users", info)
-user = await db.find_one_rust("v_user", "user", info, id=123)
-filtered = await db.find_rust("v_user", "users", info, age__gt=18)
+@fraiseql.query
+async def users(info, limit: int = 100) -> list[User]:
+    db = info.context["db"]
+    # Rust pipeline automatically used
+    # field_name auto-inferred from function name "users"
+    return await db.find("v_user", limit=limit)
+
+@fraiseql.query
+async def filtered_users(info, min_age: int = 18) -> list[User]:
+    db = info.context["db"]
+    return await db.find("v_user", "filteredUsers", where={"age__gte": min_age})
 ```
 
 **Parameters:**
 - `view_name: str` - Database view name (e.g., "v_user")
-- `field_name: str` - GraphQL field name for response wrapping
-- `info: Any` - GraphQL resolver info for field paths
-- `**kwargs` - Filter parameters and options
+- `field_name: str` - GraphQL field name for response wrapping (e.g., "users")
+- `**kwargs` - Query parameters: `where`, `limit`, `offset`, `order_by`
 
-**Returns:** `RustResponseBytes` - Pre-serialized GraphQL response ready for HTTP
+**Returns:** Result handled automatically by framework (annotate resolver with `list[User]`)
 
-#### find_one_rust(view_name, field_name, info, **kwargs)
-Execute single-result query using exclusive Rust pipeline.
+> **Note**: The `info` parameter is auto-injected from context for field selection.
+
+#### find_one(view_name, field_name, **kwargs)
+Execute single-result query using the exclusive Rust pipeline.
+
+```python
+from fraiseql.types import ID
+
+@fraiseql.query
+async def user(info, id: ID) -> User | None:
+    db = info.context["db"]
+    return await db.find_one("v_user", "user", id=id)
+```
 
 **Parameters:**
 - `view_name: str` - Database view name
 - `field_name: str` - GraphQL field name for response wrapping
-- `info: Any` - GraphQL resolver info for field paths
-- `**kwargs` - Filter parameters
+- `**kwargs` - Filter conditions (e.g., `id=user_id`, `where={...}`)
 
-**Returns:** `RustResponseBytes` - Single result as GraphQL response
-
-#### find(source, where=None, **kwargs)
-Execute query and return Python objects.
-
-```python
-# Direct database access (bypasses Rust pipeline)
-users = await db.find("v_user")
-user = await db.find_one("v_user", id=123)
-```
-
-**Parameters:**
-- `source: str` - View name (e.g., "v_user")
+**Returns:** Result handled automatically (annotate with `User | None`)
 - `where: dict` - WHERE clause filters (optional)
 - `**kwargs` - Additional filters
 
@@ -442,7 +445,7 @@ class QueryOptions:
 
 Filter syntax supports multiple operators for flexible querying.
 
-> **💡 Advanced Filtering**: For comprehensive PostgreSQL operator support including arrays, full-text search, JSONB queries, and regex, see **[Filter Operators Reference](../advanced/filter-operators/)** and **[Advanced Filtering Examples](../examples/advanced-filtering/)**.
+> **💡 Advanced Filtering**: For comprehensive PostgreSQL operator support including arrays, full-text search, JSONB queries, and regex, see **[Filter Operators Reference](../advanced/filter-operators.md)** and **[Advanced Filtering Examples](../examples/advanced-filtering.md)**.
 
 ### Supported Operators
 
@@ -1161,7 +1164,7 @@ for order in data:
 
 ## See Also
 
-- [Queries & Mutations](queries-and-mutations/) - Using repository methods in GraphQL resolvers
-- [Database Patterns](../advanced/database-patterns/) - View design and N+1 prevention
-- [Performance](../performance/index/) - Query optimization
-- [Multi-Tenancy](../advanced/multi-tenancy/) - Tenant isolation patterns
+- [Queries & Mutations](queries-and-mutations.md) - Using repository methods in GraphQL resolvers
+- [Database Patterns](../advanced/database-patterns.md) - View design and N+1 prevention
+- [Performance](../performance/index.md) - Query optimization
+- [Multi-Tenancy](../advanced/multi-tenancy.md) - Tenant isolation patterns

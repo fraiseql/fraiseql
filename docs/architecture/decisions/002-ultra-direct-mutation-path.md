@@ -639,7 +639,7 @@ async def test_delete_customer_ultra_direct(db):
 async def test_mutation_e2e_ultra_direct(graphql_client):
     """Test complete mutation flow with ultra-direct path."""
     response = await graphql_client.execute("""
-        mutation DeleteCustomer($id: UUID!) {
+        mutation DeleteCustomer($id: ID!) {
             deleteCustomer(input: {customerId: $id}) {
                 __typename
                 success

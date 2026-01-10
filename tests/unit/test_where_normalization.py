@@ -89,7 +89,14 @@ class TestDictNormalization:
         # Should have nested OR clause
         assert len(clause.nested_clauses) == 1
         assert clause.nested_clauses[0].logical_op == "OR"
-        assert len(clause.nested_clauses[0].conditions) == 2
+        # UPDATED: With the fix for Issue #124 complex filters, OR now preserves
+        # nested WhereClause structures instead of flattening to conditions
+        assert len(clause.nested_clauses[0].nested_clauses) == 2
+        # Verify each nested clause has the expected condition
+        for nested in clause.nested_clauses[0].nested_clauses:
+            assert len(nested.conditions) == 1
+            assert nested.conditions[0].operator == "eq"
+            assert nested.conditions[0].value in ("active", "pending")
 
     def test_normalize_not_clause(self):
         """Test normalizing NOT logical operator."""
@@ -227,7 +234,14 @@ class TestDictNormalization:
 
         assert len(clause.nested_clauses) == 1
         assert clause.nested_clauses[0].logical_op == "OR"
-        assert len(clause.nested_clauses[0].conditions) == 2
+        # UPDATED: With the fix for Issue #124 complex filters, OR now preserves
+        # nested WhereClause structures instead of flattening to conditions
+        assert len(clause.nested_clauses[0].nested_clauses) == 2
+        # Verify each nested clause has the expected condition
+        for nested in clause.nested_clauses[0].nested_clauses:
+            assert len(nested.conditions) == 1
+            assert nested.conditions[0].operator == "eq"
+            assert nested.conditions[0].value in ("active", "pending")
 
 
 class TestNormalizationEquivalence:

@@ -1,6 +1,19 @@
+---
+title: Build a Blog API Tutorial
+description: Step-by-step tutorial building a production-ready blog API with posts, comments, authentication, and tags
+tags:
+  - tutorial
+  - blog
+  - REST to GraphQL
+  - production
+  - authentication
+  - relationships
+  - CQRS
+---
+
 # Blog API Tutorial
 
-Complete blog application demonstrating FraiseQL's CQRS architecture, N+1 prevention, and production patterns.
+Complete blog application demonstrating FraiseQL's [CQRS](../core/concepts-glossary.md#cqrs-command-query-responsibility-segregation) architecture, N+1 prevention, and production patterns.
 
 ## Overview
 
@@ -11,7 +24,7 @@ Build a blog API with:
 - Production-ready patterns
 
 **Time**: 30-45 minutes
-**Prerequisites**: Completed [quickstart](../getting-started/quickstart/), basic PostgreSQL knowledge
+**Prerequisites**: Completed [quickstart](../getting-started/quickstart.md), basic PostgreSQL knowledge
 
 ## Database Schema
 
@@ -176,12 +189,12 @@ FROM tb_post p;
 
 ```python
 from datetime import datetime
-from uuid import UUID
+from fraiseql.types import ID
 import fraiseql
 
 @fraiseql.type(sql_source="v_user")
 class User:
-    id: UUID
+    id: ID
     email: str
     name: str
     bio: str | None
@@ -190,7 +203,7 @@ class User:
 
 @fraiseql.type(sql_source="v_comment")
 class Comment:
-    id: UUID
+    id: ID
     content: str
     created_at: datetime
     author: User
@@ -199,7 +212,7 @@ class Comment:
 
 @fraiseql.type(sql_source="v_post")
 class Post:
-    id: UUID
+    id: ID
     title: str
     slug: str
     content: str
@@ -215,11 +228,11 @@ class Post:
 ## Queries
 
 ```python
-from uuid import UUID
+from fraiseql.types import ID
 import fraiseql
 
 @fraiseql.query
-def get_post(id: UUID) -> Post | None:
+def get_post(id: ID) -> Post | None:
     """Get single post with all nested data."""
     pass  # Implementation handled by framework
 
@@ -321,6 +334,7 @@ $$ LANGUAGE plpgsql;
 
 ```python
 import fraiseql
+from fraiseql.types import ID
 
 @fraiseql.input
 class CreatePostInput:
@@ -332,9 +346,9 @@ class CreatePostInput:
 
 @fraiseql.input
 class CreateCommentInput:
-    post_id: UUID
+    post_id: ID
     content: str
-    parent_id: UUID | None = None
+    parent_id: ID | None = None
 
 @fraiseql.mutation
 def create_post(input: CreatePostInput) -> Post:
@@ -390,7 +404,7 @@ if __name__ == "__main__":
 
 ```graphql
 # Get post with nested data (1 query!)
-query GetPost($id: UUID!) {
+query GetPost($id: ID!) {
   getPost(id: $id) {
     id
     title
@@ -516,12 +530,12 @@ WHERE fk_parent IS NULL;
 
 ## Next Steps
 
-- [Database Patterns](../advanced/database-patterns/) - tv_ pattern and production patterns
-- [Performance](../performance/index/) - Rust transformation, APQ, TurboRouter
-- [Multi-Tenancy](../advanced/multi-tenancy/) - Tenant isolation patterns
+- [Database Patterns](../advanced/database-patterns.md) - tv_ pattern and production patterns
+- [Performance](../performance/index.md) - Rust transformation, APQ, TurboRouter
+- [Multi-Tenancy](../advanced/multi-tenancy.md) - Tenant isolation patterns
 
 ## See Also
 
-- [Quickstart](../getting-started/quickstart/) - 5-minute intro
-- [Database API](../core/database-api/) - Repository methods
-- [Production Deployment](./production-deployment/) - Deploy to production
+- [Quickstart](../getting-started/quickstart.md) - 5-minute intro
+- [Database API](../core/database-api.md) - Repository methods
+- [Production Deployment](./production-deployment.md) - Deploy to production

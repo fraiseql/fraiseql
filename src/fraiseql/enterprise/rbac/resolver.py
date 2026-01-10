@@ -3,6 +3,18 @@
 Resolves effective permissions for users with hierarchical role inheritance.
 Uses 2-layer caching (request-level + PostgreSQL) with automatic invalidation.
 
+**IMPORTANT**: This module handles permission RESOLUTION (computing which permissions
+a user has), not permission ENFORCEMENT (blocking unauthorized actions). For enforcement,
+see the directives module and middleware components.
+
+**Testing Status (v1.9.7)**:
+- ✅ Permission resolution: Fully tested (52 tests)
+- ✅ Role hierarchy: Tested and working
+- ✅ Caching: Tested and working
+- ⚠️ Enforcement verification: Tests pending (Issue #225)
+  - Positive tests exist (authorized users can do things)
+  - Negative tests needed (unauthorized users are blocked)
+
 Key Features:
 - Computes effective permissions from role hierarchy
 - PostgreSQL-native caching with domain versioning

@@ -1,6 +1,6 @@
 [package]
 name = "fraiseql_rs"
-version = "1.8.9"
+version = "1.9.7"
 edition = "2021"
 authors = ["FraiseQL Contributors"]
 description = "Ultra-fast GraphQL JSON transformation in Rust for FraiseQL"
@@ -9,6 +9,53 @@ repository = "https://github.com/fraiseql/fraiseql"
 license = "MIT"
 keywords = ["graphql", "json", "performance", "pyo3", "rust"]
 categories = ["web-programming", "api-bindings"]
+publish = false
+
+# ============================================================================
+# LINTING CONFIGURATION - Phase 0.1: Quality Enforcement Foundation
+# ============================================================================
+[lints.clippy]
+# Core quality lints (allow some flexibility initially)
+todo = "deny"                     # FORCE completion before merge
+unwrap_used = "allow"             # Allow unwrap() calls temporarily
+expect_used = "warn"              # Catch expect() calls
+panic = "warn"                    # Catch panic!() calls
+unimplemented = "warn"            # Catch unimplemented!()
+dbg_macro = "warn"                # Catch debug macros
+
+# Performance basics
+redundant_clone = "warn"
+vec_init_then_push = "warn"
+inefficient_to_string = "warn"
+manual_str_repeat = "warn"
+explicit_deref_methods = "warn"
+
+# Code clarity basics
+too_many_arguments = "warn"       # Enforce function argument limits
+cognitive_complexity = "warn"     # Detect overly complex functions
+
+# Allow existing patterns temporarily (will tighten in future phases)
+excessive_nesting = "allow"       # Allow existing nested code
+unreadable_literal = "allow"      # Allow existing numeric literals
+needless_raw_string_hashes = "allow"  # Allow existing raw strings
+doc_markdown = "allow"            # Allow missing backticks in docs
+missing_errors_doc = "allow"      # Allow missing error docs
+uninlined_format_args = "allow"   # Allow existing format strings
+manual_let_else = "allow"         # Allow existing match patterns
+unnecessary_wraps = "allow"       # Allow existing Result wrapping
+must_use_candidate = "allow"      # Allow missing must_use
+use_self = "allow"                # Allow explicit type names
+inline_always = "allow"           # Allow inline(always) attributes
+empty_line_after_outer_attr = "allow"  # Allow existing formatting
+type_complexity = "warn"          # Detect overly complex types
+manual_is_multiple_of = "allow"   # Allow existing modulo checks
+unit_arg = "allow"                # Allow existing unit args
+
+[lints.rust]
+unsafe_code = "allow"             # Allow unsafe code (documented and justified)
+missing_docs = "allow"            # Allow missing docs temporarily
+missing_debug_implementations = "allow"  # Allow missing Debug impls temporarily
+unsafe_op_in_unsafe_fn = "allow"  # Allow unsafe ops in unsafe fns
 
 [lib]
 name = "fraiseql_rs"
@@ -18,36 +65,113 @@ crate-type = ["cdylib", "rlib"]
 default = ["simd"]
 simd = []
 dhat-heap = []
+python = []  # Python bindings feature (for PyO3 error conversions)
 
 [dependencies]
-pyo3 = { version = "0.25.0", features = ["extension-module"] }
+pyo3 = { version = "0.25.0", features = ["extension-module", "experimental-async"] }
 
 # JSON parsing and serialization (zero-copy where possible)
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "1.0"
+anyhow = "1.0"
+
+# PostgreSQL client and connection pooling (Phase 1)
+tokio-postgres = { version = "0.7", features = ["with-serde_json-1", "with-uuid-1", "with-chrono-0_4"] }
+deadpool-postgres = "0.14"
+deadpool = "0.12"
+async-trait = "0.1"
+
+# Date/time handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# UUID support
+uuid = { version = "1.0", features = ["v4", "serde"] }
 
 # Fast string operations
 # Note: Will add for Phase 2 (camelCase optimization)
 # smallvec = "1.13"
 
-# SIMD support
-packed_simd = { version = "0.3", optional = true }
+# Byte buffer for ToSql implementation
+bytes = "1.0"
+
+# SIMD support (disabled due to compatibility issues)
+# packed_simd = { version = "0.3", optional = true }
 
 # Schema registry dependencies
 arc-swap = "1.6"
 once_cell = "1.0"
 
+# GraphQL parsing (Phase 6)
+graphql-parser = "0.4"
+pyo3-async-runtimes = { version = "0.25", features = ["tokio-runtime"] }
+
+# Query building (Phase 7)
+regex = "1.10"              # Field name transformations
+lazy_static = "1.4"         # Static regex
+itertools = "0.12"          # String utilities
+
+# Query caching (Phase 8)
+lru = "0.12"                # LRU cache
+linked-hash-map = "0.5"     # For LRU implementation
+sha2 = "0.10"               # Hashing for signatures
+
+# Authentication (Phase 10)
+jsonwebtoken = "9.2"        # JWT validation with built-in JWK support
+
+# Security features (Phase 12)
+rand = "0.8"                # Random number generation for CSRF
+hex = "0.4"                 # Hex encoding for tokens
+http = "0.2"                # HTTP header types for CORS
+reqwest = { version = "0.11", features = ["json"] }  # JWKS fetching
+tokio = { version = "1.35", features = ["full"] }  # Async runtime
+# sha2 already included above for signatures
+
 [dev-dependencies]
+# Testing framework
+tokio-test = "0.4"                    # Async runtime for tests
+tokio = { version = "1.0", features = ["full"] }
+
+# Test database containers
+testcontainers = "0.15"               # Docker containers for tests
+testcontainers-modules = { version = "0.2", features = ["postgres"] }
+
+# Assertions and matchers
+assert_matches = "1.5"                # Pattern matching in assertions
+pretty_assertions = "1.4"             # Pretty-print assertion failures
+
+# Mocking
+mockall = "0.12"                      # Mock objects for unit tests
+
+# Property testing
+proptest = "1.0"                      # Generate test cases
+
+# Benchmarking infrastructure (Phase 0.3)
+criterion = { version = "0.5", features = ["async_tokio", "html_reports"] }
+
 # Testing
 pyo3 = { version = "0.25.0", features = ["auto-initialize"] }
-proptest = "1.0"
 
-# Benchmarking infrastructure (Phase 0)
-criterion = { version = "0.5", features = ["html_reports"] }
+# PyO3 async support - will add in Phase 1.5 when needed
+# pyo3-asyncio = { version = "0.20", features = ["tokio-runtime"] }
+
+# Legacy benchmarking infrastructure
 dhat = "0.3"  # Heap profiling
 
-# Benchmark targets (Phase 0)
+# Benchmark targets (Phase 0.3)
+[[bench]]
+name = "connection_pool"
+harness = false
+
+[[bench]]
+name = "query_execution"
+harness = false
+
+[[bench]]
+name = "streaming"
+harness = false
+
+# Legacy benchmarks (keep for now)
 [[bench]]
 name = "pipeline"
 harness = false
@@ -89,6 +213,16 @@ lto = "fat"
 codegen-units = 1
 overflow-checks = false
 incremental = false
+
+# Test profile configuration
+[profile.test]
+opt-level = 1                    # Some optimization for faster tests
+incremental = true               # Faster rebuild during test development
+
+# Keep debug info for better error messages
+debug = true
+debug-assertions = true
+overflow-checks = true
 
 [build-dependencies]
 # Detect CPU features at compile time

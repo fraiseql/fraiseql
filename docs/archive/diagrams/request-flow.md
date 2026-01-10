@@ -138,7 +138,7 @@ graph TD
 
 ```python
 # GraphQL Query
-query GetUser($id: UUID!) {
+query GetUser($id: ID!) {
   user(id: $id) {
     id
     name

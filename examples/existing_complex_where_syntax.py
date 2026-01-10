@@ -12,6 +12,7 @@ from decimal import Decimal
 from uuid import UUID
 
 import fraiseql
+from fraiseql.types import ID
 from fraiseql.sql import create_graphql_where_input
 
 
@@ -33,7 +34,7 @@ class User:
         created_at: Account creation timestamp
         last_login: Last login timestamp
     """
-    id: UUID
+    id: ID
     username: str
     email: str
     age: int
@@ -61,8 +62,8 @@ class Order:
         shipped_at: Order shipment timestamp
         delivered_at: Order delivery timestamp
     """
-    id: UUID
-    user_id: UUID
+    id: ID
+    user_id: ID
     total_amount: Decimal
     status: str
     priority: str

@@ -1,3 +1,15 @@
+---
+title: Production Monitoring
+description: PostgreSQL-native error tracking, caching, and observability without external services
+tags:
+  - monitoring
+  - production
+  - observability
+  - error-tracking
+  - PostgreSQL
+  - metrics
+---
+
 # Production Monitoring
 
 Comprehensive monitoring strategy for FraiseQL applications with **PostgreSQL-native error tracking, caching, and observability**—eliminating the need for external services like Sentry or Redis.
@@ -32,19 +44,6 @@ FraiseQL Stack:
 - Query performance monitoring
 - Database pool monitoring
 - Alerting strategies
-
-## Table of Contents
-
-- [PostgreSQL Error Tracking](#postgresql-error-tracking) (Recommended)
-- [PostgreSQL Caching](#postgresql-caching) (Recommended)
-- [Migration Guides](#migration-guides)
-- [Metrics Collection](#metrics-collection)
-- [Logging](#logging)
-- [External APM Integration](#external-apm-integration) (Optional)
-- [Query Performance](#query-performance)
-- [Database Monitoring](#database-monitoring)
-- [Alerting](#alerting)
-- [Dashboards](#dashboards)
 
 ## PostgreSQL Error Tracking
 
@@ -706,7 +705,7 @@ patch_fastapi(app)
 
 # Custom span
 @fraiseql.query
-async def get_user(info, id: UUID) -> User:
+async def get_user(info, id: ID) -> User:
     with tracer.trace("get_user", service="fraiseql") as span:
         span.set_tag("user.id", id)
         span.set_tag("operation", "query")
@@ -998,6 +997,6 @@ if error_rate > 0.1:
 
 ## Next Steps
 
-- [Deployment](deployment/) - Production deployment patterns
-- [Security](security/) - Security monitoring
-- [Performance](../performance/index/) - Performance optimization
+- [Deployment](deployment.md) - Production deployment patterns
+- [Security](security.md) - Security monitoring
+- [Performance](../performance/index.md) - Performance optimization

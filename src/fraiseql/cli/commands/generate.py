@@ -143,7 +143,7 @@ def crud(type_name: str) -> None:
 import fraiseql
 from fraiseql import fraise_field
 from fraiseql.mutations import CQRSRepository
-from fraiseql.types.scalars import UUID
+from fraiseql.types import ID
 
 from ..types import {type_name}
 
@@ -158,7 +158,7 @@ class Create{type_name}Input:
 @fraiseql.input
 class Update{type_name}Input:
     """Input for updating a {type_name}."""
-    id: UUID = fraise_field(description="{type_name} ID")
+    id: ID = fraise_field(description="{type_name} ID")
     # TODO: Add your fields here
     name: str | None = fraise_field(description="Name")
 

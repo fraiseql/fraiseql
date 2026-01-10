@@ -281,18 +281,22 @@ CREATE TABLE tb_blog_post (...); -- ✅ tb_ prefix, descriptive
 
 **❌ Wrong**:
 ```python
+from fraiseql.types import ID
+
 @fraiseql.type(sql_source="v_user")
 class User:
     pk_user: int      # ❌ NEVER expose pk_*
-    id: UUID
+    id: ID
     name: str
 ```
 
 **✅ Correct**:
 ```python
+from fraiseql.types import ID
+
 @fraiseql.type(sql_source="v_user")
 class User:
-    id: UUID          # ✅ Only public fields
+    id: ID          # ✅ Only public fields
     name: str
 ```
 
@@ -315,18 +319,22 @@ CREATE VIEW v_user AS SELECT id, jsonb_build_object('id', id, 'name', name) as d
 ```
 
 ```python
+from fraiseql.types import ID
+
 @fraiseql.type(sql_source="v_user", jsonb_column="data")
 class User:
-    id: UUID
+    id: ID
     name: str
     email: str  # ❌ Not in JSONB!
 ```
 
 **✅ Correct**:
 ```python
+from fraiseql.types import ID
+
 @fraiseql.type(sql_source="v_user", jsonb_column="data")
 class User:
-    id: UUID      # ✅ Matches JSONB
+    id: ID      # ✅ Matches JSONB
     name: str     # ✅ Matches JSONB
 ```
 
@@ -384,9 +392,9 @@ python .phases/verify-examples-compliance/auto_fix.py your_example/
 
 ## 🔗 Related Resources
 
-- [Trinity Pattern Guide](./trinity-pattern-guide/)
-- [Migration Guide](../mutations/migration-guide/)
-- [Verification Tools](../testing/developer-guide/)
+- [Trinity Pattern Guide](./trinity-pattern-guide.md)
+- [Migration Guide](../archive/mutations/migration-guide.md)
+- [Verification Tools](../archive/testing/developer-guide.md)
 - [Example Template](../../examples/_TEMPLATE/)
 
 Remember: These patterns exist for good reasons. Following them ensures your FraiseQL implementation is secure, performant, and maintainable.

@@ -1,3 +1,16 @@
+---
+title: Observability
+description: PostgreSQL-native error tracking, distributed tracing, and metrics in one database
+tags:
+  - observability
+  - production
+  - tracing
+  - metrics
+  - error-tracking
+  - PostgreSQL
+  - logging
+---
+
 # Observability
 
 Complete observability stack for FraiseQL applications with **PostgreSQL-native error tracking, distributed tracing, and metrics**—all in one database.
@@ -38,23 +51,6 @@ FraiseQL implements the **"In PostgreSQL Everything"** philosophy for observabil
                     │  Dashboards  │
                     └──────────────┘
 ```
-
-## Table of Contents
-
-- [Error Tracking](#error-tracking)
-  - [Schema](#schema)
-  - [Setup](#setup)
-  - [Capture Errors](#capture-errors)
-  - [Error Notifications](#error-notifications)
-- [Distributed Tracing](#distributed-tracing)
-- [Metrics Collection](#metrics-collection)
-- [Correlation](#correlation)
-- [Grafana Dashboards](#grafana-dashboards)
-- [Query Examples](#query-examples)
-- [Performance Tuning](#performance-tuning)
-  - [Production-Scale Error Storage](#production-scale-error-storage)
-  - [Data Retention](#data-retention)
-- [Best Practices](#best-practices)
 
 ## Error Tracking
 
@@ -1685,7 +1681,7 @@ ORDER BY occurrences DESC;
 
 ## Next Steps
 
-- [Monitoring Guide](monitoring/) - Detailed monitoring setup
-- [Deployment](deployment/) - Production deployment patterns
-- [Security](security/) - Security best practices
-- [Health Checks](health-checks/) - Application health monitoring
+- [Monitoring Guide](monitoring.md) - Detailed monitoring setup
+- [Deployment](deployment.md) - Production deployment patterns
+- [Security](security.md) - Security best practices
+- [Health Checks](health-checks.md) - Application health monitoring

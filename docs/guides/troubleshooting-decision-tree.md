@@ -150,7 +150,7 @@ FROM tb_user;
 
 **Prevention:**
 - Run migrations: `psql -f schema.sql`
-- Check [DDL Organization Guide](../core/ddl-organization/)
+- Check [DDL Organization Guide](../core/ddl-organization.md)
 
 ---
 
@@ -469,7 +469,7 @@ SELECT * FROM tb_post;
 
 1. **Search existing issues**: [GitHub Issues](../issues)
 2. **Check discussions**: [GitHub Discussions](../discussions)
-3. **Review documentation**: [Complete Docs](../../README/)
+3. **Review documentation**: [Complete Docs](../../README.md)
 
 ### Opening a Good Issue
 
@@ -525,6 +525,6 @@ Full error message
 
 ## 📖 Related Resources
 
-- **[Detailed Troubleshooting Guide](troubleshooting/)** - Specific error messages with step-by-step solutions
+- **[Detailed Troubleshooting Guide](troubleshooting.md)** - Specific error messages with step-by-step solutions
 - **[GitHub Issues](../issues)** - Report bugs and search existing issues
 - **[GitHub Discussions](../discussions)** - Ask questions and get help from the community

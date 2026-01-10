@@ -6,6 +6,7 @@ Query resolvers for customer support, operations, and sales dashboards.
 from uuid import UUID
 
 import fraiseql
+from fraiseql.types import ID
 from fraiseql import Info
 from fraiseql.auth import requires_role
 
@@ -44,7 +45,7 @@ async def customer_search(
 
 @fraiseql.query
 @requires_role("customer_support", "admin")
-async def customer_by_id(info: Info, customer_id: UUID) -> CustomerInfo | None:
+async def customer_by_id(info: Info, customer_id: ID) -> CustomerInfo | None:
     """Get customer by ID.
 
     Args:
@@ -92,7 +93,7 @@ async def support_tickets(
 @fraiseql.query
 @requires_role("customer_support", "admin")
 async def customer_support_tickets(
-    info: Info, customer_id: UUID, limit: int = 10
+    info: Info, customer_id: ID, limit: int = 10
 ) -> list[SupportTicket]:
     """Get support tickets for a specific customer.
 
@@ -129,7 +130,7 @@ async def operations_metrics(info: Info) -> OperationsMetrics:
 async def orders(
     info: Info,
     status: str | None = None,
-    customer_id: UUID | None = None,
+    customer_id: ID | None = None,
     limit: int = 50,
 ) -> list[Order]:
     """Get orders with optional filters.
@@ -155,7 +156,7 @@ async def orders(
 
 @fraiseql.query
 @requires_role("operations", "admin")
-async def order_by_id(info: Info, order_id: UUID) -> Order | None:
+async def order_by_id(info: Info, order_id: ID) -> Order | None:
     """Get order by ID with full details.
 
     Args:
@@ -185,7 +186,7 @@ async def orders_needing_attention(info: Info, limit: int = 100) -> list[Order]:
 
 @fraiseql.query
 @requires_role("sales", "admin")
-async def sales_metrics(info: Info, rep_id: UUID | None = None) -> list[SalesMetrics]:
+async def sales_metrics(info: Info, rep_id: ID | None = None) -> list[SalesMetrics]:
     """Get sales team or individual rep metrics.
 
     Args:
@@ -253,7 +254,7 @@ async def my_pipeline(info: Info) -> list[Deal]:
 @requires_role("admin")
 async def audit_log(
     info: Info,
-    admin_user_id: UUID | None = None,
+    admin_user_id: ID | None = None,
     action: str | None = None,
     target_type: str | None = None,
     limit: int = 100,
@@ -285,7 +286,7 @@ async def audit_log(
 @fraiseql.query
 @requires_role("admin")
 async def audit_log_for_entity(
-    info: Info, target_type: str, target_id: UUID, limit: int = 50
+    info: Info, target_type: str, target_id: ID, limit: int = 50
 ) -> list[AuditLogEntry]:
     """Get audit log for a specific entity.
 

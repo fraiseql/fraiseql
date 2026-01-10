@@ -1,0 +1,31 @@
+name: Performance Regression Detection
+
+on:
+  pull_request:
+    branches: [ dev ]
+
+jobs:
+  benchmark:
+    name: Performance Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v3
+        with:
+          path: fraiseql_rs/target
+          key: ${{ runner.os }}-cargo-bench-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run benchmarks
+        working-directory: fraiseql_rs
+        run: cargo bench --bench core_benchmark

@@ -1,8 +1,19 @@
+---
+title: Types & Schema
+description: GraphQL type system, schema building, and Python type mappings
+tags:
+  - types
+  - schema
+  - GraphQL
+  - Python
+  - decorators
+---
+
 # Types and Schema
 
 Type system for GraphQL schema definition using Python decorators and dataclasses.
 
-**📍 Navigation**: [← Beginner Path](../tutorials/beginner-path/) • [Queries & Mutations →](queries-and-mutations/) • [Database API →](database-api/)
+**📍 Navigation**: [← Beginner Path](../tutorials/beginner-path.md) • [Queries & Mutations →](queries-and-mutations.md) • [Database API →](database-api.md)
 
 ## @fraiseql.type
 
@@ -60,7 +71,7 @@ class TypeName:
 │             │    │             │    │             │    │             │
 │ @type       │    │ @type(      │    │ type User { │    │ { user {    │
 │ class User: │    │   sql_      │    │   id: ID!   │    │   id        │
-│   id: UUID  │    │   source=   │    │   name:     │    │   name      │
+│   id: ID  │    │   source=   │    │   name:     │    │   name      │
 │   name: str │    │   "v_user") │    │   String!   │    │ } }         │
 └─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
 ```
@@ -71,19 +82,18 @@ class TypeName:
 3. **GraphQL Schema** generated with proper types and nullability
 4. **Client Queries** validated against generated schema
 
-**[🔗 Type System Details](../diagrams/database-schema-conventions/)** - Database naming conventions
 
 **Examples**:
 
 Basic type without database binding:
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 from datetime import datetime
 
 @fraiseql.type
 class User:
-    id: UUID
+    id: ID
     email: str
     name: str | None
     created_at: datetime
@@ -106,11 +116,11 @@ type User {
 Type with SQL source for automatic queries:
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type(sql_source="v_user")
 class User:
-    id: UUID
+    id: ID
     email: str
     name: str
 ```
@@ -118,11 +128,11 @@ class User:
 Type with regular table columns (no JSONB):
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type(sql_source="users", jsonb_column=None)
 class User:
-    id: UUID
+    id: ID
     email: str
     name: str
     created_at: datetime
@@ -131,11 +141,11 @@ class User:
 Type with custom JSONB column:
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type(sql_source="tv_machine", jsonb_column="machine_data")
 class Machine:
-    id: UUID
+    id: ID
     identifier: str
     serial_number: str
 ```
@@ -143,7 +153,7 @@ class Machine:
 **With Custom Fields** (using @field decorator):
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -151,7 +161,7 @@ if TYPE_CHECKING:
 
 @fraiseql.type
 class User:
-    id: UUID
+    id: ID
     first_name: str
     last_name: str
 
@@ -168,38 +178,269 @@ class User:
 With nested object resolution:
 ```python
 import fraiseql
+from fraiseql.types import ID
 
 # Department will be resolved via separate query
 @fraiseql.type(sql_source="departments", resolve_nested=True)
 class Department:
-    id: UUID
+    id: ID
     name: str
 
 # Employee with department as a relation
 @fraiseql.type(sql_source="employees")
 class Employee:
-    id: UUID
+    id: ID
     name: str
-    department_id: UUID  # Foreign key
+    department_id: ID  # Foreign key
     department: Department | None  # Will query departments table
 ```
 
 With embedded nested objects (default):
 ```python
 import fraiseql
+from fraiseql.types import ID
 
 # Department data is embedded in parent's JSONB
 @fraiseql.type(sql_source="departments")
 class Department:
-    id: UUID
+    id: ID
     name: str
 
 # Employee view includes embedded department in JSONB
 @fraiseql.type(sql_source="v_employees_with_dept")
 class Employee:
-    id: UUID
+    id: ID
     name: str
     department: Department | None  # Uses embedded JSONB data
+```
+
+## Field Documentation
+
+**Purpose**: Add descriptions to GraphQL schema fields for better API documentation and introspection
+
+FraiseQL supports **four ways** to document your GraphQL fields, with automatic extraction in priority order:
+
+### 1. Class Docstring - Google/Sphinx Style (Recommended ⭐)
+
+The most common and Pythonic way to document fields - all documentation in one place:
+
+```python
+import fraiseql
+from fraiseql.types import ID
+from datetime import datetime
+
+@fraiseql.type
+class User:
+    """A user account in the system.
+
+    Fields:
+        id: Unique user identifier
+        name: User's full name
+        email: User's email address
+        created_at: Account creation timestamp
+    """
+    id: ID
+    name: str
+    email: str
+    created_at: datetime
+```
+
+**Generated GraphQL Schema:**
+```graphql
+"""A user account in the system."""
+type User {
+  """Unique user identifier."""
+  id: ID!
+
+  """User's full name."""
+  name: String!
+
+  """User's email address."""
+  email: String!
+
+  """Account creation timestamp."""
+  createdAt: DateTime!
+}
+```
+
+**Advantages:**
+- ✅ Clean, compact Python code (no blank lines needed)
+- ✅ All documentation in one place
+- ✅ Standard Google/Sphinx docstring format
+- ✅ Familiar to most Python developers
+- ✅ Works well with auto-documentation tools
+
+**Use when:**
+- Writing most production code (recommended default)
+- Following team Python style guides
+- Working with code generators
+- Documenting many fields at once
+
+### 2. Attribute-Level Docstrings (Advanced)
+
+For detailed, multi-line field documentation:
+
+```python
+@fraiseql.type
+class Article:
+    """A blog article."""
+
+    id: ID
+    """
+    Unique article identifier.
+
+    Generated automatically when the article is created.
+    Cannot be changed after creation.
+    """
+
+    title: str
+    """
+    Article title.
+
+    Should be concise and descriptive.
+    Must be unique within the blog.
+    Maximum length: 200 characters.
+    """
+
+    content: str
+    """Article content in markdown format."""
+```
+
+**Advantages:**
+- ✅ Multi-line descriptions with details
+- ✅ IDE hover support on individual fields
+- ✅ Good for complex fields needing explanation
+
+**Disadvantages:**
+- ❌ Requires blank lines between fields (less compact)
+- ❌ Only works for file-based classes (not dynamically created)
+
+**Use when:**
+- Individual fields need detailed multi-line explanations
+- You want IDE hover to show field-specific docs
+- Working with complex domain models
+
+### 3. Inline Comments
+
+Quick, single-line descriptions:
+
+```python
+@fraiseql.type
+class User:
+    id: ID  # Unique user identifier
+    name: str  # User's full name
+    email: str  # User's email address
+```
+
+**Note:** Inline comments have **highest priority** and will override other documentation methods.
+
+### 4. Explicit `fraise_field` (Legacy)
+
+For backward compatibility and special cases:
+
+```python
+from fraiseql import fraise_field
+
+@fraiseql.type
+class User:
+    id: ID
+    name: str = fraise_field(description="User's full name")
+    email: str = fraise_field(
+        description="User's email address",
+        graphql_name="emailAddress"
+    )
+```
+
+**Use when:**
+- Need to override GraphQL field name
+- Migrating from older FraiseQL versions
+- Need other `fraise_field` options (purpose, init, etc.)
+
+### Documentation Priority Order
+
+When multiple documentation methods are used, FraiseQL applies them in this priority:
+
+1. **Inline comments** (highest priority)
+2. **Attribute-level docstrings**
+3. **Type annotations** (`Annotated[str, "description"]`)
+4. **Class docstring** (Google/Sphinx style)
+5. **Explicit `fraise_field(description="...")`** (backward compatibility)
+
+**Example with priorities:**
+```python
+@fraiseql.type
+class User:
+    """User account.
+
+    Fields:
+        name: From class docstring (lowest priority)
+        email: From class docstring
+    """
+
+    id: ID  # From inline comment (highest priority)
+
+    name: str
+    """From attribute docstring (overrides class docstring)."""
+
+    email: str
+    # Uses class docstring (no attribute docstring)
+
+    phone: str = fraise_field(description="Explicit description")
+```
+
+**Result:**
+- `id`: "From inline comment (highest priority)"
+- `name`: "From attribute docstring (overrides class docstring)."
+- `email`: "From class docstring"
+- `phone`: "Explicit description"
+
+### Best Practices
+
+1. **Be consistent** - Pick one style and use it throughout your project
+2. **Use class docstrings** (Google/Sphinx style) for most code - clean and compact
+3. **Use attribute docstrings** only when fields need detailed multi-line explanations
+4. **Keep descriptions concise** - Focus on what, not how
+5. **Document required fields** - Especially those without obvious names
+6. **Avoid mixing styles** - Stick to one approach per class
+
+### GraphQL Introspection
+
+All field descriptions automatically appear in:
+- GraphQL introspection queries
+- GraphQL Playground / GraphiQL documentation
+- Generated TypeScript/client code
+- API documentation tools
+
+**Introspection Example:**
+```graphql
+query IntrospectUser {
+  __type(name: "User") {
+    fields {
+      name
+      description
+    }
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "data": {
+    "__type": {
+      "fields": [
+        {
+          "name": "id",
+          "description": "Unique user identifier."
+        },
+        {
+          "name": "name",
+          "description": "User's full name."
+        }
+      ]
+    }
+  }
+}
 ```
 
 ## @input
@@ -221,18 +462,18 @@ class InputName:
 Basic input type:
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 from datetime import datetime
 
 @fraiseql.type
 class User:
-    id: UUID
+    id: ID
     name: str
     role: UserRole
 
 @fraiseql.type
 class Order:
-    id: UUID
+    id: ID
     status: OrderStatus
     created_at: datetime
 ```
@@ -266,20 +507,21 @@ class InterfaceName:
 Basic Node interface:
 ```python
 import fraiseql
+from fraiseql.types import ID
 
 @fraiseql.interface
 class Node:
-    id: UUID
+    id: ID
 
 @fraiseql.type(implements=[Node])
 class User:
-    id: UUID
+    id: ID
     email: str
     name: str
 
 @fraiseql.type(implements=[Node])
 class Post:
-    id: UUID
+    id: ID
     title: str
     content: str
 ```
@@ -287,6 +529,7 @@ class Post:
 Interface with computed fields:
 ```python
 import fraiseql
+from fraiseql.types import ID
 
 @fraiseql.interface
 class Timestamped:
@@ -299,7 +542,7 @@ class Timestamped:
 
 @fraiseql.type(implements=[Timestamped])
 class Article:
-    id: UUID
+    id: ID
     title: str
     created_at: datetime
     updated_at: datetime
@@ -312,6 +555,7 @@ class Article:
 Multiple interface implementation:
 ```python
 import fraiseql
+from fraiseql.types import ID
 
 @fraiseql.interface
 class Searchable:
@@ -323,7 +567,7 @@ class Taggable:
 
 @fraiseql.type(implements=[Node, Searchable, Taggable])
 class Document:
-    id: UUID
+    id: ID
     title: str
     content: str
     tags: list[str]
@@ -424,10 +668,11 @@ class Connection[T]:
 ```python
 import fraiseql
 from fraiseql.types import Connection
+from fraiseql.types import ID
 
 @fraiseql.type(sql_source="v_user")
 class User:
-    id: UUID
+    id: ID
     name: str
     email: str
 
@@ -499,10 +744,11 @@ from fraiseql.types import UNSET
 ```python
 import fraiseql
 from fraiseql.types import UNSET
+from fraiseql.types import ID
 
 @fraiseql.input
 class UpdateUserInput:
-    id: UUID
+    id: ID
     name: str | None = UNSET  # Not provided by default
     email: str | None = UNSET
     bio: str | None = UNSET
@@ -576,6 +822,6 @@ mutation {
 
 ## See Also
 
-- [Queries and Mutations](./queries-and-mutations/) - Using types in resolvers
-- [Decorators Reference](../reference/decorators/) - Complete decorator API
-- [Configuration](./configuration/) - Type system configuration options
+- [Queries and Mutations](./queries-and-mutations.md) - Using types in resolvers
+- [Decorators Reference](../reference/decorators.md) - Complete decorator API
+- [Configuration](./configuration.md) - Type system configuration options

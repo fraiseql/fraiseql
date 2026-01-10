@@ -74,8 +74,10 @@ async def find_one(
 
 **Example**:
 ```python
+from fraiseql.types import ID
+
 @fraiseql.query
-async def user(info, id: UUID) -> User | None:
+async def user(info, id: ID) -> User | None:
     db = info.context["db"]
     return await db.find_one("v_users", where={"id": {"eq": id}})
 ```
@@ -163,10 +165,12 @@ async def users_count(info, where: UserWhereInput | None = None) -> int:
 
 #### find_by_id()
 ```python
+from fraiseql.types import ID
+
 async def find_by_id(
     self,
     entity_class: type[T],
-    entity_id: UUID
+    entity_id: ID
 ) -> dict[str, Any] | None
 ```
 
@@ -303,20 +307,7 @@ result = await db.count("v_users", where=where)  # FraiseQLRepository
 result = await repo.count(User, where=where)      # CQRSRepository
 ```
 
-## Summary
-
-| Scenario | Repository | Reason |
-|----------|-----------|--------|
-| GraphQL query resolver | `FraiseQLRepository` | Zero-copy performance |
-| GraphQL mutation resolver | `FraiseQLRepository` | Zero-copy performance |
-| Count query | `FraiseQLRepository.count()` | Returns `int` directly |
-| Background job | `CQRSRepository` | Need Python object manipulation |
-| CLI utility | `CQRSRepository` | Need Python object manipulation |
-| Data migration | `CQRSRepository` | Need Python object manipulation |
-
-**Default Choice**: Use `FraiseQLRepository` (`info.context["db"]`) for all GraphQL resolvers. Only use `CQRSRepository` when you need to manipulate Python objects outside of GraphQL.
-
 ## See Also
 
-- [Database API Reference](database/) - Complete API documentation
-- [Query Patterns](../advanced/database-patterns/) - Common query patterns
+- [Database API Reference](database.md) - Complete API documentation
+- [Query Patterns](../advanced/database-patterns.md) - Common query patterns

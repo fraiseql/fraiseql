@@ -4,14 +4,14 @@ build-backend = "maturin"
 
 [project]
 name = "fraiseql"
-version = "1.8.9"
+version = "1.9.7"
 description = "GraphQL for the LLM era. Simple. Powerful. Rust-fast. Production-ready GraphQL API framework for PostgreSQL with CQRS, JSONB optimization, and type-safe mutations"
 authors = [
   { name = "Lionel Hamayon", email = "lionel.hamayon@evolution-digitale.fr" },
 ]
 license = { text = "MIT" }
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.13,<3.14"
 keywords = [
   "graphql",
   "postgresql",
@@ -40,7 +40,7 @@ classifiers = [
 dependencies = [
   "fastapi>=0.115.12",
   "starlette>=0.49.1",
-  "graphql-core>=3.2.6",
+  "graphql-core>=3.2.0",  # Use 3.2.0 as 3.3.0 not yet released (only alphas available)
   "psycopg[pool]>=3.2.6",
   "psycopg-pool>=3.2.6",
   "uvicorn>=0.34.3",
@@ -60,7 +60,7 @@ dependencies = [
   "sqlparse>=0.5.0",
   "fraiseql-confiture>=0.1.0",
   "jinja2>=3.1.0",
-  "urllib3>=2.6.0",
+  "urllib3>=2.6.3",
 ]
 
 [project.urls]
@@ -98,6 +98,9 @@ dev = [
   "email-validator>=2.0.0",
   "hvac>=2.0.0",
   "moto[kms]>=5.0.0",
+  "aiohttp>=3.13.3",
+  "filelock>=3.20.1",
+  "werkzeug>=3.1.5",
 ]
 auth0 = ["pyjwt[crypto]>=2.8.0", "httpx>=0.25.0"]
 sbom = ["cyclonedx-python-lib>=7.0.0,<12.0", "packageurl-python>=0.15.0"]
@@ -195,6 +198,16 @@ markers = [
   "skip_ci: Skip in CI environment",
   "turbo: Tests for TurboRouter functionality",
   "forked: Tests that require process isolation (schema registry singleton)",
+  "chaos: Chaos engineering tests (resilience and failure handling)",
+  "chaos_real_db: Chaos tests using real PostgreSQL backend",
+  "chaos_network: Chaos tests for network failures (latency, packet loss)",
+  "chaos_database: Chaos tests for database failures (deadlocks, constraints)",
+  "chaos_cache: Chaos tests for cache failures (invalidation, corruption)",
+  "chaos_auth: Chaos tests for authentication failures (expiration, service outages)",
+  "chaos_resources: Chaos tests for resource exhaustion (memory, CPU, disk)",
+  "chaos_concurrency: Chaos tests for concurrent execution (deadlocks, race conditions)",
+  "chaos_validation: Chaos test validation and success criteria checks",
+  "chaos_verification: Chaos infrastructure verification tests",
 ]
 
 # Async support - explicit @pytest.mark.asyncio decorators used instead
@@ -227,7 +240,7 @@ target-version = ["py313"]
 src = ["src"]
 target-version = "py313"
 line-length = 100
-exclude = ["tests", "examples", "tools", "scripts", "conftest.py", "dev", "verify_native_errors.py", "deploy/docker/entrypoint.py"]
+exclude = ["tests", "examples", "tools", "scripts", "conftest.py", "dev", "verify_native_errors.py", "deploy/docker/entrypoint.py", ".phases"]
 fix = true
 
 [tool.ruff.lint]
@@ -352,6 +365,19 @@ ignore = [
 "frameworks/**/*.py" = [
   "ALL", # Prototype frameworks - not production code
 ]
+"src/fraiseql/resolvers/**/*.py" = [
+  "ANN001",  # Example/template resolvers - type annotations optional
+  "DTZ003",  # datetime.utcnow() acceptable in examples
+  "TRY002",  # Generic exceptions OK in example code
+]
+"src/fraiseql/core/query_builder.py" = [
+  "ANN205",  # Staticmethod return type annotation optional
+]
+"src/fraiseql/fastapi/middleware.py" = [
+  "ANN001",  # FastAPI middleware signature compatibility
+  "ANN201",  # FastAPI middleware return type compatibility
+  "D102",    # FastAPI middleware method docstring optional
+]
 "fraiseql_rs/**/*.py" = [
   "ALL", # Rust bridge code - has special requirements
 ]
@@ -474,6 +500,11 @@ dev = [
 docs = [
   "mkdocs>=1.6.1",
   "mkdocs-material>=9.6.22",
+  "mkdocs-mermaid2-plugin>=1.2.3",
+  "mkdocs-minify-plugin>=0.8.0",
   "mkdocs-redirects>=1.2.2",
   "pymdown-extensions>=10.16.1",
+  "sphinx>=9.0.4",
+  "sphinx-autodoc-typehints>=3.6.0",
+  "sphinx-rtd-theme>=0.5.1",
 ]

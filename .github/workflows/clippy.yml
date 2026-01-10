@@ -1,0 +1,62 @@
+name: Clippy Linting
+
+on:
+  push:
+    branches: [ dev, main ]
+    paths:
+      - 'fraiseql_rs/**'
+      - '.clippy.toml'
+      - '.github/workflows/clippy.yml'
+  pull_request:
+    branches: [ dev, main ]
+    paths:
+      - 'fraiseql_rs/**'
+      - '.clippy.toml'
+      - '.github/workflows/clippy.yml'
+
+jobs:
+  clippy:
+    name: Clippy Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache cargo registry
+        uses: actions/cache@v3
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo index
+        uses: actions/cache@v3
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-git-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo build
+        uses: actions/cache@v3
+        with:
+          path: fraiseql_rs/target
+          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run Clippy (Deny Warnings)
+        working-directory: fraiseql_rs
+        run: cargo clippy --lib -- -D warnings
+
+      - name: Generate Report
+        if: failure()
+        working-directory: fraiseql_rs
+        run: cargo clippy --lib 2>&1 | tee clippy-report.txt
+
+      - name: Upload Report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: clippy-report
+          path: fraiseql_rs/clippy-report.txt

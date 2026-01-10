@@ -1,3 +1,14 @@
+---
+title: Migrating to Cascade
+description: Migration guide for GraphQL Cascade cache invalidation
+tags:
+  - cascade
+  - migration
+  - cache
+  - invalidation
+  - upgrade
+---
+
 # Migrating to GraphQL Cascade
 
 This guide walks through adopting GraphQL Cascade in existing FraiseQL applications. Cascade enables automatic client cache updates, eliminating the need for follow-up queries after mutations.

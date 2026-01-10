@@ -21,6 +21,7 @@ from psycopg_pool import AsyncConnectionPool
 from pydantic import EmailStr
 
 import fraiseql
+from fraiseql.types import ID
 from fraiseql import create_fraiseql_app
 from fraiseql.auth.decorators import requires_auth, requires_role
 from fraiseql.auth.native.factory import (
@@ -36,7 +37,7 @@ from fraiseql.auth.native.factory import (
 class User:
     """User type for GraphQL API."""
 
-    id: UUID
+    id: ID
     email: EmailStr
     name: str
     roles: list[str]
@@ -50,10 +51,10 @@ class User:
 class Post:
     """Blog post type."""
 
-    id: UUID
+    id: ID
     title: str
     content: str
-    author_id: UUID
+    author_id: ID
     created_at: datetime
     updated_at: datetime
 
