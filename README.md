@@ -6,7 +6,7 @@
 [![Python](https://img.shields.io/badge/Python-3.13+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**v1.9.7** | **Stable** | **Rust-Powered GraphQL for PostgreSQL**
+**v1.9.8** | **Stable** | **Rust-Powered GraphQL for PostgreSQL**
 
 **Python**: 3.13+ | **PostgreSQL**: 13+
 
@@ -237,7 +237,7 @@ mutation {
 | **Authentication** | ✅ | ✅ | ⚠️ Partial | ⚠️ Use with caution | Rust-based JWT validation via `PyAuthProvider` |
 | **RBAC Framework** | ✅ | ✅ | ⚠️ Framework only | ⚠️ Use with caution | Permission resolution complete, enforcement verification tests pending |
 | **Security Profiles** | ✅ | ⚠️ Partial | ⚠️ Partial | ❌ Not production ready | TLS/rate limiting enforced; query limits/audit pending |
-| **Field Filtering (Mutations)** | ✅ | ✅ | ✅ | ✅ Production ready | Full implementation (v1.9.7+) |
+| **Field Filtering (Mutations)** | ✅ | ✅ | ✅ | ✅ Production ready | Full implementation (v1.9.8+) |
 | **Field Filtering (APQ)** | ✅ | ✅ | ⚠️ Partial | ⚠️ Limited scope | APQ queries only |
 | **Field Filtering (Queries)** | ⚠️ | ⚠️ | ⚠️ | ⚠️ Verification needed | Non-APQ query filtering status unclear |
 | **Rate Limiting** | ✅ | ✅ | ✅ | ✅ Production ready | Per-endpoint and per-operation |
@@ -261,7 +261,7 @@ mutation {
 - **v1.9.8**: Unified field filtering for all query types
 - **v2.0**: Full security audit and penetration testing
 
-> **Important**: This matrix reflects current implementation status (v1.9.7). Security features are under active development. Always verify features meet your requirements before production deployment. See [Issue #225](https://github.com/fraiseql/fraiseql/issues/225) for implementation progress.
+> **Important**: This matrix reflects current implementation status (v1.9.8). Security features are under active development. Always verify features meet your requirements before production deployment. See [Issue #225](https://github.com/fraiseql/fraiseql/issues/225) for implementation progress.
 
 ---
 
@@ -1056,8 +1056,8 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 | Version | Location | Status | Purpose | For Users? |
 |---------|----------|--------|---------|------------|
-| **v1.9.7** | Root level | Stable | Entity field selection for mutations (GitHub #525) | ✅ Production Ready |
-| **Rust Pipeline** | [`fraiseql_rs/`](fraiseql_rs/README.md) | Integrated | Included in v1.9.7+ | ✅ Stable |
+| **v1.9.8** | Root level | Stable | Entity field selection for mutations (GitHub #525) | ✅ Production Ready |
+| **Rust Pipeline** | [`fraiseql_rs/`](fraiseql_rs/README.md) | Integrated | Included in v1.9.8+ | ✅ Stable |
 
 **New to FraiseQL?** → **[First Hour Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/getting-started/first-hour.md)** • [Project Structure](https://github.com/fraiseql/fraiseql/blob/main/docs/strategic/PROJECT_STRUCTURE.md)
 
