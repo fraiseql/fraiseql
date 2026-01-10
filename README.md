@@ -230,6 +230,39 @@ mutation {
 
 [🔐 Security Configuration](docs/production/security.md)
 
+### 🔍 Security Feature Implementation Status
+
+| Feature | Configured | Enforced | Tested | Production Ready | Notes |
+|---------|-----------|----------|--------|------------------|-------|
+| **Authentication** | ✅ | ✅ | ⚠️ Partial | ⚠️ Use with caution | Rust-based JWT validation via `PyAuthProvider` |
+| **RBAC Framework** | ✅ | ✅ | ⚠️ Framework only | ⚠️ Use with caution | Permission resolution complete, enforcement verification tests pending |
+| **Security Profiles** | ✅ | ⚠️ Partial | ⚠️ Partial | ❌ Not production ready | TLS/rate limiting enforced; query limits/audit pending |
+| **Field Filtering (Mutations)** | ✅ | ✅ | ✅ | ✅ Production ready | Full implementation (v1.9.7+) |
+| **Field Filtering (APQ)** | ✅ | ✅ | ⚠️ Partial | ⚠️ Limited scope | APQ queries only |
+| **Field Filtering (Queries)** | ⚠️ | ⚠️ | ⚠️ | ⚠️ Verification needed | Non-APQ query filtering status unclear |
+| **Rate Limiting** | ✅ | ✅ | ✅ | ✅ Production ready | Per-endpoint and per-operation |
+| **CSRF Protection** | ✅ | ✅ | ✅ | ✅ Production ready | Automatic middleware |
+| **Security Headers** | ✅ | ✅ | ✅ | ✅ Production ready | Defense in depth |
+| **Body Size Limits** | ✅ | ✅ | ✅ | ✅ Production ready | Configurable per profile |
+| **TLS Enforcement** | ✅ | ✅ | ✅ | ✅ Production ready | Profile-based |
+| **Query Depth Limits** | ✅ Config | ❌ Pending | ❌ | ❌ Not ready | Validator middleware needed |
+| **Query Complexity** | ✅ Config | ❌ Pending | ❌ | ❌ Not ready | AST analysis pending |
+| **Introspection Policy** | ✅ Config | ❌ Pending | ❌ | ❌ Not ready | Control logic pending |
+| **Audit Logging** | ✅ Config | ❌ Pending | ❌ | ❌ Not ready | Middleware implementation needed |
+
+**Legend:**
+- ✅ Complete and verified
+- ⚠️ Partial implementation or limited scope
+- ❌ Not implemented or not production ready
+
+**Roadmap:**
+- **v1.9.8**: Complete security profile enforcement (Issue #225)
+- **v1.9.8**: Add RBAC enforcement verification tests
+- **v1.9.8**: Unified field filtering for all query types
+- **v2.0**: Full security audit and penetration testing
+
+> **Important**: This matrix reflects current implementation status (v1.9.7). Security features are under active development. Always verify features meet your requirements before production deployment. See [Issue #225](https://github.com/fraiseql/fraiseql/issues/225) for implementation progress.
+
 ---
 
 ## Cost Savings: Replace 4 Services with 1 Database
