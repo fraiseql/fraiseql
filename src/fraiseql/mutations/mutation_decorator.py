@@ -1,5 +1,6 @@
 """PostgreSQL function-based mutation decorator."""
 
+import json
 import logging
 import re
 from collections.abc import Callable
@@ -93,6 +94,164 @@ def _extract_mutation_selected_fields(info: GraphQLResolveInfo, type_name: str) 
 
     result = list(selected_fields)
     return result
+
+
+def _extract_nested_selections(selection_set: Any) -> dict[str, Any] | None:
+    """Recursively extract nested field selections into a structured dict.
+
+    Args:
+        selection_set: GraphQL SelectionSet to parse
+
+    Returns:
+        Dict with "fields" list and nested dicts for sub-selections, or None if empty
+
+    Example:
+        For selection: { id, name, address { id, city } }
+        Returns: {
+            "fields": ["id", "name", "address"],
+            "address": {
+                "fields": ["id", "city"]
+            }
+        }
+    """
+    if not selection_set or not hasattr(selection_set, "selections"):
+        return None
+
+    fields = []
+    nested = {}
+
+    for field_selection in selection_set.selections:
+        if not hasattr(field_selection, "name"):
+            continue
+
+        field_name = field_selection.name.value
+
+        # Skip __typename introspection field
+        if field_name == "__typename":
+            continue
+
+        fields.append(field_name)
+
+        # Check if this field has sub-selections
+        if hasattr(field_selection, "selection_set") and field_selection.selection_set:
+            # Recursively extract nested selections
+            sub_selections = _extract_nested_selections(field_selection.selection_set)
+            if sub_selections:
+                nested[field_name] = sub_selections
+
+    if not fields:
+        return None
+
+    result = {"fields": fields}
+    result.update(nested)
+    return result
+
+
+def _extract_entity_field_selections(
+    info: GraphQLResolveInfo | None, type_name: str, entity_field_name: str
+) -> dict[str, Any] | None:
+    """Extract nested field selections for a specific entity field in mutation response.
+
+    This function parses the GraphQL query to find which fields were requested
+    on an entity object within a mutation Success/Error type, enabling field
+    filtering for nested entities.
+
+    Args:
+        info: GraphQL resolve info containing the query
+        type_name: The Success/Error type name (e.g., "CreateLocationSuccess")
+        entity_field_name: The entity field to extract selections for (e.g., "location")
+
+    Returns:
+        Nested dict structure with field selections, or None if:
+        - Entity field not selected
+        - Empty selection (GraphQL default = all fields)
+        - No selection info available
+
+    Example:
+        For query:
+            mutation {
+                createLocation(input: $input) {
+                    ... on CreateLocationSuccess {
+                        location {
+                            id
+                            name
+                            address {
+                                id
+                                formatted
+                            }
+                        }
+                    }
+                }
+            }
+
+    Returns:
+            {
+                "fields": ["id", "name", "address"],
+                "address": {
+                    "fields": ["id", "formatted"]
+                }
+            }
+    """
+    if not info or not info.field_nodes:
+        return None
+
+    # Look through field nodes (mutation field)
+    for field_node in info.field_nodes:
+        if not field_node.selection_set:
+            continue
+
+        # Look for fragments matching our type (Success or Error)
+        for selection in field_node.selection_set.selections:
+            # Handle inline fragments: ... on CreateLocationSuccess
+            if hasattr(selection, "type_condition") and selection.type_condition:
+                fragment_type = selection.type_condition.name.value
+
+                if fragment_type == type_name and selection.selection_set:
+                    # Found matching fragment, look for entity field
+                    for field_sel in selection.selection_set.selections:
+                        if hasattr(field_sel, "name"):
+                            field_name = field_sel.name.value
+
+                            if field_name == entity_field_name:
+                                # Found entity field - extract its selections
+                                if (
+                                    not hasattr(field_sel, "selection_set")
+                                    or not field_sel.selection_set
+                                ):
+                                    # Empty selection {} - return None (don't filter)
+                                    return None
+
+                                # Recursively extract nested selections
+                                return _extract_nested_selections(field_sel.selection_set)
+
+            # Handle named fragments: ...FragmentName
+            elif hasattr(selection, "name") and hasattr(info, "fragments"):
+                fragment_name = selection.name.value
+                fragment = info.fragments.get(fragment_name)
+
+                if fragment and hasattr(fragment, "type_condition"):
+                    fragment_type = fragment.type_condition.name.value
+
+                    if fragment_type == type_name and fragment.selection_set:
+                        # Found matching fragment, look for entity field
+                        for field_sel in fragment.selection_set.selections:
+                            if hasattr(field_sel, "name"):
+                                field_name = field_sel.name.value
+
+                                if field_name == entity_field_name:
+                                    # Found entity field - extract its selections
+                                    if (
+                                        not hasattr(field_sel, "selection_set")
+                                        or not field_sel.selection_set
+                                    ):
+                                        # Empty selection - return None
+                                        return None
+
+                                    # Recursively extract nested selections
+                                    return _extract_nested_selections(field_sel.selection_set)
+
+    # Entity field not selected
+    return None
 
 
 class MutationDefinition:
@@ -419,6 +578,16 @@ class MutationDefinition:
                 logger.debug(f"Selected success fields from query: {success_type_fields}")
                 logger.debug(f"Selected error fields from query: {error_type_fields}")
 
+                # Extract entity field selections for nested field filtering (GitHub issue #525)
+                entity_selections_json = None
+                if self.entity_field_name:
+                    entity_selections = _extract_entity_field_selections(
+                        info, success_type_name, self.entity_field_name
+                    )
+                    if entity_selections:
+                        entity_selections_json = json.dumps(entity_selections)
+                        logger.debug(f"Entity field selections: {entity_selections_json}")
+
                 # Extract CASCADE selections from GraphQL query
                 cascade_selections_json = self._get_cascade_selections(info)
 
@@ -437,6 +606,7 @@ class MutationDefinition:
                         success_type_class=self.success_type,
                         success_type_fields=success_type_fields,
                         error_type_fields=error_type_fields,
+                        entity_selections=entity_selections_json,
                     )
                     logger.debug(f"Mutation {self.name} executed successfully")
                 except Exception as e:

@@ -2,6 +2,15 @@
 
 This middleware integrates the PostgreSQL-cached PermissionResolver with GraphQL
 execution, providing context-aware permission checking and automatic cache management.
+
+**NOTE**: This middleware sets up the permission resolution context but does NOT
+enforce permissions itself. Actual enforcement happens via GraphQL directives or
+resolver-level checks. See directives.py for enforcement implementation.
+
+**Testing Status (v1.9.7)**:
+- ✅ Middleware context setup: Working
+- ✅ Permission resolver integration: Working
+- ⚠️ Enforcement verification tests: Pending (Issue #225)
 """
 
 import logging

@@ -2,6 +2,29 @@
 
 This module defines the security profiles that provide pre-configured
 security settings for different deployment scenarios.
+
+**IMPORTANT - Enforcement Status (v1.9.7)**:
+
+Settings in SecurityProfileConfig are CONFIGURED but not all are ENFORCED:
+
+Fully Enforced (7/14 settings):
+- TLS requirements (tls_required)
+- Body size limits (max_body_size)
+- Rate limiting (rate_limit_enabled, rate_limit_requests_per_minute)
+- CSRF protection (via ProfileEnforcer middleware)
+- Security headers (via ProfileEnforcer middleware)
+
+Partially Enforced (4/14 settings):
+- Query limits (max_query_depth, max_query_complexity) - Config exists, validator middleware pending
+- Introspection policy - Config exists, enforcement pending
+- Authentication (auth_required) - Flag set, enforcement incomplete
+
+Not Enforced (3/14 settings):
+- mTLS (mtls_required) - No implementation
+- Audit logging (audit_level, audit_field_access) - Middleware pending
+- Error sanitization (error_detail_level) - Not implemented
+
+See Issue #225 for enforcement implementation roadmap.
 """
 
 from dataclasses import dataclass
@@ -45,22 +68,25 @@ class IntrospectionPolicy(Enum):
 class SecurityProfileConfig:
     """Configuration for a security profile.
 
+    **NOTE**: This class defines security CONFIGURATION. Not all settings are
+    currently ENFORCED. See module docstring for enforcement status.
+
     Attributes:
         profile: The security profile level
-        tls_required: Whether TLS is required
-        mtls_required: Whether mutual TLS is required
-        min_tls_version: Minimum TLS version
-        auth_required: Whether authentication is required
-        token_expiry_minutes: Token expiry time in minutes
-        introspection_policy: GraphQL introspection policy
-        max_query_depth: Maximum GraphQL query depth
-        max_query_complexity: Maximum GraphQL query complexity
-        max_body_size: Maximum request body size in bytes
-        rate_limit_enabled: Whether rate limiting is enabled
-        rate_limit_requests_per_minute: Rate limit requests per minute
-        audit_level: Audit logging level
-        audit_field_access: Whether to audit field access
-        error_detail_level: Error detail level for responses
+        tls_required: Whether TLS is required (✅ ENFORCED)
+        mtls_required: Whether mutual TLS is required (❌ NOT ENFORCED)
+        min_tls_version: Minimum TLS version (❌ NOT ENFORCED)
+        auth_required: Whether authentication is required (⚠️ PARTIAL)
+        token_expiry_minutes: Token expiry time in minutes (❌ NOT ENFORCED)
+        introspection_policy: GraphQL introspection policy (⚠️ CONFIG ONLY)
+        max_query_depth: Maximum GraphQL query depth (⚠️ CONFIG ONLY)
+        max_query_complexity: Maximum GraphQL query complexity (⚠️ CONFIG ONLY)
+        max_body_size: Maximum request body size in bytes (✅ ENFORCED)
+        rate_limit_enabled: Whether rate limiting is enabled (✅ ENFORCED)
+        rate_limit_requests_per_minute: Rate limit requests per minute (✅ ENFORCED)
+        audit_level: Audit logging level (❌ NOT ENFORCED)
+        audit_field_access: Whether to audit field access (❌ NOT ENFORCED)
+        error_detail_level: Error detail level for responses (❌ NOT ENFORCED)
     """
 
     profile: SecurityProfile
