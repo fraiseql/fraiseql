@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.8] - 2026-01-10
+
+**GraphQL Spec Compliance - __typename Preservation**
+
+### Fixed
+
+- **Mutation entity field filtering now preserves `__typename`** (GitHub #233)
+  - GraphQL introspection field `__typename` is now always included in filtered entities
+  - Matches query behavior and GraphQL spec compliance
+  - Previously filtered out when not explicitly requested in field selections
+  - Now automatically preserved even when not in selection set
+
+**Technical Details**:
+- Updated `fraiseql_rs/src/mutation/entity_filter.rs` to preserve `__typename`
+- Added 2 regression tests for nested and top-level `__typename` preservation
+- Zero breaking changes - backward compatible
+
 ## [1.9.7] - 2025-01-10
 
 **Entity Field Selection for Mutations + IDFilter for Where Clauses**
