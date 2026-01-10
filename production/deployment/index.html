@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="PostgreSQL-Native GraphQL Framework for Python">
+        <meta name="description" content="Complete guide for deploying FraiseQL with Docker, Kubernetes, and scaling strategies">
       
       
         <meta name="author" content="Lionel Hamayon">
@@ -29,7 +29,7 @@
     
     
       
-        <title>Deployment - FraiseQL Documentation</title>
+        <title>Production Deployment - FraiseQL Documentation</title>
       
     
     
@@ -122,7 +122,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Deployment
+              Production Deployment
             
           </span>
         </div>
@@ -1241,7 +1241,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../advanced/llm-integration.md" class="md-nav__link">
+      <a href="../../features/ai-native/" class="md-nav__link">
         
   
   
@@ -1615,7 +1615,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/nested-filters.md" class="md-nav__link">
+      <a href="../../filtering/nested-filters/" class="md-nav__link">
         
   
   
@@ -2304,17 +2304,6 @@
     <span class="md-ellipsis">
       
         Overview
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#table-of-contents" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Table of Contents
       
     </span>
   </a>
@@ -3181,6 +3170,14 @@
       
         
       
+        
+      
+        
+      
+        
+      
+        
+      
     
     
     
@@ -3235,6 +3232,118 @@
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/request-flow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Request Flow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/trinity-pattern/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trinity Pattern
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/type-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Type System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/cqrs-design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CQRS Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
               
             
               
@@ -3303,17 +3412,6 @@
     <span class="md-ellipsis">
       
         Overview
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#table-of-contents" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Table of Contents
       
     </span>
   </a>
@@ -3680,6 +3778,52 @@
                 
                   
 
+  <nav class="md-tags" >
+    
+      
+      
+      
+      
+        <span class="md-tag">CI/CD</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">deployment</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">docker</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">kubernetes</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">production</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">scaling</span>
+      
+    
+  </nav>
+
 
   
     <a href="https://github.com/fraiseql/fraiseql/edit/main/docs/production/deployment.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
@@ -3699,17 +3843,6 @@
 - Kubernetes (with Helm charts)
 - Cloud platforms (GCP, AWS, Azure)
 - Edge/CDN deployments</p>
-<h2 id="table-of-contents">Table of Contents<a class="headerlink" href="#table-of-contents" title="Permanent link">&para;</a></h2>
-<ul>
-<li><a href="#docker-deployment">Docker Deployment</a></li>
-<li><a href="#kubernetes-deployment">Kubernetes Deployment</a></li>
-<li><a href="#environment-configuration">Environment Configuration</a></li>
-<li><a href="#database-migrations">Database Migrations</a></li>
-<li><a href="#health-checks">Health Checks</a></li>
-<li><a href="#scaling-strategies">Scaling Strategies</a></li>
-<li><a href="#zero-downtime-deployment">Zero-Downtime Deployment</a></li>
-<li><a href="#rollback-procedures">Rollback Procedures</a></li>
-</ul>
 <h2 id="docker-deployment">Docker Deployment<a class="headerlink" href="#docker-deployment" title="Permanent link">&para;</a></h2>
 <h3 id="production-dockerfile">Production Dockerfile<a class="headerlink" href="#production-dockerfile" title="Permanent link">&para;</a></h3>
 <p>Multi-stage build optimized for security and size:</p>
@@ -4356,9 +4489,9 @@
 </span></code></pre></div>
 <h2 id="next-steps">Next Steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="monitoring/">Monitoring</a> - Metrics, logs, and alerting</li>
-<li><a href="security/">Security</a> - Production security hardening</li>
-<li><a href="../performance/index/">Performance</a> - Production optimization</li>
+<li><a href="../monitoring/">Monitoring</a> - Metrics, logs, and alerting</li>
+<li><a href="../security/">Security</a> - Production security hardening</li>
+<li><a href="../../performance/">Performance</a> - Production optimization</li>
 </ul>
 
 
@@ -4366,6 +4499,9 @@
 
 
 
+
+  
+  
 
 
 

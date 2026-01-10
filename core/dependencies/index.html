@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="PostgreSQL-Native GraphQL Framework for Python">
+        <meta name="description" content="Python dependencies, Rust extensions, and PostgreSQL requirements">
       
       
         <meta name="author" content="Lionel Hamayon">
@@ -25,7 +25,7 @@
     
     
       
-        <title>FraiseQL Dependencies & Related Projects - FraiseQL Documentation</title>
+        <title>Dependencies - FraiseQL Documentation</title>
       
     
     
@@ -118,7 +118,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              FraiseQL Dependencies &amp; Related Projects
+              Dependencies
             
           </span>
         </div>
@@ -1235,7 +1235,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../advanced/llm-integration.md" class="md-nav__link">
+      <a href="../../features/ai-native/" class="md-nav__link">
         
   
   
@@ -1609,7 +1609,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/nested-filters.md" class="md-nav__link">
+      <a href="../../filtering/nested-filters/" class="md-nav__link">
         
   
   
@@ -2758,6 +2758,14 @@
       
         
       
+        
+      
+        
+      
+        
+      
+        
+      
     
     
     
@@ -2821,6 +2829,118 @@
   
   
     <li class="md-nav__item">
+      <a href="../../architecture/request-flow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Request Flow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/trinity-pattern/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trinity Pattern
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/type-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Type System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/cqrs-design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CQRS Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../architecture/decisions/" class="md-nav__link">
         
   
@@ -2874,17 +2994,6 @@
       Table of contents
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#table-of-contents" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Table of Contents
-      
-    </span>
-  </a>
-  
-</li>
       
         <li class="md-nav__item">
   <a href="#core-dependencies" class="md-nav__link">
@@ -3120,17 +3229,6 @@
   
 </li>
       
-        <li class="md-nav__item">
-  <a href="#summary" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Summary
-      
-    </span>
-  </a>
-  
-</li>
-      
     </ul>
   
 </nav>
@@ -3145,6 +3243,45 @@
               <article class="md-content__inner md-typeset">
                 
                   
+
+  <nav class="md-tags" >
+    
+      
+      
+      
+      
+        <span class="md-tag">PostgreSQL</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">Python</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">Rust</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">dependencies</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">requirements</span>
+      
+    
+  </nav>
 
 
   
@@ -3161,14 +3298,6 @@
 <p><strong>FraiseQL is built on a foundation of purpose-built tools for PostgreSQL and GraphQL</strong></p>
 </blockquote>
 <p>FraiseQL integrates several components to provide a complete, high-performance GraphQL framework. This guide explains each dependency and how they work together.</p>
-<h2 id="table-of-contents">Table of Contents<a class="headerlink" href="#table-of-contents" title="Permanent link">&para;</a></h2>
-<ul>
-<li><a href="#core-dependencies">Core Dependencies</a></li>
-<li><a href="#postgresql-extensions">PostgreSQL Extensions</a></li>
-<li><a href="#python-packages">Python Packages</a></li>
-<li><a href="#development-setup">Development Setup</a></li>
-<li><a href="#architecture-overview">Architecture Overview</a></li>
-</ul>
 <hr />
 <h2 id="core-dependencies">Core Dependencies<a class="headerlink" href="#core-dependencies" title="Permanent link">&para;</a></h2>
 <h3 id="fraiseql-ecosystem">FraiseQL Ecosystem<a class="headerlink" href="#fraiseql-ecosystem" title="Permanent link">&para;</a></h3>
@@ -3243,7 +3372,7 @@
 </span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># CASCADE: Detected relationship: User -&gt; Post</span>
 </span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="c1"># CASCADE: Created 3 CASCADE rules</span>
 </span></code></pre></div></p>
-<p><strong>Documentation</strong>: <a href="../guides/cascade-best-practices/">CASCADE Best Practices</a></p>
+<p><strong>Documentation</strong>: <a href="../../guides/cascade-best-practices/">CASCADE Best Practices</a></p>
 <hr />
 <h2 id="python-packages">Python Packages<a class="headerlink" href="#python-packages" title="Permanent link">&para;</a></h2>
 <h3 id="confiture">confiture<a class="headerlink" href="#confiture" title="Permanent link">&para;</a></h3>
@@ -3277,7 +3406,7 @@
 - Automatic version tracking
 - Safe rollback support
 - Production-ready</p>
-<p><strong>Documentation</strong>: <a href="./migrations/">Migrations Guide</a></p>
+<p><strong>Documentation</strong>: <a href="../migrations/">Migrations Guide</a></p>
 <hr />
 <h2 id="development-setup">Development Setup<a class="headerlink" href="#development-setup" title="Permanent link">&para;</a></h2>
 <h3 id="for-fraiseql-development">For FraiseQL Development<a class="headerlink" href="#for-fraiseql-development" title="Permanent link">&para;</a></h3>
@@ -3478,26 +3607,12 @@
 <hr />
 <h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="./postgresql-extensions/">PostgreSQL Extensions Guide</a> - Detailed extension docs</li>
-<li><a href="./migrations/">Migrations Guide</a> - confiture usage</li>
-<li><a href="../guides/cascade-best-practices/">CASCADE Best Practices</a> - Cascade patterns</li>
-<li><a href="./explicit-sync/">Explicit Sync</a> - jsonb_ivm integration</li>
+<li><a href="../postgresql-extensions/">PostgreSQL Extensions Guide</a> - Detailed extension docs</li>
+<li><a href="../migrations/">Migrations Guide</a> - confiture usage</li>
+<li><a href="../../guides/cascade-best-practices/">CASCADE Best Practices</a> - Cascade patterns</li>
+<li><a href="../explicit-sync/">Explicit Sync</a> - jsonb_ivm integration</li>
 <li><a href="../../examples/complete_cqrs_blog/">Complete CQRS Example</a> - All components working together</li>
 </ul>
-<hr />
-<h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
-<p>FraiseQL is powered by:</p>
-<p>✅ <strong>confiture</strong> - SQL-based migrations (Python package)
-✅ <strong>jsonb_ivm</strong> - 10-100x faster sync (PostgreSQL extension)
-✅ <strong>pg_fraiseql_cache</strong> - Auto CASCADE (PostgreSQL extension)</p>
-<p><strong>Installation</strong>:
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># Python package (automatic)</span>
-</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>pip<span class="w"> </span>install<span class="w"> </span>fraiseql
-</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>
-</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="c1"># PostgreSQL extensions (manual or Docker)</span>
-</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="c1"># See: docs/core/postgresql-extensions.md</span>
-</span></code></pre></div></p>
-<p><strong>All projects</strong>: https://github.com/fraiseql</p>
 <hr />
 <p><strong>Last Updated</strong>: 2025-10-11
 <strong>FraiseQL Version</strong>: 0.11.0</p>
@@ -3507,6 +3622,9 @@
 
 
 
+
+  
+  
 
 
 

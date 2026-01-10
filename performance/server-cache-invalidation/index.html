@@ -1235,7 +1235,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../advanced/llm-integration.md" class="md-nav__link">
+      <a href="../../features/ai-native/" class="md-nav__link">
         
   
   
@@ -1609,7 +1609,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/nested-filters.md" class="md-nav__link">
+      <a href="../../filtering/nested-filters/" class="md-nav__link">
         
   
   
@@ -2758,6 +2758,14 @@
       
         
       
+        
+      
+        
+      
+        
+      
+        
+      
     
     
     
@@ -2812,6 +2820,118 @@
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/request-flow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Request Flow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/trinity-pattern/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trinity Pattern
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/type-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Type System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/cqrs-design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CQRS Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
               
             
               
@@ -2895,21 +3015,10 @@
 <h1 id="cascade-cache-invalidation">CASCADE Cache Invalidation<a class="headerlink" href="#cascade-cache-invalidation" title="Permanent link">&para;</a></h1>
 <h1 id="server-side-cache-invalidation">Server-Side Cache Invalidation<a class="headerlink" href="#server-side-cache-invalidation" title="Permanent link">&para;</a></h1>
 <blockquote>
-<p><strong>Note</strong>: This document describes server-side cache invalidation, not the <a href="../features/graphql-cascade/">GraphQL Cascade</a> client-side update feature.</p>
+<p><strong>Note</strong>: This document describes server-side cache invalidation, not the <a href="../../features/graphql-cascade/">GraphQL Cascade</a> client-side update feature.</p>
 <p><strong>Intelligent cache invalidation that automatically propagates when related data changes</strong></p>
 </blockquote>
 <p>FraiseQL's CASCADE invalidation system automatically detects relationships in your GraphQL schema and sets up intelligent cache invalidation rules. When a <code>User</code> changes, all related <code>Post</code> caches are automatically invalidated—no manual configuration required.</p>
-<h2 id="table-of-contents">Table of Contents<a class="headerlink" href="#table-of-contents" title="Permanent link">&para;</a></h2>
-<ul>
-<li><a href="#overview">Overview</a></li>
-<li><a href="#how-cascade-works">How CASCADE Works</a></li>
-<li><a href="#auto-detection-from-schema">Auto-Detection from Schema</a></li>
-<li><a href="#manual-cascade-rules">Manual CASCADE Rules</a></li>
-<li><a href="#performance-considerations">Performance Considerations</a></li>
-<li><a href="#advanced-patterns">Advanced Patterns</a></li>
-<li><a href="#monitoring-cascade">Monitoring CASCADE</a></li>
-<li><a href="#troubleshooting">Troubleshooting</a></li>
-</ul>
 <hr />
 <h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
 <h3 id="the-cache-invalidation-problem">The Cache Invalidation Problem<a class="headerlink" href="#the-cache-invalidation-problem" title="Permanent link">&para;</a></h3>
@@ -3366,23 +3475,10 @@
 <h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Complete CQRS Example (../../examples/complete_cqrs_blog/) - See CASCADE in action</li>
-<li><a href="./caching/">Caching Guide</a> - General caching documentation</li>
-<li><a href="../core/explicit-sync/">Explicit Sync Guide</a> - How sync works with CASCADE</li>
-<li><a href="./index/">Performance Tuning</a> - Optimize CASCADE performance</li>
+<li><a href="../caching/">Caching Guide</a> - General caching documentation</li>
+<li><a href="../../core/explicit-sync/">Explicit Sync Guide</a> - How sync works with CASCADE</li>
+<li><a href="../">Performance Tuning</a> - Optimize CASCADE performance</li>
 </ul>
-<hr />
-<h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
-<p>FraiseQL's CASCADE invalidation provides:</p>
-<p>✅ <strong>Automatic</strong> relationship detection from GraphQL schema
-✅ <strong>Intelligent</strong> propagation of invalidations
-✅ <strong>Fast</strong> performance (&lt;10ms typical CASCADE)
-✅ <strong>Flexible</strong> custom rules when needed
-✅ <strong>Observable</strong> metrics and debugging tools</p>
-<p><strong>Key Takeaway</strong>: CASCADE ensures your cache stays consistent automatically, without manual invalidation code scattered throughout your application.</p>
-<p><strong>Next Steps</strong>:
-1. Setup auto-CASCADE: <code>await setup_auto_cascade_rules(cache, schema)</code>
-2. Monitor CASCADE performance: <code>await cache.get_cascade_stats()</code>
-3. See it working: Try the <a href="../../examples/complete_cqrs_blog/">Complete CQRS Example</a></p>
 <hr />
 <p><strong>Last Updated</strong>: 2025-10-11
 <strong>FraiseQL Version</strong>: 0.1.0+</p>

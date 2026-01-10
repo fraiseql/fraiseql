@@ -1557,7 +1557,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../advanced/llm-integration.md" class="md-nav__link">
+      <a href="../../features/ai-native/" class="md-nav__link">
         
   
   
@@ -1931,7 +1931,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/nested-filters.md" class="md-nav__link">
+      <a href="../../filtering/nested-filters/" class="md-nav__link">
         
   
   
@@ -3080,6 +3080,14 @@
       
         
       
+        
+      
+        
+      
+        
+      
+        
+      
     
     
     
@@ -3134,6 +3142,118 @@
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/request-flow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Request Flow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/trinity-pattern/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trinity Pattern
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/type-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Type System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/cqrs-design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CQRS Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
               
             
               
@@ -3492,11 +3612,11 @@
 <p>Complete pathway from zero to building production GraphQL APIs with FraiseQL.</p>
 <p><strong>Time</strong>: 2-3 hours
 <strong>Prerequisites</strong>: Python 3.13+, PostgreSQL 13+, basic SQL knowledge</p>
-<p><strong>📍 Navigation</strong>: <a href="../getting-started/quickstart/">← Quickstart</a> • <a href="../core/types-and-schema/">Core Concepts →</a> • Examples (../../examples/)</p>
+<p><strong>📍 Navigation</strong>: <a href="../../getting-started/quickstart/">← Quickstart</a> • <a href="../../core/types-and-schema/">Core Concepts →</a> • Examples (../../examples/)</p>
 <h2 id="learning-journey">Learning Journey<a class="headerlink" href="#learning-journey" title="Permanent link">&para;</a></h2>
 <h3 id="phase-1-quick-start-15-minutes">Phase 1: Quick Start (15 minutes)<a class="headerlink" href="#phase-1-quick-start-15-minutes" title="Permanent link">&para;</a></h3>
 <ol>
-<li><strong><a href="../getting-started/quickstart/">5-Minute Quickstart</a></strong></li>
+<li><strong><a href="../../getting-started/quickstart/">5-Minute Quickstart</a></strong></li>
 <li>Build working API immediately</li>
 <li>Understand basic pattern</li>
 <li>
@@ -3518,7 +3638,7 @@
 <hr />
 <h3 id="phase-2-core-concepts-30-minutes">Phase 2: Core Concepts (30 minutes)<a class="headerlink" href="#phase-2-core-concepts-30-minutes" title="Permanent link">&para;</a></h3>
 <ol>
-<li><strong><a href="../core/database-api/">Database API</a></strong> (Focus: select_from_json_view)</li>
+<li><strong><a href="../../core/database-api/">Database API</a></strong> (Focus: select_from_json_view)</li>
 <li>Repository pattern</li>
 <li>QueryOptions for filtering</li>
 <li>Pagination with PaginationInput</li>
@@ -3526,7 +3646,7 @@
 <p>Ordering with OrderByInstructions</p>
 </li>
 <li>
-<p><strong><a href="../core/types-and-schema/">Types and Schema</a></strong> (Focus: @type decorator)</p>
+<p><strong><a href="../../core/types-and-schema/">Types and Schema</a></strong> (Focus: @type decorator)</p>
 </li>
 <li>Python type hints → GraphQL types</li>
 <li>Optional fields with <code>| None</code></li>
@@ -3534,24 +3654,25 @@
 </ol>
 <p><strong>Practice Exercise</strong>:
 <div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">fraiseql</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="c1"># Create a simple Note API</span>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="nd">@fraiseql</span><span class="o">.</span><span class="n">type</span><span class="p">(</span><span class="n">sql_source</span><span class="o">=</span><span class="s2">&quot;v_note&quot;</span><span class="p">)</span>
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="k">class</span><span class="w"> </span><span class="nc">Note</span><span class="p">:</span>
-</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span>
-</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    <span class="n">content</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>    <span class="n">created_at</span><span class="p">:</span> <span class="n">datetime</span>
-</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>
-</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="nd">@fraiseql</span><span class="o">.</span><span class="n">query</span>
-</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="k">def</span><span class="w"> </span><span class="nf">notes</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Note</span><span class="p">]:</span>
-</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Get all notes.&quot;&quot;&quot;</span>
-</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>    <span class="k">pass</span>  <span class="c1"># Implementation handled by framework</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">ID</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># Create a simple Note API</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="nd">@fraiseql</span><span class="o">.</span><span class="n">type</span><span class="p">(</span><span class="n">sql_source</span><span class="o">=</span><span class="s2">&quot;v_note&quot;</span><span class="p">)</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="k">class</span><span class="w"> </span><span class="nc">Note</span><span class="p">:</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    <span class="nb">id</span><span class="p">:</span> <span class="n">ID</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>    <span class="n">content</span><span class="p">:</span> <span class="nb">str</span>
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>    <span class="n">created_at</span><span class="p">:</span> <span class="n">datetime</span>
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="nd">@fraiseql</span><span class="o">.</span><span class="n">query</span>
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="k">def</span><span class="w"> </span><span class="nf">notes</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Note</span><span class="p">]:</span>
+</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Get all notes.&quot;&quot;&quot;</span>
+</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>    <span class="k">pass</span>  <span class="c1"># Implementation handled by framework</span>
 </span></code></pre></div></p>
 <hr />
 <h3 id="phase-3-n1-prevention-30-minutes">Phase 3: N+1 Prevention (30 minutes)<a class="headerlink" href="#phase-3-n1-prevention-30-minutes" title="Permanent link">&para;</a></h3>
 <ol>
-<li><strong><a href="../advanced/database-patterns/">Database Patterns</a></strong> (Focus: JSONB Composition)</li>
+<li><strong><a href="../../advanced/database-patterns/">Database Patterns</a></strong> (Focus: JSONB Composition)</li>
 <li>Composed views prevent N+1 queries</li>
 <li>jsonb_build_object pattern</li>
 <li>COALESCE for empty arrays</li>
@@ -3579,7 +3700,7 @@
 <hr />
 <h3 id="phase-4-mutations-30-minutes">Phase 4: Mutations (30 minutes)<a class="headerlink" href="#phase-4-mutations-30-minutes" title="Permanent link">&para;</a></h3>
 <ol>
-<li><strong><a href="./blog-api/">Blog API Tutorial</a></strong> (Focus: Mutations section)</li>
+<li><strong><a href="../blog-api/">Blog API Tutorial</a></strong> (Focus: Mutations section)</li>
 <li>PostgreSQL functions for business logic</li>
 <li>fn_ naming convention</li>
 <li>Calling functions from Python</li>
@@ -3617,7 +3738,7 @@
 <hr />
 <h3 id="phase-5-complete-example-45-minutes">Phase 5: Complete Example (45 minutes)<a class="headerlink" href="#phase-5-complete-example-45-minutes" title="Permanent link">&para;</a></h3>
 <ol>
-<li><strong><a href="./blog-api/">Blog API Tutorial</a></strong> (Complete walkthrough)</li>
+<li><strong><a href="../blog-api/">Blog API Tutorial</a></strong> (Complete walkthrough)</li>
 <li>Users, posts, comments</li>
 <li>Threaded comments</li>
 <li>Production patterns</li>
@@ -3687,29 +3808,30 @@
 <h2 id="quick-reference-card">Quick Reference Card<a class="headerlink" href="#quick-reference-card" title="Permanent link">&para;</a></h2>
 <h3 id="essential-pattern">Essential Pattern<a class="headerlink" href="#essential-pattern" title="Permanent link">&para;</a></h3>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">fraiseql</span>
-</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>
-</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="c1"># 1. Define type</span>
-</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="nd">@fraiseql</span><span class="o">.</span><span class="n">type</span><span class="p">(</span><span class="n">sql_source</span><span class="o">=</span><span class="s2">&quot;v_item&quot;</span><span class="p">)</span>
-</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="k">class</span><span class="w"> </span><span class="nc">Item</span><span class="p">:</span>
-</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span>
-</span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>
-</span><span id="__span-9-9"><a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="c1"># 2. Create view (in PostgreSQL)</span>
-</span><span id="__span-9-10"><a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="n">CREATE</span> <span class="n">VIEW</span> <span class="n">v_item</span> <span class="n">AS</span>
-</span><span id="__span-9-11"><a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="n">SELECT</span>
-</span><span id="__span-9-12"><a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a>    <span class="nb">id</span><span class="p">,</span>
-</span><span id="__span-9-13"><a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a>    <span class="n">jsonb_build_object</span><span class="p">(</span>
-</span><span id="__span-9-14"><a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a>        <span class="s1">&#39;__typename&#39;</span><span class="p">,</span> <span class="s1">&#39;Item&#39;</span><span class="p">,</span>
-</span><span id="__span-9-15"><a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a>        <span class="s1">&#39;id&#39;</span><span class="p">,</span> <span class="nb">id</span><span class="p">,</span>
-</span><span id="__span-9-16"><a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a>        <span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="n">name</span>
-</span><span id="__span-9-17"><a id="__codelineno-9-17" name="__codelineno-9-17" href="#__codelineno-9-17"></a>    <span class="p">)</span> <span class="n">AS</span> <span class="n">data</span>
-</span><span id="__span-9-18"><a id="__codelineno-9-18" name="__codelineno-9-18" href="#__codelineno-9-18"></a><span class="n">FROM</span> <span class="n">tb_item</span><span class="p">;</span>
-</span><span id="__span-9-19"><a id="__codelineno-9-19" name="__codelineno-9-19" href="#__codelineno-9-19"></a>
-</span><span id="__span-9-20"><a id="__codelineno-9-20" name="__codelineno-9-20" href="#__codelineno-9-20"></a><span class="c1"># 3. Query</span>
-</span><span id="__span-9-21"><a id="__codelineno-9-21" name="__codelineno-9-21" href="#__codelineno-9-21"></a><span class="nd">@fraiseql</span><span class="o">.</span><span class="n">query</span>
-</span><span id="__span-9-22"><a id="__codelineno-9-22" name="__codelineno-9-22" href="#__codelineno-9-22"></a><span class="k">def</span><span class="w"> </span><span class="nf">items</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Item</span><span class="p">]:</span>
-</span><span id="__span-9-23"><a id="__codelineno-9-23" name="__codelineno-9-23" href="#__codelineno-9-23"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Get all items.&quot;&quot;&quot;</span>
-</span><span id="__span-9-24"><a id="__codelineno-9-24" name="__codelineno-9-24" href="#__codelineno-9-24"></a>    <span class="k">pass</span>  <span class="c1"># Implementation handled by framework</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">ID</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="c1"># 1. Define type</span>
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="nd">@fraiseql</span><span class="o">.</span><span class="n">type</span><span class="p">(</span><span class="n">sql_source</span><span class="o">=</span><span class="s2">&quot;v_item&quot;</span><span class="p">)</span>
+</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="k">class</span><span class="w"> </span><span class="nc">Item</span><span class="p">:</span>
+</span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>    <span class="nb">id</span><span class="p">:</span> <span class="n">ID</span>
+</span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+</span><span id="__span-9-9"><a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>
+</span><span id="__span-9-10"><a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="c1"># 2. Create view (in PostgreSQL)</span>
+</span><span id="__span-9-11"><a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="n">CREATE</span> <span class="n">VIEW</span> <span class="n">v_item</span> <span class="n">AS</span>
+</span><span id="__span-9-12"><a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="n">SELECT</span>
+</span><span id="__span-9-13"><a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a>    <span class="nb">id</span><span class="p">,</span>
+</span><span id="__span-9-14"><a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a>    <span class="n">jsonb_build_object</span><span class="p">(</span>
+</span><span id="__span-9-15"><a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a>        <span class="s1">&#39;__typename&#39;</span><span class="p">,</span> <span class="s1">&#39;Item&#39;</span><span class="p">,</span>
+</span><span id="__span-9-16"><a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a>        <span class="s1">&#39;id&#39;</span><span class="p">,</span> <span class="nb">id</span><span class="p">,</span>
+</span><span id="__span-9-17"><a id="__codelineno-9-17" name="__codelineno-9-17" href="#__codelineno-9-17"></a>        <span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="n">name</span>
+</span><span id="__span-9-18"><a id="__codelineno-9-18" name="__codelineno-9-18" href="#__codelineno-9-18"></a>    <span class="p">)</span> <span class="n">AS</span> <span class="n">data</span>
+</span><span id="__span-9-19"><a id="__codelineno-9-19" name="__codelineno-9-19" href="#__codelineno-9-19"></a><span class="n">FROM</span> <span class="n">tb_item</span><span class="p">;</span>
+</span><span id="__span-9-20"><a id="__codelineno-9-20" name="__codelineno-9-20" href="#__codelineno-9-20"></a>
+</span><span id="__span-9-21"><a id="__codelineno-9-21" name="__codelineno-9-21" href="#__codelineno-9-21"></a><span class="c1"># 3. Query</span>
+</span><span id="__span-9-22"><a id="__codelineno-9-22" name="__codelineno-9-22" href="#__codelineno-9-22"></a><span class="nd">@fraiseql</span><span class="o">.</span><span class="n">query</span>
+</span><span id="__span-9-23"><a id="__codelineno-9-23" name="__codelineno-9-23" href="#__codelineno-9-23"></a><span class="k">def</span><span class="w"> </span><span class="nf">items</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Item</span><span class="p">]:</span>
+</span><span id="__span-9-24"><a id="__codelineno-9-24" name="__codelineno-9-24" href="#__codelineno-9-24"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Get all items.&quot;&quot;&quot;</span>
+</span><span id="__span-9-25"><a id="__codelineno-9-25" name="__codelineno-9-25" href="#__codelineno-9-25"></a>    <span class="k">pass</span>  <span class="c1"># Implementation handled by framework</span>
 </span></code></pre></div>
 <h3 id="essential-commands">Essential Commands<a class="headerlink" href="#essential-commands" title="Permanent link">&para;</a></h3>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># Install</span>
@@ -3728,13 +3850,13 @@
 <h2 id="next-steps">Next Steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
 <h3 id="continue-learning">Continue Learning<a class="headerlink" href="#continue-learning" title="Permanent link">&para;</a></h3>
 <p><strong>Backend Focus</strong>:
-- <a href="../advanced/database-patterns/">Database Patterns</a> - tv_ pattern, entity change log
-- <a href="../performance/index/">Performance</a> - Rust transformation, APQ caching
-- <a href="../advanced/multi-tenancy/">Multi-Tenancy</a> - Tenant isolation</p>
+- <a href="../../advanced/database-patterns/">Database Patterns</a> - tv_ pattern, entity change log
+- <a href="../../performance/">Performance</a> - Rust transformation, APQ caching
+- <a href="../../advanced/multi-tenancy/">Multi-Tenancy</a> - Tenant isolation</p>
 <p><strong>Production Ready</strong>:
-- <a href="./production-deployment/">Production Deployment</a> - Docker, monitoring, security
-- <a href="../advanced/authentication/">Authentication</a> - User auth patterns
-- <a href="../production/monitoring/">Monitoring</a> - Observability</p>
+- <a href="../production-deployment/">Production Deployment</a> - Docker, monitoring, security
+- <a href="../../advanced/authentication/">Authentication</a> - User auth patterns
+- <a href="../../production/monitoring/">Monitoring</a> - Observability</p>
 <h3 id="practice-projects">Practice Projects<a class="headerlink" href="#practice-projects" title="Permanent link">&para;</a></h3>
 <ol>
 <li><strong>Todo API</strong> - Basic CRUD with users</li>
@@ -3755,7 +3877,7 @@
 <p><strong>N+1 queries detected</strong>
 - Compose data in views, not in resolvers
 - Use <code>jsonb_agg</code> for arrays
-- Check <a href="../advanced/database-patterns/">Database Patterns</a></p>
+- Check <a href="../../advanced/database-patterns/">Database Patterns</a></p>
 <h2 id="tips-for-success">Tips for Success<a class="headerlink" href="#tips-for-success" title="Permanent link">&para;</a></h2>
 <p>💡 <strong>Start simple</strong> - Master basics before advanced patterns
 💡 <strong>Test SQL first</strong> - Verify views in psql before using in Python
@@ -3767,9 +3889,9 @@
 <p><strong>Remember</strong>: The better you know PostgreSQL, the more powerful your FraiseQL APIs become.</p>
 <h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="./blog-api/">Blog API Tutorial</a> - Complete working example</li>
-<li><a href="../core/database-api/">Database API</a> - Repository reference</li>
-<li><a href="../advanced/database-patterns/">Database Patterns</a> - Production patterns</li>
+<li><a href="../blog-api/">Blog API Tutorial</a> - Complete working example</li>
+<li><a href="../../core/database-api/">Database API</a> - Repository reference</li>
+<li><a href="../../advanced/database-patterns/">Database Patterns</a> - Production patterns</li>
 </ul>
 
 

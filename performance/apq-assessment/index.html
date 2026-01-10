@@ -1235,7 +1235,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../advanced/llm-integration.md" class="md-nav__link">
+      <a href="../../features/ai-native/" class="md-nav__link">
         
   
   
@@ -1609,7 +1609,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/nested-filters.md" class="md-nav__link">
+      <a href="../../filtering/nested-filters/" class="md-nav__link">
         
   
   
@@ -2758,6 +2758,14 @@
       
         
       
+        
+      
+        
+      
+        
+      
+        
+      
     
     
     
@@ -2812,6 +2820,118 @@
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/request-flow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Request Flow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/trinity-pattern/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trinity Pattern
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/type-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Type System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/cqrs-design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CQRS Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
               
             
               
@@ -3225,17 +3345,6 @@
   
 </li>
       
-        <li class="md-nav__item">
-  <a href="#conclusion" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Conclusion
-      
-    </span>
-  </a>
-  
-</li>
-      
     </ul>
   
 </nav>
@@ -3593,26 +3702,6 @@
 - <strong>We found something better</strong>: Full response caching!
 - With response caching, we skip parsing AND execution
 - This is <strong>even better than the 86% goal</strong></p>
-<hr />
-<h2 id="conclusion">Conclusion<a class="headerlink" href="#conclusion" title="Permanent link">&para;</a></h2>
-<p><strong>The Good:</strong>
-- ✅ Solid APQ foundation with pluggable backends
-- ✅ Tenant isolation and security built-in
-- ✅ Production-ready error handling
-- ✅ Comprehensive testing</p>
-<p><strong>The Gap:</strong>
-- ❌ No metrics or monitoring
-- ❌ Response caching disabled by default
-- ❌ No performance benchmarks</p>
-<p><strong>The Opportunity:</strong>
-- 🎯 Adding metrics is straightforward (2-3 hours)
-- 🎯 Response caching could deliver <strong>260-460x speedup</strong>
-- 🎯 Monitoring dashboard would provide operational visibility</p>
-<p><strong>Next Steps:</strong>
-1. Implement APQMetrics class (Phase 3.2)
-2. Add monitoring dashboard (Phase 3.3)
-3. Benchmark response caching (Phase 3.4)
-4. Consider enabling <code>apq_cache_responses: true</code> in production</p>
 <hr />
 <p><strong>Assessment by:</strong> Claude Code
 <strong>Reviewed:</strong> Pending user review

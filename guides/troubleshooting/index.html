@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="PostgreSQL-Native GraphQL Framework for Python">
+        <meta name="description" content="Common issues, solutions, and debugging strategies">
       
       
         <meta name="author" content="Lionel Hamayon">
@@ -29,7 +29,7 @@
     
     
       
-        <title>Troubleshooting - FraiseQL Documentation</title>
+        <title>Troubleshooting Guide - FraiseQL Documentation</title>
       
     
     
@@ -122,7 +122,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Troubleshooting
+              Troubleshooting Guide
             
           </span>
         </div>
@@ -1241,7 +1241,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../advanced/llm-integration.md" class="md-nav__link">
+      <a href="../../features/ai-native/" class="md-nav__link">
         
   
   
@@ -1618,7 +1618,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../nested-filters.md" class="md-nav__link">
+      <a href="../../filtering/nested-filters/" class="md-nav__link">
         
   
   
@@ -2996,6 +2996,14 @@
       
         
       
+        
+      
+        
+      
+        
+      
+        
+      
     
     
     
@@ -3050,6 +3058,118 @@
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/request-flow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Request Flow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/trinity-pattern/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trinity Pattern
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/type-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Type System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/cqrs-design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CQRS Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
               
             
               
@@ -3310,6 +3430,45 @@
                 
                   
 
+  <nav class="md-tags" >
+    
+      
+      
+      
+      
+        <span class="md-tag">debugging</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">errors</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">problems</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">solutions</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">troubleshooting</span>
+      
+    
+  </nav>
+
 
   
     <a href="https://github.com/fraiseql/fraiseql/edit/main/docs/guides/troubleshooting.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
@@ -3323,7 +3482,7 @@
 <h1 id="troubleshooting-guide">Troubleshooting Guide<a class="headerlink" href="#troubleshooting-guide" title="Permanent link">&para;</a></h1>
 <p>Common issues and solutions for FraiseQL beginners.</p>
 <p><strong>💡 Quick Navigation:</strong>
-- <strong><a href="troubleshooting-decision-tree/">Troubleshooting Decision Tree</a></strong> - Diagnose issues by category (Installation, Database, Performance, Deployment, etc.)
+- <strong><a href="../troubleshooting-decision-tree/">Troubleshooting Decision Tree</a></strong> - Diagnose issues by category (Installation, Database, Performance, Deployment, etc.)
 - <strong>This guide</strong> - Specific error messages and detailed solutions</p>
 <p>Can't find your issue? Check the <a href="../issues">GitHub Issues</a> or ask in <a href="../discussions">Discussions</a>.</p>
 <h2 id="view-not-found-error">"View not found" error<a class="headerlink" href="#view-not-found-error" title="Permanent link">&para;</a></h2>
@@ -3384,7 +3543,7 @@
 <p><strong>Cause</strong>: Python type doesn't match database view structure</p>
 <p><strong>Solution</strong>:
 <div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">fraiseql</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">ID</span>
 </span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
 </span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># Check your view definition</span>
 </span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">psql</span> <span class="n">your_db</span> <span class="o">-</span><span class="n">c</span> <span class="s2">&quot;SELECT * FROM v_note LIMIT 1;&quot;</span>
@@ -3392,7 +3551,7 @@
 </span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="c1"># Compare with Python type</span>
 </span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="nd">@type</span><span class="p">(</span><span class="n">sql_source</span><span class="o">=</span><span class="s2">&quot;v_note&quot;</span><span class="p">)</span>
 </span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="k">class</span><span class="w"> </span><span class="nc">Note</span><span class="p">:</span>
-</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span>        <span class="c1"># Must match database column type</span>
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>    <span class="nb">id</span><span class="p">:</span> <span class="n">ID</span>        <span class="c1"># Must match database column type</span>
 </span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>      <span class="c1"># Must match database column type</span>
 </span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>    <span class="n">content</span><span class="p">:</span> <span class="nb">str</span>    <span class="c1"># Must match database column type</span>
 </span></code></pre></div></p>
@@ -3506,7 +3665,6 @@
 </span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="c1"># import fraiseql</span>
 </span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="c1"># import fraiseql as fq; fq.type</span>
 </span></code></pre></div></p>
-<p><strong>Prevention</strong>: Check the <a href="../development/style-guide/">Style Guide</a> for correct imports</p>
 <hr />
 <h2 id="server-wont-start">Server won't start<a class="headerlink" href="#server-wont-start" title="Permanent link">&para;</a></h2>
 <p><strong>Symptom</strong>: <code>uvicorn app:app --reload</code> fails or exits immediately</p>
@@ -3538,16 +3696,16 @@
 </ol>
 <h3 id="getting-help">Getting Help<a class="headerlink" href="#getting-help" title="Permanent link">&para;</a></h3>
 <ul>
-<li>📖 Check the <a href="../getting-started/first-hour/">First Hour Guide</a> for step-by-step help</li>
+<li>📖 Check the <a href="../../getting-started/first-hour/">First Hour Guide</a> for step-by-step help</li>
 <li>🔍 Search <a href="../issues">existing issues</a></li>
 <li>💬 Ask in <a href="../discussions">GitHub Discussions</a></li>
 <li>📧 File a <a href="https://github.com/fraiseql/fraiseql/issues/new">new issue</a> with your error message</li>
 </ul>
 <h3 id="common-next-steps">Common Next Steps<a class="headerlink" href="#common-next-steps" title="Permanent link">&para;</a></h3>
 <ul>
-<li><a href="../reference/quick-reference/">Quick Reference</a> - Copy-paste code patterns</li>
+<li><a href="../../reference/quick-reference/">Quick Reference</a> - Copy-paste code patterns</li>
 <li>Examples (../../examples/) - Working applications you can study</li>
-<li><a href="../tutorials/beginner-path/">Beginner Learning Path</a> - Complete skill progression</li>
+<li><a href="../../tutorials/beginner-path/">Beginner Learning Path</a> - Complete skill progression</li>
 </ul>
 
 
@@ -3555,6 +3713,9 @@
 
 
 
+
+  
+  
 
 
 

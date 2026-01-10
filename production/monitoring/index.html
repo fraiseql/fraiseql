@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="PostgreSQL-Native GraphQL Framework for Python">
+        <meta name="description" content="PostgreSQL-native error tracking, caching, and observability without external services">
       
       
         <meta name="author" content="Lionel Hamayon">
@@ -29,7 +29,7 @@
     
     
       
-        <title>Monitoring - FraiseQL Documentation</title>
+        <title>Production Monitoring - FraiseQL Documentation</title>
       
     
     
@@ -122,7 +122,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Monitoring
+              Production Monitoring
             
           </span>
         </div>
@@ -1241,7 +1241,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../advanced/llm-integration.md" class="md-nav__link">
+      <a href="../../features/ai-native/" class="md-nav__link">
         
   
   
@@ -1615,7 +1615,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/nested-filters.md" class="md-nav__link">
+      <a href="../../filtering/nested-filters/" class="md-nav__link">
         
   
   
@@ -2332,17 +2332,6 @@
     <span class="md-ellipsis">
       
         Overview
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#table-of-contents" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Table of Contents
       
     </span>
   </a>
@@ -3281,6 +3270,14 @@
       
         
       
+        
+      
+        
+      
+        
+      
+        
+      
     
     
     
@@ -3335,6 +3332,118 @@
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/request-flow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Request Flow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/trinity-pattern/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trinity Pattern
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/type-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Type System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/cqrs-design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CQRS Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
               
             
               
@@ -3403,17 +3512,6 @@
     <span class="md-ellipsis">
       
         Overview
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#table-of-contents" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Table of Contents
       
     </span>
   </a>
@@ -3880,6 +3978,52 @@
                 
                   
 
+  <nav class="md-tags" >
+    
+      
+      
+      
+      
+        <span class="md-tag">PostgreSQL</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">error-tracking</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">metrics</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">monitoring</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">observability</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">production</span>
+      
+    
+  </nav>
+
 
   
     <a href="https://github.com/fraiseql/fraiseql/edit/main/docs/production/monitoring.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
@@ -3917,19 +4061,6 @@
 - Query performance monitoring
 - Database pool monitoring
 - Alerting strategies</p>
-<h2 id="table-of-contents">Table of Contents<a class="headerlink" href="#table-of-contents" title="Permanent link">&para;</a></h2>
-<ul>
-<li><a href="#postgresql-error-tracking">PostgreSQL Error Tracking</a> (Recommended)</li>
-<li><a href="#postgresql-caching">PostgreSQL Caching</a> (Recommended)</li>
-<li><a href="#migration-guides">Migration Guides</a></li>
-<li><a href="#metrics-collection">Metrics Collection</a></li>
-<li><a href="#logging">Logging</a></li>
-<li><a href="#external-apm-integration">External APM Integration</a> (Optional)</li>
-<li><a href="#query-performance">Query Performance</a></li>
-<li><a href="#database-monitoring">Database Monitoring</a></li>
-<li><a href="#alerting">Alerting</a></li>
-<li><a href="#dashboards">Dashboards</a></li>
-</ul>
 <h2 id="postgresql-error-tracking">PostgreSQL Error Tracking<a class="headerlink" href="#postgresql-error-tracking" title="Permanent link">&para;</a></h2>
 <p><strong>Recommended alternative to Sentry.</strong> FraiseQL includes PostgreSQL-native error tracking with automatic fingerprinting, grouping, and notifications—saving $300-3,000/month.</p>
 <h3 id="setup">Setup<a class="headerlink" href="#setup" title="Permanent link">&para;</a></h3>
@@ -4597,7 +4728,7 @@
 </span><span id="__span-21-11"><a id="__codelineno-21-11" name="__codelineno-21-11" href="#__codelineno-21-11"></a>
 </span><span id="__span-21-12"><a id="__codelineno-21-12" name="__codelineno-21-12" href="#__codelineno-21-12"></a><span class="c1"># Custom span</span>
 </span><span id="__span-21-13"><a id="__codelineno-21-13" name="__codelineno-21-13" href="#__codelineno-21-13"></a><span class="nd">@fraiseql</span><span class="o">.</span><span class="n">query</span>
-</span><span id="__span-21-14"><a id="__codelineno-21-14" name="__codelineno-21-14" href="#__codelineno-21-14"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_user</span><span class="p">(</span><span class="n">info</span><span class="p">,</span> <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">User</span><span class="p">:</span>
+</span><span id="__span-21-14"><a id="__codelineno-21-14" name="__codelineno-21-14" href="#__codelineno-21-14"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_user</span><span class="p">(</span><span class="n">info</span><span class="p">,</span> <span class="nb">id</span><span class="p">:</span> <span class="n">ID</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">User</span><span class="p">:</span>
 </span><span id="__span-21-15"><a id="__codelineno-21-15" name="__codelineno-21-15" href="#__codelineno-21-15"></a>    <span class="k">with</span> <span class="n">tracer</span><span class="o">.</span><span class="n">trace</span><span class="p">(</span><span class="s2">&quot;get_user&quot;</span><span class="p">,</span> <span class="n">service</span><span class="o">=</span><span class="s2">&quot;fraiseql&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">span</span><span class="p">:</span>
 </span><span id="__span-21-16"><a id="__codelineno-21-16" name="__codelineno-21-16" href="#__codelineno-21-16"></a>        <span class="n">span</span><span class="o">.</span><span class="n">set_tag</span><span class="p">(</span><span class="s2">&quot;user.id&quot;</span><span class="p">,</span> <span class="nb">id</span><span class="p">)</span>
 </span><span id="__span-21-17"><a id="__codelineno-21-17" name="__codelineno-21-17" href="#__codelineno-21-17"></a>        <span class="n">span</span><span class="o">.</span><span class="n">set_tag</span><span class="p">(</span><span class="s2">&quot;operation&quot;</span><span class="p">,</span> <span class="s2">&quot;query&quot;</span><span class="p">)</span>
@@ -4863,9 +4994,9 @@
 </span></code></pre></div>
 <h2 id="next-steps">Next Steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="deployment/">Deployment</a> - Production deployment patterns</li>
-<li><a href="security/">Security</a> - Security monitoring</li>
-<li><a href="../performance/index/">Performance</a> - Performance optimization</li>
+<li><a href="../deployment/">Deployment</a> - Production deployment patterns</li>
+<li><a href="../security/">Security</a> - Security monitoring</li>
+<li><a href="../../performance/">Performance</a> - Performance optimization</li>
 </ul>
 
 
@@ -4873,6 +5004,9 @@
 
 
 
+
+  
+  
 
 
 

@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="PostgreSQL-Native GraphQL Framework for Python">
+        <meta name="description" content="Real-world filtering recipes for e-commerce, CMS, user management, logs, and multi-tenant SaaS">
       
       
         <meta name="author" content="Lionel Hamayon">
@@ -29,7 +29,7 @@
     
     
       
-        <title>Advanced Filtering - FraiseQL Documentation</title>
+        <title>Advanced Filtering Examples - FraiseQL Documentation</title>
       
     
     
@@ -122,7 +122,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Advanced Filtering
+              Advanced Filtering Examples
             
           </span>
         </div>
@@ -1080,17 +1080,6 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#table-of-contents" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Table of Contents
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#e-commerce-product-catalog" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1613,7 +1602,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../advanced/llm-integration.md" class="md-nav__link">
+      <a href="../../features/ai-native/" class="md-nav__link">
         
   
   
@@ -1987,7 +1976,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/nested-filters.md" class="md-nav__link">
+      <a href="../../filtering/nested-filters/" class="md-nav__link">
         
   
   
@@ -3136,6 +3125,14 @@
       
         
       
+        
+      
+        
+      
+        
+      
+        
+      
     
     
     
@@ -3199,6 +3196,118 @@
   
   
     <li class="md-nav__item">
+      <a href="../../architecture/request-flow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Request Flow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/trinity-pattern/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trinity Pattern
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/type-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Type System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/cqrs-design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CQRS Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../architecture/decisions/" class="md-nav__link">
         
   
@@ -3252,17 +3361,6 @@
       Table of contents
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#table-of-contents" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Table of Contents
-      
-    </span>
-  </a>
-  
-</li>
       
         <li class="md-nav__item">
   <a href="#e-commerce-product-catalog" class="md-nav__link">
@@ -3590,6 +3688,66 @@
                 
                   
 
+  <nav class="md-tags" >
+    
+      
+      
+      
+      
+        <span class="md-tag">CMS</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">JSONB</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">arrays</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">e-commerce</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">examples</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">filtering</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">full-text search</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">recipes</span>
+      
+    
+  </nav>
+
 
   
     <a href="https://github.com/fraiseql/fraiseql/edit/main/docs/examples/advanced-filtering.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
@@ -3602,14 +3760,6 @@
 
 <h1 id="advanced-filtering-examples">Advanced Filtering Examples<a class="headerlink" href="#advanced-filtering-examples" title="Permanent link">&para;</a></h1>
 <p>This guide provides practical, real-world examples of using FraiseQL's advanced PostgreSQL filter operators. Each example includes the complete GraphQL query, generated SQL, and explanations.</p>
-<h2 id="table-of-contents">Table of Contents<a class="headerlink" href="#table-of-contents" title="Permanent link">&para;</a></h2>
-<ul>
-<li><a href="#e-commerce-product-catalog">E-commerce Product Catalog</a></li>
-<li><a href="#content-management-system">Content Management System</a></li>
-<li><a href="#user-management--permissions">User Management &amp; Permissions</a></li>
-<li><a href="#log-analysis--monitoring">Log Analysis &amp; Monitoring</a></li>
-<li><a href="#multi-tenant-saas-application">Multi-tenant SaaS Application</a></li>
-</ul>
 <hr />
 <h2 id="e-commerce-product-catalog">E-commerce Product Catalog<a class="headerlink" href="#e-commerce-product-catalog" title="Permanent link">&para;</a></h2>
 <h3 id="example-1-smart-product-search-with-filters">Example 1: Smart Product Search with Filters<a class="headerlink" href="#example-1-smart-product-search-with-filters" title="Permanent link">&para;</a></h3>
@@ -3761,7 +3911,7 @@
 <p><strong>Use Case</strong>: Product recommendation engine, "Similar Products" section.</p>
 <hr />
 <h3 id="example-3-validate-product-sku-format">Example 3: Validate Product SKU Format<a class="headerlink" href="#example-3-validate-product-sku-format" title="Permanent link">&para;</a></h3>
-<p><strong>Scenario</strong>: Find products with invalid SKU codes (should be <code>PROD-XXXX</code> where X is digit).</p>
+<p><strong>Scenario</strong>: Find products with invalid SKU codes (should be <code>PROD-XXXX</code> where each X is a digit 0-9).</p>
 <p><strong>GraphQL Query</strong>:
 <div class="language-graphql highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">query</span><span class="w"> </span><span class="nf">InvalidProducts</span><span class="w"> </span><span class="p">{</span>
 </span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="n">products</span><span class="p">(</span>
@@ -4396,9 +4546,9 @@
 <hr />
 <h2 id="next-steps">Next Steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong><a href="../advanced/filter-operators/">Filter Operators Reference</a></strong> - Complete operator documentation</li>
-<li><strong><a href="../advanced/where-input-types/">Where Input Types</a></strong> - Basic filtering guide</li>
-<li><strong><a href="../core/postgresql-extensions/">PostgreSQL Extensions</a></strong> - Required PostgreSQL setup</li>
+<li><strong><a href="../../advanced/filter-operators/">Filter Operators Reference</a></strong> - Complete operator documentation</li>
+<li><strong><a href="../../advanced/where-input-types/">Where Input Types</a></strong> - Basic filtering guide</li>
+<li><strong><a href="../../core/postgresql-extensions/">PostgreSQL Extensions</a></strong> - Required PostgreSQL setup</li>
 </ul>
 <hr />
 <p><strong>Need help?</strong> Check the <a href="../../advanced/filter-operators/#troubleshooting">troubleshooting section</a> in the filter operators reference.</p>
@@ -4408,6 +4558,9 @@
 
 
 
+
+  
+  
 
 
 

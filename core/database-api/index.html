@@ -1241,7 +1241,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../advanced/llm-integration.md" class="md-nav__link">
+      <a href="../../features/ai-native/" class="md-nav__link">
         
   
   
@@ -2292,7 +2292,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/nested-filters.md" class="md-nav__link">
+      <a href="../../filtering/nested-filters/" class="md-nav__link">
         
   
   
@@ -3441,6 +3441,14 @@
       
         
       
+        
+      
+        
+      
+        
+      
+        
+      
     
     
     
@@ -3495,6 +3503,118 @@
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/request-flow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Request Flow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/trinity-pattern/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trinity Pattern
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/type-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Type System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/cqrs-design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CQRS Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
               
             
               
@@ -4212,7 +4332,7 @@
 
 <h1 id="database-api">Database API<a class="headerlink" href="#database-api" title="Permanent link">&para;</a></h1>
 <p>Repository pattern for async database operations with type safety, structured queries, and JSONB views.</p>
-<p><strong>📍 Navigation</strong>: <a href="queries-and-mutations/">← Queries &amp; Mutations</a> • <a href="../performance/index/">Performance →</a> • <a href="../advanced/database-patterns/">Database Patterns →</a></p>
+<p><strong>📍 Navigation</strong>: <a href="../queries-and-mutations/">← Queries &amp; Mutations</a> • <a href="../../performance/">Performance →</a> • <a href="../../advanced/database-patterns/">Database Patterns →</a></p>
 <h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
 <p>FraiseQL provides a repository layer for database operations that:
 - Executes structured queries against JSONB views
@@ -4226,7 +4346,7 @@
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>│ GraphQL     │───▶│ Repository  │───▶│ PostgreSQL  │───▶│   Rust      │
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>│ Resolver    │    │  Method     │    │   View      │    │ Pipeline    │
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>│             │    │             │    │             │    │             │
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>│ @query      │    │ find_rust() │    │ SELECT *    │    │ Transform   │
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>│ @query      │    │ find()      │    │ SELECT data │    │ Transform   │
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>│ def users:  │    │             │    │ FROM v_user │    │ JSONB→GraphQL│
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>└─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
 </span></code></pre></div>
@@ -4235,40 +4355,46 @@
 2. <strong>Repository</strong> builds SQL query with WHERE clauses and pagination
 3. <strong>PostgreSQL</strong> executes view and returns JSONB results
 4. <strong>Rust Pipeline</strong> transforms JSONB to GraphQL response format</p>
-<p><strong><a href="../diagrams/request-flow/">📊 Detailed Query Flow</a></strong> - Complete request lifecycle</p>
 <h2 id="fraiseqlrepository">FraiseQLRepository<a class="headerlink" href="#fraiseqlrepository" title="Permanent link">&para;</a></h2>
 <p>Core repository class for async database operations with exclusive Rust pipeline integration.</p>
 <h3 id="key-methods">Key Methods<a class="headerlink" href="#key-methods" title="Permanent link">&para;</a></h3>
-<h4 id="find_rustview_name-field_name-info-kwargs">find_rust(view_name, field_name, info, **kwargs)<a class="headerlink" href="#find_rustview_name-field_name-info-kwargs" title="Permanent link">&para;</a></h4>
-<p>Execute query using exclusive Rust pipeline and return RustResponseBytes.</p>
-<p><strong>Fastest method</strong> - PostgreSQL → Rust → HTTP with zero Python string operations.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Exclusive Rust pipeline methods:</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">users</span> <span class="o">=</span> <span class="k">await</span> <span class="n">db</span><span class="o">.</span><span class="n">find_rust</span><span class="p">(</span><span class="s2">&quot;v_user&quot;</span><span class="p">,</span> <span class="s2">&quot;users&quot;</span><span class="p">,</span> <span class="n">info</span><span class="p">)</span>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">user</span> <span class="o">=</span> <span class="k">await</span> <span class="n">db</span><span class="o">.</span><span class="n">find_one_rust</span><span class="p">(</span><span class="s2">&quot;v_user&quot;</span><span class="p">,</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="n">info</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="mi">123</span><span class="p">)</span>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="n">filtered</span> <span class="o">=</span> <span class="k">await</span> <span class="n">db</span><span class="o">.</span><span class="n">find_rust</span><span class="p">(</span><span class="s2">&quot;v_user&quot;</span><span class="p">,</span> <span class="s2">&quot;users&quot;</span><span class="p">,</span> <span class="n">info</span><span class="p">,</span> <span class="n">age__gt</span><span class="o">=</span><span class="mi">18</span><span class="p">)</span>
+<h4 id="findview_name-field_name-kwargs">find(view_name, field_name, **kwargs)<a class="headerlink" href="#findview_name-field_name-kwargs" title="Permanent link">&para;</a></h4>
+<p>Execute query using the exclusive Rust pipeline with automatic field selection.</p>
+<p><strong>Fastest path</strong> - PostgreSQL → Rust → HTTP with zero Python string operations.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nd">@fraiseql</span><span class="o">.</span><span class="n">query</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">users</span><span class="p">(</span><span class="n">info</span><span class="p">,</span> <span class="n">limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">100</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">User</span><span class="p">]:</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="n">db</span> <span class="o">=</span> <span class="n">info</span><span class="o">.</span><span class="n">context</span><span class="p">[</span><span class="s2">&quot;db&quot;</span><span class="p">]</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="c1"># Rust pipeline automatically used</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="c1"># field_name auto-inferred from function name &quot;users&quot;</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="k">return</span> <span class="k">await</span> <span class="n">db</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s2">&quot;v_user&quot;</span><span class="p">,</span> <span class="n">limit</span><span class="o">=</span><span class="n">limit</span><span class="p">)</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="nd">@fraiseql</span><span class="o">.</span><span class="n">query</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">filtered_users</span><span class="p">(</span><span class="n">info</span><span class="p">,</span> <span class="n">min_age</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">18</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">User</span><span class="p">]:</span>
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>    <span class="n">db</span> <span class="o">=</span> <span class="n">info</span><span class="o">.</span><span class="n">context</span><span class="p">[</span><span class="s2">&quot;db&quot;</span><span class="p">]</span>
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>    <span class="k">return</span> <span class="k">await</span> <span class="n">db</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s2">&quot;v_user&quot;</span><span class="p">,</span> <span class="s2">&quot;filteredUsers&quot;</span><span class="p">,</span> <span class="n">where</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;age__gte&quot;</span><span class="p">:</span> <span class="n">min_age</span><span class="p">})</span>
 </span></code></pre></div>
 <p><strong>Parameters:</strong>
 - <code>view_name: str</code> - Database view name (e.g., "v_user")
-- <code>field_name: str</code> - GraphQL field name for response wrapping
-- <code>info: Any</code> - GraphQL resolver info for field paths
-- <code>**kwargs</code> - Filter parameters and options</p>
-<p><strong>Returns:</strong> <code>RustResponseBytes</code> - Pre-serialized GraphQL response ready for HTTP</p>
-<h4 id="find_one_rustview_name-field_name-info-kwargs">find_one_rust(view_name, field_name, info, **kwargs)<a class="headerlink" href="#find_one_rustview_name-field_name-info-kwargs" title="Permanent link">&para;</a></h4>
-<p>Execute single-result query using exclusive Rust pipeline.</p>
+- <code>field_name: str</code> - GraphQL field name for response wrapping (e.g., "users")
+- <code>**kwargs</code> - Query parameters: <code>where</code>, <code>limit</code>, <code>offset</code>, <code>order_by</code></p>
+<p><strong>Returns:</strong> Result handled automatically by framework (annotate resolver with <code>list[User]</code>)</p>
+<blockquote>
+<p><strong>Note</strong>: The <code>info</code> parameter is auto-injected from context for field selection.</p>
+</blockquote>
+<h4 id="find_oneview_name-field_name-kwargs">find_one(view_name, field_name, **kwargs)<a class="headerlink" href="#find_oneview_name-field_name-kwargs" title="Permanent link">&para;</a></h4>
+<p>Execute single-result query using the exclusive Rust pipeline.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">ID</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="nd">@fraiseql</span><span class="o">.</span><span class="n">query</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">user</span><span class="p">(</span><span class="n">info</span><span class="p">,</span> <span class="nb">id</span><span class="p">:</span> <span class="n">ID</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">User</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="n">db</span> <span class="o">=</span> <span class="n">info</span><span class="o">.</span><span class="n">context</span><span class="p">[</span><span class="s2">&quot;db&quot;</span><span class="p">]</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>    <span class="k">return</span> <span class="k">await</span> <span class="n">db</span><span class="o">.</span><span class="n">find_one</span><span class="p">(</span><span class="s2">&quot;v_user&quot;</span><span class="p">,</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="nb">id</span><span class="p">)</span>
+</span></code></pre></div>
 <p><strong>Parameters:</strong>
 - <code>view_name: str</code> - Database view name
 - <code>field_name: str</code> - GraphQL field name for response wrapping
-- <code>info: Any</code> - GraphQL resolver info for field paths
-- <code>**kwargs</code> - Filter parameters</p>
-<p><strong>Returns:</strong> <code>RustResponseBytes</code> - Single result as GraphQL response</p>
-<h4 id="findsource-wherenone-kwargs">find(source, where=None, **kwargs)<a class="headerlink" href="#findsource-wherenone-kwargs" title="Permanent link">&para;</a></h4>
-<p>Execute query and return Python objects.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Direct database access (bypasses Rust pipeline)</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">users</span> <span class="o">=</span> <span class="k">await</span> <span class="n">db</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s2">&quot;v_user&quot;</span><span class="p">)</span>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">user</span> <span class="o">=</span> <span class="k">await</span> <span class="n">db</span><span class="o">.</span><span class="n">find_one</span><span class="p">(</span><span class="s2">&quot;v_user&quot;</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="mi">123</span><span class="p">)</span>
-</span></code></pre></div>
-<p><strong>Parameters:</strong>
-- <code>source: str</code> - View name (e.g., "v_user")
+- <code>**kwargs</code> - Filter conditions (e.g., <code>id=user_id</code>, <code>where={...}</code>)</p>
+<p><strong>Returns:</strong> Result handled automatically (annotate with <code>User | None</code>)
 - <code>where: dict</code> - WHERE clause filters (optional)
 - <code>**kwargs</code> - Additional filters</p>
 <p><strong>Returns:</strong> Python objects (slower path)</p>
@@ -4566,7 +4692,7 @@
 <h2 id="dynamic-filters">Dynamic Filters<a class="headerlink" href="#dynamic-filters" title="Permanent link">&para;</a></h2>
 <p>Filter syntax supports multiple operators for flexible querying.</p>
 <blockquote>
-<p><strong>💡 Advanced Filtering</strong>: For comprehensive PostgreSQL operator support including arrays, full-text search, JSONB queries, and regex, see <strong><a href="../advanced/filter-operators/">Filter Operators Reference</a></strong> and <strong><a href="../examples/advanced-filtering/">Advanced Filtering Examples</a></strong>.</p>
+<p><strong>💡 Advanced Filtering</strong>: For comprehensive PostgreSQL operator support including arrays, full-text search, JSONB queries, and regex, see <strong><a href="../../advanced/filter-operators/">Filter Operators Reference</a></strong> and <strong><a href="../../examples/advanced-filtering/">Advanced Filtering Examples</a></strong>.</p>
 </blockquote>
 <h3 id="supported-operators">Supported Operators<a class="headerlink" href="#supported-operators" title="Permanent link">&para;</a></h3>
 <table>
@@ -5211,10 +5337,10 @@
 </span></code></pre></div>
 <h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="queries-and-mutations/">Queries &amp; Mutations</a> - Using repository methods in GraphQL resolvers</li>
-<li><a href="../advanced/database-patterns/">Database Patterns</a> - View design and N+1 prevention</li>
-<li><a href="../performance/index/">Performance</a> - Query optimization</li>
-<li><a href="../advanced/multi-tenancy/">Multi-Tenancy</a> - Tenant isolation patterns</li>
+<li><a href="../queries-and-mutations/">Queries &amp; Mutations</a> - Using repository methods in GraphQL resolvers</li>
+<li><a href="../../advanced/database-patterns/">Database Patterns</a> - View design and N+1 prevention</li>
+<li><a href="../../performance/">Performance</a> - Query optimization</li>
+<li><a href="../../advanced/multi-tenancy/">Multi-Tenancy</a> - Tenant isolation patterns</li>
 </ul>
 
 

@@ -1424,7 +1424,7 @@
   
   
     <li class="md-nav__item">
-      <a href="advanced/llm-integration.md" class="md-nav__link">
+      <a href="features/ai-native/" class="md-nav__link">
         
   
   
@@ -1798,7 +1798,7 @@
   
   
     <li class="md-nav__item">
-      <a href="guides/nested-filters.md" class="md-nav__link">
+      <a href="filtering/nested-filters/" class="md-nav__link">
         
   
   
@@ -2947,6 +2947,14 @@
       
         
       
+        
+      
+        
+      
+        
+      
+        
+      
     
     
     
@@ -3001,6 +3009,118 @@
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="architecture/request-flow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Request Flow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="architecture/trinity-pattern/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trinity Pattern
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="architecture/type-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Type System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="architecture/cqrs-design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CQRS Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
               
             
               
@@ -3249,29 +3369,42 @@
 <h2 id="core-features">Core Features<a class="headerlink" href="#core-features" title="Permanent link">&para;</a></h2>
 <p>FraiseQL provides everything you need for modern APIs:</p>
 <h3 id="pgvector-integration">pgvector Integration<a class="headerlink" href="#pgvector-integration" title="Permanent link">&para;</a></h3>
-<p>Native PostgreSQL vector search for semantic search and RAG applications.
-- Type-safe GraphQL integration with vector operators
-- <strong><a href="features/pgvector/">Learn more →</a></strong></p>
+<p>Native PostgreSQL vector search for semantic search and RAG applications.</p>
+<ul>
+<li>Type-safe GraphQL integration with vector operators</li>
+<li>Query semantically similar documents with vector similarity</li>
+<li><strong><a href="features/pgvector/">Learn more →</a></strong></li>
+</ul>
 <h3 id="graphql-cascade">GraphQL Cascade<a class="headerlink" href="#graphql-cascade" title="Permanent link">&para;</a></h3>
-<p>Automatic, intelligent cache invalidation that works with your data relationships.
-- Zero manual cache management
-- <strong><a href="features/graphql-cascade/">Learn more →</a></strong> | <strong><a href="guides/cascade-best-practices/">Best Practices →</a></strong></p>
+<p>Automatic, intelligent cache invalidation that works with your data relationships.</p>
+<ul>
+<li>Zero manual cache management</li>
+<li>Intelligent invalidation based on SQL relationships</li>
+<li><strong><a href="features/graphql-cascade/">Learn more →</a></strong> | <strong><a href="guides/cascade-best-practices/">Best Practices →</a></strong></li>
+</ul>
 <h3 id="langchain-integration">LangChain Integration<a class="headerlink" href="#langchain-integration" title="Permanent link">&para;</a></h3>
-<p>Build AI-powered applications with document ingestion and semantic search.
-- Production-ready patterns for RAG applications
-- <strong><a href="guides/langchain-integration/">Learn more →</a></strong></p>
+<p>Build AI-powered applications with document ingestion and semantic search.</p>
+<ul>
+<li>Production-ready patterns for RAG applications</li>
+<li>Seamless document embedding and vector storage</li>
+<li><strong><a href="guides/langchain-integration/">Learn more →</a></strong></li>
+</ul>
 <h3 id="llm-integration">LLM Integration<a class="headerlink" href="#llm-integration" title="Permanent link">&para;</a></h3>
-<p>Use LLMs directly in your GraphQL resolvers.
-- Type-safe LLM calling from Python
-- <strong><a href="features/ai-native/">Learn more →</a></strong></p>
+<p>Use LLMs directly in your GraphQL resolvers.</p>
+<ul>
+<li>Type-safe LLM calling from Python</li>
+<li>Built-in streaming and error handling</li>
+<li><strong><a href="features/ai-native/">Learn more →</a></strong></li>
+</ul>
 <h2 id="guides">Guides<a class="headerlink" href="#guides" title="Permanent link">&para;</a></h2>
 <p>Common tasks and patterns:</p>
 <ul>
+<li><strong><a href="guides/decision-matrices/">Decision Matrices</a></strong> - Choose the right patterns and architecture</li>
 <li><strong><a href="guides/filtering/">Filtering &amp; Querying</a></strong> - Query syntax and patterns</li>
-<li><strong><a href="guides/mutation-sql-requirements/">Mutations &amp; Data Changes</a></strong> - Writing database functions</li>
+<li><strong><a href="guides/mutation-sql-requirements/">Mutations &amp; Data Changes</a></strong> - Writing PostgreSQL functions</li>
 <li><strong><a href="advanced/authentication/">Authentication</a></strong> - Securing your API</li>
 <li><strong><a href="advanced/multi-tenancy/">Multi-Tenancy</a></strong> - Tenant isolation patterns</li>
-<li><strong><a href="performance/index/">Performance &amp; Optimization</a></strong> - Make it fast</li>
+<li><strong><a href="performance/">Performance &amp; Optimization</a></strong> - Make it fast</li>
 <li><strong><a href="guides/troubleshooting/">Troubleshooting</a></strong> - Common issues and solutions</li>
 </ul>
 <h2 id="reference">Reference<a class="headerlink" href="#reference" title="Permanent link">&para;</a></h2>
@@ -3282,14 +3415,15 @@
 <li><strong><a href="core/configuration/">Configuration</a></strong> - All configuration options</li>
 <li><strong><a href="reference/decorators/">Decorators</a></strong> - Python decorators reference</li>
 <li><strong><a href="reference/cli/">CLI</a></strong> - Command-line tools</li>
+<li><strong><a href="reference/terminology/">Terminology Guide</a></strong> - Canonical term definitions and standards</li>
 </ul>
 <h2 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h2>
 <p>How FraiseQL works under the hood:</p>
 <ul>
-<li><strong><a href="architecture/README/">Architecture Overview</a></strong> - System design</li>
+<li><strong><a href="architecture/">Architecture Overview</a></strong> - System design</li>
 <li><strong><a href="architecture/mutation-pipeline/">Mutation Pipeline</a></strong> - How mutations execute</li>
 <li><strong><a href="performance/rust-pipeline-optimization/">Rust Pipeline</a></strong> - Performance optimizations</li>
-<li><strong><a href="architecture/decisions/README/">Key Decisions</a></strong> - Design rationale</li>
+<li><strong><a href="architecture/decisions/">Key Decisions</a></strong> - Design rationale</li>
 </ul>
 <h2 id="deploy-to-production">Deploy to Production<a class="headerlink" href="#deploy-to-production" title="Permanent link">&para;</a></h2>
 <p>Get your API live:</p>
@@ -3298,7 +3432,7 @@
 <li><strong><a href="production/monitoring/">Monitoring</a></strong> - Track and debug</li>
 <li><strong><a href="production/health-checks/">Health Checks</a></strong> - Readiness and liveness</li>
 <li><strong><a href="production/security/">Security</a></strong> - Secure your API</li>
-<li><strong><a href="performance/index/">Performance Tips</a></strong> - Optimize for production</li>
+<li><strong><a href="performance/">Performance Tips</a></strong> - Optimize for production</li>
 </ul>
 <h2 id="contributing">Contributing<a class="headerlink" href="#contributing" title="Permanent link">&para;</a></h2>
 <ul>
@@ -3343,13 +3477,13 @@
         
         
           
-          <a href="getting-started/" class="md-footer__link md-footer__link--next" aria-label="Next: Getting Started with FraiseQL">
+          <a href="getting-started/" class="md-footer__link md-footer__link--next" aria-label="Next: Getting Started">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                Getting Started with FraiseQL
+                Getting Started
               </div>
             </div>
             <div class="md-footer__button md-icon">

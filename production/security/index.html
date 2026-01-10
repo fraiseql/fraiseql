@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="PostgreSQL-Native GraphQL Framework for Python">
+        <meta name="description" content="SQL injection prevention, authentication, rate limiting, CORS, and compliance patterns">
       
       
         <meta name="author" content="Lionel Hamayon">
@@ -29,7 +29,7 @@
     
     
       
-        <title>Security - FraiseQL Documentation</title>
+        <title>Production Security - FraiseQL Documentation</title>
       
     
     
@@ -122,7 +122,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Security
+              Production Security
             
           </span>
         </div>
@@ -1241,7 +1241,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../advanced/llm-integration.md" class="md-nav__link">
+      <a href="../../features/ai-native/" class="md-nav__link">
         
   
   
@@ -1615,7 +1615,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/nested-filters.md" class="md-nav__link">
+      <a href="../../filtering/nested-filters/" class="md-nav__link">
         
   
   
@@ -2423,17 +2423,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#table-of-contents" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Table of Contents
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#sql-injection-prevention" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3181,6 +3170,14 @@
       
         
       
+        
+      
+        
+      
+        
+      
+        
+      
     
     
     
@@ -3235,6 +3232,118 @@
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/request-flow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Request Flow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/trinity-pattern/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trinity Pattern
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/type-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Type System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/cqrs-design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CQRS Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
               
             
               
@@ -3303,17 +3412,6 @@
     <span class="md-ellipsis">
       
         Overview
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#table-of-contents" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Table of Contents
       
     </span>
   </a>
@@ -3680,6 +3778,59 @@
                 
                   
 
+  <nav class="md-tags" >
+    
+      
+      
+      
+      
+        <span class="md-tag">CORS</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">SQL-injection</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">authentication</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">compliance</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">production</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">rate-limiting</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">security</span>
+      
+    
+  </nav>
+
 
   
     <a href="https://github.com/fraiseql/fraiseql/edit/main/docs/production/security.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
@@ -3703,17 +3854,6 @@
 - Sensitive data handling
 - Audit logging
 - Compliance (GDPR, SOC2)</p>
-<h2 id="table-of-contents">Table of Contents<a class="headerlink" href="#table-of-contents" title="Permanent link">&para;</a></h2>
-<ul>
-<li><a href="#sql-injection-prevention">SQL Injection Prevention</a></li>
-<li><a href="#query-complexity-limits">Query Complexity Limits</a></li>
-<li><a href="#rate-limiting">Rate Limiting</a></li>
-<li><a href="#cors-configuration">CORS Configuration</a></li>
-<li><a href="#authentication-security">Authentication Security</a></li>
-<li><a href="#sensitive-data-handling">Sensitive Data Handling</a></li>
-<li><a href="#audit-logging">Audit Logging</a></li>
-<li><a href="#compliance">Compliance</a></li>
-</ul>
 <h2 id="sql-injection-prevention">SQL Injection Prevention<a class="headerlink" href="#sql-injection-prevention" title="Permanent link">&para;</a></h2>
 <h3 id="parameterized-queries">Parameterized Queries<a class="headerlink" href="#parameterized-queries" title="Permanent link">&para;</a></h3>
 <p>FraiseQL uses parameterized queries exclusively:</p>
@@ -4105,7 +4245,7 @@
 </span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="nd">@dataclass</span>
 </span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="k">class</span><span class="w"> </span><span class="nc">User</span><span class="p">:</span>
 </span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;User with PII protection.&quot;&quot;&quot;</span>
-</span><span id="__span-12-8"><a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span>
+</span><span id="__span-12-8"><a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>    <span class="nb">id</span><span class="p">:</span> <span class="n">ID</span>
 </span><span id="__span-12-9"><a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>    <span class="n">email</span><span class="p">:</span> <span class="nb">str</span>
 </span><span id="__span-12-10"><a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
 </span><span id="__span-12-11"><a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a>    <span class="n">_ssn</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># Private field</span>
@@ -4128,7 +4268,7 @@
 </span><span id="__span-12-28"><a id="__codelineno-12-28" name="__codelineno-12-28" href="#__codelineno-12-28"></a><span class="c1"># GraphQL type</span>
 </span><span id="__span-12-29"><a id="__codelineno-12-29" name="__codelineno-12-29" href="#__codelineno-12-29"></a><span class="nd">@fraiseql</span><span class="o">.</span><span class="n">type_</span>
 </span><span id="__span-12-30"><a id="__codelineno-12-30" name="__codelineno-12-30" href="#__codelineno-12-30"></a><span class="k">class</span><span class="w"> </span><span class="nc">UserGQL</span><span class="p">:</span>
-</span><span id="__span-12-31"><a id="__codelineno-12-31" name="__codelineno-12-31" href="#__codelineno-12-31"></a>    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span>
+</span><span id="__span-12-31"><a id="__codelineno-12-31" name="__codelineno-12-31" href="#__codelineno-12-31"></a>    <span class="nb">id</span><span class="p">:</span> <span class="n">ID</span>
 </span><span id="__span-12-32"><a id="__codelineno-12-32" name="__codelineno-12-32" href="#__codelineno-12-32"></a>    <span class="n">email</span><span class="p">:</span> <span class="nb">str</span>
 </span><span id="__span-12-33"><a id="__codelineno-12-33" name="__codelineno-12-33" href="#__codelineno-12-33"></a>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
 </span><span id="__span-12-34"><a id="__codelineno-12-34" name="__codelineno-12-34" href="#__codelineno-12-34"></a>
@@ -4357,10 +4497,10 @@
 <h2 id="next-steps">Next Steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../../examples/security/">Security Example</a> - Complete security implementation</li>
-<li><a href="../advanced/authentication/">Authentication</a> - Authentication patterns</li>
-<li><a href="monitoring/">Monitoring</a> - Security monitoring</li>
-<li><a href="deployment/">Deployment</a> - Secure deployment</li>
-<li><a href="../advanced/event-sourcing/">Audit Logging</a> - Complete audit trails</li>
+<li><a href="../../advanced/authentication/">Authentication</a> - Authentication patterns</li>
+<li><a href="../monitoring/">Monitoring</a> - Security monitoring</li>
+<li><a href="../deployment/">Deployment</a> - Secure deployment</li>
+<li><a href="../../advanced/event-sourcing/">Audit Logging</a> - Complete audit trails</li>
 </ul>
 
 
@@ -4368,6 +4508,9 @@
 
 
 
+
+  
+  
 
 
 

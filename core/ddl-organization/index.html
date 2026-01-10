@@ -1235,7 +1235,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../advanced/llm-integration.md" class="md-nav__link">
+      <a href="../../features/ai-native/" class="md-nav__link">
         
   
   
@@ -1609,7 +1609,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/nested-filters.md" class="md-nav__link">
+      <a href="../../filtering/nested-filters/" class="md-nav__link">
         
   
   
@@ -2758,6 +2758,14 @@
       
         
       
+        
+      
+        
+      
+        
+      
+        
+      
     
     
     
@@ -2812,6 +2820,118 @@
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/request-flow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Request Flow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/trinity-pattern/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trinity Pattern
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/type-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Type System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/cqrs-design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CQRS Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
               
             
               
@@ -2880,17 +3000,6 @@
     <span class="md-ellipsis">
       
         Quick Start
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#table-of-contents" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Table of Contents
       
     </span>
   </a>
@@ -3446,17 +3555,6 @@
   
 </li>
       
-        <li class="md-nav__item">
-  <a href="#summary" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Summary
-      
-    </span>
-  </a>
-  
-</li>
-      
     </ul>
   
 </nav>
@@ -3533,16 +3631,6 @@
 </tbody>
 </table>
 <p><strong>Key principle</strong>: Start small, grow structure as needed.</p>
-<hr />
-<h2 id="table-of-contents">Table of Contents<a class="headerlink" href="#table-of-contents" title="Permanent link">&para;</a></h2>
-<ul>
-<li><a href="#philosophy">Philosophy</a></li>
-<li><a href="#size-based-organization">Size-Based Organization</a></li>
-<li><a href="#recommended-structure">Recommended Structure</a></li>
-<li><a href="#examples">Examples</a></li>
-<li><a href="#best-practices">Best Practices</a></li>
-<li><a href="#migration-integration">Migration Integration</a></li>
-</ul>
 <hr />
 <h2 id="philosophy">Philosophy<a class="headerlink" href="#philosophy" title="Permanent link">&para;</a></h2>
 <h3 id="deterministic-ordering">Deterministic Ordering<a class="headerlink" href="#deterministic-ordering" title="Permanent link">&para;</a></h3>
@@ -4288,21 +4376,10 @@
 <h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong><a href="https://github.com/fraiseql/confiture/blob/main/docs/organizing-sql-files/">confiture: Organizing SQL Files</a></strong> - Original documentation</li>
-<li><strong><a href="./migrations/">FraiseQL Migrations</a></strong> - Migration workflow</li>
-<li><strong><a href="../advanced/database-patterns/">Database Patterns</a></strong> - CQRS and other patterns</li>
+<li><strong><a href="../migrations/">FraiseQL Migrations</a></strong> - Migration workflow</li>
+<li><strong><a href="../../advanced/database-patterns/">Database Patterns</a></strong> - CQRS and other patterns</li>
 <li><strong><a href="../../examples/complete_cqrs_blog/">Complete CQRS Example</a></strong> - Full working example</li>
 </ul>
-<hr />
-<h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
-<p>✅ <strong>Materialized path numbering</strong>: Each child inherits parent's full prefix + adds one digit
-✅ <strong>Match structure to project size</strong>: XS → S → M → L → XL as you grow
-✅ <strong>Start simple</strong>: Begin with flat structure, add hierarchy only when needed
-✅ <strong>Leave gaps</strong>: <code>01_</code>, <code>03_</code>, <code>05_</code> (not <code>01_</code>, <code>02_</code>, <code>03_</code>) for easy insertion
-✅ <strong>Explicit dependencies</strong>: Extensions → Types → Tables → Views → Functions
-✅ <strong>Top-level organization</strong>: <code>0_schema/</code>, <code>10_seed_common/</code>, <code>20_seed_dev/</code>
-✅ <strong>Document your system</strong>: Add README in schema directory
-✅ <strong>Schema is truth</strong>: Migrations are derived from schema files</p>
-<p><strong>The Key Insight</strong>: By using materialized path numbering (<code>00_</code> → <code>001_</code> → <code>0011_</code>), the file numbers themselves encode the full directory path, making the organization self-documenting and easy to maintain.</p>
 <hr />
 <p><strong>Last Updated</strong>: 2025-10-16
 <strong>FraiseQL Version</strong>: 0.11.5+</p>

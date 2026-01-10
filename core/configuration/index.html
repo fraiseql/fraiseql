@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="PostgreSQL-Native GraphQL Framework for Python">
+        <meta name="description" content="Application configuration, environment variables, and settings">
       
       
         <meta name="author" content="Lionel Hamayon">
@@ -1241,7 +1241,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../advanced/llm-integration.md" class="md-nav__link">
+      <a href="../../features/ai-native/" class="md-nav__link">
         
   
   
@@ -1812,6 +1812,34 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#schema-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Schema Configuration
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Schema Configuration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#id-policy-v192" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ID Policy (v1.9.2+)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#see-also" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1969,7 +1997,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/nested-filters.md" class="md-nav__link">
+      <a href="../../filtering/nested-filters/" class="md-nav__link">
         
   
   
@@ -3118,6 +3146,14 @@
       
         
       
+        
+      
+        
+      
+        
+      
+        
+      
     
     
     
@@ -3172,6 +3208,118 @@
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/request-flow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Request Flow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/trinity-pattern/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trinity Pattern
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/type-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Type System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/cqrs-design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CQRS Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
               
             
               
@@ -3529,6 +3677,34 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#schema-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Schema Configuration
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Schema Configuration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#id-policy-v192" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ID Policy (v1.9.2+)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#see-also" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3554,6 +3730,38 @@
                 
                   
 
+  <nav class="md-tags" >
+    
+      
+      
+      
+      
+        <span class="md-tag">config</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">configuration</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">environment</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">settings</span>
+      
+    
+  </nav>
+
 
   
     <a href="https://github.com/fraiseql/fraiseql/edit/main/docs/core/configuration.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
@@ -3566,7 +3774,7 @@
 
 <h1 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h1>
 <p>FraiseQLConfig class for comprehensive application configuration.</p>
-<p><strong>📖 Before configuring</strong>: Make sure FraiseQL is <a href="../getting-started/installation/">installed</a> and your environment is set up.</p>
+<p><strong>📖 Before configuring</strong>: Make sure FraiseQL is <a href="../../getting-started/installation/">installed</a> and your environment is set up.</p>
 <h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql</span><span class="w"> </span><span class="kn">import</span> <span class="n">FraiseQLConfig</span><span class="p">,</span> <span class="n">create_fraiseql_app</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
@@ -4593,10 +4801,96 @@
 </span><span id="__span-19-57"><a id="__codelineno-19-57" name="__codelineno-19-57" href="#__codelineno-19-57"></a>
 </span><span id="__span-19-58"><a id="__codelineno-19-58" name="__codelineno-19-58" href="#__codelineno-19-58"></a><span class="n">app</span> <span class="o">=</span> <span class="n">create_fraiseql_app</span><span class="p">(</span><span class="n">types</span><span class="o">=</span><span class="p">[</span><span class="n">User</span><span class="p">,</span> <span class="n">Post</span><span class="p">,</span> <span class="n">Comment</span><span class="p">],</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">)</span>
 </span></code></pre></div>
+<h2 id="schema-configuration">Schema Configuration<a class="headerlink" href="#schema-configuration" title="Permanent link">&para;</a></h2>
+<p><code>SchemaConfig</code> controls GraphQL schema generation behavior, separate from runtime <code>FraiseQLConfig</code>.</p>
+<h3 id="id-policy-v192">ID Policy (v1.9.2+)<a class="headerlink" href="#id-policy-v192" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>id_policy</td>
+<td>IDPolicy</td>
+<td>UUID</td>
+<td>How ID scalars behave</td>
+</tr>
+<tr>
+<td>camel_case_fields</td>
+<td>bool</td>
+<td>True</td>
+<td>Convert snake_case to camelCase</td>
+</tr>
+</tbody>
+</table>
+<p><strong>ID Policies:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Policy</th>
+<th>Description</th>
+<th>Use Case</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>IDPolicy.UUID</code></td>
+<td>IDs must be valid UUIDs (default)</td>
+<td>FraiseQL opinionated apps</td>
+</tr>
+<tr>
+<td><code>IDPolicy.OPAQUE</code></td>
+<td>IDs accept any string</td>
+<td>GraphQL spec compliance</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Examples:</strong>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.config.schema_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">SchemaConfig</span><span class="p">,</span> <span class="n">IDPolicy</span>
+</span><span id="__span-20-2"><a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>
+</span><span id="__span-20-3"><a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a><span class="c1"># Default: UUID enforcement (recommended)</span>
+</span><span id="__span-20-4"><a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a><span class="n">SchemaConfig</span><span class="o">.</span><span class="n">set_config</span><span class="p">(</span><span class="n">id_policy</span><span class="o">=</span><span class="n">IDPolicy</span><span class="o">.</span><span class="n">UUID</span><span class="p">)</span>
+</span><span id="__span-20-5"><a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a>
+</span><span id="__span-20-6"><a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a><span class="c1"># GraphQL spec-compliant: accepts any string</span>
+</span><span id="__span-20-7"><a id="__codelineno-20-7" name="__codelineno-20-7" href="#__codelineno-20-7"></a><span class="n">SchemaConfig</span><span class="o">.</span><span class="n">set_config</span><span class="p">(</span><span class="n">id_policy</span><span class="o">=</span><span class="n">IDPolicy</span><span class="o">.</span><span class="n">OPAQUE</span><span class="p">)</span>
+</span><span id="__span-20-8"><a id="__codelineno-20-8" name="__codelineno-20-8" href="#__codelineno-20-8"></a>
+</span><span id="__span-20-9"><a id="__codelineno-20-9" name="__codelineno-20-9" href="#__codelineno-20-9"></a><span class="c1"># Disable camelCase conversion</span>
+</span><span id="__span-20-10"><a id="__codelineno-20-10" name="__codelineno-20-10" href="#__codelineno-20-10"></a><span class="n">SchemaConfig</span><span class="o">.</span><span class="n">set_config</span><span class="p">(</span><span class="n">camel_case_fields</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</span></code></pre></div></p>
+<p><strong>Type Mapping by Policy:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Python Type</th>
+<th><code>UUID</code> Policy</th>
+<th><code>OPAQUE</code> Policy</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ID</code></td>
+<td><code>IDScalar</code> (enforces UUID)</td>
+<td><code>GraphQLID</code> (any string)</td>
+</tr>
+<tr>
+<td><code>uuid.UUID</code></td>
+<td><code>UUIDScalar</code> (name="UUID")</td>
+<td><code>UUIDScalar</code> (name="UUID")</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Important</strong>: <code>uuid.UUID</code> always maps to <code>UUIDScalar</code>, regardless of policy. Only the <code>ID</code> type annotation is affected by the policy.</p>
+<p>See <a href="../id-type/">ID Type</a> for detailed ID documentation.</p>
 <h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../reference/config/">API Reference - Config</a> - Complete config reference</li>
-<li><a href="../production/deployment/">Deployment</a> - Production deployment guides</li>
+<li><a href="../id-type/">ID Type</a> - ID type and policy documentation</li>
+<li><a href="../../reference/config/">API Reference - Config</a> - Complete config reference</li>
+<li><a href="../../production/deployment/">Deployment</a> - Production deployment guides</li>
 </ul>
 
 
@@ -4604,6 +4898,9 @@
 
 
 
+
+  
+  
 
 
 

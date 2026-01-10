@@ -1235,7 +1235,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../advanced/llm-integration.md" class="md-nav__link">
+      <a href="../../features/ai-native/" class="md-nav__link">
         
   
   
@@ -1609,7 +1609,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/nested-filters.md" class="md-nav__link">
+      <a href="../../filtering/nested-filters/" class="md-nav__link">
         
   
   
@@ -2758,6 +2758,14 @@
       
         
       
+        
+      
+        
+      
+        
+      
+        
+      
     
     
     
@@ -2812,6 +2820,118 @@
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/request-flow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Request Flow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/trinity-pattern/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trinity Pattern
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/type-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Type System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/cqrs-design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CQRS Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
               
             
               
@@ -3215,17 +3335,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#conclusion" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Conclusion
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#related-documentation" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3263,7 +3372,6 @@
 
 <h1 id="fraiseql-performance-guide">FraiseQL Performance Guide<a class="headerlink" href="#fraiseql-performance-guide" title="Permanent link">&para;</a></h1>
 <p>🟡 <strong>Production</strong> - Performance expectations, methodology, and optimization guidance.</p>
-<p><strong>📍 Navigation</strong>: <a href="../README/">← Main README</a> • <a href="./index/">Performance Docs →</a> • <a href="../benchmarks/">Benchmarks →</a></p>
 <h2 id="executive-summary">Executive Summary<a class="headerlink" href="#executive-summary" title="Permanent link">&para;</a></h2>
 <p>FraiseQL delivers <strong>sub-10ms response times</strong> for typical GraphQL queries through an exclusive Rust pipeline that eliminates Python string operations. This guide provides realistic performance expectations, methodology details, and guidance on when performance optimizations matter.</p>
 <p><strong>Key Takeaways:</strong>
@@ -3672,25 +3780,10 @@
 - Implement pagination
 - Monitor for memory leaks</p>
 <hr />
-<h2 id="conclusion">Conclusion<a class="headerlink" href="#conclusion" title="Permanent link">&para;</a></h2>
-<p>FraiseQL provides <strong>excellent performance</strong> for typical GraphQL applications with minimal configuration. The exclusive Rust pipeline delivers:</p>
-<ul>
-<li><strong>2-4x faster</strong> than traditional frameworks</li>
-<li><strong>Sub-10ms responses</strong> for optimized queries</li>
-<li><strong>85-95% cache hit rates</strong> in production</li>
-<li><strong>Operational simplicity</strong> with PostgreSQL → Rust → HTTP architecture</li>
-</ul>
-<p><strong>Performance matters most when</strong>:
-- Building high-throughput APIs
-- Serving mobile/web applications
-- Optimizing for cost and operational complexity</p>
-<p><strong>Focus on developer productivity first</strong> - FraiseQL's Rust pipeline performance advantages compound with good application design.</p>
 <h2 id="related-documentation">Related Documentation<a class="headerlink" href="#related-documentation" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../benchmarks/">Benchmarks</a> - Detailed performance benchmarks and methodology</li>
-<li><a href="../rust/rust-first-pipeline/">Rust Pipeline Architecture</a> - Technical details of the performance optimizations</li>
-<li><a href="./apq-optimization-guide/">APQ Caching Guide</a> - Automatic Persisted Queries optimization</li>
-<li><a href="./caching/">Caching Guide</a> - Application-level caching strategies</li>
+<li><a href="../apq-optimization-guide/">APQ Caching Guide</a> - Automatic Persisted Queries optimization</li>
+<li><a href="../caching/">Caching Guide</a> - Application-level caching strategies</li>
 </ul>
 <hr />
 <p><em>Performance Guide - Exclusive Rust Pipeline Architecture</em>

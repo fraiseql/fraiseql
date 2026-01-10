@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="PostgreSQL-Native GraphQL Framework for Python">
+        <meta name="description" content="Database schema migrations and version management">
       
       
         <meta name="author" content="Lionel Hamayon">
@@ -1235,7 +1235,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../advanced/llm-integration.md" class="md-nav__link">
+      <a href="../../features/ai-native/" class="md-nav__link">
         
   
   
@@ -1609,7 +1609,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/nested-filters.md" class="md-nav__link">
+      <a href="../../filtering/nested-filters/" class="md-nav__link">
         
   
   
@@ -2758,6 +2758,14 @@
       
         
       
+        
+      
+        
+      
+        
+      
+        
+      
     
     
     
@@ -2821,6 +2829,118 @@
   
   
     <li class="md-nav__item">
+      <a href="../../architecture/request-flow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Request Flow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/trinity-pattern/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trinity Pattern
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/type-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Type System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/cqrs-design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CQRS Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../architecture/decisions/" class="md-nav__link">
         
   
@@ -2874,17 +2994,6 @@
       Table of contents
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#table-of-contents" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Table of Contents
-      
-    </span>
-  </a>
-  
-</li>
       
         <li class="md-nav__item">
   <a href="#overview" class="md-nav__link">
@@ -3314,17 +3423,6 @@
   
 </li>
       
-        <li class="md-nav__item">
-  <a href="#summary" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Summary
-      
-    </span>
-  </a>
-  
-</li>
-      
     </ul>
   
 </nav>
@@ -3339,6 +3437,45 @@
               <article class="md-content__inner md-typeset">
                 
                   
+
+  <nav class="md-tags" >
+    
+      
+      
+      
+      
+        <span class="md-tag">DDL</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">database</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">migrations</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">schema</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">versioning</span>
+      
+    
+  </nav>
 
 
   
@@ -3355,17 +3492,6 @@
 <p><strong>Manage your database schema with confidence using FraiseQL's integrated migration system</strong></p>
 </blockquote>
 <p>FraiseQL provides a robust migration management system through the <code>fraiseql migrate</code> CLI, making it easy to evolve your database schema over time while maintaining consistency across development, staging, and production environments.</p>
-<h2 id="table-of-contents">Table of Contents<a class="headerlink" href="#table-of-contents" title="Permanent link">&para;</a></h2>
-<ul>
-<li><a href="#overview">Overview</a></li>
-<li><a href="#quick-start">Quick Start</a></li>
-<li><a href="#migration-commands">Migration Commands</a></li>
-<li><a href="#migration-file-structure">Migration File Structure</a></li>
-<li><a href="#migration-best-practices">Best Practices</a></li>
-<li><a href="#cqrs-migrations">CQRS Migrations</a></li>
-<li><a href="#production-deployment">Production Deployment</a></li>
-<li><a href="#troubleshooting">Troubleshooting</a></li>
-</ul>
 <hr />
 <h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
 <h3 id="why-migrations">Why Migrations?<a class="headerlink" href="#why-migrations" title="Permanent link">&para;</a></h3>
@@ -3502,7 +3628,7 @@
 <hr />
 <h2 id="migration-file-structure">Migration File Structure<a class="headerlink" href="#migration-file-structure" title="Permanent link">&para;</a></h2>
 <h3 id="basic-structure">Basic Structure<a class="headerlink" href="#basic-structure" title="Permanent link">&para;</a></h3>
-<div class="language-sql highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1">-- Migration XXX: Description of what this migration does</span>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1">-- Migration 001: Description of what this migration does</span>
 </span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="c1">--</span>
 </span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="c1">-- Author: Your Name</span>
 </span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="c1">-- Date: 2024-01-15</span>
@@ -3835,23 +3961,11 @@
 <h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Complete CQRS Example (../../examples/complete_cqrs_blog/)</li>
-<li><a href="../guides/cascade-best-practices/">CASCADE Best Practices</a></li>
-<li><a href="./explicit-sync/">Explicit Sync Guide</a></li>
-<li><a href="../advanced/database-patterns/">Database Patterns</a></li>
+<li><a href="../../guides/cascade-best-practices/">CASCADE Best Practices</a></li>
+<li><a href="../explicit-sync/">Explicit Sync Guide</a></li>
+<li><a href="../../advanced/database-patterns/">Database Patterns</a></li>
 <li><a href="https://github.com/fraiseql/confiture">confiture on GitHub</a> - Migration library</li>
 </ul>
-<hr />
-<h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
-<p>FraiseQL's migration system provides:</p>
-<p>✅ <strong>Simple</strong> SQL-based migrations
-✅ <strong>Safe</strong> tracking of applied changes
-✅ <strong>Integrated</strong> with the <code>fraiseql</code> CLI
-✅ <strong>Production-ready</strong> deployment patterns</p>
-<p><strong>Next Steps</strong>:
-1. Initialize migrations: <code>fraiseql migrate init</code>
-2. Create your first migration: <code>fraiseql migrate create initial_schema</code>
-3. Apply migrations: <code>fraiseql migrate up</code>
-4. See the <a href="../../examples/complete_cqrs_blog/">Complete CQRS Example</a> for a full working demo</p>
 <hr />
 <p><strong>Last Updated</strong>: 2025-10-11
 <strong>FraiseQL Version</strong>: 0.1.0+</p>
@@ -3861,6 +3975,9 @@
 
 
 
+
+  
+  
 
 
 

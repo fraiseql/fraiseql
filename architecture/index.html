@@ -18,7 +18,7 @@
         <link rel="prev" href="../guides/migrating-to-cascade/">
       
       
-        <link rel="next" href="decisions/">
+        <link rel="next" href="request-flow/">
       
       
         
@@ -1241,7 +1241,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../advanced/llm-integration.md" class="md-nav__link">
+      <a href="../features/ai-native/" class="md-nav__link">
         
   
   
@@ -1615,7 +1615,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../guides/nested-filters.md" class="md-nav__link">
+      <a href="../filtering/nested-filters/" class="md-nav__link">
         
   
   
@@ -2766,6 +2766,14 @@
       
         
       
+        
+      
+        
+      
+        
+      
+        
+      
     
     
     
@@ -2821,6 +2829,118 @@
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="request-flow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Request Flow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="trinity-pattern/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trinity Pattern
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="type-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Type System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="cqrs-design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CQRS Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
               
             
               
@@ -2897,10 +3017,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#direct-path-implementation" class="md-nav__link">
+  <a href="#core-architecture" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Direct Path Implementation
+        Core Architecture
       
     </span>
   </a>
@@ -2908,10 +3028,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#type-system" class="md-nav__link">
+  <a href="#implementation-details" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Type System
+        Implementation Details
       
     </span>
   </a>
@@ -3023,17 +3143,37 @@
 <h1 id="fraiseql-architecture-documentation">FraiseQL Architecture Documentation<a class="headerlink" href="#fraiseql-architecture-documentation" title="Permanent link">&para;</a></h1>
 <p>This directory contains architectural documentation for FraiseQL.</p>
 <h2 id="key-documents">Key Documents<a class="headerlink" href="#key-documents" title="Permanent link">&para;</a></h2>
-<h3 id="direct-path-implementation">Direct Path Implementation<a class="headerlink" href="#direct-path-implementation" title="Permanent link">&para;</a></h3>
-<p><strong><a href="./direct-path-implementation/">direct-path-implementation.md</a></strong> - Complete documentation of the direct path pipeline that bypasses GraphQL resolvers for maximum performance.</p>
+<h3 id="core-architecture">Core Architecture<a class="headerlink" href="#core-architecture" title="Permanent link">&para;</a></h3>
+<p><strong><a href="request-flow/">Request Flow</a></strong> - Complete end-to-end request processing pipeline with performance characteristics
+- HTTP → FastAPI → GraphQL Parser → Rust Pipeline → PostgreSQL
+- Query vs Mutation execution paths
+- Caching layers and monitoring points
+- 25-60x performance improvement over traditional frameworks</p>
+<p><strong><a href="trinity-pattern/">Trinity Pattern</a></strong> - Three-identifier database design pattern
+- <code>pk_*</code> (INTEGER) - Fast internal joins
+- <code>id</code> (UUID) - Stable public API
+- <code>identifier</code> (TEXT) - Human-readable slugs
+- 7.7x faster joins with optimal storage</p>
+<p><strong><a href="type-system/">Type System</a></strong> - Type mapping between Python, GraphQL, and PostgreSQL
+- Automatic type conversion
+- Nullability handling
+- Custom scalars and enums
+- Nested object patterns</p>
+<p><strong><a href="cqrs-design/">CQRS Design</a></strong> - Command Query Responsibility Segregation pattern
+- View-based queries (read-optimized)
+- Function-based mutations (write-controlled)
+- Schema separation and security
+- Integration with Trinity Pattern</p>
+<h3 id="implementation-details">Implementation Details<a class="headerlink" href="#implementation-details" title="Permanent link">&para;</a></h3>
+<p><strong><a href="direct-path-implementation/">direct-path-implementation.md</a></strong> - Direct path pipeline that bypasses GraphQL resolvers</p>
 <p><strong>Status</strong>: ✅ Implemented and working
 - GraphQL → SQL → Rust → HTTP pipeline
 - 3-4x performance improvement
 - Full WHERE clause support
 - Automatic fallback to traditional GraphQL</p>
-<h3 id="type-system">Type System<a class="headerlink" href="#type-system" title="Permanent link">&para;</a></h3>
-<p><strong><a href="./type-operator-architecture/">type-operator-architecture.md</a></strong> - Documentation of FraiseQL's type system and operator strategies for WHERE clauses.</p>
+<p><strong><a href="type-operator-architecture/">type-operator-architecture.md</a></strong> - Type system and operator strategies for WHERE clauses</p>
 <h3 id="architectural-decisions">Architectural Decisions<a class="headerlink" href="#architectural-decisions" title="Permanent link">&para;</a></h3>
-<p><strong><a href="./decisions/">decisions/</a></strong> - Records of key architectural decisions and their rationale.</p>
+<p><strong><a href="decisions/">decisions/</a></strong> - Records of key architectural decisions and their rationale</p>
 <h2 id="architectural-topics">Architectural Topics<a class="headerlink" href="#architectural-topics" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>CQRS Pattern</strong> - Command Query Responsibility Segregation</li>
@@ -3056,8 +3196,8 @@
 </ul>
 <h2 id="related-documentation">Related Documentation<a class="headerlink" href="#related-documentation" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../advanced/">Advanced Patterns</a></li>
-<li><a href="../enterprise/">Enterprise Features</a></li>
+<li><a href="../advanced/advanced-patterns/">Advanced Patterns</a></li>
+<li><a href="../advanced/advanced-patterns/">Enterprise Features</a></li>
 <li><a href="../../examples/">Examples</a></li>
 </ul>
 
@@ -3114,13 +3254,13 @@
         
         
           
-          <a href="decisions/" class="md-footer__link md-footer__link--next" aria-label="Next: Architecture Decisions">
+          <a href="request-flow/" class="md-footer__link md-footer__link--next" aria-label="Next: Request Flow">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                Architecture Decisions
+                Request Flow
               </div>
             </div>
             <div class="md-footer__button md-icon">

@@ -1235,7 +1235,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../advanced/llm-integration.md" class="md-nav__link">
+      <a href="../../../features/ai-native/" class="md-nav__link">
         
   
   
@@ -1609,7 +1609,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../guides/nested-filters.md" class="md-nav__link">
+      <a href="../../../filtering/nested-filters/" class="md-nav__link">
         
   
   
@@ -2758,6 +2758,14 @@
       
         
       
+        
+      
+        
+      
+        
+      
+        
+      
     
     
     
@@ -2812,6 +2820,118 @@
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../architecture/request-flow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Request Flow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../architecture/trinity-pattern/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trinity Pattern
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../architecture/type-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Type System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../architecture/cqrs-design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CQRS Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
               
             
               
@@ -3779,14 +3899,14 @@
 </span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
 </span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="kn">import</span><span class="w"> </span><span class="nn">strawberry</span>
 </span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
-</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">ID</span>
 </span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Optional</span>
 </span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>
 </span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="nd">@strawberry</span><span class="o">.</span><span class="n">type</span>
 </span><span id="__span-7-9"><a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="k">class</span><span class="w"> </span><span class="nc">AuditEvent</span><span class="p">:</span>
 </span><span id="__span-7-10"><a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Immutable audit log entry with cryptographic chain.&quot;&quot;&quot;</span>
 </span><span id="__span-7-11"><a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>
-</span><span id="__span-7-12"><a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span>
+</span><span id="__span-7-12"><a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>    <span class="nb">id</span><span class="p">:</span> <span class="n">ID</span>
 </span><span id="__span-7-13"><a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a>    <span class="n">event_type</span><span class="p">:</span> <span class="nb">str</span>
 </span><span id="__span-7-14"><a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a>    <span class="n">event_data</span><span class="p">:</span> <span class="n">strawberry</span><span class="o">.</span><span class="n">scalars</span><span class="o">.</span><span class="n">JSON</span>
 </span><span id="__span-7-15"><a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a>    <span class="n">user_id</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">UUID</span><span class="p">]</span>
@@ -4982,12 +5102,12 @@
 </span><span id="__span-41-3"><a id="__codelineno-41-3" name="__codelineno-41-3" href="#__codelineno-41-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
 </span><span id="__span-41-4"><a id="__codelineno-41-4" name="__codelineno-41-4" href="#__codelineno-41-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
 </span><span id="__span-41-5"><a id="__codelineno-41-5" name="__codelineno-41-5" href="#__codelineno-41-5"></a><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Optional</span>
-</span><span id="__span-41-6"><a id="__codelineno-41-6" name="__codelineno-41-6" href="#__codelineno-41-6"></a><span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span>
+</span><span id="__span-41-6"><a id="__codelineno-41-6" name="__codelineno-41-6" href="#__codelineno-41-6"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">ID</span>
 </span><span id="__span-41-7"><a id="__codelineno-41-7" name="__codelineno-41-7" href="#__codelineno-41-7"></a>
 </span><span id="__span-41-8"><a id="__codelineno-41-8" name="__codelineno-41-8" href="#__codelineno-41-8"></a><span class="nd">@dataclass</span>
 </span><span id="__span-41-9"><a id="__codelineno-41-9" name="__codelineno-41-9" href="#__codelineno-41-9"></a><span class="k">class</span><span class="w"> </span><span class="nc">Role</span><span class="p">:</span>
 </span><span id="__span-41-10"><a id="__codelineno-41-10" name="__codelineno-41-10" href="#__codelineno-41-10"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Role with optional hierarchy.&quot;&quot;&quot;</span>
-</span><span id="__span-41-11"><a id="__codelineno-41-11" name="__codelineno-41-11" href="#__codelineno-41-11"></a>    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span>
+</span><span id="__span-41-11"><a id="__codelineno-41-11" name="__codelineno-41-11" href="#__codelineno-41-11"></a>    <span class="nb">id</span><span class="p">:</span> <span class="n">ID</span>
 </span><span id="__span-41-12"><a id="__codelineno-41-12" name="__codelineno-41-12" href="#__codelineno-41-12"></a>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
 </span><span id="__span-41-13"><a id="__codelineno-41-13" name="__codelineno-41-13" href="#__codelineno-41-13"></a>    <span class="n">description</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
 </span><span id="__span-41-14"><a id="__codelineno-41-14" name="__codelineno-41-14" href="#__codelineno-41-14"></a>    <span class="n">parent_role_id</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">UUID</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
@@ -4999,7 +5119,7 @@
 </span><span id="__span-41-20"><a id="__codelineno-41-20" name="__codelineno-41-20" href="#__codelineno-41-20"></a><span class="nd">@dataclass</span>
 </span><span id="__span-41-21"><a id="__codelineno-41-21" name="__codelineno-41-21" href="#__codelineno-41-21"></a><span class="k">class</span><span class="w"> </span><span class="nc">Permission</span><span class="p">:</span>
 </span><span id="__span-41-22"><a id="__codelineno-41-22" name="__codelineno-41-22" href="#__codelineno-41-22"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Permission for resource action.&quot;&quot;&quot;</span>
-</span><span id="__span-41-23"><a id="__codelineno-41-23" name="__codelineno-41-23" href="#__codelineno-41-23"></a>    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span>
+</span><span id="__span-41-23"><a id="__codelineno-41-23" name="__codelineno-41-23" href="#__codelineno-41-23"></a>    <span class="nb">id</span><span class="p">:</span> <span class="n">ID</span>
 </span><span id="__span-41-24"><a id="__codelineno-41-24" name="__codelineno-41-24" href="#__codelineno-41-24"></a>    <span class="n">resource</span><span class="p">:</span> <span class="nb">str</span>
 </span><span id="__span-41-25"><a id="__codelineno-41-25" name="__codelineno-41-25" href="#__codelineno-41-25"></a>    <span class="n">action</span><span class="p">:</span> <span class="nb">str</span>
 </span><span id="__span-41-26"><a id="__codelineno-41-26" name="__codelineno-41-26" href="#__codelineno-41-26"></a>    <span class="n">description</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
@@ -5009,9 +5129,9 @@
 </span><span id="__span-41-30"><a id="__codelineno-41-30" name="__codelineno-41-30" href="#__codelineno-41-30"></a><span class="nd">@dataclass</span>
 </span><span id="__span-41-31"><a id="__codelineno-41-31" name="__codelineno-41-31" href="#__codelineno-41-31"></a><span class="k">class</span><span class="w"> </span><span class="nc">UserRole</span><span class="p">:</span>
 </span><span id="__span-41-32"><a id="__codelineno-41-32" name="__codelineno-41-32" href="#__codelineno-41-32"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;User-Role assignment.&quot;&quot;&quot;</span>
-</span><span id="__span-41-33"><a id="__codelineno-41-33" name="__codelineno-41-33" href="#__codelineno-41-33"></a>    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span>
-</span><span id="__span-41-34"><a id="__codelineno-41-34" name="__codelineno-41-34" href="#__codelineno-41-34"></a>    <span class="n">user_id</span><span class="p">:</span> <span class="n">UUID</span>
-</span><span id="__span-41-35"><a id="__codelineno-41-35" name="__codelineno-41-35" href="#__codelineno-41-35"></a>    <span class="n">role_id</span><span class="p">:</span> <span class="n">UUID</span>
+</span><span id="__span-41-33"><a id="__codelineno-41-33" name="__codelineno-41-33" href="#__codelineno-41-33"></a>    <span class="nb">id</span><span class="p">:</span> <span class="n">ID</span>
+</span><span id="__span-41-34"><a id="__codelineno-41-34" name="__codelineno-41-34" href="#__codelineno-41-34"></a>    <span class="n">user_id</span><span class="p">:</span> <span class="n">ID</span>
+</span><span id="__span-41-35"><a id="__codelineno-41-35" name="__codelineno-41-35" href="#__codelineno-41-35"></a>    <span class="n">role_id</span><span class="p">:</span> <span class="n">ID</span>
 </span><span id="__span-41-36"><a id="__codelineno-41-36" name="__codelineno-41-36" href="#__codelineno-41-36"></a>    <span class="n">tenant_id</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">UUID</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
 </span><span id="__span-41-37"><a id="__codelineno-41-37" name="__codelineno-41-37" href="#__codelineno-41-37"></a>    <span class="n">granted_by</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">UUID</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
 </span><span id="__span-41-38"><a id="__codelineno-41-38" name="__codelineno-41-38" href="#__codelineno-41-38"></a>    <span class="n">granted_at</span><span class="p">:</span> <span class="n">datetime</span> <span class="o">=</span> <span class="kc">None</span>
@@ -5022,13 +5142,13 @@
 </span><span id="__span-42-2"><a id="__codelineno-42-2" name="__codelineno-42-2" href="#__codelineno-42-2"></a>
 </span><span id="__span-42-3"><a id="__codelineno-42-3" name="__codelineno-42-3" href="#__codelineno-42-3"></a><span class="kn">import</span><span class="w"> </span><span class="nn">strawberry</span>
 </span><span id="__span-42-4"><a id="__codelineno-42-4" name="__codelineno-42-4" href="#__codelineno-42-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Optional</span>
-</span><span id="__span-42-5"><a id="__codelineno-42-5" name="__codelineno-42-5" href="#__codelineno-42-5"></a><span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span>
+</span><span id="__span-42-5"><a id="__codelineno-42-5" name="__codelineno-42-5" href="#__codelineno-42-5"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">ID</span>
 </span><span id="__span-42-6"><a id="__codelineno-42-6" name="__codelineno-42-6" href="#__codelineno-42-6"></a><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
 </span><span id="__span-42-7"><a id="__codelineno-42-7" name="__codelineno-42-7" href="#__codelineno-42-7"></a>
 </span><span id="__span-42-8"><a id="__codelineno-42-8" name="__codelineno-42-8" href="#__codelineno-42-8"></a><span class="nd">@strawberry</span><span class="o">.</span><span class="n">type</span>
 </span><span id="__span-42-9"><a id="__codelineno-42-9" name="__codelineno-42-9" href="#__codelineno-42-9"></a><span class="k">class</span><span class="w"> </span><span class="nc">Role</span><span class="p">:</span>
 </span><span id="__span-42-10"><a id="__codelineno-42-10" name="__codelineno-42-10" href="#__codelineno-42-10"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Role in RBAC system.&quot;&quot;&quot;</span>
-</span><span id="__span-42-11"><a id="__codelineno-42-11" name="__codelineno-42-11" href="#__codelineno-42-11"></a>    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span>
+</span><span id="__span-42-11"><a id="__codelineno-42-11" name="__codelineno-42-11" href="#__codelineno-42-11"></a>    <span class="nb">id</span><span class="p">:</span> <span class="n">ID</span>
 </span><span id="__span-42-12"><a id="__codelineno-42-12" name="__codelineno-42-12" href="#__codelineno-42-12"></a>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
 </span><span id="__span-42-13"><a id="__codelineno-42-13" name="__codelineno-42-13" href="#__codelineno-42-13"></a>    <span class="n">description</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
 </span><span id="__span-42-14"><a id="__codelineno-42-14" name="__codelineno-42-14" href="#__codelineno-42-14"></a>    <span class="n">parent_role</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="s2">&quot;Role&quot;</span><span class="p">]</span>
@@ -5045,7 +5165,7 @@
 </span><span id="__span-42-25"><a id="__codelineno-42-25" name="__codelineno-42-25" href="#__codelineno-42-25"></a><span class="nd">@strawberry</span><span class="o">.</span><span class="n">type</span>
 </span><span id="__span-42-26"><a id="__codelineno-42-26" name="__codelineno-42-26" href="#__codelineno-42-26"></a><span class="k">class</span><span class="w"> </span><span class="nc">Permission</span><span class="p">:</span>
 </span><span id="__span-42-27"><a id="__codelineno-42-27" name="__codelineno-42-27" href="#__codelineno-42-27"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Permission for resource action.&quot;&quot;&quot;</span>
-</span><span id="__span-42-28"><a id="__codelineno-42-28" name="__codelineno-42-28" href="#__codelineno-42-28"></a>    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span>
+</span><span id="__span-42-28"><a id="__codelineno-42-28" name="__codelineno-42-28" href="#__codelineno-42-28"></a>    <span class="nb">id</span><span class="p">:</span> <span class="n">ID</span>
 </span><span id="__span-42-29"><a id="__codelineno-42-29" name="__codelineno-42-29" href="#__codelineno-42-29"></a>    <span class="n">resource</span><span class="p">:</span> <span class="nb">str</span>
 </span><span id="__span-42-30"><a id="__codelineno-42-30" name="__codelineno-42-30" href="#__codelineno-42-30"></a>    <span class="n">action</span><span class="p">:</span> <span class="nb">str</span>
 </span><span id="__span-42-31"><a id="__codelineno-42-31" name="__codelineno-42-31" href="#__codelineno-42-31"></a>    <span class="n">description</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
@@ -5097,7 +5217,7 @@
 </span><span id="__span-42-77"><a id="__codelineno-42-77" name="__codelineno-42-77" href="#__codelineno-42-77"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">user_roles</span><span class="p">(</span>
 </span><span id="__span-42-78"><a id="__codelineno-42-78" name="__codelineno-42-78" href="#__codelineno-42-78"></a>        <span class="bp">self</span><span class="p">,</span>
 </span><span id="__span-42-79"><a id="__codelineno-42-79" name="__codelineno-42-79" href="#__codelineno-42-79"></a>        <span class="n">info</span><span class="p">:</span> <span class="n">Info</span><span class="p">,</span>
-</span><span id="__span-42-80"><a id="__codelineno-42-80" name="__codelineno-42-80" href="#__codelineno-42-80"></a>        <span class="n">user_id</span><span class="p">:</span> <span class="n">UUID</span>
+</span><span id="__span-42-80"><a id="__codelineno-42-80" name="__codelineno-42-80" href="#__codelineno-42-80"></a>        <span class="n">user_id</span><span class="p">:</span> <span class="n">ID</span>
 </span><span id="__span-42-81"><a id="__codelineno-42-81" name="__codelineno-42-81" href="#__codelineno-42-81"></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Role</span><span class="p">]:</span>
 </span><span id="__span-42-82"><a id="__codelineno-42-82" name="__codelineno-42-82" href="#__codelineno-42-82"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Get roles assigned to a user.&quot;&quot;&quot;</span>
 </span><span id="__span-42-83"><a id="__codelineno-42-83" name="__codelineno-42-83" href="#__codelineno-42-83"></a>        <span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.enterprise.rbac.resolver</span><span class="w"> </span><span class="kn">import</span> <span class="n">PermissionResolver</span>
@@ -5137,7 +5257,7 @@
 <div class="language-python highlight"><pre><span></span><code><span id="__span-45-1"><a id="__codelineno-45-1" name="__codelineno-45-1" href="#__codelineno-45-1"></a><span class="c1"># src/fraiseql.enterprise/rbac/hierarchy.py</span>
 </span><span id="__span-45-2"><a id="__codelineno-45-2" name="__codelineno-45-2" href="#__codelineno-45-2"></a>
 </span><span id="__span-45-3"><a id="__codelineno-45-3" name="__codelineno-45-3" href="#__codelineno-45-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">List</span>
-</span><span id="__span-45-4"><a id="__codelineno-45-4" name="__codelineno-45-4" href="#__codelineno-45-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span>
+</span><span id="__span-45-4"><a id="__codelineno-45-4" name="__codelineno-45-4" href="#__codelineno-45-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">ID</span>
 </span><span id="__span-45-5"><a id="__codelineno-45-5" name="__codelineno-45-5" href="#__codelineno-45-5"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">FraiseQLRepository</span><span class="p">,</span> <span class="n">DatabaseQuery</span>
 </span><span id="__span-45-6"><a id="__codelineno-45-6" name="__codelineno-45-6" href="#__codelineno-45-6"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.enterprise.rbac.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Role</span>
 </span><span id="__span-45-7"><a id="__codelineno-45-7" name="__codelineno-45-7" href="#__codelineno-45-7"></a>
@@ -5147,7 +5267,7 @@
 </span><span id="__span-45-11"><a id="__codelineno-45-11" name="__codelineno-45-11" href="#__codelineno-45-11"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">repo</span><span class="p">:</span> <span class="n">FraiseQLRepository</span><span class="p">):</span>
 </span><span id="__span-45-12"><a id="__codelineno-45-12" name="__codelineno-45-12" href="#__codelineno-45-12"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">repo</span> <span class="o">=</span> <span class="n">repo</span>
 </span><span id="__span-45-13"><a id="__codelineno-45-13" name="__codelineno-45-13" href="#__codelineno-45-13"></a>
-</span><span id="__span-45-14"><a id="__codelineno-45-14" name="__codelineno-45-14" href="#__codelineno-45-14"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_inherited_roles</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">role_id</span><span class="p">:</span> <span class="n">UUID</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Role</span><span class="p">]:</span>
+</span><span id="__span-45-14"><a id="__codelineno-45-14" name="__codelineno-45-14" href="#__codelineno-45-14"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_inherited_roles</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">role_id</span><span class="p">:</span> <span class="n">ID</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Role</span><span class="p">]:</span>
 </span><span id="__span-45-15"><a id="__codelineno-45-15" name="__codelineno-45-15" href="#__codelineno-45-15"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Get all roles in inheritance chain (including self).</span>
 </span><span id="__span-45-16"><a id="__codelineno-45-16" name="__codelineno-45-16" href="#__codelineno-45-16"></a>
 </span><span id="__span-45-17"><a id="__codelineno-45-17" name="__codelineno-45-17" href="#__codelineno-45-17"></a><span class="sd">        Args:</span>
@@ -5186,7 +5306,7 @@
 </span><span id="__span-46-7"><a id="__codelineno-46-7" name="__codelineno-46-7" href="#__codelineno-46-7"></a>
 </span><span id="__span-46-8"><a id="__codelineno-46-8" name="__codelineno-46-8" href="#__codelineno-46-8"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_inherited_roles</span><span class="p">(</span>
 </span><span id="__span-46-9"><a id="__codelineno-46-9" name="__codelineno-46-9" href="#__codelineno-46-9"></a>        <span class="bp">self</span><span class="p">,</span>
-</span><span id="__span-46-10"><a id="__codelineno-46-10" name="__codelineno-46-10" href="#__codelineno-46-10"></a>        <span class="n">role_id</span><span class="p">:</span> <span class="n">UUID</span><span class="p">,</span>
+</span><span id="__span-46-10"><a id="__codelineno-46-10" name="__codelineno-46-10" href="#__codelineno-46-10"></a>        <span class="n">role_id</span><span class="p">:</span> <span class="n">ID</span><span class="p">,</span>
 </span><span id="__span-46-11"><a id="__codelineno-46-11" name="__codelineno-46-11" href="#__codelineno-46-11"></a>        <span class="n">use_cache</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
 </span><span id="__span-46-12"><a id="__codelineno-46-12" name="__codelineno-46-12" href="#__codelineno-46-12"></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Role</span><span class="p">]:</span>
 </span><span id="__span-46-13"><a id="__codelineno-46-13" name="__codelineno-46-13" href="#__codelineno-46-13"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Get inherited roles with caching.</span>
@@ -5279,7 +5399,7 @@
 <div class="language-python highlight"><pre><span></span><code><span id="__span-49-1"><a id="__codelineno-49-1" name="__codelineno-49-1" href="#__codelineno-49-1"></a><span class="c1"># src/fraiseql/enterprise/rbac/resolver.py</span>
 </span><span id="__span-49-2"><a id="__codelineno-49-2" name="__codelineno-49-2" href="#__codelineno-49-2"></a>
 </span><span id="__span-49-3"><a id="__codelineno-49-3" name="__codelineno-49-3" href="#__codelineno-49-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">List</span><span class="p">,</span> <span class="n">Set</span>
-</span><span id="__span-49-4"><a id="__codelineno-49-4" name="__codelineno-49-4" href="#__codelineno-49-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span>
+</span><span id="__span-49-4"><a id="__codelineno-49-4" name="__codelineno-49-4" href="#__codelineno-49-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">ID</span>
 </span><span id="__span-49-5"><a id="__codelineno-49-5" name="__codelineno-49-5" href="#__codelineno-49-5"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">FraiseQLRepository</span><span class="p">,</span> <span class="n">DatabaseQuery</span>
 </span><span id="__span-49-6"><a id="__codelineno-49-6" name="__codelineno-49-6" href="#__codelineno-49-6"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.enterprise.rbac.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Permission</span><span class="p">,</span> <span class="n">Role</span>
 </span><span id="__span-49-7"><a id="__codelineno-49-7" name="__codelineno-49-7" href="#__codelineno-49-7"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.enterprise.rbac.hierarchy</span><span class="w"> </span><span class="kn">import</span> <span class="n">RoleHierarchy</span>
@@ -5293,7 +5413,7 @@
 </span><span id="__span-49-15"><a id="__codelineno-49-15" name="__codelineno-49-15" href="#__codelineno-49-15"></a>
 </span><span id="__span-49-16"><a id="__codelineno-49-16" name="__codelineno-49-16" href="#__codelineno-49-16"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_user_permissions</span><span class="p">(</span>
 </span><span id="__span-49-17"><a id="__codelineno-49-17" name="__codelineno-49-17" href="#__codelineno-49-17"></a>        <span class="bp">self</span><span class="p">,</span>
-</span><span id="__span-49-18"><a id="__codelineno-49-18" name="__codelineno-49-18" href="#__codelineno-49-18"></a>        <span class="n">user_id</span><span class="p">:</span> <span class="n">UUID</span><span class="p">,</span>
+</span><span id="__span-49-18"><a id="__codelineno-49-18" name="__codelineno-49-18" href="#__codelineno-49-18"></a>        <span class="n">user_id</span><span class="p">:</span> <span class="n">ID</span><span class="p">,</span>
 </span><span id="__span-49-19"><a id="__codelineno-49-19" name="__codelineno-49-19" href="#__codelineno-49-19"></a>        <span class="n">tenant_id</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">UUID</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
 </span><span id="__span-49-20"><a id="__codelineno-49-20" name="__codelineno-49-20" href="#__codelineno-49-20"></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Permission</span><span class="p">]:</span>
 </span><span id="__span-49-21"><a id="__codelineno-49-21" name="__codelineno-49-21" href="#__codelineno-49-21"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Get all effective permissions for a user.</span>
@@ -5336,7 +5456,7 @@
 </span><span id="__span-49-58"><a id="__codelineno-49-58" name="__codelineno-49-58" href="#__codelineno-49-58"></a>
 </span><span id="__span-49-59"><a id="__codelineno-49-59" name="__codelineno-49-59" href="#__codelineno-49-59"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_get_user_roles</span><span class="p">(</span>
 </span><span id="__span-49-60"><a id="__codelineno-49-60" name="__codelineno-49-60" href="#__codelineno-49-60"></a>        <span class="bp">self</span><span class="p">,</span>
-</span><span id="__span-49-61"><a id="__codelineno-49-61" name="__codelineno-49-61" href="#__codelineno-49-61"></a>        <span class="n">user_id</span><span class="p">:</span> <span class="n">UUID</span><span class="p">,</span>
+</span><span id="__span-49-61"><a id="__codelineno-49-61" name="__codelineno-49-61" href="#__codelineno-49-61"></a>        <span class="n">user_id</span><span class="p">:</span> <span class="n">ID</span><span class="p">,</span>
 </span><span id="__span-49-62"><a id="__codelineno-49-62" name="__codelineno-49-62" href="#__codelineno-49-62"></a>        <span class="n">tenant_id</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">UUID</span><span class="p">]</span>
 </span><span id="__span-49-63"><a id="__codelineno-49-63" name="__codelineno-49-63" href="#__codelineno-49-63"></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Role</span><span class="p">]:</span>
 </span><span id="__span-49-64"><a id="__codelineno-49-64" name="__codelineno-49-64" href="#__codelineno-49-64"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Get roles directly assigned to user.&quot;&quot;&quot;</span>
@@ -5364,7 +5484,7 @@
 </span><span id="__span-50-3"><a id="__codelineno-50-3" name="__codelineno-50-3" href="#__codelineno-50-3"></a><span class="kn">import</span><span class="w"> </span><span class="nn">hashlib</span>
 </span><span id="__span-50-4"><a id="__codelineno-50-4" name="__codelineno-50-4" href="#__codelineno-50-4"></a><span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
 </span><span id="__span-50-5"><a id="__codelineno-50-5" name="__codelineno-50-5" href="#__codelineno-50-5"></a><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span>
-</span><span id="__span-50-6"><a id="__codelineno-50-6" name="__codelineno-50-6" href="#__codelineno-50-6"></a><span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span>
+</span><span id="__span-50-6"><a id="__codelineno-50-6" name="__codelineno-50-6" href="#__codelineno-50-6"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">ID</span>
 </span><span id="__span-50-7"><a id="__codelineno-50-7" name="__codelineno-50-7" href="#__codelineno-50-7"></a><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">timedelta</span>
 </span><span id="__span-50-8"><a id="__codelineno-50-8" name="__codelineno-50-8" href="#__codelineno-50-8"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.enterprise.rbac.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Permission</span>
 </span><span id="__span-50-9"><a id="__codelineno-50-9" name="__codelineno-50-9" href="#__codelineno-50-9"></a>
@@ -5376,14 +5496,14 @@
 </span><span id="__span-50-15"><a id="__codelineno-50-15" name="__codelineno-50-15" href="#__codelineno-50-15"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_request_cache</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">List</span><span class="p">[</span><span class="n">Permission</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
 </span><span id="__span-50-16"><a id="__codelineno-50-16" name="__codelineno-50-16" href="#__codelineno-50-16"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_cache_ttl</span> <span class="o">=</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">minutes</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
 </span><span id="__span-50-17"><a id="__codelineno-50-17" name="__codelineno-50-17" href="#__codelineno-50-17"></a>
-</span><span id="__span-50-18"><a id="__codelineno-50-18" name="__codelineno-50-18" href="#__codelineno-50-18"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">_make_key</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user_id</span><span class="p">:</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">tenant_id</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">UUID</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+</span><span id="__span-50-18"><a id="__codelineno-50-18" name="__codelineno-50-18" href="#__codelineno-50-18"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">_make_key</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user_id</span><span class="p">:</span> <span class="n">ID</span><span class="p">,</span> <span class="n">tenant_id</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">UUID</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 </span><span id="__span-50-19"><a id="__codelineno-50-19" name="__codelineno-50-19" href="#__codelineno-50-19"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Generate cache key for user permissions.&quot;&quot;&quot;</span>
 </span><span id="__span-50-20"><a id="__codelineno-50-20" name="__codelineno-50-20" href="#__codelineno-50-20"></a>        <span class="n">data</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">user_id</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">tenant_id</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="s1">&#39;global&#39;</span><span class="si">}</span><span class="s2">&quot;</span>
 </span><span id="__span-50-21"><a id="__codelineno-50-21" name="__codelineno-50-21" href="#__codelineno-50-21"></a>        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;rbac:permissions:</span><span class="si">{</span><span class="n">hashlib</span><span class="o">.</span><span class="n">md5</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span>
 </span><span id="__span-50-22"><a id="__codelineno-50-22" name="__codelineno-50-22" href="#__codelineno-50-22"></a>
 </span><span id="__span-50-23"><a id="__codelineno-50-23" name="__codelineno-50-23" href="#__codelineno-50-23"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get</span><span class="p">(</span>
 </span><span id="__span-50-24"><a id="__codelineno-50-24" name="__codelineno-50-24" href="#__codelineno-50-24"></a>        <span class="bp">self</span><span class="p">,</span>
-</span><span id="__span-50-25"><a id="__codelineno-50-25" name="__codelineno-50-25" href="#__codelineno-50-25"></a>        <span class="n">user_id</span><span class="p">:</span> <span class="n">UUID</span><span class="p">,</span>
+</span><span id="__span-50-25"><a id="__codelineno-50-25" name="__codelineno-50-25" href="#__codelineno-50-25"></a>        <span class="n">user_id</span><span class="p">:</span> <span class="n">ID</span><span class="p">,</span>
 </span><span id="__span-50-26"><a id="__codelineno-50-26" name="__codelineno-50-26" href="#__codelineno-50-26"></a>        <span class="n">tenant_id</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">UUID</span><span class="p">]</span>
 </span><span id="__span-50-27"><a id="__codelineno-50-27" name="__codelineno-50-27" href="#__codelineno-50-27"></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">Permission</span><span class="p">]]:</span>
 </span><span id="__span-50-28"><a id="__codelineno-50-28" name="__codelineno-50-28" href="#__codelineno-50-28"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Get cached permissions.&quot;&quot;&quot;</span>
@@ -5407,7 +5527,7 @@
 </span><span id="__span-50-46"><a id="__codelineno-50-46" name="__codelineno-50-46" href="#__codelineno-50-46"></a>
 </span><span id="__span-50-47"><a id="__codelineno-50-47" name="__codelineno-50-47" href="#__codelineno-50-47"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">set</span><span class="p">(</span>
 </span><span id="__span-50-48"><a id="__codelineno-50-48" name="__codelineno-50-48" href="#__codelineno-50-48"></a>        <span class="bp">self</span><span class="p">,</span>
-</span><span id="__span-50-49"><a id="__codelineno-50-49" name="__codelineno-50-49" href="#__codelineno-50-49"></a>        <span class="n">user_id</span><span class="p">:</span> <span class="n">UUID</span><span class="p">,</span>
+</span><span id="__span-50-49"><a id="__codelineno-50-49" name="__codelineno-50-49" href="#__codelineno-50-49"></a>        <span class="n">user_id</span><span class="p">:</span> <span class="n">ID</span><span class="p">,</span>
 </span><span id="__span-50-50"><a id="__codelineno-50-50" name="__codelineno-50-50" href="#__codelineno-50-50"></a>        <span class="n">tenant_id</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">UUID</span><span class="p">],</span>
 </span><span id="__span-50-51"><a id="__codelineno-50-51" name="__codelineno-50-51" href="#__codelineno-50-51"></a>        <span class="n">permissions</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Permission</span><span class="p">]</span>
 </span><span id="__span-50-52"><a id="__codelineno-50-52" name="__codelineno-50-52" href="#__codelineno-50-52"></a>    <span class="p">):</span>
@@ -5438,7 +5558,7 @@
 </span><span id="__span-50-77"><a id="__codelineno-50-77" name="__codelineno-50-77" href="#__codelineno-50-77"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Clear request-level cache (called at end of request).&quot;&quot;&quot;</span>
 </span><span id="__span-50-78"><a id="__codelineno-50-78" name="__codelineno-50-78" href="#__codelineno-50-78"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_request_cache</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
 </span><span id="__span-50-79"><a id="__codelineno-50-79" name="__codelineno-50-79" href="#__codelineno-50-79"></a>
-</span><span id="__span-50-80"><a id="__codelineno-50-80" name="__codelineno-50-80" href="#__codelineno-50-80"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">invalidate_user</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user_id</span><span class="p">:</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">tenant_id</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">UUID</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+</span><span id="__span-50-80"><a id="__codelineno-50-80" name="__codelineno-50-80" href="#__codelineno-50-80"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">invalidate_user</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user_id</span><span class="p">:</span> <span class="n">ID</span><span class="p">,</span> <span class="n">tenant_id</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">UUID</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
 </span><span id="__span-50-81"><a id="__codelineno-50-81" name="__codelineno-50-81" href="#__codelineno-50-81"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Invalidate cache for user (e.g., after role change).&quot;&quot;&quot;</span>
 </span><span id="__span-50-82"><a id="__codelineno-50-82" name="__codelineno-50-82" href="#__codelineno-50-82"></a>        <span class="n">key</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_make_key</span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">tenant_id</span><span class="p">)</span>
 </span><span id="__span-50-83"><a id="__codelineno-50-83" name="__codelineno-50-83" href="#__codelineno-50-83"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_request_cache</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
@@ -5456,7 +5576,7 @@
 </span><span id="__span-50-95"><a id="__codelineno-50-95" name="__codelineno-50-95" href="#__codelineno-50-95"></a>
 </span><span id="__span-50-96"><a id="__codelineno-50-96" name="__codelineno-50-96" href="#__codelineno-50-96"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_user_permissions</span><span class="p">(</span>
 </span><span id="__span-50-97"><a id="__codelineno-50-97" name="__codelineno-50-97" href="#__codelineno-50-97"></a>        <span class="bp">self</span><span class="p">,</span>
-</span><span id="__span-50-98"><a id="__codelineno-50-98" name="__codelineno-50-98" href="#__codelineno-50-98"></a>        <span class="n">user_id</span><span class="p">:</span> <span class="n">UUID</span><span class="p">,</span>
+</span><span id="__span-50-98"><a id="__codelineno-50-98" name="__codelineno-50-98" href="#__codelineno-50-98"></a>        <span class="n">user_id</span><span class="p">:</span> <span class="n">ID</span><span class="p">,</span>
 </span><span id="__span-50-99"><a id="__codelineno-50-99" name="__codelineno-50-99" href="#__codelineno-50-99"></a>        <span class="n">tenant_id</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">UUID</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-50-100"><a id="__codelineno-50-100" name="__codelineno-50-100" href="#__codelineno-50-100"></a>        <span class="n">use_cache</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
 </span><span id="__span-50-101"><a id="__codelineno-50-101" name="__codelineno-50-101" href="#__codelineno-50-101"></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Permission</span><span class="p">]:</span>
@@ -5852,8 +5972,8 @@
 </span><span id="__span-61-69"><a id="__codelineno-61-69" name="__codelineno-61-69" href="#__codelineno-61-69"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">assign_role_to_user</span><span class="p">(</span>
 </span><span id="__span-61-70"><a id="__codelineno-61-70" name="__codelineno-61-70" href="#__codelineno-61-70"></a>        <span class="bp">self</span><span class="p">,</span>
 </span><span id="__span-61-71"><a id="__codelineno-61-71" name="__codelineno-61-71" href="#__codelineno-61-71"></a>        <span class="n">info</span><span class="p">:</span> <span class="n">Info</span><span class="p">,</span>
-</span><span id="__span-61-72"><a id="__codelineno-61-72" name="__codelineno-61-72" href="#__codelineno-61-72"></a>        <span class="n">user_id</span><span class="p">:</span> <span class="n">UUID</span><span class="p">,</span>
-</span><span id="__span-61-73"><a id="__codelineno-61-73" name="__codelineno-61-73" href="#__codelineno-61-73"></a>        <span class="n">role_id</span><span class="p">:</span> <span class="n">UUID</span><span class="p">,</span>
+</span><span id="__span-61-72"><a id="__codelineno-61-72" name="__codelineno-61-72" href="#__codelineno-61-72"></a>        <span class="n">user_id</span><span class="p">:</span> <span class="n">ID</span><span class="p">,</span>
+</span><span id="__span-61-73"><a id="__codelineno-61-73" name="__codelineno-61-73" href="#__codelineno-61-73"></a>        <span class="n">role_id</span><span class="p">:</span> <span class="n">ID</span><span class="p">,</span>
 </span><span id="__span-61-74"><a id="__codelineno-61-74" name="__codelineno-61-74" href="#__codelineno-61-74"></a>        <span class="n">expires_at</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">datetime</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
 </span><span id="__span-61-75"><a id="__codelineno-61-75" name="__codelineno-61-75" href="#__codelineno-61-75"></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AssignRoleResponse</span><span class="p">:</span>
 </span><span id="__span-61-76"><a id="__codelineno-61-76" name="__codelineno-61-76" href="#__codelineno-61-76"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Assign a role to a user.&quot;&quot;&quot;</span>
@@ -5922,7 +6042,7 @@
 </span><span id="__span-62-3"><a id="__codelineno-62-3" name="__codelineno-62-3" href="#__codelineno-62-3"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">delete_role</span><span class="p">(</span>
 </span><span id="__span-62-4"><a id="__codelineno-62-4" name="__codelineno-62-4" href="#__codelineno-62-4"></a>    <span class="bp">self</span><span class="p">,</span>
 </span><span id="__span-62-5"><a id="__codelineno-62-5" name="__codelineno-62-5" href="#__codelineno-62-5"></a>    <span class="n">info</span><span class="p">:</span> <span class="n">Info</span><span class="p">,</span>
-</span><span id="__span-62-6"><a id="__codelineno-62-6" name="__codelineno-62-6" href="#__codelineno-62-6"></a>    <span class="n">role_id</span><span class="p">:</span> <span class="n">UUID</span>
+</span><span id="__span-62-6"><a id="__codelineno-62-6" name="__codelineno-62-6" href="#__codelineno-62-6"></a>    <span class="n">role_id</span><span class="p">:</span> <span class="n">ID</span>
 </span><span id="__span-62-7"><a id="__codelineno-62-7" name="__codelineno-62-7" href="#__codelineno-62-7"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DeleteRoleResponse</span><span class="p">:</span>
 </span><span id="__span-62-8"><a id="__codelineno-62-8" name="__codelineno-62-8" href="#__codelineno-62-8"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Delete a role (if not system role).&quot;&quot;&quot;</span>
 </span><span id="__span-62-9"><a id="__codelineno-62-9" name="__codelineno-62-9" href="#__codelineno-62-9"></a>    <span class="n">repo</span> <span class="o">=</span> <span class="n">info</span><span class="o">.</span><span class="n">context</span><span class="p">[</span><span class="s1">&#39;repo&#39;</span><span class="p">]</span>
@@ -5954,8 +6074,8 @@
 </span><span id="__span-62-35"><a id="__codelineno-62-35" name="__codelineno-62-35" href="#__codelineno-62-35"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">add_permission_to_role</span><span class="p">(</span>
 </span><span id="__span-62-36"><a id="__codelineno-62-36" name="__codelineno-62-36" href="#__codelineno-62-36"></a>    <span class="bp">self</span><span class="p">,</span>
 </span><span id="__span-62-37"><a id="__codelineno-62-37" name="__codelineno-62-37" href="#__codelineno-62-37"></a>    <span class="n">info</span><span class="p">:</span> <span class="n">Info</span><span class="p">,</span>
-</span><span id="__span-62-38"><a id="__codelineno-62-38" name="__codelineno-62-38" href="#__codelineno-62-38"></a>    <span class="n">role_id</span><span class="p">:</span> <span class="n">UUID</span><span class="p">,</span>
-</span><span id="__span-62-39"><a id="__codelineno-62-39" name="__codelineno-62-39" href="#__codelineno-62-39"></a>    <span class="n">permission_id</span><span class="p">:</span> <span class="n">UUID</span>
+</span><span id="__span-62-38"><a id="__codelineno-62-38" name="__codelineno-62-38" href="#__codelineno-62-38"></a>    <span class="n">role_id</span><span class="p">:</span> <span class="n">ID</span><span class="p">,</span>
+</span><span id="__span-62-39"><a id="__codelineno-62-39" name="__codelineno-62-39" href="#__codelineno-62-39"></a>    <span class="n">permission_id</span><span class="p">:</span> <span class="n">ID</span>
 </span><span id="__span-62-40"><a id="__codelineno-62-40" name="__codelineno-62-40" href="#__codelineno-62-40"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AddPermissionResponse</span><span class="p">:</span>
 </span><span id="__span-62-41"><a id="__codelineno-62-41" name="__codelineno-62-41" href="#__codelineno-62-41"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Add permission to role.&quot;&quot;&quot;</span>
 </span><span id="__span-62-42"><a id="__codelineno-62-42" name="__codelineno-62-42" href="#__codelineno-62-42"></a>    <span class="n">repo</span> <span class="o">=</span> <span class="n">info</span><span class="o">.</span><span class="n">context</span><span class="p">[</span><span class="s1">&#39;repo&#39;</span><span class="p">]</span>

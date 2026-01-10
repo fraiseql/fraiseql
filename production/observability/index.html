@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="PostgreSQL-Native GraphQL Framework for Python">
+        <meta name="description" content="PostgreSQL-native error tracking, distributed tracing, and metrics in one database">
       
       
         <meta name="author" content="Lionel Hamayon">
@@ -1241,7 +1241,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../advanced/llm-integration.md" class="md-nav__link">
+      <a href="../../features/ai-native/" class="md-nav__link">
         
   
   
@@ -1615,7 +1615,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/nested-filters.md" class="md-nav__link">
+      <a href="../../filtering/nested-filters/" class="md-nav__link">
         
   
   
@@ -2360,17 +2360,6 @@
     <span class="md-ellipsis">
       
         Overview
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#table-of-contents" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Table of Contents
       
     </span>
   </a>
@@ -3335,6 +3324,14 @@
       
         
       
+        
+      
+        
+      
+        
+      
+        
+      
     
     
     
@@ -3389,6 +3386,118 @@
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/request-flow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Request Flow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/trinity-pattern/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trinity Pattern
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/type-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Type System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/cqrs-design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CQRS Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
               
             
               
@@ -3457,17 +3566,6 @@
     <span class="md-ellipsis">
       
         Overview
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#table-of-contents" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Table of Contents
       
     </span>
   </a>
@@ -3988,6 +4086,59 @@
                 
                   
 
+  <nav class="md-tags" >
+    
+      
+      
+      
+      
+        <span class="md-tag">PostgreSQL</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">error-tracking</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">logging</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">metrics</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">observability</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">production</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">tracing</span>
+      
+    
+  </nav>
+
 
   
     <a href="https://github.com/fraiseql/fraiseql/edit/main/docs/production/observability.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
@@ -4032,23 +4183,6 @@
 </span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>                    │  Dashboards  │
 </span><span id="__span-0-22"><a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>                    └──────────────┘
 </span></code></pre></div></p>
-<h2 id="table-of-contents">Table of Contents<a class="headerlink" href="#table-of-contents" title="Permanent link">&para;</a></h2>
-<ul>
-<li><a href="#error-tracking">Error Tracking</a></li>
-<li><a href="#schema">Schema</a></li>
-<li><a href="#setup">Setup</a></li>
-<li><a href="#capture-errors">Capture Errors</a></li>
-<li><a href="#error-notifications">Error Notifications</a></li>
-<li><a href="#distributed-tracing">Distributed Tracing</a></li>
-<li><a href="#metrics-collection">Metrics Collection</a></li>
-<li><a href="#correlation">Correlation</a></li>
-<li><a href="#grafana-dashboards">Grafana Dashboards</a></li>
-<li><a href="#query-examples">Query Examples</a></li>
-<li><a href="#performance-tuning">Performance Tuning</a></li>
-<li><a href="#production-scale-error-storage">Production-Scale Error Storage</a></li>
-<li><a href="#data-retention">Data Retention</a></li>
-<li><a href="#best-practices">Best Practices</a></li>
-</ul>
 <h2 id="error-tracking">Error Tracking<a class="headerlink" href="#error-tracking" title="Permanent link">&para;</a></h2>
 <p>PostgreSQL-native error tracking with automatic fingerprinting, grouping, and notifications.</p>
 <h3 id="schema">Schema<a class="headerlink" href="#schema" title="Permanent link">&para;</a></h3>
@@ -5579,10 +5713,10 @@
 </table>
 <h2 id="next-steps">Next Steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="monitoring/">Monitoring Guide</a> - Detailed monitoring setup</li>
-<li><a href="deployment/">Deployment</a> - Production deployment patterns</li>
-<li><a href="security/">Security</a> - Security best practices</li>
-<li><a href="health-checks/">Health Checks</a> - Application health monitoring</li>
+<li><a href="../monitoring/">Monitoring Guide</a> - Detailed monitoring setup</li>
+<li><a href="../deployment/">Deployment</a> - Production deployment patterns</li>
+<li><a href="../security/">Security</a> - Security best practices</li>
+<li><a href="../health-checks/">Health Checks</a> - Application health monitoring</li>
 </ul>
 
 
@@ -5590,6 +5724,9 @@
 
 
 
+
+  
+  
 
 
 

@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="PostgreSQL-Native GraphQL Framework for Python">
+        <meta name="description" content="Composable health check patterns for monitoring application dependencies">
       
       
         <meta name="author" content="Lionel Hamayon">
@@ -1241,7 +1241,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../advanced/llm-integration.md" class="md-nav__link">
+      <a href="../../features/ai-native/" class="md-nav__link">
         
   
   
@@ -1615,7 +1615,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/nested-filters.md" class="md-nav__link">
+      <a href="../../filtering/nested-filters/" class="md-nav__link">
         
   
   
@@ -2388,17 +2388,6 @@
     <span class="md-ellipsis">
       
         Overview
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#table-of-contents" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Table of Contents
       
     </span>
   </a>
@@ -3236,6 +3225,14 @@
       
         
       
+        
+      
+        
+      
+        
+      
+        
+      
     
     
     
@@ -3290,6 +3287,118 @@
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/request-flow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Request Flow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/trinity-pattern/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trinity Pattern
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/type-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Type System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/cqrs-design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CQRS Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
               
             
               
@@ -3358,17 +3467,6 @@
     <span class="md-ellipsis">
       
         Overview
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#table-of-contents" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Table of Contents
       
     </span>
   </a>
@@ -3790,6 +3888,52 @@
                 
                   
 
+  <nav class="md-tags" >
+    
+      
+      
+      
+      
+        <span class="md-tag">health-checks</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">kubernetes</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">liveness</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">monitoring</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">production</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">readiness</span>
+      
+    
+  </nav>
+
 
   
     <a href="https://github.com/fraiseql/fraiseql/edit/main/docs/production/health-checks.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
@@ -3811,16 +3955,6 @@
 <li><strong>Composable custom checks</strong>: Extend with application-specific monitoring</li>
 <li><strong>Pre-built checks</strong>: Ready-to-use functions for common dependencies</li>
 <li><strong>Async-first</strong>: Built for modern Python async applications</li>
-</ul>
-<h2 id="table-of-contents">Table of Contents<a class="headerlink" href="#table-of-contents" title="Permanent link">&para;</a></h2>
-<ul>
-<li><a href="#built-in-health-endpoints">Built-in Health Endpoints</a></li>
-<li><a href="#quick-start">Quick Start</a></li>
-<li><a href="#core-concepts">Core Concepts</a></li>
-<li><a href="#pre-built-checks">Pre-built Checks</a></li>
-<li><a href="#custom-checks">Custom Checks</a></li>
-<li><a href="#fastapi-integration">FastAPI Integration</a></li>
-<li><a href="#production-patterns">Production Patterns</a></li>
 </ul>
 <h2 id="built-in-health-endpoints">Built-in Health Endpoints<a class="headerlink" href="#built-in-health-endpoints" title="Permanent link">&para;</a></h2>
 <p>FraiseQL automatically provides two health check endpoints for production deployments:</p>
@@ -4438,8 +4572,8 @@
 </span></code></pre></div>
 <h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../production/deployment/">Production Deployment</a> - Kubernetes health probes</li>
-<li><a href="../production/monitoring/">Monitoring</a> - Metrics and observability</li>
+<li><a href="../deployment/">Production Deployment</a> - Kubernetes health probes</li>
+<li><a href="../monitoring/">Monitoring</a> - Metrics and observability</li>
 <li><a href="../monitoring/#sentry-integration-legacyoptional">Sentry Integration</a> - Error tracking</li>
 </ul>
 
@@ -4448,6 +4582,9 @@
 
 
 
+
+  
+  
 
 
 

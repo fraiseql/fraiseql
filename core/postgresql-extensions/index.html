@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="PostgreSQL-Native GraphQL Framework for Python">
+        <meta name="description" content="Required and optional PostgreSQL extensions for FraiseQL">
       
       
         <meta name="author" content="Lionel Hamayon">
@@ -1235,7 +1235,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../advanced/llm-integration.md" class="md-nav__link">
+      <a href="../../features/ai-native/" class="md-nav__link">
         
   
   
@@ -1609,7 +1609,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/nested-filters.md" class="md-nav__link">
+      <a href="../../filtering/nested-filters/" class="md-nav__link">
         
   
   
@@ -2758,6 +2758,14 @@
       
         
       
+        
+      
+        
+      
+        
+      
+        
+      
     
     
     
@@ -2821,6 +2829,118 @@
   
   
     <li class="md-nav__item">
+      <a href="../../architecture/request-flow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Request Flow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/trinity-pattern/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trinity Pattern
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/type-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Type System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/cqrs-design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CQRS Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../architecture/decisions/" class="md-nav__link">
         
   
@@ -2874,17 +2994,6 @@
       Table of contents
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#table-of-contents" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Table of Contents
-      
-    </span>
-  </a>
-  
-</li>
       
         <li class="md-nav__item">
   <a href="#overview" class="md-nav__link">
@@ -3303,17 +3412,6 @@
   
 </li>
       
-        <li class="md-nav__item">
-  <a href="#summary" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Summary
-      
-    </span>
-  </a>
-  
-</li>
-      
     </ul>
   
 </nav>
@@ -3328,6 +3426,45 @@
               <article class="md-content__inner md-typeset">
                 
                   
+
+  <nav class="md-tags" >
+    
+      
+      
+      
+      
+        <span class="md-tag">PostgreSQL</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">database</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">extensions</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">pg_trgm</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">pgvector</span>
+      
+    
+  </nav>
 
 
   
@@ -3344,16 +3481,6 @@
 <p><strong>FraiseQL integrates with PostgreSQL extensions for maximum performance</strong></p>
 </blockquote>
 <p>FraiseQL is designed to work with several PostgreSQL extensions that enhance performance and functionality. This guide covers installation and configuration of these extensions.</p>
-<h2 id="table-of-contents">Table of Contents<a class="headerlink" href="#table-of-contents" title="Permanent link">&para;</a></h2>
-<ul>
-<li><a href="#overview">Overview</a></li>
-<li><a href="#jsonb_ivm-extension">jsonb_ivm Extension</a></li>
-<li><a href="#pg_fraiseql_cache-extension">pg_fraiseql_cache Extension</a></li>
-<li><a href="#installation-methods">Installation Methods</a></li>
-<li><a href="#docker-setup">Docker Setup</a></li>
-<li><a href="#verification">Verification</a></li>
-<li><a href="#troubleshooting">Troubleshooting</a></li>
-</ul>
 <hr />
 <h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
 <h3 id="available-extensions">Available Extensions<a class="headerlink" href="#available-extensions" title="Permanent link">&para;</a></h3>
@@ -3795,9 +3922,9 @@
 <h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Complete CQRS Example (../../examples/complete_cqrs_blog/) - Uses extensions</li>
-<li><a href="./explicit-sync/">Explicit Sync Guide</a> - How sync uses jsonb_ivm</li>
-<li><a href="../guides/cascade-best-practices/">CASCADE Best Practices</a> - Cascade patterns</li>
-<li><a href="./migrations/">Migrations Guide</a> - Setting up databases with confiture</li>
+<li><a href="../explicit-sync/">Explicit Sync Guide</a> - How sync uses jsonb_ivm</li>
+<li><a href="../../guides/cascade-best-practices/">CASCADE Best Practices</a> - Cascade patterns</li>
+<li><a href="../migrations/">Migrations Guide</a> - Setting up databases with confiture</li>
 </ul>
 <h3 id="github-repositories">GitHub Repositories<a class="headerlink" href="#github-repositories" title="Permanent link">&para;</a></h3>
 <ul>
@@ -3805,32 +3932,6 @@
 <li><a href="https://github.com/fraiseql/pg_fraiseql_cache">pg_fraiseql_cache</a> - Cache invalidation extension</li>
 <li><a href="https://github.com/fraiseql/confiture">confiture</a> - Migration management library</li>
 </ul>
-<hr />
-<h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
-<p>FraiseQL integrates with PostgreSQL extensions for maximum performance:</p>
-<p>✅ <strong>jsonb_ivm</strong> - 10-100x faster incremental updates
-✅ <strong>pg_fraiseql_cache</strong> - Automatic CASCADE invalidation
-✅ <strong>Optional</strong> - FraiseQL works without them (slower)
-✅ <strong>Auto-detected</strong> - No configuration needed</p>
-<p><strong>Installation</strong>:
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-26-1"><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="c1"># Clone and install jsonb_ivm</span>
-</span><span id="__span-26-2"><a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/fraiseql/jsonb_ivm.git<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="se">\</span>
-</span><span id="__span-26-3"><a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a><span class="w">  </span><span class="nb">cd</span><span class="w"> </span>jsonb_ivm<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>sudo<span class="w"> </span>make<span class="w"> </span>install<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>..
-</span><span id="__span-26-4"><a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a>
-</span><span id="__span-26-5"><a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a><span class="c1"># Clone and install pg_fraiseql_cache</span>
-</span><span id="__span-26-6"><a id="__codelineno-26-6" name="__codelineno-26-6" href="#__codelineno-26-6"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/fraiseql/pg_fraiseql_cache.git<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="se">\</span>
-</span><span id="__span-26-7"><a id="__codelineno-26-7" name="__codelineno-26-7" href="#__codelineno-26-7"></a><span class="w">  </span><span class="nb">cd</span><span class="w"> </span>pg_fraiseql_cache<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>sudo<span class="w"> </span>make<span class="w"> </span>install<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>..
-</span><span id="__span-26-8"><a id="__codelineno-26-8" name="__codelineno-26-8" href="#__codelineno-26-8"></a>
-</span><span id="__span-26-9"><a id="__codelineno-26-9" name="__codelineno-26-9" href="#__codelineno-26-9"></a><span class="c1"># Enable in database</span>
-</span><span id="__span-26-10"><a id="__codelineno-26-10" name="__codelineno-26-10" href="#__codelineno-26-10"></a>psql<span class="w"> </span>-d<span class="w"> </span>mydb<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;CREATE EXTENSION jsonb_ivm;&quot;</span>
-</span><span id="__span-26-11"><a id="__codelineno-26-11" name="__codelineno-26-11" href="#__codelineno-26-11"></a>psql<span class="w"> </span>-d<span class="w"> </span>mydb<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;CREATE EXTENSION pg_fraiseql_cache;&quot;</span>
-</span></code></pre></div></p>
-<p><strong>Verification</strong>:
-<div class="language-python highlight"><pre><span></span><code><span id="__span-27-1"><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.ivm</span><span class="w"> </span><span class="kn">import</span> <span class="n">setup_auto_ivm</span>
-</span><span id="__span-27-2"><a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>
-</span><span id="__span-27-3"><a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a><span class="n">recommendation</span> <span class="o">=</span> <span class="k">await</span> <span class="n">setup_auto_ivm</span><span class="p">(</span><span class="n">db_pool</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-</span><span id="__span-27-4"><a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a><span class="c1"># ✓ Detected jsonb_ivm v1.1</span>
-</span></code></pre></div></p>
 <hr />
 <p><strong>Last Updated</strong>: 2025-10-11
 <strong>FraiseQL Version</strong>: 0.1.0+</p>
@@ -3840,6 +3941,9 @@
 
 
 
+
+  
+  
 
 
 

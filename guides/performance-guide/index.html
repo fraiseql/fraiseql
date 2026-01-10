@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="PostgreSQL-Native GraphQL Framework for Python">
+        <meta name="description" content="Optimization strategies and performance best practices">
       
       
         <meta name="author" content="Lionel Hamayon">
@@ -25,7 +25,7 @@
     
     
       
-        <title>FraiseQL Performance Guide - FraiseQL Documentation</title>
+        <title>Performance Guide - FraiseQL Documentation</title>
       
     
     
@@ -118,7 +118,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              FraiseQL Performance Guide
+              Performance Guide
             
           </span>
         </div>
@@ -1235,7 +1235,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../advanced/llm-integration.md" class="md-nav__link">
+      <a href="../../features/ai-native/" class="md-nav__link">
         
   
   
@@ -1609,7 +1609,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../nested-filters.md" class="md-nav__link">
+      <a href="../../filtering/nested-filters/" class="md-nav__link">
         
   
   
@@ -2758,6 +2758,14 @@
       
         
       
+        
+      
+        
+      
+        
+      
+        
+      
     
     
     
@@ -2812,6 +2820,118 @@
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/request-flow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Request Flow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/trinity-pattern/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trinity Pattern
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/type-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Type System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/cqrs-design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CQRS Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
               
             
               
@@ -3275,17 +3395,6 @@
   
 </li>
       
-        <li class="md-nav__item">
-  <a href="#conclusion" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Conclusion
-      
-    </span>
-  </a>
-  
-</li>
-      
     </ul>
   
 </nav>
@@ -3301,6 +3410,45 @@
                 
                   
 
+  <nav class="md-tags" >
+    
+      
+      
+      
+      
+        <span class="md-tag">best-practices</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">efficiency</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">optimization</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">performance</span>
+      
+    
+      
+      
+      
+      
+        <span class="md-tag">speed</span>
+      
+    
+  </nav>
+
 
   
     <a href="https://github.com/fraiseql/fraiseql/edit/main/docs/guides/performance-guide.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
@@ -3313,7 +3461,7 @@
 
 <h1 id="fraiseql-performance-guide">FraiseQL Performance Guide<a class="headerlink" href="#fraiseql-performance-guide" title="Permanent link">&para;</a></h1>
 <p>🟡 <strong>Production</strong> - Performance expectations, methodology, and optimization guidance.</p>
-<p><strong>📍 Navigation</strong>: <a href="README/">← Main README</a> • <a href="docs/performance/index/">Performance Docs →</a> • <a href="../../benchmarks/">Benchmarks →</a></p>
+<p><strong>📍 Navigation</strong>: <a href="../">← Main README</a> • <a href="docs/performance/index.md">Performance Docs →</a> • <a href="../../benchmarks/">Benchmarks →</a></p>
 <h2 id="executive-summary">Executive Summary<a class="headerlink" href="#executive-summary" title="Permanent link">&para;</a></h2>
 <p>FraiseQL delivers <strong>sub-10ms response times</strong> for typical GraphQL queries through an exclusive Rust pipeline that eliminates Python string operations. This guide provides realistic performance expectations, methodology details, and guidance on when performance optimizations matter.</p>
 <p><strong>Key Takeaways:</strong>
@@ -3814,20 +3962,6 @@
 - Implement pagination
 - Monitor for memory leaks</p>
 <hr />
-<h2 id="conclusion">Conclusion<a class="headerlink" href="#conclusion" title="Permanent link">&para;</a></h2>
-<p>FraiseQL provides <strong>excellent performance</strong> for typical GraphQL applications with minimal configuration. The exclusive Rust pipeline delivers:</p>
-<ul>
-<li><strong>2-4x faster</strong> than traditional frameworks</li>
-<li><strong>Sub-10ms responses</strong> for optimized queries</li>
-<li><strong>85-95% cache hit rates</strong> in production</li>
-<li><strong>Operational simplicity</strong> with PostgreSQL → Rust → HTTP architecture</li>
-</ul>
-<p><strong>Performance matters most when</strong>:
-- Building high-throughput APIs
-- Serving mobile/web applications
-- Optimizing for cost and operational complexity</p>
-<p><strong>Focus on developer productivity first</strong> - FraiseQL's Rust pipeline performance advantages compound with good application design.</p>
-<hr />
 <p><em>Performance Guide - Exclusive Rust Pipeline Architecture</em>
 <em>Last updated: October 2025</em></p>
 
@@ -3836,6 +3970,9 @@
 
 
 
+
+  
+  
 
 
 

@@ -1235,7 +1235,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../advanced/llm-integration.md" class="md-nav__link">
+      <a href="../../features/ai-native/" class="md-nav__link">
         
   
   
@@ -1609,7 +1609,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/nested-filters.md" class="md-nav__link">
+      <a href="../../filtering/nested-filters/" class="md-nav__link">
         
   
   
@@ -2758,6 +2758,14 @@
       
         
       
+        
+      
+        
+      
+        
+      
+        
+      
     
     
     
@@ -2812,6 +2820,118 @@
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/request-flow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Request Flow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/trinity-pattern/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trinity Pattern
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/type-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Type System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/cqrs-design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CQRS Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
               
             
               
@@ -3218,17 +3338,6 @@
         
       </ul>
     </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#summary" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Summary
-      
-    </span>
-  </a>
   
 </li>
       
@@ -3721,66 +3830,12 @@
 </span><span id="__span-26-2"><a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a><span class="k">await</span> <span class="n">db</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s2">&quot;users&quot;</span><span class="p">,</span> <span class="n">where</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;age&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;gt&quot;</span><span class="p">:</span> <span class="mi">18</span><span class="p">}})</span>
 </span></code></pre></div></p>
 <hr />
-<h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>Aspect</th>
-<th>WhereType</th>
-<th>Dict</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>Type Safety</strong></td>
-<td>✅ Full</td>
-<td>⚠️ Runtime only</td>
-</tr>
-<tr>
-<td><strong>IDE Support</strong></td>
-<td>✅ Autocomplete</td>
-<td>❌ No autocomplete</td>
-</tr>
-<tr>
-<td><strong>Syntax Verbosity</strong></td>
-<td>More verbose</td>
-<td>More concise</td>
-</tr>
-<tr>
-<td><strong>Dynamic Queries</strong></td>
-<td>Possible but awkward</td>
-<td>Natural and easy</td>
-</tr>
-<tr>
-<td><strong>Learning Curve</strong></td>
-<td>Steeper</td>
-<td>Gentler</td>
-</tr>
-<tr>
-<td><strong>Best For</strong></td>
-<td>Type-safe resolvers</td>
-<td>Dynamic queries</td>
-</tr>
-<tr>
-<td><strong>GraphQL Client Compat</strong></td>
-<td>Manual conversion</td>
-<td>Direct usage</td>
-</tr>
-<tr>
-<td><strong>CamelCase Input</strong></td>
-<td>Manual conversion</td>
-<td>Auto-conversion</td>
-</tr>
-</tbody>
-</table>
-<p><strong>Bottom Line:</strong> Use WhereType for type safety in static queries, Dict for flexibility in dynamic queries. Both support the same operators and nested filtering capabilities!</p>
-<hr />
 <h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong><a href="../advanced/where-input-types/">Where Input Types - Full Guide</a></strong> - Complete documentation</li>
-<li><strong><a href="../examples/dict-based-nested-filtering/">Dict-Based Nested Filtering</a></strong> - Dict syntax deep-dive</li>
-<li><strong><a href="../advanced/filter-operators/">Filter Operators Reference</a></strong> - All available operators</li>
-<li><strong><a href="../examples/advanced-filtering/">Advanced Filtering Examples</a></strong> - Real-world use cases</li>
+<li><strong><a href="../../advanced/where-input-types/">Where Input Types - Full Guide</a></strong> - Complete documentation</li>
+<li><strong><a href="../../examples/dict-based-nested-filtering/">Dict-Based Nested Filtering</a></strong> - Dict syntax deep-dive</li>
+<li><strong><a href="../../advanced/filter-operators/">Filter Operators Reference</a></strong> - All available operators</li>
+<li><strong><a href="../../examples/advanced-filtering/">Advanced Filtering Examples</a></strong> - Real-world use cases</li>
 </ul>
 
 
