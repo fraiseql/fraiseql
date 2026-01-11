@@ -1,0 +1,1172 @@
+# Automatic Persisted Queries (APQ) Specification
+
+**Status:** Stable
+**Version**: 1.0
+**Last Updated**: 2026-01-11
+
+## Overview
+
+**Automatic Persisted Queries (APQ)** is a protocol for optimizing GraphQL requests by allowing clients to send only a stable hash instead of the full query string. FraiseQL provides comprehensive APQ support with three distinct security modes and multiple storage backends for the query hash→query string mapping.
+
+### Key Benefits
+
+- **Reduced Bandwidth**: Send 64-character hash instead of multi-kilobyte queries
+- **Query Allowlisting**: Enforce only pre-approved queries in production
+- **Query String Storage**: Persistent hash→query mapping across restarts and instances
+- **Security**: Cryptographic validation of query integrity
+- **Production Safety**: Prevent arbitrary query injection attacks
+- **Compatible with Query Result Caching**: Works seamlessly with optional response caching layer (see Caching Specification)
+
+### Architecture
+
+```
+Client
+  ↓
+APQ Request (hash ± optional query for registration)
+  ↓
+FraiseQL Router
+  ├─ [Mode Enforcement] Check if arbitrary queries allowed
+  ├─ [Hash Validation] Extract and validate SHA-256 hash
+  ├─ [Query Resolution] Look up query string in APQ store
+  │  ├─ If registration: Store hash→query mapping for future use
+  │  └─ Get full query string from storage
+  ├─ [Query Result Cache Lookup] (Optional) Try cached result
+  ├─ [GraphQL Execution] Parse, validate, execute query with variables
+  └─ [Store Result Cache] (Optional) Cache query result if enabled
+  ↓
+Return Result (from cache or freshly computed)
+```
+
+---
+
+## Important: APQ vs Query Result Caching
+
+**APQ (this specification)**: Stores the **hash → query string mapping**. Clients send only the 64-character hash instead of the full query string, reducing bandwidth. The server looks up the full query before execution.
+
+**Query Result Caching** (separate feature, see Caching Specification): Optionally caches the **computed results** of queries to avoid re-execution. This is a completely separate feature that works alongside APQ.
+
+**How they work together**:
+1. Client sends: APQ hash + variables
+2. Server looks up query string from hash
+3. Server checks query result cache with (query + variables)
+4. If cache hit → return cached result (fastest path, no execution)
+5. If cache miss → execute query with variables → optionally cache result
+
+This spec focuses on APQ (steps 1-2). See the Caching Specification for query result caching (steps 3-5).
+
+---
+
+## Security Modes
+
+FraiseQL supports three APQ security modes, allowing you to balance flexibility with security based on your deployment environment.
+
+### OPTIONAL Mode (Default)
+
+**Configuration**:
+```python
+config = FraiseQLConfig(
+    database_url="postgresql://localhost/fraiseql_db",
+    apq_mode="optional"
+)
+```
+
+**Behavior**:
+- ✅ Accepts both persisted query hashes and full query strings
+- ✅ Allows new query registration (hash + query) on first request
+- ✅ Automatically stores queries for future hash-only requests
+- ✅ Useful for development and gradual client migration
+
+**Request Examples**:
+
+*First request - register and execute*:
+```json
+{
+  "extensions": {
+    "persistedQuery": {
+      "version": 1,
+      "sha256Hash": "e4c7e8f5a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7"
+    }
+  },
+  "query": "query { users { id name } }"
+}
+```
+
+*Subsequent request - hash only*:
+```json
+{
+  "extensions": {
+    "persistedQuery": {
+      "version": 1,
+      "sha256Hash": "e4c7e8f5a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7"
+    }
+  }
+}
+```
+
+**Use Cases**:
+- Development environments
+- Client SDKs during initial rollout
+- Mixed deployment scenarios (some clients updated, others not)
+
+---
+
+### REQUIRED Mode
+
+**Configuration**:
+```python
+config = FraiseQLConfig(
+    database_url="postgresql://localhost/fraiseql_db",
+    apq_mode="required"
+)
+```
+
+**Behavior**:
+- ✅ Only accepts persisted query hashes
+- ❌ Rejects all arbitrary (non-hash) queries
+- ✅ Requires all queries pre-registered (either at build-time or runtime)
+- ✅ Prevents query injection attacks and unauthorised GraphQL exploration
+- ⚠️ Clients must send hash + query on first request to register
+
+**Request Examples**:
+
+*Registration request (requires both)*:
+```json
+{
+  "extensions": {
+    "persistedQuery": {
+      "version": 1,
+      "sha256Hash": "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1"
+    }
+  },
+  "query": "query { products { id name price } }"
+}
+```
+
+*Subsequent request (hash only)*:
+```json
+{
+  "extensions": {
+    "persistedQuery": {
+      "version": 1,
+      "sha256Hash": "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1"
+    }
+  }
+}
+```
+
+*Arbitrary query (REJECTED)*:
+```json
+{
+  "query": "query { __schema { types { name } } }"
+}
+```
+
+**Response to Rejected Request**:
+```json
+{
+  "errors": [
+    {
+      "message": "Persisted queries required. Arbitrary queries are not allowed.",
+      "extensions": {
+        "code": "ARBITRARY_QUERY_NOT_ALLOWED",
+        "details": "Configure your client to use Automatic Persisted Queries (APQ) or register queries at build time."
+      }
+    }
+  ]
+}
+```
+
+**Use Cases**:
+- Production environments
+- Regulated industries (compliance/audit requirements)
+- High-security deployments
+- Preventing introspection-based attacks
+
+---
+
+### DISABLED Mode
+
+**Configuration**:
+```python
+config = FraiseQLConfig(
+    database_url="postgresql://localhost/fraiseql_db",
+    apq_mode="disabled"
+)
+```
+
+**Behavior**:
+- ✅ Accepts only full query strings (regular GraphQL requests)
+- ❌ Completely ignores APQ extensions
+- ❌ Queries with APQ hashes are treated as regular requests
+- ✅ Useful when APQ infrastructure is not needed
+
+**Request Examples**:
+
+*Regular query (processed normally)*:
+```json
+{
+  "query": "query { articles { id title content } }"
+}
+```
+
+*APQ request with hash (treated as regular, hash ignored)*:
+```json
+{
+  "extensions": {
+    "persistedQuery": {
+      "version": 1,
+      "sha256Hash": "..."
+    }
+  },
+  "query": "query { articles { id title content } }"
+}
+```
+
+*APQ hash-only request (FAILS - no query)*:
+```json
+{
+  "extensions": {
+    "persistedQuery": {
+      "version": 1,
+      "sha256Hash": "..."
+    }
+  }
+}
+```
+
+**Response to Hash-Only Request**:
+```json
+{
+  "errors": [
+    {
+      "message": "No query provided",
+      "extensions": {"code": "GRAPHQL_PARSE_FAILED"}
+    }
+  ]
+}
+```
+
+**Use Cases**:
+- Backward compatibility during migration
+- Environments without APQ infrastructure
+- Explicit opt-out of APQ features
+
+---
+
+## Query Hash Generation
+
+FraiseQL uses **SHA-256** hashing for deterministic query identification and security validation.
+
+### Hash Algorithm
+
+```python
+import hashlib
+
+def compute_query_hash(query: str) -> str:
+    """Compute SHA-256 hash of a GraphQL query."""
+    return hashlib.sha256(query.encode("utf-8")).hexdigest()
+```
+
+**Properties**:
+- **Algorithm**: SHA-256 (FIPS 180-4 standard)
+- **Output Length**: 64 hexadecimal characters (256 bits)
+- **Deterministic**: Same query → same hash
+- **Collision Resistant**: Different queries produce different hashes (cryptographically guaranteed)
+- **Case Sensitive**: `{ user { id } }` ≠ `{ user { ID } }`
+- **Whitespace Sensitive**: `{user{id}}` ≠ `{ user { id } }`
+
+### Variable-Aware Hashing (Security Critical)
+
+When variables are present in requests, they **must be included in the response cache key** to prevent data leakage between requests with different variables.
+
+```python
+import json
+
+def compute_response_cache_key(
+    query_hash: str,
+    variables: dict[str, Any] | None = None,
+) -> str:
+    """Compute response cache key including variables for security."""
+    if not variables or variables == {}:
+        return query_hash
+
+    # Normalize variables: sort keys for consistent hashing
+    var_json = json.dumps(variables, sort_keys=True, separators=(",", ":"))
+    combined = f"{query_hash}:{var_json}"
+    return hashlib.sha256(combined.encode()).hexdigest()
+```
+
+### Security Example: Preventing Data Leakage
+
+**Scenario**: Cached response from User A's request leaks to User B
+
+```python
+# User A requests: query getUser($userId: ID!) with userId: "alice-123"
+query_hash = "e4c7e8f5a1b2c3d4..."
+variables_a = {"userId": "alice-123"}
+cache_key_a = compute_response_cache_key(query_hash, variables_a)
+
+# User B requests: same query with userId: "bob-456"
+variables_b = {"userId": "bob-456"}
+cache_key_b = compute_response_cache_key(query_hash, variables_b)
+
+# CRITICAL: Different cache keys prevent data leakage!
+assert cache_key_a != cache_key_b
+# Result: cache_key_a = "hash:{"userId":"alice-123"}" (SHA-256)
+# Result: cache_key_b = "hash:{"userId":"bob-456"}" (SHA-256)
+```
+
+Without variable-aware cache keys, both users would receive the same cached response containing Alice's data.
+
+### Computing Hashes in Clients
+
+**JavaScript/Apollo Client**:
+```javascript
+import crypto from 'crypto';
+
+function computeAPQHash(query) {
+  return crypto
+    .createHash('sha256')
+    .update(query)
+    .digest('hex');
+}
+
+const hash = computeAPQHash(query);
+```
+
+**Python Client**:
+```python
+import hashlib
+
+def compute_apq_hash(query: str) -> str:
+    return hashlib.sha256(query.encode()).hexdigest()
+```
+
+---
+
+## APQ Query Storage Backends
+
+FraiseQL provides three storage backend options for the hash→query string mapping: in-memory (development), database (production), and pluggable custom backends. These store the association between query hashes and their full GraphQL query strings.
+
+### Memory Backend (Development)
+
+**Configuration**:
+```python
+config = FraiseQLConfig(
+    database_url="postgresql://localhost/fraiseql_db",
+    apq_storage_backend="memory",  # Default for local development
+)
+```
+
+**Characteristics**:
+- ✅ **No external dependencies** - uses Python dict
+- ✅ **Fast** - < 1µs lookups
+- ✅ **Simple** - zero configuration
+- ❌ **Non-persistent** - queries lost on process restart
+- ❌ **Non-scalable** - single process only
+- ❌ **No cluster support** - each pod has separate storage
+
+**Data Storage**:
+```python
+# In-process dictionary: hash → query string mapping
+_query_storage = {
+    "e4c7e8f5...": "query { users { id name } }",
+    "a1b2c3d4...": "query { products { id price } }",
+}
+```
+
+**Purpose**:
+- Maps query hashes to full GraphQL query strings
+- Enables clients to send only hash in subsequent requests
+- No tenant isolation needed (queries are not sensitive data; they're the schema contract)
+
+**Use Cases**:
+- Local development
+- CI/CD pipelines
+- Single-instance deployments
+- Testing environments
+
+---
+
+### Database Backend (Production)
+
+**Configuration**:
+```python
+config = FraiseQLConfig(
+    database_url="postgresql://localhost/fraiseql_db",
+    apq_storage_backend="database",
+    apq_backend_config={
+        "table_prefix": "apq_",
+        "auto_create_tables": True,
+        "connection_timeout": 30,
+    }
+)
+```
+
+**Database Tables**:
+
+#### apq_queries Table
+```sql
+CREATE TABLE apq_queries (
+    hash VARCHAR(64) PRIMARY KEY,
+    query TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Index for efficient storage
+CREATE INDEX idx_apq_queries_created ON apq_queries (created_at);
+```
+
+**Columns**:
+- `hash`: SHA-256 hash (64 chars) - unique identifier
+- `query`: Full GraphQL query string - text field for storage
+- `created_at`: Registration timestamp (UTC)
+- `updated_at`: Last access timestamp (UTC)
+
+**Purpose**: Stores the hash→query string mapping for all registered persisted queries. This is NOT a response cache, but a lookup table that persists across restarts and instances.
+
+**Characteristics**:
+- ✅ **Persistent** - survives process restarts
+- ✅ **Scalable** - shared across multiple instances
+- ✅ **Cluster-ready** - all pods use same database
+- ✅ **Observable** - can query storage via SQL
+- ⚠️ **Latency** - 10-50ms lookups (vs < 1µs in-memory)
+- ⚠️ **Dependencies** - requires compatible database (PostgreSQL 13+, or other supported databases)
+
+**Performance**:
+- Query lookup: ~15-30ms (cold cache), < 2ms (warm)
+- Memory usage: Minimal (queries stored in database, not process memory)
+
+**Use Cases**:
+- Production deployments
+- Multi-instance/cluster setups
+- Long-running services (> 24 hours)
+- High-availability requirements
+
+**Maintenance**:
+
+Monitor storage usage (PostgreSQL example):
+```sql
+-- Check APQ query table size
+SELECT
+    pg_size_pretty(pg_total_relation_size('apq_queries')) as table_size,
+    count(*) as query_count
+FROM apq_queries;
+```
+
+Clean up unused queries (optional):
+```sql
+-- View queries by registration date
+SELECT hash, created_at, length(query) as query_size
+FROM apq_queries
+ORDER BY created_at DESC;
+
+-- Delete very old queries if needed (careful: clients may still reference)
+DELETE FROM apq_queries
+WHERE created_at < CURRENT_TIMESTAMP - INTERVAL '30 days';
+```
+
+---
+
+### Custom Backend (Pluggable)
+
+For specialized use cases (Redis, DynamoDB, custom cache), implement a custom backend:
+
+**Configuration**:
+```python
+config = FraiseQLConfig(
+    database_url="postgresql://localhost/fraiseql_db",
+    apq_storage_backend="custom",
+    apq_backend_config={
+        "backend_class": "myapp.storage.RedisAPQBackend",
+        "redis_url": "redis://localhost:6379/0",
+        "ttl": 3600,  # 1 hour
+    }
+)
+```
+
+**Custom Backend Interface**:
+
+Custom backends must implement the APQ storage interface with the following methods:
+
+- `get_persisted_query(hash_value)` → query string or None
+- `store_persisted_query(hash_value, query)` → None
+- `register_queries(queries)` → dict mapping hash to query
+- `get_storage_stats()` → dict with backend statistics
+
+**Example Use Cases**:
+- Redis backend for distributed systems
+- DynamoDB for AWS deployments
+- Memcached for lightweight caching
+- Custom database backends
+
+**Backend Discovery**:
+- FraiseQL dynamically imports backend class via reflection
+- Class must be importable from full path (module.ClassName)
+- Receives `apq_backend_config` dict in constructor
+
+---
+
+## Query Registration Workflow
+
+### Build-Time Registration (Recommended for Production)
+
+Pre-register all queries at application startup for zero-latency registration:
+
+**File Structure**:
+```
+src/
+├── graphql/
+│   ├── queries/
+│   │   ├── user.graphql
+│   │   ├── products.graphql
+│   │   └── orders.graphql
+│   └── mutations/
+│       ├── createUser.graphql
+│       └── updateProduct.graphql
+```
+
+**Configuration**:
+```python
+config = FraiseQLConfig(
+    database_url="postgresql://localhost/fraiseql_db",
+    apq_mode="required",
+    apq_storage_backend="postgresql",
+    apq_queries_dir="./src/graphql",  # Auto-load at startup
+)
+```
+
+**Behavior**:
+1. On startup, FraiseQL scans `apq_queries_dir` recursively
+2. Finds all `.graphql` and `.gql` files
+3. Extracts individual queries/mutations/subscriptions from each file
+4. Computes SHA-256 hash for each operation
+5. Stores in selected backend (memory or database)
+6. Ready to serve hash-only APQ requests
+
+**Benefits**:
+- ✅ Zero registration latency (pre-loaded)
+- ✅ Deterministic hashes (reproducible builds)
+- ✅ Enforces "known queries only" in production
+- ✅ Enables build-time optimization
+
+### Runtime Registration (Dynamic)
+
+Allow clients to register new queries on first request:
+
+**Configuration**:
+```python
+config = FraiseQLConfig(
+    database_url="postgresql://localhost/fraiseql_db",
+    apq_mode="optional",  # Allows registration
+    apq_storage_backend="postgresql",
+    # No apq_queries_dir - start empty
+)
+```
+
+**Registration Flow**:
+
+*First request (register)*:
+```json
+POST /graphql HTTP/1.1
+
+{
+  "extensions": {
+    "persistedQuery": {
+      "version": 1,
+      "sha256Hash": "e4c7e8f5a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7"
+    }
+  },
+  "query": "query GetUser($id: ID!) { user(id: $id) { id name email } }",
+  "variables": {"id": "user-123"}
+}
+```
+
+*Server processes*:
+1. Extracts hash: `e4c7e8f5...`
+2. Stores query in backend: `e4c7e8f5... → "query GetUser..."`
+3. Executes request normally
+4. Stores response in cache (if enabled)
+5. Returns response
+
+*Subsequent requests (cached)*:
+```json
+POST /graphql HTTP/1.1
+
+{
+  "extensions": {
+    "persistedQuery": {
+      "version": 1,
+      "sha256Hash": "e4c7e8f5a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7"
+    }
+  },
+  "variables": {"id": "user-456"}
+}
+```
+
+*Server processes*:
+1. Extracts hash: `e4c7e8f5...`
+2. Looks up query in backend: Found!
+3. Tries response cache with variables hash
+4. If cache miss, executes query
+5. Stores response in cache
+6. Returns response
+
+**Benefits**:
+- ✅ Client-driven optimization
+- ✅ Gradual adoption (mixed deployment)
+- ✅ Flexible (no pre-registration needed)
+- ⚠️ First request slower (registration + execution)
+
+---
+
+## Query Result Caching Integration (Optional Feature)
+
+APQ can optionally work with Query Result Caching (a separate feature described in the Caching Specification). Query result caching provides a fast path that bypasses GraphQL execution entirely for previously computed results. This section describes how APQ integrates with query result caching when enabled.
+
+### Architecture
+
+**Two-Layer System**:
+
+```
+Request
+  ↓
+Layer 1: Response Cache (JSON passthrough)
+  ├─ Hit: Return pre-computed JSON response directly (fastest!)
+  └─ Miss: Continue to query execution
+  ↓
+Layer 2: GraphQL Execution
+  ├─ Parse query
+  ├─ Validate
+  ├─ Execute through Rust pipeline
+  └─ Compute response
+  ↓
+Store in Response Cache
+  ↓
+Return Response
+```
+
+**Performance Impact**:
+- Response cache hit: ~1-50ms (depending on backend)
+- Cache miss: Normal execution time (100-500ms+)
+- Overall improvement: 5-20x throughput increase (with 60-80% hit rate)
+
+### Configuration
+
+```python
+config = FraiseQLConfig(
+    database_url="postgresql://localhost/fraiseql_db",
+    apq_mode="optional",
+    apq_storage_backend="database",
+    # Query result caching configuration (see Caching Specification)
+    cache_enabled=True,
+    cache_default_ttl=300,              # 5 minutes default
+    cache_include_complexity=True,
+)
+```
+
+**Note**: Query result caching is configured separately from APQ. See the Caching Specification for complete configuration options including TTL, backends, and complexity-aware settings.
+
+### Cache Key Generation (Query Result Caching)
+
+When query result caching is enabled, the cache key includes:
+- Query hash (SHA-256 of normalized query)
+- Variables (normalized, sorted JSON)
+- Tenant ID (for multi-tenant isolation)
+- Complexity tier (for complexity-aware TTL)
+
+**Key Construction**:
+```
+cache_key = sha256(query_hash + ":" + sorted_variables_json + ":" + tenant_id + ":" + complexity)
+```
+
+**Security Property**:
+
+Each unique combination of (query + variables + tenant) produces a different cache key. This prevents data leakage:
+
+- Request A: query hash + variables `{"userId": "alice"}` → cache key A
+- Request B: query hash + variables `{"userId": "bob"}` → cache key B
+- Result: Different cache keys, no data leakage between users
+
+### Storing Query Results (Query Result Caching)
+
+When query result caching is enabled:
+
+**Automatic Flow**:
+1. GraphQL query executes normally
+2. Result computed
+3. If no errors and result has data:
+   - Filter result by requested fields (defense in depth)
+   - Include tenant_id for multi-tenant isolation
+   - Store in cache backend with TTL
+4. Subsequent requests with same query + variables hit cache (no execution needed)
+
+### Field Selection Filtering (Defense in Depth)
+
+Both APQ and Query Result Caching implement field selection filtering as a security measure. When processing a persisted query request, FraiseQL automatically filters the response to include only the fields requested in the original query.
+
+**Where Applied**:
+1. APQ responses (even if hash-only request) - before returning to client
+2. Query result cache entries (before caching) - prevent over-caching of sensitive data
+
+**Process**:
+1. Parse query's selection set (which fields were requested)
+2. Identify requested fields from GraphQL AST
+3. Remove non-requested fields from response
+4. Return filtered response to client or cache
+
+**Example**:
+
+Query: `query GetUser { user { id name } }` (only `id` and `name` requested)
+
+Response before filtering:
+```json
+{"data": {"user": {"id": "123", "name": "Alice", "email": "alice@example.com", "ssn": "123-45-6789"}}}
+```
+
+Response after field selection filtering:
+```json
+{"data": {"user": {"id": "123", "name": "Alice"}}}
+```
+
+**Benefits**:
+- Even if database response includes sensitive fields (email, SSN, etc.), only requested fields are returned
+- Prevents accidental data leakage via responses
+- Applied consistently whether using APQ or not
+- Query result cache entries are also filtered, preventing over-caching of sensitive data
+
+### Query Result Cache Invalidation
+
+Query result cache invalidation is managed by the query result caching system. See the Caching Specification for details on:
+- TTL-based automatic expiration
+- Complexity-aware TTL policies
+- Manual cache invalidation
+- graphql-cascade integration for mutation-based invalidation
+
+---
+
+## Production Configuration Examples
+
+### Development Environment
+
+```python
+config = FraiseQLConfig(
+    database_url="postgresql://localhost/fraiseql_db",
+    apq_mode="optional",                    # Allow registration
+    apq_storage_backend="memory",           # Fast, no persistence needed
+    apq_cache_responses=True,               # Optimization
+    apq_response_cache_ttl=300,             # 5 minutes
+)
+```
+
+**Environment Variables**:
+```bash
+FRAISEQL_DATABASE_URL=postgresql://localhost/fraiseql_db
+FRAISEQL_APQ_MODE=optional
+FRAISEQL_APQ_STORAGE_BACKEND=memory
+FRAISEQL_APQ_CACHE_RESPONSES=true
+FRAISEQL_APQ_RESPONSE_CACHE_TTL=300
+FRAISEQL_APQ_QUERIES_DIR=./src/graphql
+```
+
+### Staging Environment
+
+```python
+config = FraiseQLConfig(
+    database_url="postgresql://pg-staging/fraiseql_db",
+    apq_mode="optional",                    # Allow client registration
+    apq_storage_backend="database",         # Persistent
+    apq_cache_responses=True,
+    apq_response_cache_ttl=600,             # 10 minutes
+    apq_backend_config={
+        "auto_create_tables": True,
+    }
+)
+```
+
+### Production Environment
+
+```python
+config = FraiseQLConfig(
+    database_url="postgresql://pg-prod-1/fraiseql_db",
+    apq_mode="required",                    # Only persisted queries
+    apq_storage_backend="database",         # Persistent, shared
+    apq_cache_responses=True,
+    apq_response_cache_ttl=1800,            # 30 minutes
+    apq_queries_dir="./dist/graphql",       # Pre-built queries
+    apq_backend_config={
+        "table_prefix": "apq_",
+        "auto_create_tables": False,        # Pre-created for safety
+        "connection_timeout": 30,
+    }
+)
+```
+
+**Environment Variables**:
+```bash
+# Production APQ configuration
+FRAISEQL_APQ_MODE=required
+FRAISEQL_APQ_STORAGE_BACKEND=database
+FRAISEQL_APQ_CACHE_RESPONSES=true
+FRAISEQL_APQ_RESPONSE_CACHE_TTL=1800
+FRAISEQL_APQ_QUERIES_DIR=/app/dist/graphql
+```
+
+---
+
+## Metrics and Monitoring
+
+FraiseQL provides comprehensive metrics for APQ operations.
+
+### Key Metrics
+
+**Query Cache Metrics** (persisted query lookup):
+- `query_cache_hits`: Number of successful hash lookups
+- `query_cache_misses`: Hashes not found (PERSISTED_QUERY_NOT_FOUND errors)
+- `query_cache_hit_rate`: Percentage of successful lookups (0.0 to 1.0)
+
+**Response Cache Metrics** (JSON passthrough cache):
+- `response_cache_hits`: Number of cached responses returned
+- `response_cache_misses`: Cache misses requiring execution
+- `response_cache_hit_rate`: Percentage of responses from cache
+- `response_cache_stores`: New responses cached
+
+**Storage Metrics**:
+- `stored_queries_count`: Total persisted queries
+- `cached_responses_count`: Total cached responses
+- `total_storage_bytes`: Approximate storage size
+
+**Performance Metrics**:
+- `avg_query_parse_time_ms`: Average time to parse queries
+- `cache_lookup_time_ms`: Time to look up in backend
+
+### Monitoring Integration
+
+**Prometheus Metrics** (exported automatically):
+```prometheus
+fraiseql_apq_query_cache_hits_total
+fraiseql_apq_query_cache_misses_total
+fraiseql_apq_response_cache_hits_total
+fraiseql_apq_response_cache_misses_total
+fraiseql_apq_stored_queries_count
+fraiseql_apq_response_cache_size_bytes
+```
+
+**Health Check Endpoint**:
+```python
+# GET /health includes APQ metrics
+{
+    "status": "healthy",
+    "apq": {
+        "query_cache_hit_rate": 0.85,
+        "response_cache_hit_rate": 0.72,
+        "stored_queries_count": 342,
+        "cached_responses_count": 15234
+    }
+}
+```
+
+### Dashboard Recommendations
+
+1. **Cache Hit Rates**
+   - Monitor trend over time
+   - Target: > 70% response cache hit rate
+   - Low hit rate indicates:
+     - Too many unique queries (APQ not effective)
+     - Queries executed infrequently
+     - TTL too short
+
+2. **Error Rates**
+   - Monitor PERSISTED_QUERY_NOT_FOUND errors
+   - Sudden spike indicates:
+     - Client misconfiguration
+     - Query hash mismatch
+     - Backend storage issue
+
+3. **Storage Usage**
+   - Monitor stored_queries_count trend
+   - Monitor response cache size
+   - Set alerts for runaway storage growth
+
+4. **Performance**
+   - p99 query cache lookup: < 10ms
+   - p99 response cache hit: < 50ms
+   - p99 response cache miss + execution: 100-500ms+
+
+---
+
+## Troubleshooting
+
+### PERSISTED_QUERY_NOT_FOUND Error
+
+**Symptom**: Clients receive "PersistedQueryNotFound" errors
+
+**Causes**:
+1. Query hash mismatch between client and server
+2. Query not registered (in required mode)
+3. Storage backend lost data (memory backend restart)
+4. Whitespace differences in query string
+
+**Solutions**:
+1. Verify hash matches: recompute SHA-256 of query string
+2. In `optional` mode, send query with hash to register
+3. Use persistent backend (PostgreSQL) instead of memory
+4. Ensure query strings are identical (whitespace sensitive!)
+
+### Response Cache Misses (Low Hit Rate)
+
+**Symptom**: Response cache hit rate < 50%
+
+**Causes**:
+1. Each query executes with different variables (unique cache keys)
+2. TTL too short for query frequency
+3. Response caching disabled
+4. Queries have errors (not cached)
+
+**Solutions**:
+1. Verify queries are reused with same variables (use APQ registration metrics)
+2. Increase `apq_response_cache_ttl`
+3. Enable with `apq_cache_responses=true`
+4. Check for errors in responses (not cached by design)
+
+### ARBITRARY_QUERY_NOT_ALLOWED Error
+
+**Symptom**: Clients in `required` mode send queries without hashes
+
+**Causes**:
+1. Client not configured for APQ
+2. Client APQ support disabled
+3. Query not pre-registered
+
+**Solutions**:
+1. Configure client for APQ (Apollo Client, Relay, etc.)
+2. Enable APQ in client SDK
+3. Register query: send hash + query to register
+
+### Backend Storage Issues (Database)
+
+**Symptom**: Queries stored but not retrievable
+
+**Causes**:
+1. Table not created (auto_create_tables=false but table missing)
+2. Permission denied on apq_queries or apq_responses table
+3. Disk full
+4. Connection pool exhausted
+
+**Solutions**:
+1. Create tables manually (see Schema section above)
+2. Grant permissions (example for PostgreSQL): `GRANT ALL ON apq_* TO fraiseql_user`
+3. Check disk space (example for PostgreSQL): `SELECT pg_database_size('fraiseql_db')`
+4. Increase connection pool size
+
+### Memory Backend Queries Lost After Restart
+
+**Symptom**: Hash-only requests fail after pod restart
+
+**Causes**:
+1. Using memory backend in production
+2. Queries not pre-registered
+
+**Solutions**:
+1. Switch to database backend: `apq_storage_backend="database"`
+2. Pre-register queries: set `apq_queries_dir` and restart
+
+---
+
+## Security Considerations
+
+### Query Allowlisting Security
+
+APQ in `required` mode provides defense-in-depth against:
+
+**Introspection Attacks**:
+- Arbitrary queries rejected in required mode
+- Cannot execute `{ __schema { ... } }` queries
+- Prevents schema inference by malicious actors
+
+**Injection Attacks**:
+- Only pre-approved queries execute
+- Prevents dynamic query construction
+- Cannot execute unexpected operations
+
+**DoS Attacks**:
+- Complex query expressions blocked
+- Only pre-registered queries allowed
+- Prevents algorithmic complexity attacks
+
+### Variable Handling
+
+**Security**: Variables are included in response cache keys
+
+```python
+# User A
+query_hash = "abc123..."
+variables = {"userId": "alice"}
+cache_key_a = sha256(f"{query_hash}:{json.dumps(variables)}")
+
+# User B (different variables)
+variables = {"userId": "bob"}
+cache_key_b = sha256(f"{query_hash}:{json.dumps(variables)}")
+
+# assert cache_key_a != cache_key_b  ✅ Prevents data leakage
+```
+
+### Multi-Tenant Isolation
+
+**Tenant ID in Cache Keys**:
+```python
+# Query hash: e4c7e8f5...
+# Tenant A: caches response with tenant_id="tenant-123"
+# Tenant B: caches response with tenant_id="tenant-456"
+# Never mixed
+```
+
+### Sensitive Data in Error Responses
+
+**Safe**:
+```json
+{
+  "errors": [{
+    "message": "PersistedQueryNotFound",
+    "extensions": {"code": "PERSISTED_QUERY_NOT_FOUND"}
+  }]
+}
+```
+
+**Unsafe** (avoid):
+```json
+{
+  "errors": [{
+    "message": "Query 'SELECT * FROM users' not found",
+    "extensions": {"provided_query": "SELECT * FROM users"}
+  }]
+}
+```
+
+---
+
+## Migration Guide: From Arbitrary Queries to APQ
+
+### Phase 1: Preparation (Week 1)
+
+1. Enable APQ in `optional` mode (accept both)
+2. Deploy client-side APQ support
+3. Monitor metrics (should see 0% response cache hits initially)
+4. Create `graphql/` directory with `.graphql` files
+
+### Phase 2: Adoption (Week 2-3)
+
+1. Deploy production build with APQ-enabled clients
+2. Monitor query registration (new hashes appearing)
+3. Verify response cache hit rate increases
+4. Pre-register high-frequency queries
+
+### Phase 3: Enforcement (Week 4)
+
+1. Switch to `required` mode on staging
+2. Test that only registered queries execute
+3. Verify client handles ARBITRARY_QUERY_NOT_ALLOWED
+4. Plan rollout schedule
+
+### Phase 4: Production Rollout (Week 5)
+
+1. Switch to `required` mode in production
+2. Enable APQ in all client builds
+3. Monitor error rate (should be 0 if done correctly)
+4. Maintain `optional` mode for legacy clients temporarily
+
+### Phase 5: Optimization (Ongoing)
+
+1. Monitor response cache hit rate
+2. Adjust TTL based on usage patterns
+3. Gradually migrate legacy clients
+4. Remove deprecated endpoints
+
+---
+
+## Client Integration Examples
+
+### Apollo Client (JavaScript)
+
+```javascript
+import { ApolloClient, InMemoryCache } from '@apollo/client';
+import { createPersistedQueryLink } from '@apollo/client/link/persisted-queries';
+import { HttpLink } from '@apollo/client/link/http';
+import sha256 from 'crypto-js/sha256';
+
+const client = new ApolloClient({
+  link: createPersistedQueryLink({
+    useGETForHashedQueries: true,
+    sha256: (query) => sha256(query).toString(),
+  }).concat(
+    new HttpLink({
+      uri: 'https://api.example.com/graphql',
+      credentials: 'include',
+    })
+  ),
+  cache: new InMemoryCache(),
+});
+```
+
+### Relay (JavaScript)
+
+```javascript
+import { createRelayNetworkLayer } from 'react-relay-network-layer/lib/index.js';
+
+const network = createRelayNetworkLayer(
+  [
+    {
+      url: () => Promise.resolve('https://api.example.com/graphql'),
+      init: () => ({
+        credentials: 'include',
+      }),
+      apq: {
+        sha256Hash: (query) => crypto.createHash('sha256').update(query).digest('hex'),
+      },
+    },
+  ],
+  { disableBatching: false }
+);
+```
+
+### Python Client
+
+Python GraphQL clients (e.g., `gql`, `sgqlc`) support APQ through transport options:
+
+```
+transport = HttpTransport(
+    url='https://api.example.com/graphql',
+    apq_enabled=True,
+)
+client = Client(transport=transport)
+```
+
+The client library automatically:
+- Computes SHA-256 hash of each query
+- Sends hash-only requests
+- Falls back to hash + query on first request (registration)
+- Caches registered queries locally
+
+---
+
+## Conclusion
+
+Automatic Persisted Queries (APQ) in FraiseQL provides a bandwidth optimization mechanism by storing hash→query string mappings. APQ allows clients to send only a 64-character hash instead of multi-kilobyte query strings, while improving security through query allowlisting in production.
+
+APQ is a standalone feature separate from Query Result Caching, though they work well together:
+- **APQ** (this spec) = Reduce request size by sending hash instead of query string
+- **Query Result Caching** (see Caching Spec) = Optionally avoid execution by caching results
+
+**Key Takeaways**:
+- ✅ **APQ Storage**:
+  - Development: `optional` mode + memory backend
+  - Staging: `optional` mode + database backend
+  - Production: `required` mode + database backend + pre-registered queries
+- ✅ **Query Result Caching** (separate feature):
+  - Enable for 5-20x throughput improvement
+  - Complexity-aware TTL for smart cache duration
+  - Automatic invalidation via graphql-cascade
+  - See Caching Specification for details
+- ✅ **Security**: Variable-inclusive cache keys prevent data leakage between requests
+- ✅ **Monitoring**: Track APQ query registration and query result cache hit rates separately
