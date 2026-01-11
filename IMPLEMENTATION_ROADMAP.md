@@ -360,29 +360,34 @@ fraiseql/
 
 ---
 
-### Phase 8: Python FFI (Week 9)
+### Phase 8: Python Schema Authoring (Week 9)
 
-**Goal**: Build Python bindings with PyO3
+**Goal**: Build Python decorator package (authoring-only, no runtime FFI)
+
+**Architecture Note**: Python is ONLY for authoring schemas, NOT runtime execution.
+Python decorators generate JSON schema files that are compiled by `fraiseql-cli`.
+There is NO PyO3/FFI layer - the compiled Rust engine runs standalone.
 
 **Tasks**:
-1. 🔧 Copy `fraiseql-python/` structure from v1
-2. ❌ Implement decorator system:
-   - `@fraiseql.type` → JSON
-   - `@fraiseql.query` → JSON
-   - `@fraiseql.mutation` → JSON
-3. ❌ Implement FFI bindings:
-   - Schema compilation
-   - Query execution
-4. ✅ Write Python tests
+1. 🔧 Copy `fraiseql-python/` decorator structure from v1
+2. ❌ Implement decorator system (JSON output only):
+   - `@fraiseql.type` → JSON schema
+   - `@fraiseql.query` → JSON schema
+   - `@fraiseql.mutation` → JSON schema
+   - NO FFI bindings to Rust (compile-time only)
+3. ❌ Implement schema file writer:
+   - Output: `schema.json` (for fraiseql-cli to compile)
+   - NO runtime Rust calls
+4. ✅ Write Python tests (decorator → JSON validation)
 5. ✅ Build wheel packaging
 
 **Deliverables**:
-- Python package with decorators
-- FFI bindings to Rust core
+- Python package with decorators (authoring-only)
+- JSON schema output (consumed by fraiseql-cli)
 - Python tests passing
 - Pip-installable wheel
 
-**Effort**: 5-7 days
+**Effort**: 3-4 days (reduced - no FFI complexity)
 
 ---
 
@@ -390,23 +395,29 @@ fraiseql/
 
 **Goal**: Build CLI for schema compilation and dev server
 
+**Architecture Note**: The CLI is the bridge between authoring (Python/TS → JSON)
+and runtime (CompiledSchema → Execution). It compiles JSON schemas into optimized
+Rust-native CompiledSchema files.
+
 **Tasks**:
 1. ❌ Implement `cli/commands/compile.rs`:
-   - Read schema files
-   - Compile to CompiledSchema JSON
-   - Output to file
+   - Read `schema.json` (from Python/TS decorators)
+   - Parse and validate schema structure
+   - Generate `schema.compiled.json` (CompiledSchema format)
+   - Optimize SQL templates
 2. ❌ Implement `cli/commands/validate.rs`:
    - Validate schema without compilation
-   - Report errors
+   - Report errors with line numbers
 3. ❌ Implement `cli/commands/serve.rs`:
-   - Development server
-   - Auto-reload on schema changes
+   - Development server (wraps fraiseql-server)
+   - Watch `schema.json` for changes
+   - Auto-recompile and reload
 4. ✅ Write CLI tests
 5. ✅ Add CLI documentation
 
 **Deliverables**:
 - CLI tool with compile/validate/serve commands
-- Dev server with auto-reload
+- Dev server with hot-reload
 - CLI tests passing
 - User documentation
 

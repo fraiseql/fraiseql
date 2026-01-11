@@ -4,9 +4,9 @@
 [workspace]
 members = [
     "crates/fraiseql-core",
-    # "crates/fraiseql-server",    # Phase 6
-    # "crates/fraiseql-cli",        # Phase 9
-    # "crates/fraiseql-python",     # Phase 8
+    # "crates/fraiseql-server",    # Phase 6 - HTTP server for compiled executor
+    # "crates/fraiseql-cli",        # Phase 9 - CLI for schema compilation
+    # NOTE: No fraiseql-python crate - Python is authoring-only (decorators → JSON)
 ]
 resolver = "2"
 
