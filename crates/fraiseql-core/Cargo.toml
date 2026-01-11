@@ -1,0 +1,67 @@
+[package]
+name = "fraiseql-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Core execution engine for FraiseQL v2 - Compiled GraphQL over SQL"
+
+[dependencies]
+# Workspace dependencies
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+futures = { workspace = true }
+
+# Database
+tokio-postgres = { workspace = true }
+deadpool-postgres = { workspace = true }
+postgres-native-tls = { workspace = true }
+native-tls = { workspace = true }
+deadpool = { workspace = true }
+
+# GraphQL
+graphql-parser = { workspace = true }
+
+# Utilities
+bytes = { workspace = true }
+regex = { workspace = true }
+lazy_static = { workspace = true }
+once_cell = { workspace = true }
+itertools = { workspace = true }
+lru = { workspace = true }
+linked-hash-map = { workspace = true }
+sha2 = { workspace = true }
+hex = { workspace = true }
+jsonwebtoken = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+rand = { workspace = true }
+reqwest = { workspace = true }
+toml = { workspace = true }
+parking_lot = { workspace = true }
+dashmap = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio-test = "0.4"
+criterion = "0.5"
+
+[[bench]]
+name = "schema_benchmark"
+harness = false
+
+[[bench]]
+name = "cache_benchmark"
+harness = false

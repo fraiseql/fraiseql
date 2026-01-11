@@ -1,0 +1,149 @@
+# FraiseQL v2 - Compiled GraphQL Execution Engine
+# Workspace root configuration
+
+[workspace]
+members = [
+    "crates/fraiseql-core",
+    # "crates/fraiseql-server",    # Phase 6
+    # "crates/fraiseql-cli",        # Phase 9
+    # "crates/fraiseql-python",     # Phase 8
+]
+resolver = "2"
+
+[workspace.package]
+version = "2.0.0-alpha.1"
+edition = "2021"
+rust-version = "1.75"  # MSRV
+authors = ["FraiseQL Team <team@fraiseql.dev>"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/fraiseql/fraiseql"
+homepage = "https://fraiseql.dev"
+documentation = "https://docs.fraiseql.dev"
+keywords = ["graphql", "database", "compiler", "sql"]
+categories = ["database", "web-programming"]
+
+[workspace.dependencies]
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Error handling
+thiserror = "2.0"
+anyhow = "1.0"
+
+# Async runtime
+tokio = { version = "1.0", features = ["full"] }
+async-trait = "0.1"
+futures = "0.3"
+
+# Database drivers
+# PostgreSQL
+tokio-postgres = { version = "0.7", features = ["with-serde_json-1"] }
+deadpool-postgres = "0.14"
+postgres-native-tls = "0.5"
+
+# MySQL
+sqlx = { version = "0.8", features = ["mysql", "runtime-tokio", "json"] }
+
+# SQL Server
+# tiberius = { version = "0.12" }
+
+# SQLite
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+# Connection pooling
+deadpool = "0.12"
+
+# TLS
+native-tls = "0.2"
+
+# HTTP server (Axum)
+axum = { version = "0.7" }
+tower = { version = "0.5" }
+tower-http = { version = "0.5", features = ["cors", "compression-gzip"] }
+hyper = { version = "1.0" }
+
+# GraphQL parsing
+graphql-parser = "0.4"
+
+# Utilities
+bytes = "1.0"
+regex = "1.10"
+lazy_static = "1.4"
+once_cell = "1.19"
+itertools = "0.13"
+
+# Caching
+lru = "0.12"
+linked-hash-map = "0.5"
+
+# Crypto
+sha2 = "0.10"
+hex = "0.4"
+jsonwebtoken = "9.2"
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# UUID
+uuid = { version = "1.0", features = ["v4", "serde"] }
+
+# Random
+rand = "0.8"
+
+# HTTP client
+reqwest = { version = "0.12", features = ["json"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Configuration
+toml = "0.8"
+
+# Parking lot (faster mutexes)
+parking_lot = "0.12"
+dashmap = "6.0"
+
+# Python FFI (for fraiseql-python crate)
+pyo3 = { version = "0.25", features = ["extension-module", "experimental-async"] }
+pyo3-async-runtimes = { version = "0.25", features = ["tokio-runtime"] }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+unused_imports = "warn"
+unused_variables = "warn"
+dead_code = "warn"
+
+[workspace.lints.clippy]
+# Deny all warnings in CI
+all = "deny"
+pedantic = "deny"
+nursery = "warn"  # Nursery is experimental, keep as warn
+cargo = "deny"
+
+# Allow some pedantic lints that are too strict for practical use
+too_many_lines = "allow"
+module_name_repetitions = "allow"
+similar_names = "allow"
+must_use_candidate = "allow"  # We'll use this selectively
+missing_errors_doc = "allow"   # Can be too verbose
+missing_panics_doc = "allow"   # Can be too verbose
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+strip = true
+
+[profile.dev]
+opt-level = 0
+debug = true
+
+[profile.test]
+opt-level = 1
+
+[profile.bench]
+opt-level = 3
+lto = "thin"

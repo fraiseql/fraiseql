@@ -1,0 +1,30 @@
+# Clippy configuration for FraiseQL v2
+# https://rust-lang.github.io/rust-clippy/master/index.html#configuration
+
+# Cognitive complexity threshold
+cognitive-complexity-threshold = 30
+
+# Maximum allowed struct fields
+max-struct-bools = 3
+max-fn-params-bools = 3
+
+# Type complexity
+type-complexity-threshold = 500
+
+# Documentation
+doc-valid-idents = ["FraiseQL", "GraphQL", "PostgreSQL", "MySQL", "SQLite", "SQLServer", "JSON", "JSONB", "UUID", "CDC", "APQ", "RBAC", "JWT", "OAuth"]
+
+# Single char bindings
+single-char-binding-names-threshold = 4
+
+# Too many arguments
+too-many-arguments-threshold = 7
+
+# Too many lines
+too-many-lines-threshold = 300
+
+# Enum variant names
+enum-variant-name-threshold = 3
+
+# Verbose bit mask
+verbose-bit-mask-threshold = 1
