@@ -10,11 +10,11 @@ jobs = -1
 color = "always"
 verbose = false
 
-# Uncomment to use mold linker on Linux (faster linking - 3-5x speedup)
-# First install: sudo apt install mold (Arch: sudo pacman -S mold)
-# [target.x86_64-unknown-linux-gnu]
-# linker = "clang"
-# rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+# Use mold linker on Linux (faster linking - 3-5x speedup)
+# Installed: mold is available
+[target.x86_64-unknown-linux-gnu]
+linker = "clang"
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]
 
 [target.x86_64-apple-darwin]
 # Use zld linker on macOS (faster linking)
