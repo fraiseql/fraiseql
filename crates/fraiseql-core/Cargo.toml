@@ -19,12 +19,12 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 anyhow = { workspace = true }
 tokio = { workspace = true }
-async-trait = { workspace = true }
+async-trait.workspace = true
 futures = { workspace = true }
 
 # Database
-tokio-postgres = { workspace = true }
-deadpool-postgres = { workspace = true }
+tokio-postgres = { workspace = true, features = ["with-serde_json-1"] }
+deadpool-postgres.workspace = true
 postgres-native-tls = { workspace = true }
 native-tls = { workspace = true }
 deadpool = { workspace = true }
@@ -57,6 +57,13 @@ tracing = { workspace = true }
 [dev-dependencies]
 tokio-test = "0.4"
 criterion = "0.5"
+
+[features]
+default = ["postgres"]
+postgres = []
+mysql = []
+sqlite = []
+sqlserver = []
 
 # Benchmarks will be added in later phases
 # [[bench]]
