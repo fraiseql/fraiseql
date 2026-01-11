@@ -1,8 +1,11 @@
-# FraiseQL v2 — Complete Architecture & Specification
+# FraiseQL v2 — Compiled GraphQL Execution Engine
 
-**Version:** 1.0 (Draft)
-**Status:** ✅ Ready for Implementation
+**Version:** 2.0.0-alpha.1
+**Status:** 🚧 In Development (Phase 1 Complete)
 **Date:** January 11, 2026
+
+> **For developers**: See [`.claude/CLAUDE.md`](.claude/CLAUDE.md) for development workflow and standards.
+> **For planning**: See [`.claude/IMPLEMENTATION_ROADMAP.md`](.claude/IMPLEMENTATION_ROADMAP.md) for the 11-phase implementation plan.
 
 ---
 
