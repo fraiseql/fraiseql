@@ -1,0 +1,72 @@
+{
+  // Rust Analyzer Settings
+  "rust-analyzer.checkOnSave.command": "clippy",
+  "rust-analyzer.checkOnSave.extraArgs": [
+    "--all-targets",
+    "--all-features"
+  ],
+  "rust-analyzer.cargo.features": "all",
+  "rust-analyzer.cargo.buildScripts.enable": true,
+  "rust-analyzer.procMacro.enable": true,
+  "rust-analyzer.inlayHints.enable": true,
+  "rust-analyzer.inlayHints.parameterHints.enable": true,
+  "rust-analyzer.inlayHints.typeHints.enable": true,
+  "rust-analyzer.lens.enable": true,
+  "rust-analyzer.lens.references.enable": true,
+  "rust-analyzer.lens.run.enable": true,
+  "rust-analyzer.lens.implementations.enable": true,
+  "rust-analyzer.hover.actions.enable": true,
+  "rust-analyzer.hover.actions.references.enable": true,
+  "rust-analyzer.hover.actions.implementations.enable": true,
+  "rust-analyzer.completion.autoimport.enable": true,
+  "rust-analyzer.completion.autoself.enable": true,
+
+  // Editor Settings
+  "editor.formatOnSave": true,
+  "editor.rulers": [100],
+  "editor.tabSize": 4,
+  "editor.insertSpaces": true,
+
+  // File Associations
+  "files.associations": {
+    "*.rs": "rust",
+    "Cargo.toml": "toml",
+    "Cargo.lock": "toml"
+  },
+
+  // File Exclusions
+  "files.exclude": {
+    "**/target": true,
+    "**/.git": true
+  },
+
+  // Search Exclusions
+  "search.exclude": {
+    "**/target": true,
+    "**/Cargo.lock": true
+  },
+
+  // Language Specific
+  "[rust]": {
+    "editor.defaultFormatter": "rust-lang.rust-analyzer",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit"
+    }
+  },
+
+  "[toml]": {
+    "editor.defaultFormatter": "tamasfe.even-better-toml"
+  },
+
+  // Terminal
+  "terminal.integrated.env.linux": {
+    "RUST_BACKTRACE": "1"
+  },
+
+  // Testing
+  "rust-analyzer.runnables.extraEnv": {
+    "RUST_BACKTRACE": "1",
+    "RUST_LOG": "debug"
+  }
+}

@@ -1,0 +1,65 @@
+# Cargo configuration for FraiseQL v2
+# https://doc.rust-lang.org/cargo/reference/config.html
+
+[build]
+# Use all CPU cores for compilation
+jobs = -1
+
+[term]
+# Colored output
+color = "always"
+verbose = false
+
+[target.x86_64-unknown-linux-gnu]
+# Use mold linker on Linux (faster linking)
+# Install: cargo install -f cargo-binutils && rustup component add llvm-tools-preview
+# Or: sudo apt install mold
+linker = "clang"
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+
+[target.x86_64-apple-darwin]
+# Use zld linker on macOS (faster linking)
+# Install: brew install michaeleisel/zld/zld
+rustflags = ["-C", "link-arg=-fuse-ld=/usr/local/bin/zld"]
+
+[target.aarch64-apple-darwin]
+# Use zld linker on macOS Apple Silicon
+rustflags = ["-C", "link-arg=-fuse-ld=/usr/local/bin/zld"]
+
+# Alias commands
+[alias]
+# Quick commands
+b = "build"
+c = "check"
+t = "test"
+r = "run"
+f = "fmt"
+
+# Advanced commands
+br = "build --release"
+tr = "test --release"
+cov = "llvm-cov --all-features --workspace --lcov --output-path lcov.info"
+bench-quick = "bench --no-fail-fast -- --quick"
+check-all = "check --all-targets --all-features"
+clippy-all = "clippy --all-targets --all-features -- -D warnings"
+doc-open = "doc --all-features --no-deps --open"
+audit-fix = "audit fix"
+outdated-all = "outdated --root-deps-only"
+tree = "tree --depth 3"
+bloat = "bloat --release --crates"
+expand = "expand"
+watch-test = "watch -x 'test --all-features'"
+watch-check = "watch -x 'check --all-features'"
+nextest = "nextest run --all-features"
+
+[registries.crates-io]
+protocol = "sparse"
+
+# Profile optimizations
+[profile.dev.package."*"]
+# Optimize dependencies in dev builds for faster testing
+opt-level = 2
+
+[profile.dev.build-override]
+# Optimize build scripts
+opt-level = 2

@@ -32,7 +32,7 @@ Cargo.lock
 *.pdb
 
 # PyO3 / Rust-Python FFI
-.cargo/
+# .cargo/ - We DO commit .cargo/config.toml for team tooling
 *.whl
 
 # Testing
@@ -52,7 +52,7 @@ dmypy.json
 .pytype/
 
 # IDEs and Editors
-.vscode/
+# .vscode/ - We DO commit VSCode settings for team consistency
 .idea/
 *.swp
 *.swo
