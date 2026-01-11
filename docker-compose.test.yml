@@ -1,0 +1,95 @@
+# Docker Compose for FraiseQL Test Infrastructure
+#
+# Usage:
+#   docker compose -f docker-compose.test.yml up -d      # Start test databases
+#   docker compose -f docker-compose.test.yml down       # Stop and remove
+#   docker compose -f docker-compose.test.yml logs -f    # View logs
+#
+# Run tests:
+#   cargo test -- --ignored                              # Run integration tests
+#   cargo test -p fraiseql-core -- --ignored             # Run core integration tests
+
+version: '3.8'
+
+services:
+  # PostgreSQL test database (primary, full feature set)
+  postgres-test:
+    image: postgres:16-alpine
+    container_name: fraiseql-postgres-test
+    environment:
+      POSTGRES_USER: fraiseql_test
+      POSTGRES_PASSWORD: fraiseql_test_password
+      POSTGRES_DB: test_fraiseql
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5433:5432"  # Use 5433 to avoid conflicts with local PostgreSQL
+    volumes:
+      - ./tests/sql/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - postgres-test-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fraiseql_test -d test_fraiseql"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fraiseql-test
+
+  # PostgreSQL with pgvector extension (for vector operators)
+  postgres-vector-test:
+    image: pgvector/pgvector:pg16
+    container_name: fraiseql-postgres-vector-test
+    environment:
+      POSTGRES_USER: fraiseql_test
+      POSTGRES_PASSWORD: fraiseql_test_password
+      POSTGRES_DB: test_fraiseql_vector
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5434:5432"
+    volumes:
+      - ./tests/sql/postgres/init-vector.sql:/docker-entrypoint-initdb.d/01-init-vector.sql
+      - postgres-vector-test-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fraiseql_test -d test_fraiseql_vector"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fraiseql-test
+
+  # MySQL test database (secondary support)
+  mysql-test:
+    image: mysql:8.3
+    container_name: fraiseql-mysql-test
+    environment:
+      MYSQL_ROOT_PASSWORD: fraiseql_test_root
+      MYSQL_DATABASE: test_fraiseql
+      MYSQL_USER: fraiseql_test
+      MYSQL_PASSWORD: fraiseql_test_password
+    ports:
+      - "3307:3306"  # Use 3307 to avoid conflicts
+    volumes:
+      - ./tests/sql/mysql/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - mysql-test-data:/var/lib/mysql
+    command: --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "fraiseql_test", "-pfraiseql_test_password"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fraiseql-test
+
+  # SQLite is not needed in Docker (file-based, used locally)
+
+volumes:
+  postgres-test-data:
+    name: fraiseql-postgres-test-data
+  postgres-vector-test-data:
+    name: fraiseql-postgres-vector-test-data
+  mysql-test-data:
+    name: fraiseql-mysql-test-data
+
+networks:
+  fraiseql-test:
+    name: fraiseql-test-network
+    driver: bridge

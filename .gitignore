@@ -44,6 +44,10 @@ htmlcov/
 .hypothesis/
 *.cover
 .cache
+coverage/
+tarpaulin-report.html
+cobertura.xml
+lcov.info
 
 # Type checking
 .mypy_cache/

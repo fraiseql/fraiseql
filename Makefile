@@ -1,19 +1,34 @@
-.PHONY: help build test clippy fmt check clean install dev doc bench
+.PHONY: help build test test-unit test-integration clippy fmt check clean install dev doc bench db-up db-down db-logs db-reset db-status
 
 # Default target
 help:
 	@echo "FraiseQL v2 Development Commands"
 	@echo ""
-	@echo "  make build       - Build all crates"
-	@echo "  make test        - Run all tests"
-	@echo "  make clippy      - Run Clippy linter"
-	@echo "  make fmt         - Format code with rustfmt"
-	@echo "  make check       - Run all checks (fmt + clippy + test)"
-	@echo "  make clean       - Clean build artifacts"
-	@echo "  make install     - Install CLI tool"
-	@echo "  make dev         - Run development server"
-	@echo "  make doc         - Build documentation"
-	@echo "  make bench       - Run benchmarks"
+	@echo "Testing:"
+	@echo "  make test               - Run all tests"
+	@echo "  make test-unit          - Run unit tests only (fast, no database)"
+	@echo "  make test-integration   - Run integration tests (requires Docker)"
+	@echo "  make coverage           - Generate test coverage report"
+	@echo ""
+	@echo "Database (Docker):"
+	@echo "  make db-up              - Start test databases (PostgreSQL, MySQL)"
+	@echo "  make db-down            - Stop test databases"
+	@echo "  make db-logs            - View database logs"
+	@echo "  make db-reset           - Reset test databases (remove volumes)"
+	@echo "  make db-status          - Check database health"
+	@echo ""
+	@echo "Code Quality:"
+	@echo "  make build              - Build all crates"
+	@echo "  make clippy             - Run Clippy linter"
+	@echo "  make fmt                - Format code with rustfmt"
+	@echo "  make check              - Run all checks (fmt + clippy + test)"
+	@echo "  make clean              - Clean build artifacts"
+	@echo ""
+	@echo "Development:"
+	@echo "  make dev                - Run development server"
+	@echo "  make doc                - Build documentation"
+	@echo "  make bench              - Run benchmarks"
+	@echo "  make install            - Install CLI tool"
 	@echo ""
 
 # Build all crates
@@ -24,13 +39,19 @@ build:
 build-release:
 	cargo build --release --all-features
 
-# Run all tests
-test:
-	cargo test --all-features
+# Run all tests (unit + integration)
+test: test-unit test-integration
 
-# Run integration tests
-test-integration:
-	cargo test --test '*' --all-features
+# Run unit tests only (no database required)
+test-unit:
+	@echo "Running unit tests..."
+	@cargo test --lib --all-features
+
+# Run integration tests (requires Docker databases)
+test-integration: db-up
+	@echo "Running integration tests..."
+	@sleep 2  # Wait for databases to be fully ready
+	@cargo test --all-features -- --ignored
 
 # Run end-to-end tests
 test-e2e:
@@ -79,16 +100,57 @@ watch:
 watch-check:
 	cargo watch -x 'check --all-features'
 
-# Database setup (PostgreSQL)
-db-setup:
+# ============================================================================
+# Docker-based Test Database Management
+# ============================================================================
+
+# Start test databases (PostgreSQL + MySQL)
+db-up:
+	@echo "Starting test databases..."
+	@docker compose -f docker-compose.test.yml up -d
+	@echo "Waiting for databases to be healthy..."
+	@sleep 3
+	@docker compose -f docker-compose.test.yml ps
+
+# Stop test databases
+db-down:
+	@echo "Stopping test databases..."
+	@docker compose -f docker-compose.test.yml down
+
+# View database logs
+db-logs:
+	@docker compose -f docker-compose.test.yml logs -f
+
+# Reset test databases (remove volumes)
+db-reset:
+	@echo "Resetting test databases (removing volumes)..."
+	@docker compose -f docker-compose.test.yml down -v
+	@docker compose -f docker-compose.test.yml up -d
+	@sleep 3
+	@echo "Databases reset and started"
+
+# Check database health status
+db-status:
+	@echo "Database status:"
+	@docker compose -f docker-compose.test.yml ps
+
+# Verify test data
+db-verify:
+	@echo "Verifying PostgreSQL test data..."
+	@docker compose -f docker-compose.test.yml exec -T postgres-test \
+		psql -U fraiseql_test -d test_fraiseql -c "SELECT 'v_user' AS view, COUNT(*) FROM v_user UNION ALL SELECT 'v_post', COUNT(*) FROM v_post UNION ALL SELECT 'v_product', COUNT(*) FROM v_product;"
+
+# ============================================================================
+# Legacy database commands (local PostgreSQL)
+# ============================================================================
+
+# Database setup (local PostgreSQL)
+db-setup-local:
 	psql -U postgres -c "CREATE DATABASE fraiseql_test;"
 
-# Database teardown
-db-teardown:
+# Database teardown (local)
+db-teardown-local:
 	psql -U postgres -c "DROP DATABASE IF EXISTS fraiseql_test;"
-
-# Database reset
-db-reset: db-teardown db-setup
 
 # Coverage report
 coverage:
