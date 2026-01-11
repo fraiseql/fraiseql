@@ -83,9 +83,9 @@ pub mod apq;
 pub mod utils;
 
 // Re-exports for convenience
-pub use error::{Error, Result};
+pub use error::{FraiseQLError, Result};
 pub use schema::CompiledSchema;
-pub use config::Config;
+pub use config::FraiseQLConfig;
 
 /// Version of the FraiseQL core library
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

@@ -10,12 +10,11 @@ jobs = -1
 color = "always"
 verbose = false
 
-[target.x86_64-unknown-linux-gnu]
-# Use mold linker on Linux (faster linking)
-# Install: cargo install -f cargo-binutils && rustup component add llvm-tools-preview
-# Or: sudo apt install mold
-linker = "clang"
-rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+# Uncomment to use mold linker on Linux (faster linking - 3-5x speedup)
+# First install: sudo apt install mold (Arch: sudo pacman -S mold)
+# [target.x86_64-unknown-linux-gnu]
+# linker = "clang"
+# rustflags = ["-C", "link-arg=-fuse-ld=mold"]
 
 [target.x86_64-apple-darwin]
 # Use zld linker on macOS (faster linking)

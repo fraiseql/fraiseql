@@ -58,10 +58,11 @@ tracing = { workspace = true }
 tokio-test = "0.4"
 criterion = "0.5"
 
-[[bench]]
-name = "schema_benchmark"
-harness = false
-
-[[bench]]
-name = "cache_benchmark"
-harness = false
+# Benchmarks will be added in later phases
+# [[bench]]
+# name = "schema_benchmark"
+# harness = false
+#
+# [[bench]]
+# name = "cache_benchmark"
+# harness = false
