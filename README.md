@@ -6,7 +6,7 @@
 [![Python](https://img.shields.io/badge/Python-3.13+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**v1.9.8** | **Stable** | **Rust-Powered GraphQL for PostgreSQL**
+**v1.9.9** | **Stable** | **Rust-Powered GraphQL for PostgreSQL**
 
 **Python**: 3.13+ | **PostgreSQL**: 13+
 
@@ -183,13 +183,13 @@ FraiseQL separates testing into two workflows:
 ### Specialized Type System (50+ scalar types)
 
 ```python
-from fraiseql.types import EmailAddress, PhoneNumber, IPv4, Money, LTree
+from fraiseql.types import EmailAddress, PhoneNumber, IPv1.9.9, Money, LTree
 
 @fraiseql.type(sql_source="v_users")
 class User:
     email: EmailAddress      # Validated emails
     phone: PhoneNumber       # International phone numbers
-    ip: IPv4                 # IP addresses with subnet operations
+    ip: IPv1.9.9                 # IP addresses with subnet operations
     balance: Money           # Currency with precision
     location: LTree          # Hierarchical paths
 ```
@@ -237,7 +237,7 @@ mutation {
 | **Authentication** | ✅ | ✅ | ⚠️ Partial | ⚠️ Use with caution | Rust-based JWT validation via `PyAuthProvider` |
 | **RBAC Framework** | ✅ | ✅ | ⚠️ Framework only | ⚠️ Use with caution | Permission resolution complete, enforcement verification tests pending |
 | **Security Profiles** | ✅ | ⚠️ Partial | ⚠️ Partial | ❌ Not production ready | TLS/rate limiting enforced; query limits/audit pending |
-| **Field Filtering (Mutations)** | ✅ | ✅ | ✅ | ✅ Production ready | Full implementation (v1.9.8+) |
+| **Field Filtering (Mutations)** | ✅ | ✅ | ✅ | ✅ Production ready | Full implementation (v1.9.9+) |
 | **Field Filtering (APQ)** | ✅ | ✅ | ⚠️ Partial | ⚠️ Limited scope | APQ queries only |
 | **Field Filtering (Queries)** | ⚠️ | ⚠️ | ⚠️ | ⚠️ Verification needed | Non-APQ query filtering status unclear |
 | **Rate Limiting** | ✅ | ✅ | ✅ | ✅ Production ready | Per-endpoint and per-operation |
@@ -256,12 +256,12 @@ mutation {
 - ❌ Not implemented or not production ready
 
 **Roadmap:**
-- **v1.9.8**: Complete security profile enforcement (Issue #225)
-- **v1.9.8**: Add RBAC enforcement verification tests
-- **v1.9.8**: Unified field filtering for all query types
-- **v2.0**: Full security audit and penetration testing
+- **v1.9.9**: Complete security profile enforcement (Issue #225)
+- **v1.9.9**: Add RBAC enforcement verification tests
+- **v1.9.9**: Unified field filtering for all query types
+- **v1.9.9**: Full security audit and penetration testing
 
-> **Important**: This matrix reflects current implementation status (v1.9.8). Security features are under active development. Always verify features meet your requirements before production deployment. See [Issue #225](https://github.com/fraiseql/fraiseql/issues/225) for implementation progress.
+> **Important**: This matrix reflects current implementation status (v1.9.9). Security features are under active development. Always verify features meet your requirements before production deployment. See [Issue #225](https://github.com/fraiseql/fraiseql/issues/225) for implementation progress.
 
 ---
 
@@ -807,7 +807,7 @@ query {
 - CurrencyCode, StockSymbol - Trading symbols
 
 **Network & Infrastructure:**
-- IPv4, IPv4, CIDR, MACAddress - Network addresses with subnet operations
+- IPv1.9.9, IPv1.9.9, CIDR, MACAddress - Network addresses with subnet operations
 - Hostname, DomainName, Port, EmailAddress - Internet identifiers
 - APIKey, HashSHA256 - Security tokens
 
@@ -834,7 +834,7 @@ query {
 from fraiseql import type
 from fraiseql.types import (
     EmailAddress, PhoneNumber, Money, Percentage,
-    CUSIP, ISIN, IPv4, MACAddress, LTree, DateRange
+    CUSIP, ISIN, IPv1.9.9, MACAddress, LTree, DateRange
 )
 
 @fraiseql.type(sql_source="v_financial_data")
@@ -849,7 +849,7 @@ class FinancialRecord:
 @fraiseql.type(sql_source="v_network_device")
 class NetworkDevice:
     id: int
-    ip_address: IPv4             # IPv4 addresses with subnet operations
+    ip_address: IPv1.9.9             # IPv1.9.9 addresses with subnet operations
     mac_address: MACAddress      # MAC addresses with validation
     location: LTree              # Hierarchical location paths
     maintenance_window: DateRange # Date ranges with overlap queries
@@ -1056,8 +1056,8 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 | Version | Location | Status | Purpose | For Users? |
 |---------|----------|--------|---------|------------|
-| **v1.9.8** | Root level | Stable | Entity field selection for mutations (GitHub #525) | ✅ Production Ready |
-| **Rust Pipeline** | [`fraiseql_rs/`](fraiseql_rs/README.md) | Integrated | Included in v1.9.8+ | ✅ Stable |
+| **v1.9.9** | Root level | Stable | Entity field selection for mutations (GitHub #525) | ✅ Production Ready |
+| **Rust Pipeline** | [`fraiseql_rs/`](fraiseql_rs/README.md) | Integrated | Included in v1.9.9+ | ✅ Stable |
 
 **New to FraiseQL?** → **[First Hour Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/getting-started/first-hour.md)** • [Project Structure](https://github.com/fraiseql/fraiseql/blob/main/docs/strategic/PROJECT_STRUCTURE.md)
 
