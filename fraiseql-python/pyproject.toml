@@ -1,0 +1,50 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "fraiseql"
+version = "2.0.0-alpha.1"
+description = "FraiseQL v2 - Compiled GraphQL execution engine (schema authoring)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "FraiseQL Team"}
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Database :: Front-Ends",
+]
+keywords = ["graphql", "database", "sql", "compiler", "schema"]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/fraiseql"
+Documentation = "https://fraiseql.readthedocs.io"
+Repository = "https://github.com/yourusername/fraiseql"
+Issues = "https://github.com/yourusername/fraiseql/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/fraiseql"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+ignore = []
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
