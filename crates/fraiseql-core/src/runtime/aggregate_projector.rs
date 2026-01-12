@@ -340,4 +340,151 @@ mod tests {
         assert_eq!(arr[0]["category"], Value::Null);
         assert_eq!(arr[0]["count"], 10);
     }
+
+    // ========================================
+    // Phase 6: Advanced Aggregates Projection Tests
+    // ========================================
+
+    #[test]
+    fn test_project_array_agg_result() {
+        let plan = create_test_plan();
+        let rows = vec![{
+            let mut row = HashMap::new();
+            row.insert("category".to_string(), json!("Electronics"));
+            row.insert("count".to_string(), json!(10));
+            // PostgreSQL ARRAY_AGG result
+            row.insert("products".to_string(), json!(["prod_1", "prod_2", "prod_3"]));
+            row
+        }];
+
+        let result = AggregationProjector::project(rows, &plan).unwrap();
+
+        assert!(result.is_array());
+        let arr = result.as_array().unwrap();
+        assert_eq!(arr[0]["category"], "Electronics");
+        assert_eq!(arr[0]["products"], json!(["prod_1", "prod_2", "prod_3"]));
+    }
+
+    #[test]
+    fn test_project_json_agg_result() {
+        let plan = create_test_plan();
+        let rows = vec![{
+            let mut row = HashMap::new();
+            row.insert("category".to_string(), json!("Electronics"));
+            row.insert("count".to_string(), json!(10));
+            // PostgreSQL JSON_AGG result
+            row.insert(
+                "items".to_string(),
+                json!([
+                    {"product": "prod_1", "revenue": 1500},
+                    {"product": "prod_2", "revenue": 1200}
+                ]),
+            );
+            row
+        }];
+
+        let result = AggregationProjector::project(rows, &plan).unwrap();
+
+        assert!(result.is_array());
+        let arr = result.as_array().unwrap();
+        assert_eq!(arr[0]["category"], "Electronics");
+        assert!(arr[0]["items"].is_array());
+        let items = arr[0]["items"].as_array().unwrap();
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0]["product"], "prod_1");
+        assert_eq!(items[0]["revenue"], 1500);
+    }
+
+    #[test]
+    fn test_project_string_agg_result() {
+        let plan = create_test_plan();
+        let rows = vec![{
+            let mut row = HashMap::new();
+            row.insert("category".to_string(), json!("Electronics"));
+            row.insert("count".to_string(), json!(10));
+            // PostgreSQL STRING_AGG result
+            row.insert("product_names".to_string(), json!("Laptop, Phone, Tablet"));
+            row
+        }];
+
+        let result = AggregationProjector::project(rows, &plan).unwrap();
+
+        assert!(result.is_array());
+        let arr = result.as_array().unwrap();
+        assert_eq!(arr[0]["category"], "Electronics");
+        assert_eq!(arr[0]["product_names"], "Laptop, Phone, Tablet");
+    }
+
+    #[test]
+    fn test_project_bool_agg_result() {
+        let plan = create_test_plan();
+        let rows = vec![{
+            let mut row = HashMap::new();
+            row.insert("category".to_string(), json!("Electronics"));
+            row.insert("count".to_string(), json!(10));
+            // PostgreSQL BOOL_AND result
+            row.insert("all_active".to_string(), json!(true));
+            // PostgreSQL BOOL_OR result
+            row.insert("any_discounted".to_string(), json!(false));
+            row
+        }];
+
+        let result = AggregationProjector::project(rows, &plan).unwrap();
+
+        assert!(result.is_array());
+        let arr = result.as_array().unwrap();
+        assert_eq!(arr[0]["category"], "Electronics");
+        assert_eq!(arr[0]["all_active"], true);
+        assert_eq!(arr[0]["any_discounted"], false);
+    }
+
+    #[test]
+    fn test_project_mixed_aggregates() {
+        let plan = create_test_plan();
+        let rows = vec![{
+            let mut row = HashMap::new();
+            row.insert("category".to_string(), json!("Electronics"));
+            // Basic aggregates
+            row.insert("count".to_string(), json!(42));
+            row.insert("revenue_sum".to_string(), json!(5280.50));
+            row.insert("revenue_avg".to_string(), json!(125.73));
+            // Advanced aggregates
+            row.insert("products".to_string(), json!(["prod_1", "prod_2"]));
+            row.insert("product_names".to_string(), json!("Laptop, Phone"));
+            row.insert("all_active".to_string(), json!(true));
+            row
+        }];
+
+        let result = AggregationProjector::project(rows, &plan).unwrap();
+
+        assert!(result.is_array());
+        let arr = result.as_array().unwrap();
+        // Verify basic aggregates
+        assert_eq!(arr[0]["count"], 42);
+        assert_eq!(arr[0]["revenue_sum"], 5280.50);
+        // Verify advanced aggregates
+        assert_eq!(arr[0]["products"], json!(["prod_1", "prod_2"]));
+        assert_eq!(arr[0]["product_names"], "Laptop, Phone");
+        assert_eq!(arr[0]["all_active"], true);
+    }
+
+    #[test]
+    fn test_project_empty_array_agg() {
+        let plan = create_test_plan();
+        let rows = vec![{
+            let mut row = HashMap::new();
+            row.insert("category".to_string(), json!("Empty"));
+            row.insert("count".to_string(), json!(0));
+            // Empty ARRAY_AGG result (NULL in PostgreSQL, [] in others)
+            row.insert("products".to_string(), Value::Null);
+            row
+        }];
+
+        let result = AggregationProjector::project(rows, &plan).unwrap();
+
+        assert!(result.is_array());
+        let arr = result.as_array().unwrap();
+        assert_eq!(arr[0]["category"], "Empty");
+        assert!(arr[0]["products"].is_null());
+    }
 }
