@@ -56,6 +56,7 @@
 //! ```
 
 pub mod aggregate_types;
+pub mod aggregation;
 mod codegen;
 pub mod fact_table;
 mod ir;
@@ -64,6 +65,7 @@ mod parser;
 mod validator;
 
 pub use aggregate_types::{AggregateTypeGenerator, AggregateType, GroupByInput, HavingInput};
+pub use aggregation::{AggregationPlanner, AggregationPlan, AggregationRequest};
 pub use codegen::CodeGenerator;
 pub use ir::{AuthoringIR, IRType, IRQuery, IRMutation};
 pub use lowering::{SqlTemplateGenerator, DatabaseTarget};
