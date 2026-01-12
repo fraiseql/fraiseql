@@ -1747,7 +1747,8 @@ class FraiseQLRepository:
                     query_parts.append(order_sql)
             elif hasattr(order_by, "_to_sql_order_by"):
                 # Convert GraphQL OrderByInput to SQL OrderBySet, then get SQL
-                sql_order_by_obj = order_by._to_sql_order_by()
+                config = self.context.get("config")
+                sql_order_by_obj = order_by._to_sql_order_by(config=config)
                 if sql_order_by_obj and hasattr(sql_order_by_obj, "to_sql"):
                     order_sql = sql_order_by_obj.to_sql(table_ref)
                     if order_sql:
@@ -1760,7 +1761,8 @@ class FraiseQLRepository:
                 # Dict format: {"age": "ASC"} - single field
                 from fraiseql.sql.graphql_order_by_generator import _convert_order_by_input_to_sql
 
-                sql_order_by_obj = _convert_order_by_input_to_sql(order_by)
+                config = self.context.get("config")
+                sql_order_by_obj = _convert_order_by_input_to_sql(order_by, config=config)
                 if sql_order_by_obj and hasattr(sql_order_by_obj, "to_sql"):
                     order_sql = sql_order_by_obj.to_sql(table_ref)
                     if order_sql:

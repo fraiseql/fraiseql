@@ -310,6 +310,24 @@ class FraiseQLConfig(BaseSettings):
     For production use with global coordinates, install PostGIS and set to "postgis".
     """
 
+    # String collation settings
+    default_string_collation: str | None = None
+    """Default PostgreSQL collation for string ORDER BY clauses.
+
+    Applied to all text fields in ORDER BY unless overridden per-field.
+
+    Examples:
+    - "en_US.utf8" - US English locale-aware sorting
+    - "fr_FR.utf8" - French locale-aware sorting (accents, case)
+    - "C" - Byte-order sorting (fastest, case-sensitive)
+    - None - Use PostgreSQL database default collation
+
+    For best performance, create indexes with matching collation:
+        CREATE INDEX idx_name_fr ON users ((data->>'name') COLLATE "fr_FR.utf8");
+
+    See: docs/features/order-by-collate.md
+    """
+
     # Entity routing settings
     entity_routing: Any = None
     """Configuration for entity-aware query routing (optional)."""
@@ -328,6 +346,29 @@ class FraiseQLConfig(BaseSettings):
         if isinstance(v, EntityRoutingConfig):
             return v
         raise ValueError("entity_routing must be an EntityRoutingConfig instance or dict")
+
+    @field_validator("default_string_collation")
+    @classmethod
+    def validate_collation_name(cls, v: str | None) -> str | None:
+        """Validate collation name for SQL injection protection."""
+        if v is None:
+            return None
+
+        # Empty string not allowed
+        if v.strip() == "":
+            raise ValueError("Collation name cannot be empty")
+
+        # SQL injection protection - reject dangerous characters
+        # PostgreSQL collations use alphanumeric, dots, hyphens, underscores
+        dangerous_chars = ['"', "'", ";", "--", "/*", "*/", "\\"]
+        for char in dangerous_chars:
+            if char in v:
+                raise ValueError(
+                    f"Invalid characters in collation name: {v}. "
+                    f"Collation names must be alphanumeric with dots, hyphens, or underscores."
+                )
+
+        return v
 
     @property
     def enable_introspection(self) -> bool:
