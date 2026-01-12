@@ -62,6 +62,16 @@ pub enum AggregateFunction {
     Stddev,
     /// VARIANCE(field) - variance (PostgreSQL, SQL Server)
     Variance,
+
+    // Advanced aggregates (Phase 6)
+    /// ARRAY_AGG(field) - collect values into array
+    ArrayAgg,
+    /// JSON_AGG(expr) - aggregate into JSON array (PostgreSQL)
+    JsonAgg,
+    /// JSONB_AGG(expr) - aggregate into JSONB array (PostgreSQL)
+    JsonbAgg,
+    /// STRING_AGG(field, delimiter) - concatenate strings
+    StringAgg,
 }
 
 impl AggregateFunction {
@@ -77,6 +87,12 @@ impl AggregateFunction {
         &[Self::Stddev, Self::Variance]
     }
 
+    /// Get advanced aggregate functions
+    #[must_use]
+    pub const fn advanced_functions() -> &'static [Self] {
+        &[Self::ArrayAgg, Self::JsonAgg, Self::JsonbAgg, Self::StringAgg]
+    }
+
     /// Get GraphQL field name for this function
     #[must_use]
     pub const fn field_name(&self) -> &'static str {
@@ -89,6 +105,10 @@ impl AggregateFunction {
             Self::Max => "max",
             Self::Stddev => "stddev",
             Self::Variance => "variance",
+            Self::ArrayAgg => "array_agg",
+            Self::JsonAgg => "json_agg",
+            Self::JsonbAgg => "jsonb_agg",
+            Self::StringAgg => "string_agg",
         }
     }
 
@@ -104,6 +124,10 @@ impl AggregateFunction {
             Self::Max => "MAX",
             Self::Stddev => "STDDEV",
             Self::Variance => "VARIANCE",
+            Self::ArrayAgg => "ARRAY_AGG",
+            Self::JsonAgg => "JSON_AGG",
+            Self::JsonbAgg => "JSONB_AGG",
+            Self::StringAgg => "STRING_AGG",
         }
     }
 }
@@ -172,6 +196,35 @@ impl TemporalBucket {
             Self::Month => "month",
             Self::Quarter => "quarter",
             Self::Year => "year",
+        }
+    }
+}
+
+/// Boolean aggregate function (AND/OR)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BoolAggregateFunction {
+    /// BOOL_AND - all values must be true
+    And,
+    /// BOOL_OR - at least one value must be true
+    Or,
+}
+
+impl BoolAggregateFunction {
+    /// Get SQL function name
+    #[must_use]
+    pub const fn sql_name(&self) -> &'static str {
+        match self {
+            Self::And => "BOOL_AND",
+            Self::Or => "BOOL_OR",
+        }
+    }
+
+    /// Get GraphQL field suffix
+    #[must_use]
+    pub const fn field_suffix(&self) -> &'static str {
+        match self {
+            Self::And => "all",
+            Self::Or => "any",
         }
     }
 }
