@@ -73,7 +73,7 @@ pub mod config;
 pub mod compiler;
 
 // Execution (Phase 5)
-// pub mod runtime;
+pub mod runtime;
 
 // Infrastructure
 pub mod db;
