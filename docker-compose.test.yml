@@ -25,6 +25,7 @@ services:
       - "5433:5432"  # Use 5433 to avoid conflicts with local PostgreSQL
     volumes:
       - ./tests/sql/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./tests/sql/postgres/init-analytics.sql:/docker-entrypoint-initdb.d/02-init-analytics.sql
       - postgres-test-data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U fraiseql_test -d test_fraiseql"]
