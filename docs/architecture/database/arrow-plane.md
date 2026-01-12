@@ -874,6 +874,172 @@ See: docs/pagination.md
 
 ---
 
+## 5.5 Integration with Analytical Views
+
+The Arrow plane is particularly well-suited for analytical workloads using FraiseQL's fact table patterns.
+
+### 5.5.1 Fact Table Arrow Projections
+
+Fact tables (`tf_*`) with measures (SQL columns) and dimensions (JSONB) can be efficiently exported via Arrow:
+
+```sql
+-- Arrow view for fact table
+CREATE VIEW av_sales AS
+SELECT
+    id,
+    -- Measures (columnar, typed)
+    revenue,
+    quantity,
+    cost,
+    -- Dimensions (extracted from JSONB)
+    data->>'category' AS category,
+    data->>'region' AS region,
+    data->>'product_name' AS product_name,
+    -- Denormalized filters
+    customer_id,
+    occurred_at
+FROM tf_sales
+WHERE deleted_at IS NULL;
+```
+
+**Arrow schema**:
+```json
+{
+  "fields": [
+    {"name": "id", "type": "int64"},
+    {"name": "revenue", "type": "decimal(10,2)"},
+    {"name": "quantity", "type": "int32"},
+    {"name": "cost", "type": "decimal(10,2)"},
+    {"name": "category", "type": "utf8"},
+    {"name": "region", "type": "utf8"},
+    {"name": "product_name", "type": "utf8"},
+    {"name": "customer_id", "type": "utf8"},
+    {"name": "occurred_at", "type": "timestamp[us, UTC]"}
+  ]
+}
+```
+
+### 5.5.2 Pre-Aggregated Views for BI Tools
+
+Aggregate tables (`ta_*`) provide pre-computed rollups optimized for Arrow export:
+
+```sql
+-- Arrow view for daily aggregates
+CREATE VIEW av_sales_by_day AS
+SELECT
+    day,
+    revenue,              -- Pre-aggregated SUM(revenue)
+    quantity,             -- Pre-aggregated SUM(quantity)
+    transaction_count,    -- Pre-aggregated COUNT(*)
+    data->>'category' AS category,
+    data->>'region' AS region
+FROM ta_sales_by_day;
+```
+
+**Use case**: BI tools (Tableau, PowerBI, Metabase) query `av_sales_by_day` via Arrow for 10-100x faster data transfer compared to JSON.
+
+### 5.5.3 Columnar Aggregation Optimization
+
+Arrow's columnar format excels at exporting aggregated data:
+
+**GraphQL Query**:
+```graphql
+query {
+  sales_aggregate(
+    groupBy: { category: true, region: true }
+  ) @arrow {
+    category
+    region
+    revenue_sum
+    quantity_sum
+    count
+  }
+}
+```
+
+**SQL Execution** (PostgreSQL):
+```sql
+SELECT
+    data->>'category' AS category,
+    data->>'region' AS region,
+    SUM(revenue) AS revenue_sum,
+    SUM(quantity) AS quantity_sum,
+    COUNT(*) AS count
+FROM tf_sales
+GROUP BY data->>'category', data->>'region';
+```
+
+**Arrow Batch** (columnar layout):
+- Column 1: `category` (utf8)
+- Column 2: `region` (utf8)
+- Column 3: `revenue_sum` (decimal)
+- Column 4: `quantity_sum` (int32)
+- Column 5: `count` (int64)
+
+**Performance**: Arrow's columnar format minimizes memory allocation and enables SIMD operations for aggregates, providing 5-10x faster serialization compared to JSON.
+
+### 5.5.4 Temporal Bucketing in Arrow
+
+Temporal dimensions (day, week, month) are natively represented as Arrow temporal types:
+
+```sql
+CREATE VIEW av_sales_daily AS
+SELECT
+    DATE_TRUNC('day', occurred_at) AS day,  -- Arrow: date32
+    SUM(revenue) AS revenue,
+    COUNT(*) AS transaction_count
+FROM tf_sales
+GROUP BY DATE_TRUNC('day', occurred_at)
+ORDER BY day;
+```
+
+**Arrow Schema**:
+```json
+{
+  "fields": [
+    {"name": "day", "type": "date32"},
+    {"name": "revenue", "type": "decimal(10,2)"},
+    {"name": "transaction_count", "type": "int64"}
+  ]
+}
+```
+
+### 5.5.5 Batching Strategy for Grouped Data
+
+Arrow batches can be used to stream grouped aggregates incrementally:
+
+**Scenario**: Export 1M rows grouped by category (100 categories, 10K rows each)
+
+**Strategy**:
+```sql
+-- Batch 1: Electronics (10K rows)
+SELECT * FROM av_sales WHERE category = 'Electronics' LIMIT 10000;
+
+-- Batch 2: Clothing (10K rows)
+SELECT * FROM av_sales WHERE category = 'Clothing' LIMIT 10000;
+
+-- ... (100 batches total)
+```
+
+**Client receives**: 100 Arrow batches, each representing one category, enabling progressive rendering in BI dashboards.
+
+### 5.5.6 Performance Benefits for Analytics
+
+| Metric | JSON Plane | Arrow Plane | Improvement |
+|--------|-----------|-------------|-------------|
+| Serialization (1M rows) | 5-10s | 500ms-1s | 5-10x faster |
+| Memory usage | 2-3GB | 500MB | 4-6x lower |
+| BI tool ingestion | 30-60s | 5-10s | 3-6x faster |
+| Column projection | Parse all fields | Read columns only | Zero-cost |
+| Type safety | Runtime parsing | Compile-time schema | Type-safe |
+
+**Related documentation**:
+- `docs/specs/analytical-schema-conventions.md` - Fact table naming conventions
+- `docs/architecture/analytics/aggregation-model.md` - Aggregation compilation
+- `docs/guides/analytics-patterns.md` - Practical query patterns
+
+---
+
 ## 6. Performance Characteristics
 
 ### 6.1 Throughput Benchmarks

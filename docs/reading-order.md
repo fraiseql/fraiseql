@@ -284,6 +284,94 @@ eql-start-here)
 
 ---
 
+## For Analytics Engineers
+
+**Goal:** Build analytical systems with FraiseQL's fact table patterns and aggregations.
+
+**Total Time:** ~3-4 hours
+
+### Phase 1: Core Concepts (1 hour)
+
+1. **`docs/architecture/core/compilation-vs-runtime.md`** (20 min)
+   - Understand compile-time vs runtime separation
+   - **Key Takeaway:** Python/TS authoring → Rust compilation → Rust runtime
+
+2. **`docs/architecture/core/execution-model.md`** (30 min)
+   - GraphQL query execution phases
+   - Phase 2.5: Aggregation Resolution
+   - **Key Takeaway:** How GROUP BY and aggregates are compiled
+
+3. **`docs/prd/PRD.md`** — Section 3.5 only (10 min)
+   - Analytical Execution Semantics overview
+   - **Key Takeaway:** No joins principle, fact table patterns
+
+### Phase 2: Analytics Architecture (1.5 hours)
+
+4. **`docs/architecture/analytics/fact-dimension-pattern.md`** ⭐ **START HERE** (40 min)
+   - Fact table structure (measures, dimensions, filters)
+   - No joins principle
+   - Aggregate tables = fact tables with different granularity
+   - **Key Takeaway:** All analytical tables use same pattern: SQL columns (measures) + JSONB (dimensions)
+
+5. **`docs/architecture/analytics/aggregation-model.md`** (30 min)
+   - GROUP BY compilation strategy
+   - Aggregate function selection
+   - Temporal bucketing (DATE_TRUNC, DATE_FORMAT, strftime, DATEPART)
+   - HAVING clause validation
+   - **Key Takeaway:** Compile-time schema analysis → optimized SQL
+
+6. **`docs/specs/analytical-schema-conventions.md`** (20 min)
+   - Naming conventions: tf_ (fact), ta_ (aggregate), td_ (dimension)
+   - Column patterns: measures, dimensions, denormalized filters
+   - Index recommendations
+   - **Key Takeaway:** Conventions required by FraiseQL compiler
+
+### Phase 3: Database-Specific Implementation (1 hour)
+
+7. **`docs/specs/aggregation-operators.md`** (30 min)
+   - PostgreSQL: Full support (STDDEV, VARIANCE, FILTER)
+   - MySQL: Basic support (no statistical functions)
+   - SQLite: Minimal support
+   - SQL Server: Enterprise support (STDEV, VAR, JSON_VALUE)
+   - **Key Takeaway:** Database capability manifest determines available functions
+
+8. **`docs/architecture/database/database-targeting.md`** (15 min)
+   - Compile-time database specialization
+   - **Key Takeaway:** GraphQL schema matches database capabilities
+
+9. **`docs/specs/capability-manifest.md`** — Section 3.4 only (15 min)
+   - Aggregation operators in capability manifest
+   - **Key Takeaway:** How compiler knows which aggregates to generate
+
+### Phase 4: Practical Application (30 min)
+
+10. **`docs/guides/analytics-patterns.md`** ⭐ **PRACTICAL EXAMPLES** (30 min)
+    - 10 common query patterns with SQL execution
+    - Simple aggregation, GROUP BY, temporal bucketing, HAVING
+    - Performance optimization tips
+    - Database-specific notes
+    - **Key Takeaway:** Copy-paste patterns for real analytics queries
+
+**After this path, you'll be able to:**
+- Design fact tables with measures + dimensions
+- Write GraphQL aggregate queries (GROUP BY, HAVING, temporal bucketing)
+- Understand performance characteristics (SQL columns 10-100x faster than JSONB)
+- Use pre-aggregated tables (ta_*) for common rollups
+- Leverage database-specific aggregate functions
+
+**Recommended Next:**
+- `docs/architecture/database/arrow-plane.md` — Section 5.5 for BI tool integration
+- `docs/architecture/analytics/window-functions.md` — Phase 5 planned features (ROW_NUMBER, LAG/LEAD)
+- `docs/specs/window-operators.md` — Window function reference
+- `docs/specs/schema-conventions.md` — Section 4.3.1 for analytical pre-aggregated tables
+
+**Important Notes:**
+- FraiseQL does **NOT** support joins; all dimensions must be denormalized at ETL time
+- ETL is managed by DBA/data team; FraiseQL provides GraphQL query interface only
+- Aggregate tables (`ta_*`) have same structure as fact tables (`tf_*`), just different granularity
+
+---
+
 ## For Operations / DevOps
 
 **Goal:** Deploy, monitor, and maintain FraiseQL in production.

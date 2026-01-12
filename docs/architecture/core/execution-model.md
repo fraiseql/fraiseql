@@ -380,6 +380,93 @@ If authorization fails:
 
 ---
 
+## 4.5. Phase 2.5: Aggregation Resolution
+
+For queries targeting fact tables (tables with `tf_*` prefix), Phase 2.5 performs aggregation planning and validation before general query planning.
+
+### 4.5.1 Fact Table Detection
+
+The compiler identifies fact tables during schema compilation by:
+1. Detecting `tf_*` table prefix
+2. Identifying measure columns (numeric types: INT, DECIMAL, FLOAT)
+3. Detecting dimension JSONB column (default: `data`)
+4. Mapping denormalized filter columns
+
+At runtime, when a query targets a fact table aggregate query (e.g., `sales_aggregate`), Phase 2.5 is triggered.
+
+### 4.5.2 GROUP BY Clause Generation
+
+Aggregation resolver:
+1. Parses `groupBy` input to extract dimension paths
+2. Generates SQL GROUP BY expressions:
+   - Direct SQL columns: `GROUP BY customer_id`
+   - JSONB dimensions: `GROUP BY data->>'category'` (PostgreSQL)
+   - Nested paths: `GROUP BY data#>>'{customer,segment}'`
+   - Temporal buckets: `GROUP BY DATE_TRUNC('day', occurred_at)`
+
+### 4.5.3 Aggregate Function Selection
+
+For each requested aggregate measure:
+1. Validate measure column exists and is numeric
+2. Select database-specific aggregate function from capability manifest
+   - PostgreSQL: COUNT, SUM, AVG, MIN, MAX, STDDEV, VARIANCE
+   - MySQL: COUNT, SUM, AVG, MIN, MAX
+   - SQLite: COUNT, SUM, AVG, MIN, MAX
+   - SQL Server: COUNT, SUM, AVG, MIN, MAX, STDEV, VAR
+3. Generate SQL: `SUM(revenue) AS revenue_sum`
+
+### 4.5.4 Conditional Aggregates
+
+For filtered aggregates (e.g., `revenue_sum(filter: {status: "completed"})`):
+- **PostgreSQL**: Use FILTER clause: `SUM(revenue) FILTER (WHERE status = 'completed')`
+- **Others**: Emulate with CASE WHEN: `SUM(CASE WHEN status = 'completed' THEN revenue ELSE 0 END)`
+
+### 4.5.5 HAVING Clause Validation
+
+For post-aggregation filters (`having` input):
+1. Validate references are to aggregated measures (not raw columns)
+2. Generate HAVING SQL: `HAVING SUM(revenue) > $1`
+3. Bind filter values as query parameters
+
+### 4.5.6 Temporal Bucketing
+
+For temporal dimensions (e.g., `occurred_at_day`, `occurred_at_month`):
+- **PostgreSQL**: `DATE_TRUNC('day', occurred_at)`
+- **MySQL**: `DATE_FORMAT(occurred_at, '%Y-%m-%d')`
+- **SQLite**: `strftime('%Y-%m-%d', occurred_at)`
+- **SQL Server**: `DATEPART(day, occurred_at)`
+
+### 4.5.7 Execution Plan
+
+Phase 2.5 produces an AggregationExecutionPlan:
+```json
+{
+  "type": "aggregation",
+  "table": "tf_sales",
+  "measures": [
+    {"column": "revenue", "function": "SUM", "alias": "revenue_sum"},
+    {"column": "quantity", "function": "AVG", "alias": "quantity_avg"}
+  ],
+  "dimensions": [
+    {"path": "data->>'category'", "alias": "category"},
+    {"temporal": {"column": "occurred_at", "bucket": "day", "alias": "occurred_at_day"}}
+  ],
+  "where": {...},
+  "having": {"revenue_sum": {"_gt": 10000}},
+  "order_by": [{"column": "revenue_sum", "direction": "DESC"}],
+  "limit": 100
+}
+```
+
+This plan is passed to Phase 3 (Query Planning) which converts it to database-specific SQL in Phase 4.
+
+**Related documentation**:
+- `docs/architecture/analytics/aggregation-model.md` - Complete aggregation architecture
+- `docs/specs/aggregation-operators.md` - Database-specific aggregate functions
+- `docs/specs/analytical-schema-conventions.md` - Fact table naming and structure
+
+---
+
 ## 5. Phase 3: Query Planning
 
 ### 5.1 Pre-Compiled Execution Plans
@@ -560,6 +647,41 @@ def translate_view_query_postgresql(plan: ViewQueryPlan) -> str:
         sql += f" LIMIT ${plan.limit}"
     if plan.offset:
         sql += f" OFFSET ${plan.offset}"
+
+    return sql
+
+# For PostgreSQL - Aggregation queries
+def translate_aggregation_postgresql(plan: AggregationExecutionPlan) -> str:
+    # SELECT with aggregates
+    select_parts = []
+    for dim in plan.dimensions:
+        if dim.temporal:
+            select_parts.append(f"DATE_TRUNC('{dim.temporal.bucket}', {dim.temporal.column}) AS {dim.alias}")
+        else:
+            select_parts.append(f"{dim.path} AS {dim.alias}")
+
+    for measure in plan.measures:
+        select_parts.append(f"{measure.function}({measure.column}) AS {measure.alias}")
+
+    sql = f"SELECT {', '.join(select_parts)} FROM {plan.table}"
+
+    # WHERE
+    if plan.where:
+        sql += f" WHERE {translate_where_filter(plan.where)}"
+
+    # GROUP BY
+    group_by = [dim.path for dim in plan.dimensions]
+    sql += f" GROUP BY {', '.join(group_by)}"
+
+    # HAVING
+    if plan.having:
+        sql += f" HAVING {translate_having_filter(plan.having)}"
+
+    # ORDER BY, LIMIT
+    if plan.order_by:
+        sql += f" ORDER BY {', '.join(plan.order_by)}"
+    if plan.limit:
+        sql += f" LIMIT {plan.limit}"
 
     return sql
 

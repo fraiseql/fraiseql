@@ -10,9 +10,10 @@
 
 This document outlines the implementation strategy for FraiseQL v2, a ground-up rewrite as a compiled GraphQL execution engine. Based on analysis of the v1 codebase (~24,104 lines of Rust), we can **reuse 60-70% of existing code** with varying degrees of adaptation.
 
-**Total Effort**: 6-8 weeks for core Rust implementation
+**Total Effort**: 7-9 weeks for core Rust implementation (including analytics support)
 **Lines of Code**: ~15,000-17,000 lines reused from v1
 **Risk Level**: Low (leveraging battle-tested code)
+**Analytics Support**: +7-9 days for Phase 1-2 fact table patterns, GROUP BY, aggregates (Phase 3-5 planned)
 
 ---
 
@@ -257,18 +258,37 @@ fraiseql/
    - Generate CompiledSchema JSON
    - Optimize SQL templates
    - Emit capability manifest
-6. ✅ Write compiler tests:
+6. ❌ **[Analytics]** Implement `compiler/fact_table.rs`:
+   - Detect fact table structure (tf_* prefix)
+   - Identify measure columns (numeric types: INT, DECIMAL, FLOAT)
+   - Detect dimension JSONB column (default: `data`)
+   - Map denormalized filter columns (indexed attributes)
+7. ❌ **[Analytics]** Implement `compiler/aggregate_types.rs`:
+   - Generate AggregateType (count, sum, avg, min, max per measure)
+   - Generate GroupByInput (dimension paths + temporal buckets)
+   - Generate HavingInput (aggregate filters)
+   - Database-specific aggregate function selection from capability manifest
+8. ❌ **[Analytics]** Implement `compiler/aggregation.rs`:
+   - Generate GROUP BY execution plan
+   - Generate aggregate function calls
+   - Generate temporal bucketing expressions (DATE_TRUNC, DATE_FORMAT, strftime, DATEPART)
+   - Lower conditional aggregates (FILTER vs CASE WHEN emulation)
+9. ✅ Write compiler tests:
    - Unit tests for each phase
    - Integration tests (end-to-end compilation)
    - Golden file tests (known schemas)
+   - **[Analytics]** Fact table introspection tests
+   - **[Analytics]** Aggregate type generation tests
 
 **Deliverables**:
 - Working schema compiler
 - SQL template generation
 - CompiledSchema JSON output
+- **[Analytics]** Fact table introspection
+- **[Analytics]** Auto-generated aggregate types
 - Compiler tests passing
 
-**Effort**: 10-12 days
+**Effort**: 13-16 days (+3-4 days for analytics)
 
 ---
 
@@ -294,19 +314,33 @@ fraiseql/
 4. ❌ Implement `runtime/projection.rs`:
    - JSONB result → GraphQL response
    - 🔧 Reuse projection logic from v1 if applicable
-5. ✅ Write runtime tests:
+5. ❌ **[Analytics]** Implement `runtime/aggregation.rs`:
+   - Lower GROUP BY to database-specific SQL
+   - Apply aggregate functions with database capability awareness
+   - Apply HAVING filters post-aggregation
+   - Handle NULL grouping keys
+6. ❌ **[Analytics]** Implement `runtime/temporal.rs`:
+   - DATE_TRUNC for PostgreSQL (second, minute, hour, day, week, month, quarter, year)
+   - DATE_FORMAT for MySQL (day, week, month, year)
+   - strftime for SQLite (day, week, month, year)
+   - DATEPART for SQL Server (day, week, month, quarter, year, hour, minute)
+7. ✅ Write runtime tests:
    - Unit tests for execution
    - Integration tests (query → response)
    - Performance benchmarks
+   - **[Analytics]** Aggregation execution tests (GROUP BY, HAVING)
+   - **[Analytics]** Temporal bucketing tests (all databases)
 
 **Deliverables**:
 - Working runtime executor
 - Query pattern matching
 - Result projection
+- **[Analytics]** Aggregation executor
+- **[Analytics]** Temporal bucketing support
 - Execution tests passing
 - Performance benchmarks
 
-**Effort**: 12-15 days
+**Effort**: 13-17 days (+1-2 days for analytics)
 
 ---
 
@@ -378,16 +412,22 @@ There is NO PyO3/FFI layer - the compiled Rust engine runs standalone.
 3. ❌ Implement schema file writer:
    - Output: `schema.json` (for fraiseql-cli to compile)
    - NO runtime Rust calls
-4. ✅ Write Python tests (decorator → JSON validation)
-5. ✅ Build wheel packaging
+4. ❌ **[Analytics]** Implement analytics decorators:
+   - `@fraiseql.fact_table(measures=[...], dimensions=[...])` → Mark type as fact table
+   - `@fraiseql.aggregate_query()` → Auto-generate aggregate query types
+   - Validation: Ensure measures are numeric types, dimensions reference JSONB paths
+5. ✅ Write Python tests (decorator → JSON validation)
+6. ✅ **[Analytics]** Write fact table decorator tests
+7. ✅ Build wheel packaging
 
 **Deliverables**:
 - Python package with decorators (authoring-only)
 - JSON schema output (consumed by fraiseql-cli)
+- **[Analytics]** Fact table and aggregate query decorators
 - Python tests passing
 - Pip-installable wheel
 
-**Effort**: 3-4 days (reduced - no FFI complexity)
+**Effort**: 4-5 days (+1 day for analytics)
 
 ---
 

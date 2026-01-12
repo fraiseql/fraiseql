@@ -273,7 +273,12 @@ FraiseQL enforces opinionated schema conventions that unlock powerful features a
 - **Audit columns (`created_at`, `updated_at`, `deleted_at`)** — Enables soft deletes, cache invalidation, CDC
 - **View composition** — Pre-aggregated views enable O(1) relationship composition without ORM overhead
 
-These conventions are **not optional** — they are required by FraiseQL's compilation and execution model. For complete schema conventions reference, see **`docs/specs/schema-conventions.md`**.
+**Analytical tables** use specialized naming conventions:
+- **Fact tables (`tf_*`)** — Raw transactional data with measures (SQL columns) + dimensions (JSONB)
+- **Aggregate tables (`ta_*`)** — Pre-computed rollups with same structure as fact tables, different granularity
+- **Dimension tables (`td_*`)** — Reference data for ETL denormalization (not joined at query time)
+
+These conventions are **not optional** — they are required by FraiseQL's compilation and execution model. For complete schema conventions reference, see **`docs/specs/schema-conventions.md`** and **`docs/specs/analytical-schema-conventions.md`**.
 
 ### 3.3 Compile-Time Database Specialization
 
@@ -334,6 +339,115 @@ Delta plane provides **database-driven change event streaming** integrated with 
 - Events include full before/after data for audit and replay
 
 **Detailed specification:** See `docs/architecture/realtime/subscriptions.md` for complete Delta plane architecture, event capture mechanisms, transport adapters, and implementation phases.
+
+### 3.5 Analytical Execution Semantics
+
+FraiseQL v2 supports database-native analytical queries through compile-time schema analysis and runtime SQL generation.
+
+#### 3.5.1 Fact Table Pattern
+
+Analytical workloads use **fact tables** following a standardized pattern:
+
+- **Naming**: `tf_*` prefix (table fact)
+- **Measures**: SQL columns with numeric types (INT, DECIMAL, FLOAT) for fast aggregation
+- **Dimensions**: JSONB `data` column for flexible GROUP BY grouping
+- **Denormalized filters**: Indexed SQL columns (customer_id, occurred_at) for fast WHERE filtering
+
+**No Joins**: FraiseQL does not support joins. All dimensional data must be denormalized into the `data` JSONB column at ETL time (managed by DBA/data team, not FraiseQL).
+
+**Example fact table**:
+```sql
+CREATE TABLE tf_sales (
+    id BIGSERIAL PRIMARY KEY,
+    -- Measures (SQL columns)
+    revenue DECIMAL(10,2) NOT NULL,
+    quantity INT NOT NULL,
+    -- Dimensions (JSONB)
+    data JSONB NOT NULL,
+    -- Denormalized filters (indexed)
+    customer_id UUID NOT NULL,
+    occurred_at TIMESTAMPTZ NOT NULL
+);
+```
+
+**Aggregate tables** (`ta_*` prefix) follow the same structure as fact tables, just at different granularity (e.g., daily vs per-transaction). They are pre-computed fact tables with coarser granularity.
+
+**Dimension tables** (`td_*` prefix) are reference data used at ETL time to denormalize into fact/aggregate tables. They are never joined at query time.
+
+#### 3.5.2 GROUP BY Compilation
+
+When a type is marked as a fact table, the compiler:
+
+1. **Introspects** table structure to identify measures, dimensions, and filters
+2. **Generates** GraphQL aggregate types:
+   - `{Type}Aggregate` - Result type with grouped dimensions + aggregated measures
+   - `{Type}GroupByInput` - Dimension paths + temporal buckets
+   - `{Type}HavingInput` - Post-aggregation filters
+3. **Validates** that measures are numeric types
+4. **Emits** SQL templates with GROUP BY, aggregate functions, and HAVING clauses
+
+#### 3.5.3 Aggregate Functions
+
+Supported aggregate functions vary by database target (from capability manifest):
+
+**Basic (all databases)**:
+- COUNT(*), COUNT(DISTINCT field)
+- SUM(field), AVG(field), MIN(field), MAX(field)
+
+**Statistical (PostgreSQL, SQL Server)**:
+- STDDEV(field), VARIANCE(field)
+- PERCENTILE_CONT(field, percentile)
+
+**Conditional Aggregates**:
+- PostgreSQL: `SUM(revenue) FILTER (WHERE status = 'completed')`
+- MySQL/SQLite/SQL Server: `SUM(CASE WHEN status = 'completed' THEN revenue ELSE 0 END)`
+
+#### 3.5.4 Temporal Bucketing
+
+Time-series dimensions are compiled using database-specific temporal functions:
+
+| Database | Function | Supported Buckets |
+|----------|----------|-------------------|
+| PostgreSQL | DATE_TRUNC | second, minute, hour, day, week, month, quarter, year |
+| MySQL | DATE_FORMAT | day, week, month, year |
+| SQLite | strftime | day, week, month, year |
+| SQL Server | DATEPART | day, week, month, quarter, year, hour, minute |
+
+**Example**: `groupBy: { occurred_at_day: true }` compiles to `DATE_TRUNC('day', occurred_at)` on PostgreSQL.
+
+#### 3.5.5 HAVING Clause
+
+Post-aggregation filters are compiled into HAVING clauses with compile-time validation:
+
+- Validate that HAVING references aggregated measures (not raw columns)
+- Generate database-specific HAVING SQL
+- Support comparisons: _gt, _gte, _lt, _lte, _eq, _neq
+
+**Example**: `having: { revenue_sum_gt: 10000 }` compiles to `HAVING SUM(revenue) > $1`.
+
+#### 3.5.6 Performance Characteristics
+
+- **SQL column aggregation**: 10-100x faster than JSONB aggregation
+- **Indexed filters**: B-tree index access on denormalized columns (customer_id, occurred_at)
+- **JSONB dimensions**: Slower than SQL columns but more flexible (use GIN indexes)
+- **Pre-aggregated views**: Query pre-computed aggregate tables (`ta_*`) for common rollups
+
+#### 3.5.7 ETL Responsibility
+
+FraiseQL provides the **GraphQL query interface** over existing tables. The DBA/data team is responsible for:
+
+- Creating and populating `tf_*` (fact) tables with denormalized dimensions
+- Creating and refreshing `ta_*` (aggregate) tables via scheduled jobs
+- Maintaining `td_*` (dimension) tables as reference data for ETL processes
+
+FraiseQL does **not** manage ETL pipelines or data loading.
+
+**Detailed specifications**: See:
+- `docs/architecture/analytics/aggregation-model.md` - Compilation and execution
+- `docs/architecture/analytics/fact-dimension-pattern.md` - Table structure patterns
+- `docs/specs/aggregation-operators.md` - Database-specific operators
+- `docs/specs/analytical-schema-conventions.md` - Naming conventions and best practices
+- `docs/guides/analytics-patterns.md` - Practical query patterns
 
 ---
 

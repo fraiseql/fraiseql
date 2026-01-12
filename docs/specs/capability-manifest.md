@@ -297,6 +297,136 @@ These operators are supported by **every database** FraiseQL targets:
 }
 ```
 
+### 3.4 Aggregation Operators
+
+Aggregation operators are used in analytical queries (fact tables with `tf_*` prefix) for GROUP BY and HAVING clauses.
+
+#### PostgreSQL Aggregation (Full Support)
+
+```json
+{
+  "aggregation": {
+    "basic": [
+      {"function": "COUNT", "sql": "COUNT($1)", "return_type": "Int"},
+      {"function": "COUNT_DISTINCT", "sql": "COUNT(DISTINCT $1)", "return_type": "Int"},
+      {"function": "SUM", "sql": "SUM($1)", "return_type": "Numeric"},
+      {"function": "AVG", "sql": "AVG($1)", "return_type": "Float"},
+      {"function": "MIN", "sql": "MIN($1)", "return_type": "Same as input"},
+      {"function": "MAX", "sql": "MAX($1)", "return_type": "Same as input"}
+    ],
+    "statistical": [
+      {"function": "STDDEV", "sql": "STDDEV($1)", "return_type": "Float"},
+      {"function": "VARIANCE", "sql": "VARIANCE($1)", "return_type": "Float"},
+      {"function": "PERCENTILE_CONT", "sql": "PERCENTILE_CONT($1) WITHIN GROUP (ORDER BY $2)", "return_type": "Float"}
+    ],
+    "temporal_bucketing": {
+      "function": "DATE_TRUNC",
+      "sql": "DATE_TRUNC($1, $2)",
+      "buckets": ["second", "minute", "hour", "day", "week", "month", "quarter", "year"]
+    },
+    "conditional": {
+      "function": "FILTER",
+      "sql": "$1 FILTER (WHERE $2)",
+      "supported": true
+    }
+  }
+}
+```
+
+#### MySQL Aggregation (Basic Support)
+
+```json
+{
+  "aggregation": {
+    "basic": [
+      {"function": "COUNT", "sql": "COUNT($1)", "return_type": "Int"},
+      {"function": "COUNT_DISTINCT", "sql": "COUNT(DISTINCT $1)", "return_type": "Int"},
+      {"function": "SUM", "sql": "SUM($1)", "return_type": "Numeric"},
+      {"function": "AVG", "sql": "AVG($1)", "return_type": "Float"},
+      {"function": "MIN", "sql": "MIN($1)", "return_type": "Same as input"},
+      {"function": "MAX", "sql": "MAX($1)", "return_type": "Same as input"}
+    ],
+    "statistical": [],
+    "temporal_bucketing": {
+      "function": "DATE_FORMAT",
+      "sql": "DATE_FORMAT($1, $2)",
+      "buckets": ["day", "week", "month", "year"]
+    },
+    "conditional": {
+      "function": "FILTER",
+      "sql": "CASE WHEN $2 THEN $1 ELSE 0 END",
+      "supported": "emulated"
+    }
+  }
+}
+```
+
+#### SQLite Aggregation (Minimal Support)
+
+```json
+{
+  "aggregation": {
+    "basic": [
+      {"function": "COUNT", "sql": "COUNT($1)", "return_type": "Int"},
+      {"function": "SUM", "sql": "SUM($1)", "return_type": "Numeric"},
+      {"function": "AVG", "sql": "AVG($1)", "return_type": "Float"},
+      {"function": "MIN", "sql": "MIN($1)", "return_type": "Same as input"},
+      {"function": "MAX", "sql": "MAX($1)", "return_type": "Same as input"}
+    ],
+    "statistical": [],
+    "temporal_bucketing": {
+      "function": "strftime",
+      "sql": "strftime($1, $2)",
+      "buckets": ["day", "week", "month", "year"]
+    },
+    "conditional": {
+      "function": "FILTER",
+      "sql": "CASE WHEN $2 THEN $1 ELSE 0 END",
+      "supported": "emulated"
+    }
+  }
+}
+```
+
+#### SQL Server Aggregation (Enterprise Support)
+
+```json
+{
+  "aggregation": {
+    "basic": [
+      {"function": "COUNT", "sql": "COUNT($1)", "return_type": "Int"},
+      {"function": "COUNT_DISTINCT", "sql": "COUNT(DISTINCT $1)", "return_type": "Int"},
+      {"function": "SUM", "sql": "SUM($1)", "return_type": "Numeric"},
+      {"function": "AVG", "sql": "AVG($1)", "return_type": "Float"},
+      {"function": "MIN", "sql": "MIN($1)", "return_type": "Same as input"},
+      {"function": "MAX", "sql": "MAX($1)", "return_type": "Same as input"}
+    ],
+    "statistical": [
+      {"function": "STDEV", "sql": "STDEV($1)", "return_type": "Float"},
+      {"function": "STDEVP", "sql": "STDEVP($1)", "return_type": "Float"},
+      {"function": "VAR", "sql": "VAR($1)", "return_type": "Float"},
+      {"function": "VARP", "sql": "VARP($1)", "return_type": "Float"}
+    ],
+    "temporal_bucketing": {
+      "function": "DATEPART",
+      "sql": "DATEPART($1, $2)",
+      "buckets": ["day", "week", "month", "quarter", "year", "hour", "minute"]
+    },
+    "conditional": {
+      "function": "FILTER",
+      "sql": "CASE WHEN $2 THEN $1 ELSE 0 END",
+      "supported": "emulated"
+    },
+    "json": [
+      {"function": "JSON_VALUE", "sql": "JSON_VALUE($1, $2)", "supported": true},
+      {"function": "JSON_QUERY", "sql": "JSON_QUERY($1, $2)", "supported": true}
+    ]
+  }
+}
+```
+
+**Related documentation**: See `docs/specs/aggregation-operators.md` for complete aggregation operator reference with examples.
+
 ---
 
 ## 4. Capability Flags
