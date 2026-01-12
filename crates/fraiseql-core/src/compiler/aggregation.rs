@@ -234,6 +234,28 @@ pub enum AggregateExpression {
         /// Result alias
         alias: String,
     },
+    /// Advanced aggregate with optional parameters (Phase 6)
+    AdvancedAggregate {
+        /// Column to aggregate
+        column: String,
+        /// Aggregate function
+        function: AggregateFunction,
+        /// Result alias
+        alias: String,
+        /// Optional delimiter for STRING_AGG
+        delimiter: Option<String>,
+        /// Optional ORDER BY for ARRAY_AGG/STRING_AGG
+        order_by: Option<Vec<OrderByClause>>,
+    },
+    /// Boolean aggregate (BOOL_AND/BOOL_OR) (Phase 6)
+    BoolAggregate {
+        /// Column to aggregate (boolean expression)
+        column: String,
+        /// Boolean aggregate function
+        function: crate::compiler::aggregate_types::BoolAggregateFunction,
+        /// Result alias
+        alias: String,
+    },
 }
 
 /// Validated HAVING condition
@@ -392,7 +414,7 @@ impl AggregationPlanner {
     /// Validate HAVING conditions
     fn validate_having(
         conditions: &[HavingCondition],
-        aggregate_expressions: &[AggregateExpression],
+        _aggregate_expressions: &[AggregateExpression],
     ) -> Result<Vec<ValidatedHavingCondition>> {
         let mut validated = Vec::new();
 

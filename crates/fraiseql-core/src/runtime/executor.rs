@@ -1,7 +1,6 @@
 //! Query executor - main runtime execution engine.
 
 use crate::db::traits::DatabaseAdapter;
-use crate::db::types::{DatabaseType, PoolMetrics};
 use crate::error::Result;
 use crate::schema::CompiledSchema;
 use super::{QueryMatcher, QueryPlanner, ResultProjector, RuntimeConfig};

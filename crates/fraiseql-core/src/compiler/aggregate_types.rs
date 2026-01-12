@@ -39,7 +39,7 @@
 //! }
 //! ```
 
-use crate::compiler::fact_table::{FactTableMetadata, MeasureColumn, SqlType};
+use crate::compiler::fact_table::{FactTableMetadata, SqlType};
 use crate::error::{FraiseQLError, Result};
 use serde::{Deserialize, Serialize};
 
@@ -512,8 +512,8 @@ impl AggregateTypeGenerator {
     }
 
     /// Generate GroupByInput
-    fn generate_group_by_input(metadata: &FactTableMetadata, type_name: &str) -> Result<GroupByInput> {
-        let mut fields = Vec::new();
+    fn generate_group_by_input(_metadata: &FactTableMetadata, type_name: &str) -> Result<GroupByInput> {
+        let fields = Vec::new();
 
         // TODO: Add dimension fields (from JSONB paths)
         // TODO: Add temporal bucket fields (from timestamp columns)

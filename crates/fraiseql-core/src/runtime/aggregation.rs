@@ -53,7 +53,7 @@ use crate::compiler::aggregation::{
     AggregateExpression, AggregationPlan, GroupByExpression, OrderByClause, OrderDirection,
     ValidatedHavingCondition,
 };
-use crate::compiler::aggregate_types::{AggregateFunction, HavingOperator, TemporalBucket};
+use crate::compiler::aggregate_types::{AggregateFunction, TemporalBucket};
 use crate::db::types::DatabaseType;
 use crate::error::{FraiseQLError, Result};
 
@@ -180,7 +180,9 @@ impl AggregationSqlGenerator {
             let alias = match expr {
                 AggregateExpression::Count { alias }
                 | AggregateExpression::CountDistinct { alias, .. }
-                | AggregateExpression::MeasureAggregate { alias, .. } => alias,
+                | AggregateExpression::MeasureAggregate { alias, .. }
+                | AggregateExpression::AdvancedAggregate { alias, .. }
+                | AggregateExpression::BoolAggregate { alias, .. } => alias,
             };
             columns.push(format!("{} AS {}", column, alias));
         }
@@ -285,6 +287,178 @@ impl AggregationSqlGenerator {
             }
             AggregateExpression::MeasureAggregate { column, function, .. } => {
                 Ok(format!("{}({})", function.sql_name(), column))
+            }
+            AggregateExpression::AdvancedAggregate { column, function, delimiter, order_by, .. } => {
+                self.advanced_aggregate_to_sql(column, *function, delimiter.as_deref(), order_by.as_ref())
+            }
+            AggregateExpression::BoolAggregate { column, function, .. } => {
+                Ok(self.generate_bool_agg_sql(column, *function))
+            }
+        }
+    }
+
+    /// Generate SQL for advanced aggregates (Phase 6)
+    fn advanced_aggregate_to_sql(
+        &self,
+        column: &str,
+        function: AggregateFunction,
+        delimiter: Option<&str>,
+        order_by: Option<&Vec<OrderByClause>>,
+    ) -> Result<String> {
+        use AggregateFunction::*;
+
+        match function {
+            ArrayAgg => Ok(self.generate_array_agg_sql(column, order_by)),
+            JsonAgg => Ok(self.generate_json_agg_sql(column, order_by)),
+            JsonbAgg => Ok(self.generate_jsonb_agg_sql(column, order_by)),
+            StringAgg => Ok(self.generate_string_agg_sql(column, delimiter.unwrap_or(","), order_by)),
+            _ => Ok(format!("{}({})", function.sql_name(), column)),
+        }
+    }
+
+    /// Generate ARRAY_AGG SQL
+    fn generate_array_agg_sql(&self, column: &str, order_by: Option<&Vec<OrderByClause>>) -> String {
+        match self.database_type {
+            DatabaseType::PostgreSQL => {
+                if let Some(order) = order_by {
+                    format!("ARRAY_AGG({} ORDER BY {})", column, self.order_by_to_sql(order))
+                } else {
+                    format!("ARRAY_AGG({})", column)
+                }
+            }
+            DatabaseType::MySQL => {
+                // MySQL doesn't have ARRAY_AGG, use JSON_ARRAYAGG
+                format!("JSON_ARRAYAGG({})", column)
+            }
+            DatabaseType::SQLite => {
+                // SQLite: emulate with GROUP_CONCAT, wrap in JSON array syntax
+                format!("'[' || GROUP_CONCAT('\"' || {} || '\"', ',') || ']'", column)
+            }
+            DatabaseType::SQLServer => {
+                // SQL Server: use STRING_AGG and wrap in JSON array
+                format!("'[' + STRING_AGG('\"' + CAST({} AS NVARCHAR(MAX)) + '\"', ',') + ']'", column)
+            }
+        }
+    }
+
+    /// Generate JSON_AGG SQL
+    fn generate_json_agg_sql(&self, column: &str, order_by: Option<&Vec<OrderByClause>>) -> String {
+        match self.database_type {
+            DatabaseType::PostgreSQL => {
+                if let Some(order) = order_by {
+                    format!("JSON_AGG({} ORDER BY {})", column, self.order_by_to_sql(order))
+                } else {
+                    format!("JSON_AGG({})", column)
+                }
+            }
+            DatabaseType::MySQL => {
+                // MySQL: JSON_ARRAYAGG for arrays
+                format!("JSON_ARRAYAGG({})", column)
+            }
+            DatabaseType::SQLite => {
+                // SQLite: limited JSON support
+                format!("JSON_ARRAY({})", column)
+            }
+            DatabaseType::SQLServer => {
+                // SQL Server: FOR JSON PATH
+                format!("(SELECT {} FOR JSON PATH)", column)
+            }
+        }
+    }
+
+    /// Generate JSONB_AGG SQL (PostgreSQL-specific)
+    fn generate_jsonb_agg_sql(&self, column: &str, order_by: Option<&Vec<OrderByClause>>) -> String {
+        match self.database_type {
+            DatabaseType::PostgreSQL => {
+                if let Some(order) = order_by {
+                    format!("JSONB_AGG({} ORDER BY {})", column, self.order_by_to_sql(order))
+                } else {
+                    format!("JSONB_AGG({})", column)
+                }
+            }
+            // Fall back to JSON_AGG for other databases
+            _ => self.generate_json_agg_sql(column, order_by),
+        }
+    }
+
+    /// Generate STRING_AGG SQL
+    fn generate_string_agg_sql(
+        &self,
+        column: &str,
+        delimiter: &str,
+        order_by: Option<&Vec<OrderByClause>>,
+    ) -> String {
+        match self.database_type {
+            DatabaseType::PostgreSQL => {
+                if let Some(order) = order_by {
+                    format!("STRING_AGG({}, '{}' ORDER BY {})", column, delimiter, self.order_by_to_sql(order))
+                } else {
+                    format!("STRING_AGG({}, '{}')", column, delimiter)
+                }
+            }
+            DatabaseType::MySQL => {
+                let mut sql = format!("GROUP_CONCAT({}",  column);
+                if let Some(order) = order_by {
+                    sql.push_str(&format!(" ORDER BY {}", self.order_by_to_sql(order)));
+                }
+                sql.push_str(&format!(" SEPARATOR '{}')", delimiter));
+                sql
+            }
+            DatabaseType::SQLite => {
+                // SQLite GROUP_CONCAT doesn't support ORDER BY in older versions
+                format!("GROUP_CONCAT({}, '{}')", column, delimiter)
+            }
+            DatabaseType::SQLServer => {
+                let mut sql = format!("STRING_AGG(CAST({} AS NVARCHAR(MAX)), '{}')", column, delimiter);
+                if let Some(order) = order_by {
+                    sql.push_str(&format!(" WITHIN GROUP (ORDER BY {})", self.order_by_to_sql(order)));
+                }
+                sql
+            }
+        }
+    }
+
+    /// Convert ORDER BY clauses to SQL
+    fn order_by_to_sql(&self, order_by: &[OrderByClause]) -> String {
+        order_by
+            .iter()
+            .map(|clause| {
+                let direction = match clause.direction {
+                    OrderDirection::Asc => "ASC",
+                    OrderDirection::Desc => "DESC",
+                };
+                format!("{} {}", clause.field, direction)
+            })
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+
+    /// Generate BOOL_AND/BOOL_OR SQL
+    fn generate_bool_agg_sql(
+        &self,
+        column: &str,
+        function: crate::compiler::aggregate_types::BoolAggregateFunction,
+    ) -> String {
+        use crate::compiler::aggregate_types::BoolAggregateFunction;
+
+        match self.database_type {
+            DatabaseType::PostgreSQL => {
+                // PostgreSQL has native BOOL_AND/BOOL_OR
+                format!("{}({})", function.sql_name(), column)
+            }
+            DatabaseType::MySQL | DatabaseType::SQLite => {
+                // MySQL/SQLite: emulate with MIN/MAX on boolean as integer (0/1)
+                match function {
+                    BoolAggregateFunction::And => format!("MIN({}) = 1", column),
+                    BoolAggregateFunction::Or => format!("MAX({}) = 1", column),
+                }
+            }
+            DatabaseType::SQLServer => {
+                // SQL Server: emulate with MIN/MAX on CAST to BIT
+                match function {
+                    BoolAggregateFunction::And => format!("MIN(CAST({} AS BIT)) = 1", column),
+                    BoolAggregateFunction::Or => format!("MAX(CAST({} AS BIT)) = 1", column),
+                }
             }
         }
     }
@@ -546,5 +720,174 @@ mod tests {
 
         assert!(sql.order_by.is_some());
         assert!(sql.order_by.as_ref().unwrap().contains("ORDER BY revenue_sum DESC"));
+    }
+
+    // ========================================
+    // Phase 6: Advanced Aggregates Tests
+    // ========================================
+
+    #[test]
+    fn test_array_agg_postgres() {
+        let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+
+        // Test without ORDER BY
+        let sql = generator.generate_array_agg_sql("product_id", None);
+        assert_eq!(sql, "ARRAY_AGG(product_id)");
+
+        // Test with ORDER BY
+        let order_by = vec![OrderByClause {
+            field: "revenue".to_string(),
+            direction: OrderDirection::Desc,
+        }];
+        let sql = generator.generate_array_agg_sql("product_id", Some(&order_by));
+        assert_eq!(sql, "ARRAY_AGG(product_id ORDER BY revenue DESC)");
+    }
+
+    #[test]
+    fn test_array_agg_mysql() {
+        let generator = AggregationSqlGenerator::new(DatabaseType::MySQL);
+        let sql = generator.generate_array_agg_sql("product_id", None);
+        assert_eq!(sql, "JSON_ARRAYAGG(product_id)");
+    }
+
+    #[test]
+    fn test_array_agg_sqlite() {
+        let generator = AggregationSqlGenerator::new(DatabaseType::SQLite);
+        let sql = generator.generate_array_agg_sql("product_id", None);
+        assert!(sql.contains("GROUP_CONCAT"));
+        assert!(sql.contains("'[' ||"));
+        assert!(sql.contains("|| ']'"));
+    }
+
+    #[test]
+    fn test_string_agg_postgres() {
+        let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+
+        // Test without ORDER BY
+        let sql = generator.generate_string_agg_sql("product_name", ", ", None);
+        assert_eq!(sql, "STRING_AGG(product_name, ', ')");
+
+        // Test with ORDER BY
+        let order_by = vec![OrderByClause {
+            field: "revenue".to_string(),
+            direction: OrderDirection::Desc,
+        }];
+        let sql = generator.generate_string_agg_sql("product_name", ", ", Some(&order_by));
+        assert_eq!(sql, "STRING_AGG(product_name, ', ' ORDER BY revenue DESC)");
+    }
+
+    #[test]
+    fn test_string_agg_mysql() {
+        let generator = AggregationSqlGenerator::new(DatabaseType::MySQL);
+
+        let order_by = vec![OrderByClause {
+            field: "revenue".to_string(),
+            direction: OrderDirection::Desc,
+        }];
+        let sql = generator.generate_string_agg_sql("product_name", ", ", Some(&order_by));
+        assert_eq!(sql, "GROUP_CONCAT(product_name ORDER BY revenue DESC SEPARATOR ', ')");
+    }
+
+    #[test]
+    fn test_string_agg_sqlserver() {
+        let generator = AggregationSqlGenerator::new(DatabaseType::SQLServer);
+
+        let order_by = vec![OrderByClause {
+            field: "revenue".to_string(),
+            direction: OrderDirection::Desc,
+        }];
+        let sql = generator.generate_string_agg_sql("product_name", ", ", Some(&order_by));
+        assert!(sql.contains("STRING_AGG(CAST(product_name AS NVARCHAR(MAX)), ', ')"));
+        assert!(sql.contains("WITHIN GROUP (ORDER BY revenue DESC)"));
+    }
+
+    #[test]
+    fn test_json_agg_postgres() {
+        let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+        let sql = generator.generate_json_agg_sql("data", None);
+        assert_eq!(sql, "JSON_AGG(data)");
+
+        let order_by = vec![OrderByClause {
+            field: "created_at".to_string(),
+            direction: OrderDirection::Asc,
+        }];
+        let sql = generator.generate_json_agg_sql("data", Some(&order_by));
+        assert_eq!(sql, "JSON_AGG(data ORDER BY created_at ASC)");
+    }
+
+    #[test]
+    fn test_jsonb_agg_postgres() {
+        let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+        let sql = generator.generate_jsonb_agg_sql("data", None);
+        assert_eq!(sql, "JSONB_AGG(data)");
+    }
+
+    #[test]
+    fn test_bool_and_postgres() {
+        use crate::compiler::aggregate_types::BoolAggregateFunction;
+
+        let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+        let sql = generator.generate_bool_agg_sql("is_active", BoolAggregateFunction::And);
+        assert_eq!(sql, "BOOL_AND(is_active)");
+
+        let sql = generator.generate_bool_agg_sql("has_discount", BoolAggregateFunction::Or);
+        assert_eq!(sql, "BOOL_OR(has_discount)");
+    }
+
+    #[test]
+    fn test_bool_and_mysql() {
+        use crate::compiler::aggregate_types::BoolAggregateFunction;
+
+        let generator = AggregationSqlGenerator::new(DatabaseType::MySQL);
+        let sql = generator.generate_bool_agg_sql("is_active", BoolAggregateFunction::And);
+        assert_eq!(sql, "MIN(is_active) = 1");
+
+        let sql = generator.generate_bool_agg_sql("has_discount", BoolAggregateFunction::Or);
+        assert_eq!(sql, "MAX(has_discount) = 1");
+    }
+
+    #[test]
+    fn test_bool_and_sqlserver() {
+        use crate::compiler::aggregate_types::BoolAggregateFunction;
+
+        let generator = AggregationSqlGenerator::new(DatabaseType::SQLServer);
+        let sql = generator.generate_bool_agg_sql("is_active", BoolAggregateFunction::And);
+        assert_eq!(sql, "MIN(CAST(is_active AS BIT)) = 1");
+
+        let sql = generator.generate_bool_agg_sql("has_discount", BoolAggregateFunction::Or);
+        assert_eq!(sql, "MAX(CAST(has_discount AS BIT)) = 1");
+    }
+
+    #[test]
+    fn test_advanced_aggregate_full_query() {
+        // Create a plan with advanced aggregates
+        let mut plan = create_test_plan();
+
+        // Add an ARRAY_AGG aggregate
+        plan.aggregate_expressions.push(AggregateExpression::AdvancedAggregate {
+            column: "product_id".to_string(),
+            function: AggregateFunction::ArrayAgg,
+            alias: "products".to_string(),
+            delimiter: None,
+            order_by: Some(vec![OrderByClause {
+                field: "revenue".to_string(),
+                direction: OrderDirection::Desc,
+            }]),
+        });
+
+        // Add a STRING_AGG aggregate
+        plan.aggregate_expressions.push(AggregateExpression::AdvancedAggregate {
+            column: "product_name".to_string(),
+            function: AggregateFunction::StringAgg,
+            alias: "product_names".to_string(),
+            delimiter: Some(", ".to_string()),
+            order_by: None,
+        });
+
+        let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+        let sql = generator.generate(&plan).unwrap();
+
+        assert!(sql.complete_sql.contains("ARRAY_AGG(product_id ORDER BY revenue DESC)"));
+        assert!(sql.complete_sql.contains("STRING_AGG(product_name, ', ')"));
     }
 }
