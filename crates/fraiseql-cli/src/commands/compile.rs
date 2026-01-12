@@ -2,7 +2,7 @@
 //!
 //! Compiles schema.json (from Python/TypeScript/etc.) into optimized schema.compiled.json
 
-use crate::schema::{IntermediateSchema, SchemaConverter};
+use crate::schema::{IntermediateSchema, SchemaConverter, SchemaOptimizer, SchemaValidator};
 use anyhow::{Context, Result};
 use std::fs;
 use std::path::Path;
@@ -40,34 +40,61 @@ pub async fn run(input: &str, output: &str, check: bool) -> Result<()> {
     let intermediate: IntermediateSchema =
         serde_json::from_str(&schema_json).context("Failed to parse schema.json")?;
 
-    // 3. Convert to CompiledSchema (validates and normalizes)
+    // 3. Validate intermediate schema
+    info!("Validating schema structure...");
+    let validation_report = SchemaValidator::validate(&intermediate)
+        .context("Failed to validate schema")?;
+
+    if !validation_report.is_valid() {
+        validation_report.print();
+        anyhow::bail!("Schema validation failed with {} error(s)", validation_report.error_count());
+    }
+
+    // Print warnings if any
+    if validation_report.warning_count() > 0 {
+        validation_report.print();
+    }
+
+    // 4. Convert to CompiledSchema (validates and normalizes)
     info!("Converting to compiled format...");
-    let schema = SchemaConverter::convert(intermediate)
+    let mut schema = SchemaConverter::convert(intermediate)
         .context("Failed to convert schema to compiled format")?;
 
-    // 4. If check-only mode, stop here
+    // 5. Optimize schema and generate SQL hints
+    info!("Analyzing schema for optimization opportunities...");
+    let optimization_report = SchemaOptimizer::optimize(&mut schema)
+        .context("Failed to optimize schema")?;
+
+    // 6. If check-only mode, stop here
     if check {
         println!("✓ Schema is valid");
         println!("  Types: {}", schema.types.len());
         println!("  Queries: {}", schema.queries.len());
         println!("  Mutations: {}", schema.mutations.len());
+
+        // Print optimization suggestions
+        optimization_report.print();
+
         return Ok(());
     }
 
-    // 5. Write compiled schema (for now, same as input - optimization in future phases)
+    // 7. Write compiled schema
     info!("Writing compiled schema to: {output}");
     let output_json = serde_json::to_string_pretty(&schema)
         .context("Failed to serialize compiled schema")?;
 
     fs::write(output, output_json).context("Failed to write compiled schema")?;
 
-    // 6. Success message
+    // 8. Success message
     println!("✓ Schema compiled successfully");
     println!("  Input:  {input}");
     println!("  Output: {output}");
     println!("  Types: {}", schema.types.len());
     println!("  Queries: {}", schema.queries.len());
     println!("  Mutations: {}", schema.mutations.len());
+
+    // Print optimization suggestions
+    optimization_report.print();
 
     Ok(())
 }
