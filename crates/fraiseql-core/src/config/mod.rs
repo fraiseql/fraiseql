@@ -365,6 +365,159 @@ impl Default for CacheConfig {
 }
 
 // =============================================================================
+// Collation Configuration
+// =============================================================================
+
+/// Collation configuration for user-aware sorting.
+///
+/// This configuration enables automatic collation support based on user locale,
+/// adapting to database capabilities.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CollationConfig {
+    /// Enable automatic user-aware collation.
+    pub enabled: bool,
+
+    /// Fallback locale for unauthenticated users.
+    pub fallback_locale: String,
+
+    /// Allowed locales (whitelist for security).
+    pub allowed_locales: Vec<String>,
+
+    /// Strategy when user locale is not in allowed list.
+    pub on_invalid_locale: InvalidLocaleStrategy,
+
+    /// Database-specific overrides (optional).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub database_overrides: Option<DatabaseCollationOverrides>,
+}
+
+impl Default for CollationConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            fallback_locale: "en-US".to_string(),
+            allowed_locales: vec![
+                "en-US".into(),
+                "en-GB".into(),
+                "fr-FR".into(),
+                "de-DE".into(),
+                "es-ES".into(),
+                "ja-JP".into(),
+                "zh-CN".into(),
+                "pt-BR".into(),
+                "it-IT".into(),
+            ],
+            on_invalid_locale: InvalidLocaleStrategy::Fallback,
+            database_overrides: None,
+        }
+    }
+}
+
+/// Strategy when user locale is not in allowed list.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum InvalidLocaleStrategy {
+    /// Use fallback locale.
+    #[default]
+    Fallback,
+    /// Use database default (no COLLATE clause).
+    DatabaseDefault,
+    /// Return error.
+    Error,
+}
+
+/// Database-specific collation overrides.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DatabaseCollationOverrides {
+    /// PostgreSQL-specific settings.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub postgres: Option<PostgresCollationConfig>,
+
+    /// MySQL-specific settings.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mysql: Option<MySqlCollationConfig>,
+
+    /// SQLite-specific settings.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sqlite: Option<SqliteCollationConfig>,
+
+    /// SQL Server-specific settings.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sqlserver: Option<SqlServerCollationConfig>,
+}
+
+/// PostgreSQL-specific collation configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PostgresCollationConfig {
+    /// Use ICU collations (recommended).
+    pub use_icu: bool,
+
+    /// Provider: "icu" or "libc".
+    pub provider: String,
+}
+
+impl Default for PostgresCollationConfig {
+    fn default() -> Self {
+        Self {
+            use_icu: true,
+            provider: "icu".to_string(),
+        }
+    }
+}
+
+/// MySQL-specific collation configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MySqlCollationConfig {
+    /// Charset (e.g., "utf8mb4").
+    pub charset: String,
+
+    /// Collation suffix (e.g., "_unicode_ci" or "_0900_ai_ci").
+    pub suffix: String,
+}
+
+impl Default for MySqlCollationConfig {
+    fn default() -> Self {
+        Self {
+            charset: "utf8mb4".to_string(),
+            suffix: "_unicode_ci".to_string(),
+        }
+    }
+}
+
+/// SQLite-specific collation configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SqliteCollationConfig {
+    /// Use COLLATE NOCASE for case-insensitive sorting.
+    pub use_nocase: bool,
+}
+
+impl Default for SqliteCollationConfig {
+    fn default() -> Self {
+        Self { use_nocase: true }
+    }
+}
+
+/// SQL Server-specific collation configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SqlServerCollationConfig {
+    /// Case-insensitive (CI) collations.
+    pub case_insensitive: bool,
+
+    /// Accent-insensitive (AI) collations.
+    pub accent_insensitive: bool,
+}
+
+impl Default for SqlServerCollationConfig {
+    fn default() -> Self {
+        Self {
+            case_insensitive: true,
+            accent_insensitive: true,
+        }
+    }
+}
+
+// =============================================================================
 // Main Configuration
 // =============================================================================
 
@@ -392,6 +545,9 @@ pub struct FraiseQLConfig {
 
     /// Caching configuration.
     pub cache: CacheConfig,
+
+    /// Collation configuration.
+    pub collation: CollationConfig,
 
     // Legacy fields for backward compatibility
     #[serde(skip)]
@@ -439,6 +595,7 @@ impl Default for FraiseQLConfig {
             auth: AuthConfig::default(),
             rate_limit: RateLimitConfig::default(),
             cache: CacheConfig::default(),
+            collation: CollationConfig::default(),
         }
     }
 }
@@ -754,6 +911,13 @@ impl ConfigBuilder {
         self
     }
 
+    /// Set collation configuration.
+    #[must_use]
+    pub fn collation(mut self, collation: CollationConfig) -> Self {
+        self.config.collation = collation;
+        self
+    }
+
     /// Build the configuration.
     ///
     /// # Errors
@@ -1049,5 +1213,150 @@ provider = "{}"
             let config = FraiseQLConfig::from_toml(&toml).unwrap();
             assert_eq!(config.auth.provider, expected);
         }
+    }
+
+    #[test]
+    fn test_collation_config_default() {
+        let config = CollationConfig::default();
+        assert!(config.enabled);
+        assert_eq!(config.fallback_locale, "en-US");
+        assert!(config.allowed_locales.contains(&"en-US".to_string()));
+        assert!(config.allowed_locales.contains(&"fr-FR".to_string()));
+        assert_eq!(config.on_invalid_locale, InvalidLocaleStrategy::Fallback);
+        assert!(config.database_overrides.is_none());
+    }
+
+    #[test]
+    fn test_collation_config_from_toml() {
+        let toml = r#"
+[database]
+url = "postgresql://localhost/test"
+
+[collation]
+enabled = true
+fallback_locale = "en-GB"
+on_invalid_locale = "error"
+allowed_locales = ["en-GB", "fr-FR", "de-DE"]
+"#;
+        let config = FraiseQLConfig::from_toml(toml).unwrap();
+
+        assert!(config.collation.enabled);
+        assert_eq!(config.collation.fallback_locale, "en-GB");
+        assert_eq!(config.collation.on_invalid_locale, InvalidLocaleStrategy::Error);
+        assert_eq!(config.collation.allowed_locales.len(), 3);
+        assert!(config.collation.allowed_locales.contains(&"de-DE".to_string()));
+    }
+
+    #[test]
+    fn test_collation_with_postgres_overrides() {
+        let toml = r#"
+[database]
+url = "postgresql://localhost/test"
+
+[collation]
+enabled = true
+fallback_locale = "en-US"
+
+[collation.database_overrides.postgres]
+use_icu = false
+provider = "libc"
+"#;
+        let config = FraiseQLConfig::from_toml(toml).unwrap();
+
+        let overrides = config.collation.database_overrides.as_ref().unwrap();
+        let pg_config = overrides.postgres.as_ref().unwrap();
+        assert!(!pg_config.use_icu);
+        assert_eq!(pg_config.provider, "libc");
+    }
+
+    #[test]
+    fn test_collation_with_mysql_overrides() {
+        let toml = r#"
+[database]
+url = "postgresql://localhost/test"
+
+[collation]
+enabled = true
+
+[collation.database_overrides.mysql]
+charset = "utf8mb4"
+suffix = "_0900_ai_ci"
+"#;
+        let config = FraiseQLConfig::from_toml(toml).unwrap();
+
+        let overrides = config.collation.database_overrides.as_ref().unwrap();
+        let mysql_config = overrides.mysql.as_ref().unwrap();
+        assert_eq!(mysql_config.charset, "utf8mb4");
+        assert_eq!(mysql_config.suffix, "_0900_ai_ci");
+    }
+
+    #[test]
+    fn test_collation_with_sqlite_overrides() {
+        let toml = r#"
+[database]
+url = "postgresql://localhost/test"
+
+[collation]
+enabled = true
+
+[collation.database_overrides.sqlite]
+use_nocase = false
+"#;
+        let config = FraiseQLConfig::from_toml(toml).unwrap();
+
+        let overrides = config.collation.database_overrides.as_ref().unwrap();
+        let sqlite_config = overrides.sqlite.as_ref().unwrap();
+        assert!(!sqlite_config.use_nocase);
+    }
+
+    #[test]
+    fn test_invalid_locale_strategy_variants() {
+        for (strategy_str, expected) in [
+            ("fallback", InvalidLocaleStrategy::Fallback),
+            ("database_default", InvalidLocaleStrategy::DatabaseDefault),
+            ("error", InvalidLocaleStrategy::Error),
+        ] {
+            let toml = format!(
+                r#"
+[database]
+url = "postgresql://localhost/test"
+
+[collation]
+on_invalid_locale = "{}"
+"#,
+                strategy_str
+            );
+            let config = FraiseQLConfig::from_toml(&toml).unwrap();
+            assert_eq!(config.collation.on_invalid_locale, expected);
+        }
+    }
+
+    #[test]
+    fn test_collation_disabled() {
+        let toml = r#"
+[database]
+url = "postgresql://localhost/test"
+
+[collation]
+enabled = false
+"#;
+        let config = FraiseQLConfig::from_toml(toml).unwrap();
+        assert!(!config.collation.enabled);
+    }
+
+    #[test]
+    fn test_collation_config_builder() {
+        let mut collation = CollationConfig::default();
+        collation.enabled = false;
+        collation.fallback_locale = "de-DE".to_string();
+
+        let config = FraiseQLConfig::builder()
+            .database_url("postgresql://localhost/test")
+            .collation(collation)
+            .build()
+            .unwrap();
+
+        assert!(!config.collation.enabled);
+        assert_eq!(config.collation.fallback_locale, "de-DE");
     }
 }

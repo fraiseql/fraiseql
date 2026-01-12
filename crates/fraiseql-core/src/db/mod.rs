@@ -41,6 +41,7 @@
 //! # }
 //! ```
 
+pub mod collation;
 pub mod traits;
 pub mod types;
 pub mod where_clause;
@@ -59,7 +60,8 @@ pub mod postgres;
 // pub mod sqlserver;
 
 // Re-export commonly used types
-pub use traits::DatabaseAdapter;
+pub use collation::{CollationCapabilities, CollationMapper};
+pub use traits::{DatabaseAdapter, DatabaseCapabilities};
 pub use types::{DatabaseType, JsonbValue, PoolMetrics};
 pub use where_clause::{WhereClause, WhereOperator};
 

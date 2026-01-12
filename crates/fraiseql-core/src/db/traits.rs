@@ -99,4 +99,79 @@ pub trait DatabaseAdapter: Send + Sync {
     /// - Active connections
     /// - Waiting requests
     fn pool_metrics(&self) -> PoolMetrics;
+
+    /// Get database capabilities.
+    ///
+    /// Returns information about what features this database supports,
+    /// including collation strategies and limitations.
+    ///
+    /// # Returns
+    ///
+    /// `DatabaseCapabilities` describing supported features.
+    fn capabilities(&self) -> DatabaseCapabilities {
+        DatabaseCapabilities::from_database_type(self.database_type())
+    }
+}
+
+/// Database capabilities and feature support.
+///
+/// Describes what features a database backend supports, allowing the runtime
+/// to adapt behavior based on database limitations.
+#[derive(Debug, Clone, Copy)]
+pub struct DatabaseCapabilities {
+    /// Database type.
+    pub database_type: DatabaseType,
+
+    /// Supports locale-specific collations.
+    pub supports_locale_collation: bool,
+
+    /// Requires custom collation registration.
+    pub requires_custom_collation: bool,
+
+    /// Recommended collation provider.
+    pub recommended_collation: Option<&'static str>,
+}
+
+impl DatabaseCapabilities {
+    /// Create capabilities from database type.
+    #[must_use]
+    pub const fn from_database_type(db_type: DatabaseType) -> Self {
+        match db_type {
+            DatabaseType::PostgreSQL => Self {
+                database_type: db_type,
+                supports_locale_collation: true,
+                requires_custom_collation: false,
+                recommended_collation: Some("icu"),
+            },
+            DatabaseType::MySQL => Self {
+                database_type: db_type,
+                supports_locale_collation: false,
+                requires_custom_collation: false,
+                recommended_collation: Some("utf8mb4_unicode_ci"),
+            },
+            DatabaseType::SQLite => Self {
+                database_type: db_type,
+                supports_locale_collation: false,
+                requires_custom_collation: true,
+                recommended_collation: Some("NOCASE"),
+            },
+            DatabaseType::SQLServer => Self {
+                database_type: db_type,
+                supports_locale_collation: true,
+                requires_custom_collation: false,
+                recommended_collation: Some("Latin1_General_100_CI_AI_SC_UTF8"),
+            },
+        }
+    }
+
+    /// Get collation strategy description.
+    #[must_use]
+    pub const fn collation_strategy(&self) -> &'static str {
+        match self.database_type {
+            DatabaseType::PostgreSQL => "ICU collations (locale-specific)",
+            DatabaseType::MySQL => "UTF8MB4 collations (general)",
+            DatabaseType::SQLite => "NOCASE (limited)",
+            DatabaseType::SQLServer => "Language-specific collations",
+        }
+    }
 }
