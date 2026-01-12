@@ -56,6 +56,7 @@
 //! ```
 
 mod codegen;
+pub mod fact_table;
 mod ir;
 mod lowering;
 mod parser;
