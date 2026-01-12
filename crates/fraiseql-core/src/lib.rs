@@ -70,7 +70,7 @@ pub mod schema;
 pub mod config;
 
 // Compilation (Phase 4)
-// pub mod compiler;
+pub mod compiler;
 
 // Execution (Phase 5)
 // pub mod runtime;

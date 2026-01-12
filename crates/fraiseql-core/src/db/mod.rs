@@ -48,14 +48,15 @@ pub mod where_clause;
 #[cfg(feature = "postgres")]
 pub mod postgres;
 
-#[cfg(feature = "mysql")]
-pub mod mysql;
-
-#[cfg(feature = "sqlite")]
-pub mod sqlite;
-
-#[cfg(feature = "sqlserver")]
-pub mod sqlserver;
+// TODO: Phase 2 Extension - Add MySQL, SQLite, SQL Server adapters
+// #[cfg(feature = "mysql")]
+// pub mod mysql;
+//
+// #[cfg(feature = "sqlite")]
+// pub mod sqlite;
+//
+// #[cfg(feature = "sqlserver")]
+// pub mod sqlserver;
 
 // Re-export commonly used types
 pub use traits::DatabaseAdapter;
