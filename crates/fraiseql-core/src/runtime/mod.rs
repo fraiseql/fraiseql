@@ -38,11 +38,13 @@
 //! # }
 //! ```
 
+pub mod aggregation;
 mod executor;
 mod matcher;
 mod planner;
 mod projection;
 
+pub use aggregation::{AggregationSql, AggregationSqlGenerator};
 pub use executor::Executor;
 pub use matcher::{QueryMatch, QueryMatcher};
 pub use planner::{ExecutionPlan, QueryPlanner};
