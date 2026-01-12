@@ -100,6 +100,40 @@ pub trait DatabaseAdapter: Send + Sync {
     /// - Waiting requests
     fn pool_metrics(&self) -> PoolMetrics;
 
+    /// Execute raw SQL query and return rows as JSON objects.
+    ///
+    /// Used for aggregation queries where we need full row data, not just JSONB column.
+    ///
+    /// # Arguments
+    ///
+    /// * `sql` - Raw SQL query to execute
+    ///
+    /// # Returns
+    ///
+    /// Vec of rows, where each row is a HashMap of column name to JSON value.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Database` on query execution failure.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use fraiseql_core::db::DatabaseAdapter;
+    /// # async fn example(adapter: impl DatabaseAdapter) -> Result<(), Box<dyn std::error::Error>> {
+    /// let sql = "SELECT category, SUM(revenue) as total FROM tf_sales GROUP BY category";
+    /// let rows = adapter.execute_raw_query(sql).await?;
+    /// for row in rows {
+    ///     println!("Category: {}, Total: {}", row["category"], row["total"]);
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    async fn execute_raw_query(
+        &self,
+        sql: &str,
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>>;
+
     /// Get database capabilities.
     ///
     /// Returns information about what features this database supports,

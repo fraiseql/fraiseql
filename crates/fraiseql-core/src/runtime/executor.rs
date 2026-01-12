@@ -207,6 +207,14 @@ mod tests {
                 waiting_requests: 0,
             }
         }
+
+        async fn execute_raw_query(
+            &self,
+            _sql: &str,
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            // Mock implementation: return empty results
+            Ok(vec![])
+        }
     }
 
     fn test_schema() -> CompiledSchema {

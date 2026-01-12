@@ -303,6 +303,15 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
     fn pool_metrics(&self) -> PoolMetrics {
         self.adapter.pool_metrics()
     }
+
+    async fn execute_raw_query(
+        &self,
+        sql: &str,
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        // For now, don't cache raw queries (aggregations)
+        // TODO: Add caching support for aggregation queries in future phase
+        self.adapter.execute_raw_query(sql).await
+    }
 }
 
 #[cfg(test)]
@@ -362,6 +371,13 @@ mod tests {
                 active_connections: 3,
                 waiting_requests: 0,
             }
+        }
+
+        async fn execute_raw_query(
+            &self,
+            _sql: &str,
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
         }
     }
 

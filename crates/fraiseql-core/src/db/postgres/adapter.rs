@@ -234,6 +234,61 @@ impl DatabaseAdapter for PostgresAdapter {
             waiting_requests: status.waiting as u32,
         }
     }
+
+    async fn execute_raw_query(
+        &self,
+        sql: &str,
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        let client = self.pool.get().await.map_err(|e| {
+            FraiseQLError::ConnectionPool {
+                message: format!("Failed to acquire connection: {e}"),
+            }
+        })?;
+
+        let rows: Vec<Row> = client.query(sql, &[]).await.map_err(|e| {
+            FraiseQLError::Database {
+                message: format!("Query execution failed: {e}"),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            }
+        })?;
+
+        // Convert each row to HashMap<String, Value>
+        let results: Vec<std::collections::HashMap<String, serde_json::Value>> = rows
+            .into_iter()
+            .map(|row| {
+                let mut map = std::collections::HashMap::new();
+
+                // Iterate over all columns in the row
+                for (idx, column) in row.columns().iter().enumerate() {
+                    let column_name = column.name().to_string();
+
+                    // Try to extract value based on PostgreSQL type
+                    let value: serde_json::Value = if let Ok(v) = row.try_get::<_, i32>(idx) {
+                        serde_json::json!(v)
+                    } else if let Ok(v) = row.try_get::<_, i64>(idx) {
+                        serde_json::json!(v)
+                    } else if let Ok(v) = row.try_get::<_, f64>(idx) {
+                        serde_json::json!(v)
+                    } else if let Ok(v) = row.try_get::<_, String>(idx) {
+                        serde_json::json!(v)
+                    } else if let Ok(v) = row.try_get::<_, bool>(idx) {
+                        serde_json::json!(v)
+                    } else if let Ok(v) = row.try_get::<_, serde_json::Value>(idx) {
+                        v
+                    } else {
+                        // Fallback: NULL
+                        serde_json::Value::Null
+                    };
+
+                    map.insert(column_name, value);
+                }
+
+                map
+            })
+            .collect();
+
+        Ok(results)
+    }
 }
 
 #[cfg(test)]

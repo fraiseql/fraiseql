@@ -39,11 +39,15 @@
 //! ```
 
 pub mod aggregation;
+mod aggregate_parser;
+mod aggregate_projector;
 mod executor;
 mod matcher;
 mod planner;
 mod projection;
 
+pub use aggregate_parser::AggregateQueryParser;
+pub use aggregate_projector::AggregationProjector;
 pub use aggregation::{AggregationSql, AggregationSqlGenerator};
 pub use executor::Executor;
 pub use matcher::{QueryMatch, QueryMatcher};
