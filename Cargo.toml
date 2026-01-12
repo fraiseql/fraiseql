@@ -2,7 +2,7 @@
 # Workspace root configuration
 
 [workspace]
-members = [
+members = ["crates/fraiseql-cli",
     "crates/fraiseql-core",
     "crates/fraiseql-server",    # Phase 6 - HTTP server for compiled executor
     # "crates/fraiseql-cli",        # Phase 9 - CLI for schema compilation

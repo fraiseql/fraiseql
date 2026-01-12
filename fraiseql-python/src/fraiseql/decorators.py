@@ -1,12 +1,14 @@
 """Decorators for FraiseQL schema authoring (compile-time only)."""
 
-from typing import Any, Callable, TypeVar
+from collections.abc import Callable
+from types import FunctionType
+from typing import Any, TypeVar
 
 from fraiseql.registry import SchemaRegistry
-from fraiseql.schema import _ConfigHolder
 from fraiseql.types import extract_field_info, extract_function_signature
 
 T = TypeVar("T")
+F = TypeVar("F", bound=FunctionType)
 
 
 def type(cls: type[T]) -> type[T]:
@@ -61,8 +63,8 @@ def type(cls: type[T]) -> type[T]:
 
 
 def query(
-    func: Callable[..., Any] | None = None, **config_kwargs: Any
-) -> Callable[..., Any] | Callable[[Callable[..., Any]], Callable[..., Any]]:
+    func: F | None = None, **config_kwargs: Any
+) -> F | Callable[[F], F]:
     """Decorator to mark a function as a GraphQL query.
 
     This decorator registers the function with the schema registry for JSON export.
@@ -101,7 +103,7 @@ def query(
         - Returns T | None for nullable results
     """
 
-    def decorator(f: Callable[..., Any]) -> Callable[..., Any]:
+    def decorator(f: F) -> F:
         # Extract function signature
         signature = extract_function_signature(f)
 
@@ -128,8 +130,8 @@ def query(
 
 
 def mutation(
-    func: Callable[..., Any] | None = None, **config_kwargs: Any
-) -> Callable[..., Any] | Callable[[Callable[..., Any]], Callable[..., Any]]:
+    func: F | None = None, **config_kwargs: Any
+) -> F | Callable[[F], F]:
     """Decorator to mark a function as a GraphQL mutation.
 
     This decorator registers the function with the schema registry for JSON export.
@@ -168,7 +170,7 @@ def mutation(
         - operation: CREATE, UPDATE, DELETE, or CUSTOM
     """
 
-    def decorator(f: Callable[..., Any]) -> Callable[..., Any]:
+    def decorator(f: F) -> F:
         # Extract function signature
         signature = extract_function_signature(f)
 

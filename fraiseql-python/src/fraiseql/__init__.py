@@ -25,7 +25,9 @@ Example:
     ```
 """
 
-from fraiseql.decorators import mutation, query, type as type_decorator
+from fraiseql.analytics import aggregate_query, fact_table
+from fraiseql.decorators import mutation, query
+from fraiseql.decorators import type as type_decorator
 from fraiseql.schema import config, export_schema
 
 __version__ = "2.0.0-alpha.1"
@@ -36,6 +38,8 @@ __all__ = [
     "mutation",
     "config",
     "export_schema",
+    "fact_table",
+    "aggregate_query",
     "__version__",
 ]
 

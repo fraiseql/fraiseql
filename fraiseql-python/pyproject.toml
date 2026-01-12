@@ -40,11 +40,24 @@ line-length = 100
 target-version = "py310"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "W", "UP"]
-ignore = []
+# Select rule categories:
+# E - pycodestyle errors
+# F - pyflakes
+# I - isort (import sorting)
+# N - pep8-naming
+# W - pycodestyle warnings
+# UP - pyupgrade (modern Python syntax)
+# ANN - flake8-annotations (type annotations)
+# B - flake8-bugbear (likely bugs)
+# C4 - flake8-comprehensions (better comprehensions)
+# SIM - flake8-simplify (simplification suggestions)
+# TCH - flake8-type-checking (type checking imports)
+select = ["E", "F", "I", "N", "W", "UP", "ANN", "B", "C4", "SIM", "TCH"]
+ignore = [
+    "ANN401",  # typing.Any usage allowed for dynamic types, **kwargs, runtime introspection
+]
 
-[tool.mypy]
-python_version = "3.10"
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = true
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+    "ANN",  # Don't require type annotations in tests
+]
