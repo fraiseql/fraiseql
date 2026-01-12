@@ -147,6 +147,68 @@ impl<A: DatabaseAdapter> Executor<A> {
         Ok(serde_json::from_str(&result_str)?)
     }
 
+    /// Execute an aggregate query.
+    ///
+    /// # Arguments
+    ///
+    /// * `query_json` - JSON representation of the aggregate query
+    /// * `query_name` - GraphQL field name (e.g., "sales_aggregate")
+    /// * `metadata` - Fact table metadata
+    ///
+    /// # Returns
+    ///
+    /// GraphQL response as JSON string
+    ///
+    /// # Errors
+    ///
+    /// Returns error if:
+    /// - Query parsing fails
+    /// - Execution plan generation fails
+    /// - SQL generation fails
+    /// - Database execution fails
+    /// - Result projection fails
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let query_json = json!({
+    ///     "table": "tf_sales",
+    ///     "groupBy": { "category": true },
+    ///     "aggregates": [{"count": {}}]
+    /// });
+    ///
+    /// let metadata = /* fact table metadata */;
+    /// let result = executor.execute_aggregate_query(&query_json, "sales_aggregate", &metadata).await?;
+    /// ```
+    pub async fn execute_aggregate_query(
+        &self,
+        query_json: &serde_json::Value,
+        query_name: &str,
+        metadata: &crate::compiler::fact_table::FactTableMetadata,
+    ) -> Result<String> {
+        // 1. Parse JSON query into AggregationRequest
+        let request = super::AggregateQueryParser::parse(query_json, metadata)?;
+
+        // 2. Generate execution plan
+        let plan = crate::compiler::aggregation::AggregationPlanner::plan(request, metadata.clone())?;
+
+        // 3. Generate SQL
+        let sql_generator = super::AggregationSqlGenerator::new(self.adapter.database_type());
+        let sql = sql_generator.generate(&plan)?;
+
+        // 4. Execute SQL
+        let rows = self.adapter.execute_raw_query(&sql.complete_sql).await?;
+
+        // 5. Project results
+        let projected = super::AggregationProjector::project(rows, &plan)?;
+
+        // 6. Wrap in GraphQL data envelope
+        let response = super::AggregationProjector::wrap_in_data_envelope(projected, query_name);
+
+        // 7. Serialize to JSON string
+        Ok(serde_json::to_string(&response)?)
+    }
+
     /// Get the compiled schema.
     #[must_use]
     pub const fn schema(&self) -> &CompiledSchema {
