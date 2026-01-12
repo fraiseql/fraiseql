@@ -1,0 +1,43 @@
+[package]
+name = "fraiseql-server"
+version = "2.0.0-alpha.1"
+edition = "2021"
+rust-version = "1.75"
+authors = ["FraiseQL Contributors"]
+description = "HTTP server for FraiseQL v2 GraphQL engine"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/fraiseql/fraiseql"
+
+[dependencies]
+# FraiseQL core
+fraiseql-core = { path = "../fraiseql-core" }
+
+# HTTP server
+axum = { version = "0.8", features = ["macros"] }
+tower = { version = "0.5", features = ["full"] }
+tower-http = { version = "0.6", features = ["trace", "cors", "compression-full"] }
+
+# Async runtime
+tokio = { version = "1.45", features = ["full"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Error handling
+anyhow = "1.0"
+thiserror = "2.0"
+
+# Config
+toml = "0.8"
+
+[dev-dependencies]
+# HTTP testing
+reqwest = { version = "0.12", features = ["json"] }
+
+# Testing
+tokio-test = "0.4"
