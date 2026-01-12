@@ -62,10 +62,25 @@ class VectorOrderBy:
 
 @fraise_input
 class OrderByItem:
-    """Single order by instruction."""
+    """Single order by instruction with optional collation.
+
+    Attributes:
+        field: Field name to sort by
+        direction: Sort direction (ASC or DESC)
+        collation: Optional PostgreSQL collation for text sorting
+                   - Explicit value: Use this collation
+                   - None: Use global default (if configured)
+                   - null in GraphQL: Skip global default
+
+    Examples:
+        OrderByItem(field="name", direction=ASC)  # Uses global default
+        OrderByItem(field="name", direction=ASC, collation="fr_FR.utf8")  # Override
+        OrderByItem(field="id", direction=ASC, collation=None)  # Skip collation
+    """
 
     field: str
     direction: OrderDirection = OrderDirection.ASC
+    collation: str | None = None
 
 
 def _is_fraiseql_type(field_type: type) -> bool:
@@ -103,8 +118,56 @@ def _normalize_order_direction(direction: Any) -> OrderDirection:
     return OrderDirection.ASC  # Default
 
 
-def _convert_order_by_input_to_sql(order_by_input: Any) -> OrderBySet | None:
-    """Convert GraphQL order by input to SQL OrderBySet."""
+def _apply_collation_default(
+    field_collation: str | None, global_collation: str | None, was_explicitly_set: bool = False
+) -> str | None:
+    """Apply collation precedence rules.
+
+    Precedence (highest to lowest):
+    1. Per-field explicit value (including explicit None)
+    2. Global default collation
+    3. Database default (None)
+
+    Args:
+        field_collation: Collation from field/input
+        global_collation: Global default from config
+        was_explicitly_set: True if field_collation was explicitly set
+                           (even if set to None)
+
+    Returns:
+        Collation to use, or None for database default
+
+    Examples:
+        # Explicit per-field value (highest priority)
+        _apply_collation_default("en_US.utf8", "fr_FR.utf8", True) -> "en_US.utf8"
+
+        # Explicit None skips global default
+        _apply_collation_default(None, "fr_FR.utf8", True) -> None
+
+        # No field value, use global default
+        _apply_collation_default(None, "fr_FR.utf8", False) -> "fr_FR.utf8"
+
+        # No field value, no global default
+        _apply_collation_default(None, None, False) -> None
+    """
+    # If field collation was explicitly set (even to None), use it
+    if was_explicitly_set:
+        return field_collation
+
+    # Otherwise, fall back to global default
+    return global_collation if global_collation else None
+
+
+def _convert_order_by_input_to_sql(order_by_input: Any, config: Any = None) -> OrderBySet | None:
+    """Convert GraphQL order by input to SQL OrderBySet with optional collation.
+
+    Args:
+        order_by_input: GraphQL OrderBy input (various formats)
+        config: Optional FraiseQLConfig with default_string_collation
+
+    Returns:
+        OrderBySet with collation applied per precedence rules
+    """
     if order_by_input is None:
         return None
 
@@ -113,7 +176,16 @@ def _convert_order_by_input_to_sql(order_by_input: Any) -> OrderBySet | None:
     # Handle single OrderByItem
     if hasattr(order_by_input, "field") and hasattr(order_by_input, "direction"):
         direction = _normalize_order_direction(order_by_input.direction)
-        instructions.append(OrderBy(field=order_by_input.field, direction=direction))
+
+        # Apply collation with precedence
+        field_collation = getattr(order_by_input, "collation", None)
+        was_explicit = hasattr(order_by_input, "collation")
+        global_collation = config.default_string_collation if config else None
+        collation = _apply_collation_default(field_collation, global_collation, was_explicit)
+
+        instructions.append(
+            OrderBy(field=order_by_input.field, direction=direction, collation=collation)
+        )
         return OrderBySet(instructions=instructions)
 
     # Handle list of OrderByItem or list of dicts
@@ -122,7 +194,18 @@ def _convert_order_by_input_to_sql(order_by_input: Any) -> OrderBySet | None:
             # Handle OrderByItem objects
             if hasattr(item, "field") and hasattr(item, "direction"):
                 direction = _normalize_order_direction(item.direction)
-                instructions.append(OrderBy(field=item.field, direction=direction))
+
+                # Apply collation with precedence
+                field_collation = getattr(item, "collation", None)
+                was_explicit = hasattr(item, "collation")
+                global_collation = config.default_string_collation if config else None
+                collation = _apply_collation_default(
+                    field_collation, global_collation, was_explicit
+                )
+
+                instructions.append(
+                    OrderBy(field=item.field, direction=direction, collation=collation)
+                )
             # Handle dictionary items like {'ipAddress': 'asc'}
             elif isinstance(item, dict):
                 for field_name, value in item.items():
@@ -134,7 +217,17 @@ def _convert_order_by_input_to_sql(order_by_input: Any) -> OrderBySet | None:
 
                         # Handle OrderDirection enum or string
                         direction = _normalize_order_direction(value)
-                        instructions.append(OrderBy(field=snake_field_name, direction=direction))
+
+                        # Dict format doesn't support explicit collation, only global default
+                        global_collation = config.default_string_collation if config else None
+
+                        instructions.append(
+                            OrderBy(
+                                field=snake_field_name,
+                                direction=direction,
+                                collation=global_collation,
+                            )
+                        )
         return OrderBySet(instructions=instructions) if instructions else None
 
     # Handle object with field-specific order directions
@@ -200,7 +293,15 @@ def _convert_order_by_input_to_sql(order_by_input: Any) -> OrderBySet | None:
                     # If it's an OrderDirection enum or string, use it
                     if isinstance(value, (OrderDirection, str)):
                         direction = _normalize_order_direction(value)
-                        instructions.append(OrderBy(field=field_path, direction=direction))
+
+                        # Apply global collation default (no per-field override in this format)
+                        global_collation = config.default_string_collation if config else None
+
+                        instructions.append(
+                            OrderBy(
+                                field=field_path, direction=direction, collation=global_collation
+                            )
+                        )
                     # If it's a nested order by input, process recursively
                     elif hasattr(value, "__gql_fields__"):
                         process_order_by(value, field_path)
@@ -452,7 +553,9 @@ def create_graphql_order_by_input(cls: type, name: str | None = None) -> type:
 
         # Add conversion method
         OrderByInputClass._target_class = cls
-        OrderByInputClass._to_sql_order_by = lambda self: _convert_order_by_input_to_sql(self)
+        OrderByInputClass._to_sql_order_by = (
+            lambda self, config=None: _convert_order_by_input_to_sql(self, config)
+        )
 
         # Add helpful docstring
         OrderByInputClass.__doc__ = (

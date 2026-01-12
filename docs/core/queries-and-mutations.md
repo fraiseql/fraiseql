@@ -232,6 +232,78 @@ Some types are excluded from `orderBy` auto-wiring:
 - Types with vector/embedding fields (e.g., `list[float]` fields named `embedding`, `vector`, etc.)
 - These types use `VectorOrderBy` which requires special distance-based ordering
 
+### Collation Support
+
+FraiseQL supports PostgreSQL collation for locale-aware text sorting in `orderBy` clauses.
+
+**Global Default Collation**:
+
+Configure a default collation for all text sorting:
+
+```python
+from fraiseql.fastapi import FraiseQLConfig
+
+config = FraiseQLConfig(
+    database_url="postgresql://localhost/mydb",
+    default_string_collation="fr_FR.utf8"  # French locale sorting
+)
+```
+
+**Per-Field Collation**:
+
+Override collation for specific fields in GraphQL queries:
+
+```graphql
+query {
+  users(orderBy: [
+    { field: "lastName", direction: ASC, collation: "fr_FR.utf8" }
+  ]) {
+    id
+    lastName
+  }
+}
+```
+
+**Skip Global Default**:
+
+Use explicit `null` to skip the global collation:
+
+```graphql
+query {
+  users(orderBy: [
+    { field: "id", direction: ASC, collation: null }
+  ]) {
+    id
+  }
+}
+```
+
+**Collation Precedence**:
+1. Per-field explicit value (highest priority)
+2. Explicit `null` (skips global default)
+3. Global `default_string_collation`
+4. PostgreSQL database default (lowest priority)
+
+**Common Collations**:
+- `"C"` - Byte-order sorting (fastest, case-sensitive)
+- `"POSIX"` - Equivalent to `"C"`
+- `"en_US.utf8"` - US English locale-aware sorting
+- `"fr_FR.utf8"` - French locale-aware sorting (handles accents)
+- `"de_DE.utf8"` - German locale-aware sorting
+
+**Performance Note**: For best performance, create indexes with matching collation:
+
+```sql
+CREATE INDEX idx_users_name_fr
+ON users ((data->>'name') COLLATE "fr_FR.utf8");
+```
+
+**Check Available Collations**:
+
+```sql
+SELECT collname FROM pg_collation ORDER BY collname;
+```
+
 ## @fraiseql.field Decorator
 
 **Purpose**: Mark methods as GraphQL fields with optional custom resolvers

@@ -40,7 +40,7 @@ class OrderDirection(Enum):
 
 @dataclass(frozen=True)
 class OrderBy:
-    """Single ORDER BY clause with JSONB type preservation and vector distance support.
+    """Single ORDER BY clause with JSONB type preservation and collation support.
 
     Generates PostgreSQL ORDER BY clauses using JSONB extraction (data -> 'field')
     to maintain proper type-based sorting. This ensures numeric fields are sorted
@@ -51,14 +51,21 @@ class OrderBy:
     - l2_distance: L2/Euclidean distance (0.0 = identical, ∞ = different)
     - inner_product: Negative inner product (more negative = more similar)
 
+    For text collation, supports PostgreSQL COLLATE clause:
+    - en_US.utf8: US English locale-aware sorting
+    - fr_FR.utf8: French locale-aware sorting (accents, case)
+    - C: Byte-order sorting (fastest)
+
     Attributes:
         field: The field name or nested path (e.g., 'amount' or 'profile.age')
                For vector distance: 'embedding.cosine_distance'
         direction: Sort direction ('asc' or 'desc')
         value: Optional value for vector distance operations (list[float])
+        collation: Optional PostgreSQL collation for text sorting (str)
 
     Examples:
         OrderBy('amount') -> "data -> 'amount' ASC"
+        OrderBy('name', collation='fr_FR.utf8') -> "data -> 'name' COLLATE "fr_FR.utf8" ASC"
         OrderBy('profile.age', 'desc') -> "data -> 'profile' -> 'age' DESC"
         OrderBy('embedding.cosine_distance', 'asc', [0.1, 0.2, 0.3]) ->
             "(data -> 'embedding') <=> '[0.1,0.2,0.3]'::vector ASC"
@@ -67,6 +74,7 @@ class OrderBy:
     field: str
     direction: OrderDirection = OrderDirection.ASC
     value: list[float] | None = None
+    collation: str | None = None
 
     def to_sql(self, table_ref: str = "t") -> sql.Composed:
         """Generate ORDER BY clause using JSONB numeric extraction or vector distance.
@@ -105,6 +113,13 @@ class OrderBy:
         else:
             # For simple fields: {table_ref} -> 'field' (JSONB)
             data_expr = sql.SQL(table_ref + " -> ") + last_key
+
+        # Apply COLLATE clause if specified
+        # IMPORTANT: Use sql.Identifier() for collation name (NOT sql.Literal())
+        # PostgreSQL syntax: COLLATE "name" (identifier), not COLLATE 'name' (string)
+        if self.collation is not None:
+            collation_clause = sql.SQL(" COLLATE ") + sql.Identifier(self.collation)
+            data_expr = data_expr + collation_clause
 
         # Handle both OrderDirection enum and string directions
         if isinstance(self.direction, OrderDirection):

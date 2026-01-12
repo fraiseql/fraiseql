@@ -625,7 +625,7 @@ checksum = "28dd6caf6059519a65843af8fe2a3ae298b14b80179855aeb4adc2c1934ee619"
 
 [[package]]
 name = "fraiseql_rs"
-version = "1.9.6"
+version = "1.9.8"
 dependencies = [
  "anyhow",
  "arc-swap",
