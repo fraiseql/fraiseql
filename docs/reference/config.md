@@ -111,6 +111,51 @@ config = FraiseQLConfig(
 )
 ```
 
+### default_string_collation
+
+- **Type**: `str | None`
+- **Default**: `None`
+- **Description**: Default PostgreSQL collation for string ORDER BY clauses
+
+Applied to all text fields in ORDER BY unless overridden per-field in queries.
+
+**Common Values**:
+- `"C"` - Byte-order sorting (fastest, case-sensitive)
+- `"POSIX"` - Equivalent to `"C"`
+- `"en_US.utf8"` - US English locale-aware sorting
+- `"fr_FR.utf8"` - French locale-aware sorting (handles accents)
+- `"de_DE.utf8"` - German locale-aware sorting
+- `None` - Use PostgreSQL database default collation
+
+**Environment Variable**: `FRAISEQL_DEFAULT_STRING_COLLATION`
+
+**Examples**:
+```python
+# Global default for French locale
+config = FraiseQLConfig(
+    database_url="postgresql://localhost/mydb",
+    default_string_collation="fr_FR.utf8"
+)
+
+# Per-query override in GraphQL
+query {
+  users(orderBy: [
+    { field: "name", direction: ASC, collation: "en_US.utf8" }
+  ]) {
+    id
+    name
+  }
+}
+```
+
+**Performance**: For best performance with collation, create matching indexes:
+```sql
+CREATE INDEX idx_users_name_fr
+ON users ((data->>'name') COLLATE "fr_FR.utf8");
+```
+
+**See Also**: [ORDER BY Collation Support](../core/queries-and-mutations.md#collation-support)
+
 ## Application Settings
 
 ### app_name
