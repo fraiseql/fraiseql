@@ -147,17 +147,28 @@ def _extract_nested_selections(
             field_type_name = None
 
             if schema and parent_type and hasattr(parent_type, "fields"):
-                # Look up the field definition in the parent type
-                field_def = parent_type.fields.get(field_name)
-                if field_def:
-                    # Unwrap NonNull and List wrappers to get the actual type
-                    field_type = field_def.type
-                    while hasattr(field_type, "of_type"):
-                        field_type = field_type.of_type
+                # Validate parent_type.fields is a real dict, not a mock
+                fields_attr = getattr(parent_type, "fields", None)
+                if isinstance(fields_attr, dict):
+                    # Look up the field definition in the parent type
+                    field_def = fields_attr.get(field_name)
+                    if field_def:
+                        # Unwrap NonNull and List wrappers to get the actual type
+                        field_type = field_def.type
+                        # Safety: limit unwrapping to prevent infinite loops with mocks
+                        max_unwrap = 10
+                        unwrap_count = 0
+                        while hasattr(field_type, "of_type") and unwrap_count < max_unwrap:
+                            next_type = field_type.of_type
+                            # Prevent infinite loop if mock returns itself
+                            if next_type is field_type:
+                                break
+                            field_type = next_type
+                            unwrap_count += 1
 
-                    # Get the type name
-                    if hasattr(field_type, "name"):
-                        field_type_name = field_type.name
+                        # Get the type name
+                        if hasattr(field_type, "name"):
+                            field_type_name = field_type.name
 
             # Recursively extract nested selections with type context
             sub_selections = _extract_nested_selections(
@@ -236,8 +247,14 @@ def _extract_entity_field_selections(
         # Fallback to basic extraction without type info
         return _extract_entity_field_selections_basic(info, type_name, entity_field_name)
 
+    # Validate we have a real schema, not a mock object
+    # Real GraphQL schemas have type_map as a dict, not a MagicMock
+    if not hasattr(schema, "type_map") or not isinstance(getattr(schema, "type_map", None), dict):
+        # Not a real schema (likely a mock) - fallback to basic extraction
+        return _extract_entity_field_selections_basic(info, type_name, entity_field_name)
+
     # Get the parent type (Success/Error type) from schema
-    parent_type = schema.type_map.get(type_name) if hasattr(schema, "type_map") else None
+    parent_type = schema.type_map.get(type_name)
     if not parent_type:
         # Fallback to basic extraction without type info
         return _extract_entity_field_selections_basic(info, type_name, entity_field_name)
@@ -246,16 +263,27 @@ def _extract_entity_field_selections(
     entity_field_type = None
     entity_type_name = None
     if hasattr(parent_type, "fields"):
-        entity_field_def = parent_type.fields.get(entity_field_name)
-        if entity_field_def:
-            # Unwrap NonNull and List wrappers
-            entity_field_type = entity_field_def.type
-            while hasattr(entity_field_type, "of_type"):
-                entity_field_type = entity_field_type.of_type
+        # Validate parent_type.fields is a real dict, not a mock
+        fields_attr = getattr(parent_type, "fields", None)
+        if isinstance(fields_attr, dict):
+            entity_field_def = fields_attr.get(entity_field_name)
+            if entity_field_def:
+                # Unwrap NonNull and List wrappers
+                entity_field_type = entity_field_def.type
+                # Safety: limit unwrapping to prevent infinite loops with mocks
+                max_unwrap = 10
+                unwrap_count = 0
+                while hasattr(entity_field_type, "of_type") and unwrap_count < max_unwrap:
+                    next_type = entity_field_type.of_type
+                    # Prevent infinite loop if mock returns itself
+                    if next_type is entity_field_type:
+                        break
+                    entity_field_type = next_type
+                    unwrap_count += 1
 
-            # Get the type name
-            if hasattr(entity_field_type, "name"):
-                entity_type_name = entity_field_type.name
+                # Get the type name
+                if hasattr(entity_field_type, "name"):
+                    entity_type_name = entity_field_type.name
 
     # Look through field nodes (mutation field)
     for field_node in info.field_nodes:
