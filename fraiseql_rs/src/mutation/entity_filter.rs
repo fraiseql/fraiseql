@@ -5,7 +5,7 @@
 //!
 //! Related to GitHub issue #525.
 
-use serde_json::{Map, Value};
+use serde_json::{json, Map, Value};
 
 /// Filter entity fields based on GraphQL selections
 ///
@@ -91,10 +91,17 @@ pub fn filter_entity_fields(entity: &Value, selections: &Value) -> Value {
     // Build filtered object with only selected fields
     let mut filtered = Map::new();
 
-    // ALWAYS preserve __typename (GraphQL introspection field)
-    // __typename should be available even when not explicitly requested
+    // Check if selections specify a type name for __typename injection
+    let type_name = selections_obj.get("__type").and_then(|v| v.as_str());
+
+    // ALWAYS preserve or add __typename (GraphQL introspection field)
+    // Priority: 1) existing __typename, 2) __type from selections
     if let Some(typename_val) = entity_map.get("__typename") {
+        // Already exists in entity, preserve it
         filtered.insert("__typename".to_string(), typename_val.clone());
+    } else if let Some(type_name) = type_name {
+        // Not in entity, but we have type info from selections - add it
+        filtered.insert("__typename".to_string(), json!(type_name));
     }
 
     for field_value in fields {
@@ -114,7 +121,7 @@ pub fn filter_entity_fields(entity: &Value, selections: &Value) -> Value {
 
         // Check if this field has nested selections
         if let Some(nested_selections) = selections_obj.get(field_name) {
-            // Recursively filter nested object
+            // Recursively filter nested object (will inject __typename if __type present)
             let filtered_nested = filter_entity_fields(field_val, nested_selections);
             filtered.insert(field_name.to_string(), filtered_nested);
         } else {
@@ -305,5 +312,129 @@ mod tests {
         assert_eq!(result["address"]["city"], "Paris");
         // Unselected nested field filtered out
         assert!(result["address"].get("country").is_none());
+    }
+
+    #[test]
+    fn test_typename_added_for_nested_objects() {
+        // FIX VERIFICATION: Nested objects get __typename from __type in selections
+        // This simulates the real scenario where transform_value() doesn't add __typename,
+        // but we have type information from Python's schema extraction
+        let entity = json!({
+            "__typename": "Location",
+            "id": "loc-123",
+            "name": "Warehouse A",
+            "address": {
+                // NOTE: __typename is MISSING here (as it comes from DB)
+                "id": "addr-1",
+                "formatted": "3 quai de la Fosse<br>44000 Nantes",
+                "city": "Nantes",
+                "country": "France",
+            }
+        });
+
+        let selections = json!({
+            "fields": ["id", "name", "address"],
+            "address": {
+                "fields": ["id", "formatted"],
+                "__type": "PublicAddress"  // ← Type info from Python schema extraction
+            }
+        });
+
+        let result = filter_entity_fields(&entity, &selections);
+
+        // Top-level __typename preserved
+        assert_eq!(result["__typename"], "Location");
+        assert_eq!(result["id"], "loc-123");
+        assert_eq!(result["name"], "Warehouse A");
+
+        // Nested object fields are present
+        assert_eq!(result["address"]["id"], "addr-1");
+        assert_eq!(
+            result["address"]["formatted"],
+            "3 quai de la Fosse<br>44000 Nantes"
+        );
+
+        // ✅ FIX: __typename should now be added from __type in selections
+        assert_eq!(
+            result["address"]["__typename"], "PublicAddress",
+            "Nested address object should have __typename from __type in selections"
+        );
+
+        // Verify filtering still works
+        assert!(result["address"].get("city").is_none());
+        assert!(result["address"].get("country").is_none());
+    }
+
+    #[test]
+    fn test_deeply_nested_typename() {
+        // Test that __typename injection works for deeply nested objects
+        let entity = json!({
+            "__typename": "Location",
+            "id": "loc-1",
+            "address": {
+                "id": "addr-1",
+                "city": {
+                    "id": "city-1",
+                    "name": "Nantes",
+                    "country": "France"
+                }
+            }
+        });
+
+        let selections = json!({
+            "fields": ["id", "address"],
+            "__type": "Location",
+            "address": {
+                "fields": ["id", "city"],
+                "__type": "PublicAddress",
+                "city": {
+                    "fields": ["id", "name"],
+                    "__type": "City"
+                }
+            }
+        });
+
+        let result = filter_entity_fields(&entity, &selections);
+
+        // All levels should have __typename
+        assert_eq!(result["__typename"], "Location");
+        assert_eq!(result["address"]["__typename"], "PublicAddress");
+        assert_eq!(result["address"]["city"]["__typename"], "City");
+
+        // Verify filtering works at all levels
+        assert!(result["address"]["city"].get("country").is_none());
+    }
+
+    #[test]
+    fn test_backward_compatibility_without_type_info() {
+        // Ensure backward compatibility when __type is not provided
+        let entity = json!({
+            "__typename": "Location",
+            "id": "loc-1",
+            "address": {
+                "id": "addr-1",
+                "formatted": "3 quai"
+            }
+        });
+
+        let selections = json!({
+            "fields": ["id", "address"],
+            "address": {
+                "fields": ["id", "formatted"]
+                // No __type specified
+            }
+        });
+
+        let result = filter_entity_fields(&entity, &selections);
+
+        // Top-level __typename preserved
+        assert_eq!(result["__typename"], "Location");
+
+        // Nested object fields present
+        assert_eq!(result["address"]["id"], "addr-1");
+        assert_eq!(result["address"]["formatted"], "3 quai");
+
+        // Without __type, __typename won't be added (backward compatible)
+        assert!(result["address"].get("__typename").is_none());
     }
 }
