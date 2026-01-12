@@ -79,6 +79,7 @@ pub mod config;
 pub mod db;
 pub mod cache;
 pub mod security;
+pub mod validation;
 pub mod apq;
 pub mod utils;
 

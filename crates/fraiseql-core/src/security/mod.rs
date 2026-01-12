@@ -1,5 +1,36 @@
-//! Security infrastructure (Phase 3).
+//! Security features (Phase 3 - Security Infrastructure)
 //!
-//! This module will provide authentication, authorization, and audit capabilities.
+//! This module provides core security infrastructure:
+//! - Security profiles (STANDARD, REGULATED)
+//! - Security headers configuration
+//! - Sensitive field masking for PII/regulated data
+//! - Security error types
+//! - Authentication middleware (JWT, Auth0, Clerk)
+//! - Query validation (depth, complexity)
+//! - Audit logging
+//! - TLS enforcement
+//! - Introspection control
+//! - Error formatting
 
-// Placeholder for Phase 3
+pub mod audit;
+pub mod auth_middleware;
+pub mod error_formatter;
+pub mod errors;
+pub mod field_masking;
+pub mod headers;
+pub mod introspection_enforcer;
+pub mod profiles;
+pub mod query_validator;
+pub mod tls_enforcer;
+
+// Re-export key types for convenience
+pub use audit::{AuditEntry, AuditLevel, AuditLogger, AuditStats};
+pub use auth_middleware::{AuthConfig, AuthMiddleware, AuthRequest, AuthenticatedUser};
+pub use error_formatter::{DetailLevel, ErrorFormatter};
+pub use errors::{Result, SecurityError};
+pub use field_masking::{FieldMasker, FieldSensitivity};
+pub use headers::SecurityHeaders;
+pub use introspection_enforcer::{IntrospectionEnforcer, IntrospectionPolicy};
+pub use profiles::SecurityProfile;
+pub use query_validator::{QueryMetrics, QueryValidator, QueryValidatorConfig};
+pub use tls_enforcer::{TlsConfig, TlsConnection, TlsEnforcer, TlsVersion};
