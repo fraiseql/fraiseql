@@ -6,7 +6,7 @@ use tokio_postgres::{NoTls, Row};
 
 use crate::error::{FraiseQLError, Result};
 use crate::db::traits::DatabaseAdapter;
-use crate::db::types::{DatabaseType, JsonbValue, PoolMetrics};
+use crate::db::types::{DatabaseType, JsonbValue, PoolMetrics, QueryParam};
 use crate::db::where_clause::WhereClause;
 use super::where_generator::PostgresWhereGenerator;
 
@@ -153,7 +153,6 @@ impl DatabaseAdapter for PostgresAdapter {
     ) -> Result<Vec<JsonbValue>> {
         // Build base query
         let mut sql = format!("SELECT data FROM {view}");
-        let mut params: Vec<serde_json::Value> = Vec::new();
 
         // Add WHERE clause if present
         if let Some(clause) = where_clause {
@@ -161,27 +160,47 @@ impl DatabaseAdapter for PostgresAdapter {
             let (where_sql, where_params) = generator.generate(clause)?;
             sql.push_str(" WHERE ");
             sql.push_str(&where_sql);
-            params.extend(where_params);
+
+            // Add LIMIT
+            if let Some(lim) = limit {
+                sql.push_str(&format!(" LIMIT {lim}"));
+            }
+
+            // Add OFFSET
+            if let Some(off) = offset {
+                sql.push_str(&format!(" OFFSET {off}"));
+            }
+
+            // Convert JSON values to QueryParam (preserves types)
+            let typed_params: Vec<QueryParam> = where_params
+                .into_iter()
+                .map(QueryParam::from)
+                .collect();
+
+            eprintln!("DEBUG: SQL = {}", sql);
+            eprintln!("DEBUG: typed_params = {:?}", typed_params);
+
+            // Create references to QueryParam for ToSql
+            let param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = typed_params
+                .iter()
+                .map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync))
+                .collect();
+
+            self.execute_raw(&sql, &param_refs).await
+        } else {
+            // No WHERE clause - execute simple query
+            // Add LIMIT
+            if let Some(lim) = limit {
+                sql.push_str(&format!(" LIMIT {lim}"));
+            }
+
+            // Add OFFSET
+            if let Some(off) = offset {
+                sql.push_str(&format!(" OFFSET {off}"));
+            }
+
+            self.execute_raw(&sql, &[]).await
         }
-
-        // Add LIMIT
-        if let Some(lim) = limit {
-            sql.push_str(&format!(" LIMIT {lim}"));
-        }
-
-        // Add OFFSET
-        if let Some(off) = offset {
-            sql.push_str(&format!(" OFFSET {off}"));
-        }
-
-        // Convert params to references for execute_raw
-        // serde_json::Value implements ToSql, so we can pass references directly
-        let param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = params
-            .iter()
-            .map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync))
-            .collect();
-
-        self.execute_raw(&sql, &param_refs).await
     }
 
     fn database_type(&self) -> DatabaseType {
@@ -220,40 +239,516 @@ impl DatabaseAdapter for PostgresAdapter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::db::{WhereClause, WhereOperator};
+    use serde_json::json;
 
-    // Note: These tests require a running PostgreSQL instance.
-    // They are marked as ignored by default. Run with `cargo test -- --ignored`
+    // Note: These tests require a running PostgreSQL instance with test data.
+    // They are marked as ignored by default.
+    //
+    // To run these tests:
+    //   1. Start test databases: make db-up
+    //   2. Run tests: cargo test -- --ignored
+    //   3. Stop databases: make db-down
+
+    const TEST_DB_URL: &str = "postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql";
+
+    // Helper to create test adapter
+    async fn create_test_adapter() -> PostgresAdapter {
+        PostgresAdapter::new(TEST_DB_URL)
+            .await
+            .expect("Failed to create test adapter")
+    }
+
+    // ========================================================================
+    // Connection & Adapter Tests
+    // ========================================================================
 
     #[tokio::test]
     #[ignore]
-    async fn test_postgres_adapter_creation() {
-        let adapter = PostgresAdapter::new("postgresql://localhost/test_fraiseql")
+    async fn test_adapter_creation() {
+        let adapter = create_test_adapter().await;
+        let metrics = adapter.pool_metrics();
+        assert!(metrics.total_connections > 0);
+        assert_eq!(adapter.database_type(), DatabaseType::PostgreSQL);
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_adapter_with_custom_pool_size() {
+        let adapter = PostgresAdapter::with_pool_size(TEST_DB_URL, 5)
             .await
             .expect("Failed to create adapter");
 
+        // Pool starts with 1 connection and grows on demand up to max_size
         let metrics = adapter.pool_metrics();
-        assert!(metrics.total_connections > 0);
+        assert!(metrics.total_connections >= 1, "Pool should have at least 1 connection");
+        assert!(metrics.total_connections <= 5, "Pool should not exceed max_size of 5");
     }
 
     #[tokio::test]
     #[ignore]
     async fn test_health_check() {
-        let adapter = PostgresAdapter::new("postgresql://localhost/test_fraiseql")
-            .await
-            .expect("Failed to create adapter");
-
+        let adapter = create_test_adapter().await;
         adapter.health_check().await.expect("Health check failed");
     }
 
     #[tokio::test]
     #[ignore]
     async fn test_pool_metrics() {
-        let adapter = PostgresAdapter::with_pool_size("postgresql://localhost/test_fraiseql", 5)
-            .await
-            .expect("Failed to create adapter");
-
+        let adapter = create_test_adapter().await;
         let metrics = adapter.pool_metrics();
-        assert_eq!(metrics.total_connections, 5);
-        assert!(metrics.idle_connections <= 5);
+
+        assert!(metrics.total_connections > 0);
+        assert!(metrics.idle_connections <= metrics.total_connections);
+        assert_eq!(
+            metrics.active_connections,
+            metrics.total_connections - metrics.idle_connections
+        );
+    }
+
+    // ========================================================================
+    // Simple Query Tests (No WHERE Clause)
+    // ========================================================================
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_query_all_users() {
+        let adapter = create_test_adapter().await;
+
+        let results = adapter
+            .execute_where_query("v_user", None, None, None)
+            .await
+            .expect("Failed to query users");
+
+        assert_eq!(results.len(), 5, "Should have 5 test users");
+
+        // Verify JSONB structure
+        let first_user = results[0].as_value();
+        assert!(first_user.get("id").is_some());
+        assert!(first_user.get("email").is_some());
+        assert!(first_user.get("name").is_some());
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_query_all_posts() {
+        let adapter = create_test_adapter().await;
+
+        let results = adapter
+            .execute_where_query("v_post", None, None, None)
+            .await
+            .expect("Failed to query posts");
+
+        assert_eq!(results.len(), 4, "Should have 4 test posts");
+
+        // Verify nested author object
+        let first_post = results[0].as_value();
+        assert!(first_post.get("author").is_some());
+        assert!(first_post["author"].get("name").is_some());
+    }
+
+    // ========================================================================
+    // WHERE Clause Tests - Comparison Operators
+    // ========================================================================
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_where_eq() {
+        let adapter = create_test_adapter().await;
+
+        let where_clause = WhereClause::Field {
+            path: vec!["email".to_string()],
+            operator: WhereOperator::Eq,
+            value: json!("alice@example.com"),
+        };
+
+        let results = adapter
+            .execute_where_query("v_user", Some(&where_clause), None, None)
+            .await
+            .expect("Failed to execute query");
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].as_value()["email"], "alice@example.com");
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_where_neq() {
+        let adapter = create_test_adapter().await;
+
+        let where_clause = WhereClause::Field {
+            path: vec!["role".to_string()],
+            operator: WhereOperator::Neq,
+            value: json!("user"),
+        };
+
+        let results = adapter
+            .execute_where_query("v_user", Some(&where_clause), None, None)
+            .await
+            .expect("Failed to execute query");
+
+        // Should return admin and moderator (not regular users)
+        assert!(results.len() >= 2);
+        for result in &results {
+            assert_ne!(result.as_value()["role"], "user");
+        }
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_where_gt() {
+        let adapter = create_test_adapter().await;
+
+        let where_clause = WhereClause::Field {
+            path: vec!["age".to_string()],
+            operator: WhereOperator::Gt,
+            value: json!(30),
+        };
+
+        let results = adapter
+            .execute_where_query("v_user", Some(&where_clause), None, None)
+            .await
+            .expect("Failed to execute query");
+
+        assert!(!results.is_empty(), "Should return at least one result");
+        assert_eq!(results.len(), 1, "Should return exactly 1 user (Charlie with age 35)");
+
+        for result in &results {
+            let age = result.as_value()["age"].as_i64().unwrap();
+            assert!(age > 30, "Age should be > 30, but got {}", age);
+        }
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_where_gte() {
+        let adapter = create_test_adapter().await;
+
+        let where_clause = WhereClause::Field {
+            path: vec!["age".to_string()],
+            operator: WhereOperator::Gte,
+            value: json!(30),
+        };
+
+        let results = adapter
+            .execute_where_query("v_user", Some(&where_clause), None, None)
+            .await
+            .expect("Failed to execute query");
+
+        for result in &results {
+            let age = result.as_value()["age"].as_i64().unwrap();
+            assert!(age >= 30);
+        }
+    }
+
+    // ========================================================================
+    // WHERE Clause Tests - String Operators
+    // ========================================================================
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_where_icontains() {
+        let adapter = create_test_adapter().await;
+
+        let where_clause = WhereClause::Field {
+            path: vec!["email".to_string()],
+            operator: WhereOperator::Icontains,
+            value: json!("example.com"),
+        };
+
+        let results = adapter
+            .execute_where_query("v_user", Some(&where_clause), None, None)
+            .await
+            .expect("Failed to execute query");
+
+        assert!(results.len() >= 3);
+        for result in &results {
+            let email = result.as_value()["email"].as_str().unwrap();
+            assert!(email.to_lowercase().contains("example.com"));
+        }
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_where_startswith() {
+        let adapter = create_test_adapter().await;
+
+        let where_clause = WhereClause::Field {
+            path: vec!["name".to_string()],
+            operator: WhereOperator::Startswith,
+            value: json!("Alice"),
+        };
+
+        let results = adapter
+            .execute_where_query("v_user", Some(&where_clause), None, None)
+            .await
+            .expect("Failed to execute query");
+
+        assert_eq!(results.len(), 1);
+        assert!(results[0].as_value()["name"]
+            .as_str()
+            .unwrap()
+            .starts_with("Alice"));
+    }
+
+    // ========================================================================
+    // WHERE Clause Tests - Logical Operators
+    // ========================================================================
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_where_and() {
+        let adapter = create_test_adapter().await;
+
+        let where_clause = WhereClause::And(vec![
+            WhereClause::Field {
+                path: vec!["active".to_string()],
+                operator: WhereOperator::Eq,
+                value: json!(true),
+            },
+            WhereClause::Field {
+                path: vec!["age".to_string()],
+                operator: WhereOperator::Gte,
+                value: json!(25),
+            },
+        ]);
+
+        let results = adapter
+            .execute_where_query("v_user", Some(&where_clause), None, None)
+            .await
+            .expect("Failed to execute query");
+
+        for result in &results {
+            assert_eq!(result.as_value()["active"], true);
+            let age = result.as_value()["age"].as_i64().unwrap();
+            assert!(age >= 25);
+        }
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_where_or() {
+        let adapter = create_test_adapter().await;
+
+        let where_clause = WhereClause::Or(vec![
+            WhereClause::Field {
+                path: vec!["role".to_string()],
+                operator: WhereOperator::Eq,
+                value: json!("admin"),
+            },
+            WhereClause::Field {
+                path: vec!["role".to_string()],
+                operator: WhereOperator::Eq,
+                value: json!("moderator"),
+            },
+        ]);
+
+        let results = adapter
+            .execute_where_query("v_user", Some(&where_clause), None, None)
+            .await
+            .expect("Failed to execute query");
+
+        assert!(results.len() >= 2);
+        for result in &results {
+            let role = result.as_value()["role"].as_str().unwrap();
+            assert!(role == "admin" || role == "moderator");
+        }
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_where_not() {
+        let adapter = create_test_adapter().await;
+
+        let where_clause = WhereClause::Not(Box::new(WhereClause::Field {
+            path: vec!["active".to_string()],
+            operator: WhereOperator::Eq,
+            value: json!(true),
+        }));
+
+        let results = adapter
+            .execute_where_query("v_user", Some(&where_clause), None, None)
+            .await
+            .expect("Failed to execute query");
+
+        for result in &results {
+            assert_ne!(result.as_value()["active"], json!(true));
+        }
+    }
+
+    // ========================================================================
+    // WHERE Clause Tests - Array Operators
+    // ========================================================================
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_where_in() {
+        let adapter = create_test_adapter().await;
+
+        let where_clause = WhereClause::Field {
+            path: vec!["role".to_string()],
+            operator: WhereOperator::In,
+            value: json!(["admin", "moderator"]),
+        };
+
+        let results = adapter
+            .execute_where_query("v_user", Some(&where_clause), None, None)
+            .await
+            .expect("Failed to execute query");
+
+        assert!(results.len() >= 2);
+        for result in &results {
+            let role = result.as_value()["role"].as_str().unwrap();
+            assert!(role == "admin" || role == "moderator");
+        }
+    }
+
+    // ========================================================================
+    // Pagination Tests
+    // ========================================================================
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_limit() {
+        let adapter = create_test_adapter().await;
+
+        let results = adapter
+            .execute_where_query("v_user", None, Some(2), None)
+            .await
+            .expect("Failed to execute query");
+
+        assert_eq!(results.len(), 2);
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_offset() {
+        let adapter = create_test_adapter().await;
+
+        let results_all = adapter
+            .execute_where_query("v_user", None, None, None)
+            .await
+            .expect("Failed to execute query");
+
+        let results_offset = adapter
+            .execute_where_query("v_user", None, None, Some(2))
+            .await
+            .expect("Failed to execute query");
+
+        assert_eq!(results_offset.len(), results_all.len() - 2);
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_limit_and_offset() {
+        let adapter = create_test_adapter().await;
+
+        let results = adapter
+            .execute_where_query("v_user", None, Some(2), Some(1))
+            .await
+            .expect("Failed to execute query");
+
+        assert_eq!(results.len(), 2);
+    }
+
+    // ========================================================================
+    // Nested Object Tests
+    // ========================================================================
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_nested_object_query() {
+        let adapter = create_test_adapter().await;
+
+        let where_clause = WhereClause::Field {
+            path: vec!["metadata".to_string(), "city".to_string()],
+            operator: WhereOperator::Eq,
+            value: json!("Paris"),
+        };
+
+        let results = adapter
+            .execute_where_query("v_user", Some(&where_clause), None, None)
+            .await
+            .expect("Failed to execute query");
+
+        assert!(results.len() >= 1);
+        for result in &results {
+            assert_eq!(result.as_value()["metadata"]["city"], "Paris");
+        }
+    }
+
+    // ========================================================================
+    // Complex Query Tests
+    // ========================================================================
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_complex_nested_where() {
+        let adapter = create_test_adapter().await;
+
+        // (active = true) AND ((role = 'admin') OR (age >= 30))
+        let where_clause = WhereClause::And(vec![
+            WhereClause::Field {
+                path: vec!["active".to_string()],
+                operator: WhereOperator::Eq,
+                value: json!(true),
+            },
+            WhereClause::Or(vec![
+                WhereClause::Field {
+                    path: vec!["role".to_string()],
+                    operator: WhereOperator::Eq,
+                    value: json!("admin"),
+                },
+                WhereClause::Field {
+                    path: vec!["age".to_string()],
+                    operator: WhereOperator::Gte,
+                    value: json!(30),
+                },
+            ]),
+        ]);
+
+        let results = adapter
+            .execute_where_query("v_user", Some(&where_clause), None, None)
+            .await
+            .expect("Failed to execute query");
+
+        for result in &results {
+            assert_eq!(result.as_value()["active"], true);
+            let role = result.as_value()["role"].as_str().unwrap();
+            let age = result.as_value()["age"].as_i64().unwrap();
+            assert!(role == "admin" || age >= 30);
+        }
+    }
+
+    // ========================================================================
+    // Error Handling Tests
+    // ========================================================================
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_invalid_view_name() {
+        let adapter = create_test_adapter().await;
+
+        let result = adapter
+            .execute_where_query("v_nonexistent", None, None, None)
+            .await;
+
+        assert!(result.is_err());
+        match result {
+            Err(FraiseQLError::Database { .. }) => (),
+            _ => panic!("Expected Database error"),
+        }
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_invalid_connection_string() {
+        let result = PostgresAdapter::new("postgresql://invalid:invalid@localhost:9999/nonexistent").await;
+
+        assert!(result.is_err());
+        match result {
+            Err(FraiseQLError::ConnectionPool { .. }) => (),
+            _ => panic!("Expected ConnectionPool error"),
+        }
     }
 }

@@ -1,6 +1,8 @@
 //! Database types and data structures.
 
 use serde::{Deserialize, Serialize};
+use tokio_postgres::types::{ToSql, Type, IsNull};
+use bytes::BytesMut;
 
 /// Database types supported by FraiseQL.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -60,6 +62,93 @@ impl JsonbValue {
     #[must_use]
     pub fn into_value(self) -> serde_json::Value {
         self.data
+    }
+}
+
+/// Typed parameter wrapper that preserves JSON value types for PostgreSQL wire protocol.
+///
+/// This enum ensures type information is preserved when converting GraphQL input values
+/// to PostgreSQL parameters, avoiding protocol errors from type mismatches.
+#[derive(Debug, Clone)]
+pub enum QueryParam {
+    /// SQL NULL value
+    Null,
+    /// Boolean value
+    Bool(bool),
+    /// 32-bit integer
+    Int(i32),
+    /// 64-bit integer (BIGINT)
+    BigInt(i64),
+    /// 32-bit floating point
+    Float(f32),
+    /// 64-bit floating point (DOUBLE PRECISION)
+    Double(f64),
+    /// Text/string value (TEXT/VARCHAR)
+    Text(String),
+    /// JSON/JSONB value (for arrays and objects)
+    Json(serde_json::Value),
+}
+
+impl From<serde_json::Value> for QueryParam {
+    fn from(value: serde_json::Value) -> Self {
+        match value {
+            serde_json::Value::Null => Self::Null,
+            serde_json::Value::Bool(b) => Self::Bool(b),
+            serde_json::Value::Number(n) => {
+                // For PostgreSQL NUMERIC comparisons (via ::text::numeric cast),
+                // we send numbers as text to avoid wire protocol issues.
+                // PostgreSQL can't directly convert f64 to NUMERIC in the binary protocol.
+                Self::Text(n.to_string())
+            }
+            serde_json::Value::String(s) => Self::Text(s),
+            serde_json::Value::Array(_) | serde_json::Value::Object(_) => Self::Json(value),
+        }
+    }
+}
+
+impl ToSql for QueryParam {
+    fn to_sql(&self, ty: &Type, out: &mut BytesMut) -> Result<IsNull, Box<dyn std::error::Error + Sync + Send>> {
+        match self {
+            Self::Null => Ok(IsNull::Yes),
+            Self::Bool(b) => b.to_sql(ty, out),
+            Self::Int(i) => i.to_sql(ty, out),
+            Self::BigInt(i) => i.to_sql(ty, out),
+            Self::Float(f) => f.to_sql(ty, out),
+            Self::Double(f) => f.to_sql(ty, out),
+            Self::Text(s) => s.to_sql(ty, out),
+            Self::Json(v) => v.to_sql(ty, out),
+        }
+    }
+
+    fn accepts(_ty: &Type) -> bool {
+        true
+    }
+
+    tokio_postgres::types::to_sql_checked!();
+}
+
+/// Convert QueryParam to boxed ToSql trait object, preserving native types.
+///
+/// This function uses the boxing pattern to convert typed parameters into a form
+/// that tokio-postgres can serialize to PostgreSQL's wire protocol format.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// let param = QueryParam::BigInt(42);
+/// let boxed = to_sql_param(&param);
+/// // boxed can be passed to tokio-postgres query methods
+/// ```
+pub fn to_sql_param(param: &QueryParam) -> Box<dyn ToSql + Sync + Send> {
+    match param {
+        QueryParam::Null => Box::new(None::<String>),
+        QueryParam::Bool(b) => Box::new(*b),
+        QueryParam::Int(i) => Box::new(*i),
+        QueryParam::BigInt(i) => Box::new(*i),
+        QueryParam::Float(f) => Box::new(*f),
+        QueryParam::Double(f) => Box::new(*f),
+        QueryParam::Text(s) => Box::new(s.clone()),
+        QueryParam::Json(v) => Box::new(v.clone()),
     }
 }
 

@@ -218,7 +218,17 @@ impl PostgresWhereGenerator {
     ) -> Result<String> {
         let param = self.next_param();
         params.push(value.clone());
-        Ok(format!("{field_path} {op} {param}"))
+
+        // For numeric comparisons, cast both sides to numeric type
+        // Use text format for parameter to avoid wire protocol issues
+        if value.is_number() && (op == ">" || op == ">=" || op == "<" || op == "<=" || op == "=" || op == "!=") {
+            Ok(format!("({field_path})::numeric {op} ({param}::text)::numeric"))
+        } else if value.is_boolean() && (op == "=" || op == "!=") {
+            // For boolean comparisons, cast the JSONB text field to boolean
+            Ok(format!("({field_path})::boolean {op} {param}"))
+        } else {
+            Ok(format!("{field_path} {op} {param}"))
+        }
     }
 
     fn generate_in(
@@ -406,7 +416,8 @@ mod tests {
         ]);
 
         let (sql, params) = gen.generate(&clause).unwrap();
-        assert_eq!(sql, "(data->>'age' >= $1 AND data->>'active' = $2)");
+        // Numeric comparisons cast to ::numeric, boolean comparisons cast to ::boolean
+        assert_eq!(sql, "((data->>'age')::numeric >= ($1::text)::numeric AND (data->>'active')::boolean = $2)");
         assert_eq!(params, vec![json!(18), json!(true)]);
     }
 
@@ -441,7 +452,8 @@ mod tests {
         }));
 
         let (sql, params) = gen.generate(&clause).unwrap();
-        assert_eq!(sql, "NOT (data->>'deleted' = $1)");
+        // Boolean comparisons now cast to ::boolean
+        assert_eq!(sql, "NOT ((data->>'deleted')::boolean = $1)");
         assert_eq!(params, vec![json!(true)]);
     }
 
