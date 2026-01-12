@@ -149,7 +149,7 @@ impl AggregationProjector {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::compiler::aggregate_types::{AggregateFunction, TemporalBucket};
+    use crate::compiler::aggregate_types::AggregateFunction;
     use crate::compiler::aggregation::{
         AggregateExpression, AggregateSelection, AggregationRequest, GroupByExpression,
         GroupBySelection,

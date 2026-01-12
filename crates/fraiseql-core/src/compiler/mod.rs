@@ -63,6 +63,7 @@ mod ir;
 mod lowering;
 mod parser;
 mod validator;
+pub mod window_functions;
 
 pub use aggregate_types::{AggregateTypeGenerator, AggregateType, GroupByInput, HavingInput};
 pub use aggregation::{AggregationPlanner, AggregationPlan, AggregationRequest};
@@ -71,6 +72,7 @@ pub use ir::{AuthoringIR, IRType, IRQuery, IRMutation};
 pub use lowering::{SqlTemplateGenerator, DatabaseTarget};
 pub use parser::SchemaParser;
 pub use validator::{SchemaValidator, ValidationError};
+pub use window_functions::{WindowFunctionPlanner, WindowExecutionPlan, WindowFunction};
 
 use crate::error::Result;
 use crate::schema::CompiledSchema;

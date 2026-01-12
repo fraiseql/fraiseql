@@ -420,8 +420,8 @@ impl AggregateQueryParser {
         if let Some(obj) = order_obj.as_object() {
             for (field, value) in obj {
                 let direction = match value.as_str() {
-                    Some("ASC") | Some("asc") => OrderDirection::Asc,
-                    Some("DESC") | Some("desc") => OrderDirection::Desc,
+                    Some("ASC" | "asc") => OrderDirection::Asc,
+                    Some("DESC" | "desc") => OrderDirection::Desc,
                     _ => OrderDirection::Asc, // Default to ASC
                 };
 

@@ -685,8 +685,6 @@ mod tests {
 
     #[test]
     fn test_having_clause() {
-        use crate::compiler::aggregation::HavingCondition;
-
         let mut plan = create_test_plan();
         plan.having_conditions = vec![ValidatedHavingCondition {
             aggregate: AggregateExpression::MeasureAggregate {

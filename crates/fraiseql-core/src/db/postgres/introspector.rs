@@ -1,5 +1,4 @@
 ///! PostgreSQL database introspection for fact tables.
-
 use async_trait::async_trait;
 use deadpool_postgres::Pool;
 use tokio_postgres::Row;
@@ -30,7 +29,7 @@ impl DatabaseIntrospector for PostgresIntrospector {
         })?;
 
         // Query information_schema for column information
-        let query = r#"
+        let query = r"
             SELECT
                 column_name,
                 data_type,
@@ -39,7 +38,7 @@ impl DatabaseIntrospector for PostgresIntrospector {
             WHERE table_name = $1
             AND table_schema = 'public'
             ORDER BY ordinal_position
-        "#;
+        ";
 
         let rows: Vec<Row> = client.query(query, &[&table_name]).await.map_err(|e| {
             FraiseQLError::Database {
@@ -69,7 +68,7 @@ impl DatabaseIntrospector for PostgresIntrospector {
         })?;
 
         // Query pg_indexes for indexed columns
-        let query = r#"
+        let query = r"
             SELECT DISTINCT
                 a.attname as column_name
             FROM
@@ -82,7 +81,7 @@ impl DatabaseIntrospector for PostgresIntrospector {
                 AND n.nspname = 'public'
                 AND a.attnum > 0
             ORDER BY column_name
-        "#;
+        ";
 
         let rows: Vec<Row> = client.query(query, &[&table_name]).await.map_err(|e| {
             FraiseQLError::Database {
@@ -122,7 +121,7 @@ mod tests {
 
         // Extract pool from adapter (we need a way to get the pool)
         // For now, create a new pool directly
-        use deadpool_postgres::{Config, ManagerConfig, Pool, RecyclingMethod, Runtime};
+        use deadpool_postgres::{Config, ManagerConfig, RecyclingMethod, Runtime};
         use tokio_postgres::NoTls;
 
         let mut cfg = Config::new();
