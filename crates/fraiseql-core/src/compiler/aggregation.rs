@@ -131,6 +131,15 @@ pub enum AggregateSelection {
         /// Alias for result
         alias: String,
     },
+    /// Boolean aggregate (Phase 6)
+    BoolAggregate {
+        /// Field to aggregate
+        field: String,
+        /// Boolean aggregate function
+        function: crate::compiler::aggregate_types::BoolAggregateFunction,
+        /// Alias for result
+        alias: String,
+    },
 }
 
 impl AggregateSelection {
@@ -138,7 +147,10 @@ impl AggregateSelection {
     #[must_use]
     pub fn alias(&self) -> &str {
         match self {
-            Self::Count { alias } | Self::CountDistinct { alias, .. } | Self::MeasureAggregate { alias, .. } => alias,
+            Self::Count { alias }
+            | Self::CountDistinct { alias, .. }
+            | Self::MeasureAggregate { alias, .. }
+            | Self::BoolAggregate { alias, .. } => alias,
         }
     }
 }
@@ -386,21 +398,59 @@ impl AggregationPlanner {
                     });
                 }
                 AggregateSelection::MeasureAggregate { measure, function, alias } => {
-                    // Validate measure exists
+                    // Validate measure exists (or is a dimension path for advanced aggregates)
                     let measure_exists = metadata.measures.iter().any(|m| m.name == *measure);
+                    let is_dimension = metadata.dimensions.paths.iter().any(|p| p.name == *measure);
+                    let is_filter = metadata.denormalized_filters.iter().any(|f| f.name == *measure);
 
-                    if !measure_exists {
+                    if !measure_exists && !is_dimension && !is_filter {
                         return Err(FraiseQLError::Validation {
                             message: format!(
-                                "Measure '{}' not found in fact table '{}'",
+                                "Measure or field '{}' not found in fact table '{}'",
                                 measure, metadata.table_name
                             ),
                             path: None,
                         });
                     }
 
-                    expressions.push(AggregateExpression::MeasureAggregate {
-                        column: measure.clone(),
+                    // For advanced aggregates, create AdvancedAggregate variant
+                    if matches!(function, AggregateFunction::ArrayAgg | AggregateFunction::JsonAgg | AggregateFunction::JsonbAgg | AggregateFunction::StringAgg) {
+                        expressions.push(AggregateExpression::AdvancedAggregate {
+                            column: measure.clone(),
+                            function: *function,
+                            alias: alias.clone(),
+                            delimiter: if *function == AggregateFunction::StringAgg {
+                                Some(", ".to_string())
+                            } else {
+                                None
+                            },
+                            order_by: None,
+                        });
+                    } else {
+                        expressions.push(AggregateExpression::MeasureAggregate {
+                            column: measure.clone(),
+                            function: *function,
+                            alias: alias.clone(),
+                        });
+                    }
+                }
+                AggregateSelection::BoolAggregate { field, function, alias } => {
+                    // Validate field exists
+                    let field_exists = metadata.dimensions.paths.iter().any(|p| p.name == *field)
+                        || metadata.denormalized_filters.iter().any(|f| f.name == *field);
+
+                    if !field_exists {
+                        return Err(FraiseQLError::Validation {
+                            message: format!(
+                                "Boolean field '{}' not found in fact table '{}'",
+                                field, metadata.table_name
+                            ),
+                            path: None,
+                        });
+                    }
+
+                    expressions.push(AggregateExpression::BoolAggregate {
+                        column: field.clone(),
                         function: *function,
                         alias: alias.clone(),
                     });
@@ -431,8 +481,30 @@ impl AggregationPlanner {
                     }
                 }
                 AggregateSelection::MeasureAggregate { measure, function, alias } => {
-                    AggregateExpression::MeasureAggregate {
-                        column: measure.clone(),
+                    // For advanced aggregates in HAVING, create AdvancedAggregate variant
+                    if matches!(function, AggregateFunction::ArrayAgg | AggregateFunction::JsonAgg | AggregateFunction::JsonbAgg | AggregateFunction::StringAgg) {
+                        AggregateExpression::AdvancedAggregate {
+                            column: measure.clone(),
+                            function: *function,
+                            alias: alias.clone(),
+                            delimiter: if *function == AggregateFunction::StringAgg {
+                                Some(", ".to_string())
+                            } else {
+                                None
+                            },
+                            order_by: None,
+                        }
+                    } else {
+                        AggregateExpression::MeasureAggregate {
+                            column: measure.clone(),
+                            function: *function,
+                            alias: alias.clone(),
+                        }
+                    }
+                }
+                AggregateSelection::BoolAggregate { field, function, alias } => {
+                    AggregateExpression::BoolAggregate {
+                        column: field.clone(),
                         function: *function,
                         alias: alias.clone(),
                     }

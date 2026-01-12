@@ -6,6 +6,9 @@ use crate::schema::CompiledSchema;
 use super::{QueryMatcher, QueryPlanner, ResultProjector, RuntimeConfig};
 use std::sync::Arc;
 
+#[cfg(test)]
+use crate::db::types::{DatabaseType, PoolMetrics};
+
 /// Query executor - executes compiled GraphQL queries.
 ///
 /// This is the main entry point for runtime query execution.

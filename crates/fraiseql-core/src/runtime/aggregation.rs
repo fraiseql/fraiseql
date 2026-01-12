@@ -53,7 +53,7 @@ use crate::compiler::aggregation::{
     AggregateExpression, AggregationPlan, GroupByExpression, OrderByClause, OrderDirection,
     ValidatedHavingCondition,
 };
-use crate::compiler::aggregate_types::{AggregateFunction, TemporalBucket};
+use crate::compiler::aggregate_types::{AggregateFunction, HavingOperator, TemporalBucket};
 use crate::db::types::DatabaseType;
 use crate::error::{FraiseQLError, Result};
 

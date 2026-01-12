@@ -267,6 +267,29 @@ impl AggregateQueryParser {
             });
         }
 
+        // Phase 6: Handle boolean aggregates (BOOL_AND, BOOL_OR)
+        // e.g., "is_active_bool_and", "has_discount_bool_or"
+        for dimension_path in Self::extract_dimension_paths(metadata) {
+            if let Some(stripped) = agg_name.strip_suffix("_bool_and") {
+                if stripped == dimension_path {
+                    return Ok(AggregateSelection::BoolAggregate {
+                        field: dimension_path.clone(),
+                        function: crate::compiler::aggregate_types::BoolAggregateFunction::And,
+                        alias: agg_name.to_string(),
+                    });
+                }
+            }
+            if let Some(stripped) = agg_name.strip_suffix("_bool_or") {
+                if stripped == dimension_path {
+                    return Ok(AggregateSelection::BoolAggregate {
+                        field: dimension_path.clone(),
+                        function: crate::compiler::aggregate_types::BoolAggregateFunction::Or,
+                        alias: agg_name.to_string(),
+                    });
+                }
+            }
+        }
+
         // Handle measure aggregates: revenue_sum, revenue_avg, etc.
         for measure in &metadata.measures {
             for func in &[
@@ -276,6 +299,11 @@ impl AggregateQueryParser {
                 ("_max", AggregateFunction::Max),
                 ("_stddev", AggregateFunction::Stddev),
                 ("_variance", AggregateFunction::Variance),
+                // Phase 6: Advanced aggregates
+                ("_array_agg", AggregateFunction::ArrayAgg),
+                ("_json_agg", AggregateFunction::JsonAgg),
+                ("_jsonb_agg", AggregateFunction::JsonbAgg),
+                ("_string_agg", AggregateFunction::StringAgg),
             ] {
                 let expected_name = format!("{}{}", measure.name, func.0);
                 if agg_name == expected_name {
@@ -288,10 +316,48 @@ impl AggregateQueryParser {
             }
         }
 
+        // Phase 6: Check for dimension-level advanced aggregates
+        // e.g., "product_id_array_agg", "product_name_string_agg"
+        for dimension_path in Self::extract_dimension_paths(metadata) {
+            for func in &[
+                ("_array_agg", AggregateFunction::ArrayAgg),
+                ("_json_agg", AggregateFunction::JsonAgg),
+                ("_jsonb_agg", AggregateFunction::JsonbAgg),
+                ("_string_agg", AggregateFunction::StringAgg),
+            ] {
+                let expected_name = format!("{}{}", dimension_path, func.0);
+                if agg_name == expected_name {
+                    // For dimension aggregates, store the path as the "measure"
+                    return Ok(AggregateSelection::MeasureAggregate {
+                        measure: dimension_path.clone(),
+                        function: func.1,
+                        alias: agg_name.to_string(),
+                    });
+                }
+            }
+        }
+
         Err(FraiseQLError::Validation {
             message: format!("Unknown aggregate selection: {agg_name}"),
             path: None,
         })
+    }
+
+    /// Extract dimension paths from metadata for advanced aggregate parsing
+    fn extract_dimension_paths(metadata: &FactTableMetadata) -> Vec<String> {
+        let mut paths = Vec::new();
+
+        // Add dimension paths from JSONB column
+        for dim_path in &metadata.dimensions.paths {
+            paths.push(dim_path.name.clone());
+        }
+
+        // Add denormalized filter columns (these can also be aggregated)
+        for filter in &metadata.denormalized_filters {
+            paths.push(filter.name.clone());
+        }
+
+        paths
     }
 
     /// Parse HAVING conditions
