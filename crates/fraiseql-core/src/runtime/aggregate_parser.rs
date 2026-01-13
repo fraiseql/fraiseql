@@ -208,6 +208,11 @@ impl AggregateQueryParser {
     }
 
     /// Parse GROUP BY selections
+    ///
+    /// Supports two formats:
+    /// 1. Boolean true: {"category": true} -> regular dimension
+    /// 2. Boolean true with suffix: {"occurred_at_day": true} -> temporal bucket
+    /// 3. String bucket name: {"occurred_at": "day"} -> temporal bucket
     fn parse_group_by(
         group_by_obj: &Value,
         metadata: &FactTableMetadata,
@@ -217,6 +222,7 @@ impl AggregateQueryParser {
         if let Some(obj) = group_by_obj.as_object() {
             for (key, value) in obj {
                 if value.as_bool() == Some(true) {
+                    // Format 1 & 2: Boolean true (with or without suffix)
                     // Check if this is a temporal bucket (ends with _day, _week, etc.)
                     if let Some(bucket_selection) = Self::parse_temporal_bucket(key, metadata)? {
                         selections.push(bucket_selection);
@@ -227,6 +233,30 @@ impl AggregateQueryParser {
                             alias: key.clone(),
                         });
                     }
+                } else if let Some(bucket_str) = value.as_str() {
+                    // Format 3: String bucket name {"occurred_at": "day"}
+                    let bucket = TemporalBucket::from_str(bucket_str)?;
+
+                    // Verify this column exists in denormalized_filters
+                    let column_exists = metadata.denormalized_filters
+                        .iter()
+                        .any(|f| f.name == *key);
+
+                    if !column_exists {
+                        return Err(FraiseQLError::Validation {
+                            message: format!(
+                                "Temporal bucketing column '{}' not found in denormalized filters",
+                                key
+                            ),
+                            path: None,
+                        });
+                    }
+
+                    selections.push(GroupBySelection::TemporalBucket {
+                        column: key.clone(),
+                        bucket,
+                        alias: key.clone(),
+                    });
                 }
             }
         }

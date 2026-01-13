@@ -198,6 +198,27 @@ impl TemporalBucket {
             Self::Year => "year",
         }
     }
+
+    /// Parse temporal bucket from string
+    ///
+    /// # Errors
+    ///
+    /// Returns error if bucket name is unknown
+    pub fn from_str(s: &str) -> crate::error::Result<Self> {
+        match s.to_lowercase().as_str() {
+            "second" => Ok(Self::Second),
+            "minute" => Ok(Self::Minute),
+            "hour" => Ok(Self::Hour),
+            "day" => Ok(Self::Day),
+            "week" => Ok(Self::Week),
+            "month" => Ok(Self::Month),
+            "quarter" => Ok(Self::Quarter),
+            "year" => Ok(Self::Year),
+            _ => Err(crate::error::FraiseQLError::parse(
+                format!("Invalid temporal bucket: {}", s)
+            )),
+        }
+    }
 }
 
 /// Boolean aggregate function (AND/OR)

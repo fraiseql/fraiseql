@@ -637,3 +637,180 @@ fn test_having_different_operators() {
         "MAX(revenue) = 500"
     ]);
 }
+
+// =============================================================================
+// Temporal Bucketing Tests
+// =============================================================================
+
+#[test]
+fn test_temporal_bucket_day() {
+    let query = json!({
+        "groupBy": {
+            "occurred_at": "day"
+        },
+        "aggregates": [
+            {"count": {}},
+            {"revenue_sum": {}}
+        ]
+    });
+
+    let sql = parse_plan_generate(&query);
+
+    assert_sql_contains(&sql, &[
+        "DATE_TRUNC('day', occurred_at)",  // PostgreSQL
+        "GROUP BY"
+    ]);
+}
+
+#[test]
+fn test_temporal_bucket_month() {
+    let query = json!({
+        "groupBy": {
+            "occurred_at": "month"
+        },
+        "aggregates": [{"count": {}}]
+    });
+
+    let sql = parse_plan_generate(&query);
+
+    assert_sql_contains(&sql, &[
+        "DATE_TRUNC('month', occurred_at)",
+        "GROUP BY"
+    ]);
+}
+
+#[test]
+fn test_temporal_bucket_with_dimension() {
+    // Mix temporal bucketing with regular dimension grouping
+    let query = json!({
+        "groupBy": {
+            "category": true,
+            "occurred_at": "day"
+        },
+        "aggregates": [{"count": {}}, {"revenue_sum": {}}]
+    });
+
+    let sql = parse_plan_generate(&query);
+
+    assert_sql_contains(&sql, &[
+        "data->>'category'",
+        "DATE_TRUNC('day', occurred_at)",
+        "GROUP BY"
+    ]);
+}
+
+#[test]
+fn test_temporal_bucket_all_types() {
+    for bucket in &["second", "minute", "hour", "day", "week", "month", "quarter", "year"] {
+        let query = json!({
+            "groupBy": {
+                "occurred_at": bucket
+            },
+            "aggregates": [{"count": {}}]
+        });
+
+        let sql = parse_plan_generate(&query);
+
+        // Verify SQL generation doesn't panic for any bucket type
+        assert!(!sql.is_empty());
+        assert!(sql.contains("GROUP BY"));
+    }
+}
+
+#[test]
+fn test_temporal_bucket_multi_database() {
+    use fraiseql_core::db::DatabaseType;
+    use fraiseql_core::runtime::AggregationSqlGenerator;
+    use fraiseql_core::runtime::AggregateQueryParser;
+    use fraiseql_core::compiler::aggregation::AggregationPlanner;
+
+    let query = json!({
+        "table": "tf_sales",
+        "groupBy": {"occurred_at": "day"},
+        "aggregates": [{"count": {}}]
+    });
+
+    let metadata = create_sales_metadata();
+
+    // PostgreSQL
+    let pg_gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+    let pg_parsed = AggregateQueryParser::parse(&query, &metadata).unwrap();
+    let pg_plan = AggregationPlanner::plan(pg_parsed, metadata.clone()).unwrap();
+    let pg_sql = pg_gen.generate(&pg_plan).unwrap();
+    assert!(pg_sql.complete_sql.contains("DATE_TRUNC('day', occurred_at)"));
+
+    // MySQL
+    let mysql_gen = AggregationSqlGenerator::new(DatabaseType::MySQL);
+    let mysql_parsed = AggregateQueryParser::parse(&query, &metadata).unwrap();
+    let mysql_plan = AggregationPlanner::plan(mysql_parsed, metadata.clone()).unwrap();
+    let mysql_sql = mysql_gen.generate(&mysql_plan).unwrap();
+    assert!(mysql_sql.complete_sql.contains("DATE_FORMAT(occurred_at,"));
+
+    // SQLite
+    let sqlite_gen = AggregationSqlGenerator::new(DatabaseType::SQLite);
+    let sqlite_parsed = AggregateQueryParser::parse(&query, &metadata).unwrap();
+    let sqlite_plan = AggregationPlanner::plan(sqlite_parsed, metadata.clone()).unwrap();
+    let sqlite_sql = sqlite_gen.generate(&sqlite_plan).unwrap();
+    assert!(sqlite_sql.complete_sql.contains("strftime("));
+
+    // SQL Server
+    let mssql_gen = AggregationSqlGenerator::new(DatabaseType::SQLServer);
+    let mssql_parsed = AggregateQueryParser::parse(&query, &metadata).unwrap();
+    let mssql_plan = AggregationPlanner::plan(mssql_parsed, metadata).unwrap();
+    let mssql_sql = mssql_gen.generate(&mssql_plan).unwrap();
+    assert!(mssql_sql.complete_sql.contains("CAST(occurred_at AS DATE)"));
+}
+
+#[test]
+fn test_temporal_bucket_with_where_having() {
+    let query = json!({
+        "where": {
+            "customer_id_eq": "cust-001"
+        },
+        "groupBy": {
+            "occurred_at": "month"
+        },
+        "aggregates": [{"revenue_sum": {}}],
+        "having": {
+            "revenue_sum_gt": 1000.0
+        },
+        "orderBy": {"revenue_sum": "DESC"},
+        "limit": 5
+    });
+
+    let sql = parse_plan_generate(&query);
+
+    // Verify all clauses present with temporal bucketing
+    assert_sql_contains(&sql, &[
+        "WHERE",
+        "customer_id = 'cust-001'",
+        "DATE_TRUNC('month', occurred_at)",
+        "GROUP BY",
+        "HAVING",
+        "SUM(revenue) > 1000",
+        "ORDER BY",
+        "DESC",
+        "LIMIT 5"
+    ]);
+}
+
+#[test]
+fn test_temporal_bucket_week_quarter_year() {
+    // Test less common bucket types
+    for bucket in &["week", "quarter", "year"] {
+        let query = json!({
+            "groupBy": {
+                "occurred_at": bucket
+            },
+            "aggregates": [{"count": {}}, {"revenue_sum": {}}]
+        });
+
+        let sql = parse_plan_generate(&query);
+
+        // PostgreSQL generates DATE_TRUNC for all types
+        assert!(sql.contains(&format!("DATE_TRUNC('{}', occurred_at)", bucket)));
+        assert!(sql.contains("GROUP BY"));
+        assert!(sql.contains("COUNT(*)"));
+        assert!(sql.contains("SUM(revenue)"));
+    }
+}
