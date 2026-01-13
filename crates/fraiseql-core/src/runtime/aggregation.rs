@@ -288,7 +288,13 @@ impl AggregationSqlGenerator {
                 Ok(format!("COUNT(DISTINCT {})", column))
             }
             AggregateExpression::MeasureAggregate { column, function, .. } => {
-                Ok(format!("{}({})", function.sql_name(), column))
+                // Handle statistical functions with database-specific SQL
+                use AggregateFunction::*;
+                match function {
+                    Stddev => Ok(self.generate_stddev_sql(column)),
+                    Variance => Ok(self.generate_variance_sql(column)),
+                    _ => Ok(format!("{}({})", function.sql_name(), column)),
+                }
             }
             AggregateExpression::AdvancedAggregate { column, function, delimiter, order_by, .. } => {
                 self.advanced_aggregate_to_sql(column, *function, delimiter.as_deref(), order_by.as_ref())
@@ -433,6 +439,46 @@ impl AggregationSqlGenerator {
             })
             .collect::<Vec<_>>()
             .join(", ")
+    }
+
+    /// Generate STDDEV SQL (database-specific)
+    ///
+    /// Database support:
+    /// - PostgreSQL: STDDEV_SAMP() (default), STDDEV_POP() also available
+    /// - MySQL: STDDEV_SAMP() or STD()
+    /// - SQLite: Not natively supported (returns NULL or use custom function)
+    /// - SQL Server: STDEV()
+    fn generate_stddev_sql(&self, column: &str) -> String {
+        match self.database_type {
+            DatabaseType::PostgreSQL => format!("STDDEV_SAMP({})", column),
+            DatabaseType::MySQL => format!("STDDEV_SAMP({})", column),
+            DatabaseType::SQLite => {
+                // SQLite doesn't have built-in STDDEV
+                // Return NULL to indicate unavailable
+                format!("NULL /* STDDEV not supported in SQLite */")
+            }
+            DatabaseType::SQLServer => format!("STDEV({})", column),
+        }
+    }
+
+    /// Generate VARIANCE SQL (database-specific)
+    ///
+    /// Database support:
+    /// - PostgreSQL: VAR_SAMP() (default), VAR_POP() also available
+    /// - MySQL: VAR_SAMP() or VARIANCE()
+    /// - SQLite: Not natively supported (returns NULL or use custom function)
+    /// - SQL Server: VAR()
+    fn generate_variance_sql(&self, column: &str) -> String {
+        match self.database_type {
+            DatabaseType::PostgreSQL => format!("VAR_SAMP({})", column),
+            DatabaseType::MySQL => format!("VAR_SAMP({})", column),
+            DatabaseType::SQLite => {
+                // SQLite doesn't have built-in VARIANCE
+                // Return NULL to indicate unavailable
+                format!("NULL /* VARIANCE not supported in SQLite */")
+            }
+            DatabaseType::SQLServer => format!("VAR({})", column),
+        }
     }
 
     /// Generate BOOL_AND/BOOL_OR SQL

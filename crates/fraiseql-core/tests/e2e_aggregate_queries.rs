@@ -902,3 +902,117 @@ fn test_advanced_aggregates_multi_database() {
     let mssql_sql = mssql_gen.generate(&mssql_plan).unwrap();
     assert!(mssql_sql.complete_sql.contains("STRING_AGG"));
 }
+
+// =============================================================================
+// Statistical Functions Tests
+// =============================================================================
+
+#[test]
+fn test_stddev_postgres_mysql() {
+    use fraiseql_core::db::DatabaseType;
+    use fraiseql_core::runtime::AggregationSqlGenerator;
+    use fraiseql_core::runtime::AggregateQueryParser;
+    use fraiseql_core::compiler::aggregation::AggregationPlanner;
+
+    let query = json!({
+        "table": "tf_sales",
+        "groupBy": {"category": true},
+        "aggregates": [
+            {"count": {}},
+            {"revenue_stddev": {}}
+        ]
+    });
+
+    let metadata = create_sales_metadata();
+
+    // PostgreSQL
+    let pg_gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+    let pg_parsed = AggregateQueryParser::parse(&query, &metadata).unwrap();
+    let pg_plan = AggregationPlanner::plan(pg_parsed, metadata.clone()).unwrap();
+    let pg_sql = pg_gen.generate(&pg_plan).unwrap();
+    assert!(pg_sql.complete_sql.contains("STDDEV_SAMP(revenue)"));
+
+    // MySQL
+    let mysql_gen = AggregationSqlGenerator::new(DatabaseType::MySQL);
+    let mysql_parsed = AggregateQueryParser::parse(&query, &metadata).unwrap();
+    let mysql_plan = AggregationPlanner::plan(mysql_parsed, metadata.clone()).unwrap();
+    let mysql_sql = mysql_gen.generate(&mysql_plan).unwrap();
+    assert!(mysql_sql.complete_sql.contains("STDDEV_SAMP(revenue)"));
+
+    // SQL Server
+    let mssql_gen = AggregationSqlGenerator::new(DatabaseType::SQLServer);
+    let mssql_parsed = AggregateQueryParser::parse(&query, &metadata).unwrap();
+    let mssql_plan = AggregationPlanner::plan(mssql_parsed, metadata).unwrap();
+    let mssql_sql = mssql_gen.generate(&mssql_plan).unwrap();
+    assert!(mssql_sql.complete_sql.contains("STDEV(revenue)"));
+}
+
+#[test]
+fn test_variance_postgres_mysql() {
+    use fraiseql_core::db::DatabaseType;
+    use fraiseql_core::runtime::AggregationSqlGenerator;
+    use fraiseql_core::runtime::AggregateQueryParser;
+    use fraiseql_core::compiler::aggregation::AggregationPlanner;
+
+    let query = json!({
+        "table": "tf_sales",
+        "groupBy": {"category": true},
+        "aggregates": [
+            {"count": {}},
+            {"revenue_variance": {}}
+        ]
+    });
+
+    let metadata = create_sales_metadata();
+
+    // PostgreSQL
+    let pg_gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+    let pg_parsed = AggregateQueryParser::parse(&query, &metadata).unwrap();
+    let pg_plan = AggregationPlanner::plan(pg_parsed, metadata.clone()).unwrap();
+    let pg_sql = pg_gen.generate(&pg_plan).unwrap();
+    assert!(pg_sql.complete_sql.contains("VAR_SAMP(revenue)"));
+
+    // MySQL
+    let mysql_gen = AggregationSqlGenerator::new(DatabaseType::MySQL);
+    let mysql_parsed = AggregateQueryParser::parse(&query, &metadata).unwrap();
+    let mysql_plan = AggregationPlanner::plan(mysql_parsed, metadata.clone()).unwrap();
+    let mysql_sql = mysql_gen.generate(&mysql_plan).unwrap();
+    assert!(mysql_sql.complete_sql.contains("VAR_SAMP(revenue)"));
+
+    // SQL Server
+    let mssql_gen = AggregationSqlGenerator::new(DatabaseType::SQLServer);
+    let mssql_parsed = AggregateQueryParser::parse(&query, &metadata).unwrap();
+    let mssql_plan = AggregationPlanner::plan(mssql_parsed, metadata).unwrap();
+    let mssql_sql = mssql_gen.generate(&mssql_plan).unwrap();
+    assert!(mssql_sql.complete_sql.contains("VAR(revenue)"));
+}
+
+#[test]
+fn test_statistical_functions_sqlite_unsupported() {
+    use fraiseql_core::db::DatabaseType;
+    use fraiseql_core::runtime::AggregationSqlGenerator;
+    use fraiseql_core::runtime::AggregateQueryParser;
+    use fraiseql_core::compiler::aggregation::AggregationPlanner;
+
+    let query = json!({
+        "table": "tf_sales",
+        "groupBy": {"category": true},
+        "aggregates": [
+            {"count": {}},
+            {"revenue_stddev": {}},
+            {"revenue_variance": {}}
+        ]
+    });
+
+    let metadata = create_sales_metadata();
+
+    // SQLite - should return NULL placeholders
+    let sqlite_gen = AggregationSqlGenerator::new(DatabaseType::SQLite);
+    let sqlite_parsed = AggregateQueryParser::parse(&query, &metadata).unwrap();
+    let sqlite_plan = AggregationPlanner::plan(sqlite_parsed, metadata).unwrap();
+    let sqlite_sql = sqlite_gen.generate(&sqlite_plan).unwrap();
+
+    // SQLite doesn't support STDDEV/VARIANCE natively
+    assert!(sqlite_sql.complete_sql.contains("NULL /* STDDEV not supported"));
+    assert!(sqlite_sql.complete_sql.contains("NULL /* VARIANCE not supported"));
+}
