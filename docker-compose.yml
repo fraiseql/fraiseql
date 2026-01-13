@@ -2,24 +2,44 @@ version: '3.8'
 
 services:
   postgres:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: postgres:17-alpine
     container_name: fraiseql-postgres
     ports:
-      - "127.0.0.1:5433:5432"
+      - "5432:5432"
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: fraiseql_test
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "postgres", "-h", "localhost"]
-      interval: 2s
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
       timeout: 5s
-      retries: 10
+      retries: 5
       start_period: 10s
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./tests/fixtures/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./tests/fixtures/seed_data.sql:/docker-entrypoint-initdb.d/02-seed.sql
+    networks:
+      - fraiseql-network
+
+  # Optional: Adminer for database inspection (http://localhost:8080)
+  adminer:
+    image: adminer:latest
+    container_name: fraiseql-adminer
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+    networks:
+      - fraiseql-network
+
+networks:
+  fraiseql-network:
+    driver: bridge
 
 volumes:
   postgres_data:
