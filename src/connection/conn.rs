@@ -315,6 +315,9 @@ impl Connection {
 
     /// Handle authentication
     async fn authenticate(&mut self, config: &ConnectionConfig) -> Result<()> {
+        let auth_start = std::time::Instant::now();
+        let mut auth_mechanism = "unknown";
+
         loop {
             let msg = self.receive_message().await?;
 
@@ -322,9 +325,17 @@ impl Connection {
                 BackendMessage::Authentication(auth) => match auth {
                     AuthenticationMessage::Ok => {
                         tracing::debug!("authentication successful");
+                        crate::metrics::counters::auth_successful(auth_mechanism);
+                        crate::metrics::histograms::auth_duration(
+                            auth_mechanism,
+                            auth_start.elapsed().as_millis() as u64,
+                        );
                         break;
                     }
                     AuthenticationMessage::CleartextPassword => {
+                        auth_mechanism = crate::metrics::labels::MECHANISM_CLEARTEXT;
+                        crate::metrics::counters::auth_attempted(auth_mechanism);
+
                         let password = config
                             .password
                             .as_ref()
@@ -340,6 +351,8 @@ impl Connection {
                         ));
                     }
                     AuthenticationMessage::Sasl { mechanisms } => {
+                        auth_mechanism = crate::metrics::labels::MECHANISM_SCRAM;
+                        crate::metrics::counters::auth_attempted(auth_mechanism);
                         self.handle_sasl(&mechanisms, config).await?;
                     }
                     AuthenticationMessage::SaslContinue { .. } => {
@@ -367,6 +380,7 @@ impl Connection {
                     break;
                 }
                 BackendMessage::ErrorResponse(err) => {
+                    crate::metrics::counters::auth_failed(auth_mechanism, "server_error");
                     return Err(Error::Authentication(err.to_string()));
                 }
                 _ => {
@@ -550,6 +564,8 @@ impl Connection {
         query: &str,
         chunk_size: usize,
     ) -> Result<crate::stream::JsonStream> {
+        let startup_start = std::time::Instant::now();
+
         let _span = tracing::debug_span!(
             "streaming_query",
             query = %query,
@@ -579,6 +595,11 @@ impl Connection {
         // Read RowDescription first
         let row_desc = self.receive_message().await?;
         validate_row_description(&row_desc)?;
+
+        // Record startup timing
+        let startup_duration = startup_start.elapsed().as_millis() as u64;
+        let entity = extract_entity_from_query(query).unwrap_or_else(|| "unknown".to_string());
+        crate::metrics::histograms::query_startup_duration(&entity, startup_duration);
 
         // Create channels
         let (result_tx, result_rx) = mpsc::channel::<Result<Value>>(chunk_size);
@@ -676,6 +697,29 @@ impl Connection {
 
         Ok(JsonStream::new(result_rx, cancel_tx))
     }
+}
+
+/// Extract entity name from query for metrics
+/// Query format: SELECT data FROM v_{entity} ...
+fn extract_entity_from_query(query: &str) -> Option<String> {
+    let query_lower = query.to_lowercase();
+    if let Some(from_pos) = query_lower.find("from") {
+        let after_from = &query_lower[from_pos + 4..].trim_start();
+        if let Some(entity_start) = after_from.find('v').or_else(|| after_from.find('t')) {
+            let potential_table = &after_from[entity_start..];
+            // Extract table name: "v_entity" or "tv_entity"
+            let end_pos = potential_table
+                .find(' ')
+                .or_else(|| potential_table.find(';'))
+                .unwrap_or(potential_table.len());
+            let table_name = &potential_table[..end_pos];
+            // Extract entity from table name
+            if let Some(entity_pos) = table_name.rfind('_') {
+                return Some(table_name[entity_pos + 1..].to_string());
+            }
+        }
+    }
+    None
 }
 
 #[cfg(test)]
