@@ -70,6 +70,18 @@ pub enum Error {
         /// Details from serde_json about what went wrong
         details: String,
     },
+
+    /// Memory limit exceeded
+    ///
+    /// Occurs when estimated buffered memory exceeds the configured maximum.
+    /// This indicates the consumer is too slow relative to data arrival rate.
+    #[error("memory limit exceeded: {current} bytes buffered > {limit} bytes limit")]
+    MemoryLimitExceeded {
+        /// Configured memory limit in bytes
+        limit: usize,
+        /// Current estimated memory in bytes
+        current: usize,
+    },
 }
 
 /// Result type alias using fraiseql-wire Error
@@ -165,6 +177,7 @@ impl Error {
             Error::InvalidState { .. } => "invalid_state",
             Error::ConnectionClosed => "connection_closed",
             Error::Deserialization { .. } => "deserialization",
+            Error::MemoryLimitExceeded { .. } => "memory_limit_exceeded",
         }
     }
 }
@@ -293,6 +306,28 @@ mod tests {
         let err = Error::Deserialization {
             type_name: "User".to_string(),
             details: "invalid type".to_string(),
+        };
+        assert!(!err.is_retriable());
+    }
+
+    #[test]
+    fn test_memory_limit_exceeded_error() {
+        let err = Error::MemoryLimitExceeded {
+            limit: 1_000_000,
+            current: 1_500_000,
+        };
+        let msg = err.to_string();
+        assert!(msg.contains("1500000"));
+        assert!(msg.contains("1000000"));
+        assert!(msg.contains("memory limit exceeded"));
+        assert_eq!(err.category(), "memory_limit_exceeded");
+    }
+
+    #[test]
+    fn test_memory_limit_exceeded_not_retriable() {
+        let err = Error::MemoryLimitExceeded {
+            limit: 100_000,
+            current: 150_000,
         };
         assert!(!err.is_retriable());
     }
