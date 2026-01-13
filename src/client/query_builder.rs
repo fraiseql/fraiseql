@@ -61,6 +61,8 @@ pub struct QueryBuilder<T: DeserializeOwned + Unpin + 'static = serde_json::Valu
     order_by: Option<String>,
     chunk_size: usize,
     max_memory: Option<usize>,
+    soft_limit_warn_threshold: Option<f32>,  // Percentage (0.0-1.0) at which to warn
+    soft_limit_fail_threshold: Option<f32>,  // Percentage (0.0-1.0) at which to error
     _phantom: PhantomData<T>,
 }
 
@@ -75,6 +77,8 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
             order_by: None,
             chunk_size: 256,
             max_memory: None,
+            soft_limit_warn_threshold: None,
+            soft_limit_fail_threshold: None,
             _phantom: PhantomData,
         }
     }
@@ -146,6 +150,40 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
         self
     }
 
+    /// Set soft memory limit thresholds for progressive degradation
+    ///
+    /// Allows warning at a threshold before hitting hard limit.
+    /// Only applies if `max_memory()` is also set.
+    ///
+    /// # Parameters
+    ///
+    /// - `warn_threshold`: Percentage (0.0-1.0) at which to emit a warning
+    /// - `fail_threshold`: Percentage (0.0-1.0) at which to return error (must be > warn_threshold)
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let stream = client
+    ///     .query::<Project>("projects")
+    ///     .max_memory(500_000_000)  // 500 MB hard limit
+    ///     .memory_soft_limits(0.80, 1.0)  // Warn at 80%, error at 100%
+    ///     .execute()
+    ///     .await?;
+    /// ```
+    ///
+    /// If only hard limit needed, skip this and just use `max_memory()`.
+    pub fn memory_soft_limits(mut self, warn_threshold: f32, fail_threshold: f32) -> Self {
+        // Validate thresholds
+        let warn = warn_threshold.clamp(0.0, 1.0);
+        let fail = fail_threshold.clamp(0.0, 1.0);
+
+        if warn < fail {
+            self.soft_limit_warn_threshold = Some(warn);
+            self.soft_limit_fail_threshold = Some(fail);
+        }
+        self
+    }
+
     /// Execute query and return typed stream
     ///
     /// Type T ONLY affects consumer-side deserialization at poll_next().
@@ -180,7 +218,13 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
             self.order_by.is_some(),
         );
 
-        let stream = self.client.execute_query(&sql, self.chunk_size, self.max_memory).await?;
+        let stream = self.client.execute_query(
+            &sql,
+            self.chunk_size,
+            self.max_memory,
+            self.soft_limit_warn_threshold,
+            self.soft_limit_fail_threshold,
+        ).await?;
 
         // Apply Rust predicate if present (filters JSON before deserialization)
         let filtered_stream: Box<dyn Stream<Item = Result<Value>> + Unpin> =

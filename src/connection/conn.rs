@@ -564,6 +564,8 @@ impl Connection {
         query: &str,
         chunk_size: usize,
         max_memory: Option<usize>,
+        soft_limit_warn_threshold: Option<f32>,
+        soft_limit_fail_threshold: Option<f32>,
     ) -> Result<crate::stream::JsonStream> {
         let startup_start = std::time::Instant::now();
 
@@ -740,7 +742,14 @@ impl Connection {
             }
         });
 
-        Ok(JsonStream::new(result_rx, cancel_tx, entity_for_stream, max_memory))
+        Ok(JsonStream::new(
+            result_rx,
+            cancel_tx,
+            entity_for_stream,
+            max_memory,
+            soft_limit_warn_threshold,
+            soft_limit_fail_threshold,
+        ))
     }
 }
 

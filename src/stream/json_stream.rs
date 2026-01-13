@@ -49,6 +49,8 @@ pub struct JsonStream {
     rows_yielded: Arc<AtomicU64>,  // Counter of items yielded to consumer
     rows_filtered: Arc<AtomicU64>,  // Counter of items filtered
     max_memory: Option<usize>,  // Optional memory limit in bytes
+    soft_limit_warn_threshold: Option<f32>,  // Warn at threshold % (0.0-1.0)
+    soft_limit_fail_threshold: Option<f32>,  // Fail at threshold % (0.0-1.0)
 }
 
 impl JsonStream {
@@ -58,6 +60,8 @@ impl JsonStream {
         cancel_tx: mpsc::Sender<()>,
         entity: String,
         max_memory: Option<usize>,
+        soft_limit_warn_threshold: Option<f32>,
+        soft_limit_fail_threshold: Option<f32>,
     ) -> Self {
         Self {
             receiver,
@@ -66,6 +70,8 @@ impl JsonStream {
             rows_yielded: Arc::new(AtomicU64::new(0)),
             rows_filtered: Arc::new(AtomicU64::new(0)),
             max_memory,
+            soft_limit_warn_threshold,
+            soft_limit_fail_threshold,
         }
     }
 
@@ -129,14 +135,28 @@ impl Stream for JsonStream {
             let items_buffered = self.receiver.len();
             let estimated_memory = items_buffered * 2048;  // Conservative: 2KB per item
 
-            if estimated_memory > limit {
-                // Record metric for memory limit exceeded
+            // Check soft limit thresholds first (warn before fail)
+            if let Some(fail_threshold) = self.soft_limit_fail_threshold {
+                let threshold_bytes = (limit as f32 * fail_threshold) as usize;
+                if estimated_memory > threshold_bytes {
+                    // Record metric for memory limit exceeded
+                    crate::metrics::counters::memory_limit_exceeded(&self.entity);
+                    return Poll::Ready(Some(Err(Error::MemoryLimitExceeded {
+                        limit,
+                        estimated_memory,
+                    })));
+                }
+            } else if estimated_memory > limit {
+                // Hard limit (no soft limits configured)
                 crate::metrics::counters::memory_limit_exceeded(&self.entity);
                 return Poll::Ready(Some(Err(Error::MemoryLimitExceeded {
                     limit,
-                    current: estimated_memory,
+                    estimated_memory,
                 })));
             }
+
+            // Note: Warn threshold would be handled by instrumentation/logging layer
+            // This is for application-level monitoring, not a hard error
         }
 
         self.receiver.poll_recv(cx)

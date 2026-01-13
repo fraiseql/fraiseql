@@ -85,12 +85,12 @@ pub enum Error {
     /// 2. Reduce items in flight (configure lower `chunk_size`)
     /// 3. Remove memory limit (use unbounded mode)
     /// 4. Use different transport (consider `tokio-postgres` for flexibility)
-    #[error("memory limit exceeded: {current} bytes buffered > {limit} bytes limit")]
+    #[error("memory limit exceeded: {estimated_memory} bytes buffered > {limit} bytes limit")]
     MemoryLimitExceeded {
         /// Configured memory limit in bytes
         limit: usize,
-        /// Current estimated memory in bytes
-        current: usize,
+        /// Current estimated memory in bytes (items_buffered * 2048)
+        estimated_memory: usize,
     },
 }
 
@@ -324,7 +324,7 @@ mod tests {
     fn test_memory_limit_exceeded_error() {
         let err = Error::MemoryLimitExceeded {
             limit: 1_000_000,
-            current: 1_500_000,
+            estimated_memory: 1_500_000,
         };
         let msg = err.to_string();
         assert!(msg.contains("1500000"));
@@ -337,7 +337,7 @@ mod tests {
     fn test_memory_limit_exceeded_not_retriable() {
         let err = Error::MemoryLimitExceeded {
             limit: 100_000,
-            current: 150_000,
+            estimated_memory: 150_000,
         };
         assert!(!err.is_retriable());
     }

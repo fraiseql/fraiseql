@@ -456,7 +456,7 @@ fn test_memory_limit_exceeded_error() {
 
     let err = Error::MemoryLimitExceeded {
         limit: 500_000_000,
-        current: 750_000_000,
+        estimated_memory: 750_000_000,
     };
 
     // Verify error message contains both values
@@ -518,7 +518,7 @@ fn test_memory_limit_error_properties() {
 
     let error = Error::MemoryLimitExceeded {
         limit: 100_000,
-        current: 150_000,
+        estimated_memory: 150_000,
     };
 
     // Verify it's not retriable (terminal error)

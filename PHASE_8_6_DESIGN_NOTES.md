@@ -394,6 +394,36 @@ Risk: Medium (state machine complexity)
 
 ---
 
+## Future Refinements (Optional)
+
+### Idea 1: Expose Estimated Memory in Error
+
+**Rationale**: Debugging aid and structured logging
+- Include `current_estimate: usize` in error payload
+- Helpful for logs, metrics, and programmatic response
+
+**Status**: Nice-to-have, post-8.6.3
+
+### Idea 2: Configurable Memory Estimator
+
+**Rationale**: Workloads may skew from 2KB average
+- Internal-only trait for custom estimation
+- Allow tuning if empirical measurements differ
+- Default remains 2KB (conservative)
+
+**Status**: Internal API, post-8.6.3
+
+### Idea 3: Soft Limit Mode (Far Future)
+
+**Rationale**: Progressive degradation instead of hard error
+- Warn at threshold (e.g., 80% of limit)
+- Error at hard ceiling (100% of limit)
+- Separate from current hard-limit semantics
+
+**Status**: Post-8.6.4, requires state machine changes
+
+---
+
 ## Final Notes
 
 This phase sequence embodies good design:
