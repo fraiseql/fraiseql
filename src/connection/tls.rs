@@ -7,7 +7,8 @@ use crate::{Error, Result};
 use rustls::ClientConfig;
 use std::fs;
 use std::sync::Arc;
-use webpki_roots::TLS_SERVER_ROOTS;
+use rustls::RootCertStore;
+use rustls_pemfile::Item;
 
 /// TLS configuration for secure Postgres connections.
 ///
@@ -217,54 +218,35 @@ impl TlsConfigBuilder {
     /// ```
     pub fn build(self) -> Result<TlsConfig> {
         // Load root certificates
-        let mut root_store = rustls::RootCertStore::empty();
-
-        if let Some(ca_path) = &self.ca_cert_path {
-            // Load custom CA certificate
-            let ca_cert_data = fs::read(ca_path).map_err(|e| {
-                Error::Config(format!(
-                    "Failed to read CA certificate file '{}': {}",
-                    ca_path, e
-                ))
-            })?;
-
-            let mut reader = std::io::Cursor::new(&ca_cert_data);
-            let certs: Vec<_> = rustls_pemfile::certs(&mut reader)
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(|_| {
-                    Error::Config(format!(
-                        "Failed to parse CA certificate from '{}'",
-                        ca_path
-                    ))
-                })?;
-
-            if certs.is_empty() {
-                return Err(Error::Config(format!(
-                    "No valid certificates found in '{}'",
-                    ca_path
-                )));
-            }
-
-            for cert in certs {
-                root_store.add(cert).map_err(|e| {
-                    Error::Config(format!(
-                        "Failed to add certificate from '{}': {}",
-                        ca_path, e
-                    ))
-                })?;
-            }
+        let root_store = if let Some(ca_path) = &self.ca_cert_path {
+            // Load custom CA certificate from file
+            self.load_custom_ca(ca_path)?
         } else {
-            // Use system root certificates
-            for trust_anchor in TLS_SERVER_ROOTS.iter() {
-                root_store.add(rustls::pki_types::CertificateDer::from(
-                    trust_anchor.to_vec(),
-                )).ok();
+            // Use system root certificates via rustls-native-certs
+            let result = rustls_native_certs::load_native_certs();
+
+            let mut store = RootCertStore::empty();
+            for cert in result.certs {
+                let _ = store.add_parsable_certificates(&[cert]);
             }
-        }
+
+            // Log warnings if there were errors, but don't fail
+            if !result.errors.is_empty() && store.is_empty() {
+                return Err(Error::Config(
+                    "Failed to load any system root certificates".to_string()
+                ));
+            }
+
+            store
+        };
 
         // Create ClientConfig using the correct API for rustls 0.21
         let client_config = Arc::new(
             ClientConfig::builder()
+                .with_safe_default_cipher_suites()
+                .with_safe_default_kx_groups()
+                .with_protocol_versions(&[&rustls::version::TLS13])
+                .expect("Failed to set protocol versions")
                 .with_root_certificates(root_store)
                 .with_no_client_auth()
         );
@@ -276,6 +258,52 @@ impl TlsConfigBuilder {
             danger_accept_invalid_hostnames: self.danger_accept_invalid_hostnames,
             client_config,
         })
+    }
+
+    /// Load a custom CA certificate from a PEM file.
+    fn load_custom_ca(&self, ca_path: &str) -> Result<RootCertStore> {
+        let ca_cert_data = fs::read(ca_path).map_err(|e| {
+            Error::Config(format!(
+                "Failed to read CA certificate file '{}': {}",
+                ca_path, e
+            ))
+        })?;
+
+        let mut reader = std::io::Cursor::new(&ca_cert_data);
+        let mut root_store = RootCertStore::empty();
+        let mut found_certs = 0;
+
+        // Parse PEM file and extract certificates
+        loop {
+            match rustls_pemfile::read_one(&mut reader) {
+                Ok(Some(Item::X509Certificate(cert))) => {
+                    let _ = root_store.add_parsable_certificates(&[cert]);
+                    found_certs += 1;
+                }
+                Ok(Some(_)) => {
+                    // Skip non-certificate items (private keys, etc.)
+                }
+                Ok(None) => {
+                    // End of file
+                    break;
+                }
+                Err(_) => {
+                    return Err(Error::Config(format!(
+                        "Failed to parse CA certificate from '{}'",
+                        ca_path
+                    )));
+                }
+            }
+        }
+
+        if found_certs == 0 {
+            return Err(Error::Config(format!(
+                "No valid certificates found in '{}'",
+                ca_path
+            )));
+        }
+
+        Ok(root_store)
     }
 }
 

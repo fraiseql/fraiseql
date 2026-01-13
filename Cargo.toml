@@ -40,6 +40,8 @@ rustls = "0.21"
 rustls-pemfile = "2.0"
 webpki = "0.22"
 webpki-roots = "0.25"
+rustls-pki-types = "1.13.2"
+rustls-native-certs = "0.8.3"
 
 [dev-dependencies]
 tokio-test = "0.4"
