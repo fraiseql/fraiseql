@@ -179,6 +179,7 @@ mod tests {
                 sql_type: SqlType::Timestamp,
                 indexed: true,
             }],
+            calendar_dimensions: vec![],
         };
 
         let request = AggregationRequest {

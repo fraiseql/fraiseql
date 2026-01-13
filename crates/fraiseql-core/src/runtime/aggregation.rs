@@ -171,7 +171,9 @@ impl AggregationSqlGenerator {
         for expr in group_by_expressions {
             let column = self.group_by_expression_to_sql(expr)?;
             let alias = match expr {
-                GroupByExpression::JsonbPath { alias, .. } | GroupByExpression::TemporalBucket { alias, .. } => alias,
+                GroupByExpression::JsonbPath { alias, .. }
+                | GroupByExpression::TemporalBucket { alias, .. }
+                | GroupByExpression::CalendarPath { alias, .. } => alias,
             };
             columns.push(format!("{} AS {}", column, alias));
         }
@@ -200,6 +202,10 @@ impl AggregationSqlGenerator {
             }
             GroupByExpression::TemporalBucket { column, bucket, .. } => {
                 Ok(self.temporal_bucket_sql(column, *bucket))
+            }
+            GroupByExpression::CalendarPath { calendar_column, json_key, .. } => {
+                // Calendar dimension: reuse JSONB extraction for all 4 databases
+                Ok(self.jsonb_extract_sql(calendar_column, json_key))
             }
         }
     }
@@ -862,6 +868,7 @@ mod tests {
                 sql_type: SqlType::Timestamp,
                 indexed: true,
             }],
+            calendar_dimensions: vec![],
         };
 
         let request = AggregationRequest {

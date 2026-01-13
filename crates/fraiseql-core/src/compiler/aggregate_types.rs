@@ -651,6 +651,7 @@ mod tests {
                 paths: vec![],
             },
             denormalized_filters: vec![],
+            calendar_dimensions: vec![],
         }
     }
 

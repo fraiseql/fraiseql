@@ -95,6 +95,19 @@ pub enum GroupBySelection {
         /// Alias for result
         alias: String,
     },
+    /// Group by pre-computed calendar dimension
+    CalendarDimension {
+        /// Source timestamp column (e.g., "occurred_at")
+        source_column: String,
+        /// Calendar JSONB column (e.g., "date_info")
+        calendar_column: String,
+        /// JSON key within calendar column (e.g., "month")
+        json_key: String,
+        /// Temporal bucket type
+        bucket: TemporalBucket,
+        /// Alias for result
+        alias: String,
+    },
 }
 
 impl GroupBySelection {
@@ -102,7 +115,9 @@ impl GroupBySelection {
     #[must_use]
     pub fn alias(&self) -> &str {
         match self {
-            Self::Dimension { alias, .. } | Self::TemporalBucket { alias, .. } => alias,
+            Self::Dimension { alias, .. }
+            | Self::TemporalBucket { alias, .. }
+            | Self::CalendarDimension { alias, .. } => alias,
         }
     }
 }
@@ -217,6 +232,15 @@ pub enum GroupByExpression {
         column: String,
         /// Bucket type
         bucket: TemporalBucket,
+        /// Result alias
+        alias: String,
+    },
+    /// Pre-computed calendar dimension extraction
+    CalendarPath {
+        /// Calendar JSONB column (e.g., "date_info")
+        calendar_column: String,
+        /// JSON key within calendar column (e.g., "month")
+        json_key: String,
         /// Result alias
         alias: String,
     },
@@ -355,6 +379,19 @@ impl AggregationPlanner {
                     expressions.push(GroupByExpression::TemporalBucket {
                         column: column.clone(),
                         bucket: *bucket,
+                        alias: alias.clone(),
+                    });
+                }
+                GroupBySelection::CalendarDimension {
+                    calendar_column,
+                    json_key,
+                    alias,
+                    ..
+                } => {
+                    // Calendar dimension - use pre-computed JSONB field
+                    expressions.push(GroupByExpression::CalendarPath {
+                        calendar_column: calendar_column.clone(),
+                        json_key: json_key.clone(),
                         alias: alias.clone(),
                     });
                 }
@@ -561,6 +598,7 @@ mod tests {
                     indexed: true,
                 },
             ],
+            calendar_dimensions: vec![],
         }
     }
 

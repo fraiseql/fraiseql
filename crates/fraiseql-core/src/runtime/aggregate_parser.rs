@@ -223,11 +223,14 @@ impl AggregateQueryParser {
             for (key, value) in obj {
                 if value.as_bool() == Some(true) {
                     // Format 1 & 2: Boolean true (with or without suffix)
-                    // Check if this is a temporal bucket (ends with _day, _week, etc.)
-                    if let Some(bucket_selection) = Self::parse_temporal_bucket(key, metadata)? {
-                        selections.push(bucket_selection);
+                    // Priority 1: Try calendar dimension first (highest performance)
+                    if let Some(calendar_sel) = Self::try_parse_calendar_bucket(key, metadata)? {
+                        selections.push(calendar_sel);
+                    } else if let Some(bucket_sel) = Self::parse_temporal_bucket(key, metadata)? {
+                        // Priority 2: Fall back to DATE_TRUNC if no calendar dimension
+                        selections.push(bucket_sel);
                     } else {
-                        // Regular dimension
+                        // Priority 3: Regular dimension
                         selections.push(GroupBySelection::Dimension {
                             path: key.clone(),
                             alias: key.clone(),
@@ -237,26 +240,35 @@ impl AggregateQueryParser {
                     // Format 3: String bucket name {"occurred_at": "day"}
                     let bucket = TemporalBucket::from_str(bucket_str)?;
 
-                    // Verify this column exists in denormalized_filters
-                    let column_exists = metadata.denormalized_filters
-                        .iter()
-                        .any(|f| f.name == *key);
+                    // Priority 1: Try calendar dimension first
+                    if let Some(calendar_sel) =
+                        Self::try_find_calendar_bucket(key, bucket, metadata)
+                    {
+                        selections.push(calendar_sel);
+                    } else {
+                        // Priority 2: Fall back to DATE_TRUNC
+                        // Verify this column exists in denormalized_filters
+                        let column_exists = metadata
+                            .denormalized_filters
+                            .iter()
+                            .any(|f| f.name == *key);
 
-                    if !column_exists {
-                        return Err(FraiseQLError::Validation {
-                            message: format!(
-                                "Temporal bucketing column '{}' not found in denormalized filters",
-                                key
-                            ),
-                            path: None,
+                        if !column_exists {
+                            return Err(FraiseQLError::Validation {
+                                message: format!(
+                                    "Temporal bucketing column '{}' not found in denormalized filters",
+                                    key
+                                ),
+                                path: None,
+                            });
+                        }
+
+                        selections.push(GroupBySelection::TemporalBucket {
+                            column: key.clone(),
+                            bucket,
+                            alias: key.clone(),
                         });
                     }
-
-                    selections.push(GroupBySelection::TemporalBucket {
-                        column: key.clone(),
-                        bucket,
-                        alias: key.clone(),
-                    });
                 }
             }
         }
@@ -293,6 +305,92 @@ impl AggregateQueryParser {
         }
 
         Ok(None)
+    }
+
+    /// Try to parse calendar dimension from key pattern (e.g., "occurred_at_day")
+    ///
+    /// Checks if the key matches a calendar dimension pattern and returns
+    /// a CalendarDimension selection if available, otherwise None.
+    fn try_parse_calendar_bucket(
+        key: &str,
+        metadata: &FactTableMetadata,
+    ) -> Result<Option<GroupBySelection>> {
+        for calendar_dim in &metadata.calendar_dimensions {
+            // Check all temporal bucket suffixes
+            for (suffix, bucket_type) in &[
+                ("_second", TemporalBucket::Second),
+                ("_minute", TemporalBucket::Minute),
+                ("_hour", TemporalBucket::Hour),
+                ("_day", TemporalBucket::Day),
+                ("_week", TemporalBucket::Week),
+                ("_month", TemporalBucket::Month),
+                ("_quarter", TemporalBucket::Quarter),
+                ("_year", TemporalBucket::Year),
+            ] {
+                let expected_key = format!("{}{}", calendar_dim.source_column, suffix);
+                if key == expected_key {
+                    // Find matching calendar bucket
+                    if let Some((gran, bucket)) =
+                        Self::find_calendar_bucket(calendar_dim, *bucket_type)
+                    {
+                        return Ok(Some(GroupBySelection::CalendarDimension {
+                            source_column: calendar_dim.source_column.clone(),
+                            calendar_column: gran.column_name.clone(),
+                            json_key: bucket.json_key.clone(),
+                            bucket: bucket.bucket_type,
+                            alias: key.to_string(),
+                        }));
+                    }
+                }
+            }
+        }
+        Ok(None)
+    }
+
+    /// Try to find calendar bucket for explicit temporal request
+    ///
+    /// Used when user provides explicit bucket like {"occurred_at": "day"}
+    fn try_find_calendar_bucket(
+        column: &str,
+        bucket: TemporalBucket,
+        metadata: &FactTableMetadata,
+    ) -> Option<GroupBySelection> {
+        for calendar_dim in &metadata.calendar_dimensions {
+            if calendar_dim.source_column == column {
+                if let Some((gran, cal_bucket)) = Self::find_calendar_bucket(calendar_dim, bucket)
+                {
+                    return Some(GroupBySelection::CalendarDimension {
+                        source_column: calendar_dim.source_column.clone(),
+                        calendar_column: gran.column_name.clone(),
+                        json_key: cal_bucket.json_key.clone(),
+                        bucket: cal_bucket.bucket_type,
+                        alias: column.to_string(),
+                    });
+                }
+            }
+        }
+        None
+    }
+
+    /// Find calendar bucket in available granularities
+    ///
+    /// Searches through calendar dimension granularities to find a matching bucket type.
+    /// Returns the granularity and bucket if found.
+    fn find_calendar_bucket(
+        calendar_dim: &crate::compiler::fact_table::CalendarDimension,
+        bucket: TemporalBucket,
+    ) -> Option<(
+        &crate::compiler::fact_table::CalendarGranularity,
+        &crate::compiler::fact_table::CalendarBucket,
+    )> {
+        for granularity in &calendar_dim.granularities {
+            for cal_bucket in &granularity.buckets {
+                if cal_bucket.bucket_type == bucket {
+                    return Some((granularity, cal_bucket));
+                }
+            }
+        }
+        None
     }
 
     /// Parse aggregate selections
@@ -549,6 +647,7 @@ mod tests {
                 sql_type: SqlType::Timestamp,
                 indexed: true,
             }],
+            calendar_dimensions: vec![],
         }
     }
 
