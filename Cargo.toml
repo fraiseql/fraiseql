@@ -49,8 +49,14 @@ name = "integration_benchmarks"
 harness = false
 required-features = ["bench-with-postgres"]
 
+[[bench]]
+name = "comparison_benchmarks"
+harness = false
+required-features = ["bench-with-tokio-postgres"]
+
 [features]
 bench-with-postgres = []
+bench-with-tokio-postgres = []
 
 [lib]
 name = "fraiseql_wire"
