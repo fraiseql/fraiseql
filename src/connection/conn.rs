@@ -269,6 +269,29 @@ impl Connection {
             ("user".to_string(), config.user.clone()),
             ("database".to_string(), config.database.clone()),
         ];
+
+        // Add configured application name if specified
+        if let Some(app_name) = &config.application_name {
+            params.push(("application_name".to_string(), app_name.clone()));
+        }
+
+        // Add statement timeout if specified (in milliseconds)
+        if let Some(timeout) = config.statement_timeout {
+            params.push((
+                "statement_timeout".to_string(),
+                timeout.as_millis().to_string(),
+            ));
+        }
+
+        // Add extra_float_digits if specified
+        if let Some(digits) = config.extra_float_digits {
+            params.push((
+                "extra_float_digits".to_string(),
+                digits.to_string(),
+            ));
+        }
+
+        // Add user-provided parameters
         for (k, v) in &config.params {
             params.push((k.clone(), v.clone()));
         }

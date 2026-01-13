@@ -2,7 +2,7 @@
 
 use super::connection_string::{ConnectionInfo, TransportType};
 use super::query_builder::QueryBuilder;
-use crate::connection::{Connection, Transport};
+use crate::connection::{Connection, ConnectionConfig, Transport};
 use crate::stream::JsonStream;
 use crate::Result;
 use serde::de::DeserializeOwned;
@@ -94,6 +94,114 @@ impl FraiseClient {
 
         let mut conn = Connection::new(transport);
         let config = info.to_config();
+        conn.startup(&config).await?;
+
+        Ok(Self { conn })
+    }
+
+    /// Connect to Postgres with custom connection configuration
+    ///
+    /// This method allows you to configure timeouts, keepalive intervals, and other
+    /// connection options. The connection configuration is merged with parameters from
+    /// the connection string.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # async fn example() -> fraiseql_wire::Result<()> {
+    /// use fraiseql_wire::{FraiseClient, connection::ConnectionConfig};
+    /// use std::time::Duration;
+    ///
+    /// // Build connection configuration with timeouts
+    /// let config = ConnectionConfig::builder("localhost", "mydb")
+    ///     .password("secret")
+    ///     .statement_timeout(Duration::from_secs(30))
+    ///     .keepalive_idle(Duration::from_secs(300))
+    ///     .application_name("my_app")
+    ///     .build();
+    ///
+    /// // Connect with configuration
+    /// let client = FraiseClient::connect_with_config("postgres://localhost:5432/mydb", config).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn connect_with_config(
+        connection_string: &str,
+        config: ConnectionConfig,
+    ) -> Result<Self> {
+        let info = ConnectionInfo::parse(connection_string)?;
+
+        let transport = match info.transport {
+            TransportType::Tcp => {
+                let host = info.host.as_ref().expect("TCP requires host");
+                let port = info.port.expect("TCP requires port");
+                Transport::connect_tcp(host, port).await?
+            }
+            TransportType::Unix => {
+                let path = info.unix_socket.as_ref().expect("Unix requires path");
+                Transport::connect_unix(path).await?
+            }
+        };
+
+        let mut conn = Connection::new(transport);
+        conn.startup(&config).await?;
+
+        Ok(Self { conn })
+    }
+
+    /// Connect to Postgres with both custom configuration and TLS encryption
+    ///
+    /// This method combines connection configuration (timeouts, keepalive, etc.)
+    /// with TLS encryption for secure connections with advanced options.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # async fn example() -> fraiseql_wire::Result<()> {
+    /// use fraiseql_wire::{FraiseClient, connection::{ConnectionConfig, TlsConfig}};
+    /// use std::time::Duration;
+    ///
+    /// // Configure connection with timeouts
+    /// let config = ConnectionConfig::builder("localhost", "mydb")
+    ///     .password("secret")
+    ///     .statement_timeout(Duration::from_secs(30))
+    ///     .build();
+    ///
+    /// // Configure TLS
+    /// let tls = TlsConfig::builder()
+    ///     .verify_hostname(true)
+    ///     .build()?;
+    ///
+    /// // Connect with both configuration and TLS
+    /// let client = FraiseClient::connect_with_config_and_tls(
+    ///     "postgres://secure.db.example.com/mydb",
+    ///     config,
+    ///     tls
+    /// ).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn connect_with_config_and_tls(
+        connection_string: &str,
+        config: ConnectionConfig,
+        tls_config: crate::connection::TlsConfig,
+    ) -> Result<Self> {
+        let info = ConnectionInfo::parse(connection_string)?;
+
+        let transport = match info.transport {
+            TransportType::Tcp => {
+                let host = info.host.as_ref().expect("TCP requires host");
+                let port = info.port.expect("TCP requires port");
+                Transport::connect_tcp_tls(host, port, &tls_config).await?
+            }
+            TransportType::Unix => {
+                return Err(crate::Error::Config(
+                    "TLS is only supported for TCP connections".into(),
+                ));
+            }
+        };
+
+        let mut conn = Connection::new(transport);
         conn.startup(&config).await?;
 
         Ok(Self { conn })
