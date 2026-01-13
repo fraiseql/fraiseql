@@ -12,6 +12,7 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
 use serde_json::json;
 use std::collections::HashMap;
+use fraiseql_wire::connection::ConnectionConfig;
 
 // Test data generators
 fn generate_small_json() -> serde_json::Value {
@@ -232,40 +233,96 @@ fn string_matching_benchmarks(c: &mut Criterion) {
 }
 
 // ============================================================================
-// HashMap Lookups (for connection parameters)
+// ConnectionConfig Creation (Represents actual connection setup)
 // ============================================================================
 
-fn hashmap_lookup_benchmarks(c: &mut Criterion) {
-    let mut group = c.benchmark_group("hashmap_ops");
+fn connection_config_benchmarks(c: &mut Criterion) {
+    let mut group = c.benchmark_group("connection_config");
 
-    let mut map = HashMap::new();
-    map.insert("user", "postgres");
-    map.insert("database", "mydb");
-    map.insert("host", "localhost");
-    map.insert("port", "5432");
-    map.insert("application_name", "fraiseql-wire");
-
-    group.bench_function("insert_5_items", |b| {
+    // Typical minimal configuration
+    group.bench_function("minimal_config", |b| {
         b.iter(|| {
-            let mut m = HashMap::new();
-            m.insert("a", "1");
-            m.insert("b", "2");
-            m.insert("c", "3");
-            m.insert("d", "4");
-            m.insert("e", "5");
-            m
+            let _config = ConnectionConfig::new(
+                black_box("fraiseql_test"),
+                black_box("postgres"),
+            );
         });
     });
 
-    group.bench_function("lookup_existing", |b| {
+    // Typical configuration with password and parameters
+    group.bench_function("full_config_with_params", |b| {
         b.iter(|| {
-            black_box(&map).get(black_box(&"database"))
+            let _config = ConnectionConfig::new(
+                black_box("fraiseql_test"),
+                black_box("postgres"),
+            )
+            .password(black_box("secret_password"))
+            .param(black_box("application_name"), black_box("fraiseql-wire"))
+            .param(black_box("statement_timeout"), black_box("30000"))
+            .param(black_box("connect_timeout"), black_box("10"));
         });
     });
 
-    group.bench_function("lookup_missing", |b| {
+    // Complex configuration with many parameters
+    group.bench_function("complex_config_many_params", |b| {
         b.iter(|| {
-            black_box(&map).get(black_box(&"nonexistent"))
+            let _config = ConnectionConfig::new(
+                black_box("fraiseql_test"),
+                black_box("postgres"),
+            )
+            .password(black_box("secret_password"))
+            .param(black_box("application_name"), black_box("fraiseql-wire"))
+            .param(black_box("statement_timeout"), black_box("30000"))
+            .param(black_box("connect_timeout"), black_box("10"))
+            .param(black_box("keepalives"), black_box("1"))
+            .param(black_box("keepalives_idle"), black_box("30"))
+            .param(black_box("keepalives_interval"), black_box("10"));
+        });
+    });
+
+    group.finish();
+}
+
+// ============================================================================
+// Connection String Parsing by Protocol (TCP vs Unix Socket)
+// ============================================================================
+
+fn connection_protocol_benchmarks(c: &mut Criterion) {
+    let mut group = c.benchmark_group("connection_protocol");
+
+    // TCP connection string parsing
+    group.bench_function("parse_tcp_localhost", |b| {
+        b.iter(|| {
+            let conn_str = black_box("postgres://localhost:5432/fraiseql_test");
+            let parts: Vec<&str> = conn_str.split("://").collect();
+            let _ = parts.len() > 1;
+        });
+    });
+
+    // TCP with full credentials
+    group.bench_function("parse_tcp_with_credentials", |b| {
+        b.iter(|| {
+            let conn_str = black_box("postgres://user:password@localhost:5432/fraiseql_test");
+            let parts: Vec<&str> = conn_str.split("://").collect();
+            let _ = parts.len() > 1;
+        });
+    });
+
+    // Unix socket connection string parsing
+    group.bench_function("parse_unix_socket", |b| {
+        b.iter(|| {
+            let conn_str = black_box("postgres:///fraiseql_test");
+            let parts: Vec<&str> = conn_str.split("://").collect();
+            let _ = parts.len() > 1;
+        });
+    });
+
+    // Unix socket with socket directory
+    group.bench_function("parse_unix_socket_custom_dir", |b| {
+        b.iter(|| {
+            let conn_str = black_box("postgres:///fraiseql_test?host=/var/run/postgresql");
+            let parts: Vec<&str> = conn_str.split("://").collect();
+            let _ = parts.len() > 1;
         });
     });
 
@@ -283,7 +340,8 @@ criterion_group!(
     chunking_strategy_benchmarks,
     error_handling_benchmarks,
     string_matching_benchmarks,
-    hashmap_lookup_benchmarks,
+    connection_config_benchmarks,
+    connection_protocol_benchmarks,
 );
 
 criterion_main!(benches);
