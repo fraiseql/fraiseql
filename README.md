@@ -346,6 +346,13 @@ By narrowing scope, `fraiseql-wire` delivers performance and clarity that genera
 
 ## Credits
 
-**fraiseql-wire** is developed and maintained by **Lionel Hamayon** at [Évolution digitale](https://evolution-digitale.fr).
+**Author:**
+- Lionel Hamayon (Évolution digitale)
 
-Built as part of the FraiseQL project to provide a specialized, high-performance streaming transport for JSON-based Postgres queries.
+**Part of:** FraiseQL — Compiled GraphQL for deterministic Postgres execution
+
+---
+
+## License
+
+MIT OR Apache-2.0
