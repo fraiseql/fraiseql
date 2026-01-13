@@ -1021,4 +1021,35 @@ mod tests {
         assert_eq!(calendar_dims[0].granularities.len(), 1); // date_info
         assert_eq!(calendar_dims[0].granularities[0].column_name, "date_info");
     }
+
+    #[test]
+    fn test_single_date_info_column() {
+        // Test that a single date_info column is detected and used
+        let columns = vec![
+            ("revenue".to_string(), "decimal".to_string(), false),
+            ("data".to_string(), "jsonb".to_string(), false),
+            ("date_info".to_string(), "jsonb".to_string(), false), // Only this calendar column
+            ("occurred_at".to_string(), "timestamptz".to_string(), false),
+        ];
+
+        let indexed = std::collections::HashSet::new();
+        let calendar_dims =
+            FactTableDetector::detect_calendar_dimensions(&columns, &indexed).unwrap();
+
+        assert_eq!(calendar_dims.len(), 1);
+        assert_eq!(calendar_dims[0].source_column, "occurred_at");
+        assert_eq!(calendar_dims[0].granularities.len(), 1); // Only date_info
+
+        // Verify date_info provides all 5 buckets
+        let date_info = &calendar_dims[0].granularities[0];
+        assert_eq!(date_info.column_name, "date_info");
+        assert_eq!(date_info.buckets.len(), 5); // day, week, month, quarter, year
+
+        // Can query any of these buckets from the single date_info column
+        assert_eq!(date_info.buckets[0].json_key, "date"); // day bucket
+        assert_eq!(date_info.buckets[1].json_key, "week"); // week bucket
+        assert_eq!(date_info.buckets[2].json_key, "month"); // month bucket
+        assert_eq!(date_info.buckets[3].json_key, "quarter"); // quarter bucket
+        assert_eq!(date_info.buckets[4].json_key, "year"); // year bucket
+    }
 }
