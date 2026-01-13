@@ -12,7 +12,7 @@ async fn test_streaming_query() {
         .await
         .expect("connect");
 
-    let conn = Connection::new(transport);
+    let mut conn = Connection::new(transport);
 
     let config = ConnectionConfig::new("postgres", "postgres");
     conn.startup(&config).await.expect("startup");

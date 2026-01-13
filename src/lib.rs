@@ -14,6 +14,7 @@
 
 #![warn(missing_docs, rust_2018_idioms)]
 
+pub mod client;
 pub mod connection;
 pub mod error;
 pub mod json;
@@ -22,6 +23,7 @@ pub mod stream;
 pub mod util;
 
 // Re-export commonly used types
+pub use client::FraiseClient;
 pub use error::{Error, Result};
 
 /// Library version
