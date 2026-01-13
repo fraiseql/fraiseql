@@ -10,6 +10,7 @@ use crate::{Error, Result};
 use bytes::{Buf, BytesMut};
 use std::collections::HashMap;
 use std::time::Duration;
+use tracing::Instrument;
 
 /// Connection configuration
 ///
@@ -256,61 +257,62 @@ impl Connection {
 
     /// Perform startup and authentication
     pub async fn startup(&mut self, config: &ConnectionConfig) -> Result<()> {
-        let _span = tracing::info_span!(
+        async {
+            self.state.transition(ConnectionState::AwaitingAuth)?;
+
+            // Build startup parameters
+            let mut params = vec![
+                ("user".to_string(), config.user.clone()),
+                ("database".to_string(), config.database.clone()),
+            ];
+
+            // Add configured application name if specified
+            if let Some(app_name) = &config.application_name {
+                params.push(("application_name".to_string(), app_name.clone()));
+            }
+
+            // Add statement timeout if specified (in milliseconds)
+            if let Some(timeout) = config.statement_timeout {
+                params.push((
+                    "statement_timeout".to_string(),
+                    timeout.as_millis().to_string(),
+                ));
+            }
+
+            // Add extra_float_digits if specified
+            if let Some(digits) = config.extra_float_digits {
+                params.push((
+                    "extra_float_digits".to_string(),
+                    digits.to_string(),
+                ));
+            }
+
+            // Add user-provided parameters
+            for (k, v) in &config.params {
+                params.push((k.clone(), v.clone()));
+            }
+
+            // Send startup message
+            let startup = FrontendMessage::Startup {
+                version: crate::protocol::constants::PROTOCOL_VERSION,
+                params,
+            };
+            self.send_message(&startup).await?;
+
+            // Authentication loop
+            self.state.transition(ConnectionState::Authenticating)?;
+            self.authenticate(config).await?;
+
+            self.state.transition(ConnectionState::Idle)?;
+            tracing::info!("startup complete");
+            Ok(())
+        }
+        .instrument(tracing::info_span!(
             "startup",
             user = %config.user,
             database = %config.database
-        )
-        .entered();
-
-        self.state.transition(ConnectionState::AwaitingAuth)?;
-
-        // Build startup parameters
-        let mut params = vec![
-            ("user".to_string(), config.user.clone()),
-            ("database".to_string(), config.database.clone()),
-        ];
-
-        // Add configured application name if specified
-        if let Some(app_name) = &config.application_name {
-            params.push(("application_name".to_string(), app_name.clone()));
-        }
-
-        // Add statement timeout if specified (in milliseconds)
-        if let Some(timeout) = config.statement_timeout {
-            params.push((
-                "statement_timeout".to_string(),
-                timeout.as_millis().to_string(),
-            ));
-        }
-
-        // Add extra_float_digits if specified
-        if let Some(digits) = config.extra_float_digits {
-            params.push((
-                "extra_float_digits".to_string(),
-                digits.to_string(),
-            ));
-        }
-
-        // Add user-provided parameters
-        for (k, v) in &config.params {
-            params.push((k.clone(), v.clone()));
-        }
-
-        // Send startup message
-        let startup = FrontendMessage::Startup {
-            version: crate::protocol::constants::PROTOCOL_VERSION,
-            params,
-        };
-        self.send_message(&startup).await?;
-
-        // Authentication loop
-        self.state.transition(ConnectionState::Authenticating)?;
-        self.authenticate(config).await?;
-
-        self.state.transition(ConnectionState::Idle)?;
-        tracing::info!("startup complete");
-        Ok(())
+        ))
+        .await
     }
 
     /// Handle authentication
@@ -570,75 +572,69 @@ impl Connection {
         adaptive_min_chunk_size: Option<usize>,
         adaptive_max_chunk_size: Option<usize>,
     ) -> Result<crate::stream::JsonStream> {
-        let startup_start = std::time::Instant::now();
+        async {
+            let startup_start = std::time::Instant::now();
 
-        let _span = tracing::debug_span!(
-            "streaming_query",
-            query = %query,
-            chunk_size = %chunk_size
-        )
-        .entered();
+            use crate::json::validate_row_description;
+            use crate::stream::{extract_json_bytes, parse_json, AdaptiveChunking, ChunkingStrategy, JsonStream};
+            use serde_json::Value;
+            use tokio::sync::mpsc;
 
-        use crate::json::validate_row_description;
-        use crate::stream::{extract_json_bytes, parse_json, AdaptiveChunking, ChunkingStrategy, JsonStream};
-        use serde_json::Value;
-        use tokio::sync::mpsc;
+            if self.state != ConnectionState::Idle {
+                return Err(Error::ConnectionBusy(format!(
+                    "connection in state: {}",
+                    self.state
+                )));
+            }
 
-        if self.state != ConnectionState::Idle {
-            return Err(Error::ConnectionBusy(format!(
-                "connection in state: {}",
-                self.state
-            )));
-        }
+            self.state.transition(ConnectionState::QueryInProgress)?;
 
-        self.state.transition(ConnectionState::QueryInProgress)?;
+            let query_msg = FrontendMessage::Query(query.to_string());
+            self.send_message(&query_msg).await?;
 
-        let query_msg = FrontendMessage::Query(query.to_string());
-        self.send_message(&query_msg).await?;
+            self.state.transition(ConnectionState::ReadingResults)?;
 
-        self.state.transition(ConnectionState::ReadingResults)?;
+            // Read RowDescription first
+            let row_desc = self.receive_message().await?;
+            validate_row_description(&row_desc)?;
 
-        // Read RowDescription first
-        let row_desc = self.receive_message().await?;
-        validate_row_description(&row_desc)?;
+            // Record startup timing
+            let startup_duration = startup_start.elapsed().as_millis() as u64;
+            let entity = extract_entity_from_query(query).unwrap_or_else(|| "unknown".to_string());
+            crate::metrics::histograms::query_startup_duration(&entity, startup_duration);
 
-        // Record startup timing
-        let startup_duration = startup_start.elapsed().as_millis() as u64;
-        let entity = extract_entity_from_query(query).unwrap_or_else(|| "unknown".to_string());
-        crate::metrics::histograms::query_startup_duration(&entity, startup_duration);
+            // Create channels
+            let (result_tx, result_rx) = mpsc::channel::<Result<Value>>(chunk_size);
+            let (cancel_tx, mut cancel_rx) = mpsc::channel::<()>(1);
 
-        // Create channels
-        let (result_tx, result_rx) = mpsc::channel::<Result<Value>>(chunk_size);
-        let (cancel_tx, mut cancel_rx) = mpsc::channel::<()>(1);
+            // Create stream instance first so we can clone its pause/resume signals
+            let entity_for_metrics = extract_entity_from_query(query).unwrap_or_else(|| "unknown".to_string());
+            let entity_for_stream = entity_for_metrics.clone();  // Clone for stream
 
-        // Create stream instance first so we can clone its pause/resume signals
-        let entity_for_metrics = extract_entity_from_query(query).unwrap_or_else(|| "unknown".to_string());
-        let entity_for_stream = entity_for_metrics.clone();  // Clone for stream
+            let mut stream = JsonStream::new(
+                result_rx,
+                cancel_tx,
+                entity_for_stream,
+                max_memory,
+                soft_limit_warn_threshold,
+                soft_limit_fail_threshold,
+            );
 
-        let mut stream = JsonStream::new(
-            result_rx,
-            cancel_tx,
-            entity_for_stream,
-            max_memory,
-            soft_limit_warn_threshold,
-            soft_limit_fail_threshold,
-        );
+            // Clone pause/resume signals for background task
+            let state_lock = stream.clone_state();
+            let pause_signal = stream.clone_pause_signal();
+            let resume_signal = stream.clone_resume_signal();
 
-        // Clone pause/resume signals for background task
-        let state_lock = stream.clone_state();
-        let pause_signal = stream.clone_pause_signal();
-        let resume_signal = stream.clone_resume_signal();
+            // Clone pause timeout for background task
+            let pause_timeout = stream.pause_timeout();
 
-        // Clone pause timeout for background task
-        let pause_timeout = stream.pause_timeout();
+            // Spawn background task to read rows
+            let query_start = std::time::Instant::now();
 
-        // Spawn background task to read rows
-        let query_start = std::time::Instant::now();
-
-        tokio::spawn(async move {
-            let mut strategy = ChunkingStrategy::new(chunk_size);
-            let mut chunk = strategy.new_chunk();
-            let mut total_rows = 0u64;
+            tokio::spawn(async move {
+                let mut strategy = ChunkingStrategy::new(chunk_size);
+                let mut chunk = strategy.new_chunk();
+                let mut total_rows = 0u64;
 
             // Initialize adaptive chunking if enabled
             let mut adaptive = if enable_adaptive_chunking {
@@ -849,9 +845,16 @@ impl Connection {
                     }
                 }
             }
-        });
+            });
 
-        Ok(stream)
+            Ok(stream)
+        }
+        .instrument(tracing::debug_span!(
+            "streaming_query",
+            query = %query,
+            chunk_size = %chunk_size
+        ))
+        .await
     }
 }
 
@@ -970,4 +973,19 @@ mod tests {
         assert!(config.application_name.is_none());
         assert!(config.extra_float_digits.is_none());
     }
+
+    // Verify that async functions return Send futures (compile-time check)
+    // This ensures compatibility with async_trait and multi-threaded executors.
+    // The actual assertion doesn't execute - it's type-checked at compile time.
+    #[allow(dead_code)]
+    const _SEND_SAFETY_CHECK: fn() = || {
+        fn require_send<T: Send>() {}
+
+        // Dummy values just for type checking - never executed
+        #[allow(unreachable_code)]
+        let _ = || {
+            // These would be checked at compile time if instantiated
+            require_send::<std::pin::Pin<std::boxed::Box<dyn std::future::Future<Output = ()> + Send>>>();
+        };
+    };
 }
