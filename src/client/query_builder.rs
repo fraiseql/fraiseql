@@ -139,6 +139,14 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
         let sql = self.build_sql()?;
         tracing::debug!("executing query: {}", sql);
 
+        // Record query submission metrics
+        crate::metrics::counters::query_submitted(
+            &self.entity,
+            !self.sql_predicates.is_empty(),
+            self.rust_predicate.is_some(),
+            self.order_by.is_some(),
+        );
+
         let stream = self.client.execute_query(&sql, self.chunk_size).await?;
 
         // Apply Rust predicate if present (filters JSON before deserialization)

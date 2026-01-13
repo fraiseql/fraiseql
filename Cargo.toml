@@ -50,6 +50,9 @@ base64 = "0.22"         # Base64 encoding/decoding
 rand = "0.8"            # Random nonce generation
 hmac = "0.12"           # HMAC-SHA256
 
+# Metrics for observability
+metrics = "0.22"        # Metrics collection framework
+
 [dev-dependencies]
 tokio-test = "0.4"
 criterion = { version = "0.5", features = ["async_tokio"] }
