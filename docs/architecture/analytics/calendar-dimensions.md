@@ -28,7 +28,7 @@ Calendar dimensions provide **10-20x performance improvements** for time-based a
 ALTER TABLE tf_sales ADD COLUMN date_info JSONB;
 ```
 
-**PrintOptim standard** - multiple granularity columns:
+**Advanced approach** - multiple granularity columns:
 
 ```sql
 ALTER TABLE tf_sales
@@ -139,7 +139,7 @@ A single `date_info` column can serve all temporal queries:
 
 **Storage**: ~150 bytes per row (negligible overhead)
 
-### Multi-Column Approach (PrintOptim Standard)
+### Multi-Column Approach (Advanced Pattern)
 
 For maximum flexibility and organization, use 7 separate columns:
 
@@ -165,7 +165,7 @@ For maximum flexibility and organization, use 7 separate columns:
 **Advantages**:
 - Clear separation of granularity levels
 - Easier to manage in complex ETL pipelines
-- Matches PrintOptim's proven pattern
+- Proven pattern for high-performance analytics
 
 **Storage**: ~800 bytes per row (7 columns × ~120 bytes average)
 
@@ -194,7 +194,7 @@ ALTER TABLE tf_sales
 - Day/week queries use `date_info`
 - Month/quarter queries use `month_info`
 
-### ✅ Full PrintOptim Standard
+### ✅ Full Multi-Column Structure
 ```sql
 -- All 7 columns
 ALTER TABLE tf_sales

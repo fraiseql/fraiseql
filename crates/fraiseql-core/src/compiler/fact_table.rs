@@ -148,7 +148,7 @@ pub struct DimensionPath {
 /// by using pre-computed JSONB columns (date_info, month_info, etc.) instead of runtime
 /// DATE_TRUNC operations.
 ///
-/// # PrintOptim Standard
+/// # Multi-Column Pattern
 ///
 /// - 7 JSONB columns: date_info, week_info, month_info, quarter_info, semester_info, year_info, decade_info
 /// - Each contains hierarchical temporal buckets (e.g., date_info has: date, week, month, quarter, year)
@@ -433,7 +433,7 @@ impl FactTableDetector {
 
     /// Detect calendar dimension columns (date_info, week_info, etc.)
     ///
-    /// Looks for `*_info` JSONB/JSON columns following PrintOptim's calendar dimension standard.
+    /// Looks for `*_info` JSONB/JSON columns following the calendar dimension pattern.
     /// Returns calendar dimension metadata if calendar columns are found.
     ///
     /// # Arguments
@@ -463,7 +463,7 @@ impl FactTableDetector {
             return Ok(Vec::new());
         }
 
-        // Build granularities based on PrintOptim standard
+        // Build granularities based on calendar dimension pattern
         let mut granularities = Vec::new();
         for col_name in calendar_columns {
             let buckets = Self::infer_calendar_buckets(&col_name);
@@ -487,7 +487,7 @@ impl FactTableDetector {
         }])
     }
 
-    /// Map calendar column names to available buckets (PrintOptim standard)
+    /// Map calendar column names to available buckets (standard pattern)
     ///
     /// # Arguments
     ///
