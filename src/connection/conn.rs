@@ -332,7 +332,7 @@ impl Connection {
                             auth_mechanism,
                             auth_start.elapsed().as_millis() as u64,
                         );
-                        break;
+                        // Don't break here! Must continue reading until ReadyForQuery
                     }
                     AuthenticationMessage::CleartextPassword => {
                         auth_mechanism = crate::metrics::labels::MECHANISM_CLEARTEXT;
@@ -378,7 +378,7 @@ impl Connection {
                 BackendMessage::ParameterStatus { name, value } => {
                     tracing::debug!("parameter status: {} = {}", name, value);
                 }
-                BackendMessage::ReadyForQuery { .. } => {
+                BackendMessage::ReadyForQuery { status } => {
                     break;
                 }
                 BackendMessage::ErrorResponse(err) => {
@@ -599,6 +599,7 @@ impl Connection {
             let mut row_desc = None;
             loop {
                 let msg = self.receive_message().await?;
+
                 match msg {
                     BackendMessage::ErrorResponse(err) => {
                         // Query failed - consume ReadyForQuery and return error
