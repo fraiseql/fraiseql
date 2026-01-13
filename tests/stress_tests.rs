@@ -7,7 +7,6 @@
 
 use fraiseql_wire::client::FraiseClient;
 use futures::stream::StreamExt;
-use std::time::Duration;
 
 /// Helper to connect to test database
 async fn connect_test_db() -> fraiseql_wire::error::Result<FraiseClient> {
