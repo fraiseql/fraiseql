@@ -249,6 +249,15 @@ pub fn stream_resumed(entity: &str) {
     .increment(1);
 }
 
+/// Record a stream pause timeout expiry (auto-resume)
+pub fn stream_pause_timeout_expired(entity: &str) {
+    counter!(
+        "fraiseql_stream_pause_timeout_expired_total",
+        labels::ENTITY => entity.to_string(),
+    )
+    .increment(1);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

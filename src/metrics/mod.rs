@@ -31,10 +31,12 @@
 //! ```
 
 pub mod counters;
+pub mod gauges;
 pub mod histograms;
 pub mod labels;
 
 pub use counters::*;
+pub use gauges::*;
 pub use histograms::*;
 pub use labels::*;
 
@@ -62,5 +64,12 @@ mod tests {
         // Verify histograms are callable (won't panic)
         histograms::query_startup_duration("test", 100);
         histograms::chunk_processing_duration("test", 50);
+    }
+
+    #[test]
+    fn test_gauges_exported() {
+        // Verify gauges are callable (won't panic)
+        gauges::current_chunk_size("test", 256);
+        gauges::stream_buffered_items("test", 50);
     }
 }

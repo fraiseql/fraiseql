@@ -125,6 +125,18 @@ pub fn channel_occupancy(entity: &str, items_buffered: u64) {
     .record(items_buffered as f64);
 }
 
+/// Record pause duration (time stream was paused)
+///
+/// This metric tracks how long streams are paused for, helping identify
+/// if pause/resume is being used for backpressure control or diagnostics.
+pub fn stream_pause_duration(entity: &str, duration_ms: u64) {
+    histogram!(
+        "fraiseql_stream_pause_duration_ms",
+        labels::ENTITY => entity.to_string(),
+    )
+    .record(duration_ms as f64);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -181,5 +193,12 @@ mod tests {
         channel_occupancy("test_entity", 128);
         channel_occupancy("test_entity", 256);
         channel_occupancy("test_entity", 255);
+    }
+
+    #[test]
+    fn test_stream_pause_duration() {
+        stream_pause_duration("test_entity", 0);
+        stream_pause_duration("test_entity", 100);
+        stream_pause_duration("test_entity", 5000);
     }
 }

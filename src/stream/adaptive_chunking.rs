@@ -171,6 +171,55 @@ impl AdaptiveChunking {
         self.current_size
     }
 
+    /// Set custom min/max bounds for chunk size adjustments
+    ///
+    /// Allows overriding the default bounds (16-1024) with custom limits.
+    /// The current chunk size will be clamped to the new bounds.
+    ///
+    /// # Arguments
+    ///
+    /// * `min_size` - Minimum chunk size (must be > 0)
+    /// * `max_size` - Maximum chunk size (must be >= min_size)
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let mut adaptive = AdaptiveChunking::new();
+    /// adaptive = adaptive.with_bounds(32, 512);  // Custom range 32-512
+    /// assert!(adaptive.current_size() >= 32);
+    /// assert!(adaptive.current_size() <= 512);
+    /// ```
+    pub fn with_bounds(mut self, min_size: usize, max_size: usize) -> Self {
+        // Basic validation
+        if min_size == 0 || max_size < min_size {
+            tracing::warn!(
+                "invalid chunk bounds: min={}, max={}, keeping defaults",
+                min_size,
+                max_size
+            );
+            return self;
+        }
+
+        self.min_size = min_size;
+        self.max_size = max_size;
+
+        // Clamp current size to new bounds
+        if self.current_size < min_size {
+            self.current_size = min_size;
+        } else if self.current_size > max_size {
+            self.current_size = max_size;
+        }
+
+        tracing::debug!(
+            "adaptive chunking bounds set: min={}, max={}, current={}",
+            self.min_size,
+            self.max_size,
+            self.current_size
+        );
+
+        self
+    }
+
     /// Calculate average occupancy percentage over the measurement window
     fn average_occupancy(&self) -> usize {
         if self.measurements.is_empty() {

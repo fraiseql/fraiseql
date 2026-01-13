@@ -629,6 +629,9 @@ impl Connection {
         let pause_signal = stream.clone_pause_signal();
         let resume_signal = stream.clone_resume_signal();
 
+        // Clone pause timeout for background task
+        let pause_timeout = stream.pause_timeout();
+
         // Spawn background task to read rows
         let query_start = std::time::Instant::now();
 
@@ -639,11 +642,15 @@ impl Connection {
 
             // Initialize adaptive chunking if enabled
             let mut adaptive = if enable_adaptive_chunking {
-                let adp = AdaptiveChunking::new();
-                // Note: AdaptiveChunking::new() uses hardcoded defaults (16-1024 bounds)
-                // Custom min/max would require setter methods on AdaptiveChunking
-                // For now, we accept the default bounds and store the parameters for future use
-                let _ = (adaptive_min_chunk_size, adaptive_max_chunk_size);
+                let mut adp = AdaptiveChunking::new();
+
+                // Apply custom bounds if provided
+                if let Some(min) = adaptive_min_chunk_size {
+                    if let Some(max) = adaptive_max_chunk_size {
+                        adp = adp.with_bounds(min, max);
+                    }
+                }
+
                 Some(adp)
             } else {
                 None
@@ -657,9 +664,24 @@ impl Connection {
                     if *current_state == crate::stream::StreamState::Paused {
                         tracing::debug!("stream paused, waiting for resume");
                         drop(current_state); // Release lock before waiting
-                        // Block until resume signal is sent
-                        resume_signal.notified().await;
-                        tracing::debug!("stream resumed");
+
+                        // Wait with optional timeout
+                        if let Some(timeout) = pause_timeout {
+                            match tokio::time::timeout(timeout, resume_signal.notified()).await {
+                                Ok(_) => {
+                                    tracing::debug!("stream resumed");
+                                }
+                                Err(_) => {
+                                    tracing::debug!("pause timeout expired, auto-resuming");
+                                    crate::metrics::counters::stream_pause_timeout_expired(&entity_for_metrics);
+                                }
+                            }
+                        } else {
+                            // No timeout, wait indefinitely
+                            resume_signal.notified().await;
+                            tracing::debug!("stream resumed");
+                        }
+
                         // Update state back to Running
                         let mut state = state_lock.lock().await;
                         *state = crate::stream::StreamState::Running;
@@ -732,6 +754,12 @@ impl Connection {
                                                         crate::metrics::counters::adaptive_chunk_adjusted(
                                                             &entity_for_metrics,
                                                             old_size,
+                                                            new_size,
+                                                        );
+
+                                                        // Record current chunk size gauge
+                                                        crate::metrics::gauges::current_chunk_size(
+                                                            &entity_for_metrics,
                                                             new_size,
                                                         );
 

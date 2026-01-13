@@ -9,6 +9,7 @@ use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Poll};
+use std::time::Duration;
 use tokio::sync::{mpsc, Mutex, Notify};
 
 /// Stream state machine
@@ -70,10 +71,12 @@ pub struct JsonStream {
     soft_limit_fail_threshold: Option<f32>,  // Fail at threshold % (0.0-1.0)
 
     // Pause/resume state machine
-    state: Arc<Mutex<StreamState>>,           // Current stream state
-    pause_signal: Arc<Notify>,                 // Signal to pause background task
-    resume_signal: Arc<Notify>,                // Signal to resume background task
-    paused_occupancy: Arc<AtomicUsize>,       // Buffered rows when paused
+    state: Arc<Mutex<StreamState>>,                    // Current stream state
+    pause_signal: Arc<Notify>,                         // Signal to pause background task
+    resume_signal: Arc<Notify>,                        // Signal to resume background task
+    paused_occupancy: Arc<AtomicUsize>,               // Buffered rows when paused
+    pause_timeout: Option<Duration>,                  // Optional auto-resume timeout
+    pause_start_time: Arc<Mutex<Option<std::time::Instant>>>, // Track pause start time
 }
 
 impl JsonStream {
@@ -101,6 +104,8 @@ impl JsonStream {
             pause_signal: Arc::new(Notify::new()),
             resume_signal: Arc::new(Notify::new()),
             paused_occupancy: Arc::new(AtomicUsize::new(0)),
+            pause_timeout: None,  // No timeout by default
+            pause_start_time: Arc::new(Mutex::new(None)),  // No pause started yet
         }
     }
 
@@ -120,6 +125,38 @@ impl JsonStream {
     /// Only meaningful when stream is in Paused state.
     pub fn paused_occupancy(&self) -> usize {
         self.paused_occupancy.load(Ordering::Relaxed)
+    }
+
+    /// Set timeout for pause (auto-resume after duration)
+    ///
+    /// When a stream is paused, the background task will automatically resume
+    /// after the specified duration expires, even if resume() is not called.
+    ///
+    /// # Arguments
+    ///
+    /// * `duration` - How long to stay paused before auto-resuming
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let mut stream = client.query::<T>("entity").execute().await?;
+    /// stream.set_pause_timeout(Duration::from_secs(5));
+    /// stream.pause().await?;  // Will auto-resume after 5 seconds
+    /// ```
+    pub fn set_pause_timeout(&mut self, duration: Duration) {
+        self.pause_timeout = Some(duration);
+        tracing::debug!("pause timeout set to {:?}", duration);
+    }
+
+    /// Clear pause timeout (no auto-resume)
+    pub fn clear_pause_timeout(&mut self) {
+        self.pause_timeout = None;
+        tracing::debug!("pause timeout cleared");
+    }
+
+    /// Get current pause timeout (if set)
+    pub(crate) fn pause_timeout(&self) -> Option<Duration> {
+        self.pause_timeout
     }
 
     /// Pause the stream
@@ -148,6 +185,11 @@ impl JsonStream {
                 self.pause_signal.notify_one();
                 // Update state
                 *state = StreamState::Paused;
+
+                // Record pause start time for duration metrics
+                let mut start_time = self.pause_start_time.lock().await;
+                *start_time = Some(std::time::Instant::now());
+
                 // Record metric
                 crate::metrics::counters::stream_paused(&self.entity);
                 Ok(())
@@ -191,6 +233,15 @@ impl JsonStream {
                 self.resume_signal.notify_one();
                 // Update state
                 *state = StreamState::Running;
+
+                // Record pause duration in histogram
+                let mut start_time = self.pause_start_time.lock().await;
+                if let Some(start) = *start_time {
+                    let duration_ms = start.elapsed().as_millis() as u64;
+                    crate::metrics::histograms::stream_pause_duration(&self.entity, duration_ms);
+                    *start_time = None;
+                }
+
                 // Record metric
                 crate::metrics::counters::stream_resumed(&self.entity);
                 Ok(())
@@ -206,6 +257,26 @@ impl JsonStream {
                 ))
             }
         }
+    }
+
+    /// Pause the stream with a diagnostic reason
+    ///
+    /// Like pause(), but logs the provided reason for diagnostic purposes.
+    /// This helps track why streams are being paused (e.g., "backpressure",
+    /// "maintenance", "rate limit").
+    ///
+    /// # Arguments
+    ///
+    /// * `reason` - Optional reason for pausing (logged at debug level)
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// stream.pause_with_reason("backpressure: consumer busy").await?;
+    /// ```
+    pub async fn pause_with_reason(&mut self, reason: &str) -> Result<()> {
+        tracing::debug!("pausing stream: {}", reason);
+        self.pause().await
     }
 
     /// Clone internal state for passing to background task
@@ -281,6 +352,9 @@ impl Stream for JsonStream {
         // Record channel occupancy before polling
         let occupancy = self.receiver.len() as u64;
         crate::metrics::histograms::channel_occupancy(&self.entity, occupancy);
+
+        // Record buffered items gauge for dashboard monitoring
+        crate::metrics::gauges::stream_buffered_items(&self.entity, occupancy as usize);
 
         // Check memory limit BEFORE receiving (pre-enqueue strategy)
         // This stops consuming when buffer reaches limit
