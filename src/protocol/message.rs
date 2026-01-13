@@ -21,6 +21,20 @@ pub enum FrontendMessage {
 
     /// Terminate message
     Terminate,
+
+    /// SASL initial response message
+    SaslInitialResponse {
+        /// SASL mechanism name (e.g., "SCRAM-SHA-256")
+        mechanism: String,
+        /// SASL client first message data
+        data: Vec<u8>,
+    },
+
+    /// SASL response message
+    SaslResponse {
+        /// SASL client final message data
+        data: Vec<u8>,
+    },
 }
 
 /// Backend message (server → client)
@@ -80,6 +94,24 @@ pub enum AuthenticationMessage {
     Md5Password {
         /// Salt for MD5 hash
         salt: [u8; 4],
+    },
+
+    /// SASL authentication mechanisms available (Postgres 10+)
+    Sasl {
+        /// List of SASL mechanism names (e.g., ["SCRAM-SHA-256"])
+        mechanisms: Vec<String>,
+    },
+
+    /// SASL continuation message (server challenge)
+    SaslContinue {
+        /// SASL server first/continue message data
+        data: Vec<u8>,
+    },
+
+    /// SASL final message (server verification)
+    SaslFinal {
+        /// SASL server final message data
+        data: Vec<u8>,
     },
 }
 

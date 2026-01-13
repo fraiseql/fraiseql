@@ -20,7 +20,9 @@ Phase 6: Documentation Polish ✅
 ├─ Phase 7.4: Error Refinement (📋 Planned)
 ├─ Phase 7.5: CI/CD Improvements (📋 Planned)
 └─ Phase 7.6: Documentation Polish (📋 Planned)
-Phase 8: Feature Expansion (🔄 Waiting for feedback)
+Phase 8: Feature Expansion (v0.2.0 patch releases)
+├─ Phase 8.1: TLS Support ✅
+└─ Phase 8.2: Typed Streaming (📋 Ready to Start)
 Phase 9: Production Readiness (📅 Future)
 ```
 
@@ -41,6 +43,7 @@ Phase 9: Production Readiness (📅 Future)
 | **6** | Documentation | `.claude/phases/phase-6-polish-documentation.md` |
 | **7.1** | Performance benchmarks | `PHASE_7_1_COMPLETION_SUMMARY.md` |
 | **7.2** | Security audit | `PHASE_7_2_SUMMARY.md` |
+| **8.1** | TLS Support | `.phases/phase-8-1-tls-support.md` |
 
 ### In Planning (📋)
 
@@ -50,6 +53,7 @@ Phase 9: Production Readiness (📅 Future)
 | **7.4** | Error refinement | `.claude/phases/phase-7-3-7-6-stabilization.md#phase-74` |
 | **7.5** | CI/CD improvements | `.claude/phases/phase-7-3-7-6-stabilization.md#phase-75` |
 | **7.6** | Documentation polish | `.claude/phases/phase-7-3-7-6-stabilization.md#phase-76` |
+| **8.2** | Typed streaming API | `.phases/phase-8-2-typed-streaming.md` |
 
 ### Future (📅)
 

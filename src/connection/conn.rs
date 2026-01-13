@@ -2,6 +2,7 @@
 
 use super::state::ConnectionState;
 use super::transport::Transport;
+use crate::auth::ScramClient;
 use crate::protocol::{
     decode_message, encode_message, AuthenticationMessage, BackendMessage, FrontendMessage,
 };
@@ -335,7 +336,20 @@ impl Connection {
                     }
                     AuthenticationMessage::Md5Password { .. } => {
                         return Err(Error::Authentication(
-                            "MD5 authentication not yet implemented".into(),
+                            "MD5 authentication not supported. Use SCRAM-SHA-256 or cleartext password".into(),
+                        ));
+                    }
+                    AuthenticationMessage::Sasl { mechanisms } => {
+                        self.handle_sasl(&mechanisms, config).await?;
+                    }
+                    AuthenticationMessage::SaslContinue { .. } => {
+                        return Err(Error::Protocol(
+                            "unexpected SaslContinue outside of SASL flow".into(),
+                        ));
+                    }
+                    AuthenticationMessage::SaslFinal { .. } => {
+                        return Err(Error::Protocol(
+                            "unexpected SaslFinal outside of SASL flow".into(),
                         ));
                     }
                 },
@@ -364,6 +378,100 @@ impl Connection {
             }
         }
 
+        Ok(())
+    }
+
+    /// Handle SASL authentication (SCRAM-SHA-256)
+    async fn handle_sasl(&mut self, mechanisms: &[String], config: &ConnectionConfig) -> Result<()> {
+        // Check if server supports SCRAM-SHA-256
+        if !mechanisms.contains(&"SCRAM-SHA-256".to_string()) {
+            return Err(Error::Authentication(
+                format!(
+                    "server does not support SCRAM-SHA-256. Available: {}",
+                    mechanisms.join(", ")
+                )
+            ));
+        }
+
+        // Get password
+        let password = config.password.as_ref().ok_or_else(|| {
+            Error::Authentication("password required for SCRAM authentication".into())
+        })?;
+
+        // Create SCRAM client
+        let mut scram = ScramClient::new(config.user.clone(), password.clone());
+        tracing::debug!("initiating SCRAM-SHA-256 authentication");
+
+        // Send SaslInitialResponse with client first message
+        let client_first = scram.client_first();
+        let msg = FrontendMessage::SaslInitialResponse {
+            mechanism: "SCRAM-SHA-256".to_string(),
+            data: client_first.into_bytes(),
+        };
+        self.send_message(&msg).await?;
+
+        // Receive SaslContinue with server first message
+        let server_first_msg = self.receive_message().await?;
+        let server_first_data = match server_first_msg {
+            BackendMessage::Authentication(AuthenticationMessage::SaslContinue { data }) => data,
+            BackendMessage::ErrorResponse(err) => {
+                return Err(Error::Authentication(format!(
+                    "SASL server error: {}",
+                    err
+                )));
+            }
+            _ => {
+                return Err(Error::Protocol(
+                    "expected SaslContinue message during SASL authentication".into(),
+                ));
+            }
+        };
+
+        let server_first = String::from_utf8(server_first_data).map_err(|e| {
+            Error::Authentication(format!("invalid UTF-8 in server first message: {}", e))
+        })?;
+
+        tracing::debug!("received SCRAM server first message");
+
+        // Generate client final message
+        let (client_final, scram_state) =
+            scram
+                .client_final(&server_first)
+                .map_err(|e| Error::Authentication(format!("SCRAM error: {}", e)))?;
+
+        // Send SaslResponse with client final message
+        let msg = FrontendMessage::SaslResponse {
+            data: client_final.into_bytes(),
+        };
+        self.send_message(&msg).await?;
+
+        // Receive SaslFinal with server verification
+        let server_final_msg = self.receive_message().await?;
+        let server_final_data = match server_final_msg {
+            BackendMessage::Authentication(AuthenticationMessage::SaslFinal { data }) => data,
+            BackendMessage::ErrorResponse(err) => {
+                return Err(Error::Authentication(format!(
+                    "SASL server error: {}",
+                    err
+                )));
+            }
+            _ => {
+                return Err(Error::Protocol(
+                    "expected SaslFinal message during SASL authentication".into(),
+                ));
+            }
+        };
+
+        let server_final = String::from_utf8(server_final_data).map_err(|e| {
+            Error::Authentication(format!("invalid UTF-8 in server final message: {}", e))
+        })?;
+
+        // Verify server signature
+        scram
+            .verify_server_final(&server_final, &scram_state)
+            .map_err(|e| Error::Authentication(format!("SCRAM verification failed: {}", e)))?;
+
+        tracing::debug!("SCRAM-SHA-256 authentication successful");
         Ok(())
     }
 

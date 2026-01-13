@@ -43,6 +43,13 @@ rustls-pki-types = "1"
 rustls-native-certs = "0.8.3"
 tokio-rustls = "0.26"
 
+# Cryptography for SCRAM authentication
+sha2 = "0.10"           # HMAC-SHA256 for SCRAM
+pbkdf2 = "0.12"         # Key derivation for SCRAM
+base64 = "0.22"         # Base64 encoding/decoding
+rand = "0.8"            # Random nonce generation
+hmac = "0.12"           # HMAC-SHA256
+
 [dev-dependencies]
 tokio-test = "0.4"
 criterion = { version = "0.5", features = ["async_tokio"] }

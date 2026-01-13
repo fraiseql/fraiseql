@@ -43,6 +43,15 @@ pub mod auth {
 
     /// MD5 password required
     pub const MD5_PASSWORD: i32 = 5;
+
+    /// SASL mechanisms available (Postgres 10+)
+    pub const SASL: i32 = 10;
+
+    /// SASL server challenge
+    pub const SASL_CONTINUE: i32 = 11;
+
+    /// SASL server final message
+    pub const SASL_FINAL: i32 = 12;
 }
 
 /// Transaction status

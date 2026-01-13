@@ -63,6 +63,28 @@ fn decode_authentication(data: &mut Bytes) -> io::Result<BackendMessage> {
             data.copy_to_slice(&mut salt);
             AuthenticationMessage::Md5Password { salt }
         }
+        auth::SASL => {
+            // SASL: read mechanism list (null-terminated strings)
+            let mut mechanisms = Vec::new();
+            loop {
+                let mechanism = data.read_cstr()?;
+                if mechanism.is_empty() {
+                    break;
+                }
+                mechanisms.push(mechanism);
+            }
+            AuthenticationMessage::Sasl { mechanisms }
+        }
+        auth::SASL_CONTINUE => {
+            // SASL continue: read remaining data as bytes
+            let data_vec = data.to_vec();
+            AuthenticationMessage::SaslContinue { data: data_vec }
+        }
+        auth::SASL_FINAL => {
+            // SASL final: read remaining data as bytes
+            let data_vec = data.to_vec();
+            AuthenticationMessage::SaslFinal { data: data_vec }
+        }
         _ => {
             return Err(io::Error::new(
                 io::ErrorKind::Unsupported,

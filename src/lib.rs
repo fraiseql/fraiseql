@@ -14,6 +14,7 @@
 
 #![warn(missing_docs, rust_2018_idioms)]
 
+pub mod auth;
 pub mod client;
 pub mod connection;
 pub mod error;
