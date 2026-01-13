@@ -50,6 +50,32 @@ impl FraiseClient {
         Ok(Self { conn })
     }
 
+    /// Connect to Postgres with TLS encryption (future feature)
+    ///
+    /// # Status
+    /// This API is planned for v0.1.1. For now, use the standard `connect()` method
+    /// and implement TLS via a reverse proxy (e.g., pgbouncer, HAProxy) in production.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// use fraiseql_wire::{FraiseClient, connection::TlsConfig};
+    ///
+    /// let tls = TlsConfig::builder()
+    ///     .verify_hostname(true)
+    ///     .build()?;
+    ///
+    /// let client = FraiseClient::connect_tls("postgres://secure.db.example.com/mydb", tls).await?;
+    /// ```
+    pub async fn connect_tls(
+        _connection_string: &str,
+        _tls_config: &crate::connection::TlsConfig,
+    ) -> Result<Self> {
+        Err(crate::Error::Config(
+            "TLS support is planned for v0.1.1. Use a reverse proxy for TLS in production.".into(),
+        ))
+    }
+
     /// Start building a query for an entity (consumes self for streaming)
     ///
     /// # Examples
