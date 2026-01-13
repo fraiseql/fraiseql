@@ -74,12 +74,73 @@ This indicates a potential performance regression. Investigate by:
 3. Running benchmarks on a clean branch for comparison
 4. Using profiling tools (flamegraph, perf) to identify hot paths
 
-## Future: Integration Benchmarks
+## Integration Benchmarks (Phase 7.1.2)
 
-Once Phase 7.2 completes, integration benchmarks will be added to measure:
-- Throughput (rows/second) with real Postgres
-- Memory usage under load
-- Connection setup time
-- Large result set streaming
+Real-world performance benchmarks against Postgres 17:
+
+```bash
+cargo bench --bench integration_benchmarks --features bench-with-postgres
+```
+
+### Integration Benchmark Groups
+
+**throughput**: Streaming performance (rows/second)
+- `1000_rows` - Small result set
+- `10000_rows` - Medium result set
+- `100000_rows` - Large result set
+
+**latency**: Time-to-first-row under different result sizes
+- `ttfr_1k` - 1,000 row set
+- `ttfr_100k` - 100,000 row set
+- `ttfr_1m` - 1,000,000 row set
+
+**connection_setup**: Connection overhead
+- `tcp_connection` - Network connection (localhost)
+- `unix_socket_connection` - Unix socket (faster)
+
+**memory_usage**: Memory consumption by chunk size
+- `chunk_64` - 64-byte chunks
+- `chunk_256` - 256-byte chunks (default)
+- `chunk_1024` - 1024-byte chunks
+
+**chunking_strategy**: Chunking efficiency impact
+- `chunk_64` through `chunk_1024` - Processing with different chunk sizes
+
+**predicate_effectiveness**: SQL predicate filtering impact
+- `no_filter` - All 100,000 rows
+- `sql_1percent` - Filtered to 1% (1,000 rows)
+- `sql_10percent` - Filtered to 10% (10,000 rows)
+- `sql_50percent` - Filtered to 50% (50,000 rows)
+
+**streaming_stability**: Long-running stability benchmarks
+- `large_result_set_1m_rows` - 1M row streaming memory stability
+- `high_throughput_small_chunks` - High throughput with small chunks
+
+**json_parsing_load**: JSON parsing under realistic loads
+- `small_200b` - Small JSON payloads
+- `medium_2kb` - Medium JSON payloads
+- `large_10kb` - Large JSON payloads
+- `huge_100kb` - Very large JSON payloads
+
+### Setup
+
+Before running integration benchmarks, create the test database:
+
+```bash
+# Create test database
+psql -U postgres -c "CREATE DATABASE fraiseql_bench"
+
+# Load test data views
+psql -U postgres fraiseql_bench < benches/setup.sql
+
+# Verify data loaded
+psql -U postgres fraiseql_bench -c "SELECT COUNT(*) FROM v_test_100k"
+```
+
+### Cleanup
+
+```bash
+psql -U postgres -c "DROP DATABASE fraiseql_bench"
+```
 
 See `BENCHMARKING.md` for full strategy.

@@ -38,10 +38,19 @@ whoami = "1"
 [dev-dependencies]
 tokio-test = "0.4"
 criterion = { version = "0.5", features = ["async_tokio"] }
+tokio-postgres = "0.7"
 
 [[bench]]
 name = "micro_benchmarks"
 harness = false
+
+[[bench]]
+name = "integration_benchmarks"
+harness = false
+required-features = ["bench-with-postgres"]
+
+[features]
+bench-with-postgres = []
 
 [lib]
 name = "fraiseql_wire"

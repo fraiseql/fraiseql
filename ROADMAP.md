@@ -48,13 +48,20 @@ Harden the MVP for real-world use without adding new features.
 
 **Status**: Complete - 6 benchmark groups with detailed statistical analysis
 
-##### 7.1.2 Integration Benchmarks (With Postgres) - Pending
-- [ ] Throughput benchmarks (rows/sec) with 1K, 100K, 1M row sets
-- [ ] Memory usage under load with different chunk sizes
-- [ ] Time-to-first-row latency measurements
-- [ ] Connection setup time benchmarks
-- [ ] Large result set streaming (memory stability)
-- [ ] CI integration (nightly, requires Postgres service)
+##### 7.1.2 Integration Benchmarks (With Postgres) ✅
+- [x] Throughput benchmarks (rows/sec) with 1K, 100K, 1M row sets
+- [x] Memory usage under load with different chunk sizes
+- [x] Time-to-first-row latency measurements
+- [x] Connection setup time benchmarks
+- [x] Large result set streaming (memory stability)
+- [x] CI integration (nightly, requires Postgres service)
+- [x] Predicate effectiveness benchmarks
+- [x] Chunking strategy impact measurements
+- [x] JSON parsing load benchmarks
+- [x] Test database setup with v_test_* views
+- [x] GitHub Actions workflow for nightly execution
+
+**Status**: Complete - 8 benchmark groups with Postgres, GitHub Actions integration, test database schema
 
 ##### 7.1.3 Comparison Benchmarks (vs tokio-postgres) - Pending
 - [ ] Set up tokio-postgres comparison suite
