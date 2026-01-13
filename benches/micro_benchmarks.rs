@@ -330,6 +330,120 @@ fn connection_protocol_benchmarks(c: &mut Criterion) {
 }
 
 // ============================================================================
+// Metrics Overhead Benchmarks
+// ============================================================================
+
+fn metrics_overhead_benchmarks(c: &mut Criterion) {
+    use fraiseql_wire::metrics;
+
+    let mut group = c.benchmark_group("metrics_overhead");
+
+    // Measure counter increment overhead
+    group.bench_function("counter_increment", |b| {
+        b.iter(|| {
+            metrics::counters::query_submitted(
+                black_box("users"),
+                black_box(true),
+                black_box(false),
+                black_box(false),
+            );
+        });
+    });
+
+    // Measure histogram recording overhead
+    group.bench_function("histogram_record", |b| {
+        b.iter(|| {
+            metrics::histograms::query_startup_duration(black_box("users"), black_box(100));
+        });
+    });
+
+    // Measure query completion counter
+    group.bench_function("query_completion_counter", |b| {
+        b.iter(|| {
+            metrics::counters::query_completed(black_box("success"), black_box("users"));
+        });
+    });
+
+    // Measure authentication metrics
+    group.bench_function("auth_metrics_full_path", |b| {
+        b.iter(|| {
+            metrics::counters::auth_attempted(black_box("scram"));
+            metrics::histograms::auth_duration(black_box("scram"), black_box(125));
+            metrics::counters::auth_successful(black_box("scram"));
+        });
+    });
+
+    // Measure deserialization metrics
+    group.bench_function("deserialization_success", |b| {
+        b.iter(|| {
+            metrics::counters::deserialization_success(black_box("users"), black_box("User"));
+            metrics::histograms::deserialization_duration(
+                black_box("users"),
+                black_box("User"),
+                black_box(12),
+            );
+        });
+    });
+
+    // Measure filter metrics
+    group.bench_function("filter_metrics", |b| {
+        b.iter(|| {
+            metrics::histograms::filter_duration(black_box("users"), black_box(5));
+            metrics::counters::rows_filtered(black_box("users"), black_box(1));
+        });
+    });
+
+    // Measure chunk processing metrics
+    group.bench_function("chunk_metrics_full", |b| {
+        b.iter(|| {
+            metrics::histograms::chunk_size(black_box("users"), black_box(256));
+            metrics::histograms::chunk_processing_duration(black_box("users"), black_box(20));
+        });
+    });
+
+    // Measure error tracking
+    group.bench_function("error_tracking", |b| {
+        b.iter(|| {
+            metrics::counters::query_error(black_box("users"), black_box("json_parse_error"));
+            metrics::counters::json_parse_error(black_box("users"));
+        });
+    });
+
+    // Typical query pipeline: complete instrumentation
+    group.bench_function("complete_query_instrumentation", |b| {
+        b.iter(|| {
+            // Query submission
+            metrics::counters::query_submitted(black_box("users"), true, false, false);
+            // Auth
+            metrics::counters::auth_attempted(black_box("scram"));
+            metrics::histograms::auth_duration(black_box("scram"), 100);
+            metrics::counters::auth_successful(black_box("scram"));
+            // Startup
+            metrics::histograms::query_startup_duration(black_box("users"), 50);
+            // Chunk processing (simulate 5 chunks)
+            for _ in 0..5 {
+                metrics::histograms::chunk_size(black_box("users"), 256);
+                metrics::histograms::chunk_processing_duration(black_box("users"), 20);
+            }
+            // Filter (10% filtered)
+            for _ in 0..1280 {
+                metrics::histograms::filter_duration(black_box("users"), 2);
+            }
+            metrics::counters::rows_filtered(black_box("users"), 128);
+            // Deserialization
+            metrics::counters::deserialization_success(black_box("users"), black_box("User"));
+            metrics::histograms::deserialization_duration(black_box("users"), black_box("User"), 12);
+            // Completion
+            metrics::counters::rows_processed(black_box("users"), 1152, black_box("ok"));
+            metrics::histograms::query_total_duration(black_box("users"), 180);
+            metrics::counters::query_completed(black_box("success"), black_box("users"));
+        });
+    });
+
+    group.finish();
+}
+
+// ============================================================================
 // Criterion Groups and Main
 // ============================================================================
 
@@ -342,6 +456,7 @@ criterion_group!(
     string_matching_benchmarks,
     connection_config_benchmarks,
     connection_protocol_benchmarks,
+    metrics_overhead_benchmarks,
 );
 
 criterion_main!(benches);
