@@ -517,6 +517,20 @@ impl WindowFunctionPlanner {
                 .to_string();
             return Ok(WindowFunctionType::Max { field });
         }
+        if let Some(stddev) = func.get("stddev") {
+            let field = stddev["field"]
+                .as_str()
+                .ok_or_else(|| FraiseQLError::validation("Missing 'field' in STDDEV"))?
+                .to_string();
+            return Ok(WindowFunctionType::Stddev { field });
+        }
+        if let Some(variance) = func.get("variance") {
+            let field = variance["field"]
+                .as_str()
+                .ok_or_else(|| FraiseQLError::validation("Missing 'field' in VARIANCE"))?
+                .to_string();
+            return Ok(WindowFunctionType::Variance { field });
+        }
 
         Err(FraiseQLError::validation("Unknown window function type"))
     }
