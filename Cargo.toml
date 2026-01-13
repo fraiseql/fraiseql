@@ -35,6 +35,12 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # User info for default values
 whoami = "1"
 
+# TLS support
+rustls = "0.21"
+rustls-pemfile = "2.0"
+webpki = "0.22"
+webpki-roots = "0.25"
+
 [dev-dependencies]
 tokio-test = "0.4"
 criterion = { version = "0.5", features = ["async_tokio"] }
