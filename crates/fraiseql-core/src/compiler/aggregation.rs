@@ -583,7 +583,7 @@ mod tests {
                 },
             ],
             dimensions: DimensionColumn {
-                name: "data".to_string(),
+                name: "dimensions".to_string(),
                 paths: vec![],
             },
             denormalized_filters: vec![

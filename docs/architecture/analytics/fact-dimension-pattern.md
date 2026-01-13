@@ -260,13 +260,13 @@ When the compiler encounters a schema with `fact_table=True`:
    ```rust
    let columns = introspect_table("tf_sales");
    let measures = columns.filter(|col| col.is_numeric());
-   let data_column = columns.find(|col| col.name == "data" && col.type == "jsonb");
+   let data_column = columns.find(|col| col.name == "dimensions" && col.type == "jsonb");
    let filters = columns.filter(|col| col.has_index());
    ```
 
 2. **Identify Components**:
    - Measure columns: `revenue`, `quantity`, `cost` (numeric types)
-   - JSONB dimensions column: `data`
+   - JSONB dimensions column: `dimensions`
    - Denormalized filter columns: `customer_id`, `product_id`, `occurred_at`
 
 3. **Generate GraphQL Types**:

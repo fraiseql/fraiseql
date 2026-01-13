@@ -628,7 +628,7 @@ mod tests {
                 },
             ],
             dimensions: DimensionColumn {
-                name: "data".to_string(),
+                name: "dimensions".to_string(),
                 paths: vec![
                     DimensionPath {
                         name: "category".to_string(),

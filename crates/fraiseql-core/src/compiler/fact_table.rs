@@ -125,7 +125,7 @@ pub enum SqlType {
 /// Dimension column (JSONB)
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DimensionColumn {
-    /// Column name (default: "data")
+    /// Column name (default: "dimensions")
     pub name: String,
     /// Detected dimension paths (optional, extracted from sample data)
     pub paths: Vec<DimensionPath>,
@@ -136,7 +136,7 @@ pub struct DimensionColumn {
 pub struct DimensionPath {
     /// Path name (e.g., "category")
     pub name: String,
-    /// JSON path (e.g., "data->>'category'" for PostgreSQL)
+    /// JSON path (e.g., "dimensions->>'category'" for PostgreSQL)
     pub json_path: String,
     /// Data type hint
     pub data_type: String,
@@ -355,7 +355,7 @@ impl FactTableDetector {
             table_name: table_name.to_string(),
             measures,
             dimensions: dimension_column.unwrap_or(DimensionColumn {
-                name: "data".to_string(),
+                name: "dimensions".to_string(),
                 paths: Vec::new(),
             }),
             denormalized_filters: filters,
@@ -652,7 +652,7 @@ impl FactTableDetector {
             table_name,
             measures,
             dimensions: dimension_column.unwrap_or(DimensionColumn {
-                name: "data".to_string(),
+                name: "dimensions".to_string(),
                 paths: Vec::new(),
             }),
             denormalized_filters: filters,
@@ -754,7 +754,7 @@ mod tests {
                 nullable: false,
             }],
             dimensions: DimensionColumn {
-                name: "data".to_string(),
+                name: "dimensions".to_string(),
                 paths: vec![],
             },
             denormalized_filters: vec![],
@@ -770,7 +770,7 @@ mod tests {
             table_name: "tf_sales".to_string(),
             measures: vec![],
             dimensions: DimensionColumn {
-                name: "data".to_string(),
+                name: "dimensions".to_string(),
                 paths: vec![],
             },
             denormalized_filters: vec![],
@@ -795,7 +795,7 @@ mod tests {
                 nullable: false,
             }],
             dimensions: DimensionColumn {
-                name: "data".to_string(),
+                name: "dimensions".to_string(),
                 paths: vec![],
             },
             denormalized_filters: vec![],
@@ -813,7 +813,7 @@ mod tests {
             ("id", SqlType::BigInt, false),
             ("revenue", SqlType::Decimal, false),
             ("quantity", SqlType::Int, false),
-            ("data", SqlType::Jsonb, false),
+            ("dimensions", SqlType::Jsonb, false),
             ("customer_id", SqlType::Uuid, false),
             ("occurred_at", SqlType::Timestamp, false),
         ];
@@ -824,7 +824,7 @@ mod tests {
         assert_eq!(metadata.measures.len(), 2);
         assert_eq!(metadata.measures[0].name, "revenue");
         assert_eq!(metadata.measures[1].name, "quantity");
-        assert_eq!(metadata.dimensions.name, "data");
+        assert_eq!(metadata.dimensions.name, "dimensions");
         assert_eq!(metadata.denormalized_filters.len(), 2);
         assert_eq!(metadata.denormalized_filters[0].name, "customer_id");
         assert_eq!(metadata.denormalized_filters[1].name, "occurred_at");

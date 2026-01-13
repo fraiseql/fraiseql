@@ -860,7 +860,7 @@ mod tests {
                 nullable: false,
             }],
             dimensions: DimensionColumn {
-                name: "data".to_string(),
+                name: "dimensions".to_string(),
                 paths: vec![],
             },
             denormalized_filters: vec![FilterColumn {
@@ -910,7 +910,7 @@ mod tests {
         let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
         let sql = generator.generate(&plan).unwrap();
 
-        assert!(sql.complete_sql.contains("data->>'category'"));
+        assert!(sql.complete_sql.contains("dimensions->>'category'"));
         assert!(sql.complete_sql.contains("DATE_TRUNC('day', occurred_at)"));
         assert!(sql.complete_sql.contains("COUNT(*)"));
         assert!(sql.complete_sql.contains("SUM(revenue)"));
@@ -924,7 +924,7 @@ mod tests {
         let generator = AggregationSqlGenerator::new(DatabaseType::MySQL);
         let sql = generator.generate(&plan).unwrap();
 
-        assert!(sql.complete_sql.contains("JSON_UNQUOTE(JSON_EXTRACT(data, '$.category'))"));
+        assert!(sql.complete_sql.contains("JSON_UNQUOTE(JSON_EXTRACT(dimensions, '$.category'))"));
         assert!(sql.complete_sql.contains("DATE_FORMAT(occurred_at"));
         assert!(sql.complete_sql.contains("COUNT(*)"));
         assert!(sql.complete_sql.contains("SUM(revenue)"));
@@ -936,7 +936,7 @@ mod tests {
         let generator = AggregationSqlGenerator::new(DatabaseType::SQLite);
         let sql = generator.generate(&plan).unwrap();
 
-        assert!(sql.complete_sql.contains("json_extract(data, '$.category')"));
+        assert!(sql.complete_sql.contains("json_extract(dimensions, '$.category')"));
         assert!(sql.complete_sql.contains("strftime"));
         assert!(sql.complete_sql.contains("COUNT(*)"));
         assert!(sql.complete_sql.contains("SUM(revenue)"));
@@ -948,7 +948,7 @@ mod tests {
         let generator = AggregationSqlGenerator::new(DatabaseType::SQLServer);
         let sql = generator.generate(&plan).unwrap();
 
-        assert!(sql.complete_sql.contains("JSON_VALUE(data, '$.category')"));
+        assert!(sql.complete_sql.contains("JSON_VALUE(dimensions, '$.category')"));
         assert!(sql.complete_sql.contains("CAST(occurred_at AS DATE)"));
         assert!(sql.complete_sql.contains("COUNT(*)"));
         assert!(sql.complete_sql.contains("SUM(revenue)"));
