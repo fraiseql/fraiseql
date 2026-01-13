@@ -611,9 +611,25 @@ impl Connection {
         let (result_tx, result_rx) = mpsc::channel::<Result<Value>>(chunk_size);
         let (cancel_tx, mut cancel_rx) = mpsc::channel::<()>(1);
 
-        // Spawn background task to read rows
+        // Create stream instance first so we can clone its pause/resume signals
         let entity_for_metrics = extract_entity_from_query(query).unwrap_or_else(|| "unknown".to_string());
         let entity_for_stream = entity_for_metrics.clone();  // Clone for stream
+
+        let mut stream = JsonStream::new(
+            result_rx,
+            cancel_tx,
+            entity_for_stream,
+            max_memory,
+            soft_limit_warn_threshold,
+            soft_limit_fail_threshold,
+        );
+
+        // Clone pause/resume signals for background task
+        let state_lock = stream.clone_state();
+        let pause_signal = stream.clone_pause_signal();
+        let resume_signal = stream.clone_resume_signal();
+
+        // Spawn background task to read rows
         let query_start = std::time::Instant::now();
 
         tokio::spawn(async move {
@@ -635,6 +651,21 @@ impl Connection {
             let mut current_chunk_size = chunk_size;
 
             loop {
+                // Check pause/resume state machine
+                {
+                    let current_state = state_lock.lock().await;
+                    if *current_state == crate::stream::StreamState::Paused {
+                        tracing::debug!("stream paused, waiting for resume");
+                        drop(current_state); // Release lock before waiting
+                        // Block until resume signal is sent
+                        resume_signal.notified().await;
+                        tracing::debug!("stream resumed");
+                        // Update state back to Running
+                        let mut state = state_lock.lock().await;
+                        *state = crate::stream::StreamState::Running;
+                    }
+                }
+
                 tokio::select! {
                     // Check for cancellation
                     _ = cancel_rx.recv() => {
@@ -792,14 +823,7 @@ impl Connection {
             }
         });
 
-        Ok(JsonStream::new(
-            result_rx,
-            cancel_tx,
-            entity_for_stream,
-            max_memory,
-            soft_limit_warn_threshold,
-            soft_limit_fail_threshold,
-        ))
+        Ok(stream)
     }
 }
 

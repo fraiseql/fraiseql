@@ -211,6 +211,44 @@ pub fn adaptive_chunk_adjusted(entity: &str, old_size: usize, new_size: usize) {
     .increment(1);
 }
 
+/// Record a stream pause event
+///
+/// Called when a stream is paused by the user.
+///
+/// # Labels
+/// - `entity`: The query entity (project, etc.)
+///
+/// # Example
+/// ```ignore
+/// stream_paused("projects");
+/// ```
+pub fn stream_paused(entity: &str) {
+    counter!(
+        "fraiseql_stream_paused_total",
+        labels::ENTITY => entity.to_string(),
+    )
+    .increment(1);
+}
+
+/// Record a stream resume event
+///
+/// Called when a paused stream is resumed by the user.
+///
+/// # Labels
+/// - `entity`: The query entity (project, etc.)
+///
+/// # Example
+/// ```ignore
+/// stream_resumed("projects");
+/// ```
+pub fn stream_resumed(entity: &str) {
+    counter!(
+        "fraiseql_stream_resumed_total",
+        labels::ENTITY => entity.to_string(),
+    )
+    .increment(1);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -260,5 +298,15 @@ mod tests {
     #[test]
     fn test_adaptive_chunk_adjusted_decrease() {
         adaptive_chunk_adjusted("test_entity", 256, 170);
+    }
+
+    #[test]
+    fn test_stream_paused() {
+        stream_paused("test_entity");
+    }
+
+    #[test]
+    fn test_stream_resumed() {
+        stream_resumed("test_entity");
     }
 }
