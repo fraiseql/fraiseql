@@ -33,10 +33,17 @@ where
             match Pin::new(&mut self.inner).poll_next(cx) {
                 Poll::Ready(Some(Ok(value))) => {
                     // Apply predicate
-                    if (self.predicate)(&value) {
+                    let filter_start = std::time::Instant::now();
+                    let passed = (self.predicate)(&value);
+                    let filter_duration = filter_start.elapsed().as_millis() as u64;
+
+                    crate::metrics::histograms::filter_duration("unknown", filter_duration);
+
+                    if passed {
                         return Poll::Ready(Some(Ok(value)));
                     }
-                    // Predicate failed, try next value
+                    // Predicate failed, try next value (filter out this row)
+                    crate::metrics::counters::rows_filtered("unknown", 1);
                     continue;
                 }
                 Poll::Ready(Some(Err(e))) => {

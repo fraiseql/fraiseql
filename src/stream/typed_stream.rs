@@ -68,10 +68,24 @@ impl<T: DeserializeOwned> TypedJsonStream<T> {
     /// This is the only place type T matters. Deserialization is lazy (per-item)
     /// to skip deserializing filtered-out rows.
     fn deserialize_value(value: Value) -> Result<T> {
-        serde_json::from_value::<T>(value).map_err(|e| Error::Deserialization {
-            type_name: std::any::type_name::<T>().to_string(),
-            details: e.to_string(),
-        })
+        let type_name = std::any::type_name::<T>().to_string();
+        let deser_start = std::time::Instant::now();
+
+        match serde_json::from_value::<T>(value) {
+            Ok(result) => {
+                let duration_ms = deser_start.elapsed().as_millis() as u64;
+                crate::metrics::histograms::deserialization_duration("unknown", &type_name, duration_ms);
+                crate::metrics::counters::deserialization_success("unknown", &type_name);
+                Ok(result)
+            }
+            Err(e) => {
+                crate::metrics::counters::deserialization_failure("unknown", &type_name, "serde_error");
+                Err(Error::Deserialization {
+                    type_name,
+                    details: e.to_string(),
+                })
+            }
+        }
     }
 }
 
