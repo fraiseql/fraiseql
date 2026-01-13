@@ -98,11 +98,24 @@ impl SchemaParser {
             Vec::new()
         };
 
+        let fact_tables = if let Some(fact_tables_val) = obj.get("fact_tables") {
+            if let Some(obj) = fact_tables_val.as_object() {
+                obj.iter()
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect()
+            } else {
+                std::collections::HashMap::new()
+            }
+        } else {
+            std::collections::HashMap::new()
+        };
+
         Ok(AuthoringIR {
             types,
             queries,
             mutations,
             subscriptions,
+            fact_tables,
         })
     }
 

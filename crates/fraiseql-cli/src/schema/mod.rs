@@ -10,5 +10,5 @@ pub mod validator;
 
 pub use converter::SchemaConverter;
 pub use intermediate::IntermediateSchema;
-pub use optimizer::{OptimizationReport, SchemaOptimizer};
-pub use validator::{SchemaValidator, ValidationReport};
+pub use optimizer::SchemaOptimizer;
+pub use validator::SchemaValidator;

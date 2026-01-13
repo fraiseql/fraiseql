@@ -45,11 +45,20 @@ enum Commands {
         check: bool,
     },
 
-    /// Validate schema.json without compilation
+    /// Validate schema.json or fact tables
     Validate {
-        /// Schema.json file path to validate
+        #[command(subcommand)]
+        command: Option<ValidateCommands>,
+
+        /// Schema.json file path to validate (if no subcommand)
         #[arg(value_name = "INPUT")]
-        input: String,
+        input: Option<String>,
+    },
+
+    /// Introspect database for fact tables and output suggestions
+    Introspect {
+        #[command(subcommand)]
+        command: IntrospectCommands,
     },
 
     /// Development server with hot-reload (Phase 9 Part 3)
@@ -62,6 +71,34 @@ enum Commands {
         /// Port to listen on
         #[arg(short, long, default_value = "8080")]
         port: u16,
+    },
+}
+
+#[derive(Subcommand)]
+enum ValidateCommands {
+    /// Validate that declared fact tables match database schema
+    Facts {
+        /// Schema.json file path
+        #[arg(short, long, value_name = "SCHEMA")]
+        schema: String,
+
+        /// Database connection string
+        #[arg(short, long, value_name = "DATABASE_URL")]
+        database: String,
+    },
+}
+
+#[derive(Subcommand)]
+enum IntrospectCommands {
+    /// Introspect database for fact tables (tf_* tables)
+    Facts {
+        /// Database connection string
+        #[arg(short, long, value_name = "DATABASE_URL")]
+        database: String,
+
+        /// Output format (python, json)
+        #[arg(short, long, value_name = "FORMAT", default_value = "python")]
+        format: String,
     },
 }
 
@@ -80,7 +117,26 @@ async fn main() {
             check,
         } => commands::compile::run(&input, &output, check).await,
 
-        Commands::Validate { input } => commands::validate::run(&input).await,
+        Commands::Validate { command, input } => match command {
+            Some(ValidateCommands::Facts { schema, database }) => {
+                commands::validate_facts::run(std::path::Path::new(&schema), &database).await
+            }
+            None => match input {
+                Some(input) => commands::validate::run(&input).await,
+                None => Err(anyhow::anyhow!("INPUT required when no subcommand provided")),
+            },
+        },
+
+        Commands::Introspect { command } => {
+            match command {
+                IntrospectCommands::Facts { database, format } => {
+                    match commands::introspect_facts::OutputFormat::from_str(&format) {
+                        Ok(fmt) => commands::introspect_facts::run(&database, fmt).await,
+                        Err(e) => Err(anyhow::anyhow!(e)),
+                    }
+                }
+            }
+        }
 
         Commands::Serve { schema, port } => commands::serve::run(&schema, port).await,
     };

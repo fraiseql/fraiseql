@@ -3,8 +3,7 @@
 //! Provides detailed validation error reporting with line numbers and context.
 
 use super::intermediate::IntermediateSchema;
-use anyhow::{Context, Result};
-use serde_json::Value;
+use anyhow::Result;
 use std::collections::HashSet;
 use tracing::{debug, info};
 

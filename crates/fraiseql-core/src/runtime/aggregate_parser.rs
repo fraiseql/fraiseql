@@ -50,7 +50,7 @@ use crate::compiler::aggregation::{
     OrderDirection,
 };
 use crate::compiler::fact_table::FactTableMetadata;
-use crate::db::where_clause::WhereClause;
+use crate::db::where_clause::{WhereClause, WhereOperator};
 use crate::error::{FraiseQLError, Result};
 use serde_json::Value;
 
@@ -159,12 +159,52 @@ impl AggregateQueryParser {
     }
 
     /// Parse WHERE clause from JSON
-    fn parse_where_clause(_where_obj: &Value) -> Result<WhereClause> {
-        // TODO: Implement full WHERE clause parsing
-        // For Phase 5, this is a placeholder
-        // In a real implementation, this would parse the WHERE object
-        // and build a WhereClause AST
-        Ok(WhereClause::And(vec![]))
+    ///
+    /// For aggregate queries, WHERE works on denormalized filter columns only.
+    /// Expected format: `{ "field_operator": value }`
+    /// Example: `{ "customer_id_eq": "123", "occurred_at_gte": "2024-01-01" }`
+    fn parse_where_clause(where_obj: &Value) -> Result<WhereClause> {
+        let Some(obj) = where_obj.as_object() else {
+            return Ok(WhereClause::And(vec![]));
+        };
+
+        let mut conditions = Vec::new();
+
+        for (key, value) in obj {
+            // Parse field_operator format (e.g., "customer_id_eq" -> field="customer_id", operator="eq")
+            if let Some((field, operator_str)) = Self::parse_where_field_and_operator(key)? {
+                let operator = WhereOperator::from_str(operator_str)?;
+
+                conditions.push(WhereClause::Field {
+                    path: vec![field.to_string()],
+                    operator,
+                    value: value.clone(),
+                });
+            }
+        }
+
+        Ok(WhereClause::And(conditions))
+    }
+
+    /// Parse WHERE field and operator from key (e.g., "customer_id_eq" -> ("customer_id", "eq"))
+    fn parse_where_field_and_operator(key: &str) -> Result<Option<(&str, &str)>> {
+        // Find last underscore to split field from operator
+        if let Some(last_underscore) = key.rfind('_') {
+            let field = &key[..last_underscore];
+            let operator = &key[last_underscore + 1..];
+
+            // Validate operator is known
+            match WhereOperator::from_str(operator) {
+                Ok(_) => Ok(Some((field, operator))),
+                Err(_) => {
+                    // Not a valid operator suffix, treat entire key as field (might be used elsewhere)
+                    Ok(None)
+                }
+            }
+        } else {
+            // No underscore, not a WHERE condition
+            Ok(None)
+        }
     }
 
     /// Parse GROUP BY selections

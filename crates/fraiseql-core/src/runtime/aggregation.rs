@@ -54,7 +54,9 @@ use crate::compiler::aggregation::{
     ValidatedHavingCondition,
 };
 use crate::compiler::aggregate_types::{AggregateFunction, HavingOperator, TemporalBucket};
+use crate::compiler::fact_table::FactTableMetadata;
 use crate::db::types::DatabaseType;
+use crate::db::where_clause::{WhereClause, WhereOperator};
 use crate::error::{FraiseQLError, Result};
 
 /// SQL query components
@@ -106,7 +108,7 @@ impl AggregationSqlGenerator {
 
         // Build WHERE clause (if present)
         let where_clause = if let Some(ref where_clause) = plan.request.where_clause {
-            Some(self.build_where_clause(where_clause)?)
+            Some(self.build_where_clause(where_clause, &plan.metadata)?)
         } else {
             None
         };
@@ -463,11 +465,227 @@ impl AggregationSqlGenerator {
         }
     }
 
-    /// Build WHERE clause
-    fn build_where_clause(&self, _where_clause: &crate::db::where_clause::WhereClause) -> Result<String> {
-        // TODO: Use WhereClauseGenerator from db module
-        // For now, return a placeholder
-        Ok("WHERE 1=1".to_string())
+    /// Build WHERE clause SQL
+    ///
+    /// Handles two types of filterable fields:
+    /// 1. Denormalized filters (direct columns): WHERE customer_id = $1
+    /// 2. Dimensions (JSONB paths): WHERE data->>'category' = $1
+    pub fn build_where_clause(&self, where_clause: &WhereClause, metadata: &FactTableMetadata) -> Result<String> {
+        if where_clause.is_empty() {
+            return Ok(String::new());
+        }
+
+        let condition_sql = self.where_clause_to_sql(where_clause, metadata)?;
+        Ok(format!("WHERE {}", condition_sql))
+    }
+
+    /// Convert WhereClause AST to SQL
+    fn where_clause_to_sql(&self, clause: &WhereClause, metadata: &FactTableMetadata) -> Result<String> {
+        match clause {
+            WhereClause::Field { path, operator, value } => {
+                let field_name = &path[0];
+
+                // Check if field is a denormalized filter (direct column)
+                let is_denormalized = metadata.denormalized_filters
+                    .iter()
+                    .any(|f| f.name == *field_name);
+
+                if is_denormalized {
+                    // Direct column: WHERE customer_id = $1
+                    self.generate_direct_column_where(field_name, operator, value)
+                } else {
+                    // JSONB dimension: WHERE data->>'category' = $1
+                    let jsonb_column = &metadata.dimensions.name; // "data"
+                    self.generate_jsonb_where(jsonb_column, path, operator, value)
+                }
+            }
+            WhereClause::And(clauses) => {
+                let conditions: Vec<String> = clauses
+                    .iter()
+                    .map(|c| self.where_clause_to_sql(c, metadata))
+                    .collect::<Result<Vec<_>>>()?;
+                Ok(format!("({})", conditions.join(" AND ")))
+            }
+            WhereClause::Or(clauses) => {
+                let conditions: Vec<String> = clauses
+                    .iter()
+                    .map(|c| self.where_clause_to_sql(c, metadata))
+                    .collect::<Result<Vec<_>>>()?;
+                Ok(format!("({})", conditions.join(" OR ")))
+            }
+            WhereClause::Not(clause) => {
+                let inner = self.where_clause_to_sql(clause, metadata)?;
+                Ok(format!("NOT ({})", inner))
+            }
+        }
+    }
+
+    /// Generate WHERE for direct column (denormalized filter)
+    fn generate_direct_column_where(
+        &self,
+        field: &str,
+        operator: &WhereOperator,
+        value: &serde_json::Value,
+    ) -> Result<String> {
+        let op_sql = self.operator_to_sql(operator);
+
+        // Handle NULL checks (no value needed)
+        if matches!(operator, WhereOperator::IsNull) {
+            return Ok(format!("{} IS NULL", field));
+        }
+
+        // Handle IN/NOT IN (array values)
+        if matches!(operator, WhereOperator::In | WhereOperator::Nin) {
+            let values = self.format_array_values(value)?;
+            return Ok(format!("{} {} ({})", field, op_sql, values));
+        }
+
+        // Regular comparison
+        let value_sql = self.format_sql_value(value);
+        Ok(format!("{} {} {}", field, op_sql, value_sql))
+    }
+
+    /// Generate WHERE for JSONB dimension field
+    fn generate_jsonb_where(
+        &self,
+        jsonb_column: &str,
+        path: &[String],
+        operator: &WhereOperator,
+        value: &serde_json::Value,
+    ) -> Result<String> {
+        let field_path = &path[0]; // Simple path for now (no nested paths)
+        let jsonb_extract = self.jsonb_extract_sql(jsonb_column, field_path);
+        let op_sql = self.operator_to_sql(operator);
+
+        // Handle NULL checks
+        if matches!(operator, WhereOperator::IsNull) {
+            return Ok(format!("{} IS NULL", jsonb_extract));
+        }
+
+        // Handle case-insensitive operators
+        if operator.is_case_insensitive() {
+            return self.generate_case_insensitive_where(&jsonb_extract, operator, value);
+        }
+
+        // Handle IN/NOT IN for JSONB
+        if matches!(operator, WhereOperator::In | WhereOperator::Nin) {
+            let values = self.format_array_values(value)?;
+            return Ok(format!("{} {} ({})", jsonb_extract, op_sql, values));
+        }
+
+        // Handle LIKE pattern operators (Contains, Startswith, Endswith)
+        if matches!(operator, WhereOperator::Contains | WhereOperator::Startswith | WhereOperator::Endswith) {
+            let value_str = value.as_str()
+                .ok_or_else(|| FraiseQLError::validation("LIKE operators require string values"))?;
+            let pattern = self.format_like_pattern(operator, value_str);
+            return Ok(format!("{} {} {}", jsonb_extract, op_sql, pattern));
+        }
+
+        // Regular comparison
+        let value_sql = self.format_sql_value(value);
+        Ok(format!("{} {} {}", jsonb_extract, op_sql, value_sql))
+    }
+
+    /// Convert WhereOperator to SQL operator
+    fn operator_to_sql(&self, operator: &WhereOperator) -> &'static str {
+        match operator {
+            WhereOperator::Eq => "=",
+            WhereOperator::Neq => "!=",
+            WhereOperator::Gt => ">",
+            WhereOperator::Gte => ">=",
+            WhereOperator::Lt => "<",
+            WhereOperator::Lte => "<=",
+            WhereOperator::In => "IN",
+            WhereOperator::Nin => "NOT IN",
+            WhereOperator::Like | WhereOperator::Contains => "LIKE",
+            WhereOperator::Ilike | WhereOperator::Icontains => {
+                match self.database_type {
+                    DatabaseType::PostgreSQL => "ILIKE",
+                    _ => "LIKE", // Other databases use LIKE with UPPER/LOWER
+                }
+            }
+            WhereOperator::Startswith => "LIKE",
+            WhereOperator::Istartswith => {
+                match self.database_type {
+                    DatabaseType::PostgreSQL => "ILIKE",
+                    _ => "LIKE",
+                }
+            }
+            WhereOperator::Endswith => "LIKE",
+            WhereOperator::Iendswith => {
+                match self.database_type {
+                    DatabaseType::PostgreSQL => "ILIKE",
+                    _ => "LIKE",
+                }
+            }
+            _ => "=", // Safe default for other operators
+        }
+    }
+
+    /// Generate case-insensitive WHERE clause
+    fn generate_case_insensitive_where(
+        &self,
+        column: &str,
+        operator: &WhereOperator,
+        value: &serde_json::Value,
+    ) -> Result<String> {
+        let value_str = value.as_str()
+            .ok_or_else(|| FraiseQLError::validation("Case-insensitive operators require string values"))?;
+
+        match self.database_type {
+            DatabaseType::PostgreSQL => {
+                // PostgreSQL has ILIKE
+                let op = self.operator_to_sql(operator);
+                let pattern = self.format_like_pattern(operator, value_str);
+                Ok(format!("{} {} {}", column, op, pattern))
+            }
+            _ => {
+                // Other databases: use UPPER() for case-insensitive comparison
+                let op = "LIKE";
+                let pattern = self.format_like_pattern(operator, &value_str.to_uppercase());
+                Ok(format!("UPPER({}) {} {}", column, op, pattern))
+            }
+        }
+    }
+
+    /// Format LIKE pattern based on operator
+    fn format_like_pattern(&self, operator: &WhereOperator, value: &str) -> String {
+        match operator {
+            WhereOperator::Contains | WhereOperator::Icontains => {
+                format!("'%{}%'", value.replace('\'', "''"))
+            }
+            WhereOperator::Startswith | WhereOperator::Istartswith => {
+                format!("'{}%'", value.replace('\'', "''"))
+            }
+            WhereOperator::Endswith | WhereOperator::Iendswith => {
+                format!("'%{}'", value.replace('\'', "''"))
+            }
+            _ => format!("'{}'", value.replace('\'', "''")),
+        }
+    }
+
+    /// Format array values for IN/NOT IN clauses
+    fn format_array_values(&self, value: &serde_json::Value) -> Result<String> {
+        let array = value.as_array()
+            .ok_or_else(|| FraiseQLError::validation("IN/NOT IN operators require array values"))?;
+
+        let formatted: Vec<String> = array
+            .iter()
+            .map(|v| self.format_sql_value(v))
+            .collect();
+
+        Ok(formatted.join(", "))
+    }
+
+    /// Format a single SQL value
+    fn format_sql_value(&self, value: &serde_json::Value) -> String {
+        match value {
+            serde_json::Value::Null => "NULL".to_string(),
+            serde_json::Value::Bool(b) => b.to_string(),
+            serde_json::Value::Number(n) => n.to_string(),
+            serde_json::Value::String(s) => format!("'{}'", s.replace('\'', "''")),
+            _ => "NULL".to_string(), // Fallback for arrays/objects
+        }
     }
 
     /// Build GROUP BY clause

@@ -49,11 +49,23 @@ impl SchemaConverter {
             .collect::<Result<Vec<_>>>()
             .context("Failed to convert mutations")?;
 
+        // Convert fact tables from Vec to HashMap<String, serde_json::Value>
+        let fact_tables = intermediate.fact_tables
+            .unwrap_or_default()
+            .into_iter()
+            .map(|ft| {
+                let metadata = serde_json::to_value(&ft)
+                    .expect("Failed to serialize fact table metadata");
+                (ft.table_name.clone(), metadata)
+            })
+            .collect();
+
         let compiled = CompiledSchema {
             types,
             queries,
             mutations,
             subscriptions: vec![], // TODO: Add in future phase
+            fact_tables, // Phase 8A: Analytics metadata
         };
 
         // Validate the compiled schema

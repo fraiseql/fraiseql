@@ -40,6 +40,7 @@
 //! ```
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// Authoring Intermediate Representation.
 ///
@@ -58,6 +59,12 @@ pub struct AuthoringIR {
 
     /// Subscription definitions.
     pub subscriptions: Vec<IRSubscription>,
+
+    /// Fact table metadata (from Python decorators).
+    /// Key: table name (e.g., "tf_sales")
+    /// Value: FactTableMetadata as JSON
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub fact_tables: HashMap<String, serde_json::Value>,
 }
 
 impl AuthoringIR {
@@ -69,6 +76,7 @@ impl AuthoringIR {
             queries: Vec::new(),
             mutations: Vec::new(),
             subscriptions: Vec::new(),
+            fact_tables: HashMap::new(),
         }
     }
 }

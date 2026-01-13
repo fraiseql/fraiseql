@@ -1,13 +1,28 @@
 //! Query executor - main runtime execution engine.
 
 use crate::db::traits::DatabaseAdapter;
-use crate::error::Result;
+use crate::error::{FraiseQLError, Result};
 use crate::schema::CompiledSchema;
 use super::{QueryMatcher, QueryPlanner, ResultProjector, RuntimeConfig};
 use std::sync::Arc;
 
 #[cfg(test)]
 use crate::db::types::{DatabaseType, PoolMetrics};
+
+/// Query type classification for routing.
+#[derive(Debug, Clone, PartialEq)]
+enum QueryType {
+    /// Regular GraphQL query (non-analytics).
+    Regular,
+
+    /// Aggregate analytics query (ends with _aggregate).
+    /// Contains the full query name (e.g., "sales_aggregate").
+    Aggregate(String),
+
+    /// Window function query (ends with _window).
+    /// Contains the full query name (e.g., "sales_window").
+    Window(String),
+}
 
 /// Query executor - executes compiled GraphQL queries.
 ///
@@ -102,6 +117,27 @@ impl<A: DatabaseAdapter> Executor<A> {
         query: &str,
         variables: Option<&serde_json::Value>,
     ) -> Result<String> {
+        // 1. Classify query type
+        let query_type = self.classify_query(query)?;
+
+        // 2. Route to appropriate handler
+        match query_type {
+            QueryType::Regular => self.execute_regular_query(query, variables).await,
+            QueryType::Aggregate(query_name) => {
+                self.execute_aggregate_dispatch(&query_name, variables).await
+            }
+            QueryType::Window(query_name) => {
+                self.execute_window_dispatch(&query_name, variables).await
+            }
+        }
+    }
+
+    /// Execute a regular (non-analytics) GraphQL query.
+    async fn execute_regular_query(
+        &self,
+        query: &str,
+        variables: Option<&serde_json::Value>,
+    ) -> Result<String> {
         // 1. Match query to compiled template
         let query_match = self.matcher.match_query(query, variables)?;
 
@@ -135,6 +171,109 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         // 6. Serialize to JSON string
         Ok(serde_json::to_string(&response)?)
+    }
+
+    /// Classify query type based on operation name.
+    fn classify_query(&self, query: &str) -> Result<QueryType> {
+        // Extract operation name from GraphQL query
+        let operation_name = self.extract_operation_name(query)?;
+
+        // Check if it's an aggregate query (ends with _aggregate)
+        if operation_name.ends_with("_aggregate") {
+            return Ok(QueryType::Aggregate(operation_name));
+        }
+
+        // Check if it's a window query (ends with _window)
+        if operation_name.ends_with("_window") {
+            return Ok(QueryType::Window(operation_name));
+        }
+
+        // Otherwise, it's a regular query
+        Ok(QueryType::Regular)
+    }
+
+    /// Extract operation name from GraphQL query.
+    fn extract_operation_name(&self, query: &str) -> Result<String> {
+        let query_trimmed = query.trim();
+
+        // Try to match "query operationName {"
+        if let Some(start) = query_trimmed.find("query") {
+            let after_query = &query_trimmed[start + 5..].trim_start();
+            if let Some(brace_pos) = after_query.find('{') {
+                let op_name = after_query[..brace_pos].trim();
+                if !op_name.is_empty() {
+                    return Ok(op_name.to_string());
+                }
+            }
+        }
+
+        // Try to match "{ operationName"
+        if let Some(brace_pos) = query_trimmed.find('{') {
+            let after_brace = &query_trimmed[brace_pos + 1..].trim_start();
+            if let Some(space_or_brace) = after_brace.find(|c: char| c.is_whitespace() || c == '{' || c == '(') {
+                let op_name = after_brace[..space_or_brace].trim();
+                if !op_name.is_empty() {
+                    return Ok(op_name.to_string());
+                }
+            }
+        }
+
+        Err(FraiseQLError::Parse {
+            message: "Could not extract operation name from query".to_string(),
+            location: "query".to_string(),
+        })
+    }
+
+    /// Execute an aggregate query dispatch.
+    async fn execute_aggregate_dispatch(
+        &self,
+        query_name: &str,
+        variables: Option<&serde_json::Value>,
+    ) -> Result<String> {
+        // Extract table name from query name (e.g., "sales_aggregate" -> "tf_sales")
+        let table_name = query_name
+            .strip_suffix("_aggregate")
+            .ok_or_else(|| FraiseQLError::Validation {
+                message: format!("Invalid aggregate query name: {}", query_name),
+                path: None,
+            })?;
+
+        let fact_table_name = format!("tf_{}", table_name);
+
+        // Get fact table metadata from schema
+        let metadata_json = self
+            .schema
+            .get_fact_table(&fact_table_name)
+            .ok_or_else(|| FraiseQLError::Validation {
+                message: format!("Fact table '{}' not found in schema", fact_table_name),
+                path: Some(format!("fact_tables.{}", fact_table_name)),
+            })?;
+
+        // Parse metadata into FactTableMetadata
+        let metadata: crate::compiler::fact_table::FactTableMetadata =
+            serde_json::from_value(metadata_json.clone())?;
+
+        // Parse query variables into aggregate query JSON
+        let empty_json = serde_json::json!({});
+        let query_json = variables.unwrap_or(&empty_json);
+
+        // Execute aggregate query
+        self.execute_aggregate_query(query_json, query_name, &metadata)
+            .await
+    }
+
+    /// Execute a window query dispatch.
+    async fn execute_window_dispatch(
+        &self,
+        _query_name: &str,
+        _variables: Option<&serde_json::Value>,
+    ) -> Result<String> {
+        // TODO: Implement window query execution
+        // This will be implemented when Phase 7 (Window Functions) is integrated
+        Err(FraiseQLError::Validation {
+            message: "Window queries not yet implemented".to_string(),
+            path: None,
+        })
     }
 
     /// Execute a query and return parsed JSON.
