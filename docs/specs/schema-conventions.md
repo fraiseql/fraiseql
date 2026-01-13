@@ -889,7 +889,7 @@ This spec defines the **response contract** that all databases must follow.
 - Use composite types for efficiency
 - Two-layer architecture (app.* wrapper → core.* implementation)
 - Built-in mutation logging and CDC
-- PrintOptim pattern reference
+- Industry-standard stored procedure patterns
 
 **Other databases:**
 - SQLite: See `docs/specs/stored-procedures-sqlite.md`
