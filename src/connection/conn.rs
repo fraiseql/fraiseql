@@ -606,15 +606,20 @@ impl Connection {
         let (cancel_tx, mut cancel_rx) = mpsc::channel::<()>(1);
 
         // Spawn background task to read rows
+        let entity_for_metrics = extract_entity_from_query(query).unwrap_or_else(|| "unknown".to_string());
+        let query_start = std::time::Instant::now();
+
         tokio::spawn(async move {
             let strategy = ChunkingStrategy::new(chunk_size);
             let mut chunk = strategy.new_chunk();
+            let mut total_rows = 0u64;
 
             loop {
                 tokio::select! {
                     // Check for cancellation
                     _ = cancel_rx.recv() => {
                         tracing::debug!("query cancelled");
+                        crate::metrics::counters::query_completed("cancelled", &entity_for_metrics);
                         break;
                     }
 
@@ -628,25 +633,39 @@ impl Connection {
                                             chunk.push(json_bytes);
 
                                             if strategy.is_full(&chunk) {
+                                                let chunk_start = std::time::Instant::now();
                                                 let rows = chunk.into_rows();
+                                                let chunk_size_rows = rows.len() as u64;
+
                                                 for row_bytes in rows {
                                                     match parse_json(row_bytes) {
                                                         Ok(value) => {
+                                                            total_rows += 1;
                                                             if result_tx.send(Ok(value)).await.is_err() {
+                                                                crate::metrics::counters::query_completed("error", &entity_for_metrics);
                                                                 break;
                                                             }
                                                         }
                                                         Err(e) => {
+                                                            crate::metrics::counters::json_parse_error(&entity_for_metrics);
                                                             let _ = result_tx.send(Err(e)).await;
+                                                            crate::metrics::counters::query_completed("error", &entity_for_metrics);
                                                             break;
                                                         }
                                                     }
                                                 }
+
+                                                // Record chunk metrics
+                                                let chunk_duration = chunk_start.elapsed().as_millis() as u64;
+                                                crate::metrics::histograms::chunk_processing_duration(&entity_for_metrics, chunk_duration);
+                                                crate::metrics::histograms::chunk_size(&entity_for_metrics, chunk_size_rows);
                                                 chunk = strategy.new_chunk();
                                             }
                                         }
                                         Err(e) => {
+                                            crate::metrics::counters::json_parse_error(&entity_for_metrics);
                                             let _ = result_tx.send(Err(e)).await;
+                                            crate::metrics::counters::query_completed("error", &entity_for_metrics);
                                             break;
                                         }
                                     }
@@ -654,31 +673,53 @@ impl Connection {
                                 BackendMessage::CommandComplete(_) => {
                                     // Send remaining chunk
                                     if !chunk.is_empty() {
+                                        let chunk_start = std::time::Instant::now();
                                         let rows = chunk.into_rows();
+                                        let chunk_size_rows = rows.len() as u64;
+
                                         for row_bytes in rows {
                                             match parse_json(row_bytes) {
                                                 Ok(value) => {
+                                                    total_rows += 1;
                                                     if result_tx.send(Ok(value)).await.is_err() {
+                                                        crate::metrics::counters::query_completed("error", &entity_for_metrics);
                                                         break;
                                                     }
                                                 }
                                                 Err(e) => {
+                                                    crate::metrics::counters::json_parse_error(&entity_for_metrics);
                                                     let _ = result_tx.send(Err(e)).await;
+                                                    crate::metrics::counters::query_completed("error", &entity_for_metrics);
                                                     break;
                                                 }
                                             }
                                         }
+
+                                        // Record final chunk metrics
+                                        let chunk_duration = chunk_start.elapsed().as_millis() as u64;
+                                        crate::metrics::histograms::chunk_processing_duration(&entity_for_metrics, chunk_duration);
+                                        crate::metrics::histograms::chunk_size(&entity_for_metrics, chunk_size_rows);
                                         chunk = strategy.new_chunk();
                                     }
+
+                                    // Record query completion metrics
+                                    let query_duration = query_start.elapsed().as_millis() as u64;
+                                    crate::metrics::counters::rows_processed(&entity_for_metrics, total_rows, "ok");
+                                    crate::metrics::histograms::query_total_duration(&entity_for_metrics, query_duration);
+                                    crate::metrics::counters::query_completed("success", &entity_for_metrics);
                                 }
                                 BackendMessage::ReadyForQuery { .. } => {
                                     break;
                                 }
                                 BackendMessage::ErrorResponse(err) => {
+                                    crate::metrics::counters::query_error(&entity_for_metrics, "server_error");
+                                    crate::metrics::counters::query_completed("error", &entity_for_metrics);
                                     let _ = result_tx.send(Err(Error::Sql(err.to_string()))).await;
                                     break;
                                 }
                                 _ => {
+                                    crate::metrics::counters::query_error(&entity_for_metrics, "protocol_error");
+                                    crate::metrics::counters::query_completed("error", &entity_for_metrics);
                                     let _ = result_tx.send(Err(Error::Protocol(
                                         format!("unexpected message: {:?}", msg)
                                     ))).await;
@@ -686,6 +727,8 @@ impl Connection {
                                 }
                             },
                             Err(e) => {
+                                crate::metrics::counters::query_error(&entity_for_metrics, "connection_error");
+                                crate::metrics::counters::query_completed("error", &entity_for_metrics);
                                 let _ = result_tx.send(Err(e)).await;
                                 break;
                             }

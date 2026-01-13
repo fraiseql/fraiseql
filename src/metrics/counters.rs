@@ -49,6 +49,16 @@ pub fn query_cancelled(entity: &str) {
     .increment(1);
 }
 
+/// Record query completion with status (success, error, cancelled)
+pub fn query_completed(status: &str, entity: &str) {
+    counter!(
+        "fraiseql_query_completed_total",
+        labels::ENTITY => entity.to_string(),
+        labels::STATUS => status.to_string(),
+    )
+    .increment(1);
+}
+
 /// Record rows processed from the database
 pub fn rows_processed(entity: &str, count: u64, status: &str) {
     counter!(
@@ -108,11 +118,11 @@ pub fn protocol_error(message_type: &str) {
     .increment(1);
 }
 
-/// Record a JSON parsing error
-pub fn json_parse_error(reason: &str) {
+/// Record a JSON parsing error by entity
+pub fn json_parse_error(entity: &str) {
     counter!(
         "fraiseql_json_parse_errors_total",
-        labels::REASON => reason.to_string(),
+        labels::ENTITY => entity.to_string(),
     )
     .increment(1);
 }
