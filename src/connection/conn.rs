@@ -631,9 +631,18 @@ impl Connection {
                         row_desc = Some(msg);
                         break;
                     }
+                    BackendMessage::ReadyForQuery { .. } => {
+                        // Received ReadyForQuery without RowDescription
+                        // This means the query didn't produce a result set
+                        return Err(Error::Protocol(
+                            "no result set received from query - \
+                             check that the entity name is correct and the table/view exists"
+                                .into(),
+                        ));
+                    }
                     _ => {
                         return Err(Error::Protocol(format!(
-                            "expected RowDescription, got {:?}",
+                            "unexpected message type in query response: {:?}",
                             msg
                         )));
                     }
