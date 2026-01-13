@@ -55,7 +55,7 @@ async fn main() -> fraiseql_wire::Result<()> {
 
             // Execute a simple query
             let mut stream = client
-                .query("user")
+                .query::<serde_json::Value>("user")
                 .chunk_size(256)
                 .execute()
                 .await?;

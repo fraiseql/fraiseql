@@ -17,7 +17,7 @@ async fn test_hybrid_filtering() {
     // FROM generate_series(1, 100) i
 
     let mut stream = client
-        .query("test")
+        .query::<serde_json::Value>("test")
         .where_sql("(data->>'id')::int > 50")  // SQL: filter to id > 50
         .where_rust(|json| {
             // Rust: filter to even ids

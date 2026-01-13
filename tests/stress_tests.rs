@@ -33,7 +33,7 @@ async fn test_stress_early_stream_drop() {
         .expect("failed to connect");
 
     let mut stream = client
-        .query("projects")
+        .query::<serde_json::Value>("projects")
         .execute()
         .await
         .expect("failed to execute query");
@@ -53,7 +53,7 @@ async fn test_stress_early_stream_drop() {
         .expect("should be able to reconnect");
 
     let mut stream2 = client2
-        .query("projects")
+        .query::<serde_json::Value>("projects")
         .execute()
         .await
         .expect("failed to execute second query");
@@ -97,7 +97,7 @@ async fn test_stress_missing_table() {
         .expect("failed to connect");
 
     let result = client
-        .query("nonexistent_table")
+        .query::<serde_json::Value>("nonexistent_table")
         .execute()
         .await;
 
@@ -116,7 +116,7 @@ async fn test_stress_invalid_where_clause() {
         .expect("failed to connect");
 
     let result = client
-        .query("projects")
+        .query::<serde_json::Value>("projects")
         .where_sql("INVALID SQL SYNTAX (((")
         .execute()
         .await;
@@ -137,7 +137,7 @@ async fn test_stress_empty_result_set() {
 
     // Query with predicate that matches nothing
     let mut stream = client
-        .query("projects")
+        .query::<serde_json::Value>("projects")
         .where_sql("data->>'name' = 'NonexistentProject12345'")
         .execute()
         .await
@@ -174,7 +174,7 @@ async fn test_stress_large_where_clause() {
     where_clause.push(')');
 
     let result = client
-        .query("projects")
+        .query::<serde_json::Value>("projects")
         .where_sql(&where_clause)
         .execute()
         .await;
@@ -227,7 +227,7 @@ async fn test_stress_single_connection_multiple_queries() {
 
     // First query
     let mut stream1 = client
-        .query("projects")
+        .query::<serde_json::Value>("projects")
         .execute()
         .await
         .expect("failed first query");
@@ -253,7 +253,7 @@ async fn test_stress_tiny_chunk_size() {
         .expect("failed to connect");
 
     let mut stream = client
-        .query("projects")
+        .query::<serde_json::Value>("projects")
         .chunk_size(2) // Very small chunk
         .execute()
         .await
@@ -280,7 +280,7 @@ async fn test_stress_huge_chunk_size() {
         .expect("failed to connect");
 
     let mut stream = client
-        .query("projects")
+        .query::<serde_json::Value>("projects")
         .chunk_size(10000) // Very large chunk
         .execute()
         .await
@@ -319,7 +319,7 @@ async fn test_stress_partial_consumption() {
         .expect("failed to connect");
 
     let mut stream = client
-        .query("projects")
+        .query::<serde_json::Value>("projects")
         .execute()
         .await
         .expect("failed to execute");
@@ -351,7 +351,7 @@ async fn test_stress_zero_chunk_size() {
 
     // Attempt to set chunk size to 0 - should either be rejected or default to something safe
     let result = client
-        .query("projects")
+        .query::<serde_json::Value>("projects")
         .chunk_size(0)
         .execute()
         .await;
@@ -388,7 +388,7 @@ async fn test_stress_invalid_order_by() {
         .expect("failed to connect");
 
     let result = client
-        .query("projects")
+        .query::<serde_json::Value>("projects")
         .order_by("INVALID SYNTAX FOR ORDER BY")
         .execute()
         .await;
@@ -408,7 +408,7 @@ async fn test_stress_combined_predicates() {
         .expect("failed to connect");
 
     let mut stream = client
-        .query("users")
+        .query::<serde_json::Value>("users")
         .where_sql("data->>'id' IS NOT NULL")
         .where_rust(|json| {
             // Rust predicate that's very restrictive
@@ -439,7 +439,7 @@ async fn test_stress_json_validity() {
         .expect("failed to connect");
 
     let mut stream = client
-        .query("projects")
+        .query::<serde_json::Value>("projects")
         .execute()
         .await
         .expect("failed to execute");
@@ -479,7 +479,7 @@ async fn test_stress_complex_order_by() {
 
     // Order by JSON field with COLLATE
     let result = client
-        .query("projects")
+        .query::<serde_json::Value>("projects")
         .order_by("data->>'name' COLLATE \"C\" DESC")
         .execute()
         .await;

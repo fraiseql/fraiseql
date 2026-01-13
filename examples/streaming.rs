@@ -34,7 +34,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("✓ Connected to Postgres\n");
 
     let mut stream = client
-        .query("projects")
+        .query::<serde_json::Value>("projects")
         .execute()
         .await
         .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
@@ -99,7 +99,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
 
     let mut stream = client2
-        .query("projects")
+        .query::<serde_json::Value>("projects")
         .chunk_size(512) // Larger chunk
         .execute()
         .await

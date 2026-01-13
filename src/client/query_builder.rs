@@ -14,9 +14,8 @@
 //! - Error messages (type name included)
 
 use crate::client::FraiseClient;
-use crate::stream::{FilteredStream, TypedJsonStream};
+use crate::stream::QueryStream;
 use crate::Result;
-use futures::stream::Stream;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use std::marker::PhantomData;
@@ -263,6 +262,8 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
     /// Type T ONLY affects consumer-side deserialization at poll_next().
     /// SQL, filtering, ordering, and wire protocol are identical regardless of T.
     ///
+    /// The returned stream supports pause/resume/stats for advanced stream control.
+    ///
     /// # Examples
     ///
     /// With type-safe deserialization:
@@ -280,7 +281,15 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
     ///     let json: Value = result?;
     /// }
     /// ```
-    pub async fn execute(self) -> Result<Box<dyn Stream<Item = Result<T>> + Unpin>> {
+    ///
+    /// With stream control:
+    /// ```ignore
+    /// let mut stream = client.query::<serde_json::Value>("projects").execute().await?;
+    /// stream.pause().await?;  // Pause the stream
+    /// let stats = stream.stats();  // Get statistics
+    /// stream.resume().await?;  // Resume the stream
+    /// ```
+    pub async fn execute(self) -> Result<QueryStream<T>> {
         let sql = self.build_sql()?;
         tracing::debug!("executing query: {}", sql);
 
@@ -300,16 +309,8 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
             self.soft_limit_fail_threshold,
         ).await?;
 
-        // Apply Rust predicate if present (filters JSON before deserialization)
-        let filtered_stream: Box<dyn Stream<Item = Result<Value>> + Unpin> =
-            if let Some(predicate) = self.rust_predicate {
-                Box::new(FilteredStream::new(stream, predicate))
-            } else {
-                Box::new(stream)
-            };
-
-        // Wrap in TypedJsonStream for deserialization to T
-        Ok(Box::new(TypedJsonStream::<T>::new(filtered_stream)))
+        // Create QueryStream with optional Rust predicate
+        Ok(QueryStream::new(stream, self.rust_predicate))
     }
 
     /// Build SQL query

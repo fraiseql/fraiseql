@@ -33,7 +33,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Execute a simple query to stream all projects
     println!("Querying: SELECT data FROM v_projects");
-    let mut stream = client.query("projects").execute().await.map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
+    let mut stream = client.query::<serde_json::Value>("projects").execute().await.map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
 
     println!("✓ Query started, streaming results:\n");
 

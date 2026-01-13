@@ -23,7 +23,7 @@ async fn test_simple_query() {
         .expect("connect");
 
     let mut stream = client
-        .query("test")
+        .query::<serde_json::Value>("test")
         .execute()
         .await
         .expect("query");
@@ -46,7 +46,7 @@ async fn test_sql_predicate() {
         .expect("connect");
 
     let mut stream = client
-        .query("test")
+        .query::<serde_json::Value>("test")
         .where_sql("1 = 1")
         .execute()
         .await
@@ -65,7 +65,7 @@ async fn test_rust_predicate() {
         .expect("connect");
 
     let mut stream = client
-        .query("test")
+        .query::<serde_json::Value>("test")
         .where_rust(|json| json.is_object())
         .execute()
         .await
@@ -85,7 +85,7 @@ async fn test_order_by() {
         .expect("connect");
 
     let mut stream = client
-        .query("test")
+        .query::<serde_json::Value>("test")
         .order_by("data->>'id' ASC")
         .execute()
         .await
@@ -111,7 +111,7 @@ async fn test_chunk_size() {
         .expect("connect");
 
     let mut stream = client
-        .query("test")
+        .query::<serde_json::Value>("test")
         .chunk_size(10)
         .execute()
         .await
@@ -134,7 +134,7 @@ async fn test_multiple_predicates() {
         .expect("connect");
 
     let mut stream = client
-        .query("test")
+        .query::<serde_json::Value>("test")
         .where_sql("1 = 1")
         .where_sql("1 = 1")
         .where_rust(|v| v.is_object())
@@ -175,7 +175,7 @@ async fn test_error_handling_invalid_view() {
         .expect("connect");
 
     let result = client
-        .query("nonexistent_view")
+        .query::<serde_json::Value>("nonexistent_view")
         .execute()
         .await;
 
@@ -191,7 +191,7 @@ async fn test_empty_result_set() {
         .expect("connect");
 
     let mut stream = client
-        .query("test")
+        .query::<serde_json::Value>("test")
         .where_sql("FALSE")  // Filter all rows
         .execute()
         .await

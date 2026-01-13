@@ -34,7 +34,7 @@ async fn test_load_moderate_volume() {
 
     let start = Instant::now();
     let mut stream = client
-        .query("projects")
+        .query::<serde_json::Value>("projects")
         .execute()
         .await
         .expect("failed to execute query");
@@ -68,7 +68,7 @@ async fn test_load_large_volume_custom_chunk() {
 
     let start = Instant::now();
     let mut stream = client
-        .query("tasks")
+        .query::<serde_json::Value>("tasks")
         .chunk_size(512) // Larger chunk for more rows per batch
         .execute()
         .await
@@ -103,7 +103,7 @@ async fn test_load_with_sql_predicate() {
 
     let start = Instant::now();
     let mut stream = client
-        .query("projects")
+        .query::<serde_json::Value>("projects")
         .where_sql("data->>'status' = 'active'")
         .execute()
         .await
@@ -136,7 +136,7 @@ async fn test_load_with_rust_predicate() {
 
     let start = Instant::now();
     let mut stream = client
-        .query("users")
+        .query::<serde_json::Value>("users")
         .where_rust(|json| {
             // Only accept users with profile info
             json.get("profile").is_some()
@@ -171,7 +171,7 @@ async fn test_load_large_json_objects() {
 
     let start = Instant::now();
     let mut stream = client
-        .query("documents")
+        .query::<serde_json::Value>("documents")
         .chunk_size(32) // Small chunks for large objects
         .execute()
         .await
@@ -195,7 +195,7 @@ async fn test_load_large_json_objects() {
     println!("  Average size: {} bytes", avg_size);
     println!("  Time: {:?}", elapsed);
 
-    assert!(count >= 0, "should handle large objects");
+    assert!(count > 0, "should have received at least one large object");
 }
 
 /// Test with ORDER BY (server-side sorting)
@@ -210,7 +210,7 @@ async fn test_load_with_order_by() {
 
     let start = Instant::now();
     let mut stream = client
-        .query("projects")
+        .query::<serde_json::Value>("projects")
         .order_by("data->>'name' ASC")
         .execute()
         .await
@@ -264,7 +264,7 @@ async fn test_load_multiple_sequential_connections() {
 
         let start = Instant::now();
         let mut stream = client
-            .query("projects")
+            .query::<serde_json::Value>("projects")
             .execute()
             .await
             .expect("failed to execute");
@@ -302,7 +302,7 @@ async fn test_load_sustained_streaming() {
     let start = Instant::now();
 
     let mut stream = client
-        .query("projects")
+        .query::<serde_json::Value>("projects")
         .execute()
         .await
         .expect("failed to execute query");
@@ -343,7 +343,7 @@ async fn test_load_chunk_size_comparison() {
 
         let start = Instant::now();
         let mut stream = client
-            .query("projects")
+            .query::<serde_json::Value>("projects")
             .chunk_size(chunk_size)
             .execute()
             .await
@@ -376,7 +376,7 @@ async fn test_load_partial_stream_drop() {
         .expect("failed to connect to test database");
 
     let mut stream = client
-        .query("projects")
+        .query::<serde_json::Value>("projects")
         .execute()
         .await
         .expect("failed to execute query");
@@ -403,7 +403,7 @@ async fn test_load_partial_stream_drop() {
         .expect("should be able to reconnect");
 
     let mut stream2 = client2
-        .query("projects")
+        .query::<serde_json::Value>("projects")
         .execute()
         .await
         .expect("failed to execute second query");

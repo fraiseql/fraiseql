@@ -25,7 +25,7 @@ async fn test_client_query_streaming() {
 
     // Build query (consumes client)
     let mut stream = client
-        .query("test")
+        .query::<serde_json::Value>("test")
         .where_sql("1 = 1")
         .order_by("data->>'id' ASC")
         .chunk_size(128)

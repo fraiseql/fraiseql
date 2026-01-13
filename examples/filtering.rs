@@ -34,7 +34,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("✓ Connected to Postgres\n");
 
     let mut stream = client1
-        .query("projects")
+        .query::<serde_json::Value>("projects")
         .where_sql("data->>'status' = 'active'")
         .execute()
         .await
@@ -61,7 +61,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
 
     let mut stream = client2
-        .query("projects")
+        .query::<serde_json::Value>("projects")
         .where_rust(|json| {
             json.get("priority")
                 .and_then(|p| p.as_str())
@@ -95,7 +95,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
 
     let mut stream = client3
-        .query("projects")
+        .query::<serde_json::Value>("projects")
         .where_sql("data->>'status' = 'active'")
         .where_rust(|json| {
             json.get("priority")
