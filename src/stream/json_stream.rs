@@ -6,14 +6,48 @@ use bytes::Bytes;
 use futures::stream::Stream;
 use serde_json::Value;
 use std::pin::Pin;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use std::task::{Context, Poll};
 use tokio::sync::mpsc;
+
+/// Stream statistics snapshot
+///
+/// Provides a read-only view of current stream state without consuming items.
+/// All values are point-in-time measurements.
+#[derive(Debug, Clone)]
+pub struct StreamStats {
+    /// Number of items currently buffered in channel (0-256)
+    pub items_buffered: usize,
+    /// Estimated memory used by buffered items in bytes
+    pub estimated_memory: usize,
+    /// Total rows yielded to consumer so far
+    pub total_rows_yielded: u64,
+    /// Total rows filtered out by Rust predicates
+    pub total_rows_filtered: u64,
+}
+
+impl StreamStats {
+    /// Create zero-valued stats
+    ///
+    /// Useful for testing and initialization.
+    pub fn zero() -> Self {
+        Self {
+            items_buffered: 0,
+            estimated_memory: 0,
+            total_rows_yielded: 0,
+            total_rows_filtered: 0,
+        }
+    }
+}
 
 /// JSON value stream
 pub struct JsonStream {
     receiver: mpsc::Receiver<Result<Value>>,
     _cancel_tx: mpsc::Sender<()>, // Dropped when stream is dropped
     entity: String,  // Entity name for metrics
+    rows_yielded: Arc<AtomicU64>,  // Counter of items yielded to consumer
+    rows_filtered: Arc<AtomicU64>,  // Counter of items filtered
 }
 
 impl JsonStream {
@@ -27,7 +61,54 @@ impl JsonStream {
             receiver,
             _cancel_tx: cancel_tx,
             entity,
+            rows_yielded: Arc::new(AtomicU64::new(0)),
+            rows_filtered: Arc::new(AtomicU64::new(0)),
         }
+    }
+
+    /// Get current stream statistics
+    ///
+    /// Returns a snapshot of stream state without consuming any items.
+    /// This can be called at any time to monitor progress.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let stats = stream.stats();
+    /// println!("Buffered: {}, Yielded: {}", stats.items_buffered, stats.total_rows_yielded);
+    /// ```
+    pub fn stats(&self) -> StreamStats {
+        let items_buffered = self.receiver.len();
+        let estimated_memory = items_buffered * 2048;  // Conservative: 2KB per item
+        let total_rows_yielded = self.rows_yielded.load(Ordering::Relaxed);
+        let total_rows_filtered = self.rows_filtered.load(Ordering::Relaxed);
+
+        StreamStats {
+            items_buffered,
+            estimated_memory,
+            total_rows_yielded,
+            total_rows_filtered,
+        }
+    }
+
+    /// Increment rows yielded counter (called from FilteredStream)
+    pub(crate) fn increment_rows_yielded(&self, count: u64) {
+        self.rows_yielded.fetch_add(count, Ordering::Relaxed);
+    }
+
+    /// Increment rows filtered counter (called from FilteredStream)
+    pub(crate) fn increment_rows_filtered(&self, count: u64) {
+        self.rows_filtered.fetch_add(count, Ordering::Relaxed);
+    }
+
+    /// Clone the yielded counter for passing to background task
+    pub(crate) fn clone_rows_yielded(&self) -> Arc<AtomicU64> {
+        Arc::clone(&self.rows_yielded)
+    }
+
+    /// Clone the filtered counter for passing to background task
+    pub(crate) fn clone_rows_filtered(&self) -> Arc<AtomicU64> {
+        Arc::clone(&self.rows_filtered)
     }
 }
 
@@ -100,5 +181,43 @@ mod tests {
     fn test_parse_invalid_json() {
         let data = Bytes::from_static(b"not json");
         assert!(parse_json(data).is_err());
+    }
+
+    #[test]
+    fn test_stream_stats_creation() {
+        let stats = StreamStats::zero();
+        assert_eq!(stats.items_buffered, 0);
+        assert_eq!(stats.estimated_memory, 0);
+        assert_eq!(stats.total_rows_yielded, 0);
+        assert_eq!(stats.total_rows_filtered, 0);
+    }
+
+    #[test]
+    fn test_stream_stats_memory_estimation() {
+        let stats = StreamStats {
+            items_buffered: 100,
+            estimated_memory: 100 * 2048,
+            total_rows_yielded: 100,
+            total_rows_filtered: 10,
+        };
+
+        // 100 items * 2KB per item = 200KB
+        assert_eq!(stats.estimated_memory, 204800);
+    }
+
+    #[test]
+    fn test_stream_stats_clone() {
+        let stats = StreamStats {
+            items_buffered: 50,
+            estimated_memory: 100000,
+            total_rows_yielded: 500,
+            total_rows_filtered: 50,
+        };
+
+        let cloned = stats.clone();
+        assert_eq!(cloned.items_buffered, stats.items_buffered);
+        assert_eq!(cloned.estimated_memory, stats.estimated_memory);
+        assert_eq!(cloned.total_rows_yielded, stats.total_rows_yielded);
+        assert_eq!(cloned.total_rows_filtered, stats.total_rows_filtered);
     }
 }

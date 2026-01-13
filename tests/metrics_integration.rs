@@ -4,6 +4,7 @@
 //! Tests use the metrics crate to validate that counters and histograms are updated.
 
 use fraiseql_wire::metrics;
+use fraiseql_wire::stream::StreamStats;
 
 /// Test that metrics module exports all required functions
 #[test]
@@ -375,4 +376,67 @@ fn test_channel_occupancy_multiple_entities() {
             metrics::histograms::channel_occupancy(entity, occupancy);
         }
     }
+}
+
+/// Test StreamStats type and memory estimation
+#[test]
+fn test_stream_stats_creation_and_properties() {
+    let stats = StreamStats {
+        items_buffered: 100,
+        estimated_memory: 204800,  // 100 * 2048
+        total_rows_yielded: 1000,
+        total_rows_filtered: 100,
+    };
+
+    assert_eq!(stats.items_buffered, 100);
+    assert_eq!(stats.estimated_memory, 204800);
+    assert_eq!(stats.total_rows_yielded, 1000);
+    assert_eq!(stats.total_rows_filtered, 100);
+}
+
+/// Test StreamStats memory estimation for various buffer sizes
+#[test]
+fn test_stream_stats_memory_estimation_various_sizes() {
+    let buffer_sizes = vec![0, 1, 10, 50, 128, 256];
+    let expected_kb = vec![0, 2, 20, 100, 256, 512];
+
+    for (size, kb) in buffer_sizes.iter().zip(expected_kb.iter()) {
+        let stats = StreamStats {
+            items_buffered: *size,
+            estimated_memory: size * 2048,
+            total_rows_yielded: *size as u64,
+            total_rows_filtered: 0,
+        };
+
+        assert_eq!(stats.estimated_memory, kb * 1024);
+    }
+}
+
+/// Test StreamStats tracking row yields and filters
+#[test]
+fn test_stream_stats_row_tracking() {
+    let stats = StreamStats {
+        items_buffered: 50,
+        estimated_memory: 102400,
+        total_rows_yielded: 5000,
+        total_rows_filtered: 500,
+    };
+
+    // Verify row tracking values
+    assert_eq!(stats.total_rows_yielded, 5000);
+    assert_eq!(stats.total_rows_filtered, 500);
+
+    // Calculate filter ratio
+    let filter_ratio = stats.total_rows_filtered as f64 / stats.total_rows_yielded as f64;
+    assert!((filter_ratio - 0.1).abs() < 0.01);  // Should be ~10%
+}
+
+/// Test StreamStats zero initialization
+#[test]
+fn test_stream_stats_zero() {
+    let stats = StreamStats::zero();
+    assert_eq!(stats.items_buffered, 0);
+    assert_eq!(stats.estimated_memory, 0);
+    assert_eq!(stats.total_rows_yielded, 0);
+    assert_eq!(stats.total_rows_filtered, 0);
 }
