@@ -91,6 +91,10 @@ pub struct CompilerConfig {
 
     /// Enable debug output.
     pub debug: bool,
+
+    /// Database URL for fact table introspection (optional).
+    /// If provided, compiler will auto-detect fact tables and generate aggregate types.
+    pub database_url: Option<String>,
 }
 
 impl Default for CompilerConfig {
@@ -100,6 +104,7 @@ impl Default for CompilerConfig {
             optimize_sql: true,
             strict_mode: false,
             debug: false,
+            database_url: None,
         }
     }
 }
@@ -207,6 +212,9 @@ impl Compiler {
         }
         let compiled = self.codegen.generate(&validated_ir, &sql_templates)?;
 
+        // Note: Fact table metadata will be added by external tools or
+        // through explicit API calls (e.g., from Python decorators)
+
         if self.config.debug {
             eprintln!("[compiler] Compilation complete!");
         }
@@ -245,6 +253,7 @@ mod tests {
             optimize_sql: false,
             strict_mode: true,
             debug: true,
+            database_url: None,
         };
 
         let compiler = Compiler::with_config(config);
@@ -261,5 +270,53 @@ mod tests {
         assert!(config.optimize_sql);
         assert!(!config.strict_mode);
         assert!(!config.debug);
+        assert!(config.database_url.is_none());
+    }
+
+    #[test]
+    fn test_compile_schema_with_fact_tables() {
+        let compiler = Compiler::new();
+        let schema_json = r#"{
+            "types": [],
+            "queries": [],
+            "mutations": []
+        }"#;
+
+        let result = compiler.compile(schema_json);
+        assert!(result.is_ok());
+
+        let compiled = result.unwrap();
+        assert_eq!(compiled.fact_tables.len(), 0);
+    }
+
+    #[test]
+    fn test_compiled_schema_fact_table_operations() {
+        let mut schema = CompiledSchema::new();
+
+        // Test adding fact table
+        let metadata = serde_json::json!({
+            "table_name": "tf_sales",
+            "measures": [],
+            "dimensions": {"name": "data"},
+            "denormalized_filters": []
+        });
+
+        schema.add_fact_table("tf_sales".to_string(), metadata.clone());
+
+        // Test has_fact_tables
+        assert!(schema.has_fact_tables());
+
+        // Test list_fact_tables
+        let tables = schema.list_fact_tables();
+        assert_eq!(tables.len(), 1);
+        assert!(tables.contains(&"tf_sales"));
+
+        // Test get_fact_table
+        let retrieved = schema.get_fact_table("tf_sales");
+        assert!(retrieved.is_some());
+        assert_eq!(retrieved.unwrap(), &metadata);
+
+        // Test get non-existent table
+        assert!(schema.get_fact_table("tf_nonexistent").is_none());
     }
 }

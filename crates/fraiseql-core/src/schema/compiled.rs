@@ -15,6 +15,7 @@
 //! interaction with Python/TypeScript runtimes.
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 use super::field_type::{FieldDefinition, FieldType};
 
@@ -55,6 +56,11 @@ pub struct CompiledSchema {
     /// GraphQL subscription definitions.
     #[serde(default)]
     pub subscriptions: Vec<SubscriptionDefinition>,
+
+    /// Fact table metadata (for analytics queries).
+    /// Key: table name (e.g., "tf_sales")
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub fact_tables: HashMap<String, serde_json::Value>,
 }
 
 impl CompiledSchema {
@@ -131,6 +137,46 @@ impl CompiledSchema {
     #[must_use]
     pub fn operation_count(&self) -> usize {
         self.queries.len() + self.mutations.len() + self.subscriptions.len()
+    }
+
+    /// Register fact table metadata.
+    ///
+    /// # Arguments
+    ///
+    /// * `table_name` - Fact table name (e.g., "tf_sales")
+    /// * `metadata` - Serialized `FactTableMetadata`
+    pub fn add_fact_table(&mut self, table_name: String, metadata: serde_json::Value) {
+        self.fact_tables.insert(table_name, metadata);
+    }
+
+    /// Get fact table metadata by name.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - Fact table name
+    ///
+    /// # Returns
+    ///
+    /// Fact table metadata if found
+    #[must_use]
+    pub fn get_fact_table(&self, name: &str) -> Option<&serde_json::Value> {
+        self.fact_tables.get(name)
+    }
+
+    /// List all fact table names.
+    ///
+    /// # Returns
+    ///
+    /// Vector of fact table names
+    #[must_use]
+    pub fn list_fact_tables(&self) -> Vec<&str> {
+        self.fact_tables.keys().map(String::as_str).collect()
+    }
+
+    /// Check if schema contains any fact tables.
+    #[must_use]
+    pub fn has_fact_tables(&self) -> bool {
+        !self.fact_tables.is_empty()
     }
 
     /// Validate the schema for internal consistency.

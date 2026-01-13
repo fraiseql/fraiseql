@@ -86,6 +86,7 @@ impl CodeGenerator {
             queries,
             mutations,
             subscriptions: Vec::new(), // TODO: Map subscriptions
+            fact_tables: std::collections::HashMap::new(), // Will be populated by compiler
         })
     }
 
