@@ -11,12 +11,15 @@ use std::time::Duration;
 
 /// Helper to connect to test database
 async fn connect_test_db() -> fraiseql_wire::error::Result<FraiseClient> {
+    let user = std::env::var("POSTGRES_USER").unwrap_or_else(|_| "postgres".to_string());
+    let password = std::env::var("POSTGRES_PASSWORD").unwrap_or_else(|_| "postgres".to_string());
+    let host = std::env::var("POSTGRES_HOST").unwrap_or_else(|_| "localhost".to_string());
+    let port = std::env::var("POSTGRES_PORT").unwrap_or_else(|_| "5432".to_string());
+    let db = std::env::var("POSTGRES_DB").unwrap_or_else(|_| "fraiseql_test".to_string());
+
     let conn_string = format!(
-        "postgres://{}:{}@{}/{}",
-        std::env::var("POSTGRES_USER").unwrap_or_else(|_| "postgres".to_string()),
-        std::env::var("POSTGRES_PASSWORD").unwrap_or_else(|_| "postgres".to_string()),
-        std::env::var("POSTGRES_HOST").unwrap_or_else(|_| "localhost".to_string()),
-        std::env::var("POSTGRES_DB").unwrap_or_else(|_| "fraiseql_test".to_string()),
+        "postgres://{}:{}@{}:{}/{}",
+        user, password, host, port, db
     );
 
     FraiseClient::connect(&conn_string).await
@@ -33,7 +36,7 @@ async fn test_stress_early_stream_drop() {
         .expect("failed to connect");
 
     let mut stream = client
-        .query::<serde_json::Value>("projects")
+        .query::<serde_json::Value>("test_staging.projects")
         .execute()
         .await
         .expect("failed to execute query");
@@ -53,7 +56,7 @@ async fn test_stress_early_stream_drop() {
         .expect("should be able to reconnect");
 
     let mut stream2 = client2
-        .query::<serde_json::Value>("projects")
+        .query::<serde_json::Value>("test_staging.projects")
         .execute()
         .await
         .expect("failed to execute second query");
