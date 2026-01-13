@@ -16,7 +16,9 @@
 
 pub mod connection;
 pub mod error;
+pub mod json;
 pub mod protocol;
+pub mod stream;
 pub mod util;
 
 // Re-export commonly used types

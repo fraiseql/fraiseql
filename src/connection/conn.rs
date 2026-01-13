@@ -224,6 +224,135 @@ impl Connection {
         self.transport.shutdown().await?;
         Ok(())
     }
+
+    /// Execute a streaming query
+    ///
+    /// Note: This method consumes the connection. The stream maintains the connection
+    /// internally. Once the stream is exhausted or dropped, the connection is closed.
+    pub async fn streaming_query(
+        mut self,
+        query: &str,
+        chunk_size: usize,
+    ) -> Result<crate::stream::JsonStream> {
+        use crate::json::validate_row_description;
+        use crate::stream::{extract_json_bytes, parse_json, ChunkingStrategy, JsonStream};
+        use serde_json::Value;
+        use tokio::sync::mpsc;
+
+        if self.state != ConnectionState::Idle {
+            return Err(Error::ConnectionBusy(format!(
+                "connection in state: {}",
+                self.state
+            )));
+        }
+
+        self.state.transition(ConnectionState::QueryInProgress)?;
+
+        let query_msg = FrontendMessage::Query(query.to_string());
+        self.send_message(&query_msg).await?;
+
+        self.state.transition(ConnectionState::ReadingResults)?;
+
+        // Read RowDescription first
+        let row_desc = self.receive_message().await?;
+        validate_row_description(&row_desc)?;
+
+        // Create channels
+        let (result_tx, result_rx) = mpsc::channel::<Result<Value>>(chunk_size);
+        let (cancel_tx, mut cancel_rx) = mpsc::channel::<()>(1);
+
+        // Spawn background task to read rows
+        tokio::spawn(async move {
+            let strategy = ChunkingStrategy::new(chunk_size);
+            let mut chunk = strategy.new_chunk();
+
+            loop {
+                tokio::select! {
+                    // Check for cancellation
+                    _ = cancel_rx.recv() => {
+                        tracing::debug!("query cancelled");
+                        break;
+                    }
+
+                    // Read next message
+                    msg_result = self.receive_message() => {
+                        match msg_result {
+                            Ok(msg) => match msg {
+                                BackendMessage::DataRow(_) => {
+                                    match extract_json_bytes(&msg) {
+                                        Ok(json_bytes) => {
+                                            chunk.push(json_bytes);
+
+                                            if strategy.is_full(&chunk) {
+                                                let rows = chunk.into_rows();
+                                                for row_bytes in rows {
+                                                    match parse_json(row_bytes) {
+                                                        Ok(value) => {
+                                                            if result_tx.send(Ok(value)).await.is_err() {
+                                                                break;
+                                                            }
+                                                        }
+                                                        Err(e) => {
+                                                            let _ = result_tx.send(Err(e)).await;
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+                                                chunk = strategy.new_chunk();
+                                            }
+                                        }
+                                        Err(e) => {
+                                            let _ = result_tx.send(Err(e)).await;
+                                            break;
+                                        }
+                                    }
+                                }
+                                BackendMessage::CommandComplete(_) => {
+                                    // Send remaining chunk
+                                    if !chunk.is_empty() {
+                                        let rows = chunk.into_rows();
+                                        for row_bytes in rows {
+                                            match parse_json(row_bytes) {
+                                                Ok(value) => {
+                                                    if result_tx.send(Ok(value)).await.is_err() {
+                                                        break;
+                                                    }
+                                                }
+                                                Err(e) => {
+                                                    let _ = result_tx.send(Err(e)).await;
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                        chunk = strategy.new_chunk();
+                                    }
+                                }
+                                BackendMessage::ReadyForQuery { .. } => {
+                                    break;
+                                }
+                                BackendMessage::ErrorResponse(err) => {
+                                    let _ = result_tx.send(Err(Error::Sql(err.to_string()))).await;
+                                    break;
+                                }
+                                _ => {
+                                    let _ = result_tx.send(Err(Error::Protocol(
+                                        format!("unexpected message: {:?}", msg)
+                                    ))).await;
+                                    break;
+                                }
+                            },
+                            Err(e) => {
+                                let _ = result_tx.send(Err(e)).await;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        Ok(JsonStream::new(result_rx, cancel_tx))
+    }
 }
 
 #[cfg(test)]
