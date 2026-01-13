@@ -13,6 +13,7 @@ use tokio::sync::mpsc;
 pub struct JsonStream {
     receiver: mpsc::Receiver<Result<Value>>,
     _cancel_tx: mpsc::Sender<()>, // Dropped when stream is dropped
+    entity: String,  // Entity name for metrics
 }
 
 impl JsonStream {
@@ -20,10 +21,12 @@ impl JsonStream {
     pub(crate) fn new(
         receiver: mpsc::Receiver<Result<Value>>,
         cancel_tx: mpsc::Sender<()>,
+        entity: String,
     ) -> Self {
         Self {
             receiver,
             _cancel_tx: cancel_tx,
+            entity,
         }
     }
 }
@@ -32,6 +35,10 @@ impl Stream for JsonStream {
     type Item = Result<Value>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        // Record channel occupancy before polling
+        let occupancy = self.receiver.len() as u64;
+        crate::metrics::histograms::channel_occupancy(&self.entity, occupancy);
+
         self.receiver.poll_recv(cx)
     }
 }

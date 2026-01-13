@@ -607,6 +607,7 @@ impl Connection {
 
         // Spawn background task to read rows
         let entity_for_metrics = extract_entity_from_query(query).unwrap_or_else(|| "unknown".to_string());
+        let entity_for_stream = entity_for_metrics.clone();  // Clone for stream
         let query_start = std::time::Instant::now();
 
         tokio::spawn(async move {
@@ -738,7 +739,7 @@ impl Connection {
             }
         });
 
-        Ok(JsonStream::new(result_rx, cancel_tx))
+        Ok(JsonStream::new(result_rx, cancel_tx, entity_for_stream))
     }
 }
 

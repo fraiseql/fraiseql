@@ -26,6 +26,7 @@ fn test_metrics_module_exports() {
     metrics::histograms::filter_duration("test", 10);
     metrics::histograms::deserialization_duration("test", "TestType", 25);
     metrics::histograms::auth_duration("cleartext", 50);
+    metrics::histograms::channel_occupancy("test", 100);
 
     // Verify labels module is accessible
     let _ = metrics::labels::ENTITY;
@@ -334,5 +335,44 @@ fn test_various_entity_names() {
         metrics::histograms::query_total_duration(entity, 500);
         metrics::counters::rows_processed(entity, 1000, "ok");
         metrics::counters::query_completed("success", entity);
+    }
+}
+
+/// Test channel occupancy metrics with various backpressure patterns
+#[test]
+fn test_channel_occupancy_metrics() {
+    let entity = "backpressure_test";
+
+    // Low occupancy: fast consumer relative to producer
+    for i in 0..10 {
+        metrics::histograms::channel_occupancy(entity, i as u64);
+    }
+
+    // Medium occupancy: balanced flow
+    for i in 50..200 {
+        metrics::histograms::channel_occupancy(entity, i as u64);
+    }
+
+    // High occupancy: slow consumer causing backpressure
+    for i in 200..256 {
+        metrics::histograms::channel_occupancy(entity, i as u64);
+    }
+
+    // Full channel (max capacity = 256 default)
+    metrics::histograms::channel_occupancy(entity, 255);
+    metrics::histograms::channel_occupancy(entity, 256);
+}
+
+/// Test channel occupancy with varying entities
+#[test]
+fn test_channel_occupancy_multiple_entities() {
+    let entities = vec!["fast_entity", "slow_entity", "mixed_entity"];
+
+    for entity in entities {
+        // Simulate occupancy evolution for each entity
+        for step in 0..100 {
+            let occupancy = (step % 256) as u64;
+            metrics::histograms::channel_occupancy(entity, occupancy);
+        }
     }
 }

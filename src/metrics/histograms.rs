@@ -110,6 +110,21 @@ pub fn auth_duration(mechanism: &str, duration_ms: u64) {
     .record(duration_ms as f64);
 }
 
+/// Record channel occupancy (number of items buffered in MPSC channel)
+///
+/// This metric shows how many rows are currently waiting in the channel,
+/// which is a direct indicator of backpressure:
+/// - Low values (< 10): Consumer is fast relative to producer
+/// - Medium values (50-200): Balanced flow
+/// - High values (> 240): Consumer is slow, producer is waiting
+pub fn channel_occupancy(entity: &str, items_buffered: u64) {
+    histogram!(
+        "fraiseql_channel_occupancy_rows",
+        labels::ENTITY => entity.to_string(),
+    )
+    .record(items_buffered as f64);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -157,5 +172,14 @@ mod tests {
     fn test_auth_duration() {
         auth_duration(crate::metrics::labels::MECHANISM_SCRAM, 150);
         auth_duration(crate::metrics::labels::MECHANISM_CLEARTEXT, 10);
+    }
+
+    #[test]
+    fn test_channel_occupancy() {
+        channel_occupancy("test_entity", 0);
+        channel_occupancy("test_entity", 50);
+        channel_occupancy("test_entity", 128);
+        channel_occupancy("test_entity", 256);
+        channel_occupancy("test_entity", 255);
     }
 }
