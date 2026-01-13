@@ -264,7 +264,9 @@ fn test_order_by_aggregate_desc() {
             {"count": {}},
             {"revenue_sum": {}}
         ],
-        "orderBy": [{"field": "revenue_sum", "direction": "DESC"}]
+        "orderBy": {
+            "revenue_sum": "DESC"
+        }
     });
 
     let sql = parse_plan_generate(&query);
@@ -280,7 +282,9 @@ fn test_order_by_dimension_asc() {
     let query = json!({
         "groupBy": {"category": true},
         "aggregates": [{"count": {}}],
-        "orderBy": [{"field": "category", "direction": "ASC"}]
+        "orderBy": {
+            "category": "ASC"
+        }
     });
 
     let sql = parse_plan_generate(&query);
@@ -340,7 +344,9 @@ fn test_complex_query_all_clauses() {
             {"revenue_sum": {}},
             {"revenue_avg": {}}
         ],
-        "orderBy": [{"field": "revenue_sum", "direction": "DESC"}],
+        "orderBy": {
+            "revenue_sum": "DESC"
+        },
         "limit": 10
     });
 
