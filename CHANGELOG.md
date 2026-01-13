@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Phase 8.6: Streaming & Resource Management ✅
+
+#### 8.6.1-8.6.6: Complete Streaming Redesign ✅
+- 37 comprehensive metrics (counters, histograms, gauges)
+- Channel occupancy metrics for backpressure visibility
+- Stream statistics API for inline progress monitoring
+- Memory bounds with configurable limits (hard and soft thresholds)
+- Adaptive chunking with self-tuning based on backpressure
+- Stream pause/resume with idempotent semantics
+- Pause timeout with auto-resume capability
+- Per-pause duration metrics
+- Pause reason tracking for diagnostics
+- Dashboard gauges for chunk size and buffered items
+
+**Key Features**:
+- 120 tests all passing (100% coverage)
+- Zero-cost metrics through lazy evaluation
+- Advanced state machine for stream lifecycle
+- Conservative memory estimation (2KB per item)
+- Sliding window adaptive algorithm with hysteresis
+
+**Metrics Added**:
+- Counters: query submission, completion, errors, cancellations, rows processed, deserialization, authentication, memory limits, pause/resume events
+- Histograms: query latencies, chunk processing, JSON parsing, filter duration, deserialization time, channel occupancy, pause duration
+- Gauges: current chunk size, buffered items count
+
+**API Additions**:
+- `JsonStream::pause()`, `resume()`, `pause_with_reason()`
+- `JsonStream::stats()` for stream statistics
+- `AdaptiveChunking::with_bounds()` for custom chunk bounds
+- `StreamState` enum with explicit lifecycle management
+- Memory limit enforcement with configurable thresholds
+
 ### Phase 7.1: Performance Profiling & Optimization ✅
 
 #### 7.1.1 Micro-benchmarks (Core Operations) ✅
