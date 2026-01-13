@@ -594,20 +594,58 @@ impl Connection {
 
             self.state.transition(ConnectionState::ReadingResults)?;
 
-            // Read RowDescription first, but handle potential error responses
-            let row_desc = self.receive_message().await?;
-            match &row_desc {
-                BackendMessage::ErrorResponse(err) => {
-                    // Consume ReadyForQuery before returning error
-                    loop {
-                        let msg = self.receive_message().await?;
-                        if matches!(msg, BackendMessage::ReadyForQuery { .. }) {
-                            break;
+            // Read RowDescription, but handle other messages that may come first
+            // (e.g., ParameterStatus, BackendKeyData, ErrorResponse, NoticeResponse)
+            let mut row_desc = None;
+            loop {
+                let msg = self.receive_message().await?;
+                match msg {
+                    BackendMessage::ErrorResponse(err) => {
+                        // Query failed - consume ReadyForQuery and return error
+                        tracing::debug!("PostgreSQL error response: {}", err);
+                        loop {
+                            let msg = self.receive_message().await?;
+                            if matches!(msg, BackendMessage::ReadyForQuery { .. }) {
+                                break;
+                            }
                         }
+                        return Err(Error::Sql(err.to_string()));
                     }
-                    return Err(Error::Sql(err.to_string()));
+                    BackendMessage::BackendKeyData { process_id, secret_key } => {
+                        // This provides the key needed for cancel requests - store it and continue
+                        tracing::debug!("PostgreSQL backend key data received: pid={}", process_id);
+                        // Note: We would store this if we need to support cancellation
+                        continue;
+                    }
+                    BackendMessage::ParameterStatus { .. } => {
+                        // Parameter status changes are informational - skip them
+                        tracing::debug!("PostgreSQL parameter status change received");
+                        continue;
+                    }
+                    BackendMessage::NoticeResponse(notice) => {
+                        // Notices are non-fatal warnings - skip them
+                        tracing::debug!("PostgreSQL notice: {}", notice);
+                        continue;
+                    }
+                    BackendMessage::RowDescription(_) => {
+                        row_desc = Some(msg);
+                        break;
+                    }
+                    _ => {
+                        return Err(Error::Protocol(format!(
+                            "expected RowDescription, got {:?}",
+                            msg
+                        )));
+                    }
                 }
-                _ => validate_row_description(&row_desc)?,
+            }
+
+            if let Some(row_desc) = row_desc {
+                validate_row_description(&row_desc)?;
+            } else {
+                return Err(Error::Protocol(
+                    "RowDescription not found in query response".into(),
+                ));
             }
 
             // Record startup timing
