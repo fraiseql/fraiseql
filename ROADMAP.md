@@ -207,31 +207,55 @@ Key Finding: fraiseql-wire achieves 1000x-20000x memory savings for large result
 
 ---
 
-## Phase 8: Feature Expansion (v0.2.0)
+## Phase 8: Feature Additions (v0.1.x patch releases)
 
 ### Goal
-Add requested features based on real-world usage feedback and production trial results.
+Add requested features to v0.1.0 while maintaining API stability and backward compatibility.
 
 ### Status: 📋 Planning Phase - Ready to Begin
+
+### Implementation Approach
+
+**Version Strategy**: Stay at v0.1.0 with feature additions in patch releases (v0.1.1, v0.1.2, etc.)
+- Each feature is optional and backward compatible
+- Existing code continues to work without changes
+- New code can opt-in to new features as needed
 
 ### Recommended Feature Priority
 
 Based on typical production needs, we recommend prioritizing in this order:
 
 1. **8.1 TLS Support** (Medium effort) - Required for cloud/remote Postgres
+   - Optional: `FraiseClient::connect_tls(config)` alongside existing `connect()`
+   - Release: v0.1.1
+
 2. **8.3 Connection Configuration** (Low effort) - Better timeout/keepalive control
+   - Optional: `connect_with_config()` alongside existing `connect()`
+   - Release: v0.1.1 or v0.1.2
+
 3. **8.5 Query Metrics** (Low-Medium effort) - Production observability
+   - Optional: `stream.metrics()` after query execution
+   - Release: v0.1.2
+
 4. **8.2 Typed Streaming** (Medium effort) - Type safety improvement
+   - Optional: Generic `query::<T>()`
+   - Release: v0.1.3+ if needed
+
 5. **8.4 SCRAM Authentication** (Medium effort) - Better security than cleartext
+   - Optional: `AuthMethod` enum alongside cleartext
+   - Release: v0.1.3+ if needed
+
 6. **8.6 Connection Pooling** (High effort) - Complex but requested
+   - Recommend: Separate crate `fraiseql-pool` for v1.0+
 
 ### Implementation Strategy
 
 Each feature will:
-1. Be implemented in a feature branch
+1. Be implemented in a feature branch or main (depending on stability)
 2. Include comprehensive tests and documentation
-3. Get peer review before merging
-4. Be released independently as v0.2.x
+3. Get peer review before merging to main
+4. Bump patch version (v0.1.x) when released
+5. Maintain 100% backward compatibility with v0.1.0
 
 ### Optional Features (Select Based on Feedback)
 

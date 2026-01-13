@@ -1,8 +1,9 @@
-# Phase 8: Feature Expansion (v0.2.0)
+# Phase 8: Feature Additions (v0.1.x patch releases)
 
 **Status**: Ready to Begin
-**Target**: Add production-ready features based on real-world usage
-**Version**: v0.2.0 (initial release from Phase 8)
+**Target**: Add production-ready features to v0.1.0 while maintaining backward compatibility
+**Version Strategy**: Stay at v0.1.0 with patch releases (v0.1.1, v0.1.2, v0.1.3, etc.)
+**Approach**: Each feature is optional and can be adopted independently
 
 ---
 
@@ -72,7 +73,9 @@ Phase 8 focuses on **feature expansion** based on production feedback and common
 
 ## Recommended Implementation Plan
 
-### Phase 8a: TLS + Metrics (v0.2.0) - Weeks 1-3
+### Release Schedule (v0.1.x patch releases)
+
+#### v0.1.1: TLS + Connection Config - Weeks 1-2
 
 **Deliverables**:
 1. **TLS Support** (`FraiseClient::connect_tls`)
@@ -80,39 +83,35 @@ Phase 8 focuses on **feature expansion** based on production feedback and common
    - Certificate validation
    - Optional client certificates
    - Tests with self-signed certs
+   - Example program: `examples/tls.rs`
 
-2. **Connection Configuration**
-   - `ConnectionConfig` builder
-   - Timeout settings
+2. **Connection Configuration** (Optional)
+   - `FraiseClient::connect_with_config(config)` or similar
+   - Timeout settings (connect_timeout, statement_timeout)
    - Keepalive options
+   - Application name
    - Tests for all options
+   - Example program: `examples/config.rs`
 
-3. **Query Metrics**
-   - Per-query metrics (rows, bytes, duration)
-   - Simple metrics API
+**Release Notes**: Add optional TLS support with system root certs by default. Requires no changes to existing code.
+
+#### v0.1.2: Query Metrics - Week 3
+
+**Deliverables**:
+1. **Query Metrics**
+   - Per-query metrics (rows, bytes, duration, throughput)
+   - `stream.metrics()` API after execution
    - Integration with tracing
-   - Benchmarks showing overhead
+   - Benchmarks showing < 1% overhead
+   - Example program: `examples/metrics.rs`
 
-### Phase 8b: Typed Streaming (v0.2.1) - Weeks 4-5
+**Release Notes**: Add optional query metrics for production monitoring. Zero overhead if unused.
 
-**Deliverables**:
-1. **Generic Query Builder**
-   - `QueryBuilder<T: DeserializeOwned>`
-   - Automatic JSON→T deserialization
-   - Error handling for type mismatches
+#### v0.1.3+: Typed Streaming & SCRAM (If Needed)
 
-2. **Tests & Examples**
-   - Type-safe example programs
-   - Serde derive examples
-   - Error cases
-
-### Phase 8c: SCRAM Auth (v0.2.2) - If Needed
-
-**Deliverables**:
-1. **SCRAM-SHA-256 Implementation**
-   - Full SCRAM-SHA-256 protocol
-   - Backward compatible with cleartext
-   - Tests against Postgres SCRAM
+**Deliverables** (Defer if not requested):
+1. **Typed Streaming** - Optional generic `query::<T>()`
+2. **SCRAM Auth** - Optional `AuthMethod` enum for better security
 
 ---
 
@@ -542,14 +541,27 @@ Each completed feature must:
 
 ## Timeline Estimate
 
-| Feature | Estimate | Dependencies |
-|---------|----------|--------------|
-| TLS Support | 1-2 weeks | None |
-| Connection Config | 3-5 days | None |
-| Query Metrics | 1 week | None |
-| Typed Streaming | 1-2 weeks | None |
-| SCRAM Auth | 2 weeks | If needed |
-| **Total (Priority 1-3)** | **3-4 weeks** | **Ready to ship v0.2.0** |
+### Release v0.1.1 (TLS + Config)
+| Feature | Estimate | Status |
+|---------|----------|--------|
+| TLS Support | 1-2 weeks | ✅ Foundation in place |
+| Connection Config | 3-5 days | 📋 Planned |
+| Testing & Examples | 3-4 days | 📋 Planned |
+| **Total for v0.1.1** | **2-3 weeks** | **Ready to start** |
+
+### Release v0.1.2 (Metrics)
+| Feature | Estimate | Status |
+|---------|----------|--------|
+| Query Metrics | 1 week | 📋 Planned |
+| Testing & Examples | 3-4 days | 📋 Planned |
+| **Total for v0.1.2** | **1-2 weeks** | **Dependent on v0.1.1** |
+
+### Deferred (v0.1.3+)
+| Feature | Estimate | Status |
+|---------|----------|--------|
+| Typed Streaming | 1-2 weeks | ⏳ If requested |
+| SCRAM Auth | 2 weeks | ⏳ If requested |
+| **Grand Total (all features)** | **4-6 weeks** | **v0.1.0 + all opt-ins** |
 
 ---
 
