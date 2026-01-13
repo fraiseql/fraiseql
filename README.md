@@ -347,7 +347,7 @@ By narrowing scope, `fraiseql-wire` delivers performance and clarity that genera
 ## Credits
 
 **Author:**
-- Lionel Hamayon (Évolution digitale)
+- Lionel Hamayon (@evoludigit)
 
 **Part of:** FraiseQL — Compiled GraphQL for deterministic Postgres execution
 
