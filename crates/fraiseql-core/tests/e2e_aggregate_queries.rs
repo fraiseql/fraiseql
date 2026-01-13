@@ -471,3 +471,169 @@ fn test_sql_no_unnecessary_clauses() {
     assert!(!sql.contains("ORDER BY"));
     assert!(!sql.contains("LIMIT"));
 }
+
+// =============================================================================
+// HAVING Clause Tests
+// =============================================================================
+
+#[test]
+fn test_having_simple_count() {
+    let query = json!({
+        "groupBy": {"category": true},
+        "aggregates": [{"count": {}}],
+        "having": {
+            "count_gt": 5
+        }
+    });
+
+    let sql = parse_plan_generate(&query);
+
+    assert_sql_contains(&sql, &[
+        "GROUP BY",
+        "HAVING",
+        "COUNT(*) > 5"
+    ]);
+}
+
+#[test]
+fn test_having_aggregate_sum() {
+    let query = json!({
+        "groupBy": {"category": true},
+        "aggregates": [
+            {"count": {}},
+            {"revenue_sum": {}}
+        ],
+        "having": {
+            "revenue_sum_gte": 1000.0
+        }
+    });
+
+    let sql = parse_plan_generate(&query);
+
+    assert_sql_contains(&sql, &[
+        "GROUP BY",
+        "HAVING",
+        "SUM(revenue) >= 1000"
+    ]);
+}
+
+#[test]
+fn test_having_multiple_conditions() {
+    let query = json!({
+        "groupBy": {"category": true},
+        "aggregates": [
+            {"count": {}},
+            {"revenue_sum": {}},
+            {"revenue_avg": {}}
+        ],
+        "having": {
+            "count_gt": 10,
+            "revenue_avg_gte": 50.0
+        }
+    });
+
+    let sql = parse_plan_generate(&query);
+
+    assert_sql_contains(&sql, &[
+        "HAVING",
+        "COUNT(*) > 10",
+        "AVG(revenue) >= 50",
+        "AND"  // Multiple conditions are AND-ed
+    ]);
+}
+
+#[test]
+fn test_having_with_where() {
+    // WHERE filters rows before aggregation
+    // HAVING filters aggregated results
+    let query = json!({
+        "where": {
+            "region_eq": "North"
+        },
+        "groupBy": {"category": true},
+        "aggregates": [{"revenue_sum": {}}],
+        "having": {
+            "revenue_sum_gt": 5000.0
+        }
+    });
+
+    let sql = parse_plan_generate(&query);
+
+    // Verify SQL clause order: WHERE → GROUP BY → HAVING
+    let where_pos = sql.find("WHERE").expect("Missing WHERE");
+    let group_pos = sql.find("GROUP BY").expect("Missing GROUP BY");
+    let having_pos = sql.find("HAVING").expect("Missing HAVING");
+
+    assert!(where_pos < group_pos, "WHERE should come before GROUP BY");
+    assert!(group_pos < having_pos, "GROUP BY should come before HAVING");
+
+    assert_sql_contains(&sql, &[
+        "data->>'region'",
+        "= 'North'",
+        "SUM(revenue) > 5000"
+    ]);
+}
+
+#[test]
+fn test_sql_clause_order_with_having() {
+    let query = json!({
+        "where": {"customer_id_eq": "cust-001"},
+        "groupBy": {"category": true},
+        "aggregates": [{"count": {}}, {"revenue_sum": {}}],
+        "having": {"count_gt": 5},
+        "orderBy": {"revenue_sum": "DESC"},
+        "limit": 10
+    });
+
+    let sql = parse_plan_generate(&query);
+
+    // Verify correct SQL clause order:
+    // SELECT → FROM → WHERE → GROUP BY → HAVING → ORDER BY → LIMIT
+    let select_pos = sql.find("SELECT").expect("Missing SELECT");
+    let from_pos = sql.find("FROM").expect("Missing FROM");
+    let where_pos = sql.find("WHERE").expect("Missing WHERE");
+    let group_pos = sql.find("GROUP BY").expect("Missing GROUP BY");
+    let having_pos = sql.find("HAVING").expect("Missing HAVING");
+    let order_pos = sql.find("ORDER BY").expect("Missing ORDER BY");
+    let limit_pos = sql.find("LIMIT").expect("Missing LIMIT");
+
+    assert!(select_pos < from_pos);
+    assert!(from_pos < where_pos);
+    assert!(where_pos < group_pos);
+    assert!(group_pos < having_pos);
+    assert!(having_pos < order_pos);
+    assert!(order_pos < limit_pos);
+}
+
+#[test]
+fn test_having_different_operators() {
+    // Test various HAVING operators: gt, gte, lt, lte, eq, neq
+    let query = json!({
+        "groupBy": {"category": true},
+        "aggregates": [
+            {"count": {}},
+            {"revenue_sum": {}},
+            {"revenue_avg": {}},
+            {"revenue_min": {}},
+            {"revenue_max": {}}
+        ],
+        "having": {
+            "count_gt": 10,
+            "revenue_sum_gte": 1000.0,
+            "revenue_avg_lt": 200.0,
+            "revenue_min_lte": 50.0,
+            "revenue_max_eq": 500.0
+        }
+    });
+
+    let sql = parse_plan_generate(&query);
+
+    assert_sql_contains(&sql, &[
+        "HAVING",
+        "COUNT(*) > 10",
+        "SUM(revenue) >= 1000",
+        "AVG(revenue) < 200",
+        "MIN(revenue) <= 50",
+        "MAX(revenue) = 500"
+    ]);
+}

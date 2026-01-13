@@ -63,7 +63,7 @@ pub mod postgres;
 pub use collation::{CollationCapabilities, CollationMapper};
 pub use traits::{DatabaseAdapter, DatabaseCapabilities};
 pub use types::{DatabaseType, JsonbValue, PoolMetrics};
-pub use where_clause::{WhereClause, WhereOperator};
+pub use where_clause::{HavingClause, WhereClause, WhereOperator};
 
 #[cfg(feature = "postgres")]
 pub use postgres::PostgresAdapter;

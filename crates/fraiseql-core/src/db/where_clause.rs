@@ -291,6 +291,70 @@ impl WhereOperator {
     }
 }
 
+/// HAVING clause abstract syntax tree.
+///
+/// HAVING filters aggregated results after GROUP BY, while WHERE filters rows before aggregation.
+///
+/// # Example
+///
+/// ```rust
+/// use fraiseql_core::db::{HavingClause, WhereOperator};
+/// use serde_json::json;
+///
+/// // Simple condition: COUNT(*) > 10
+/// let having_clause = HavingClause::Aggregate {
+///     aggregate: "count".to_string(),
+///     operator: WhereOperator::Gt,
+///     value: json!(10),
+/// };
+///
+/// // Complex condition: (COUNT(*) > 10) AND (SUM(revenue) >= 1000)
+/// let having_clause = HavingClause::And(vec![
+///     HavingClause::Aggregate {
+///         aggregate: "count".to_string(),
+///         operator: WhereOperator::Gt,
+///         value: json!(10),
+///     },
+///     HavingClause::Aggregate {
+///         aggregate: "revenue_sum".to_string(),
+///         operator: WhereOperator::Gte,
+///         value: json!(1000),
+///     },
+/// ]);
+/// ```
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum HavingClause {
+    /// Aggregate field condition (e.g., count_gt, revenue_sum_gte).
+    Aggregate {
+        /// Aggregate name: "count" or "field_function" (e.g., "revenue_sum").
+        aggregate: String,
+        /// Comparison operator.
+        operator: WhereOperator,
+        /// Value to compare against.
+        value: serde_json::Value,
+    },
+
+    /// Logical AND of multiple conditions.
+    And(Vec<HavingClause>),
+
+    /// Logical OR of multiple conditions.
+    Or(Vec<HavingClause>),
+
+    /// Logical NOT of a condition.
+    Not(Box<HavingClause>),
+}
+
+impl HavingClause {
+    /// Check if HAVING clause is empty.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        match self {
+            Self::And(clauses) | Self::Or(clauses) => clauses.is_empty(),
+            Self::Not(_) | Self::Aggregate { .. } => false,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
