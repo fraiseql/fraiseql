@@ -78,6 +78,13 @@ impl Connection {
 
     /// Perform startup and authentication
     pub async fn startup(&mut self, config: &ConnectionConfig) -> Result<()> {
+        let _span = tracing::info_span!(
+            "startup",
+            user = %config.user,
+            database = %config.database
+        )
+        .entered();
+
         self.state.transition(ConnectionState::AwaitingAuth)?;
 
         // Build startup parameters
@@ -101,6 +108,7 @@ impl Connection {
         self.authenticate(config).await?;
 
         self.state.transition(ConnectionState::Idle)?;
+        tracing::info!("startup complete");
         Ok(())
     }
 
@@ -234,6 +242,13 @@ impl Connection {
         query: &str,
         chunk_size: usize,
     ) -> Result<crate::stream::JsonStream> {
+        let _span = tracing::debug_span!(
+            "streaming_query",
+            query = %query,
+            chunk_size = %chunk_size
+        )
+        .entered();
+
         use crate::json::validate_row_description;
         use crate::stream::{extract_json_bytes, parse_json, ChunkingStrategy, JsonStream};
         use serde_json::Value;

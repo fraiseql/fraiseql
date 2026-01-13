@@ -3,6 +3,15 @@ name = "fraiseql-wire"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.75"
+authors = ["FraiseQL Contributors"]
+license = "MIT OR Apache-2.0"
+description = "Streaming JSON query engine for Postgres 17"
+homepage = "https://github.com/fraiseql/fraiseql-wire"
+repository = "https://github.com/fraiseql/fraiseql-wire"
+documentation = "https://docs.rs/fraiseql-wire"
+readme = "README.md"
+keywords = ["postgres", "postgresql", "json", "streaming", "async"]
+categories = ["database", "asynchronous"]
 
 [dependencies]
 # Async runtime
