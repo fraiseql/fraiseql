@@ -1,8 +1,9 @@
 //! Query builder API
 
 use crate::client::FraiseClient;
-use crate::stream::JsonStream;
-use crate::{Error, Result};
+use crate::stream::FilteredStream;
+use crate::Result;
+use futures::stream::Stream;
 use serde_json::Value;
 
 /// Type alias for a Rust-side predicate function
@@ -63,19 +64,21 @@ impl QueryBuilder {
     }
 
     /// Execute query and return JSON stream
-    pub async fn execute(self) -> Result<JsonStream> {
+    ///
+    /// If a Rust predicate was added via `where_rust()`, the returned stream will
+    /// filter values based on the predicate. Otherwise, all values are passed through.
+    pub async fn execute(self) -> Result<Box<dyn Stream<Item = Result<Value>> + Unpin>> {
         let sql = self.build_sql()?;
         tracing::debug!("executing query: {}", sql);
 
-        // TODO: Apply rust_predicate if present (Phase 5)
-        if self.rust_predicate.is_some() {
-            return Err(Error::Config(
-                "Rust predicates not yet implemented".into(),
-            ));
-        }
-
         let stream = self.client.execute_query(&sql, self.chunk_size).await?;
-        Ok(stream)
+
+        // Apply Rust predicate if present
+        if let Some(predicate) = self.rust_predicate {
+            Ok(Box::new(FilteredStream::new(stream, predicate)))
+        } else {
+            Ok(Box::new(stream))
+        }
     }
 
     /// Build SQL query

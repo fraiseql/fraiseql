@@ -58,7 +58,11 @@ impl FraiseClient {
     /// # async fn example(client: fraiseql_wire::FraiseClient) -> fraiseql_wire::Result<()> {
     /// let stream = client
     ///     .query("user")
-    ///     .where_sql("data->>'status' = 'active'")
+    ///     .where_sql("data->>'type' = 'customer'")  // SQL predicate
+    ///     .where_rust(|json| {
+    ///         // Rust predicate (applied client-side)
+    ///         json["estimated_value"].as_f64().unwrap_or(0.0) > 1000.0
+    ///     })
     ///     .order_by("data->>'name' ASC")
     ///     .execute()
     ///     .await?;
