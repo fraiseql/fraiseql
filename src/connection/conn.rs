@@ -644,7 +644,9 @@ impl Connection {
                 validate_row_description(&row_desc)?;
             } else {
                 return Err(Error::Protocol(
-                    "RowDescription not found in query response".into(),
+                    "no RowDescription received - query may not have been executed correctly. \
+                     Check that the entity name is correct and the table/view exists."
+                        .into(),
                 ));
             }
 
