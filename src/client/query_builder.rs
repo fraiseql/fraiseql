@@ -5,7 +5,7 @@
 //! **IMPORTANT**: Type T is **consumer-side only**.
 //!
 //! Type T does NOT affect:
-//! - SQL generation (always `SELECT data FROM v_{entity}`)
+//! - SQL generation (always `SELECT data FROM {entity}`)
 //! - Filtering (where_sql, where_rust, order_by)
 //! - Wire protocol (identical for all T)
 //!
@@ -315,7 +315,7 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
 
     /// Build SQL query
     fn build_sql(&self) -> Result<String> {
-        let mut sql = format!("SELECT data FROM v_{}", self.entity);
+        let mut sql = format!("SELECT data FROM {}", self.entity);
 
         if !self.sql_predicates.is_empty() {
             sql.push_str(" WHERE ");
@@ -339,7 +339,7 @@ mod tests {
         predicates: Vec<&str>,
         order_by: Option<&str>,
     ) -> String {
-        let mut sql = format!("SELECT data FROM v_{}", entity);
+        let mut sql = format!("SELECT data FROM {}", entity);
         if !predicates.is_empty() {
             sql.push_str(" WHERE ");
             sql.push_str(&predicates.join(" AND "));
@@ -354,19 +354,19 @@ mod tests {
     #[test]
     fn test_build_sql_simple() {
         let sql = build_test_sql("user", vec![], None);
-        assert_eq!(sql, "SELECT data FROM v_user");
+        assert_eq!(sql, "SELECT data FROM user");
     }
 
     #[test]
     fn test_build_sql_with_where() {
         let sql = build_test_sql("user", vec!["data->>'status' = 'active'"], None);
-        assert_eq!(sql, "SELECT data FROM v_user WHERE data->>'status' = 'active'");
+        assert_eq!(sql, "SELECT data FROM user WHERE data->>'status' = 'active'");
     }
 
     #[test]
     fn test_build_sql_with_order() {
         let sql = build_test_sql("user", vec![], Some("data->>'name' ASC"));
-        assert_eq!(sql, "SELECT data FROM v_user ORDER BY data->>'name' ASC");
+        assert_eq!(sql, "SELECT data FROM user ORDER BY data->>'name' ASC");
     }
 
     // Stream pipeline integration tests
