@@ -183,6 +183,34 @@ pub fn memory_limit_exceeded(entity: &str) {
     .increment(1);
 }
 
+/// Record an adaptive chunk size adjustment
+///
+/// Called when adaptive chunking decides to increase or decrease chunk_size
+/// based on channel occupancy observations.
+///
+/// # Labels
+/// - `entity`: The query entity (project, etc.)
+/// - `direction`: Either "increase" or "decrease"
+/// - `old_size`: The previous chunk size (e.g., "256")
+/// - `new_size`: The new chunk size after adjustment (e.g., "384")
+///
+/// # Example
+/// ```ignore
+/// adaptive_chunk_adjusted("projects", 256, 384);
+/// ```
+pub fn adaptive_chunk_adjusted(entity: &str, old_size: usize, new_size: usize) {
+    let direction = if new_size > old_size { "increase" } else { "decrease" };
+
+    counter!(
+        "fraiseql_adaptive_chunk_adjusted_total",
+        labels::ENTITY => entity.to_string(),
+        "direction" => direction.to_string(),
+        "old_size" => old_size.to_string(),
+        "new_size" => new_size.to_string(),
+    )
+    .increment(1);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -222,5 +250,15 @@ mod tests {
     #[test]
     fn test_memory_limit_exceeded() {
         memory_limit_exceeded("test_entity");
+    }
+
+    #[test]
+    fn test_adaptive_chunk_adjusted_increase() {
+        adaptive_chunk_adjusted("test_entity", 256, 384);
+    }
+
+    #[test]
+    fn test_adaptive_chunk_adjusted_decrease() {
+        adaptive_chunk_adjusted("test_entity", 256, 170);
     }
 }

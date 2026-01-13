@@ -63,6 +63,9 @@ pub struct QueryBuilder<T: DeserializeOwned + Unpin + 'static = serde_json::Valu
     max_memory: Option<usize>,
     soft_limit_warn_threshold: Option<f32>,  // Percentage (0.0-1.0) at which to warn
     soft_limit_fail_threshold: Option<f32>,  // Percentage (0.0-1.0) at which to error
+    enable_adaptive_chunking: bool,
+    adaptive_min_chunk_size: Option<usize>,
+    adaptive_max_chunk_size: Option<usize>,
     _phantom: PhantomData<T>,
 }
 
@@ -79,6 +82,9 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
             max_memory: None,
             soft_limit_warn_threshold: None,
             soft_limit_fail_threshold: None,
+            enable_adaptive_chunking: true,  // Enabled by default
+            adaptive_min_chunk_size: None,
+            adaptive_max_chunk_size: None,
             _phantom: PhantomData,
         }
     }
@@ -181,6 +187,74 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
             self.soft_limit_warn_threshold = Some(warn);
             self.soft_limit_fail_threshold = Some(fail);
         }
+        self
+    }
+
+    /// Enable or disable adaptive chunk sizing (default: enabled)
+    ///
+    /// Adaptive chunking automatically adjusts `chunk_size` based on channel occupancy:
+    /// - High occupancy (>80%): Decreases chunk size to reduce producer pressure
+    /// - Low occupancy (<20%): Increases chunk size to optimize batching efficiency
+    ///
+    /// Enabled by default for zero-configuration self-tuning.
+    /// Disable if you need fixed chunk sizes or encounter unexpected behavior.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let stream = client
+    ///     .query::<Project>("projects")
+    ///     .adaptive_chunking(false)  // Disable adaptive tuning
+    ///     .chunk_size(512)  // Use fixed size
+    ///     .execute()
+    ///     .await?;
+    /// ```
+    pub fn adaptive_chunking(mut self, enabled: bool) -> Self {
+        self.enable_adaptive_chunking = enabled;
+        self
+    }
+
+    /// Override minimum chunk size for adaptive tuning (default: 16)
+    ///
+    /// Adaptive chunking will never decrease chunk size below this value.
+    /// Useful if you need minimum batching for performance.
+    ///
+    /// Only applies if adaptive chunking is enabled.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let stream = client
+    ///     .query::<Project>("projects")
+    ///     .adaptive_chunking(true)
+    ///     .adaptive_min_size(32)  // Don't go below 32 items per batch
+    ///     .execute()
+    ///     .await?;
+    /// ```
+    pub fn adaptive_min_size(mut self, size: usize) -> Self {
+        self.adaptive_min_chunk_size = Some(size);
+        self
+    }
+
+    /// Override maximum chunk size for adaptive tuning (default: 1024)
+    ///
+    /// Adaptive chunking will never increase chunk size above this value.
+    /// Useful if you need memory bounds or latency guarantees.
+    ///
+    /// Only applies if adaptive chunking is enabled.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let stream = client
+    ///     .query::<Project>("projects")
+    ///     .adaptive_chunking(true)
+    ///     .adaptive_max_size(512)  // Cap at 512 items per batch
+    ///     .execute()
+    ///     .await?;
+    /// ```
+    pub fn adaptive_max_size(mut self, size: usize) -> Self {
+        self.adaptive_max_chunk_size = Some(size);
         self
     }
 

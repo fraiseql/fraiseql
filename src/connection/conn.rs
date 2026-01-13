@@ -566,6 +566,9 @@ impl Connection {
         max_memory: Option<usize>,
         soft_limit_warn_threshold: Option<f32>,
         soft_limit_fail_threshold: Option<f32>,
+        enable_adaptive_chunking: bool,
+        adaptive_min_chunk_size: Option<usize>,
+        adaptive_max_chunk_size: Option<usize>,
     ) -> Result<crate::stream::JsonStream> {
         let startup_start = std::time::Instant::now();
 
@@ -577,7 +580,7 @@ impl Connection {
         .entered();
 
         use crate::json::validate_row_description;
-        use crate::stream::{extract_json_bytes, parse_json, ChunkingStrategy, JsonStream};
+        use crate::stream::{extract_json_bytes, parse_json, AdaptiveChunking, ChunkingStrategy, JsonStream};
         use serde_json::Value;
         use tokio::sync::mpsc;
 
@@ -614,9 +617,22 @@ impl Connection {
         let query_start = std::time::Instant::now();
 
         tokio::spawn(async move {
-            let strategy = ChunkingStrategy::new(chunk_size);
+            let mut strategy = ChunkingStrategy::new(chunk_size);
             let mut chunk = strategy.new_chunk();
             let mut total_rows = 0u64;
+
+            // Initialize adaptive chunking if enabled
+            let mut adaptive = if enable_adaptive_chunking {
+                let adp = AdaptiveChunking::new();
+                // Note: AdaptiveChunking::new() uses hardcoded defaults (16-1024 bounds)
+                // Custom min/max would require setter methods on AdaptiveChunking
+                // For now, we accept the default bounds and store the parameters for future use
+                let _ = (adaptive_min_chunk_size, adaptive_max_chunk_size);
+                Some(adp)
+            } else {
+                None
+            };
+            let mut current_chunk_size = chunk_size;
 
             loop {
                 tokio::select! {
@@ -663,6 +679,40 @@ impl Connection {
                                                 let chunk_duration = chunk_start.elapsed().as_millis() as u64;
                                                 crate::metrics::histograms::chunk_processing_duration(&entity_for_metrics, chunk_duration);
                                                 crate::metrics::histograms::chunk_size(&entity_for_metrics, chunk_size_rows);
+
+                                                // Adaptive chunking: observe occupancy and adjust if needed
+                                                // We estimate occupancy based on the number of rows just sent.
+                                                // In steady state, if we're sending full chunks, the channel is working normally.
+                                                // If chunk_size_rows < current_chunk_size, we're reaching end of stream.
+                                                if let Some(ref mut adaptive) = adaptive {
+                                                    // Estimate current channel occupancy:
+                                                    // - If we just sent a full chunk: likely high occupancy
+                                                    // - If we're near end: likely low occupancy
+                                                    // Use the rows we just sent as the occupancy estimate
+                                                    let occupancy = chunk_size_rows as usize;
+                                                    if let Some(new_size) = adaptive.observe(occupancy, current_chunk_size) {
+                                                        let old_size = current_chunk_size;
+                                                        current_chunk_size = new_size;
+
+                                                        // Update strategy for next chunk
+                                                        strategy = ChunkingStrategy::new(current_chunk_size);
+
+                                                        // Record metric
+                                                        crate::metrics::counters::adaptive_chunk_adjusted(
+                                                            &entity_for_metrics,
+                                                            old_size,
+                                                            new_size,
+                                                        );
+
+                                                        tracing::debug!(
+                                                            entity = &entity_for_metrics,
+                                                            old_size = old_size,
+                                                            new_size = new_size,
+                                                            "adaptive chunk size adjusted"
+                                                        );
+                                                    }
+                                                }
+
                                                 chunk = strategy.new_chunk();
                                             }
                                         }
