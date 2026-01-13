@@ -174,6 +174,15 @@ pub fn auth_failed(mechanism: &str, reason: &str) {
     .increment(1);
 }
 
+/// Record memory limit exceeded event
+pub fn memory_limit_exceeded(entity: &str) {
+    counter!(
+        "fraiseql_memory_limit_exceeded_total",
+        labels::ENTITY => entity.to_string(),
+    )
+    .increment(1);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -208,5 +217,10 @@ mod tests {
     #[test]
     fn test_auth_attempted() {
         auth_attempted(labels::MECHANISM_SCRAM);
+    }
+
+    #[test]
+    fn test_memory_limit_exceeded() {
+        memory_limit_exceeded("test_entity");
     }
 }

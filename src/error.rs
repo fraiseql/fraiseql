@@ -73,8 +73,18 @@ pub enum Error {
 
     /// Memory limit exceeded
     ///
+    /// **Terminal error**: The consumer cannot keep pace with data arrival.
+    ///
     /// Occurs when estimated buffered memory exceeds the configured maximum.
     /// This indicates the consumer is too slow relative to data arrival rate.
+    ///
+    /// NOT retriable: Retrying the same query with the same consumer will hit the same limit.
+    ///
+    /// Solutions:
+    /// 1. Increase consumer throughput (faster `.next()` polling)
+    /// 2. Reduce items in flight (configure lower `chunk_size`)
+    /// 3. Remove memory limit (use unbounded mode)
+    /// 4. Use different transport (consider `tokio-postgres` for flexibility)
     #[error("memory limit exceeded: {current} bytes buffered > {limit} bytes limit")]
     MemoryLimitExceeded {
         /// Configured memory limit in bytes

@@ -60,6 +60,7 @@ pub struct QueryBuilder<T: DeserializeOwned + Unpin + 'static = serde_json::Valu
     rust_predicate: Option<RustPredicate>,
     order_by: Option<String>,
     chunk_size: usize,
+    max_memory: Option<usize>,
     _phantom: PhantomData<T>,
 }
 
@@ -73,6 +74,7 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
             rust_predicate: None,
             order_by: None,
             chunk_size: 256,
+            max_memory: None,
             _phantom: PhantomData,
         }
     }
@@ -113,6 +115,37 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
         self
     }
 
+    /// Set maximum memory limit for buffered items (default: unbounded)
+    ///
+    /// When the estimated memory usage of buffered items exceeds this limit,
+    /// the stream will return `Error::MemoryLimitExceeded` instead of additional items.
+    ///
+    /// Memory is estimated as: `items_buffered * 2048 bytes` (conservative for typical JSON).
+    ///
+    /// By default, `max_memory()` is None (unbounded), maintaining backward compatibility.
+    /// Only set if you need hard memory bounds.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let stream = client
+    ///     .query::<Project>("projects")
+    ///     .max_memory(500_000_000)  // 500 MB limit
+    ///     .execute()
+    ///     .await?;
+    /// ```
+    ///
+    /// # Interpretation
+    ///
+    /// If memory limit is exceeded:
+    /// - It indicates the consumer is too slow relative to data arrival
+    /// - The error is terminal (non-retriable) — retrying won't help
+    /// - Consider: increasing consumer throughput, reducing chunk_size, or removing limit
+    pub fn max_memory(mut self, bytes: usize) -> Self {
+        self.max_memory = Some(bytes);
+        self
+    }
+
     /// Execute query and return typed stream
     ///
     /// Type T ONLY affects consumer-side deserialization at poll_next().
@@ -147,7 +180,7 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
             self.order_by.is_some(),
         );
 
-        let stream = self.client.execute_query(&sql, self.chunk_size).await?;
+        let stream = self.client.execute_query(&sql, self.chunk_size, self.max_memory).await?;
 
         // Apply Rust predicate if present (filters JSON before deserialization)
         let filtered_stream: Box<dyn Stream<Item = Result<Value>> + Unpin> =

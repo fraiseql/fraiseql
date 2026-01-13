@@ -48,6 +48,7 @@ pub struct JsonStream {
     entity: String,  // Entity name for metrics
     rows_yielded: Arc<AtomicU64>,  // Counter of items yielded to consumer
     rows_filtered: Arc<AtomicU64>,  // Counter of items filtered
+    max_memory: Option<usize>,  // Optional memory limit in bytes
 }
 
 impl JsonStream {
@@ -56,6 +57,7 @@ impl JsonStream {
         receiver: mpsc::Receiver<Result<Value>>,
         cancel_tx: mpsc::Sender<()>,
         entity: String,
+        max_memory: Option<usize>,
     ) -> Self {
         Self {
             receiver,
@@ -63,6 +65,7 @@ impl JsonStream {
             entity,
             rows_yielded: Arc::new(AtomicU64::new(0)),
             rows_filtered: Arc::new(AtomicU64::new(0)),
+            max_memory,
         }
     }
 
@@ -119,6 +122,22 @@ impl Stream for JsonStream {
         // Record channel occupancy before polling
         let occupancy = self.receiver.len() as u64;
         crate::metrics::histograms::channel_occupancy(&self.entity, occupancy);
+
+        // Check memory limit BEFORE receiving (pre-enqueue strategy)
+        // This stops consuming when buffer reaches limit
+        if let Some(limit) = self.max_memory {
+            let items_buffered = self.receiver.len();
+            let estimated_memory = items_buffered * 2048;  // Conservative: 2KB per item
+
+            if estimated_memory > limit {
+                // Record metric for memory limit exceeded
+                crate::metrics::counters::memory_limit_exceeded(&self.entity);
+                return Poll::Ready(Some(Err(Error::MemoryLimitExceeded {
+                    limit,
+                    current: estimated_memory,
+                })));
+            }
+        }
 
         self.receiver.poll_recv(cx)
     }

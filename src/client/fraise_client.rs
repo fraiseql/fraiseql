@@ -270,7 +270,12 @@ impl FraiseClient {
     }
 
     /// Execute a raw SQL query (must match fraiseql-wire constraints)
-    pub(crate) async fn execute_query(self, sql: &str, chunk_size: usize) -> Result<JsonStream> {
-        self.conn.streaming_query(sql, chunk_size).await
+    pub(crate) async fn execute_query(
+        self,
+        sql: &str,
+        chunk_size: usize,
+        max_memory: Option<usize>,
+    ) -> Result<JsonStream> {
+        self.conn.streaming_query(sql, chunk_size, max_memory).await
     }
 }

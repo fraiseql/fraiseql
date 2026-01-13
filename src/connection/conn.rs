@@ -563,6 +563,7 @@ impl Connection {
         mut self,
         query: &str,
         chunk_size: usize,
+        max_memory: Option<usize>,
     ) -> Result<crate::stream::JsonStream> {
         let startup_start = std::time::Instant::now();
 
@@ -739,7 +740,7 @@ impl Connection {
             }
         });
 
-        Ok(JsonStream::new(result_rx, cancel_tx, entity_for_stream))
+        Ok(JsonStream::new(result_rx, cancel_tx, entity_for_stream, max_memory))
     }
 }
 
