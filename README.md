@@ -341,3 +341,11 @@ That said, the design favors simplicity and auditability.
 > *It is a JSON query pipe.*
 
 By narrowing scope, `fraiseql-wire` delivers performance and clarity that general-purpose drivers cannot.
+
+---
+
+## Credits
+
+**fraiseql-wire** is developed and maintained by **Lionel Hamayon** at [Évolution digitale](https://evolution-digitale.fr).
+
+Built as part of the FraiseQL project to provide a specialized, high-performance streaming transport for JSON-based Postgres queries.
