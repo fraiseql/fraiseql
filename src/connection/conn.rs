@@ -594,9 +594,21 @@ impl Connection {
 
             self.state.transition(ConnectionState::ReadingResults)?;
 
-            // Read RowDescription first
+            // Read RowDescription first, but handle potential error responses
             let row_desc = self.receive_message().await?;
-            validate_row_description(&row_desc)?;
+            match &row_desc {
+                BackendMessage::ErrorResponse(err) => {
+                    // Consume ReadyForQuery before returning error
+                    loop {
+                        let msg = self.receive_message().await?;
+                        if matches!(msg, BackendMessage::ReadyForQuery { .. }) {
+                            break;
+                        }
+                    }
+                    return Err(Error::Sql(err.to_string()));
+                }
+                _ => validate_row_description(&row_desc)?,
+            }
 
             // Record startup timing
             let startup_duration = startup_start.elapsed().as_millis() as u64;
