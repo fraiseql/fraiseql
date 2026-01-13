@@ -324,6 +324,7 @@ That said, the design favors simplicity and auditability.
 * **[PERFORMANCE_TUNING.md](PERFORMANCE_TUNING.md)** – Benchmarking and optimization
 * **[CONTRIBUTING.md](CONTRIBUTING.md)** – Development workflows and architecture
 * **[PRD.md](PRD.md)** – Product requirements and design
+* **[.github/PUBLISHING.md](.github/PUBLISHING.md)** – Automatic crates.io publishing setup and workflow
 
 ### Examples
 
