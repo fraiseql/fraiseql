@@ -302,16 +302,39 @@ Consumed by user code
 - Benchmark changes that affect streaming
 - Memory should scale with chunk_size, not result size
 
-## Release Process
+## CI/CD Workflows
 
-The maintainers follow this process for releases:
+This project uses GitHub Actions for automated testing and releases.
 
-1. Update version in Cargo.toml
-2. Update CHANGELOG.md
-3. Run full test suite
-4. Create git tag: `git tag v0.1.0`
-5. Push to GitHub
-6. (Optional) Publish to crates.io
+### Continuous Integration
+
+Every push to `main` and pull request triggers:
+
+- **Build & Test**: Compiles with Rust stable, runs unit tests
+- **Code Coverage**: Generates coverage report (target: >85%)
+- **MSRV**: Tests with Rust 1.70 for backward compatibility
+- **Integration Tests**: Runs against Postgres 15 service
+- **Documentation**: Checks for doc warnings
+- **Security Audit**: Runs `cargo audit` to detect vulnerabilities
+
+See [CI_CD_GUIDE.md](CI_CD_GUIDE.md) for detailed workflow documentation.
+
+### Release Process
+
+The maintainers follow this automated process for releases:
+
+1. Update version in Cargo.toml and CHANGELOG.md
+2. Run full test suite locally
+3. Execute release script: `./scripts/publish.sh 0.1.0`
+4. Script automatically:
+   - Validates semver format
+   - Verifies clean git state
+   - Builds and tests release
+   - Creates git tag and pushes
+   - Publishes to crates.io
+5. GitHub Actions creates release on crates.io
+
+For detailed release instructions, see [CI_CD_GUIDE.md](CI_CD_GUIDE.md#making-a-release).
 
 Contributors don't need to handle releases.
 

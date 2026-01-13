@@ -158,6 +158,61 @@ The public API remains the same regardless of backend; chunking is an internal o
 
 ---
 
+## Quick Start
+
+### Installation
+
+Add to `Cargo.toml`:
+
+```toml
+[dependencies]
+fraiseql-wire = "0.1"
+tokio = { version = "1", features = ["full"] }
+futures = "0.3"
+serde_json = "1"
+```
+
+### Basic Usage
+
+```rust
+use fraiseql_wire::client::FraiseClient;
+use futures::stream::StreamExt;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Connect to Postgres
+    let client = FraiseClient::connect("postgres://localhost/mydb").await?;
+
+    // Stream results
+    let mut stream = client.query("users").execute().await?;
+
+    while let Some(item) = stream.next().await {
+        let json = item?;
+        println!("{}", json);
+    }
+
+    Ok(())
+}
+```
+
+### Running Examples
+
+See `examples/` directory:
+
+```bash
+# Start Postgres with test data
+docker-compose up -d
+
+# Run examples
+cargo run --example basic_query
+cargo run --example filtering
+cargo run --example ordering
+cargo run --example streaming
+cargo run --example error_handling
+```
+
+---
+
 ## Error Handling
 
 Errors are surfaced as part of the stream:
@@ -176,6 +231,8 @@ Possible error sources include:
 * Query cancellation
 
 Fatal errors terminate the stream.
+
+For detailed error diagnosis, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
 ---
 
@@ -255,6 +312,26 @@ That said, the design favors simplicity and auditability.
 * [ ] libpq backend with true chunked rows mode
 * [ ] Typed streaming (`T: DeserializeOwned`)
 * [ ] Metrics & tracing
+
+---
+
+## Documentation & Guides
+
+* **[QUICK_START.md](QUICK_START.md)** – Installation and first steps
+* **[TESTING_GUIDE.md](TESTING_GUIDE.md)** – How to run unit, integration, and load tests
+* **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** – Error diagnosis and common issues
+* **[CI_CD_GUIDE.md](CI_CD_GUIDE.md)** – GitHub Actions, local development, releases
+* **[PERFORMANCE_TUNING.md](PERFORMANCE_TUNING.md)** – Benchmarking and optimization
+* **[CONTRIBUTING.md](CONTRIBUTING.md)** – Development workflows and architecture
+* **[PRD.md](PRD.md)** – Product requirements and design
+
+### Examples
+
+* **[examples/basic_query.rs](examples/basic_query.rs)** – Simple streaming usage
+* **[examples/filtering.rs](examples/filtering.rs)** – SQL and Rust predicates
+* **[examples/ordering.rs](examples/ordering.rs)** – ORDER BY with collation
+* **[examples/streaming.rs](examples/streaming.rs)** – Large result handling and chunk tuning
+* **[examples/error_handling.rs](examples/error_handling.rs)** – Error handling patterns
 
 ---
 
