@@ -814,3 +814,91 @@ fn test_temporal_bucket_week_quarter_year() {
         assert!(sql.contains("SUM(revenue)"));
     }
 }
+
+// =============================================================================
+// Advanced Aggregates Tests
+// =============================================================================
+
+#[test]
+fn test_string_agg_simple() {
+    let query = json!({
+        "groupBy": {"category": true},
+        "aggregates": [
+            {"count": {}},
+            {"customer_id_string_agg": {}}
+        ]
+    });
+
+    let sql = parse_plan_generate(&query);
+
+    // PostgreSQL uses STRING_AGG
+    assert_sql_contains(&sql, &[
+        "GROUP BY",
+        "STRING_AGG(customer_id"
+    ]);
+}
+
+#[test]
+fn test_array_agg_simple() {
+    let query = json!({
+        "groupBy": {"category": true},
+        "aggregates": [
+            {"count": {}},
+            {"customer_id_array_agg": {}}
+        ]
+    });
+
+    let sql = parse_plan_generate(&query);
+
+    // PostgreSQL uses ARRAY_AGG
+    assert_sql_contains(&sql, &[
+        "GROUP BY",
+        "ARRAY_AGG(customer_id"
+    ]);
+}
+
+#[test]
+fn test_advanced_aggregates_multi_database() {
+    use fraiseql_core::db::DatabaseType;
+    use fraiseql_core::runtime::AggregationSqlGenerator;
+    use fraiseql_core::runtime::AggregateQueryParser;
+    use fraiseql_core::compiler::aggregation::AggregationPlanner;
+
+    let query = json!({
+        "table": "tf_sales",
+        "groupBy": {"category": true},
+        "aggregates": [
+            {"customer_id_string_agg": {}}
+        ]
+    });
+
+    let metadata = create_sales_metadata();
+
+    // PostgreSQL
+    let pg_gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+    let pg_parsed = AggregateQueryParser::parse(&query, &metadata).unwrap();
+    let pg_plan = AggregationPlanner::plan(pg_parsed, metadata.clone()).unwrap();
+    let pg_sql = pg_gen.generate(&pg_plan).unwrap();
+    assert!(pg_sql.complete_sql.contains("STRING_AGG(customer_id"));
+
+    // MySQL
+    let mysql_gen = AggregationSqlGenerator::new(DatabaseType::MySQL);
+    let mysql_parsed = AggregateQueryParser::parse(&query, &metadata).unwrap();
+    let mysql_plan = AggregationPlanner::plan(mysql_parsed, metadata.clone()).unwrap();
+    let mysql_sql = mysql_gen.generate(&mysql_plan).unwrap();
+    assert!(mysql_sql.complete_sql.contains("GROUP_CONCAT(customer_id"));
+
+    // SQLite
+    let sqlite_gen = AggregationSqlGenerator::new(DatabaseType::SQLite);
+    let sqlite_parsed = AggregateQueryParser::parse(&query, &metadata).unwrap();
+    let sqlite_plan = AggregationPlanner::plan(sqlite_parsed, metadata.clone()).unwrap();
+    let sqlite_sql = sqlite_gen.generate(&sqlite_plan).unwrap();
+    assert!(sqlite_sql.complete_sql.contains("GROUP_CONCAT(customer_id"));
+
+    // SQL Server
+    let mssql_gen = AggregationSqlGenerator::new(DatabaseType::SQLServer);
+    let mssql_parsed = AggregateQueryParser::parse(&query, &metadata).unwrap();
+    let mssql_plan = AggregationPlanner::plan(mssql_parsed, metadata).unwrap();
+    let mssql_sql = mssql_gen.generate(&mssql_plan).unwrap();
+    assert!(mssql_sql.complete_sql.contains("STRING_AGG"));
+}
