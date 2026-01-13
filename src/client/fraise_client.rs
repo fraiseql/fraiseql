@@ -50,30 +50,52 @@ impl FraiseClient {
         Ok(Self { conn })
     }
 
-    /// Connect to Postgres with TLS encryption (future feature)
+    /// Connect to Postgres with TLS encryption
     ///
-    /// # Status
-    /// This API is planned for v0.1.1. For now, use the standard `connect()` method
-    /// and implement TLS via a reverse proxy (e.g., pgbouncer, HAProxy) in production.
+    /// TLS is configured independently from the connection string. The connection string
+    /// should contain the hostname and credentials (user/password), while TLS configuration
+    /// is provided separately via `TlsConfig`.
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```no_run
+    /// # async fn example() -> fraiseql_wire::Result<()> {
     /// use fraiseql_wire::{FraiseClient, connection::TlsConfig};
     ///
+    /// // Configure TLS with system root certificates
     /// let tls = TlsConfig::builder()
     ///     .verify_hostname(true)
     ///     .build()?;
     ///
+    /// // Connect with TLS
     /// let client = FraiseClient::connect_tls("postgres://secure.db.example.com/mydb", tls).await?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn connect_tls(
-        _connection_string: &str,
-        _tls_config: &crate::connection::TlsConfig,
+        connection_string: &str,
+        tls_config: crate::connection::TlsConfig,
     ) -> Result<Self> {
-        Err(crate::Error::Config(
-            "TLS support is planned for v0.1.1. Use a reverse proxy for TLS in production.".into(),
-        ))
+        let info = ConnectionInfo::parse(connection_string)?;
+
+        let transport = match info.transport {
+            TransportType::Tcp => {
+                let host = info.host.as_ref().expect("TCP requires host");
+                let port = info.port.expect("TCP requires port");
+                Transport::connect_tcp_tls(host, port, &tls_config).await?
+            }
+            TransportType::Unix => {
+                return Err(crate::Error::Config(
+                    "TLS is only supported for TCP connections".into(),
+                ));
+            }
+        };
+
+        let mut conn = Connection::new(transport);
+        let config = info.to_config();
+        conn.startup(&config).await?;
+
+        Ok(Self { conn })
     }
 
     /// Start building a query for an entity (consumes self for streaming)

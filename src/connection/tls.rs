@@ -227,7 +227,7 @@ impl TlsConfigBuilder {
 
             let mut store = RootCertStore::empty();
             for cert in result.certs {
-                let _ = store.add_parsable_certificates(&[cert]);
+                let _ = store.add_parsable_certificates(std::iter::once(cert));
             }
 
             // Log warnings if there were errors, but don't fail
@@ -240,13 +240,9 @@ impl TlsConfigBuilder {
             store
         };
 
-        // Create ClientConfig using the correct API for rustls 0.21
+        // Create ClientConfig using the correct API for rustls 0.23
         let client_config = Arc::new(
             ClientConfig::builder()
-                .with_safe_default_cipher_suites()
-                .with_safe_default_kx_groups()
-                .with_protocol_versions(&[&rustls::version::TLS13])
-                .expect("Failed to set protocol versions")
                 .with_root_certificates(root_store)
                 .with_no_client_auth()
         );
@@ -277,7 +273,7 @@ impl TlsConfigBuilder {
         loop {
             match rustls_pemfile::read_one(&mut reader) {
                 Ok(Some(Item::X509Certificate(cert))) => {
-                    let _ = root_store.add_parsable_certificates(&[cert]);
+                    let _ = root_store.add_parsable_certificates(std::iter::once(cert));
                     found_certs += 1;
                 }
                 Ok(Some(_)) => {
