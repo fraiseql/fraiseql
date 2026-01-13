@@ -58,6 +58,18 @@ pub enum Error {
     /// Connection closed
     #[error("connection closed")]
     ConnectionClosed,
+
+    /// Type deserialization error
+    ///
+    /// Occurs when a row cannot be deserialized into the target type.
+    /// This is a consumer-side error that includes the type name and serde details.
+    #[error("deserialization error for type '{type_name}': {details}")]
+    Deserialization {
+        /// Name of the type we were deserializing to
+        type_name: String,
+        /// Details from serde_json about what went wrong
+        details: String,
+    },
 }
 
 /// Result type alias using fraiseql-wire Error
@@ -152,6 +164,7 @@ impl Error {
             Error::ConnectionBusy(_) => "connection_busy",
             Error::InvalidState { .. } => "invalid_state",
             Error::ConnectionClosed => "connection_closed",
+            Error::Deserialization { .. } => "deserialization",
         }
     }
 }
@@ -261,5 +274,26 @@ mod tests {
         assert!(!Error::auth_failed("user", "invalid password").is_retriable());
         assert!(!Error::sql("syntax error").is_retriable());
         assert!(!Error::invalid_schema_columns(3).is_retriable());
+    }
+
+    #[test]
+    fn test_deserialization_error() {
+        let err = Error::Deserialization {
+            type_name: "Project".to_string(),
+            details: "missing field `id`".to_string(),
+        };
+        let msg = err.to_string();
+        assert!(msg.contains("Project"));
+        assert!(msg.contains("missing field"));
+        assert_eq!(err.category(), "deserialization");
+    }
+
+    #[test]
+    fn test_deserialization_error_not_retriable() {
+        let err = Error::Deserialization {
+            type_name: "User".to_string(),
+            details: "invalid type".to_string(),
+        };
+        assert!(!err.is_retriable());
     }
 }

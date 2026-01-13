@@ -5,6 +5,7 @@ use super::query_builder::QueryBuilder;
 use crate::connection::{Connection, Transport};
 use crate::stream::JsonStream;
 use crate::Result;
+use serde::de::DeserializeOwned;
 
 /// FraiseQL wire protocol client
 pub struct FraiseClient {
@@ -98,26 +99,65 @@ impl FraiseClient {
         Ok(Self { conn })
     }
 
-    /// Start building a query for an entity (consumes self for streaming)
+    /// Start building a query for an entity with automatic deserialization
+    ///
+    /// The type parameter T controls consumer-side deserialization only.
+    /// Type T does NOT affect SQL generation, filtering, ordering, or wire protocol.
     ///
     /// # Examples
     ///
+    /// Type-safe query (recommended):
     /// ```no_run
     /// # async fn example(client: fraiseql_wire::FraiseClient) -> fraiseql_wire::Result<()> {
-    /// let stream = client
-    ///     .query("user")
+    /// use serde::Deserialize;
+    /// use futures::stream::StreamExt;
+    ///
+    /// #[derive(Deserialize)]
+    /// struct User {
+    ///     id: String,
+    ///     name: String,
+    /// }
+    ///
+    /// let mut stream = client
+    ///     .query::<User>("user")
     ///     .where_sql("data->>'type' = 'customer'")  // SQL predicate
     ///     .where_rust(|json| {
-    ///         // Rust predicate (applied client-side)
+    ///         // Rust predicate (applied client-side, on JSON)
     ///         json["estimated_value"].as_f64().unwrap_or(0.0) > 1000.0
     ///     })
     ///     .order_by("data->>'name' ASC")
     ///     .execute()
     ///     .await?;
+    ///
+    /// while let Some(result) = stream.next().await {
+    ///     let user: User = result?;
+    ///     println!("User: {}", user.name);
+    /// }
     /// # Ok(())
     /// # }
     /// ```
-    pub fn query(self, entity: impl Into<String>) -> QueryBuilder {
+    ///
+    /// Raw JSON query (debugging, forward compatibility):
+    /// ```no_run
+    /// # async fn example(client: fraiseql_wire::FraiseClient) -> fraiseql_wire::Result<()> {
+    /// use futures::stream::StreamExt;
+    ///
+    /// let mut stream = client
+    ///     .query::<serde_json::Value>("user")  // Escape hatch
+    ///     .execute()
+    ///     .await?;
+    ///
+    /// while let Some(result) = stream.next().await {
+    ///     let json = result?;
+    ///     println!("JSON: {:?}", json);
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn query<T: DeserializeOwned + std::marker::Unpin + 'static>(
+        self,
+        entity: impl Into<String>,
+    ) -> QueryBuilder<T> {
         QueryBuilder::new(self, entity)
     }
 
