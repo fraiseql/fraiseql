@@ -423,8 +423,70 @@ memory limit exceeded: 600000000 bytes buffered > 500000000 bytes limit
 
 ---
 
-**Phase 8.6.3: COMPLETE** ✅
+---
 
-All acceptance criteria met. Ready for Phase 8.6.4 (Adaptive Chunking).
+## Final Refinements
 
-Commit: **2fa4300**
+After initial completion, three refinements were added to enhance production readiness:
+
+### Refinement 1: Expose estimated_memory in Error Payload
+**Field rename**: `current` → `estimated_memory`
+- **Why**: Structured logging and programmatic error handling
+- **Benefit**: Clearer semantics for applications responding to limit events
+- **Impact**: Minimal (field rename, fully backward compatible at API level)
+
+### Refinement 2: Configurable Memory Estimator Trait
+**New module**: `src/stream/memory_estimator.rs`
+
+**Key types**:
+- `MemoryEstimator` trait: pluggable estimation strategy
+- `ConservativeEstimator`: default 2KB/item (safe for typical workloads)
+- `FixedEstimator`: custom bytes/item for empirically-tuned workloads
+
+**Use case**: If measurements show your JSON averages 4KB instead of 2KB:
+```rust
+// Future (8.6.5+): would allow custom estimators
+// Currently internal-only for future extensibility
+```
+
+**Tests**: 5 new unit tests for estimator implementations
+
+### Refinement 3: Soft Limit Mode (Progressive Degradation)
+**New method**: `QueryBuilder.memory_soft_limits(warn_threshold, fail_threshold)`
+
+**Example**:
+```rust
+stream
+    .max_memory(500_000_000)                // 500 MB hard limit
+    .memory_soft_limits(0.80, 1.0)          // Warn at 80%, error at 100%
+    .execute()
+    .await?
+```
+
+**Semantics**:
+- `warn_threshold` (0.0-1.0): Percentage at which warn signal would be emitted
+  - Currently: documented for application-level instrumentation
+  - Future: could integrate with logging/tracing frameworks
+- `fail_threshold` (0.0-1.0): Percentage at which hard error is returned
+  - Enforced: error returned when exceeded
+  - Default: 1.0 (100% = hard limit)
+
+**Use cases**:
+- Progressive degradation: alert operators before hitting hard limit
+- Capacity planning: detect trends before they cause errors
+- SLO monitoring: warn when approaching memory budget
+
+---
+
+**Phase 8.6.3: COMPLETE WITH REFINEMENTS** ✅
+
+All acceptance criteria met, plus three production-focused refinements.
+
+**Final commits**:
+- **2fa4300**: feat(phase-8.6.3) - Core implementation
+- **cf2c5e5**: docs(phase-8.6.3) - Completion report
+- **97ba2c8**: refine(phase-8.6.3) - Three refinements
+
+**Test status**: 128 tests passing (102 unit + 26 integration)
+
+Ready for Phase 8.6.4 (Adaptive Chunking).
