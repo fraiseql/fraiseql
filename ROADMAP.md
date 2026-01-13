@@ -34,22 +34,42 @@ Harden the MVP for real-world use without adding new features.
 ### Tasks
 
 #### 7.1 Performance Profiling & Optimization
-- [ ] Benchmark against tokio-postgres for reference
-  - Memory usage under load
-  - Throughput (rows/sec)
-  - Latency (time-to-first-row)
-  - CPU usage patterns
 
-- [ ] Profile hot paths
-  - Use flamegraph to identify bottlenecks
-  - Optimize JSON parsing if needed
-  - Check channel efficiency
-  - Review chunking strategy
+##### 7.1.1 Micro-benchmarks (Core Operations) ✅
+- [x] Set up Criterion benchmarking framework
+- [x] Protocol encoding/decoding benchmarks
+- [x] JSON parsing benchmarks (small, large, deeply nested)
+- [x] Connection string parsing benchmarks
+- [x] Chunking strategy overhead measurements
+- [x] Error handling overhead benchmarks
+- [x] String matching and HashMap lookup benchmarks
+- [x] Baseline establishment for regression detection
+- [x] CI integration ready (always-run, ~30 seconds)
 
-- [ ] Document performance characteristics
-  - Update README with benchmark results
-  - Create performance guide
-  - Publish results in CHANGELOG
+**Status**: Complete - 6 benchmark groups with detailed statistical analysis
+
+##### 7.1.2 Integration Benchmarks (With Postgres) - Pending
+- [ ] Throughput benchmarks (rows/sec) with 1K, 100K, 1M row sets
+- [ ] Memory usage under load with different chunk sizes
+- [ ] Time-to-first-row latency measurements
+- [ ] Connection setup time benchmarks
+- [ ] Large result set streaming (memory stability)
+- [ ] CI integration (nightly, requires Postgres service)
+
+##### 7.1.3 Comparison Benchmarks (vs tokio-postgres) - Pending
+- [ ] Set up tokio-postgres comparison suite
+- [ ] Memory usage comparison
+- [ ] Throughput (rows/sec) comparison
+- [ ] Time-to-first-row comparison
+- [ ] CPU usage patterns comparison
+- [ ] Manual/pre-release execution only (not in CI)
+
+##### 7.1.4 Documentation & Optimization
+- [ ] Profile hot paths with flamegraph
+- [ ] Optimize identified bottlenecks
+- [ ] Update README with benchmark results
+- [ ] Create performance tuning guide
+- [ ] Publish baseline results in CHANGELOG
 
 #### 7.2 Security Audit
 - [ ] Review all unsafe code (if any)
