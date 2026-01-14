@@ -1,10 +1,10 @@
 # fraiseql-wire
 
-[![Build Status](https://github.com/evoludigit/fraiseql-wire/workflows/CI/badge.svg?branch=main)](https://github.com/evoludigit/fraiseql-wire/actions/workflows/ci.yml)
-[![Code Coverage](https://codecov.io/gh/evoludigit/fraiseql-wire/branch/main/graph/badge.svg)](https://codecov.io/gh/evoludigit/fraiseql-wire)
+[![Build Status](https://github.com/fraiseql/fraiseql-wire/workflows/CI/badge.svg?branch=main)](https://github.com/fraiseql/fraiseql-wire/actions/workflows/ci.yml)
+[![Code Coverage](https://codecov.io/gh/fraiseql/fraiseql-wire/branch/main/graph/badge.svg)](https://codecov.io/gh/fraiseql/fraiseql-wire)
 [![Crates.io Version](https://img.shields.io/crates/v/fraiseql-wire.svg)](https://crates.io/crates/fraiseql-wire)
-[![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](https://github.com/evoludigit/fraiseql-wire#license)
-[![MSRV: 1.75+](https://img.shields.io/badge/MSRV-1.75%2B-blue)](https://github.com/evoludigit/fraiseql-wire)
+[![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](https://github.com/fraiseql/fraiseql-wire#license)
+[![MSRV: 1.75+](https://img.shields.io/badge/MSRV-1.75%2B-blue)](https://github.com/fraiseql/fraiseql-wire)
 [![Documentation](https://docs.rs/fraiseql-wire/badge.svg)](https://docs.rs/fraiseql-wire)
 
 **Streaming JSON queries for Postgres 17, built for FraiseQL**
