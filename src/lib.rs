@@ -20,6 +20,7 @@ pub mod connection;
 pub mod error;
 pub mod json;
 pub mod metrics;
+pub mod operators;
 pub mod protocol;
 pub mod stream;
 pub mod util;
@@ -27,6 +28,7 @@ pub mod util;
 // Re-export commonly used types
 pub use client::FraiseClient;
 pub use error::{Error, Result};
+pub use operators::{Field, OrderByClause, SortOrder, Value, WhereOperator};
 
 /// Library version
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

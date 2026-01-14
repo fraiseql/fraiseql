@@ -58,6 +58,8 @@ pub struct QueryBuilder<T: DeserializeOwned + Unpin + 'static = serde_json::Valu
     sql_predicates: Vec<String>,
     rust_predicate: Option<RustPredicate>,
     order_by: Option<String>,
+    limit: Option<usize>,
+    offset: Option<usize>,
     chunk_size: usize,
     max_memory: Option<usize>,
     soft_limit_warn_threshold: Option<f32>,  // Percentage (0.0-1.0) at which to warn
@@ -77,6 +79,8 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
             sql_predicates: Vec::new(),
             rust_predicate: None,
             order_by: None,
+            limit: None,
+            offset: None,
             chunk_size: 256,
             max_memory: None,
             soft_limit_warn_threshold: None,
@@ -115,6 +119,37 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
     /// Type T does NOT affect ordering.
     pub fn order_by(mut self, order: impl Into<String>) -> Self {
         self.order_by = Some(order.into());
+        self
+    }
+
+    /// Set LIMIT clause to restrict result set size
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let stream = client.query::<Project>("projects")
+    ///     .limit(10)
+    ///     .execute()
+    ///     .await?;
+    /// ```
+    pub fn limit(mut self, count: usize) -> Self {
+        self.limit = Some(count);
+        self
+    }
+
+    /// Set OFFSET clause to skip first N rows
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let stream = client.query::<Project>("projects")
+    ///     .limit(10)
+    ///     .offset(20)  // Skip first 20, return next 10
+    ///     .execute()
+    ///     .await?;
+    /// ```
+    pub fn offset(mut self, count: usize) -> Self {
+        self.offset = Some(count);
         self
     }
 
@@ -327,6 +362,14 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
             sql.push_str(order);
         }
 
+        if let Some(limit) = self.limit {
+            sql.push_str(&format!(" LIMIT {}", limit));
+        }
+
+        if let Some(offset) = self.offset {
+            sql.push_str(&format!(" OFFSET {}", offset));
+        }
+
         Ok(sql)
     }
 }
@@ -367,6 +410,41 @@ mod tests {
     fn test_build_sql_with_order() {
         let sql = build_test_sql("user", vec![], Some("data->>'name' ASC"));
         assert_eq!(sql, "SELECT data FROM user ORDER BY data->>'name' ASC");
+    }
+
+    #[test]
+    fn test_build_sql_with_limit() {
+        let mut sql = format!("SELECT data FROM user");
+        sql.push_str(" LIMIT 10");
+        assert_eq!(sql, "SELECT data FROM user LIMIT 10");
+    }
+
+    #[test]
+    fn test_build_sql_with_offset() {
+        let mut sql = format!("SELECT data FROM user");
+        sql.push_str(" OFFSET 20");
+        assert_eq!(sql, "SELECT data FROM user OFFSET 20");
+    }
+
+    #[test]
+    fn test_build_sql_with_limit_and_offset() {
+        let mut sql = format!("SELECT data FROM user");
+        sql.push_str(" LIMIT 10");
+        sql.push_str(" OFFSET 20");
+        assert_eq!(sql, "SELECT data FROM user LIMIT 10 OFFSET 20");
+    }
+
+    #[test]
+    fn test_build_sql_complete() {
+        let mut sql = format!("SELECT data FROM user");
+        sql.push_str(" WHERE data->>'status' = 'active'");
+        sql.push_str(" ORDER BY data->>'name' ASC");
+        sql.push_str(" LIMIT 10");
+        sql.push_str(" OFFSET 20");
+        assert_eq!(
+            sql,
+            "SELECT data FROM user WHERE data->>'status' = 'active' ORDER BY data->>'name' ASC LIMIT 10 OFFSET 20"
+        );
     }
 
     // Stream pipeline integration tests
