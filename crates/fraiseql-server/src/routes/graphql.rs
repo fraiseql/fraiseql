@@ -2,7 +2,6 @@
 
 use axum::{
     extract::State,
-    http::StatusCode,
     response::{IntoResponse, Response},
     Json,
 };
@@ -11,6 +10,9 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Instant;
 use tracing::{debug, error, info};
+
+use crate::error::{ErrorResponse, GraphQLError};
+use crate::validation::RequestValidator;
 
 /// GraphQL request payload.
 #[derive(Debug, Deserialize)]
@@ -60,21 +62,21 @@ impl<A: DatabaseAdapter> AppState<A> {
 /// GraphQL HTTP handler.
 ///
 /// Handles POST requests to the GraphQL endpoint:
-/// 1. Parse GraphQL request body
-/// 2. Execute query via Executor
-/// 3. Return GraphQL response
+/// 1. Validate GraphQL request (depth, complexity)
+/// 2. Parse GraphQL request body
+/// 3. Execute query via Executor
+/// 4. Return GraphQL response with proper error formatting
 ///
 /// Tracks execution timing and operation name for monitoring.
-/// Provides detailed error information with appropriate HTTP status codes.
+/// Provides GraphQL spec-compliant error responses.
 ///
 /// # Errors
 ///
-/// Returns HTTP 400 for invalid requests or query errors.
-/// Returns HTTP 500 for internal server errors.
+/// Returns appropriate HTTP status codes based on error type.
 pub async fn graphql_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     State(state): State<AppState<A>>,
     Json(request): Json<GraphQLRequest>,
-) -> Result<GraphQLResponse, GraphQLError> {
+) -> Result<GraphQLResponse, ErrorResponse> {
     let start_time = Instant::now();
 
     info!(
@@ -83,6 +85,51 @@ pub async fn graphql_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
         operation_name = ?request.operation_name,
         "Executing GraphQL query"
     );
+
+    // Validate request
+    let validator = RequestValidator::new();
+
+    // Validate query
+    if let Err(e) = validator.validate_query(&request.query) {
+        error!(
+            error = %e,
+            operation_name = ?request.operation_name,
+            "Query validation failed"
+        );
+        let graphql_error = match e {
+            crate::validation::ValidationError::QueryTooDeep {
+                max_depth,
+                actual_depth,
+            } => GraphQLError::validation(format!(
+                "Query exceeds maximum depth: {} > {}",
+                actual_depth, max_depth
+            )),
+            crate::validation::ValidationError::QueryTooComplex {
+                max_complexity,
+                actual_complexity,
+            } => GraphQLError::validation(format!(
+                "Query exceeds maximum complexity: {} > {}",
+                actual_complexity, max_complexity
+            )),
+            crate::validation::ValidationError::MalformedQuery(msg) => {
+                GraphQLError::parse(msg)
+            }
+            crate::validation::ValidationError::InvalidVariables(msg) => {
+                GraphQLError::request(msg)
+            }
+        };
+        return Err(ErrorResponse::from_error(graphql_error));
+    }
+
+    // Validate variables
+    if let Err(e) = validator.validate_variables(request.variables.as_ref()) {
+        error!(
+            error = %e,
+            operation_name = ?request.operation_name,
+            "Variables validation failed"
+        );
+        return Err(ErrorResponse::from_error(GraphQLError::request(e.to_string())));
+    }
 
     // Execute query
     let result = state
@@ -97,7 +144,7 @@ pub async fn graphql_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
                 operation_name = ?request.operation_name,
                 "Query execution failed"
             );
-            GraphQLError::ExecutionError(e.to_string())
+            ErrorResponse::from_error(GraphQLError::execution(&e.to_string()))
         })?;
 
     let elapsed = start_time.elapsed();
@@ -116,7 +163,10 @@ pub async fn graphql_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
                 response_length = result.len(),
                 "Failed to deserialize executor response"
             );
-            GraphQLError::SerializationError(e.to_string())
+            ErrorResponse::from_error(GraphQLError::internal(format!(
+                "Failed to process response: {}",
+                e
+            )))
         })?;
 
     Ok(GraphQLResponse {
@@ -124,34 +174,6 @@ pub async fn graphql_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
     })
 }
 
-/// GraphQL error type.
-#[derive(Debug, thiserror::Error)]
-pub enum GraphQLError {
-    /// Query execution error.
-    #[error("Execution error: {0}")]
-    ExecutionError(String),
-
-    /// Serialization error.
-    #[error("Serialization error: {0}")]
-    SerializationError(String),
-}
-
-impl IntoResponse for GraphQLError {
-    fn into_response(self) -> Response {
-        let (status, error_message) = match self {
-            Self::ExecutionError(msg) => (StatusCode::BAD_REQUEST, msg),
-            Self::SerializationError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
-        };
-
-        let body = serde_json::json!({
-            "errors": [{
-                "message": error_message
-            }]
-        });
-
-        (status, Json(body)).into_response()
-    }
-}
 
 #[cfg(test)]
 mod tests {

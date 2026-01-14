@@ -27,14 +27,17 @@
 #![warn(clippy::pedantic)]
 
 pub mod config;
+pub mod error;
 pub mod middleware;
 pub mod routes;
 pub mod schema;
 pub mod server;
+pub mod validation;
 
 pub use config::ServerConfig;
 pub use schema::CompiledSchemaLoader;
 pub use server::Server;
+pub use validation::{RequestValidator, ValidationError};
 
 /// Server error type.
 #[derive(Debug, thiserror::Error)]
