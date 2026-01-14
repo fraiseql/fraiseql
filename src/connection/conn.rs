@@ -691,6 +691,9 @@ impl Connection {
             let pause_signal = stream.clone_pause_signal();
             let resume_signal = stream.clone_resume_signal();
 
+            // Phase 8: Clone atomic state for fast state checks in background task
+            let state_atomic = stream.clone_state_atomic();
+
             // Clone pause timeout for background task
             let pause_timeout = stream.pause_timeout();
 
@@ -720,35 +723,39 @@ impl Connection {
             let mut current_chunk_size = chunk_size;
 
             loop {
-                // Check pause/resume state machine (only if pause/resume is initialized)
-                if let (Some(ref state_lock), Some(ref pause_signal), Some(ref resume_signal)) =
-                    (&state_lock, &pause_signal, &resume_signal)
-                {
-                    let current_state = state_lock.lock().await;
-                    if *current_state == crate::stream::StreamState::Paused {
-                        tracing::debug!("stream paused, waiting for resume");
-                        drop(current_state); // Release lock before waiting
+                // Phase 8: Check lightweight atomic state first (fast path)
+                // Only acquire Mutex lock if atomic indicates pause/resume is initialized
+                if state_atomic.load(std::sync::atomic::Ordering::Acquire) == 1 {
+                    // Paused state detected via atomic, now handle with Mutex
+                    if let (Some(ref state_lock), Some(ref pause_signal), Some(ref resume_signal)) =
+                        (&state_lock, &pause_signal, &resume_signal)
+                    {
+                        let current_state = state_lock.lock().await;
+                        if *current_state == crate::stream::StreamState::Paused {
+                            tracing::debug!("stream paused, waiting for resume");
+                            drop(current_state); // Release lock before waiting
 
-                        // Wait with optional timeout
-                        if let Some(timeout) = pause_timeout {
-                            match tokio::time::timeout(timeout, resume_signal.notified()).await {
-                                Ok(_) => {
-                                    tracing::debug!("stream resumed");
+                            // Wait with optional timeout
+                            if let Some(timeout) = pause_timeout {
+                                match tokio::time::timeout(timeout, resume_signal.notified()).await {
+                                    Ok(_) => {
+                                        tracing::debug!("stream resumed");
+                                    }
+                                    Err(_) => {
+                                        tracing::debug!("pause timeout expired, auto-resuming");
+                                        crate::metrics::counters::stream_pause_timeout_expired(&entity_for_metrics);
+                                    }
                                 }
-                                Err(_) => {
-                                    tracing::debug!("pause timeout expired, auto-resuming");
-                                    crate::metrics::counters::stream_pause_timeout_expired(&entity_for_metrics);
-                                }
+                            } else {
+                                // No timeout, wait indefinitely
+                                resume_signal.notified().await;
+                                tracing::debug!("stream resumed");
                             }
-                        } else {
-                            // No timeout, wait indefinitely
-                            resume_signal.notified().await;
-                            tracing::debug!("stream resumed");
-                        }
 
-                        // Update state back to Running
-                        let mut state = state_lock.lock().await;
-                        *state = crate::stream::StreamState::Running;
+                            // Update state back to Running
+                            let mut state = state_lock.lock().await;
+                            *state = crate::stream::StreamState::Running;
+                        }
                     }
                 }
 

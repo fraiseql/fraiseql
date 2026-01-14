@@ -6,11 +6,18 @@ use bytes::Bytes;
 use futures::stream::Stream;
 use serde_json::Value;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicU8, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::time::Duration;
 use tokio::sync::{mpsc, Mutex, Notify};
+
+// Phase 8: Lightweight state machine constants
+// Used for fast state tracking without full Mutex overhead
+const STATE_RUNNING: u8 = 0;
+const STATE_PAUSED: u8 = 1;
+const STATE_COMPLETE: u8 = 2;
+const STATE_ERROR: u8 = 3;
 
 /// Stream state machine
 ///
@@ -70,6 +77,11 @@ pub struct JsonStream {
     soft_limit_warn_threshold: Option<f32>,  // Warn at threshold % (0.0-1.0)
     soft_limit_fail_threshold: Option<f32>,  // Fail at threshold % (0.0-1.0)
 
+    // Phase 8: Lightweight state tracking (cheap AtomicU8)
+    // Used for fast state checks on all queries
+    // Values: 0=Running, 1=Paused, 2=Complete, 3=Error
+    state_atomic: Arc<AtomicU8>,
+
     // Pause/resume state machine (lazily initialized)
     // Only allocated if pause() is called
     pause_resume: Option<PauseResumeState>,
@@ -107,6 +119,9 @@ impl JsonStream {
             max_memory,
             soft_limit_warn_threshold,
             soft_limit_fail_threshold,
+
+            // Phase 8: Initialize lightweight atomic state
+            state_atomic: Arc::new(AtomicU8::new(STATE_RUNNING)),
 
             // Pause/resume lazily initialized (only if pause() is called)
             pause_resume: None,
@@ -204,6 +219,10 @@ impl JsonStream {
     /// ```
     pub async fn pause(&mut self) -> Result<()> {
         let entity = self.entity.clone();
+
+        // Phase 8: Update lightweight atomic state first (fast path)
+        self.state_atomic_set_paused();
+
         let pr = self.ensure_pause_resume();
         let mut state = pr.state.lock().await;
 
@@ -249,9 +268,20 @@ impl JsonStream {
     /// // Consumer can poll for more items
     /// ```
     pub async fn resume(&mut self) -> Result<()> {
+        // Phase 8: Update lightweight atomic state first (fast path)
+        // Check atomic state before borrowing pause_resume
+        let current = self.state_atomic_get();
+
         // Resume only makes sense if pause/resume was initialized
         if let Some(ref mut pr) = self.pause_resume {
             let entity = self.entity.clone();
+
+            // Note: Set to RUNNING to reflect resumed state
+            if current == STATE_PAUSED {
+                // Only update atomic if currently paused
+                self.state_atomic.store(STATE_RUNNING, Ordering::Release);
+            }
+
             let mut state = pr.state.lock().await;
 
             match *state {
@@ -320,6 +350,55 @@ impl JsonStream {
     /// Clone paused occupancy counter for passing to background task (only if pause/resume is initialized)
     pub(crate) fn clone_paused_occupancy(&self) -> Option<Arc<AtomicUsize>> {
         self.pause_resume.as_ref().map(|pr| Arc::clone(&pr.paused_occupancy))
+    }
+
+    // =========================================================================
+    // Phase 8: Lightweight state machine methods
+    // =========================================================================
+
+    /// Clone atomic state for passing to background task
+    pub(crate) fn clone_state_atomic(&self) -> Arc<AtomicU8> {
+        Arc::clone(&self.state_atomic)
+    }
+
+    /// Get current state from atomic (fast path, no locks)
+    pub(crate) fn state_atomic_get(&self) -> u8 {
+        self.state_atomic.load(Ordering::Acquire)
+    }
+
+    /// Set state to paused using atomic
+    pub(crate) fn state_atomic_set_paused(&self) {
+        self.state_atomic.store(STATE_PAUSED, Ordering::Release);
+    }
+
+    /// Set state to complete using atomic
+    pub(crate) fn state_atomic_set_complete(&self) {
+        self.state_atomic.store(STATE_COMPLETE, Ordering::Release);
+    }
+
+    /// Set state to error using atomic
+    pub(crate) fn state_atomic_set_error(&self) {
+        self.state_atomic.store(STATE_ERROR, Ordering::Release);
+    }
+
+    /// Check if stream is paused (fast check, atomic)
+    pub(crate) fn is_paused_atomic(&self) -> bool {
+        self.state_atomic_get() == STATE_PAUSED
+    }
+
+    /// Check if stream is complete (fast check, atomic)
+    pub(crate) fn is_complete_atomic(&self) -> bool {
+        self.state_atomic_get() == STATE_COMPLETE
+    }
+
+    /// Check if stream encountered error (fast check, atomic)
+    pub(crate) fn is_error_atomic(&self) -> bool {
+        self.state_atomic_get() == STATE_ERROR
+    }
+
+    /// Check if stream is running (fast check, atomic)
+    pub(crate) fn is_running_atomic(&self) -> bool {
+        self.state_atomic_get() == STATE_RUNNING
     }
 
     /// Get current stream statistics
