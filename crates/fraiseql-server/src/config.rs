@@ -54,6 +54,18 @@ pub struct ServerConfig {
     /// Introspection endpoint path.
     #[serde(default = "default_introspection_path")]
     pub introspection_path: String,
+
+    /// Database connection pool minimum size.
+    #[serde(default = "default_pool_min_size")]
+    pub pool_min_size: usize,
+
+    /// Database connection pool maximum size.
+    #[serde(default = "default_pool_max_size")]
+    pub pool_max_size: usize,
+
+    /// Database connection pool timeout in seconds.
+    #[serde(default = "default_pool_timeout")]
+    pub pool_timeout_secs: u64,
 }
 
 impl Default for ServerConfig {
@@ -71,6 +83,9 @@ impl Default for ServerConfig {
             graphql_path: default_graphql_path(),
             health_path: default_health_path(),
             introspection_path: default_introspection_path(),
+            pool_min_size: default_pool_min_size(),
+            pool_max_size: default_pool_max_size(),
+            pool_timeout_secs: default_pool_timeout(),
         }
     }
 }
@@ -103,6 +118,18 @@ fn default_introspection_path() -> String {
     "/introspection".to_string()
 }
 
+fn default_pool_min_size() -> usize {
+    5
+}
+
+fn default_pool_max_size() -> usize {
+    20
+}
+
+fn default_pool_timeout() -> u64 {
+    30
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -125,5 +152,26 @@ mod tests {
             ..ServerConfig::default()
         };
         assert_eq!(config.database_url, "postgresql://user:pass@db.example.com/mydb");
+    }
+
+    #[test]
+    fn test_default_pool_config() {
+        let config = ServerConfig::default();
+        assert_eq!(config.pool_min_size, 5);
+        assert_eq!(config.pool_max_size, 20);
+        assert_eq!(config.pool_timeout_secs, 30);
+    }
+
+    #[test]
+    fn test_config_with_custom_pool_size() {
+        let config = ServerConfig {
+            pool_min_size: 2,
+            pool_max_size: 50,
+            pool_timeout_secs: 60,
+            ..ServerConfig::default()
+        };
+        assert_eq!(config.pool_min_size, 2);
+        assert_eq!(config.pool_max_size, 50);
+        assert_eq!(config.pool_timeout_secs, 60);
     }
 }

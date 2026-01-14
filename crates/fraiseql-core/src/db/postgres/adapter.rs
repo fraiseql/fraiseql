@@ -70,6 +70,30 @@ impl PostgresAdapter {
         Self::with_pool_size(connection_string, 10).await
     }
 
+    /// Create new PostgreSQL adapter with custom pool configuration.
+    ///
+    /// # Arguments
+    ///
+    /// * `connection_string` - PostgreSQL connection string
+    /// * `min_size` - Minimum size hint (not enforced by deadpool-postgres)
+    /// * `max_size` - Maximum number of connections in pool
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::ConnectionPool` if pool creation fails.
+    ///
+    /// # Note
+    ///
+    /// `min_size` is accepted for API compatibility but deadpool-postgres uses
+    /// lazy initialization with dynamic pool sizing up to `max_size`.
+    pub async fn with_pool_config(
+        connection_string: &str,
+        _min_size: usize,
+        max_size: usize,
+    ) -> Result<Self> {
+        Self::with_pool_size(connection_string, max_size).await
+    }
+
     /// Create new PostgreSQL adapter with custom pool size.
     ///
     /// # Arguments

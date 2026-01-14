@@ -74,13 +74,23 @@ async fn main() -> anyhow::Result<()> {
     let schema = schema_loader.load().await?;
     tracing::info!("Compiled schema loaded successfully");
 
-    // Initialize database adapter
+    // Initialize database adapter with pool configuration
     tracing::info!(
         database_url = %config.database_url,
+        pool_min_size = config.pool_min_size,
+        pool_max_size = config.pool_max_size,
+        pool_timeout_secs = config.pool_timeout_secs,
         "Initializing database adapter"
     );
-    let adapter = Arc::new(PostgresAdapter::new(&config.database_url).await?);
-    tracing::info!("Database adapter initialized successfully");
+    let adapter = Arc::new(
+        PostgresAdapter::with_pool_config(
+            &config.database_url,
+            config.pool_min_size,
+            config.pool_max_size,
+        )
+        .await?,
+    );
+    tracing::info!("Database adapter initialized successfully with connection pooling");
 
     // Create and start server
     let server = Server::new(config, schema, adapter);
