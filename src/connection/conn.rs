@@ -673,7 +673,7 @@ impl Connection {
             let pause_signal = stream.clone_pause_signal();
             let resume_signal = stream.clone_resume_signal();
 
-            // Phase 8: Clone atomic state for fast state checks in background task
+            // Clone atomic state for fast state checks in background task
             let state_atomic = stream.clone_state_atomic();
 
             // Clone pause timeout for background task
@@ -705,7 +705,7 @@ impl Connection {
             let _current_chunk_size = chunk_size;
 
             loop {
-                // Phase 8: Check lightweight atomic state first (fast path)
+                // Check lightweight atomic state first (fast path)
                 // Only check atomic if pause/resume infrastructure is actually initialized
                 if state_lock.is_some() && state_atomic.load(std::sync::atomic::Ordering::Acquire) == 1 {
                     // Paused state detected via atomic, now handle with Mutex

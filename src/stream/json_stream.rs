@@ -12,7 +12,7 @@ use std::task::{Context, Poll};
 use std::time::Duration;
 use tokio::sync::{mpsc, Mutex, Notify};
 
-// Phase 8: Lightweight state machine constants
+// Lightweight state machine constants
 // Used for fast state tracking without full Mutex overhead
 const STATE_RUNNING: u8 = 0;
 const STATE_PAUSED: u8 = 1;
@@ -74,7 +74,7 @@ pub struct JsonStream {
     max_memory: Option<usize>,     // Optional memory limit in bytes
     soft_limit_fail_threshold: Option<f32>, // Fail at threshold % (0.0-1.0)
 
-    // Phase 8: Lightweight state tracking (cheap AtomicU8)
+    // Lightweight state tracking (cheap AtomicU8)
     // Used for fast state checks on all queries
     // Values: 0=Running, 1=Paused, 2=Complete, 3=Error
     state_atomic: Arc<AtomicU8>,
@@ -116,7 +116,7 @@ impl JsonStream {
             max_memory,
             soft_limit_fail_threshold,
 
-            // Phase 8: Initialize lightweight atomic state
+            // Initialize lightweight atomic state
             state_atomic: Arc::new(AtomicU8::new(STATE_RUNNING)),
 
             // Pause/resume lazily initialized (only if pause() is called)
@@ -216,7 +216,7 @@ impl JsonStream {
     pub async fn pause(&mut self) -> Result<()> {
         let entity = self.entity.clone();
 
-        // Phase 8: Update lightweight atomic state first (fast path)
+        // Update lightweight atomic state first (fast path)
         self.state_atomic_set_paused();
 
         let pr = self.ensure_pause_resume();
@@ -264,7 +264,7 @@ impl JsonStream {
     /// // Consumer can poll for more items
     /// ```
     pub async fn resume(&mut self) -> Result<()> {
-        // Phase 8: Update lightweight atomic state first (fast path)
+        // Update lightweight atomic state first (fast path)
         // Check atomic state before borrowing pause_resume
         let current = self.state_atomic_get();
 
@@ -348,7 +348,7 @@ impl JsonStream {
     }
 
     // =========================================================================
-    // Phase 8: Lightweight state machine methods
+    // Lightweight state machine methods
     // =========================================================================
 
     /// Clone atomic state for passing to background task
