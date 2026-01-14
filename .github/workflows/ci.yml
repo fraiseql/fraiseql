@@ -237,6 +237,90 @@ jobs:
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: fraiseql_test
 
+  build-postgres-18:
+    name: Build (PostgreSQL 18)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fraiseql_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo build
+        uses: actions/cache@v3
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-postgres-18-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build
+        run: cargo build --verbose
+
+      - name: Run tests with PostgreSQL 18
+        run: cargo test --verbose --lib
+
+  integration-tests-postgres-18:
+    name: Integration Tests (PostgreSQL 18)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fraiseql_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo build
+        uses: actions/cache@v3
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-postgres-18-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run integration tests against PostgreSQL 18
+        run: cargo test --test integration -- --ignored --nocapture
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fraiseql_test
+
+      - name: Run streaming integration tests against PostgreSQL 18
+        run: cargo test --test streaming_integration -- --ignored --nocapture
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fraiseql_test
+
   documentation:
     name: Documentation
     runs-on: ubuntu-latest
