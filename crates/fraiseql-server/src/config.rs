@@ -11,6 +11,10 @@ pub struct ServerConfig {
     #[serde(default = "default_schema_path")]
     pub schema_path: PathBuf,
 
+    /// Database connection URL (PostgreSQL, MySQL, SQLite, SQL Server).
+    #[serde(default = "default_database_url")]
+    pub database_url: String,
+
     /// Server bind address.
     #[serde(default = "default_bind_addr")]
     pub bind_addr: SocketAddr,
@@ -56,6 +60,7 @@ impl Default for ServerConfig {
     fn default() -> Self {
         Self {
             schema_path: default_schema_path(),
+            database_url: default_database_url(),
             bind_addr: default_bind_addr(),
             cors_enabled: true,
             cors_origins: Vec::new(),
@@ -72,6 +77,10 @@ impl Default for ServerConfig {
 
 fn default_schema_path() -> PathBuf {
     PathBuf::from("schema.compiled.json")
+}
+
+fn default_database_url() -> String {
+    "postgresql://localhost/fraiseql".to_string()
 }
 
 fn default_bind_addr() -> SocketAddr {
@@ -102,9 +111,19 @@ mod tests {
     fn test_default_config() {
         let config = ServerConfig::default();
         assert_eq!(config.schema_path, PathBuf::from("schema.compiled.json"));
+        assert_eq!(config.database_url, "postgresql://localhost/fraiseql");
         assert_eq!(config.graphql_path, "/graphql");
         assert_eq!(config.health_path, "/health");
         assert!(config.cors_enabled);
         assert!(config.compression_enabled);
+    }
+
+    #[test]
+    fn test_config_with_custom_database_url() {
+        let config = ServerConfig {
+            database_url: "postgresql://user:pass@db.example.com/mydb".to_string(),
+            ..ServerConfig::default()
+        };
+        assert_eq!(config.database_url, "postgresql://user:pass@db.example.com/mydb");
     }
 }
