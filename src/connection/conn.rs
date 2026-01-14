@@ -534,9 +534,8 @@ impl Connection {
     /// Receive a backend message
     async fn receive_message(&mut self) -> Result<BackendMessage> {
         loop {
-            // Try to decode a message from buffer
-            if let Ok((msg, remaining)) = decode_message(self.read_buf.clone().freeze()) {
-                let consumed = self.read_buf.len() - remaining.len();
+            // Try to decode a message from buffer (without cloning!)
+            if let Ok((msg, consumed)) = decode_message(&mut self.read_buf) {
                 self.read_buf.advance(consumed);
                 return Ok(msg);
             }
