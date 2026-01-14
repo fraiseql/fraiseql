@@ -68,6 +68,43 @@ jobs:
       - name: Security audit
         run: cargo audit --deny warnings
 
+  build-postgres-17:
+    name: Build (PostgreSQL 17 with Chunked Rows)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fraiseql_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo build
+        uses: actions/cache@v3
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-postgres-17-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build
+        run: cargo build --verbose
+
+      - name: Run tests with PostgreSQL 17
+        run: cargo test --verbose --lib
+
   coverage:
     name: Code Coverage
     runs-on: ubuntu-latest
@@ -107,7 +144,7 @@ jobs:
         run: cargo test --lib --verbose
 
   integration-tests:
-    name: Integration Tests
+    name: Integration Tests (PostgreSQL 15)
     runs-on: ubuntu-latest
 
     services:
@@ -146,6 +183,53 @@ jobs:
           POSTGRES_DB: fraiseql_test
 
       - name: Run streaming integration tests
+        run: cargo test --test streaming_integration -- --ignored --nocapture
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fraiseql_test
+
+  integration-tests-postgres-17:
+    name: Integration Tests (PostgreSQL 17 with Chunked Rows)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fraiseql_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo build
+        uses: actions/cache@v3
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-postgres-17-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run integration tests against PostgreSQL 17
+        run: cargo test --test integration -- --ignored --nocapture
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fraiseql_test
+
+      - name: Run streaming integration tests against PostgreSQL 17
         run: cargo test --test streaming_integration -- --ignored --nocapture
         env:
           POSTGRES_HOST: localhost
