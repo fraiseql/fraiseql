@@ -174,6 +174,14 @@ jobs:
           path: target
           key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
 
+      - name: Configure PostgreSQL SCRAM Authentication
+        run: |
+          until pg_isready -h localhost -p 5432; do sleep 1; done
+          PGPASSWORD=postgres psql -h localhost -U postgres -c \
+            "ALTER USER postgres WITH PASSWORD 'postgres';"
+        env:
+          PGPASSWORD: postgres
+
       - name: Run integration tests
         run: cargo test --test integration -- --ignored --nocapture
         env:
@@ -246,6 +254,20 @@ jobs:
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: fraiseql_test
 
+      - name: Run SCRAM integration tests
+        run: cargo test --test scram_integration -- --ignored --nocapture
+        env:
+          SCRAM_TEST_DB_URL: "postgres://postgres:postgres@localhost:5432/fraiseql_test"
+          POSTGRES_HOST: localhost
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+
+      - name: Run TLS integration tests
+        run: cargo test --test tls_integration -- --ignored --nocapture
+        env:
+          TLS_TEST_DB_URL: "postgres://postgres:postgres@localhost:5432/fraiseql_test"
+          TLS_TEST_INSECURE: "true"
+
   integration-tests-postgres-16:
     name: Integration Tests (PostgreSQL 16)
     runs-on: ubuntu-latest
@@ -276,6 +298,14 @@ jobs:
         with:
           path: target
           key: ${{ runner.os }}-cargo-build-target-postgres-16-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Configure PostgreSQL SCRAM Authentication
+        run: |
+          until pg_isready -h localhost -p 5432; do sleep 1; done
+          PGPASSWORD=postgres psql -h localhost -U postgres -c \
+            "ALTER USER postgres WITH PASSWORD 'postgres';"
+        env:
+          PGPASSWORD: postgres
 
       - name: Run integration tests against PostgreSQL 16
         run: cargo test --test integration -- --ignored --nocapture
@@ -333,6 +363,20 @@ jobs:
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: fraiseql_test
 
+      - name: Run SCRAM integration tests against PostgreSQL 16
+        run: cargo test --test scram_integration -- --ignored --nocapture
+        env:
+          SCRAM_TEST_DB_URL: "postgres://postgres:postgres@localhost:5432/fraiseql_test"
+          POSTGRES_HOST: localhost
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+
+      - name: Run TLS integration tests against PostgreSQL 16
+        run: cargo test --test tls_integration -- --ignored --nocapture
+        env:
+          TLS_TEST_DB_URL: "postgres://postgres:postgres@localhost:5432/fraiseql_test"
+          TLS_TEST_INSECURE: "true"
+
   integration-tests-postgres-17:
     name: Integration Tests (PostgreSQL 17 with Chunked Rows)
     runs-on: ubuntu-latest
@@ -363,6 +407,14 @@ jobs:
         with:
           path: target
           key: ${{ runner.os }}-cargo-build-target-postgres-17-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Configure PostgreSQL SCRAM Authentication
+        run: |
+          until pg_isready -h localhost -p 5432; do sleep 1; done
+          PGPASSWORD=postgres psql -h localhost -U postgres -c \
+            "ALTER USER postgres WITH PASSWORD 'postgres';"
+        env:
+          PGPASSWORD: postgres
 
       - name: Run integration tests against PostgreSQL 17
         run: cargo test --test integration -- --ignored --nocapture
@@ -419,6 +471,20 @@ jobs:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: fraiseql_test
+
+      - name: Run SCRAM integration tests against PostgreSQL 17
+        run: cargo test --test scram_integration -- --ignored --nocapture
+        env:
+          SCRAM_TEST_DB_URL: "postgres://postgres:postgres@localhost:5432/fraiseql_test"
+          POSTGRES_HOST: localhost
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+
+      - name: Run TLS integration tests against PostgreSQL 17
+        run: cargo test --test tls_integration -- --ignored --nocapture
+        env:
+          TLS_TEST_DB_URL: "postgres://postgres:postgres@localhost:5432/fraiseql_test"
+          TLS_TEST_INSECURE: "true"
 
   build-postgres-18:
     name: Build (PostgreSQL 18)
@@ -488,6 +554,14 @@ jobs:
           path: target
           key: ${{ runner.os }}-cargo-build-target-postgres-18-${{ hashFiles('**/Cargo.lock') }}
 
+      - name: Configure PostgreSQL SCRAM Authentication
+        run: |
+          until pg_isready -h localhost -p 5432; do sleep 1; done
+          PGPASSWORD=postgres psql -h localhost -U postgres -c \
+            "ALTER USER postgres WITH PASSWORD 'postgres';"
+        env:
+          PGPASSWORD: postgres
+
       - name: Run integration tests against PostgreSQL 18
         run: cargo test --test integration -- --ignored --nocapture
         env:
@@ -543,6 +617,20 @@ jobs:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: fraiseql_test
+
+      - name: Run SCRAM integration tests against PostgreSQL 18
+        run: cargo test --test scram_integration -- --ignored --nocapture
+        env:
+          SCRAM_TEST_DB_URL: "postgres://postgres:postgres@localhost:5432/fraiseql_test"
+          POSTGRES_HOST: localhost
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+
+      - name: Run TLS integration tests against PostgreSQL 18
+        run: cargo test --test tls_integration -- --ignored --nocapture
+        env:
+          TLS_TEST_DB_URL: "postgres://postgres:postgres@localhost:5432/fraiseql_test"
+          TLS_TEST_INSECURE: "true"
 
   documentation:
     name: Documentation
