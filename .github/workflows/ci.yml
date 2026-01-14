@@ -190,6 +190,149 @@ jobs:
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: fraiseql_test
 
+      - name: Run full integration tests
+        run: cargo test --test integration_full -- --ignored --nocapture
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fraiseql_test
+
+      - name: Run operator tests
+        run: cargo test --test integration_operators -- --ignored --nocapture
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fraiseql_test
+
+      - name: Run pause/resume tests
+        run: cargo test --test integration_pause_resume -- --ignored --nocapture
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fraiseql_test
+
+      - name: Run Rust predicate tests
+        run: cargo test --test rust_predicate_integration -- --ignored --nocapture
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fraiseql_test
+
+      - name: Run type-safe deserialization tests
+        run: cargo test --test typed_streaming -- --ignored --nocapture
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fraiseql_test
+
+      - name: Run config integration tests
+        run: cargo test --test config_integration -- --ignored --nocapture
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fraiseql_test
+
+      - name: Run client integration tests
+        run: cargo test --test client_integration -- --ignored --nocapture
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fraiseql_test
+
+  integration-tests-postgres-16:
+    name: Integration Tests (PostgreSQL 16)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fraiseql_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo build
+        uses: actions/cache@v3
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-postgres-16-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run integration tests against PostgreSQL 16
+        run: cargo test --test integration -- --ignored --nocapture
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fraiseql_test
+
+      - name: Run streaming integration tests against PostgreSQL 16
+        run: cargo test --test streaming_integration -- --ignored --nocapture
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fraiseql_test
+
+      - name: Run full integration tests against PostgreSQL 16
+        run: cargo test --test integration_full -- --ignored --nocapture
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fraiseql_test
+
+      - name: Run operator tests against PostgreSQL 16
+        run: cargo test --test integration_operators -- --ignored --nocapture
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fraiseql_test
+
+      - name: Run pause/resume tests against PostgreSQL 16
+        run: cargo test --test integration_pause_resume -- --ignored --nocapture
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fraiseql_test
+
+      - name: Run Rust predicate tests against PostgreSQL 16
+        run: cargo test --test rust_predicate_integration -- --ignored --nocapture
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fraiseql_test
+
+      - name: Run type-safe deserialization tests against PostgreSQL 16
+        run: cargo test --test typed_streaming -- --ignored --nocapture
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fraiseql_test
+
   integration-tests-postgres-17:
     name: Integration Tests (PostgreSQL 17 with Chunked Rows)
     runs-on: ubuntu-latest
@@ -231,6 +374,46 @@ jobs:
 
       - name: Run streaming integration tests against PostgreSQL 17
         run: cargo test --test streaming_integration -- --ignored --nocapture
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fraiseql_test
+
+      - name: Run full integration tests against PostgreSQL 17
+        run: cargo test --test integration_full -- --ignored --nocapture
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fraiseql_test
+
+      - name: Run operator tests against PostgreSQL 17
+        run: cargo test --test integration_operators -- --ignored --nocapture
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fraiseql_test
+
+      - name: Run pause/resume tests against PostgreSQL 17
+        run: cargo test --test integration_pause_resume -- --ignored --nocapture
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fraiseql_test
+
+      - name: Run Rust predicate tests against PostgreSQL 17
+        run: cargo test --test rust_predicate_integration -- --ignored --nocapture
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fraiseql_test
+
+      - name: Run type-safe deserialization tests against PostgreSQL 17
+        run: cargo test --test typed_streaming -- --ignored --nocapture
         env:
           POSTGRES_HOST: localhost
           POSTGRES_USER: postgres
@@ -315,6 +498,46 @@ jobs:
 
       - name: Run streaming integration tests against PostgreSQL 18
         run: cargo test --test streaming_integration -- --ignored --nocapture
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fraiseql_test
+
+      - name: Run full integration tests against PostgreSQL 18
+        run: cargo test --test integration_full -- --ignored --nocapture
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fraiseql_test
+
+      - name: Run operator tests against PostgreSQL 18
+        run: cargo test --test integration_operators -- --ignored --nocapture
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fraiseql_test
+
+      - name: Run pause/resume tests against PostgreSQL 18
+        run: cargo test --test integration_pause_resume -- --ignored --nocapture
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fraiseql_test
+
+      - name: Run Rust predicate tests against PostgreSQL 18
+        run: cargo test --test rust_predicate_integration -- --ignored --nocapture
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fraiseql_test
+
+      - name: Run type-safe deserialization tests against PostgreSQL 18
+        run: cargo test --test typed_streaming -- --ignored --nocapture
         env:
           POSTGRES_HOST: localhost
           POSTGRES_USER: postgres

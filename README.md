@@ -395,25 +395,28 @@ RUST_LOG=fraiseql_wire=debug cargo run
 * Optimized through 8 phases of performance work
 * Ready for production use
 
-All core features complete and tested:
-* ✅ Async JSON streaming
-* ✅ Hybrid SQL + Rust predicates
-* ✅ Type-safe deserialization
-* ✅ Stream pause/resume
-* ✅ Adaptive chunking
-* ✅ SQL field projection
-* ✅ Metrics & tracing
-* ✅ Error handling
-* ✅ Connection pooling support
+All core features implemented with comprehensive CI validation:
+* ✅ Async JSON streaming (integration tests across PG 15-18)
+* ✅ Hybrid SQL + Rust predicates (operator tests with 21 test cases)
+* ✅ Type-safe deserialization (generic streaming API with tests)
+* ✅ Stream pause/resume (9 integration tests validating backpressure)
+* ✅ Adaptive chunking (memory optimization with integration tests)
+* ✅ SQL field projection (query builder optimization)
+* ✅ Metrics & tracing (observable by design, example provided)
+* ✅ Error handling (comprehensive error types)
+* ✅ Connection pooling support (4 integration patterns documented)
 
 ---
 
 ## Roadmap
 
-* [ ] Connection pooling integration guide
+* [x] Connection pooling integration guide (CONNECTION_POOLING.md)
+* [x] Advanced filtering patterns (ADVANCED_FILTERING.md)
+* [x] PostgreSQL 15-18 compatibility (POSTGRES_COMPATIBILITY.md)
+* [ ] SCRAM/TLS end-to-end integration tests in CI
 * [ ] Extended metric examples
-* [ ] Advanced filtering patterns
 * [ ] Performance tuning guide for large datasets
+* [ ] PostgreSQL 19+ compatibility tracking
 
 ---
 
