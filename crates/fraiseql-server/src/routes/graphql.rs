@@ -9,6 +9,7 @@ use axum::{
 use fraiseql_core::{db::traits::DatabaseAdapter, runtime::Executor};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use std::time::Instant;
 use tracing::{debug, error, info};
 
 /// GraphQL request payload.
@@ -63,6 +64,9 @@ impl<A: DatabaseAdapter> AppState<A> {
 /// 2. Execute query via Executor
 /// 3. Return GraphQL response
 ///
+/// Tracks execution timing and operation name for monitoring.
+/// Provides detailed error information with appropriate HTTP status codes.
+///
 /// # Errors
 ///
 /// Returns HTTP 400 for invalid requests or query errors.
@@ -71,6 +75,8 @@ pub async fn graphql_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
     State(state): State<AppState<A>>,
     Json(request): Json<GraphQLRequest>,
 ) -> Result<GraphQLResponse, GraphQLError> {
+    let start_time = Instant::now();
+
     info!(
         query_length = request.query.len(),
         has_variables = request.variables.is_some(),
@@ -84,15 +90,34 @@ pub async fn graphql_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
         .execute(&request.query, request.variables.as_ref())
         .await
         .map_err(|e| {
-            error!(error = %e, "Query execution failed");
+            let elapsed = start_time.elapsed();
+            error!(
+                error = %e,
+                elapsed_ms = elapsed.as_millis(),
+                operation_name = ?request.operation_name,
+                "Query execution failed"
+            );
             GraphQLError::ExecutionError(e.to_string())
         })?;
 
-    debug!(response_length = result.len(), "Query executed successfully");
+    let elapsed = start_time.elapsed();
+    debug!(
+        response_length = result.len(),
+        elapsed_ms = elapsed.as_millis(),
+        operation_name = ?request.operation_name,
+        "Query executed successfully"
+    );
 
     // Parse result as JSON
     let response_json: serde_json::Value = serde_json::from_str(&result)
-        .map_err(|e| GraphQLError::SerializationError(e.to_string()))?;
+        .map_err(|e| {
+            error!(
+                error = %e,
+                response_length = result.len(),
+                "Failed to deserialize executor response"
+            );
+            GraphQLError::SerializationError(e.to_string())
+        })?;
 
     Ok(GraphQLResponse {
         body: response_json,
