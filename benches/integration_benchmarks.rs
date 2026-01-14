@@ -234,7 +234,7 @@ fn predicate_benchmarks(c: &mut Criterion) {
     let mut group = c.benchmark_group("predicate_effectiveness");
 
     group.measurement_time(std::time::Duration::from_secs(10));
-    group.sample_size(5);
+    group.sample_size(10);
 
     // Simulate filtering effectiveness
     // SQL predicates reduce data at server; Rust predicates filter on client
@@ -278,7 +278,7 @@ fn streaming_stability_benchmarks(c: &mut Criterion) {
 
     // Long-running benchmark to check memory stability
     group.measurement_time(std::time::Duration::from_secs(15));
-    group.sample_size(3);
+    group.sample_size(10);
 
     group.bench_function("large_result_set_1m_rows", |b| {
         b.iter(|| {
@@ -322,7 +322,7 @@ fn json_parsing_load_benchmarks(c: &mut Criterion) {
     let mut group = c.benchmark_group("json_parsing_load");
 
     group.measurement_time(std::time::Duration::from_secs(10));
-    group.sample_size(5);
+    group.sample_size(10);
 
     // Different JSON payload sizes as they arrive from Postgres
     let payloads = vec![
