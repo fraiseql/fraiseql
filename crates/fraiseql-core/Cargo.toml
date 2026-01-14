@@ -93,3 +93,7 @@ name = "full_pipeline_comparison"
 harness = false
 required-features = ["postgres"]
 
+[[bench]]
+name = "sql_projection_benchmark"
+harness = false
+
