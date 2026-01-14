@@ -80,19 +80,14 @@ public class FraiseQL {
 
     /**
      * Export the schema to a JSON file.
+     * Generates schema.json compatible with fraiseql-cli compile.
      *
      * @param filePath the output file path
      * @throws IOException if writing to file fails
      */
     public static void exportSchema(String filePath) throws IOException {
-        SchemaExport export = new SchemaExport(
-            registry.getAllTypes(),
-            registry.getAllQueries(),
-            registry.getAllMutations()
-        );
-
-        File file = new File(filePath);
-        mapper.writerWithDefaultPrettyPrinter().writeValue(file, export);
+        var schema = SchemaFormatter.formatSchema(registry);
+        SchemaFormatter.writeToFile(schema, filePath);
     }
 
     /**
@@ -296,98 +291,4 @@ public class FraiseQL {
         }
     }
 
-    /**
-     * Internal class for JSON schema export structure.
-     */
-    static class SchemaExport {
-        public final Map<String, Object> types;
-        public final Map<String, Object> queries;
-        public final Map<String, Object> mutations;
-
-        SchemaExport(
-            Map<String, SchemaRegistry.GraphQLTypeInfo> typeRegistry,
-            Map<String, SchemaRegistry.QueryInfo> queryRegistry,
-            Map<String, SchemaRegistry.MutationInfo> mutationRegistry
-        ) {
-            this.types = exportTypes(typeRegistry);
-            this.queries = exportQueries(queryRegistry);
-            this.mutations = exportMutations(mutationRegistry);
-        }
-
-        private static Map<String, Object> exportTypes(Map<String, SchemaRegistry.GraphQLTypeInfo> typeRegistry) {
-            Map<String, Object> result = new LinkedHashMap<>();
-
-            for (SchemaRegistry.GraphQLTypeInfo typeInfo : typeRegistry.values()) {
-                Map<String, Object> type = new LinkedHashMap<>();
-                type.put("name", typeInfo.name);
-
-                Map<String, Object> fields = new LinkedHashMap<>();
-                for (TypeConverter.GraphQLFieldInfo fieldInfo : typeInfo.fields.values()) {
-                    Map<String, Object> field = new LinkedHashMap<>();
-                    field.put("type", fieldInfo.getGraphQLType());
-                    if (!fieldInfo.description.isEmpty()) {
-                        field.put("description", fieldInfo.description);
-                    }
-                    fields.put(fieldInfo.name, field);
-                }
-
-                type.put("fields", fields);
-                if (!typeInfo.description.isEmpty()) {
-                    type.put("description", typeInfo.description);
-                }
-
-                result.put(typeInfo.name, type);
-            }
-
-            return result;
-        }
-
-        private static Map<String, Object> exportQueries(Map<String, SchemaRegistry.QueryInfo> queryRegistry) {
-            Map<String, Object> result = new LinkedHashMap<>();
-
-            for (SchemaRegistry.QueryInfo queryInfo : queryRegistry.values()) {
-                Map<String, Object> query = new LinkedHashMap<>();
-                query.put("name", queryInfo.name);
-                query.put("returnType", queryInfo.returnType);
-
-                Map<String, Object> args = new LinkedHashMap<>();
-                for (Map.Entry<String, String> arg : queryInfo.arguments.entrySet()) {
-                    args.put(arg.getKey(), arg.getValue());
-                }
-                query.put("arguments", args);
-
-                if (!queryInfo.description.isEmpty()) {
-                    query.put("description", queryInfo.description);
-                }
-
-                result.put(queryInfo.name, query);
-            }
-
-            return result;
-        }
-
-        private static Map<String, Object> exportMutations(Map<String, SchemaRegistry.MutationInfo> mutationRegistry) {
-            Map<String, Object> result = new LinkedHashMap<>();
-
-            for (SchemaRegistry.MutationInfo mutationInfo : mutationRegistry.values()) {
-                Map<String, Object> mutation = new LinkedHashMap<>();
-                mutation.put("name", mutationInfo.name);
-                mutation.put("returnType", mutationInfo.returnType);
-
-                Map<String, Object> args = new LinkedHashMap<>();
-                for (Map.Entry<String, String> arg : mutationInfo.arguments.entrySet()) {
-                    args.put(arg.getKey(), arg.getValue());
-                }
-                mutation.put("arguments", args);
-
-                if (!mutationInfo.description.isEmpty()) {
-                    mutation.put("description", mutationInfo.description);
-                }
-
-                result.put(mutationInfo.name, mutation);
-            }
-
-            return result;
-        }
-    }
 }
