@@ -67,6 +67,7 @@ pub struct QueryBuilder<T: DeserializeOwned + Unpin + 'static = serde_json::Valu
     enable_adaptive_chunking: bool,
     adaptive_min_chunk_size: Option<usize>,
     adaptive_max_chunk_size: Option<usize>,
+    custom_select: Option<String>,  // Optional custom SELECT clause for SQL projection
     _phantom: PhantomData<T>,
 }
 
@@ -88,6 +89,7 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
             enable_adaptive_chunking: true,  // Enabled by default
             adaptive_min_chunk_size: None,
             adaptive_max_chunk_size: None,
+            custom_select: None,
             _phantom: PhantomData,
         }
     }
@@ -119,6 +121,39 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
     /// Type T does NOT affect ordering.
     pub fn order_by(mut self, order: impl Into<String>) -> Self {
         self.order_by = Some(order.into());
+        self
+    }
+
+    /// Set a custom SELECT clause for SQL projection optimization
+    ///
+    /// When provided, this replaces the default `SELECT data` with a projection SQL
+    /// that filters fields at the database level, reducing network payload.
+    ///
+    /// The projection SQL will be wrapped as `SELECT {projection_sql} as data` to maintain
+    /// the hard invariant of a single `data` column.
+    ///
+    /// This feature enables architectural consistency with PostgreSQL optimization
+    /// and prepares for future performance improvements.
+    ///
+    /// # Arguments
+    ///
+    /// * `projection_sql` - PostgreSQL expression, typically from `jsonb_build_object()`
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let stream = client
+    ///     .query::<Project>("projects")
+    ///     .select_projection("jsonb_build_object('id', data->>'id', 'name', data->>'name')")
+    ///     .execute()
+    ///     .await?;
+    /// ```
+    ///
+    /// # Backward Compatibility
+    ///
+    /// If not specified, defaults to `SELECT data` (original behavior).
+    pub fn select_projection(mut self, projection_sql: impl Into<String>) -> Self {
+        self.custom_select = Some(projection_sql.into());
         self
     }
 
@@ -350,7 +385,14 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
 
     /// Build SQL query
     fn build_sql(&self) -> Result<String> {
-        let mut sql = format!("SELECT data FROM {}", self.entity);
+        // Use custom SELECT clause if provided, otherwise default to "SELECT data"
+        let select_clause = if let Some(ref projection) = self.custom_select {
+            format!("SELECT {} as data", projection)
+        } else {
+            "SELECT data".to_string()
+        };
+
+        let mut sql = format!("{} FROM {}", select_clause, self.entity);
 
         if !self.sql_predicates.is_empty() {
             sql.push_str(" WHERE ");
@@ -445,6 +487,86 @@ mod tests {
             sql,
             "SELECT data FROM user WHERE data->>'status' = 'active' ORDER BY data->>'name' ASC LIMIT 10 OFFSET 20"
         );
+    }
+
+    // Projection tests
+    #[test]
+    fn test_build_sql_default_select() {
+        let sql = build_test_sql("users", vec![], None);
+        assert!(sql.starts_with("SELECT data FROM"));
+        assert_eq!(sql, "SELECT data FROM users");
+    }
+
+    #[test]
+    fn test_projection_single_field() {
+        let sql = "SELECT jsonb_build_object('id', data->>'id') as data FROM users".to_string();
+        assert!(sql.contains("as data"));
+        assert!(sql.starts_with("SELECT jsonb_build_object("));
+        assert!(sql.contains("FROM users"));
+    }
+
+    #[test]
+    fn test_projection_multiple_fields() {
+        let projection = "jsonb_build_object('id', data->>'id', 'name', data->>'name', 'email', data->>'email')";
+        let sql = format!("SELECT {} as data FROM users", projection);
+        assert!(sql.contains("as data FROM users"));
+        assert!(sql.contains("jsonb_build_object("));
+        assert!(sql.contains("'id'"));
+        assert!(sql.contains("'name'"));
+        assert!(sql.contains("'email'"));
+    }
+
+    #[test]
+    fn test_projection_with_where_clause() {
+        let projection = "jsonb_build_object('id', data->>'id')";
+        let mut sql = format!("SELECT {} as data FROM users", projection);
+        sql.push_str(" WHERE data->>'status' = 'active'");
+        assert!(sql.contains("SELECT jsonb_build_object("));
+        assert!(sql.contains("as data FROM users"));
+        assert!(sql.contains("WHERE data->>'status' = 'active'"));
+    }
+
+    #[test]
+    fn test_projection_with_order_by() {
+        let projection = "jsonb_build_object('id', data->>'id')";
+        let mut sql = format!("SELECT {} as data FROM users", projection);
+        sql.push_str(" ORDER BY data->>'name' ASC");
+        assert!(sql.contains("SELECT jsonb_build_object("));
+        assert!(sql.contains("ORDER BY data->>'name' ASC"));
+    }
+
+    #[test]
+    fn test_projection_with_limit() {
+        let projection = "jsonb_build_object('id', data->>'id')";
+        let mut sql = format!("SELECT {} as data FROM users", projection);
+        sql.push_str(" LIMIT 1000");
+        assert!(sql.contains("as data FROM users"));
+        assert!(sql.contains("LIMIT 1000"));
+    }
+
+    #[test]
+    fn test_projection_with_offset() {
+        let projection = "jsonb_build_object('id', data->>'id')";
+        let mut sql = format!("SELECT {} as data FROM users", projection);
+        sql.push_str(" OFFSET 500");
+        assert!(sql.contains("as data FROM users"));
+        assert!(sql.contains("OFFSET 500"));
+    }
+
+    #[test]
+    fn test_projection_full_pipeline() {
+        let projection = "jsonb_build_object('user_id', data->>'user_id', 'event_type', data->>'event_type')";
+        let mut sql = format!("SELECT {} as data FROM events", projection);
+        sql.push_str(" WHERE event_type IN ('purchase', 'view')");
+        sql.push_str(" ORDER BY timestamp DESC");
+        sql.push_str(" LIMIT 5000");
+        assert!(sql.contains("SELECT jsonb_build_object("));
+        assert!(sql.contains("'user_id'"));
+        assert!(sql.contains("'event_type'"));
+        assert!(sql.contains("as data FROM events"));
+        assert!(sql.contains("WHERE event_type IN ('purchase', 'view')"));
+        assert!(sql.contains("ORDER BY timestamp DESC"));
+        assert!(sql.contains("LIMIT 5000"));
     }
 
     // Stream pipeline integration tests
