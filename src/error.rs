@@ -272,11 +272,7 @@ mod tests {
     #[test]
     fn test_is_retriable() {
         assert!(Error::ConnectionClosed.is_retriable());
-        assert!(Error::Io(io::Error::new(
-            io::ErrorKind::TimedOut,
-            "timeout"
-        ))
-        .is_retriable());
+        assert!(Error::Io(io::Error::new(io::ErrorKind::TimedOut, "timeout")).is_retriable());
 
         assert!(!Error::connection("test").is_retriable());
         assert!(!Error::sql("test").is_retriable());
@@ -287,11 +283,7 @@ mod tests {
     fn test_retriable_classification() {
         // Transient errors should be retriable
         assert!(Error::ConnectionClosed.is_retriable());
-        assert!(Error::Io(io::Error::new(
-            io::ErrorKind::ConnectionReset,
-            "reset"
-        ))
-        .is_retriable());
+        assert!(Error::Io(io::Error::new(io::ErrorKind::ConnectionReset, "reset")).is_retriable());
 
         // Permanent errors should not be retriable
         assert!(!Error::auth_failed("user", "invalid password").is_retriable());

@@ -23,7 +23,6 @@ use super::field::{Field, Value};
 #[derive(Debug, Clone)]
 pub enum WhereOperator {
     // ============ Comparison Operators ============
-
     /// Equal: `field = value`
     Eq(Field, Value),
 
@@ -43,7 +42,6 @@ pub enum WhereOperator {
     Lte(Field, Value),
 
     // ============ Array Operators ============
-
     /// Array contains value: `field IN (...)`
     In(Field, Vec<Value>),
 
@@ -66,7 +64,6 @@ pub enum WhereOperator {
     ArrayOverlaps(Field, Vec<Value>),
 
     // ============ Array Length Operators ============
-
     /// Array length equals: `array_length(field, 1) = value`
     LenEq(Field, usize),
 
@@ -83,7 +80,6 @@ pub enum WhereOperator {
     LenLte(Field, usize),
 
     // ============ String Operators ============
-
     /// Case-insensitive contains: `field ILIKE '%substring%'`
     Icontains(Field, String),
 
@@ -100,7 +96,6 @@ pub enum WhereOperator {
     Ilike(Field, String),
 
     // ============ Null Operator ============
-
     /// IS NULL: `field IS NULL` or `field IS NOT NULL`
     ///
     /// When the boolean is true, generates `IS NULL`
@@ -108,7 +103,6 @@ pub enum WhereOperator {
     IsNull(Field, bool),
 
     // ============ Vector Distance Operators (pgvector) ============
-
     /// L2 (Euclidean) distance: `l2_distance(field, vector) < threshold`
     ///
     /// Requires pgvector extension.
@@ -158,7 +152,6 @@ pub enum WhereOperator {
     },
 
     // ============ Full-Text Search Operators ============
-
     /// Full-text search with language: `field @@ plainto_tsquery(language, query)`
     ///
     /// If language is None, defaults to 'english'
@@ -206,7 +199,6 @@ pub enum WhereOperator {
     },
 
     // ============ Network/INET Operators ============
-
     /// Check if IP is IPv4: `family(field) = 4`
     IsIPv4(Field),
 
@@ -368,10 +360,16 @@ mod tests {
 
     #[test]
     fn test_operator_validation() {
-        let op = WhereOperator::Eq(Field::JsonbField("name".to_string()), Value::String("John".to_string()));
+        let op = WhereOperator::Eq(
+            Field::JsonbField("name".to_string()),
+            Value::String("John".to_string()),
+        );
         assert!(op.validate().is_ok());
 
-        let op = WhereOperator::Eq(Field::JsonbField("bad-name".to_string()), Value::String("John".to_string()));
+        let op = WhereOperator::Eq(
+            Field::JsonbField("bad-name".to_string()),
+            Value::String("John".to_string()),
+        );
         assert!(op.validate().is_err());
     }
 

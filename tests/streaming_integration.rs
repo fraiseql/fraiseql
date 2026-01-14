@@ -19,7 +19,16 @@ async fn test_streaming_query() {
 
     // Test with a simple JSON value
     let mut stream = conn
-        .streaming_query("SELECT '{\"key\": \"value\"}'::json AS data", 10, None, None, None, false, None, None)
+        .streaming_query(
+            "SELECT '{\"key\": \"value\"}'::json AS data",
+            10,
+            None,
+            None,
+            None,
+            false,
+            None,
+            None,
+        )
         .await
         .expect("query");
 

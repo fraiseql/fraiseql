@@ -83,7 +83,10 @@ mod scram_integration {
         };
 
         // Try to connect with wrong password
-        let wrong_url = db_url.replace(&format!("{}:postgres", username), &format!("{}:wrongpassword", username));
+        let wrong_url = db_url.replace(
+            &format!("{}:postgres", username),
+            &format!("{}:wrongpassword", username),
+        );
 
         let result = FraiseClient::connect(&wrong_url).await;
 
@@ -96,7 +99,9 @@ mod scram_integration {
         if let Err(e) = result {
             let error_msg = e.to_string().to_lowercase();
             assert!(
-                error_msg.contains("auth") || error_msg.contains("password") || error_msg.contains("failed"),
+                error_msg.contains("auth")
+                    || error_msg.contains("password")
+                    || error_msg.contains("failed"),
                 "Error message should indicate authentication failure: {}",
                 e
             );

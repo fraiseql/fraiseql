@@ -1,15 +1,14 @@
 //! Integration tests for stream pause/resume functionality
 
-use fraiseql_wire::{FraiseClient, stream::StreamState};
+use fraiseql_wire::{stream::StreamState, FraiseClient};
+use futures::StreamExt;
 use std::time::Duration;
 use tokio::time::sleep;
-use futures::StreamExt;
 
 /// Test helper: creates a test database connection string
 fn test_db_url() -> String {
-    std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| {
-        "postgres://postgres:postgres@localhost/fraiseql_test".to_string()
-    })
+    std::env::var("TEST_DATABASE_URL")
+        .unwrap_or_else(|_| "postgres://postgres:postgres@localhost/fraiseql_test".to_string())
 }
 
 /// Test helper: check if we can connect to the test database
@@ -25,7 +24,9 @@ async fn test_pause_idempotent() {
         return;
     }
 
-    let client = FraiseClient::connect(&test_db_url()).await.expect("connect");
+    let client = FraiseClient::connect(&test_db_url())
+        .await
+        .expect("connect");
 
     let mut stream = client
         .query::<serde_json::Value>("v_license_request")
@@ -48,7 +49,9 @@ async fn test_resume_idempotent() {
         return;
     }
 
-    let client = FraiseClient::connect(&test_db_url()).await.expect("connect");
+    let client = FraiseClient::connect(&test_db_url())
+        .await
+        .expect("connect");
 
     let mut stream = client
         .query::<serde_json::Value>("v_license_request")
@@ -71,7 +74,9 @@ async fn test_pause_stops_reading() {
         return;
     }
 
-    let client = FraiseClient::connect(&test_db_url()).await.expect("connect");
+    let client = FraiseClient::connect(&test_db_url())
+        .await
+        .expect("connect");
 
     let mut stream = client
         .query::<serde_json::Value>("v_license_request")
@@ -123,7 +128,9 @@ async fn test_resume_continues() {
         return;
     }
 
-    let client = FraiseClient::connect(&test_db_url()).await.expect("connect");
+    let client = FraiseClient::connect(&test_db_url())
+        .await
+        .expect("connect");
 
     let mut stream = client
         .query::<serde_json::Value>("v_license_request")
@@ -176,11 +183,13 @@ async fn test_pause_on_completed_fails() {
         return;
     }
 
-    let client = FraiseClient::connect(&test_db_url()).await.expect("connect");
+    let client = FraiseClient::connect(&test_db_url())
+        .await
+        .expect("connect");
 
     let mut stream = client
         .query::<serde_json::Value>("v_license_request")
-        .where_sql("true")  // Dummy predicate to limit results
+        .where_sql("true") // Dummy predicate to limit results
         .execute()
         .await
         .expect("execute");
@@ -207,11 +216,13 @@ async fn test_resume_on_completed_fails() {
         return;
     }
 
-    let client = FraiseClient::connect(&test_db_url()).await.expect("connect");
+    let client = FraiseClient::connect(&test_db_url())
+        .await
+        .expect("connect");
 
     let mut stream = client
         .query::<serde_json::Value>("v_license_request")
-        .where_sql("true")  // Dummy predicate to limit results
+        .where_sql("true") // Dummy predicate to limit results
         .execute()
         .await
         .expect("execute");
@@ -238,7 +249,9 @@ async fn test_drop_while_paused_cleanup() {
         return;
     }
 
-    let client = FraiseClient::connect(&test_db_url()).await.expect("connect");
+    let client = FraiseClient::connect(&test_db_url())
+        .await
+        .expect("connect");
 
     let mut stream = client
         .query::<serde_json::Value>("v_license_request")
@@ -275,7 +288,9 @@ async fn test_pause_with_adaptive_chunking() {
         return;
     }
 
-    let client = FraiseClient::connect(&test_db_url()).await.expect("connect");
+    let client = FraiseClient::connect(&test_db_url())
+        .await
+        .expect("connect");
 
     let mut stream = client
         .query::<serde_json::Value>("v_license_request")
@@ -309,7 +324,10 @@ async fn test_pause_with_adaptive_chunking() {
         }
     }
 
-    assert!(count >= 30, "Should have collected 30+ items across pause/resume");
+    assert!(
+        count >= 30,
+        "Should have collected 30+ items across pause/resume"
+    );
 }
 
 #[tokio::test]
@@ -320,7 +338,9 @@ async fn test_state_snapshot() {
         return;
     }
 
-    let client = FraiseClient::connect(&test_db_url()).await.expect("connect");
+    let client = FraiseClient::connect(&test_db_url())
+        .await
+        .expect("connect");
 
     let mut stream = client
         .query::<serde_json::Value>("v_license_request")
@@ -331,7 +351,8 @@ async fn test_state_snapshot() {
     // Initially should be Running
     let initial_state = stream.state_snapshot();
     assert_eq!(
-        initial_state, StreamState::Running,
+        initial_state,
+        StreamState::Running,
         "Initial state should be Running"
     );
 
@@ -339,7 +360,8 @@ async fn test_state_snapshot() {
     stream.pause().await.expect("pause");
     let paused_state = stream.state_snapshot();
     assert_eq!(
-        paused_state, StreamState::Paused,
+        paused_state,
+        StreamState::Paused,
         "State should be Paused after pause()"
     );
 
@@ -347,7 +369,8 @@ async fn test_state_snapshot() {
     stream.resume().await.expect("resume");
     let resumed_state = stream.state_snapshot();
     assert_eq!(
-        resumed_state, StreamState::Running,
+        resumed_state,
+        StreamState::Running,
         "State should be Running after resume()"
     );
 }

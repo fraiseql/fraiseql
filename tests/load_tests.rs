@@ -229,12 +229,7 @@ async fn test_load_with_order_by() {
 
         // Verify ordering
         if let Some(ref pn) = prev_name {
-            assert!(
-                pn <= &name,
-                "order violation: {} > {}",
-                pn,
-                name
-            );
+            assert!(pn <= &name, "order violation: {} > {}", pn, name);
         }
 
         prev_name = Some(name);
@@ -258,9 +253,7 @@ async fn test_load_multiple_sequential_connections() {
     let mut total_rows = 0;
 
     for i in 0..num_connections {
-        let client = connect_test_db()
-            .await
-            .expect("failed to connect");
+        let client = connect_test_db().await.expect("failed to connect");
 
         let start = Instant::now();
         let mut stream = client
@@ -337,9 +330,7 @@ async fn test_load_chunk_size_comparison() {
     let chunk_sizes = vec![16, 32, 64, 128, 256, 512];
 
     for chunk_size in chunk_sizes {
-        let client = connect_test_db()
-            .await
-            .expect("failed to connect");
+        let client = connect_test_db().await.expect("failed to connect");
 
         let start = Instant::now();
         let mut stream = client

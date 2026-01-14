@@ -74,7 +74,8 @@ fn connection_setup_benchmarks(c: &mut Criterion) {
     // tokio-postgres: Unix socket connection
     group.bench_function("tokio_postgres_unix_socket", |b| {
         b.to_async(&rt).iter(|| async {
-            let _conn_str = black_box("host=/var/run/postgresql user=postgres dbname=fraiseql_bench");
+            let _conn_str =
+                black_box("host=/var/run/postgresql user=postgres dbname=fraiseql_bench");
         });
     });
 

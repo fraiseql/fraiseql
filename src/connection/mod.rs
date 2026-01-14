@@ -8,10 +8,10 @@
 
 mod conn;
 mod state;
-mod transport;
 mod tls;
+mod transport;
 
 pub use conn::{Connection, ConnectionConfig, ConnectionConfigBuilder};
 pub use state::ConnectionState;
+pub use tls::{parse_server_name, TlsConfig};
 pub use transport::Transport;
-pub use tls::{TlsConfig, parse_server_name};

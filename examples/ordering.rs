@@ -63,9 +63,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Example 2: Order by name descending with collation
     println!("=== Example 2: Order by Name (DESC) with Collation ===");
-    println!(
-        "Query: SELECT data FROM v_projects ORDER BY data->>'name' COLLATE \"C\" DESC\n"
-    );
+    println!("Query: SELECT data FROM v_projects ORDER BY data->>'name' COLLATE \"C\" DESC\n");
 
     let client2 = FraiseClient::connect(&conn_string)
         .await

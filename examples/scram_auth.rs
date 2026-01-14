@@ -62,7 +62,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Query 1: Get list of tables
     println!("Query: SELECT * FROM information_schema.tables");
-    match client.query::<serde_json::Value>("information_schema.tables").execute().await {
+    match client
+        .query::<serde_json::Value>("information_schema.tables")
+        .execute()
+        .await
+    {
         Ok(mut stream) => {
             let mut count = 0;
             while let Some(result) = stream.next().await {

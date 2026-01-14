@@ -99,7 +99,10 @@ async fn example_typed_query(
 
     let client = FraiseClient::connect(conn_string).await?;
 
-    println!("Building typed query: client.query::<Project>(\"{}\")", entity);
+    println!(
+        "Building typed query: client.query::<Project>(\"{}\")",
+        entity
+    );
     println!("Type T = Project (custom struct)\n");
 
     // Type T = Project: Results are deserialized to Project structs
@@ -150,7 +153,10 @@ async fn example_raw_json(
 
     let client = FraiseClient::connect(conn_string).await?;
 
-    println!("Building raw JSON query: client.query::<Value>(\"{}\")", entity);
+    println!(
+        "Building raw JSON query: client.query::<Value>(\"{}\")",
+        entity
+    );
     println!("Type T = serde_json::Value (raw JSON)\n");
 
     // Type T = Value: Results are raw JSON
@@ -184,7 +190,10 @@ async fn example_raw_json(
         }
     }
 
-    println!("\n✓ Escape hatch example: Received {} raw JSON items\n", count);
+    println!(
+        "\n✓ Escape hatch example: Received {} raw JSON items\n",
+        count
+    );
     Ok(())
 }
 
@@ -209,7 +218,7 @@ async fn example_with_sql_predicate(
     // Same SQL where regardless of T
     let mut stream = client
         .query::<Project>(entity)
-        .where_sql("1 = 1")  // In production, use actual predicates
+        .where_sql("1 = 1") // In production, use actual predicates
         .chunk_size(32)
         .execute()
         .await?;
@@ -235,7 +244,10 @@ async fn example_with_sql_predicate(
         }
     }
 
-    println!("\n✓ SQL predicate example: Received {} typed items\n", count);
+    println!(
+        "\n✓ SQL predicate example: Received {} typed items\n",
+        count
+    );
     println!("Key point: SQL WHERE applied on server BEFORE deserialization to T\n");
     Ok(())
 }
@@ -280,7 +292,10 @@ async fn example_with_rust_predicate(
         match result {
             Ok(project) => {
                 count += 1;
-                println!("  [{:2}] {} - {} (matches predicate)", count, project.id, project.title);
+                println!(
+                    "  [{:2}] {} - {} (matches predicate)",
+                    count, project.id, project.title
+                );
 
                 if count >= 5 {
                     println!("  ... (limiting to first 5 for demo)");
@@ -294,7 +309,10 @@ async fn example_with_rust_predicate(
         }
     }
 
-    println!("\n✓ Rust predicate example: Received {} filtered items\n", count);
+    println!(
+        "\n✓ Rust predicate example: Received {} filtered items\n",
+        count
+    );
     println!("Key point: Predicate filters JSON BEFORE deserialization to T\n");
     Ok(())
 }

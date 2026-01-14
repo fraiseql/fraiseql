@@ -21,7 +21,7 @@
 //! - Hostname verification is enabled by default (recommended for production)
 //! - For development with self-signed certificates, use `danger_accept_invalid_certs(true)`
 
-use fraiseql_wire::{FraiseClient, connection::TlsConfig};
+use fraiseql_wire::{connection::TlsConfig, FraiseClient};
 use futures::stream::StreamExt;
 use std::env;
 
@@ -36,7 +36,7 @@ async fn main() -> fraiseql_wire::Result<()> {
 
     // Create TLS configuration
     let tls = TlsConfig::builder()
-        .verify_hostname(true)  // Verify server certificate matches hostname (production)
+        .verify_hostname(true) // Verify server certificate matches hostname (production)
         .build()?;
 
     println!("✓ TLS configuration created");

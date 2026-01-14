@@ -25,7 +25,7 @@ pub struct ConservativeEstimator;
 
 impl MemoryEstimator for ConservativeEstimator {
     fn estimate_bytes(&self, items_buffered: usize) -> usize {
-        items_buffered * 2048  // 2 KB per item
+        items_buffered * 2048 // 2 KB per item
     }
 
     fn name(&self) -> &'static str {

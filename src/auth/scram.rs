@@ -79,10 +79,7 @@ impl ScramClient {
     /// Process server first message and generate client final message
     ///
     /// Returns (client_final_message, internal_state)
-    pub fn client_final(
-        &mut self,
-        server_first: &str,
-    ) -> Result<(String, ScramState), ScramError> {
+    pub fn client_final(&mut self, server_first: &str) -> Result<(String, ScramState), ScramError> {
         // Parse server first message: r=<client_nonce><server_nonce>,s=<salt>,i=<iterations>
         let (server_nonce, salt, iterations) = parse_server_first(server_first)?;
 
@@ -97,10 +94,9 @@ impl ScramClient {
         let salt_bytes = BASE64
             .decode(&salt)
             .map_err(|_| ScramError::Base64Error("invalid salt encoding".to_string()))?;
-        let iterations =
-            iterations.parse::<u32>().map_err(|_| {
-                ScramError::InvalidServerMessage("invalid iteration count".to_string())
-            })?;
+        let iterations = iterations
+            .parse::<u32>()
+            .map_err(|_| ScramError::InvalidServerMessage("invalid iteration count".to_string()))?;
 
         // Build channel binding (no channel binding for SCRAM-SHA-256)
         let channel_binding = BASE64.encode(b"n,,");
@@ -248,8 +244,7 @@ fn calculate_server_key(
 
 /// Calculate server signature for verification
 fn calculate_server_signature(server_key: &[u8], auth_message: &[u8]) -> Vec<u8> {
-    let mut hmac = HmacSha256::new_from_slice(server_key)
-        .expect("HMAC key should be valid");
+    let mut hmac = HmacSha256::new_from_slice(server_key).expect("HMAC key should be valid");
     hmac.update(auth_message);
     hmac.finalize().into_bytes().to_vec()
 }

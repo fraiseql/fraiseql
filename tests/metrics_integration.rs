@@ -40,7 +40,12 @@ fn test_metrics_module_exports() {
 fn test_counters_basic_operation() {
     // These should not panic
     for i in 0..10 {
-        metrics::counters::query_submitted(&format!("entity_{}", i), i % 2 == 0, i % 3 == 0, i % 4 == 0);
+        metrics::counters::query_submitted(
+            &format!("entity_{}", i),
+            i % 2 == 0,
+            i % 3 == 0,
+            i % 4 == 0,
+        );
     }
 
     // Auth counters
@@ -383,7 +388,7 @@ fn test_channel_occupancy_multiple_entities() {
 fn test_stream_stats_creation_and_properties() {
     let stats = StreamStats {
         items_buffered: 100,
-        estimated_memory: 204800,  // 100 * 2048
+        estimated_memory: 204800, // 100 * 2048
         total_rows_yielded: 1000,
         total_rows_filtered: 100,
     };
@@ -428,7 +433,7 @@ fn test_stream_stats_row_tracking() {
 
     // Calculate filter ratio
     let filter_ratio = stats.total_rows_filtered as f64 / stats.total_rows_yielded as f64;
-    assert!((filter_ratio - 0.1).abs() < 0.01);  // Should be ~10%
+    assert!((filter_ratio - 0.1).abs() < 0.01); // Should be ~10%
 }
 
 /// Test StreamStats zero initialization
@@ -494,11 +499,11 @@ fn test_query_builder_max_memory_api() {
 #[test]
 fn test_memory_estimation_formula() {
     let test_cases = [
-        (0, 0),              // 0 items → 0 bytes
-        (1, 2048),           // 1 item → 2KB
-        (100, 204_800),      // 100 items → 200KB
-        (256, 524_288),      // 256 items → 512KB (typical chunk size)
-        (512, 1_048_576),    // 512 items → 1MB
+        (0, 0),           // 0 items → 0 bytes
+        (1, 2048),        // 1 item → 2KB
+        (100, 204_800),   // 100 items → 200KB
+        (256, 524_288),   // 256 items → 512KB (typical chunk size)
+        (512, 1_048_576), // 512 items → 1MB
     ];
 
     for (items, expected_bytes) in test_cases {

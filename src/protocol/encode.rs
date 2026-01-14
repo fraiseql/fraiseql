@@ -32,11 +32,7 @@ pub fn encode_message(msg: &FrontendMessage) -> io::Result<BytesMut> {
     Ok(buf)
 }
 
-fn encode_startup(
-    buf: &mut BytesMut,
-    version: i32,
-    params: &[(String, String)],
-) -> io::Result<()> {
+fn encode_startup(buf: &mut BytesMut, version: i32, params: &[(String, String)]) -> io::Result<()> {
     // Startup messages don't have a type byte
     // Reserve space for length (will be filled at end)
     let len_pos = buf.len();

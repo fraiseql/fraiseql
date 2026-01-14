@@ -132,9 +132,7 @@ impl AdaptiveChunking {
         };
 
         // Record this observation
-        self.measurements.push_back(Occupancy {
-            percentage: pct,
-        });
+        self.measurements.push_back(Occupancy { percentage: pct });
 
         // Keep only the most recent measurements in the window
         while self.measurements.len() > self.adjustment_window {
@@ -328,7 +326,10 @@ mod tests {
         assert!(result.is_some());
 
         let new_size = result.unwrap();
-        assert!(new_size < original_size, "Should decrease on high occupancy");
+        assert!(
+            new_size < original_size,
+            "Should decrease on high occupancy"
+        );
         assert!(new_size >= 16, "Should respect min bound");
     }
 
@@ -416,7 +417,10 @@ mod tests {
         );
 
         let first_size = adaptive.current_size();
-        assert!(first_size < 256, "High occupancy should decrease chunk size");
+        assert!(
+            first_size < 256,
+            "High occupancy should decrease chunk size"
+        );
 
         // Immediately try to trigger another adjustment within 1 second
         // This should NOT happen because of the 1-second minimum interval
@@ -451,7 +455,10 @@ mod tests {
 
         // 50th call: window becomes full, triggers adjustment
         let first = adaptive.observe(230, 256);
-        assert!(first.is_some(), "Should adjust when window reaches 50 observations");
+        assert!(
+            first.is_some(),
+            "Should adjust when window reaches 50 observations"
+        );
 
         // Measurements should be cleared after adjustment
         assert!(
@@ -502,6 +509,9 @@ mod tests {
 
         let avg = adaptive.average_occupancy();
         // Average of [9, 19, 29, 39, 50] = 146 / 5 = 29 (integer division)
-        assert_eq!(avg, 29, "Average should account for integer division in percentages");
+        assert_eq!(
+            avg, 29,
+            "Average should account for integer division in percentages"
+        );
     }
 }

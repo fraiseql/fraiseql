@@ -74,12 +74,20 @@ impl<T: DeserializeOwned> TypedJsonStream<T> {
         match serde_json::from_value::<T>(value) {
             Ok(result) => {
                 let duration_ms = deser_start.elapsed().as_millis() as u64;
-                crate::metrics::histograms::deserialization_duration("unknown", &type_name, duration_ms);
+                crate::metrics::histograms::deserialization_duration(
+                    "unknown",
+                    &type_name,
+                    duration_ms,
+                );
                 crate::metrics::counters::deserialization_success("unknown", &type_name);
                 Ok(result)
             }
             Err(e) => {
-                crate::metrics::counters::deserialization_failure("unknown", &type_name, "serde_error");
+                crate::metrics::counters::deserialization_failure(
+                    "unknown",
+                    &type_name,
+                    "serde_error",
+                );
                 Err(Error::Deserialization {
                     type_name,
                     details: e.to_string(),
@@ -166,10 +174,7 @@ mod tests {
 
         let err = result.unwrap_err();
         match err {
-            Error::Deserialization {
-                type_name,
-                details,
-            } => {
+            Error::Deserialization { type_name, details } => {
                 assert!(type_name.contains("TestType"));
                 assert!(details.contains("name"));
             }
@@ -196,10 +201,7 @@ mod tests {
 
         let err = result.unwrap_err();
         match err {
-            Error::Deserialization {
-                type_name,
-                details,
-            } => {
+            Error::Deserialization { type_name, details } => {
                 assert!(type_name.contains("TestType"));
                 assert!(details.contains("invalid") || details.contains("type"));
             }

@@ -127,7 +127,8 @@ impl ConnectionInfo {
             // Use default socket directory
             resolve_default_socket_dir().ok_or_else(|| {
                 Error::Config(
-                    "could not locate Unix socket directory. Set host query parameter explicitly.".into(),
+                    "could not locate Unix socket directory. Set host query parameter explicitly."
+                        .into(),
                 )
             })?
         };
@@ -233,7 +234,7 @@ mod tests {
         assert_eq!(info.transport, TransportType::Unix);
         assert_eq!(info.database, "mydb");
         assert_eq!(info.port, Some(5432)); // Default port
-        // Socket path should contain the database name and port
+                                           // Socket path should contain the database name and port
         assert!(info.unix_socket.is_some());
         let path = info.unix_socket.unwrap();
         assert!(path.to_string_lossy().contains(".s.PGSQL.5432"));

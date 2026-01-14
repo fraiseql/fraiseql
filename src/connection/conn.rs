@@ -86,7 +86,10 @@ impl ConnectionConfig {
     ///     .statement_timeout(Duration::from_secs(30))
     ///     .build();
     /// ```
-    pub fn builder(database: impl Into<String>, user: impl Into<String>) -> ConnectionConfigBuilder {
+    pub fn builder(
+        database: impl Into<String>,
+        user: impl Into<String>,
+    ) -> ConnectionConfigBuilder {
         ConnectionConfigBuilder {
             database: database.into(),
             user: user.into(),
@@ -107,11 +110,7 @@ impl ConnectionConfig {
     }
 
     /// Add connection parameter
-    pub fn param(
-        mut self,
-        key: impl Into<String>,
-        value: impl Into<String>,
-    ) -> Self {
+    pub fn param(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
         self.params.insert(key.into(), value.into());
         self
     }
@@ -286,10 +285,7 @@ impl Connection {
 
             // Add extra_float_digits if specified
             if let Some(digits) = config.extra_float_digits {
-                params.push((
-                    "extra_float_digits".to_string(),
-                    digits.to_string(),
-                ));
+                params.push(("extra_float_digits".to_string(), digits.to_string()));
             }
 
             // Add user-provided parameters
@@ -346,9 +342,7 @@ impl Connection {
                         let password = config
                             .password
                             .as_ref()
-                            .ok_or_else(|| {
-                                Error::Authentication("password required".into())
-                            })?;
+                            .ok_or_else(|| Error::Authentication("password required".into()))?;
                         let pwd_msg = FrontendMessage::Password(password.clone());
                         self.send_message(&pwd_msg).await?;
                     }
@@ -403,15 +397,17 @@ impl Connection {
     }
 
     /// Handle SASL authentication (SCRAM-SHA-256)
-    async fn handle_sasl(&mut self, mechanisms: &[String], config: &ConnectionConfig) -> Result<()> {
+    async fn handle_sasl(
+        &mut self,
+        mechanisms: &[String],
+        config: &ConnectionConfig,
+    ) -> Result<()> {
         // Check if server supports SCRAM-SHA-256
         if !mechanisms.contains(&"SCRAM-SHA-256".to_string()) {
-            return Err(Error::Authentication(
-                format!(
-                    "server does not support SCRAM-SHA-256. Available: {}",
-                    mechanisms.join(", ")
-                )
-            ));
+            return Err(Error::Authentication(format!(
+                "server does not support SCRAM-SHA-256. Available: {}",
+                mechanisms.join(", ")
+            )));
         }
 
         // Get password
@@ -436,10 +432,7 @@ impl Connection {
         let server_first_data = match server_first_msg {
             BackendMessage::Authentication(AuthenticationMessage::SaslContinue { data }) => data,
             BackendMessage::ErrorResponse(err) => {
-                return Err(Error::Authentication(format!(
-                    "SASL server error: {}",
-                    err
-                )));
+                return Err(Error::Authentication(format!("SASL server error: {}", err)));
             }
             _ => {
                 return Err(Error::Protocol(
@@ -455,10 +448,9 @@ impl Connection {
         tracing::debug!("received SCRAM server first message");
 
         // Generate client final message
-        let (client_final, scram_state) =
-            scram
-                .client_final(&server_first)
-                .map_err(|e| Error::Authentication(format!("SCRAM error: {}", e)))?;
+        let (client_final, scram_state) = scram
+            .client_final(&server_first)
+            .map_err(|e| Error::Authentication(format!("SCRAM error: {}", e)))?;
 
         // Send SaslResponse with client final message
         let msg = FrontendMessage::SaslResponse {
@@ -471,10 +463,7 @@ impl Connection {
         let server_final_data = match server_final_msg {
             BackendMessage::Authentication(AuthenticationMessage::SaslFinal { data }) => data,
             BackendMessage::ErrorResponse(err) => {
-                return Err(Error::Authentication(format!(
-                    "SASL server error: {}",
-                    err
-                )));
+                return Err(Error::Authentication(format!("SASL server error: {}", err)));
             }
             _ => {
                 return Err(Error::Protocol(
@@ -1082,7 +1071,9 @@ mod tests {
         #[allow(unreachable_code)]
         let _ = || {
             // These would be checked at compile time if instantiated
-            require_send::<std::pin::Pin<std::boxed::Box<dyn std::future::Future<Output = ()> + Send>>>();
+            require_send::<
+                std::pin::Pin<std::boxed::Box<dyn std::future::Future<Output = ()> + Send>>,
+            >();
         };
     };
 }

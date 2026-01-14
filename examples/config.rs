@@ -13,7 +13,7 @@
 //!   POSTGRES_PASSWORD - Database password (default: postgres)
 //!   POSTGRES_DB       - Database name (default: postgres)
 
-use fraiseql_wire::{FraiseClient, connection::ConnectionConfig};
+use fraiseql_wire::{connection::ConnectionConfig, FraiseClient};
 use std::env;
 use std::time::Duration;
 
@@ -171,10 +171,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Built configuration:");
     println!("  - database: {}", builder_config.database);
     println!("  - user: {}", builder_config.user);
-    println!("  - statement_timeout: {:?}", builder_config.statement_timeout);
+    println!(
+        "  - statement_timeout: {:?}",
+        builder_config.statement_timeout
+    );
     println!("  - keepalive_idle: {:?}", builder_config.keepalive_idle);
-    println!("  - application_name: {:?}", builder_config.application_name);
-    println!("  - custom param (timezone): {:?}", builder_config.params.get("timezone"));
+    println!(
+        "  - application_name: {:?}",
+        builder_config.application_name
+    );
+    println!(
+        "  - custom param (timezone): {:?}",
+        builder_config.params.get("timezone")
+    );
     println!();
 
     // Example 5: Show timeout value conversions
@@ -188,13 +197,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let examples = vec![
         (Duration::from_secs(1), "1 second"),
         (Duration::from_millis(500), "500 milliseconds"),
-        (Duration::from_secs(5) + Duration::from_millis(250), "5.25 seconds"),
+        (
+            Duration::from_secs(5) + Duration::from_millis(250),
+            "5.25 seconds",
+        ),
         (Duration::from_secs(30), "30 seconds"),
         (Duration::from_secs(300), "5 minutes"),
     ];
 
     for (duration, description) in examples {
-        println!("  {} ({:?}) → {} ms", description, duration, duration.as_millis());
+        println!(
+            "  {} ({:?}) → {} ms",
+            description,
+            duration,
+            duration.as_millis()
+        );
     }
     println!();
 

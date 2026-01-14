@@ -16,10 +16,7 @@ async fn connect_test_db() -> fraiseql_wire::error::Result<FraiseClient> {
     let port = std::env::var("POSTGRES_PORT").unwrap_or_else(|_| "5432".to_string());
     let db = std::env::var("POSTGRES_DB").unwrap_or_else(|_| "fraiseql_test".to_string());
 
-    let conn_string = format!(
-        "postgres://{}:{}@{}:{}/{}",
-        user, password, host, port, db
-    );
+    let conn_string = format!("postgres://{}:{}@{}:{}/{}", user, password, host, port, db);
 
     FraiseClient::connect(&conn_string).await
 }
@@ -30,9 +27,7 @@ async fn connect_test_db() -> fraiseql_wire::error::Result<FraiseClient> {
 async fn test_stress_early_stream_drop() {
     println!("Test: Early stream drop (client disconnect)");
 
-    let client = connect_test_db()
-        .await
-        .expect("failed to connect");
+    let client = connect_test_db().await.expect("failed to connect");
 
     let mut stream = client
         .query::<serde_json::Value>("test_staging.projects")
@@ -94,9 +89,7 @@ async fn test_stress_connection_refused() {
 async fn test_stress_missing_table() {
     println!("Test: Missing table");
 
-    let client = connect_test_db()
-        .await
-        .expect("failed to connect");
+    let client = connect_test_db().await.expect("failed to connect");
 
     let result = client
         .query::<serde_json::Value>("nonexistent_table")
@@ -113,9 +106,7 @@ async fn test_stress_missing_table() {
 async fn test_stress_invalid_where_clause() {
     println!("Test: Invalid WHERE clause");
 
-    let client = connect_test_db()
-        .await
-        .expect("failed to connect");
+    let client = connect_test_db().await.expect("failed to connect");
 
     let result = client
         .query::<serde_json::Value>("projects")
@@ -133,9 +124,7 @@ async fn test_stress_invalid_where_clause() {
 async fn test_stress_empty_result_set() {
     println!("Test: Empty result set");
 
-    let client = connect_test_db()
-        .await
-        .expect("failed to connect");
+    let client = connect_test_db().await.expect("failed to connect");
 
     // Query with predicate that matches nothing
     let mut stream = client
@@ -161,9 +150,7 @@ async fn test_stress_empty_result_set() {
 async fn test_stress_large_where_clause() {
     println!("Test: Very large WHERE clause");
 
-    let client = connect_test_db()
-        .await
-        .expect("failed to connect");
+    let client = connect_test_db().await.expect("failed to connect");
 
     // Create a large WHERE clause
     let mut where_clause = "data->>'name' IN (".to_string();
@@ -223,9 +210,7 @@ async fn test_stress_connection_cycling() {
 async fn test_stress_single_connection_multiple_queries() {
     println!("Test: Multiple queries from single connection");
 
-    let client = connect_test_db()
-        .await
-        .expect("failed to connect");
+    let client = connect_test_db().await.expect("failed to connect");
 
     // First query
     let mut stream1 = client
@@ -235,7 +220,10 @@ async fn test_stress_single_connection_multiple_queries() {
         .expect("failed first query");
 
     let row1 = stream1.next().await;
-    assert!(row1.is_some(), "should get at least one row from first query");
+    assert!(
+        row1.is_some(),
+        "should get at least one row from first query"
+    );
 
     println!("  First query: received row");
 
@@ -250,9 +238,7 @@ async fn test_stress_single_connection_multiple_queries() {
 async fn test_stress_tiny_chunk_size() {
     println!("Test: Very small chunk size");
 
-    let client = connect_test_db()
-        .await
-        .expect("failed to connect");
+    let client = connect_test_db().await.expect("failed to connect");
 
     let mut stream = client
         .query::<serde_json::Value>("projects")
@@ -277,9 +263,7 @@ async fn test_stress_tiny_chunk_size() {
 async fn test_stress_huge_chunk_size() {
     println!("Test: Very large chunk size");
 
-    let client = connect_test_db()
-        .await
-        .expect("failed to connect");
+    let client = connect_test_db().await.expect("failed to connect");
 
     let mut stream = client
         .query::<serde_json::Value>("projects")
@@ -316,9 +300,7 @@ async fn test_stress_wrong_credentials() {
 async fn test_stress_partial_consumption() {
     println!("Test: Partial row consumption");
 
-    let client = connect_test_db()
-        .await
-        .expect("failed to connect");
+    let client = connect_test_db().await.expect("failed to connect");
 
     let mut stream = client
         .query::<serde_json::Value>("projects")
@@ -347,9 +329,7 @@ async fn test_stress_partial_consumption() {
 async fn test_stress_zero_chunk_size() {
     println!("Test: Zero chunk size");
 
-    let client = connect_test_db()
-        .await
-        .expect("failed to connect");
+    let client = connect_test_db().await.expect("failed to connect");
 
     // Attempt to set chunk size to 0 - should either be rejected or default to something safe
     let result = client
@@ -385,9 +365,7 @@ async fn test_stress_zero_chunk_size() {
 async fn test_stress_invalid_order_by() {
     println!("Test: Invalid ORDER BY");
 
-    let client = connect_test_db()
-        .await
-        .expect("failed to connect");
+    let client = connect_test_db().await.expect("failed to connect");
 
     let result = client
         .query::<serde_json::Value>("projects")
@@ -405,9 +383,7 @@ async fn test_stress_invalid_order_by() {
 async fn test_stress_combined_predicates() {
     println!("Test: Combined SQL and Rust predicates");
 
-    let client = connect_test_db()
-        .await
-        .expect("failed to connect");
+    let client = connect_test_db().await.expect("failed to connect");
 
     let mut stream = client
         .query::<serde_json::Value>("users")
@@ -436,9 +412,7 @@ async fn test_stress_combined_predicates() {
 async fn test_stress_json_validity() {
     println!("Test: JSON validity of results");
 
-    let client = connect_test_db()
-        .await
-        .expect("failed to connect");
+    let client = connect_test_db().await.expect("failed to connect");
 
     let mut stream = client
         .query::<serde_json::Value>("projects")
@@ -462,10 +436,7 @@ async fn test_stress_json_validity() {
 
     println!("  Total rows: {}", count);
     println!("  Valid JSON rows: {}", valid_json);
-    assert_eq!(
-        count, valid_json,
-        "all rows should contain valid JSON"
-    );
+    assert_eq!(count, valid_json, "all rows should contain valid JSON");
     println!("  JSON validity: ✓");
 }
 
@@ -475,9 +446,7 @@ async fn test_stress_json_validity() {
 async fn test_stress_complex_order_by() {
     println!("Test: Complex ORDER BY expression");
 
-    let client = connect_test_db()
-        .await
-        .expect("failed to connect");
+    let client = connect_test_db().await.expect("failed to connect");
 
     // Order by JSON field with COLLATE
     let result = client

@@ -19,7 +19,7 @@
 //! psql -U postgres fraiseql_bench < benches/setup.sql
 //! ```
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId, Throughput};
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use std::time::Instant;
 
 // Mock Postgres connection setup
@@ -90,11 +90,7 @@ fn latency_benchmarks(c: &mut Criterion) {
 
     // Test with different result set sizes
     // TTFR shouldn't increase much (should be dominated by connection overhead)
-    let result_sizes = vec![
-        ("1k", 1_000),
-        ("100k", 100_000),
-        ("1m", 1_000_000),
-    ];
+    let result_sizes = vec![("1k", 1_000), ("100k", 100_000), ("1m", 1_000_000)];
 
     for (name, size) in result_sizes {
         group.bench_with_input(
@@ -195,11 +191,7 @@ fn chunking_benchmarks(c: &mut Criterion) {
     group.sample_size(20);
 
     // Test different chunking strategies with 100k row set
-    let strategies = vec![
-        ("chunk_64", 64),
-        ("chunk_256", 256),
-        ("chunk_1024", 1024),
-    ];
+    let strategies = vec![("chunk_64", 64), ("chunk_256", 256), ("chunk_1024", 1024)];
 
     for (name, size) in strategies {
         group.bench_with_input(
@@ -240,30 +232,26 @@ fn predicate_benchmarks(c: &mut Criterion) {
     // SQL predicates reduce data at server; Rust predicates filter on client
 
     let scenarios = vec![
-        ("no_filter", 100_000, 1.0),          // No filtering, all rows
-        ("sql_1percent", 100_000, 0.01),      // SQL filters to 1% of rows
-        ("sql_10percent", 100_000, 0.10),     // SQL filters to 10% of rows
-        ("sql_50percent", 100_000, 0.50),     // SQL filters to 50% of rows
+        ("no_filter", 100_000, 1.0),      // No filtering, all rows
+        ("sql_1percent", 100_000, 0.01),  // SQL filters to 1% of rows
+        ("sql_10percent", 100_000, 0.10), // SQL filters to 10% of rows
+        ("sql_50percent", 100_000, 0.50), // SQL filters to 50% of rows
     ];
 
     for (name, total, ratio) in scenarios {
         let filtered = (total as f64 * ratio) as i64;
         group.throughput(Throughput::Elements(filtered as u64));
 
-        group.bench_with_input(
-            BenchmarkId::from_parameter(name),
-            &filtered,
-            |b, &count| {
-                b.iter(|| {
-                    // Simulate streaming filtered rows
-                    let mut total = 0;
-                    for i in 0..count {
-                        total += i;
-                    }
-                    black_box(total)
-                });
-            },
-        );
+        group.bench_with_input(BenchmarkId::from_parameter(name), &filtered, |b, &count| {
+            b.iter(|| {
+                // Simulate streaming filtered rows
+                let mut total = 0;
+                for i in 0..count {
+                    total += i;
+                }
+                black_box(total)
+            });
+        });
     }
 
     group.finish();

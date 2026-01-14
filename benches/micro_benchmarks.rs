@@ -9,9 +9,9 @@
 //! Run with: cargo bench --bench micro_benchmarks
 //! Run specific benchmark: cargo bench --bench micro_benchmarks protocol_encode
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
-use serde_json::json;
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use fraiseql_wire::connection::ConnectionConfig;
+use serde_json::json;
 
 // Test data generators
 fn generate_small_json() -> serde_json::Value {
@@ -103,23 +103,35 @@ fn json_parsing_benchmarks(c: &mut Criterion) {
     let large_str = serde_json::to_string(&generate_large_json()).unwrap();
     let deep_str = serde_json::to_string(&generate_deeply_nested_json()).unwrap();
 
-    group.bench_with_input(BenchmarkId::from_parameter("small"), &small_str, |b, json_str| {
-        b.iter(|| {
-            let _: serde_json::Value = serde_json::from_str(black_box(json_str)).unwrap();
-        });
-    });
+    group.bench_with_input(
+        BenchmarkId::from_parameter("small"),
+        &small_str,
+        |b, json_str| {
+            b.iter(|| {
+                let _: serde_json::Value = serde_json::from_str(black_box(json_str)).unwrap();
+            });
+        },
+    );
 
-    group.bench_with_input(BenchmarkId::from_parameter("large"), &large_str, |b, json_str| {
-        b.iter(|| {
-            let _: serde_json::Value = serde_json::from_str(black_box(json_str)).unwrap();
-        });
-    });
+    group.bench_with_input(
+        BenchmarkId::from_parameter("large"),
+        &large_str,
+        |b, json_str| {
+            b.iter(|| {
+                let _: serde_json::Value = serde_json::from_str(black_box(json_str)).unwrap();
+            });
+        },
+    );
 
-    group.bench_with_input(BenchmarkId::from_parameter("deeply_nested"), &deep_str, |b, json_str| {
-        b.iter(|| {
-            let _: serde_json::Value = serde_json::from_str(black_box(json_str)).unwrap();
-        });
-    });
+    group.bench_with_input(
+        BenchmarkId::from_parameter("deeply_nested"),
+        &deep_str,
+        |b, json_str| {
+            b.iter(|| {
+                let _: serde_json::Value = serde_json::from_str(black_box(json_str)).unwrap();
+            });
+        },
+    );
 
     group.finish();
 }
@@ -168,15 +180,19 @@ fn chunking_strategy_benchmarks(c: &mut Criterion) {
     let chunk_sizes = [64, 256, 1024];
 
     for size in chunk_sizes {
-        group.bench_with_input(BenchmarkId::from_parameter(size), &size, |b, &chunk_size| {
-            b.iter(|| {
-                let mut buf = BytesMut::with_capacity(black_box(chunk_size));
-                for _ in 0..10 {
-                    buf.extend_from_slice(b"test_data");
-                }
-                buf.is_empty()
-            });
-        });
+        group.bench_with_input(
+            BenchmarkId::from_parameter(size),
+            &size,
+            |b, &chunk_size| {
+                b.iter(|| {
+                    let mut buf = BytesMut::with_capacity(black_box(chunk_size));
+                    for _ in 0..10 {
+                        buf.extend_from_slice(b"test_data");
+                    }
+                    buf.is_empty()
+                });
+            },
+        );
     }
 
     group.finish();
@@ -217,9 +233,7 @@ fn string_matching_benchmarks(c: &mut Criterion) {
     let test_string = "project__status__name = 'active' AND project__priority__value > 5";
 
     group.bench_function("contains_check", |b| {
-        b.iter(|| {
-            black_box(test_string).contains(black_box("project__"))
-        });
+        b.iter(|| black_box(test_string).contains(black_box("project__")));
     });
 
     group.bench_function("split_operation", |b| {
@@ -241,41 +255,32 @@ fn connection_config_benchmarks(c: &mut Criterion) {
     // Typical minimal configuration
     group.bench_function("minimal_config", |b| {
         b.iter(|| {
-            let _config = ConnectionConfig::new(
-                black_box("fraiseql_test"),
-                black_box("postgres"),
-            );
+            let _config = ConnectionConfig::new(black_box("fraiseql_test"), black_box("postgres"));
         });
     });
 
     // Typical configuration with password and parameters
     group.bench_function("full_config_with_params", |b| {
         b.iter(|| {
-            let _config = ConnectionConfig::new(
-                black_box("fraiseql_test"),
-                black_box("postgres"),
-            )
-            .password(black_box("secret_password"))
-            .param(black_box("application_name"), black_box("fraiseql-wire"))
-            .param(black_box("statement_timeout"), black_box("30000"))
-            .param(black_box("connect_timeout"), black_box("10"));
+            let _config = ConnectionConfig::new(black_box("fraiseql_test"), black_box("postgres"))
+                .password(black_box("secret_password"))
+                .param(black_box("application_name"), black_box("fraiseql-wire"))
+                .param(black_box("statement_timeout"), black_box("30000"))
+                .param(black_box("connect_timeout"), black_box("10"));
         });
     });
 
     // Complex configuration with many parameters
     group.bench_function("complex_config_many_params", |b| {
         b.iter(|| {
-            let _config = ConnectionConfig::new(
-                black_box("fraiseql_test"),
-                black_box("postgres"),
-            )
-            .password(black_box("secret_password"))
-            .param(black_box("application_name"), black_box("fraiseql-wire"))
-            .param(black_box("statement_timeout"), black_box("30000"))
-            .param(black_box("connect_timeout"), black_box("10"))
-            .param(black_box("keepalives"), black_box("1"))
-            .param(black_box("keepalives_idle"), black_box("30"))
-            .param(black_box("keepalives_interval"), black_box("10"));
+            let _config = ConnectionConfig::new(black_box("fraiseql_test"), black_box("postgres"))
+                .password(black_box("secret_password"))
+                .param(black_box("application_name"), black_box("fraiseql-wire"))
+                .param(black_box("statement_timeout"), black_box("30000"))
+                .param(black_box("connect_timeout"), black_box("10"))
+                .param(black_box("keepalives"), black_box("1"))
+                .param(black_box("keepalives_idle"), black_box("30"))
+                .param(black_box("keepalives_interval"), black_box("10"));
         });
     });
 
@@ -431,7 +436,11 @@ fn metrics_overhead_benchmarks(c: &mut Criterion) {
             metrics::counters::rows_filtered(black_box("users"), 128);
             // Deserialization
             metrics::counters::deserialization_success(black_box("users"), black_box("User"));
-            metrics::histograms::deserialization_duration(black_box("users"), black_box("User"), 12);
+            metrics::histograms::deserialization_duration(
+                black_box("users"),
+                black_box("User"),
+                12,
+            );
             // Completion
             metrics::counters::rows_processed(black_box("users"), 1152, black_box("ok"));
             metrics::histograms::query_total_duration(black_box("users"), 180);

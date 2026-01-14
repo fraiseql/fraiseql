@@ -101,7 +101,7 @@ async fn test_typed_query_with_sql_predicate() {
     // The SQL predicate is applied server-side before deserialization
     let mut stream = client
         .query::<TestUser>("test_user")
-        .where_sql("data->>'name' LIKE 'A%'")  // SQL predicate
+        .where_sql("data->>'name' LIKE 'A%'") // SQL predicate
         .chunk_size(128)
         .execute()
         .await
@@ -156,7 +156,10 @@ async fn test_typed_query_with_rust_predicate() {
         }
     }
 
-    assert!(count > 0, "should have received at least one user with email");
+    assert!(
+        count > 0,
+        "should have received at least one user with email"
+    );
 }
 
 #[tokio::test]
@@ -192,7 +195,10 @@ async fn test_typed_query_with_ordering() {
         }
     }
 
-    assert!(count > 1, "should have received multiple users to verify ordering");
+    assert!(
+        count > 1,
+        "should have received multiple users to verify ordering"
+    );
 }
 
 #[tokio::test]
@@ -294,7 +300,7 @@ async fn test_deserialization_error_includes_type_info() {
     struct StrictUser {
         id: String,
         name: String,
-        age: i32,  // Field that may not exist
+        age: i32, // Field that may not exist
     }
 
     let client = FraiseClient::connect("postgres://postgres:postgres@localhost:5433/postgres")
@@ -407,6 +413,10 @@ async fn test_streaming_with_chunk_sizes() {
             }
         }
 
-        assert!(count > 0, "should have received results with chunk size {}", chunk_size);
+        assert!(
+            count > 0,
+            "should have received results with chunk size {}",
+            chunk_size
+        );
     }
 }

@@ -113,10 +113,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let elapsed512 = start.elapsed();
-    println!(
-        "With chunk_size=512: {} rows in {:?}",
-        count512, elapsed512
-    );
+    println!("With chunk_size=512: {} rows in {:?}", count512, elapsed512);
 
     Ok(())
 }

@@ -5,8 +5,8 @@
 //! - Stream buffered items count
 //! - Real-time monitoring of stream health
 
-use metrics::gauge;
 use crate::metrics::labels;
+use metrics::gauge;
 
 /// Record current chunk size
 ///

@@ -95,10 +95,7 @@ async fn test_order_by() {
     while let Some(item) = stream.next().await {
         let value = item.expect("item");
         let id = value["id"].as_i64().unwrap_or(0);
-        assert!(
-            id >= prev_id,
-            "Results should be ordered ascending by id"
-        );
+        assert!(id >= prev_id, "Results should be ordered ascending by id");
         prev_id = id;
     }
 }
@@ -192,7 +189,7 @@ async fn test_empty_result_set() {
 
     let mut stream = client
         .query::<serde_json::Value>("test")
-        .where_sql("FALSE")  // Filter all rows
+        .where_sql("FALSE") // Filter all rows
         .execute()
         .await
         .expect("query");

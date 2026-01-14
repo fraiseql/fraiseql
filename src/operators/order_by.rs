@@ -96,10 +96,7 @@ impl OrderByClause {
         }
 
         // Validate field name: alphanumeric + underscore
-        if !self
-            .field
-            .chars()
-            .all(|c| c.is_alphanumeric() || c == '_')
+        if !self.field.chars().all(|c| c.is_alphanumeric() || c == '_')
             || self
                 .field
                 .chars()
@@ -293,16 +290,15 @@ mod tests {
 
     #[test]
     fn test_ordering_with_collation() {
-        let clause = OrderByClause::jsonb_field("name", SortOrder::Asc)
-            .with_collation("en-US");
+        let clause = OrderByClause::jsonb_field("name", SortOrder::Asc).with_collation("en-US");
         let sql = clause.to_sql().unwrap();
         assert_eq!(sql, "(data->'name') COLLATE \"en-US\" ASC");
     }
 
     #[test]
     fn test_ordering_with_nulls_last() {
-        let clause = OrderByClause::direct_column("status", SortOrder::Asc)
-            .with_nulls(NullsHandling::Last);
+        let clause =
+            OrderByClause::direct_column("status", SortOrder::Asc).with_nulls(NullsHandling::Last);
         let sql = clause.to_sql().unwrap();
         assert_eq!(sql, "status ASC NULLS LAST");
     }
@@ -331,16 +327,14 @@ mod tests {
 
     #[test]
     fn test_collation_validation() {
-        let clause = OrderByClause::jsonb_field("name", SortOrder::Asc)
-            .with_collation("en-US");
+        let clause = OrderByClause::jsonb_field("name", SortOrder::Asc).with_collation("en-US");
         assert!(clause.validate().is_ok());
 
-        let clause = OrderByClause::jsonb_field("name", SortOrder::Asc)
-            .with_collation("C.UTF-8");
+        let clause = OrderByClause::jsonb_field("name", SortOrder::Asc).with_collation("C.UTF-8");
         assert!(clause.validate().is_ok());
 
-        let clause = OrderByClause::jsonb_field("name", SortOrder::Asc)
-            .with_collation("invalid!!!special");
+        let clause =
+            OrderByClause::jsonb_field("name", SortOrder::Asc).with_collation("invalid!!!special");
         assert!(clause.validate().is_err());
     }
 

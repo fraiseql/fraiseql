@@ -6,11 +6,16 @@
 //! - Rows processed, filtered, deserialized
 //! - Authentication attempts and successes
 
-use metrics::counter;
 use crate::metrics::labels;
+use metrics::counter;
 
 /// Record a query submission
-pub fn query_submitted(entity: &str, has_where_sql: bool, has_where_rust: bool, has_order_by: bool) {
+pub fn query_submitted(
+    entity: &str,
+    has_where_sql: bool,
+    has_where_rust: bool,
+    has_order_by: bool,
+) {
     counter!(
         "fraiseql_queries_total",
         labels::ENTITY => entity.to_string(),
@@ -199,7 +204,11 @@ pub fn memory_limit_exceeded(entity: &str) {
 /// adaptive_chunk_adjusted("projects", 256, 384);
 /// ```
 pub fn adaptive_chunk_adjusted(entity: &str, old_size: usize, new_size: usize) {
-    let direction = if new_size > old_size { "increase" } else { "decrease" };
+    let direction = if new_size > old_size {
+        "increase"
+    } else {
+        "decrease"
+    };
 
     counter!(
         "fraiseql_adaptive_chunk_adjusted_total",

@@ -16,8 +16,8 @@
 //!
 //! Direct columns use native types from the database schema.
 
-use crate::Result;
 use super::{Field, Value, WhereOperator};
+use crate::Result;
 use std::collections::HashMap;
 
 /// Infers the PostgreSQL type cast needed for a value
@@ -28,10 +28,10 @@ fn infer_type_cast(value: &Value) -> &'static str {
         Value::String(_) => "::text",
         Value::Number(_) => "::numeric", // numeric handles both int and float
         Value::Bool(_) => "::boolean",
-        Value::Null => "",                 // no cast for NULL
-        Value::Array(_) => "",             // arrays handled by operators
-        Value::FloatArray(_) => "",        // vector operators handle their own casting
-        Value::RawSql(_) => "",            // raw SQL is assumed correct
+        Value::Null => "",          // no cast for NULL
+        Value::Array(_) => "",      // arrays handled by operators
+        Value::FloatArray(_) => "", // vector operators handle their own casting
+        Value::RawSql(_) => "",     // raw SQL is assumed correct
     }
 }
 
@@ -175,7 +175,11 @@ pub fn generate_where_operator_sql(
                     format!("${}", param_num)
                 })
                 .collect();
-            Ok(format!("{} NOT IN ({})", field_sql, placeholders.join(", ")))
+            Ok(format!(
+                "{} NOT IN ({})",
+                field_sql,
+                placeholders.join(", ")
+            ))
         }
 
         WhereOperator::Contains(field, substring) => {
@@ -183,7 +187,10 @@ pub fn generate_where_operator_sql(
             let param_num = *param_index + 1;
             *param_index += 1;
             params.insert(param_num, Value::String(substring.clone()));
-            Ok(format!("{} LIKE '%' || ${}::text || '%'", field_sql, param_num))
+            Ok(format!(
+                "{} LIKE '%' || ${}::text || '%'",
+                field_sql, param_num
+            ))
         }
 
         WhereOperator::ArrayContains(field, value) => {
@@ -213,7 +220,11 @@ pub fn generate_where_operator_sql(
                     format!("${}", param_num)
                 })
                 .collect();
-            Ok(format!("{} && ARRAY[{}]", field_sql, placeholders.join(", ")))
+            Ok(format!(
+                "{} && ARRAY[{}]",
+                field_sql,
+                placeholders.join(", ")
+            ))
         }
 
         // ============ Array Length Operators ============
@@ -248,7 +259,10 @@ pub fn generate_where_operator_sql(
             let param_num = *param_index + 1;
             *param_index += 1;
             params.insert(param_num, Value::String(substring.clone()));
-            Ok(format!("{} ILIKE '%' || ${}::text || '%'", field_sql, param_num))
+            Ok(format!(
+                "{} ILIKE '%' || ${}::text || '%'",
+                field_sql, param_num
+            ))
         }
 
         WhereOperator::Startswith(field, prefix) => {
@@ -377,7 +391,10 @@ pub fn generate_where_operator_sql(
             let param_num = *param_index + 1;
             *param_index += 1;
             params.insert(param_num, Value::String(query.clone()));
-            Ok(format!("{} @@ plainto_tsquery(${})::tsvector", field_sql, param_num))
+            Ok(format!(
+                "{} @@ plainto_tsquery(${})::tsvector",
+                field_sql, param_num
+            ))
         }
 
         WhereOperator::PhraseQuery {

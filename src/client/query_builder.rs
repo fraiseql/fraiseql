@@ -62,12 +62,12 @@ pub struct QueryBuilder<T: DeserializeOwned + Unpin + 'static = serde_json::Valu
     offset: Option<usize>,
     chunk_size: usize,
     max_memory: Option<usize>,
-    soft_limit_warn_threshold: Option<f32>,  // Percentage (0.0-1.0) at which to warn
-    soft_limit_fail_threshold: Option<f32>,  // Percentage (0.0-1.0) at which to error
+    soft_limit_warn_threshold: Option<f32>, // Percentage (0.0-1.0) at which to warn
+    soft_limit_fail_threshold: Option<f32>, // Percentage (0.0-1.0) at which to error
     enable_adaptive_chunking: bool,
     adaptive_min_chunk_size: Option<usize>,
     adaptive_max_chunk_size: Option<usize>,
-    custom_select: Option<String>,  // Optional custom SELECT clause for SQL projection
+    custom_select: Option<String>, // Optional custom SELECT clause for SQL projection
     _phantom: PhantomData<T>,
 }
 
@@ -86,7 +86,7 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
             max_memory: None,
             soft_limit_warn_threshold: None,
             soft_limit_fail_threshold: None,
-            enable_adaptive_chunking: true,  // Enabled by default
+            enable_adaptive_chunking: true, // Enabled by default
             adaptive_min_chunk_size: None,
             adaptive_max_chunk_size: None,
             custom_select: None,
@@ -371,13 +371,16 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
             self.order_by.is_some(),
         );
 
-        let stream = self.client.execute_query(
-            &sql,
-            self.chunk_size,
-            self.max_memory,
-            self.soft_limit_warn_threshold,
-            self.soft_limit_fail_threshold,
-        ).await?;
+        let stream = self
+            .client
+            .execute_query(
+                &sql,
+                self.chunk_size,
+                self.max_memory,
+                self.soft_limit_warn_threshold,
+                self.soft_limit_fail_threshold,
+            )
+            .await?;
 
         // Create QueryStream with optional Rust predicate
         Ok(QueryStream::new(stream, self.rust_predicate))
@@ -419,11 +422,7 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
 #[cfg(test)]
 mod tests {
 
-    fn build_test_sql(
-        entity: &str,
-        predicates: Vec<&str>,
-        order_by: Option<&str>,
-    ) -> String {
+    fn build_test_sql(entity: &str, predicates: Vec<&str>, order_by: Option<&str>) -> String {
         let mut sql = format!("SELECT data FROM {}", entity);
         if !predicates.is_empty() {
             sql.push_str(" WHERE ");
@@ -445,7 +444,10 @@ mod tests {
     #[test]
     fn test_build_sql_with_where() {
         let sql = build_test_sql("user", vec!["data->>'status' = 'active'"], None);
-        assert_eq!(sql, "SELECT data FROM user WHERE data->>'status' = 'active'");
+        assert_eq!(
+            sql,
+            "SELECT data FROM user WHERE data->>'status' = 'active'"
+        );
     }
 
     #[test]
@@ -507,7 +509,8 @@ mod tests {
 
     #[test]
     fn test_projection_multiple_fields() {
-        let projection = "jsonb_build_object('id', data->>'id', 'name', data->>'name', 'email', data->>'email')";
+        let projection =
+            "jsonb_build_object('id', data->>'id', 'name', data->>'name', 'email', data->>'email')";
         let sql = format!("SELECT {} as data FROM users", projection);
         assert!(sql.contains("as data FROM users"));
         assert!(sql.contains("jsonb_build_object("));
@@ -555,7 +558,8 @@ mod tests {
 
     #[test]
     fn test_projection_full_pipeline() {
-        let projection = "jsonb_build_object('user_id', data->>'user_id', 'event_type', data->>'event_type')";
+        let projection =
+            "jsonb_build_object('user_id', data->>'user_id', 'event_type', data->>'event_type')";
         let mut sql = format!("SELECT {} as data FROM events", projection);
         sql.push_str(" WHERE event_type IN ('purchase', 'view')");
         sql.push_str(" ORDER BY timestamp DESC");
@@ -573,8 +577,8 @@ mod tests {
     #[test]
     fn test_typed_stream_with_value_type() {
         // Verify that TypedJsonStream can wrap a raw JSON stream
-        use futures::stream;
         use crate::stream::TypedJsonStream;
+        use futures::stream;
 
         let values = vec![
             Ok(serde_json::json!({"id": "1", "name": "Alice"})),
@@ -586,15 +590,16 @@ mod tests {
             TypedJsonStream::new(Box::new(json_stream));
 
         // This verifies the stream compiles and has correct type
-        let _stream: Box<dyn futures::stream::Stream<Item = crate::Result<serde_json::Value>> + Unpin> =
-            Box::new(typed_stream);
+        let _stream: Box<
+            dyn futures::stream::Stream<Item = crate::Result<serde_json::Value>> + Unpin,
+        > = Box::new(typed_stream);
     }
 
     #[test]
     fn test_filtered_stream_with_typed_output() {
         // Verify that FilteredStream correctly filters before TypedJsonStream
-        use futures::stream;
         use crate::stream::{FilteredStream, TypedJsonStream};
+        use futures::stream;
 
         let values = vec![
             Ok(serde_json::json!({"id": 1, "active": true})),
@@ -603,25 +608,24 @@ mod tests {
         ];
 
         let json_stream = stream::iter(values);
-        let predicate = Box::new(|v: &serde_json::Value| {
-            v["active"].as_bool().unwrap_or(false)
-        });
+        let predicate = Box::new(|v: &serde_json::Value| v["active"].as_bool().unwrap_or(false));
 
         let filtered = FilteredStream::new(json_stream, predicate);
         let typed_stream: TypedJsonStream<serde_json::Value> =
             TypedJsonStream::new(Box::new(filtered));
 
         // This verifies the full pipeline compiles
-        let _stream: Box<dyn futures::stream::Stream<Item = crate::Result<serde_json::Value>> + Unpin> =
-            Box::new(typed_stream);
+        let _stream: Box<
+            dyn futures::stream::Stream<Item = crate::Result<serde_json::Value>> + Unpin,
+        > = Box::new(typed_stream);
     }
 
     #[test]
     fn test_stream_pipeline_type_flow() {
         // Comprehensive test of stream type compatibility:
         // JsonStream (Result<Value>) → FilteredStream (Result<Value>) → TypedJsonStream<T> (Result<T>)
-        use futures::stream;
         use crate::stream::{FilteredStream, TypedJsonStream};
+        use futures::stream;
         use serde::Deserialize;
 
         #[derive(Deserialize, Debug)]
@@ -641,8 +645,9 @@ mod tests {
         // Step 1: FilteredStream filters JSON values
         let predicate: Box<dyn Fn(&serde_json::Value) -> bool + Send> =
             Box::new(|v| v["active"].as_bool().unwrap_or(false));
-        let filtered: Box<dyn futures::stream::Stream<Item = crate::Result<serde_json::Value>> + Unpin> =
-            Box::new(FilteredStream::new(json_stream, predicate));
+        let filtered: Box<
+            dyn futures::stream::Stream<Item = crate::Result<serde_json::Value>> + Unpin,
+        > = Box::new(FilteredStream::new(json_stream, predicate));
 
         // Step 2: TypedJsonStream deserializes to TestUser
         let typed: TypedJsonStream<TestUser> = TypedJsonStream::new(filtered);
@@ -651,7 +656,8 @@ mod tests {
         // - FilteredStream outputs Result<Value>
         // - TypedJsonStream<T> takes Box<dyn Stream<Item = Result<Value>>>
         // - TypedJsonStream<T> outputs Result<T>
-        let _final_stream: Box<dyn futures::stream::Stream<Item = crate::Result<TestUser>> + Unpin> =
-            Box::new(typed);
+        let _final_stream: Box<
+            dyn futures::stream::Stream<Item = crate::Result<TestUser>> + Unpin,
+        > = Box::new(typed);
     }
 }

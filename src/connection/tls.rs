@@ -5,10 +5,10 @@
 
 use crate::{Error, Result};
 use rustls::ClientConfig;
-use std::fs;
-use std::sync::Arc;
 use rustls::RootCertStore;
 use rustls_pemfile::Item;
+use std::fs;
+use std::sync::Arc;
 
 /// TLS configuration for secure Postgres connections.
 ///
@@ -91,8 +91,14 @@ impl std::fmt::Debug for TlsConfig {
         f.debug_struct("TlsConfig")
             .field("ca_cert_path", &self.ca_cert_path)
             .field("verify_hostname", &self.verify_hostname)
-            .field("danger_accept_invalid_certs", &self.danger_accept_invalid_certs)
-            .field("danger_accept_invalid_hostnames", &self.danger_accept_invalid_hostnames)
+            .field(
+                "danger_accept_invalid_certs",
+                &self.danger_accept_invalid_certs,
+            )
+            .field(
+                "danger_accept_invalid_hostnames",
+                &self.danger_accept_invalid_hostnames,
+            )
             .field("client_config", &"<ClientConfig>")
             .finish()
     }
@@ -233,7 +239,7 @@ impl TlsConfigBuilder {
             // Log warnings if there were errors, but don't fail
             if !result.errors.is_empty() && store.is_empty() {
                 return Err(Error::Config(
-                    "Failed to load any system root certificates".to_string()
+                    "Failed to load any system root certificates".to_string(),
                 ));
             }
 
@@ -244,7 +250,7 @@ impl TlsConfigBuilder {
         let client_config = Arc::new(
             ClientConfig::builder()
                 .with_root_certificates(root_store)
-                .with_no_client_auth()
+                .with_no_client_auth(),
         );
 
         Ok(TlsConfig {
@@ -322,7 +328,10 @@ pub fn parse_server_name(hostname: &str) -> Result<String> {
 
     // Validate hostname (basic check)
     if hostname.is_empty() || hostname.len() > 253 {
-        return Err(Error::Config(format!("Invalid hostname for TLS: '{}'", hostname)));
+        return Err(Error::Config(format!(
+            "Invalid hostname for TLS: '{}'",
+            hostname
+        )));
     }
 
     // Check for invalid characters
@@ -330,7 +339,10 @@ pub fn parse_server_name(hostname: &str) -> Result<String> {
         .chars()
         .all(|c| c.is_alphanumeric() || c == '-' || c == '.')
     {
-        return Err(Error::Config(format!("Invalid hostname for TLS: '{}'", hostname)));
+        return Err(Error::Config(format!(
+            "Invalid hostname for TLS: '{}'",
+            hostname
+        )));
     }
 
     Ok(hostname.to_string())

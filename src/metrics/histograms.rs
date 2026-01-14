@@ -7,8 +7,8 @@
 //! - Deserialization time
 //! - Row and bytes distributions
 
-use metrics::histogram;
 use crate::metrics::labels;
+use metrics::histogram;
 
 /// Record query startup duration (from submit to first DataRow)
 pub fn query_startup_duration(entity: &str, duration_ms: u64) {

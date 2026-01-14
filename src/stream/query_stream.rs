@@ -4,8 +4,8 @@
 //! and type-safe deserialization. It exposes pause(), resume(), and stats() methods
 //! while implementing Stream<Item = Result<T>>.
 
-use crate::{Error, Result};
 use crate::stream::JsonStream;
+use crate::{Error, Result};
 use futures::stream::Stream;
 use serde::de::DeserializeOwned;
 use serde_json::Value;

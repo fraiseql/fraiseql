@@ -278,15 +278,17 @@ impl FraiseClient {
         soft_limit_warn_threshold: Option<f32>,
         soft_limit_fail_threshold: Option<f32>,
     ) -> Result<JsonStream> {
-        self.conn.streaming_query(
-            sql,
-            chunk_size,
-            max_memory,
-            soft_limit_warn_threshold,
-            soft_limit_fail_threshold,
-            false,  // enable_adaptive_chunking: disabled by default for backward compatibility
-            None,   // adaptive_min_chunk_size
-            None,   // adaptive_max_chunk_size
-        ).await
+        self.conn
+            .streaming_query(
+                sql,
+                chunk_size,
+                max_memory,
+                soft_limit_warn_threshold,
+                soft_limit_fail_threshold,
+                false, // enable_adaptive_chunking: disabled by default for backward compatibility
+                None,  // adaptive_min_chunk_size
+                None,  // adaptive_max_chunk_size
+            )
+            .await
     }
 }

@@ -100,7 +100,10 @@ async fn test_operator_jsonb_in() {
         .expect("query");
 
     let data = collect_results(results, None).await.expect("collect");
-    println!("Found {} projects with status in (active, paused)", data.len());
+    println!(
+        "Found {} projects with status in (active, paused)",
+        data.len()
+    );
 
     // Verify all results have one of the specified statuses
     for value in data {
@@ -220,10 +223,7 @@ async fn test_limit_clause() {
     let data = collect_results(results, None).await.expect("collect");
     println!("LIMIT 2: Got {} results", data.len());
 
-    assert!(
-        data.len() <= 2,
-        "LIMIT 2 should return at most 2 results"
-    );
+    assert!(data.len() <= 2, "LIMIT 2 should return at most 2 results");
 }
 
 // ============================================================================
@@ -299,7 +299,10 @@ async fn test_order_by_jsonb_field_multiple() {
         .expect("query");
 
     let data = collect_results(results, None).await.expect("collect");
-    println!("Ordered by status ASC, name DESC: Got {} results", data.len());
+    println!(
+        "Ordered by status ASC, name DESC: Got {} results",
+        data.len()
+    );
 
     // Just verify we got results
     assert!(!data.is_empty(), "Should get results when ordering");
@@ -329,11 +332,7 @@ async fn test_operator_array_length() {
     // Verify all have exactly 2 roles
     for value in data {
         let roles = value["roles"].as_array().expect("roles array");
-        assert_eq!(
-            roles.len(),
-            2,
-            "All results should have exactly 2 roles"
-        );
+        assert_eq!(roles.len(), 2, "All results should have exactly 2 roles");
     }
 }
 
@@ -356,10 +355,7 @@ async fn test_operator_array_length_gt() {
     // Verify all have more than 1 role
     for value in data {
         let roles = value["roles"].as_array().expect("roles array");
-        assert!(
-            roles.len() > 1,
-            "All results should have more than 1 role"
-        );
+        assert!(roles.len() > 1, "All results should have more than 1 role");
     }
 }
 
@@ -487,10 +483,7 @@ async fn test_operator_like_pattern() {
     // Verify all match pattern
     for value in data {
         let name = value["name"].as_str().expect("name");
-        assert!(
-            name.starts_with('A'),
-            "All results should start with 'A'"
-        );
+        assert!(name.starts_with('A'), "All results should start with 'A'");
     }
 }
 
@@ -508,7 +501,10 @@ async fn test_operator_ilike_case_insensitive() {
         .expect("query");
 
     let data = collect_results(results, None).await.expect("collect");
-    println!("Found {} projects matching 'a%' (case-insensitive)", data.len());
+    println!(
+        "Found {} projects matching 'a%' (case-insensitive)",
+        data.len()
+    );
 
     // Verify all match pattern (case-insensitive)
     for value in data {

@@ -235,10 +235,14 @@ mod tests {
     #[test]
     fn test_field_validation() {
         assert!(Field::JsonbField("name".to_string()).validate().is_ok());
-        assert!(Field::JsonbField("name-invalid".to_string()).validate().is_err());
-        assert!(Field::JsonbPath(vec!["user".to_string(), "name".to_string()])
+        assert!(Field::JsonbField("name-invalid".to_string())
             .validate()
-            .is_ok());
+            .is_err());
+        assert!(
+            Field::JsonbPath(vec!["user".to_string(), "name".to_string()])
+                .validate()
+                .is_ok()
+        );
     }
 
     #[test]

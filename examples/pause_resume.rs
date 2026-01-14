@@ -18,7 +18,8 @@
 //! - Keep the connection alive without consuming data
 
 fn main() {
-    println!("=== Pause/Resume API Example ===\n\
+    println!(
+        "=== Pause/Resume API Example ===\n\
 The FraiseClient provides pause() and resume() methods on JsonStream:\n\
 \n\
 Usage:\n\
@@ -55,5 +56,6 @@ Key semantics:\n\
 - Cannot pause/resume a completed or failed stream\n\
 - Stream memory stays bounded during pause (no background reading)\n\
 - Connection stays open (no reconnect needed)\n\
-- Metrics: fraiseql_stream_paused_total, fraiseql_stream_resumed_total");
+- Metrics: fraiseql_stream_paused_total, fraiseql_stream_resumed_total"
+    );
 }

@@ -87,14 +87,22 @@ fn demo_query_execution() {
 
     println!("   Query Startup (time to first row):");
     metrics::histograms::query_startup_duration(entity, 45);
-    println!("   → fraiseql_query_startup_duration_ms{{entity=\"{}\"}} = 45ms", entity);
+    println!(
+        "   → fraiseql_query_startup_duration_ms{{entity=\"{}\"}} = 45ms",
+        entity
+    );
 
     println!("\n   Row Processing (5 chunks of 256 rows each):");
     for chunk_num in 0..5 {
         let chunk_duration = 18 + (chunk_num as u64 % 5);
         metrics::histograms::chunk_size(entity, 256);
         metrics::histograms::chunk_processing_duration(entity, chunk_duration);
-        println!("   → Chunk {}: {} rows processed in {}ms", chunk_num + 1, 256, chunk_duration);
+        println!(
+            "   → Chunk {}: {} rows processed in {}ms",
+            chunk_num + 1,
+            256,
+            chunk_duration
+        );
     }
 
     println!("\n   Filtering (10% of rows filtered by Rust predicates):");
@@ -104,19 +112,31 @@ fn demo_query_execution() {
             metrics::counters::rows_filtered(entity, 1);
         }
     }
-    println!("   → fraiseql_rows_filtered_total{{entity=\"{}\"}} = 128 rows", entity);
+    println!(
+        "   → fraiseql_rows_filtered_total{{entity=\"{}\"}} = 128 rows",
+        entity
+    );
 
     println!("\n   Deserialization (converting JSON to User struct):");
     metrics::counters::deserialization_success(entity, "User");
     metrics::histograms::deserialization_duration(entity, "User", 12);
-    println!("   → {} rows deserialized to User struct in ~12ms", 1280 - 128);
+    println!(
+        "   → {} rows deserialized to User struct in ~12ms",
+        1280 - 128
+    );
 
     println!("\n   Query Completion:");
     metrics::counters::rows_processed(entity, 1152, "ok");
     metrics::histograms::query_total_duration(entity, 180);
     metrics::counters::query_completed("success", entity);
-    println!("   ✓ fraiseql_query_completed_total{{entity=\"{}\", status=\"success\"}}", entity);
-    println!("   ✓ fraiseql_query_total_duration_ms{{entity=\"{}\"}} = 180ms\n", entity);
+    println!(
+        "   ✓ fraiseql_query_completed_total{{entity=\"{}\", status=\"success\"}}",
+        entity
+    );
+    println!(
+        "   ✓ fraiseql_query_total_duration_ms{{entity=\"{}\"}} = 180ms\n",
+        entity
+    );
 }
 
 /// Demonstrate error tracking metrics
@@ -171,7 +191,9 @@ fn demo_metrics_analysis() {
     println!("   Use Case: Identify slow types\n");
 
     println!("   Pattern 6: Authentication Success Rate");
-    println!("   Formula: fraiseql_authentications_successful_total / fraiseql_authentications_total");
+    println!(
+        "   Formula: fraiseql_authentications_successful_total / fraiseql_authentications_total"
+    );
     println!("   Use Case: Monitor auth health\n");
 }
 

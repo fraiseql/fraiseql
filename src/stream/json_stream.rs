@@ -67,12 +67,12 @@ impl StreamStats {
 /// JSON value stream
 pub struct JsonStream {
     receiver: mpsc::Receiver<Result<Value>>,
-    _cancel_tx: mpsc::Sender<()>, // Dropped when stream is dropped
-    entity: String,  // Entity name for metrics
+    _cancel_tx: mpsc::Sender<()>,  // Dropped when stream is dropped
+    entity: String,                // Entity name for metrics
     rows_yielded: Arc<AtomicU64>,  // Counter of items yielded to consumer
-    rows_filtered: Arc<AtomicU64>,  // Counter of items filtered
-    max_memory: Option<usize>,  // Optional memory limit in bytes
-    soft_limit_fail_threshold: Option<f32>,  // Fail at threshold % (0.0-1.0)
+    rows_filtered: Arc<AtomicU64>, // Counter of items filtered
+    max_memory: Option<usize>,     // Optional memory limit in bytes
+    soft_limit_fail_threshold: Option<f32>, // Fail at threshold % (0.0-1.0)
 
     // Phase 8: Lightweight state tracking (cheap AtomicU8)
     // Used for fast state checks on all queries
@@ -84,17 +84,17 @@ pub struct JsonStream {
     pause_resume: Option<PauseResumeState>,
 
     // Sampling counter for metrics recording (sample 1 in N polls)
-    poll_count: AtomicU64,  // Counter for sampling metrics
+    poll_count: AtomicU64, // Counter for sampling metrics
 }
 
 /// Pause/resume state (lazily allocated)
 /// Only created when pause() is first called
 pub struct PauseResumeState {
-    state: Arc<Mutex<StreamState>>,           // Current stream state
-    pause_signal: Arc<Notify>,                // Signal to pause background task
-    resume_signal: Arc<Notify>,               // Signal to resume background task
-    paused_occupancy: Arc<AtomicUsize>,       // Buffered rows when paused
-    pause_timeout: Option<Duration>,          // Optional auto-resume timeout
+    state: Arc<Mutex<StreamState>>,     // Current stream state
+    pause_signal: Arc<Notify>,          // Signal to pause background task
+    resume_signal: Arc<Notify>,         // Signal to resume background task
+    paused_occupancy: Arc<AtomicUsize>, // Buffered rows when paused
+    pause_timeout: Option<Duration>,    // Optional auto-resume timeout
 }
 
 impl JsonStream {
@@ -335,12 +335,16 @@ impl JsonStream {
 
     /// Clone pause signal for passing to background task (only if pause/resume is initialized)
     pub(crate) fn clone_pause_signal(&self) -> Option<Arc<Notify>> {
-        self.pause_resume.as_ref().map(|pr| Arc::clone(&pr.pause_signal))
+        self.pause_resume
+            .as_ref()
+            .map(|pr| Arc::clone(&pr.pause_signal))
     }
 
     /// Clone resume signal for passing to background task (only if pause/resume is initialized)
     pub(crate) fn clone_resume_signal(&self) -> Option<Arc<Notify>> {
-        self.pause_resume.as_ref().map(|pr| Arc::clone(&pr.resume_signal))
+        self.pause_resume
+            .as_ref()
+            .map(|pr| Arc::clone(&pr.resume_signal))
     }
 
     // =========================================================================
@@ -375,7 +379,7 @@ impl JsonStream {
     /// ```
     pub fn stats(&self) -> StreamStats {
         let items_buffered = self.receiver.len();
-        let estimated_memory = items_buffered * 2048;  // Conservative: 2KB per item
+        let estimated_memory = items_buffered * 2048; // Conservative: 2KB per item
         let total_rows_yielded = self.rows_yielded.load(Ordering::Relaxed);
         let total_rows_filtered = self.rows_filtered.load(Ordering::Relaxed);
 
@@ -429,7 +433,7 @@ impl Stream for JsonStream {
         // This stops consuming when buffer reaches limit
         if let Some(limit) = self.max_memory {
             let items_buffered = self.receiver.len();
-            let estimated_memory = items_buffered * 2048;  // Conservative: 2KB per item
+            let estimated_memory = items_buffered * 2048; // Conservative: 2KB per item
 
             // Check soft limit thresholds first (warn before fail)
             if let Some(fail_threshold) = self.soft_limit_fail_threshold {

@@ -2,8 +2,8 @@
 //!
 //! This module provides the user-facing API for fraiseql-wire.
 
-mod fraise_client;
 mod connection_string;
+mod fraise_client;
 mod query_builder;
 
 pub use fraise_client::FraiseClient;

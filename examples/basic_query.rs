@@ -28,12 +28,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Connecting to: {}@{}/{}", user, host, db);
 
     // Connect to the database
-    let client = FraiseClient::connect(&conn_string).await.map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
+    let client = FraiseClient::connect(&conn_string)
+        .await
+        .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
     println!("✓ Connected to Postgres\n");
 
     // Execute a simple query to stream all projects
     println!("Querying: SELECT data FROM v_projects");
-    let mut stream = client.query::<serde_json::Value>("projects").execute().await.map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
+    let mut stream = client
+        .query::<serde_json::Value>("projects")
+        .execute()
+        .await
+        .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
 
     println!("✓ Query started, streaming results:\n");
 

@@ -1,10 +1,8 @@
 //! Protocol message decoding
 
 use super::constants::{auth, tags};
-use super::message::{
-    AuthenticationMessage, BackendMessage, ErrorFields, FieldDescription,
-};
-use bytes::{BytesMut, Bytes};
+use super::message::{AuthenticationMessage, BackendMessage, ErrorFields, FieldDescription};
+use bytes::{Bytes, BytesMut};
 use std::io;
 
 /// Decode a backend message from BytesMut without cloning
@@ -91,7 +89,8 @@ fn decode_authentication(data: &[u8]) -> io::Result<BackendMessage> {
                 }
                 match remaining[offset..].iter().position(|&b| b == 0) {
                     Some(end) => {
-                        let mechanism = String::from_utf8_lossy(&remaining[offset..offset+end]).to_string();
+                        let mechanism =
+                            String::from_utf8_lossy(&remaining[offset..offset + end]).to_string();
                         if mechanism.is_empty() {
                             break;
                         }
@@ -126,7 +125,10 @@ fn decode_authentication(data: &[u8]) -> io::Result<BackendMessage> {
 
 fn decode_backend_key_data(data: &[u8]) -> io::Result<BackendMessage> {
     if data.len() < 8 {
-        return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "backend key data"));
+        return Err(io::Error::new(
+            io::ErrorKind::UnexpectedEof,
+            "backend key data",
+        ));
     }
     let process_id = i32::from_be_bytes([data[0], data[1], data[2], data[3]]);
     let secret_key = i32::from_be_bytes([data[4], data[5], data[6], data[7]]);
@@ -138,7 +140,10 @@ fn decode_backend_key_data(data: &[u8]) -> io::Result<BackendMessage> {
 
 fn decode_command_complete(data: &[u8]) -> io::Result<BackendMessage> {
     let end = data.iter().position(|&b| b == 0).ok_or_else(|| {
-        io::Error::new(io::ErrorKind::InvalidData, "missing null terminator in string")
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            "missing null terminator in string",
+        )
     })?;
     let tag = String::from_utf8_lossy(&data[..end]).to_string();
     Ok(BackendMessage::CommandComplete(tag))
@@ -156,7 +161,12 @@ fn decode_data_row(data: &[u8]) -> io::Result<BackendMessage> {
         if offset + 4 > data.len() {
             return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "field length"));
         }
-        let field_len = i32::from_be_bytes([data[offset], data[offset+1], data[offset+2], data[offset+3]]);
+        let field_len = i32::from_be_bytes([
+            data[offset],
+            data[offset + 1],
+            data[offset + 2],
+            data[offset + 3],
+        ]);
         offset += 4;
 
         let field = if field_len == -1 {
@@ -166,7 +176,7 @@ fn decode_data_row(data: &[u8]) -> io::Result<BackendMessage> {
             if offset + len > data.len() {
                 return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "field data"));
             }
-            let field_bytes = Bytes::copy_from_slice(&data[offset..offset+len]);
+            let field_bytes = Bytes::copy_from_slice(&data[offset..offset + len]);
             offset += len;
             Some(field_bytes)
         };
@@ -201,9 +211,12 @@ fn decode_error_fields(data: &[u8]) -> io::Result<ErrorFields> {
         }
 
         let end = data[offset..].iter().position(|&b| b == 0).ok_or_else(|| {
-            io::Error::new(io::ErrorKind::InvalidData, "missing null terminator in error field")
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                "missing null terminator in error field",
+            )
         })?;
-        let value = String::from_utf8_lossy(&data[offset..offset+end]).to_string();
+        let value = String::from_utf8_lossy(&data[offset..offset + end]).to_string();
         offset += end + 1;
 
         match field_type {
@@ -224,18 +237,27 @@ fn decode_parameter_status(data: &[u8]) -> io::Result<BackendMessage> {
     let mut offset = 0;
 
     let name_end = data[offset..].iter().position(|&b| b == 0).ok_or_else(|| {
-        io::Error::new(io::ErrorKind::InvalidData, "missing null terminator in parameter name")
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            "missing null terminator in parameter name",
+        )
     })?;
-    let name = String::from_utf8_lossy(&data[offset..offset+name_end]).to_string();
+    let name = String::from_utf8_lossy(&data[offset..offset + name_end]).to_string();
     offset += name_end + 1;
 
     if offset >= data.len() {
-        return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "parameter value"));
+        return Err(io::Error::new(
+            io::ErrorKind::UnexpectedEof,
+            "parameter value",
+        ));
     }
     let value_end = data[offset..].iter().position(|&b| b == 0).ok_or_else(|| {
-        io::Error::new(io::ErrorKind::InvalidData, "missing null terminator in parameter value")
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            "missing null terminator in parameter value",
+        )
     })?;
-    let value = String::from_utf8_lossy(&data[offset..offset+value_end]).to_string();
+    let value = String::from_utf8_lossy(&data[offset..offset + value_end]).to_string();
 
     Ok(BackendMessage::ParameterStatus { name, value })
 }
@@ -259,26 +281,47 @@ fn decode_row_description(data: &[u8]) -> io::Result<BackendMessage> {
     for _ in 0..field_count {
         // Read name (null-terminated string)
         let name_end = data[offset..].iter().position(|&b| b == 0).ok_or_else(|| {
-            io::Error::new(io::ErrorKind::InvalidData, "missing null terminator in field name")
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                "missing null terminator in field name",
+            )
         })?;
-        let name = String::from_utf8_lossy(&data[offset..offset+name_end]).to_string();
+        let name = String::from_utf8_lossy(&data[offset..offset + name_end]).to_string();
         offset += name_end + 1;
 
         // Read field descriptor (26 bytes: 4+2+4+2+4+2)
         if offset + 18 > data.len() {
-            return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "field descriptor"));
+            return Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "field descriptor",
+            ));
         }
-        let table_oid = i32::from_be_bytes([data[offset], data[offset+1], data[offset+2], data[offset+3]]);
+        let table_oid = i32::from_be_bytes([
+            data[offset],
+            data[offset + 1],
+            data[offset + 2],
+            data[offset + 3],
+        ]);
         offset += 4;
-        let column_attr = i16::from_be_bytes([data[offset], data[offset+1]]);
+        let column_attr = i16::from_be_bytes([data[offset], data[offset + 1]]);
         offset += 2;
-        let type_oid = i32::from_be_bytes([data[offset], data[offset+1], data[offset+2], data[offset+3]]) as u32;
+        let type_oid = i32::from_be_bytes([
+            data[offset],
+            data[offset + 1],
+            data[offset + 2],
+            data[offset + 3],
+        ]) as u32;
         offset += 4;
-        let type_size = i16::from_be_bytes([data[offset], data[offset+1]]);
+        let type_size = i16::from_be_bytes([data[offset], data[offset + 1]]);
         offset += 2;
-        let type_modifier = i32::from_be_bytes([data[offset], data[offset+1], data[offset+2], data[offset+3]]);
+        let type_modifier = i32::from_be_bytes([
+            data[offset],
+            data[offset + 1],
+            data[offset + 2],
+            data[offset + 3],
+        ]);
         offset += 4;
-        let format_code = i16::from_be_bytes([data[offset], data[offset+1]]);
+        let format_code = i16::from_be_bytes([data[offset], data[offset + 1]]);
         offset += 2;
 
         fields.push(FieldDescription {
@@ -301,11 +344,13 @@ mod tests {
 
     #[test]
     fn test_decode_authentication_ok() {
-        let mut data = BytesMut::from(&[
-            b'R', // Authentication
-            0, 0, 0, 8, // Length = 8
-            0, 0, 0, 0, // Auth OK
-        ][..]);
+        let mut data = BytesMut::from(
+            &[
+                b'R', // Authentication
+                0, 0, 0, 8, // Length = 8
+                0, 0, 0, 0, // Auth OK
+            ][..],
+        );
 
         let (msg, consumed) = decode_message(&mut data).unwrap();
         match msg {
@@ -317,11 +362,13 @@ mod tests {
 
     #[test]
     fn test_decode_ready_for_query() {
-        let mut data = BytesMut::from(&[
-            b'Z',       // ReadyForQuery
-            0, 0, 0, 5, // Length = 5
-            b'I',       // Idle
-        ][..]);
+        let mut data = BytesMut::from(
+            &[
+                b'Z', // ReadyForQuery
+                0, 0, 0, 5,    // Length = 5
+                b'I', // Idle
+            ][..],
+        );
 
         let (msg, consumed) = decode_message(&mut data).unwrap();
         match msg {
