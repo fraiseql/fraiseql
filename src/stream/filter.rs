@@ -4,6 +4,7 @@ use crate::Result;
 use futures::stream::Stream;
 use serde_json::Value;
 use std::pin::Pin;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::task::{Context, Poll};
 
 /// Predicate function type
@@ -13,12 +14,18 @@ pub type Predicate = Box<dyn Fn(&Value) -> bool + Send>;
 pub struct FilteredStream<S> {
     inner: S,
     predicate: Predicate,
+    // Sampling counter for metrics recording
+    eval_count: AtomicU64,
 }
 
 impl<S> FilteredStream<S> {
     /// Create new filtered stream
     pub fn new(inner: S, predicate: Predicate) -> Self {
-        Self { inner, predicate }
+        Self {
+            inner,
+            predicate,
+            eval_count: AtomicU64::new(0),
+        }
     }
 }
 
@@ -33,11 +40,19 @@ where
             match Pin::new(&mut self.inner).poll_next(cx) {
                 Poll::Ready(Some(Ok(value))) => {
                     // Apply predicate
-                    let filter_start = std::time::Instant::now();
-                    let passed = (self.predicate)(&value);
-                    let filter_duration = filter_start.elapsed().as_millis() as u64;
-
-                    crate::metrics::histograms::filter_duration("unknown", filter_duration);
+                    // Sample timing: only record 1 in 1000 evaluations
+                    let eval_idx = self.eval_count.fetch_add(1, Ordering::Relaxed);
+                    let passed = if eval_idx % 1000 == 0 {
+                        // Record timing for sampled evaluation
+                        let filter_start = std::time::Instant::now();
+                        let result = (self.predicate)(&value);
+                        let filter_duration = filter_start.elapsed().as_millis() as u64;
+                        crate::metrics::histograms::filter_duration("unknown", filter_duration);
+                        result
+                    } else {
+                        // No timing, just evaluate
+                        (self.predicate)(&value)
+                    };
 
                     if passed {
                         return Poll::Ready(Some(Ok(value)));

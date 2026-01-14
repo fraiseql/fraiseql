@@ -77,6 +77,9 @@ pub struct JsonStream {
     paused_occupancy: Arc<AtomicUsize>,               // Buffered rows when paused
     pause_timeout: Option<Duration>,                  // Optional auto-resume timeout
     pause_start_time: Arc<Mutex<Option<std::time::Instant>>>, // Track pause start time
+
+    // Sampling counter for metrics recording (sample 1 in N polls)
+    poll_count: AtomicU64,  // Counter for sampling metrics
 }
 
 impl JsonStream {
@@ -106,6 +109,9 @@ impl JsonStream {
             paused_occupancy: Arc::new(AtomicUsize::new(0)),
             pause_timeout: None,  // No timeout by default
             pause_start_time: Arc::new(Mutex::new(None)),  // No pause started yet
+
+            // Initialize sampling counter
+            poll_count: AtomicU64::new(0),
         }
     }
 
@@ -349,12 +355,14 @@ impl Stream for JsonStream {
     type Item = Result<Value>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        // Record channel occupancy before polling
-        let occupancy = self.receiver.len() as u64;
-        crate::metrics::histograms::channel_occupancy(&self.entity, occupancy);
-
-        // Record buffered items gauge for dashboard monitoring
-        crate::metrics::gauges::stream_buffered_items(&self.entity, occupancy as usize);
+        // Sample metrics: record 1 in every 1000 polls to avoid hot path overhead
+        // For 100K rows, this records ~100 times instead of 100K times
+        let poll_idx = self.poll_count.fetch_add(1, Ordering::Relaxed);
+        if poll_idx % 1000 == 0 {
+            let occupancy = self.receiver.len() as u64;
+            crate::metrics::histograms::channel_occupancy(&self.entity, occupancy);
+            crate::metrics::gauges::stream_buffered_items(&self.entity, occupancy as usize);
+        }
 
         // Check memory limit BEFORE receiving (pre-enqueue strategy)
         // This stops consuming when buffer reaches limit
