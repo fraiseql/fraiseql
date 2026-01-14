@@ -724,8 +724,8 @@ impl Connection {
 
             loop {
                 // Phase 8: Check lightweight atomic state first (fast path)
-                // Only acquire Mutex lock if atomic indicates pause/resume is initialized
-                if state_atomic.load(std::sync::atomic::Ordering::Acquire) == 1 {
+                // Only check atomic if pause/resume infrastructure is actually initialized
+                if state_lock.is_some() && state_atomic.load(std::sync::atomic::Ordering::Acquire) == 1 {
                     // Paused state detected via atomic, now handle with Mutex
                     if let (Some(ref state_lock), Some(ref pause_signal), Some(ref resume_signal)) =
                         (&state_lock, &pause_signal, &resume_signal)
