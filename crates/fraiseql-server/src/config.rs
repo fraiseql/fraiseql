@@ -2,10 +2,15 @@
 
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
+use std::path::PathBuf;
 
 /// Server configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerConfig {
+    /// Path to compiled schema JSON file.
+    #[serde(default = "default_schema_path")]
+    pub schema_path: PathBuf,
+
     /// Server bind address.
     #[serde(default = "default_bind_addr")]
     pub bind_addr: SocketAddr,
@@ -50,6 +55,7 @@ pub struct ServerConfig {
 impl Default for ServerConfig {
     fn default() -> Self {
         Self {
+            schema_path: default_schema_path(),
             bind_addr: default_bind_addr(),
             cors_enabled: true,
             cors_origins: Vec::new(),
@@ -62,6 +68,10 @@ impl Default for ServerConfig {
             introspection_path: default_introspection_path(),
         }
     }
+}
+
+fn default_schema_path() -> PathBuf {
+    PathBuf::from("schema.compiled.json")
 }
 
 fn default_bind_addr() -> SocketAddr {
@@ -91,6 +101,7 @@ mod tests {
     #[test]
     fn test_default_config() {
         let config = ServerConfig::default();
+        assert_eq!(config.schema_path, PathBuf::from("schema.compiled.json"));
         assert_eq!(config.graphql_path, "/graphql");
         assert_eq!(config.health_path, "/health");
         assert!(config.cors_enabled);

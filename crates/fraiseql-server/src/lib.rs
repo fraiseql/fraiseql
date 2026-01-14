@@ -29,9 +29,11 @@
 pub mod config;
 pub mod middleware;
 pub mod routes;
+pub mod schema;
 pub mod server;
 
 pub use config::ServerConfig;
+pub use schema::CompiledSchemaLoader;
 pub use server::Server;
 
 /// Server error type.
