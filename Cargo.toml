@@ -72,6 +72,11 @@ name = "comparison_benchmarks"
 harness = false
 required-features = ["bench-with-tokio-postgres"]
 
+[[bench]]
+name = "phase6_validation"
+harness = false
+required-features = ["bench-with-postgres"]
+
 [features]
 bench-with-postgres = []
 bench-with-tokio-postgres = []
