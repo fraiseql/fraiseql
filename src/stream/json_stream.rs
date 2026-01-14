@@ -76,7 +76,6 @@ pub struct JsonStream {
     resume_signal: Arc<Notify>,                        // Signal to resume background task
     paused_occupancy: Arc<AtomicUsize>,               // Buffered rows when paused
     pause_timeout: Option<Duration>,                  // Optional auto-resume timeout
-    pause_start_time: Arc<Mutex<Option<std::time::Instant>>>, // Track pause start time
 
     // Sampling counter for metrics recording (sample 1 in N polls)
     poll_count: AtomicU64,  // Counter for sampling metrics
@@ -108,7 +107,6 @@ impl JsonStream {
             resume_signal: Arc::new(Notify::new()),
             paused_occupancy: Arc::new(AtomicUsize::new(0)),
             pause_timeout: None,  // No timeout by default
-            pause_start_time: Arc::new(Mutex::new(None)),  // No pause started yet
 
             // Initialize sampling counter
             poll_count: AtomicU64::new(0),
@@ -192,10 +190,8 @@ impl JsonStream {
                 // Update state
                 *state = StreamState::Paused;
 
-                // Record pause start time for duration metrics
-                let mut start_time = self.pause_start_time.lock().await;
-                *start_time = Some(std::time::Instant::now());
-
+                // Note: Pause start time tracking removed (Phase 5 optimization)
+                // Pause/resume metrics now recorded without duration tracking
                 // Record metric
                 crate::metrics::counters::stream_paused(&self.entity);
                 Ok(())
@@ -240,14 +236,8 @@ impl JsonStream {
                 // Update state
                 *state = StreamState::Running;
 
-                // Record pause duration in histogram
-                let mut start_time = self.pause_start_time.lock().await;
-                if let Some(start) = *start_time {
-                    let duration_ms = start.elapsed().as_millis() as u64;
-                    crate::metrics::histograms::stream_pause_duration(&self.entity, duration_ms);
-                    *start_time = None;
-                }
-
+                // Note: Pause duration tracking removed (Phase 5 optimization)
+                // Pause/resume is rarely used; simplified synchronization
                 // Record metric
                 crate::metrics::counters::stream_resumed(&self.entity);
                 Ok(())
