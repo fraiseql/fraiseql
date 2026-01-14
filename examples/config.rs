@@ -30,7 +30,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
 
     println!("╔════════════════════════════════════════════════════════════════╗");
-    println!("║  fraiseql-wire: Phase 8.3 Connection Configuration Example     ║");
+    println!("║  fraiseql-wire: Connection Configuration Example                ║");
     println!("║                                                                ║");
     println!("║  Demonstrates timeout, keepalive, and application name         ║");
     println!("║  configuration options for database connections                ║");

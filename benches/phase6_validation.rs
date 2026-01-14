@@ -1,9 +1,9 @@
-//! Phase 6 Validation Benchmarks
+//! Lazy Pause/Resume Initialization Benchmarks
 //!
-//! Measures the impact of Phase 6 (lazy pause/resume initialization)
+//! Measures the impact of lazy pause/resume initialization
 //! on real Postgres queries.
 //!
-//! This benchmark validates that Phase 6's lazy initialization of pause/resume
+//! This benchmark validates that lazy initialization of pause/resume
 //! infrastructure reduces startup overhead by ~5-8ms per query.
 //!
 //! Run with: cargo bench --bench phase6_validation --features bench-with-postgres
@@ -27,7 +27,7 @@ async fn benchmark_query(size: usize) -> Result<u128, Box<dyn std::error::Error>
     let start = Instant::now();
 
     // Query the v_test_1m view (1 million rows with typical JSON structure)
-    // This exercises the full streaming pipeline including Phase 6's lazy initialization
+    // This exercises the full streaming pipeline including lazy pause/resume initialization
     let mut stream = client
         .query::<Value>("v_test_1m")
         .limit(black_box(size))
@@ -83,7 +83,7 @@ fn large_result_sets(c: &mut Criterion) {
 
     let rt = tokio::runtime::Runtime::new().unwrap();
 
-    // 100K rows (where Phase 6 impact is less noticeable)
+    // 100K rows (where lazy initialization impact is less noticeable)
     group.throughput(Throughput::Elements(100000));
     group.bench_function("100k_rows", |b| {
         b.to_async(&rt)

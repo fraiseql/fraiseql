@@ -1,6 +1,6 @@
 //! Typed streaming example
 //!
-//! This example demonstrates the Phase 8.2 typed streaming feature:
+//! This example demonstrates typed streaming:
 //! - Type-safe deserialization with custom structs
 //! - Raw JSON escape hatch for forward compatibility
 //! - Type system that doesn't affect SQL, filtering, or ordering
@@ -48,7 +48,7 @@ struct Project {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("╔════════════════════════════════════════════════════════════════╗");
-    println!("║  fraiseql-wire: Phase 8.2 Typed Streaming Example             ║");
+    println!("║  fraiseql-wire: Typed Streaming Example                        ║");
     println!("║                                                                ║");
     println!("║  Type T affects ONLY deserialization, not SQL/filtering       ║");
     println!("╚════════════════════════════════════════════════════════════════╝\n");
