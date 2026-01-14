@@ -1,8 +1,10 @@
 //! FraiseQL Server binary.
 
-use fraiseql_server::{CompiledSchemaLoader, ServerConfig};
+use fraiseql_core::db::postgres::PostgresAdapter;
+use fraiseql_server::{CompiledSchemaLoader, Server, ServerConfig};
 use std::env;
 use std::path::Path;
+use std::sync::Arc;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 /// Load configuration from file or use defaults.
@@ -48,10 +50,16 @@ async fn main() -> anyhow::Result<()> {
 
     // Load configuration
     let config_path = env::var("FRAISEQL_CONFIG").ok();
-    let config = load_config(config_path.as_deref())?;
+    let mut config = load_config(config_path.as_deref())?;
+
+    // Override database_url from environment variable if set
+    if let Ok(db_url) = env::var("DATABASE_URL") {
+        config.database_url = db_url;
+    }
 
     tracing::info!(
         bind_addr = %config.bind_addr,
+        database_url = %config.database_url,
         graphql_path = %config.graphql_path,
         health_path = %config.health_path,
         introspection_path = %config.introspection_path,
@@ -63,20 +71,25 @@ async fn main() -> anyhow::Result<()> {
 
     // Load compiled schema
     let schema_loader = CompiledSchemaLoader::new(&config.schema_path);
-    let _schema = schema_loader.load().await?;
+    let schema = schema_loader.load().await?;
     tracing::info!("Compiled schema loaded successfully");
 
-    // For now, log a message about database adapter initialization
-    // The database adapter will be initialized based on the schema configuration
-    // in a future phase when Phase 2 (Database & Cache) is implemented
-    tracing::warn!("Database adapter initialization is not yet implemented");
-    tracing::warn!("This phase focuses on HTTP server setup only");
-    tracing::warn!("Database connectivity will be added in Phase 2");
-
+    // Initialize database adapter
     tracing::info!(
-        "FraiseQL Server {} ready",
+        database_url = %config.database_url,
+        "Initializing database adapter"
+    );
+    let adapter = Arc::new(PostgresAdapter::new(&config.database_url).await?);
+    tracing::info!("Database adapter initialized successfully");
+
+    // Create and start server
+    let server = Server::new(config, schema, adapter);
+    tracing::info!(
+        "FraiseQL Server {} starting",
         env!("CARGO_PKG_VERSION")
     );
+
+    server.serve().await?;
 
     Ok(())
 }

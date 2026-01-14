@@ -41,6 +41,7 @@ use super::where_generator::PostgresWhereGenerator;
 /// # Ok(())
 /// # }
 /// ```
+#[derive(Clone)]
 pub struct PostgresAdapter {
     pool: Pool,
 }
