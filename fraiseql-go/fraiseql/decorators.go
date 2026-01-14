@@ -198,123 +198,12 @@ func (mb *MutationBuilder) Register() {
 	RegisterMutation(definition)
 }
 
-// FactTableBuilder provides a fluent interface for building fact tables
-type FactTableBuilder struct {
-	name           string
-	tableName      string
-	measures       []string
-	dimensionPaths []map[string]interface{}
-	description    string
-}
+// NOTE: FactTableBuilder removed - use analytics.NewFactTable() instead
+// The analytics module provides better-structured fact table builders
+// with support for Measure and Dimension types.
 
-// NewFactTable creates a new fact table builder
-func NewFactTable(name string) *FactTableBuilder {
-	return &FactTableBuilder{
-		name:           name,
-		dimensionPaths: []map[string]interface{}{},
-	}
-}
-
-// TableName sets the underlying table name
-func (fb *FactTableBuilder) TableName(tableName string) *FactTableBuilder {
-	fb.tableName = tableName
-	return fb
-}
-
-// Measures sets the measure columns
-func (fb *FactTableBuilder) Measures(measures []string) *FactTableBuilder {
-	fb.measures = measures
-	return fb
-}
-
-// Dimensions sets the dimension paths
-func (fb *FactTableBuilder) Dimensions(dimensions []map[string]interface{}) *FactTableBuilder {
-	fb.dimensionPaths = dimensions
-	return fb
-}
-
-// Description sets the description for the fact table
-func (fb *FactTableBuilder) Description(desc string) *FactTableBuilder {
-	fb.description = desc
-	return fb
-}
-
-// Register registers the fact table with the global schema registry
-func (fb *FactTableBuilder) Register() {
-	definition := FactTableDefinition{
-		Name:           fb.name,
-		TableName:      fb.tableName,
-		Measures:       fb.measures,
-		DimensionPaths: fb.dimensionPaths,
-		Description:    fb.description,
-	}
-	RegisterFactTable(definition)
-}
-
-// AggregateQueryBuilder provides a fluent interface for building aggregate queries
-type AggregateQueryBuilder struct {
-	name            string
-	factTable       string
-	autoGroupBy     bool
-	autoAggregates  bool
-	description     string
-	config          map[string]interface{}
-}
-
-// NewAggregateQuery creates a new aggregate query builder
-func NewAggregateQuery(name string) *AggregateQueryBuilder {
-	return &AggregateQueryBuilder{
-		name:   name,
-		config: make(map[string]interface{}),
-	}
-}
-
-// FactTable sets the fact table name
-func (aqb *AggregateQueryBuilder) FactTable(factTable string) *AggregateQueryBuilder {
-	aqb.factTable = factTable
-	return aqb
-}
-
-// AutoGroupBy sets whether to auto group by
-func (aqb *AggregateQueryBuilder) AutoGroupBy(b bool) *AggregateQueryBuilder {
-	aqb.autoGroupBy = b
-	return aqb
-}
-
-// AutoAggregates sets whether to auto aggregate
-func (aqb *AggregateQueryBuilder) AutoAggregates(b bool) *AggregateQueryBuilder {
-	aqb.autoAggregates = b
-	return aqb
-}
-
-// Description sets the description for the aggregate query
-func (aqb *AggregateQueryBuilder) Description(desc string) *AggregateQueryBuilder {
-	aqb.description = desc
-	return aqb
-}
-
-// Config sets additional configuration
-func (aqb *AggregateQueryBuilder) Config(config map[string]interface{}) *AggregateQueryBuilder {
-	aqb.config = config
-	return aqb
-}
-
-// Register registers the aggregate query with the global schema registry
-func (aqb *AggregateQueryBuilder) Register() {
-	definition := AggregateQueryDefinition{
-		Name:           aqb.name,
-		FactTable:      aqb.factTable,
-		AutoGroupBy:    aqb.autoGroupBy,
-		AutoAggregates: aqb.autoAggregates,
-		Description:    aqb.description,
-	}
-
-	if len(aqb.config) > 0 {
-		definition.Config = aqb.config
-	}
-
-	RegisterAggregateQuery(definition)
-}
+// NOTE: AggregateQueryBuilder removed - use analytics.NewAggregateQueryConfig() instead
+// The analytics module provides better-structured aggregate query builders.
 
 // getTypeName gets the name of a type from a value
 func getTypeName(v interface{}) string {

@@ -257,32 +257,42 @@ For analytics / OLAP workloads:
 ```go
 fraiseql.NewFactTable("sales").
     TableName("tf_sales").
-    Measures([]string{"revenue", "quantity", "cost"}).
-    Dimensions([]map[string]string{
-        {
-            "name":      "category",
-            "json_path": "data->>'category'",
-            "data_type": "text",
-        },
-        {
-            "name":      "region",
-            "json_path": "data->>'region'",
-            "data_type": "text",
-        },
-    }).
+    Measure("revenue", "sum", "avg", "max").
+    Measure("quantity", "sum", "count", "avg").
+    Measure("cost", "sum", "avg").
+    Dimension("category", "data->>'category'", "text").
+    Dimension("region", "data->>'region'", "text").
+    Dimension("year_month", "date_trunc('month', occurred_at)::text", "text").
+    Description("Sales fact table for OLAP analysis").
     Register()
 ```
+
+Methods:
+- `TableName(string)` - Underlying database table name
+- `Measure(name string, aggregates ...string)` - Add a measure (specify aggregation functions like "sum", "avg", "count", "min", "max")
+- `Dimension(name, jsonPath, dataType string)` - Add a dimension with JSON path and data type
+- `Description(string)` - Set description
+- `Config(map[string]interface{})` - Set custom configuration
+- `Register()` - Register the fact table
 
 ### Aggregate Query Builder
 
 ```go
-fraiseql.NewAggregateQuery("salesByCategory").
-    FactTable("sales").
+fraiseql.NewAggregateQueryConfig("salesByCategory").
+    FactTableName("sales").
     AutoGroupBy(true).
     AutoAggregates(true).
     Description("Sales aggregated by category").
     Register()
 ```
+
+Methods:
+- `FactTableName(string)` - Reference the fact table to aggregate
+- `AutoGroupBy(bool)` - Enable automatic GROUP BY generation
+- `AutoAggregates(bool)` - Enable automatic aggregate function generation
+- `Description(string)` - Set description
+- `Config(map[string]interface{})` - Set custom configuration
+- `Register()` - Register the aggregate query
 
 ## Testing
 
