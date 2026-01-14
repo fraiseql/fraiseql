@@ -686,7 +686,7 @@ impl Connection {
                 soft_limit_fail_threshold,
             );
 
-            // Clone pause/resume signals for background task
+            // Clone pause/resume signals for background task (only if pause/resume is initialized)
             let state_lock = stream.clone_state();
             let pause_signal = stream.clone_pause_signal();
             let resume_signal = stream.clone_resume_signal();
@@ -720,7 +720,9 @@ impl Connection {
             let mut current_chunk_size = chunk_size;
 
             loop {
-                // Check pause/resume state machine
+                // Check pause/resume state machine (only if pause/resume is initialized)
+                if let (Some(ref state_lock), Some(ref pause_signal), Some(ref resume_signal)) =
+                    (&state_lock, &pause_signal, &resume_signal)
                 {
                     let current_state = state_lock.lock().await;
                     if *current_state == crate::stream::StreamState::Paused {

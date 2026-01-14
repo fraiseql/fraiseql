@@ -70,15 +70,22 @@ pub struct JsonStream {
     soft_limit_warn_threshold: Option<f32>,  // Warn at threshold % (0.0-1.0)
     soft_limit_fail_threshold: Option<f32>,  // Fail at threshold % (0.0-1.0)
 
-    // Pause/resume state machine
-    state: Arc<Mutex<StreamState>>,                    // Current stream state
-    pause_signal: Arc<Notify>,                         // Signal to pause background task
-    resume_signal: Arc<Notify>,                        // Signal to resume background task
-    paused_occupancy: Arc<AtomicUsize>,               // Buffered rows when paused
-    pause_timeout: Option<Duration>,                  // Optional auto-resume timeout
+    // Pause/resume state machine (lazily initialized)
+    // Only allocated if pause() is called
+    pause_resume: Option<PauseResumeState>,
 
     // Sampling counter for metrics recording (sample 1 in N polls)
     poll_count: AtomicU64,  // Counter for sampling metrics
+}
+
+/// Pause/resume state (lazily allocated)
+/// Only created when pause() is first called
+pub struct PauseResumeState {
+    state: Arc<Mutex<StreamState>>,           // Current stream state
+    pause_signal: Arc<Notify>,                // Signal to pause background task
+    resume_signal: Arc<Notify>,               // Signal to resume background task
+    paused_occupancy: Arc<AtomicUsize>,       // Buffered rows when paused
+    pause_timeout: Option<Duration>,          // Optional auto-resume timeout
 }
 
 impl JsonStream {
@@ -101,16 +108,26 @@ impl JsonStream {
             soft_limit_warn_threshold,
             soft_limit_fail_threshold,
 
-            // Initialize pause/resume state
-            state: Arc::new(Mutex::new(StreamState::Running)),
-            pause_signal: Arc::new(Notify::new()),
-            resume_signal: Arc::new(Notify::new()),
-            paused_occupancy: Arc::new(AtomicUsize::new(0)),
-            pause_timeout: None,  // No timeout by default
+            // Pause/resume lazily initialized (only if pause() is called)
+            pause_resume: None,
 
             // Initialize sampling counter
             poll_count: AtomicU64::new(0),
         }
+    }
+
+    /// Initialize pause/resume state (called on first pause())
+    fn ensure_pause_resume(&mut self) -> &mut PauseResumeState {
+        if self.pause_resume.is_none() {
+            self.pause_resume = Some(PauseResumeState {
+                state: Arc::new(Mutex::new(StreamState::Running)),
+                pause_signal: Arc::new(Notify::new()),
+                resume_signal: Arc::new(Notify::new()),
+                paused_occupancy: Arc::new(AtomicUsize::new(0)),
+                pause_timeout: None,
+            });
+        }
+        self.pause_resume.as_mut().unwrap()
     }
 
     /// Get current stream state
@@ -128,7 +145,10 @@ impl JsonStream {
     /// Returns the number of rows buffered in the channel when the stream was paused.
     /// Only meaningful when stream is in Paused state.
     pub fn paused_occupancy(&self) -> usize {
-        self.paused_occupancy.load(Ordering::Relaxed)
+        self.pause_resume
+            .as_ref()
+            .map(|pr| pr.paused_occupancy.load(Ordering::Relaxed))
+            .unwrap_or(0)
     }
 
     /// Set timeout for pause (auto-resume after duration)
@@ -148,19 +168,21 @@ impl JsonStream {
     /// stream.pause().await?;  // Will auto-resume after 5 seconds
     /// ```
     pub fn set_pause_timeout(&mut self, duration: Duration) {
-        self.pause_timeout = Some(duration);
+        self.ensure_pause_resume().pause_timeout = Some(duration);
         tracing::debug!("pause timeout set to {:?}", duration);
     }
 
     /// Clear pause timeout (no auto-resume)
     pub fn clear_pause_timeout(&mut self) {
-        self.pause_timeout = None;
-        tracing::debug!("pause timeout cleared");
+        if let Some(ref mut pr) = self.pause_resume {
+            pr.pause_timeout = None;
+            tracing::debug!("pause timeout cleared");
+        }
     }
 
     /// Get current pause timeout (if set)
     pub(crate) fn pause_timeout(&self) -> Option<Duration> {
-        self.pause_timeout
+        self.pause_resume.as_ref().and_then(|pr| pr.pause_timeout)
     }
 
     /// Pause the stream
@@ -181,19 +203,19 @@ impl JsonStream {
     /// // Consumer can still poll for remaining buffered items
     /// ```
     pub async fn pause(&mut self) -> Result<()> {
-        let mut state = self.state.lock().await;
+        let entity = self.entity.clone();
+        let pr = self.ensure_pause_resume();
+        let mut state = pr.state.lock().await;
 
         match *state {
             StreamState::Running => {
                 // Signal background task to pause
-                self.pause_signal.notify_one();
+                pr.pause_signal.notify_one();
                 // Update state
                 *state = StreamState::Paused;
 
-                // Note: Pause start time tracking removed (Phase 5 optimization)
-                // Pause/resume metrics now recorded without duration tracking
                 // Record metric
-                crate::metrics::counters::stream_paused(&self.entity);
+                crate::metrics::counters::stream_paused(&entity);
                 Ok(())
             }
             StreamState::Paused => {
@@ -227,31 +249,36 @@ impl JsonStream {
     /// // Consumer can poll for more items
     /// ```
     pub async fn resume(&mut self) -> Result<()> {
-        let mut state = self.state.lock().await;
+        // Resume only makes sense if pause/resume was initialized
+        if let Some(ref mut pr) = self.pause_resume {
+            let entity = self.entity.clone();
+            let mut state = pr.state.lock().await;
 
-        match *state {
-            StreamState::Paused => {
-                // Signal background task to resume
-                self.resume_signal.notify_one();
-                // Update state
-                *state = StreamState::Running;
+            match *state {
+                StreamState::Paused => {
+                    // Signal background task to resume
+                    pr.resume_signal.notify_one();
+                    // Update state
+                    *state = StreamState::Running;
 
-                // Note: Pause duration tracking removed (Phase 5 optimization)
-                // Pause/resume is rarely used; simplified synchronization
-                // Record metric
-                crate::metrics::counters::stream_resumed(&self.entity);
-                Ok(())
+                    // Record metric
+                    crate::metrics::counters::stream_resumed(&entity);
+                    Ok(())
+                }
+                StreamState::Running => {
+                    // Idempotent: already running (or resume before pause)
+                    Ok(())
+                }
+                StreamState::Completed | StreamState::Failed => {
+                    // Cannot resume a terminal stream
+                    Err(Error::Protocol(
+                        "cannot resume a completed or failed stream".to_string(),
+                    ))
+                }
             }
-            StreamState::Running => {
-                // Idempotent: already running (or resume before pause)
-                Ok(())
-            }
-            StreamState::Completed | StreamState::Failed => {
-                // Cannot resume a terminal stream
-                Err(Error::Protocol(
-                    "cannot resume a completed or failed stream".to_string(),
-                ))
-            }
+        } else {
+            // No pause/resume infrastructure (never paused), idempotent no-op
+            Ok(())
         }
     }
 
@@ -275,24 +302,24 @@ impl JsonStream {
         self.pause().await
     }
 
-    /// Clone internal state for passing to background task
-    pub(crate) fn clone_state(&self) -> Arc<Mutex<StreamState>> {
-        Arc::clone(&self.state)
+    /// Clone internal state for passing to background task (only if pause/resume is initialized)
+    pub(crate) fn clone_state(&self) -> Option<Arc<Mutex<StreamState>>> {
+        self.pause_resume.as_ref().map(|pr| Arc::clone(&pr.state))
     }
 
-    /// Clone pause signal for passing to background task
-    pub(crate) fn clone_pause_signal(&self) -> Arc<Notify> {
-        Arc::clone(&self.pause_signal)
+    /// Clone pause signal for passing to background task (only if pause/resume is initialized)
+    pub(crate) fn clone_pause_signal(&self) -> Option<Arc<Notify>> {
+        self.pause_resume.as_ref().map(|pr| Arc::clone(&pr.pause_signal))
     }
 
-    /// Clone resume signal for passing to background task
-    pub(crate) fn clone_resume_signal(&self) -> Arc<Notify> {
-        Arc::clone(&self.resume_signal)
+    /// Clone resume signal for passing to background task (only if pause/resume is initialized)
+    pub(crate) fn clone_resume_signal(&self) -> Option<Arc<Notify>> {
+        self.pause_resume.as_ref().map(|pr| Arc::clone(&pr.resume_signal))
     }
 
-    /// Clone paused occupancy counter for passing to background task
-    pub(crate) fn clone_paused_occupancy(&self) -> Arc<AtomicUsize> {
-        Arc::clone(&self.paused_occupancy)
+    /// Clone paused occupancy counter for passing to background task (only if pause/resume is initialized)
+    pub(crate) fn clone_paused_occupancy(&self) -> Option<Arc<AtomicUsize>> {
+        self.pause_resume.as_ref().map(|pr| Arc::clone(&pr.paused_occupancy))
     }
 
     /// Get current stream statistics
