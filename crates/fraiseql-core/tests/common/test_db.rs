@@ -190,5 +190,6 @@ pub fn create_sales_metadata() -> FactTableMetadata {
                 indexed: true,
             },
         ],
+        calendar_dimensions: vec![],
     }
 }

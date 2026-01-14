@@ -50,6 +50,7 @@ impl CodeGenerator {
                 jsonb_column: "data".to_string(),
                 fields: Vec::new(), // TODO: Map fields
                 description: t.description.clone(),
+                sql_projection_hint: None, // TODO: Generate projection hints during optimization
             }
         }).collect();
 

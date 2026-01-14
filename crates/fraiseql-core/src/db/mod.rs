@@ -42,12 +42,20 @@
 //! ```
 
 pub mod collation;
+pub mod projection_generator;
 pub mod traits;
 pub mod types;
 pub mod where_clause;
+pub mod where_sql_generator;
 
 #[cfg(feature = "postgres")]
 pub mod postgres;
+
+#[cfg(feature = "wire-backend")]
+pub mod wire_pool;
+
+#[cfg(feature = "wire-backend")]
+pub mod fraiseql_wire_adapter;
 
 // TODO: Phase 2 Extension - Add MySQL, SQLite, SQL Server adapters
 // #[cfg(feature = "mysql")]
@@ -61,9 +69,14 @@ pub mod postgres;
 
 // Re-export commonly used types
 pub use collation::{CollationCapabilities, CollationMapper};
+pub use projection_generator::PostgresProjectionGenerator;
 pub use traits::{DatabaseAdapter, DatabaseCapabilities};
 pub use types::{DatabaseType, JsonbValue, PoolMetrics};
 pub use where_clause::{HavingClause, WhereClause, WhereOperator};
+pub use where_sql_generator::WhereSqlGenerator;
 
 #[cfg(feature = "postgres")]
 pub use postgres::PostgresAdapter;
+
+#[cfg(feature = "wire-backend")]
+pub use fraiseql_wire_adapter::FraiseWireAdapter;

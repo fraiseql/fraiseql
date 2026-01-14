@@ -417,6 +417,7 @@ fn create_test_fact_table_metadata() -> FactTableMetadata {
                 indexed: true,
             },
         ],
+        calendar_dimensions: vec![],
     }
 }
 

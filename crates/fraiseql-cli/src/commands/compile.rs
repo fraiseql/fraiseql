@@ -147,6 +147,7 @@ mod tests {
             }],
             mutations: vec![],
             subscriptions: vec![],
+            fact_tables: Default::default(),
         };
 
         // Validation is done inside SchemaConverter::convert, not exposed separately
@@ -171,6 +172,7 @@ mod tests {
             }],
             mutations: vec![],
             subscriptions: vec![],
+            fact_tables: Default::default(),
         };
 
         // Note: Validation is private to SchemaConverter

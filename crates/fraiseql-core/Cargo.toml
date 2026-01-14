@@ -29,6 +29,9 @@ postgres-native-tls = { workspace = true }
 native-tls = { workspace = true }
 deadpool = { workspace = true }
 
+# fraiseql-wire backend (optional)
+fraiseql-wire = { path = "../../../fraiseql-wire", optional = true }
+
 # GraphQL
 graphql-parser = { workspace = true }
 
@@ -56,7 +59,7 @@ tracing = { workspace = true }
 
 [dev-dependencies]
 tokio-test = "0.4"
-criterion = "0.5"
+criterion = { version = "0.5", features = ["async_tokio"] }
 
 [features]
 default = ["postgres"]
@@ -64,6 +67,7 @@ postgres = []
 mysql = []
 sqlite = []
 sqlserver = []
+wire-backend = ["fraiseql-wire"]
 
 # Benchmarks will be added in later phases
 # [[bench]]
@@ -73,3 +77,19 @@ sqlserver = []
 # [[bench]]
 # name = "cache_benchmark"
 # harness = false
+
+
+[[bench]]
+name = "database_baseline"
+harness = false
+
+[[bench]]
+name = "adapter_comparison"
+harness = false
+required-features = ["postgres"]
+
+[[bench]]
+name = "full_pipeline_comparison"
+harness = false
+required-features = ["postgres"]
+

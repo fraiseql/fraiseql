@@ -305,6 +305,31 @@ pub struct TypeDefinition {
     /// Optional description (from docstring).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+
+    /// SQL projection hint for PostgreSQL optimization.
+    /// Generated at compile time to reduce payload size for large JSONB objects.
+    /// Example: jsonb_build_object('id', data->>'id', 'email', data->>'email')
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sql_projection_hint: Option<SqlProjectionHint>,
+}
+
+/// SQL projection hint for database-specific field projection optimization.
+///
+/// When a type has a large JSONB payload, the compiler can generate
+/// SQL that projects only the requested fields, reducing network payload
+/// and JSON deserialization overhead.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SqlProjectionHint {
+    /// Database type (e.g., "postgresql", "mysql", "sqlite").
+    pub database: String,
+
+    /// The projection SQL template.
+    /// Example for PostgreSQL:
+    /// "jsonb_build_object('id', data->>'id', 'email', data->>'email')"
+    pub projection_template: String,
+
+    /// Estimated reduction in payload size (percentage 0-100).
+    pub estimated_reduction_percent: u32,
 }
 
 fn default_jsonb_column() -> String {
@@ -321,6 +346,7 @@ impl TypeDefinition {
             jsonb_column: "data".to_string(),
             fields: Vec::new(),
             description: None,
+            sql_projection_hint: None,
         }
     }
 
@@ -349,6 +375,19 @@ impl TypeDefinition {
     #[must_use]
     pub fn find_field(&self, name: &str) -> Option<&FieldDefinition> {
         self.fields.iter().find(|f| f.name == name)
+    }
+
+    /// Set SQL projection hint for optimization.
+    #[must_use]
+    pub fn with_sql_projection(mut self, hint: SqlProjectionHint) -> Self {
+        self.sql_projection_hint = Some(hint);
+        self
+    }
+
+    /// Check if type has SQL projection hint.
+    #[must_use]
+    pub fn has_sql_projection(&self) -> bool {
+        self.sql_projection_hint.is_some()
     }
 }
 

@@ -43,7 +43,7 @@ mod field_type;
 
 pub use compiled::{
     ArgumentDefinition, AutoParams, CompiledSchema, MutationDefinition, MutationOperation,
-    QueryDefinition, SubscriptionDefinition, TypeDefinition,
+    QueryDefinition, SqlProjectionHint, SubscriptionDefinition, TypeDefinition,
 };
 pub use field_type::{DistanceMetric, FieldDefinition, FieldType, VectorConfig, VectorIndexType};
 

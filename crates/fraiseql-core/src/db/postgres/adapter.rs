@@ -8,6 +8,7 @@ use crate::error::{FraiseQLError, Result};
 use crate::db::traits::DatabaseAdapter;
 use crate::db::types::{DatabaseType, JsonbValue, PoolMetrics, QueryParam};
 use crate::db::where_clause::WhereClause;
+use crate::schema::SqlProjectionHint;
 use super::where_generator::PostgresWhereGenerator;
 
 /// PostgreSQL database adapter with connection pooling.
@@ -139,6 +140,97 @@ impl PostgresAdapter {
             .collect();
 
         Ok(results)
+    }
+
+    /// Execute query with SQL field projection optimization.
+    ///
+    /// Uses the provided `SqlProjectionHint` to generate optimized SQL that projects
+    /// only the requested fields from the JSONB column, reducing network payload and
+    /// JSON deserialization overhead.
+    ///
+    /// # Arguments
+    ///
+    /// * `view` - View/table name to query
+    /// * `projection` - Optional SQL projection hint with field list
+    /// * `where_clause` - Optional WHERE clause for filtering
+    /// * `limit` - Optional row limit
+    ///
+    /// # Returns
+    ///
+    /// Vector of projected JSONB rows with only the requested fields
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Database` on query execution failure.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let projection = SqlProjectionHint {
+    ///     database: "postgresql".to_string(),
+    ///     projection_template: "...".to_string(),
+    ///     estimated_reduction_percent: 75,
+    /// };
+    ///
+    /// let results = adapter
+    ///     .execute_with_projection("v_user", Some(&projection), None, Some(10))
+    ///     .await?;
+    /// ```
+    pub async fn execute_with_projection(
+        &self,
+        view: &str,
+        projection: Option<&SqlProjectionHint>,
+        where_clause: Option<&WhereClause>,
+        limit: Option<u32>,
+    ) -> Result<Vec<JsonbValue>> {
+        // If no projection, fall back to standard query
+        if projection.is_none() {
+            return self.execute_where_query(view, where_clause, limit, None).await;
+        }
+
+        let projection = projection.unwrap();
+
+        // Build SQL with projection
+        // The projection_template is expected to be the SELECT clause with projection SQL
+        // e.g., "jsonb_build_object('id', data->>'id', 'email', data->>'email')"
+        let mut sql = format!("SELECT {} FROM \"{}\"", projection.projection_template, view);
+
+        // Add WHERE clause if present
+        if let Some(clause) = where_clause {
+            let generator = PostgresWhereGenerator::new();
+            let (where_sql, where_params) = generator.generate(clause)?;
+            sql.push_str(" WHERE ");
+            sql.push_str(&where_sql);
+
+            // Add LIMIT
+            if let Some(lim) = limit {
+                sql.push_str(&format!(" LIMIT {lim}"));
+            }
+
+            // Convert JSON values to QueryParam (preserves types)
+            let typed_params: Vec<QueryParam> = where_params
+                .into_iter()
+                .map(QueryParam::from)
+                .collect();
+
+            eprintln!("DEBUG: SQL with projection = {}", sql);
+            eprintln!("DEBUG: typed_params = {:?}", typed_params);
+
+            // Create references to QueryParam for ToSql
+            let param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = typed_params
+                .iter()
+                .map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync))
+                .collect();
+
+            self.execute_raw(&sql, &param_refs).await
+        } else {
+            // No WHERE clause
+            if let Some(lim) = limit {
+                sql.push_str(&format!(" LIMIT {lim}"));
+            }
+
+            self.execute_raw(&sql, &[]).await
+        }
     }
 }
 

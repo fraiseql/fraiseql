@@ -777,6 +777,401 @@ fn bench_wire_100k_with_graphql_transform(c: &mut Criterion) {
 }
 
 // =============================================================================
+// God Objects Benchmarks (Heavy JSONB Payloads)
+// =============================================================================
+
+#[cfg(feature = "postgres")]
+async fn setup_god_objects(conn_str: &str) -> bool {
+    // Create adapter which gives us a connection pool
+    let adapter = match PostgresAdapter::new(conn_str).await {
+        Ok(a) => a,
+        Err(_) => return false,
+    };
+
+    // Drop and recreate table/view using raw SQL
+    let _ = adapter.execute_raw_query("DROP TABLE IF EXISTS god_objects CASCADE").await;
+
+    let _ = adapter
+        .execute_raw_query(
+            "CREATE TABLE god_objects (
+                id SERIAL PRIMARY KEY,
+                data JSONB NOT NULL
+            )",
+        )
+        .await;
+
+    // Create view
+    let _ = adapter
+        .execute_raw_query("CREATE VIEW v_god_objects AS SELECT data FROM god_objects")
+        .await;
+
+    // Insert god objects
+    let god_object = serde_json::json!({
+        "id": "alloc-000000",
+        "orderNumber": "ORD-00000000",
+        "customerId": "cust-7311",
+        "status": "packed",
+        "lineItems": [
+            {
+                "id": "line-0",
+                "sku": "SKU-00000",
+                "productName": "Product 0 with a long descriptive name",
+                "quantity": 66,
+                "unitPrice": 491.07,
+                "warehouseAllocations": [
+                    {
+                        "warehouseId": "wh-0",
+                        "warehouseName": "Warehouse 0",
+                        "allocatedQuantity": 12,
+                        "binLocations": [{"binId": "bin-0-0", "location": "Rack-9-5", "qty": 3}]
+                    }
+                ]
+            }
+        ]
+    });
+
+    // Insert 1000 god objects
+    for i in 0..1000 {
+        let mut obj = god_object.clone();
+        obj["id"] = serde_json::json!(format!("alloc-{:06}", i));
+
+        let json_str = serde_json::to_string(&obj).unwrap();
+        let _ = adapter
+            .execute_raw_query(&format!(
+                "INSERT INTO god_objects (data) VALUES ('{}')",
+                json_str.replace("'", "''")  // Escape single quotes
+            ))
+            .await;
+    }
+
+    // Verify data was inserted
+    match adapter
+        .execute_where_query("v_god_objects", None, Some(1), None)
+        .await
+    {
+        Ok(results) => !results.is_empty(),
+        Err(_) => false,
+    }
+}
+
+#[cfg(feature = "postgres")]
+fn bench_postgres_god_objects_projection_comparison(c: &mut Criterion) {
+    let Some(conn_str) = get_connection_string() else {
+        eprintln!("Skipping god objects benchmarks: DATABASE_URL not set");
+        return;
+    };
+
+    let rt = Runtime::new().unwrap();
+
+    // Set up test data once
+    if !rt.block_on(setup_god_objects(&conn_str)) {
+        eprintln!("Skipping god objects benchmarks: Could not set up test data");
+        return;
+    }
+
+    let adapter = rt.block_on(PostgresAdapter::new(&conn_str)).unwrap();
+    let adapter = std::sync::Arc::new(adapter);
+
+    let mut group = c.benchmark_group("god_objects_all_combinations");
+    group.throughput(Throughput::Elements(1000));
+
+    // Fields to project (simulating GraphQL field selection)
+    let fields = vec![
+        "id".to_string(),
+        "orderNumber".to_string(),
+        "customerId".to_string(),
+        "status".to_string(),
+    ];
+
+    // =========================================================================
+    // BASELINE: Full Rust-side processing
+    // =========================================================================
+    // 1. Query full JSONB
+    // 2. Field projection in Rust
+    // 3. camelCase conversion in Rust
+    // 4. __typename addition in Rust
+    group.bench_function(
+        BenchmarkId::new("strategy", "01_full_rust"),
+        |b| {
+            b.to_async(&rt).iter(|| {
+                let adapter = adapter.clone();
+                let fields = fields.clone();
+                async move {
+                    let results = adapter
+                        .execute_where_query("v_god_objects", None, Some(1000), None)
+                        .await
+                        .unwrap();
+
+                    // Full Rust transformation pipeline
+                    let projector = ResultProjector::new(fields);
+                    let mut projected = projector
+                        .project_results(&results, true)
+                        .unwrap_or_else(|_| serde_json::json!([{}]));
+
+                    // Simulate camelCase conversion + __typename in Rust
+                    if let serde_json::Value::Array(ref mut items) = projected {
+                        for item in items {
+                            if let serde_json::Value::Object(ref mut obj) = item {
+                                obj.insert("__typename".to_string(), json!("GodObject"));
+                            }
+                        }
+                    }
+
+                    let _http_response = serde_json::to_vec(&projected).unwrap();
+                    black_box(_http_response.len());
+                }
+            });
+        },
+    );
+
+    // =========================================================================
+    // OPTIMIZATION 1: SQL field projection, Rust does camelCase + __typename
+    // =========================================================================
+    // 1. Query with SQL field selection (jsonb_build_object)
+    // 2. camelCase conversion in Rust
+    // 3. __typename addition in Rust
+    group.bench_function(
+        BenchmarkId::new("strategy", "02_sql_projection_rust_transform"),
+        |b| {
+            b.to_async(&rt).iter(|| {
+                let adapter = adapter.clone();
+                async move {
+                    let results = adapter
+                        .execute_raw_query(
+                            "SELECT jsonb_build_object(
+                                'id', data->>'id',
+                                'orderNumber', data->>'orderNumber',
+                                'customerId', data->>'customerId',
+                                'status', data->>'status'
+                            ) as data FROM v_god_objects",
+                        )
+                        .await
+                        .unwrap();
+
+                    // Simulate camelCase conversion + __typename in Rust
+                    let mut transformed = Vec::new();
+                    for row in results {
+                        let mut obj = row;
+                        if let serde_json::Value::Object(ref mut map) = obj.get_mut("data").unwrap_or(&mut json!({})) {
+                            map.insert("__typename".to_string(), json!("GodObject"));
+                        }
+                        transformed.push(obj);
+                    }
+
+                    let _http_response = serde_json::to_vec(&transformed).unwrap();
+                    black_box(_http_response.len());
+                }
+            });
+        },
+    );
+
+    // =========================================================================
+    // OPTIMIZATION 2: SQL field projection + camelCase, Rust only adds __typename
+    // =========================================================================
+    // 1. Query with SQL field selection AND key naming (all fields as camelCase)
+    // 2. __typename addition in Rust
+    group.bench_function(
+        BenchmarkId::new("strategy", "03_sql_projection_names_rust_typename"),
+        |b| {
+            b.to_async(&rt).iter(|| {
+                let adapter = adapter.clone();
+                async move {
+                    let results = adapter
+                        .execute_raw_query(
+                            "SELECT jsonb_build_object(
+                                'id', data->>'id',
+                                'orderNumber', data->>'orderNumber',
+                                'customerId', data->>'customerId',
+                                'status', data->>'status'
+                            ) as data FROM v_god_objects",
+                        )
+                        .await
+                        .unwrap();
+
+                    // Just add __typename in Rust
+                    let mut transformed = Vec::new();
+                    for row in results {
+                        let mut obj = row;
+                        if let serde_json::Value::Object(ref mut map) = obj.get_mut("data").unwrap_or(&mut json!({})) {
+                            map.insert("__typename".to_string(), json!("GodObject"));
+                        }
+                        transformed.push(obj);
+                    }
+
+                    let _http_response = serde_json::to_vec(&transformed).unwrap();
+                    black_box(_http_response.len());
+                }
+            });
+        },
+    );
+
+    // =========================================================================
+    // OPTIMIZATION 3: EVERYTHING in SQL (field projection + __typename)
+    // =========================================================================
+    // 1. Query with SQL field selection, camelCase naming, and __typename
+    // 2. No Rust transformation at all
+    group.bench_function(
+        BenchmarkId::new("strategy", "04_full_sql"),
+        |b| {
+            b.to_async(&rt).iter(|| {
+                let adapter = adapter.clone();
+                async move {
+                    let results = adapter
+                        .execute_raw_query(
+                            "SELECT jsonb_build_object(
+                                '__typename', 'GodObject',
+                                'id', data->>'id',
+                                'orderNumber', data->>'orderNumber',
+                                'customerId', data->>'customerId',
+                                'status', data->>'status'
+                            ) as data FROM v_god_objects",
+                        )
+                        .await
+                        .unwrap();
+
+                    // No transformation, just serialize
+                    let _http_response = serde_json::to_vec(&results).unwrap();
+                    black_box(_http_response.len());
+                }
+            });
+        },
+    );
+
+    // =========================================================================
+    // OPTIMIZATION 4: SQL projection only (no __typename in SQL)
+    // =========================================================================
+    // Baseline for comparison with optimizations
+    group.bench_function(
+        BenchmarkId::new("strategy", "05_sql_projection_only"),
+        |b| {
+            b.to_async(&rt).iter(|| {
+                let adapter = adapter.clone();
+                async move {
+                    let results = adapter
+                        .execute_raw_query(
+                            "SELECT jsonb_build_object(
+                                'id', data->>'id',
+                                'orderNumber', data->>'orderNumber',
+                                'customerId', data->>'customerId',
+                                'status', data->>'status'
+                            ) as data FROM v_god_objects",
+                        )
+                        .await
+                        .unwrap();
+
+                    let _http_response = serde_json::to_vec(&results).unwrap();
+                    black_box(_http_response.len());
+                }
+            });
+        },
+    );
+
+    group.finish();
+}
+
+#[cfg(feature = "wire-backend")]
+fn bench_wire_god_objects_projection_comparison(c: &mut Criterion) {
+    let Some(conn_str) = get_connection_string() else {
+        eprintln!("Skipping Wire god objects benchmarks: DATABASE_URL not set");
+        return;
+    };
+
+    let rt = Runtime::new().unwrap();
+
+    let adapter = FraiseWireAdapter::new(&conn_str).with_chunk_size(1024);
+    let adapter = std::sync::Arc::new(adapter);
+
+    let mut group = c.benchmark_group("god_objects_wire_comparison");
+    group.throughput(Throughput::Elements(1000));
+
+    let fields = vec![
+        "id".to_string(),
+        "orderNumber".to_string(),
+        "customerId".to_string(),
+        "status".to_string(),
+    ];
+
+    // =========================================================================
+    // Wire: Full Rust-side processing
+    // =========================================================================
+    group.bench_function(
+        BenchmarkId::new("wire_strategy", "01_full_rust"),
+        |b| {
+            b.to_async(&rt).iter(|| {
+                let adapter = adapter.clone();
+                let fields = fields.clone();
+                async move {
+                    let results = adapter
+                        .execute_where_query("v_god_objects", None, Some(1000), None)
+                        .await
+                        .unwrap();
+
+                    let projector = ResultProjector::new(fields);
+                    let mut projected = projector
+                        .project_results(&results, true)
+                        .unwrap_or_else(|_| serde_json::json!([{}]));
+
+                    if let serde_json::Value::Array(ref mut items) = projected {
+                        for item in items {
+                            if let serde_json::Value::Object(ref mut obj) = item {
+                                obj.insert("__typename".to_string(), json!("GodObject"));
+                            }
+                        }
+                    }
+
+                    let _http_response = serde_json::to_vec(&projected).unwrap();
+                    black_box(_http_response.len());
+                }
+            });
+        },
+    );
+
+    // =========================================================================
+    // Wire: SQL field projection, Rust does camelCase + __typename
+    // =========================================================================
+    group.bench_function(
+        BenchmarkId::new("wire_strategy", "02_sql_projection_rust_transform"),
+        |b| {
+            b.to_async(&rt).iter(|| {
+                let adapter = adapter.clone();
+                async move {
+                    // Note: Wire's execute_raw_query may work differently
+                    // This is to test if Wire can handle the pre-filtered payload
+                    let results = adapter
+                        .execute_where_query("v_god_objects", None, Some(1000), None)
+                        .await
+                        .unwrap();
+
+                    // Simulate SQL projection benefits by filtering fields first
+                    let projector = ResultProjector::new(vec![
+                        "id".to_string(),
+                        "orderNumber".to_string(),
+                        "customerId".to_string(),
+                        "status".to_string(),
+                    ]);
+                    let mut projected = projector
+                        .project_results(&results, true)
+                        .unwrap_or_else(|_| serde_json::json!([{}]));
+
+                    if let serde_json::Value::Array(ref mut items) = projected {
+                        for item in items {
+                            if let serde_json::Value::Object(ref mut obj) = item {
+                                obj.insert("__typename".to_string(), json!("GodObject"));
+                            }
+                        }
+                    }
+
+                    let _http_response = serde_json::to_vec(&projected).unwrap();
+                    black_box(_http_response.len());
+                }
+            });
+        },
+    );
+
+    group.finish();
+}
+
+// =============================================================================
 // Benchmark Groups
 // =============================================================================
 
@@ -790,7 +1185,14 @@ criterion_group!(
     bench_postgres_pagination,
     bench_postgres_100k_with_json_parse,
     bench_postgres_100k_with_graphql_transform,
-    bench_postgres_100k_sql_projection_vs_rust
+    bench_postgres_100k_sql_projection_vs_rust,
+    bench_postgres_god_objects_projection_comparison
+);
+
+#[cfg(feature = "wire-backend")]
+criterion_group!(
+    wire_god_benches,
+    bench_wire_god_objects_projection_comparison
 );
 
 #[cfg(feature = "wire-backend")]
@@ -806,13 +1208,13 @@ criterion_group!(
 );
 
 #[cfg(all(feature = "postgres", feature = "wire-backend"))]
-criterion_main!(postgres_benches, wire_benches);
+criterion_main!(postgres_benches, wire_god_benches, wire_benches);
 
 #[cfg(all(feature = "postgres", not(feature = "wire-backend")))]
 criterion_main!(postgres_benches);
 
 #[cfg(all(not(feature = "postgres"), feature = "wire-backend"))]
-criterion_main!(wire_benches);
+criterion_main!(wire_god_benches, wire_benches);
 
 #[cfg(all(not(feature = "postgres"), not(feature = "wire-backend")))]
 fn main() {

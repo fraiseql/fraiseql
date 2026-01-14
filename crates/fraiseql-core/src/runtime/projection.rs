@@ -144,6 +144,64 @@ impl ResultProjector {
         JsonValue::Object(response)
     }
 
+    /// Add __typename field to SQL-projected data.
+    ///
+    /// For data that has already been projected at the SQL level, we only need to add
+    /// the `__typename` field in Rust. This is much faster than projecting all fields
+    /// since the SQL already filtered to only requested fields.
+    ///
+    /// # Arguments
+    ///
+    /// * `projected_data` - JSONB data already projected by SQL
+    /// * `typename` - GraphQL type name to add
+    ///
+    /// # Returns
+    ///
+    /// New JSONB value with `__typename` field added
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// // Database already returned only: { "id": "123", "name": "Alice" }
+    /// let result = projector.add_typename_only(
+    ///     &JsonbValue::new(json!({ "id": "123", "name": "Alice" })),
+    ///     "User"
+    /// ).unwrap();
+    ///
+    /// // Result: { "id": "123", "name": "Alice", "__typename": "User" }
+    /// ```
+    pub fn add_typename_only(
+        &self,
+        projected_data: &JsonbValue,
+        typename: &str,
+    ) -> Result<JsonValue> {
+        let value = projected_data.as_value();
+
+        match value {
+            JsonValue::Object(map) => {
+                let mut result = map.clone();
+                result.insert("__typename".to_string(), JsonValue::String(typename.to_string()));
+                Ok(JsonValue::Object(result))
+            }
+            JsonValue::Array(arr) => {
+                let updated: Result<Vec<JsonValue>> = arr
+                    .iter()
+                    .map(|item| {
+                        if let JsonValue::Object(obj) = item {
+                            let mut result = obj.clone();
+                            result.insert("__typename".to_string(), JsonValue::String(typename.to_string()));
+                            Ok(JsonValue::Object(result))
+                        } else {
+                            Ok(item.clone())
+                        }
+                    })
+                    .collect();
+                Ok(JsonValue::Array(updated?))
+            }
+            v => Ok(v.clone()),
+        }
+    }
+
     /// Wrap error in GraphQL error envelope.
     ///
     /// # Arguments
@@ -248,5 +306,50 @@ mod tests {
 
         assert!(wrapped.get("errors").is_some());
         assert_eq!(wrapped.get("data"), None);
+    }
+
+    #[test]
+    fn test_add_typename_only_object() {
+        let projector = ResultProjector::new(vec!["id".to_string()]);
+
+        let data = json!({ "id": "123", "name": "Alice" });
+        let jsonb = JsonbValue::new(data);
+        let result = projector.add_typename_only(&jsonb, "User").unwrap();
+
+        assert_eq!(
+            result,
+            json!({ "id": "123", "name": "Alice", "__typename": "User" })
+        );
+    }
+
+    #[test]
+    fn test_add_typename_only_array() {
+        let projector = ResultProjector::new(vec!["id".to_string()]);
+
+        let data = json!([
+            { "id": "1", "name": "Alice" },
+            { "id": "2", "name": "Bob" }
+        ]);
+        let jsonb = JsonbValue::new(data);
+        let result = projector.add_typename_only(&jsonb, "User").unwrap();
+
+        assert_eq!(
+            result,
+            json!([
+                { "id": "1", "name": "Alice", "__typename": "User" },
+                { "id": "2", "name": "Bob", "__typename": "User" }
+            ])
+        );
+    }
+
+    #[test]
+    fn test_add_typename_only_primitive() {
+        let projector = ResultProjector::new(vec![]);
+
+        let jsonb = JsonbValue::new(json!("string_value"));
+        let result = projector.add_typename_only(&jsonb, "String").unwrap();
+
+        // Primitive values are returned unchanged (cannot add __typename to string)
+        assert_eq!(result, json!("string_value"));
     }
 }
