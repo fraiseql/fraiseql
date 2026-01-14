@@ -383,7 +383,7 @@ impl Connection {
                 BackendMessage::ParameterStatus { name, value } => {
                     tracing::debug!("parameter status: {} = {}", name, value);
                 }
-                BackendMessage::ReadyForQuery { status } => {
+                BackendMessage::ReadyForQuery { status: _ } => {
                     break;
                 }
                 BackendMessage::ErrorResponse(err) => {
@@ -565,6 +565,7 @@ impl Connection {
     ///
     /// Note: This method consumes the connection. The stream maintains the connection
     /// internally. Once the stream is exhausted or dropped, the connection is closed.
+    #[allow(clippy::too_many_arguments)]
     pub async fn streaming_query(
         mut self,
         query: &str,
@@ -600,7 +601,7 @@ impl Connection {
 
             // Read RowDescription, but handle other messages that may come first
             // (e.g., ParameterStatus, BackendKeyData, ErrorResponse, NoticeResponse)
-            let mut row_desc = None;
+            let row_desc;
             loop {
                 let msg = self.receive_message().await?;
 
@@ -616,7 +617,7 @@ impl Connection {
                         }
                         return Err(Error::Sql(err.to_string()));
                     }
-                    BackendMessage::BackendKeyData { process_id, secret_key } => {
+                    BackendMessage::BackendKeyData { process_id, secret_key: _ } => {
                         // This provides the key needed for cancel requests - store it and continue
                         tracing::debug!("PostgreSQL backend key data received: pid={}", process_id);
                         // Note: We would store this if we need to support cancellation
@@ -633,7 +634,7 @@ impl Connection {
                         continue;
                     }
                     BackendMessage::RowDescription(_) => {
-                        row_desc = Some(msg);
+                        row_desc = msg;
                         break;
                     }
                     BackendMessage::ReadyForQuery { .. } => {
@@ -654,15 +655,7 @@ impl Connection {
                 }
             }
 
-            if let Some(row_desc) = row_desc {
-                validate_row_description(&row_desc)?;
-            } else {
-                return Err(Error::Protocol(
-                    "no RowDescription received - query may not have been executed correctly. \
-                     Check that the entity name is correct and the table/view exists."
-                        .into(),
-                ));
-            }
+            validate_row_description(&row_desc)?;
 
             // Record startup timing
             let startup_duration = startup_start.elapsed().as_millis() as u64;
@@ -677,7 +670,7 @@ impl Connection {
             let entity_for_metrics = extract_entity_from_query(query).unwrap_or_else(|| "unknown".to_string());
             let entity_for_stream = entity_for_metrics.clone();  // Clone for stream
 
-            let mut stream = JsonStream::new(
+            let stream = JsonStream::new(
                 result_rx,
                 cancel_tx,
                 entity_for_stream,
@@ -701,12 +694,12 @@ impl Connection {
             let query_start = std::time::Instant::now();
 
             tokio::spawn(async move {
-                let mut strategy = ChunkingStrategy::new(chunk_size);
+                let strategy = ChunkingStrategy::new(chunk_size);
                 let mut chunk = strategy.new_chunk();
                 let mut total_rows = 0u64;
 
             // Initialize adaptive chunking if enabled
-            let mut adaptive = if enable_adaptive_chunking {
+            let _adaptive = if enable_adaptive_chunking {
                 let mut adp = AdaptiveChunking::new();
 
                 // Apply custom bounds if provided
@@ -720,14 +713,14 @@ impl Connection {
             } else {
                 None
             };
-            let mut current_chunk_size = chunk_size;
+            let _current_chunk_size = chunk_size;
 
             loop {
                 // Phase 8: Check lightweight atomic state first (fast path)
                 // Only check atomic if pause/resume infrastructure is actually initialized
                 if state_lock.is_some() && state_atomic.load(std::sync::atomic::Ordering::Acquire) == 1 {
                     // Paused state detected via atomic, now handle with Mutex
-                    if let (Some(ref state_lock), Some(ref pause_signal), Some(ref resume_signal)) =
+                    if let (Some(ref state_lock), Some(ref _pause_signal), Some(ref resume_signal)) =
                         (&state_lock, &pause_signal, &resume_signal)
                     {
                         let current_state = state_lock.lock().await;

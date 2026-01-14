@@ -111,7 +111,7 @@ mod tests {
         let values = vec![
             Ok(serde_json::json!({"id": 1})),
             Err(Error::JsonDecode(serde_json::Error::io(
-                std::io::Error::new(std::io::ErrorKind::Other, "test error"),
+                std::io::Error::other("test error"),
             ))),
             Ok(serde_json::json!({"id": 2})),
         ];

@@ -4,7 +4,6 @@
 //! Supports 25+ operators across 5 categories with both JSONB and direct column sources.
 
 use super::field::{Field, Value};
-use super::order_by::FieldSource;
 
 /// WHERE clause operators
 ///
@@ -114,8 +113,11 @@ pub enum WhereOperator {
     ///
     /// Requires pgvector extension.
     L2Distance {
+        /// The vector field to compare against
         field: Field,
+        /// The embedding vector for distance calculation
         vector: Vec<f32>,
+        /// Distance threshold for comparison
         threshold: f32,
     },
 
@@ -123,8 +125,11 @@ pub enum WhereOperator {
     ///
     /// Requires pgvector extension.
     CosineDistance {
+        /// The vector field to compare against
         field: Field,
+        /// The embedding vector for distance calculation
         vector: Vec<f32>,
+        /// Distance threshold for comparison
         threshold: f32,
     },
 
@@ -132,8 +137,11 @@ pub enum WhereOperator {
     ///
     /// Requires pgvector extension.
     InnerProduct {
+        /// The vector field to compare against
         field: Field,
+        /// The embedding vector for distance calculation
         vector: Vec<f32>,
+        /// Distance threshold for comparison
         threshold: f32,
     },
 
@@ -141,8 +149,11 @@ pub enum WhereOperator {
     ///
     /// Works with text arrays, measures set overlap.
     JaccardDistance {
+        /// The field to compare against
         field: Field,
+        /// The set of values for comparison
         set: Vec<String>,
+        /// Distance threshold for comparison
         threshold: f32,
     },
 
@@ -152,22 +163,33 @@ pub enum WhereOperator {
     ///
     /// If language is None, defaults to 'english'
     Matches {
+        /// The text field to search
         field: Field,
+        /// The search query
         query: String,
+        /// Optional language for text search (default: english)
         language: Option<String>,
     },
 
     /// Plain text query: `field @@ plainto_tsquery(query)`
     ///
     /// Uses no language specification
-    PlainQuery { field: Field, query: String },
+    PlainQuery {
+        /// The text field to search
+        field: Field,
+        /// The search query
+        query: String,
+    },
 
     /// Phrase query with language: `field @@ phraseto_tsquery(language, query)`
     ///
     /// If language is None, defaults to 'english'
     PhraseQuery {
+        /// The text field to search
         field: Field,
+        /// The search query
         query: String,
+        /// Optional language for text search (default: english)
         language: Option<String>,
     },
 
@@ -175,8 +197,11 @@ pub enum WhereOperator {
     ///
     /// If language is None, defaults to 'english'
     WebsearchQuery {
+        /// The text field to search
         field: Field,
+        /// The search query
         query: String,
+        /// Optional language for text search (default: english)
         language: Option<String>,
     },
 
@@ -197,22 +222,42 @@ pub enum WhereOperator {
     /// IP is in subnet: `field << subnet`
     ///
     /// The subnet should be in CIDR notation (e.g., "192.168.0.0/24")
-    InSubnet { field: Field, subnet: String },
+    InSubnet {
+        /// The IP field to check
+        field: Field,
+        /// The CIDR subnet (e.g., "192.168.0.0/24")
+        subnet: String,
+    },
 
     /// Network contains subnet: `field >> subnet`
     ///
     /// The subnet should be in CIDR notation
-    ContainsSubnet { field: Field, subnet: String },
+    ContainsSubnet {
+        /// The network field to check
+        field: Field,
+        /// The CIDR subnet to check for containment
+        subnet: String,
+    },
 
     /// Network/range contains IP: `field >> ip`
     ///
     /// The IP should be a single address (e.g., "192.168.1.1")
-    ContainsIP { field: Field, ip: String },
+    ContainsIP {
+        /// The network field to check
+        field: Field,
+        /// The IP address to check for containment
+        ip: String,
+    },
 
     /// IP ranges overlap: `field && range`
     ///
     /// The range should be in CIDR notation
-    IPRangeOverlap { field: Field, range: String },
+    IPRangeOverlap {
+        /// The IP range field to check
+        field: Field,
+        /// The IP range to check for overlap
+        range: String,
+    },
 }
 
 impl WhereOperator {

@@ -120,7 +120,7 @@ impl ScramClient {
             &self.password,
             &salt_bytes,
             iterations,
-            &auth_message.as_bytes().to_vec(),
+            auth_message.as_bytes(),
         )?;
 
         // Calculate server signature for later verification
@@ -201,7 +201,7 @@ fn calculate_client_proof(
     // SaltedPassword := PBKDF2(password, salt, iterations, HMAC-SHA256)
     let password_bytes = password.as_bytes();
     let mut salted_password = vec![0u8; 32]; // SHA256 produces 32 bytes
-    pbkdf2::<HmacSha256>(password_bytes, salt, iterations, &mut salted_password);
+    let _ = pbkdf2::<HmacSha256>(password_bytes, salt, iterations, &mut salted_password);
 
     // ClientKey := HMAC(SaltedPassword, "Client Key")
     let mut client_key_hmac = HmacSha256::new_from_slice(&salted_password)
@@ -210,7 +210,7 @@ fn calculate_client_proof(
     let client_key = client_key_hmac.finalize().into_bytes();
 
     // StoredKey := SHA256(ClientKey)
-    let stored_key = Sha256::digest(&client_key);
+    let stored_key = Sha256::digest(client_key.to_vec().as_slice());
 
     // ClientSignature := HMAC(StoredKey, AuthMessage)
     let mut client_sig_hmac = HmacSha256::new_from_slice(&stored_key)
@@ -236,7 +236,7 @@ fn calculate_server_key(
     // SaltedPassword := PBKDF2(password, salt, iterations, HMAC-SHA256)
     let password_bytes = password.as_bytes();
     let mut salted_password = vec![0u8; 32];
-    pbkdf2::<HmacSha256>(password_bytes, salt, iterations, &mut salted_password);
+    let _ = pbkdf2::<HmacSha256>(password_bytes, salt, iterations, &mut salted_password);
 
     // ServerKey := HMAC(SaltedPassword, "Server Key")
     let mut server_key_hmac = HmacSha256::new_from_slice(&salted_password)

@@ -11,7 +11,6 @@
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
 use serde_json::json;
-use std::collections::HashMap;
 use fraiseql_wire::connection::ConnectionConfig;
 
 // Test data generators
@@ -132,7 +131,7 @@ fn json_parsing_benchmarks(c: &mut Criterion) {
 fn connection_string_parsing_benchmarks(c: &mut Criterion) {
     let mut group = c.benchmark_group("connection_parsing");
 
-    let connection_strings = vec![
+    let connection_strings = [
         "postgres://localhost/mydb",
         "postgres://user:password@localhost:5432/mydb",
         "postgres://user:pass%40word@localhost:5432/db?application_name=fraiseql-wire",
@@ -166,7 +165,7 @@ fn chunking_strategy_benchmarks(c: &mut Criterion) {
     let mut group = c.benchmark_group("chunking");
 
     // Simulate building a chunk with various chunk sizes
-    let chunk_sizes = vec![64, 256, 1024];
+    let chunk_sizes = [64, 256, 1024];
 
     for size in chunk_sizes {
         group.bench_with_input(BenchmarkId::from_parameter(size), &size, |b, &chunk_size| {

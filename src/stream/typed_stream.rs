@@ -117,6 +117,7 @@ mod tests {
             TypedJsonStream::new(Box::new(futures::stream::empty()));
 
         #[derive(serde::Deserialize, Debug)]
+        #[allow(dead_code)]
         struct TestType {
             id: String,
         }
@@ -133,6 +134,7 @@ mod tests {
         });
 
         #[derive(serde::Deserialize)]
+        #[allow(dead_code)]
         struct TestType {
             id: String,
             name: String,
@@ -153,6 +155,7 @@ mod tests {
         });
 
         #[derive(Debug, serde::Deserialize)]
+        #[allow(dead_code)]
         struct TestType {
             id: String,
             name: String,
@@ -182,6 +185,7 @@ mod tests {
         });
 
         #[derive(Debug, serde::Deserialize)]
+        #[allow(dead_code)]
         struct TestType {
             id: String,
             count: i32,

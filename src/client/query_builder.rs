@@ -414,21 +414,21 @@ mod tests {
 
     #[test]
     fn test_build_sql_with_limit() {
-        let mut sql = format!("SELECT data FROM user");
+        let mut sql = "SELECT data FROM user".to_string();
         sql.push_str(" LIMIT 10");
         assert_eq!(sql, "SELECT data FROM user LIMIT 10");
     }
 
     #[test]
     fn test_build_sql_with_offset() {
-        let mut sql = format!("SELECT data FROM user");
+        let mut sql = "SELECT data FROM user".to_string();
         sql.push_str(" OFFSET 20");
         assert_eq!(sql, "SELECT data FROM user OFFSET 20");
     }
 
     #[test]
     fn test_build_sql_with_limit_and_offset() {
-        let mut sql = format!("SELECT data FROM user");
+        let mut sql = "SELECT data FROM user".to_string();
         sql.push_str(" LIMIT 10");
         sql.push_str(" OFFSET 20");
         assert_eq!(sql, "SELECT data FROM user LIMIT 10 OFFSET 20");
@@ -436,7 +436,7 @@ mod tests {
 
     #[test]
     fn test_build_sql_complete() {
-        let mut sql = format!("SELECT data FROM user");
+        let mut sql = "SELECT data FROM user".to_string();
         sql.push_str(" WHERE data->>'status' = 'active'");
         sql.push_str(" ORDER BY data->>'name' ASC");
         sql.push_str(" LIMIT 10");
@@ -503,6 +503,7 @@ mod tests {
         use serde::Deserialize;
 
         #[derive(Deserialize, Debug)]
+        #[allow(dead_code)]
         struct TestUser {
             id: String,
             active: bool,

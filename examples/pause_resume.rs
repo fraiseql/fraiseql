@@ -18,48 +18,42 @@
 //! - Keep the connection alive without consuming data
 
 fn main() {
-    println!(
-        "{}",
-        r#"
-=== Pause/Resume API Example ===
-
-The FraiseClient provides pause() and resume() methods on JsonStream:
-
-Usage:
-    // Create a stream
-    let mut stream = client.query::<T>("entity").execute().await?;
-
-    // Consume some rows
-    let mut count = 0;
-    while let Some(Ok(row)) = stream.next().await {
-        println!("Row: {:?}", row);
-        count += 1;
-        if count >= 10 { break; }
-    }
-
-    // Pause the background task (stops reading from Postgres)
-    stream.pause().await?;
-    println!("Stream paused!");
-
-    // Do some processing without the background task reading more data
-    // Memory usage stays bounded at current buffered rows
-
-    // Resume when ready
-    stream.resume().await?;
-    println!("Stream resumed!");
-
-    // Continue consuming rows
-    while let Some(Ok(row)) = stream.next().await {
-        println!("Row: {:?}", row);
-    }
-
-Key semantics:
-- pause() and resume() are idempotent (safe to call multiple times)
-- pause() before resume() is a no-op
-- Cannot pause/resume a completed or failed stream
-- Stream memory stays bounded during pause (no background reading)
-- Connection stays open (no reconnect needed)
-- Metrics: fraiseql_stream_paused_total, fraiseql_stream_resumed_total
-"#
-    );
+    println!("=== Pause/Resume API Example ===\n\
+The FraiseClient provides pause() and resume() methods on JsonStream:\n\
+\n\
+Usage:\n\
+    // Create a stream\n\
+    let mut stream = client.query::<T>(\"entity\").execute().await?;\n\
+\n\
+    // Consume some rows\n\
+    let mut count = 0;\n\
+    while let Some(Ok(row)) = stream.next().await {{\n\
+        println!(\"Row: {{:?}}\", row);\n\
+        count += 1;\n\
+        if count >= 10 {{ break; }}\n\
+    }}\n\
+\n\
+    // Pause the background task (stops reading from Postgres)\n\
+    stream.pause().await?;\n\
+    println!(\"Stream paused!\");\n\
+\n\
+    // Do some processing without the background task reading more data\n\
+    // Memory usage stays bounded at current buffered rows\n\
+\n\
+    // Resume when ready\n\
+    stream.resume().await?;\n\
+    println!(\"Stream resumed!\");\n\
+\n\
+    // Continue consuming rows\n\
+    while let Some(Ok(row)) = stream.next().await {{\n\
+        println!(\"Row: {{:?}}\", row);\n\
+    }}\n\
+\n\
+Key semantics:\n\
+- pause() and resume() are idempotent (safe to call multiple times)\n\
+- pause() before resume() is a no-op\n\
+- Cannot pause/resume a completed or failed stream\n\
+- Stream memory stays bounded during pause (no background reading)\n\
+- Connection stays open (no reconnect needed)\n\
+- Metrics: fraiseql_stream_paused_total, fraiseql_stream_resumed_total");
 }

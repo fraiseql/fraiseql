@@ -156,7 +156,7 @@ fn decode_data_row(data: &[u8]) -> io::Result<BackendMessage> {
         if offset + 4 > data.len() {
             return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "field length"));
         }
-        let field_len = i32::from_be_bytes([data[offset], data[offset+1], data[offset+2], data[offset+3]]) as i32;
+        let field_len = i32::from_be_bytes([data[offset], data[offset+1], data[offset+2], data[offset+3]]);
         offset += 4;
 
         let field = if field_len == -1 {

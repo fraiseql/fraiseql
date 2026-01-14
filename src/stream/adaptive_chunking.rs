@@ -30,10 +30,6 @@ use std::time::{Duration, Instant};
 struct Occupancy {
     /// Percentage of channel capacity in use (0-100)
     percentage: usize,
-    /// Number of items buffered in the channel
-    items_buffered: usize,
-    /// Time of observation
-    timestamp: Instant,
 }
 
 /// Tracks channel occupancy and automatically adjusts chunk size based on backpressure
@@ -138,8 +134,6 @@ impl AdaptiveChunking {
         // Record this observation
         self.measurements.push_back(Occupancy {
             percentage: pct,
-            items_buffered,
-            timestamp: Instant::now(),
         });
 
         // Keep only the most recent measurements in the window
@@ -150,10 +144,8 @@ impl AdaptiveChunking {
         // Only consider adjustment if we have a FULL window of observations
         // (i.e., exactly equal to the window size, not more)
         // This ensures we only evaluate after collecting N measurements
-        if self.measurements.len() == self.adjustment_window {
-            if self.should_adjust() {
-                return self.calculate_adjustment();
-            }
+        if self.measurements.len() == self.adjustment_window && self.should_adjust() {
+            return self.calculate_adjustment();
         }
 
         None
@@ -245,7 +237,7 @@ impl AdaptiveChunking {
 
         // Hysteresis: only adjust if we're clearly outside the comfort zone
         let avg = self.average_occupancy();
-        avg > 80 || avg < 20
+        !(20..=80).contains(&avg)
     }
 
     /// Calculate the new chunk size based on average occupancy
@@ -264,13 +256,11 @@ impl AdaptiveChunking {
         let new_size = if avg > 80 {
             // High occupancy: producer is waiting on channel, consumer is slow
             // → DECREASE chunk_size to reduce backpressure and latency
-            let decreased = ((self.current_size as f64 / 1.5).floor() as usize).max(self.min_size);
-            decreased
+            ((self.current_size as f64 / 1.5).floor() as usize).max(self.min_size)
         } else if avg < 20 {
             // Low occupancy: consumer is draining fast, producer could batch more
             // → INCREASE chunk_size to amortize parsing cost and reduce context switches
-            let increased = ((self.current_size as f64 * 1.5).ceil() as usize).min(self.max_size);
-            increased
+            ((self.current_size as f64 * 1.5).ceil() as usize).min(self.max_size)
         } else {
             old_size
         };

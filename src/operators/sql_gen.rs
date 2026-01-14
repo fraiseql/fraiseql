@@ -62,7 +62,7 @@ pub fn generate_where_operator_sql(
     param_index: &mut usize,
     params: &mut HashMap<usize, Value>,
 ) -> Result<String> {
-    operator.validate().map_err(|e| crate::Error::InvalidSchema(e))?;
+    operator.validate().map_err(crate::Error::InvalidSchema)?;
 
     match operator {
         // ============ Comparison Operators ============

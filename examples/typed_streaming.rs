@@ -30,6 +30,7 @@ use serde::{Deserialize, Serialize};
 
 /// Example user entity for type-safe deserialization
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 struct User {
     id: String,
     name: String,

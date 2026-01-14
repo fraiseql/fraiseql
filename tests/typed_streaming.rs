@@ -290,6 +290,7 @@ async fn test_typed_query_different_types() {
 async fn test_deserialization_error_includes_type_info() {
     // Test that deserialization errors include type information
     #[derive(Debug, Deserialize)]
+    #[allow(dead_code)]
     struct StrictUser {
         id: String,
         name: String,

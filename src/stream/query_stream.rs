@@ -12,7 +12,6 @@ use serde_json::Value;
 use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use futures::StreamExt;
 
 /// Type alias for Rust-side predicate function
 type Predicate = Box<dyn Fn(&Value) -> bool + Send>;

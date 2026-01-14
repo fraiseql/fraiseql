@@ -16,8 +16,6 @@ use tokio::sync::{mpsc, Mutex, Notify};
 // Used for fast state tracking without full Mutex overhead
 const STATE_RUNNING: u8 = 0;
 const STATE_PAUSED: u8 = 1;
-const STATE_COMPLETE: u8 = 2;
-const STATE_ERROR: u8 = 3;
 
 /// Stream state machine
 ///
@@ -74,7 +72,6 @@ pub struct JsonStream {
     rows_yielded: Arc<AtomicU64>,  // Counter of items yielded to consumer
     rows_filtered: Arc<AtomicU64>,  // Counter of items filtered
     max_memory: Option<usize>,  // Optional memory limit in bytes
-    soft_limit_warn_threshold: Option<f32>,  // Warn at threshold % (0.0-1.0)
     soft_limit_fail_threshold: Option<f32>,  // Fail at threshold % (0.0-1.0)
 
     // Phase 8: Lightweight state tracking (cheap AtomicU8)
@@ -107,7 +104,7 @@ impl JsonStream {
         cancel_tx: mpsc::Sender<()>,
         entity: String,
         max_memory: Option<usize>,
-        soft_limit_warn_threshold: Option<f32>,
+        _soft_limit_warn_threshold: Option<f32>,
         soft_limit_fail_threshold: Option<f32>,
     ) -> Self {
         Self {
@@ -117,7 +114,6 @@ impl JsonStream {
             rows_yielded: Arc::new(AtomicU64::new(0)),
             rows_filtered: Arc::new(AtomicU64::new(0)),
             max_memory,
-            soft_limit_warn_threshold,
             soft_limit_fail_threshold,
 
             // Phase 8: Initialize lightweight atomic state
@@ -347,11 +343,6 @@ impl JsonStream {
         self.pause_resume.as_ref().map(|pr| Arc::clone(&pr.resume_signal))
     }
 
-    /// Clone paused occupancy counter for passing to background task (only if pause/resume is initialized)
-    pub(crate) fn clone_paused_occupancy(&self) -> Option<Arc<AtomicUsize>> {
-        self.pause_resume.as_ref().map(|pr| Arc::clone(&pr.paused_occupancy))
-    }
-
     // =========================================================================
     // Phase 8: Lightweight state machine methods
     // =========================================================================
@@ -369,36 +360,6 @@ impl JsonStream {
     /// Set state to paused using atomic
     pub(crate) fn state_atomic_set_paused(&self) {
         self.state_atomic.store(STATE_PAUSED, Ordering::Release);
-    }
-
-    /// Set state to complete using atomic
-    pub(crate) fn state_atomic_set_complete(&self) {
-        self.state_atomic.store(STATE_COMPLETE, Ordering::Release);
-    }
-
-    /// Set state to error using atomic
-    pub(crate) fn state_atomic_set_error(&self) {
-        self.state_atomic.store(STATE_ERROR, Ordering::Release);
-    }
-
-    /// Check if stream is paused (fast check, atomic)
-    pub(crate) fn is_paused_atomic(&self) -> bool {
-        self.state_atomic_get() == STATE_PAUSED
-    }
-
-    /// Check if stream is complete (fast check, atomic)
-    pub(crate) fn is_complete_atomic(&self) -> bool {
-        self.state_atomic_get() == STATE_COMPLETE
-    }
-
-    /// Check if stream encountered error (fast check, atomic)
-    pub(crate) fn is_error_atomic(&self) -> bool {
-        self.state_atomic_get() == STATE_ERROR
-    }
-
-    /// Check if stream is running (fast check, atomic)
-    pub(crate) fn is_running_atomic(&self) -> bool {
-        self.state_atomic_get() == STATE_RUNNING
     }
 
     /// Get current stream statistics
@@ -427,21 +388,25 @@ impl JsonStream {
     }
 
     /// Increment rows yielded counter (called from FilteredStream)
+    #[allow(unused)]
     pub(crate) fn increment_rows_yielded(&self, count: u64) {
         self.rows_yielded.fetch_add(count, Ordering::Relaxed);
     }
 
     /// Increment rows filtered counter (called from FilteredStream)
+    #[allow(unused)]
     pub(crate) fn increment_rows_filtered(&self, count: u64) {
         self.rows_filtered.fetch_add(count, Ordering::Relaxed);
     }
 
     /// Clone the yielded counter for passing to background task
+    #[allow(unused)]
     pub(crate) fn clone_rows_yielded(&self) -> Arc<AtomicU64> {
         Arc::clone(&self.rows_yielded)
     }
 
     /// Clone the filtered counter for passing to background task
+    #[allow(unused)]
     pub(crate) fn clone_rows_filtered(&self) -> Arc<AtomicU64> {
         Arc::clone(&self.rows_filtered)
     }

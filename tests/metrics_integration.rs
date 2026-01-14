@@ -83,7 +83,7 @@ fn test_histograms_basic_operation() {
 #[test]
 fn test_deserialization_metrics_with_types() {
     // Simulate deserialization of different types
-    let types = vec![
+    let types = [
         "String",
         "i32",
         "bool",
@@ -130,7 +130,7 @@ fn test_label_constants() {
 /// Test query error categorization
 #[test]
 fn test_query_error_categories() {
-    let error_categories = vec![
+    let error_categories = [
         "server_error",
         "protocol_error",
         "connection_error",
@@ -147,8 +147,8 @@ fn test_query_error_categories() {
 /// Test row processing metrics
 #[test]
 fn test_row_processing_metrics() {
-    let entities = vec!["users", "projects", "tasks", "events"];
-    let row_counts = vec![1, 10, 100, 1000, 10000];
+    let entities = ["users", "projects", "tasks", "events"];
+    let row_counts = [1, 10, 100, 1000, 10000];
 
     for entity in entities {
         for count in &row_counts {
@@ -320,7 +320,7 @@ fn test_deserialization_error_scenarios() {
 /// Test that metrics work with various entity names
 #[test]
 fn test_various_entity_names() {
-    let entities = vec![
+    let entities = [
         "users",
         "projects",
         "tasks",
@@ -367,7 +367,7 @@ fn test_channel_occupancy_metrics() {
 /// Test channel occupancy with varying entities
 #[test]
 fn test_channel_occupancy_multiple_entities() {
-    let entities = vec!["fast_entity", "slow_entity", "mixed_entity"];
+    let entities = ["fast_entity", "slow_entity", "mixed_entity"];
 
     for entity in entities {
         // Simulate occupancy evolution for each entity
@@ -397,8 +397,8 @@ fn test_stream_stats_creation_and_properties() {
 /// Test StreamStats memory estimation for various buffer sizes
 #[test]
 fn test_stream_stats_memory_estimation_various_sizes() {
-    let buffer_sizes = vec![0, 1, 10, 50, 128, 256];
-    let expected_kb = vec![0, 2, 20, 100, 256, 512];
+    let buffer_sizes = [0, 1, 10, 50, 128, 256];
+    let expected_kb = [0, 2, 20, 100, 256, 512];
 
     for (size, kb) in buffer_sizes.iter().zip(expected_kb.iter()) {
         let stats = StreamStats {
@@ -493,7 +493,7 @@ fn test_query_builder_max_memory_api() {
 /// Test memory estimation formula (2KB per item)
 #[test]
 fn test_memory_estimation_formula() {
-    let test_cases = vec![
+    let test_cases = [
         (0, 0),              // 0 items → 0 bytes
         (1, 2048),           // 1 item → 2KB
         (100, 204_800),      // 100 items → 200KB

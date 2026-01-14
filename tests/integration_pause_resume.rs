@@ -147,7 +147,7 @@ async fn test_resume_continues() {
     // Try to poll (should not get new items due to pause)
     // This tests that background task actually paused
     sleep(Duration::from_millis(50)).await;
-    let stats_paused = stream.stats();
+    let _stats_paused = stream.stats();
 
     // Resume
     stream.resume().await.expect("resume");
