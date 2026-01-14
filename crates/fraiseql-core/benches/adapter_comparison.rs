@@ -61,6 +61,7 @@ use fraiseql_core::db::{DatabaseAdapter, PostgresAdapter};
 use fraiseql_core::db::FraiseWireAdapter;
 
 use fraiseql_core::db::{WhereClause, WhereOperator};
+use fraiseql_core::runtime::ResultProjector;
 use serde_json::json;
 
 /// Get database connection string from environment
@@ -596,6 +597,125 @@ fn bench_wire_100k_with_json_parse(c: &mut Criterion) {
 }
 
 // =============================================================================
+// GraphQL Transformation Benchmarks (realistic scenario with processing)
+// =============================================================================
+
+#[cfg(feature = "postgres")]
+fn bench_postgres_100k_with_graphql_transform(c: &mut Criterion) {
+    let Some(conn_str) = get_connection_string() else {
+        eprintln!("Skipping PostgresAdapter benchmarks: DATABASE_URL not set");
+        return;
+    };
+
+    let rt = Runtime::new().unwrap();
+
+    if !rt.block_on(verify_benchmark_data(&conn_str)) {
+        eprintln!("Skipping benchmarks: Test data not found in v_users");
+        return;
+    }
+
+    let adapter = rt.block_on(PostgresAdapter::new(&conn_str)).unwrap();
+    let adapter = std::sync::Arc::new(adapter);
+
+    let mut group = c.benchmark_group("graphql_transform_100k");
+    group.throughput(Throughput::Elements(100_000));
+
+    // Create a projector with common GraphQL fields
+    // Simulates: { id, name, email, status, score }
+    let fields = vec![
+        "id".to_string(),
+        "name".to_string(),
+        "email".to_string(),
+        "status".to_string(),
+        "score".to_string(),
+    ];
+
+    group.bench_function(BenchmarkId::new("postgres_adapter", "with_transform"), |b| {
+        b.to_async(&rt).iter(|| {
+            let adapter = adapter.clone();
+            let fields = fields.clone();
+            async move {
+                let results = adapter
+                    .execute_where_query("v_users", None, Some(100_000), None)
+                    .await
+                    .unwrap();
+
+                // Use actual fraiseql-core transformation pipeline
+                let projector = ResultProjector::new(fields);
+                let projected = projector
+                    .project_results(&results, true)
+                    .unwrap_or_else(|_| serde_json::json!([{}]));
+
+                // Wrap in GraphQL data envelope (what executor does)
+                let response = ResultProjector::wrap_in_data_envelope(projected, "users");
+
+                let _http_response = serde_json::to_vec(&response).unwrap();
+                black_box(_http_response.len());
+            }
+        });
+    });
+
+    group.finish();
+}
+
+#[cfg(feature = "wire-backend")]
+fn bench_wire_100k_with_graphql_transform(c: &mut Criterion) {
+    let Some(conn_str) = get_connection_string() else {
+        return;
+    };
+
+    let rt = Runtime::new().unwrap();
+
+    if !rt.block_on(verify_benchmark_data(&conn_str)) {
+        return;
+    }
+
+    let adapter = FraiseWireAdapter::new(&conn_str).with_chunk_size(1024);
+    let adapter = std::sync::Arc::new(adapter);
+
+    let mut group = c.benchmark_group("graphql_transform_100k");
+    group.throughput(Throughput::Elements(100_000));
+
+    // Create a projector with common GraphQL fields
+    // Simulates: { id, name, email, status, score }
+    let fields = vec![
+        "id".to_string(),
+        "name".to_string(),
+        "email".to_string(),
+        "status".to_string(),
+        "score".to_string(),
+    ];
+
+    group.bench_function(BenchmarkId::new("wire_adapter", "with_transform"), |b| {
+        b.to_async(&rt).iter(|| {
+            let adapter = adapter.clone();
+            let fields = fields.clone();
+            async move {
+                let results = adapter
+                    .execute_where_query("v_users", None, Some(100_000), None)
+                    .await
+                    .unwrap();
+
+                // Use actual fraiseql-core transformation pipeline
+                // Wire advantage: results are already JSON Values, streaming can happen concurrently
+                let projector = ResultProjector::new(fields);
+                let projected = projector
+                    .project_results(&results, true)
+                    .unwrap_or_else(|_| serde_json::json!([{}]));
+
+                // Wrap in GraphQL data envelope (what executor does)
+                let response = ResultProjector::wrap_in_data_envelope(projected, "users");
+
+                let _http_response = serde_json::to_vec(&response).unwrap();
+                black_box(_http_response.len());
+            }
+        });
+    });
+
+    group.finish();
+}
+
+// =============================================================================
 // Benchmark Groups
 // =============================================================================
 
@@ -607,7 +727,8 @@ criterion_group!(
     bench_postgres_1m_rows,
     bench_postgres_with_where,
     bench_postgres_pagination,
-    bench_postgres_100k_with_json_parse
+    bench_postgres_100k_with_json_parse,
+    bench_postgres_100k_with_graphql_transform
 );
 
 #[cfg(feature = "wire-backend")]
@@ -618,7 +739,8 @@ criterion_group!(
     bench_wire_1m_rows,
     bench_wire_with_where,
     bench_wire_pagination,
-    bench_wire_100k_with_json_parse
+    bench_wire_100k_with_json_parse,
+    bench_wire_100k_with_graphql_transform
 );
 
 #[cfg(all(feature = "postgres", feature = "wire-backend"))]
