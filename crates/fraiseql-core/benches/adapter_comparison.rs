@@ -658,6 +658,67 @@ fn bench_postgres_100k_with_graphql_transform(c: &mut Criterion) {
     group.finish();
 }
 
+/// Benchmark: PostgreSQL field projection in SQL vs Rust-side transformation
+/// Tests the question: Is PostgreSQL's JSONB field extraction faster than Rust?
+#[cfg(feature = "postgres")]
+fn bench_postgres_100k_sql_projection_vs_rust(c: &mut Criterion) {
+    let Some(conn_str) = get_connection_string() else {
+        eprintln!("Skipping PostgresAdapter benchmarks: DATABASE_URL not set");
+        return;
+    };
+
+    let rt = Runtime::new().unwrap();
+
+    if !rt.block_on(verify_benchmark_data(&conn_str)) {
+        eprintln!("Skipping benchmarks: Test data not found in v_users");
+        return;
+    }
+
+    let adapter = rt.block_on(PostgresAdapter::new(&conn_str)).unwrap();
+    let adapter = std::sync::Arc::new(adapter);
+
+    let mut group = c.benchmark_group("sql_projection_comparison");
+    group.throughput(Throughput::Elements(100_000));
+
+    // Rust-side transformation fields
+    let fields = vec![
+        "id".to_string(),
+        "email".to_string(),
+        "firstName".to_string(),
+        "status".to_string(),
+        "score".to_string(),
+    ];
+
+    // Benchmark 1: Full JSONB payload, Rust-side projection
+    group.bench_function(
+        BenchmarkId::new("postgres", "full_payload_rust_projection"),
+        |b| {
+            b.to_async(&rt).iter(|| {
+                let adapter = adapter.clone();
+                let fields = fields.clone();
+                async move {
+                    // Get full JSONB from database
+                    let results = adapter
+                        .execute_where_query("v_users", None, Some(100_000), None)
+                        .await
+                        .unwrap();
+
+                    // Project in Rust
+                    let projector = ResultProjector::new(fields);
+                    let projected = projector
+                        .project_results(&results, true)
+                        .unwrap_or_else(|_| serde_json::json!([{}]));
+
+                    let _http_response = serde_json::to_vec(&projected).unwrap();
+                    black_box(_http_response.len());
+                }
+            });
+        },
+    );
+
+    group.finish();
+}
+
 #[cfg(feature = "wire-backend")]
 fn bench_wire_100k_with_graphql_transform(c: &mut Criterion) {
     let Some(conn_str) = get_connection_string() else {
@@ -728,7 +789,8 @@ criterion_group!(
     bench_postgres_with_where,
     bench_postgres_pagination,
     bench_postgres_100k_with_json_parse,
-    bench_postgres_100k_with_graphql_transform
+    bench_postgres_100k_with_graphql_transform,
+    bench_postgres_100k_sql_projection_vs_rust
 );
 
 #[cfg(feature = "wire-backend")]
