@@ -12,15 +12,19 @@
 `fraiseql-wire` is a **minimal, async Rust query engine** that streams JSON data from Postgres with low latency and bounded memory usage.
 
 It is **not a general-purpose Postgres driver**.
-It is a focused, purpose-built transport for queries of the form:
+It is a focused, purpose-built transport for JSON queries of the form:
 
 ```sql
 SELECT data
-FROM v_{entity}
-WHERE predicate
+FROM {source}
+[WHERE predicate]
+[ORDER BY expression [COLLATE collation] [ASC|DESC]]
+[LIMIT N] [OFFSET M]
 ```
 
-The primary goal is to enable **efficient, backpressure-aware streaming of JSON** from Postgres into Rust, leveraging Postgres 17 streaming behavior and (optionally) chunked rows mode.
+Where `{source}` is a JSON-shaped relation (`v_{entity}` views or `tv_{entity}` tables).
+
+The primary goal is to enable **efficient, backpressure-aware streaming of JSON** from Postgres into Rust, with support for hybrid filtering (SQL + Rust predicates), adaptive chunking, pause/resume flow control, and comprehensive metrics.
 
 ---
 
@@ -65,16 +69,31 @@ All queries must conform to:
 
 ```sql
 SELECT data
-FROM v_{entity}
-WHERE <predicate>
+FROM {source}
+[WHERE <predicate>]
+[ORDER BY <expression> [COLLATE <collation>] [ASC|DESC]]
+[LIMIT <count>]
+[OFFSET <count>]
 ```
 
-### Constraints
+### Query Components
 
-* Exactly **one column** must be returned
+| Component | Support | Notes |
+|-----------|---------|-------|
+| **SELECT** | `SELECT data` only | Result column must be named `data` and type `json`/`jsonb` |
+| **FROM** | `v_{entity}` / `tv_{entity}` | Views and tables with JSON column |
+| **WHERE** | SQL predicates | Optional; use `where_sql()` in builder |
+| **ORDER BY** | Server-side sorting | With optional COLLATE; server-executed, no client buffering |
+| **LIMIT/OFFSET** | Pagination | For result set reduction |
+| **Filtering** | SQL + Rust predicates | Hybrid: SQL reduces wire traffic, Rust refines streamed data |
+
+### Hard Constraints
+
+* Exactly **one column** in result set (named `data`)
 * Column type must be `json` or `jsonb`
-* Results are streamed in-order
+* Results streamed in-order (server-side ordering for ORDER BY)
 * One active query per connection
+* No client-side reordering or aggregation
 
 ---
 
@@ -301,7 +320,7 @@ Avoid this crate if you need:
 
 ## Advanced Features
 
-### Type-Safe Deserialization (Phase 8.2)
+### Type-Safe Deserialization
 
 Stream results as custom structs instead of raw JSON:
 
@@ -322,7 +341,7 @@ while let Some(project) = stream.next().await {
 
 Type `T` affects **only** deserialization; SQL, filtering, and ordering are identical regardless of `T`.
 
-### Stream Control (Phase 8.6)
+### Stream Control (Pause/Resume)
 
 Pause and resume streams for advanced flow control:
 
@@ -341,7 +360,7 @@ stream.pause().await?;
 stream.resume().await?;  // Continue from where we left off
 ```
 
-### Adaptive Chunking (Phase 8.5)
+### Adaptive Chunking
 
 Automatic chunk size optimization based on channel occupancy:
 
@@ -355,7 +374,7 @@ let stream = client
     .await?;
 ```
 
-### SQL Field Projection (Phase 9)
+### SQL Field Projection
 
 Reduce payload size via database-level field filtering:
 
@@ -368,7 +387,7 @@ let stream = client
 // Returns only id and name fields, reducing network overhead
 ```
 
-### Metrics & Tracing (Phase 8.3, 8.4)
+### Metrics & Tracing
 
 Built-in metrics via the `metrics` crate:
 
@@ -387,24 +406,27 @@ RUST_LOG=fraiseql_wire=debug cargo run
 
 ## Project Status
 
-✅ **Mature (Phase 9)**
+✅ **Production Ready**
 
 * API is stable and well-tested
 * 166+ unit tests, comprehensive integration tests
 * Zero clippy warnings (strict `-D warnings`)
-* Optimized through 8 phases of performance work
+* Fully optimized streaming engine with proven performance characteristics
 * Ready for production use
 
 All core features implemented with comprehensive CI validation:
-* ✅ Async JSON streaming (integration tests across PG 15-18)
-* ✅ Hybrid SQL + Rust predicates (operator tests with 21 test cases)
-* ✅ Type-safe deserialization (generic streaming API with tests)
-* ✅ Stream pause/resume (9 integration tests validating backpressure)
-* ✅ Adaptive chunking (memory optimization with integration tests)
-* ✅ SQL field projection (query builder optimization)
-* ✅ Metrics & tracing (observable by design, example provided)
-* ✅ Error handling (comprehensive error types)
-* ✅ Connection pooling support (4 integration patterns documented)
+* ✅ Async JSON streaming (integration tests across PostgreSQL 15-18)
+* ✅ Hybrid SQL + Rust predicates (25+ WHERE operators with full test coverage)
+* ✅ Type-safe deserialization (generic streaming API with custom struct support)
+* ✅ Stream pause/resume (backpressure-aware flow control)
+* ✅ Adaptive chunking (automatic memory-aware chunk optimization)
+* ✅ SQL field projection (SELECT clause optimization for reduced payload)
+* ✅ Server-side ordering (ORDER BY with COLLATE support, no client buffering)
+* ✅ Pagination (LIMIT/OFFSET for result set reduction)
+* ✅ Metrics & tracing (comprehensive observability via metrics crate)
+* ✅ Error handling (detailed error types and recovery patterns)
+* ✅ Connection pooling support (documented integration patterns)
+* ✅ TLS/SCRAM authentication (PostgreSQL 17+ security features)
 
 ---
 
@@ -413,10 +435,15 @@ All core features implemented with comprehensive CI validation:
 * [x] Connection pooling integration guide (CONNECTION_POOLING.md)
 * [x] Advanced filtering patterns (ADVANCED_FILTERING.md)
 * [x] PostgreSQL 15-18 compatibility (POSTGRES_COMPATIBILITY.md)
-* [ ] SCRAM/TLS end-to-end integration tests in CI
-* [ ] Extended metric examples
+* [x] SCRAM/TLS end-to-end integration tests in CI
+* [x] Comprehensive metrics and tracing
+* [x] Server-side ordering (ORDER BY with COLLATE)
+* [x] Pagination support (LIMIT/OFFSET)
+* [x] SQL field projection for payload optimization
+* [ ] Extended metric examples and dashboards
 * [ ] Performance tuning guide for large datasets
 * [ ] PostgreSQL 19+ compatibility tracking
+* [ ] Binary protocol optimization (extended query protocol)
 
 ---
 
