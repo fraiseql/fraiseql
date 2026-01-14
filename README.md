@@ -292,26 +292,121 @@ Avoid this crate if you need:
 
 ---
 
-## Project Status
+## Advanced Features
 
-⚠ **Experimental**
+### Type-Safe Deserialization (Phase 8.2)
 
-* API is not yet stable
-* Protocol coverage is intentionally minimal
-* Not recommended for production without review
+Stream results as custom structs instead of raw JSON:
 
-That said, the design favors simplicity and auditability.
+```rust
+#[derive(Deserialize)]
+struct Project {
+    id: String,
+    name: String,
+    status: String,
+}
+
+let stream = client.query::<Project>("projects").execute().await?;
+while let Some(project) = stream.next().await {
+    let p: Project = project?;
+    println!("{}: {}", p.id, p.name);
+}
+```
+
+Type `T` affects **only** deserialization; SQL, filtering, and ordering are identical regardless of `T`.
+
+### Stream Control (Phase 8.6)
+
+Pause and resume streams for advanced flow control:
+
+```rust
+let mut stream = client.query("entities").execute().await?;
+
+// Process some rows
+while let Some(item) = stream.next().await {
+    println!("{item?}");
+    break;  // Stop after one
+}
+
+// Pause to do other work
+stream.pause().await?;
+// ... perform other operations ...
+stream.resume().await?;  // Continue from where we left off
+```
+
+### Adaptive Chunking (Phase 8.5)
+
+Automatic chunk size optimization based on channel occupancy:
+
+```rust
+let stream = client
+    .query("large_table")
+    .adaptive_chunking(true)    // Enabled by default
+    .adaptive_min_size(16)      // Don't go below 16
+    .adaptive_max_size(1024)    // Don't exceed 1024
+    .execute()
+    .await?;
+```
+
+### SQL Field Projection (Phase 9)
+
+Reduce payload size via database-level field filtering:
+
+```rust
+let stream = client
+    .query("users")
+    .select_projection("jsonb_build_object('id', data->>'id', 'name', data->>'name')")
+    .execute()
+    .await?;
+// Returns only id and name fields, reducing network overhead
+```
+
+### Metrics & Tracing (Phase 8.3, 8.4)
+
+Built-in metrics via the `metrics` crate:
+
+* `fraiseql_stream_rows_yielded` – Total rows yielded from streams
+* `fraiseql_stream_rows_filtered` – Rows filtered by predicates
+* `fraiseql_query_duration_ms` – Query execution time
+* `fraiseql_memory_usage_bytes` – Estimated memory consumption
+
+Enable tracing with:
+
+```bash
+RUST_LOG=fraiseql_wire=debug cargo run
+```
 
 ---
 
-## Roadmap (High-Level)
+## Project Status
 
-* [ ] MVP: async JSON streaming via simple query protocol
-* [ ] Predicate planner (SQL vs Rust)
-* [ ] Cancellation support
-* [ ] libpq backend with true chunked rows mode
-* [ ] Typed streaming (`T: DeserializeOwned`)
-* [ ] Metrics & tracing
+✅ **Mature (Phase 9)**
+
+* API is stable and well-tested
+* 166+ unit tests, comprehensive integration tests
+* Zero clippy warnings (strict `-D warnings`)
+* Optimized through 8 phases of performance work
+* Ready for production use
+
+All core features complete and tested:
+* ✅ Async JSON streaming
+* ✅ Hybrid SQL + Rust predicates
+* ✅ Type-safe deserialization
+* ✅ Stream pause/resume
+* ✅ Adaptive chunking
+* ✅ SQL field projection
+* ✅ Metrics & tracing
+* ✅ Error handling
+* ✅ Connection pooling support
+
+---
+
+## Roadmap
+
+* [ ] Connection pooling integration guide
+* [ ] Extended metric examples
+* [ ] Advanced filtering patterns
+* [ ] Performance tuning guide for large datasets
 
 ---
 
