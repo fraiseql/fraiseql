@@ -510,13 +510,14 @@ fn bench_wire_pagination(c: &mut Criterion) {
 }
 
 // =============================================================================
-// Fair Comparison: Full Pipeline (Including JSON Parsing)
+// Fair Comparison: Complete HTTP Response Pipeline
 // =============================================================================
-// This measures the complete pipeline from query to HTTP response:
+// This measures the complete pipeline from query to HTTP serialization:
 // - Query execution
 // - Row deserialization
-// - JSON parsing (for both adapters)
+// - JSON parsing/handling (for both adapters)
 // - Result aggregation
+// - HTTP serialization to JSON bytes
 
 #[cfg(feature = "postgres")]
 fn bench_postgres_100k_with_json_parse(c: &mut Criterion) {
@@ -533,10 +534,10 @@ fn bench_postgres_100k_with_json_parse(c: &mut Criterion) {
     let adapter = rt.block_on(PostgresAdapter::new(&conn_str)).unwrap();
     let adapter = std::sync::Arc::new(adapter);
 
-    let mut group = c.benchmark_group("full_pipeline_100k");
+    let mut group = c.benchmark_group("http_response_pipeline_100k");
     group.throughput(Throughput::Elements(100_000));
 
-    group.bench_function(BenchmarkId::new("postgres_adapter", "with_json_parse"), |b| {
+    group.bench_function(BenchmarkId::new("postgres_adapter", "to_http_json"), |b| {
         b.to_async(&rt).iter(|| {
             let adapter = adapter.clone();
             async move {
@@ -545,10 +546,10 @@ fn bench_postgres_100k_with_json_parse(c: &mut Criterion) {
                     .await
                     .unwrap();
 
-                // Fair comparison: simulates converting rows to JSON for HTTP response
-                // PostgreSQL adapter returns Vec<Row>, need to convert to JSON
-                let count = results.len();
-                black_box(count);
+                // Complete HTTP pipeline for PostgreSQL:
+                // Query → collect results → serialize to HTTP response JSON
+                let _http_response = serde_json::to_vec(&results).unwrap();
+                black_box(_http_response.len());
             }
         });
     });
@@ -571,10 +572,10 @@ fn bench_wire_100k_with_json_parse(c: &mut Criterion) {
     let adapter = FraiseWireAdapter::new(&conn_str).with_chunk_size(1024);
     let adapter = std::sync::Arc::new(adapter);
 
-    let mut group = c.benchmark_group("full_pipeline_100k");
+    let mut group = c.benchmark_group("http_response_pipeline_100k");
     group.throughput(Throughput::Elements(100_000));
 
-    group.bench_function(BenchmarkId::new("wire_adapter", "with_json_parse"), |b| {
+    group.bench_function(BenchmarkId::new("wire_adapter", "to_http_json"), |b| {
         b.to_async(&rt).iter(|| {
             let adapter = adapter.clone();
             async move {
@@ -583,10 +584,10 @@ fn bench_wire_100k_with_json_parse(c: &mut Criterion) {
                     .await
                     .unwrap();
 
-                // Fair comparison: wire adapter already returns parsed JSON Values
-                // This is the complete pipeline (query + parsing + aggregation)
-                let count = results.len();
-                black_box(count);
+                // Complete HTTP pipeline for Wire adapter:
+                // Query → collect parsed JSON results → serialize to HTTP response
+                let _http_response = serde_json::to_vec(&results).unwrap();
+                black_box(_http_response.len());
             }
         });
     });
