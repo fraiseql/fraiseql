@@ -79,6 +79,68 @@ FraiseQL v2 is a **compiled GraphQL execution engine** designed for deterministi
 
 ---
 
+## Language Generators
+
+FraiseQL v2 supports **schema authoring in 5 programming languages**, all producing compatible JSON schemas that compile to the same optimized execution engine.
+
+| Language | Version | Status | Tests | Features |
+|----------|---------|--------|-------|----------|
+| **Python** | 2.0.0-alpha.1 | ✅ Ready | 34/34 ✓ | Full support |
+| **TypeScript** | 2.0.0-alpha.1 | ✅ Ready | 10/10 ✓ | Full support |
+| **Go** | 2.0.0-alpha.1 | ✅ Ready | 45+ ✓ | Full support |
+| **Java** | 2.0.0-alpha.1 | ⏳ WIP | Pending | Full support |
+| **PHP** | 2.0.0-alpha.1 | ⏳ WIP | Pending | Full support |
+
+### Quick Example (Python)
+
+```python
+from fraiseql import type as fraiseql_type, query as fraiseql_query, schema
+
+@fraiseql_type
+class User:
+    id: int
+    name: str
+    email: str | None
+
+@fraiseql_query(sql_source="v_users")
+def users(limit: int = 10) -> list[User]:
+    """Get all users."""
+    pass
+
+# Export schema
+schema.export_schema("schema.json")
+
+# Compile with CLI
+# $ fraiseql-cli compile schema.json
+```
+
+### Documentation
+
+- **[Language Generators Guide](docs/language-generators.md)** — Complete reference for all 5 languages, with examples and best practices
+- **[E2E Testing Guide](docs/e2e-testing.md)** — End-to-end testing infrastructure and Makefile targets
+- **[CLI Schema Format Guide](docs/cli-schema-format.md)** — Schema format specification and compilation process
+
+### Test All Languages
+
+```bash
+# Run E2E tests for all languages
+make e2e-all
+
+# Or test individually
+make e2e-python       # Python tests
+make e2e-typescript   # TypeScript tests
+make e2e-go          # Go tests
+```
+
+### Check Infrastructure
+
+```bash
+# See which languages are ready
+make e2e-status
+```
+
+---
+
 ## Complete Specification Set
 
 ### Core Principle 1: Database-Targeting Architecture ✅
