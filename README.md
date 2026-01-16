@@ -120,17 +120,30 @@ schema.export_schema("schema.json")
 - **[E2E Testing Guide](docs/e2e-testing.md)** — End-to-end testing infrastructure and Makefile targets
 - **[CLI Schema Format Guide](docs/cli-schema-format.md)** — Schema format specification and compilation process
 
-### Test All Languages
+### Test All Languages & Real-World Apps
 
 ```bash
-# Run E2E tests for all languages
+# Run all E2E tests (languages + VelocityBench integration)
 make e2e-all
 
 # Or test individually
-make e2e-python       # Python tests
-make e2e-typescript   # TypeScript tests
-make e2e-go          # Go tests
+make e2e-python           # Python tests
+make e2e-typescript       # TypeScript tests
+make e2e-go              # Go tests
+make e2e-velocitybench   # Real-world blogging app integration
 ```
+
+#### VelocityBench Integration Test
+
+The `e2e-velocitybench` target runs against the [VelocityBench](../velocitybench/) blogging application framework benchmarking suite. This is a **production-grade integration test** that validates:
+
+- ✅ FraiseQL schema structure (User, Post, Comment types)
+- ✅ Query definitions (users, posts, comments)
+- ✅ Mutation definitions (createUser, createPost)
+- ✅ CLI compilation workflow
+- ✅ Real-world application compatibility
+
+This test bridges FraiseQL with a complete application framework, demonstrating how the language generators work with realistic data models.
 
 ### Check Infrastructure
 

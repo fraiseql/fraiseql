@@ -206,15 +206,33 @@ Starts Docker test databases:
 make e2e-setup
 ```
 
+### e2e-velocitybench
+
+Runs E2E test against the VelocityBench blogging application:
+
+```bash
+make e2e-velocitybench
+```
+
+This is a real-world integration test that:
+- Verifies FraiseQL implementation exists in VelocityBench
+- Tests blogging app schema structure (User, Post, Comment)
+- Validates schema compilation with fraiseql-cli
+- Demonstrates FraiseQL working with a production-like application
+
+**Note:** This test verifies schema structure even if CLI compilation produces warnings.
+
 ### e2e-all
 
-Runs sequential tests for all languages:
+Runs sequential tests for all languages plus VelocityBench integration:
 
 ```bash
 make e2e-all
 ```
 
-Equivalent to: `e2e-python → e2e-typescript → e2e-go`
+Equivalent to: `e2e-python → e2e-typescript → e2e-go → e2e-velocitybench`
+
+Each test must pass before the next starts.
 
 ### e2e-python, e2e-typescript, e2e-go, e2e-java, e2e-php
 
