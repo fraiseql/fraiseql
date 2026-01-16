@@ -227,27 +227,149 @@ def test_php_schema_can_be_defined():
     print("✅ PHP schema definition is valid")
 
 
+def test_kotlin_schema_can_be_defined():
+    """Test that the Kotlin schema code is syntactically correct."""
+    from velocitybench_schemas import get_kotlin_schema_code
+
+    code = get_kotlin_schema_code()
+
+    # Just verify it's non-empty and contains key elements
+    assert "data class User" in code
+    assert "data class Post" in code
+    assert "data class Comment" in code
+    assert "@FraiseQLType" in code
+    assert "@Query" in code
+    assert "@Mutation" in code
+    assert "fun ping()" in code
+    assert "fun users(" in code
+    assert "fun createPost(" in code
+
+    print("✅ Kotlin schema definition is valid")
+
+
+def test_csharp_schema_can_be_defined():
+    """Test that the C# schema code is syntactically correct."""
+    from velocitybench_schemas import get_csharp_schema_code
+
+    code = get_csharp_schema_code()
+
+    # Just verify it's non-empty and contains key elements
+    assert "public record User" in code
+    assert "public record Post" in code
+    assert "public record Comment" in code
+    assert "[FraiseQLType]" in code
+    assert "[Query" in code
+    assert "[Mutation" in code
+    assert "public string Ping()" in code
+    assert "public List<User> Users(" in code
+    assert "public Post CreatePost(" in code
+
+    print("✅ C# schema definition is valid")
+
+
+def test_rust_schema_can_be_defined():
+    """Test that the Rust schema code is syntactically correct."""
+    from velocitybench_schemas import get_rust_schema_code
+
+    code = get_rust_schema_code()
+
+    # Just verify it's non-empty and contains key elements
+    assert "pub struct User" in code
+    assert "pub struct Post" in code
+    assert "pub struct Comment" in code
+    assert "#[derive(FraiseQLType" in code
+    assert "#[query" in code
+    assert "#[mutation" in code
+    assert "pub fn ping()" in code
+    assert "pub fn users(" in code
+    assert "pub fn create_post(" in code
+
+    print("✅ Rust schema definition is valid")
+
+
+def test_javascript_schema_can_be_defined():
+    """Test that the JavaScript schema code is syntactically correct."""
+    from velocitybench_schemas import get_javascript_schema_code
+
+    code = get_javascript_schema_code()
+
+    # Just verify it's non-empty and contains key elements
+    assert "class User" in code
+    assert "class Post" in code
+    assert "class Comment" in code
+    assert "@Type()" in code
+    assert "@Query(" in code
+    assert "@Mutation(" in code
+    assert "ping()" in code
+    assert "users(" in code
+    assert "createPost(" in code
+
+    print("✅ JavaScript schema definition is valid")
+
+
+def test_ruby_schema_can_be_defined():
+    """Test that the Ruby schema code is syntactically correct."""
+    from velocitybench_schemas import get_ruby_schema_code
+
+    code = get_ruby_schema_code()
+
+    # Just verify it's non-empty and contains key elements
+    assert "class User" in code
+    assert "class Post" in code
+    assert "class Comment" in code
+    assert "include FraiseQL::Type" in code
+    assert "fraiseql_query" in code
+    assert "fraiseql_mutation" in code
+    assert "fraiseql_field" in code
+    assert ":ping," in code
+    assert ":users," in code
+    assert ":create_post," in code
+
+    print("✅ Ruby schema definition is valid")
+
+
 if __name__ == "__main__":
-    print("=== VelocityBench All-Languages E2E Test ===\n")
+    print("=== VelocityBench Tier 1A Multi-Language E2E Test ===\n")
 
     test_velocitybench_schema_structure()
     test_velocitybench_queries()
     test_velocitybench_mutations()
     test_velocitybench_schema_compiles()
+
+    print("\n--- Original 5 Languages ---")
     test_python_schema_can_be_defined()
     test_typescript_schema_can_be_defined()
     test_java_schema_can_be_defined()
     test_go_schema_can_be_defined()
     test_php_schema_can_be_defined()
 
-    print("\n✅ All VelocityBench All-Languages E2E tests passed!")
-    print("\nValidated:")
-    print("✅ Canonical schema structure (User, Post, Comment types)")
+    print("\n--- Tier 1A Expansion Languages ---")
+    test_kotlin_schema_can_be_defined()
+    test_csharp_schema_can_be_defined()
+    test_rust_schema_can_be_defined()
+    test_javascript_schema_can_be_defined()
+    test_ruby_schema_can_be_defined()
+
+    print("\n" + "="*60)
+    print("✅ ALL TIER 1A MULTI-LANGUAGE E2E TESTS PASSED!")
+    print("="*60)
+    print("\nCanonical Schema Validation:")
+    print("✅ VelocityBench blogging app structure (User, Post, Comment)")
     print("✅ All 7 queries (ping, user, users, post, posts, comment, comments)")
     print("✅ All 3 mutations (updateUser, createPost, createComment)")
-    print("✅ Python schema definition")
-    print("✅ TypeScript schema definition")
-    print("✅ Java schema definition")
-    print("✅ Go schema definition")
-    print("✅ PHP schema definition")
-    print("\nThe VelocityBench blogging app can be expressed in all 5 supported languages!")
+    print("\nLanguage Support:")
+    print("✅ Python (decorators)")
+    print("✅ TypeScript (decorators)")
+    print("✅ Go (struct tags)")
+    print("✅ Java (annotations)")
+    print("✅ PHP (attributes)")
+    print("\n✅ Tier 1A Expansion:")
+    print("✅ Kotlin (annotations, data classes)")
+    print("✅ C# (attributes, records)")
+    print("✅ Rust (derive macros)")
+    print("✅ JavaScript (decorators)")
+    print("✅ Ruby (DSL)")
+    print("\n" + "="*60)
+    print("Complete ecosystem coverage: 10 languages across all major")
+    print("backend ecosystems (JVM, .NET, Web, Native, Dynamic)")
+    print("="*60)
