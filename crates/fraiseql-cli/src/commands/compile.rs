@@ -134,6 +134,7 @@ mod tests {
                 description: Some("User type".to_string()),
                 sql_source: String::new(),
                 jsonb_column: String::new(),
+                sql_projection_hint: None,
             }],
             queries: vec![QueryDefinition {
                 name: "users".to_string(),
