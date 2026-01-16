@@ -175,12 +175,20 @@ mod invalidation;
 mod key;
 mod result;
 
+// Phase 7: Entity-level caching modules
+pub mod cascade_metadata;
+pub mod entity_key;
+pub mod uuid_extractor;
+
 // Public exports
 pub use adapter::CachedDatabaseAdapter;
+pub use cascade_metadata::CascadeMetadata;
 pub use config::CacheConfig;
+pub use entity_key::EntityKey;
 pub use invalidation::{InvalidationContext, InvalidationReason};
 pub use key::{extract_accessed_views, generate_cache_key};
 pub use result::{CacheMetrics, CachedResult, QueryResultCache};
+pub use uuid_extractor::UUIDExtractor;
 
 // Internal types (not exposed in public API)
 #[allow(unused_imports)]
