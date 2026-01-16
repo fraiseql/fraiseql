@@ -18,15 +18,13 @@ use std::time::Instant;
 use tokio::runtime::Runtime;
 
 #[cfg(feature = "postgres")]
-use fraiseql_core::db::{DatabaseAdapter, PostgresAdapter};
+use fraiseql_core::db::{DatabaseAdapter, JsonbValue, PostgresAdapter};
 
 #[cfg(feature = "wire-backend")]
 use fraiseql_core::db::FraiseWireAdapter;
 
-use fraiseql_core::db::{WhereClause, WhereOperator};
-use fraiseql_core::runtime::projection::ResultProjector;
 use fraiseql_core::utils::casing::to_camel_case;
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value};
 
 /// Get database connection string from environment
 fn get_connection_string() -> Option<String> {
@@ -87,15 +85,16 @@ fn transform_single_row(
 /// Transform database results through full FraiseQL pipeline
 ///
 /// This processes results in streaming fashion (as they arrive)
+#[cfg(feature = "postgres")]
 fn transform_results(
-    results: Vec<Value>,
+    results: Vec<JsonbValue>,
     requested_fields: &[&str],
     type_name: &str,
 ) -> Value {
     // Process each row as it arrives (simulating streaming)
     let projected_results: Vec<Value> = results
         .into_iter()
-        .map(|row| transform_single_row(row, requested_fields, type_name))
+        .map(|row| transform_single_row(row.data, requested_fields, type_name))
         .collect();
 
     // Wrap in GraphQL data envelope

@@ -1,4 +1,7 @@
 //! Custom assertion helpers for analytics tests
+//!
+//! These helpers are shared across multiple test files, so not all may be used by every test.
+#![allow(dead_code)]
 
 use serde_json::Value;
 

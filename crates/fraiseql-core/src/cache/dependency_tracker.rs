@@ -54,8 +54,10 @@ pub struct DependencyTracker {
     view_to_caches: HashMap<String, HashSet<String>>,
 }
 
+// Methods are part of public API but not yet wired into runtime - will be used when
+// cache coherency is connected to the query execution pipeline.
+#[allow(dead_code)]
 impl DependencyTracker {
-    #[allow(dead_code)] // These are part of the public API
     /// Create new dependency tracker.
     ///
     /// # Example

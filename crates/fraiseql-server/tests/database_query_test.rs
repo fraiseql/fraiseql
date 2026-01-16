@@ -54,9 +54,8 @@ async fn test_connection_pool_config() {
         .await
         .expect("Failed to create pool");
 
-    // Verify pool is usable
-    let num_idle = pool.num_idle();
-    assert!(num_idle >= 0);
+    // Verify pool is usable (num_idle returns usize, so just verify we can read it)
+    let _num_idle = pool.num_idle();
 
     pool.close().await;
 }
@@ -332,8 +331,8 @@ async fn test_pool_size_limits() {
 
     println!("Pool connections - Idle: {}", num_idle);
 
-    // Pool should be functional
-    assert!(num_idle >= 0);
+    // Pool should be functional (num_idle is usize, always >= 0)
+    // Just verify we can read the value (the pool is usable)
 
     pool.close().await;
 }

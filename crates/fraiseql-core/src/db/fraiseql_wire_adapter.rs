@@ -138,8 +138,8 @@ impl FraiseWireAdapter {
         limit: Option<u32>,
         offset: Option<u32>,
     ) -> Result<Vec<JsonbValue>> {
-        // Build complete SQL with LIMIT/OFFSET
-        let sql = self.build_query(view, where_clause, limit, offset)?;
+        // Build complete SQL with LIMIT/OFFSET (used for debugging/logging if needed)
+        let _sql = self.build_query(view, where_clause, limit, offset)?;
 
         // Create fresh client
         let client = self.factory.create_client().await?;

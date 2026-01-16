@@ -217,6 +217,8 @@ impl MySqlWhereGenerator {
     }
 
     /// Build raw JSON path for JSON functions (without UNQUOTE).
+    /// Used for JSON array/object operations where unquoting is not desired.
+    #[allow(dead_code)]  // Reserved for future JSON array/object operations
     fn build_raw_json_path(&self, path: &[String]) -> String {
         let json_path = path.join(".");
         format!("JSON_EXTRACT(data, '$.{json_path}')")

@@ -1,4 +1,7 @@
 //! Database setup and teardown utilities for integration tests
+//!
+//! These helpers are shared across multiple test files, so not all may be used by every test.
+#![allow(dead_code)]
 
 use fraiseql_core::compiler::fact_table::{
     FactTableMetadata, MeasureColumn, DimensionColumn, FilterColumn, SqlType, DimensionPath,
@@ -66,7 +69,7 @@ impl TestDatabase {
                 table_name = table_name
             );
 
-            let params = vec![
+            let _params = vec![
                 serde_json::json!(row.revenue),
                 serde_json::json!(row.quantity),
                 row.data.clone(),
