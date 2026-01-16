@@ -361,6 +361,12 @@ impl<A: DatabaseAdapter> Executor<A> {
     pub const fn config(&self) -> &RuntimeConfig {
         &self.config
     }
+
+    /// Get database adapter reference.
+    #[must_use]
+    pub fn adapter(&self) -> &Arc<A> {
+        &self.adapter
+    }
 }
 
 #[cfg(test)]

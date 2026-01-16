@@ -51,27 +51,28 @@ pub async fn health_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
 ) -> impl IntoResponse {
     debug!("Health check requested");
 
-    // Check database connection
-    let db_healthy = state
-        .executor
-        .schema()
-        .validate()
-        .is_ok();
+    // Perform real database health check
+    let health_result = state.executor.adapter().health_check().await;
+    let db_healthy = health_result.is_ok();
+
+    let adapter = state.executor.adapter();
+    let db_type = adapter.database_type();
+    let metrics = adapter.pool_metrics();
 
     let database = if db_healthy {
         DatabaseStatus {
             connected: true,
-            database_type: "PostgreSQL".to_string(), // TODO: Get from adapter
-            active_connections: None,
-            idle_connections: None,
+            database_type: format!("{:?}", db_type),
+            active_connections: Some(metrics.active_connections as usize),
+            idle_connections: Some(metrics.idle_connections as usize),
         }
     } else {
-        error!("Database health check failed");
+        error!("Database health check failed: {:?}", health_result.err());
         DatabaseStatus {
             connected: false,
-            database_type: "unknown".to_string(),
-            active_connections: None,
-            idle_connections: None,
+            database_type: format!("{:?}", db_type),
+            active_connections: Some(metrics.active_connections as usize),
+            idle_connections: Some(metrics.idle_connections as usize),
         }
     };
 
