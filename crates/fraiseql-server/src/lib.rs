@@ -31,6 +31,7 @@ pub mod error;
 pub mod logging;
 pub mod metrics;
 pub mod middleware;
+pub mod performance;
 pub mod routes;
 pub mod schema;
 pub mod server;
@@ -42,6 +43,9 @@ pub use logging::{
     SourceLocation, StructuredLogEntry,
 };
 pub use metrics::{MetricsCollector, PrometheusMetrics};
+pub use performance::{
+    OperationProfile, PerformanceMonitor, PerformanceStats, PerformanceTimer, QueryPerformance,
+};
 pub use schema::CompiledSchemaLoader;
 pub use server::Server;
 pub use validation::{RequestValidator, ValidationError};
