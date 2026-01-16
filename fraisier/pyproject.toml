@@ -1,0 +1,66 @@
+[project]
+name = "fraisier"
+version = "0.1.0"
+description = "Fraisier - Deployment orchestrator for the FraiseQL ecosystem. Any language, any database, any deployment target."
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "FraiseQL Team"}
+]
+keywords = ["deployment", "orchestration", "devops", "graphql", "fraiseql"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Build Tools",
+    "Topic :: System :: Systems Administration",
+]
+dependencies = [
+    "fastapi>=0.109.0",
+    "uvicorn>=0.27.0",
+    "pyyaml>=6.0",
+    "requests>=2.31.0",
+    "click>=8.1.0",
+    "rich>=13.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "ruff>=0.3.0",
+]
+graphql = [
+    "strawberry-graphql>=0.220.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/fraiseql/fraisier"
+Documentation = "https://fraisier.fraiseql.com"
+Repository = "https://github.com/fraiseql/fraisier"
+Issues = "https://github.com/fraiseql/fraisier/issues"
+
+[project.scripts]
+fraisier = "fraisier.cli:main"
+fraisier-webhook = "fraisier.webhook:run_server"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["fraisier"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

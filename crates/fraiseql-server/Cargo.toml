@@ -45,6 +45,20 @@ chrono = { version = "0.4", features = ["serde"] }
 # HTTP testing
 reqwest = { version = "0.12", features = ["json"] }
 
+# Database testing
+sqlx = { version = "0.7", features = ["runtime-tokio-native-tls", "postgres"] }
+
 # Testing
 tokio-test = "0.4"
 tempfile = "3.13"
+
+# Performance testing
+criterion = { version = "0.5", features = ["async_tokio"] }
+
+# Utilities for E2E tests
+tokio-util = "0.7"
+futures = "0.3"
+
+[[bench]]
+name = "performance_benchmarks"
+harness = false
