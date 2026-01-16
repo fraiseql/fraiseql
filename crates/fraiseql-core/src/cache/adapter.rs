@@ -669,4 +669,392 @@ mod tests {
         // Test schema_version()
         assert_eq!(adapter.schema_version(), "1.0.0");
     }
+
+    // ===== Phase 7.5 E2E Tests: Entity-Level Cascade Invalidation =====
+
+    use super::super::cascade_response_parser::CascadeResponseParser;
+
+    #[tokio::test]
+    async fn test_invalidate_cascade_entities_with_single_entity() {
+        let mock = MockAdapter::new();
+        let cache = QueryResultCache::new(CacheConfig::default());
+        let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
+
+        // Pre-populate cache with query reading from v_user
+        adapter
+            .execute_where_query("v_user", None, None, None)
+            .await
+            .unwrap();
+        assert_eq!(adapter.inner().call_count(), 1);
+
+        // Cache hit on second query
+        adapter
+            .execute_where_query("v_user", None, None, None)
+            .await
+            .unwrap();
+        assert_eq!(adapter.inner().call_count(), 1);
+
+        // Parse cascade response with single User entity
+        let cascade_response = json!({
+            "createPost": {
+                "cascade": {
+                    "updated": [
+                        {
+                            "__typename": "User",
+                            "id": "550e8400-e29b-41d4-a716-446655440000"
+                        }
+                    ],
+                    "deleted": []
+                }
+            }
+        });
+
+        let parser = CascadeResponseParser::new();
+        let invalidated = adapter
+            .invalidate_cascade_entities(&cascade_response, &parser)
+            .unwrap();
+
+        // Should invalidate 1 view (v_user)
+        assert_eq!(invalidated, 1);
+
+        // Next query should be a cache miss (was invalidated)
+        adapter
+            .execute_where_query("v_user", None, None, None)
+            .await
+            .unwrap();
+        assert_eq!(adapter.inner().call_count(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_invalidate_cascade_entities_with_multiple_entities() {
+        let mock = MockAdapter::new();
+        let cache = QueryResultCache::new(CacheConfig::default());
+        let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
+
+        // Pre-populate cache with multiple views
+        adapter
+            .execute_where_query("v_user", None, None, None)
+            .await
+            .unwrap();
+        adapter
+            .execute_where_query("v_post", None, None, None)
+            .await
+            .unwrap();
+        adapter
+            .execute_where_query("v_comment", None, None, None)
+            .await
+            .unwrap();
+        assert_eq!(adapter.inner().call_count(), 3);
+
+        // Cascade with multiple entity types
+        let cascade_response = json!({
+            "updateUser": {
+                "cascade": {
+                    "updated": [
+                        {"__typename": "User", "id": "u-1"},
+                        {"__typename": "Post", "id": "p-1"},
+                        {"__typename": "Comment", "id": "c-1"}
+                    ],
+                    "deleted": []
+                }
+            }
+        });
+
+        let parser = CascadeResponseParser::new();
+        let invalidated = adapter
+            .invalidate_cascade_entities(&cascade_response, &parser)
+            .unwrap();
+
+        // Should invalidate 3 views
+        assert_eq!(invalidated, 3);
+
+        // All queries should now be cache misses
+        adapter
+            .execute_where_query("v_user", None, None, None)
+            .await
+            .unwrap();
+        adapter
+            .execute_where_query("v_post", None, None, None)
+            .await
+            .unwrap();
+        adapter
+            .execute_where_query("v_comment", None, None, None)
+            .await
+            .unwrap();
+        // Should have 6 total calls (3 initial + 3 after invalidation)
+        assert_eq!(adapter.inner().call_count(), 6);
+    }
+
+    #[tokio::test]
+    async fn test_invalidate_cascade_entities_with_deleted_entities() {
+        let mock = MockAdapter::new();
+        let cache = QueryResultCache::new(CacheConfig::default());
+        let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
+
+        // Pre-populate cache with both views that will be invalidated
+        adapter
+            .execute_where_query("v_post", None, None, None)
+            .await
+            .unwrap();
+        adapter
+            .execute_where_query("v_comment", None, None, None)
+            .await
+            .unwrap();
+        assert_eq!(adapter.inner().call_count(), 2);
+
+        // Cascade with deleted entities
+        let cascade_response = json!({
+            "deletePost": {
+                "cascade": {
+                    "updated": [],
+                    "deleted": [
+                        {"__typename": "Post", "id": "p-123"},
+                        {"__typename": "Comment", "id": "c-456"}
+                    ]
+                }
+            }
+        });
+
+        let parser = CascadeResponseParser::new();
+        let invalidated = adapter
+            .invalidate_cascade_entities(&cascade_response, &parser)
+            .unwrap();
+
+        // Should invalidate 2 views (v_post and v_comment)
+        assert_eq!(invalidated, 2);
+
+        // Both queries should now be cache misses
+        adapter
+            .execute_where_query("v_post", None, None, None)
+            .await
+            .unwrap();
+        adapter
+            .execute_where_query("v_comment", None, None, None)
+            .await
+            .unwrap();
+        assert_eq!(adapter.inner().call_count(), 4);
+    }
+
+    #[tokio::test]
+    async fn test_invalidate_cascade_entities_with_no_cascade_field() {
+        let mock = MockAdapter::new();
+        let cache = QueryResultCache::new(CacheConfig::default());
+        let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
+
+        // Pre-populate cache
+        adapter
+            .execute_where_query("v_user", None, None, None)
+            .await
+            .unwrap();
+        assert_eq!(adapter.inner().call_count(), 1);
+
+        // Response without cascade field (mutation with no side effects)
+        let cascade_response = json!({
+            "createPost": {
+                "post": {
+                    "id": "p-123",
+                    "title": "Hello"
+                }
+            }
+        });
+
+        let parser = CascadeResponseParser::new();
+        let invalidated = adapter
+            .invalidate_cascade_entities(&cascade_response, &parser)
+            .unwrap();
+
+        // Should invalidate 0 views (no cascade data)
+        assert_eq!(invalidated, 0);
+
+        // Cache should still be valid - should be a cache hit
+        adapter
+            .execute_where_query("v_user", None, None, None)
+            .await
+            .unwrap();
+        assert_eq!(adapter.inner().call_count(), 1);  // Still 1 - cache hit!
+    }
+
+    #[tokio::test]
+    async fn test_invalidate_cascade_entities_mixed_updated_and_deleted() {
+        let mock = MockAdapter::new();
+        let cache = QueryResultCache::new(CacheConfig::default());
+        let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
+
+        // Pre-populate cache
+        adapter
+            .execute_where_query("v_user", None, None, None)
+            .await
+            .unwrap();
+        adapter
+            .execute_where_query("v_post", None, None, None)
+            .await
+            .unwrap();
+        assert_eq!(adapter.inner().call_count(), 2);
+
+        // Cascade with both updated and deleted entities
+        let cascade_response = json!({
+            "mutation": {
+                "cascade": {
+                    "updated": [
+                        {"__typename": "User", "id": "u-1"}
+                    ],
+                    "deleted": [
+                        {"__typename": "Post", "id": "p-1"}
+                    ]
+                }
+            }
+        });
+
+        let parser = CascadeResponseParser::new();
+        let invalidated = adapter
+            .invalidate_cascade_entities(&cascade_response, &parser)
+            .unwrap();
+
+        // Should invalidate 2 views (v_user and v_post)
+        assert_eq!(invalidated, 2);
+
+        // Both queries should now be cache misses
+        adapter
+            .execute_where_query("v_user", None, None, None)
+            .await
+            .unwrap();
+        adapter
+            .execute_where_query("v_post", None, None, None)
+            .await
+            .unwrap();
+        assert_eq!(adapter.inner().call_count(), 4);
+    }
+
+    #[tokio::test]
+    async fn test_cascade_invalidation_deduplicates_entity_types() {
+        let mock = MockAdapter::new();
+        let cache = QueryResultCache::new(CacheConfig::default());
+        let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
+
+        // Pre-populate cache
+        adapter
+            .execute_where_query("v_user", None, None, None)
+            .await
+            .unwrap();
+        assert_eq!(adapter.inner().call_count(), 1);
+
+        // Cascade with multiple instances of the same entity type
+        // (should deduplicate to single v_user invalidation)
+        let cascade_response = json!({
+            "mutation": {
+                "cascade": {
+                    "updated": [
+                        {"__typename": "User", "id": "u-1"},
+                        {"__typename": "User", "id": "u-2"},
+                        {"__typename": "User", "id": "u-3"}
+                    ],
+                    "deleted": []
+                }
+            }
+        });
+
+        let parser = CascadeResponseParser::new();
+        let invalidated = adapter
+            .invalidate_cascade_entities(&cascade_response, &parser)
+            .unwrap();
+
+        // Should invalidate only 1 view (v_user), not 3
+        // (deduplicates by entity type)
+        assert_eq!(invalidated, 1);
+    }
+
+    #[tokio::test]
+    async fn test_cascade_invalidation_vs_view_invalidation_same_result() {
+        // Test 1: Cascade-based invalidation
+        let mock1 = MockAdapter::new();
+        let cache1 = QueryResultCache::new(CacheConfig::default());
+        let adapter1 = CachedDatabaseAdapter::new(mock1, cache1, "1.0.0".to_string());
+
+        adapter1
+            .execute_where_query("v_user", None, None, None)
+            .await
+            .unwrap();
+        adapter1
+            .execute_where_query("v_post", None, None, None)
+            .await
+            .unwrap();
+
+        let cascade_response = json!({
+            "mutation": {
+                "cascade": {
+                    "updated": [
+                        {"__typename": "User", "id": "u-1"},
+                        {"__typename": "Post", "id": "p-1"}
+                    ],
+                    "deleted": []
+                }
+            }
+        });
+
+        let parser = CascadeResponseParser::new();
+        let invalidated_cascade = adapter1
+            .invalidate_cascade_entities(&cascade_response, &parser)
+            .unwrap();
+
+        // Test 2: View-level invalidation (old approach)
+        let mock2 = MockAdapter::new();
+        let cache2 = QueryResultCache::new(CacheConfig::default());
+        let adapter2 = CachedDatabaseAdapter::new(mock2, cache2, "1.0.0".to_string());
+
+        adapter2
+            .execute_where_query("v_user", None, None, None)
+            .await
+            .unwrap();
+        adapter2
+            .execute_where_query("v_post", None, None, None)
+            .await
+            .unwrap();
+
+        let invalidated_views = adapter2
+            .invalidate_views(&["v_user".to_string(), "v_post".to_string()])
+            .unwrap();
+
+        // Both approaches should invalidate the same number of views
+        assert_eq!(invalidated_cascade, 2);
+        assert_eq!(invalidated_views, 2);
+    }
+
+    #[tokio::test]
+    async fn test_cascade_invalidation_with_empty_cascade() {
+        let mock = MockAdapter::new();
+        let cache = QueryResultCache::new(CacheConfig::default());
+        let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
+
+        // Pre-populate cache
+        adapter
+            .execute_where_query("v_user", None, None, None)
+            .await
+            .unwrap();
+        assert_eq!(adapter.inner().call_count(), 1);
+
+        // Empty cascade (no entities affected)
+        let cascade_response = json!({
+            "mutation": {
+                "cascade": {
+                    "updated": [],
+                    "deleted": []
+                }
+            }
+        });
+
+        let parser = CascadeResponseParser::new();
+        let invalidated = adapter
+            .invalidate_cascade_entities(&cascade_response, &parser)
+            .unwrap();
+
+        // Should invalidate 0 views
+        assert_eq!(invalidated, 0);
+
+        // Cache should still be valid
+        adapter
+            .execute_where_query("v_user", None, None, None)
+            .await
+            .unwrap();
+        assert_eq!(adapter.inner().call_count(), 1);  // Cache hit
+    }
 }
