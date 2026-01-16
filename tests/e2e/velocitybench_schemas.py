@@ -85,7 +85,7 @@ def get_velocitybench_schema() -> dict[str, Any]:
                 "description": "Simple ping query for throughput testing",
                 "arguments": [],
                 "return_type": "String",
-                "return_list": False,
+                "returns_list": False,
                 "sql_source": "fn_ping"
             },
             {
@@ -95,18 +95,18 @@ def get_velocitybench_schema() -> dict[str, Any]:
                     {"name": "id", "type": "ID", "nullable": False}
                 ],
                 "return_type": "User",
-                "return_list": False,
+                "returns_list": False,
                 "sql_source": "v_user"
             },
             {
                 "name": "users",
                 "description": "Get users list with pagination",
                 "arguments": [
-                    {"name": "limit", "type": "Int", "default": 10},
-                    {"name": "offset", "type": "Int", "default": 0}
+                    {"name": "limit", "type": "Int", "nullable": True, "default": 10},
+                    {"name": "offset", "type": "Int", "nullable": True, "default": 0}
                 ],
                 "return_type": "User",
-                "return_list": True,
+                "returns_list": True,
                 "sql_source": "v_users"
             },
             {
@@ -116,18 +116,18 @@ def get_velocitybench_schema() -> dict[str, Any]:
                     {"name": "id", "type": "ID", "nullable": False}
                 ],
                 "return_type": "Post",
-                "return_list": False,
+                "returns_list": False,
                 "sql_source": "v_post"
             },
             {
                 "name": "posts",
                 "description": "Get posts list with pagination",
                 "arguments": [
-                    {"name": "limit", "type": "Int", "default": 10},
-                    {"name": "offset", "type": "Int", "default": 0}
+                    {"name": "limit", "type": "Int", "nullable": True, "default": 10},
+                    {"name": "offset", "type": "Int", "nullable": True, "default": 0}
                 ],
                 "return_type": "Post",
-                "return_list": True,
+                "returns_list": True,
                 "sql_source": "v_posts"
             },
             {
@@ -137,18 +137,18 @@ def get_velocitybench_schema() -> dict[str, Any]:
                     {"name": "id", "type": "ID", "nullable": False}
                 ],
                 "return_type": "Comment",
-                "return_list": False,
+                "returns_list": False,
                 "sql_source": "v_comment"
             },
             {
                 "name": "comments",
                 "description": "Get comments list with pagination",
                 "arguments": [
-                    {"name": "limit", "type": "Int", "default": 10},
-                    {"name": "offset", "type": "Int", "default": 0}
+                    {"name": "limit", "type": "Int", "nullable": True, "default": 10},
+                    {"name": "offset", "type": "Int", "nullable": True, "default": 0}
                 ],
                 "return_type": "Comment",
-                "return_list": True,
+                "returns_list": True,
                 "sql_source": "v_comments"
             }
         ],
@@ -163,6 +163,8 @@ def get_velocitybench_schema() -> dict[str, Any]:
                     {"name": "bio", "type": "String", "nullable": True}
                 ],
                 "return_type": "User",
+                "returns_list": False,
+                "nullable": False,
                 "sql_source": "fn_update_user"
             },
             {
@@ -172,9 +174,11 @@ def get_velocitybench_schema() -> dict[str, Any]:
                     {"name": "title", "type": "String", "nullable": False},
                     {"name": "content", "type": "String", "nullable": True},
                     {"name": "excerpt", "type": "String", "nullable": True},
-                    {"name": "status", "type": "String", "default": "published"}
+                    {"name": "status", "type": "String", "nullable": True, "default": "published"}
                 ],
                 "return_type": "Post",
+                "returns_list": False,
+                "nullable": False,
                 "sql_source": "fn_create_post"
             },
             {
@@ -186,6 +190,8 @@ def get_velocitybench_schema() -> dict[str, Any]:
                     {"name": "parentCommentId", "type": "ID", "nullable": True}
                 ],
                 "return_type": "Comment",
+                "returns_list": False,
+                "nullable": False,
                 "sql_source": "fn_create_comment"
             }
         ]

@@ -107,7 +107,7 @@ def test_velocitybench_queries():
 
     users_query = next(q for q in schema["queries"] if q["name"] == "users")
     assert users_query["return_type"] == "User"
-    assert users_query["return_list"] is True
+    assert users_query["returns_list"] is True
 
     print("✅ All VelocityBench queries are correctly defined")
 

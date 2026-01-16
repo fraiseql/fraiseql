@@ -111,7 +111,7 @@ def test_velocitybench_blogging_app():
                         {"name": "offset", "type": "Int", "default": 0}
                     ],
                     "return_type": "User",
-                    "return_list": True,
+                    "returns_list": True,
                     "sql_source": "v_users"
                 },
                 {
@@ -122,7 +122,7 @@ def test_velocitybench_blogging_app():
                         {"name": "offset", "type": "Int", "default": 0}
                     ],
                     "return_type": "Post",
-                    "return_list": True,
+                    "returns_list": True,
                     "sql_source": "v_posts"
                 },
                 {
@@ -132,7 +132,7 @@ def test_velocitybench_blogging_app():
                         {"name": "limit", "type": "Int", "default": 10}
                     ],
                     "return_type": "Comment",
-                    "return_list": True,
+                    "returns_list": True,
                     "sql_source": "v_comments"
                 }
             ],
@@ -144,6 +144,8 @@ def test_velocitybench_blogging_app():
                         {"name": "email", "type": "String"}
                     ],
                     "return_type": "User",
+                    "returns_list": False,
+                    "nullable": False,
                     "sql_source": "fn_create_user"
                 },
                 {
@@ -154,6 +156,8 @@ def test_velocitybench_blogging_app():
                         {"name": "authorId", "type": "ID"}
                     ],
                     "return_type": "Post",
+                    "returns_list": False,
+                    "nullable": False,
                     "sql_source": "fn_create_post"
                 }
             ]
