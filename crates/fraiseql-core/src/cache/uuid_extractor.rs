@@ -42,7 +42,7 @@
 //! assert_eq!(uuid, Some("550e8400-e29b-41d4-a716-446655440000".to_string()));
 //! ```
 
-use crate::error::{FraiseQLError, Result};
+use crate::error::Result;
 use regex::Regex;
 use serde_json::Value;
 use std::sync::OnceLock;

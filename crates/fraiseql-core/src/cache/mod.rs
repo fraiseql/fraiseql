@@ -177,16 +177,20 @@ mod result;
 
 // Phase 7: Entity-level caching modules
 pub mod cascade_metadata;
+pub mod cascade_response_parser;
 pub mod entity_key;
+pub mod query_analyzer;
 pub mod uuid_extractor;
 
 // Public exports
 pub use adapter::CachedDatabaseAdapter;
 pub use cascade_metadata::CascadeMetadata;
+pub use cascade_response_parser::CascadeResponseParser;
 pub use config::CacheConfig;
 pub use entity_key::EntityKey;
 pub use invalidation::{InvalidationContext, InvalidationReason};
 pub use key::{extract_accessed_views, generate_cache_key};
+pub use query_analyzer::{QueryAnalyzer, QueryCardinality, QueryEntityProfile};
 pub use result::{CacheMetrics, CachedResult, QueryResultCache};
 pub use uuid_extractor::UUIDExtractor;
 
