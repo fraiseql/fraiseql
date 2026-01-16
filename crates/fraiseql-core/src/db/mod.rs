@@ -51,21 +51,20 @@ pub mod where_sql_generator;
 #[cfg(feature = "postgres")]
 pub mod postgres;
 
+#[cfg(feature = "mysql")]
+pub mod mysql;
+
+#[cfg(feature = "sqlite")]
+pub mod sqlite;
+
+#[cfg(feature = "sqlserver")]
+pub mod sqlserver;
+
 #[cfg(feature = "wire-backend")]
 pub mod wire_pool;
 
 #[cfg(feature = "wire-backend")]
 pub mod fraiseql_wire_adapter;
-
-// TODO: Phase 2 Extension - Add MySQL, SQLite, SQL Server adapters
-// #[cfg(feature = "mysql")]
-// pub mod mysql;
-//
-// #[cfg(feature = "sqlite")]
-// pub mod sqlite;
-//
-// #[cfg(feature = "sqlserver")]
-// pub mod sqlserver;
 
 // Re-export commonly used types
 pub use collation::{CollationCapabilities, CollationMapper};
@@ -77,6 +76,15 @@ pub use where_sql_generator::WhereSqlGenerator;
 
 #[cfg(feature = "postgres")]
 pub use postgres::PostgresAdapter;
+
+#[cfg(feature = "mysql")]
+pub use mysql::MySqlAdapter;
+
+#[cfg(feature = "sqlite")]
+pub use sqlite::SqliteAdapter;
+
+#[cfg(feature = "sqlserver")]
+pub use sqlserver::SqlServerAdapter;
 
 #[cfg(feature = "wire-backend")]
 pub use fraiseql_wire_adapter::FraiseWireAdapter;
