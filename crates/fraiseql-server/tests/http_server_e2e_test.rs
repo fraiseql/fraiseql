@@ -12,7 +12,6 @@
 mod test_helpers;
 
 use reqwest::StatusCode;
-use serde_json::json;
 use test_helpers::*;
 
 /// Test that health endpoint responds correctly

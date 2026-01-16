@@ -13,13 +13,14 @@
 //! These tests validate that the wire protocol integrates correctly with
 //! the FraiseQL server and performs efficiently for high-throughput scenarios.
 
+#![allow(unused_imports)] // Test helpers imported via wildcard
+
 mod test_helpers;
 
 use serde_json::json;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
-use test_helpers::*;
 
 /// Test wire protocol message format validation
 #[test]
@@ -610,7 +611,7 @@ async fn test_wire_protocol_backpressure() {
 
     // Simulate buffering up to capacity
     for i in 0..1500 {
-        let message = json!({"id": i});
+        let _message = json!({"id": i});
 
         if buffered_messages < buffer_size {
             buffered_messages += 1;

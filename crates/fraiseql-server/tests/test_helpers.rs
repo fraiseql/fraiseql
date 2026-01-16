@@ -6,8 +6,7 @@
 //! - Managing test resources
 //! - Common assertions
 
-use std::net::SocketAddr;
-use std::sync::Arc;
+#![allow(dead_code)] // Test helper utilities may not be used in all test files
 use tokio::net::TcpListener;
 use tokio::task::JoinHandle;
 
