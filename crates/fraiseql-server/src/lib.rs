@@ -28,6 +28,8 @@
 
 pub mod config;
 pub mod error;
+pub mod logging;
+pub mod metrics;
 pub mod middleware;
 pub mod routes;
 pub mod schema;
@@ -35,6 +37,11 @@ pub mod server;
 pub mod validation;
 
 pub use config::ServerConfig;
+pub use logging::{
+    ErrorDetails, LogLevel, LogMetrics, RequestContext, RequestId, RequestLogger,
+    SourceLocation, StructuredLogEntry,
+};
+pub use metrics::{MetricsCollector, PrometheusMetrics};
 pub use schema::CompiledSchemaLoader;
 pub use server::Server;
 pub use validation::{RequestValidator, ValidationError};

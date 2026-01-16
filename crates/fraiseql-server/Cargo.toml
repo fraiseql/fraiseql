@@ -35,6 +35,12 @@ thiserror = "2.0"
 # Config
 toml = "0.8"
 
+# UUID generation for request tracking
+uuid = { version = "1.0", features = ["v4", "serde"] }
+
+# Date/time handling for timestamps
+chrono = { version = "0.4", features = ["serde"] }
+
 [dev-dependencies]
 # HTTP testing
 reqwest = { version = "0.12", features = ["json"] }
