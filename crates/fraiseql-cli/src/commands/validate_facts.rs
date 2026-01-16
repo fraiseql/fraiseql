@@ -29,10 +29,11 @@ use std::fs;
 /// ```bash
 /// fraiseql validate facts --schema schema.json --database postgresql://localhost/mydb
 /// ```
+#[allow(clippy::unused_async)] // Will be async when database validation is implemented
 pub async fn run(schema_path: &Path, database_url: &str) -> Result<()> {
     eprintln!("🔍 Validating fact tables...");
     eprintln!("   Schema: {}", schema_path.display());
-    eprintln!("   Database: {}", database_url);
+    eprintln!("   Database: {database_url}");
     eprintln!();
 
     // 1. Load and parse schema
@@ -52,7 +53,7 @@ pub async fn run(schema_path: &Path, database_url: &str) -> Result<()> {
 
     // List declared fact tables
     for table_name in ir.fact_tables.keys() {
-        eprintln!("   - {}", table_name);
+        eprintln!("   - {table_name}");
     }
     eprintln!();
 
@@ -105,7 +106,7 @@ pub enum IssueSeverity {
 impl ValidationIssue {
     /// Create a new error issue.
     #[allow(dead_code)]
-    pub fn error(table_name: String, message: String) -> Self {
+    pub const fn error(table_name: String, message: String) -> Self {
         Self {
             severity: IssueSeverity::Error,
             table_name,
@@ -115,7 +116,7 @@ impl ValidationIssue {
 
     /// Create a new warning issue.
     #[allow(dead_code)]
-    pub fn warning(table_name: String, message: String) -> Self {
+    pub const fn warning(table_name: String, message: String) -> Self {
         Self {
             severity: IssueSeverity::Warning,
             table_name,

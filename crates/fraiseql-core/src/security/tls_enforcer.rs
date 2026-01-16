@@ -24,7 +24,7 @@
 //!
 //! # Examples
 //!
-//! ```ignore
+//! ```no_run
 //! use fraiseql_core::security::{TlsEnforcer, TlsConfig, TlsConnection, TlsVersion};
 //!
 //! // Create enforcer with strict configuration

@@ -126,8 +126,7 @@ impl SchemaOptimizer {
                     estimated_reduction_percent: type_def
                         .sql_projection_hint
                         .as_ref()
-                        .map(|h| h.estimated_reduction_percent)
-                        .unwrap_or(0),
+                        .map_or(0, |h| h.estimated_reduction_percent),
                 });
             }
         }
@@ -136,7 +135,7 @@ impl SchemaOptimizer {
     /// Determine if a type should use SQL projection optimization.
     ///
     /// A type qualifies for SQL projection if:
-    /// 1. It has a JSONB column (store_format == "jsonb")
+    /// 1. It has a JSONB column (`store_format` == "jsonb")
     /// 2. It has sufficient fields (>10) OR estimated large payload (>1KB)
     ///
     /// Rationale: SQL projection's benefit (reducing JSONB payload) is most valuable
@@ -194,7 +193,7 @@ impl SchemaOptimizer {
     /// - Few fields (5-10): 40% reduction (mostly JSONB overhead, few wasted fields)
     /// - Many fields (11-20): 70% reduction (more unselected fields)
     /// - Very many fields (20+): 85% reduction (mostly unnecessary data)
-    fn estimate_reduction_percent(field_count: usize) -> u32 {
+    const fn estimate_reduction_percent(field_count: usize) -> u32 {
         match field_count {
             0..=10 => 40,
             11..=20 => 70,
@@ -210,10 +209,10 @@ impl SchemaOptimizer {
         (total_payload * estimated_reduction as usize) / 100
     }
 
-    /// Generate a PostgreSQL jsonb_build_object template for SQL projection.
+    /// Generate a PostgreSQL `jsonb_build_object` template for SQL projection.
     ///
     /// Example output:
-    /// jsonb_build_object('id', data->>'id', 'name', data->>'name', 'email', data->>'email')
+    /// `jsonb_build_object`('id', data->>'id', 'name', data->>'name', 'email', data->>'email')
     ///
     /// Note: This is a template. At runtime, the adapter will:
     /// 1. Receive the requested GraphQL fields
@@ -329,7 +328,7 @@ pub struct ProjectionHint {
 mod tests {
     use super::*;
     use fraiseql_core::schema::{
-        ArgumentDefinition, AutoParams, FieldDefinition, FieldType, MutationOperation,
+        ArgumentDefinition, AutoParams, FieldDefinition, FieldType,
         TypeDefinition,
     };
 

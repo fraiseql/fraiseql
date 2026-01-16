@@ -1,8 +1,8 @@
 //! Schema Converter
 //!
-//! Converts IntermediateSchema (language-agnostic) to CompiledSchema (Rust-specific)
+//! Converts `IntermediateSchema` (language-agnostic) to `CompiledSchema` (Rust-specific)
 
-use super::intermediate::*;
+use super::intermediate::{IntermediateSchema, IntermediateType, IntermediateField, IntermediateQuery, IntermediateMutation, IntermediateArgument, IntermediateAutoParams};
 use anyhow::{Context, Result};
 use fraiseql_core::schema::{
     ArgumentDefinition, AutoParams, CompiledSchema, FieldDefinition, FieldType,
@@ -15,11 +15,11 @@ use tracing::{info, warn};
 pub struct SchemaConverter;
 
 impl SchemaConverter {
-    /// Convert IntermediateSchema to CompiledSchema
+    /// Convert `IntermediateSchema` to `CompiledSchema`
     ///
     /// This performs:
     /// 1. Type conversion (intermediate types → compiled types)
-    /// 2. Field name normalization (type → field_type)
+    /// 2. Field name normalization (type → `field_type`)
     /// 3. Validation (type references, circular refs, etc.)
     /// 4. Optimization (for future phases)
     pub fn convert(intermediate: IntermediateSchema) -> Result<CompiledSchema> {
@@ -56,7 +56,7 @@ impl SchemaConverter {
             .map(|ft| {
                 let metadata = serde_json::to_value(&ft)
                     .expect("Failed to serialize fact table metadata");
-                (ft.table_name.clone(), metadata)
+                (ft.table_name, metadata)
             })
             .collect();
 
@@ -75,7 +75,7 @@ impl SchemaConverter {
         Ok(compiled)
     }
 
-    /// Convert IntermediateType to TypeDefinition
+    /// Convert `IntermediateType` to `TypeDefinition`
     fn convert_type(intermediate: IntermediateType) -> Result<TypeDefinition> {
         let fields = intermediate
             .fields
@@ -94,7 +94,7 @@ impl SchemaConverter {
         })
     }
 
-    /// Convert IntermediateField to FieldDefinition
+    /// Convert `IntermediateField` to `FieldDefinition`
     ///
     /// **Key normalization**: `type` → `field_type`
     fn convert_field(intermediate: IntermediateField) -> Result<FieldDefinition> {
@@ -110,7 +110,7 @@ impl SchemaConverter {
         })
     }
 
-    /// Parse string type name to FieldType enum
+    /// Parse string type name to `FieldType` enum
     ///
     /// Handles built-in scalars and custom object types
     fn parse_field_type(type_name: &str) -> Result<FieldType> {
@@ -132,7 +132,7 @@ impl SchemaConverter {
         }
     }
 
-    /// Convert IntermediateQuery to QueryDefinition
+    /// Convert `IntermediateQuery` to `QueryDefinition`
     fn convert_query(intermediate: IntermediateQuery) -> Result<QueryDefinition> {
         let arguments = intermediate
             .arguments
@@ -158,7 +158,7 @@ impl SchemaConverter {
         })
     }
 
-    /// Convert IntermediateMutation to MutationDefinition
+    /// Convert `IntermediateMutation` to `MutationDefinition`
     fn convert_mutation(intermediate: IntermediateMutation) -> Result<MutationDefinition> {
         let arguments = intermediate
             .arguments
@@ -186,35 +186,35 @@ impl SchemaConverter {
 
     /// Parse mutation operation from string
     ///
-    /// Converts intermediate format operation string to MutationOperation enum
+    /// Converts intermediate format operation string to `MutationOperation` enum
     fn parse_mutation_operation(
         operation: Option<&str>,
         sql_source: Option<&str>,
     ) -> Result<MutationOperation> {
         match operation {
-            Some("CREATE") | Some("INSERT") => {
+            Some("CREATE" | "INSERT") => {
                 // Extract table name from sql_source or use empty for Custom
                 let table = sql_source
-                    .map(|s| s.to_string())
-                    .unwrap_or_else(String::new);
+                    .map(std::string::ToString::to_string)
+                    .unwrap_or_default();
                 Ok(MutationOperation::Insert { table })
             }
             Some("UPDATE") => {
                 let table = sql_source
-                    .map(|s| s.to_string())
-                    .unwrap_or_else(String::new);
+                    .map(std::string::ToString::to_string)
+                    .unwrap_or_default();
                 Ok(MutationOperation::Update { table })
             }
             Some("DELETE") => {
                 let table = sql_source
-                    .map(|s| s.to_string())
-                    .unwrap_or_else(String::new);
+                    .map(std::string::ToString::to_string)
+                    .unwrap_or_default();
                 Ok(MutationOperation::Delete { table })
             }
             Some("FUNCTION") => {
                 let name = sql_source
-                    .map(|s| s.to_string())
-                    .unwrap_or_else(String::new);
+                    .map(std::string::ToString::to_string)
+                    .unwrap_or_default();
                 Ok(MutationOperation::Function { name })
             }
             Some("CUSTOM") | None => Ok(MutationOperation::Custom),
@@ -224,7 +224,7 @@ impl SchemaConverter {
         }
     }
 
-    /// Convert IntermediateArgument to ArgumentDefinition
+    /// Convert `IntermediateArgument` to `ArgumentDefinition`
     fn convert_argument(intermediate: IntermediateArgument) -> Result<ArgumentDefinition> {
         let arg_type = Self::parse_field_type(&intermediate.arg_type)?;
 
@@ -237,8 +237,8 @@ impl SchemaConverter {
         })
     }
 
-    /// Convert IntermediateAutoParams to AutoParams
-    fn convert_auto_params(intermediate: IntermediateAutoParams) -> AutoParams {
+    /// Convert `IntermediateAutoParams` to `AutoParams`
+    const fn convert_auto_params(intermediate: IntermediateAutoParams) -> AutoParams {
         AutoParams {
             has_limit: intermediate.limit,
             has_offset: intermediate.offset,
@@ -326,7 +326,7 @@ impl SchemaConverter {
         Ok(())
     }
 
-    /// Extract type name from FieldType for validation
+    /// Extract type name from `FieldType` for validation
     ///
     /// Built-in types return their scalar name, Object types return the object name
     fn extract_type_name(field_type: &FieldType) -> String {

@@ -7,6 +7,9 @@ authors = ["FraiseQL Contributors"]
 description = "HTTP server for FraiseQL v2 GraphQL engine"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/fraiseql/fraiseql"
+readme = "README.md"
+keywords = ["graphql", "sql", "database", "server", "api"]
+categories = ["database", "web-programming::http-server"]
 
 [dependencies]
 # FraiseQL core

@@ -23,6 +23,7 @@ use tracing::info;
 /// - JSON parsing fails
 /// - Schema validation fails
 /// - Output file can't be written
+#[allow(clippy::unused_async)] // Will be async when database validation is added
 pub async fn run(input: &str, output: &str, check: bool) -> Result<()> {
     info!("Compiling schema: {input}");
 
@@ -102,8 +103,8 @@ pub async fn run(input: &str, output: &str, check: bool) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::schema::SchemaConverter;
+    
+    
     use fraiseql_core::schema::{
         AutoParams, CompiledSchema, FieldDefinition, FieldType, QueryDefinition, TypeDefinition,
     };

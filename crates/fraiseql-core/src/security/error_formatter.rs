@@ -20,7 +20,7 @@
 //!
 //! # Examples
 //!
-//! ```ignore
+//! ```no_run
 //! use fraiseql_core::security::{ErrorFormatter, DetailLevel};
 //!
 //! // Create formatter for production (minimal details)

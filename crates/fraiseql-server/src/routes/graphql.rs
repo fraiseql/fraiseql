@@ -101,15 +101,13 @@ pub async fn graphql_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
                 max_depth,
                 actual_depth,
             } => GraphQLError::validation(format!(
-                "Query exceeds maximum depth: {} > {}",
-                actual_depth, max_depth
+                "Query exceeds maximum depth: {actual_depth} > {max_depth}"
             )),
             crate::validation::ValidationError::QueryTooComplex {
                 max_complexity,
                 actual_complexity,
             } => GraphQLError::validation(format!(
-                "Query exceeds maximum complexity: {} > {}",
-                actual_complexity, max_complexity
+                "Query exceeds maximum complexity: {actual_complexity} > {max_complexity}"
             )),
             crate::validation::ValidationError::MalformedQuery(msg) => {
                 GraphQLError::parse(msg)
@@ -164,8 +162,7 @@ pub async fn graphql_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
                 "Failed to deserialize executor response"
             );
             ErrorResponse::from_error(GraphQLError::internal(format!(
-                "Failed to process response: {}",
-                e
+                "Failed to process response: {e}"
             )))
         })?;
 

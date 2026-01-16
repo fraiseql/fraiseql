@@ -29,8 +29,8 @@
 //!
 //! # Examples
 //!
-//! ```ignore
-//! use fraiseql_core::cache::uuid_extractor::UUIDExtractor;
+//! ```
+//! use fraiseql_core::cache::UUIDExtractor;
 //! use serde_json::json;
 //!
 //! let response = json!({
@@ -38,7 +38,7 @@
 //!     "name": "Alice"
 //! });
 //!
-//! let uuid = UUIDExtractor::extract_entity_uuid(&response, "User")?;
+//! let uuid = UUIDExtractor::extract_entity_uuid(&response, "User").unwrap();
 //! assert_eq!(uuid, Some("550e8400-e29b-41d4-a716-446655440000".to_string()));
 //! ```
 
@@ -83,9 +83,12 @@ impl UUIDExtractor {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```
+    /// use fraiseql_core::cache::UUIDExtractor;
+    /// use serde_json::json;
+    ///
     /// let response = json!({"id": "550e8400-e29b-41d4-a716-446655440000"});
-    /// let uuid = UUIDExtractor::extract_entity_uuid(&response, "User")?;
+    /// let uuid = UUIDExtractor::extract_entity_uuid(&response, "User").unwrap();
     /// assert_eq!(uuid, Some("550e8400-e29b-41d4-a716-446655440000".to_string()));
     /// ```
     pub fn extract_entity_uuid(
@@ -129,13 +132,16 @@ impl UUIDExtractor {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```
+    /// use fraiseql_core::cache::UUIDExtractor;
+    /// use serde_json::json;
+    ///
     /// let response = json!([
-    ///     {"id": "uuid-1"},
-    ///     {"id": "uuid-2"},
-    ///     {"id": "uuid-3"}
+    ///     {"id": "550e8400-e29b-41d4-a716-446655440001"},
+    ///     {"id": "550e8400-e29b-41d4-a716-446655440002"},
+    ///     {"id": "550e8400-e29b-41d4-a716-446655440003"}
     /// ]);
-    /// let uuids = UUIDExtractor::extract_batch_uuids(&response, "User")?;
+    /// let uuids = UUIDExtractor::extract_batch_uuids(&response, "User").unwrap();
     /// assert_eq!(uuids.len(), 3);
     /// ```
     pub fn extract_batch_uuids(
@@ -176,7 +182,9 @@ impl UUIDExtractor {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```
+    /// use fraiseql_core::cache::UUIDExtractor;
+    ///
     /// assert!(UUIDExtractor::is_valid_uuid("550e8400-e29b-41d4-a716-446655440000"));
     /// assert!(!UUIDExtractor::is_valid_uuid("not-a-uuid"));
     /// ```

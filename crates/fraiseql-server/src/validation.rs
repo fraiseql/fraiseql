@@ -53,6 +53,7 @@ pub struct RequestValidator {
 
 impl RequestValidator {
     /// Create a new validator with default settings.
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
@@ -178,9 +179,7 @@ impl RequestValidator {
                     max_depth = max_depth.max(current_depth);
                 }
                 '}' => {
-                    if current_depth > 0 {
-                        current_depth -= 1;
-                    }
+                    current_depth = current_depth.saturating_sub(1);
                 }
                 _ => {}
             }

@@ -163,11 +163,13 @@ impl Default for PostgresProjectionGenerator {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
+/// use fraiseql_core::db::projection_generator::MySqlProjectionGenerator;
+///
 /// let generator = MySqlProjectionGenerator::new();
 /// let fields = vec!["id".to_string(), "name".to_string()];
-/// let sql = generator.generate_projection_sql(&fields)?;
-/// // Returns: JSON_OBJECT('id', JSON_EXTRACT(data, '$.id'), 'name', JSON_EXTRACT(data, '$.name'))
+/// let sql = generator.generate_projection_sql(&fields).unwrap();
+/// assert!(sql.contains("JSON_OBJECT"));
 /// ```
 pub struct MySqlProjectionGenerator {
     json_column: String,
@@ -249,11 +251,13 @@ impl Default for MySqlProjectionGenerator {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
+/// use fraiseql_core::db::projection_generator::SqliteProjectionGenerator;
+///
 /// let generator = SqliteProjectionGenerator::new();
 /// let fields = vec!["id".to_string(), "name".to_string()];
-/// let sql = generator.generate_projection_sql(&fields)?;
-/// // Returns: json_object('id', json_extract(data, '$.id'), 'name', json_extract(data, '$.name'))
+/// let sql = generator.generate_projection_sql(&fields).unwrap();
+/// assert!(sql.contains("json_object"));
 /// ```
 pub struct SqliteProjectionGenerator {
     json_column: String,

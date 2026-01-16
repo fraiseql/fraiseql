@@ -10,8 +10,8 @@
 //!
 //! # Example
 //!
-//! ```ignore
-//! use fraiseql_rs::validation::id_policy::{IDPolicy, validate_id};
+//! ```
+//! use fraiseql_core::validation::{IDPolicy, validate_id};
 //!
 //! // UUID policy: strict UUID validation
 //! let policy = IDPolicy::UUID;
@@ -99,7 +99,9 @@ impl std::error::Error for IDValidationError {}
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```
+/// use fraiseql_core::validation::{IDPolicy, validate_id};
+///
 /// // UUID policy enforces UUID format
 /// assert!(validate_id("550e8400-e29b-41d4-a716-446655440000", IDPolicy::UUID).is_ok());
 /// assert!(validate_id("not-uuid", IDPolicy::UUID).is_err());
@@ -201,6 +203,8 @@ fn validate_uuid_format(id: &str) -> Result<(), IDValidationError> {
 /// # Examples
 ///
 /// ```ignore
+/// use fraiseql_core::validation::{IDPolicy, validate_ids};
+///
 /// let ids = vec![
 ///     "550e8400-e29b-41d4-a716-446655440000",
 ///     "6ba7b810-9dad-11d1-80b4-00c04fd430c8",

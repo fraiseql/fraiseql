@@ -58,7 +58,7 @@ pub struct CompiledSchema {
     pub subscriptions: Vec<SubscriptionDefinition>,
 
     /// Fact table metadata (for analytics queries).
-    /// Key: table name (e.g., "tf_sales")
+    /// Key: table name (e.g., `tf_sales`)
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub fact_tables: HashMap<String, serde_json::Value>,
 }
@@ -143,7 +143,7 @@ impl CompiledSchema {
     ///
     /// # Arguments
     ///
-    /// * `table_name` - Fact table name (e.g., "tf_sales")
+    /// * `table_name` - Fact table name (e.g., `tf_sales`)
     /// * `metadata` - Serialized `FactTableMetadata`
     pub fn add_fact_table(&mut self, table_name: String, metadata: serde_json::Value) {
         self.fact_tables.insert(table_name, metadata);
@@ -284,6 +284,7 @@ fn is_builtin_type(name: &str) -> bool {
 ///         FieldDefinition::new("email", FieldType::String),
 ///     ],
 ///     description: Some("A user in the system".to_string()),
+///     sql_projection_hint: None,
 /// };
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -308,7 +309,7 @@ pub struct TypeDefinition {
 
     /// SQL projection hint for PostgreSQL optimization.
     /// Generated at compile time to reduce payload size for large JSONB objects.
-    /// Example: jsonb_build_object('id', data->>'id', 'email', data->>'email')
+    /// Example: `jsonb_build_object('id', data->>'id', 'email', data->>'email')`
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sql_projection_hint: Option<SqlProjectionHint>,
 }
@@ -325,7 +326,7 @@ pub struct SqlProjectionHint {
 
     /// The projection SQL template.
     /// Example for PostgreSQL:
-    /// "jsonb_build_object('id', data->>'id', 'email', data->>'email')"
+    /// `jsonb_build_object('id', data->>'id', 'email', data->>'email')`
     pub projection_template: String,
 
     /// Estimated reduction in payload size (percentage 0-100).
@@ -654,6 +655,7 @@ impl ArgumentDefinition {
 ///
 /// These are standard parameters automatically added to list queries.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[allow(clippy::struct_excessive_bools)] // These are intentional feature flags
 pub struct AutoParams {
     /// Enable `where` filtering.
     #[serde(default)]

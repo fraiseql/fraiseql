@@ -226,9 +226,12 @@ impl WhereSqlGenerator {
             }
 
             // Array operations
-            (Value::Array(_), WhereOperator::ArrayContains)
-            | (Value::Array(_), WhereOperator::ArrayContainedBy)
-            | (Value::Array(_), WhereOperator::ArrayOverlaps) => {
+            (
+                Value::Array(_),
+                WhereOperator::ArrayContains
+                | WhereOperator::ArrayContainedBy
+                | WhereOperator::ArrayOverlaps,
+            ) => {
                 // For array operators, use JSONB representation
                 Ok(format!("'{}'::jsonb", value))
             }

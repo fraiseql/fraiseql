@@ -1,7 +1,7 @@
 //! Introspect database for fact tables and output suggestions.
 //!
 //! This command discovers `tf_*` tables in the database and outputs:
-//! - Python decorator suggestions (@fraiseql.fact_table)
+//! - Python decorator suggestions (@`fraiseql.fact_table`)
 //! - JSON metadata for manual review
 //!
 //! **Purpose**: Help developers discover and declare fact tables.
@@ -26,7 +26,7 @@ impl OutputFormat {
         match s.to_lowercase().as_str() {
             "python" | "py" => Ok(Self::Python),
             "json" => Ok(Self::Json),
-            _ => Err(format!("Invalid format '{}', expected: python, json", s)),
+            _ => Err(format!("Invalid format '{s}', expected: python, json")),
         }
     }
 }
@@ -47,12 +47,13 @@ impl OutputFormat {
 /// ```bash
 /// fraiseql introspect facts --database postgresql://localhost/mydb --format python
 /// ```
+#[allow(clippy::unused_async)] // Will be async when database introspection is implemented
 pub async fn run(database_url: &str, format: OutputFormat) -> Result<()> {
     // For now, return a stub implementation
     // Full implementation requires async database adapter creation
 
     eprintln!("🔍 Introspecting database for fact tables...");
-    eprintln!("   Database: {}", database_url);
+    eprintln!("   Database: {database_url}");
 
     // TODO: Implement actual database introspection
     // This requires:
@@ -111,11 +112,12 @@ pub async fn run(database_url: &str, format: OutputFormat) -> Result<()> {
 ///
 /// Returns a list of table names that match the `tf_*` pattern.
 #[allow(dead_code)]
+#[allow(clippy::unused_async)] // Will be async when database query is implemented
 pub async fn list_fact_tables(database_url: &str) -> Result<Vec<String>> {
     // TODO: Implement actual database query
     // For now, return stub
     eprintln!("Scanning database for tf_* tables...");
-    eprintln!("Database: {}", database_url);
+    eprintln!("Database: {database_url}");
 
     // Mock result
     Ok(vec![
@@ -161,7 +163,7 @@ fn format_as_python(metadata: &FactTableMetadata) -> String {
         })
         .collect::<String>();
 
-    output.push_str(&format!("class {}:\n", class_name));
+    output.push_str(&format!("class {class_name}:\n"));
     output.push_str(&format!("    \"\"\"Fact table: {}\"\"\"", metadata.table_name));
 
     output

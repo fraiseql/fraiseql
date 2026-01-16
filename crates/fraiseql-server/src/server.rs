@@ -98,7 +98,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
         axum::serve(listener, app)
             .await
-            .map_err(|e| ServerError::IoError(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
+            .map_err(|e| ServerError::IoError(std::io::Error::other(e)))?;
 
         Ok(())
     }

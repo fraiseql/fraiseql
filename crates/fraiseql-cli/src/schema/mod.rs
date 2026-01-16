@@ -1,7 +1,7 @@
 //! Schema format handling
 //!
 //! This module handles the intermediate schema format (language-agnostic)
-//! and converts it to CompiledSchema (Rust-specific).
+//! and converts it to `CompiledSchema` (Rust-specific).
 
 pub mod converter;
 pub mod intermediate;

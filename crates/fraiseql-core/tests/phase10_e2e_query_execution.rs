@@ -344,7 +344,7 @@ async fn test_graphql_response_with_typename() {
         .unwrap();
 
     let projector = ResultProjector::new(vec!["id".to_string(), "name".to_string()]);
-    let projected = projector
+    let _projected = projector
         .project_results(&results, false)
         .unwrap();
 

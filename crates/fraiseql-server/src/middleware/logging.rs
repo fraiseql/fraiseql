@@ -42,7 +42,7 @@ pub async fn logging_middleware(
 
     let log_entry = StructuredLogEntry::new(
         LogLevel::Debug,
-        format!("Incoming {} request to {}", method, path),
+        format!("Incoming {method} request to {path}"),
     )
     .with_request_context(context.clone());
 
@@ -67,7 +67,7 @@ pub async fn logging_middleware(
 
     let response_log = StructuredLogEntry::new(
         level,
-        format!("{} {} response with status {}", method, path, status),
+        format!("{method} {path} response with status {status}"),
     )
     .with_request_context(context)
     .with_metrics(metrics);

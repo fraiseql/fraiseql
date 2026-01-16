@@ -56,7 +56,7 @@ impl InvalidationReason {
     /// # Example
     ///
     /// ```rust
-    /// use fraiseql_core::cache::invalidation::InvalidationReason;
+    /// use fraiseql_core::cache::InvalidationReason;
     ///
     /// let reason = InvalidationReason::Mutation {
     ///     mutation_name: "createUser".to_string()
@@ -87,7 +87,7 @@ impl InvalidationReason {
 /// # Example
 ///
 /// ```rust
-/// use fraiseql_core::cache::invalidation::InvalidationContext;
+/// use fraiseql_core::cache::InvalidationContext;
 ///
 /// // Invalidate after mutation
 /// let ctx = InvalidationContext::for_mutation(
@@ -135,7 +135,7 @@ impl InvalidationContext {
     /// # Example
     ///
     /// ```rust
-    /// use fraiseql_core::cache::invalidation::InvalidationContext;
+    /// use fraiseql_core::cache::InvalidationContext;
     ///
     /// let ctx = InvalidationContext::for_mutation(
     ///     "createUser",
@@ -167,7 +167,7 @@ impl InvalidationContext {
     /// # Example
     ///
     /// ```rust
-    /// use fraiseql_core::cache::invalidation::InvalidationContext;
+    /// use fraiseql_core::cache::InvalidationContext;
     ///
     /// let ctx = InvalidationContext::manual(
     ///     vec!["v_user".to_string(), "v_post".to_string()],
@@ -200,7 +200,7 @@ impl InvalidationContext {
     /// # Example
     ///
     /// ```rust
-    /// use fraiseql_core::cache::invalidation::InvalidationContext;
+    /// use fraiseql_core::cache::InvalidationContext;
     ///
     /// let ctx = InvalidationContext::schema_change(
     ///     vec!["v_user".to_string(), "v_post".to_string()],
@@ -230,7 +230,7 @@ impl InvalidationContext {
     /// # Example
     ///
     /// ```rust
-    /// use fraiseql_core::cache::invalidation::InvalidationContext;
+    /// use fraiseql_core::cache::InvalidationContext;
     ///
     /// let ctx = InvalidationContext::for_mutation(
     ///     "createUser",
@@ -256,7 +256,7 @@ impl InvalidationContext {
     /// # Example
     ///
     /// ```rust
-    /// use fraiseql_core::cache::invalidation::InvalidationContext;
+    /// use fraiseql_core::cache::InvalidationContext;
     ///
     /// let ctx = InvalidationContext::manual(
     ///     vec!["v_user".to_string(), "v_post".to_string()],
@@ -279,7 +279,7 @@ impl InvalidationContext {
     /// # Example
     ///
     /// ```rust
-    /// use fraiseql_core::cache::invalidation::InvalidationContext;
+    /// use fraiseql_core::cache::InvalidationContext;
     ///
     /// let ctx = InvalidationContext::for_mutation(
     ///     "createUser",

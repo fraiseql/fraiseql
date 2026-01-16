@@ -10,6 +10,8 @@ homepage.workspace = true
 documentation.workspace = true
 keywords.workspace = true
 categories.workspace = true
+description = "CLI tools for FraiseQL v2 - Schema compilation and development utilities"
+readme = "README.md"
 
 [dependencies]
 # Workspace dependencies

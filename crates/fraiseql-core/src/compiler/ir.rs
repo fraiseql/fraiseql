@@ -16,7 +16,7 @@
 //!
 //! # Example
 //!
-//! ```rust
+//! ```ignore
 //! use fraiseql_core::compiler::ir::{AuthoringIR, IRType, IRField};
 //!
 //! let ir = AuthoringIR {

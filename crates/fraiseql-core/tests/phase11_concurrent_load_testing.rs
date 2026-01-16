@@ -386,12 +386,10 @@ async fn test_concurrent_varying_projections() {
     let mut join_set = JoinSet::new();
 
     // Different field counts per task
-    let field_configs = vec![
-        vec!["id".to_string()],
+    let field_configs = [vec!["id".to_string()],
         vec!["id".to_string(), "name".to_string()],
         vec!["id".to_string(), "name".to_string(), "email".to_string()],
-        vec!["id".to_string(), "name".to_string(), "email".to_string(), "status".to_string()],
-    ];
+        vec!["id".to_string(), "name".to_string(), "email".to_string(), "status".to_string()]];
 
     for (task_id, fields) in field_configs.iter().enumerate() {
         for repeat in 0..5 {

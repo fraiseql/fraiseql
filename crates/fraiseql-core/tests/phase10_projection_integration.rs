@@ -148,7 +148,7 @@ fn test_result_projector_projects_single_field() {
     });
 
     let jsonb = JsonbValue::new(data);
-    let projected = projector.project_results(&vec![jsonb], false).unwrap();
+    let projected = projector.project_results(&[jsonb], false).unwrap();
 
     // Should only have id field
     assert_eq!(projected.get("id"), Some(&json!("123")));
@@ -172,7 +172,7 @@ fn test_result_projector_projects_multiple_fields() {
     });
 
     let jsonb = JsonbValue::new(data);
-    let projected = projector.project_results(&vec![jsonb], false).unwrap();
+    let projected = projector.project_results(&[jsonb], false).unwrap();
 
     // Should have exactly id and email
     assert_eq!(projected.get("id"), Some(&json!("123")));
@@ -320,7 +320,7 @@ fn test_projection_with_nested_structure() {
     });
 
     let jsonb = JsonbValue::new(data);
-    let projected = projector.project_results(&vec![jsonb], false).unwrap();
+    let projected = projector.project_results(&[jsonb], false).unwrap();
 
     // Should have id and profile, but not settings
     assert_eq!(projected.get("id"), Some(&json!("123")));
@@ -420,12 +420,12 @@ fn test_result_projector_list_vs_single() {
     let jsonb = JsonbValue::new(data);
 
     // Test list projection
-    let list_result = projector.project_results(&vec![jsonb.clone()], true).unwrap();
+    let list_result = projector.project_results(&[jsonb.clone()], true).unwrap();
     assert!(list_result.is_array());
     assert_eq!(list_result.as_array().unwrap().len(), 1);
 
     // Test single projection
-    let single_result = projector.project_results(&vec![jsonb], false).unwrap();
+    let single_result = projector.project_results(&[jsonb], false).unwrap();
     assert!(single_result.is_object());
     assert_eq!(single_result.get("id"), Some(&json!("1")));
 }
@@ -436,11 +436,11 @@ fn test_projection_with_empty_results() {
     let projector = ResultProjector::new(vec!["id".to_string()]);
 
     // Empty result set for list query
-    let list_result = projector.project_results(&vec![], true).unwrap();
+    let list_result = projector.project_results(&[], true).unwrap();
     assert!(list_result.is_array());
     assert_eq!(list_result.as_array().unwrap().len(), 0);
 
     // Empty result set for single query
-    let single_result = projector.project_results(&vec![], false).unwrap();
+    let single_result = projector.project_results(&[], false).unwrap();
     assert_eq!(single_result, json!(null));
 }

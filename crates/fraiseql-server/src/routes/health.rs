@@ -62,7 +62,7 @@ pub async fn health_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     let database = if db_healthy {
         DatabaseStatus {
             connected: true,
-            database_type: format!("{:?}", db_type),
+            database_type: format!("{db_type:?}"),
             active_connections: Some(metrics.active_connections as usize),
             idle_connections: Some(metrics.idle_connections as usize),
         }
@@ -70,7 +70,7 @@ pub async fn health_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
         error!("Database health check failed: {:?}", health_result.err());
         DatabaseStatus {
             connected: false,
-            database_type: format!("{:?}", db_type),
+            database_type: format!("{db_type:?}"),
             active_connections: Some(metrics.active_connections as usize),
             idle_connections: Some(metrics.idle_connections as usize),
         }

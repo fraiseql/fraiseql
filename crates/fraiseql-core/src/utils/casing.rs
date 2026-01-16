@@ -10,7 +10,7 @@
 /// # Examples
 ///
 /// ```
-/// use fraiseql_rs::query::casing::to_snake_case;
+/// use fraiseql_core::utils::casing::to_snake_case;
 ///
 /// assert_eq!(to_snake_case("userId"), "user_id");
 /// assert_eq!(to_snake_case("createdAt"), "created_at");
@@ -59,7 +59,7 @@ pub fn to_snake_case(s: &str) -> String {
 /// # Examples
 ///
 /// ```
-/// use fraiseql_rs::query::casing::to_camel_case;
+/// use fraiseql_core::utils::casing::to_camel_case;
 ///
 /// assert_eq!(to_camel_case("user_id"), "userId");
 /// assert_eq!(to_camel_case("created_at"), "createdAt");
@@ -97,7 +97,7 @@ pub fn to_camel_case(s: &str) -> String {
 /// # Examples
 ///
 /// ```
-/// use fraiseql_rs::query::casing::normalize_field_path;
+/// use fraiseql_core::utils::casing::normalize_field_path;
 ///
 /// assert_eq!(normalize_field_path("userId"), "user_id");
 /// assert_eq!(normalize_field_path("user.createdAt"), "user.created_at");

@@ -679,7 +679,7 @@ lazy_static! {
 ///
 /// # Example
 /// ```
-/// use fraiseql_rs::query::operators::get_operator_info;
+/// use fraiseql_core::utils::operators::get_operator_info;
 ///
 /// let op = get_operator_info("eq").unwrap();
 /// assert_eq!(op.sql_op, "=");
@@ -693,7 +693,7 @@ pub fn get_operator_info(name: &str) -> Option<&'static OperatorInfo> {
 ///
 /// # Example
 /// ```
-/// use fraiseql_rs::query::operators::is_operator;
+/// use fraiseql_core::utils::operators::is_operator;
 ///
 /// assert!(is_operator("eq"));
 /// assert!(is_operator("contains"));
@@ -708,7 +708,7 @@ pub fn is_operator(name: &str) -> bool {
 ///
 /// # Example
 /// ```
-/// use fraiseql_rs::query::operators::{get_operators_by_category, OperatorCategory};
+/// use fraiseql_core::utils::operators::{get_operators_by_category, OperatorCategory};
 ///
 /// let comparison_ops = get_operators_by_category(OperatorCategory::Comparison);
 /// assert!(comparison_ops.len() >= 8);

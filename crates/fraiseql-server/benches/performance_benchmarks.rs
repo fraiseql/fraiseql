@@ -19,12 +19,10 @@ use std::sync::atomic::Ordering;
 fn bench_query_validation(c: &mut Criterion) {
     let validator = RequestValidator::new();
 
-    let queries = vec![
-        "{ user { id } }",
+    let queries = ["{ user { id } }",
         "{ users { id name email } }",
         "query { post { title body } }",
-        "{ user { profile { settings { theme } } } }",
-    ];
+        "{ user { profile { settings { theme } } } }"];
 
     c.bench_function("query_validation_simple", |b| {
         b.iter(|| {
@@ -144,10 +142,10 @@ fn bench_performance_monitoring(c: &mut Criterion) {
         }
 
         b.iter(|| {
-            monitor.stats();
-            monitor.avg_duration_ms();
-            monitor.slow_query_percentage();
-            monitor.cache_hit_rate();
+            let _ = monitor.stats();
+            let _ = monitor.avg_duration_ms();
+            let _ = monitor.slow_query_percentage();
+            let _ = monitor.cache_hit_rate();
         })
     });
 }

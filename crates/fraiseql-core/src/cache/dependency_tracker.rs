@@ -25,8 +25,8 @@ use std::collections::{HashMap, HashSet};
 ///
 /// # Example
 ///
-/// ```rust
-/// use fraiseql_core::cache::dependency_tracker::DependencyTracker;
+/// ```
+/// use fraiseql_core::cache::DependencyTracker;
 ///
 /// let mut tracker = DependencyTracker::new();
 ///
@@ -41,7 +41,6 @@ use std::collections::{HashMap, HashSet};
 /// assert!(affected.contains(&"cache_key_abc123".to_string()));
 /// ```
 #[derive(Debug)]
-#[allow(dead_code)]  // Used internally by result.rs via pub(crate)
 pub struct DependencyTracker {
     /// Cache key → list of views accessed.
     ///
@@ -54,16 +53,13 @@ pub struct DependencyTracker {
     view_to_caches: HashMap<String, HashSet<String>>,
 }
 
-// Methods are part of public API but not yet wired into runtime - will be used when
-// cache coherency is connected to the query execution pipeline.
-#[allow(dead_code)]
 impl DependencyTracker {
     /// Create new dependency tracker.
     ///
     /// # Example
     ///
-    /// ```rust
-    /// use fraiseql_core::cache::dependency_tracker::DependencyTracker;
+    /// ```
+    /// use fraiseql_core::cache::DependencyTracker;
     ///
     /// let tracker = DependencyTracker::new();
     /// ```
@@ -86,8 +82,8 @@ impl DependencyTracker {
     ///
     /// # Example
     ///
-    /// ```rust
-    /// use fraiseql_core::cache::dependency_tracker::DependencyTracker;
+    /// ```
+    /// use fraiseql_core::cache::DependencyTracker;
     ///
     /// let mut tracker = DependencyTracker::new();
     ///
@@ -136,8 +132,8 @@ impl DependencyTracker {
     ///
     /// # Example
     ///
-    /// ```rust
-    /// use fraiseql_core::cache::dependency_tracker::DependencyTracker;
+    /// ```
+    /// use fraiseql_core::cache::DependencyTracker;
     ///
     /// let mut tracker = DependencyTracker::new();
     /// tracker.record_access("key1".to_string(), vec!["v_user".to_string()]);
@@ -165,8 +161,8 @@ impl DependencyTracker {
     ///
     /// # Example
     ///
-    /// ```rust
-    /// use fraiseql_core::cache::dependency_tracker::DependencyTracker;
+    /// ```
+    /// use fraiseql_core::cache::DependencyTracker;
     ///
     /// let mut tracker = DependencyTracker::new();
     /// tracker.record_access("key1".to_string(), vec!["v_user".to_string()]);
@@ -197,8 +193,8 @@ impl DependencyTracker {
     ///
     /// # Example
     ///
-    /// ```rust
-    /// use fraiseql_core::cache::dependency_tracker::DependencyTracker;
+    /// ```
+    /// use fraiseql_core::cache::DependencyTracker;
     ///
     /// let mut tracker = DependencyTracker::new();
     /// tracker.record_access("key1".to_string(), vec!["v_user".to_string()]);
@@ -216,8 +212,8 @@ impl DependencyTracker {
     ///
     /// # Example
     ///
-    /// ```rust
-    /// use fraiseql_core::cache::dependency_tracker::DependencyTracker;
+    /// ```
+    /// use fraiseql_core::cache::DependencyTracker;
     ///
     /// let mut tracker = DependencyTracker::new();
     /// tracker.record_access("key1".to_string(), vec!["v_user".to_string()]);
@@ -234,8 +230,8 @@ impl DependencyTracker {
     ///
     /// # Example
     ///
-    /// ```rust
-    /// use fraiseql_core::cache::dependency_tracker::DependencyTracker;
+    /// ```
+    /// use fraiseql_core::cache::DependencyTracker;
     ///
     /// let mut tracker = DependencyTracker::new();
     /// tracker.record_access("key1".to_string(), vec!["v_user".to_string()]);
@@ -254,8 +250,8 @@ impl DependencyTracker {
     ///
     /// # Example
     ///
-    /// ```rust
-    /// use fraiseql_core::cache::dependency_tracker::DependencyTracker;
+    /// ```
+    /// use fraiseql_core::cache::DependencyTracker;
     ///
     /// let mut tracker = DependencyTracker::new();
     /// tracker.record_access("key1".to_string(), vec!["v_user".to_string()]);

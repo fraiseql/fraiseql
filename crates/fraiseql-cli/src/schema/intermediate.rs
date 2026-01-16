@@ -1,7 +1,7 @@
 //! Intermediate Schema Format
 //!
 //! Language-agnostic schema representation that all language libraries output.
-//! See .claude/INTERMEDIATE_SCHEMA_FORMAT.md for full specification.
+//! See .`claude/INTERMEDIATE_SCHEMA_FORMAT.md` for full specification.
 
 use serde::{Deserialize, Serialize};
 
@@ -38,7 +38,7 @@ fn default_version() -> String {
 }
 
 /// Type definition in intermediate format
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntermediateType {
     /// Type name (e.g., "User")
     pub name: String,
@@ -55,14 +55,14 @@ pub struct IntermediateType {
 ///
 /// **NOTE**: Uses `type` field (not `field_type`)
 /// This is the language-agnostic format. Rust conversion happens in converter.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntermediateField {
     /// Field name (e.g., "id")
     pub name: String,
 
     /// Field type name (e.g., "Int", "String", "User")
     ///
-    /// **Language-agnostic**: All languages use "type", not "field_type"
+    /// **Language-agnostic**: All languages use "type", not "`field_type`"
     #[serde(rename = "type")]
     pub field_type: String,
 
@@ -71,7 +71,7 @@ pub struct IntermediateField {
 }
 
 /// Query definition in intermediate format
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntermediateQuery {
     /// Query name (e.g., "users")
     pub name: String,
@@ -105,7 +105,7 @@ pub struct IntermediateQuery {
 }
 
 /// Mutation definition in intermediate format
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntermediateMutation {
     /// Mutation name (e.g., "createUser")
     pub name: String,
@@ -139,14 +139,14 @@ pub struct IntermediateMutation {
 }
 
 /// Argument definition in intermediate format
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntermediateArgument {
     /// Argument name
     pub name: String,
 
     /// Argument type name
     ///
-    /// **Language-agnostic**: Uses "type", not "arg_type"
+    /// **Language-agnostic**: Uses "type", not "`arg_type`"
     #[serde(rename = "type")]
     pub arg_type: String,
 
@@ -159,7 +159,7 @@ pub struct IntermediateArgument {
 }
 
 /// Auto-params configuration in intermediate format
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntermediateAutoParams {
     #[serde(default)]
     pub limit: bool,
@@ -172,7 +172,7 @@ pub struct IntermediateAutoParams {
 }
 
 /// Fact table definition in intermediate format (Analytics)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntermediateFactTable {
     pub table_name: String,
     pub measures: Vec<IntermediateMeasure>,
@@ -181,7 +181,7 @@ pub struct IntermediateFactTable {
 }
 
 /// Measure column definition
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntermediateMeasure {
     pub name: String,
     pub sql_type: String,
@@ -189,26 +189,26 @@ pub struct IntermediateMeasure {
 }
 
 /// Dimensions metadata
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntermediateDimensions {
     pub name: String,
     pub paths: Vec<IntermediateDimensionPath>,
 }
 
 /// Dimension path within JSONB
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntermediateDimensionPath {
     pub name: String,
-    /// JSON path (accepts both "json_path" and "path" for cross-language compat)
+    /// JSON path (accepts both "`json_path`" and "path" for cross-language compat)
     #[serde(alias = "path")]
     pub json_path: String,
-    /// Data type (accepts both "data_type" and "type" for cross-language compat)
+    /// Data type (accepts both "`data_type`" and "type" for cross-language compat)
     #[serde(alias = "type")]
     pub data_type: String,
 }
 
 /// Denormalized filter column
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntermediateFilter {
     pub name: String,
     pub sql_type: String,
@@ -216,7 +216,7 @@ pub struct IntermediateFilter {
 }
 
 /// Aggregate query definition (Analytics)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntermediateAggregateQuery {
     pub name: String,
     pub fact_table: String,

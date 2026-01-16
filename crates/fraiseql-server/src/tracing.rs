@@ -32,6 +32,7 @@ pub struct TraceContext {
 
 impl TraceContext {
     /// Create new trace context with generated IDs.
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             trace_id: generate_trace_id(),
@@ -44,6 +45,7 @@ impl TraceContext {
     }
 
     /// Create from request ID.
+    #[must_use] 
     pub fn from_request_id(request_id: RequestId) -> Self {
         Self {
             trace_id: request_id.to_string(),
@@ -56,36 +58,40 @@ impl TraceContext {
     }
 
     /// Create child span from parent context.
+    #[must_use] 
     pub fn child_span(&self) -> Self {
-        let context = Self {
+        
+        // Don't modify baggage in child
+        Self {
             trace_id: self.trace_id.clone(),
             span_id: generate_span_id(),
             parent_span_id: Some(self.span_id.clone()),
             sampled: self.sampled,
             trace_flags: self.trace_flags,
             baggage: self.baggage.clone(),
-        };
-        // Don't modify baggage in child
-        context
+        }
     }
 
     /// Add baggage item (cross-cutting context).
+    #[must_use] 
     pub fn with_baggage(mut self, key: String, value: String) -> Self {
         self.baggage.insert(key, value);
         self
     }
 
     /// Get baggage item.
+    #[must_use] 
     pub fn baggage_item(&self, key: &str) -> Option<&str> {
-        self.baggage.get(key).map(|v| v.as_str())
+        self.baggage.get(key).map(std::string::String::as_str)
     }
 
     /// Set sampling decision.
     pub fn set_sampled(&mut self, sampled: bool) {
-        self.sampled = if sampled { 1 } else { 0 };
+        self.sampled = u8::from(sampled);
     }
 
     /// Generate W3C Trace Context header value.
+    #[must_use] 
     pub fn to_w3c_traceparent(&self) -> String {
         // Format: version-traceid-spanid-traceflags
         // version: 00, traceid: 32 hex chars, spanid: 16 hex chars, traceflags: 2 hex chars
@@ -121,13 +127,14 @@ impl TraceContext {
             trace_id: parts[1].to_string(),
             span_id: generate_span_id(), // Generate new span ID for this service
             parent_span_id: Some(parts[2].to_string()),
-            sampled: (trace_flags & 0x01) as u8,
+            sampled: (trace_flags & 0x01),
             trace_flags,
             baggage: HashMap::new(),
         })
     }
 
     /// Check if trace should be sampled.
+    #[must_use] 
     pub fn is_sampled(&self) -> bool {
         self.sampled == 1
     }
@@ -182,6 +189,7 @@ pub struct TraceSpan {
 
 impl TraceSpan {
     /// Create new span.
+    #[must_use] 
     pub fn new(trace_id: String, operation: String) -> Self {
         Self {
             span_id: generate_span_id(),
@@ -197,18 +205,21 @@ impl TraceSpan {
     }
 
     /// Set parent span.
+    #[must_use] 
     pub fn with_parent_span(mut self, parent_span_id: String) -> Self {
         self.parent_span_id = Some(parent_span_id);
         self
     }
 
     /// Add span attribute.
+    #[must_use] 
     pub fn add_attribute(mut self, key: String, value: String) -> Self {
         self.attributes.insert(key, value);
         self
     }
 
     /// Add span event.
+    #[must_use] 
     pub fn add_event(mut self, event: TraceEvent) -> Self {
         self.events.push(event);
         self
@@ -220,17 +231,20 @@ impl TraceSpan {
     }
 
     /// Get span duration in milliseconds.
+    #[must_use] 
     pub fn duration_ms(&self) -> Option<i64> {
         self.end_time_ms.map(|end| end - self.start_time_ms)
     }
 
     /// Set span status to error.
+    #[must_use] 
     pub fn set_error(mut self, message: String) -> Self {
         self.status = SpanStatus::Error { message };
         self
     }
 
     /// Set span status to ok.
+    #[must_use] 
     pub fn set_ok(mut self) -> Self {
         self.status = SpanStatus::Ok;
         self
@@ -258,7 +272,7 @@ impl fmt::Display for SpanStatus {
         match self {
             Self::Unset => write!(f, "UNSET"),
             Self::Ok => write!(f, "OK"),
-            Self::Error { message } => write!(f, "ERROR: {}", message),
+            Self::Error { message } => write!(f, "ERROR: {message}"),
         }
     }
 }
@@ -278,6 +292,7 @@ pub struct TraceEvent {
 
 impl TraceEvent {
     /// Create new trace event.
+    #[must_use] 
     pub fn new(name: String) -> Self {
         Self {
             name,
@@ -287,6 +302,7 @@ impl TraceEvent {
     }
 
     /// Add event attribute.
+    #[must_use] 
     pub fn with_attribute(mut self, key: String, value: String) -> Self {
         self.attributes.insert(key, value);
         self
@@ -335,7 +351,7 @@ fn generate_trace_id() -> String {
         .map(|d| d.as_nanos())
         .unwrap_or(0);
 
-    format!("{:032x}", nanos ^ (std::process::id() as u128))
+    format!("{:032x}", nanos ^ u128::from(std::process::id()))
 }
 
 /// Generate random span ID (16 hex characters).
@@ -348,7 +364,7 @@ fn generate_span_id() -> String {
         .unwrap_or(0);
 
     // Use process ID as thread ID is unstable
-    let process_id = std::process::id() as u128;
+    let process_id = u128::from(std::process::id());
     format!("{:016x}", (nanos ^ process_id) as u64)
 }
 

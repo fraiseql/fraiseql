@@ -8,7 +8,7 @@
 //! # Example
 //!
 //! ```
-//! use fraiseql_core::query::vector::{VectorQueryBuilder, VectorSearchQuery};
+//! use fraiseql_core::utils::vector::{VectorQueryBuilder, VectorSearchQuery};
 //! use fraiseql_core::schema::DistanceMetric;
 //!
 //! let builder = VectorQueryBuilder::new();
@@ -20,9 +20,12 @@
 //!     limit: 10,
 //!     where_clause: None,
 //!     order_by: None,
+//!     include_distance: false,
+//!     offset: None,
 //! };
 //!
-//! let (sql, params) = builder.similarity_search(&query, &[0.1, 0.2, 0.3]);
+//! let (sql, _params) = builder.similarity_search(&query, &[0.1, 0.2, 0.3]);
+//! assert!(sql.contains("documents"));
 //! ```
 
 use crate::schema::{DistanceMetric, VectorConfig};

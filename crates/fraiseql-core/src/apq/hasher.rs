@@ -26,7 +26,9 @@ use sha2::{Digest, Sha256};
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```
+/// use fraiseql_core::apq::hasher::hash_query;
+///
 /// let query = "{ users { id name } }";
 /// let hash = hash_query(query);
 /// assert_eq!(hash.len(), 64); // SHA-256 produces 64 hex chars
@@ -52,7 +54,9 @@ pub fn hash_query(query: &str) -> String {
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```
+/// use fraiseql_core::apq::hasher::{hash_query, verify_hash};
+///
 /// let query = "{ users { id name } }";
 /// let hash = hash_query(query);
 /// assert!(verify_hash(query, &hash));
@@ -80,7 +84,8 @@ pub fn verify_hash(query: &str, expected_hash: &str) -> bool {
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```
+/// use fraiseql_core::apq::hasher::hash_query_with_variables;
 /// use serde_json::json;
 ///
 /// let query = "query getUser($id: ID!) { user(id: $id) { name } }";
@@ -138,7 +143,8 @@ pub fn hash_query_with_variables(query: &str, variables: &JsonValue) -> String {
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```
+/// use fraiseql_core::apq::hasher::{hash_query_with_variables, verify_hash_with_variables};
 /// use serde_json::json;
 ///
 /// let query = "{ users { id } }";

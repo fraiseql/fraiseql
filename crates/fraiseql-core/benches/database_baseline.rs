@@ -30,9 +30,8 @@
 //! psql fraiseql_bench < tests/fixtures/benchmark_data.sql
 //! ```
 
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use std::hint::black_box as std_black_box;
-use tokio::runtime::Runtime;
 
 // Note: These benchmarks require a test database with actual data
 // They will be skipped if DATABASE_URL environment variable is not set
@@ -45,7 +44,7 @@ fn get_connection_string() -> Option<String> {
 ///
 /// Measures baseline performance for small-medium result sets.
 fn bench_query_10k_rows(c: &mut Criterion) {
-    let Some(conn_str) = get_connection_string() else {
+    let Some(_conn_str) = get_connection_string() else {
         eprintln!("Skipping bench_query_10k_rows: DATABASE_URL not set");
         return;
     };
@@ -78,7 +77,7 @@ fn bench_query_10k_rows(c: &mut Criterion) {
 /// This is where memory differences become significant.
 /// Expected baseline (tokio-postgres): ~26 MB memory usage.
 fn bench_query_100k_rows(c: &mut Criterion) {
-    let Some(conn_str) = get_connection_string() else {
+    let Some(_conn_str) = get_connection_string() else {
         eprintln!("Skipping bench_query_100k_rows: DATABASE_URL not set");
         return;
     };
@@ -106,7 +105,7 @@ fn bench_query_100k_rows(c: &mut Criterion) {
 /// Expected baseline (tokio-postgres): ~260 MB memory usage.
 /// This demonstrates the most extreme memory consumption.
 fn bench_query_1m_rows(c: &mut Criterion) {
-    let Some(conn_str) = get_connection_string() else {
+    let Some(_conn_str) = get_connection_string() else {
         eprintln!("Skipping bench_query_1m_rows: DATABASE_URL not set");
         return;
     };
@@ -135,7 +134,7 @@ fn bench_query_1m_rows(c: &mut Criterion) {
 /// Measures how quickly we can start processing results.
 /// This should be ~2-5ms for both tokio-postgres and fraiseql-wire.
 fn bench_time_to_first_row(c: &mut Criterion) {
-    let Some(conn_str) = get_connection_string() else {
+    let Some(_conn_str) = get_connection_string() else {
         eprintln!("Skipping bench_time_to_first_row: DATABASE_URL not set");
         return;
     };

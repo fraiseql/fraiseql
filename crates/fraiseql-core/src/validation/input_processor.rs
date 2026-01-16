@@ -106,16 +106,16 @@ impl InputProcessingConfig {
 ///
 /// # Examples
 ///
-/// ```ignore
-/// use fraiseql_rs::validation::input_processor::{InputProcessingConfig, process_variables};
-/// use fraiseql_rs::validation::IDPolicy;
+/// ```
+/// use fraiseql_core::validation::{InputProcessingConfig, process_variables};
+/// use serde_json::json;
 ///
 /// let config = InputProcessingConfig::strict_uuid();
 /// let variables = json!({"userId": "550e8400-e29b-41d4-a716-446655440000"});
 ///
 /// match process_variables(&variables, &config) {
 ///     Ok(processed) => { /* Use processed variables */ },
-///     Err(e) => { /* Handle validation error */ },
+///     Err(_e) => { /* Handle validation error */ },
 /// }
 /// ```
 pub fn process_variables(

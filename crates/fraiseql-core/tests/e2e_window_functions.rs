@@ -5,7 +5,7 @@
 mod common;
 
 use common::{assert_sql_contains, create_sales_metadata};
-use fraiseql_core::compiler::window_functions::{WindowFunctionPlanner, WindowFunctionType};
+use fraiseql_core::compiler::window_functions::WindowFunctionPlanner;
 use fraiseql_core::db::types::DatabaseType;
 use fraiseql_core::runtime::WindowSqlGenerator;
 use serde_json::json;

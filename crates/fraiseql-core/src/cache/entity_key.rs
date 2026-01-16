@@ -19,10 +19,10 @@
 //!
 //! # Examples
 //!
-//! ```ignore
-//! use fraiseql_core::cache::entity_key::EntityKey;
+//! ```
+//! use fraiseql_core::cache::EntityKey;
 //!
-//! let key = EntityKey::new("User", "550e8400-e29b-41d4-a716-446655440000")?;
+//! let key = EntityKey::new("User", "550e8400-e29b-41d4-a716-446655440000").unwrap();
 //! assert_eq!(key.to_cache_key(), "User:550e8400-e29b-41d4-a716-446655440000");
 //! ```
 
@@ -58,8 +58,11 @@ impl EntityKey {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let key = EntityKey::new("User", "550e8400-e29b-41d4-a716-446655440000")?;
+    /// ```
+    /// use fraiseql_core::cache::EntityKey;
+    ///
+    /// let key = EntityKey::new("User", "550e8400-e29b-41d4-a716-446655440000").unwrap();
+    /// assert_eq!(key.entity_type, "User");
     /// ```
     pub fn new(entity_type: &str, entity_id: &str) -> Result<Self> {
         if entity_type.is_empty() {
@@ -86,8 +89,10 @@ impl EntityKey {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let key = EntityKey::new("User", "550e8400-e29b-41d4-a716-446655440000")?;
+    /// ```
+    /// use fraiseql_core::cache::EntityKey;
+    ///
+    /// let key = EntityKey::new("User", "550e8400-e29b-41d4-a716-446655440000").unwrap();
     /// assert_eq!(key.to_cache_key(), "User:550e8400-e29b-41d4-a716-446655440000");
     /// ```
     #[must_use]
@@ -108,8 +113,10 @@ impl EntityKey {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let key = EntityKey::from_cache_key("User:550e8400-e29b-41d4-a716-446655440000")?;
+    /// ```
+    /// use fraiseql_core::cache::EntityKey;
+    ///
+    /// let key = EntityKey::from_cache_key("User:550e8400-e29b-41d4-a716-446655440000").unwrap();
     /// assert_eq!(key.entity_type, "User");
     /// ```
     pub fn from_cache_key(cache_key: &str) -> Result<Self> {

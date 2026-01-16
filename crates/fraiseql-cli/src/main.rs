@@ -3,6 +3,23 @@
 //! This CLI compiles schema.json files (from Python/TypeScript/etc decorators)
 //! into optimized schema.compiled.json files for the FraiseQL Rust runtime.
 
+#![warn(clippy::all)]
+#![warn(clippy::pedantic)]
+// Allow common pedantic lints for CLI tooling
+#![allow(clippy::format_push_string)] // Sometimes clearer than write!
+#![allow(clippy::option_if_let_else)] // Sometimes clearer
+#![allow(clippy::needless_pass_by_value)] // Clap requires owned strings
+#![allow(clippy::must_use_candidate)] // CLI functions don't need #[must_use]
+#![allow(clippy::module_name_repetitions)] // Common in Rust APIs
+#![allow(clippy::missing_errors_doc)] // CLI functions
+#![allow(clippy::doc_markdown)] // Would require extensive backtick additions
+#![allow(clippy::too_many_lines)] // CLI commands can be long
+#![allow(clippy::unnecessary_wraps)] // Sometimes needed for API consistency
+#![allow(clippy::match_same_arms)] // Sometimes clearer to be explicit
+#![allow(clippy::similar_names)] // Variable naming style
+#![allow(clippy::struct_excessive_bools)] // IntermediateAutoParams uses bools for flags
+#![allow(clippy::derive_partial_eq_without_eq)] // Some structs shouldn't implement Eq
+
 use clap::{Parser, Subcommand};
 use std::process;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};

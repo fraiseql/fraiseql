@@ -20,15 +20,14 @@
 //!
 //! ## Usage
 //!
-//! ```ignore
-//! use fraiseql_rs::security::field_masking::{FieldMasker, FieldSensitivity};
+//! ```
+//! use fraiseql_core::security::{FieldMasker, FieldSensitivity};
 //!
-//! let masker = FieldMasker::new();
-//! let sensitivity = masker.detect_sensitivity("email");
-//! // Result: FieldSensitivity::Sensitive
+//! let sensitivity = FieldMasker::detect_sensitivity("email");
+//! assert_eq!(sensitivity, FieldSensitivity::Sensitive);
 //!
-//! let masked = masker.mask_value("user@example.com", sensitivity);
-//! // Result: "u***"
+//! let masked = FieldMasker::mask_value("user@example.com", sensitivity);
+//! assert_eq!(masked, "u***");
 //! ```
 
 use crate::security::SecurityProfile;

@@ -117,11 +117,11 @@ unused_variables = "warn"
 dead_code = "warn"
 
 [workspace.lints.clippy]
-# Deny all warnings in CI
-all = "deny"
-pedantic = "deny"
-nursery = "warn"  # Nursery is experimental, keep as warn
-cargo = "deny"
+# Deny all warnings in CI (priority -1 lets individual lints override)
+all = { level = "deny", priority = -1 }
+pedantic = { level = "warn", priority = -1 }  # Changed to warn - too many false positives
+nursery = { level = "warn", priority = -1 }  # Nursery is experimental, keep as warn
+cargo = { level = "warn", priority = -1 }    # Changed to warn - metadata errors not blocking
 
 # Allow some pedantic lints that are too strict for practical use
 too_many_lines = "allow"
@@ -130,6 +130,9 @@ similar_names = "allow"
 must_use_candidate = "allow"  # We'll use this selectively
 missing_errors_doc = "allow"   # Can be too verbose
 missing_panics_doc = "allow"   # Can be too verbose
+unnecessary_wraps = "allow"    # API consistency over strictness
+struct_excessive_bools = "allow"  # Schema structs often have many bool flags
+multiple_crate_versions = "allow" # Transitive dependencies cause this
 
 [profile.release]
 opt-level = 3

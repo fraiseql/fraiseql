@@ -69,13 +69,11 @@ impl TestDatabase {
                 table_name = table_name
             );
 
-            let _params = vec![
-                serde_json::json!(row.revenue),
+            let _params = [serde_json::json!(row.revenue),
                 serde_json::json!(row.quantity),
                 row.data.clone(),
                 serde_json::json!(row.customer_id),
-                serde_json::json!(row.occurred_at),
-            ];
+                serde_json::json!(row.occurred_at)];
 
             // Note: execute_raw_query doesn't support parameters, would need execute_parameterized for real use
             let sql_with_values = sql.clone();  // For now, simple implementation

@@ -56,7 +56,7 @@ impl CompiledSchemaLoader {
 
     /// Load schema from file.
     ///
-    /// Reads the schema JSON file, parses it, and returns a CompiledSchema.
+    /// Reads the schema JSON file, parses it, and returns a `CompiledSchema`.
     ///
     /// # Errors
     ///

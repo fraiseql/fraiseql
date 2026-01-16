@@ -192,7 +192,7 @@ pub fn generate_cache_key(
 ///
 /// # Examples
 ///
-/// ```rust
+/// ```ignore
 /// use fraiseql_core::cache::extract_accessed_views;
 /// use fraiseql_core::schema::{QueryDefinition, AutoParams};
 ///

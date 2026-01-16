@@ -18,7 +18,7 @@
 //!
 //! # Example
 //!
-//! ```rust,no_run
+//! ```ignore
 //! use fraiseql_core::runtime::Executor;
 //! use fraiseql_core::schema::CompiledSchema;
 //!

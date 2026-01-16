@@ -1,12 +1,12 @@
 //! Structured JSON logging for observability.
 //!
 //! Provides structured logging output in JSON format for easier parsing
-//! and integration with log aggregation systems (ELK, Splunk, DataDog, etc).
+//! and integration with log aggregation systems (ELK, Splunk, `DataDog`, etc).
 //!
 //! # Features
 //!
 //! - JSON-formatted log output for every log entry
-//! - Request context tracking (request_id, operation, user_id)
+//! - Request context tracking (`request_id`, operation, `user_id`)
 //! - Performance metrics in logs (duration, query complexity)
 //! - Severity levels (trace, debug, info, warn, error)
 //! - Automatic timestamp and source location
@@ -22,11 +22,13 @@ pub struct RequestId(Uuid);
 
 impl RequestId {
     /// Generate new random request ID.
+    #[must_use] 
     pub fn new() -> Self {
         Self(Uuid::new_v4())
     }
 
     /// Create from existing UUID.
+    #[must_use] 
     pub fn from_uuid(uuid: Uuid) -> Self {
         Self(uuid)
     }
@@ -65,6 +67,7 @@ pub struct RequestContext {
 
 impl RequestContext {
     /// Create new request context.
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             request_id: RequestId::new(),
@@ -76,24 +79,28 @@ impl RequestContext {
     }
 
     /// Set operation name.
+    #[must_use] 
     pub fn with_operation(mut self, operation: String) -> Self {
         self.operation = Some(operation);
         self
     }
 
     /// Set user ID.
+    #[must_use] 
     pub fn with_user_id(mut self, user_id: String) -> Self {
         self.user_id = Some(user_id);
         self
     }
 
     /// Set client IP.
+    #[must_use] 
     pub fn with_client_ip(mut self, ip: String) -> Self {
         self.client_ip = Some(ip);
         self
     }
 
     /// Set API version.
+    #[must_use] 
     pub fn with_api_version(mut self, version: String) -> Self {
         self.api_version = Some(version);
         self
@@ -181,6 +188,7 @@ pub struct StructuredLogEntry {
 
 impl StructuredLogEntry {
     /// Create new log entry.
+    #[must_use] 
     pub fn new(level: LogLevel, message: String) -> Self {
         Self {
             timestamp: chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
@@ -195,36 +203,42 @@ impl StructuredLogEntry {
     }
 
     /// Add request context.
+    #[must_use] 
     pub fn with_request_context(mut self, context: RequestContext) -> Self {
         self.request_context = Some(context);
         self
     }
 
     /// Add performance metrics.
+    #[must_use] 
     pub fn with_metrics(mut self, metrics: LogMetrics) -> Self {
         self.metrics = Some(metrics);
         self
     }
 
     /// Add error details.
+    #[must_use] 
     pub fn with_error(mut self, error: ErrorDetails) -> Self {
         self.error = Some(error);
         self
     }
 
     /// Add source location.
+    #[must_use] 
     pub fn with_source(mut self, source: SourceLocation) -> Self {
         self.source = Some(source);
         self
     }
 
     /// Add custom context.
+    #[must_use] 
     pub fn with_context(mut self, context: serde_json::Value) -> Self {
         self.context = Some(context);
         self
     }
 
     /// Serialize to JSON string.
+    #[must_use] 
     pub fn to_json_string(&self) -> String {
         serde_json::to_string(self).unwrap_or_else(|_| {
             format!(r#"{{"level":"{}","message":"{}","error":"serialization failed"}}"#, self.level, self.message)
@@ -258,6 +272,7 @@ pub struct LogMetrics {
 
 impl LogMetrics {
     /// Create new metrics container.
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             duration_ms: None,
@@ -269,30 +284,35 @@ impl LogMetrics {
     }
 
     /// Set duration in milliseconds.
+    #[must_use] 
     pub fn with_duration_ms(mut self, duration: f64) -> Self {
         self.duration_ms = Some(duration);
         self
     }
 
     /// Set query complexity.
+    #[must_use] 
     pub fn with_complexity(mut self, complexity: u32) -> Self {
         self.complexity = Some(complexity);
         self
     }
 
     /// Set items processed count.
+    #[must_use] 
     pub fn with_items_processed(mut self, count: u64) -> Self {
         self.items_processed = Some(count);
         self
     }
 
     /// Set cache hit status.
+    #[must_use] 
     pub fn with_cache_hit(mut self, hit: bool) -> Self {
         self.cache_hit = Some(hit);
         self
     }
 
     /// Set database query count.
+    #[must_use] 
     pub fn with_db_queries(mut self, count: u32) -> Self {
         self.db_queries = Some(count);
         self
@@ -325,6 +345,7 @@ pub struct ErrorDetails {
 
 impl ErrorDetails {
     /// Create new error details.
+    #[must_use] 
     pub fn new(error_type: String, message: String) -> Self {
         Self {
             error_type,
@@ -335,12 +356,14 @@ impl ErrorDetails {
     }
 
     /// Set error code.
+    #[must_use] 
     pub fn with_code(mut self, code: String) -> Self {
         self.code = Some(code);
         self
     }
 
     /// Set stack trace.
+    #[must_use] 
     pub fn with_stack_trace(mut self, trace: String) -> Self {
         self.stack_trace = Some(trace);
         self
@@ -362,6 +385,7 @@ pub struct SourceLocation {
 
 impl SourceLocation {
     /// Create new source location.
+    #[must_use] 
     pub fn new(file: String, line: u32, module: String) -> Self {
         Self { file, line, module }
     }
@@ -375,6 +399,7 @@ pub struct RequestLogger {
 
 impl RequestLogger {
     /// Create new request logger.
+    #[must_use] 
     pub fn new(context: RequestContext) -> Self {
         Self {
             context: Arc::new(context),
@@ -382,6 +407,7 @@ impl RequestLogger {
     }
 
     /// Create from request ID.
+    #[must_use] 
     pub fn with_request_id(request_id: RequestId) -> Self {
         Self::new(RequestContext {
             request_id,
@@ -390,6 +416,7 @@ impl RequestLogger {
     }
 
     /// Get request context.
+    #[must_use] 
     pub fn context(&self) -> &RequestContext {
         &self.context
     }

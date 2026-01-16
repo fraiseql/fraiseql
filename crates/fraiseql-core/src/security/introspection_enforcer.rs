@@ -19,7 +19,7 @@
 //!
 //! # Examples
 //!
-//! ```ignore
+//! ```no_run
 //! use fraiseql_core::security::{IntrospectionEnforcer, IntrospectionPolicy};
 //!
 //! // Create enforcer that disables introspection

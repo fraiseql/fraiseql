@@ -62,6 +62,7 @@ pub struct MetricsCollector {
 
 impl MetricsCollector {
     /// Create new metrics collector.
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             queries_total: Arc::new(AtomicU64::new(0)),
@@ -150,9 +151,10 @@ pub struct PrometheusMetrics {
 
 impl PrometheusMetrics {
     /// Generate Prometheus text format output.
+    #[must_use] 
     pub fn to_prometheus_format(&self) -> String {
         format!(
-            r#"# HELP fraiseql_graphql_queries_total Total GraphQL queries executed
+            r"# HELP fraiseql_graphql_queries_total Total GraphQL queries executed
 # TYPE fraiseql_graphql_queries_total counter
 fraiseql_graphql_queries_total {}
 
@@ -215,7 +217,7 @@ fraiseql_cache_misses {}
 # HELP fraiseql_cache_hit_ratio Cache hit ratio (0-1)
 # TYPE fraiseql_cache_hit_ratio gauge
 fraiseql_cache_hit_ratio {:.3}
-"#,
+",
             self.queries_total,
             self.queries_success,
             self.queries_error,

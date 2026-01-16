@@ -40,6 +40,7 @@ pub enum ErrorCode {
 
 impl ErrorCode {
     /// Get HTTP status code for this error.
+    #[must_use] 
     pub fn status_code(self) -> StatusCode {
         match self {
             Self::ValidationError | Self::ParseError | Self::RequestError => StatusCode::BAD_REQUEST,
@@ -121,18 +122,21 @@ impl GraphQLError {
     }
 
     /// Add location to error.
+    #[must_use] 
     pub fn with_location(mut self, line: usize, column: usize) -> Self {
         self.locations = Some(vec![ErrorLocation { line, column }]);
         self
     }
 
     /// Add path to error.
+    #[must_use] 
     pub fn with_path(mut self, path: Vec<String>) -> Self {
         self.path = Some(path);
         self
     }
 
     /// Add extensions to error.
+    #[must_use] 
     pub fn with_extensions(mut self, extensions: ErrorExtensions) -> Self {
         self.extensions = Some(extensions);
         self
@@ -164,16 +168,19 @@ impl GraphQLError {
     }
 
     /// Execution error.
+    #[must_use] 
     pub fn execution(message: &str) -> Self {
         Self::new(message, ErrorCode::InternalServerError)
     }
 
     /// Unauthenticated error.
+    #[must_use] 
     pub fn unauthenticated() -> Self {
         Self::new("Authentication required", ErrorCode::Unauthenticated)
     }
 
     /// Forbidden error.
+    #[must_use] 
     pub fn forbidden() -> Self {
         Self::new("Access denied", ErrorCode::Forbidden)
     }
@@ -186,11 +193,13 @@ impl GraphQLError {
 
 impl ErrorResponse {
     /// Create new error response.
+    #[must_use] 
     pub fn new(errors: Vec<GraphQLError>) -> Self {
         Self { errors }
     }
 
     /// Create from single error.
+    #[must_use] 
     pub fn from_error(error: GraphQLError) -> Self {
         Self {
             errors: vec![error],
@@ -203,8 +212,7 @@ impl IntoResponse for ErrorResponse {
         let status = self
             .errors
             .first()
-            .map(|e| e.code.status_code())
-            .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+            .map_or(StatusCode::INTERNAL_SERVER_ERROR, |e| e.code.status_code());
 
         (status, Json(self)).into_response()
     }

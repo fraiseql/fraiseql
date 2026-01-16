@@ -25,17 +25,14 @@
 //! ## Usage
 //!
 //! ```ignore
-//! use fraiseql_rs::security::profiles::{SecurityProfile, ProfileConfig};
+//! use fraiseql_core::security::profiles::SecurityProfile;
 //!
-//! // Create a profile configuration
-//! let config = ProfileConfig::standard();
-//! let profile = SecurityProfile::from_config(config);
+//! // Create a profile
+//! let profile = SecurityProfile::standard();
+//! assert!(profile.is_standard());
 //!
-//! // Use in request validation
-//! profile.validate_request(&request).await?;
-//!
-//! // Use in response transformation
-//! profile.transform_response(&mut response)?;
+//! let regulated = SecurityProfile::regulated();
+//! assert!(regulated.is_regulated());
 //! ```
 
 use serde::{Deserialize, Serialize};

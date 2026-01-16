@@ -1,7 +1,7 @@
 //! Error types for `FraiseQL` core.
 //!
 //! This module provides language-agnostic error types that can be
-//! converted to Python exceptions, JavaScript errors, etc. by binding layers.
+//! converted to Python exceptions, `JavaScript` errors, etc. by binding layers.
 //!
 //! # Error Hierarchy
 //!

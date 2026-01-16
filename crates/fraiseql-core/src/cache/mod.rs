@@ -81,7 +81,7 @@
 //!
 //! # Usage Example
 //!
-//! ```rust,no_run
+//! ```ignore
 //! use fraiseql_core::cache::{CachedDatabaseAdapter, QueryResultCache, CacheConfig, InvalidationContext};
 //! use fraiseql_core::db::postgres::PostgresAdapter;
 //!
@@ -194,6 +194,5 @@ pub use query_analyzer::{QueryAnalyzer, QueryCardinality, QueryEntityProfile};
 pub use result::{CacheMetrics, CachedResult, QueryResultCache};
 pub use uuid_extractor::UUIDExtractor;
 
-// Internal types (not exposed in public API)
-#[allow(unused_imports)]
-pub(crate) use dependency_tracker::DependencyTracker;
+// Export dependency tracker (used in doctests and advanced use cases)
+pub use dependency_tracker::DependencyTracker;

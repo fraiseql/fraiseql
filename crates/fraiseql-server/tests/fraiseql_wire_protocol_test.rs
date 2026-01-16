@@ -48,12 +48,10 @@ fn test_wire_protocol_streaming_response_format() {
     // Wire protocol streaming responses use newline-delimited JSON
     // Each line is a separate message: {"type": "data", "items": [...]}
 
-    let response_lines = vec![
-        json!({"type": "start", "id": "msg-001", "fields": ["id", "name"]}),
+    let response_lines = [json!({"type": "start", "id": "msg-001", "fields": ["id", "name"]}),
         json!({"type": "data", "id": "msg-001", "items": [{"id": 1, "name": "Alice"}]}),
         json!({"type": "data", "id": "msg-001", "items": [{"id": 2, "name": "Bob"}]}),
-        json!({"type": "complete", "id": "msg-001"}),
-    ];
+        json!({"type": "complete", "id": "msg-001"})];
 
     assert_eq!(response_lines[0]["type"], "start");
     assert_eq!(response_lines[1]["type"], "data");

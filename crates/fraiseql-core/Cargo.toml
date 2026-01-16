@@ -11,6 +11,7 @@ documentation.workspace = true
 keywords.workspace = true
 categories.workspace = true
 description = "Core execution engine for FraiseQL v2 - Compiled GraphQL over SQL"
+readme = "README.md"
 
 [dependencies]
 # Workspace dependencies
