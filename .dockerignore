@@ -1,0 +1,68 @@
+# Git
+.git
+.gitignore
+.github
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Rust
+target/
+Cargo.lock
+.cargo/registry
+.cargo/git
+
+# Node (language generators)
+node_modules/
+package-lock.json
+yarn.lock
+.eslintcache
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv
+venv/
+env/
+*.egg-info/
+dist/
+build/
+
+# Documentation
+docs/
+*.md
+
+# Tests
+tests/
+.circleci
+.github
+
+# Development
+.env
+.env.local
+.env.*.local
+.claude/
+.local
+
+# Database files
+*.db
+*.sqlite
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary
+tmp/
+temp/
+*.tmp

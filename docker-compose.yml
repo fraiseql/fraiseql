@@ -1,0 +1,84 @@
+# FraiseQL v2 - Local Development Stack
+#
+# Includes:
+# - PostgreSQL database
+# - FraiseQL server
+# - Optional: schema compiler CLI
+
+version: '3.9'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: fraiseql-postgres
+    environment:
+      POSTGRES_DB: fraiseql
+      POSTGRES_USER: fraiseql
+      POSTGRES_PASSWORD: fraiseql_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fraiseql"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fraiseql
+
+  # FraiseQL Server
+  fraiseql-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fraiseql-server
+    ports:
+      - "8000:8000"
+    environment:
+      RUST_LOG: debug
+      DATABASE_URL: postgresql://fraiseql:fraiseql_dev_password@postgres:5432/fraiseql
+      FRAISEQL_BIND_ADDR: 0.0.0.0:8000
+      FRAISEQL_SCHEMA_PATH: /app/schemas/schema.compiled.json
+      FRAISEQL_POOL_MIN_SIZE: 5
+      FRAISEQL_POOL_MAX_SIZE: 20
+      FRAISEQL_CORS_ENABLED: "true"
+      FRAISEQL_COMPRESSION_ENABLED: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./schemas:/app/schemas:ro
+    networks:
+      - fraiseql
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+  # Redis (optional - for caching)
+  redis:
+    image: redis:7-alpine
+    container_name: fraiseql-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - fraiseql
+    profiles:
+      - with-redis
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  fraiseql:
+    driver: bridge
