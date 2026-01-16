@@ -1,0 +1,67 @@
+{
+  "$schema": "https://fraiseql.dev/schema/v2.json",
+  "version": "2.0",
+  "types": [
+    {
+      "name": "User",
+      "description": "A user in the system.",
+      "fields": [
+        {"name": "id", "type": "Int!", "description": "User ID"},
+        {"name": "name", "type": "String!", "description": "User name"},
+        {"name": "email", "type": "String!", "description": "User email"},
+        {"name": "created_at", "type": "DateTime!", "description": "Creation timestamp"}
+      ]
+    },
+    {
+      "name": "Post",
+      "description": "A blog post.",
+      "fields": [
+        {"name": "id", "type": "Int!", "description": "Post ID"},
+        {"name": "title", "type": "String!", "description": "Post title"},
+        {"name": "content", "type": "String!", "description": "Post content"},
+        {"name": "author_id", "type": "Int!", "description": "Author user ID"},
+        {"name": "author", "type": "User", "description": "Post author"},
+        {"name": "created_at", "type": "DateTime!", "description": "Creation timestamp"}
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "name": "users",
+      "description": "Get all users.",
+      "return_type": "[User!]!",
+      "arguments": [
+        {"name": "limit", "type": "Int", "default_value": 100}
+      ],
+      "sql_source": "v_users"
+    },
+    {
+      "name": "user",
+      "description": "Get a user by ID.",
+      "return_type": "User",
+      "arguments": [
+        {"name": "id", "type": "Int!"}
+      ],
+      "sql_source": "v_users"
+    },
+    {
+      "name": "posts",
+      "description": "Get all posts, optionally filtered by author.",
+      "return_type": "[Post!]!",
+      "arguments": [
+        {"name": "limit", "type": "Int", "default_value": 100},
+        {"name": "author_id", "type": "Int"}
+      ],
+      "sql_source": "v_posts"
+    },
+    {
+      "name": "post",
+      "description": "Get a post by ID.",
+      "return_type": "Post",
+      "arguments": [
+        {"name": "id", "type": "Int!"}
+      ],
+      "sql_source": "v_posts"
+    }
+  ]
+}
