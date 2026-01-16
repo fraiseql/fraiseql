@@ -6,6 +6,7 @@ mod wire_direct_tests {
     use futures::StreamExt;
 
     #[tokio::test]
+    #[ignore = "Requires PostgreSQL database with v_users view"]
     async fn test_direct_v_users_query() {
         let conn_str = std::env::var("DATABASE_URL")
             .unwrap_or_else(|_| "postgresql:///fraiseql_test".to_string());

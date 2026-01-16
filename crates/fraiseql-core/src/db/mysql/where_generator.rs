@@ -305,7 +305,7 @@ impl MySqlWhereGenerator {
         params: &mut Vec<serde_json::Value>,
     ) -> Result<String> {
         // Get raw path (without UNQUOTE) for JSON_CONTAINS
-        let raw_path = field_path.replace("JSON_UNQUOTE(", "").replace(')', "");
+        let raw_path = Self::strip_json_unquote(field_path);
         params.push(value.clone());
         Ok(format!("JSON_CONTAINS({raw_path}, ?)"))
     }
@@ -317,7 +317,7 @@ impl MySqlWhereGenerator {
         params: &mut Vec<serde_json::Value>,
     ) -> Result<String> {
         // Get raw path for JSON_CONTAINS
-        let raw_path = field_path.replace("JSON_UNQUOTE(", "").replace(')', "");
+        let raw_path = Self::strip_json_unquote(field_path);
         params.push(value.clone());
         // Reverse the arguments: check if value contains field
         Ok(format!("JSON_CONTAINS(?, {raw_path})"))
@@ -330,7 +330,7 @@ impl MySqlWhereGenerator {
         params: &mut Vec<serde_json::Value>,
     ) -> Result<String> {
         // Get raw path for JSON_OVERLAPS (MySQL 8.0.17+)
-        let raw_path = field_path.replace("JSON_UNQUOTE(", "").replace(')', "");
+        let raw_path = Self::strip_json_unquote(field_path);
         params.push(value.clone());
         Ok(format!("JSON_OVERLAPS({raw_path}, ?)"))
     }
@@ -343,9 +343,18 @@ impl MySqlWhereGenerator {
         params: &mut Vec<serde_json::Value>,
     ) -> Result<String> {
         // Get raw path for JSON_LENGTH
-        let raw_path = field_path.replace("JSON_UNQUOTE(", "").replace(')', "");
+        let raw_path = Self::strip_json_unquote(field_path);
         params.push(value.clone());
         Ok(format!("JSON_LENGTH({raw_path}) {op} ?"))
+    }
+
+    /// Strip the outer JSON_UNQUOTE wrapper from a field path.
+    /// Converts `JSON_UNQUOTE(JSON_EXTRACT(data, '$.field'))` to `JSON_EXTRACT(data, '$.field')`
+    fn strip_json_unquote(field_path: &str) -> &str {
+        field_path
+            .strip_prefix("JSON_UNQUOTE(")
+            .and_then(|s| s.strip_suffix(')'))
+            .unwrap_or(field_path)
     }
 
     fn generate_fts(

@@ -16,6 +16,7 @@ use test_helpers::*;
 
 /// Test that health endpoint responds correctly
 #[tokio::test]
+#[ignore = "Requires FraiseQL server running on localhost:8000"]
 async fn test_health_endpoint_responds() {
     let client = create_test_client();
     let base_url = "http://localhost:8000"; // Assumes server running
@@ -41,6 +42,7 @@ async fn test_health_endpoint_responds() {
 
 /// Test that metrics endpoint responds with Prometheus format
 #[tokio::test]
+#[ignore = "Requires FraiseQL server running on localhost:8000"]
 async fn test_metrics_endpoint_responds() {
     let client = create_test_client();
     let base_url = "http://localhost:8000";
@@ -68,6 +70,7 @@ async fn test_metrics_endpoint_responds() {
 
 /// Test that metrics JSON endpoint responds correctly
 #[tokio::test]
+#[ignore = "Requires FraiseQL server running on localhost:8000"]
 async fn test_metrics_json_endpoint_responds() {
     let client = create_test_client();
     let base_url = "http://localhost:8000";
@@ -116,6 +119,7 @@ async fn test_invalid_path_returns_404() {
 
 /// Test GraphQL endpoint accepts POST requests
 #[tokio::test]
+#[ignore = "Requires FraiseQL server running on localhost:8000"]
 async fn test_graphql_endpoint_accepts_post() {
     let client = create_test_client();
     let base_url = "http://localhost:8000";
@@ -198,6 +202,7 @@ async fn test_response_headers_correct() {
 
 /// Test empty query returns validation error
 #[tokio::test]
+#[ignore = "Requires FraiseQL server running on localhost:8000"]
 async fn test_empty_query_returns_error() {
     let client = create_test_client();
     let base_url = "http://localhost:8000";
