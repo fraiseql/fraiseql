@@ -13,12 +13,19 @@ use thiserror::Error;
 pub enum ValidationError {
     /// Query exceeds maximum allowed depth.
     #[error("Query exceeds maximum depth of {max_depth}: depth = {actual_depth}")]
-    QueryTooDeep { max_depth: usize, actual_depth: usize },
+    QueryTooDeep {
+        /// Maximum allowed depth
+        max_depth: usize,
+        /// Actual query depth
+        actual_depth: usize,
+    },
 
     /// Query exceeds maximum complexity score.
     #[error("Query exceeds maximum complexity of {max_complexity}: score = {actual_complexity}")]
     QueryTooComplex {
+        /// Maximum allowed complexity
         max_complexity: usize,
+        /// Actual query complexity
         actual_complexity: usize,
     },
 

@@ -57,7 +57,7 @@ impl TraceContext {
 
     /// Create child span from parent context.
     pub fn child_span(&self) -> Self {
-        let mut context = Self {
+        let context = Self {
             trace_id: self.trace_id.clone(),
             span_id: generate_span_id(),
             parent_span_id: Some(self.span_id.clone()),
@@ -247,7 +247,10 @@ pub enum SpanStatus {
     Ok,
 
     /// Operation failed
-    Error { message: String },
+    Error {
+        /// Error message
+        message: String,
+    },
 }
 
 impl fmt::Display for SpanStatus {

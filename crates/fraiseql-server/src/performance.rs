@@ -3,7 +3,7 @@
 //! Tracks query performance metrics, builds performance profiles, and enables
 //! analysis of query execution patterns for optimization.
 
-use crate::metrics::TimingGuard;
+#[allow(unused_imports)]
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;

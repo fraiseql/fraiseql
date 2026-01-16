@@ -41,7 +41,7 @@
 //! assert_eq!(profile.cardinality, QueryCardinality::Single);
 //! ```
 
-use crate::compiler::ir::{AutoParams, IRQuery};
+use crate::compiler::ir::IRQuery;
 use crate::error::Result;
 
 /// Query cardinality classification.

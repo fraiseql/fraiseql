@@ -53,7 +53,7 @@ use crate::compiler::aggregation::{
     AggregateExpression, AggregationPlan, GroupByExpression, OrderByClause, OrderDirection,
     ValidatedHavingCondition,
 };
-use crate::compiler::aggregate_types::{AggregateFunction, HavingOperator, TemporalBucket};
+use crate::compiler::aggregate_types::{AggregateFunction, TemporalBucket};
 use crate::compiler::fact_table::FactTableMetadata;
 use crate::db::types::DatabaseType;
 use crate::db::where_clause::{WhereClause, WhereOperator};

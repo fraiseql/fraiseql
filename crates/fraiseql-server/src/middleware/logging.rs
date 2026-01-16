@@ -23,7 +23,7 @@ pub async fn logging_middleware(
     next: Next,
 ) -> Response {
     // Generate request ID
-    let request_id = RequestId::new();
+    let _request_id = RequestId::new();
 
     // Extract client IP from headers or connection info
     let client_ip = headers

@@ -128,7 +128,10 @@ pub enum WindowFunctionType {
     DenseRank,
 
     /// NTILE(n) - Divide rows into n groups
-    Ntile { n: u32 },
+    Ntile {
+        /// Number of groups
+        n: u32,
+    },
 
     /// PERCENT_RANK() - Relative rank (0 to 1)
     PercentRank,
@@ -139,48 +142,86 @@ pub enum WindowFunctionType {
     // Value functions
     /// LAG(field, offset, default) - Value from previous row
     Lag {
+        /// Field name
         field: String,
+        /// Row offset
         offset: i32,
+        /// Default value
         default: Option<serde_json::Value>,
     },
 
     /// LEAD(field, offset, default) - Value from next row
     Lead {
+        /// Field name
         field: String,
+        /// Row offset
         offset: i32,
+        /// Default value
         default: Option<serde_json::Value>,
     },
 
     /// FIRST_VALUE(field) - First value in window
-    FirstValue { field: String },
+    FirstValue {
+        /// Field name
+        field: String,
+    },
 
     /// LAST_VALUE(field) - Last value in window
-    LastValue { field: String },
+    LastValue {
+        /// Field name
+        field: String,
+    },
 
     /// NTH_VALUE(field, n) - Nth value in window
-    NthValue { field: String, n: u32 },
+    NthValue {
+        /// Field name
+        field: String,
+        /// Position
+        n: u32,
+    },
 
     // Aggregate as window functions
     /// SUM(field) OVER (...) - Running total
-    Sum { field: String },
+    Sum {
+        /// Field name
+        field: String,
+    },
 
     /// AVG(field) OVER (...) - Moving average
-    Avg { field: String },
+    Avg {
+        /// Field name
+        field: String,
+    },
 
     /// COUNT(*) OVER (...) - Running count
-    Count { field: Option<String> },
+    Count {
+        /// Field name
+        field: Option<String>,
+    },
 
     /// MIN(field) OVER (...) - Running minimum
-    Min { field: String },
+    Min {
+        /// Field name
+        field: String,
+    },
 
     /// MAX(field) OVER (...) - Running maximum
-    Max { field: String },
+    Max {
+        /// Field name
+        field: String,
+    },
 
     /// STDDEV(field) OVER (...) - Running standard deviation
-    Stddev { field: String },
+    Stddev {
+        /// Field name
+        field: String,
+    },
 
     /// VARIANCE(field) OVER (...) - Running variance
-    Variance { field: String },
+    Variance {
+        /// Field name
+        field: String,
+    },
 }
 
 /// Window frame specification
@@ -221,13 +262,19 @@ pub enum FrameBoundary {
     UnboundedPreceding,
 
     /// N PRECEDING
-    NPreceding { n: u32 },
+    NPreceding {
+        /// Number of rows
+        n: u32,
+    },
 
     /// CURRENT ROW
     CurrentRow,
 
     /// N FOLLOWING
-    NFollowing { n: u32 },
+    NFollowing {
+        /// Number of rows
+        n: u32,
+    },
 
     /// UNBOUNDED FOLLOWING
     UnboundedFollowing,

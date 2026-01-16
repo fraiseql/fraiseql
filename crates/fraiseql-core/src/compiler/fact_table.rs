@@ -58,9 +58,13 @@ pub trait DatabaseIntrospector: Send + Sync {
 /// Database type enum for SQL type parsing
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DatabaseType {
+    /// PostgreSQL database type
     PostgreSQL,
+    /// MySQL database type
     MySQL,
+    /// SQLite database type
     SQLite,
+    /// SQL Server database type
     SQLServer,
 }
 

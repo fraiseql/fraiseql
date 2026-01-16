@@ -55,6 +55,7 @@ pub struct DependencyTracker {
 }
 
 impl DependencyTracker {
+    #[allow(dead_code)] // These are part of the public API
     /// Create new dependency tracker.
     ///
     /// # Example

@@ -114,21 +114,37 @@ impl TimingGuard {
 /// Prometheus metrics output format.
 #[derive(Debug)]
 pub struct PrometheusMetrics {
+    /// Total GraphQL queries executed
     pub queries_total: u64,
+    /// Successful GraphQL queries
     pub queries_success: u64,
+    /// Failed GraphQL queries
     pub queries_error: u64,
+    /// Average query duration in milliseconds
     pub queries_avg_duration_ms: f64,
+    /// Total database queries executed
     pub db_queries_total: u64,
+    /// Average database query duration in milliseconds
     pub db_queries_avg_duration_ms: f64,
+    /// Total validation errors
     pub validation_errors_total: u64,
+    /// Total parse errors
     pub parse_errors_total: u64,
+    /// Total execution errors
     pub execution_errors_total: u64,
+    /// Total HTTP requests processed
     pub http_requests_total: u64,
+    /// HTTP 2xx responses
     pub http_responses_2xx: u64,
+    /// HTTP 4xx responses
     pub http_responses_4xx: u64,
+    /// HTTP 5xx responses
     pub http_responses_5xx: u64,
+    /// Cache hit count
     pub cache_hits: u64,
+    /// Cache miss count
     pub cache_misses: u64,
+    /// Cache hit ratio (0.0 to 1.0)
     pub cache_hit_ratio: f64,
 }
 
