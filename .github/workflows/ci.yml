@@ -102,15 +102,16 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: fraiseql_test
+          POSTGRES_PASSWORD: fraiseql_test_password
+          POSTGRES_USER: fraiseql_test
+          POSTGRES_DB: test_fraiseql
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U fraiseql_test -d test_fraiseql"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
         ports:
-          - 5432:5432
+          - 5433:5432
 
     steps:
       - uses: actions/checkout@v4
@@ -127,10 +128,23 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-integration-${{ hashFiles('**/Cargo.lock') }}
 
+      - name: Initialize test database schema
+        run: |
+          psql -h localhost -p 5433 -U fraiseql_test -d test_fraiseql -f tests/sql/postgres/init.sql
+          psql -h localhost -p 5433 -U fraiseql_test -d test_fraiseql -f tests/sql/postgres/init-analytics.sql
+        env:
+          PGPASSWORD: fraiseql_test_password
+
       - name: Run integration tests
         run: cargo test --test '*' --all-features -- --test-threads=1
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/fraiseql_test
+          DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+          RUST_LOG: debug
+
+      - name: Run database adapter and introspector tests (ignored)
+        run: cargo test --lib -- --ignored --test-threads=1
+        env:
+          DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
           RUST_LOG: debug
 
   # Integration tests with MySQL
@@ -182,15 +196,16 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: fraiseql_test
+          POSTGRES_PASSWORD: fraiseql_test_password
+          POSTGRES_USER: fraiseql_test
+          POSTGRES_DB: test_fraiseql
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U fraiseql_test -d test_fraiseql"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
         ports:
-          - 5432:5432
+          - 5433:5432
 
     steps:
       - uses: actions/checkout@v4
@@ -212,10 +227,17 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-coverage-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Generate coverage
-        run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
+      - name: Initialize test database schema
+        run: |
+          psql -h localhost -p 5433 -U fraiseql_test -d test_fraiseql -f tests/sql/postgres/init.sql
+          psql -h localhost -p 5433 -U fraiseql_test -d test_fraiseql -f tests/sql/postgres/init-analytics.sql
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/fraiseql_test
+          PGPASSWORD: fraiseql_test_password
+
+      - name: Generate coverage
+        run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info -- --test-threads=1
+        env:
+          DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
