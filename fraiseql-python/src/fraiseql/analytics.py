@@ -122,11 +122,13 @@ def fact_table(
                 msg = f"Measure '{measure_name}' must be Int or Float, got: {field['type']}"
                 raise ValueError(msg)
 
-            measure_fields.append({
-                "name": measure_name,
-                "sql_type": field["type"],
-                "nullable": field["nullable"],
-            })
+            measure_fields.append(
+                {
+                    "name": measure_name,
+                    "sql_type": field["type"],
+                    "nullable": field["nullable"],
+                }
+            )
 
         # Non-measure fields are denormalized filters
         for field_name, field_info in fields.items():
@@ -138,11 +140,13 @@ def fact_table(
                 elif sql_type == "ID":
                     sql_type = "Uuid"
 
-                filter_fields.append({
-                    "name": field_name,
-                    "sql_type": sql_type,
-                    "indexed": True,  # Assume all filters are indexed
-                })
+                filter_fields.append(
+                    {
+                        "name": field_name,
+                        "sql_type": sql_type,
+                        "indexed": True,  # Assume all filters are indexed
+                    }
+                )
 
         # Build dimension metadata
         dimensions = {

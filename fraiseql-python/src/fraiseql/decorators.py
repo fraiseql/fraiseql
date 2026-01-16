@@ -62,9 +62,7 @@ def type(cls: type[T]) -> type[T]:
     return cls
 
 
-def query(
-    func: F | None = None, **config_kwargs: Any
-) -> F | Callable[[F], F]:
+def query(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F]:
     """Decorator to mark a function as a GraphQL query.
 
     This decorator registers the function with the schema registry for JSON export.
@@ -129,9 +127,7 @@ def query(
     return decorator(func)
 
 
-def mutation(
-    func: F | None = None, **config_kwargs: Any
-) -> F | Callable[[F], F]:
+def mutation(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F]:
     """Decorator to mark a function as a GraphQL mutation.
 
     This decorator registers the function with the schema registry for JSON export.
