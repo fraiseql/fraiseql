@@ -1,4 +1,4 @@
-.PHONY: help build test test-unit test-integration clippy fmt check clean install dev doc bench db-up db-down db-logs db-reset db-status e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-clean e2e-status
+.PHONY: help build test test-unit test-integration clippy fmt check clean install dev doc bench db-up db-down db-logs db-reset db-status e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status
 
 # Default target
 help:
@@ -227,8 +227,21 @@ e2e-php: e2e-setup
 	@echo "Skipping PHP E2E (requires Composer setup)"
 	@echo ""
 
+## Run E2E tests for VelocityBench blogging app (integration test)
+e2e-velocitybench: e2e-setup
+	@echo ""
+	@echo "========== VELOCITYBENCH E2E TEST =========="
+	@export PATH="$(PWD)/target/release:$$PATH" && \
+		. fraiseql-python/.venv/bin/activate && \
+		echo "✅ Test environment ready" && \
+		echo "" && \
+		echo "Running VelocityBench blogging app E2E test..." && \
+		python tests/e2e/velocitybench_e2e_test.py && \
+		echo "✅ VelocityBench E2E test passed"
+	@echo ""
+
 ## Run E2E tests for all available languages (sequential)
-e2e-all: e2e-python e2e-typescript e2e-go
+e2e-all: e2e-python e2e-typescript e2e-go e2e-velocitybench
 	@echo ""
 	@echo "=============================================="
 	@echo "✅ All E2E tests completed!"
