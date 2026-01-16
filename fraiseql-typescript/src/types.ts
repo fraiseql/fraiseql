@@ -16,9 +16,7 @@
  * typeToGraphQL(String | null) => ["String", true]
  * typeToGraphQL(Array<User>) => ["[User!]", false]
  */
-export function typeToGraphQL(
-  type: unknown
-): [graphqlType: string, nullable: boolean] {
+export function typeToGraphQL(type: unknown): [graphqlType: string, nullable: boolean] {
   // Handle null/undefined
   if (type === null || type === undefined) {
     throw new Error("Cannot convert null or undefined type");
@@ -89,9 +87,7 @@ export interface FieldInfo {
  *   email: { type: "String", nullable: true }
  * }
  */
-export function extractFieldInfo(
-  fields: Record<string, unknown>
-): Record<string, FieldInfo> {
+export function extractFieldInfo(fields: Record<string, unknown>): Record<string, FieldInfo> {
   const result: Record<string, FieldInfo> = {};
 
   for (const [fieldName, fieldType] of Object.entries(fields)) {

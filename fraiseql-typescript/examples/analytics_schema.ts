@@ -104,7 +104,7 @@ fraiseql.registerAggregateQuery(
   "salesAggregate",
   "tf_sales",
   true, // autoGroupBy
-  true  // autoAggregates
+  true // autoAggregates
 );
 
 fraiseql.registerQuery(
@@ -125,7 +125,7 @@ fraiseql.registerAggregateQuery(
   "monthlySalesTrend",
   "tf_sales",
   true, // autoGroupBy
-  true  // autoAggregates
+  true // autoAggregates
 );
 
 fraiseql.registerQuery(
@@ -146,7 +146,7 @@ fraiseql.registerAggregateQuery(
   "customerRevenueSummary",
   "tf_sales",
   true, // autoGroupBy
-  true  // autoAggregates
+  true // autoAggregates
 );
 
 fraiseql.registerQuery(

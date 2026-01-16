@@ -101,9 +101,7 @@ export function FactTable(config: FactTableDecoratorConfig) {
   return function <T extends { new (...args: any[]): {} }>(constructor: T) {
     // Validate table name starts with tf_
     if (!config.tableName.startsWith("tf_")) {
-      throw new Error(
-        `Fact table name must start with 'tf_', got: ${config.tableName}`
-      );
+      throw new Error(`Fact table name must start with 'tf_', got: ${config.tableName}`);
     }
 
     const tableName = config.tableName;
@@ -248,9 +246,7 @@ export function registerFactTableManual(
 ): void {
   // Validate table name
   if (!tableName.startsWith("tf_")) {
-    throw new Error(
-      `Fact table name must start with 'tf_', got: ${tableName}`
-    );
+    throw new Error(`Fact table name must start with 'tf_', got: ${tableName}`);
   }
 
   SchemaRegistry.registerFactTable(tableName, measures, dimensions, denormalizedFilters);

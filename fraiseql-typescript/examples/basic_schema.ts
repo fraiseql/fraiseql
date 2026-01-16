@@ -73,9 +73,12 @@ fraiseql.registerTypeFields("Post", [
 
 /**
  * Get list of users with pagination.
+ *
+ * Note: In a full implementation, this would use @fraiseql.query({ sqlSource: "v_user" })
+ * but TypeScript decorators are only valid on classes/methods. Instead, we use
+ * registerQuery() below for manual registration.
  */
-@fraiseql.query({ sqlSource: "v_user" })
-function users(limit: number = 10, offset: number = 0, isActive?: boolean): User[] {
+function users(_limit: number = 10, _offset: number = 0, _isActive?: boolean): User[] {
   // Function body not executed - only for type/metadata
   throw new Error("Not implemented");
 }
@@ -97,8 +100,7 @@ fraiseql.registerQuery(
 /**
  * Get a single user by ID.
  */
-@fraiseql.query({ sqlSource: "v_user" })
-function user(id: number): User | null {
+function user(_id: number): User | null {
   // Function body not executed
   throw new Error("Not implemented");
 }
@@ -116,8 +118,7 @@ fraiseql.registerQuery(
 /**
  * Get list of posts with filtering.
  */
-@fraiseql.query({ sqlSource: "v_post" })
-function posts(authorId?: number, published: boolean = true): Post[] {
+function posts(_authorId?: number, _published: boolean = true): Post[] {
   // Function body not executed
   throw new Error("Not implemented");
 }
@@ -142,8 +143,7 @@ fraiseql.registerQuery(
 /**
  * Create a new user.
  */
-@fraiseql.mutation({ sqlSource: "fn_create_user", operation: "CREATE" })
-function createUser(name: string, email: string): User {
+function createUser(_name: string, _email: string): User {
   // Function body not executed
   throw new Error("Not implemented");
 }
@@ -164,8 +164,7 @@ fraiseql.registerMutation(
 /**
  * Update an existing user.
  */
-@fraiseql.mutation({ sqlSource: "fn_update_user", operation: "UPDATE" })
-function updateUser(id: number, name?: string, email?: string): User {
+function updateUser(_id: number, _name?: string, _email?: string): User {
   // Function body not executed
   throw new Error("Not implemented");
 }
@@ -187,8 +186,7 @@ fraiseql.registerMutation(
 /**
  * Delete a user.
  */
-@fraiseql.mutation({ sqlSource: "fn_delete_user", operation: "DELETE" })
-function deleteUser(id: number): User {
+function deleteUser(_id: number): User {
   // Function body not executed
   throw new Error("Not implemented");
 }
@@ -206,8 +204,7 @@ fraiseql.registerMutation(
 /**
  * Create a new blog post.
  */
-@fraiseql.mutation({ sqlSource: "fn_create_post", operation: "CREATE" })
-function createPost(title: string, content: string, authorId: number): Post {
+function createPost(_title: string, _content: string, _authorId: number): Post {
   // Function body not executed
   throw new Error("Not implemented");
 }

@@ -66,7 +66,13 @@ export {
   registerQuery,
   registerMutation,
 } from "./decorators";
-export type { TypeConfig, OperationConfig, MutationConfig, FactTableConfig, AggregateQueryConfig } from "./decorators";
+export type {
+  TypeConfig,
+  OperationConfig,
+  MutationConfig,
+  FactTableConfig,
+  AggregateQueryConfig,
+} from "./decorators";
 
 // Export schema functions
 export { config, exportSchema, getSchemaDict, exportSchemaToString } from "./schema";
@@ -79,4 +85,3 @@ export {
   registerTypeFieldsManual,
 } from "./analytics";
 export type { FactTableDecoratorConfig, AggregateQueryDecoratorConfig } from "./analytics";
-

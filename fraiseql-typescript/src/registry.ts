@@ -138,8 +138,7 @@ export class SchemaRegistry {
   private static queries: Map<string, QueryDefinition> = new Map();
   private static mutations: Map<string, MutationDefinition> = new Map();
   private static factTables: Map<string, FactTableDefinition> = new Map();
-  private static aggregateQueries: Map<string, AggregateQueryDefinition> =
-    new Map();
+  private static aggregateQueries: Map<string, AggregateQueryDefinition> = new Map();
 
   /**
    * Register a GraphQL type.
@@ -148,11 +147,7 @@ export class SchemaRegistry {
    * @param fields - List of field definitions
    * @param description - Optional type description
    */
-  static registerType(
-    name: string,
-    fields: Field[],
-    description?: string
-  ): void {
+  static registerType(name: string, fields: Field[], description?: string): void {
     this.types.set(name, {
       name,
       fields,
@@ -180,7 +175,7 @@ export class SchemaRegistry {
     description?: string,
     config?: Record<string, unknown>
   ): void {
-    const cleanType = returnsList ? returnType.replace(/[\[\]!]/g, "") : returnType;
+    const cleanType = returnsList ? returnType.replace(/[[\]!]/g, "") : returnType;
 
     this.queries.set(name, {
       name,
@@ -213,7 +208,7 @@ export class SchemaRegistry {
     description?: string,
     config?: Record<string, unknown>
   ): void {
-    const cleanType = returnsList ? returnType.replace(/[\[\]!]/g, "") : returnType;
+    const cleanType = returnsList ? returnType.replace(/[[\]!]/g, "") : returnType;
 
     this.mutations.set(name, {
       name,

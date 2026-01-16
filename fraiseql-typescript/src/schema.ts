@@ -88,10 +88,7 @@ export function getPendingConfig(): Record<string, unknown> | null {
  * - The output schema.json is consumed by fraiseql-cli
  * - Pretty formatting is recommended for version control
  */
-export function exportSchema(
-  outputPath: string,
-  options: { pretty?: boolean } = {}
-): void {
+export function exportSchema(outputPath: string, options: { pretty?: boolean } = {}): void {
   const { pretty = true } = options;
 
   const schema = SchemaRegistry.getSchema();

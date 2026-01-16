@@ -15,12 +15,12 @@
  * Sale event type with analytics dimensions.
  */
 declare class Sale {
-    id: number;
-    revenue: number;
-    quantity: number;
-    cost: number;
-    customerId: string;
-    occurredAt: string;
+  id: number;
+  revenue: number;
+  quantity: number;
+  cost: number;
+  customerId: string;
+  occurredAt: string;
 }
 export { Sale };
 //# sourceMappingURL=analytics_schema.d.ts.map

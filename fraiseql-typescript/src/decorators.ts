@@ -363,11 +363,7 @@ export function AggregateQuery(config: AggregateQueryConfig) {
  * ]);
  * ```
  */
-export function registerTypeFields(
-  typeName: string,
-  fields: Field[],
-  description?: string
-): void {
+export function registerTypeFields(typeName: string, fields: Field[], description?: string): void {
   SchemaRegistry.registerType(typeName, fields, description);
 }
 
