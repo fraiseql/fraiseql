@@ -629,7 +629,7 @@ impl AggregateTypeGenerator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::compiler::fact_table::{DimensionColumn, FilterColumn, MeasureColumn};
+    use crate::compiler::fact_table::{DimensionColumn, MeasureColumn};
 
     fn create_test_metadata() -> FactTableMetadata {
         FactTableMetadata {

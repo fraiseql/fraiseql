@@ -115,7 +115,7 @@ mod tests {
 
     // Helper to create test introspector
     async fn create_test_introspector() -> PostgresIntrospector {
-        let adapter = PostgresAdapter::new(TEST_DB_URL)
+        let _adapter = PostgresAdapter::new(TEST_DB_URL)
             .await
             .expect("Failed to create test adapter");
 

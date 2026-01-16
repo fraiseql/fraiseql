@@ -849,6 +849,7 @@ impl AggregationSqlGenerator {
 mod tests {
     use super::*;
     use crate::compiler::aggregation::{AggregateSelection, AggregationRequest, GroupBySelection};
+    use crate::compiler::aggregate_types::HavingOperator;
     use crate::compiler::fact_table::{DimensionColumn, FilterColumn, FactTableMetadata, MeasureColumn, SqlType};
 
     fn create_test_plan() -> AggregationPlan {
