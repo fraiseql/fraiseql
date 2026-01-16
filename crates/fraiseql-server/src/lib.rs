@@ -35,6 +35,7 @@ pub mod performance;
 pub mod routes;
 pub mod schema;
 pub mod server;
+pub mod tracing;
 pub mod validation;
 
 pub use config::ServerConfig;
@@ -48,6 +49,7 @@ pub use performance::{
 };
 pub use schema::CompiledSchemaLoader;
 pub use server::Server;
+pub use tracing::{SpanStatus, TraceContext, TraceEvent, TraceParseError, TraceSpan};
 pub use validation::{RequestValidator, ValidationError};
 
 /// Server error type.
