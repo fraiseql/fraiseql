@@ -1,6 +1,6 @@
 [package]
 name = "fraiseql_rs"
-version = "1.9.10"
+version = "1.9.11"
 edition = "2021"
 authors = ["FraiseQL Contributors"]
 description = "Ultra-fast GraphQL JSON transformation in Rust for FraiseQL"
@@ -112,7 +112,7 @@ lazy_static = "1.4"         # Static regex
 itertools = "0.12"          # String utilities
 
 # Query caching (Phase 8)
-lru = "0.12"                # LRU cache
+lru = "0.16"                # LRU cache
 linked-hash-map = "0.5"     # For LRU implementation
 sha2 = "0.10"               # Hashing for signatures
 
