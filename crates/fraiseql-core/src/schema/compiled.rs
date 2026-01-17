@@ -930,6 +930,7 @@ impl UnionDefinition {
 ///     sql_source: Some("v_user".to_string()),
 ///     description: Some("Get all users".to_string()),
 ///     auto_params: AutoParams::default(),
+///     deprecation: None,
 /// };
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -963,6 +964,11 @@ pub struct QueryDefinition {
     /// Auto-wired parameters (where, orderBy, limit, offset).
     #[serde(default)]
     pub auto_params: AutoParams,
+
+    /// Deprecation information (from @deprecated directive).
+    /// When set, this query is marked as deprecated in the schema.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deprecation: Option<super::field_type::DeprecationInfo>,
 }
 
 impl QueryDefinition {
@@ -978,6 +984,7 @@ impl QueryDefinition {
             sql_source: None,
             description: None,
             auto_params: AutoParams::default(),
+            deprecation: None,
         }
     }
 
@@ -993,6 +1000,35 @@ impl QueryDefinition {
     pub fn with_sql_source(mut self, source: impl Into<String>) -> Self {
         self.sql_source = Some(source.into());
         self
+    }
+
+    /// Mark this query as deprecated.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use fraiseql_core::schema::QueryDefinition;
+    ///
+    /// let query = QueryDefinition::new("oldUsers", "User")
+    ///     .deprecated(Some("Use 'users' instead".to_string()));
+    /// assert!(query.is_deprecated());
+    /// ```
+    #[must_use]
+    pub fn deprecated(mut self, reason: Option<String>) -> Self {
+        self.deprecation = Some(super::field_type::DeprecationInfo { reason });
+        self
+    }
+
+    /// Check if this query is deprecated.
+    #[must_use]
+    pub fn is_deprecated(&self) -> bool {
+        self.deprecation.is_some()
+    }
+
+    /// Get the deprecation reason if deprecated.
+    #[must_use]
+    pub fn deprecation_reason(&self) -> Option<&str> {
+        self.deprecation.as_ref().and_then(|d| d.reason.as_deref())
     }
 }
 
@@ -1012,6 +1048,7 @@ impl QueryDefinition {
 ///     arguments: vec![],
 ///     description: Some("Create a new user".to_string()),
 ///     operation: MutationOperation::Insert { table: "users".to_string() },
+///     deprecation: None,
 /// };
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -1033,6 +1070,11 @@ pub struct MutationDefinition {
     /// SQL operation type.
     #[serde(default)]
     pub operation: MutationOperation,
+
+    /// Deprecation information (from @deprecated directive).
+    /// When set, this mutation is marked as deprecated in the schema.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deprecation: Option<super::field_type::DeprecationInfo>,
 }
 
 impl MutationDefinition {
@@ -1045,7 +1087,37 @@ impl MutationDefinition {
             arguments: Vec::new(),
             description: None,
             operation: MutationOperation::default(),
+            deprecation: None,
         }
+    }
+
+    /// Mark this mutation as deprecated.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use fraiseql_core::schema::MutationDefinition;
+    ///
+    /// let mutation = MutationDefinition::new("oldCreateUser", "User")
+    ///     .deprecated(Some("Use 'createUser' instead".to_string()));
+    /// assert!(mutation.is_deprecated());
+    /// ```
+    #[must_use]
+    pub fn deprecated(mut self, reason: Option<String>) -> Self {
+        self.deprecation = Some(super::field_type::DeprecationInfo { reason });
+        self
+    }
+
+    /// Check if this mutation is deprecated.
+    #[must_use]
+    pub fn is_deprecated(&self) -> bool {
+        self.deprecation.is_some()
+    }
+
+    /// Get the deprecation reason if deprecated.
+    #[must_use]
+    pub fn deprecation_reason(&self) -> Option<&str> {
+        self.deprecation.as_ref().and_then(|d| d.reason.as_deref())
     }
 }
 
@@ -1106,6 +1178,11 @@ pub struct SubscriptionDefinition {
     /// Event topic to subscribe to.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub topic: Option<String>,
+
+    /// Deprecation information (from @deprecated directive).
+    /// When set, this subscription is marked as deprecated in the schema.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deprecation: Option<super::field_type::DeprecationInfo>,
 }
 
 impl SubscriptionDefinition {
@@ -1118,7 +1195,37 @@ impl SubscriptionDefinition {
             arguments: Vec::new(),
             description: None,
             topic: None,
+            deprecation: None,
         }
+    }
+
+    /// Mark this subscription as deprecated.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use fraiseql_core::schema::SubscriptionDefinition;
+    ///
+    /// let subscription = SubscriptionDefinition::new("oldUserEvents", "User")
+    ///     .deprecated(Some("Use 'userEvents' instead".to_string()));
+    /// assert!(subscription.is_deprecated());
+    /// ```
+    #[must_use]
+    pub fn deprecated(mut self, reason: Option<String>) -> Self {
+        self.deprecation = Some(super::field_type::DeprecationInfo { reason });
+        self
+    }
+
+    /// Check if this subscription is deprecated.
+    #[must_use]
+    pub fn is_deprecated(&self) -> bool {
+        self.deprecation.is_some()
+    }
+
+    /// Get the deprecation reason if deprecated.
+    #[must_use]
+    pub fn deprecation_reason(&self) -> Option<&str> {
+        self.deprecation.as_ref().and_then(|d| d.reason.as_deref())
     }
 }
 
@@ -1142,6 +1249,13 @@ pub struct ArgumentDefinition {
     /// Description.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+
+    /// Deprecation information (from @deprecated directive).
+    /// When set, this argument is marked as deprecated in the schema.
+    /// Per GraphQL spec, deprecated arguments should still be accepted but
+    /// clients are encouraged to migrate to alternatives.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deprecation: Option<super::field_type::DeprecationInfo>,
 }
 
 impl ArgumentDefinition {
@@ -1154,6 +1268,7 @@ impl ArgumentDefinition {
             nullable: false,
             default_value: None,
             description: None,
+            deprecation: None,
         }
     }
 
@@ -1166,7 +1281,37 @@ impl ArgumentDefinition {
             nullable: true,
             default_value: None,
             description: None,
+            deprecation: None,
         }
+    }
+
+    /// Mark this argument as deprecated.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use fraiseql_core::schema::{ArgumentDefinition, FieldType};
+    ///
+    /// let arg = ArgumentDefinition::optional("oldLimit", FieldType::Int)
+    ///     .deprecated(Some("Use 'first' instead".to_string()));
+    /// assert!(arg.is_deprecated());
+    /// ```
+    #[must_use]
+    pub fn deprecated(mut self, reason: Option<String>) -> Self {
+        self.deprecation = Some(super::field_type::DeprecationInfo { reason });
+        self
+    }
+
+    /// Check if this argument is deprecated.
+    #[must_use]
+    pub fn is_deprecated(&self) -> bool {
+        self.deprecation.is_some()
+    }
+
+    /// Get the deprecation reason if deprecated.
+    #[must_use]
+    pub fn deprecation_reason(&self) -> Option<&str> {
+        self.deprecation.as_ref().and_then(|d| d.reason.as_deref())
     }
 }
 

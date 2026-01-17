@@ -191,6 +191,9 @@ pub struct IntrospectionField {
 }
 
 /// `__InputValue` introspection type.
+///
+/// Per GraphQL spec, input values (arguments and input fields) can be deprecated.
+/// The `isDeprecated` and `deprecationReason` fields are part of the June 2021 spec.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct IntrospectionInputValue {
@@ -208,6 +211,13 @@ pub struct IntrospectionInputValue {
     /// Default value (as JSON string).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default_value: Option<String>,
+
+    /// Whether the input value is deprecated.
+    pub is_deprecated: bool,
+
+    /// Deprecation reason (if deprecated).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deprecation_reason: Option<String>,
 }
 
 /// `__EnumValue` introspection type.
@@ -532,6 +542,8 @@ impl IntrospectionBuilder {
                 description: f.description.clone(),
                 input_type: Self::type_ref(&f.field_type),
                 default_value: f.default_value.clone(),
+                is_deprecated: f.is_deprecated(),
+                deprecation_reason: f.deprecation.as_ref().and_then(|d| d.reason.clone()),
             })
             .collect();
 
@@ -808,6 +820,8 @@ impl IntrospectionBuilder {
                 description: arg.description.clone(),
                 input_type: Self::field_type_to_introspection(&arg.arg_type, arg.nullable),
                 default_value: arg.default_value.as_ref().map(|v| v.to_string()),
+                is_deprecated: arg.is_deprecated(),
+                deprecation_reason: arg.deprecation_reason().map(ToString::to_string),
             })
             .collect();
 
@@ -816,8 +830,8 @@ impl IntrospectionBuilder {
             description: query.description.clone(),
             args,
             field_type: return_type,
-            is_deprecated: false,
-            deprecation_reason: None,
+            is_deprecated: query.is_deprecated(),
+            deprecation_reason: query.deprecation_reason().map(ToString::to_string),
         }
     }
 
@@ -835,6 +849,8 @@ impl IntrospectionBuilder {
                 description: arg.description.clone(),
                 input_type: Self::field_type_to_introspection(&arg.arg_type, arg.nullable),
                 default_value: arg.default_value.as_ref().map(|v| v.to_string()),
+                is_deprecated: arg.is_deprecated(),
+                deprecation_reason: arg.deprecation_reason().map(ToString::to_string),
             })
             .collect();
 
@@ -843,8 +859,8 @@ impl IntrospectionBuilder {
             description: mutation.description.clone(),
             args,
             field_type: return_type,
-            is_deprecated: false,
-            deprecation_reason: None,
+            is_deprecated: mutation.is_deprecated(),
+            deprecation_reason: mutation.deprecation_reason().map(ToString::to_string),
         }
     }
 
@@ -862,6 +878,8 @@ impl IntrospectionBuilder {
                 description: arg.description.clone(),
                 input_type: Self::field_type_to_introspection(&arg.arg_type, arg.nullable),
                 default_value: arg.default_value.as_ref().map(|v| v.to_string()),
+                is_deprecated: arg.is_deprecated(),
+                deprecation_reason: arg.deprecation_reason().map(ToString::to_string),
             })
             .collect();
 
@@ -870,8 +888,8 @@ impl IntrospectionBuilder {
             description: subscription.description.clone(),
             args,
             field_type: return_type,
-            is_deprecated: false,
-            deprecation_reason: None,
+            is_deprecated: subscription.is_deprecated(),
+            deprecation_reason: subscription.deprecation_reason().map(ToString::to_string),
         }
     }
 
@@ -905,6 +923,8 @@ impl IntrospectionBuilder {
                         specified_by_u_r_l: None,
                     },
                     default_value: None,
+                    is_deprecated: false,
+                    deprecation_reason: None,
                 }],
                 is_repeatable: false,
             },
@@ -935,6 +955,8 @@ impl IntrospectionBuilder {
                         specified_by_u_r_l: None,
                     },
                     default_value: None,
+                    is_deprecated: false,
+                    deprecation_reason: None,
                 }],
                 is_repeatable: false,
             },
@@ -956,6 +978,8 @@ impl IntrospectionBuilder {
                     ),
                     input_type: Self::type_ref("String"),
                     default_value: Some("\"No longer supported\"".to_string()),
+                    is_deprecated: false,
+                    deprecation_reason: None,
                 }],
                 is_repeatable: false,
             },
@@ -1053,6 +1077,7 @@ mod tests {
             sql_source: Some("v_user".to_string()),
             description: Some("Get all users".to_string()),
             auto_params: AutoParams::default(),
+            deprecation: None,
         });
 
         // Add a user query with argument
@@ -1067,10 +1092,12 @@ mod tests {
                 nullable: false, // required
                 default_value: None,
                 description: Some("User ID".to_string()),
+                deprecation: None,
             }],
             sql_source: Some("v_user".to_string()),
             description: Some("Get user by ID".to_string()),
             auto_params: AutoParams::default(),
+            deprecation: None,
         });
 
         schema
@@ -1704,5 +1731,154 @@ mod tests {
 
         assert_eq!(int.kind, TypeKind::Scalar);
         assert!(int.specified_by_u_r_l.is_none());
+    }
+
+    #[test]
+    fn test_deprecated_query_introspection() {
+        use crate::schema::{DeprecationInfo, AutoParams, ArgumentDefinition};
+
+        let mut schema = CompiledSchema::new();
+
+        // Add a deprecated query
+        schema.queries.push(QueryDefinition {
+            name: "oldUsers".to_string(),
+            return_type: "User".to_string(),
+            returns_list: true,
+            nullable: false,
+            arguments: vec![],
+            sql_source: Some("v_user".to_string()),
+            description: Some("Old way to get users".to_string()),
+            auto_params: AutoParams::default(),
+            deprecation: Some(DeprecationInfo {
+                reason: Some("Use 'users' instead".to_string()),
+            }),
+        });
+
+        // Add a non-deprecated query with a deprecated argument
+        schema.queries.push(QueryDefinition {
+            name: "users".to_string(),
+            return_type: "User".to_string(),
+            returns_list: true,
+            nullable: false,
+            arguments: vec![
+                ArgumentDefinition {
+                    name: "first".to_string(),
+                    arg_type: FieldType::Int,
+                    nullable: true,
+                    default_value: None,
+                    description: Some("Number of results to return".to_string()),
+                    deprecation: None,
+                },
+                ArgumentDefinition {
+                    name: "limit".to_string(),
+                    arg_type: FieldType::Int,
+                    nullable: true,
+                    default_value: None,
+                    description: Some("Old parameter for limiting results".to_string()),
+                    deprecation: Some(DeprecationInfo {
+                        reason: Some("Use 'first' instead".to_string()),
+                    }),
+                },
+            ],
+            sql_source: Some("v_user".to_string()),
+            description: Some("Get users with pagination".to_string()),
+            auto_params: AutoParams::default(),
+            deprecation: None,
+        });
+
+        let introspection = IntrospectionBuilder::build(&schema);
+
+        // Find Query type
+        let query_type = introspection
+            .types
+            .iter()
+            .find(|t| t.name.as_ref() == Some(&"Query".to_string()))
+            .unwrap();
+
+        let fields = query_type.fields.as_ref().unwrap();
+
+        // 'oldUsers' should be deprecated
+        let old_users = fields.iter().find(|f| f.name == "oldUsers").unwrap();
+        assert!(old_users.is_deprecated);
+        assert_eq!(
+            old_users.deprecation_reason,
+            Some("Use 'users' instead".to_string())
+        );
+
+        // 'users' should NOT be deprecated
+        let users = fields.iter().find(|f| f.name == "users").unwrap();
+        assert!(!users.is_deprecated);
+        assert!(users.deprecation_reason.is_none());
+
+        // 'users' should have 2 arguments
+        assert_eq!(users.args.len(), 2);
+
+        // 'first' argument should NOT be deprecated
+        let first_arg = users.args.iter().find(|a| a.name == "first").unwrap();
+        assert!(!first_arg.is_deprecated);
+        assert!(first_arg.deprecation_reason.is_none());
+
+        // 'limit' argument should be deprecated
+        let limit_arg = users.args.iter().find(|a| a.name == "limit").unwrap();
+        assert!(limit_arg.is_deprecated);
+        assert_eq!(
+            limit_arg.deprecation_reason,
+            Some("Use 'first' instead".to_string())
+        );
+    }
+
+    #[test]
+    fn test_deprecated_input_field_introspection() {
+        use crate::schema::{InputObjectDefinition, InputFieldDefinition, DeprecationInfo};
+
+        let mut schema = CompiledSchema::new();
+
+        // Add an input type with a deprecated field
+        schema.input_types.push(InputObjectDefinition {
+            name: "CreateUserInput".to_string(),
+            description: Some("Input for creating a user".to_string()),
+            fields: vec![
+                InputFieldDefinition {
+                    name: "name".to_string(),
+                    field_type: "String!".to_string(),
+                    default_value: None,
+                    description: Some("User name".to_string()),
+                    deprecation: None,
+                },
+                InputFieldDefinition {
+                    name: "oldEmail".to_string(),
+                    field_type: "String".to_string(),
+                    default_value: None,
+                    description: Some("Legacy email field".to_string()),
+                    deprecation: Some(DeprecationInfo {
+                        reason: Some("Use 'email' instead".to_string()),
+                    }),
+                },
+            ],
+        });
+
+        let introspection = IntrospectionBuilder::build(&schema);
+
+        // Find CreateUserInput type
+        let create_user_input = introspection
+            .types
+            .iter()
+            .find(|t| t.name.as_ref() == Some(&"CreateUserInput".to_string()))
+            .unwrap();
+
+        let input_fields = create_user_input.input_fields.as_ref().unwrap();
+
+        // 'name' should NOT be deprecated
+        let name_field = input_fields.iter().find(|f| f.name == "name").unwrap();
+        assert!(!name_field.is_deprecated);
+        assert!(name_field.deprecation_reason.is_none());
+
+        // 'oldEmail' should be deprecated
+        let old_email = input_fields.iter().find(|f| f.name == "oldEmail").unwrap();
+        assert!(old_email.is_deprecated);
+        assert_eq!(
+            old_email.deprecation_reason,
+            Some("Use 'email' instead".to_string())
+        );
     }
 }

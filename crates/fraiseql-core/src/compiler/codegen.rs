@@ -70,6 +70,7 @@ impl CodeGenerator {
                     has_limit: q.auto_params.has_limit,
                     has_offset: q.auto_params.has_offset,
                 },
+                deprecation: None, // TODO: Map deprecation from intermediate
             }
         }).collect();
 
@@ -80,6 +81,7 @@ impl CodeGenerator {
                 arguments: Vec::new(), // TODO: Map arguments
                 description: m.description.clone(),
                 operation: crate::schema::MutationOperation::default(),
+                deprecation: None, // TODO: Map deprecation from intermediate
             }
         }).collect();
 

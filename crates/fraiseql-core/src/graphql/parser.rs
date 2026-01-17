@@ -438,7 +438,7 @@ mod tests {
 
     #[test]
     fn test_parse_query_with_directives() {
-        let query = r#"
+        let query = r"
             query($skipEmail: Boolean!) {
                 users {
                     id
@@ -446,7 +446,7 @@ mod tests {
                     name @include(if: true)
                 }
             }
-        "#;
+        ";
         let parsed = parse_query(query).unwrap();
 
         let user_fields = &parsed.selections[0].nested_fields;

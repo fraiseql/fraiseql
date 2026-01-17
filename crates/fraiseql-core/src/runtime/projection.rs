@@ -180,7 +180,7 @@ impl ProjectionMapper {
     }
 
     /// Project a nested value, adding typename if configured.
-    #[allow(clippy::only_used_in_recursion)]
+    #[allow(clippy::only_used_in_recursion, clippy::self_only_used_in_recursion)]
     fn project_nested_value(&self, value: &JsonValue, field: &FieldMapping) -> Result<JsonValue> {
         match value {
             JsonValue::Object(obj) => {
@@ -798,7 +798,7 @@ mod tests {
                 "name": "Alice",
                 "company": {
                     "name": "Acme Corp",
-                    "revenue": 1000000
+                    "revenue": 1_000_000
                 }
             }
         });

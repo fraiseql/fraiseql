@@ -157,6 +157,7 @@ mod tests {
                 sql_source: Some("v_user".to_string()),
                 description: None,
                 auto_params: AutoParams::default(),
+                deprecation: None,
             },
             fields: vec!["id".to_string(), "name".to_string()],
             selections: vec![FieldSelection {

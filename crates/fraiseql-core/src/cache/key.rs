@@ -526,6 +526,7 @@ mod tests {
                 has_limit: true,
                 has_offset: false,
             },
+            deprecation: None,
         };
 
         let views = extract_accessed_views(&query_def);
@@ -550,6 +551,7 @@ mod tests {
                 has_limit: false,
                 has_offset: false,
             },
+            deprecation: None,
         };
 
         let views = extract_accessed_views(&query_def);

@@ -494,6 +494,7 @@ mod tests {
             sql_source: Some("v_user".to_string()),
             description: None,
             auto_params: AutoParams::default(),
+            deprecation: None,
         });
         schema
     }
@@ -566,7 +567,7 @@ mod tests {
         let adapter = Arc::new(MockAdapter::new(vec![]));
         let executor = Executor::new(schema, adapter);
 
-        let query = r#"{ __schema { queryType { name } } }"#;
+        let query = r"{ __schema { queryType { name } } }";
         let result = executor.execute(query, None).await.unwrap();
 
         assert!(result.contains("__schema"));
@@ -605,7 +606,7 @@ mod tests {
         let adapter = Arc::new(MockAdapter::new(vec![]));
         let executor = Executor::new(schema, adapter);
 
-        let query = r#"{ __schema { types { name } } }"#;
+        let query = r"{ __schema { types { name } } }";
         let query_type = executor.classify_query(query).unwrap();
         assert_eq!(query_type, QueryType::IntrospectionSchema);
     }
@@ -632,7 +633,7 @@ mod tests {
         assert_eq!(executor.extract_type_argument(query1), Some("User".to_string()));
 
         // Single quotes
-        let query2 = r#"{ __type(name: 'Product') { name } }"#;
+        let query2 = r"{ __type(name: 'Product') { name } }";
         assert_eq!(executor.extract_type_argument(query2), Some("Product".to_string()));
 
         // No space after colon

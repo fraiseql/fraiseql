@@ -374,6 +374,7 @@ fn create_test_schema() -> CompiledSchema {
         sql_source: Some("v_user".to_string()),
         description: None,
         auto_params: AutoParams::default(),
+        deprecation: None,
     });
 
     schema

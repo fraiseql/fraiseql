@@ -74,7 +74,7 @@ impl SchemaConverter {
         let interfaces = intermediate
             .interfaces
             .into_iter()
-            .map(|i| Self::convert_interface(i))
+            .map(Self::convert_interface)
             .collect::<Result<Vec<_>>>()
             .context("Failed to convert interfaces")?;
 
@@ -295,6 +295,7 @@ impl SchemaConverter {
             sql_source: intermediate.sql_source,
             description: intermediate.description,
             auto_params,
+            deprecation: None, // TODO: Parse deprecation from intermediate format
         })
     }
 
@@ -321,6 +322,7 @@ impl SchemaConverter {
             arguments,
             description: intermediate.description,
             operation,
+            deprecation: None, // TODO: Parse deprecation from intermediate format
         })
     }
 
@@ -374,6 +376,7 @@ impl SchemaConverter {
             nullable: intermediate.nullable,
             default_value: intermediate.default,
             description: None,
+            deprecation: None, // TODO: Parse deprecation from intermediate format
         })
     }
 

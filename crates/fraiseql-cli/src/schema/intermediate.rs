@@ -700,7 +700,7 @@ mod tests {
         // Check simple fields
         match &fragments[0].fields[0] {
             IntermediateFragmentField::Simple(name) => assert_eq!(name, "id"),
-            _ => panic!("Expected simple field"),
+            IntermediateFragmentField::Complex(_) => panic!("Expected simple field"),
         }
     }
 
@@ -737,7 +737,7 @@ mod tests {
                 assert!(def.fields.is_some());
                 assert_eq!(def.fields.as_ref().unwrap().len(), 2);
             }
-            _ => panic!("Expected complex field"),
+            IntermediateFragmentField::Simple(_) => panic!("Expected complex field"),
         }
     }
 
@@ -837,7 +837,7 @@ mod tests {
                 assert_eq!(def.name, "author");
                 assert_eq!(def.spread, Some("UserFields".to_string()));
             }
-            _ => panic!("Expected complex field"),
+            IntermediateFragmentField::Simple(_) => panic!("Expected complex field"),
         }
     }
 

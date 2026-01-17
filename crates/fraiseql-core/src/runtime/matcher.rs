@@ -184,6 +184,7 @@ mod tests {
             sql_source: Some("v_user".to_string()),
             description: None,
             auto_params: crate::schema::AutoParams::default(),
+            deprecation: None,
         });
         schema
     }
@@ -225,13 +226,13 @@ mod tests {
         let schema = test_schema();
         let matcher = QueryMatcher::new(schema);
 
-        let query = r#"
+        let query = r"
             fragment UserFields on User {
                 id
                 name
             }
             query { users { ...UserFields } }
-        "#;
+        ";
         let result = matcher.match_query(query, None).unwrap();
 
         assert_eq!(result.query_def.name, "users");
@@ -246,7 +247,7 @@ mod tests {
         let schema = test_schema();
         let matcher = QueryMatcher::new(schema);
 
-        let query = r#"{ users { id name @skip(if: true) } }"#;
+        let query = r"{ users { id name @skip(if: true) } }";
         let result = matcher.match_query(query, None).unwrap();
 
         assert_eq!(result.query_def.name, "users");
@@ -261,7 +262,7 @@ mod tests {
         let schema = test_schema();
         let matcher = QueryMatcher::new(schema);
 
-        let query = r#"query($includeEmail: Boolean!) { users { id email @include(if: $includeEmail) } }"#;
+        let query = r"query($includeEmail: Boolean!) { users { id email @include(if: $includeEmail) } }";
         let variables = serde_json::json!({ "includeEmail": false });
         let result = matcher.match_query(query, Some(&variables)).unwrap();
 
