@@ -43,10 +43,10 @@ mod field_type;
 mod introspection;
 
 pub use compiled::{
-    ArgumentDefinition, AutoParams, CompiledSchema, EnumDefinition, EnumValueDefinition,
-    InputFieldDefinition, InputObjectDefinition, InterfaceDefinition, MutationDefinition,
-    MutationOperation, QueryDefinition, SqlProjectionHint, SubscriptionDefinition, TypeDefinition,
-    UnionDefinition,
+    ArgumentDefinition, AutoParams, CompiledSchema, DirectiveDefinition, DirectiveLocationKind,
+    EnumDefinition, EnumValueDefinition, InputFieldDefinition, InputObjectDefinition,
+    InterfaceDefinition, MutationDefinition, MutationOperation, QueryDefinition, SqlProjectionHint,
+    SubscriptionDefinition, TypeDefinition, UnionDefinition,
 };
 pub use field_type::{DeprecationInfo, DistanceMetric, FieldDefinition, FieldType, VectorConfig, VectorIndexType};
 pub use introspection::{

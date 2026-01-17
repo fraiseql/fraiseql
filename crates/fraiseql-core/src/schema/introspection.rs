@@ -18,8 +18,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use super::{
-    CompiledSchema, EnumDefinition, FieldDefinition, FieldType, InputObjectDefinition,
-    InterfaceDefinition, QueryDefinition, TypeDefinition, UnionDefinition,
+    CompiledSchema, DirectiveDefinition, DirectiveLocationKind, EnumDefinition, FieldDefinition,
+    FieldType, InputObjectDefinition, InterfaceDefinition, QueryDefinition, TypeDefinition,
+    UnionDefinition,
 };
 
 // =============================================================================
@@ -327,6 +328,32 @@ pub enum DirectiveLocation {
     InputFieldDefinition,
 }
 
+impl From<DirectiveLocationKind> for DirectiveLocation {
+    fn from(kind: DirectiveLocationKind) -> Self {
+        match kind {
+            DirectiveLocationKind::Query => Self::Query,
+            DirectiveLocationKind::Mutation => Self::Mutation,
+            DirectiveLocationKind::Subscription => Self::Subscription,
+            DirectiveLocationKind::Field => Self::Field,
+            DirectiveLocationKind::FragmentDefinition => Self::FragmentDefinition,
+            DirectiveLocationKind::FragmentSpread => Self::FragmentSpread,
+            DirectiveLocationKind::InlineFragment => Self::InlineFragment,
+            DirectiveLocationKind::VariableDefinition => Self::VariableDefinition,
+            DirectiveLocationKind::Schema => Self::Schema,
+            DirectiveLocationKind::Scalar => Self::Scalar,
+            DirectiveLocationKind::Object => Self::Object,
+            DirectiveLocationKind::FieldDefinition => Self::FieldDefinition,
+            DirectiveLocationKind::ArgumentDefinition => Self::ArgumentDefinition,
+            DirectiveLocationKind::Interface => Self::Interface,
+            DirectiveLocationKind::Union => Self::Union,
+            DirectiveLocationKind::Enum => Self::Enum,
+            DirectiveLocationKind::EnumValue => Self::EnumValue,
+            DirectiveLocationKind::InputObject => Self::InputObject,
+            DirectiveLocationKind::InputFieldDefinition => Self::InputFieldDefinition,
+        }
+    }
+}
+
 // =============================================================================
 // Introspection Builder
 // =============================================================================
@@ -381,6 +408,10 @@ impl IntrospectionBuilder {
             types.push(Self::build_subscription_type(schema));
         }
 
+        // Build directives: built-in + custom
+        let mut directives = Self::builtin_directives();
+        directives.extend(Self::build_custom_directives(&schema.directives));
+
         IntrospectionSchema {
             description: Some("FraiseQL GraphQL Schema".to_string()),
             types,
@@ -401,7 +432,7 @@ impl IntrospectionBuilder {
                     name: "Subscription".to_string(),
                 })
             },
-            directives: Self::builtin_directives(),
+            directives,
         }
     }
 
@@ -984,6 +1015,44 @@ impl IntrospectionBuilder {
                 is_repeatable: false,
             },
         ]
+    }
+
+    /// Build introspection directives from custom directive definitions.
+    fn build_custom_directives(directives: &[DirectiveDefinition]) -> Vec<IntrospectionDirective> {
+        directives
+            .iter()
+            .map(|d| Self::build_custom_directive(d))
+            .collect()
+    }
+
+    /// Build a single introspection directive from a custom directive definition.
+    fn build_custom_directive(directive: &DirectiveDefinition) -> IntrospectionDirective {
+        let locations: Vec<DirectiveLocation> = directive
+            .locations
+            .iter()
+            .map(|loc| DirectiveLocation::from(*loc))
+            .collect();
+
+        let args: Vec<IntrospectionInputValue> = directive
+            .arguments
+            .iter()
+            .map(|arg| IntrospectionInputValue {
+                name: arg.name.clone(),
+                description: arg.description.clone(),
+                input_type: Self::field_type_to_introspection(&arg.arg_type, arg.nullable),
+                default_value: arg.default_value.as_ref().map(|v| v.to_string()),
+                is_deprecated: arg.is_deprecated(),
+                deprecation_reason: arg.deprecation_reason().map(ToString::to_string),
+            })
+            .collect();
+
+        IntrospectionDirective {
+            name: directive.name.clone(),
+            description: directive.description.clone(),
+            locations,
+            args,
+            is_repeatable: directive.is_repeatable,
+        }
     }
 }
 

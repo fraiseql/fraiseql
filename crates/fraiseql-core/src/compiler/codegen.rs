@@ -94,6 +94,7 @@ impl CodeGenerator {
             queries,
             mutations,
             subscriptions: Vec::new(), // TODO: Map subscriptions
+            directives: Vec::new(), // TODO: Map custom directives from intermediate
             fact_tables: std::collections::HashMap::new(), // Will be populated by compiler
         })
     }

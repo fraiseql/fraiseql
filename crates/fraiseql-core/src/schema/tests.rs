@@ -131,6 +131,7 @@ fn test_schema_to_json_roundtrip() {
         queries: vec![QueryDefinition::new("users", "User").returning_list()],
         mutations: vec![],
         subscriptions: vec![],
+        directives: vec![],
         fact_tables: std::collections::HashMap::new(),
     };
 
@@ -329,6 +330,7 @@ fn test_operation_count() {
         ],
         mutations: vec![MutationDefinition::new("createUser", "User")],
         subscriptions: vec![SubscriptionDefinition::new("userCreated", "User")],
+        directives: vec![],
         fact_tables: std::collections::HashMap::new(),
     };
 
@@ -703,6 +705,7 @@ fn test_vector_field_roundtrip() {
         queries: vec![],
         mutations: vec![],
         subscriptions: vec![],
+        directives: vec![],
         fact_tables: std::collections::HashMap::new(),
     };
 

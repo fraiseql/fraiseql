@@ -344,6 +344,7 @@ mod tests {
             queries: vec![],
             mutations: vec![],
             subscriptions: vec![],
+            directives: vec![],
             fact_tables: HashMap::default(),
         };
 
@@ -379,6 +380,7 @@ mod tests {
             }],
             mutations: vec![],
             subscriptions: vec![],
+            directives: vec![],
             fact_tables: HashMap::default(),
         };
 
@@ -414,6 +416,7 @@ mod tests {
             }],
             mutations: vec![],
             subscriptions: vec![],
+            directives: vec![],
             fact_tables: HashMap::default(),
         };
 
@@ -451,6 +454,7 @@ mod tests {
             queries: vec![],
             mutations: vec![],
             subscriptions: vec![],
+            directives: vec![],
             fact_tables: HashMap::default(),
         };
 
@@ -491,6 +495,7 @@ mod tests {
             queries: vec![],
             mutations: vec![],
             subscriptions: vec![],
+            directives: vec![],
             fact_tables: HashMap::default(),
         };
 
@@ -538,6 +543,7 @@ mod tests {
             queries: vec![],
             mutations: vec![],
             subscriptions: vec![],
+            directives: vec![],
             fact_tables: HashMap::default(),
         };
 

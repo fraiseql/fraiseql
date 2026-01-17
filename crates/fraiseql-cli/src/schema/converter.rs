@@ -105,6 +105,7 @@ impl SchemaConverter {
             queries,
             mutations,
             subscriptions: vec![], // TODO: Add in future phase
+            directives: vec![],    // TODO: Add custom directives from intermediate schema
             fact_tables, // Phase 8A: Analytics metadata
         };
 

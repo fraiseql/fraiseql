@@ -76,7 +76,10 @@ pub mod fragments;
 // Re-exports for convenient access
 // ============================================================================
 
-pub use directive_evaluator::{DirectiveError, DirectiveEvaluator};
+pub use directive_evaluator::{
+    CustomDirectiveEvaluator, DirectiveError, DirectiveEvaluator, DirectiveHandler, DirectiveResult,
+    EvaluationContext, OperationType,
+};
 pub use fragment_resolver::{FragmentError, FragmentResolver};
 pub use fragments::FragmentGraph;
 pub use parser::parse_query;
