@@ -265,3 +265,210 @@ def test_clear_registry() -> None:
     assert len(schema["types"]) == 0
     assert len(schema["queries"]) == 0
     assert len(schema["mutations"]) == 0
+    assert len(schema["subscriptions"]) == 0
+
+
+# =============================================================================
+# Subscription Decorator Tests
+# =============================================================================
+
+
+def test_subscription_decorator_simple() -> None:
+    """Test @fraiseql.subscription decorator with minimal options."""
+
+    @fraiseql.type
+    class Order:
+        id: str
+        amount: float
+
+    @fraiseql.subscription
+    def order_created() -> Order:
+        """Subscribe to new orders."""
+        pass
+
+    schema = SchemaRegistry.get_schema()
+    assert len(schema["subscriptions"]) == 1
+
+    sub = schema["subscriptions"][0]
+    assert sub["name"] == "order_created"
+    assert sub["entity_type"] == "Order"
+    assert sub["nullable"] is False
+    assert sub["description"] == "Subscribe to new orders."
+    assert len(sub["arguments"]) == 0
+
+
+def test_subscription_decorator_with_topic() -> None:
+    """Test @fraiseql.subscription with topic configuration."""
+
+    @fraiseql.type
+    class Order:
+        id: str
+        user_id: str
+        amount: float
+
+    @fraiseql.subscription(topic="orders_created")
+    def order_created() -> Order:
+        """Subscribe to new orders."""
+        pass
+
+    schema = SchemaRegistry.get_schema()
+    sub = schema["subscriptions"][0]
+
+    assert sub["name"] == "order_created"
+    assert sub["entity_type"] == "Order"
+    assert sub["topic"] == "orders_created"
+
+
+def test_subscription_decorator_with_operation() -> None:
+    """Test @fraiseql.subscription with operation filter."""
+
+    @fraiseql.type
+    class User:
+        id: str
+        name: str
+
+    @fraiseql.subscription(operation="UPDATE")
+    def user_updated() -> User:
+        """Subscribe to user updates."""
+        pass
+
+    schema = SchemaRegistry.get_schema()
+    sub = schema["subscriptions"][0]
+
+    assert sub["name"] == "user_updated"
+    assert sub["entity_type"] == "User"
+    assert sub["operation"] == "UPDATE"
+
+
+def test_subscription_decorator_with_arguments() -> None:
+    """Test @fraiseql.subscription with filter arguments."""
+
+    @fraiseql.type
+    class Order:
+        id: str
+        user_id: str
+        status: str
+
+    @fraiseql.subscription(topic="order_events")
+    def order_status_changed(user_id: str | None = None, status: str | None = None) -> Order:
+        """Subscribe to order status changes, optionally filtered by user or status."""
+        pass
+
+    schema = SchemaRegistry.get_schema()
+    sub = schema["subscriptions"][0]
+
+    assert sub["name"] == "order_status_changed"
+    assert sub["entity_type"] == "Order"
+    assert len(sub["arguments"]) == 2
+
+    user_arg = next(a for a in sub["arguments"] if a["name"] == "user_id")
+    assert user_arg["type"] == "String"
+    assert user_arg["nullable"] is True
+
+    status_arg = next(a for a in sub["arguments"] if a["name"] == "status")
+    assert status_arg["type"] == "String"
+    assert status_arg["nullable"] is True
+
+
+def test_subscription_decorator_explicit_entity_type() -> None:
+    """Test @fraiseql.subscription with explicit entity_type."""
+
+    @fraiseql.type
+    class OrderEvent:
+        id: str
+        order_id: str
+        event_type: str
+
+    @fraiseql.subscription(entity_type="Order", topic="order_events")
+    def order_event() -> OrderEvent:
+        """Subscribe to order events."""
+        pass
+
+    schema = SchemaRegistry.get_schema()
+    sub = schema["subscriptions"][0]
+
+    # entity_type should be explicit "Order", not inferred "OrderEvent"
+    assert sub["entity_type"] == "Order"
+
+
+def test_subscription_decorator_nullable_return() -> None:
+    """Test @fraiseql.subscription with nullable return type."""
+
+    @fraiseql.type
+    class User:
+        id: str
+        name: str
+
+    @fraiseql.subscription
+    def user_deleted() -> User | None:
+        """Subscribe to user deletions."""
+        pass
+
+    schema = SchemaRegistry.get_schema()
+    sub = schema["subscriptions"][0]
+
+    assert sub["name"] == "user_deleted"
+    assert sub["nullable"] is True
+
+
+def test_multiple_subscriptions() -> None:
+    """Test registering multiple subscriptions."""
+
+    @fraiseql.type
+    class Order:
+        id: str
+
+    @fraiseql.type
+    class User:
+        id: str
+
+    @fraiseql.subscription(topic="orders")
+    def order_created() -> Order:
+        pass
+
+    @fraiseql.subscription(topic="orders")
+    def order_updated() -> Order:
+        pass
+
+    @fraiseql.subscription(topic="users")
+    def user_created() -> User:
+        pass
+
+    schema = SchemaRegistry.get_schema()
+    assert len(schema["subscriptions"]) == 3
+
+    names = [s["name"] for s in schema["subscriptions"]]
+    assert "order_created" in names
+    assert "order_updated" in names
+    assert "user_created" in names
+
+
+def test_subscription_in_schema_export(tmp_path: pytest.TempPathFactory) -> None:  # type: ignore[name-defined]
+    """Test that subscriptions are included in schema export."""
+
+    @fraiseql.type
+    class Order:
+        id: str
+        amount: float
+
+    @fraiseql.subscription(topic="orders", operation="CREATE")
+    def order_created() -> Order:
+        """Subscribe to new orders."""
+        pass
+
+    output_file = tmp_path / "schema.json"  # type: ignore[operator]
+    fraiseql.export_schema(str(output_file))
+
+    import json
+
+    with open(output_file, encoding="utf-8") as f:
+        schema = json.load(f)
+
+    assert "subscriptions" in schema
+    assert len(schema["subscriptions"]) == 1
+
+    sub = schema["subscriptions"][0]
+    assert sub["name"] == "order_created"
+    assert sub["entity_type"] == "Order"
+    assert sub["topic"] == "orders"
+    assert sub["operation"] == "CREATE"

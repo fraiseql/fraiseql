@@ -419,6 +419,97 @@ def input(cls: type[T]) -> type[T]:
     return cls
 
 
+def subscription(
+    func: F | None = None,
+    *,
+    entity_type: str | None = None,
+    topic: str | None = None,
+    operation: str | None = None,
+    **config_kwargs: Any,
+) -> F | Callable[[F], F]:
+    """Decorator to mark a function as a GraphQL subscription.
+
+    This decorator registers the function with the schema registry for JSON export.
+    NO runtime behavior - only used for schema compilation.
+
+    Subscriptions in FraiseQL are compiled projections of database events.
+    They are sourced from LISTEN/NOTIFY or CDC, not resolver-based.
+
+    Args:
+        func: Python function with type annotations
+        entity_type: Entity type being subscribed to (defaults to return type)
+        topic: Optional topic/channel name for filtering events
+        operation: Optional operation filter ("CREATE", "UPDATE", "DELETE")
+        **config_kwargs: Additional configuration options
+
+    Returns:
+        The original function (unmodified)
+
+    Examples:
+        >>> @fraiseql.subscription(entity_type="Order", topic="order_created")
+        ... def order_created(user_id: str | None = None) -> Order:
+        ...     '''Subscribe to new orders.'''
+        ...     pass
+
+        This generates JSON:
+        {
+            "name": "order_created",
+            "entity_type": "Order",
+            "nullable": false,
+            "arguments": [
+                {"name": "user_id", "type": "String", "nullable": true}
+            ],
+            "topic": "order_created"
+        }
+
+        >>> @fraiseql.subscription(operation="UPDATE")
+        ... def user_updated() -> User:
+        ...     '''Subscribe to user updates.'''
+        ...     pass
+
+    Notes:
+        - Function must have type annotations for all parameters and return type
+        - Return type determines the entity being subscribed to
+        - Use topic to filter events to specific channels
+        - Use operation to filter by CREATE/UPDATE/DELETE
+        - Arguments become subscription filters (compiled, not resolved)
+    """
+
+    def decorator(f: F) -> F:
+        # Extract function signature
+        signature = extract_function_signature(f)
+
+        # Determine entity type from return type or explicit parameter
+        resolved_entity_type = entity_type or signature["return_type"]["type"]
+
+        # Build config
+        config: dict[str, Any] = {**config_kwargs}
+        if topic:
+            config["topic"] = topic
+        if operation:
+            config["operation"] = operation
+
+        # Register subscription with schema registry
+        SchemaRegistry.register_subscription(
+            name=f.__name__,
+            entity_type=resolved_entity_type,
+            nullable=signature["return_type"]["nullable"],
+            arguments=signature["arguments"],
+            description=f.__doc__,
+            **config,
+        )
+
+        # Return original function unmodified
+        return f
+
+    # Support both @subscription and @subscription(...)
+    if func is None:
+        # Called with arguments: @subscription(entity_type="Order")
+        return decorator
+    # Called without arguments: @subscription
+    return decorator(func)
+
+
 def union(
     name: str | None = None,
     members: list[type] | None = None,

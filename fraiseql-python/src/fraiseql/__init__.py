@@ -40,7 +40,7 @@ from fraiseql.analytics import aggregate_query, fact_table
 from fraiseql.decorators import enum as enum_decorator
 from fraiseql.decorators import input as input_decorator
 from fraiseql.decorators import interface as interface_decorator
-from fraiseql.decorators import mutation, query
+from fraiseql.decorators import mutation, query, subscription
 from fraiseql.decorators import type as type_decorator
 from fraiseql.decorators import union as union_decorator
 from fraiseql.schema import config, export_schema
@@ -55,6 +55,7 @@ __all__ = [
     "union_decorator",
     "query",
     "mutation",
+    "subscription",
     "config",
     "export_schema",
     "fact_table",

@@ -18,6 +18,7 @@ class SchemaRegistry:
     _unions: dict[str, dict[str, Any]] = {}
     _queries: dict[str, dict[str, Any]] = {}
     _mutations: dict[str, dict[str, Any]] = {}
+    _subscriptions: dict[str, dict[str, Any]] = {}
     _fact_tables: dict[str, dict[str, Any]] = {}
     _aggregate_queries: dict[str, dict[str, Any]] = {}
 
@@ -217,6 +218,38 @@ class SchemaRegistry:
         }
 
     @classmethod
+    def register_subscription(
+        cls,
+        name: str,
+        entity_type: str,
+        nullable: bool,
+        arguments: list[dict[str, Any]],
+        description: str | None = None,
+        **config: Any,
+    ) -> None:
+        """Register a GraphQL subscription.
+
+        Subscriptions in FraiseQL are compiled projections of database events.
+        They are sourced from LISTEN/NOTIFY or CDC, not resolver-based.
+
+        Args:
+            name: Subscription name (e.g., "orderCreated")
+            entity_type: Entity type name being subscribed to (e.g., "Order")
+            nullable: True if result can be null
+            arguments: List of argument definitions (filters)
+            description: Optional subscription description from docstring
+            **config: Additional configuration (topic, operation, etc.)
+        """
+        cls._subscriptions[name] = {
+            "name": name,
+            "entity_type": entity_type,
+            "nullable": nullable,
+            "arguments": arguments,
+            "description": description,
+            **config,
+        }
+
+    @classmethod
     def register_fact_table(
         cls,
         table_name: str,
@@ -281,6 +314,7 @@ class SchemaRegistry:
             "unions": list(cls._unions.values()),
             "queries": list(cls._queries.values()),
             "mutations": list(cls._mutations.values()),
+            "subscriptions": list(cls._subscriptions.values()),
         }
 
         # Add analytics sections if present
@@ -301,5 +335,6 @@ class SchemaRegistry:
         cls._unions.clear()
         cls._queries.clear()
         cls._mutations.clear()
+        cls._subscriptions.clear()
         cls._fact_tables.clear()
         cls._aggregate_queries.clear()
