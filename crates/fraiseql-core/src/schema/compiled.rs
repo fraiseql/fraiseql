@@ -1210,6 +1210,37 @@ impl SubscriptionDefinition {
         }
     }
 
+    /// Set the event topic for this subscription.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use fraiseql_core::schema::SubscriptionDefinition;
+    ///
+    /// let subscription = SubscriptionDefinition::new("orderCreated", "Order")
+    ///     .with_topic("order_created");
+    /// assert_eq!(subscription.topic, Some("order_created".to_string()));
+    /// ```
+    #[must_use]
+    pub fn with_topic(mut self, topic: impl Into<String>) -> Self {
+        self.topic = Some(topic.into());
+        self
+    }
+
+    /// Set the description for this subscription.
+    #[must_use]
+    pub fn with_description(mut self, description: impl Into<String>) -> Self {
+        self.description = Some(description.into());
+        self
+    }
+
+    /// Add an argument to this subscription.
+    #[must_use]
+    pub fn with_argument(mut self, arg: ArgumentDefinition) -> Self {
+        self.arguments.push(arg);
+        self
+    }
+
     /// Mark this subscription as deprecated.
     ///
     /// # Example

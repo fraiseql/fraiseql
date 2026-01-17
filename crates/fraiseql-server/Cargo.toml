@@ -16,9 +16,12 @@ categories = ["database", "web-programming::http-server"]
 fraiseql-core = { path = "../fraiseql-core" }
 
 # HTTP server
-axum = { version = "0.8", features = ["macros"] }
+axum = { version = "0.8", features = ["macros", "ws"] }
 tower = { version = "0.5", features = ["full"] }
 tower-http = { version = "0.6", features = ["trace", "cors", "compression-full"] }
+
+# WebSocket
+futures = "0.3"
 
 # Async runtime
 tokio = { version = "1.45", features = ["full"] }

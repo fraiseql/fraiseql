@@ -45,6 +45,7 @@ mod executor;
 mod matcher;
 mod planner;
 mod projection;
+pub mod subscription;
 pub mod window;
 mod window_parser;
 mod window_projector;
@@ -56,6 +57,11 @@ pub use executor::Executor;
 pub use matcher::{QueryMatch, QueryMatcher};
 pub use planner::{ExecutionPlan, QueryPlanner};
 pub use projection::{FieldMapping, ProjectionMapper, ResultProjector};
+pub use subscription::{
+    protocol, ActiveSubscription, ListenerConfig, ListenerHandle, PostgresListener,
+    SubscriptionError, SubscriptionEvent, SubscriptionId, SubscriptionManager,
+    SubscriptionOperation, SubscriptionPayload,
+};
 pub use window::{WindowSql, WindowSqlGenerator};
 pub use window_parser::WindowQueryParser;
 pub use window_projector::WindowProjector;
