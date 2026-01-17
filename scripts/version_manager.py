@@ -47,7 +47,7 @@ VERSION_FILES = {
         "first_only": True,
     },
     "README.md": {
-        "pattern": r"v([0-9.]+)",
+        "pattern": r"\bv(\d+\.\d+\.\d+)\b",
         "replacement": "v{version}",
         "line_match": r"v\d+\.\d+\.\d+",
     },

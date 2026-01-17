@@ -81,6 +81,10 @@ async def test_id_type_in_schema_introspection(schema_with_id):
                     type {
                         name
                         kind
+                        ofType {
+                            name
+                            kind
+                        }
                     }
                 }
             }
@@ -95,5 +99,8 @@ async def test_id_type_in_schema_introspection(schema_with_id):
     fields = result.data["__type"]["fields"]
     id_field = next(f for f in fields if f["name"] == "id")
 
-    # Check that type is ID (not UUID)
-    assert id_field["type"]["name"] == "ID"
+    # Check that type is ID (not UUID) - field is now non-null wrapped
+    if id_field["type"]["kind"] == "NON_NULL":
+        assert id_field["type"]["ofType"]["name"] == "ID"
+    else:
+        assert id_field["type"]["name"] == "ID"

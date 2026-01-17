@@ -179,9 +179,10 @@ async def test_field_types_correct(clear_registry):
     result = graphql_sync(schema, introspection_query)
     fields_by_name = {f["name"]: f["type"] for f in result.data["__type"]["fields"]}
 
-    # status: String (SCALAR)
-    assert fields_by_name["status"]["kind"] == "SCALAR"
-    assert fields_by_name["status"]["name"] == "String"
+    # status: String! (required NON_NULL SCALAR) - Issue #243
+    assert fields_by_name["status"]["kind"] == "NON_NULL"
+    assert fields_by_name["status"]["ofType"]["kind"] == "SCALAR"
+    assert fields_by_name["status"]["ofType"]["name"] == "String"
 
     # message: String (nullable SCALAR)
     assert fields_by_name["message"]["kind"] == "SCALAR"
@@ -193,7 +194,7 @@ async def test_field_types_correct(clear_registry):
 
     # Note: 'errors' field removed in v1.8.1 - Success types no longer include errors
 
-    # updatedFields: [String] (LIST of SCALAR)
+    # updatedFields: [String] (nullable LIST of SCALAR)
     assert fields_by_name["updatedFields"]["kind"] == "LIST"
     assert fields_by_name["updatedFields"]["ofType"]["kind"] == "SCALAR"
     assert fields_by_name["updatedFields"]["ofType"]["name"] == "String"
