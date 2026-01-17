@@ -46,6 +46,8 @@ mod matcher;
 mod planner;
 mod projection;
 pub mod window;
+mod window_parser;
+mod window_projector;
 
 pub use aggregate_parser::AggregateQueryParser;
 pub use aggregate_projector::AggregationProjector;
@@ -55,6 +57,8 @@ pub use matcher::{QueryMatch, QueryMatcher};
 pub use planner::{ExecutionPlan, QueryPlanner};
 pub use projection::{FieldMapping, ProjectionMapper, ResultProjector};
 pub use window::{WindowSql, WindowSqlGenerator};
+pub use window_parser::WindowQueryParser;
+pub use window_projector::WindowProjector;
 
 /// Runtime configuration.
 #[derive(Debug, Clone)]
