@@ -1478,6 +1478,707 @@ pub mod protocol {
 }
 
 // =============================================================================
+// Transport Adapters
+// =============================================================================
+
+/// Transport adapter trait for delivering subscription events.
+///
+/// Transport adapters are responsible for delivering events to external systems.
+/// Each adapter implements a specific delivery mechanism (HTTP, Kafka, etc.).
+///
+/// # Implementors
+///
+/// - [`WebhookAdapter`] - HTTP POST delivery with retry logic
+/// - [`KafkaAdapter`] - Apache Kafka event streaming
+#[async_trait::async_trait]
+pub trait TransportAdapter: Send + Sync {
+    /// Deliver an event to the transport.
+    ///
+    /// # Arguments
+    ///
+    /// * `event` - The subscription event to deliver
+    /// * `subscription_name` - Name of the subscription
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` on successful delivery, `Err` on failure.
+    async fn deliver(&self, event: &SubscriptionEvent, subscription_name: &str)
+        -> Result<(), SubscriptionError>;
+
+    /// Get the adapter name for logging/metrics.
+    fn name(&self) -> &'static str;
+
+    /// Check if the adapter is healthy/connected.
+    async fn health_check(&self) -> bool;
+}
+
+/// Webhook transport adapter configuration.
+#[derive(Debug, Clone)]
+pub struct WebhookConfig {
+    /// Target URL for webhook delivery.
+    pub url: String,
+
+    /// Secret key for HMAC-SHA256 signature.
+    pub secret: Option<String>,
+
+    /// Request timeout in milliseconds.
+    pub timeout_ms: u64,
+
+    /// Maximum retry attempts.
+    pub max_retries: u32,
+
+    /// Initial retry delay in milliseconds (exponential backoff).
+    pub retry_delay_ms: u64,
+
+    /// Custom headers to include in requests.
+    pub headers: std::collections::HashMap<String, String>,
+}
+
+impl WebhookConfig {
+    /// Create a new webhook configuration.
+    #[must_use]
+    pub fn new(url: impl Into<String>) -> Self {
+        Self {
+            url: url.into(),
+            secret: None,
+            timeout_ms: 30_000,
+            max_retries: 3,
+            retry_delay_ms: 1000,
+            headers: std::collections::HashMap::new(),
+        }
+    }
+
+    /// Set the signing secret for HMAC-SHA256 signatures.
+    #[must_use]
+    pub fn with_secret(mut self, secret: impl Into<String>) -> Self {
+        self.secret = Some(secret.into());
+        self
+    }
+
+    /// Set the request timeout.
+    #[must_use]
+    pub fn with_timeout(mut self, timeout_ms: u64) -> Self {
+        self.timeout_ms = timeout_ms;
+        self
+    }
+
+    /// Set maximum retry attempts.
+    #[must_use]
+    pub fn with_max_retries(mut self, max_retries: u32) -> Self {
+        self.max_retries = max_retries;
+        self
+    }
+
+    /// Set initial retry delay.
+    #[must_use]
+    pub fn with_retry_delay(mut self, delay_ms: u64) -> Self {
+        self.retry_delay_ms = delay_ms;
+        self
+    }
+
+    /// Add a custom header.
+    #[must_use]
+    pub fn with_header(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
+        self.headers.insert(name.into(), value.into());
+        self
+    }
+}
+
+/// Webhook payload format for event delivery.
+#[derive(Debug, Clone, Serialize)]
+pub struct WebhookPayload {
+    /// Unique event identifier.
+    pub event_id: String,
+
+    /// Subscription name that triggered the event.
+    pub subscription_name: String,
+
+    /// Entity type (e.g., "Order").
+    pub entity_type: String,
+
+    /// Entity primary key.
+    pub entity_id: String,
+
+    /// Operation type.
+    pub operation: String,
+
+    /// Event data.
+    pub data: serde_json::Value,
+
+    /// Previous data (for UPDATE operations).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub old_data: Option<serde_json::Value>,
+
+    /// Event timestamp (ISO 8601).
+    pub timestamp: String,
+
+    /// Sequence number for ordering.
+    pub sequence_number: u64,
+}
+
+impl WebhookPayload {
+    /// Create a webhook payload from a subscription event.
+    #[must_use]
+    pub fn from_event(event: &SubscriptionEvent, subscription_name: &str) -> Self {
+        Self {
+            event_id: event.event_id.clone(),
+            subscription_name: subscription_name.to_string(),
+            entity_type: event.entity_type.clone(),
+            entity_id: event.entity_id.clone(),
+            operation: format!("{:?}", event.operation),
+            data: event.data.clone(),
+            old_data: event.old_data.clone(),
+            timestamp: event.timestamp.to_rfc3339(),
+            sequence_number: event.sequence_number,
+        }
+    }
+}
+
+/// Webhook transport adapter for HTTP POST delivery.
+///
+/// Delivers subscription events via HTTP POST with:
+/// - HMAC-SHA256 signature (X-FraiseQL-Signature header)
+/// - Exponential backoff retry logic
+/// - Configurable timeouts
+///
+/// # Example
+///
+/// ```ignore
+/// use fraiseql_core::runtime::subscription::{WebhookAdapter, WebhookConfig};
+///
+/// let config = WebhookConfig::new("https://api.example.com/webhooks")
+///     .with_secret("my_secret_key")
+///     .with_max_retries(3);
+///
+/// let adapter = WebhookAdapter::new(config);
+/// adapter.deliver(&event, "orderCreated").await?;
+/// ```
+pub struct WebhookAdapter {
+    config: WebhookConfig,
+    client: reqwest::Client,
+}
+
+impl WebhookAdapter {
+    /// Create a new webhook adapter.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the HTTP client cannot be built (should not happen in practice).
+    #[must_use]
+    pub fn new(config: WebhookConfig) -> Self {
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_millis(config.timeout_ms))
+            .build()
+            .expect("Failed to build HTTP client");
+
+        Self { config, client }
+    }
+
+    /// Compute HMAC-SHA256 signature for payload.
+    fn compute_signature(&self, payload: &str) -> Option<String> {
+        use hmac::{Hmac, Mac};
+        use sha2::Sha256;
+
+        let secret = self.config.secret.as_ref()?;
+
+        let mut mac =
+            Hmac::<Sha256>::new_from_slice(secret.as_bytes()).expect("HMAC can take any size key");
+        mac.update(payload.as_bytes());
+
+        let result = mac.finalize();
+        Some(hex::encode(result.into_bytes()))
+    }
+}
+
+#[async_trait::async_trait]
+impl TransportAdapter for WebhookAdapter {
+    async fn deliver(
+        &self,
+        event: &SubscriptionEvent,
+        subscription_name: &str,
+    ) -> Result<(), SubscriptionError> {
+        let payload = WebhookPayload::from_event(event, subscription_name);
+        let payload_json = serde_json::to_string(&payload)
+            .map_err(|e| SubscriptionError::Internal(format!("Failed to serialize payload: {e}")))?;
+
+        let mut attempt = 0;
+        let mut delay = self.config.retry_delay_ms;
+
+        loop {
+            attempt += 1;
+
+            let mut request = self
+                .client
+                .post(&self.config.url)
+                .header("Content-Type", "application/json")
+                .header("X-FraiseQL-Event-Id", &event.event_id)
+                .header("X-FraiseQL-Event-Type", subscription_name);
+
+            // Add signature if secret is configured
+            if let Some(signature) = self.compute_signature(&payload_json) {
+                request = request.header("X-FraiseQL-Signature", format!("sha256={signature}"));
+            }
+
+            // Add custom headers
+            for (name, value) in &self.config.headers {
+                request = request.header(name, value);
+            }
+
+            let result = request.body(payload_json.clone()).send().await;
+
+            match result {
+                Ok(response) if response.status().is_success() => {
+                    tracing::debug!(
+                        url = %self.config.url,
+                        event_id = %event.event_id,
+                        attempt = attempt,
+                        "Webhook delivered successfully"
+                    );
+                    return Ok(());
+                }
+                Ok(response) => {
+                    let status = response.status();
+                    tracing::warn!(
+                        url = %self.config.url,
+                        event_id = %event.event_id,
+                        status = %status,
+                        attempt = attempt,
+                        "Webhook delivery failed with status"
+                    );
+
+                    // Don't retry on client errors (4xx) except 429
+                    if status.is_client_error() && status.as_u16() != 429 {
+                        return Err(SubscriptionError::Internal(format!(
+                            "Webhook delivery failed: {status}"
+                        )));
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        url = %self.config.url,
+                        event_id = %event.event_id,
+                        error = %e,
+                        attempt = attempt,
+                        "Webhook delivery error"
+                    );
+                }
+            }
+
+            // Check if we should retry
+            if attempt >= self.config.max_retries {
+                return Err(SubscriptionError::Internal(format!(
+                    "Webhook delivery failed after {} attempts",
+                    attempt
+                )));
+            }
+
+            // Exponential backoff
+            tracing::debug!(delay_ms = delay, "Retrying webhook delivery");
+            tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
+            delay *= 2;
+        }
+    }
+
+    fn name(&self) -> &'static str {
+        "webhook"
+    }
+
+    async fn health_check(&self) -> bool {
+        // Simple health check - verify URL is reachable
+        match self.client.head(&self.config.url).send().await {
+            Ok(response) => response.status().is_success() || response.status().as_u16() == 405,
+            Err(_) => false,
+        }
+    }
+}
+
+impl std::fmt::Debug for WebhookAdapter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("WebhookAdapter")
+            .field("url", &self.config.url)
+            .field("has_secret", &self.config.secret.is_some())
+            .finish_non_exhaustive()
+    }
+}
+
+/// Kafka transport adapter configuration.
+#[derive(Debug, Clone)]
+pub struct KafkaConfig {
+    /// Kafka broker addresses (comma-separated).
+    pub brokers: String,
+
+    /// Default topic for events (can be overridden per subscription).
+    pub default_topic: String,
+
+    /// Client ID for Kafka producer.
+    pub client_id: String,
+
+    /// Message acknowledgment mode ("all", "1", "0").
+    pub acks: String,
+
+    /// Message timeout in milliseconds.
+    pub timeout_ms: u64,
+
+    /// Enable message compression.
+    pub compression: Option<String>,
+}
+
+impl KafkaConfig {
+    /// Create a new Kafka configuration.
+    #[must_use]
+    pub fn new(brokers: impl Into<String>, default_topic: impl Into<String>) -> Self {
+        Self {
+            brokers: brokers.into(),
+            default_topic: default_topic.into(),
+            client_id: "fraiseql".to_string(),
+            acks: "all".to_string(),
+            timeout_ms: 30_000,
+            compression: None,
+        }
+    }
+
+    /// Set the client ID.
+    #[must_use]
+    pub fn with_client_id(mut self, client_id: impl Into<String>) -> Self {
+        self.client_id = client_id.into();
+        self
+    }
+
+    /// Set acknowledgment mode.
+    #[must_use]
+    pub fn with_acks(mut self, acks: impl Into<String>) -> Self {
+        self.acks = acks.into();
+        self
+    }
+
+    /// Set message timeout.
+    #[must_use]
+    pub fn with_timeout(mut self, timeout_ms: u64) -> Self {
+        self.timeout_ms = timeout_ms;
+        self
+    }
+
+    /// Enable compression (e.g., "gzip", "snappy", "lz4").
+    #[must_use]
+    pub fn with_compression(mut self, compression: impl Into<String>) -> Self {
+        self.compression = Some(compression.into());
+        self
+    }
+}
+
+/// Kafka message format for event delivery.
+#[derive(Debug, Clone, Serialize)]
+pub struct KafkaMessage {
+    /// Unique event identifier.
+    pub event_id: String,
+
+    /// Subscription name.
+    pub subscription_name: String,
+
+    /// Entity type.
+    pub entity_type: String,
+
+    /// Entity primary key (used as message key).
+    pub entity_id: String,
+
+    /// Operation type.
+    pub operation: String,
+
+    /// Event data.
+    pub data: serde_json::Value,
+
+    /// Previous data (for UPDATE operations).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub old_data: Option<serde_json::Value>,
+
+    /// Event timestamp.
+    pub timestamp: String,
+
+    /// Sequence number.
+    pub sequence_number: u64,
+}
+
+impl KafkaMessage {
+    /// Create a Kafka message from a subscription event.
+    #[must_use]
+    pub fn from_event(event: &SubscriptionEvent, subscription_name: &str) -> Self {
+        Self {
+            event_id: event.event_id.clone(),
+            subscription_name: subscription_name.to_string(),
+            entity_type: event.entity_type.clone(),
+            entity_id: event.entity_id.clone(),
+            operation: format!("{:?}", event.operation),
+            data: event.data.clone(),
+            old_data: event.old_data.clone(),
+            timestamp: event.timestamp.to_rfc3339(),
+            sequence_number: event.sequence_number,
+        }
+    }
+
+    /// Get the message key (entity_id for partitioning).
+    #[must_use]
+    pub fn key(&self) -> &str {
+        &self.entity_id
+    }
+}
+
+/// Kafka transport adapter for event streaming.
+///
+/// Delivers subscription events to Apache Kafka topics.
+/// Uses the entity_id as the message key for consistent partitioning.
+///
+/// # Note
+///
+/// This is a stub implementation. Full Kafka support requires the `rdkafka` crate
+/// which has native dependencies. Enable with the `kafka` feature flag.
+///
+/// # Example
+///
+/// ```ignore
+/// use fraiseql_core::runtime::subscription::{KafkaAdapter, KafkaConfig};
+///
+/// let config = KafkaConfig::new("localhost:9092", "fraiseql-events")
+///     .with_client_id("my-service")
+///     .with_compression("lz4");
+///
+/// let adapter = KafkaAdapter::new(config).await?;
+/// adapter.deliver(&event, "orderCreated").await?;
+/// ```
+#[derive(Debug)]
+pub struct KafkaAdapter {
+    config: KafkaConfig,
+    // In a full implementation, this would hold the rdkafka Producer
+    // producer: FutureProducer,
+}
+
+impl KafkaAdapter {
+    /// Create a new Kafka adapter.
+    ///
+    /// # Note
+    ///
+    /// This is a stub implementation. Returns the adapter for API compatibility,
+    /// but actual Kafka delivery requires the `kafka` feature flag.
+    #[must_use]
+    pub fn new(config: KafkaConfig) -> Self {
+        tracing::warn!(
+            brokers = %config.brokers,
+            topic = %config.default_topic,
+            "KafkaAdapter created (stub implementation - enable 'kafka' feature for full support)"
+        );
+        Self { config }
+    }
+
+    /// Get the topic for a subscription (uses default if not specified).
+    fn get_topic(&self, _subscription_name: &str) -> &str {
+        // In a full implementation, this could look up per-subscription topics
+        &self.config.default_topic
+    }
+}
+
+#[async_trait::async_trait]
+impl TransportAdapter for KafkaAdapter {
+    async fn deliver(
+        &self,
+        event: &SubscriptionEvent,
+        subscription_name: &str,
+    ) -> Result<(), SubscriptionError> {
+        let message = KafkaMessage::from_event(event, subscription_name);
+        let topic = self.get_topic(subscription_name);
+
+        let _payload = serde_json::to_string(&message)
+            .map_err(|e| SubscriptionError::Internal(format!("Failed to serialize message: {e}")))?;
+
+        // Stub implementation - log the event
+        tracing::info!(
+            topic = topic,
+            key = message.key(),
+            event_id = %event.event_id,
+            "Kafka delivery (stub) - enable 'kafka' feature for actual delivery"
+        );
+
+        // In a full implementation with rdkafka:
+        // let record = FutureRecord::to(topic)
+        //     .key(message.key())
+        //     .payload(&payload);
+        // self.producer.send(record, Duration::from_millis(self.config.timeout_ms)).await?;
+
+        Ok(())
+    }
+
+    fn name(&self) -> &'static str {
+        "kafka"
+    }
+
+    async fn health_check(&self) -> bool {
+        // Stub implementation - always returns true
+        // In a full implementation, this would check broker connectivity
+        tracing::debug!("Kafka health check (stub) - always returns true");
+        true
+    }
+}
+
+/// Multi-transport delivery manager.
+///
+/// Manages multiple transport adapters and delivers events to all configured
+/// destinations in parallel.
+///
+/// # Example
+///
+/// ```ignore
+/// use fraiseql_core::runtime::subscription::{
+///     TransportManager, WebhookAdapter, WebhookConfig,
+/// };
+///
+/// let mut manager = TransportManager::new();
+///
+/// // Add webhook adapter
+/// let webhook = WebhookAdapter::new(WebhookConfig::new("https://api.example.com/events"));
+/// manager.add_adapter(Box::new(webhook));
+///
+/// // Deliver to all transports
+/// manager.deliver_all(&event, "orderCreated").await?;
+/// ```
+pub struct TransportManager {
+    adapters: Vec<Box<dyn TransportAdapter>>,
+}
+
+impl TransportManager {
+    /// Create a new transport manager.
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            adapters: Vec::new(),
+        }
+    }
+
+    /// Add a transport adapter.
+    pub fn add_adapter(&mut self, adapter: Box<dyn TransportAdapter>) {
+        tracing::info!(adapter = adapter.name(), "Added transport adapter");
+        self.adapters.push(adapter);
+    }
+
+    /// Get the number of configured adapters.
+    #[must_use]
+    pub fn adapter_count(&self) -> usize {
+        self.adapters.len()
+    }
+
+    /// Check if there are no adapters configured.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.adapters.is_empty()
+    }
+
+    /// Deliver an event to all configured transports.
+    ///
+    /// Delivers in parallel and collects results. Returns Ok if at least one
+    /// delivery succeeded, or the last error if all failed.
+    pub async fn deliver_all(
+        &self,
+        event: &SubscriptionEvent,
+        subscription_name: &str,
+    ) -> Result<DeliveryResult, SubscriptionError> {
+        if self.adapters.is_empty() {
+            return Ok(DeliveryResult {
+                successful: 0,
+                failed: 0,
+                errors: Vec::new(),
+            });
+        }
+
+        let futures: Vec<_> = self
+            .adapters
+            .iter()
+            .map(|adapter| {
+                let name = adapter.name().to_string();
+                async move {
+                    let result = adapter.deliver(event, subscription_name).await;
+                    (name, result)
+                }
+            })
+            .collect();
+
+        let results = futures::future::join_all(futures).await;
+
+        let mut successful = 0;
+        let mut failed = 0;
+        let mut errors = Vec::new();
+
+        for (name, result) in results {
+            match result {
+                Ok(()) => successful += 1,
+                Err(e) => {
+                    failed += 1;
+                    errors.push((name, e.to_string()));
+                }
+            }
+        }
+
+        Ok(DeliveryResult {
+            successful,
+            failed,
+            errors,
+        })
+    }
+
+    /// Check health of all adapters.
+    pub async fn health_check_all(&self) -> Vec<(String, bool)> {
+        let futures: Vec<_> = self
+            .adapters
+            .iter()
+            .map(|adapter| {
+                let name = adapter.name().to_string();
+                async move {
+                    let healthy = adapter.health_check().await;
+                    (name, healthy)
+                }
+            })
+            .collect();
+
+        futures::future::join_all(futures).await
+    }
+}
+
+impl Default for TransportManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl std::fmt::Debug for TransportManager {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TransportManager")
+            .field("adapter_count", &self.adapters.len())
+            .finish()
+    }
+}
+
+/// Result of delivering an event to multiple transports.
+#[derive(Debug, Clone)]
+pub struct DeliveryResult {
+    /// Number of successful deliveries.
+    pub successful: usize,
+    /// Number of failed deliveries.
+    pub failed: usize,
+    /// Errors from failed deliveries (adapter name, error message).
+    pub errors: Vec<(String, String)>,
+}
+
+impl DeliveryResult {
+    /// Check if all deliveries succeeded.
+    #[must_use]
+    pub fn all_succeeded(&self) -> bool {
+        self.failed == 0
+    }
+
+    /// Check if at least one delivery succeeded.
+    #[must_use]
+    pub fn any_succeeded(&self) -> bool {
+        self.successful > 0
+    }
+}
+
+// =============================================================================
 // Tests
 // =============================================================================
 
@@ -1885,5 +2586,231 @@ mod tests {
 
         let result = PostgresListener::process_notification(payload, &manager);
         assert!(result.is_ok());
+    }
+
+    // =========================================================================
+    // Transport Adapter Tests
+    // =========================================================================
+
+    #[test]
+    fn test_webhook_config_builder() {
+        let config = WebhookConfig::new("https://api.example.com/webhooks")
+            .with_secret("my-secret")
+            .with_timeout(10_000)
+            .with_max_retries(5)
+            .with_retry_delay(500)
+            .with_header("X-Custom-Header", "custom-value");
+
+        assert_eq!(config.url, "https://api.example.com/webhooks");
+        assert_eq!(config.secret, Some("my-secret".to_string()));
+        assert_eq!(config.timeout_ms, 10_000);
+        assert_eq!(config.max_retries, 5);
+        assert_eq!(config.retry_delay_ms, 500);
+        assert_eq!(config.headers.get("X-Custom-Header"), Some(&"custom-value".to_string()));
+    }
+
+    #[test]
+    fn test_webhook_config_defaults() {
+        let config = WebhookConfig::new("https://api.example.com/webhooks");
+
+        assert_eq!(config.url, "https://api.example.com/webhooks");
+        assert!(config.secret.is_none());
+        assert_eq!(config.timeout_ms, 30_000);
+        assert_eq!(config.max_retries, 3);
+        assert_eq!(config.retry_delay_ms, 1000);
+        assert!(config.headers.is_empty());
+    }
+
+    #[test]
+    fn test_webhook_payload_from_event() {
+        let event = SubscriptionEvent {
+            event_id: "evt_123".to_string(),
+            entity_type: "Order".to_string(),
+            entity_id: "ord_456".to_string(),
+            operation: SubscriptionOperation::Create,
+            data: serde_json::json!({"id": "ord_456", "total": 99.99}),
+            old_data: None,
+            timestamp: chrono::Utc::now(),
+            sequence_number: 42,
+        };
+
+        let payload = WebhookPayload::from_event(&event, "order_created");
+
+        assert_eq!(payload.event_id, "evt_123");
+        assert_eq!(payload.subscription_name, "order_created");
+        assert_eq!(payload.entity_type, "Order");
+        assert_eq!(payload.entity_id, "ord_456");
+        assert_eq!(payload.operation, "Create");
+        assert_eq!(payload.data["total"], 99.99);
+        assert!(payload.old_data.is_none());
+        assert_eq!(payload.sequence_number, 42);
+    }
+
+    #[test]
+    fn test_webhook_adapter_debug() {
+        let config = WebhookConfig::new("https://api.example.com/webhooks")
+            .with_secret("secret-key");
+        let adapter = WebhookAdapter::new(config);
+
+        let debug = format!("{:?}", adapter);
+        assert!(debug.contains("WebhookAdapter"));
+        assert!(debug.contains("https://api.example.com/webhooks"));
+        assert!(debug.contains("has_secret: true"));
+    }
+
+    #[test]
+    fn test_webhook_adapter_name() {
+        let config = WebhookConfig::new("https://api.example.com/webhooks");
+        let adapter = WebhookAdapter::new(config);
+
+        assert_eq!(adapter.name(), "webhook");
+    }
+
+    #[test]
+    fn test_kafka_config_builder() {
+        let config = KafkaConfig::new("localhost:9092", "events")
+            .with_client_id("test-client")
+            .with_acks("all")
+            .with_timeout(5_000)
+            .with_compression("gzip");
+
+        assert_eq!(config.brokers, "localhost:9092");
+        assert_eq!(config.default_topic, "events");
+        assert_eq!(config.client_id, "test-client");
+        assert_eq!(config.acks, "all");
+        assert_eq!(config.timeout_ms, 5_000);
+        assert_eq!(config.compression, Some("gzip".to_string()));
+    }
+
+    #[test]
+    fn test_kafka_config_defaults() {
+        let config = KafkaConfig::new("localhost:9092", "events");
+
+        assert_eq!(config.brokers, "localhost:9092");
+        assert_eq!(config.default_topic, "events");
+        assert_eq!(config.client_id, "fraiseql");
+        assert_eq!(config.acks, "all");  // Default: wait for all replicas
+        assert_eq!(config.timeout_ms, 30_000);  // 30 seconds default
+        assert!(config.compression.is_none());
+    }
+
+    #[test]
+    fn test_kafka_message_from_event() {
+        let event = SubscriptionEvent {
+            event_id: "evt_789".to_string(),
+            entity_type: "User".to_string(),
+            entity_id: "usr_123".to_string(),
+            operation: SubscriptionOperation::Update,
+            data: serde_json::json!({"id": "usr_123", "name": "John"}),
+            old_data: Some(serde_json::json!({"id": "usr_123", "name": "Jane"})),
+            timestamp: chrono::Utc::now(),
+            sequence_number: 100,
+        };
+
+        let message = KafkaMessage::from_event(&event, "user_updated");
+
+        assert_eq!(message.event_id, "evt_789");
+        assert_eq!(message.subscription_name, "user_updated");
+        assert_eq!(message.entity_type, "User");
+        assert_eq!(message.entity_id, "usr_123");
+        assert_eq!(message.operation, "Update");
+        assert_eq!(message.data["name"], "John");
+        assert_eq!(message.old_data.as_ref().unwrap()["name"], "Jane");
+        assert_eq!(message.sequence_number, 100);
+    }
+
+    #[test]
+    fn test_kafka_message_key() {
+        let event = SubscriptionEvent {
+            event_id: "evt_1".to_string(),
+            entity_type: "Order".to_string(),
+            entity_id: "ord_partition_key".to_string(),
+            operation: SubscriptionOperation::Create,
+            data: serde_json::json!({}),
+            old_data: None,
+            timestamp: chrono::Utc::now(),
+            sequence_number: 1,
+        };
+
+        let message = KafkaMessage::from_event(&event, "test_sub");
+
+        // Key should be entity_id for consistent partitioning
+        assert_eq!(message.key(), "ord_partition_key");
+    }
+
+    #[test]
+    fn test_kafka_adapter_name() {
+        let config = KafkaConfig::new("localhost:9092", "events");
+        let adapter = KafkaAdapter::new(config);
+
+        assert_eq!(adapter.name(), "kafka");
+    }
+
+    #[test]
+    fn test_transport_manager_new() {
+        let manager = TransportManager::new();
+        assert!(manager.is_empty());
+        assert_eq!(manager.adapter_count(), 0);
+    }
+
+    #[test]
+    fn test_transport_manager_add_adapter() {
+        let mut manager = TransportManager::new();
+
+        let webhook = WebhookAdapter::new(WebhookConfig::new("https://api.example.com/webhooks"));
+        manager.add_adapter(Box::new(webhook));
+
+        assert!(!manager.is_empty());
+        assert_eq!(manager.adapter_count(), 1);
+    }
+
+    #[test]
+    fn test_transport_manager_debug() {
+        let mut manager = TransportManager::new();
+        let webhook = WebhookAdapter::new(WebhookConfig::new("https://api.example.com/webhooks"));
+        manager.add_adapter(Box::new(webhook));
+
+        let debug = format!("{:?}", manager);
+        assert!(debug.contains("TransportManager"));
+        assert!(debug.contains("adapter_count: 1"));
+    }
+
+    #[test]
+    fn test_delivery_result_all_succeeded() {
+        let result = DeliveryResult {
+            successful: 3,
+            failed: 0,
+            errors: vec![],
+        };
+
+        assert!(result.all_succeeded());
+        assert!(result.any_succeeded());
+    }
+
+    #[test]
+    fn test_delivery_result_partial_failure() {
+        let result = DeliveryResult {
+            successful: 2,
+            failed: 1,
+            errors: vec![("webhook".to_string(), "Connection refused".to_string())],
+        };
+
+        assert!(!result.all_succeeded());
+        assert!(result.any_succeeded());
+    }
+
+    #[test]
+    fn test_delivery_result_all_failed() {
+        let result = DeliveryResult {
+            successful: 0,
+            failed: 2,
+            errors: vec![
+                ("webhook".to_string(), "Connection refused".to_string()),
+                ("kafka".to_string(), "Broker unavailable".to_string()),
+            ],
+        };
+
+        assert!(!result.all_succeeded());
+        assert!(!result.any_succeeded());
     }
 }

@@ -58,9 +58,10 @@ pub use matcher::{QueryMatch, QueryMatcher};
 pub use planner::{ExecutionPlan, QueryPlanner};
 pub use projection::{FieldMapping, ProjectionMapper, ResultProjector};
 pub use subscription::{
-    protocol, ActiveSubscription, ListenerConfig, ListenerHandle, PostgresListener,
-    SubscriptionError, SubscriptionEvent, SubscriptionId, SubscriptionManager,
-    SubscriptionOperation, SubscriptionPayload,
+    protocol, ActiveSubscription, DeliveryResult, KafkaAdapter, KafkaConfig, KafkaMessage,
+    ListenerConfig, ListenerHandle, PostgresListener, SubscriptionError, SubscriptionEvent,
+    SubscriptionId, SubscriptionManager, SubscriptionOperation, SubscriptionPayload,
+    TransportAdapter, TransportManager, WebhookAdapter, WebhookConfig, WebhookPayload,
 };
 pub use window::{WindowSql, WindowSqlGenerator};
 pub use window_parser::WindowQueryParser;
