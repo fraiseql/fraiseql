@@ -71,9 +71,11 @@ impl ScramClient {
 
     /// Generate client first message (no proof)
     pub fn client_first(&self) -> String {
-        // Format: n,a=<username>,r=<nonce>
-        // RFC 5802: Channels binding doesn't apply, so use "n" (no channel binding)
-        format!("n,a={},r={}", self.username, self.nonce)
+        // RFC 5802 format: gs2-header client-first-message-bare
+        // gs2-header = "n,," (n = no channel binding, empty authorization identity)
+        // client-first-message-bare = "n=<username>,r=<nonce>"
+        // Note: "n=" is the username, "a=" would be authorization identity (not supported by PostgreSQL)
+        format!("n,,n={},r={}", self.username, self.nonce)
     }
 
     /// Process server first message and generate client final message
@@ -105,7 +107,8 @@ impl ScramClient {
         let client_final_without_proof = format!("c={},r={}", channel_binding, server_nonce);
 
         // Build auth message for signature calculation
-        let client_first_bare = format!("a={},r={}", self.username, self.nonce);
+        // client-first-message-bare is "n=<username>,r=<nonce>" (without gs2-header)
+        let client_first_bare = format!("n={},r={}", self.username, self.nonce);
         let auth_message = format!(
             "{},{},{}",
             client_first_bare, server_first, client_final_without_proof
@@ -278,7 +281,8 @@ mod tests {
         let client = ScramClient::new("alice".to_string(), "secret".to_string());
         let first = client.client_first();
 
-        assert!(first.starts_with("n,a=alice,r="));
+        // RFC 5802 format: "n,,n=<username>,r=<nonce>"
+        assert!(first.starts_with("n,,n=alice,r="));
         assert!(first.len() > 20);
     }
 

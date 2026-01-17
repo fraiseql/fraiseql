@@ -1,19 +1,18 @@
 -- fraiseql-wire Test Data Seed Script
 --
--- This script populates the staging database with realistic test data.
--- Includes various JSON shapes: small, medium, large, and deeply nested.
---
--- Run with: psql -U postgres -d fraiseql_test -f tests/fixtures/seed_data.sql
+-- This script populates the test database with realistic test data.
+-- Follows fraiseql naming conventions:
+--   tb_{entity} - command side table (storage)
+--   v_{entity}  - canonical entity view (JSON data plane)
 
 -- Ensure schema exists
-CREATE SCHEMA IF NOT EXISTS test_staging;
+CREATE SCHEMA IF NOT EXISTS test;
 
 -- ============================================================================
--- Seed Data for Projects (Simple JSON structure)
+-- Seed Data for project (Simple JSON structure)
 -- ============================================================================
 
--- Small projects (< 1KB each)
-INSERT INTO test_staging.projects (id, data) VALUES
+INSERT INTO test.tb_project (id, data) VALUES
   (gen_random_uuid(), '{"name": "Alpha Project", "status": "active", "priority": "high"}'),
   (gen_random_uuid(), '{"name": "Beta Project", "status": "archived", "priority": "low"}'),
   (gen_random_uuid(), '{"name": "Gamma Project", "status": "active", "priority": "medium"}'),
@@ -22,11 +21,10 @@ INSERT INTO test_staging.projects (id, data) VALUES
 ON CONFLICT DO NOTHING;
 
 -- ============================================================================
--- Seed Data for Users (Moderate JSON structure)
+-- Seed Data for user (Moderate JSON structure)
 -- ============================================================================
 
--- Users with nested information (2-5KB each)
-INSERT INTO test_staging.users (id, data) VALUES
+INSERT INTO test.tb_user (id, data) VALUES
   (gen_random_uuid(), '{
     "id": "user_1",
     "name": "Alice Johnson",
@@ -83,11 +81,10 @@ INSERT INTO test_staging.users (id, data) VALUES
 ON CONFLICT DO NOTHING;
 
 -- ============================================================================
--- Seed Data for Tasks (Complex nested structure)
+-- Seed Data for task (Complex nested structure)
 -- ============================================================================
 
--- Tasks with deeply nested metadata (5-20KB each)
-INSERT INTO test_staging.tasks (id, data) VALUES
+INSERT INTO test.tb_task (id, data) VALUES
   (gen_random_uuid(), '{
     "id": "task_1",
     "title": "Implement API endpoint",
@@ -145,12 +142,10 @@ INSERT INTO test_staging.tasks (id, data) VALUES
 ON CONFLICT DO NOTHING;
 
 -- ============================================================================
--- Seed Data for Documents (Large JSON objects)
+-- Seed Data for document (Large JSON objects)
 -- ============================================================================
 
--- Large documents with extensive nested structures (100KB+ each)
--- For memory stress testing
-INSERT INTO test_staging.documents (id, data) VALUES
+INSERT INTO test.tb_document (id, data) VALUES
   (gen_random_uuid(), '{
     "id": "doc_1",
     "title": "Quarterly Business Review",
@@ -213,9 +208,8 @@ ON CONFLICT DO NOTHING;
 -- Verify seed data
 -- ============================================================================
 
--- Show summary of inserted data
 SELECT 'Seed data loaded successfully' as status,
-       (SELECT COUNT(*) FROM test_staging.projects) as projects_count,
-       (SELECT COUNT(*) FROM test_staging.users) as users_count,
-       (SELECT COUNT(*) FROM test_staging.tasks) as tasks_count,
-       (SELECT COUNT(*) FROM test_staging.documents) as documents_count;
+       (SELECT COUNT(*) FROM test.tb_project) as project_count,
+       (SELECT COUNT(*) FROM test.tb_user) as user_count,
+       (SELECT COUNT(*) FROM test.tb_task) as task_count,
+       (SELECT COUNT(*) FROM test.tb_document) as document_count;

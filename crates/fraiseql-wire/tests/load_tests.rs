@@ -1,40 +1,27 @@
 //! Load testing suite for fraiseql-wire
 //!
 //! Tests throughput, memory stability, and performance under sustained load.
-//! These tests require a running Postgres instance with the test_staging schema.
-//!
-//! Run with: cargo test --test load_tests -- --ignored --nocapture
+//! Uses testcontainers to automatically spin up PostgreSQL with test data.
 
+mod common;
+
+use common::connect_test_client;
 use fraiseql_wire::client::FraiseClient;
 use futures::stream::StreamExt;
 use std::time::Instant;
 
-/// Helper to connect to test database
-async fn connect_test_db() -> fraiseql_wire::error::Result<FraiseClient> {
-    let conn_string = format!(
-        "postgres://{}:{}@{}/{}",
-        std::env::var("POSTGRES_USER").unwrap_or_else(|_| "postgres".to_string()),
-        std::env::var("POSTGRES_PASSWORD").unwrap_or_else(|_| "postgres".to_string()),
-        std::env::var("POSTGRES_HOST").unwrap_or_else(|_| "localhost".to_string()),
-        std::env::var("POSTGRES_DB").unwrap_or_else(|_| "fraiseql_test".to_string()),
-    );
-
-    FraiseClient::connect(&conn_string).await
-}
-
 /// Test streaming with moderate data volume
 #[tokio::test]
-#[ignore] // Requires Postgres running
 async fn test_load_moderate_volume() {
     println!("Test: Moderate data volume streaming");
 
-    let client = connect_test_db()
+    let client = connect_test_client()
         .await
         .expect("failed to connect to test database");
 
     let start = Instant::now();
     let mut stream = client
-        .query::<serde_json::Value>("projects")
+        .query::<serde_json::Value>("test.v_project")
         .execute()
         .await
         .expect("failed to execute query");
@@ -58,17 +45,16 @@ async fn test_load_moderate_volume() {
 
 /// Test streaming with large data volume and custom chunk size
 #[tokio::test]
-#[ignore] // Requires Postgres running
 async fn test_load_large_volume_custom_chunk() {
     println!("Test: Large volume with custom chunk size");
 
-    let client = connect_test_db()
+    let client = connect_test_client()
         .await
         .expect("failed to connect to test database");
 
     let start = Instant::now();
     let mut stream = client
-        .query::<serde_json::Value>("tasks")
+        .query::<serde_json::Value>("test.v_task")
         .chunk_size(512) // Larger chunk for more rows per batch
         .execute()
         .await
@@ -93,17 +79,16 @@ async fn test_load_large_volume_custom_chunk() {
 
 /// Test streaming with WHERE predicate (reduces data volume)
 #[tokio::test]
-#[ignore] // Requires Postgres running
 async fn test_load_with_sql_predicate() {
     println!("Test: With SQL predicate filtering");
 
-    let client = connect_test_db()
+    let client = connect_test_client()
         .await
         .expect("failed to connect to test database");
 
     let start = Instant::now();
     let mut stream = client
-        .query::<serde_json::Value>("projects")
+        .query::<serde_json::Value>("test.v_project")
         .where_sql("data->>'status' = 'active'")
         .execute()
         .await
@@ -126,17 +111,16 @@ async fn test_load_with_sql_predicate() {
 
 /// Test streaming with Rust predicate (client-side filtering)
 #[tokio::test]
-#[ignore] // Requires Postgres running
 async fn test_load_with_rust_predicate() {
     println!("Test: With Rust predicate filtering");
 
-    let client = connect_test_db()
+    let client = connect_test_client()
         .await
         .expect("failed to connect to test database");
 
     let start = Instant::now();
     let mut stream = client
-        .query::<serde_json::Value>("users")
+        .query::<serde_json::Value>("test.v_user")
         .where_rust(|json| {
             // Only accept users with profile info
             json.get("profile").is_some()
@@ -161,17 +145,16 @@ async fn test_load_with_rust_predicate() {
 
 /// Test streaming documents (large JSON objects)
 #[tokio::test]
-#[ignore] // Requires Postgres running
 async fn test_load_large_json_objects() {
     println!("Test: Large JSON objects");
 
-    let client = connect_test_db()
+    let client = connect_test_client()
         .await
         .expect("failed to connect to test database");
 
     let start = Instant::now();
     let mut stream = client
-        .query::<serde_json::Value>("documents")
+        .query::<serde_json::Value>("test.v_document")
         .chunk_size(32) // Small chunks for large objects
         .execute()
         .await
@@ -200,17 +183,16 @@ async fn test_load_large_json_objects() {
 
 /// Test with ORDER BY (server-side sorting)
 #[tokio::test]
-#[ignore] // Requires Postgres running
 async fn test_load_with_order_by() {
     println!("Test: With ORDER BY clause");
 
-    let client = connect_test_db()
+    let client = connect_test_client()
         .await
         .expect("failed to connect to test database");
 
     let start = Instant::now();
     let mut stream = client
-        .query::<serde_json::Value>("projects")
+        .query::<serde_json::Value>("test.v_project")
         .order_by("data->>'name' ASC")
         .execute()
         .await
@@ -245,7 +227,6 @@ async fn test_load_with_order_by() {
 
 /// Test multiple sequential connections (simulates concurrent workload)
 #[tokio::test]
-#[ignore] // Requires Postgres running
 async fn test_load_multiple_sequential_connections() {
     println!("Test: Multiple sequential connections");
 
@@ -253,11 +234,11 @@ async fn test_load_multiple_sequential_connections() {
     let mut total_rows = 0;
 
     for i in 0..num_connections {
-        let client = connect_test_db().await.expect("failed to connect");
+        let client = connect_test_client().await.expect("failed to connect");
 
         let start = Instant::now();
         let mut stream = client
-            .query::<serde_json::Value>("projects")
+            .query::<serde_json::Value>("test.v_project")
             .execute()
             .await
             .expect("failed to execute");
@@ -283,19 +264,18 @@ async fn test_load_multiple_sequential_connections() {
 
 /// Test streaming stability over time (look for memory leaks)
 #[tokio::test]
-#[ignore] // Requires Postgres running - long running test
 async fn test_load_sustained_streaming() {
     println!("Test: Sustained streaming (duration test)");
 
-    let client = connect_test_db()
+    let client = connect_test_client()
         .await
         .expect("failed to connect to test database");
 
-    let duration = std::time::Duration::from_secs(30); // 30-second test
+    // For test data with only a few rows, we just verify we can stream all of them
     let start = Instant::now();
 
     let mut stream = client
-        .query::<serde_json::Value>("projects")
+        .query::<serde_json::Value>("test.v_project")
         .execute()
         .await
         .expect("failed to execute query");
@@ -305,11 +285,6 @@ async fn test_load_sustained_streaming() {
     while let Some(result) = stream.next().await {
         let _value = result.expect("failed to deserialize row");
         count += 1;
-
-        // Break if we've exceeded duration
-        if start.elapsed() >= duration {
-            break;
-        }
     }
 
     let elapsed = start.elapsed();
@@ -323,18 +298,17 @@ async fn test_load_sustained_streaming() {
 
 /// Benchmark different chunk sizes to find optimal throughput
 #[tokio::test]
-#[ignore] // Requires Postgres running
 async fn test_load_chunk_size_comparison() {
     println!("Test: Chunk size performance comparison");
 
     let chunk_sizes = vec![16, 32, 64, 128, 256, 512];
 
     for chunk_size in chunk_sizes {
-        let client = connect_test_db().await.expect("failed to connect");
+        let client = connect_test_client().await.expect("failed to connect");
 
         let start = Instant::now();
         let mut stream = client
-            .query::<serde_json::Value>("projects")
+            .query::<serde_json::Value>("test.v_project")
             .chunk_size(chunk_size)
             .execute()
             .await
@@ -358,16 +332,15 @@ async fn test_load_chunk_size_comparison() {
 
 /// Test error recovery during streaming
 #[tokio::test]
-#[ignore] // Requires Postgres running
 async fn test_load_partial_stream_drop() {
     println!("Test: Partial stream consumption and drop");
 
-    let client = connect_test_db()
+    let client = connect_test_client()
         .await
         .expect("failed to connect to test database");
 
     let mut stream = client
-        .query::<serde_json::Value>("projects")
+        .query::<serde_json::Value>("test.v_project")
         .execute()
         .await
         .expect("failed to execute query");
@@ -389,12 +362,12 @@ async fn test_load_partial_stream_drop() {
     // If we get here without panicking, cancellation worked
 
     // Now verify we can make another connection
-    let client2 = connect_test_db()
+    let client2 = connect_test_client()
         .await
         .expect("should be able to reconnect");
 
     let mut stream2 = client2
-        .query::<serde_json::Value>("projects")
+        .query::<serde_json::Value>("test.v_project")
         .execute()
         .await
         .expect("failed to execute second query");

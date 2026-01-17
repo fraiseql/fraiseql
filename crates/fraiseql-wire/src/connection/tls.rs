@@ -352,6 +352,14 @@ pub fn parse_server_name(hostname: &str) -> Result<String> {
 mod tests {
     use super::*;
 
+    /// Install a crypto provider for rustls tests.
+    /// This is needed because multiple crypto providers (ring and aws-lc-rs)
+    /// may be enabled via transitive dependencies, requiring explicit selection.
+    fn install_crypto_provider() {
+        // Try to install ring as the default provider, ignore if already installed
+        let _ = rustls::crypto::ring::default_provider().install_default();
+    }
+
     #[test]
     fn test_tls_config_builder_defaults() {
         let tls = TlsConfigBuilder::default();
@@ -363,6 +371,8 @@ mod tests {
 
     #[test]
     fn test_tls_config_builder_with_hostname_verification() {
+        install_crypto_provider();
+
         let tls = TlsConfig::builder()
             .verify_hostname(true)
             .build()
@@ -407,6 +417,8 @@ mod tests {
 
     #[test]
     fn test_tls_config_debug() {
+        install_crypto_provider();
+
         let tls = TlsConfig::builder()
             .verify_hostname(true)
             .build()

@@ -29,6 +29,13 @@ mod tls_integration {
     use serde_json::Value;
     use std::env;
 
+    /// Install a crypto provider for rustls tests.
+    /// This is needed because multiple crypto providers (ring and aws-lc-rs)
+    /// may be enabled via transitive dependencies, requiring explicit selection.
+    fn install_crypto_provider() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+    }
+
     /// Helper to get TLS test configuration from environment
     fn get_tls_test_config() -> Option<(String, bool)> {
         let db_url = env::var("TLS_TEST_DB_URL").ok()?;
@@ -252,6 +259,8 @@ mod tls_integration {
     /// Test TLS configuration cloning for connection pool scenarios
     #[test]
     fn test_tls_config_cloneable() {
+        install_crypto_provider();
+
         let config = TlsConfig::builder()
             .verify_hostname(true)
             .build()
@@ -270,6 +279,8 @@ mod tls_integration {
     /// Test that TLS hostname verification setting is respected
     #[test]
     fn test_tls_hostname_verification_setting() {
+        install_crypto_provider();
+
         // Strict verification (production)
         let strict_config = TlsConfig::builder()
             .verify_hostname(true)

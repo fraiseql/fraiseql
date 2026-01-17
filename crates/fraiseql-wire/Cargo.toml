@@ -36,7 +36,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 whoami = "1"
 
 # TLS support
-rustls = "0.23"
+rustls = { version = "0.23", features = ["ring"] }
 rustls-pemfile = "2.0"
 webpki-roots = "0.26"
 rustls-pki-types = "1"
@@ -57,6 +57,8 @@ metrics = "0.22"        # Metrics collection framework
 tokio-test = "0.4"
 criterion = { version = "0.5", features = ["async_tokio"] }
 tokio-postgres = "0.7"
+testcontainers = "0.26"
+testcontainers-modules = { version = "0.14", features = ["postgres"] }
 
 [[bench]]
 name = "micro_benchmarks"

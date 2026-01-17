@@ -1,16 +1,14 @@
 //! Integration tests for WHERE operators and query modifiers
 //!
-//! These tests verify that all 25 operators work correctly with actual PostgreSQL data.
-//! They test both JSONB field filtering and direct column filtering.
-//!
-//! Run with: `cargo test --test integration_operators -- --ignored --nocapture`
-//! Requires: PostgreSQL running via `docker-compose up`
+//! These tests verify that all operators work correctly with actual PostgreSQL data.
+//! Uses testcontainers to automatically spin up PostgreSQL with test data.
 
+mod common;
+
+use common::connect_test_client;
 use fraiseql_wire::FraiseClient;
 use futures::StreamExt;
 use serde_json::Value;
-
-const TEST_DB_URL: &str = "postgres://postgres:postgres@localhost:5433/fraiseql_test";
 
 /// Helper to collect all results from a stream
 async fn collect_results(
@@ -35,13 +33,12 @@ async fn collect_results(
 // ============================================================================
 
 #[tokio::test]
-#[ignore] // Requires PostgreSQL running
 async fn test_operator_jsonb_eq_string() {
-    let client = FraiseClient::connect(TEST_DB_URL).await.expect("connect");
+    let client = connect_test_client().await.expect("connect");
 
     // Filter projects where status = 'active' (JSONB text field)
     let results = client
-        .query::<Value>("test_staging.v_projects")
+        .query::<Value>("test.v_project")
         .where_sql("(data->>'status')::text = 'active'")
         .execute()
         .await
@@ -61,13 +58,12 @@ async fn test_operator_jsonb_eq_string() {
 }
 
 #[tokio::test]
-#[ignore] // Requires PostgreSQL running
 async fn test_operator_jsonb_neq() {
-    let client = FraiseClient::connect(TEST_DB_URL).await.expect("connect");
+    let client = connect_test_client().await.expect("connect");
 
     // Filter projects where status != 'active'
     let results = client
-        .query::<Value>("test_staging.v_projects")
+        .query::<Value>("test.v_project")
         .where_sql("(data->>'status')::text != 'active'")
         .execute()
         .await
@@ -87,13 +83,12 @@ async fn test_operator_jsonb_neq() {
 }
 
 #[tokio::test]
-#[ignore] // Requires PostgreSQL running
 async fn test_operator_jsonb_in() {
-    let client = FraiseClient::connect(TEST_DB_URL).await.expect("connect");
+    let client = connect_test_client().await.expect("connect");
 
     // Filter projects where status IN ('active', 'paused')
     let results = client
-        .query::<Value>("test_staging.v_projects")
+        .query::<Value>("test.v_project")
         .where_sql("(data->>'status')::text IN ('active', 'paused')")
         .execute()
         .await
@@ -116,13 +111,12 @@ async fn test_operator_jsonb_in() {
 }
 
 #[tokio::test]
-#[ignore] // Requires PostgreSQL running
 async fn test_operator_jsonb_contains() {
-    let client = FraiseClient::connect(TEST_DB_URL).await.expect("connect");
+    let client = connect_test_client().await.expect("connect");
 
     // Filter projects where name contains 'Project'
     let results = client
-        .query::<Value>("test_staging.v_projects")
+        .query::<Value>("test.v_project")
         .where_sql("(data->>'name')::text LIKE '%Project%'")
         .execute()
         .await
@@ -146,14 +140,13 @@ async fn test_operator_jsonb_contains() {
 // ============================================================================
 
 #[tokio::test]
-#[ignore] // Requires PostgreSQL running
 async fn test_operator_direct_column_timestamp() {
-    let client = FraiseClient::connect(TEST_DB_URL).await.expect("connect");
+    let client = connect_test_client().await.expect("connect");
 
-    // Note: v_users view only exposes id and data columns
+    // Note: v_user view only exposes id and data columns
     // So we filter on JSONB created_at instead of direct column
     let results = client
-        .query::<Value>("test_staging.v_users")
+        .query::<Value>("test.v_user")
         .where_sql("(data->>'created_at')::timestamp > '2024-01-02'::timestamp")
         .execute()
         .await
@@ -171,14 +164,13 @@ async fn test_operator_direct_column_timestamp() {
 // ============================================================================
 
 #[tokio::test]
-#[ignore] // Requires PostgreSQL running
 async fn test_mixed_filters_jsonb_and_direct() {
-    let client = FraiseClient::connect(TEST_DB_URL).await.expect("connect");
+    let client = connect_test_client().await.expect("connect");
 
     // Filter: JSONB status = 'active' AND JSONB name contains 'Project'
     // (Demonstrates mixed JSONB filters in single WHERE clause)
     let results = client
-        .query::<Value>("test_staging.v_projects")
+        .query::<Value>("test.v_project")
         .where_sql("(data->>'status')::text = 'active'")
         .where_sql("(data->>'name')::text LIKE '%Project%'")
         .execute()
@@ -208,13 +200,12 @@ async fn test_mixed_filters_jsonb_and_direct() {
 // ============================================================================
 
 #[tokio::test]
-#[ignore] // Requires PostgreSQL running
 async fn test_limit_clause() {
-    let client = FraiseClient::connect(TEST_DB_URL).await.expect("connect");
+    let client = connect_test_client().await.expect("connect");
 
     // Get first 2 projects
     let results = client
-        .query::<Value>("test_staging.v_projects")
+        .query::<Value>("test.v_project")
         .limit(2)
         .execute()
         .await
@@ -231,13 +222,12 @@ async fn test_limit_clause() {
 // ============================================================================
 
 #[tokio::test]
-#[ignore] // Requires PostgreSQL running
 async fn test_offset_clause() {
-    let client = FraiseClient::connect(TEST_DB_URL).await.expect("connect");
+    let client = connect_test_client().await.expect("connect");
 
     // Get projects with OFFSET 2 (skip first 2)
     let results = client
-        .query::<Value>("test_staging.v_projects")
+        .query::<Value>("test.v_project")
         .offset(2)
         .limit(10)
         .execute()
@@ -259,13 +249,12 @@ async fn test_offset_clause() {
 // ============================================================================
 
 #[tokio::test]
-#[ignore] // Requires PostgreSQL running
 async fn test_order_by_jsonb_field() {
-    let client = FraiseClient::connect(TEST_DB_URL).await.expect("connect");
+    let client = connect_test_client().await.expect("connect");
 
     // Order by JSONB field (name)
     let results = client
-        .query::<Value>("test_staging.v_projects")
+        .query::<Value>("test.v_project")
         .order_by("(data->>'name')::text ASC")
         .execute()
         .await
@@ -286,13 +275,12 @@ async fn test_order_by_jsonb_field() {
 }
 
 #[tokio::test]
-#[ignore] // Requires PostgreSQL running
 async fn test_order_by_jsonb_field_multiple() {
-    let client = FraiseClient::connect(TEST_DB_URL).await.expect("connect");
+    let client = connect_test_client().await.expect("connect");
 
     // Order by multiple JSONB fields
     let results = client
-        .query::<Value>("test_staging.v_projects")
+        .query::<Value>("test.v_project")
         .order_by("(data->>'status')::text ASC, (data->>'name')::text DESC")
         .execute()
         .await
@@ -313,14 +301,13 @@ async fn test_order_by_jsonb_field_multiple() {
 // ============================================================================
 
 #[tokio::test]
-#[ignore] // Requires PostgreSQL running
 async fn test_operator_array_length() {
-    let client = FraiseClient::connect(TEST_DB_URL).await.expect("connect");
+    let client = connect_test_client().await.expect("connect");
 
     // Filter users where roles array has exactly 2 elements
     // For JSONB arrays, use json_array_length() function
     let results = client
-        .query::<Value>("test_staging.v_users")
+        .query::<Value>("test.v_user")
         .where_sql("jsonb_array_length(data->'roles') = 2")
         .execute()
         .await
@@ -337,13 +324,12 @@ async fn test_operator_array_length() {
 }
 
 #[tokio::test]
-#[ignore] // Requires PostgreSQL running
 async fn test_operator_array_length_gt() {
-    let client = FraiseClient::connect(TEST_DB_URL).await.expect("connect");
+    let client = connect_test_client().await.expect("connect");
 
     // Filter users where roles array has more than 1 element
     let results = client
-        .query::<Value>("test_staging.v_users")
+        .query::<Value>("test.v_user")
         .where_sql("jsonb_array_length(data->'roles') > 1")
         .execute()
         .await
@@ -364,13 +350,12 @@ async fn test_operator_array_length_gt() {
 // ============================================================================
 
 #[tokio::test]
-#[ignore] // Requires PostgreSQL running
 async fn test_pagination_full_cycle() {
-    let client1 = FraiseClient::connect(TEST_DB_URL).await.expect("connect");
+    let client1 = connect_test_client().await.expect("connect");
 
     // Get first page: LIMIT 2 OFFSET 0
     let results1 = client1
-        .query::<Value>("test_staging.v_projects")
+        .query::<Value>("test.v_project")
         .limit(2)
         .offset(0)
         .order_by("(data->>'name')::text ASC")
@@ -382,9 +367,9 @@ async fn test_pagination_full_cycle() {
     println!("Page 1 (LIMIT 2 OFFSET 0): {} items", page1.len());
 
     // Get second page: LIMIT 2 OFFSET 2
-    let client2 = FraiseClient::connect(TEST_DB_URL).await.expect("connect");
+    let client2 = connect_test_client().await.expect("connect");
     let results2 = client2
-        .query::<Value>("test_staging.v_projects")
+        .query::<Value>("test.v_project")
         .limit(2)
         .offset(2)
         .order_by("(data->>'name')::text ASC")
@@ -409,13 +394,12 @@ async fn test_pagination_full_cycle() {
 // ============================================================================
 
 #[tokio::test]
-#[ignore] // Requires PostgreSQL running
 async fn test_complex_filters_with_ordering_and_pagination() {
-    let client = FraiseClient::connect(TEST_DB_URL).await.expect("connect");
+    let client = connect_test_client().await.expect("connect");
 
     // Filter: status = active, order by name, limit results
     let results = client
-        .query::<Value>("test_staging.v_projects")
+        .query::<Value>("test.v_project")
         .where_sql("(data->>'status')::text = 'active'")
         .order_by("(data->>'name')::text ASC")
         .limit(10)
@@ -442,13 +426,12 @@ async fn test_complex_filters_with_ordering_and_pagination() {
 // ============================================================================
 
 #[tokio::test]
-#[ignore] // Requires PostgreSQL running
 async fn test_order_by_with_collation_c() {
-    let client = FraiseClient::connect(TEST_DB_URL).await.expect("connect");
+    let client = connect_test_client().await.expect("connect");
 
     // Order by with binary collation (C)
     let results = client
-        .query::<Value>("test_staging.v_projects")
+        .query::<Value>("test.v_project")
         .order_by("(data->>'name')::text COLLATE \"C\" ASC")
         .execute()
         .await
@@ -465,13 +448,12 @@ async fn test_order_by_with_collation_c() {
 // ============================================================================
 
 #[tokio::test]
-#[ignore] // Requires PostgreSQL running
 async fn test_operator_like_pattern() {
-    let client = FraiseClient::connect(TEST_DB_URL).await.expect("connect");
+    let client = connect_test_client().await.expect("connect");
 
     // Use LIKE pattern matching on name
     let results = client
-        .query::<Value>("test_staging.v_projects")
+        .query::<Value>("test.v_project")
         .where_sql("(data->>'name')::text LIKE 'A%'")
         .execute()
         .await
@@ -488,13 +470,12 @@ async fn test_operator_like_pattern() {
 }
 
 #[tokio::test]
-#[ignore] // Requires PostgreSQL running
 async fn test_operator_ilike_case_insensitive() {
-    let client = FraiseClient::connect(TEST_DB_URL).await.expect("connect");
+    let client = connect_test_client().await.expect("connect");
 
     // Use ILIKE for case-insensitive matching
     let results = client
-        .query::<Value>("test_staging.v_projects")
+        .query::<Value>("test.v_project")
         .where_sql("(data->>'name')::text ILIKE 'a%'")
         .execute()
         .await
@@ -521,13 +502,12 @@ async fn test_operator_ilike_case_insensitive() {
 // ============================================================================
 
 #[tokio::test]
-#[ignore] // Requires PostgreSQL running
 async fn test_streaming_large_result_set() {
-    let client = FraiseClient::connect(TEST_DB_URL).await.expect("connect");
+    let client = connect_test_client().await.expect("connect");
 
     // Stream all projects
     let mut stream = client
-        .query::<Value>("test_staging.v_projects")
+        .query::<Value>("test.v_project")
         .chunk_size(2) // Small chunk size to test batching
         .execute()
         .await
@@ -548,14 +528,13 @@ async fn test_streaming_large_result_set() {
 // ============================================================================
 
 #[tokio::test]
-#[ignore] // Requires PostgreSQL running
 async fn test_operator_is_null() {
-    let client = FraiseClient::connect(TEST_DB_URL).await.expect("connect");
+    let client = connect_test_client().await.expect("connect");
 
     // Filter for rows where a JSONB field might be null
     // (This test verifies the SQL generation is correct)
     let results = client
-        .query::<Value>("test_staging.v_users")
+        .query::<Value>("test.v_user")
         // Most users should have a website field, so this should return few/zero
         .where_sql("(data->'profile'->>'website') IS NULL")
         .execute()
@@ -574,13 +553,12 @@ async fn test_operator_is_null() {
 // ============================================================================
 
 #[tokio::test]
-#[ignore] // Requires PostgreSQL running
 async fn test_query_without_filters() {
-    let client = FraiseClient::connect(TEST_DB_URL).await.expect("connect");
+    let client = connect_test_client().await.expect("connect");
 
     // Get all projects
     let results = client
-        .query::<Value>("test_staging.v_projects")
+        .query::<Value>("test.v_project")
         .execute()
         .await
         .expect("query");
@@ -592,13 +570,12 @@ async fn test_query_without_filters() {
 }
 
 #[tokio::test]
-#[ignore] // Requires PostgreSQL running
 async fn test_query_with_empty_result() {
-    let client = FraiseClient::connect(TEST_DB_URL).await.expect("connect");
+    let client = connect_test_client().await.expect("connect");
 
     // Query that should return no results
     let results = client
-        .query::<Value>("test_staging.v_projects")
+        .query::<Value>("test.v_project")
         .where_sql("(data->>'status')::text = 'nonexistent_status'")
         .execute()
         .await
