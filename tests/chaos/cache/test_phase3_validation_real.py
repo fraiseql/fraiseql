@@ -65,20 +65,14 @@ async def test_cache_miss_performance_impact(chaos_db_client, chaos_test_schema,
         assert cold_avg >= baseline_avg, "Cache misses should increase latency"
 
         # But degradation should be bounded
-        # For sub-millisecond baselines, use absolute difference instead of ratio
-        # (100ms latency on 0.5ms base = 200x ratio, but only 99.5ms absolute difference)
-        if baseline_avg < 1.0:
-            # Sub-millisecond baseline: check absolute degradation < 150ms
-            absolute_degradation = cold_avg - baseline_avg
-            assert absolute_degradation < 150, (
-                f"Cache miss degradation too severe: {absolute_degradation:.1f}ms absolute"
-            )
-        else:
-            # Normal baseline: check relative degradation < 5x
-            degradation_factor = cold_avg / baseline_avg
-            assert degradation_factor < 5, (
-                f"Cache miss degradation too severe: {degradation_factor:.1f}x"
-            )
+        # Since we inject 100ms latency, use absolute difference check
+        # Relative ratios are misleading for small baselines with fixed latency injection
+        # (100ms latency on 1ms base = 100x ratio, but only 99ms absolute difference)
+        absolute_degradation = cold_avg - baseline_avg
+        assert absolute_degradation < 150, (
+            f"Cache miss degradation too severe: {absolute_degradation:.1f}ms absolute "
+            f"(baseline: {baseline_avg:.1f}ms, cold: {cold_avg:.1f}ms)"
+        )
 
 
 @pytest.mark.chaos
