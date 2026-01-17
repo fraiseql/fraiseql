@@ -54,6 +54,19 @@ final class StaticAPI
     }
 
     /**
+     * Start building a subscription definition.
+     * Subscriptions in FraiseQL are compiled projections of database events.
+     * They are sourced from LISTEN/NOTIFY or CDC, not resolver-based.
+     *
+     * @param string $name The subscription name
+     * @return SubscriptionBuilder The subscription builder
+     */
+    public static function subscription(string $name): SubscriptionBuilder
+    {
+        return SubscriptionBuilder::subscription($name);
+    }
+
+    /**
      * Register a type from a TypeBuilder instance.
      *
      * @param TypeBuilder $builder The type builder
@@ -146,6 +159,38 @@ final class StaticAPI
     public static function getTypeNameForClass(string $className): ?string
     {
         return SchemaRegistry::getInstance()->getTypeNameForClass($className);
+    }
+
+    /**
+     * Get a registered subscription by name.
+     *
+     * @param string $name The subscription name
+     * @return SubscriptionDefinition|null
+     */
+    public static function getSubscription(string $name): ?SubscriptionDefinition
+    {
+        return SchemaRegistry::getInstance()->getSubscription($name);
+    }
+
+    /**
+     * Get all registered subscriptions.
+     *
+     * @return array<string, SubscriptionDefinition>
+     */
+    public static function getAllSubscriptions(): array
+    {
+        return SchemaRegistry::getInstance()->getAllSubscriptions();
+    }
+
+    /**
+     * Check if a subscription is registered.
+     *
+     * @param string $name The subscription name
+     * @return bool
+     */
+    public static function hasSubscription(string $name): bool
+    {
+        return SchemaRegistry::getInstance()->hasSubscription($name);
     }
 
     /**

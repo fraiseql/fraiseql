@@ -4,7 +4,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Thread-safe registry for GraphQL types, queries, and mutations.
+ * Thread-safe registry for GraphQL types, queries, mutations, and subscriptions.
  * Singleton pattern ensures single schema instance across application.
  * Used by FraiseQL to track all registered types and root operations.
  */
@@ -14,11 +14,13 @@ public class SchemaRegistry {
     private final Map<String, GraphQLTypeInfo> types;
     private final Map<String, QueryInfo> queries;
     private final Map<String, MutationInfo> mutations;
+    private final Map<String, SubscriptionInfo> subscriptions;
 
     private SchemaRegistry() {
         this.types = new ConcurrentHashMap<>();
         this.queries = new ConcurrentHashMap<>();
         this.mutations = new ConcurrentHashMap<>();
+        this.subscriptions = new ConcurrentHashMap<>();
     }
 
     /**
@@ -87,6 +89,39 @@ public class SchemaRegistry {
     }
 
     /**
+     * Register a subscription in the schema.
+     * Subscriptions in FraiseQL are compiled projections of database events.
+     * They are sourced from LISTEN/NOTIFY or CDC, not resolver-based.
+     *
+     * @param subscriptionName the subscription name
+     * @param entityType the entity type being subscribed to
+     * @param arguments the subscription arguments (filters)
+     * @param description optional description
+     */
+    public void registerSubscription(String subscriptionName, String entityType, Map<String, String> arguments, String description) {
+        SubscriptionInfo subscriptionInfo = new SubscriptionInfo(subscriptionName, entityType, arguments, description, null, null);
+        subscriptions.put(subscriptionName, subscriptionInfo);
+    }
+
+    /**
+     * Register a subscription in the schema with topic and operation.
+     * Subscriptions in FraiseQL are compiled projections of database events.
+     * They are sourced from LISTEN/NOTIFY or CDC, not resolver-based.
+     *
+     * @param subscriptionName the subscription name
+     * @param entityType the entity type being subscribed to
+     * @param arguments the subscription arguments (filters)
+     * @param description optional description
+     * @param topic optional topic/channel name for filtering events
+     * @param operation optional operation filter (CREATE, UPDATE, DELETE)
+     */
+    public void registerSubscription(String subscriptionName, String entityType, Map<String, String> arguments,
+                                     String description, String topic, String operation) {
+        SubscriptionInfo subscriptionInfo = new SubscriptionInfo(subscriptionName, entityType, arguments, description, topic, operation);
+        subscriptions.put(subscriptionName, subscriptionInfo);
+    }
+
+    /**
      * Get a registered type by name.
      *
      * @param typeName the type name
@@ -117,6 +152,16 @@ public class SchemaRegistry {
     }
 
     /**
+     * Get a registered subscription by name.
+     *
+     * @param subscriptionName the subscription name
+     * @return the SubscriptionInfo or empty Optional if not found
+     */
+    public Optional<SubscriptionInfo> getSubscription(String subscriptionName) {
+        return Optional.ofNullable(subscriptions.get(subscriptionName));
+    }
+
+    /**
      * Get all registered types.
      *
      * @return unmodifiable map of type name to GraphQLTypeInfo
@@ -144,13 +189,23 @@ public class SchemaRegistry {
     }
 
     /**
-     * Clear all registered types, queries, and mutations.
+     * Get all registered subscriptions.
+     *
+     * @return unmodifiable map of subscription name to SubscriptionInfo
+     */
+    public Map<String, SubscriptionInfo> getAllSubscriptions() {
+        return Collections.unmodifiableMap(subscriptions);
+    }
+
+    /**
+     * Clear all registered types, queries, mutations, and subscriptions.
      * Useful for testing.
      */
     public void clear() {
         types.clear();
         queries.clear();
         mutations.clear();
+        subscriptions.clear();
     }
 
     /**
@@ -227,6 +282,41 @@ public class SchemaRegistry {
                 "name='" + name + '\'' +
                 ", returnType='" + returnType + '\'' +
                 ", arguments=" + arguments.size() +
+                '}';
+        }
+    }
+
+    /**
+     * Information about a registered GraphQL subscription.
+     * Subscriptions in FraiseQL are compiled projections of database events.
+     * They are sourced from LISTEN/NOTIFY or CDC, not resolver-based.
+     */
+    public static class SubscriptionInfo {
+        public final String name;
+        public final String entityType;
+        public final Map<String, String> arguments;
+        public final String description;
+        public final String topic;
+        public final String operation;
+
+        public SubscriptionInfo(String name, String entityType, Map<String, String> arguments,
+                                String description, String topic, String operation) {
+            this.name = name;
+            this.entityType = entityType;
+            this.arguments = Collections.unmodifiableMap(new LinkedHashMap<>(arguments));
+            this.description = description;
+            this.topic = topic;
+            this.operation = operation;
+        }
+
+        @Override
+        public String toString() {
+            return "SubscriptionInfo{" +
+                "name='" + name + '\'' +
+                ", entityType='" + entityType + '\'' +
+                ", arguments=" + arguments.size() +
+                (topic != null ? ", topic='" + topic + '\'' : "") +
+                (operation != null ? ", operation='" + operation + '\'' : "") +
                 '}';
         }
     }

@@ -64,23 +64,39 @@ type AggregateQueryDefinition struct {
 	Config           map[string]interface{} `json:"config,omitempty"`
 }
 
+// SubscriptionDefinition represents a GraphQL subscription
+// Subscriptions in FraiseQL are compiled projections of database events.
+// They are sourced from LISTEN/NOTIFY or CDC, not resolver-based.
+type SubscriptionDefinition struct {
+	Name        string                 `json:"name"`
+	EntityType  string                 `json:"entity_type"`
+	Nullable    bool                   `json:"nullable"`
+	Arguments   []ArgumentDefinition   `json:"arguments"`
+	Description string                 `json:"description,omitempty"`
+	Topic       string                 `json:"topic,omitempty"`
+	Operation   string                 `json:"operation,omitempty"`
+	Config      map[string]interface{} `json:"config,omitempty"`
+}
+
 // Schema represents the complete GraphQL schema
 type Schema struct {
-	Types           []TypeDefinition        `json:"types"`
-	Queries         []QueryDefinition       `json:"queries"`
-	Mutations       []MutationDefinition    `json:"mutations"`
-	FactTables      []FactTableDefinition   `json:"fact_tables,omitempty"`
+	Types            []TypeDefinition           `json:"types"`
+	Queries          []QueryDefinition          `json:"queries"`
+	Mutations        []MutationDefinition       `json:"mutations"`
+	Subscriptions    []SubscriptionDefinition   `json:"subscriptions"`
+	FactTables       []FactTableDefinition      `json:"fact_tables,omitempty"`
 	AggregateQueries []AggregateQueryDefinition `json:"aggregate_queries,omitempty"`
 }
 
-// SchemaRegistry is a singleton registry for collecting types, queries, mutations
+// SchemaRegistry is a singleton registry for collecting types, queries, mutations, and subscriptions
 type SchemaRegistry struct {
-	mu                 sync.RWMutex
-	types              map[string]TypeDefinition
-	queries            map[string]QueryDefinition
-	mutations          map[string]MutationDefinition
-	factTables         map[string]FactTableDefinition
-	aggregateQueries   map[string]AggregateQueryDefinition
+	mu               sync.RWMutex
+	types            map[string]TypeDefinition
+	queries          map[string]QueryDefinition
+	mutations        map[string]MutationDefinition
+	subscriptions    map[string]SubscriptionDefinition
+	factTables       map[string]FactTableDefinition
+	aggregateQueries map[string]AggregateQueryDefinition
 }
 
 // Global registry instance
@@ -94,6 +110,7 @@ func getInstance() *SchemaRegistry {
 			types:            make(map[string]TypeDefinition),
 			queries:          make(map[string]QueryDefinition),
 			mutations:        make(map[string]MutationDefinition),
+			subscriptions:    make(map[string]SubscriptionDefinition),
 			factTables:       make(map[string]FactTableDefinition),
 			aggregateQueries: make(map[string]AggregateQueryDefinition),
 		}
@@ -150,6 +167,17 @@ func RegisterAggregateQuery(definition AggregateQueryDefinition) {
 	reg.aggregateQueries[definition.Name] = definition
 }
 
+// RegisterSubscription registers a subscription with the schema registry
+// Subscriptions in FraiseQL are compiled projections of database events.
+// They are sourced from LISTEN/NOTIFY or CDC, not resolver-based.
+func RegisterSubscription(definition SubscriptionDefinition) {
+	reg := getInstance()
+	reg.mu.Lock()
+	defer reg.mu.Unlock()
+
+	reg.subscriptions[definition.Name] = definition
+}
+
 // GetSchema returns the complete schema as a Schema struct
 func GetSchema() Schema {
 	reg := getInstance()
@@ -169,6 +197,10 @@ func GetSchema() Schema {
 
 	for _, mutationDef := range reg.mutations {
 		schema.Mutations = append(schema.Mutations, mutationDef)
+	}
+
+	for _, subscriptionDef := range reg.subscriptions {
+		schema.Subscriptions = append(schema.Subscriptions, subscriptionDef)
 	}
 
 	for _, factTable := range reg.factTables {
@@ -201,6 +233,7 @@ func Reset() {
 	reg.types = make(map[string]TypeDefinition)
 	reg.queries = make(map[string]QueryDefinition)
 	reg.mutations = make(map[string]MutationDefinition)
+	reg.subscriptions = make(map[string]SubscriptionDefinition)
 	reg.factTables = make(map[string]FactTableDefinition)
 	reg.aggregateQueries = make(map[string]AggregateQueryDefinition)
 }

@@ -79,6 +79,18 @@ public class FraiseQL {
     }
 
     /**
+     * Create a subscription builder.
+     * Subscriptions in FraiseQL are compiled projections of database events.
+     * They are sourced from LISTEN/NOTIFY or CDC, not resolver-based.
+     *
+     * @param subscriptionName the subscription name
+     * @return a SubscriptionBuilder for this subscription
+     */
+    public static SubscriptionBuilder subscription(String subscriptionName) {
+        return new SubscriptionBuilder(subscriptionName);
+    }
+
+    /**
      * Export the schema to a JSON file.
      * Generates schema.json compatible with fraiseql-cli compile.
      *
@@ -288,6 +300,98 @@ public class FraiseQL {
         public void register() {
             String finalReturnType = returnsArray ? "[" + returnType + "]" : returnType;
             registry.registerMutation(name, finalReturnType, arguments, description);
+        }
+    }
+
+    /**
+     * Builder for GraphQL subscriptions.
+     * Subscriptions in FraiseQL are compiled projections of database events.
+     * They are sourced from LISTEN/NOTIFY or CDC, not resolver-based.
+     */
+    public static class SubscriptionBuilder {
+        private final String name;
+        private String entityType;
+        private final Map<String, String> arguments = new LinkedHashMap<>();
+        private String description = "";
+        private String topic = null;
+        private String operation = null;
+
+        private SubscriptionBuilder(String name) {
+            this.name = name;
+        }
+
+        /**
+         * Set the entity type for this subscription.
+         *
+         * @param typeClass the entity type class
+         * @return this builder for chaining
+         */
+        public SubscriptionBuilder entityType(Class<?> typeClass) {
+            this.entityType = TypeConverter.javaToGraphQL(typeClass);
+            return this;
+        }
+
+        /**
+         * Set the entity type using a GraphQL type name.
+         *
+         * @param typeName the GraphQL type name
+         * @return this builder for chaining
+         */
+        public SubscriptionBuilder entityType(String typeName) {
+            this.entityType = typeName;
+            return this;
+        }
+
+        /**
+         * Add an argument to this subscription (for filtering events).
+         *
+         * @param argName the argument name
+         * @param argType the argument GraphQL type
+         * @return this builder for chaining
+         */
+        public SubscriptionBuilder arg(String argName, String argType) {
+            arguments.put(argName, argType);
+            return this;
+        }
+
+        /**
+         * Set the description for this subscription.
+         *
+         * @param description the subscription description
+         * @return this builder for chaining
+         */
+        public SubscriptionBuilder description(String description) {
+            this.description = description;
+            return this;
+        }
+
+        /**
+         * Set the topic/channel name for this subscription.
+         *
+         * @param topic the LISTEN/NOTIFY channel or CDC topic
+         * @return this builder for chaining
+         */
+        public SubscriptionBuilder topic(String topic) {
+            this.topic = topic;
+            return this;
+        }
+
+        /**
+         * Set the operation filter for this subscription.
+         *
+         * @param operation the operation type (CREATE, UPDATE, DELETE)
+         * @return this builder for chaining
+         */
+        public SubscriptionBuilder operation(String operation) {
+            this.operation = operation;
+            return this;
+        }
+
+        /**
+         * Register this subscription in the schema.
+         */
+        public void register() {
+            registry.registerSubscription(name, entityType, arguments, description, topic, operation);
         }
     }
 

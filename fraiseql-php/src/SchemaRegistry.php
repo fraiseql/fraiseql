@@ -35,6 +35,9 @@ final class SchemaRegistry
     /** @var array<string, array<string, FieldDefinition>> Fields for each type */
     private array $typeFields = [];
 
+    /** @var array<string, SubscriptionDefinition> Registered subscriptions */
+    private array $subscriptions = [];
+
     private function __construct()
     {
     }
@@ -165,6 +168,52 @@ final class SchemaRegistry
     }
 
     /**
+     * Register a subscription.
+     * Subscriptions in FraiseQL are compiled projections of database events.
+     * They are sourced from LISTEN/NOTIFY or CDC, not resolver-based.
+     *
+     * @param SubscriptionDefinition $subscription The subscription to register
+     * @return self Fluent interface
+     */
+    public function registerSubscription(SubscriptionDefinition $subscription): self
+    {
+        $this->subscriptions[$subscription->name] = $subscription;
+        return $this;
+    }
+
+    /**
+     * Get a registered subscription by name.
+     *
+     * @param string $name The subscription name
+     * @return SubscriptionDefinition|null The subscription or null if not found
+     */
+    public function getSubscription(string $name): ?SubscriptionDefinition
+    {
+        return $this->subscriptions[$name] ?? null;
+    }
+
+    /**
+     * Get all registered subscriptions.
+     *
+     * @return array<string, SubscriptionDefinition>
+     */
+    public function getAllSubscriptions(): array
+    {
+        return $this->subscriptions;
+    }
+
+    /**
+     * Check if a subscription is registered.
+     *
+     * @param string $name The subscription name
+     * @return bool
+     */
+    public function hasSubscription(string $name): bool
+    {
+        return isset($this->subscriptions[$name]);
+    }
+
+    /**
      * Clear all registered types (useful for testing).
      *
      * @return self Fluent interface
@@ -174,6 +223,7 @@ final class SchemaRegistry
         $this->types = [];
         $this->classToTypeName = [];
         $this->typeFields = [];
+        $this->subscriptions = [];
 
         return $this;
     }
