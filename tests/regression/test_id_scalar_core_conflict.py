@@ -28,6 +28,7 @@ import uuid
 import pytest
 from graphql import (
     GraphQLID,
+    GraphQLNonNull,
     GraphQLObjectType,
     GraphQLSchema,
     graphql,
@@ -113,6 +114,10 @@ class TestIDTypeFixed:
                         type {
                             name
                             kind
+                            ofType {
+                                name
+                                kind
+                            }
                         }
                     }
                 }
@@ -128,9 +133,13 @@ class TestIDTypeFixed:
         fields = result.data["__type"]["fields"]
         id_field = next(f for f in fields if f["name"] == "id")
 
-        # ID type should be recognized as SCALAR with name "ID"
-        assert id_field["type"]["kind"] == "SCALAR"
-        assert id_field["type"]["name"] == "ID"  # FraiseQL uses custom IDScalar (named "ID" for cache)
+        # ID type should be recognized as NON_NULL SCALAR with name "ID" (Issue #243)
+        if id_field["type"]["kind"] == "NON_NULL":
+            assert id_field["type"]["ofType"]["kind"] == "SCALAR"
+            assert id_field["type"]["ofType"]["name"] == "ID"
+        else:
+            assert id_field["type"]["kind"] == "SCALAR"
+            assert id_field["type"]["name"] == "ID"
 
     def test_schema_print_no_duplicate_id_definition(self):
         """Test that schema printing doesn't include duplicate ID definitions."""
@@ -284,7 +293,11 @@ class TestIDTypeFixed:
         assert thing_type is not None
         id_field = thing_type.fields.get("id")
         assert id_field is not None
-        assert id_field.type.name == "ID"
+        # Required field is wrapped in GraphQLNonNull (Issue #243)
+        if isinstance(id_field.type, GraphQLNonNull):
+            assert id_field.type.of_type.name == "ID"
+        else:
+            assert id_field.type.name == "ID"
 
 
 class TestIDTypeImports:

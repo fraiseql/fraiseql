@@ -12,7 +12,7 @@ regardless of policy.
 import uuid
 
 import pytest
-from graphql import GraphQLID
+from graphql import GraphQLID, GraphQLNonNull
 
 from fraiseql.config.schema_config import IDPolicy, SchemaConfig
 from fraiseql.types import ID
@@ -142,12 +142,16 @@ class TestIDPolicySchemaBuilding:
         # Schema should build without errors
         assert schema is not None
 
-        # ID field should use ID scalar
+        # ID field should use ID scalar (wrapped in non-null for required fields)
         entity_type = schema.type_map.get("Entity")
         assert entity_type is not None
         id_field = entity_type.fields.get("id")
         assert id_field is not None
-        assert id_field.type.name == "ID"
+        # Required field is wrapped in GraphQLNonNull (Issue #243)
+        if isinstance(id_field.type, GraphQLNonNull):
+            assert id_field.type.of_type.name == "ID"
+        else:
+            assert id_field.type.name == "ID"
 
     def test_schema_builds_with_opaque_policy(self):
         """Test that schema builds correctly with OPAQUE policy."""
@@ -173,7 +177,11 @@ class TestIDPolicySchemaBuilding:
         assert resource_type is not None
         id_field = resource_type.fields.get("id")
         assert id_field is not None
-        assert id_field.type.name == "ID"
+        # Required field is wrapped in GraphQLNonNull (Issue #243)
+        if isinstance(id_field.type, GraphQLNonNull):
+            assert id_field.type.of_type.name == "ID"
+        else:
+            assert id_field.type.name == "ID"
 
 
 class TestIDPolicyDocumentation:

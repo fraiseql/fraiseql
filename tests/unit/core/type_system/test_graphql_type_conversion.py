@@ -276,8 +276,11 @@ class TestConvertTypeToGraphQLOutput:
         fields = result.fields
         assert "name" in fields
         assert "age" in fields
-        assert fields["name"].type == GraphQLString
-        assert fields["age"].type == GraphQLInt
+        # Required fields should be non-null (Issue #243)
+        assert isinstance(fields["name"].type, GraphQLNonNull)
+        assert fields["name"].type.of_type == GraphQLString
+        assert isinstance(fields["age"].type, GraphQLNonNull)
+        assert fields["age"].type.of_type == GraphQLInt
 
     def test_fraise_output_with_list_fields(self) -> None:
         """Test conversion of FraiseQL output class with list fields."""
@@ -291,10 +294,13 @@ class TestConvertTypeToGraphQLOutput:
         assert isinstance(result, GraphQLObjectType)
 
         fields = result.fields
-        assert isinstance(fields["tags"].type, GraphQLList)
-        assert fields["tags"].type.of_type == GraphQLString
-        assert isinstance(fields["scores"].type, GraphQLList)
-        assert fields["scores"].type.of_type == GraphQLInt
+        # Required list fields should be non-null (Issue #243)
+        assert isinstance(fields["tags"].type, GraphQLNonNull)
+        assert isinstance(fields["tags"].type.of_type, GraphQLList)
+        assert fields["tags"].type.of_type.of_type == GraphQLString
+        assert isinstance(fields["scores"].type, GraphQLNonNull)
+        assert isinstance(fields["scores"].type.of_type, GraphQLList)
+        assert fields["scores"].type.of_type.of_type == GraphQLInt
 
     def test_fraise_output_with_fraise_field_annotation(self) -> None:
         """Test conversion of FraiseQL output class with fraise_field annotations."""
@@ -308,8 +314,11 @@ class TestConvertTypeToGraphQLOutput:
         assert isinstance(result, GraphQLObjectType)
 
         fields = result.fields
-        assert fields["email"].type == GraphQLString
-        assert fields["count"].type == GraphQLInt
+        # Required fields should be non-null (Issue #243)
+        assert isinstance(fields["email"].type, GraphQLNonNull)
+        assert fields["email"].type.of_type == GraphQLString
+        assert isinstance(fields["count"].type, GraphQLNonNull)
+        assert fields["count"].type.of_type == GraphQLInt
 
     def test_fraise_output_inheritance(self) -> None:
         """Test conversion of inherited FraiseQL output classes."""
@@ -349,9 +358,12 @@ class TestConvertTypeToGraphQLOutput:
         assert isinstance(result, GraphQLObjectType)
 
         fields = result.fields
-        assert fields["name"].type == GraphQLString
-        assert isinstance(fields["address"].type, GraphQLObjectType)
-        assert fields["address"].type.name == "Address"
+        # Required fields should be non-null (Issue #243)
+        assert isinstance(fields["name"].type, GraphQLNonNull)
+        assert fields["name"].type.of_type == GraphQLString
+        assert isinstance(fields["address"].type, GraphQLNonNull)
+        assert isinstance(fields["address"].type.of_type, GraphQLObjectType)
+        assert fields["address"].type.of_type.name == "Address"
 
     def test_optional_types(self, clear_registry) -> None:
         """Test conversion of optional types (T | None)."""
@@ -373,8 +385,11 @@ class TestConvertTypeToGraphQLOutput:
         name_field = fields.get("requiredName") or fields.get("required_name")
         age_field = fields.get("optionalAge") or fields.get("optional_age")
 
-        assert name_field.type == GraphQLString
-        assert age_field.type == GraphQLInt  # Optional wrapper should be removed
+        # Required field should be non-null (Issue #243)
+        assert isinstance(name_field.type, GraphQLNonNull)
+        assert name_field.type.of_type == GraphQLString
+        # Optional field should NOT be wrapped in GraphQLNonNull
+        assert age_field.type == GraphQLInt
 
     def test_success_failure_types(self) -> None:
         """Test conversion of success/failure types."""
@@ -709,7 +724,107 @@ class TestJSONFieldWithList:
         result = convert_type_to_graphql_output(OutputWithListOfJSON)
         assert isinstance(result, GraphQLObjectType)
         assert "items" in result.fields
-        assert isinstance(result.fields["items"].type, GraphQLList)
+        # Required list field should be non-null (Issue #243)
+        assert isinstance(result.fields["items"].type, GraphQLNonNull)
+        assert isinstance(result.fields["items"].type.of_type, GraphQLList)
+
+
+@pytest.mark.unit
+class TestNonNullOutputFieldsIssue243:
+    """Regression tests for Issue #243: Non-null output fields support."""
+
+    def test_non_null_output_fields_issue_243(self) -> None:
+        """Regression test: Required output fields should be non-null (Issue #243)."""
+
+        @fraise_type
+        class Machine:
+            id: str  # Required → String!
+            name: str  # Required → String!
+            note: str | None  # Optional → String
+
+        result = convert_type_to_graphql_output(Machine)
+        fields = result.fields
+
+        # Required fields wrapped in GraphQLNonNull
+        assert isinstance(fields["id"].type, GraphQLNonNull)
+        assert fields["id"].type.of_type == GraphQLString
+
+        assert isinstance(fields["name"].type, GraphQLNonNull)
+        assert fields["name"].type.of_type == GraphQLString
+
+        # Optional field NOT wrapped
+        assert fields["note"].type == GraphQLString
+
+    def test_output_input_nullability_consistency(self) -> None:
+        """Verify input and output types handle nullability consistently."""
+
+        @fraise_input
+        class TestInput:
+            required_field: str
+            optional_field: str | None = None
+
+        @fraise_type
+        class TestOutput:
+            required_field: str
+            optional_field: str | None
+
+        input_result = convert_type_to_graphql_input(TestInput)
+        output_result = convert_type_to_graphql_output(TestOutput)
+
+        input_fields = input_result.fields
+        output_fields = output_result.fields
+
+        # Both input and output should wrap required fields in GraphQLNonNull
+        assert isinstance(input_fields["requiredField"].type, GraphQLNonNull)
+        assert isinstance(output_fields["requiredField"].type, GraphQLNonNull)
+
+        # Both should NOT wrap optional fields
+        assert input_fields["optionalField"].type == GraphQLString
+        assert output_fields["optionalField"].type == GraphQLString
+
+    def test_non_null_list_fields(self) -> None:
+        """Test that required list fields are non-null but list items are not double-wrapped."""
+
+        @fraise_type
+        class WithLists:
+            required_items: list[str]  # Required → [String]!
+            optional_items: list[str] | None  # Optional → [String]
+
+        result = convert_type_to_graphql_output(WithLists)
+        fields = result.fields
+
+        # Required list field should be wrapped
+        assert isinstance(fields["requiredItems"].type, GraphQLNonNull)
+        assert isinstance(fields["requiredItems"].type.of_type, GraphQLList)
+        assert fields["requiredItems"].type.of_type.of_type == GraphQLString
+
+        # Optional list field should NOT be wrapped
+        assert isinstance(fields["optionalItems"].type, GraphQLList)
+        assert fields["optionalItems"].type.of_type == GraphQLString
+
+    def test_non_null_nested_object_fields(self) -> None:
+        """Test that required nested object fields are non-null."""
+
+        @fraise_type
+        class Inner:
+            value: str
+
+        @fraise_type
+        class Outer:
+            required_inner: Inner  # Required → Inner!
+            optional_inner: Inner | None  # Optional → Inner
+
+        result = convert_type_to_graphql_output(Outer)
+        fields = result.fields
+
+        # Required nested object should be wrapped
+        assert isinstance(fields["requiredInner"].type, GraphQLNonNull)
+        assert isinstance(fields["requiredInner"].type.of_type, GraphQLObjectType)
+        assert fields["requiredInner"].type.of_type.name == "Inner"
+
+        # Optional nested object should NOT be wrapped
+        assert isinstance(fields["optionalInner"].type, GraphQLObjectType)
+        assert fields["optionalInner"].type.name == "Inner"
 
 
 if __name__ == "__main__":

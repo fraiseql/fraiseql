@@ -8,7 +8,7 @@ test prevents regression of this critical functionality.
 """
 
 import pytest
-from graphql import graphql
+from graphql import GraphQLNonNull, graphql
 
 # Import schema_builder to ensure SchemaRegistry is patched
 import fraiseql.gql.schema_builder  # noqa: F401
@@ -211,7 +211,11 @@ class TestNetworkOperatorsE2E:
         assert ip_address_field is not None, "ipAddress field not found"
 
         # The field type should be IpAddressString (the GraphQL scalar name)
-        assert ip_address_field.type.name == "IpAddressString"
+        # Required field is wrapped in GraphQLNonNull (Issue #243)
+        if isinstance(ip_address_field.type, GraphQLNonNull):
+            assert ip_address_field.type.of_type.name == "IpAddressString"
+        else:
+            assert ip_address_field.type.name == "IpAddressString"
 
     async def test_network_operators_graphql_query_parsing(self, network_test_schema):
         """Network operators should parse correctly in GraphQL queries."""

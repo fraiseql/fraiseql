@@ -80,8 +80,10 @@ class TestFraiseEnum:
         assert user_type is not None
         role_field = user_type.fields.get("role")
         assert role_field is not None
-        assert isinstance(role_field.type, GraphQLEnumType)
-        assert role_field.type.name == "UserRole"
+        # Required field should be non-null (Issue #243)
+        assert isinstance(role_field.type, GraphQLNonNull)
+        assert isinstance(role_field.type.of_type, GraphQLEnumType)
+        assert role_field.type.of_type.name == "UserRole"
 
     def test_enum_in_input_type(self, clear_registry) -> None:
         """Test using enum in an input type."""

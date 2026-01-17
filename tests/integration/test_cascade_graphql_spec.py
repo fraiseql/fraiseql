@@ -72,6 +72,10 @@ class TestCascadeGraphQLSpec:
                         type {
                             name
                             kind
+                            ofType {
+                                name
+                                kind
+                            }
                         }
                     }
                 }
@@ -90,4 +94,8 @@ class TestCascadeGraphQLSpec:
         cascade_field = next((f for f in type_info["fields"] if f["name"] == "cascade"), None)
 
         assert cascade_field is not None, "CASCADE field should be in schema"
-        assert cascade_field["type"]["name"] == "Cascade"
+        # Field is now non-null, so type is NON_NULL with ofType being Cascade
+        if cascade_field["type"]["kind"] == "NON_NULL":
+            assert cascade_field["type"]["ofType"]["name"] == "Cascade"
+        else:
+            assert cascade_field["type"]["name"] == "Cascade"

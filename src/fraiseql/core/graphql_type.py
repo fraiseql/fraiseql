@@ -551,8 +551,11 @@ def convert_type_to_graphql_output(
                                 where_gql_type = convert_type_to_graphql_input(where_input_type)
                                 gql_args["where"] = GraphQLArgument(where_gql_type)
 
+                            gql_type = convert_type_to_graphql_output(field_type)
+                            if not is_optional_type(field_type):
+                                gql_type = GraphQLNonNull(gql_type)
                             gql_fields[graphql_field_name] = GraphQLField(
-                                type_=convert_type_to_graphql_output(field_type),
+                                type_=gql_type,
                                 description=field.description,
                                 args=gql_args,
                                 resolve=wrap_resolver_with_enum_serialization(enhanced_resolver),
@@ -588,8 +591,11 @@ def convert_type_to_graphql_output(
                                     snake_to_camel(name) if config.camel_case_fields else name
                                 )
 
+                            gql_type = convert_type_to_graphql_output(field_type)
+                            if not is_optional_type(field_type):
+                                gql_type = GraphQLNonNull(gql_type)
                             gql_fields[graphql_field_name] = GraphQLField(
-                                type_=convert_type_to_graphql_output(field_type),
+                                type_=gql_type,
                                 description=field.description,
                                 resolve=wrap_resolver_with_enum_serialization(smart_resolver),
                             )
@@ -715,8 +721,11 @@ def convert_type_to_graphql_output(
                             wrap_resolver_with_enum_serialization,
                         )
 
+                        gql_type = convert_type_to_graphql_output(field_type)
+                        if not is_optional_type(field_type):
+                            gql_type = GraphQLNonNull(gql_type)
                         gql_fields[graphql_field_name] = GraphQLField(
-                            type_=convert_type_to_graphql_output(field_type),
+                            type_=gql_type,
                             description=field.description,
                             resolve=wrap_resolver_with_enum_serialization(
                                 make_field_resolver(name, field_type)
@@ -760,6 +769,8 @@ def convert_type_to_graphql_output(
 
                             # Convert return type to GraphQL type
                             gql_return_type = convert_type_to_graphql_output(return_type)
+                            if not is_optional_type(return_type):
+                                gql_return_type = GraphQLNonNull(gql_return_type)
 
                             # Create a wrapper that adapts the method signature for GraphQL
                             def make_custom_resolver(method: Callable[..., Any]) -> Callable:
@@ -864,8 +875,11 @@ def convert_type_to_graphql_output(
                                 snake_to_camel(name) if config.camel_case_fields else name
                             )
 
+                        gql_type = convert_type_to_graphql_output(field_type)
+                        if not is_optional_type(field_type):
+                            gql_type = GraphQLNonNull(gql_type)
                         gql_fields[graphql_field_name] = GraphQLField(
-                            type_=convert_type_to_graphql_output(field_type),
+                            type_=gql_type,
                             description=field.description,
                         )
 
