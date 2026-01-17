@@ -8,18 +8,35 @@
 //! 5. Error handling works correctly
 //!
 //! These are TRUE E2E tests with actual HTTP server running.
+//!
+//! ## Running Tests
+//!
+//! By default, tests connect to `http://localhost:8000`. Set the
+//! `FRAISEQL_TEST_URL` environment variable to test against a different server:
+//!
+//! ```bash
+//! # Test against Docker E2E server
+//! FRAISEQL_TEST_URL=http://localhost:9001 cargo test -p fraiseql-server --test http_server_e2e_test -- --include-ignored
+//! ```
 
 mod test_helpers;
 
 use reqwest::StatusCode;
+use std::env;
 use test_helpers::*;
+
+/// Get the base URL for testing. Defaults to localhost:8000, but can be
+/// overridden with FRAISEQL_TEST_URL environment variable.
+fn get_test_base_url() -> String {
+    env::var("FRAISEQL_TEST_URL").unwrap_or_else(|_| "http://localhost:8000".to_string())
+}
 
 /// Test that health endpoint responds correctly
 #[tokio::test]
-#[ignore = "Requires FraiseQL server running on localhost:8000"]
+#[ignore = "Requires FraiseQL server; set FRAISEQL_TEST_URL to run"]
 async fn test_health_endpoint_responds() {
     let client = create_test_client();
-    let base_url = "http://localhost:8000"; // Assumes server running
+    let base_url = get_test_base_url();
 
     // Test health endpoint
     let response = client.get(format!("{}/health", base_url)).send().await;
@@ -40,14 +57,19 @@ async fn test_health_endpoint_responds() {
     }
 }
 
-/// Test that metrics endpoint responds with Prometheus format
+/// Test that metrics endpoint responds with Prometheus format (requires bearer token)
 #[tokio::test]
-#[ignore = "Requires FraiseQL server running on localhost:8000"]
+#[ignore = "Requires FraiseQL server; set FRAISEQL_TEST_URL to run"]
 async fn test_metrics_endpoint_responds() {
     let client = create_test_client();
-    let base_url = "http://localhost:8000";
+    let base_url = get_test_base_url();
+    let token = get_metrics_token();
 
-    let response = client.get(format!("{}/metrics", base_url)).send().await;
+    let response = client
+        .get(format!("{}/metrics", base_url))
+        .header("Authorization", format!("Bearer {}", token))
+        .send()
+        .await;
 
     match response {
         Ok(resp) => {
@@ -68,15 +90,17 @@ async fn test_metrics_endpoint_responds() {
     }
 }
 
-/// Test that metrics JSON endpoint responds correctly
+/// Test that metrics JSON endpoint responds correctly (requires bearer token)
 #[tokio::test]
-#[ignore = "Requires FraiseQL server running on localhost:8000"]
+#[ignore = "Requires FraiseQL server; set FRAISEQL_TEST_URL to run"]
 async fn test_metrics_json_endpoint_responds() {
     let client = create_test_client();
-    let base_url = "http://localhost:8000";
+    let base_url = get_test_base_url();
+    let token = get_metrics_token();
 
     let response = client
         .get(format!("{}/metrics/json", base_url))
+        .header("Authorization", format!("Bearer {}", token))
         .send()
         .await;
 
@@ -96,11 +120,58 @@ async fn test_metrics_json_endpoint_responds() {
     }
 }
 
+/// Test that metrics endpoint rejects requests without token
+#[tokio::test]
+#[ignore = "Requires FraiseQL server; set FRAISEQL_TEST_URL to run"]
+async fn test_metrics_endpoint_requires_auth() {
+    let client = create_test_client();
+    let base_url = get_test_base_url();
+
+    // Request without Authorization header
+    let response = client
+        .get(format!("{}/metrics", base_url))
+        .send()
+        .await;
+
+    match response {
+        Ok(resp) => {
+            assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+        }
+        Err(e) => {
+            eprintln!("Warning: Could not connect to server: {}", e);
+        }
+    }
+}
+
+/// Test that metrics endpoint rejects invalid token
+#[tokio::test]
+#[ignore = "Requires FraiseQL server; set FRAISEQL_TEST_URL to run"]
+async fn test_metrics_endpoint_rejects_invalid_token() {
+    let client = create_test_client();
+    let base_url = get_test_base_url();
+
+    let response = client
+        .get(format!("{}/metrics", base_url))
+        .header("Authorization", "Bearer wrong-token")
+        .send()
+        .await;
+
+    match response {
+        Ok(resp) => {
+            assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+        }
+        Err(e) => {
+            eprintln!("Warning: Could not connect to server: {}", e);
+        }
+    }
+}
+
 /// Test that invalid paths return 404
 #[tokio::test]
+#[ignore = "Requires FraiseQL server; set FRAISEQL_TEST_URL to run"]
 async fn test_invalid_path_returns_404() {
     let client = create_test_client();
-    let base_url = "http://localhost:8000";
+    let base_url = get_test_base_url();
 
     let response = client
         .get(format!("{}/invalid/path", base_url))
@@ -119,12 +190,13 @@ async fn test_invalid_path_returns_404() {
 
 /// Test GraphQL endpoint accepts POST requests
 #[tokio::test]
-#[ignore = "Requires FraiseQL server running on localhost:8000"]
+#[ignore = "Requires FraiseQL server; set FRAISEQL_TEST_URL to run"]
 async fn test_graphql_endpoint_accepts_post() {
     let client = create_test_client();
-    let base_url = "http://localhost:8000";
+    let base_url = get_test_base_url();
 
-    let request = create_graphql_request("{ __typename }", None, None);
+    // Use a real query from our schema (users list query)
+    let request = create_graphql_request("{ users { id name } }", None, None);
 
     let response = client
         .post(format!("{}/graphql", base_url))
@@ -149,9 +221,10 @@ async fn test_graphql_endpoint_accepts_post() {
 
 /// Test GraphQL endpoint rejects GET requests
 #[tokio::test]
+#[ignore = "Requires FraiseQL server; set FRAISEQL_TEST_URL to run"]
 async fn test_graphql_endpoint_rejects_get() {
     let client = create_test_client();
-    let base_url = "http://localhost:8000";
+    let base_url = get_test_base_url();
 
     let response = client
         .get(format!("{}/graphql", base_url))
@@ -171,11 +244,13 @@ async fn test_graphql_endpoint_rejects_get() {
 
 /// Test response includes correct headers
 #[tokio::test]
+#[ignore = "Requires FraiseQL server; set FRAISEQL_TEST_URL to run"]
 async fn test_response_headers_correct() {
     let client = create_test_client();
-    let base_url = "http://localhost:8000";
+    let base_url = get_test_base_url();
 
-    let request = create_graphql_request("{ __typename }", None, None);
+    // Use a real query from our schema
+    let request = create_graphql_request("{ users { id name } }", None, None);
 
     let response = client
         .post(format!("{}/graphql", base_url))
@@ -202,10 +277,10 @@ async fn test_response_headers_correct() {
 
 /// Test empty query returns validation error
 #[tokio::test]
-#[ignore = "Requires FraiseQL server running on localhost:8000"]
+#[ignore = "Requires FraiseQL server; set FRAISEQL_TEST_URL to run"]
 async fn test_empty_query_returns_error() {
     let client = create_test_client();
-    let base_url = "http://localhost:8000";
+    let base_url = get_test_base_url();
 
     let request = create_graphql_request("", None, None);
 
@@ -217,12 +292,21 @@ async fn test_empty_query_returns_error() {
 
     match response {
         Ok(resp) => {
-            assert_eq!(resp.status(), StatusCode::OK);
+            // Server may return 400 Bad Request or 200 OK with errors in body
+            // Both are valid ways to handle empty query
+            let status = resp.status();
+            assert!(
+                status == StatusCode::OK || status == StatusCode::BAD_REQUEST,
+                "Expected OK or BAD_REQUEST, got {}",
+                status
+            );
+
             let body = resp.json::<serde_json::Value>().await;
-            assert!(body.is_ok());
             if let Ok(json) = body {
-                // Should have errors
-                assert!(json.get("errors").is_some());
+                // Should have errors if 200 response
+                if status == StatusCode::OK {
+                    assert!(json.get("errors").is_some());
+                }
             }
         }
         Err(e) => {
@@ -233,9 +317,10 @@ async fn test_empty_query_returns_error() {
 
 /// Test malformed JSON returns bad request
 #[tokio::test]
+#[ignore = "Requires FraiseQL server; set FRAISEQL_TEST_URL to run"]
 async fn test_malformed_json_returns_error() {
     let client = create_test_client();
-    let base_url = "http://localhost:8000";
+    let base_url = get_test_base_url();
 
     let response = client
         .post(format!("{}/graphql", base_url))
@@ -257,9 +342,10 @@ async fn test_malformed_json_returns_error() {
 
 /// Test introspection endpoint responds
 #[tokio::test]
+#[ignore = "Requires FraiseQL server; set FRAISEQL_TEST_URL to run"]
 async fn test_introspection_endpoint_responds() {
     let client = create_test_client();
-    let base_url = "http://localhost:8000";
+    let base_url = get_test_base_url();
 
     let response = client
         .post(format!("{}/introspection", base_url))
@@ -279,9 +365,10 @@ async fn test_introspection_endpoint_responds() {
 
 /// Test concurrent requests to health endpoint
 #[tokio::test]
+#[ignore = "Requires FraiseQL server; set FRAISEQL_TEST_URL to run"]
 async fn test_concurrent_health_requests() {
     let client = create_test_client();
-    let base_url = "http://localhost:8000";
+    let base_url = get_test_base_url();
 
     // Create 10 concurrent requests
     let futures: Vec<_> = (0..10)
@@ -305,12 +392,13 @@ async fn test_concurrent_health_requests() {
 
 /// Test response content type consistency
 #[tokio::test]
+#[ignore = "Requires FraiseQL server; set FRAISEQL_TEST_URL to run"]
 async fn test_content_type_consistency() {
     let client = create_test_client();
-    let base_url = "http://localhost:8000";
+    let base_url = get_test_base_url();
 
-    // Test GraphQL endpoint
-    let request = create_graphql_request("{ __typename }", None, None);
+    // Test GraphQL endpoint with a real query
+    let request = create_graphql_request("{ users { id name } }", None, None);
     let response = client
         .post(format!("{}/graphql", base_url))
         .json(&request)

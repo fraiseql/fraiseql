@@ -1,8 +1,8 @@
 //! Multi-database integration tests for FraiseQL adapters.
 //!
 //! These tests validate that each database adapter works correctly against
-//! real database instances. Tests are marked as `#[ignore]` by default
-//! and require Docker containers to be running.
+//! real database instances. Tests are gated by feature flags and require
+//! Docker containers to be running.
 //!
 //! # Running Tests
 //!
@@ -13,16 +13,15 @@
 //! # Wait for databases to be ready
 //! sleep 10
 //!
-//! # Run all database integration tests
-//! cargo test -p fraiseql-core --test multi_database_integration -- --ignored
+//! # Run MySQL integration tests
+//! cargo test -p fraiseql-core --features test-mysql --test multi_database_integration
 //!
-//! # Run specific database tests
-//! cargo test -p fraiseql-core --test multi_database_integration mysql -- --ignored
-//! cargo test -p fraiseql-core --test multi_database_integration sqlite -- --ignored
-//! cargo test -p fraiseql-core --test multi_database_integration sqlserver -- --ignored
+//! # Run SQLite tests (no Docker needed)
+//! cargo test -p fraiseql-core --features sqlite --test multi_database_integration
+//!
+//! # Run SQL Server integration tests
+//! cargo test -p fraiseql-core --features test-sqlserver --test multi_database_integration
 //! ```
-
-use std::sync::Arc;
 
 // Database adapters (conditionally compiled based on features)
 #[cfg(feature = "mysql")]
@@ -34,9 +33,17 @@ use fraiseql_core::db::sqlite::SqliteAdapter;
 #[cfg(feature = "sqlserver")]
 use fraiseql_core::db::sqlserver::SqlServerAdapter;
 
+#[cfg(any(feature = "mysql", feature = "sqlite", feature = "sqlserver"))]
+use std::sync::Arc;
+
+#[cfg(any(feature = "mysql", feature = "sqlite", feature = "sqlserver"))]
 use fraiseql_core::db::traits::DatabaseAdapter;
+
+#[cfg(any(feature = "mysql", feature = "sqlite", feature = "sqlserver"))]
 use fraiseql_core::db::types::DatabaseType;
+
 // Note: WhereClause and WhereOperator available for future WHERE tests
+#[cfg(any(feature = "mysql", feature = "sqlite", feature = "sqlserver"))]
 #[allow(unused_imports)]
 use fraiseql_core::db::where_clause::{WhereClause, WhereOperator};
 
@@ -44,14 +51,13 @@ use fraiseql_core::db::where_clause::{WhereClause, WhereOperator};
 // MySQL Integration Tests
 // ============================================================================
 
-#[cfg(feature = "mysql")]
+#[cfg(feature = "test-mysql")]
 mod mysql_tests {
     use super::*;
 
     const MYSQL_URL: &str = "mysql://fraiseql_test:fraiseql_test_password@localhost:3307/test_fraiseql";
 
     #[tokio::test]
-    #[ignore = "Requires MySQL Docker container"]
     async fn test_mysql_adapter_creation() {
         let adapter = MySqlAdapter::new(MYSQL_URL)
             .await
@@ -64,7 +70,6 @@ mod mysql_tests {
     }
 
     #[tokio::test]
-    #[ignore = "Requires MySQL Docker container"]
     async fn test_mysql_health_check() {
         let adapter = MySqlAdapter::new(MYSQL_URL)
             .await
@@ -77,7 +82,6 @@ mod mysql_tests {
     }
 
     #[tokio::test]
-    #[ignore = "Requires MySQL Docker container"]
     async fn test_mysql_execute_raw_query() {
         let adapter = MySqlAdapter::new(MYSQL_URL)
             .await
@@ -93,7 +97,6 @@ mod mysql_tests {
     }
 
     #[tokio::test]
-    #[ignore = "Requires MySQL Docker container"]
     async fn test_mysql_query_v_user_view() {
         let adapter = MySqlAdapter::new(MYSQL_URL)
             .await
@@ -117,7 +120,6 @@ mod mysql_tests {
     }
 
     #[tokio::test]
-    #[ignore = "Requires MySQL Docker container"]
     async fn test_mysql_query_with_limit() {
         let adapter = MySqlAdapter::new(MYSQL_URL)
             .await
@@ -135,7 +137,6 @@ mod mysql_tests {
     }
 
     #[tokio::test]
-    #[ignore = "Requires MySQL Docker container"]
     async fn test_mysql_query_with_offset() {
         let adapter = MySqlAdapter::new(MYSQL_URL)
             .await
@@ -163,7 +164,6 @@ mod mysql_tests {
     }
 
     #[tokio::test]
-    #[ignore = "Requires MySQL Docker container"]
     async fn test_mysql_query_v_post_with_nested_author() {
         let adapter = MySqlAdapter::new(MYSQL_URL)
             .await
@@ -194,7 +194,6 @@ mod mysql_tests {
     }
 
     #[tokio::test]
-    #[ignore = "Requires MySQL Docker container"]
     async fn test_mysql_pool_metrics() {
         let adapter = MySqlAdapter::new(MYSQL_URL)
             .await
@@ -213,7 +212,6 @@ mod mysql_tests {
     }
 
     #[tokio::test]
-    #[ignore = "Requires MySQL Docker container"]
     async fn test_mysql_concurrent_queries() {
         let adapter = Arc::new(
             MySqlAdapter::new(MYSQL_URL)
@@ -567,14 +565,14 @@ mod sqlite_tests {
 // SQL Server Integration Tests
 // ============================================================================
 
-#[cfg(feature = "sqlserver")]
+#[cfg(feature = "test-sqlserver")]
 mod sqlserver_tests {
     use super::*;
 
-    const SQLSERVER_URL: &str = "server=localhost,1434;database=master;user=sa;password=FraiseQL_Test123!;TrustServerCertificate=true";
+    const SQLSERVER_URL: &str = "server=localhost,1434;database=master;user=sa;password=FraiseQL_Test1234;TrustServerCertificate=true";
+    const SQLSERVER_TEST_DB_URL: &str = "server=localhost,1434;database=test_fraiseql;user=sa;password=FraiseQL_Test1234;TrustServerCertificate=true";
 
     #[tokio::test]
-    #[ignore = "Requires SQL Server Docker container"]
     async fn test_sqlserver_adapter_creation() {
         let adapter = SqlServerAdapter::new(SQLSERVER_URL)
             .await
@@ -587,7 +585,6 @@ mod sqlserver_tests {
     }
 
     #[tokio::test]
-    #[ignore = "Requires SQL Server Docker container"]
     async fn test_sqlserver_health_check() {
         let adapter = SqlServerAdapter::new(SQLSERVER_URL)
             .await
@@ -600,7 +597,6 @@ mod sqlserver_tests {
     }
 
     #[tokio::test]
-    #[ignore = "Requires SQL Server Docker container"]
     async fn test_sqlserver_execute_raw_query() {
         let adapter = SqlServerAdapter::new(SQLSERVER_URL)
             .await
@@ -615,18 +611,12 @@ mod sqlserver_tests {
         assert!(results[0].contains_key("value"));
     }
 
-    // Note: This test requires the init.sql script to have been run against
-    // a test_fraiseql database. It's separated from the other SQL Server tests
-    // because it needs additional setup.
     #[tokio::test]
-    #[ignore = "Requires SQL Server Docker container with test_fraiseql database and init script"]
     async fn test_sqlserver_query_v_user_view() {
-        // Skip if the test_fraiseql database doesn't exist
-        let conn_str = "server=localhost,1434;database=test_fraiseql;user=sa;password=FraiseQL_Test123!;TrustServerCertificate=true";
-        let adapter = match SqlServerAdapter::new(conn_str).await {
+        let adapter = match SqlServerAdapter::new(SQLSERVER_TEST_DB_URL).await {
             Ok(adapter) => adapter,
-            Err(_) => {
-                eprintln!("Skipping test_sqlserver_query_v_user_view: test_fraiseql database not available");
+            Err(e) => {
+                eprintln!("Skipping test_sqlserver_query_v_user_view: test_fraiseql database not available: {e}");
                 return;
             }
         };
@@ -649,7 +639,6 @@ mod sqlserver_tests {
     }
 
     #[tokio::test]
-    #[ignore = "Requires SQL Server Docker container"]
     async fn test_sqlserver_pool_metrics() {
         let adapter = SqlServerAdapter::new(SQLSERVER_URL)
             .await
@@ -668,7 +657,6 @@ mod sqlserver_tests {
     }
 
     #[tokio::test]
-    #[ignore = "Requires SQL Server Docker container"]
     async fn test_sqlserver_concurrent_queries() {
         let adapter = Arc::new(
             SqlServerAdapter::new(SQLSERVER_URL)
@@ -705,11 +693,13 @@ mod sqlserver_tests {
 // ============================================================================
 
 /// Trait for database-agnostic test execution
+#[cfg(any(feature = "mysql", feature = "sqlite", feature = "sqlserver"))]
 #[allow(dead_code)]
 async fn run_basic_health_check<A: DatabaseAdapter>(adapter: &A) -> bool {
     adapter.health_check().await.is_ok()
 }
 
+#[cfg(any(feature = "mysql", feature = "sqlite", feature = "sqlserver"))]
 #[allow(dead_code)]
 async fn verify_pool_metrics<A: DatabaseAdapter>(adapter: &A) -> bool {
     let metrics = adapter.pool_metrics();
@@ -717,6 +707,7 @@ async fn verify_pool_metrics<A: DatabaseAdapter>(adapter: &A) -> bool {
 }
 
 // Helper to run queries and verify JSON structure
+#[cfg(any(feature = "mysql", feature = "sqlite", feature = "sqlserver"))]
 #[allow(dead_code)]
 async fn verify_view_returns_json<A: DatabaseAdapter>(
     adapter: &A,

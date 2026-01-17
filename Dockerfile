@@ -6,7 +6,7 @@
 # ============================================================================
 # STAGE 1: BUILDER
 # ============================================================================
-FROM rust:1.81-slim as builder
+FROM rust:1.84-slim AS builder
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
@@ -22,10 +22,8 @@ WORKDIR /app
 COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
 
-# Build release binary
+# Build release binaries
 RUN cargo build --release -p fraiseql-server --locked
-
-# Copy CLI binary as well (optional)
 RUN cargo build --release -p fraiseql-cli --locked
 
 # ============================================================================

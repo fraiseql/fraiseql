@@ -2,10 +2,11 @@
 # Workspace root configuration
 
 [workspace]
-members = ["crates/fraiseql-cli",
+members = [
+    "crates/fraiseql-cli",
     "crates/fraiseql-core",
     "crates/fraiseql-server",    # Phase 6 - HTTP server for compiled executor
-    # "crates/fraiseql-cli",        # Phase 9 - CLI for schema compilation
+    "crates/fraiseql-wire",      # Streaming JSON query engine for Postgres
     # NOTE: No fraiseql-python crate - Python is authoring-only (decorators → JSON)
 ]
 resolver = "2"
@@ -104,6 +105,9 @@ toml = "0.8"
 # Parking lot (faster mutexes)
 parking_lot = "0.12"
 dashmap = "6.0"
+
+# Internal crates
+fraiseql-wire = { path = "crates/fraiseql-wire" }
 
 # Python FFI (for fraiseql-python crate)
 pyo3 = { version = "0.25", features = ["extension-module", "experimental-async"] }

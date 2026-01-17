@@ -2,7 +2,8 @@
 
 use crate::db::traits::DatabaseAdapter;
 use crate::error::{FraiseQLError, Result};
-use crate::schema::CompiledSchema;
+use crate::graphql::parse_query;
+use crate::schema::{CompiledSchema, IntrospectionResponses};
 use super::{QueryMatcher, QueryPlanner, ResultProjector, RuntimeConfig};
 use std::sync::Arc;
 
@@ -22,6 +23,13 @@ enum QueryType {
     /// Window function query (ends with _window).
     /// Contains the full query name (e.g., "sales_window").
     Window(String),
+
+    /// Introspection query (`__schema`).
+    IntrospectionSchema,
+
+    /// Introspection query (`__type(name: "...")`).
+    /// Contains the requested type name.
+    IntrospectionType(String),
 }
 
 /// Query executor - executes compiled GraphQL queries.
@@ -43,6 +51,9 @@ pub struct Executor<A: DatabaseAdapter> {
 
     /// Runtime configuration.
     config: RuntimeConfig,
+
+    /// Pre-built introspection responses (for `__schema` and `__type` queries).
+    introspection: IntrospectionResponses,
 }
 
 impl<A: DatabaseAdapter> Executor<A> {
@@ -76,6 +87,8 @@ impl<A: DatabaseAdapter> Executor<A> {
     pub fn with_config(schema: CompiledSchema, adapter: Arc<A>, config: RuntimeConfig) -> Self {
         let matcher = QueryMatcher::new(schema.clone());
         let planner = QueryPlanner::new(config.cache_query_plans);
+        // Build introspection responses at startup (zero-cost at runtime)
+        let introspection = IntrospectionResponses::build(&schema);
 
         Self {
             schema,
@@ -83,6 +96,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             matcher,
             planner,
             config,
+            introspection,
         }
     }
 
@@ -128,6 +142,14 @@ impl<A: DatabaseAdapter> Executor<A> {
             }
             QueryType::Window(query_name) => {
                 self.execute_window_dispatch(&query_name, variables).await
+            }
+            QueryType::IntrospectionSchema => {
+                // Return pre-built __schema response (zero-cost at runtime)
+                Ok(self.introspection.schema_response.clone())
+            }
+            QueryType::IntrospectionType(type_name) => {
+                // Return pre-built __type response (zero-cost at runtime)
+                Ok(self.introspection.get_type_response(&type_name))
             }
         }
     }
@@ -175,53 +197,88 @@ impl<A: DatabaseAdapter> Executor<A> {
 
     /// Classify query type based on operation name.
     fn classify_query(&self, query: &str) -> Result<QueryType> {
-        // Extract operation name from GraphQL query
-        let operation_name = self.extract_operation_name(query)?;
+        // Check for introspection queries first (higher priority)
+        if let Some(introspection_type) = self.detect_introspection(query) {
+            return Ok(introspection_type);
+        }
+
+        // Parse the query to extract the root field name
+        let parsed = parse_query(query).map_err(|e| FraiseQLError::Parse {
+            message: e.to_string(),
+            location: "query".to_string(),
+        })?;
+
+        let root_field = &parsed.root_field;
 
         // Check if it's an aggregate query (ends with _aggregate)
-        if operation_name.ends_with("_aggregate") {
-            return Ok(QueryType::Aggregate(operation_name));
+        if root_field.ends_with("_aggregate") {
+            return Ok(QueryType::Aggregate(root_field.clone()));
         }
 
         // Check if it's a window query (ends with _window)
-        if operation_name.ends_with("_window") {
-            return Ok(QueryType::Window(operation_name));
+        if root_field.ends_with("_window") {
+            return Ok(QueryType::Window(root_field.clone()));
         }
 
         // Otherwise, it's a regular query
         Ok(QueryType::Regular)
     }
 
-    /// Extract operation name from GraphQL query.
-    fn extract_operation_name(&self, query: &str) -> Result<String> {
+    /// Detect if a query is an introspection query.
+    ///
+    /// Returns `Some(QueryType)` for introspection queries, `None` otherwise.
+    fn detect_introspection(&self, query: &str) -> Option<QueryType> {
         let query_trimmed = query.trim();
 
-        // Try to match "query operationName {"
-        if let Some(start) = query_trimmed.find("query") {
-            let after_query = &query_trimmed[start + 5..].trim_start();
-            if let Some(brace_pos) = after_query.find('{') {
-                let op_name = after_query[..brace_pos].trim();
-                if !op_name.is_empty() {
-                    return Ok(op_name.to_string());
-                }
-            }
+        // Check for __schema query
+        if query_trimmed.contains("__schema") {
+            return Some(QueryType::IntrospectionSchema);
         }
 
-        // Try to match "{ operationName"
-        if let Some(brace_pos) = query_trimmed.find('{') {
-            let after_brace = &query_trimmed[brace_pos + 1..].trim_start();
-            if let Some(space_or_brace) = after_brace.find(|c: char| c.is_whitespace() || c == '{' || c == '(') {
-                let op_name = after_brace[..space_or_brace].trim();
-                if !op_name.is_empty() {
-                    return Ok(op_name.to_string());
-                }
+        // Check for __type(name: "...") query
+        if query_trimmed.contains("__type") {
+            // Extract the type name from __type(name: "TypeName")
+            if let Some(type_name) = self.extract_type_argument(query_trimmed) {
+                return Some(QueryType::IntrospectionType(type_name));
             }
+            // If no type name found, return schema introspection as fallback
+            return Some(QueryType::IntrospectionSchema);
         }
 
-        Err(FraiseQLError::Parse {
-            message: "Could not extract operation name from query".to_string(),
-            location: "query".to_string(),
-        })
+        None
+    }
+
+    /// Extract the type name argument from `__type(name: "TypeName")`.
+    fn extract_type_argument(&self, query: &str) -> Option<String> {
+        // Find __type(name: "..." pattern
+        // Supports: __type(name: "User"), __type(name:"User"), __type(name: 'User')
+        let type_pos = query.find("__type")?;
+        let after_type = &query[type_pos + 6..];
+
+        // Find the opening parenthesis
+        let paren_pos = after_type.find('(')?;
+        let after_paren = &after_type[paren_pos + 1..];
+
+        // Find name: and extract the value
+        let name_pos = after_paren.find("name")?;
+        let after_name = &after_paren[name_pos + 4..].trim_start();
+
+        // Skip colon
+        let after_colon = if let Some(stripped) = after_name.strip_prefix(':') {
+            stripped.trim_start()
+        } else {
+            after_name
+        };
+
+        // Extract string value (either "..." or '...')
+        let quote_char = after_colon.chars().next()?;
+        if quote_char != '"' && quote_char != '\'' {
+            return None;
+        }
+
+        let after_quote = &after_colon[1..];
+        let end_quote = after_quote.find(quote_char)?;
+        Some(after_quote[..end_quote].to_string())
     }
 
     /// Execute an aggregate query dispatch.
@@ -501,5 +558,85 @@ mod tests {
         assert!(!executor.config().cache_query_plans);
         assert_eq!(executor.config().max_query_depth, 5);
         assert!(executor.config().enable_tracing);
+    }
+
+    #[tokio::test]
+    async fn test_introspection_schema_query() {
+        let schema = test_schema();
+        let adapter = Arc::new(MockAdapter::new(vec![]));
+        let executor = Executor::new(schema, adapter);
+
+        let query = r#"{ __schema { queryType { name } } }"#;
+        let result = executor.execute(query, None).await.unwrap();
+
+        assert!(result.contains("__schema"));
+        assert!(result.contains("Query"));
+    }
+
+    #[tokio::test]
+    async fn test_introspection_type_query() {
+        let schema = test_schema();
+        let adapter = Arc::new(MockAdapter::new(vec![]));
+        let executor = Executor::new(schema, adapter);
+
+        let query = r#"{ __type(name: "Int") { kind name } }"#;
+        let result = executor.execute(query, None).await.unwrap();
+
+        assert!(result.contains("__type"));
+        assert!(result.contains("Int"));
+    }
+
+    #[tokio::test]
+    async fn test_introspection_unknown_type() {
+        let schema = test_schema();
+        let adapter = Arc::new(MockAdapter::new(vec![]));
+        let executor = Executor::new(schema, adapter);
+
+        let query = r#"{ __type(name: "UnknownType") { kind name } }"#;
+        let result = executor.execute(query, None).await.unwrap();
+
+        // Unknown type returns null
+        assert!(result.contains("null"));
+    }
+
+    #[test]
+    fn test_detect_introspection_schema() {
+        let schema = test_schema();
+        let adapter = Arc::new(MockAdapter::new(vec![]));
+        let executor = Executor::new(schema, adapter);
+
+        let query = r#"{ __schema { types { name } } }"#;
+        let query_type = executor.classify_query(query).unwrap();
+        assert_eq!(query_type, QueryType::IntrospectionSchema);
+    }
+
+    #[test]
+    fn test_detect_introspection_type() {
+        let schema = test_schema();
+        let adapter = Arc::new(MockAdapter::new(vec![]));
+        let executor = Executor::new(schema, adapter);
+
+        let query = r#"{ __type(name: "User") { fields { name } } }"#;
+        let query_type = executor.classify_query(query).unwrap();
+        assert_eq!(query_type, QueryType::IntrospectionType("User".to_string()));
+    }
+
+    #[test]
+    fn test_extract_type_argument() {
+        let schema = test_schema();
+        let adapter = Arc::new(MockAdapter::new(vec![]));
+        let executor = Executor::new(schema, adapter);
+
+        // Double quotes
+        let query1 = r#"{ __type(name: "User") { name } }"#;
+        assert_eq!(executor.extract_type_argument(query1), Some("User".to_string()));
+
+        // Single quotes
+        let query2 = r#"{ __type(name: 'Product') { name } }"#;
+        assert_eq!(executor.extract_type_argument(query2), Some("Product".to_string()));
+
+        // No space after colon
+        let query3 = r#"{ __type(name:"Query") { name } }"#;
+        assert_eq!(executor.extract_type_argument(query3), Some("Query".to_string()));
     }
 }

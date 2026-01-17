@@ -1,15 +1,16 @@
 //! Test fraiseql-wire directly without adapter layer
+//!
+//! Run with: cargo test -p fraiseql-core --features wire-backend,test-postgres --test wire_direct_test
 
-#[cfg(feature = "wire-backend")]
+#[cfg(all(feature = "wire-backend", feature = "test-postgres"))]
 mod wire_direct_tests {
     use fraiseql_wire::FraiseClient;
     use futures::StreamExt;
 
     #[tokio::test]
-    #[ignore = "Requires PostgreSQL database with v_users view"]
     async fn test_direct_v_users_query() {
         let conn_str = std::env::var("DATABASE_URL")
-            .unwrap_or_else(|_| "postgresql:///fraiseql_test".to_string());
+            .unwrap_or_else(|_| "postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql".to_string());
 
         println!("Connecting to: {}", conn_str);
 

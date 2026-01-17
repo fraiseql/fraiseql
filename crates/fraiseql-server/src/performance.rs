@@ -465,7 +465,7 @@ mod tests {
         monitor.record_query(QueryPerformance::new(2000, 1, 5, false, 1000));
         monitor.record_query(QueryPerformance::new(4000, 3, 5, false, 2000));
 
-        assert_eq!(monitor.avg_duration_ms(), 3.0); // (2000 + 4000) / 2 / 1000
+        assert!((monitor.avg_duration_ms() - 3.0).abs() < f64::EPSILON); // (2000 + 4000) / 2 / 1000
     }
 
     #[test]
@@ -508,9 +508,9 @@ mod tests {
             max_duration_us: 50_000,
         };
 
-        assert_eq!(stats.avg_duration_ms(), 5.0);
-        assert_eq!(stats.avg_db_queries(), 2.0);
-        assert_eq!(stats.slow_query_percentage(), 10.0);
+        assert!((stats.avg_duration_ms() - 5.0).abs() < f64::EPSILON);
+        assert!((stats.avg_db_queries() - 2.0).abs() < f64::EPSILON);
+        assert!((stats.slow_query_percentage() - 10.0).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -526,7 +526,7 @@ mod tests {
             cache_hit_rate: 0.75,
         };
 
-        assert_eq!(profile.avg_duration_ms(), 5.0);
-        assert_eq!(profile.avg_db_queries(), 2.0);
+        assert!((profile.avg_duration_ms() - 5.0).abs() < f64::EPSILON);
+        assert!((profile.avg_db_queries() - 2.0).abs() < f64::EPSILON);
     }
 }

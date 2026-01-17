@@ -45,6 +45,22 @@ pub struct CompiledSchema {
     #[serde(default)]
     pub types: Vec<TypeDefinition>,
 
+    /// GraphQL enum type definitions.
+    #[serde(default)]
+    pub enums: Vec<EnumDefinition>,
+
+    /// GraphQL input object type definitions.
+    #[serde(default)]
+    pub input_types: Vec<InputObjectDefinition>,
+
+    /// GraphQL interface type definitions.
+    #[serde(default)]
+    pub interfaces: Vec<InterfaceDefinition>,
+
+    /// GraphQL union type definitions.
+    #[serde(default)]
+    pub unions: Vec<UnionDefinition>,
+
     /// GraphQL query definitions.
     #[serde(default)]
     pub queries: Vec<QueryDefinition>,
@@ -113,6 +129,39 @@ impl CompiledSchema {
     #[must_use]
     pub fn find_type(&self, name: &str) -> Option<&TypeDefinition> {
         self.types.iter().find(|t| t.name == name)
+    }
+
+    /// Find an enum definition by name.
+    #[must_use]
+    pub fn find_enum(&self, name: &str) -> Option<&EnumDefinition> {
+        self.enums.iter().find(|e| e.name == name)
+    }
+
+    /// Find an input object definition by name.
+    #[must_use]
+    pub fn find_input_type(&self, name: &str) -> Option<&InputObjectDefinition> {
+        self.input_types.iter().find(|i| i.name == name)
+    }
+
+    /// Find an interface definition by name.
+    #[must_use]
+    pub fn find_interface(&self, name: &str) -> Option<&InterfaceDefinition> {
+        self.interfaces.iter().find(|i| i.name == name)
+    }
+
+    /// Find all types that implement a given interface.
+    #[must_use]
+    pub fn find_implementors(&self, interface_name: &str) -> Vec<&TypeDefinition> {
+        self.types
+            .iter()
+            .filter(|t| t.implements.contains(&interface_name.to_string()))
+            .collect()
+    }
+
+    /// Find a union definition by name.
+    #[must_use]
+    pub fn find_union(&self, name: &str) -> Option<&UnionDefinition> {
+        self.unions.iter().find(|u| u.name == name)
     }
 
     /// Find a query definition by name.
@@ -285,6 +334,7 @@ fn is_builtin_type(name: &str) -> bool {
 ///     ],
 ///     description: Some("A user in the system".to_string()),
 ///     sql_projection_hint: None,
+///     implements: vec![],
 /// };
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -312,6 +362,10 @@ pub struct TypeDefinition {
     /// Example: `jsonb_build_object('id', data->>'id', 'email', data->>'email')`
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sql_projection_hint: Option<SqlProjectionHint>,
+
+    /// Interfaces this type implements.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub implements: Vec<String>,
 }
 
 /// SQL projection hint for database-specific field projection optimization.
@@ -348,6 +402,7 @@ impl TypeDefinition {
             fields: Vec::new(),
             description: None,
             sql_projection_hint: None,
+            implements: Vec::new(),
         }
     }
 
@@ -372,10 +427,19 @@ impl TypeDefinition {
         self
     }
 
-    /// Find a field by name.
+    /// Find a field by name (JSONB key).
     #[must_use]
     pub fn find_field(&self, name: &str) -> Option<&FieldDefinition> {
         self.fields.iter().find(|f| f.name == name)
+    }
+
+    /// Find a field by its output name (alias if set, otherwise name).
+    ///
+    /// Useful for resolving field references in GraphQL queries where
+    /// aliases may be used.
+    #[must_use]
+    pub fn find_field_by_output_name(&self, output_name: &str) -> Option<&FieldDefinition> {
+        self.fields.iter().find(|f| f.output_name() == output_name)
     }
 
     /// Set SQL projection hint for optimization.
@@ -389,6 +453,461 @@ impl TypeDefinition {
     #[must_use]
     pub fn has_sql_projection(&self) -> bool {
         self.sql_projection_hint.is_some()
+    }
+
+    /// Get the `__typename` value for this type.
+    ///
+    /// Returns the GraphQL type name, used for type introspection in responses.
+    /// Per GraphQL spec §2.7, `__typename` returns the name of the object type.
+    #[must_use]
+    pub fn typename(&self) -> &str {
+        &self.name
+    }
+}
+
+// =============================================================================
+// Enum Definitions
+// =============================================================================
+
+/// A GraphQL enum type definition.
+///
+/// Enums represent a finite set of possible values, useful for
+/// categorization fields like status, role, or priority.
+///
+/// # Example
+///
+/// ```
+/// use fraiseql_core::schema::{EnumDefinition, EnumValueDefinition};
+///
+/// let status_enum = EnumDefinition {
+///     name: "OrderStatus".to_string(),
+///     values: vec![
+///         EnumValueDefinition::new("PENDING"),
+///         EnumValueDefinition::new("PROCESSING"),
+///         EnumValueDefinition::new("SHIPPED"),
+///         EnumValueDefinition::new("DELIVERED"),
+///     ],
+///     description: Some("Possible states of an order".to_string()),
+/// };
+/// ```
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct EnumDefinition {
+    /// Enum type name (e.g., "OrderStatus").
+    pub name: String,
+
+    /// Possible values for this enum.
+    #[serde(default)]
+    pub values: Vec<EnumValueDefinition>,
+
+    /// Description of the enum type.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
+impl EnumDefinition {
+    /// Create a new enum definition.
+    #[must_use]
+    pub fn new(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            values: Vec::new(),
+            description: None,
+        }
+    }
+
+    /// Add a value to this enum.
+    #[must_use]
+    pub fn with_value(mut self, value: EnumValueDefinition) -> Self {
+        self.values.push(value);
+        self
+    }
+
+    /// Add multiple values to this enum.
+    #[must_use]
+    pub fn with_values(mut self, values: Vec<EnumValueDefinition>) -> Self {
+        self.values = values;
+        self
+    }
+
+    /// Set description.
+    #[must_use]
+    pub fn with_description(mut self, description: impl Into<String>) -> Self {
+        self.description = Some(description.into());
+        self
+    }
+
+    /// Check if a value exists in this enum.
+    #[must_use]
+    pub fn has_value(&self, name: &str) -> bool {
+        self.values.iter().any(|v| v.name == name)
+    }
+
+    /// Find a value by name.
+    #[must_use]
+    pub fn find_value(&self, name: &str) -> Option<&EnumValueDefinition> {
+        self.values.iter().find(|v| v.name == name)
+    }
+}
+
+/// A single value within a GraphQL enum type.
+///
+/// # Example
+///
+/// ```
+/// use fraiseql_core::schema::EnumValueDefinition;
+///
+/// let value = EnumValueDefinition::new("ACTIVE")
+///     .with_description("The item is currently active");
+/// ```
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct EnumValueDefinition {
+    /// Value name (e.g., "PENDING").
+    pub name: String,
+
+    /// Description of this value.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+
+    /// Deprecation information (if this value is deprecated).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deprecation: Option<super::field_type::DeprecationInfo>,
+}
+
+impl EnumValueDefinition {
+    /// Create a new enum value.
+    #[must_use]
+    pub fn new(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            description: None,
+            deprecation: None,
+        }
+    }
+
+    /// Set description.
+    #[must_use]
+    pub fn with_description(mut self, description: impl Into<String>) -> Self {
+        self.description = Some(description.into());
+        self
+    }
+
+    /// Mark this value as deprecated.
+    #[must_use]
+    pub fn deprecated(mut self, reason: Option<String>) -> Self {
+        self.deprecation = Some(super::field_type::DeprecationInfo { reason });
+        self
+    }
+
+    /// Check if this value is deprecated.
+    #[must_use]
+    pub fn is_deprecated(&self) -> bool {
+        self.deprecation.is_some()
+    }
+}
+
+// =============================================================================
+// Input Object Definitions
+// =============================================================================
+
+/// A GraphQL input object type definition.
+///
+/// Input objects are used for complex query arguments like filters,
+/// ordering, and mutation inputs.
+///
+/// # Example
+///
+/// ```
+/// use fraiseql_core::schema::{InputObjectDefinition, InputFieldDefinition};
+///
+/// let user_filter = InputObjectDefinition {
+///     name: "UserFilter".to_string(),
+///     fields: vec![
+///         InputFieldDefinition::new("name", "String"),
+///         InputFieldDefinition::new("email", "String"),
+///         InputFieldDefinition::new("active", "Boolean"),
+///     ],
+///     description: Some("Filter criteria for users".to_string()),
+/// };
+/// ```
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct InputObjectDefinition {
+    /// Input object type name (e.g., "UserFilter").
+    pub name: String,
+
+    /// Input fields.
+    #[serde(default)]
+    pub fields: Vec<InputFieldDefinition>,
+
+    /// Description of the input type.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
+impl InputObjectDefinition {
+    /// Create a new input object definition.
+    #[must_use]
+    pub fn new(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            fields: Vec::new(),
+            description: None,
+        }
+    }
+
+    /// Add a field to this input object.
+    #[must_use]
+    pub fn with_field(mut self, field: InputFieldDefinition) -> Self {
+        self.fields.push(field);
+        self
+    }
+
+    /// Add multiple fields to this input object.
+    #[must_use]
+    pub fn with_fields(mut self, fields: Vec<InputFieldDefinition>) -> Self {
+        self.fields = fields;
+        self
+    }
+
+    /// Set description.
+    #[must_use]
+    pub fn with_description(mut self, description: impl Into<String>) -> Self {
+        self.description = Some(description.into());
+        self
+    }
+
+    /// Find a field by name.
+    #[must_use]
+    pub fn find_field(&self, name: &str) -> Option<&InputFieldDefinition> {
+        self.fields.iter().find(|f| f.name == name)
+    }
+}
+
+/// A field within a GraphQL input object type.
+///
+/// # Example
+///
+/// ```
+/// use fraiseql_core::schema::InputFieldDefinition;
+///
+/// let field = InputFieldDefinition::new("email", "String!")
+///     .with_description("User's email address")
+///     .with_default_value("\"user@example.com\"");
+/// ```
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct InputFieldDefinition {
+    /// Field name.
+    pub name: String,
+
+    /// Field type (e.g., "String!", "[Int]", "UserFilter").
+    pub field_type: String,
+
+    /// Description.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+
+    /// Default value (as JSON string).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_value: Option<String>,
+
+    /// Deprecation information (if this field is deprecated).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deprecation: Option<super::field_type::DeprecationInfo>,
+}
+
+impl InputFieldDefinition {
+    /// Create a new input field.
+    #[must_use]
+    pub fn new(name: impl Into<String>, field_type: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            field_type: field_type.into(),
+            description: None,
+            default_value: None,
+            deprecation: None,
+        }
+    }
+
+    /// Set description.
+    #[must_use]
+    pub fn with_description(mut self, description: impl Into<String>) -> Self {
+        self.description = Some(description.into());
+        self
+    }
+
+    /// Set default value.
+    #[must_use]
+    pub fn with_default_value(mut self, value: impl Into<String>) -> Self {
+        self.default_value = Some(value.into());
+        self
+    }
+
+    /// Mark this field as deprecated.
+    #[must_use]
+    pub fn deprecated(mut self, reason: Option<String>) -> Self {
+        self.deprecation = Some(super::field_type::DeprecationInfo { reason });
+        self
+    }
+
+    /// Check if this field is deprecated.
+    #[must_use]
+    pub fn is_deprecated(&self) -> bool {
+        self.deprecation.is_some()
+    }
+
+    /// Check if this field is required (non-nullable without default).
+    #[must_use]
+    pub fn is_required(&self) -> bool {
+        self.field_type.ends_with('!') && self.default_value.is_none()
+    }
+}
+
+// =============================================================================
+// Interface Definitions
+// =============================================================================
+
+/// A GraphQL interface type definition.
+///
+/// Interfaces define a common set of fields that multiple types can implement.
+/// They enable polymorphic queries where a field can return any type that
+/// implements the interface.
+///
+/// # Example
+///
+/// ```
+/// use fraiseql_core::schema::{InterfaceDefinition, FieldDefinition, FieldType};
+///
+/// let node_interface = InterfaceDefinition {
+///     name: "Node".to_string(),
+///     fields: vec![
+///         FieldDefinition::new("id", FieldType::Id),
+///     ],
+///     description: Some("An object with an ID".to_string()),
+/// };
+/// ```
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct InterfaceDefinition {
+    /// Interface name (e.g., "Node").
+    pub name: String,
+
+    /// Fields that implementing types must define.
+    #[serde(default)]
+    pub fields: Vec<FieldDefinition>,
+
+    /// Description of the interface.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
+impl InterfaceDefinition {
+    /// Create a new interface definition.
+    #[must_use]
+    pub fn new(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            fields: Vec::new(),
+            description: None,
+        }
+    }
+
+    /// Add a field to this interface.
+    #[must_use]
+    pub fn with_field(mut self, field: FieldDefinition) -> Self {
+        self.fields.push(field);
+        self
+    }
+
+    /// Add multiple fields to this interface.
+    #[must_use]
+    pub fn with_fields(mut self, fields: Vec<FieldDefinition>) -> Self {
+        self.fields = fields;
+        self
+    }
+
+    /// Set description.
+    #[must_use]
+    pub fn with_description(mut self, description: impl Into<String>) -> Self {
+        self.description = Some(description.into());
+        self
+    }
+
+    /// Find a field by name.
+    #[must_use]
+    pub fn find_field(&self, name: &str) -> Option<&FieldDefinition> {
+        self.fields.iter().find(|f| f.name == name)
+    }
+}
+
+// =============================================================================
+// Union Definitions
+// =============================================================================
+
+/// A GraphQL union type definition.
+///
+/// Unions represent a type that can be one of several possible object types.
+/// Unlike interfaces, union member types don't need to share any fields.
+/// Per GraphQL spec §3.8, unions are useful for polymorphic returns.
+///
+/// # Example
+///
+/// ```
+/// use fraiseql_core::schema::UnionDefinition;
+///
+/// let search_result = UnionDefinition {
+///     name: "SearchResult".to_string(),
+///     member_types: vec!["User".to_string(), "Post".to_string(), "Comment".to_string()],
+///     description: Some("Possible search result types".to_string()),
+/// };
+/// ```
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UnionDefinition {
+    /// Union name (e.g., "SearchResult").
+    pub name: String,
+
+    /// Member types that this union can represent.
+    /// Order is significant for resolution.
+    pub member_types: Vec<String>,
+
+    /// Description of the union.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
+impl UnionDefinition {
+    /// Create a new union definition.
+    #[must_use]
+    pub fn new(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            member_types: Vec::new(),
+            description: None,
+        }
+    }
+
+    /// Add a member type to this union.
+    #[must_use]
+    pub fn with_member(mut self, type_name: impl Into<String>) -> Self {
+        self.member_types.push(type_name.into());
+        self
+    }
+
+    /// Add multiple member types to this union.
+    #[must_use]
+    pub fn with_members(mut self, members: Vec<String>) -> Self {
+        self.member_types = members;
+        self
+    }
+
+    /// Set description.
+    #[must_use]
+    pub fn with_description(mut self, description: impl Into<String>) -> Self {
+        self.description = Some(description.into());
+        self
+    }
+
+    /// Check if a type is a member of this union.
+    #[must_use]
+    pub fn contains_type(&self, type_name: &str) -> bool {
+        self.member_types.iter().any(|t| t == type_name)
     }
 }
 

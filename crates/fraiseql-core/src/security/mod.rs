@@ -6,6 +6,7 @@
 //! - Sensitive field masking for PII/regulated data
 //! - Security error types
 //! - Authentication middleware (JWT, Auth0, Clerk)
+//! - OIDC/JWKS support for any OIDC-compliant provider
 //! - Query validation (depth, complexity)
 //! - Audit logging
 //! - TLS enforcement
@@ -19,6 +20,7 @@ pub mod errors;
 pub mod field_masking;
 pub mod headers;
 pub mod introspection_enforcer;
+pub mod oidc;
 pub mod profiles;
 pub mod query_validator;
 pub mod tls_enforcer;
@@ -31,6 +33,7 @@ pub use errors::{Result, SecurityError};
 pub use field_masking::{FieldMasker, FieldSensitivity};
 pub use headers::SecurityHeaders;
 pub use introspection_enforcer::{IntrospectionEnforcer, IntrospectionPolicy};
+pub use oidc::{OidcConfig, OidcValidator};
 pub use profiles::SecurityProfile;
 pub use query_validator::{QueryMetrics, QueryValidator, QueryValidatorConfig};
 pub use tls_enforcer::{TlsConfig, TlsConnection, TlsEnforcer, TlsVersion};

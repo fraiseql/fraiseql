@@ -106,10 +106,12 @@ impl DatabaseIntrospector for PostgresIntrospector {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "test-postgres"))]
 mod tests {
     use super::*;
     use crate::db::postgres::PostgresAdapter;
+    use deadpool_postgres::{Config, ManagerConfig, RecyclingMethod, Runtime};
+    use tokio_postgres::NoTls;
 
     const TEST_DB_URL: &str = "postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql";
 
@@ -121,8 +123,6 @@ mod tests {
 
         // Extract pool from adapter (we need a way to get the pool)
         // For now, create a new pool directly
-        use deadpool_postgres::{Config, ManagerConfig, RecyclingMethod, Runtime};
-        use tokio_postgres::NoTls;
 
         let mut cfg = Config::new();
         cfg.url = Some(TEST_DB_URL.to_string());
@@ -139,7 +139,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_get_columns_tf_sales() {
         let introspector = create_test_introspector().await;
 
@@ -160,7 +159,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_get_indexed_columns_tf_sales() {
         let introspector = create_test_introspector().await;
 
@@ -178,7 +176,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_database_type() {
         let introspector = create_test_introspector().await;
         assert_eq!(introspector.database_type(), DatabaseType::PostgreSQL);

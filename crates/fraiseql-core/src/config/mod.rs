@@ -1346,9 +1346,11 @@ enabled = false
 
     #[test]
     fn test_collation_config_builder() {
-        let mut collation = CollationConfig::default();
-        collation.enabled = false;
-        collation.fallback_locale = "de-DE".to_string();
+        let collation = CollationConfig {
+            enabled: false,
+            fallback_locale: "de-DE".to_string(),
+            ..Default::default()
+        };
 
         let config = FraiseQLConfig::builder()
             .database_url("postgresql://localhost/test")

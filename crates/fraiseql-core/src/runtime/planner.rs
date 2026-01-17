@@ -1,6 +1,7 @@
 //! Query plan selection - chooses optimal execution strategy.
 
 use crate::error::Result;
+use crate::graphql::FieldSelection;
 use super::matcher::QueryMatch;
 
 /// Execution plan for a query.
@@ -62,7 +63,10 @@ impl QueryPlanner {
 
         let sql = self.generate_sql(query_match);
         let parameters = self.extract_parameters(query_match);
-        let projection_fields = query_match.fields.clone();
+
+        // Extract nested field names from the first selection's nested_fields
+        // The first selection is typically the root query field (e.g., "users")
+        let projection_fields = self.extract_projection_fields(&query_match.selections);
 
         Ok(ExecutionPlan {
             sql,
@@ -71,6 +75,22 @@ impl QueryPlanner {
             estimated_cost: self.estimate_cost(query_match),
             projection_fields,
         })
+    }
+
+    /// Extract field names for projection from parsed selections.
+    ///
+    /// For a query like `{ users { id name } }`, this extracts `["id", "name"]`.
+    fn extract_projection_fields(&self, selections: &[FieldSelection]) -> Vec<String> {
+        // Get the first (root) selection and extract its nested fields
+        if let Some(root_selection) = selections.first() {
+            root_selection
+                .nested_fields
+                .iter()
+                .map(|f| f.response_key().to_string())
+                .collect()
+        } else {
+            Vec::new()
+        }
     }
 
     /// Generate SQL from query match.
@@ -122,6 +142,7 @@ impl QueryPlanner {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::graphql::{FieldSelection, ParsedQuery};
     use crate::schema::{QueryDefinition, AutoParams};
     use std::collections::HashMap;
 
@@ -138,8 +159,39 @@ mod tests {
                 auto_params: AutoParams::default(),
             },
             fields: vec!["id".to_string(), "name".to_string()],
+            selections: vec![FieldSelection {
+                name: "users".to_string(),
+                alias: None,
+                arguments: vec![],
+                nested_fields: vec![
+                    FieldSelection {
+                        name: "id".to_string(),
+                        alias: None,
+                        arguments: vec![],
+                        nested_fields: vec![],
+                        directives: vec![],
+                    },
+                    FieldSelection {
+                        name: "name".to_string(),
+                        alias: None,
+                        arguments: vec![],
+                        nested_fields: vec![],
+                        directives: vec![],
+                    },
+                ],
+                directives: vec![],
+            }],
             arguments: HashMap::new(),
             operation_name: Some("users".to_string()),
+            parsed_query: ParsedQuery {
+                operation_type: "query".to_string(),
+                operation_name: Some("users".to_string()),
+                root_field: "users".to_string(),
+                selections: vec![],
+                variables: vec![],
+                fragments: vec![],
+                source: "{ users { id name } }".to_string(),
+            },
         }
     }
 

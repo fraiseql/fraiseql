@@ -236,9 +236,8 @@ impl MySqlWhereGenerator {
         // For numeric comparisons, cast to appropriate type
         if value.is_number() && (op == ">" || op == ">=" || op == "<" || op == "<=" || op == "=" || op == "!=") {
             Ok(format!("CAST({field_path} AS DECIMAL) {op} ?"))
-        } else if value.is_boolean() && (op == "=" || op == "!=") {
-            Ok(format!("{field_path} {op} ?"))
         } else {
+            // Boolean and other comparisons use direct comparison
             Ok(format!("{field_path} {op} ?"))
         }
     }

@@ -53,7 +53,7 @@ pub use aggregation::{AggregationSql, AggregationSqlGenerator};
 pub use executor::Executor;
 pub use matcher::{QueryMatch, QueryMatcher};
 pub use planner::{ExecutionPlan, QueryPlanner};
-pub use projection::{ProjectionMapper, ResultProjector};
+pub use projection::{FieldMapping, ProjectionMapper, ResultProjector};
 pub use window::{WindowSql, WindowSqlGenerator};
 
 /// Runtime configuration.

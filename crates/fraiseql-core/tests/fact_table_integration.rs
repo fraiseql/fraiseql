@@ -5,8 +5,10 @@
 //! To run:
 //!   1. Start test database: docker compose -f docker-compose.test.yml up -d
 //!   2. Wait for DB: docker compose -f docker-compose.test.yml exec postgres-test pg_isready
-//!   3. Run tests: cargo test -p fraiseql-core --test fact_table_integration -- --ignored
+//!   3. Run tests: cargo test -p fraiseql-core --features test-postgres --test fact_table_integration
 //!   4. Stop database: docker compose -f docker-compose.test.yml down
+
+#![cfg(feature = "test-postgres")]
 
 use deadpool_postgres::{Config, ManagerConfig, RecyclingMethod, Runtime};
 use fraiseql_core::compiler::fact_table::{DatabaseIntrospector, FactTableDetector, SqlType};
@@ -37,7 +39,6 @@ async fn create_test_introspector() -> PostgresIntrospector {
 // ============================================================================
 
 #[tokio::test]
-#[ignore = "Requires PostgreSQL Docker container with analytics schema"]
 async fn test_detect_tf_sales() {
     let introspector = create_test_introspector().await;
 
@@ -86,7 +87,6 @@ async fn test_detect_tf_sales() {
 }
 
 #[tokio::test]
-#[ignore = "Requires PostgreSQL Docker container with analytics schema"]
 async fn test_detect_tf_events() {
     let introspector = create_test_introspector().await;
 
@@ -130,7 +130,6 @@ async fn test_detect_tf_events() {
 // ============================================================================
 
 #[tokio::test]
-#[ignore = "Requires PostgreSQL Docker container with analytics schema"]
 async fn test_reject_aggregate_table() {
     let introspector = create_test_introspector().await;
 
@@ -149,7 +148,6 @@ async fn test_reject_aggregate_table() {
 }
 
 #[tokio::test]
-#[ignore = "Requires PostgreSQL Docker container with analytics schema"]
 async fn test_reject_view() {
     let introspector = create_test_introspector().await;
 
@@ -168,7 +166,6 @@ async fn test_reject_view() {
 }
 
 #[tokio::test]
-#[ignore = "Requires PostgreSQL Docker container with analytics schema"]
 async fn test_reject_nonexistent_table() {
     let introspector = create_test_introspector().await;
 
@@ -190,7 +187,6 @@ async fn test_reject_nonexistent_table() {
 // ============================================================================
 
 #[tokio::test]
-#[ignore = "Requires PostgreSQL Docker container with analytics schema"]
 async fn test_measure_types() {
     let introspector = create_test_introspector().await;
 
@@ -213,7 +209,6 @@ async fn test_measure_types() {
 }
 
 #[tokio::test]
-#[ignore = "Requires PostgreSQL Docker container with analytics schema"]
 async fn test_index_detection() {
     let introspector = create_test_introspector().await;
 
@@ -241,7 +236,6 @@ async fn test_index_detection() {
 // ============================================================================
 
 #[tokio::test]
-#[ignore = "Requires PostgreSQL Docker container with analytics schema"]
 async fn test_sql_type_detection() {
     let introspector = create_test_introspector().await;
 
@@ -281,7 +275,6 @@ async fn test_sql_type_detection() {
 // ============================================================================
 
 #[tokio::test]
-#[ignore = "Requires PostgreSQL Docker container with analytics schema"]
 async fn test_get_columns_tf_sales() {
     let introspector = create_test_introspector().await;
 
@@ -306,7 +299,6 @@ async fn test_get_columns_tf_sales() {
 }
 
 #[tokio::test]
-#[ignore = "Requires PostgreSQL Docker container with analytics schema"]
 async fn test_get_indexed_columns_tf_sales() {
     let introspector = create_test_introspector().await;
 

@@ -320,7 +320,7 @@ impl QueryResultCache {
     /// let cache = QueryResultCache::new(CacheConfig::default());
     ///
     /// // After createUser mutation
-    /// let invalidated = cache.invalidate_views(&vec!["v_user".to_string()])?;
+    /// let invalidated = cache.invalidate_views(&["v_user".to_string()])?;
     /// println!("Invalidated {} cache entries", invalidated);
     /// # Ok::<(), fraiseql_core::error::FraiseQLError>(())
     /// ```
@@ -585,8 +585,10 @@ mod tests {
 
     #[test]
     fn test_ttl_expiry() {
-        let mut config = CacheConfig::default();
-        config.ttl_seconds = 1;  // 1 second TTL
+        let config = CacheConfig {
+            ttl_seconds: 1,  // 1 second TTL
+            ..Default::default()
+        };
 
         let cache = QueryResultCache::new(config);
 
@@ -605,8 +607,10 @@ mod tests {
 
     #[test]
     fn test_ttl_not_expired() {
-        let mut config = CacheConfig::default();
-        config.ttl_seconds = 3600;  // 1 hour TTL
+        let config = CacheConfig {
+            ttl_seconds: 3600,  // 1 hour TTL
+            ..Default::default()
+        };
 
         let cache = QueryResultCache::new(config);
 
@@ -623,8 +627,10 @@ mod tests {
 
     #[test]
     fn test_lru_eviction() {
-        let mut config = CacheConfig::default();
-        config.max_entries = 2;  // Only 2 entries
+        let config = CacheConfig {
+            max_entries: 2,  // Only 2 entries
+            ..Default::default()
+        };
 
         let cache = QueryResultCache::new(config);
 
@@ -644,8 +650,10 @@ mod tests {
 
     #[test]
     fn test_lru_updates_on_access() {
-        let mut config = CacheConfig::default();
-        config.max_entries = 2;
+        let config = CacheConfig {
+            max_entries: 2,
+            ..Default::default()
+        };
 
         let cache = QueryResultCache::new(config);
 
@@ -694,7 +702,7 @@ mod tests {
         cache.put("key2".to_string(), test_result(), vec!["v_post".to_string()]).unwrap();
 
         // Invalidate v_user
-        let invalidated = cache.invalidate_views(&vec!["v_user".to_string()]).unwrap();
+        let invalidated = cache.invalidate_views(&["v_user".to_string()]).unwrap();
         assert_eq!(invalidated, 1);
 
         // v_user entry gone, v_post remains
@@ -711,7 +719,7 @@ mod tests {
         cache.put("key3".to_string(), test_result(), vec!["v_product".to_string()]).unwrap();
 
         // Invalidate v_user and v_post
-        let invalidated = cache.invalidate_views(&vec![
+        let invalidated = cache.invalidate_views(&[
             "v_user".to_string(),
             "v_post".to_string(),
         ]).unwrap();
@@ -734,7 +742,7 @@ mod tests {
         ).unwrap();
 
         // Invalidating either view should remove the entry
-        let invalidated = cache.invalidate_views(&vec!["v_user".to_string()]).unwrap();
+        let invalidated = cache.invalidate_views(&["v_user".to_string()]).unwrap();
         assert_eq!(invalidated, 1);
 
         assert!(cache.get("key1").unwrap().is_none());
@@ -747,7 +755,7 @@ mod tests {
         cache.put("key1".to_string(), test_result(), vec!["v_user".to_string()]).unwrap();
 
         // Invalidate view that doesn't exist
-        let invalidated = cache.invalidate_views(&vec!["v_nonexistent".to_string()]).unwrap();
+        let invalidated = cache.invalidate_views(&["v_nonexistent".to_string()]).unwrap();
         assert_eq!(invalidated, 0);
 
         // Entry should remain
@@ -809,7 +817,7 @@ mod tests {
             memory_bytes: 1_000_000,
         };
 
-        assert_eq!(metrics.hit_rate(), 0.8);
+        assert!((metrics.hit_rate() - 0.8).abs() < f64::EPSILON);
         assert!(metrics.is_healthy());
     }
 
@@ -824,7 +832,7 @@ mod tests {
             memory_bytes: 0,
         };
 
-        assert_eq!(metrics.hit_rate(), 0.0);
+        assert!((metrics.hit_rate() - 0.0).abs() < f64::EPSILON);
         assert!(!metrics.is_healthy());
     }
 

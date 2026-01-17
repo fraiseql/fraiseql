@@ -2,11 +2,18 @@
 //!
 //! Converts `IntermediateSchema` (language-agnostic) to `CompiledSchema` (Rust-specific)
 
-use super::intermediate::{IntermediateSchema, IntermediateType, IntermediateField, IntermediateQuery, IntermediateMutation, IntermediateArgument, IntermediateAutoParams};
+use super::intermediate::{
+    IntermediateSchema, IntermediateType, IntermediateField, IntermediateQuery,
+    IntermediateMutation, IntermediateArgument, IntermediateAutoParams,
+    IntermediateEnum, IntermediateEnumValue, IntermediateInputObject, IntermediateInputField,
+    IntermediateInterface, IntermediateUnion,
+};
 use anyhow::{Context, Result};
 use fraiseql_core::schema::{
-    ArgumentDefinition, AutoParams, CompiledSchema, FieldDefinition, FieldType,
-    MutationDefinition, MutationOperation, QueryDefinition, TypeDefinition,
+    ArgumentDefinition, AutoParams, CompiledSchema, EnumDefinition, EnumValueDefinition,
+    FieldDefinition, FieldType, InputFieldDefinition, InputObjectDefinition,
+    InterfaceDefinition, MutationDefinition, MutationOperation, QueryDefinition, TypeDefinition,
+    UnionDefinition,
 };
 use std::collections::HashSet;
 use tracing::{info, warn};
@@ -49,6 +56,35 @@ impl SchemaConverter {
             .collect::<Result<Vec<_>>>()
             .context("Failed to convert mutations")?;
 
+        // Convert enums
+        let enums = intermediate
+            .enums
+            .into_iter()
+            .map(Self::convert_enum)
+            .collect::<Vec<_>>();
+
+        // Convert input types
+        let input_types = intermediate
+            .input_types
+            .into_iter()
+            .map(Self::convert_input_object)
+            .collect::<Vec<_>>();
+
+        // Convert interfaces
+        let interfaces = intermediate
+            .interfaces
+            .into_iter()
+            .map(|i| Self::convert_interface(i))
+            .collect::<Result<Vec<_>>>()
+            .context("Failed to convert interfaces")?;
+
+        // Convert unions
+        let unions = intermediate
+            .unions
+            .into_iter()
+            .map(Self::convert_union)
+            .collect::<Vec<_>>();
+
         // Convert fact tables from Vec to HashMap<String, serde_json::Value>
         let fact_tables = intermediate.fact_tables
             .unwrap_or_default()
@@ -62,6 +98,10 @@ impl SchemaConverter {
 
         let compiled = CompiledSchema {
             types,
+            enums,
+            input_types,
+            interfaces,
+            unions,
             queries,
             mutations,
             subscriptions: vec![], // TODO: Add in future phase
@@ -91,7 +131,95 @@ impl SchemaConverter {
             sql_source: String::new(), // Not used for regular types (empty string)
             jsonb_column: String::new(), // Not used for regular types (empty string)
             sql_projection_hint: None, // Will be populated by optimizer in Phase 9
+            implements: intermediate.implements,
         })
+    }
+
+    /// Convert `IntermediateEnum` to `EnumDefinition`
+    fn convert_enum(intermediate: IntermediateEnum) -> EnumDefinition {
+        let values = intermediate
+            .values
+            .into_iter()
+            .map(Self::convert_enum_value)
+            .collect();
+
+        EnumDefinition {
+            name: intermediate.name,
+            values,
+            description: intermediate.description,
+        }
+    }
+
+    /// Convert `IntermediateEnumValue` to `EnumValueDefinition`
+    fn convert_enum_value(intermediate: IntermediateEnumValue) -> EnumValueDefinition {
+        let deprecation = intermediate.deprecated.map(|d| {
+            fraiseql_core::schema::DeprecationInfo { reason: d.reason }
+        });
+
+        EnumValueDefinition {
+            name: intermediate.name,
+            description: intermediate.description,
+            deprecation,
+        }
+    }
+
+    /// Convert `IntermediateInputObject` to `InputObjectDefinition`
+    fn convert_input_object(intermediate: IntermediateInputObject) -> InputObjectDefinition {
+        let fields = intermediate
+            .fields
+            .into_iter()
+            .map(Self::convert_input_field)
+            .collect();
+
+        InputObjectDefinition {
+            name: intermediate.name,
+            fields,
+            description: intermediate.description,
+        }
+    }
+
+    /// Convert `IntermediateInputField` to `InputFieldDefinition`
+    fn convert_input_field(intermediate: IntermediateInputField) -> InputFieldDefinition {
+        let deprecation = intermediate.deprecated.map(|d| {
+            fraiseql_core::schema::DeprecationInfo { reason: d.reason }
+        });
+
+        // Convert default value to JSON string if present
+        let default_value = intermediate.default.map(|v| v.to_string());
+
+        InputFieldDefinition {
+            name: intermediate.name,
+            field_type: intermediate.field_type,
+            description: intermediate.description,
+            default_value,
+            deprecation,
+        }
+    }
+
+    /// Convert `IntermediateInterface` to `InterfaceDefinition`
+    fn convert_interface(intermediate: IntermediateInterface) -> Result<InterfaceDefinition> {
+        let fields = intermediate
+            .fields
+            .into_iter()
+            .map(Self::convert_field)
+            .collect::<Result<Vec<_>>>()
+            .context(format!("Failed to convert interface '{}'", intermediate.name))?;
+
+        Ok(InterfaceDefinition {
+            name: intermediate.name,
+            fields,
+            description: intermediate.description,
+        })
+    }
+
+    /// Convert `IntermediateUnion` to `UnionDefinition`
+    fn convert_union(intermediate: IntermediateUnion) -> UnionDefinition {
+        let mut union_def = UnionDefinition::new(&intermediate.name)
+            .with_members(intermediate.member_types);
+        if let Some(desc) = intermediate.description {
+            union_def = union_def.with_description(&desc);
+        }
+        union_def
     }
 
     /// Convert `IntermediateField` to `FieldDefinition`
@@ -100,13 +228,25 @@ impl SchemaConverter {
     fn convert_field(intermediate: IntermediateField) -> Result<FieldDefinition> {
         let field_type = Self::parse_field_type(&intermediate.field_type)?;
 
+        // Extract deprecation info from @deprecated directive if present
+        let deprecation = intermediate.directives.as_ref().and_then(|directives| {
+            directives.iter().find(|d| d.name == "deprecated").map(|d| {
+                let reason = d.arguments.as_ref().and_then(|args| {
+                    args.get("reason").and_then(|v| v.as_str()).map(String::from)
+                });
+                fraiseql_core::schema::DeprecationInfo { reason }
+            })
+        });
+
         Ok(FieldDefinition {
             name: intermediate.name,
             field_type,
             nullable: intermediate.nullable,
             default_value: None,
-            description: None,
+            description: intermediate.description,
             vector_config: None,
+            alias: None,
+            deprecation,
         })
     }
 
@@ -254,6 +394,7 @@ impl SchemaConverter {
     /// - No circular references
     /// - Queries have valid return types
     /// - Mutations have valid return types
+    /// - Interface implementations are valid
     fn validate(schema: &CompiledSchema) -> Result<()> {
         info!("Validating compiled schema");
 
@@ -261,6 +402,12 @@ impl SchemaConverter {
         let mut type_names = HashSet::new();
         for type_def in &schema.types {
             type_names.insert(type_def.name.clone());
+        }
+
+        // Build interface registry
+        let mut interface_names = HashSet::new();
+        for interface_def in &schema.interfaces {
+            interface_names.insert(interface_def.name.clone());
         }
 
         // Add built-in scalars
@@ -322,6 +469,37 @@ impl SchemaConverter {
             }
         }
 
+        // Validate interface implementations
+        for type_def in &schema.types {
+            for interface_name in &type_def.implements {
+                if !interface_names.contains(interface_name) {
+                    anyhow::bail!(
+                        "Type '{}' implements unknown interface '{}'",
+                        type_def.name,
+                        interface_name
+                    );
+                }
+
+                // Validate that the type has all fields required by the interface
+                if let Some(interface) = schema.find_interface(interface_name) {
+                    for interface_field in &interface.fields {
+                        let type_has_field = type_def.fields.iter().any(|f| {
+                            f.name == interface_field.name
+                                && f.field_type == interface_field.field_type
+                        });
+                        if !type_has_field {
+                            anyhow::bail!(
+                                "Type '{}' implements interface '{}' but is missing field '{}'",
+                                type_def.name,
+                                interface_name,
+                                interface_field.name
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
         info!("Schema validation passed");
         Ok(())
     }
@@ -362,8 +540,14 @@ mod tests {
         let intermediate = IntermediateSchema {
             version: "2.0.0".to_string(),
             types: vec![],
+            enums: vec![],
+            input_types: vec![],
+            interfaces: vec![],
+            unions: vec![],
             queries: vec![],
             mutations: vec![],
+            fragments: None,
+            directives: None,
             fact_tables: None,
             aggregate_queries: None,
         };
@@ -385,17 +569,28 @@ mod tests {
                         name: "id".to_string(),
                         field_type: "Int".to_string(),
                         nullable: false,
+                        description: None,
+                        directives: None,
                     },
                     IntermediateField {
                         name: "name".to_string(),
                         field_type: "String".to_string(),
                         nullable: false,
+                        description: None,
+                        directives: None,
                     },
                 ],
                 description: Some("User type".to_string()),
+                implements: vec![],
             }],
+            enums: vec![],
+            input_types: vec![],
+            interfaces: vec![],
+            unions: vec![],
             queries: vec![],
             mutations: vec![],
+            fragments: None,
+            directives: None,
             fact_tables: None,
             aggregate_queries: None,
         };
@@ -413,6 +608,10 @@ mod tests {
         let intermediate = IntermediateSchema {
             version: "2.0.0".to_string(),
             types: vec![],
+            enums: vec![],
+            input_types: vec![],
+            interfaces: vec![],
+            unions: vec![],
             queries: vec![IntermediateQuery {
                 name: "users".to_string(),
                 return_type: "UnknownType".to_string(),
@@ -424,6 +623,8 @@ mod tests {
                 auto_params: None,
             }],
             mutations: vec![],
+            fragments: None,
+            directives: None,
             fact_tables: None,
             aggregate_queries: None,
         };
@@ -444,7 +645,12 @@ mod tests {
                 name: "User".to_string(),
                 fields: vec![],
                 description: None,
+                implements: vec![],
             }],
+            enums: vec![],
+            input_types: vec![],
+            interfaces: vec![],
+            unions: vec![],
             queries: vec![IntermediateQuery {
                 name: "users".to_string(),
                 return_type: "User".to_string(),
@@ -466,6 +672,8 @@ mod tests {
                 }),
             }],
             mutations: vec![],
+            fragments: None,
+            directives: None,
             fact_tables: None,
             aggregate_queries: None,
         };
@@ -475,5 +683,444 @@ mod tests {
         assert_eq!(compiled.queries[0].arguments.len(), 1);
         assert_eq!(compiled.queries[0].arguments[0].arg_type, FieldType::Int);
         assert!(compiled.queries[0].auto_params.has_limit);
+    }
+
+    #[test]
+    fn test_convert_field_with_deprecated_directive() {
+        use crate::schema::intermediate::IntermediateAppliedDirective;
+
+        let intermediate = IntermediateSchema {
+            version: "2.0.0".to_string(),
+            types: vec![IntermediateType {
+                name: "User".to_string(),
+                fields: vec![
+                    IntermediateField {
+                        name: "oldId".to_string(),
+                        field_type: "Int".to_string(),
+                        nullable: false,
+                        description: None,
+                        directives: Some(vec![IntermediateAppliedDirective {
+                            name: "deprecated".to_string(),
+                            arguments: Some(serde_json::json!({"reason": "Use 'id' instead"})),
+                        }]),
+                    },
+                    IntermediateField {
+                        name: "id".to_string(),
+                        field_type: "Int".to_string(),
+                        nullable: false,
+                        description: None,
+                        directives: None,
+                    },
+                ],
+                description: None,
+                implements: vec![],
+            }],
+            enums: vec![],
+            input_types: vec![],
+            interfaces: vec![],
+            unions: vec![],
+            queries: vec![],
+            mutations: vec![],
+            fragments: None,
+            directives: None,
+            fact_tables: None,
+            aggregate_queries: None,
+        };
+
+        let compiled = SchemaConverter::convert(intermediate).unwrap();
+        assert_eq!(compiled.types.len(), 1);
+        assert_eq!(compiled.types[0].fields.len(), 2);
+
+        // Check deprecated field
+        let old_id_field = &compiled.types[0].fields[0];
+        assert_eq!(old_id_field.name, "oldId");
+        assert!(old_id_field.is_deprecated());
+        assert_eq!(
+            old_id_field.deprecation_reason(),
+            Some("Use 'id' instead")
+        );
+
+        // Check non-deprecated field
+        let id_field = &compiled.types[0].fields[1];
+        assert_eq!(id_field.name, "id");
+        assert!(!id_field.is_deprecated());
+        assert_eq!(id_field.deprecation_reason(), None);
+    }
+
+    #[test]
+    fn test_convert_enum() {
+        use crate::schema::intermediate::{IntermediateEnum, IntermediateEnumValue, IntermediateDeprecation};
+
+        let intermediate = IntermediateSchema {
+            version: "2.0.0".to_string(),
+            types: vec![],
+            enums: vec![IntermediateEnum {
+                name: "OrderStatus".to_string(),
+                values: vec![
+                    IntermediateEnumValue {
+                        name: "PENDING".to_string(),
+                        description: None,
+                        deprecated: None,
+                    },
+                    IntermediateEnumValue {
+                        name: "PROCESSING".to_string(),
+                        description: Some("Currently being processed".to_string()),
+                        deprecated: None,
+                    },
+                    IntermediateEnumValue {
+                        name: "CANCELLED".to_string(),
+                        description: None,
+                        deprecated: Some(IntermediateDeprecation {
+                            reason: Some("Use VOIDED instead".to_string()),
+                        }),
+                    },
+                ],
+                description: Some("Order status enum".to_string()),
+            }],
+            input_types: vec![],
+            interfaces: vec![],
+            unions: vec![],
+            queries: vec![],
+            mutations: vec![],
+            fragments: None,
+            directives: None,
+            fact_tables: None,
+            aggregate_queries: None,
+        };
+
+        let compiled = SchemaConverter::convert(intermediate).unwrap();
+        assert_eq!(compiled.enums.len(), 1);
+
+        let status_enum = &compiled.enums[0];
+        assert_eq!(status_enum.name, "OrderStatus");
+        assert_eq!(status_enum.description, Some("Order status enum".to_string()));
+        assert_eq!(status_enum.values.len(), 3);
+
+        // Check PENDING value
+        assert_eq!(status_enum.values[0].name, "PENDING");
+        assert!(!status_enum.values[0].is_deprecated());
+
+        // Check PROCESSING value with description
+        assert_eq!(status_enum.values[1].name, "PROCESSING");
+        assert_eq!(status_enum.values[1].description, Some("Currently being processed".to_string()));
+
+        // Check CANCELLED deprecated value
+        assert_eq!(status_enum.values[2].name, "CANCELLED");
+        assert!(status_enum.values[2].is_deprecated());
+    }
+
+    #[test]
+    fn test_convert_input_object() {
+        use crate::schema::intermediate::{IntermediateInputObject, IntermediateInputField, IntermediateDeprecation};
+
+        let intermediate = IntermediateSchema {
+            version: "2.0.0".to_string(),
+            types: vec![],
+            enums: vec![],
+            input_types: vec![IntermediateInputObject {
+                name: "UserFilter".to_string(),
+                fields: vec![
+                    IntermediateInputField {
+                        name: "name".to_string(),
+                        field_type: "String".to_string(),
+                        nullable: true,
+                        description: None,
+                        default: None,
+                        deprecated: None,
+                    },
+                    IntermediateInputField {
+                        name: "active".to_string(),
+                        field_type: "Boolean".to_string(),
+                        nullable: true,
+                        description: Some("Filter by active status".to_string()),
+                        default: Some(serde_json::json!(true)),
+                        deprecated: None,
+                    },
+                    IntermediateInputField {
+                        name: "oldField".to_string(),
+                        field_type: "String".to_string(),
+                        nullable: true,
+                        description: None,
+                        default: None,
+                        deprecated: Some(IntermediateDeprecation {
+                            reason: Some("Use newField instead".to_string()),
+                        }),
+                    },
+                ],
+                description: Some("User filter input".to_string()),
+            }],
+            interfaces: vec![],
+            unions: vec![],
+            queries: vec![],
+            mutations: vec![],
+            fragments: None,
+            directives: None,
+            fact_tables: None,
+            aggregate_queries: None,
+        };
+
+        let compiled = SchemaConverter::convert(intermediate).unwrap();
+        assert_eq!(compiled.input_types.len(), 1);
+
+        let filter = &compiled.input_types[0];
+        assert_eq!(filter.name, "UserFilter");
+        assert_eq!(filter.description, Some("User filter input".to_string()));
+        assert_eq!(filter.fields.len(), 3);
+
+        // Check name field
+        let name_field = filter.find_field("name").unwrap();
+        assert_eq!(name_field.field_type, "String");
+        assert!(!name_field.is_deprecated());
+
+        // Check active field with default value
+        let active_field = filter.find_field("active").unwrap();
+        assert_eq!(active_field.field_type, "Boolean");
+        assert_eq!(active_field.default_value, Some("true".to_string()));
+        assert_eq!(active_field.description, Some("Filter by active status".to_string()));
+
+        // Check deprecated field
+        let old_field = filter.find_field("oldField").unwrap();
+        assert!(old_field.is_deprecated());
+    }
+
+    #[test]
+    fn test_convert_interface() {
+        use crate::schema::intermediate::{IntermediateInterface, IntermediateField};
+
+        let intermediate = IntermediateSchema {
+            version: "2.0.0".to_string(),
+            types: vec![],
+            enums: vec![],
+            input_types: vec![],
+            interfaces: vec![IntermediateInterface {
+                name: "Node".to_string(),
+                fields: vec![IntermediateField {
+                    name: "id".to_string(),
+                    field_type: "ID".to_string(),
+                    nullable: false,
+                    description: None,
+                    directives: None,
+                }],
+                description: Some("An object with a globally unique ID".to_string()),
+            }],
+            unions: vec![],
+            queries: vec![],
+            mutations: vec![],
+            fragments: None,
+            directives: None,
+            fact_tables: None,
+            aggregate_queries: None,
+        };
+
+        let compiled = SchemaConverter::convert(intermediate).unwrap();
+        assert_eq!(compiled.interfaces.len(), 1);
+
+        let interface = &compiled.interfaces[0];
+        assert_eq!(interface.name, "Node");
+        assert_eq!(interface.description, Some("An object with a globally unique ID".to_string()));
+        assert_eq!(interface.fields.len(), 1);
+        assert_eq!(interface.fields[0].name, "id");
+        assert_eq!(interface.fields[0].field_type, FieldType::Id);
+    }
+
+    #[test]
+    fn test_convert_type_implements_interface() {
+        use crate::schema::intermediate::{IntermediateInterface, IntermediateType, IntermediateField};
+
+        let intermediate = IntermediateSchema {
+            version: "2.0.0".to_string(),
+            types: vec![IntermediateType {
+                name: "User".to_string(),
+                fields: vec![
+                    IntermediateField {
+                        name: "id".to_string(),
+                        field_type: "ID".to_string(),
+                        nullable: false,
+                        description: None,
+                        directives: None,
+                    },
+                    IntermediateField {
+                        name: "name".to_string(),
+                        field_type: "String".to_string(),
+                        nullable: false,
+                        description: None,
+                        directives: None,
+                    },
+                ],
+                description: None,
+                implements: vec!["Node".to_string()],
+            }],
+            enums: vec![],
+            input_types: vec![],
+            interfaces: vec![IntermediateInterface {
+                name: "Node".to_string(),
+                fields: vec![IntermediateField {
+                    name: "id".to_string(),
+                    field_type: "ID".to_string(),
+                    nullable: false,
+                    description: None,
+                    directives: None,
+                }],
+                description: None,
+            }],
+            unions: vec![],
+            queries: vec![],
+            mutations: vec![],
+            fragments: None,
+            directives: None,
+            fact_tables: None,
+            aggregate_queries: None,
+        };
+
+        let compiled = SchemaConverter::convert(intermediate).unwrap();
+
+        // Check type implements interface
+        assert_eq!(compiled.types.len(), 1);
+        assert_eq!(compiled.types[0].implements, vec!["Node"]);
+
+        // Check interface exists
+        assert_eq!(compiled.interfaces.len(), 1);
+        assert_eq!(compiled.interfaces[0].name, "Node");
+    }
+
+    #[test]
+    fn test_validate_unknown_interface() {
+        use crate::schema::intermediate::{IntermediateType, IntermediateField};
+
+        let intermediate = IntermediateSchema {
+            version: "2.0.0".to_string(),
+            types: vec![IntermediateType {
+                name: "User".to_string(),
+                fields: vec![IntermediateField {
+                    name: "id".to_string(),
+                    field_type: "ID".to_string(),
+                    nullable: false,
+                    description: None,
+                    directives: None,
+                }],
+                description: None,
+                implements: vec!["UnknownInterface".to_string()],
+            }],
+            enums: vec![],
+            input_types: vec![],
+            interfaces: vec![], // No interface defined!
+            unions: vec![],
+            queries: vec![],
+            mutations: vec![],
+            fragments: None,
+            directives: None,
+            fact_tables: None,
+            aggregate_queries: None,
+        };
+
+        let result = SchemaConverter::convert(intermediate);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("unknown interface"));
+    }
+
+    #[test]
+    fn test_validate_missing_interface_field() {
+        use crate::schema::intermediate::{IntermediateInterface, IntermediateType, IntermediateField};
+
+        let intermediate = IntermediateSchema {
+            version: "2.0.0".to_string(),
+            types: vec![IntermediateType {
+                name: "User".to_string(),
+                fields: vec![
+                    // Missing the required 'id' field from Node interface!
+                    IntermediateField {
+                        name: "name".to_string(),
+                        field_type: "String".to_string(),
+                        nullable: false,
+                        description: None,
+                        directives: None,
+                    },
+                ],
+                description: None,
+                implements: vec!["Node".to_string()],
+            }],
+            enums: vec![],
+            input_types: vec![],
+            interfaces: vec![IntermediateInterface {
+                name: "Node".to_string(),
+                fields: vec![IntermediateField {
+                    name: "id".to_string(),
+                    field_type: "ID".to_string(),
+                    nullable: false,
+                    description: None,
+                    directives: None,
+                }],
+                description: None,
+            }],
+            unions: vec![],
+            queries: vec![],
+            mutations: vec![],
+            fragments: None,
+            directives: None,
+            fact_tables: None,
+            aggregate_queries: None,
+        };
+
+        let result = SchemaConverter::convert(intermediate);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("missing field 'id'"));
+    }
+
+    #[test]
+    fn test_convert_union() {
+        use crate::schema::intermediate::{IntermediateUnion, IntermediateType, IntermediateField};
+
+        let intermediate = IntermediateSchema {
+            version: "2.0.0".to_string(),
+            types: vec![
+                IntermediateType {
+                    name: "User".to_string(),
+                    fields: vec![IntermediateField {
+                        name: "id".to_string(),
+                        field_type: "ID".to_string(),
+                        nullable: false,
+                        description: None,
+                        directives: None,
+                    }],
+                    description: None,
+                    implements: vec![],
+                },
+                IntermediateType {
+                    name: "Post".to_string(),
+                    fields: vec![IntermediateField {
+                        name: "id".to_string(),
+                        field_type: "ID".to_string(),
+                        nullable: false,
+                        description: None,
+                        directives: None,
+                    }],
+                    description: None,
+                    implements: vec![],
+                },
+            ],
+            enums: vec![],
+            input_types: vec![],
+            interfaces: vec![],
+            unions: vec![IntermediateUnion {
+                name: "SearchResult".to_string(),
+                member_types: vec!["User".to_string(), "Post".to_string()],
+                description: Some("Result from a search query".to_string()),
+            }],
+            queries: vec![],
+            mutations: vec![],
+            fragments: None,
+            directives: None,
+            fact_tables: None,
+            aggregate_queries: None,
+        };
+
+        let compiled = SchemaConverter::convert(intermediate).unwrap();
+
+        // Check union exists
+        assert_eq!(compiled.unions.len(), 1);
+        let union_def = &compiled.unions[0];
+        assert_eq!(union_def.name, "SearchResult");
+        assert_eq!(union_def.member_types, vec!["User", "Post"]);
+        assert_eq!(union_def.description, Some("Result from a search query".to_string()));
     }
 }

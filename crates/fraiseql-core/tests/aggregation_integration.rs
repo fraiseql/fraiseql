@@ -6,12 +6,12 @@
 //! - SQL generation
 //! - Result projection
 //!
-//! To run:
+//! To run unit tests:
 //!   cargo test -p fraiseql-core --test aggregation_integration
 //!
 //! For database integration tests:
 //!   1. Start test database: docker compose -f docker-compose.test.yml up -d
-//!   2. Run tests: cargo test -p fraiseql-core --test aggregation_integration -- --ignored
+//!   2. Run tests: cargo test -p fraiseql-core --features test-postgres --test aggregation_integration
 
 use fraiseql_core::compiler::aggregate_types::{AggregateFunction, TemporalBucket};
 use fraiseql_core::compiler::aggregation::{
@@ -341,11 +341,11 @@ fn test_wrap_in_graphql_envelope() {
 }
 
 // ============================================================================
-// Database Integration Tests (ignored by default)
+// Database Integration Tests
 // ============================================================================
 
+#[cfg(feature = "test-postgres")]
 #[tokio::test]
-#[ignore = "Requires PostgreSQL Docker container with analytics schema"]
 async fn test_end_to_end_aggregate_query() {
     use fraiseql_core::db::postgres::PostgresAdapter;
     use fraiseql_core::runtime::Executor;

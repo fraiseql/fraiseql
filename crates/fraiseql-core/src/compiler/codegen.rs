@@ -51,6 +51,7 @@ impl CodeGenerator {
                 fields: Vec::new(), // TODO: Map fields
                 description: t.description.clone(),
                 sql_projection_hint: None, // TODO: Generate projection hints during optimization
+                implements: Vec::new(), // TODO: Map implements from intermediate
             }
         }).collect();
 
@@ -84,6 +85,10 @@ impl CodeGenerator {
 
         Ok(CompiledSchema {
             types,
+            enums: Vec::new(), // TODO: Map enums from intermediate
+            input_types: Vec::new(), // TODO: Map input types from intermediate
+            interfaces: Vec::new(), // TODO: Map interfaces from intermediate
+            unions: Vec::new(), // TODO: Map unions from intermediate
             queries,
             mutations,
             subscriptions: Vec::new(), // TODO: Map subscriptions

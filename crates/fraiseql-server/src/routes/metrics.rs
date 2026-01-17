@@ -53,30 +53,12 @@ pub struct MetricsResponse {
 /// fraiseql_graphql_query_duration_ms 12.5
 /// ```
 pub async fn metrics_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
-    State(_state): State<AppState<A>>,
+    State(state): State<AppState<A>>,
 ) -> impl IntoResponse {
     debug!("Metrics endpoint requested");
 
-    // In production, metrics would be collected from the AppState
-    // For now, return zero metrics as placeholder
-    let prometheus_metrics = PrometheusMetrics {
-        queries_total: 0,
-        queries_success: 0,
-        queries_error: 0,
-        queries_avg_duration_ms: 0.0,
-        db_queries_total: 0,
-        db_queries_avg_duration_ms: 0.0,
-        validation_errors_total: 0,
-        parse_errors_total: 0,
-        execution_errors_total: 0,
-        http_requests_total: 0,
-        http_responses_2xx: 0,
-        http_responses_4xx: 0,
-        http_responses_5xx: 0,
-        cache_hits: 0,
-        cache_misses: 0,
-        cache_hit_ratio: 0.0,
-    };
+    // Collect metrics from AppState
+    let prometheus_metrics = PrometheusMetrics::from(state.metrics.as_ref());
 
     (
         axum::http::StatusCode::OK,
@@ -89,16 +71,19 @@ pub async fn metrics_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
 ///
 /// Useful for dashboards and monitoring systems that consume JSON.
 pub async fn metrics_json_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
-    State(_state): State<AppState<A>>,
+    State(state): State<AppState<A>>,
 ) -> impl IntoResponse {
     debug!("JSON metrics endpoint requested");
 
+    // Collect metrics from AppState
+    let prometheus_metrics = PrometheusMetrics::from(state.metrics.as_ref());
+
     let response = MetricsResponse {
-        queries_total: 0,
-        queries_success: 0,
-        queries_error: 0,
-        avg_query_duration_ms: 0.0,
-        cache_hit_ratio: 0.0,
+        queries_total: prometheus_metrics.queries_total,
+        queries_success: prometheus_metrics.queries_success,
+        queries_error: prometheus_metrics.queries_error,
+        avg_query_duration_ms: prometheus_metrics.queries_avg_duration_ms,
+        cache_hit_ratio: prometheus_metrics.cache_hit_ratio,
     };
 
     Json(response)

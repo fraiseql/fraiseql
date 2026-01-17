@@ -103,8 +103,7 @@ pub async fn run(input: &str, output: &str, check: bool) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    
-    
+    use std::collections::HashMap;
     use fraiseql_core::schema::{
         AutoParams, CompiledSchema, FieldDefinition, FieldType, QueryDefinition, TypeDefinition,
     };
@@ -122,6 +121,8 @@ mod tests {
                         default_value: None,
                         description: None,
                         vector_config: None,
+                        alias: None,
+                        deprecation: None,
                     },
                     FieldDefinition {
                         name: "name".to_string(),
@@ -130,12 +131,15 @@ mod tests {
                         default_value: None,
                         description: None,
                         vector_config: None,
+                        alias: None,
+                        deprecation: None,
                     },
                 ],
                 description: Some("User type".to_string()),
                 sql_source: String::new(),
                 jsonb_column: String::new(),
                 sql_projection_hint: None,
+                implements: vec![],
             }],
             queries: vec![QueryDefinition {
                 name: "users".to_string(),
@@ -147,9 +151,13 @@ mod tests {
                 description: Some("Get users".to_string()),
                 auto_params: AutoParams::default(),
             }],
+            enums: vec![],
+            input_types: vec![],
+            interfaces: vec![],
+            unions: vec![],
             mutations: vec![],
             subscriptions: vec![],
-            fact_tables: Default::default(),
+            fact_tables: HashMap::default(),
         };
 
         // Validation is done inside SchemaConverter::convert, not exposed separately
@@ -162,6 +170,10 @@ mod tests {
     fn test_validate_schema_unknown_type() {
         let schema = CompiledSchema {
             types: vec![],
+            enums: vec![],
+            input_types: vec![],
+            interfaces: vec![],
+            unions: vec![],
             queries: vec![QueryDefinition {
                 name: "users".to_string(),
                 return_type: "UnknownType".to_string(),
@@ -174,7 +186,7 @@ mod tests {
             }],
             mutations: vec![],
             subscriptions: vec![],
-            fact_tables: Default::default(),
+            fact_tables: HashMap::default(),
         };
 
         // Note: Validation is private to SchemaConverter

@@ -88,12 +88,12 @@ services:
     container_name: fraiseql-sqlserver-test
     environment:
       ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: "FraiseQL_Test123!"
+      MSSQL_SA_PASSWORD: "FraiseQL_Test1234"
       MSSQL_PID: "Developer"
     ports:
       - "1434:1433"  # Use 1434 to avoid conflicts
     healthcheck:
-      test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "FraiseQL_Test123!" -C -Q "SELECT 1" -b || exit 1
+      test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "FraiseQL_Test1234" -C -Q "SELECT 1" -b || exit 1
       interval: 10s
       timeout: 10s
       retries: 10

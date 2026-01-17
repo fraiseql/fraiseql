@@ -39,7 +39,7 @@ bb8 = { version = "0.8", optional = true }
 bb8-tiberius = { version = "0.15", optional = true }
 
 # fraiseql-wire backend (optional)
-fraiseql-wire = { path = "../../../fraiseql-wire", optional = true }
+fraiseql-wire = { workspace = true, optional = true }
 
 # GraphQL
 graphql-parser = { workspace = true }
@@ -77,6 +77,14 @@ mysql = ["sqlx/mysql"]
 sqlite = ["sqlx/sqlite"]
 sqlserver = ["tiberius", "bb8", "bb8-tiberius"]
 wire-backend = ["fraiseql-wire"]
+
+# Test features - enable database integration tests
+# Run with: cargo test --features test-postgres -- --test-threads=1
+test-postgres = []
+# Run with: cargo test --features test-mysql -- --test-threads=1
+test-mysql = ["mysql"]
+# Run with: cargo test --features test-sqlserver -- --test-threads=1
+test-sqlserver = ["sqlserver"]
 
 # Benchmarks will be added in later phases
 # [[bench]]

@@ -1,8 +1,26 @@
 //! Server configuration.
 
+use fraiseql_core::security::OidcConfig;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::path::PathBuf;
+
+/// GraphQL IDE/playground tool to use.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "kebab-case")]
+pub enum PlaygroundTool {
+    /// GraphiQL - the classic GraphQL IDE.
+    GraphiQL,
+    /// Apollo Sandbox - Apollo's embeddable GraphQL IDE (default).
+    ///
+    /// Apollo Sandbox offers a better UX with features like:
+    /// - Query collections and history
+    /// - Schema documentation explorer
+    /// - Variables and headers panels
+    /// - Operation tracing
+    #[default]
+    ApolloSandbox,
+}
 
 /// Server configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -55,6 +73,48 @@ pub struct ServerConfig {
     #[serde(default = "default_introspection_path")]
     pub introspection_path: String,
 
+    /// Metrics endpoint path (Prometheus format).
+    #[serde(default = "default_metrics_path")]
+    pub metrics_path: String,
+
+    /// Metrics JSON endpoint path.
+    #[serde(default = "default_metrics_json_path")]
+    pub metrics_json_path: String,
+
+    /// Playground (GraphQL IDE) endpoint path.
+    #[serde(default = "default_playground_path")]
+    pub playground_path: String,
+
+    /// Enable GraphQL playground/IDE.
+    ///
+    /// When enabled, serves a GraphQL IDE (GraphiQL or Apollo Sandbox)
+    /// at the configured `playground_path`.
+    #[serde(default = "default_true")]
+    pub playground_enabled: bool,
+
+    /// Which GraphQL IDE to use.
+    ///
+    /// - `graphiql`: The classic GraphQL IDE (default)
+    /// - `apollo-sandbox`: Apollo's embeddable sandbox
+    #[serde(default)]
+    pub playground_tool: PlaygroundTool,
+
+    /// Enable metrics endpoints.
+    ///
+    /// **Security**: Disabled by default for production safety.
+    /// When enabled, requires `metrics_token` to be set for authentication.
+    #[serde(default)]
+    pub metrics_enabled: bool,
+
+    /// Bearer token for metrics endpoint authentication.
+    ///
+    /// Required when `metrics_enabled` is true. Requests must include:
+    /// `Authorization: Bearer <token>`
+    ///
+    /// **Security**: Use a strong, random token (e.g., 32+ characters).
+    #[serde(default)]
+    pub metrics_token: Option<String>,
+
     /// Database connection pool minimum size.
     #[serde(default = "default_pool_min_size")]
     pub pool_min_size: usize,
@@ -66,6 +126,22 @@ pub struct ServerConfig {
     /// Database connection pool timeout in seconds.
     #[serde(default = "default_pool_timeout")]
     pub pool_timeout_secs: u64,
+
+    /// OIDC authentication configuration (optional).
+    ///
+    /// When set, enables JWT authentication using OIDC discovery.
+    /// Supports Auth0, Keycloak, Okta, Cognito, Azure AD, and any
+    /// OIDC-compliant provider.
+    ///
+    /// # Example (TOML)
+    ///
+    /// ```toml
+    /// [auth]
+    /// issuer = "https://your-tenant.auth0.com/"
+    /// audience = "your-api-identifier"
+    /// ```
+    #[serde(default)]
+    pub auth: Option<OidcConfig>,
 }
 
 impl Default for ServerConfig {
@@ -83,10 +159,62 @@ impl Default for ServerConfig {
             graphql_path: default_graphql_path(),
             health_path: default_health_path(),
             introspection_path: default_introspection_path(),
+            metrics_path: default_metrics_path(),
+            metrics_json_path: default_metrics_json_path(),
+            playground_path: default_playground_path(),
+            playground_enabled: true,
+            playground_tool: PlaygroundTool::default(),
+            metrics_enabled: false, // Disabled by default for security
+            metrics_token: None,
             pool_min_size: default_pool_min_size(),
             pool_max_size: default_pool_max_size(),
             pool_timeout_secs: default_pool_timeout(),
+            auth: None, // No auth by default
         }
+    }
+}
+
+impl ServerConfig {
+    /// Validate configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if:
+    /// - `metrics_enabled` is true but `metrics_token` is not set
+    /// - `metrics_token` is set but too short (< 16 characters)
+    /// - `auth` config is set but invalid (e.g., empty issuer)
+    pub fn validate(&self) -> Result<(), String> {
+        if self.metrics_enabled {
+            match &self.metrics_token {
+                None => {
+                    return Err(
+                        "metrics_enabled is true but metrics_token is not set. \
+                         Set FRAISEQL_METRICS_TOKEN or metrics_token in config."
+                            .to_string(),
+                    );
+                }
+                Some(token) if token.len() < 16 => {
+                    return Err(
+                        "metrics_token must be at least 16 characters for security."
+                            .to_string(),
+                    );
+                }
+                Some(_) => {}
+            }
+        }
+
+        // Validate OIDC config if present
+        if let Some(ref auth) = self.auth {
+            auth.validate().map_err(|e| e.to_string())?;
+        }
+
+        Ok(())
+    }
+
+    /// Check if authentication is enabled.
+    #[must_use]
+    pub fn auth_enabled(&self) -> bool {
+        self.auth.is_some()
     }
 }
 
@@ -118,6 +246,18 @@ fn default_introspection_path() -> String {
     "/introspection".to_string()
 }
 
+fn default_metrics_path() -> String {
+    "/metrics".to_string()
+}
+
+fn default_metrics_json_path() -> String {
+    "/metrics/json".to_string()
+}
+
+fn default_playground_path() -> String {
+    "/playground".to_string()
+}
+
 fn default_pool_min_size() -> usize {
     5
 }
@@ -141,8 +281,17 @@ mod tests {
         assert_eq!(config.database_url, "postgresql://localhost/fraiseql");
         assert_eq!(config.graphql_path, "/graphql");
         assert_eq!(config.health_path, "/health");
+        assert_eq!(config.metrics_path, "/metrics");
+        assert_eq!(config.metrics_json_path, "/metrics/json");
         assert!(config.cors_enabled);
         assert!(config.compression_enabled);
+    }
+
+    #[test]
+    fn test_default_config_metrics_disabled() {
+        let config = ServerConfig::default();
+        assert!(!config.metrics_enabled, "Metrics should be disabled by default for security");
+        assert!(config.metrics_token.is_none());
     }
 
     #[test]
@@ -173,5 +322,45 @@ mod tests {
         assert_eq!(config.pool_min_size, 2);
         assert_eq!(config.pool_max_size, 50);
         assert_eq!(config.pool_timeout_secs, 60);
+    }
+
+    #[test]
+    fn test_validate_metrics_disabled_ok() {
+        let config = ServerConfig::default();
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_validate_metrics_enabled_without_token_fails() {
+        let config = ServerConfig {
+            metrics_enabled: true,
+            metrics_token: None,
+            ..ServerConfig::default()
+        };
+        let result = config.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("metrics_token is not set"));
+    }
+
+    #[test]
+    fn test_validate_metrics_enabled_with_short_token_fails() {
+        let config = ServerConfig {
+            metrics_enabled: true,
+            metrics_token: Some("short".to_string()), // < 16 chars
+            ..ServerConfig::default()
+        };
+        let result = config.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("at least 16 characters"));
+    }
+
+    #[test]
+    fn test_validate_metrics_enabled_with_valid_token_ok() {
+        let config = ServerConfig {
+            metrics_enabled: true,
+            metrics_token: Some("a-secure-token-that-is-long-enough".to_string()),
+            ..ServerConfig::default()
+        };
+        assert!(config.validate().is_ok());
     }
 }

@@ -4,8 +4,10 @@ pub mod graphql;
 pub mod health;
 pub mod introspection;
 pub mod metrics;
+pub mod playground;
 
-pub use graphql::graphql_handler;
+pub use graphql::{graphql_get_handler, graphql_handler};
 pub use health::health_handler;
 pub use introspection::introspection_handler;
 pub use metrics::{metrics_handler, metrics_json_handler};
+pub use playground::{playground_handler, PlaygroundState};

@@ -12,6 +12,10 @@ class SchemaRegistry:
 
     # Class-level storage (singleton pattern)
     _types: dict[str, dict[str, Any]] = {}
+    _enums: dict[str, dict[str, Any]] = {}
+    _input_types: dict[str, dict[str, Any]] = {}
+    _interfaces: dict[str, dict[str, Any]] = {}
+    _unions: dict[str, dict[str, Any]] = {}
     _queries: dict[str, dict[str, Any]] = {}
     _mutations: dict[str, dict[str, Any]] = {}
     _fact_tables: dict[str, dict[str, Any]] = {}
@@ -23,6 +27,7 @@ class SchemaRegistry:
         name: str,
         fields: dict[str, dict[str, Any]],
         description: str | None = None,
+        implements: list[str] | None = None,
     ) -> None:
         """Register a GraphQL type.
 
@@ -30,8 +35,9 @@ class SchemaRegistry:
             name: Type name (e.g., "User")
             fields: Dictionary of field_name -> {"type": str, "nullable": bool}
             description: Optional type description from docstring
+            implements: List of interface names this type implements
         """
-        cls._types[name] = {
+        type_def: dict[str, Any] = {
             "name": name,
             "fields": [
                 {
@@ -41,6 +47,102 @@ class SchemaRegistry:
                 }
                 for field_name, field_info in fields.items()
             ],
+            "description": description,
+        }
+
+        # Add implements if specified
+        if implements:
+            type_def["implements"] = implements
+
+        cls._types[name] = type_def
+
+    @classmethod
+    def register_interface(
+        cls,
+        name: str,
+        fields: dict[str, dict[str, Any]],
+        description: str | None = None,
+    ) -> None:
+        """Register a GraphQL interface type.
+
+        Args:
+            name: Interface name (e.g., "Node")
+            fields: Dictionary of field_name -> {"type": str, "nullable": bool}
+            description: Optional interface description from docstring
+        """
+        cls._interfaces[name] = {
+            "name": name,
+            "fields": [
+                {
+                    "name": field_name,
+                    "type": field_info["type"],
+                    "nullable": field_info["nullable"],
+                }
+                for field_name, field_info in fields.items()
+            ],
+            "description": description,
+        }
+
+    @classmethod
+    def register_enum(
+        cls,
+        name: str,
+        values: list[dict[str, Any]],
+        description: str | None = None,
+    ) -> None:
+        """Register a GraphQL enum type.
+
+        Args:
+            name: Enum name (e.g., "OrderStatus")
+            values: List of enum value definitions
+            description: Optional enum description from docstring
+        """
+        cls._enums[name] = {
+            "name": name,
+            "values": values,
+            "description": description,
+        }
+
+    @classmethod
+    def register_input(
+        cls,
+        name: str,
+        fields: list[dict[str, Any]],
+        description: str | None = None,
+    ) -> None:
+        """Register a GraphQL input object type.
+
+        Args:
+            name: Input type name (e.g., "UserFilter")
+            fields: List of field definitions
+            description: Optional input type description from docstring
+        """
+        cls._input_types[name] = {
+            "name": name,
+            "fields": fields,
+            "description": description,
+        }
+
+    @classmethod
+    def register_union(
+        cls,
+        name: str,
+        member_types: list[str],
+        description: str | None = None,
+    ) -> None:
+        """Register a GraphQL union type.
+
+        Per GraphQL spec §3.10, unions represent a type that could be one of
+        several object types.
+
+        Args:
+            name: Union name (e.g., "SearchResult")
+            member_types: List of object type names that belong to this union
+            description: Optional union description from docstring
+        """
+        cls._unions[name] = {
+            "name": name,
+            "member_types": member_types,
             "description": description,
         }
 
@@ -168,10 +270,15 @@ class SchemaRegistry:
         """Get the complete schema as a dictionary.
 
         Returns:
-            Dictionary with "types", "queries", "mutations", "fact_tables", and "aggregate_queries"
+            Dictionary with "types", "enums", "input_types", "interfaces", "unions",
+            "queries", "mutations", "fact_tables", and "aggregate_queries"
         """
         schema: dict[str, Any] = {
             "types": list(cls._types.values()),
+            "enums": list(cls._enums.values()),
+            "input_types": list(cls._input_types.values()),
+            "interfaces": list(cls._interfaces.values()),
+            "unions": list(cls._unions.values()),
             "queries": list(cls._queries.values()),
             "mutations": list(cls._mutations.values()),
         }
@@ -188,6 +295,10 @@ class SchemaRegistry:
     def clear(cls) -> None:
         """Clear the registry (useful for testing)."""
         cls._types.clear()
+        cls._enums.clear()
+        cls._input_types.clear()
+        cls._interfaces.clear()
+        cls._unions.clear()
         cls._queries.clear()
         cls._mutations.clear()
         cls._fact_tables.clear()

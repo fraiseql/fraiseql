@@ -478,7 +478,7 @@ mod tests {
     #[test]
     fn test_parse_minimal_schema() {
         let parser = SchemaParser::new();
-        let json = r#"{}"#;
+        let json = r"{}";
         let ir = parser.parse(json).unwrap();
 
         assert!(ir.types.is_empty());

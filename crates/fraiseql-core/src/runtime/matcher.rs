@@ -1,6 +1,9 @@
 //! Query pattern matching - matches incoming GraphQL queries to compiled templates.
 
 use crate::error::{FraiseQLError, Result};
+use crate::graphql::{
+    parse_query, DirectiveEvaluator, FieldSelection, FragmentResolver, ParsedQuery,
+};
 use crate::schema::{CompiledSchema, QueryDefinition};
 use std::collections::HashMap;
 
@@ -10,14 +13,20 @@ pub struct QueryMatch {
     /// The matched query definition from compiled schema.
     pub query_def: QueryDefinition,
 
-    /// Requested fields (selection set).
+    /// Requested fields (selection set) - now includes full field info.
     pub fields: Vec<String>,
+
+    /// Parsed and processed field selections (after fragment/directive resolution).
+    pub selections: Vec<FieldSelection>,
 
     /// Query arguments/variables.
     pub arguments: HashMap<String, serde_json::Value>,
 
     /// Query operation name (if provided).
     pub operation_name: Option<String>,
+
+    /// The parsed query (for access to fragments, variables, etc.).
+    pub parsed_query: ParsedQuery,
 }
 
 /// Query pattern matcher.
@@ -52,6 +61,8 @@ impl QueryMatcher {
     /// - Query syntax is invalid
     /// - Query references undefined operation
     /// - Query structure doesn't match schema
+    /// - Fragment resolution fails
+    /// - Directive evaluation fails
     ///
     /// # Example
     ///
@@ -66,136 +77,81 @@ impl QueryMatcher {
         query: &str,
         variables: Option<&serde_json::Value>,
     ) -> Result<QueryMatch> {
-        // TODO: Parse GraphQL query (use graphql-parser or similar)
-        // For now, implement basic pattern matching
+        // 1. Parse GraphQL query using proper parser
+        let parsed = parse_query(query).map_err(|e| FraiseQLError::Parse {
+            message: e.to_string(),
+            location: "query".to_string(),
+        })?;
 
-        // Extract operation name from query
-        let operation_name = self.extract_operation_name(query);
+        // 2. Build variables map for directive evaluation
+        let variables_map = self.build_variables_map(variables);
 
-        // Find matching query definition
-        let query_def = if let Some(op_name) = &operation_name {
-            self.schema
-                .find_query(op_name)
-                .ok_or_else(|| FraiseQLError::Validation {
-                    message: format!("Query '{}' not found in schema", op_name),
-                    path: None,
-                })?
-                .clone()
-        } else {
-            // If no operation name, try to infer from query structure
-            self.infer_query_from_structure(query)?
-        };
+        // 3. Resolve fragment spreads
+        let resolver = FragmentResolver::new(&parsed.fragments);
+        let resolved_selections = resolver
+            .resolve_spreads(&parsed.selections)
+            .map_err(|e| FraiseQLError::Validation {
+                message: e.to_string(),
+                path: Some("fragments".to_string()),
+            })?;
 
-        // Extract requested fields
-        let fields = self.extract_fields(query)?;
+        // 4. Evaluate directives (@skip, @include) and filter selections
+        let final_selections = DirectiveEvaluator::filter_selections(&resolved_selections, &variables_map)
+            .map_err(|e| FraiseQLError::Validation {
+                message: e.to_string(),
+                path: Some("directives".to_string()),
+            })?;
 
-        // Extract arguments
+        // 5. Find matching query definition using root field
+        let query_def = self
+            .schema
+            .find_query(&parsed.root_field)
+            .ok_or_else(|| FraiseQLError::Validation {
+                message: format!("Query '{}' not found in schema", parsed.root_field),
+                path: None,
+            })?
+            .clone();
+
+        // 6. Extract field names for backward compatibility
+        let fields = self.extract_field_names(&final_selections);
+
+        // 7. Extract arguments from variables
         let arguments = self.extract_arguments(variables);
 
         Ok(QueryMatch {
             query_def,
             fields,
+            selections: final_selections,
             arguments,
-            operation_name,
+            operation_name: parsed.operation_name.clone(),
+            parsed_query: parsed,
         })
     }
 
-    /// Extract operation name from query string.
-    fn extract_operation_name(&self, query: &str) -> Option<String> {
-        // Simple regex-based extraction (TODO: use proper GraphQL parser)
-        // Pattern: "query operationName" or "{ operationName"
-
-        let query_trimmed = query.trim();
-
-        // Try to match "query operationName {"
-        if let Some(start) = query_trimmed.find("query") {
-            let after_query = &query_trimmed[start + 5..].trim_start();
-            if let Some(brace_pos) = after_query.find('{') {
-                let op_name = after_query[..brace_pos].trim();
-                if !op_name.is_empty() {
-                    return Some(op_name.to_string());
-                }
-            }
-        }
-
-        // Try to match "{ operationName"
-        if let Some(brace_pos) = query_trimmed.find('{') {
-            let after_brace = &query_trimmed[brace_pos + 1..].trim_start();
-            if let Some(space_or_brace) = after_brace.find(|c: char| c.is_whitespace() || c == '{') {
-                let op_name = after_brace[..space_or_brace].trim();
-                if !op_name.is_empty() {
-                    return Some(op_name.to_string());
-                }
-            }
-        }
-
-        None
-    }
-
-    /// Infer query from structure when no explicit operation name.
-    fn infer_query_from_structure(&self, query: &str) -> Result<QueryDefinition> {
-        // Extract first field name from query
-        if let Some(field_name) = self.extract_first_field(query) {
-            Ok(self.schema
-                .find_query(&field_name)
-                .ok_or_else(|| FraiseQLError::Validation {
-                    message: format!("Query '{}' not found in schema", field_name),
-                    path: None,
-                })?
-                .clone())
+    /// Build a variables map from JSON value for directive evaluation.
+    fn build_variables_map(
+        &self,
+        variables: Option<&serde_json::Value>,
+    ) -> HashMap<String, serde_json::Value> {
+        if let Some(serde_json::Value::Object(map)) = variables {
+            map.iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect()
         } else {
-            Err(FraiseQLError::Parse {
-                message: "Could not extract operation name from query".to_string(),
-                location: "query".to_string(),
-            })
+            HashMap::new()
         }
     }
 
-    /// Extract first field name from query.
-    fn extract_first_field(&self, query: &str) -> Option<String> {
-        // Find first field after opening brace
-        if let Some(brace_pos) = query.find('{') {
-            let after_brace = query[brace_pos + 1..].trim_start();
-            if let Some(end_pos) = after_brace.find(|c: char| c.is_whitespace() || c == '{' || c == '(') {
-                return Some(after_brace[..end_pos].trim().to_string());
-            }
-        }
-        None
-    }
-
-    /// Extract requested fields from query.
-    fn extract_fields(&self, query: &str) -> Result<Vec<String>> {
-        let mut fields = Vec::new();
-
-        // TODO: Use proper GraphQL parser
-        // For now, extract fields between inner braces
-        if let Some(first_brace) = query.find('{') {
-            if let Some(second_brace) = query[first_brace + 1..].find('{') {
-                let start = first_brace + 1 + second_brace + 1;
-                if let Some(closing_brace) = query[start..].find('}') {
-                    let fields_str = &query[start..start + closing_brace];
-                    for field in fields_str.split_whitespace() {
-                        let field_name = field.trim();
-                        if !field_name.is_empty() {
-                            fields.push(field_name.to_string());
-                        }
-                    }
-                }
-            }
-        }
-
-        if fields.is_empty() {
-            return Err(FraiseQLError::Parse {
-                message: "No fields found in query".to_string(),
-                location: "query".to_string(),
-            });
-        }
-
-        Ok(fields)
+    /// Extract field names from selections (for backward compatibility).
+    fn extract_field_names(&self, selections: &[FieldSelection]) -> Vec<String> {
+        selections.iter().map(|s| s.name.clone()).collect()
     }
 
     /// Extract arguments from variables.
-    fn extract_arguments(&self, variables: Option<&serde_json::Value>) -> HashMap<String, serde_json::Value> {
+    fn extract_arguments(
+        &self,
+        variables: Option<&serde_json::Value>,
+    ) -> HashMap<String, serde_json::Value> {
         if let Some(serde_json::Value::Object(map)) = variables {
             map.iter()
                 .map(|(k, v)| (k.clone(), v.clone()))
@@ -240,43 +196,91 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_operation_name_explicit() {
-        let schema = test_schema();
-        let matcher = QueryMatcher::new(schema);
-
-        let query = "query users { users { id } }";
-        let op_name = matcher.extract_operation_name(query);
-        assert_eq!(op_name, Some("users".to_string()));
-    }
-
-    #[test]
-    fn test_extract_operation_name_shorthand() {
-        let schema = test_schema();
-        let matcher = QueryMatcher::new(schema);
-
-        let query = "{ users { id } }";
-        let op_name = matcher.extract_operation_name(query);
-        assert_eq!(op_name, Some("users".to_string()));
-    }
-
-    #[test]
-    fn test_extract_first_field() {
+    fn test_match_simple_query() {
         let schema = test_schema();
         let matcher = QueryMatcher::new(schema);
 
         let query = "{ users { id name } }";
-        let field = matcher.extract_first_field(query);
-        assert_eq!(field, Some("users".to_string()));
+        let result = matcher.match_query(query, None).unwrap();
+
+        assert_eq!(result.query_def.name, "users");
+        assert_eq!(result.fields.len(), 1); // "users" is the root field
+        assert!(result.selections[0].nested_fields.len() >= 2); // id, name
     }
 
     #[test]
-    fn test_extract_fields() {
+    fn test_match_query_with_operation_name() {
         let schema = test_schema();
         let matcher = QueryMatcher::new(schema);
 
-        let query = "{ users { id name email } }";
-        let fields = matcher.extract_fields(query).unwrap();
-        assert_eq!(fields, vec!["id", "name", "email"]);
+        let query = "query GetUsers { users { id name } }";
+        let result = matcher.match_query(query, None).unwrap();
+
+        assert_eq!(result.query_def.name, "users");
+        assert_eq!(result.operation_name, Some("GetUsers".to_string()));
+    }
+
+    #[test]
+    fn test_match_query_with_fragment() {
+        let schema = test_schema();
+        let matcher = QueryMatcher::new(schema);
+
+        let query = r#"
+            fragment UserFields on User {
+                id
+                name
+            }
+            query { users { ...UserFields } }
+        "#;
+        let result = matcher.match_query(query, None).unwrap();
+
+        assert_eq!(result.query_def.name, "users");
+        // Fragment should be resolved - nested fields should contain id, name
+        let root_selection = &result.selections[0];
+        assert!(root_selection.nested_fields.iter().any(|f| f.name == "id"));
+        assert!(root_selection.nested_fields.iter().any(|f| f.name == "name"));
+    }
+
+    #[test]
+    fn test_match_query_with_skip_directive() {
+        let schema = test_schema();
+        let matcher = QueryMatcher::new(schema);
+
+        let query = r#"{ users { id name @skip(if: true) } }"#;
+        let result = matcher.match_query(query, None).unwrap();
+
+        assert_eq!(result.query_def.name, "users");
+        // "name" should be skipped due to @skip(if: true)
+        let root_selection = &result.selections[0];
+        assert!(root_selection.nested_fields.iter().any(|f| f.name == "id"));
+        assert!(!root_selection.nested_fields.iter().any(|f| f.name == "name"));
+    }
+
+    #[test]
+    fn test_match_query_with_include_directive_variable() {
+        let schema = test_schema();
+        let matcher = QueryMatcher::new(schema);
+
+        let query = r#"query($includeEmail: Boolean!) { users { id email @include(if: $includeEmail) } }"#;
+        let variables = serde_json::json!({ "includeEmail": false });
+        let result = matcher.match_query(query, Some(&variables)).unwrap();
+
+        assert_eq!(result.query_def.name, "users");
+        // "email" should be excluded because $includeEmail is false
+        let root_selection = &result.selections[0];
+        assert!(root_selection.nested_fields.iter().any(|f| f.name == "id"));
+        assert!(!root_selection.nested_fields.iter().any(|f| f.name == "email"));
+    }
+
+    #[test]
+    fn test_match_query_unknown_query() {
+        let schema = test_schema();
+        let matcher = QueryMatcher::new(schema);
+
+        let query = "{ unknown { id } }";
+        let result = matcher.match_query(query, None);
+
+        assert!(result.is_err());
     }
 
     #[test]

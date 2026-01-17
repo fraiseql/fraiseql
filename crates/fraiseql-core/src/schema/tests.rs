@@ -23,7 +23,7 @@ fn test_schema_from_json_empty() {
 #[test]
 fn test_schema_from_json_with_defaults() {
     // Minimal JSON - all fields should default
-    let json = r#"{}"#;
+    let json = r"{}";
     let schema = CompiledSchema::from_json(json).unwrap();
     assert!(schema.types.is_empty());
     assert!(schema.queries.is_empty());
@@ -124,6 +124,10 @@ fn test_schema_to_json_roundtrip() {
         types: vec![TypeDefinition::new("User", "v_user")
             .with_field(FieldDefinition::new("id", FieldType::Id))
             .with_field(FieldDefinition::new("email", FieldType::String))],
+        enums: vec![],
+        input_types: vec![],
+        interfaces: vec![],
+        unions: vec![],
         queries: vec![QueryDefinition::new("users", "User").returning_list()],
         mutations: vec![],
         subscriptions: vec![],
@@ -315,6 +319,10 @@ fn test_argument_definition() {
 fn test_operation_count() {
     let schema = CompiledSchema {
         types: vec![TypeDefinition::new("User", "v_user")],
+        enums: vec![],
+        input_types: vec![],
+        interfaces: vec![],
+        unions: vec![],
         queries: vec![
             QueryDefinition::new("users", "User"),
             QueryDefinition::new("user", "User"),
@@ -688,6 +696,10 @@ fn test_vector_field_roundtrip() {
                 FieldDefinition::vector("embedding", VectorConfig::openai())
                     .with_description("OpenAI embedding"),
             )],
+        enums: vec![],
+        input_types: vec![],
+        interfaces: vec![],
+        unions: vec![],
         queries: vec![],
         mutations: vec![],
         subscriptions: vec![],

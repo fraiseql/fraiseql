@@ -327,6 +327,7 @@ pub struct ProjectionHint {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
     use fraiseql_core::schema::{
         ArgumentDefinition, AutoParams, FieldDefinition, FieldType,
         TypeDefinition,
@@ -336,10 +337,14 @@ mod tests {
     fn test_optimize_empty_schema() {
         let mut schema = CompiledSchema {
             types: vec![],
+            enums: vec![],
+            input_types: vec![],
+            interfaces: vec![],
+            unions: vec![],
             queries: vec![],
             mutations: vec![],
             subscriptions: vec![],
-            fact_tables: Default::default(),
+            fact_tables: HashMap::default(),
         };
 
         let report = SchemaOptimizer::optimize(&mut schema).unwrap();
@@ -350,6 +355,10 @@ mod tests {
     fn test_index_hint_for_list_query() {
         let mut schema = CompiledSchema {
             types: vec![],
+            enums: vec![],
+            input_types: vec![],
+            interfaces: vec![],
+            unions: vec![],
             queries: vec![QueryDefinition {
                 name: "users".to_string(),
                 return_type: "User".to_string(),
@@ -368,7 +377,7 @@ mod tests {
             }],
             mutations: vec![],
             subscriptions: vec![],
-            fact_tables: Default::default(),
+            fact_tables: HashMap::default(),
         };
 
         let report = SchemaOptimizer::optimize(&mut schema).unwrap();
@@ -381,6 +390,10 @@ mod tests {
     fn test_pagination_note() {
         let mut schema = CompiledSchema {
             types: vec![],
+            enums: vec![],
+            input_types: vec![],
+            interfaces: vec![],
+            unions: vec![],
             queries: vec![QueryDefinition {
                 name: "products".to_string(),
                 return_type: "Product".to_string(),
@@ -398,7 +411,7 @@ mod tests {
             }],
             mutations: vec![],
             subscriptions: vec![],
-            fact_tables: Default::default(),
+            fact_tables: HashMap::default(),
         };
 
         let report = SchemaOptimizer::optimize(&mut schema).unwrap();
@@ -420,15 +433,22 @@ mod tests {
                         default_value: None,
                         description: None,
                         vector_config: None,
+                        alias: None,
+                        deprecation: None,
                     })
                     .collect(),
                 description: None,
                 sql_projection_hint: None,
+                implements: vec![],
             }],
+            enums: vec![],
+            input_types: vec![],
+            interfaces: vec![],
+            unions: vec![],
             queries: vec![],
             mutations: vec![],
             subscriptions: vec![],
-            fact_tables: Default::default(),
+            fact_tables: HashMap::default(),
         };
 
         let report = SchemaOptimizer::optimize(&mut schema).unwrap();
@@ -453,15 +473,22 @@ mod tests {
                         default_value: None,
                         description: None,
                         vector_config: None,
+                        alias: None,
+                        deprecation: None,
                     })
                     .collect(),
                 description: None,
                 sql_projection_hint: None,
+                implements: vec![],
             }],
+            enums: vec![],
+            input_types: vec![],
+            interfaces: vec![],
+            unions: vec![],
             queries: vec![],
             mutations: vec![],
             subscriptions: vec![],
-            fact_tables: Default::default(),
+            fact_tables: HashMap::default(),
         };
 
         let report = SchemaOptimizer::optimize(&mut schema).unwrap();
@@ -493,15 +520,22 @@ mod tests {
                         default_value: None,
                         description: None,
                         vector_config: None,
+                        alias: None,
+                        deprecation: None,
                     })
                     .collect(),
                 description: None,
                 sql_projection_hint: None,
+                implements: vec![],
             }],
+            enums: vec![],
+            input_types: vec![],
+            interfaces: vec![],
+            unions: vec![],
             queries: vec![],
             mutations: vec![],
             subscriptions: vec![],
-            fact_tables: Default::default(),
+            fact_tables: HashMap::default(),
         };
 
         let report = SchemaOptimizer::optimize(&mut schema).unwrap();
@@ -512,7 +546,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
+    #[ignore = "TODO: Schema optimizer behavior changed - needs update (Phase 4+)"]
     fn test_projection_not_applied_to_small_type() {
         // TODO: Schema optimizer behavior changed - needs update (Phase 4+)
     }

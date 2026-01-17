@@ -289,17 +289,16 @@ impl DatabaseAdapter for MySqlAdapter {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "test-mysql"))]
 mod tests {
     use super::*;
 
     // Note: These tests require a running MySQL instance with test data.
-    // They are marked as ignored by default.
+    // Run with: cargo test --features test-mysql -p fraiseql-core db::mysql::adapter
 
-    const TEST_DB_URL: &str = "mysql://fraiseql_test:fraiseql_test_password@localhost:3306/test_fraiseql";
+    const TEST_DB_URL: &str = "mysql://fraiseql_test:fraiseql_test_password@localhost:3307/test_fraiseql";
 
     #[tokio::test]
-    #[ignore]
     async fn test_adapter_creation() {
         let adapter = MySqlAdapter::new(TEST_DB_URL)
             .await
@@ -311,7 +310,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_health_check() {
         let adapter = MySqlAdapter::new(TEST_DB_URL)
             .await

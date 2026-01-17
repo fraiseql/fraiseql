@@ -1,20 +1,26 @@
 //! GraphQL HTTP endpoint.
+//!
+//! Supports both POST and GET requests per the GraphQL over HTTP spec:
+//! - POST: JSON body with `query`, `variables`, `operationName`
+//! - GET: Query parameters `query`, `variables` (JSON-encoded), `operationName`
 
 use axum::{
-    extract::State,
+    extract::{Query, State},
     response::{IntoResponse, Response},
     Json,
 };
 use fraiseql_core::{db::traits::DatabaseAdapter, runtime::Executor};
 use serde::{Deserialize, Serialize};
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Instant;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 use crate::error::{ErrorResponse, GraphQLError};
+use crate::metrics::MetricsCollector;
 use crate::validation::RequestValidator;
 
-/// GraphQL request payload.
+/// GraphQL request payload (for POST requests).
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GraphQLRequest {
@@ -24,6 +30,27 @@ pub struct GraphQLRequest {
     /// Query variables (optional).
     #[serde(default)]
     pub variables: Option<serde_json::Value>,
+
+    /// Operation name (optional).
+    #[serde(default)]
+    pub operation_name: Option<String>,
+}
+
+/// GraphQL GET request parameters.
+///
+/// Per GraphQL over HTTP spec, GET requests encode parameters in the query string:
+/// - `query`: Required, the GraphQL query string
+/// - `variables`: Optional, JSON-encoded object
+/// - `operationName`: Optional, name of the operation to execute
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GraphQLGetParams {
+    /// GraphQL query string (required).
+    pub query: String,
+
+    /// Query variables as JSON-encoded string (optional).
+    #[serde(default)]
+    pub variables: Option<String>,
 
     /// Operation name (optional).
     #[serde(default)]
@@ -49,17 +76,28 @@ impl IntoResponse for GraphQLResponse {
 pub struct AppState<A: DatabaseAdapter> {
     /// Query executor.
     pub executor: Arc<Executor<A>>,
+    /// Metrics collector.
+    pub metrics: Arc<MetricsCollector>,
 }
 
 impl<A: DatabaseAdapter> AppState<A> {
     /// Create new application state.
     #[must_use]
     pub fn new(executor: Arc<Executor<A>>) -> Self {
-        Self { executor }
+        Self {
+            executor,
+            metrics: Arc::new(MetricsCollector::new()),
+        }
+    }
+
+    /// Create new application state with custom metrics collector.
+    #[must_use]
+    pub fn with_metrics(executor: Arc<Executor<A>>, metrics: Arc<MetricsCollector>) -> Self {
+        Self { executor, metrics }
     }
 }
 
-/// GraphQL HTTP handler.
+/// GraphQL HTTP handler for POST requests.
 ///
 /// Handles POST requests to the GraphQL endpoint:
 /// 1. Validate GraphQL request (depth, complexity)
@@ -77,7 +115,81 @@ pub async fn graphql_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
     State(state): State<AppState<A>>,
     Json(request): Json<GraphQLRequest>,
 ) -> Result<GraphQLResponse, ErrorResponse> {
+    execute_graphql_request(state, request).await
+}
+
+/// GraphQL HTTP handler for GET requests.
+///
+/// Handles GET requests to the GraphQL endpoint per the GraphQL over HTTP spec.
+/// Query parameters:
+/// - `query`: Required, the GraphQL query string (URL-encoded)
+/// - `variables`: Optional, JSON-encoded variables object (URL-encoded)
+/// - `operationName`: Optional, name of the operation to execute
+///
+/// Example:
+/// ```text
+/// GET /graphql?query={users{id,name}}&variables={"limit":10}
+/// ```
+///
+/// # Errors
+///
+/// Returns appropriate HTTP status codes based on error type.
+///
+/// # Note
+///
+/// Per GraphQL over HTTP spec, GET requests should only be used for queries,
+/// not mutations (which should use POST). This handler does not enforce that
+/// restriction but logs a warning for mutation-like queries.
+pub async fn graphql_get_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
+    State(state): State<AppState<A>>,
+    Query(params): Query<GraphQLGetParams>,
+) -> Result<GraphQLResponse, ErrorResponse> {
+    // Parse variables from JSON string
+    let variables = if let Some(vars_str) = params.variables {
+        match serde_json::from_str::<serde_json::Value>(&vars_str) {
+            Ok(v) => Some(v),
+            Err(e) => {
+                warn!(
+                    error = %e,
+                    variables = %vars_str,
+                    "Failed to parse variables JSON in GET request"
+                );
+                return Err(ErrorResponse::from_error(GraphQLError::request(format!(
+                    "Invalid variables JSON: {e}"
+                ))));
+            }
+        }
+    } else {
+        None
+    };
+
+    // Warn if this looks like a mutation (GET should be for queries only)
+    if params.query.trim_start().starts_with("mutation") {
+        warn!(
+            operation_name = ?params.operation_name,
+            "Mutation sent via GET request - should use POST"
+        );
+    }
+
+    let request = GraphQLRequest {
+        query: params.query,
+        variables,
+        operation_name: params.operation_name,
+    };
+
+    execute_graphql_request(state, request).await
+}
+
+/// Shared GraphQL execution logic for both GET and POST handlers.
+async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
+    state: AppState<A>,
+    request: GraphQLRequest,
+) -> Result<GraphQLResponse, ErrorResponse> {
     let start_time = Instant::now();
+    let metrics = &state.metrics;
+
+    // Increment total queries counter
+    metrics.queries_total.fetch_add(1, Ordering::Relaxed);
 
     info!(
         query_length = request.query.len(),
@@ -96,6 +208,8 @@ pub async fn graphql_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
             operation_name = ?request.operation_name,
             "Query validation failed"
         );
+        metrics.queries_error.fetch_add(1, Ordering::Relaxed);
+        metrics.validation_errors_total.fetch_add(1, Ordering::Relaxed);
         let graphql_error = match e {
             crate::validation::ValidationError::QueryTooDeep {
                 max_depth,
@@ -110,6 +224,7 @@ pub async fn graphql_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
                 "Query exceeds maximum complexity: {actual_complexity} > {max_complexity}"
             )),
             crate::validation::ValidationError::MalformedQuery(msg) => {
+                metrics.parse_errors_total.fetch_add(1, Ordering::Relaxed);
                 GraphQLError::parse(msg)
             }
             crate::validation::ValidationError::InvalidVariables(msg) => {
@@ -126,6 +241,8 @@ pub async fn graphql_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
             operation_name = ?request.operation_name,
             "Variables validation failed"
         );
+        metrics.queries_error.fetch_add(1, Ordering::Relaxed);
+        metrics.validation_errors_total.fetch_add(1, Ordering::Relaxed);
         return Err(ErrorResponse::from_error(GraphQLError::request(e.to_string())));
     }
 
@@ -142,10 +259,21 @@ pub async fn graphql_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
                 operation_name = ?request.operation_name,
                 "Query execution failed"
             );
+            metrics.queries_error.fetch_add(1, Ordering::Relaxed);
+            metrics.execution_errors_total.fetch_add(1, Ordering::Relaxed);
+            // Record duration even for failed queries
+            metrics.queries_duration_us.fetch_add(elapsed.as_micros() as u64, Ordering::Relaxed);
             ErrorResponse::from_error(GraphQLError::execution(&e.to_string()))
         })?;
 
     let elapsed = start_time.elapsed();
+
+    // Record successful query metrics
+    metrics.queries_success.fetch_add(1, Ordering::Relaxed);
+    metrics.queries_duration_us.fetch_add(elapsed.as_micros() as u64, Ordering::Relaxed);
+    metrics.db_queries_total.fetch_add(1, Ordering::Relaxed);
+    metrics.db_queries_duration_us.fetch_add(elapsed.as_micros() as u64, Ordering::Relaxed);
+
     debug!(
         response_length = result.len(),
         elapsed_ms = elapsed.as_millis(),
@@ -189,5 +317,46 @@ mod tests {
         let json = r#"{"query": "query($id: ID!) { user(id: $id) { name } }", "variables": {"id": "123"}}"#;
         let request: GraphQLRequest = serde_json::from_str(json).unwrap();
         assert!(request.variables.is_some());
+    }
+
+    #[test]
+    fn test_graphql_get_params_deserialize() {
+        // Simulate URL query params: ?query={users{id}}&operationName=GetUsers
+        let params: GraphQLGetParams = serde_json::from_value(serde_json::json!({
+            "query": "{ users { id } }",
+            "operationName": "GetUsers"
+        }))
+        .unwrap();
+
+        assert_eq!(params.query, "{ users { id } }");
+        assert_eq!(params.operation_name, Some("GetUsers".to_string()));
+        assert!(params.variables.is_none());
+    }
+
+    #[test]
+    fn test_graphql_get_params_with_variables() {
+        // Variables should be JSON-encoded string in GET requests
+        let params: GraphQLGetParams = serde_json::from_value(serde_json::json!({
+            "query": "query($id: ID!) { user(id: $id) { name } }",
+            "variables": r#"{"id": "123"}"#
+        }))
+        .unwrap();
+
+        assert!(params.variables.is_some());
+        let vars_str = params.variables.unwrap();
+        let vars: serde_json::Value = serde_json::from_str(&vars_str).unwrap();
+        assert_eq!(vars["id"], "123");
+    }
+
+    #[test]
+    fn test_graphql_get_params_camel_case() {
+        // Test camelCase field names
+        let params: GraphQLGetParams = serde_json::from_value(serde_json::json!({
+            "query": "{ users { id } }",
+            "operationName": "TestOp"
+        }))
+        .unwrap();
+
+        assert_eq!(params.operation_name, Some("TestOp".to_string()));
     }
 }

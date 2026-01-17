@@ -230,13 +230,6 @@ impl Default for QueryAnalyzer {
 mod tests {
     use super::*;
 
-    // Helper to create test query definitions
-    #[allow(dead_code)]
-    fn test_query(_name: &str, _return_type: &str) -> String {
-        // TODO: This helper needs IRQuery struct and AutoParams type (Phase 4+)
-        String::new()
-    }
-
     #[test]
     fn test_parse_where_id_constraint() {
         let analyzer = QueryAnalyzer::new();
@@ -287,27 +280,9 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
-    fn test_extract_return_type() {
-        // TODO: Implement with proper IRQuery support (Phase 4+)
-    }
-
-    #[test]
-    #[ignore]
-    fn test_handle_array_return_type() {
-        // TODO: Implement with proper IRQuery support (Phase 4+)
-    }
-
-    #[test]
     fn test_cardinality_hit_rates() {
-        assert_eq!(QueryCardinality::Single.expected_hit_rate(), 0.91);
-        assert_eq!(QueryCardinality::Multiple.expected_hit_rate(), 0.88);
-        assert_eq!(QueryCardinality::List.expected_hit_rate(), 0.60);
-    }
-
-    #[test]
-    #[ignore]
-    fn test_error_cases() {
-        // TODO: Implement with proper IRQuery support (Phase 4+)
+        assert!((QueryCardinality::Single.expected_hit_rate() - 0.91).abs() < f64::EPSILON);
+        assert!((QueryCardinality::Multiple.expected_hit_rate() - 0.88).abs() < f64::EPSILON);
+        assert!((QueryCardinality::List.expected_hit_rate() - 0.60).abs() < f64::EPSILON);
     }
 }

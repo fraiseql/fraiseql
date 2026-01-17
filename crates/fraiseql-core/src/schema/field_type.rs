@@ -209,6 +209,12 @@ impl DistanceMetric {
 /// This represents a single field definition after compilation from
 /// Python/TypeScript decorators. All data is Rust-owned.
 ///
+/// # JSONB Architecture Note
+///
+/// FraiseQL stores all field data in a JSONB column (typically `data`).
+/// The `name` field corresponds to the key in the JSONB object.
+/// SQL columns are only used for WHERE clause filtering, not data retrieval.
+///
 /// # Example
 ///
 /// ```
@@ -221,11 +227,13 @@ impl DistanceMetric {
 ///     description: Some("User's email address".to_string()),
 ///     default_value: None,
 ///     vector_config: None,
+///     alias: None,
+///     deprecation: None,
 /// };
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FieldDefinition {
-    /// Field name in GraphQL (e.g., "email").
+    /// Field name - the key in the JSONB `data` column (e.g., "email").
     pub name: String,
 
     /// Field type.
@@ -247,6 +255,38 @@ pub struct FieldDefinition {
     /// Only present when `field_type` is Vector.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub vector_config: Option<VectorConfig>,
+
+    /// GraphQL alias for this field (output key name in response).
+    /// When set, the field value from JSONB key `name` is output under this alias.
+    /// Example: `{ writer: author { name } }` - reads JSONB key "author", outputs as "writer"
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub alias: Option<String>,
+
+    /// Deprecation information (from @deprecated directive).
+    /// When set, the field is marked as deprecated in the schema.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deprecation: Option<DeprecationInfo>,
+}
+
+/// Deprecation information for a field or type.
+///
+/// Per GraphQL spec §4.4, deprecated fields should include a reason
+/// explaining why the field is deprecated and what to use instead.
+///
+/// # Example
+///
+/// ```
+/// use fraiseql_core::schema::DeprecationInfo;
+///
+/// let deprecation = DeprecationInfo {
+///     reason: Some("Use 'userId' instead".to_string()),
+/// };
+/// ```
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DeprecationInfo {
+    /// Deprecation reason (what to use instead).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
 }
 
 impl FieldDefinition {
@@ -260,6 +300,8 @@ impl FieldDefinition {
             description: None,
             default_value: None,
             vector_config: None,
+            alias: None,
+            deprecation: None,
         }
     }
 
@@ -273,6 +315,8 @@ impl FieldDefinition {
             description: None,
             default_value: None,
             vector_config: None,
+            alias: None,
+            deprecation: None,
         }
     }
 
@@ -294,6 +338,8 @@ impl FieldDefinition {
             description: None,
             default_value: None,
             vector_config: Some(config),
+            alias: None,
+            deprecation: None,
         }
     }
 
@@ -318,10 +364,85 @@ impl FieldDefinition {
         self
     }
 
+    /// Set a GraphQL alias for this field (output key name in response).
+    ///
+    /// The alias determines the key name in the JSON response, while `name`
+    /// remains the JSONB key where data is read from.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use fraiseql_core::schema::{FieldDefinition, FieldType};
+    ///
+    /// // JSONB key "author" will be output as "writer" in the response
+    /// let field = FieldDefinition::new("author", FieldType::Object("User".to_string()))
+    ///     .with_alias("writer");
+    /// assert_eq!(field.output_name(), "writer");
+    /// assert_eq!(field.name, "author"); // JSONB key unchanged
+    /// ```
+    #[must_use]
+    pub fn with_alias(mut self, alias: impl Into<String>) -> Self {
+        self.alias = Some(alias.into());
+        self
+    }
+
+    /// Get the output name for this field (alias if set, otherwise name).
+    ///
+    /// This is the key name that appears in the GraphQL JSON response.
+    #[must_use]
+    pub fn output_name(&self) -> &str {
+        self.alias.as_deref().unwrap_or(&self.name)
+    }
+
+    /// Get the JSONB key name for this field.
+    ///
+    /// This is always `name`, regardless of alias. Used for:
+    /// - Reading data from JSONB column
+    /// - Building WHERE clause paths
+    #[must_use]
+    pub fn jsonb_key(&self) -> &str {
+        &self.name
+    }
+
+    /// Check if this field has an alias.
+    #[must_use]
+    pub fn has_alias(&self) -> bool {
+        self.alias.is_some()
+    }
+
     /// Check if this is a vector field.
     #[must_use]
     pub fn is_vector(&self) -> bool {
         matches!(self.field_type, FieldType::Vector)
+    }
+
+    /// Mark this field as deprecated.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use fraiseql_core::schema::{FieldDefinition, FieldType};
+    ///
+    /// let field = FieldDefinition::new("oldId", FieldType::Int)
+    ///     .deprecated(Some("Use 'id' instead".to_string()));
+    /// assert!(field.is_deprecated());
+    /// ```
+    #[must_use]
+    pub fn deprecated(mut self, reason: Option<String>) -> Self {
+        self.deprecation = Some(DeprecationInfo { reason });
+        self
+    }
+
+    /// Check if this field is deprecated.
+    #[must_use]
+    pub fn is_deprecated(&self) -> bool {
+        self.deprecation.is_some()
+    }
+
+    /// Get the deprecation reason if deprecated.
+    #[must_use]
+    pub fn deprecation_reason(&self) -> Option<&str> {
+        self.deprecation.as_ref().and_then(|d| d.reason.as_deref())
     }
 }
 

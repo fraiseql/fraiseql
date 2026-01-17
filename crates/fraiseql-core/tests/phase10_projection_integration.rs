@@ -420,12 +420,12 @@ fn test_result_projector_list_vs_single() {
     let jsonb = JsonbValue::new(data);
 
     // Test list projection
-    let list_result = projector.project_results(&[jsonb.clone()], true).unwrap();
+    let list_result = projector.project_results(std::slice::from_ref(&jsonb), true).unwrap();
     assert!(list_result.is_array());
     assert_eq!(list_result.as_array().unwrap().len(), 1);
 
     // Test single projection
-    let single_result = projector.project_results(&[jsonb], false).unwrap();
+    let single_result = projector.project_results(std::slice::from_ref(&jsonb), false).unwrap();
     assert!(single_result.is_object());
     assert_eq!(single_result.get("id"), Some(&json!("1")));
 }

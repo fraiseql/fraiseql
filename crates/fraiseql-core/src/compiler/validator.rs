@@ -286,6 +286,7 @@ impl Default for SchemaValidator {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::super::ir::{IRType, IRField};
     use serde_json::json;
 
     #[test]
@@ -495,8 +496,6 @@ mod tests {
         let validator = SchemaValidator::new();
         let mut ir = AuthoringIR::new();
 
-        use super::super::ir::{IRType, IRField};
-
         ir.types.push(IRType {
             name: "SalesAggregate".to_string(),
             fields: vec![
@@ -523,8 +522,6 @@ mod tests {
     fn test_validate_aggregate_type_with_count() {
         let validator = SchemaValidator::new();
         let mut ir = AuthoringIR::new();
-
-        use super::super::ir::{IRType, IRField};
 
         ir.types.push(IRType {
             name: "SalesAggregate".to_string(),
@@ -557,8 +554,6 @@ mod tests {
         let validator = SchemaValidator::new();
         let mut ir = AuthoringIR::new();
 
-        use super::super::ir::{IRType, IRField};
-
         ir.types.push(IRType {
             name: "SalesGroupByInput".to_string(),
             fields: vec![
@@ -586,8 +581,6 @@ mod tests {
         let validator = SchemaValidator::new();
         let mut ir = AuthoringIR::new();
 
-        use super::super::ir::{IRType, IRField};
-
         ir.types.push(IRType {
             name: "SalesGroupByInput".to_string(),
             fields: vec![
@@ -611,8 +604,6 @@ mod tests {
     fn test_validate_having_input_invalid_suffix() {
         let validator = SchemaValidator::new();
         let mut ir = AuthoringIR::new();
-
-        use super::super::ir::{IRType, IRField};
 
         ir.types.push(IRType {
             name: "SalesHavingInput".to_string(),
@@ -640,8 +631,6 @@ mod tests {
     fn test_validate_having_input_valid() {
         let validator = SchemaValidator::new();
         let mut ir = AuthoringIR::new();
-
-        use super::super::ir::{IRType, IRField};
 
         ir.types.push(IRType {
             name: "SalesHavingInput".to_string(),

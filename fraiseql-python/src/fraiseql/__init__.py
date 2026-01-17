@@ -9,10 +9,21 @@ Architecture:
 Example:
     ```python
     import fraiseql
+    from enum import Enum
+
+    @fraiseql.enum
+    class OrderStatus(Enum):
+        PENDING = "pending"
+        SHIPPED = "shipped"
 
     @fraiseql.type
     class User:
         id: int
+        name: str
+        email: str
+
+    @fraiseql.input
+    class CreateUserInput:
         name: str
         email: str
 
@@ -26,14 +37,22 @@ Example:
 """
 
 from fraiseql.analytics import aggregate_query, fact_table
+from fraiseql.decorators import enum as enum_decorator
+from fraiseql.decorators import input as input_decorator
+from fraiseql.decorators import interface as interface_decorator
 from fraiseql.decorators import mutation, query
 from fraiseql.decorators import type as type_decorator
+from fraiseql.decorators import union as union_decorator
 from fraiseql.schema import config, export_schema
 
 __version__ = "2.0.0-alpha.1"
 
 __all__ = [
     "type_decorator",
+    "enum_decorator",
+    "input_decorator",
+    "interface_decorator",
+    "union_decorator",
     "query",
     "mutation",
     "config",
@@ -43,5 +62,9 @@ __all__ = [
     "__version__",
 ]
 
-# Alias for cleaner API
+# Aliases for cleaner API
 type = type_decorator
+enum = enum_decorator
+input = input_decorator
+interface = interface_decorator
+union = union_decorator

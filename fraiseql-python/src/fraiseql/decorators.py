@@ -1,17 +1,27 @@
 """Decorators for FraiseQL schema authoring (compile-time only)."""
 
-from collections.abc import Callable
+from __future__ import annotations
+
+from enum import Enum as PythonEnum
 from types import FunctionType
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from fraiseql.registry import SchemaRegistry
 from fraiseql.types import extract_field_info, extract_function_signature
 
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
 T = TypeVar("T")
 F = TypeVar("F", bound=FunctionType)
+E = TypeVar("E", bound=PythonEnum)
 
 
-def type(cls: type[T]) -> type[T]:
+def type(
+    cls: type[T] | None = None,
+    *,
+    implements: list[str] | None = None,
+) -> type[T] | Callable[[type[T]], type[T]]:
     """Decorator to mark a Python class as a GraphQL type.
 
     This decorator registers the class with the schema registry for JSON export.
@@ -19,6 +29,7 @@ def type(cls: type[T]) -> type[T]:
 
     Args:
         cls: Python class with type annotations
+        implements: List of interface names this type implements
 
     Returns:
         The original class (unmodified)
@@ -42,24 +53,47 @@ def type(cls: type[T]) -> type[T]:
             ]
         }
 
+        >>> @fraiseql.type(implements=["Node"])
+        ... class User:
+        ...     id: str  # Required by Node interface
+        ...     name: str
+
+        This generates JSON with implements:
+        {
+            "name": "User",
+            "fields": [...],
+            "implements": ["Node"]
+        }
+
     Notes:
         - Class must have type annotations for all fields
         - Supports nullable types via | None syntax
         - Supports nested types (other @fraiseql.type classes)
         - Supports lists via list[T] syntax
+        - Use implements=["InterfaceName"] to implement interfaces
     """
-    # Extract field information from class annotations
-    fields = extract_field_info(cls)
 
-    # Register type with schema registry
-    SchemaRegistry.register_type(
-        name=cls.__name__,
-        fields=fields,
-        description=cls.__doc__,
-    )
+    def decorator(c: type[T]) -> type[T]:
+        # Extract field information from class annotations
+        fields = extract_field_info(c)
 
-    # Return original class unmodified (no runtime behavior)
-    return cls
+        # Register type with schema registry
+        SchemaRegistry.register_type(
+            name=c.__name__,
+            fields=fields,
+            description=c.__doc__,
+            implements=implements or [],
+        )
+
+        # Return original class unmodified (no runtime behavior)
+        return c
+
+    # Support both @type and @type(...)
+    if cls is None:
+        # Called with arguments: @type(implements=["Node"])
+        return decorator
+    # Called without arguments: @type
+    return decorator(cls)
 
 
 def query(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F]:
@@ -190,3 +224,266 @@ def mutation(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F
         return decorator
     # Called without arguments: @mutation
     return decorator(func)
+
+
+def enum(cls: type[E]) -> type[E]:
+    """Decorator to mark a Python enum as a GraphQL enum.
+
+    This decorator registers the enum with the schema registry for JSON export.
+    NO runtime behavior - only used for schema compilation.
+
+    Args:
+        cls: Python Enum class
+
+    Returns:
+        The original enum class (unmodified)
+
+    Examples:
+        >>> @fraiseql.enum
+        ... class OrderStatus(Enum):
+        ...     '''Status of an order.'''
+        ...     PENDING = "pending"
+        ...     PROCESSING = "processing"
+        ...     SHIPPED = "shipped"
+        ...     DELIVERED = "delivered"
+
+        This generates JSON:
+        {
+            "name": "OrderStatus",
+            "description": "Status of an order.",
+            "values": [
+                {"name": "PENDING"},
+                {"name": "PROCESSING"},
+                {"name": "SHIPPED"},
+                {"name": "DELIVERED"}
+            ]
+        }
+
+    Notes:
+        - Class must inherit from enum.Enum
+        - Values are extracted from member names (not values)
+        - Use docstrings on the class for descriptions
+        - Use `deprecated` marker function for deprecated values
+    """
+    # Validate that cls is an Enum
+    if not issubclass(cls, PythonEnum):
+        raise TypeError(f"@enum can only be applied to Enum classes, got {cls.__name__}")
+
+    # Extract enum values
+    values = []
+    for member in cls:
+        value_info: dict[str, Any] = {"name": member.name}
+
+        # Check for deprecation (can be set via class attribute)
+        if hasattr(member, "_deprecated"):
+            deprecated_info = member._deprecated  # noqa: SLF001
+            value_info["deprecated"] = {"reason": deprecated_info}
+
+        values.append(value_info)
+
+    # Register enum with schema registry
+    SchemaRegistry.register_enum(
+        name=cls.__name__,
+        values=values,
+        description=cls.__doc__,
+    )
+
+    # Return original class unmodified
+    return cls
+
+
+def interface(cls: type[T]) -> type[T]:
+    """Decorator to mark a Python class as a GraphQL interface.
+
+    This decorator registers the class with the schema registry for JSON export.
+    NO runtime behavior - only used for schema compilation.
+
+    Interfaces define a common set of fields that multiple object types can implement.
+    Per GraphQL spec §3.7, interfaces enable polymorphic queries.
+
+    Args:
+        cls: Python class with type annotations
+
+    Returns:
+        The original class (unmodified)
+
+    Examples:
+        >>> @fraiseql.interface
+        ... class Node:
+        ...     '''An object with a globally unique ID.'''
+        ...     id: str
+
+        >>> @fraiseql.type(implements=["Node"])
+        ... class User:
+        ...     id: str
+        ...     name: str
+
+        This generates JSON:
+        {
+            "interfaces": [{
+                "name": "Node",
+                "fields": [{"name": "id", "type": "ID", "nullable": false}],
+                "description": "An object with a globally unique ID."
+            }],
+            "types": [{
+                "name": "User",
+                "fields": [...],
+                "implements": ["Node"]
+            }]
+        }
+
+    Notes:
+        - Class must have type annotations for all fields
+        - All implementing types must have the same fields (validated at compile time)
+    """
+    # Extract field information from class annotations
+    fields = extract_field_info(cls)
+
+    # Register interface with schema registry
+    SchemaRegistry.register_interface(
+        name=cls.__name__,
+        fields=fields,
+        description=cls.__doc__,
+    )
+
+    # Return original class unmodified (no runtime behavior)
+    return cls
+
+
+def input(cls: type[T]) -> type[T]:
+    """Decorator to mark a Python class as a GraphQL input object.
+
+    This decorator registers the class with the schema registry for JSON export.
+    NO runtime behavior - only used for schema compilation.
+
+    Args:
+        cls: Python class with type annotations
+
+    Returns:
+        The original class (unmodified)
+
+    Examples:
+        >>> @fraiseql.input
+        ... class CreateUserInput:
+        ...     '''Input for creating a new user.'''
+        ...     name: str
+        ...     email: str
+        ...     role: str = "user"
+
+        This generates JSON:
+        {
+            "name": "CreateUserInput",
+            "description": "Input for creating a new user.",
+            "fields": [
+                {"name": "name", "type": "String", "nullable": false},
+                {"name": "email", "type": "String", "nullable": false},
+                {"name": "role", "type": "String", "nullable": false, "default": "user"}
+            ]
+        }
+
+    Notes:
+        - Class must have type annotations for all fields
+        - Supports nullable types via | None syntax
+        - Supports default values
+        - Use docstrings on the class for descriptions
+    """
+    # Extract field information from class annotations
+    field_info = extract_field_info(cls)
+
+    # Convert to list format with default values
+    fields = []
+    for field_name, info in field_info.items():
+        field: dict[str, Any] = {
+            "name": field_name,
+            "type": info["type"],
+            "nullable": info["nullable"],
+        }
+
+        # Check for default value
+        if hasattr(cls, field_name):
+            default_val = getattr(cls, field_name)
+            # Only set default if it's not a descriptor or method
+            if not callable(default_val) and not isinstance(default_val, property):
+                field["default"] = default_val
+
+        fields.append(field)
+
+    # Register input with schema registry
+    SchemaRegistry.register_input(
+        name=cls.__name__,
+        fields=fields,
+        description=cls.__doc__,
+    )
+
+    # Return original class unmodified
+    return cls
+
+
+def union(
+    name: str | None = None,
+    members: list[type] | None = None,
+) -> Callable[[type[T]], type[T]]:
+    """Decorator to mark a Python class as a GraphQL union type.
+
+    Per GraphQL spec §3.10, unions represent a type that could be one of
+    several object types. Unlike interfaces, unions don't define common fields.
+
+    This decorator registers the union with the schema registry for JSON export.
+    NO runtime behavior - only used for schema compilation.
+
+    Args:
+        name: Optional union name (defaults to class name)
+        members: List of member type classes
+
+    Returns:
+        Decorator function
+
+    Examples:
+        >>> @fraiseql.type
+        ... class User:
+        ...     id: str
+        ...     name: str
+
+        >>> @fraiseql.type
+        ... class Post:
+        ...     id: str
+        ...     title: str
+
+        >>> @fraiseql.union(members=[User, Post])
+        ... class SearchResult:
+        ...     '''Result from a search query.'''
+        ...     pass
+
+        This generates JSON:
+        {
+            "name": "SearchResult",
+            "description": "Result from a search query.",
+            "member_types": ["User", "Post"]
+        }
+
+    Notes:
+        - Union members must be @fraiseql.type decorated classes
+        - The decorated class itself is just a marker (body is ignored)
+        - Use docstrings on the class for descriptions
+    """
+
+    def decorator(cls: type[T]) -> type[T]:
+        union_name = name if name is not None else cls.__name__
+
+        # Extract member type names
+        member_types: list[str] = []
+        if members:
+            for member in members:
+                member_types.append(member.__name__)
+
+        # Register union with schema registry
+        SchemaRegistry.register_union(
+            name=union_name,
+            member_types=member_types,
+            description=cls.__doc__,
+        )
+
+        # Return original class unmodified (no runtime behavior)
+        return cls
+
+    return decorator

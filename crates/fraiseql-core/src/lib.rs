@@ -118,6 +118,9 @@ pub mod compiler;
 // Execution (Phase 5)
 pub mod runtime;
 
+// GraphQL parsing and query processing
+pub mod graphql;
+
 // Infrastructure
 pub mod db;
 pub mod cache;

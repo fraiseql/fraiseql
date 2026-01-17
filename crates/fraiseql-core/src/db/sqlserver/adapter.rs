@@ -379,18 +379,17 @@ impl DatabaseAdapter for SqlServerAdapter {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "test-sqlserver"))]
 mod tests {
     use super::*;
 
     // Note: These tests require a running SQL Server instance with test data.
-    // They are marked as ignored by default.
+    // Run with: cargo test --features test-sqlserver -p fraiseql-core db::sqlserver::adapter
 
     const TEST_DB_URL: &str =
-        "server=localhost,1433;database=test_fraiseql;user=sa;password=FraiseQL_Test_123";
+        "server=localhost,1434;database=master;user=sa;password=FraiseQL_Test1234;TrustServerCertificate=true";
 
     #[tokio::test]
-    #[ignore]
     async fn test_adapter_creation() {
         let adapter = SqlServerAdapter::new(TEST_DB_URL)
             .await
@@ -402,7 +401,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_health_check() {
         let adapter = SqlServerAdapter::new(TEST_DB_URL)
             .await

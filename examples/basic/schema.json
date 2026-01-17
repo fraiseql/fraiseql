@@ -6,22 +6,22 @@
       "name": "User",
       "description": "A user in the system.",
       "fields": [
-        {"name": "id", "type": "Int!", "description": "User ID"},
-        {"name": "name", "type": "String!", "description": "User name"},
-        {"name": "email", "type": "String!", "description": "User email"},
-        {"name": "created_at", "type": "DateTime!", "description": "Creation timestamp"}
+        {"name": "id", "type": "Int", "nullable": false},
+        {"name": "name", "type": "String", "nullable": false},
+        {"name": "email", "type": "String", "nullable": false},
+        {"name": "created_at", "type": "DateTime", "nullable": false}
       ]
     },
     {
       "name": "Post",
       "description": "A blog post.",
       "fields": [
-        {"name": "id", "type": "Int!", "description": "Post ID"},
-        {"name": "title", "type": "String!", "description": "Post title"},
-        {"name": "content", "type": "String!", "description": "Post content"},
-        {"name": "author_id", "type": "Int!", "description": "Author user ID"},
-        {"name": "author", "type": "User", "description": "Post author"},
-        {"name": "created_at", "type": "DateTime!", "description": "Creation timestamp"}
+        {"name": "id", "type": "Int", "nullable": false},
+        {"name": "title", "type": "String", "nullable": false},
+        {"name": "content", "type": "String", "nullable": false},
+        {"name": "author_id", "type": "Int", "nullable": false},
+        {"name": "author", "type": "User", "nullable": true},
+        {"name": "created_at", "type": "DateTime", "nullable": false}
       ]
     }
   ],
@@ -29,9 +29,11 @@
     {
       "name": "users",
       "description": "Get all users.",
-      "return_type": "[User!]!",
+      "return_type": "User",
+      "returns_list": true,
+      "nullable": false,
       "arguments": [
-        {"name": "limit", "type": "Int", "default_value": 100}
+        {"name": "limit", "type": "Int", "nullable": true, "default": 100}
       ],
       "sql_source": "v_users"
     },
@@ -39,18 +41,22 @@
       "name": "user",
       "description": "Get a user by ID.",
       "return_type": "User",
+      "returns_list": false,
+      "nullable": true,
       "arguments": [
-        {"name": "id", "type": "Int!"}
+        {"name": "id", "type": "Int", "nullable": false}
       ],
       "sql_source": "v_users"
     },
     {
       "name": "posts",
       "description": "Get all posts, optionally filtered by author.",
-      "return_type": "[Post!]!",
+      "return_type": "Post",
+      "returns_list": true,
+      "nullable": false,
       "arguments": [
-        {"name": "limit", "type": "Int", "default_value": 100},
-        {"name": "author_id", "type": "Int"}
+        {"name": "limit", "type": "Int", "nullable": true, "default": 100},
+        {"name": "author_id", "type": "Int", "nullable": true}
       ],
       "sql_source": "v_posts"
     },
@@ -58,10 +64,13 @@
       "name": "post",
       "description": "Get a post by ID.",
       "return_type": "Post",
+      "returns_list": false,
+      "nullable": true,
       "arguments": [
-        {"name": "id", "type": "Int!"}
+        {"name": "id", "type": "Int", "nullable": false}
       ],
       "sql_source": "v_posts"
     }
-  ]
+  ],
+  "mutations": []
 }

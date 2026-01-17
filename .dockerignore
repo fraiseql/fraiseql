@@ -13,7 +13,7 @@
 
 # Rust
 target/
-Cargo.lock
+# Note: Cargo.lock is needed for reproducible builds
 .cargo/registry
 .cargo/git
 
@@ -38,8 +38,8 @@ build/
 docs/
 *.md
 
-# Tests
-tests/
+# Tests (but keep test SQL and E2E schemas)
+# tests/ - commented out, needed for E2E tests
 .circleci
 .github
 

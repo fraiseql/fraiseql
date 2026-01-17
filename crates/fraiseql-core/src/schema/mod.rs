@@ -40,12 +40,20 @@
 
 mod compiled;
 mod field_type;
+mod introspection;
 
 pub use compiled::{
-    ArgumentDefinition, AutoParams, CompiledSchema, MutationDefinition, MutationOperation,
-    QueryDefinition, SqlProjectionHint, SubscriptionDefinition, TypeDefinition,
+    ArgumentDefinition, AutoParams, CompiledSchema, EnumDefinition, EnumValueDefinition,
+    InputFieldDefinition, InputObjectDefinition, InterfaceDefinition, MutationDefinition,
+    MutationOperation, QueryDefinition, SqlProjectionHint, SubscriptionDefinition, TypeDefinition,
+    UnionDefinition,
 };
-pub use field_type::{DistanceMetric, FieldDefinition, FieldType, VectorConfig, VectorIndexType};
+pub use field_type::{DeprecationInfo, DistanceMetric, FieldDefinition, FieldType, VectorConfig, VectorIndexType};
+pub use introspection::{
+    DirectiveLocation, IntrospectionBuilder, IntrospectionDirective, IntrospectionEnumValue,
+    IntrospectionField, IntrospectionInputValue, IntrospectionResponses, IntrospectionSchema,
+    IntrospectionType, IntrospectionTypeRef, TypeKind,
+};
 
 #[cfg(test)]
 mod tests;

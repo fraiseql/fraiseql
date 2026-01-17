@@ -67,7 +67,7 @@ async fn test_50_concurrent_graphql_queries() {
 
             async move {
                 let request = create_graphql_request(
-                    &"query { __typename }".to_string(),
+                    "query { __typename }",
                     None,
                     Some(&format!("Query{}", i)),
                 );
@@ -99,10 +99,8 @@ async fn test_50_concurrent_graphql_queries() {
     }
 
     // Should not crash under load - verify we ran the test
-    #[allow(unused_comparisons)]
-    {
-        assert!(successful + failed >= 0);
-    }
+    // At least some requests should have been made
+    assert!(successful + failed > 0, "No requests were processed");
 }
 
 /// Test 100 concurrent requests with varying endpoints
@@ -115,7 +113,6 @@ async fn test_100_concurrent_mixed_endpoints() {
     let futures: Vec<_> = (0..100)
         .map(|i| {
             let client = client.clone();
-            let base_url = base_url;
             let success = success_count.clone();
 
             async move {
@@ -193,7 +190,7 @@ async fn test_latency_distribution() {
 
             async move {
                 let start = Instant::now();
-                if let Ok(_) = client.get(&url).send().await {
+                if client.get(&url).send().await.is_ok() {
                     let latency_ms = start.elapsed().as_millis() as u64;
                     let mut lats = latencies.lock().await;
                     lats.push(latency_ms);
@@ -228,11 +225,10 @@ async fn test_sustained_load() {
     let futures: Vec<_> = (0..5)
         .map(|_| {
             let client = client.clone();
-            let base_url = base_url;
             let count = request_count.clone();
-            let start = start;
 
             async move {
+                let start = Instant::now();
                 // Keep making requests for test duration
                 while start.elapsed().as_secs() < 2 {
                     let request = create_graphql_request("{ __typename }", None, None);
@@ -272,7 +268,6 @@ async fn test_error_handling_under_load() {
     let futures: Vec<_> = (0..30)
         .map(|i| {
             let client = client.clone();
-            let base_url = base_url;
             let success = success_count.clone();
             let errors = error_count.clone();
 

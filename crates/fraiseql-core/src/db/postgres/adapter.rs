@@ -408,19 +408,30 @@ impl DatabaseAdapter for PostgresAdapter {
     }
 }
 
-#[cfg(test)]
+/// PostgreSQL integration tests.
+///
+/// These tests require a running PostgreSQL database with test data.
+///
+/// ## Running the tests
+///
+/// ```bash
+/// # Start test database
+/// docker compose -f docker-compose.test.yml up -d postgres-test
+///
+/// # Run tests with the test-postgres feature
+/// cargo test -p fraiseql-core --features test-postgres db::postgres::adapter::tests
+///
+/// # Or run all tests including ignored ones (legacy method)
+/// cargo test -p fraiseql-core -- --ignored
+///
+/// # Stop test database
+/// docker compose -f docker-compose.test.yml down
+/// ```
+#[cfg(all(test, feature = "test-postgres"))]
 mod tests {
     use super::*;
     use crate::db::{WhereClause, WhereOperator};
     use serde_json::json;
-
-    // Note: These tests require a running PostgreSQL instance with test data.
-    // They are marked as ignored by default.
-    //
-    // To run these tests:
-    //   1. Start test databases: make db-up
-    //   2. Run tests: cargo test -- --ignored
-    //   3. Stop databases: make db-down
 
     const TEST_DB_URL: &str = "postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql";
 
@@ -428,7 +439,7 @@ mod tests {
     async fn create_test_adapter() -> PostgresAdapter {
         PostgresAdapter::new(TEST_DB_URL)
             .await
-            .expect("Failed to create test adapter")
+            .expect("Failed to create test adapter - is PostgreSQL running? Use: docker compose -f docker-compose.test.yml up -d postgres-test")
     }
 
     // ========================================================================
@@ -436,7 +447,6 @@ mod tests {
     // ========================================================================
 
     #[tokio::test]
-    #[ignore]
     async fn test_adapter_creation() {
         let adapter = create_test_adapter().await;
         let metrics = adapter.pool_metrics();
@@ -445,7 +455,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_adapter_with_custom_pool_size() {
         let adapter = PostgresAdapter::with_pool_size(TEST_DB_URL, 5)
             .await
@@ -458,14 +467,12 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_health_check() {
         let adapter = create_test_adapter().await;
         adapter.health_check().await.expect("Health check failed");
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_pool_metrics() {
         let adapter = create_test_adapter().await;
         let metrics = adapter.pool_metrics();
@@ -483,7 +490,6 @@ mod tests {
     // ========================================================================
 
     #[tokio::test]
-    #[ignore]
     async fn test_query_all_users() {
         let adapter = create_test_adapter().await;
 
@@ -502,7 +508,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_query_all_posts() {
         let adapter = create_test_adapter().await;
 
@@ -524,7 +529,6 @@ mod tests {
     // ========================================================================
 
     #[tokio::test]
-    #[ignore]
     async fn test_where_eq() {
         let adapter = create_test_adapter().await;
 
@@ -544,7 +548,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_where_neq() {
         let adapter = create_test_adapter().await;
 
@@ -567,7 +570,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_where_gt() {
         let adapter = create_test_adapter().await;
 
@@ -592,7 +594,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_where_gte() {
         let adapter = create_test_adapter().await;
 
@@ -618,7 +619,6 @@ mod tests {
     // ========================================================================
 
     #[tokio::test]
-    #[ignore]
     async fn test_where_icontains() {
         let adapter = create_test_adapter().await;
 
@@ -641,7 +641,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_where_startswith() {
         let adapter = create_test_adapter().await;
 
@@ -668,7 +667,6 @@ mod tests {
     // ========================================================================
 
     #[tokio::test]
-    #[ignore]
     async fn test_where_and() {
         let adapter = create_test_adapter().await;
 
@@ -698,7 +696,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_where_or() {
         let adapter = create_test_adapter().await;
 
@@ -728,7 +725,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_where_not() {
         let adapter = create_test_adapter().await;
 
@@ -753,7 +749,6 @@ mod tests {
     // ========================================================================
 
     #[tokio::test]
-    #[ignore]
     async fn test_where_in() {
         let adapter = create_test_adapter().await;
 
@@ -780,7 +775,6 @@ mod tests {
     // ========================================================================
 
     #[tokio::test]
-    #[ignore]
     async fn test_limit() {
         let adapter = create_test_adapter().await;
 
@@ -793,7 +787,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_offset() {
         let adapter = create_test_adapter().await;
 
@@ -811,7 +804,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_limit_and_offset() {
         let adapter = create_test_adapter().await;
 
@@ -828,7 +820,6 @@ mod tests {
     // ========================================================================
 
     #[tokio::test]
-    #[ignore]
     async fn test_nested_object_query() {
         let adapter = create_test_adapter().await;
 
@@ -843,7 +834,7 @@ mod tests {
             .await
             .expect("Failed to execute query");
 
-        assert!(results.len() >= 1);
+        assert!(!results.is_empty());
         for result in &results {
             assert_eq!(result.as_value()["metadata"]["city"], "Paris");
         }
@@ -854,7 +845,6 @@ mod tests {
     // ========================================================================
 
     #[tokio::test]
-    #[ignore]
     async fn test_complex_nested_where() {
         let adapter = create_test_adapter().await;
 
@@ -897,7 +887,6 @@ mod tests {
     // ========================================================================
 
     #[tokio::test]
-    #[ignore]
     async fn test_invalid_view_name() {
         let adapter = create_test_adapter().await;
 
@@ -913,7 +902,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_invalid_connection_string() {
         let result = PostgresAdapter::new("postgresql://invalid:invalid@localhost:9999/nonexistent").await;
 

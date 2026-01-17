@@ -102,6 +102,14 @@ pub fn create_test_client() -> reqwest::Client {
         .expect("Failed to create HTTP client")
 }
 
+/// Get metrics token from environment or use default E2E test token.
+///
+/// The token must match what's configured in docker-compose.e2e.yml.
+pub fn get_metrics_token() -> String {
+    std::env::var("FRAISEQL_METRICS_TOKEN")
+        .unwrap_or_else(|_| "e2e-test-metrics-token-32chars!".to_string())
+}
+
 /// Create GraphQL request JSON
 pub fn create_graphql_request(
     query: &str,
@@ -127,8 +135,9 @@ pub fn create_graphql_request(
 pub fn assert_health_response(response: &serde_json::Value) {
     assert!(response.get("status").is_some(), "Missing status field");
     assert!(
-        response["status"].as_str() == Some("ok") || response["status"].as_str() == Some("error"),
-        "Invalid status value"
+        response["status"].as_str() == Some("healthy") || response["status"].as_str() == Some("unhealthy"),
+        "Invalid status value: expected 'healthy' or 'unhealthy', got {:?}",
+        response["status"]
     );
 }
 
@@ -224,8 +233,10 @@ mod tests {
     #[test]
     fn test_assert_health_response() {
         let response = serde_json::json!({
-            "status": "ok",
-            "database_connected": true
+            "status": "healthy",
+            "database": {
+                "connected": true
+            }
         });
         assert_health_response(&response); // Should not panic
     }

@@ -24,12 +24,14 @@ use std::time::Instant;
 
 // Mock Postgres connection setup
 // In real execution, this would connect to actual Postgres
+#[allow(dead_code)]
 async fn setup_test_database() -> Result<String, Box<dyn std::error::Error>> {
     // Connection string pointing to test database
     Ok("postgres://postgres@localhost/fraiseql_bench".to_string())
 }
 
-async fn count_rows_in_view(conn_str: &str, view: &str) -> Result<i64, Box<dyn std::error::Error>> {
+#[allow(dead_code)]
+async fn count_rows_in_view(_conn_str: &str, _view: &str) -> Result<i64, Box<dyn std::error::Error>> {
     // This would execute a real query in production
     // For benchmarking purposes with real DB, this is implemented
     Ok(0)
@@ -167,10 +169,8 @@ fn memory_benchmarks(c: &mut Criterion) {
                     // Measure peak memory usage
                     // Memory should scale with chunk_size, not result size
 
-                    let mut buffer = Vec::with_capacity(black_box(size));
-                    for _ in 0..1000 {
-                        buffer.push(42);
-                    }
+                    // Use vec! macro with repeat syntax instead of pushing in a loop
+                    let buffer = vec![42u8; black_box(size).min(1000)];
                     black_box(buffer)
                 });
             },

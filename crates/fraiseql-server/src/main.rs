@@ -52,9 +52,33 @@ async fn main() -> anyhow::Result<()> {
     let config_path = env::var("FRAISEQL_CONFIG").ok();
     let mut config = load_config(config_path.as_deref())?;
 
-    // Override database_url from environment variable if set
+    // Override configuration from environment variables if set
     if let Ok(db_url) = env::var("DATABASE_URL") {
         config.database_url = db_url;
+    }
+    if let Ok(bind_addr) = env::var("FRAISEQL_BIND_ADDR") {
+        if let Ok(addr) = bind_addr.parse() {
+            config.bind_addr = addr;
+        } else {
+            tracing::warn!(bind_addr = %bind_addr, "Invalid FRAISEQL_BIND_ADDR, using default");
+        }
+    }
+    if let Ok(schema_path) = env::var("FRAISEQL_SCHEMA_PATH") {
+        config.schema_path = schema_path.into();
+    }
+
+    // Metrics configuration from environment
+    if let Ok(metrics_enabled) = env::var("FRAISEQL_METRICS_ENABLED") {
+        config.metrics_enabled = metrics_enabled == "true" || metrics_enabled == "1";
+    }
+    if let Ok(metrics_token) = env::var("FRAISEQL_METRICS_TOKEN") {
+        config.metrics_token = Some(metrics_token);
+    }
+
+    // Validate configuration
+    if let Err(e) = config.validate() {
+        tracing::error!(error = %e, "Configuration validation failed");
+        anyhow::bail!(e);
     }
 
     tracing::info!(
@@ -63,6 +87,7 @@ async fn main() -> anyhow::Result<()> {
         graphql_path = %config.graphql_path,
         health_path = %config.health_path,
         introspection_path = %config.introspection_path,
+        metrics_enabled = config.metrics_enabled,
         "Server configuration loaded"
     );
 
@@ -93,7 +118,7 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("Database adapter initialized successfully with connection pooling");
 
     // Create and start server
-    let server = Server::new(config, schema, adapter);
+    let server = Server::new(config, schema, adapter).await?;
     tracing::info!(
         "FraiseQL Server {} starting",
         env!("CARGO_PKG_VERSION")

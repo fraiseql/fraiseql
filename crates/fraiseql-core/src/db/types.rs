@@ -217,7 +217,7 @@ mod tests {
             waiting_requests: 0,
         };
 
-        assert_eq!(metrics.utilization(), 0.5);
+        assert!((metrics.utilization() - 0.5).abs() < f64::EPSILON);
         assert!(!metrics.is_exhausted());
     }
 
@@ -230,7 +230,7 @@ mod tests {
             waiting_requests: 5,
         };
 
-        assert_eq!(metrics.utilization(), 1.0);
+        assert!((metrics.utilization() - 1.0).abs() < f64::EPSILON);
         assert!(metrics.is_exhausted());
     }
 }

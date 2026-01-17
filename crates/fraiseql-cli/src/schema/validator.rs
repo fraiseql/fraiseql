@@ -299,8 +299,14 @@ mod tests {
         let schema = IntermediateSchema {
             version: "2.0.0".to_string(),
             types: vec![],
+            enums: vec![],
+            input_types: vec![],
+            interfaces: vec![],
+            unions: vec![],
             queries: vec![],
             mutations: vec![],
+            fragments: None,
+            directives: None,
             fact_tables: None,
             aggregate_queries: None,
         };
@@ -314,6 +320,10 @@ mod tests {
         let schema = IntermediateSchema {
             version: "2.0.0".to_string(),
             types: vec![],
+            enums: vec![],
+            input_types: vec![],
+            interfaces: vec![],
+            unions: vec![],
             queries: vec![IntermediateQuery {
                 name: "users".to_string(),
                 return_type: "UnknownType".to_string(),
@@ -325,6 +335,8 @@ mod tests {
                 auto_params: None,
             }],
             mutations: vec![],
+            fragments: None,
+            directives: None,
             fact_tables: None,
             aggregate_queries: None,
         };
@@ -343,7 +355,12 @@ mod tests {
                 name: "User".to_string(),
                 fields: vec![],
                 description: None,
+                implements: vec![],
             }],
+            enums: vec![],
+            input_types: vec![],
+            interfaces: vec![],
+            unions: vec![],
             queries: vec![
                 IntermediateQuery {
                     name: "users".to_string(),
@@ -367,6 +384,8 @@ mod tests {
                 },
             ],
             mutations: vec![],
+            fragments: None,
+            directives: None,
             fact_tables: None,
             aggregate_queries: None,
         };
@@ -384,7 +403,12 @@ mod tests {
                 name: "User".to_string(),
                 fields: vec![],
                 description: None,
+                implements: vec![],
             }],
+            enums: vec![],
+            input_types: vec![],
+            interfaces: vec![],
+            unions: vec![],
             queries: vec![IntermediateQuery {
                 name: "users".to_string(),
                 return_type: "User".to_string(),
@@ -396,6 +420,8 @@ mod tests {
                 auto_params: None,
             }],
             mutations: vec![],
+            fragments: None,
+            directives: None,
             fact_tables: None,
             aggregate_queries: None,
         };
