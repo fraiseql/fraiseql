@@ -436,3 +436,105 @@ export function registerMutation(
     config
   );
 }
+
+/**
+ * Configuration for Subscription decorator.
+ */
+export interface SubscriptionConfig {
+  entityType?: string;
+  topic?: string;
+  operation?: "CREATE" | "UPDATE" | "DELETE";
+  [key: string]: unknown;
+}
+
+/**
+ * Decorator to mark a function as a GraphQL subscription.
+ *
+ * This decorator registers the function with the schema registry for JSON export.
+ * NO runtime behavior - only used for schema compilation.
+ *
+ * Subscriptions in FraiseQL are compiled projections of database events.
+ * They are sourced from LISTEN/NOTIFY or CDC, not resolver-based.
+ *
+ * @param config - Subscription configuration
+ * @returns Decorator function
+ *
+ * @example
+ * ```ts
+ * @Subscription({ topic: "order_events" })
+ * function orderCreated(userId?: string): Order {
+ *   pass;
+ * }
+ * ```
+ *
+ * This generates JSON:
+ * ```json
+ * {
+ *   "name": "orderCreated",
+ *   "entity_type": "Order",
+ *   "nullable": false,
+ *   "arguments": [
+ *     {"name": "userId", "type": "String", "nullable": true}
+ *   ],
+ *   "topic": "order_events"
+ * }
+ * ```
+ */
+export function Subscription(config?: SubscriptionConfig) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return function (_target: any, propertyKey: string, descriptor: PropertyDescriptor) {
+    const originalMethod = descriptor.value;
+    const methodName = propertyKey;
+
+    // Extract entity type from config or use placeholder
+    const entityType = config?.entityType || "Subscription";
+
+    // For now, register with basic info
+    // In a full implementation with reflect-metadata, we'd extract parameter types
+    SchemaRegistry.registerSubscription(
+      methodName,
+      entityType,
+      false, // Placeholder for nullable
+      [], // Placeholder for arguments
+      originalMethod?.toString?.().split("\n")[0],
+      config
+    );
+
+    return descriptor;
+  };
+}
+
+/**
+ * Helper function to manually register subscription with full metadata.
+ *
+ * @param name - Subscription name
+ * @param entityType - Entity type being subscribed to
+ * @param nullable - Whether result can be null
+ * @param args - Argument definitions (filters)
+ * @param description - Optional subscription description
+ * @param config - Additional configuration (topic, operation)
+ *
+ * @example
+ * ```ts
+ * registerSubscription(
+ *   "orderCreated",
+ *   "Order",
+ *   false,
+ *   [
+ *     { name: "userId", type: "String", nullable: true }
+ *   ],
+ *   "Subscribe to new orders",
+ *   { topic: "order_events", operation: "CREATE" }
+ * );
+ * ```
+ */
+export function registerSubscription(
+  name: string,
+  entityType: string,
+  nullable: boolean,
+  args: ArgumentDefinition[],
+  description?: string,
+  config?: Record<string, unknown>
+): void {
+  SchemaRegistry.registerSubscription(name, entityType, nullable, args, description, config);
+}

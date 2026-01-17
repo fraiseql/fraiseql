@@ -117,12 +117,30 @@ export interface AggregateQueryDefinition {
 }
 
 /**
+ * GraphQL subscription definition.
+ *
+ * Subscriptions in FraiseQL are compiled projections of database events.
+ * They are sourced from LISTEN/NOTIFY or CDC, not resolver-based.
+ */
+export interface SubscriptionDefinition {
+  name: string;
+  entity_type: string;
+  nullable: boolean;
+  arguments: ArgumentDefinition[];
+  description?: string;
+  topic?: string;
+  operation?: string;
+  [key: string]: unknown; // For additional config
+}
+
+/**
  * Complete schema definition.
  */
 export interface Schema {
   types: TypeDefinition[];
   queries: QueryDefinition[];
   mutations: MutationDefinition[];
+  subscriptions: SubscriptionDefinition[];
   fact_tables?: FactTableDefinition[];
   aggregate_queries?: AggregateQueryDefinition[];
 }
@@ -137,6 +155,7 @@ export class SchemaRegistry {
   private static types: Map<string, TypeDefinition> = new Map();
   private static queries: Map<string, QueryDefinition> = new Map();
   private static mutations: Map<string, MutationDefinition> = new Map();
+  private static subscriptions: Map<string, SubscriptionDefinition> = new Map();
   private static factTables: Map<string, FactTableDefinition> = new Map();
   private static aggregateQueries: Map<string, AggregateQueryDefinition> = new Map();
 
@@ -222,6 +241,37 @@ export class SchemaRegistry {
   }
 
   /**
+   * Register a GraphQL subscription.
+   *
+   * Subscriptions in FraiseQL are compiled projections of database events.
+   * They are sourced from LISTEN/NOTIFY or CDC, not resolver-based.
+   *
+   * @param name - Subscription name
+   * @param entityType - Entity type name being subscribed to
+   * @param nullable - Whether result can be null
+   * @param args - List of argument definitions (filters)
+   * @param description - Optional subscription description
+   * @param config - Additional configuration (topic, operation, etc.)
+   */
+  static registerSubscription(
+    name: string,
+    entityType: string,
+    nullable: boolean,
+    args: ArgumentDefinition[],
+    description?: string,
+    config?: Record<string, unknown>
+  ): void {
+    this.subscriptions.set(name, {
+      name,
+      entity_type: entityType,
+      nullable,
+      arguments: args,
+      description,
+      ...config,
+    });
+  }
+
+  /**
    * Register a fact table definition.
    *
    * @param tableName - Fact table name
@@ -271,13 +321,14 @@ export class SchemaRegistry {
   /**
    * Get the complete schema as an object.
    *
-   * @returns Schema object with types, queries, mutations, and analytics sections
+   * @returns Schema object with types, queries, mutations, subscriptions, and analytics sections
    */
   static getSchema(): Schema {
     const schema: Schema = {
       types: Array.from(this.types.values()),
       queries: Array.from(this.queries.values()),
       mutations: Array.from(this.mutations.values()),
+      subscriptions: Array.from(this.subscriptions.values()),
     };
 
     if (this.factTables.size > 0) {
@@ -298,6 +349,7 @@ export class SchemaRegistry {
     this.types.clear();
     this.queries.clear();
     this.mutations.clear();
+    this.subscriptions.clear();
     this.factTables.clear();
     this.aggregateQueries.clear();
   }

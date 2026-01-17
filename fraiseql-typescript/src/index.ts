@@ -45,6 +45,7 @@ export type {
   TypeDefinition,
   QueryDefinition,
   MutationDefinition,
+  SubscriptionDefinition,
   ArgumentDefinition,
   Schema,
   Measure,
@@ -60,16 +61,19 @@ export {
   Type,
   Query,
   Mutation,
+  Subscription,
   FactTable as FactTableDecorator,
   AggregateQuery as AggregateQueryDecorator,
   registerTypeFields,
   registerQuery,
   registerMutation,
+  registerSubscription,
 } from "./decorators";
 export type {
   TypeConfig,
   OperationConfig,
   MutationConfig,
+  SubscriptionConfig,
   FactTableConfig,
   AggregateQueryConfig,
 } from "./decorators";

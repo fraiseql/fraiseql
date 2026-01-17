@@ -130,12 +130,90 @@ describe("SchemaRegistry", () => {
     });
   });
 
+  describe("registerSubscription", () => {
+    it("should register a simple subscription", () => {
+      SchemaRegistry.registerSubscription(
+        "orderCreated",
+        "Order",
+        false,
+        [],
+        "Subscribe to new orders"
+      );
+
+      const schema = SchemaRegistry.getSchema();
+      expect(schema.subscriptions).toHaveLength(1);
+      expect(schema.subscriptions[0].name).toBe("orderCreated");
+      expect(schema.subscriptions[0].entity_type).toBe("Order");
+      expect(schema.subscriptions[0].nullable).toBe(false);
+    });
+
+    it("should register a subscription with topic", () => {
+      SchemaRegistry.registerSubscription(
+        "orderCreated",
+        "Order",
+        false,
+        [],
+        "Subscribe to new orders",
+        { topic: "order_events" }
+      );
+
+      const schema = SchemaRegistry.getSchema();
+      expect(schema.subscriptions[0].topic).toBe("order_events");
+    });
+
+    it("should register a subscription with operation filter", () => {
+      SchemaRegistry.registerSubscription(
+        "userUpdated",
+        "User",
+        false,
+        [],
+        "Subscribe to user updates",
+        { operation: "UPDATE" }
+      );
+
+      const schema = SchemaRegistry.getSchema();
+      expect(schema.subscriptions[0].operation).toBe("UPDATE");
+    });
+
+    it("should register a subscription with arguments", () => {
+      SchemaRegistry.registerSubscription(
+        "orderStatusChanged",
+        "Order",
+        false,
+        [
+          { name: "userId", type: "String", nullable: true },
+          { name: "status", type: "String", nullable: true },
+        ],
+        "Subscribe to order status changes"
+      );
+
+      const schema = SchemaRegistry.getSchema();
+      expect(schema.subscriptions[0].arguments).toHaveLength(2);
+      expect(schema.subscriptions[0].arguments[0].name).toBe("userId");
+      expect(schema.subscriptions[0].arguments[0].nullable).toBe(true);
+    });
+
+    it("should register a nullable subscription", () => {
+      SchemaRegistry.registerSubscription(
+        "userDeleted",
+        "User",
+        true,
+        [],
+        "Subscribe to user deletions"
+      );
+
+      const schema = SchemaRegistry.getSchema();
+      expect(schema.subscriptions[0].nullable).toBe(true);
+    });
+  });
+
   describe("getSchema", () => {
     it("should return empty schema initially", () => {
       const schema = SchemaRegistry.getSchema();
       expect(schema.types).toHaveLength(0);
       expect(schema.queries).toHaveLength(0);
       expect(schema.mutations).toHaveLength(0);
+      expect(schema.subscriptions).toHaveLength(0);
     });
 
     it("should include fact_tables only if present", () => {
@@ -152,12 +230,14 @@ describe("SchemaRegistry", () => {
     it("should clear all registered definitions", () => {
       SchemaRegistry.registerType("User", [{ name: "id", type: "Int", nullable: false }]);
       SchemaRegistry.registerQuery("user", "User", false, true, []);
+      SchemaRegistry.registerSubscription("userCreated", "User", false, []);
 
       SchemaRegistry.clear();
 
       const schema = SchemaRegistry.getSchema();
       expect(schema.types).toHaveLength(0);
       expect(schema.queries).toHaveLength(0);
+      expect(schema.subscriptions).toHaveLength(0);
     });
   });
 });
