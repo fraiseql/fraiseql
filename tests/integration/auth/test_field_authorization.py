@@ -44,7 +44,7 @@ class TestFieldAuthorization:
 
             @authorize_field(lambda info: info.context.get("authenticated", False))
             @field
-            def private_info(self) -> str:
+            def private_info(self) -> str | None:
                 return "secret data"
 
         @query
@@ -116,7 +116,7 @@ class TestFieldAuthorization:
 
             @authorize_field(lambda info: info.context.get("is_admin", False))
             @field
-            def email(self) -> str:
+            def email(self) -> str | None:
                 return self.email_value
 
         @query
@@ -138,7 +138,7 @@ class TestFieldAuthorization:
         assert result.errors is None
         assert result.data == {"getUser": {"name": "John Doe", "email": "john@example.com"}}
 
-        # Test without admin access
+        # Test without admin access - email returns null due to authorization failure
         result = graphql_sync(schema, query_str, context_value={"is_admin": False})
         assert result.errors is not None
         assert len(result.errors) == 1
@@ -158,7 +158,7 @@ class TestFieldAuthorization:
                 error_message="Admin access required to view phone number",
             )
             @field
-            def phone(self) -> str:
+            def phone(self) -> str | None:
                 return self.phone_value
 
         @query
@@ -193,17 +193,17 @@ class TestFieldAuthorization:
 
             @authorize_field(lambda info: info.context.get("authenticated", False))
             @field
-            def email(self) -> str:
+            def email(self) -> str | None:
                 return self.email_value
 
             @authorize_field(lambda info: info.context.get("is_admin", False))
             @field
-            def phone(self) -> str:
+            def phone(self) -> str | None:
                 return self.phone_value
 
             @authorize_field(lambda info: info.context.get("is_superadmin", False))
             @field
-            def ssn(self) -> str:
+            def ssn(self) -> str | None:
                 return self.ssn_value
 
         @query
@@ -288,7 +288,7 @@ class TestFieldAuthorization:
                 )
             )
             @field
-            def private_notes(self) -> str:
+            def private_notes(self) -> str | None:
                 return self.private_notes_value
 
         @query
@@ -338,7 +338,7 @@ class TestFieldAuthorization:
 
             @authorize_field(lambda info: info.context.get("has_access", False))
             @field
-            async def secret(self) -> str:
+            async def secret(self) -> str | None:
                 # Simulate async operation
                 await asyncio.sleep(0.001)
                 return self.secret_value

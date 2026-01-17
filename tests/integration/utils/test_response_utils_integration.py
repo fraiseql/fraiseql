@@ -5,7 +5,7 @@ and provide proper formatting, descriptions, and metadata for API responses.
 """
 
 import pytest
-from graphql import graphql
+from graphql import GraphQLNonNull, graphql
 
 # Import schema_builder to ensure SchemaRegistry is patched
 import fraiseql.gql.schema_builder  # noqa: F401
@@ -337,12 +337,21 @@ class TestSchemaMetadataIntegration:
         age_field = user_type.fields.get("age")
         is_active_field = user_type.fields.get("isActive")
 
+        # Helper to get underlying type (unwrap GraphQLNonNull if present)
+        def get_type_name(field_type):
+            if isinstance(field_type, GraphQLNonNull):
+                return field_type.of_type.name
+            return field_type.name
+
         if id_field:
-            assert id_field.type.name == "Int"
+            # Required field wrapped in NON_NULL (Issue #243)
+            assert get_type_name(id_field.type) == "Int"
         if name_field:
-            assert name_field.type.name == "String"
+            # Required field wrapped in NON_NULL (Issue #243)
+            assert get_type_name(name_field.type) == "String"
         if age_field:
-            # Optional field should be wrapped appropriately
+            # Optional field should NOT be wrapped in NON_NULL
             assert age_field.type.name in ["Int", None] or hasattr(age_field.type, "ofType")
         if is_active_field:
-            assert is_active_field.type.name == "Boolean"
+            # Required field wrapped in NON_NULL (Issue #243)
+            assert get_type_name(is_active_field.type) == "Boolean"
