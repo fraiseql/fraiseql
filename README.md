@@ -6,7 +6,7 @@
 [![Python](https://img.shields.io/badge/Python-3.13+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**v1.9.9** | **Stable** | **Rust-Powered GraphQL for PostgreSQL**
+**v1.9.10** | **Stable** | **Rust-Powered GraphQL for PostgreSQL**
 
 **Python**: 3.13+ | **PostgreSQL**: 13+
 
@@ -237,7 +237,7 @@ mutation {
 | **Authentication** | ✅ | ✅ | ⚠️ Partial | ⚠️ Use with caution | Rust-based JWT validation via `PyAuthProvider` |
 | **RBAC Framework** | ✅ | ✅ | ⚠️ Framework only | ⚠️ Use with caution | Permission resolution complete, enforcement verification tests pending |
 | **Security Profiles** | ✅ | ⚠️ Partial | ⚠️ Partial | ❌ Not production ready | TLS/rate limiting enforced; query limits/audit pending |
-| **Field Filtering (Mutations)** | ✅ | ✅ | ✅ | ✅ Production ready | Full implementation (v1.9.9+) |
+| **Field Filtering (Mutations)** | ✅ | ✅ | ✅ | ✅ Production ready | Full implementation (v1.9.10+) |
 | **Field Filtering (APQ)** | ✅ | ✅ | ⚠️ Partial | ⚠️ Limited scope | APQ queries only |
 | **Field Filtering (Queries)** | ⚠️ | ⚠️ | ⚠️ | ⚠️ Verification needed | Non-APQ query filtering status unclear |
 | **Rate Limiting** | ✅ | ✅ | ✅ | ✅ Production ready | Per-endpoint and per-operation |
@@ -256,12 +256,12 @@ mutation {
 - ❌ Not implemented or not production ready
 
 **Roadmap:**
-- **v1.9.9**: Complete security profile enforcement (Issue #225)
-- **v1.9.9**: Add RBAC enforcement verification tests
-- **v1.9.9**: Unified field filtering for all query types
-- **v1.9.9**: Full security audit and penetration testing
+- **v1.9.10**: Complete security profile enforcement (Issue #225)
+- **v1.9.10**: Add RBAC enforcement verification tests
+- **v1.9.10**: Unified field filtering for all query types
+- **v1.9.10**: Full security audit and penetration testing
 
-> **Important**: This matrix reflects current implementation status (v1.9.9). Security features are under active development. Always verify features meet your requirements before production deployment. See [Issue #225](https://github.com/fraiseql/fraiseql/issues/225) for implementation progress.
+> **Important**: This matrix reflects current implementation status (v1.9.10). Security features are under active development. Always verify features meet your requirements before production deployment. See [Issue #225](https://github.com/fraiseql/fraiseql/issues/225) for implementation progress.
 
 ---
 
@@ -1056,8 +1056,8 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 | Version | Location | Status | Purpose | For Users? |
 |---------|----------|--------|---------|------------|
-| **v1.9.9** | Root level | Stable | Entity field selection for mutations (GitHub #525) | ✅ Production Ready |
-| **Rust Pipeline** | [`fraiseql_rs/`](fraiseql_rs/README.md) | Integrated | Included in v1.9.9+ | ✅ Stable |
+| **v1.9.10** | Root level | Stable | Entity field selection for mutations (GitHub #525) | ✅ Production Ready |
+| **Rust Pipeline** | [`fraiseql_rs/`](fraiseql_rs/README.md) | Integrated | Included in v1.9.10+ | ✅ Stable |
 
 **New to FraiseQL?** → **[First Hour Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/getting-started/first-hour.md)** • [Project Structure](https://github.com/fraiseql/fraiseql/blob/main/docs/strategic/PROJECT_STRUCTURE.md)
 
