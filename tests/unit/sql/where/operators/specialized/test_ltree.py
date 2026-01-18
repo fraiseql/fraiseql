@@ -760,3 +760,121 @@ class TestLTreeValidation:
         """Test that LTree NOT IN operator requires a list."""
         with pytest.raises(TypeError, match="'notin' operator requires a list"):
             build_ltree_notin_sql(self.path_sql, "not-a-list")
+
+
+# ============================================================================
+# PHASE A: DEPTH AND INDEX OPERATORS FOR GRAPHQL SCHEMA
+# ============================================================================
+
+
+class TestLTreeDepthOperatorsGraphQL:
+    """Test depth operators integrated with GraphQL schema."""
+
+    def setup_method(self) -> None:
+        """Set up test fixtures."""
+        self.strategy = LTreeOperatorStrategy()
+        self.path_sql = SQL("data->>'path'")
+
+    def test_nlevel_eq_graphql_integration(self) -> None:
+        """Test nlevel_eq operator generates correct SQL."""
+        result = self.strategy.build_sql("nlevel_eq", 3, self.path_sql, LTree)
+        sql_str = result.as_string(None)
+        assert "nlevel(" in sql_str
+        assert "= 3" in sql_str
+        assert "::ltree" in sql_str
+
+    def test_nlevel_gt_graphql_integration(self) -> None:
+        """Test nlevel_gt operator generates correct SQL."""
+        result = self.strategy.build_sql("nlevel_gt", 2, self.path_sql, LTree)
+        sql_str = result.as_string(None)
+        assert "nlevel(" in sql_str
+        assert "> 2" in sql_str
+
+    def test_nlevel_gte_graphql_integration(self) -> None:
+        """Test nlevel_gte operator generates correct SQL."""
+        result = self.strategy.build_sql("nlevel_gte", 1, self.path_sql, LTree)
+        sql_str = result.as_string(None)
+        assert "nlevel(" in sql_str
+        assert ">= 1" in sql_str
+
+    def test_nlevel_lt_graphql_integration(self) -> None:
+        """Test nlevel_lt operator generates correct SQL."""
+        result = self.strategy.build_sql("nlevel_lt", 5, self.path_sql, LTree)
+        sql_str = result.as_string(None)
+        assert "nlevel(" in sql_str
+        assert "< 5" in sql_str
+
+    def test_nlevel_lte_graphql_integration(self) -> None:
+        """Test nlevel_lte operator generates correct SQL."""
+        result = self.strategy.build_sql("nlevel_lte", 4, self.path_sql, LTree)
+        sql_str = result.as_string(None)
+        assert "nlevel(" in sql_str
+        assert "<= 4" in sql_str
+
+    def test_nlevel_neq_graphql_integration(self) -> None:
+        """Test nlevel_neq operator generates correct SQL."""
+        result = self.strategy.build_sql("nlevel_neq", 2, self.path_sql, LTree)
+        sql_str = result.as_string(None)
+        assert "nlevel(" in sql_str
+        assert "!= 2" in sql_str
+
+    def test_depth_eq_alias_graphql(self) -> None:
+        """Test depth_eq alias works (should be same as nlevel_eq)."""
+        result = self.strategy.build_sql("depth_eq", 3, self.path_sql, LTree)
+        sql_str = result.as_string(None)
+        assert "nlevel(" in sql_str
+        assert "= 3" in sql_str
+
+    def test_depth_operators_are_recognized(self) -> None:
+        """Test that all depth operators are recognized by strategy."""
+        depth_operators = [
+            "depth_eq",
+            "depth_gt",
+            "depth_gte",
+            "depth_lt",
+            "depth_lte",
+            "depth_neq",
+        ]
+        for op in depth_operators:
+            assert self.strategy.supports_operator(op, LTree), f"Operator {op} not supported"
+
+
+class TestLTreeIndexOperatorsGraphQL:
+    """Test index operators integrated with GraphQL schema."""
+
+    def setup_method(self) -> None:
+        """Set up test fixtures."""
+        self.strategy = LTreeOperatorStrategy()
+        self.path_sql = SQL("data->>'path'")
+
+    def test_index_operator_graphql_integration(self) -> None:
+        """Test index operator generates correct SQL."""
+        result = self.strategy.build_sql("index", "science", self.path_sql, LTree)
+        sql_str = result.as_string(None)
+        assert "index(" in sql_str
+        assert "science" in sql_str
+        assert "::ltree" in sql_str
+
+    def test_index_eq_operator_graphql_integration(self) -> None:
+        """Test index_eq operator generates correct SQL."""
+        result = self.strategy.build_sql("index_eq", ("science", self.path_sql, 1), LTree)
+        sql_str = result.as_string(None)
+        assert "index(" in sql_str
+        assert "science" in sql_str
+        assert "= 1" in sql_str
+
+    def test_index_gte_operator_graphql_integration(self) -> None:
+        """Test index_gte operator generates correct SQL."""
+        result = self.strategy.build_sql(
+            "index_gte", ("physics", self.path_sql, 2), LTree
+        )
+        sql_str = result.as_string(None)
+        assert "index(" in sql_str
+        assert "physics" in sql_str
+        assert ">= 2" in sql_str
+
+    def test_index_operators_are_recognized(self) -> None:
+        """Test that all index operators are recognized by strategy."""
+        index_operators = ["index", "index_eq", "index_gte"]
+        for op in index_operators:
+            assert self.strategy.supports_operator(op, LTree), f"Operator {op} not supported"
