@@ -73,43 +73,31 @@ The TODO for "full query planning logic" is an artifact from a traditional Graph
 
 ---
 
-### Priority 3: CLI Completeness
+### Priority 3: CLI Completeness ✅ COMPLETED
 
-#### 3.1 Introspect Facts (Stub)
+#### 3.1 Introspect Facts ✅
 
-**Location**: `crates/fraiseql-cli/src/commands/introspect_facts.rs:52-118`
+**Status**: **COMPLETED** - January 18, 2026
 
-```rust
-// TODO: Implement actual database introspection
-// TODO: Implement actual database query
-```
-
-**Issue**: `introspect-facts` command is a stub that doesn't actually introspect the database.
-
-**Impact**: Cannot auto-discover fact tables from database schema.
-
-**Fix**: Implement database introspection using tokio-postgres to query `information_schema`.
-
-**Effort**: 4-6 hours
+Implemented full database introspection:
+- Lists tf_* tables from database
+- Introspects measures, dimensions, filters, calendar columns
+- Outputs Python decorator suggestions
+- Outputs JSON metadata
+- Extracts JSONB dimension paths from sample data
 
 ---
 
-#### 3.2 Validate Facts (Stub)
+#### 3.2 Validate Facts ✅
 
-**Location**: `crates/fraiseql-cli/src/commands/validate_facts.rs:60-136`
+**Status**: **COMPLETED** - January 18, 2026
 
-```rust
-// TODO: Implement actual database validation
-// TODO: Implement actual comparison logic
-```
-
-**Issue**: `validate-facts` command doesn't actually validate against the database.
-
-**Impact**: Cannot verify fact table definitions match database schema.
-
-**Fix**: Query database metadata and compare with schema definitions.
-
-**Effort**: 4-6 hours
+Implemented full schema validation:
+- Compares declared vs actual fact tables
+- Validates measures, dimensions, denormalized filters
+- Type compatibility checking with SQL aliases
+- Reports errors and warnings
+- Suitable for CI/CD pipelines
 
 ---
 
@@ -228,8 +216,8 @@ The TODO for "full query planning logic" is an artifact from a traditional Graph
 | Priority | Item | Location | Effort | Status |
 |----------|------|----------|--------|--------|
 | P1 | Kafka adapter | fraiseql-core | 8-12h | By Design (optional) |
-| P3 | Introspect facts | fraiseql-cli | 4-6h | Pending |
-| P3 | Validate facts | fraiseql-cli | 4-6h | Pending |
+| P3 | Introspect facts | fraiseql-cli | 4-6h | ✅ Complete |
+| P3 | Validate facts | fraiseql-cli | 4-6h | ✅ Complete |
 | P4 | Aggregation caching | fraiseql-core | 3-4h | Pending |
 | P5 | TypeScript metadata | fraiseql-ts | - | By Design |
 | P5 | PHP GraphQLType | fraiseql-php | 1-2h | Low priority |
@@ -238,16 +226,16 @@ The TODO for "full query planning logic" is an artifact from a traditional Graph
 | P6 | DB benchmarks | fraiseql-core | 4-6h | Pending |
 | P6 | TLS tests | fraiseql-wire | 4-6h | Pending |
 
-**Total Remaining Effort**: ~35-50 hours (mostly optional/polish)
+**Total Remaining Effort**: ~25-40 hours (mostly optional/polish)
 
 ---
 
 ## Recommended Implementation Order
 
-### Phase C: Cache & CLI (8-12 hours)
-1. Aggregation query caching (P4) - 4h
-2. Introspect facts implementation (P3) - 4h
-3. Validate facts implementation (P3) - 4h
+### Phase C: Cache & CLI ✅ PARTIAL
+1. ~~Introspect facts implementation (P3) - 4h~~ ✅ DONE
+2. ~~Validate facts implementation (P3) - 4h~~ ✅ DONE
+3. Aggregation query caching (P4) - 4h - **PENDING**
 
 ### Phase D: Testing (12-18 hours)
 1. Server integration tests (P6) - 6h
