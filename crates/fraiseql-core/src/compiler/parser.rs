@@ -112,6 +112,10 @@ impl SchemaParser {
 
         Ok(AuthoringIR {
             types,
+            enums: Vec::new(), // TODO: Parse enums from JSON
+            interfaces: Vec::new(), // TODO: Parse interfaces from JSON
+            unions: Vec::new(), // TODO: Parse unions from JSON
+            input_types: Vec::new(), // TODO: Parse input types from JSON
             queries,
             mutations,
             subscriptions,

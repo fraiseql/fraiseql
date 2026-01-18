@@ -655,3 +655,75 @@ impl std::fmt::Display for FieldType {
         write!(f, "{}", self.to_graphql_string())
     }
 }
+
+impl FieldType {
+    /// Parse a GraphQL type string into a `FieldType`.
+    ///
+    /// Supports formats like:
+    /// - "String", "Int", "Boolean", etc. (scalar types)
+    /// - "String!", "Int!" (non-null scalars - the `!` is ignored, nullability is separate)
+    /// - "[String]", "[User]" (list types)
+    /// - "[String!]!", "[User!]!" (non-null list of non-null items)
+    /// - "User", "Post" (object types - anything not a known scalar)
+    ///
+    /// # Arguments
+    ///
+    /// * `type_str` - GraphQL type string
+    /// * `known_types` - Set of known object type names (to distinguish from scalars)
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use fraiseql_core::schema::FieldType;
+    /// use std::collections::HashSet;
+    ///
+    /// let known_types: HashSet<String> = ["User", "Post"].iter().map(|s| s.to_string()).collect();
+    ///
+    /// assert_eq!(FieldType::parse("String", &known_types), FieldType::String);
+    /// assert_eq!(FieldType::parse("Int!", &known_types), FieldType::Int);
+    /// assert_eq!(FieldType::parse("[String]", &known_types), FieldType::List(Box::new(FieldType::String)));
+    /// assert_eq!(FieldType::parse("User", &known_types), FieldType::Object("User".to_string()));
+    /// ```
+    #[must_use]
+    pub fn parse(type_str: &str, known_types: &std::collections::HashSet<String>) -> Self {
+        Self::parse_type_string(type_str.trim(), known_types)
+    }
+
+    /// Internal parser for type strings.
+    fn parse_type_string(s: &str, known_types: &std::collections::HashSet<String>) -> Self {
+        // Strip non-null marker (we handle nullability separately)
+        let s = s.trim_end_matches('!');
+
+        // Handle list types: [Type] or [Type!]
+        if s.starts_with('[') && s.ends_with(']') {
+            let inner = &s[1..s.len() - 1];
+            let inner_type = Self::parse_type_string(inner, known_types);
+            return Self::List(Box::new(inner_type));
+        }
+
+        // Handle scalar types (case-insensitive matching)
+        match s.to_lowercase().as_str() {
+            "string" => Self::String,
+            "int" | "integer" => Self::Int,
+            "float" | "double" => Self::Float,
+            "boolean" | "bool" => Self::Boolean,
+            "id" => Self::Id,
+            "datetime" | "timestamp" => Self::DateTime,
+            "date" => Self::Date,
+            "time" => Self::Time,
+            "json" | "jsonb" => Self::Json,
+            "uuid" => Self::Uuid,
+            "decimal" | "numeric" | "bigdecimal" => Self::Decimal,
+            "vector" => Self::Vector,
+            _ => {
+                // Check if it's a known object type
+                if known_types.contains(s) {
+                    Self::Object(s.to_string())
+                } else {
+                    // Default to Object for unknown types (likely a custom type)
+                    Self::Object(s.to_string())
+                }
+            }
+        }
+    }
+}

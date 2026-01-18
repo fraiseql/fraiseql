@@ -51,6 +51,22 @@ pub struct AuthoringIR {
     /// Type definitions.
     pub types: Vec<IRType>,
 
+    /// Enum definitions.
+    #[serde(default)]
+    pub enums: Vec<IREnum>,
+
+    /// Interface definitions.
+    #[serde(default)]
+    pub interfaces: Vec<IRInterface>,
+
+    /// Union definitions.
+    #[serde(default)]
+    pub unions: Vec<IRUnion>,
+
+    /// Input type definitions.
+    #[serde(default)]
+    pub input_types: Vec<IRInputType>,
+
     /// Query definitions.
     pub queries: Vec<IRQuery>,
 
@@ -73,6 +89,10 @@ impl AuthoringIR {
     pub fn new() -> Self {
         Self {
             types: Vec::new(),
+            enums: Vec::new(),
+            interfaces: Vec::new(),
+            unions: Vec::new(),
+            input_types: Vec::new(),
             queries: Vec::new(),
             mutations: Vec::new(),
             subscriptions: Vec::new(),
@@ -241,6 +261,90 @@ pub enum MutationOperation {
 
     /// Custom SQL operation.
     Custom,
+}
+
+/// IR Enum definition.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct IREnum {
+    /// Enum name (e.g., "Status").
+    pub name: String,
+
+    /// Enum values.
+    pub values: Vec<IREnumValue>,
+
+    /// Enum description.
+    pub description: Option<String>,
+}
+
+/// IR Enum value definition.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct IREnumValue {
+    /// Value name (e.g., "ACTIVE").
+    pub name: String,
+
+    /// Value description.
+    pub description: Option<String>,
+
+    /// Deprecation reason (if deprecated).
+    pub deprecation_reason: Option<String>,
+}
+
+/// IR Interface definition.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct IRInterface {
+    /// Interface name (e.g., "Node").
+    pub name: String,
+
+    /// Interface fields.
+    pub fields: Vec<IRField>,
+
+    /// Interface description.
+    pub description: Option<String>,
+}
+
+/// IR Union definition.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct IRUnion {
+    /// Union name (e.g., "SearchResult").
+    pub name: String,
+
+    /// Types that are part of this union.
+    pub types: Vec<String>,
+
+    /// Union description.
+    pub description: Option<String>,
+}
+
+/// IR Input type definition.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct IRInputType {
+    /// Input type name (e.g., "CreateUserInput").
+    pub name: String,
+
+    /// Input fields.
+    pub fields: Vec<IRInputField>,
+
+    /// Input type description.
+    pub description: Option<String>,
+}
+
+/// IR Input field definition.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct IRInputField {
+    /// Field name.
+    pub name: String,
+
+    /// Field type (e.g., "String!", "Int").
+    pub field_type: String,
+
+    /// Is field nullable?
+    pub nullable: bool,
+
+    /// Default value (as JSON).
+    pub default_value: Option<serde_json::Value>,
+
+    /// Field description.
+    pub description: Option<String>,
 }
 
 #[cfg(test)]
