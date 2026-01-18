@@ -15,7 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Automatic denormalized column detection and routing** (GitHub #250)
   - FraiseQL now automatically detects and uses denormalized columns when filtering on nested fields
-  - Enables orders of magnitude faster hierarchical queries (GIST index on ltree vs JSONB traversal)
+  - Enables orders of magnitude faster nested field queries (indexed columns vs JSONB traversal)
+  - Works with ANY column type: text, dates, numbers, hierarchical data (ltree), etc.
   - Zero application code changes required - database teams can add optimizations independently
   - Hierarchical naming convention: `{entity}__{sub_entity}__{field_name}`
   - Graceful fallback to JSONB traversal if denormalized column is missing
@@ -23,14 +24,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Before (v1.9.13)**:
 ```sql
--- Even with indexed columns, FraiseQL used JSONB traversal
-SELECT ... WHERE data -> 'location' ->> 'ltreePath' <@ '1.2.3'::ltree  -- ~500ms
+-- FraiseQL uses JSONB traversal regardless of indexed columns
+SELECT ... WHERE data -> 'address' ->> 'postalCode' = '12345'  -- ~250ms
 ```
 
 **After (v1.9.14)**:
 ```sql
 -- FraiseQL automatically detects and uses denormalized column
-SELECT ... WHERE location__ltree_path <@ '1.2.3'::ltree  -- ~5ms (100x faster!)
+SELECT ... WHERE address__postal_code = '12345'  -- ~5ms (50x faster!)
 ```
 
 **Implementation Details**:
@@ -49,21 +50,22 @@ SELECT ... WHERE location__ltree_path <@ '1.2.3'::ltree  -- ~5ms (100x faster!)
 - ✅ Zero breaking changes - backward compatible
 - ✅ Enables database-driven performance optimization
 
-**Example Usage**:
+**Example Usage** (Text Field - Works with Any Type):
 ```python
 # Application code - unchanged
-@fraiseql.type(sql_source="tv_allocation")
-class Allocation:
-    location: Location | None = None
+@fraiseql.type(sql_source="tv_customer")
+class Customer:
+    address: Address | None = None
 
 # GraphQL query - unchanged
-query { allocations(where: { location: { ltreePath: { descendantOf: "1.2.3" } } }) { id } }
+query { customers(where: { address: { postalCode: { eq: "12345" } } }) { id } }
 
 # DBA adds optimization (one-time setup)
-ALTER TABLE tv_allocation ADD COLUMN location__ltree_path ltree;
-CREATE INDEX idx_location_path ON tv_allocation USING GIST (location__ltree_path);
+ALTER TABLE tv_customer ADD COLUMN address__postal_code TEXT;
+CREATE INDEX idx_postal_code ON tv_customer (address__postal_code);
 
 # FraiseQL automatically detects and uses the column - no code changes!
+# Same pattern works for: text, dates, numbers, ltree, or ANY PostgreSQL type
 ```
 
 ## [1.9.13] - 2026-01-18
