@@ -53,6 +53,16 @@ pub trait DatabaseIntrospector: Send + Sync {
 
     /// Get database type (for SQL type parsing)
     fn database_type(&self) -> DatabaseType;
+
+    /// Get sample JSONB data from a column to extract dimension paths
+    ///
+    /// Returns: Sample JSON value from the column, or None if no data exists
+    ///
+    /// Default implementation returns None. Implementations should override
+    /// to query the database for actual sample data.
+    async fn get_sample_jsonb(&self, _table_name: &str, _column_name: &str) -> Result<Option<serde_json::Value>> {
+        Ok(None)
+    }
 }
 
 /// Database type enum for SQL type parsing
@@ -301,10 +311,15 @@ impl FactTableDetector {
 
             match sql_type {
                 SqlType::Jsonb | SqlType::Json => {
-                    // This is the dimension column
+                    // This is the dimension column - try to extract paths from sample data
+                    let paths = if let Ok(Some(sample)) = introspector.get_sample_jsonb(table_name, name).await {
+                        Self::extract_dimension_paths(&sample, name, db_type)
+                    } else {
+                        Vec::new()
+                    };
                     dimension_column = Some(DimensionColumn {
                         name: name.clone(),
-                        paths: Vec::new(), // TODO: Extract paths from sample data
+                        paths,
                     });
                 }
                 SqlType::Int | SqlType::BigInt | SqlType::Decimal | SqlType::Float => {
@@ -433,6 +448,125 @@ impl FactTableDetector {
             sql_type,
             SqlType::Int | SqlType::BigInt | SqlType::Decimal | SqlType::Float
         )
+    }
+
+    /// Extract dimension paths from a sample JSON value
+    ///
+    /// Walks through the JSON structure and extracts top-level keys as dimension paths.
+    /// Nested objects are represented with dot notation (e.g., "customer.region").
+    ///
+    /// # Arguments
+    ///
+    /// * `sample` - Sample JSON value from the dimension column
+    /// * `column_name` - Name of the JSONB column (e.g., "dimensions")
+    /// * `db_type` - Database type for generating correct JSON path syntax
+    ///
+    /// # Returns
+    ///
+    /// Vec of `DimensionPath` extracted from the sample data
+    pub fn extract_dimension_paths(
+        sample: &serde_json::Value,
+        column_name: &str,
+        db_type: DatabaseType,
+    ) -> Vec<DimensionPath> {
+        let mut paths = Vec::new();
+        Self::extract_paths_recursive(sample, column_name, "", &mut paths, db_type, 0);
+        paths
+    }
+
+    /// Recursively extract paths from JSON structure
+    fn extract_paths_recursive(
+        value: &serde_json::Value,
+        column_name: &str,
+        prefix: &str,
+        paths: &mut Vec<DimensionPath>,
+        db_type: DatabaseType,
+        depth: usize,
+    ) {
+        // Limit depth to avoid infinite recursion on deeply nested structures
+        if depth > 3 {
+            return;
+        }
+
+        if let Some(obj) = value.as_object() {
+            for (key, val) in obj {
+                let full_path = if prefix.is_empty() {
+                    key.clone()
+                } else {
+                    format!("{}.{}", prefix, key)
+                };
+
+                // Determine data type from the value
+                let data_type = Self::infer_json_type(val);
+
+                // Generate database-specific JSON path syntax
+                let json_path = Self::generate_json_path(column_name, &full_path, db_type);
+
+                paths.push(DimensionPath {
+                    name: full_path.replace('.', "_"), // Convert dots to underscores for field names
+                    json_path,
+                    data_type,
+                });
+
+                // Recurse into nested objects
+                if val.is_object() {
+                    Self::extract_paths_recursive(val, column_name, &full_path, paths, db_type, depth + 1);
+                }
+            }
+        }
+    }
+
+    /// Infer JSON data type from a value
+    fn infer_json_type(value: &serde_json::Value) -> String {
+        match value {
+            serde_json::Value::Null => "string".to_string(),
+            serde_json::Value::Bool(_) => "boolean".to_string(),
+            serde_json::Value::Number(n) => {
+                if n.is_i64() || n.is_u64() {
+                    "integer".to_string()
+                } else {
+                    "float".to_string()
+                }
+            }
+            serde_json::Value::String(_) => "string".to_string(),
+            serde_json::Value::Array(_) => "array".to_string(),
+            serde_json::Value::Object(_) => "object".to_string(),
+        }
+    }
+
+    /// Generate database-specific JSON path syntax
+    fn generate_json_path(column_name: &str, path: &str, db_type: DatabaseType) -> String {
+        let parts: Vec<&str> = path.split('.').collect();
+
+        match db_type {
+            DatabaseType::PostgreSQL => {
+                // PostgreSQL: column->>'key' for top-level, column->'nested'->>'key' for nested
+                if parts.len() == 1 {
+                    format!("{}->>'{}'", column_name, parts[0])
+                } else {
+                    let last = parts.last().unwrap();
+                    let rest = &parts[..parts.len() - 1];
+                    let nav = rest.iter().fold(String::new(), |mut acc, p| {
+                        use std::fmt::Write;
+                        let _ = write!(acc, "->'{}'" , p);
+                        acc
+                    });
+                    format!("{}{}->>'{}'", column_name, nav, last)
+                }
+            }
+            DatabaseType::MySQL => {
+                // MySQL: JSON_EXTRACT(column, '$.path.to.key')
+                format!("JSON_UNQUOTE(JSON_EXTRACT({}, '$.{}')", column_name, path)
+            }
+            DatabaseType::SQLite => {
+                // SQLite: json_extract(column, '$.path.to.key')
+                format!("json_extract({}, '$.{}')", column_name, path)
+            }
+            DatabaseType::SQLServer => {
+                // SQL Server: JSON_VALUE(column, '$.path.to.key')
+                format!("JSON_VALUE({}, '$.{}')", column_name, path)
+            }
+        }
     }
 
     /// Detect calendar dimension columns (date_info, week_info, etc.)
@@ -1055,5 +1189,210 @@ mod tests {
         assert_eq!(date_info.buckets[2].json_key, "month"); // month bucket
         assert_eq!(date_info.buckets[3].json_key, "quarter"); // quarter bucket
         assert_eq!(date_info.buckets[4].json_key, "year"); // year bucket
+    }
+
+    // =============================================================================
+    // Dimension Path Extraction Tests
+    // =============================================================================
+
+    #[test]
+    fn test_extract_dimension_paths_simple() {
+        let sample = serde_json::json!({
+            "category": "electronics",
+            "region": "north",
+            "priority": 1
+        });
+
+        let paths = FactTableDetector::extract_dimension_paths(&sample, "dimensions", DatabaseType::PostgreSQL);
+
+        assert_eq!(paths.len(), 3);
+
+        // Check category path
+        let category = paths.iter().find(|p| p.name == "category").unwrap();
+        assert_eq!(category.json_path, "dimensions->>'category'");
+        assert_eq!(category.data_type, "string");
+
+        // Check region path
+        let region = paths.iter().find(|p| p.name == "region").unwrap();
+        assert_eq!(region.json_path, "dimensions->>'region'");
+        assert_eq!(region.data_type, "string");
+
+        // Check priority path (integer)
+        let priority = paths.iter().find(|p| p.name == "priority").unwrap();
+        assert_eq!(priority.json_path, "dimensions->>'priority'");
+        assert_eq!(priority.data_type, "integer");
+    }
+
+    #[test]
+    fn test_extract_dimension_paths_nested() {
+        let sample = serde_json::json!({
+            "customer": {
+                "region": "north",
+                "tier": "gold"
+            },
+            "product": "laptop"
+        });
+
+        let paths = FactTableDetector::extract_dimension_paths(&sample, "data", DatabaseType::PostgreSQL);
+
+        // Should have: customer (object), customer_region, customer_tier, product
+        assert!(paths.iter().any(|p| p.name == "customer"));
+        assert!(paths.iter().any(|p| p.name == "customer_region"));
+        assert!(paths.iter().any(|p| p.name == "customer_tier"));
+        assert!(paths.iter().any(|p| p.name == "product"));
+
+        // Check nested path syntax
+        let customer_region = paths.iter().find(|p| p.name == "customer_region").unwrap();
+        assert_eq!(customer_region.json_path, "data->'customer'->>'region'");
+    }
+
+    #[test]
+    fn test_extract_dimension_paths_various_types() {
+        let sample = serde_json::json!({
+            "name": "test",
+            "count": 42,
+            "price": 19.99,
+            "active": true,
+            "tags": ["a", "b"],
+            "metadata": {}
+        });
+
+        let paths = FactTableDetector::extract_dimension_paths(&sample, "dimensions", DatabaseType::PostgreSQL);
+
+        // Check type inference
+        let name = paths.iter().find(|p| p.name == "name").unwrap();
+        assert_eq!(name.data_type, "string");
+
+        let count = paths.iter().find(|p| p.name == "count").unwrap();
+        assert_eq!(count.data_type, "integer");
+
+        let price = paths.iter().find(|p| p.name == "price").unwrap();
+        assert_eq!(price.data_type, "float");
+
+        let active = paths.iter().find(|p| p.name == "active").unwrap();
+        assert_eq!(active.data_type, "boolean");
+
+        let tags = paths.iter().find(|p| p.name == "tags").unwrap();
+        assert_eq!(tags.data_type, "array");
+
+        let metadata = paths.iter().find(|p| p.name == "metadata").unwrap();
+        assert_eq!(metadata.data_type, "object");
+    }
+
+    #[test]
+    fn test_generate_json_path_postgres() {
+        // Top-level
+        assert_eq!(
+            FactTableDetector::generate_json_path("dimensions", "category", DatabaseType::PostgreSQL),
+            "dimensions->>'category'"
+        );
+
+        // Nested
+        assert_eq!(
+            FactTableDetector::generate_json_path("data", "customer.region", DatabaseType::PostgreSQL),
+            "data->'customer'->>'region'"
+        );
+
+        // Deeply nested
+        assert_eq!(
+            FactTableDetector::generate_json_path("data", "a.b.c", DatabaseType::PostgreSQL),
+            "data->'a'->'b'->>'c'"
+        );
+    }
+
+    #[test]
+    fn test_generate_json_path_mysql() {
+        assert_eq!(
+            FactTableDetector::generate_json_path("dimensions", "category", DatabaseType::MySQL),
+            "JSON_UNQUOTE(JSON_EXTRACT(dimensions, '$.category')"
+        );
+
+        assert_eq!(
+            FactTableDetector::generate_json_path("data", "customer.region", DatabaseType::MySQL),
+            "JSON_UNQUOTE(JSON_EXTRACT(data, '$.customer.region')"
+        );
+    }
+
+    #[test]
+    fn test_generate_json_path_sqlite() {
+        assert_eq!(
+            FactTableDetector::generate_json_path("dimensions", "category", DatabaseType::SQLite),
+            "json_extract(dimensions, '$.category')"
+        );
+
+        assert_eq!(
+            FactTableDetector::generate_json_path("data", "customer.region", DatabaseType::SQLite),
+            "json_extract(data, '$.customer.region')"
+        );
+    }
+
+    #[test]
+    fn test_generate_json_path_sqlserver() {
+        assert_eq!(
+            FactTableDetector::generate_json_path("dimensions", "category", DatabaseType::SQLServer),
+            "JSON_VALUE(dimensions, '$.category')"
+        );
+
+        assert_eq!(
+            FactTableDetector::generate_json_path("data", "customer.region", DatabaseType::SQLServer),
+            "JSON_VALUE(data, '$.customer.region')"
+        );
+    }
+
+    #[test]
+    fn test_infer_json_type() {
+        assert_eq!(FactTableDetector::infer_json_type(&serde_json::json!(null)), "string");
+        assert_eq!(FactTableDetector::infer_json_type(&serde_json::json!(true)), "boolean");
+        assert_eq!(FactTableDetector::infer_json_type(&serde_json::json!(42)), "integer");
+        assert_eq!(FactTableDetector::infer_json_type(&serde_json::json!(3.14)), "float");
+        assert_eq!(FactTableDetector::infer_json_type(&serde_json::json!("hello")), "string");
+        assert_eq!(FactTableDetector::infer_json_type(&serde_json::json!([1, 2, 3])), "array");
+        assert_eq!(FactTableDetector::infer_json_type(&serde_json::json!({"a": 1})), "object");
+    }
+
+    #[test]
+    fn test_extract_paths_depth_limit() {
+        // Create deeply nested structure
+        let sample = serde_json::json!({
+            "level1": {
+                "level2": {
+                    "level3": {
+                        "level4": {
+                            "level5": "too deep"
+                        }
+                    }
+                }
+            }
+        });
+
+        let paths = FactTableDetector::extract_dimension_paths(&sample, "data", DatabaseType::PostgreSQL);
+
+        // Should stop at depth 3 (level1, level2, level3, level4 but not level5)
+        assert!(paths.iter().any(|p| p.name == "level1"));
+        assert!(paths.iter().any(|p| p.name == "level1_level2"));
+        assert!(paths.iter().any(|p| p.name == "level1_level2_level3"));
+        assert!(paths.iter().any(|p| p.name == "level1_level2_level3_level4"));
+        // level5 should NOT be extracted due to depth limit
+        assert!(!paths.iter().any(|p| p.name.contains("level5")));
+    }
+
+    #[test]
+    fn test_extract_paths_empty_object() {
+        let sample = serde_json::json!({});
+        let paths = FactTableDetector::extract_dimension_paths(&sample, "dimensions", DatabaseType::PostgreSQL);
+        assert!(paths.is_empty());
+    }
+
+    #[test]
+    fn test_extract_paths_non_object() {
+        // Array at root level
+        let sample = serde_json::json!([1, 2, 3]);
+        let paths = FactTableDetector::extract_dimension_paths(&sample, "dimensions", DatabaseType::PostgreSQL);
+        assert!(paths.is_empty());
+
+        // Scalar at root level
+        let sample = serde_json::json!("just a string");
+        let paths = FactTableDetector::extract_dimension_paths(&sample, "dimensions", DatabaseType::PostgreSQL);
+        assert!(paths.is_empty());
     }
 }

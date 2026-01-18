@@ -40,6 +40,10 @@ pub struct IntermediateSchema {
     #[serde(default)]
     pub mutations: Vec<IntermediateMutation>,
 
+    /// GraphQL subscriptions
+    #[serde(default)]
+    pub subscriptions: Vec<IntermediateSubscription>,
+
     /// GraphQL fragments (reusable field selections)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fragments: Option<Vec<IntermediateFragment>>,
@@ -279,6 +283,10 @@ pub struct IntermediateQuery {
     /// Auto-generated parameters config
     #[serde(skip_serializing_if = "Option::is_none")]
     pub auto_params: Option<IntermediateAutoParams>,
+
+    /// Deprecation info (from @deprecated directive)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deprecated: Option<IntermediateDeprecation>,
 }
 
 /// Mutation definition in intermediate format
@@ -313,6 +321,10 @@ pub struct IntermediateMutation {
     /// Operation type (CREATE, UPDATE, DELETE, CUSTOM)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub operation: Option<String>,
+
+    /// Deprecation info (from @deprecated directive)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deprecated: Option<IntermediateDeprecation>,
 }
 
 // =============================================================================
@@ -366,6 +378,10 @@ pub struct IntermediateArgument {
     /// Default value (JSON)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default: Option<serde_json::Value>,
+
+    /// Deprecation info (from @deprecated directive)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deprecated: Option<IntermediateDeprecation>,
 }
 
 // =============================================================================
@@ -411,6 +427,84 @@ pub struct IntermediateAutoParams {
     pub where_clause: bool,
     #[serde(default)]
     pub order_by: bool,
+}
+
+// =============================================================================
+// Subscription Definitions
+// =============================================================================
+
+/// Subscription definition in intermediate format.
+///
+/// Subscriptions provide real-time event streams for GraphQL clients.
+///
+/// # Example JSON
+///
+/// ```json
+/// {
+///   "name": "orderUpdated",
+///   "return_type": "Order",
+///   "arguments": [
+///     {"name": "orderId", "type": "ID", "nullable": true}
+///   ],
+///   "topic": "order_events",
+///   "filter": {
+///     "conditions": [
+///       {"argument": "orderId", "path": "$.id"}
+///     ]
+///   },
+///   "description": "Stream of order update events"
+/// }
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IntermediateSubscription {
+    /// Subscription name (e.g., "orderUpdated")
+    pub name: String,
+
+    /// Return type name (e.g., "Order")
+    pub return_type: String,
+
+    /// Subscription arguments (for filtering events)
+    #[serde(default)]
+    pub arguments: Vec<IntermediateArgument>,
+
+    /// Subscription description (from docstring)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+
+    /// Event topic to subscribe to (e.g., "order_events")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub topic: Option<String>,
+
+    /// Filter configuration for event matching
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub filter: Option<IntermediateSubscriptionFilter>,
+
+    /// Fields to project from event data
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fields: Vec<String>,
+
+    /// Deprecation info (from @deprecated directive)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deprecated: Option<IntermediateDeprecation>,
+}
+
+/// Subscription filter definition for event matching.
+///
+/// Maps subscription arguments to JSONB paths in event data.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IntermediateSubscriptionFilter {
+    /// Filter conditions mapping arguments to event data paths
+    pub conditions: Vec<IntermediateFilterCondition>,
+}
+
+/// A single filter condition for subscription event matching.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IntermediateFilterCondition {
+    /// Argument name from subscription arguments
+    pub argument: String,
+
+    /// JSON path to the value in event data (e.g., "$.id", "$.order_status")
+    pub path: String,
 }
 
 // =============================================================================

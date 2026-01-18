@@ -4,16 +4,16 @@
 
 use super::intermediate::{
     IntermediateSchema, IntermediateType, IntermediateField, IntermediateQuery,
-    IntermediateMutation, IntermediateArgument, IntermediateAutoParams,
+    IntermediateMutation, IntermediateSubscription, IntermediateArgument, IntermediateAutoParams,
     IntermediateEnum, IntermediateEnumValue, IntermediateInputObject, IntermediateInputField,
-    IntermediateInterface, IntermediateUnion,
+    IntermediateInterface, IntermediateUnion, IntermediateDirective,
 };
 use anyhow::{Context, Result};
 use fraiseql_core::schema::{
-    ArgumentDefinition, AutoParams, CompiledSchema, EnumDefinition, EnumValueDefinition,
-    FieldDefinition, FieldType, InputFieldDefinition, InputObjectDefinition,
-    InterfaceDefinition, MutationDefinition, MutationOperation, QueryDefinition, TypeDefinition,
-    UnionDefinition,
+    ArgumentDefinition, AutoParams, CompiledSchema, DirectiveDefinition, DirectiveLocationKind,
+    EnumDefinition, EnumValueDefinition, FieldDefinition, FieldType, InputFieldDefinition,
+    InputObjectDefinition, InterfaceDefinition, MutationDefinition, MutationOperation,
+    QueryDefinition, SubscriptionDefinition, SubscriptionFilter, TypeDefinition, UnionDefinition,
 };
 use std::collections::HashSet;
 use tracing::{info, warn};
@@ -85,6 +85,23 @@ impl SchemaConverter {
             .map(Self::convert_union)
             .collect::<Vec<_>>();
 
+        // Convert subscriptions
+        let subscriptions = intermediate
+            .subscriptions
+            .into_iter()
+            .map(Self::convert_subscription)
+            .collect::<Result<Vec<_>>>()
+            .context("Failed to convert subscriptions")?;
+
+        // Convert custom directives
+        let directives = intermediate
+            .directives
+            .unwrap_or_default()
+            .into_iter()
+            .map(Self::convert_directive)
+            .collect::<Result<Vec<_>>>()
+            .context("Failed to convert directives")?;
+
         // Convert fact tables from Vec to HashMap<String, serde_json::Value>
         let fact_tables = intermediate.fact_tables
             .unwrap_or_default()
@@ -104,8 +121,8 @@ impl SchemaConverter {
             unions,
             queries,
             mutations,
-            subscriptions: vec![], // TODO: Add in future phase
-            directives: vec![],    // TODO: Add custom directives from intermediate schema
+            subscriptions,
+            directives,
             fact_tables, // Phase 8A: Analytics metadata
         };
 
@@ -287,6 +304,10 @@ impl SchemaConverter {
             .map(Self::convert_auto_params)
             .unwrap_or_default();
 
+        let deprecation = intermediate.deprecated.map(|d| {
+            fraiseql_core::schema::DeprecationInfo { reason: d.reason }
+        });
+
         Ok(QueryDefinition {
             name: intermediate.name,
             return_type: intermediate.return_type,
@@ -296,7 +317,7 @@ impl SchemaConverter {
             sql_source: intermediate.sql_source,
             description: intermediate.description,
             auto_params,
-            deprecation: None, // TODO: Parse deprecation from intermediate format
+            deprecation,
         })
     }
 
@@ -317,13 +338,17 @@ impl SchemaConverter {
             intermediate.sql_source.as_deref(),
         )?;
 
+        let deprecation = intermediate.deprecated.map(|d| {
+            fraiseql_core::schema::DeprecationInfo { reason: d.reason }
+        });
+
         Ok(MutationDefinition {
             name: intermediate.name,
             return_type: intermediate.return_type,
             arguments,
             description: intermediate.description,
             operation,
-            deprecation: None, // TODO: Parse deprecation from intermediate format
+            deprecation,
         })
     }
 
@@ -371,13 +396,17 @@ impl SchemaConverter {
     fn convert_argument(intermediate: IntermediateArgument) -> Result<ArgumentDefinition> {
         let arg_type = Self::parse_field_type(&intermediate.arg_type)?;
 
+        let deprecation = intermediate.deprecated.map(|d| {
+            fraiseql_core::schema::DeprecationInfo { reason: d.reason }
+        });
+
         Ok(ArgumentDefinition {
             name: intermediate.name,
             arg_type,
             nullable: intermediate.nullable,
             default_value: intermediate.default,
             description: None,
-            deprecation: None, // TODO: Parse deprecation from intermediate format
+            deprecation,
         })
     }
 
@@ -388,6 +417,107 @@ impl SchemaConverter {
             has_offset: intermediate.offset,
             has_where: intermediate.where_clause,
             has_order_by: intermediate.order_by,
+        }
+    }
+
+    /// Convert `IntermediateSubscription` to `SubscriptionDefinition`
+    fn convert_subscription(intermediate: IntermediateSubscription) -> Result<SubscriptionDefinition> {
+        let arguments = intermediate
+            .arguments
+            .into_iter()
+            .map(Self::convert_argument)
+            .collect::<Result<Vec<_>>>()
+            .context(format!(
+                "Failed to convert subscription '{}'",
+                intermediate.name
+            ))?;
+
+        // Convert filter conditions to SubscriptionFilter
+        let filter = intermediate.filter.map(|f| {
+            let argument_paths = f
+                .conditions
+                .into_iter()
+                .map(|c| (c.argument, c.path))
+                .collect();
+            SubscriptionFilter {
+                argument_paths,
+                static_filters: Vec::new(),
+            }
+        });
+
+        // Convert deprecation
+        let deprecation = intermediate.deprecated.map(|d| {
+            fraiseql_core::schema::DeprecationInfo { reason: d.reason }
+        });
+
+        Ok(SubscriptionDefinition {
+            name: intermediate.name,
+            return_type: intermediate.return_type,
+            arguments,
+            description: intermediate.description,
+            topic: intermediate.topic,
+            filter,
+            fields: intermediate.fields,
+            deprecation,
+        })
+    }
+
+    /// Convert `IntermediateDirective` to `DirectiveDefinition`
+    fn convert_directive(intermediate: IntermediateDirective) -> Result<DirectiveDefinition> {
+        let arguments = intermediate
+            .arguments
+            .into_iter()
+            .map(Self::convert_argument)
+            .collect::<Result<Vec<_>>>()
+            .context(format!(
+                "Failed to convert directive '{}'",
+                intermediate.name
+            ))?;
+
+        // Parse directive locations
+        let locations = intermediate
+            .locations
+            .into_iter()
+            .filter_map(|loc| Self::parse_directive_location(&loc))
+            .collect();
+
+        Ok(DirectiveDefinition {
+            name: intermediate.name,
+            description: intermediate.description,
+            locations,
+            arguments,
+            is_repeatable: intermediate.repeatable,
+        })
+    }
+
+    /// Parse directive location string to `DirectiveLocationKind` enum
+    fn parse_directive_location(location: &str) -> Option<DirectiveLocationKind> {
+        match location {
+            // Type System Directive Locations
+            "SCHEMA" => Some(DirectiveLocationKind::Schema),
+            "SCALAR" => Some(DirectiveLocationKind::Scalar),
+            "OBJECT" => Some(DirectiveLocationKind::Object),
+            "FIELD_DEFINITION" => Some(DirectiveLocationKind::FieldDefinition),
+            "ARGUMENT_DEFINITION" => Some(DirectiveLocationKind::ArgumentDefinition),
+            "INTERFACE" => Some(DirectiveLocationKind::Interface),
+            "UNION" => Some(DirectiveLocationKind::Union),
+            "ENUM" => Some(DirectiveLocationKind::Enum),
+            "ENUM_VALUE" => Some(DirectiveLocationKind::EnumValue),
+            "INPUT_OBJECT" => Some(DirectiveLocationKind::InputObject),
+            "INPUT_FIELD_DEFINITION" => Some(DirectiveLocationKind::InputFieldDefinition),
+            // Executable Directive Locations
+            "QUERY" => Some(DirectiveLocationKind::Query),
+            "MUTATION" => Some(DirectiveLocationKind::Mutation),
+            "SUBSCRIPTION" => Some(DirectiveLocationKind::Subscription),
+            "FIELD" => Some(DirectiveLocationKind::Field),
+            "FRAGMENT_DEFINITION" => Some(DirectiveLocationKind::FragmentDefinition),
+            "FRAGMENT_SPREAD" => Some(DirectiveLocationKind::FragmentSpread),
+            "INLINE_FRAGMENT" => Some(DirectiveLocationKind::InlineFragment),
+            "VARIABLE_DEFINITION" => Some(DirectiveLocationKind::VariableDefinition),
+            _ => {
+                warn!("Unknown directive location: {}", location);
+                None
+            }
         }
     }
 
@@ -550,6 +680,7 @@ mod tests {
             unions: vec![],
             queries: vec![],
             mutations: vec![],
+            subscriptions: vec![],
             fragments: None,
             directives: None,
             fact_tables: None,
@@ -593,6 +724,7 @@ mod tests {
             unions: vec![],
             queries: vec![],
             mutations: vec![],
+            subscriptions: vec![],
             fragments: None,
             directives: None,
             fact_tables: None,
@@ -625,8 +757,10 @@ mod tests {
                 description: None,
                 sql_source: Some("v_user".to_string()),
                 auto_params: None,
+                deprecated: None,
             }],
             mutations: vec![],
+            subscriptions: vec![],
             fragments: None,
             directives: None,
             fact_tables: None,
@@ -665,6 +799,7 @@ mod tests {
                     arg_type: "Int".to_string(),
                     nullable: false,
                     default: Some(serde_json::json!(10)),
+                    deprecated: None,
                 }],
                 description: Some("Get users".to_string()),
                 sql_source: Some("v_user".to_string()),
@@ -674,8 +809,10 @@ mod tests {
                     where_clause: false,
                     order_by: false,
                 }),
+                deprecated: None,
             }],
             mutations: vec![],
+            subscriptions: vec![],
             fragments: None,
             directives: None,
             fact_tables: None,
@@ -725,6 +862,7 @@ mod tests {
             unions: vec![],
             queries: vec![],
             mutations: vec![],
+            subscriptions: vec![],
             fragments: None,
             directives: None,
             fact_tables: None,
@@ -786,6 +924,7 @@ mod tests {
             unions: vec![],
             queries: vec![],
             mutations: vec![],
+            subscriptions: vec![],
             fragments: None,
             directives: None,
             fact_tables: None,
@@ -857,6 +996,7 @@ mod tests {
             unions: vec![],
             queries: vec![],
             mutations: vec![],
+            subscriptions: vec![],
             fragments: None,
             directives: None,
             fact_tables: None,
@@ -910,6 +1050,7 @@ mod tests {
             unions: vec![],
             queries: vec![],
             mutations: vec![],
+            subscriptions: vec![],
             fragments: None,
             directives: None,
             fact_tables: None,
@@ -970,6 +1111,7 @@ mod tests {
             unions: vec![],
             queries: vec![],
             mutations: vec![],
+            subscriptions: vec![],
             fragments: None,
             directives: None,
             fact_tables: None,
@@ -1011,6 +1153,7 @@ mod tests {
             unions: vec![],
             queries: vec![],
             mutations: vec![],
+            subscriptions: vec![],
             fragments: None,
             directives: None,
             fact_tables: None,
@@ -1059,6 +1202,7 @@ mod tests {
             unions: vec![],
             queries: vec![],
             mutations: vec![],
+            subscriptions: vec![],
             fragments: None,
             directives: None,
             fact_tables: None,
@@ -1112,6 +1256,7 @@ mod tests {
             }],
             queries: vec![],
             mutations: vec![],
+            subscriptions: vec![],
             fragments: None,
             directives: None,
             fact_tables: None,

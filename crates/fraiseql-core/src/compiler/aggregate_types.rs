@@ -523,8 +523,67 @@ impl AggregateTypeGenerator {
             }
         }
 
-        // TODO: Add dimension fields (from JSONB paths)
-        // TODO: Add temporal bucket fields (from timestamp columns)
+        // Add dimension fields (from JSONB paths)
+        for dim_path in &metadata.dimensions.paths {
+            fields.push(AggregateField {
+                name: dim_path.name.clone(),
+                field_type: Self::dimension_type_to_graphql(&dim_path.data_type),
+                nullable: true, // Dimension fields are nullable in aggregates
+                kind: AggregateFieldKind::Dimension {
+                    path: dim_path.json_path.clone(),
+                },
+            });
+        }
+
+        // Add temporal bucket fields (from calendar dimensions)
+        for calendar_dim in &metadata.calendar_dimensions {
+            for granularity in &calendar_dim.granularities {
+                for bucket in &granularity.buckets {
+                    // Create field name like "occurred_at_day", "occurred_at_month"
+                    let field_name = format!(
+                        "{}_{}",
+                        calendar_dim.source_column,
+                        bucket.bucket_type.field_suffix()
+                    );
+
+                    // Skip duplicates (multiple calendar columns may have overlapping buckets)
+                    if fields.iter().any(|f| f.name == field_name) {
+                        continue;
+                    }
+
+                    fields.push(AggregateField {
+                        name: field_name,
+                        field_type: Self::calendar_bucket_to_graphql(&bucket.data_type),
+                        nullable: true,
+                        kind: AggregateFieldKind::TemporalBucket {
+                            column: granularity.column_name.clone(),
+                            bucket: bucket.bucket_type,
+                        },
+                    });
+                }
+            }
+        }
+
+        // If no calendar dimensions but we have timestamp filter columns, add DATE_TRUNC-based buckets
+        if metadata.calendar_dimensions.is_empty() {
+            for filter in &metadata.denormalized_filters {
+                if matches!(filter.sql_type, SqlType::Timestamp | SqlType::Date) {
+                    // Add common temporal buckets for timestamp columns
+                    for bucket in &[TemporalBucket::Day, TemporalBucket::Week, TemporalBucket::Month, TemporalBucket::Year] {
+                        let field_name = format!("{}_{}", filter.name, bucket.field_suffix());
+                        fields.push(AggregateField {
+                            name: field_name,
+                            field_type: "String".to_string(), // DATE_TRUNC returns timestamp as string
+                            nullable: true,
+                            kind: AggregateFieldKind::TemporalBucket {
+                                column: filter.name.clone(),
+                                bucket: *bucket,
+                            },
+                        });
+                    }
+                }
+            }
+        }
 
         Ok(AggregateType {
             name: format!("{}Aggregate", type_name),
@@ -533,11 +592,63 @@ impl AggregateTypeGenerator {
     }
 
     /// Generate GroupByInput
-    fn generate_group_by_input(_metadata: &FactTableMetadata, type_name: &str) -> Result<GroupByInput> {
-        let fields = Vec::new();
+    fn generate_group_by_input(metadata: &FactTableMetadata, type_name: &str) -> Result<GroupByInput> {
+        let mut fields = Vec::new();
 
-        // TODO: Add dimension fields (from JSONB paths)
-        // TODO: Add temporal bucket fields (from timestamp columns)
+        // Add dimension fields (from JSONB paths)
+        for dim_path in &metadata.dimensions.paths {
+            fields.push(GroupByField {
+                name: dim_path.name.clone(),
+                kind: GroupByFieldKind::Dimension {
+                    path: dim_path.json_path.clone(),
+                },
+            });
+        }
+
+        // Add temporal bucket fields (from calendar dimensions)
+        for calendar_dim in &metadata.calendar_dimensions {
+            for granularity in &calendar_dim.granularities {
+                for bucket in &granularity.buckets {
+                    // Create field name like "occurred_at_day", "occurred_at_month"
+                    let field_name = format!(
+                        "{}_{}",
+                        calendar_dim.source_column,
+                        bucket.bucket_type.field_suffix()
+                    );
+
+                    // Skip duplicates
+                    if fields.iter().any(|f| f.name == field_name) {
+                        continue;
+                    }
+
+                    fields.push(GroupByField {
+                        name: field_name,
+                        kind: GroupByFieldKind::TemporalBucket {
+                            column: granularity.column_name.clone(),
+                            bucket: bucket.bucket_type,
+                        },
+                    });
+                }
+            }
+        }
+
+        // If no calendar dimensions but we have timestamp filter columns, add DATE_TRUNC-based buckets
+        if metadata.calendar_dimensions.is_empty() {
+            for filter in &metadata.denormalized_filters {
+                if matches!(filter.sql_type, SqlType::Timestamp | SqlType::Date) {
+                    for bucket in &[TemporalBucket::Day, TemporalBucket::Week, TemporalBucket::Month, TemporalBucket::Year] {
+                        let field_name = format!("{}_{}", filter.name, bucket.field_suffix());
+                        fields.push(GroupByField {
+                            name: field_name,
+                            kind: GroupByFieldKind::TemporalBucket {
+                                column: filter.name.clone(),
+                                bucket: *bucket,
+                            },
+                        });
+                    }
+                }
+            }
+        }
 
         Ok(GroupByInput {
             name: format!("{}GroupBy", type_name),
@@ -622,6 +733,26 @@ impl AggregateTypeGenerator {
             SqlType::Uuid => "ID".to_string(),
             SqlType::Timestamp | SqlType::Date => "String".to_string(),
             SqlType::Other(_) => "String".to_string(),
+        }
+    }
+
+    /// Convert dimension data type hint to GraphQL type
+    fn dimension_type_to_graphql(data_type: &str) -> String {
+        match data_type.to_lowercase().as_str() {
+            "integer" | "int" | "number" => "Int".to_string(),
+            "float" | "decimal" | "double" => "Float".to_string(),
+            "boolean" | "bool" => "Boolean".to_string(),
+            "date" | "timestamp" | "datetime" => "String".to_string(),
+            _ => "String".to_string(), // Default to String for text and unknown types
+        }
+    }
+
+    /// Convert calendar bucket data type to GraphQL type
+    fn calendar_bucket_to_graphql(data_type: &str) -> String {
+        match data_type.to_lowercase().as_str() {
+            "integer" | "int" => "Int".to_string(),
+            "date" => "String".to_string(), // Dates are returned as ISO strings
+            _ => "String".to_string(),
         }
     }
 }
@@ -735,5 +866,296 @@ mod tests {
         assert_eq!(AggregateTypeGenerator::sql_type_to_graphql(&SqlType::Decimal), "Float");
         assert_eq!(AggregateTypeGenerator::sql_type_to_graphql(&SqlType::Text), "String");
         assert_eq!(AggregateTypeGenerator::sql_type_to_graphql(&SqlType::Uuid), "ID");
+    }
+
+    // ===========================================================================
+    // Dimension Fields Tests
+    // ===========================================================================
+
+    fn create_metadata_with_dimensions() -> FactTableMetadata {
+        use crate::compiler::fact_table::DimensionPath;
+
+        FactTableMetadata {
+            table_name: "tf_sales".to_string(),
+            measures: vec![MeasureColumn {
+                name: "revenue".to_string(),
+                sql_type: SqlType::Decimal,
+                nullable: false,
+            }],
+            dimensions: DimensionColumn {
+                name: "dimensions".to_string(),
+                paths: vec![
+                    DimensionPath {
+                        name: "category".to_string(),
+                        json_path: "dimensions->>'category'".to_string(),
+                        data_type: "string".to_string(),
+                    },
+                    DimensionPath {
+                        name: "region".to_string(),
+                        json_path: "dimensions->>'region'".to_string(),
+                        data_type: "string".to_string(),
+                    },
+                    DimensionPath {
+                        name: "priority".to_string(),
+                        json_path: "dimensions->>'priority'".to_string(),
+                        data_type: "integer".to_string(),
+                    },
+                ],
+            },
+            denormalized_filters: vec![],
+            calendar_dimensions: vec![],
+        }
+    }
+
+    #[test]
+    fn test_generate_with_dimension_fields() {
+        let metadata = create_metadata_with_dimensions();
+        let (aggregate_type, group_by, _) = AggregateTypeGenerator::generate(&metadata, false).unwrap();
+
+        // Check aggregate type has dimension fields
+        let category_field = aggregate_type.fields.iter().find(|f| f.name == "category");
+        assert!(category_field.is_some());
+        let category = category_field.unwrap();
+        assert_eq!(category.field_type, "String");
+        assert!(category.nullable);
+        assert!(matches!(&category.kind, AggregateFieldKind::Dimension { path } if path == "dimensions->>'category'"));
+
+        // Check integer dimension type
+        let priority_field = aggregate_type.fields.iter().find(|f| f.name == "priority");
+        assert!(priority_field.is_some());
+        assert_eq!(priority_field.unwrap().field_type, "Int");
+
+        // Check group_by has dimension fields
+        assert!(group_by.fields.iter().any(|f| f.name == "category"));
+        assert!(group_by.fields.iter().any(|f| f.name == "region"));
+        assert!(group_by.fields.iter().any(|f| f.name == "priority"));
+    }
+
+    #[test]
+    fn test_group_by_dimension_field_kind() {
+        let metadata = create_metadata_with_dimensions();
+        let (_, group_by, _) = AggregateTypeGenerator::generate(&metadata, false).unwrap();
+
+        let category = group_by.fields.iter().find(|f| f.name == "category").unwrap();
+        assert!(matches!(&category.kind, GroupByFieldKind::Dimension { path } if path == "dimensions->>'category'"));
+    }
+
+    // ===========================================================================
+    // Calendar Dimension / Temporal Bucket Tests
+    // ===========================================================================
+
+    fn create_metadata_with_calendar_dimensions() -> FactTableMetadata {
+        use crate::compiler::fact_table::{CalendarBucket, CalendarDimension, CalendarGranularity};
+
+        FactTableMetadata {
+            table_name: "tf_sales".to_string(),
+            measures: vec![MeasureColumn {
+                name: "revenue".to_string(),
+                sql_type: SqlType::Decimal,
+                nullable: false,
+            }],
+            dimensions: DimensionColumn {
+                name: "dimensions".to_string(),
+                paths: vec![],
+            },
+            denormalized_filters: vec![],
+            calendar_dimensions: vec![CalendarDimension {
+                source_column: "occurred_at".to_string(),
+                granularities: vec![
+                    CalendarGranularity {
+                        column_name: "date_info".to_string(),
+                        buckets: vec![
+                            CalendarBucket {
+                                json_key: "date".to_string(),
+                                bucket_type: TemporalBucket::Day,
+                                data_type: "date".to_string(),
+                            },
+                            CalendarBucket {
+                                json_key: "month".to_string(),
+                                bucket_type: TemporalBucket::Month,
+                                data_type: "integer".to_string(),
+                            },
+                            CalendarBucket {
+                                json_key: "year".to_string(),
+                                bucket_type: TemporalBucket::Year,
+                                data_type: "integer".to_string(),
+                            },
+                        ],
+                    },
+                ],
+            }],
+        }
+    }
+
+    #[test]
+    fn test_generate_with_calendar_dimensions() {
+        let metadata = create_metadata_with_calendar_dimensions();
+        let (aggregate_type, group_by, _) = AggregateTypeGenerator::generate(&metadata, false).unwrap();
+
+        // Check aggregate type has temporal bucket fields
+        let day_field = aggregate_type.fields.iter().find(|f| f.name == "occurred_at_day");
+        assert!(day_field.is_some());
+        let day = day_field.unwrap();
+        assert_eq!(day.field_type, "String"); // Date type maps to String
+        assert!(day.nullable);
+        assert!(matches!(&day.kind, AggregateFieldKind::TemporalBucket { column, bucket }
+            if column == "date_info" && *bucket == TemporalBucket::Day));
+
+        // Check integer bucket type
+        let month_field = aggregate_type.fields.iter().find(|f| f.name == "occurred_at_month");
+        assert!(month_field.is_some());
+        assert_eq!(month_field.unwrap().field_type, "Int");
+
+        // Check group_by has temporal bucket fields
+        assert!(group_by.fields.iter().any(|f| f.name == "occurred_at_day"));
+        assert!(group_by.fields.iter().any(|f| f.name == "occurred_at_month"));
+        assert!(group_by.fields.iter().any(|f| f.name == "occurred_at_year"));
+    }
+
+    #[test]
+    fn test_group_by_temporal_bucket_field_kind() {
+        let metadata = create_metadata_with_calendar_dimensions();
+        let (_, group_by, _) = AggregateTypeGenerator::generate(&metadata, false).unwrap();
+
+        let month = group_by.fields.iter().find(|f| f.name == "occurred_at_month").unwrap();
+        assert!(matches!(&month.kind, GroupByFieldKind::TemporalBucket { column, bucket }
+            if column == "date_info" && *bucket == TemporalBucket::Month));
+    }
+
+    // ===========================================================================
+    // Fallback Temporal Buckets (from timestamp filter columns)
+    // ===========================================================================
+
+    fn create_metadata_with_timestamp_filter() -> FactTableMetadata {
+        use crate::compiler::fact_table::FilterColumn;
+
+        FactTableMetadata {
+            table_name: "tf_sales".to_string(),
+            measures: vec![MeasureColumn {
+                name: "revenue".to_string(),
+                sql_type: SqlType::Decimal,
+                nullable: false,
+            }],
+            dimensions: DimensionColumn {
+                name: "dimensions".to_string(),
+                paths: vec![],
+            },
+            denormalized_filters: vec![FilterColumn {
+                name: "occurred_at".to_string(),
+                sql_type: SqlType::Timestamp,
+                indexed: true,
+            }],
+            calendar_dimensions: vec![], // No calendar dimensions
+        }
+    }
+
+    #[test]
+    fn test_generate_fallback_temporal_buckets() {
+        let metadata = create_metadata_with_timestamp_filter();
+        let (aggregate_type, group_by, _) = AggregateTypeGenerator::generate(&metadata, false).unwrap();
+
+        // Should have fallback temporal buckets: day, week, month, year
+        assert!(aggregate_type.fields.iter().any(|f| f.name == "occurred_at_day"));
+        assert!(aggregate_type.fields.iter().any(|f| f.name == "occurred_at_week"));
+        assert!(aggregate_type.fields.iter().any(|f| f.name == "occurred_at_month"));
+        assert!(aggregate_type.fields.iter().any(|f| f.name == "occurred_at_year"));
+
+        // All fallback buckets should be String type (from DATE_TRUNC)
+        let day = aggregate_type.fields.iter().find(|f| f.name == "occurred_at_day").unwrap();
+        assert_eq!(day.field_type, "String");
+
+        // Group by should also have temporal buckets
+        assert!(group_by.fields.iter().any(|f| f.name == "occurred_at_day"));
+        assert!(group_by.fields.iter().any(|f| f.name == "occurred_at_week"));
+        assert!(group_by.fields.iter().any(|f| f.name == "occurred_at_month"));
+        assert!(group_by.fields.iter().any(|f| f.name == "occurred_at_year"));
+    }
+
+    #[test]
+    fn test_no_fallback_when_calendar_dimensions_exist() {
+        let metadata = create_metadata_with_calendar_dimensions();
+        let (aggregate_type, _, _) = AggregateTypeGenerator::generate(&metadata, false).unwrap();
+
+        // Should only have calendar dimension buckets, not DATE_TRUNC fallbacks
+        // Calendar dimensions have: day, month, year
+        // Should NOT have: week (not in our calendar dimension)
+        assert!(!aggregate_type.fields.iter().any(|f| f.name == "occurred_at_week"));
+    }
+
+    // ===========================================================================
+    // Helper Function Tests
+    // ===========================================================================
+
+    #[test]
+    fn test_dimension_type_to_graphql() {
+        assert_eq!(AggregateTypeGenerator::dimension_type_to_graphql("string"), "String");
+        assert_eq!(AggregateTypeGenerator::dimension_type_to_graphql("integer"), "Int");
+        assert_eq!(AggregateTypeGenerator::dimension_type_to_graphql("int"), "Int");
+        assert_eq!(AggregateTypeGenerator::dimension_type_to_graphql("number"), "Int");
+        assert_eq!(AggregateTypeGenerator::dimension_type_to_graphql("float"), "Float");
+        assert_eq!(AggregateTypeGenerator::dimension_type_to_graphql("decimal"), "Float");
+        assert_eq!(AggregateTypeGenerator::dimension_type_to_graphql("boolean"), "Boolean");
+        assert_eq!(AggregateTypeGenerator::dimension_type_to_graphql("date"), "String");
+        assert_eq!(AggregateTypeGenerator::dimension_type_to_graphql("unknown"), "String");
+    }
+
+    #[test]
+    fn test_calendar_bucket_to_graphql() {
+        assert_eq!(AggregateTypeGenerator::calendar_bucket_to_graphql("integer"), "Int");
+        assert_eq!(AggregateTypeGenerator::calendar_bucket_to_graphql("int"), "Int");
+        assert_eq!(AggregateTypeGenerator::calendar_bucket_to_graphql("date"), "String");
+        assert_eq!(AggregateTypeGenerator::calendar_bucket_to_graphql("unknown"), "String");
+    }
+
+    // ===========================================================================
+    // Combined Dimensions and Calendar Tests
+    // ===========================================================================
+
+    fn create_metadata_with_dimensions_and_calendar() -> FactTableMetadata {
+        use crate::compiler::fact_table::{CalendarBucket, CalendarDimension, CalendarGranularity, DimensionPath};
+
+        FactTableMetadata {
+            table_name: "tf_sales".to_string(),
+            measures: vec![MeasureColumn {
+                name: "revenue".to_string(),
+                sql_type: SqlType::Decimal,
+                nullable: false,
+            }],
+            dimensions: DimensionColumn {
+                name: "dimensions".to_string(),
+                paths: vec![
+                    DimensionPath {
+                        name: "category".to_string(),
+                        json_path: "dimensions->>'category'".to_string(),
+                        data_type: "string".to_string(),
+                    },
+                ],
+            },
+            denormalized_filters: vec![],
+            calendar_dimensions: vec![CalendarDimension {
+                source_column: "occurred_at".to_string(),
+                granularities: vec![CalendarGranularity {
+                    column_name: "date_info".to_string(),
+                    buckets: vec![CalendarBucket {
+                        json_key: "month".to_string(),
+                        bucket_type: TemporalBucket::Month,
+                        data_type: "integer".to_string(),
+                    }],
+                }],
+            }],
+        }
+    }
+
+    #[test]
+    fn test_generate_with_both_dimensions_and_calendar() {
+        let metadata = create_metadata_with_dimensions_and_calendar();
+        let (aggregate_type, group_by, _) = AggregateTypeGenerator::generate(&metadata, false).unwrap();
+
+        // Should have both dimension fields and temporal bucket fields
+        assert!(aggregate_type.fields.iter().any(|f| f.name == "category"));
+        assert!(aggregate_type.fields.iter().any(|f| f.name == "occurred_at_month"));
+
+        assert!(group_by.fields.iter().any(|f| f.name == "category"));
+        assert!(group_by.fields.iter().any(|f| f.name == "occurred_at_month"));
     }
 }
