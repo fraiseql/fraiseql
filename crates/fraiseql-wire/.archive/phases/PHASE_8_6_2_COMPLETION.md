@@ -17,6 +17,7 @@ Phase 8.6.2 successfully implements an inline stream statistics API enabling rea
 ### 1. StreamStats Type (`src/stream/json_stream.rs`)
 
 **New Public Type**:
+
 ```rust
 pub struct StreamStats {
     pub items_buffered: usize,       // 0-256 rows in channel
@@ -27,10 +28,12 @@ pub struct StreamStats {
 ```
 
 **Key Methods**:
+
 - `StreamStats::zero()` - Initialize for testing/empty state
 - Fully `Clone` + `Debug` for logging/testing
 
 **Memory Estimation**:
+
 - Conservative: 2KB per buffered item (typical JSON document)
 - Formula: `items_buffered * 2048 bytes`
 - Scalable: can be tuned if needed
@@ -38,11 +41,13 @@ pub struct StreamStats {
 ### 2. JsonStream Enhancements (`src/stream/json_stream.rs`)
 
 **Added Tracking**:
+
 - `rows_yielded: Arc<AtomicU64>` - Rows passed to consumer
 - `rows_filtered: Arc<AtomicU64>` - Rows filtered by predicates
 - Both using `AtomicU64` for zero-lock updates
 
 **Public API**:
+
 ```rust
 pub fn stats(&self) -> StreamStats {
     // Returns snapshot without consuming items
@@ -51,6 +56,7 @@ pub fn stats(&self) -> StreamStats {
 ```
 
 **Internal API** (for integration with FilteredStream):
+
 - `increment_rows_yielded(count)` - Called per batch
 - `increment_rows_filtered(count)` - Called per filter event
 - `clone_rows_yielded()` - Pass to background task
@@ -59,17 +65,20 @@ pub fn stats(&self) -> StreamStats {
 ### 3. Module Exports (`src/stream/mod.rs`)
 
 **Added to Public API**:
+
 - `pub use json_stream::{..., StreamStats}`
 - Accessible as `fraiseql_wire::stream::StreamStats`
 
 ### 4. Comprehensive Testing
 
 **Unit Tests** (3 new in json_stream.rs):
+
 - `test_stream_stats_creation()` - Type initialization
 - `test_stream_stats_memory_estimation()` - Calculation accuracy
 - `test_stream_stats_clone()` - Clone behavior
 
 **Integration Tests** (4 new in metrics_integration.rs):
+
 - `test_stream_stats_creation_and_properties()` - Basic properties
 - `test_stream_stats_memory_estimation_various_sizes()` - Scaling (0-256 items)
 - `test_stream_stats_row_tracking()` - Yield/filter ratios
@@ -80,6 +89,7 @@ pub fn stats(&self) -> StreamStats {
 ## Test Results
 
 ### Unit Tests
+
 ```
 ✅ 94 unit tests passing
    - 3x new StreamStats tests
@@ -87,6 +97,7 @@ pub fn stats(&self) -> StreamStats {
 ```
 
 ### Integration Tests
+
 ```
 ✅ 21 metrics integration tests passing
    - 4x new StreamStats tests
@@ -94,6 +105,7 @@ pub fn stats(&self) -> StreamStats {
 ```
 
 ### Code Quality
+
 ```
 ✅ No new clippy warnings on modified files
 ✅ Zero regressions
@@ -149,18 +161,21 @@ println!("Filter effectiveness: {:.1}% of rows filtered out", filter_ratio * 100
 ## Architecture Impact
 
 ### Before
+
 - No way to query stream state
 - Memory usage unknown (bounded but opaque)
 - Filter effectiveness unknown
 - Progress invisible to consumer
 
 ### After
+
 - `stream.stats()` returns snapshot any time
 - Accurate memory estimation
 - Track row filtering statistics
 - Foundation for adaptive features
 
 ### Design Principles
+
 ✅ **Zero-Lock**: Uses `AtomicU64` with `Relaxed` ordering
 ✅ **No Allocation**: Returns stack-allocated `StreamStats`
 ✅ **Exact Snapshot**: Point-in-time accurate
@@ -201,6 +216,7 @@ tests/
 ## Backward Compatibility
 
 ✅ **100% Backward Compatible**
+
 - No public API changes to existing types
 - New StreamStats is purely additive
 - stream.stats() is new method (doesn't affect existing usage)
@@ -227,6 +243,7 @@ tests/
 ## Next Phase (8.6.3)
 
 Phase 8.6.2 enables Phase 8.6.3: **Memory Bounds** enforcement
+
 - Use memory estimation to enforce hard limits
 - Error when estimated memory exceeds threshold
 - QueryBuilder API: `.max_memory(bytes)`
@@ -252,18 +269,21 @@ Phase 8.6.2 enables Phase 8.6.3: **Memory Bounds** enforcement
 ## Implementation Quality
 
 **Code Quality**: ⭐⭐⭐⭐⭐
+
 - Zero clippy warnings on new code
 - Comprehensive test coverage
 - Clear documentation
 - Sound architecture
 
 **Testing**: ⭐⭐⭐⭐⭐
+
 - Unit tests for type behavior
 - Integration tests for real usage
 - Edge cases covered
 - Multiple scenarios tested
 
 **API Design**: ⭐⭐⭐⭐⭐
+
 - Simple and intuitive
 - Minimal surface area
 - Extensible for future

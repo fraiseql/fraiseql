@@ -13,11 +13,13 @@ Session 2 has now completed Phases 8.5.4 and 8.5.5. The metrics infrastructure i
 ### ✅ Completed (5 of 8 Sub-phases)
 
 **Session 1**:
+
 - Phase 8.5.1: Metrics Module ✅
 - Phase 8.5.2: QueryBuilder Instrumentation ✅
 - Phase 8.5.3: Connection Auth/Startup Instrumentation ✅
 
 **Session 2**:
+
 - Phase 8.5.4: Background Task Instrumentation ✅
 - **Phase 8.5.5: Stream Type Instrumentation** ✅
 
@@ -30,12 +32,14 @@ Session 2 has now completed Phases 8.5.4 and 8.5.5. The metrics infrastructure i
 #### TypedJsonStream (Deserialization)
 
 The `TypedJsonStream::deserialize_value()` method now records:
+
 - **Deserialization timing**: Per-type latency measurement
 - **Success tracking**: Counter per type
 - **Failure tracking**: Counter with reason (serde_error)
 - **Type name**: Generic type T captured via `std::any::type_name()`
 
 **Metrics Added**:
+
 ```rust
 // On successful deserialization
 fraiseql_deserialization_duration_ms {entity="unknown", type_name=T}
@@ -48,10 +52,12 @@ fraiseql_rows_deserialization_failed_total {entity="unknown", type_name=T, reaso
 #### FilteredStream (Filtering)
 
 The `FilteredStream::poll_next()` method now records:
+
 - **Filter execution timing**: Per-row filter latency
 - **Filtered row count**: Rows that failed the predicate
 
 **Metrics Added**:
+
 ```rust
 // For each row processed
 fraiseql_filter_duration_ms {entity="unknown"}
@@ -63,6 +69,7 @@ fraiseql_rows_filtered_total {entity="unknown"}
 ### Code Changes
 
 **Modified**: `src/stream/typed_stream.rs` (lines 70-89)
+
 - Added `type_name` extraction
 - Added timing measurement with `std::time::Instant::now()`
 - Split match arms to record success/failure metrics
@@ -70,6 +77,7 @@ fraiseql_rows_filtered_total {entity="unknown"}
 - Record counter for successes and failures
 
 **Modified**: `src/stream/filter.rs` (lines 31-46)
+
 - Added filter start timing
 - Measured filter predicate execution duration
 - Added filter duration histogram recording
@@ -152,6 +160,7 @@ Consumer Application
 ## Test Results
 
 ✅ **All tests passing**:
+
 - 19 metrics unit tests ✅
 - 18 stream tests ✅
 - Total: 37 tests passing ✅
@@ -170,16 +179,19 @@ Finished `dev` profile [unoptimized + debuginfo]
 ### Instrumentation Overhead Per Query
 
 **Per-query fixed overhead**:
+
 - Query submission: 1 atomic counter (~0.1μs)
 - Auth (if needed): 1 Instant + 1 counter (~1μs total)
 - Startup timing: 1 Instant (~0.5μs)
 
 **Per-row variable overhead**:
+
 - Chunk processing: 2 histograms + 1 duration (~1μs per chunk)
 - Filter execution: 1 timing + conditional counter (~0.5μs)
 - Deserialization: 1 timing + counter (~0.5μs)
 
 **Key optimizations**:
+
 - No allocations in hot paths
 - No locks (lock-free atomics via metrics crate)
 - Instant::now() cost is minimal (~50-100ns)
@@ -219,18 +231,21 @@ Finished `dev` profile [unoptimized + debuginfo]
 ## Remaining Work (3 phases, 25%)
 
 ### Phase 8.5.6: Integration Tests (2-3 hours)
+
 - End-to-end metrics validation with real queries
 - Verify metrics correlate correctly
 - Test error scenarios
 - Validate histogram distributions
 
 ### Phase 8.5.7: Documentation & Examples (2-3 hours)
+
 - Create `METRICS.md` - comprehensive glossary
 - Create `examples/metrics.rs` - working example
 - Update README with observability feature
 - Document label cardinality considerations
 
 ### Phase 8.5.8: Performance Validation (1-2 hours)
+
 - Benchmark overhead measurement
 - Verify < 0.1% impact with real workloads
 - Document performance characteristics
@@ -257,6 +272,7 @@ Finished `dev` profile [unoptimized + debuginfo]
 ## Git Commits
 
 **Session 2 Commits**:
+
 1. `1f9ac07` - feat(phase-8.5.4): Instrument background task with row/chunk metrics
 2. `86376b5` - feat(phase-8.5.5): Instrument stream types with deserialization and filtering metrics
 
@@ -265,6 +281,7 @@ Finished `dev` profile [unoptimized + debuginfo]
 ## What Works Now
 
 ✅ **Complete Instrumentation Coverage**
+
 - Query submissions tracked with predicate details
 - Authentication mechanism, duration, and success/failure tracked
 - Query startup timing captured
@@ -276,6 +293,7 @@ Finished `dev` profile [unoptimized + debuginfo]
 - All metrics compatible with Prometheus/OpenTelemetry
 
 ✅ **Quality Metrics**
+
 - 37 tests passing (19 metrics + 18 stream)
 - Clean builds with no new warnings
 - Zero breaking API changes
@@ -296,6 +314,7 @@ Finished `dev` profile [unoptimized + debuginfo]
 **Phase 8.5 is now 75% complete with all instrumentation finished.**
 
 The complete query execution pipeline now has comprehensive observability:
+
 - Query submission through completion
 - Authentication latency and status
 - Query startup performance

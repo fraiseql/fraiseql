@@ -10,6 +10,7 @@ Successfully integrated fraiseql-wire as an optional backend for FraiseQL. The c
 ## ✅ Completed
 
 ### 1. WHERE SQL Generator (`src/db/where_sql_generator.rs`)
+
 - **Status**: ✅ Complete and tested
 - **Tests**: 16/16 passing
 - **Functionality**:
@@ -20,6 +21,7 @@ Successfully integrated fraiseql-wire as an optional backend for FraiseQL. The c
   - SQL injection prevention via proper escaping
 
 ### 2. Connection Factory (`src/db/wire_pool.rs`)
+
 - **Status**: ✅ Complete
 - **Design**: Factory pattern instead of traditional pooling
   - `WireClientFactory` stores connection string
@@ -27,6 +29,7 @@ Successfully integrated fraiseql-wire as an optional backend for FraiseQL. The c
   - Rationale: `FraiseClient::query()` consumes self, so pooling isn't viable
 
 ### 3. Database Adapter (`src/db/fraiseql_wire_adapter.rs`)
+
 - **Status**: ⚠️  Complete with known limitation (see below)
 - **Implemented Methods**:
   - ✅ `execute_where_query()` - Streaming query execution with WHERE clauses
@@ -36,6 +39,7 @@ Successfully integrated fraiseql-wire as an optional backend for FraiseQL. The c
   - ✅ `execute_raw_query()` - Returns error (not supported by fraiseql-wire)
 
 ### 4. Module Integration
+
 - ✅ Feature flag: `wire-backend`
 - ✅ Dependency: fraiseql-wire (path-based, local)
 - ✅ Module exports in `db/mod.rs`
@@ -107,6 +111,7 @@ async fn connect() -> Result<Self> {
 ### Recommendation
 
 **For FraiseQL v2 Phase 1**:
+
 - Document this limitation in KNOWN_ISSUES.md
 - Continue development without wire-backend feature
 - File issue in fraiseql-wire repository
@@ -115,12 +120,15 @@ async fn connect() -> Result<Self> {
 ## Testing Status
 
 ### Unit Tests
+
 ```bash
 cargo test --lib where_sql_generator
 ```
+
 **Result**: ✅ 16/16 passing
 
 ### Compilation Status
+
 ```bash
 cargo check                        # ✅ Success
 cargo check --features wire-backend  # ❌ Send trait error (expected)
@@ -129,6 +137,7 @@ cargo check --features wire-backend  # ❌ Send trait error (expected)
 ## Next Steps
 
 ### Immediate (Phase 1 Completion)
+
 1. ✅ Fix WHERE SQL generator syntax errors
 2. ✅ Implement wire_pool module
 3. ✅ Implement fraiseql_wire_adapter module
@@ -138,6 +147,7 @@ cargo check --features wire-backend  # ❌ Send trait error (expected)
 7. 🔲 Create KNOWN_ISSUES.md
 
 ### Future (Phase 2)
+
 1. File issue with fraiseql-wire team
 2. Submit PR to fix tracing span usage
 3. Re-enable wire-backend feature
@@ -146,11 +156,13 @@ cargo check --features wire-backend  # ❌ Send trait error (expected)
 ## Files Modified
 
 ### Created
+
 - `crates/fraiseql-core/src/db/where_sql_generator.rs` - WHERE clause to SQL converter
 - `crates/fraiseql-core/src/db/wire_pool.rs` - Connection factory
 - `crates/fraiseql-core/src/db/fraiseql_wire_adapter.rs` - DatabaseAdapter implementation
 
 ### Modified
+
 - `crates/fraiseql-core/src/db/mod.rs` - Added module exports
 - `crates/fraiseql-core/Cargo.toml` - Added fraiseql-wire dependency
 - `Cargo.toml` (workspace) - Added wire-backend feature
@@ -167,16 +179,19 @@ cargo check --features wire-backend  # ❌ Send trait error (expected)
 ## Performance Characteristics
 
 ### Memory Usage (fraiseql-wire advantage)
+
 - **Traditional drivers**: O(result_size) - buffers all rows
 - **fraiseql-wire**: O(chunk_size) - streams incrementally
 - **Default chunk size**: 1024 rows
 - **Configurable**: `.with_chunk_size(512)`
 
 ### Throughput
+
 - Comparable to tokio-postgres (100K-500K rows/sec)
 - Latency: 2-5ms time-to-first-row
 
 ### Limitations
+
 - Read-only (no INSERT/UPDATE/DELETE)
 - Single query shape: `SELECT data FROM v_{entity} WHERE ...`
 - No prepared statements

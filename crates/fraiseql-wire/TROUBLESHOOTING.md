@@ -21,12 +21,14 @@ This guide covers common issues you may encounter when using fraiseql-wire and h
 ### Error: "connection refused"
 
 **Symptoms**:
+
 ```
 Error: connection error: failed to connect to localhost:5432: connection refused.
 Is Postgres running?
 ```
 
 **Causes**:
+
 1. Postgres is not running
 2. Postgres is not listening on the specified address/port
 3. Firewall blocking the connection
@@ -35,12 +37,14 @@ Is Postgres running?
 **Solutions**:
 
 1. **Verify Postgres is running**:
+
    ```bash
    pg_isready -h localhost -p 5432
    # Should output: accepting connections
    ```
 
 2. **Start Postgres if not running**:
+
    ```bash
    # Linux/systemd
    sudo systemctl start postgresql
@@ -53,6 +57,7 @@ Is Postgres running?
    ```
 
 3. **Verify connection string**:
+
    ```rust
    // TCP (must be running and listening)
    FraiseClient::connect("postgres://localhost:5432/mydb").await?;
@@ -62,12 +67,14 @@ Is Postgres running?
    ```
 
 4. **Check if port is in use**:
+
    ```bash
    lsof -i :5432  # See what's using port 5432
    netstat -tlnp | grep 5432  # Alternative on Linux
    ```
 
 5. **Firewall check**:
+
    ```bash
    # Try connecting directly with psql
    psql -h localhost -p 5432 -U postgres -d postgres
@@ -78,11 +85,13 @@ Is Postgres running?
 ### Error: "connection closed"
 
 **Symptoms**:
+
 ```
 Error: connection error: connection closed unexpectedly
 ```
 
 **Causes**:
+
 1. Postgres restarted mid-stream
 2. Network disconnection
 3. Postgres ran out of memory
@@ -91,6 +100,7 @@ Error: connection error: connection closed unexpectedly
 **Solutions**:
 
 1. **Check Postgres logs**:
+
    ```bash
    # Find log file
    sudo -u postgres psql -c "SHOW log_directory;"
@@ -98,18 +108,21 @@ Error: connection error: connection closed unexpectedly
    ```
 
 2. **Verify Postgres is still running**:
+
    ```bash
    pg_isready
    systemctl status postgresql
    ```
 
 3. **Check network connectivity**:
+
    ```bash
    ping postgres-host
    telnet postgres-host 5432
    ```
 
 4. **Increase idle timeout** (add to connection parameters):
+
    ```rust
    let client = FraiseClient::connect(
        "postgres://user:pass@localhost/db?application_name=fraiseql"
@@ -117,6 +130,7 @@ Error: connection error: connection closed unexpectedly
    ```
 
 5. **Implement retry logic**:
+
    ```rust
    async fn query_with_retry(
        conn_string: &str,
@@ -145,11 +159,13 @@ Error: connection error: connection closed unexpectedly
 ### Error: "authentication failed: invalid password"
 
 **Symptoms**:
+
 ```
 Error: authentication failed: invalid password. Check credentials.
 ```
 
 **Causes**:
+
 1. Wrong password
 2. Wrong username
 3. User doesn't have login privilege
@@ -158,23 +174,27 @@ Error: authentication failed: invalid password. Check credentials.
 **Solutions**:
 
 1. **Verify credentials with psql**:
+
    ```bash
    psql -U myuser -W -h localhost -d mydb
    # Enter password when prompted
    ```
 
 2. **Check user exists**:
+
    ```bash
    sudo -u postgres psql -c "\du myuser"
    # Should show user in list
    ```
 
 3. **Reset password** (if you're a Postgres admin):
+
    ```bash
    sudo -u postgres psql -c "ALTER USER myuser WITH PASSWORD 'newpassword';"
    ```
 
 4. **Check user has login privilege**:
+
    ```bash
    sudo -u postgres psql -c "\du myuser"
    # Output should show: Login | Superuser | etc.
@@ -182,17 +202,20 @@ Error: authentication failed: invalid password. Check credentials.
    ```
 
 5. **Grant login privilege**:
+
    ```bash
    sudo -u postgres psql -c "ALTER USER myuser WITH LOGIN;"
    ```
 
 6. **Check user has database access**:
+
    ```bash
    sudo -u postgres psql -c "GRANT CONNECT ON DATABASE mydb TO myuser;"
    sudo -u postgres psql -c "GRANT USAGE ON SCHEMA public TO myuser;"
    ```
 
 7. **Use correct connection string format**:
+
    ```rust
    // Format: postgres://user:password@host:port/database
    // Password with special characters must be URL-encoded
@@ -206,6 +229,7 @@ Error: authentication failed: invalid password. Check credentials.
 ### Error: "authentication failed: role does not exist"
 
 **Symptoms**:
+
 ```
 Error: authentication failed: role "myuser" does not exist
 ```
@@ -213,12 +237,14 @@ Error: authentication failed: role "myuser" does not exist
 **Solutions**:
 
 1. **Create the user**:
+
    ```bash
    sudo -u postgres createuser myuser
    sudo -u postgres psql -c "ALTER USER myuser WITH PASSWORD 'password';"
    ```
 
 2. **Check available users**:
+
    ```bash
    sudo -u postgres psql -c "\du"
    ```
@@ -230,12 +256,14 @@ Error: authentication failed: role "myuser" does not exist
 ### Error: "invalid result schema"
 
 **Symptoms**:
+
 ```
 Error: invalid result schema: query returned 2 columns instead of 1.
 fraiseql-wire supports only SELECT data queries.
 ```
 
 **Causes**:
+
 1. Query returns multiple columns (fraiseql-wire only supports single column)
 2. Column is not named `data`
 3. Column is not JSON/JSONB type
@@ -243,6 +271,7 @@ fraiseql-wire supports only SELECT data queries.
 **Solutions**:
 
 1. **Ensure column is named `data`**:
+
    ```sql
    -- ✅ CORRECT
    SELECT data FROM v_projects;
@@ -254,12 +283,14 @@ fraiseql-wire supports only SELECT data queries.
    ```
 
 2. **Check view/table structure**:
+
    ```bash
    psql -d mydb -c "\d v_projects"
    # Should show: data | jsonb
    ```
 
 3. **Create proper view if needed**:
+
    ```sql
    -- ✅ CORRECT - Single JSON column
    CREATE VIEW v_my_entity AS
@@ -267,6 +298,7 @@ fraiseql-wire supports only SELECT data queries.
    ```
 
 4. **Verify column type is JSON**:
+
    ```bash
    psql -d mydb -c "
    SELECT column_name, data_type
@@ -279,11 +311,13 @@ fraiseql-wire supports only SELECT data queries.
 ### Error: "sql error: relation does not exist"
 
 **Symptoms**:
+
 ```
 Error: sql error: relation "v_projects" does not exist
 ```
 
 **Causes**:
+
 1. View/table doesn't exist
 2. View/table is in different schema
 3. Wrong table name
@@ -291,6 +325,7 @@ Error: sql error: relation "v_projects" does not exist
 **Solutions**:
 
 1. **Check table exists**:
+
    ```bash
    psql -d mydb -c "\dv v_projects"
    # Or for tables:
@@ -298,23 +333,27 @@ Error: sql error: relation "v_projects" does not exist
    ```
 
 2. **List all available views**:
+
    ```bash
    psql -d mydb -c "\dv"
    ```
 
 3. **Create missing view**:
+
    ```sql
    CREATE VIEW v_projects AS
    SELECT id, data FROM projects;
    ```
 
 4. **If view is in schema, use full name**:
+
    ```rust
    // If view is in test_staging schema:
    client.query("test_staging.v_projects").execute().await?;
    ```
 
 5. **Check schema exists**:
+
    ```bash
    psql -d mydb -c "\dn"  # List schemas
    ```
@@ -324,11 +363,13 @@ Error: sql error: relation "v_projects" does not exist
 ### Error: "sql error: column does not exist"
 
 **Symptoms**:
+
 ```
 Error: sql error: column "project__status__name" does not exist
 ```
 
 **Causes**:
+
 1. WHERE clause references non-existent column/JSON key
 2. Wrong JSON path syntax
 4. Data doesn't have the expected structure
@@ -336,6 +377,7 @@ Error: sql error: column "project__status__name" does not exist
 **Solutions**:
 
 1. **Use correct JSON path syntax**:
+
    ```rust
    // ✅ CORRECT - JSON key access
    .where_sql("data->>'status' = 'active'")
@@ -345,12 +387,14 @@ Error: sql error: column "project__status__name" does not exist
    ```
 
 2. **Check actual JSON structure**:
+
    ```bash
    psql -d mydb -c "
    SELECT jsonb_pretty(data) FROM v_projects LIMIT 1;"
    ```
 
 3. **Use Rust predicates for complex filtering**:
+
    ```rust
    client
        .query("projects")
@@ -365,6 +409,7 @@ Error: sql error: column "project__status__name" does not exist
    ```
 
 4. **Test SQL predicate in psql first**:
+
    ```bash
    psql -d mydb -c "SELECT data FROM v_projects WHERE data->>'status' = 'active';"
    ```
@@ -374,11 +419,13 @@ Error: sql error: column "project__status__name" does not exist
 ### Error: "sql error: syntax error"
 
 **Symptoms**:
+
 ```
 Error: sql error: syntax error at or near "WHERE"
 ```
 
 **Causes**:
+
 1. Malformed WHERE clause
 2. Unescaped quotes in predicate
 3. Invalid SQL syntax
@@ -386,6 +433,7 @@ Error: sql error: syntax error at or near "WHERE"
 **Solutions**:
 
 1. **Test WHERE clause directly**:
+
    ```bash
    psql -d mydb -c "
    SELECT data FROM v_projects
@@ -393,6 +441,7 @@ Error: sql error: syntax error at or near "WHERE"
    ```
 
 2. **Escape quotes properly in Rust**:
+
    ```rust
    // ✅ CORRECT - Using single quotes for SQL strings
    .where_sql("data->>'name' = 'Alpha'")
@@ -405,6 +454,7 @@ Error: sql error: syntax error at or near "WHERE"
    ```
 
 3. **Use parameterized queries (if supported)**:
+
    ```rust
    // If searching user input, be careful:
    let name = "O'Brien";
@@ -421,11 +471,13 @@ Error: sql error: syntax error at or near "WHERE"
 ### Error: "invalid json" or JSON decode errors
 
 **Symptoms**:
+
 ```
 Error: json decode error: invalid type: map, expected a sequence at line 1 column 0
 ```
 
 **Causes**:
+
 1. Data in `data` column isn't valid JSON
 2. Data structure doesn't match what you're trying to deserialize
 3. Corruption in database
@@ -433,12 +485,14 @@ Error: json decode error: invalid type: map, expected a sequence at line 1 colum
 **Solutions**:
 
 1. **Verify JSON is valid**:
+
    ```bash
    psql -d mydb -c "
    SELECT data FROM v_projects WHERE data IS NOT NULL LIMIT 1;"
    ```
 
 2. **Check with psql's JSON functions**:
+
    ```bash
    psql -d mydb -c "
    SELECT jsonb_valid(data) FROM v_projects LIMIT 10;"
@@ -446,12 +500,14 @@ Error: json decode error: invalid type: map, expected a sequence at line 1 colum
    ```
 
 3. **Fix invalid JSON** (if you can identify it):
+
    ```bash
    psql -d mydb -c "
    DELETE FROM projects WHERE NOT jsonb_valid(data);"
    ```
 
 4. **Inspect actual structure**:
+
    ```rust
    let mut stream = client.query("projects").execute().await?;
    while let Some(result) = stream.next().await {
@@ -470,17 +526,20 @@ Error: json decode error: invalid type: map, expected a sequence at line 1 colum
 ### Error: Empty result sets when expecting data
 
 **Symptoms**:
+
 - Query executes without error but returns 0 rows
 - WHERE clause filters out all data
 
 **Solutions**:
 
 1. **Verify data exists**:
+
    ```bash
    psql -d mydb -c "SELECT COUNT(*) FROM v_projects;"
    ```
 
 2. **Test WHERE clause**:
+
    ```bash
    psql -d mydb -c "
    SELECT COUNT(*) FROM v_projects
@@ -488,12 +547,14 @@ Error: json decode error: invalid type: map, expected a sequence at line 1 colum
    ```
 
 3. **Check JSON structure matches predicate**:
+
    ```bash
    psql -d mydb -c "
    SELECT jsonb_pretty(data) FROM v_projects LIMIT 1;"
    ```
 
 4. **Relax predicates for debugging**:
+
    ```rust
    // Remove WHERE clause temporarily
    let mut stream = client.query("projects").execute().await?;
@@ -507,6 +568,7 @@ Error: json decode error: invalid type: map, expected a sequence at line 1 colum
 ### Symptom: "Throughput is lower than expected"
 
 **Possible Causes**:
+
 1. Network latency
 2. Chunk size not optimized
 3. WHERE clause not filtering on server
@@ -516,6 +578,7 @@ Error: json decode error: invalid type: map, expected a sequence at line 1 colum
 **Solutions**:
 
 1. **Increase chunk_size** (reduces latency overhead):
+
    ```rust
    client
        .query("projects")
@@ -525,6 +588,7 @@ Error: json decode error: invalid type: map, expected a sequence at line 1 colum
    ```
 
 2. **Move filtering to SQL** (reduce network transfer):
+
    ```rust
    // ❌ SLOW - Get all rows, filter client-side
    client
@@ -544,12 +608,14 @@ Error: json decode error: invalid type: map, expected a sequence at line 1 colum
    ```
 
 3. **Check network latency**:
+
    ```bash
    ping postgres-host
    # Add time for round-trip
    ```
 
 4. **Verify Postgres isn't slow**:
+
    ```bash
    psql -d mydb -c "
    EXPLAIN ANALYZE
@@ -557,6 +623,7 @@ Error: json decode error: invalid type: map, expected a sequence at line 1 colum
    ```
 
 5. **Add index to accelerate queries**:
+
    ```sql
    CREATE INDEX idx_projects_status ON projects
    USING GIN (data);
@@ -569,6 +636,7 @@ Error: json decode error: invalid type: map, expected a sequence at line 1 colum
 ### Symptom: "Memory usage is very high"
 
 **Possible Causes**:
+
 1. chunk_size is too large
 2. Large JSON objects (100KB+)
 3. Getting many rows at once
@@ -577,6 +645,7 @@ Error: json decode error: invalid type: map, expected a sequence at line 1 colum
 **Solutions**:
 
 1. **Reduce chunk_size**:
+
    ```rust
    client
        .query("projects")
@@ -586,6 +655,7 @@ Error: json decode error: invalid type: map, expected a sequence at line 1 colum
    ```
 
 2. **Filter with WHERE clause** (reduces data):
+
    ```rust
    client
        .query("projects")
@@ -596,6 +666,7 @@ Error: json decode error: invalid type: map, expected a sequence at line 1 colum
    ```
 
 3. **Monitor actual usage**:
+
    ```bash
    # In separate terminal
    watch -n1 'ps aux | grep fraiseql'
@@ -612,11 +683,13 @@ Error: json decode error: invalid type: map, expected a sequence at line 1 colum
 ### Error: "timeout" or "operation timed out"
 
 **Symptoms**:
+
 ```
 Error: io error: operation timed out
 ```
 
 **Causes**:
+
 1. Network latency too high
 2. Postgres is slow responding
 3. Query takes very long to execute
@@ -625,12 +698,14 @@ Error: io error: operation timed out
 **Solutions**:
 
 1. **Check network latency**:
+
    ```bash
    ping -c 10 postgres-host
    # If RTT > 100ms, consider using Unix socket
    ```
 
 2. **Use Unix socket** (if Postgres on same machine):
+
    ```rust
    // TCP (slower, network overhead)
    FraiseClient::connect("postgres://localhost:5432/db").await?;
@@ -640,6 +715,7 @@ Error: io error: operation timed out
    ```
 
 3. **Optimize Postgres query** (see PERFORMANCE_TUNING.md):
+
    ```bash
    psql -d mydb -c "
    EXPLAIN ANALYZE
@@ -647,6 +723,7 @@ Error: io error: operation timed out
    ```
 
 4. **Implement query timeout** (if in future versions):
+
    ```rust
    // For now, use tokio::time::timeout:
    let result = tokio::time::timeout(
@@ -660,11 +737,13 @@ Error: io error: operation timed out
 ### Error: "connection reset by peer"
 
 **Symptoms**:
+
 ```
 Error: io error: connection reset by peer
 ```
 
 **Causes**:
+
 1. Postgres crashed
 2. Network connectivity lost
 3. Firewall/proxy closing connection
@@ -673,23 +752,27 @@ Error: io error: connection reset by peer
 **Solutions**:
 
 1. **Check if Postgres is running**:
+
    ```bash
    pg_isready
    ```
 
 2. **Check network connectivity**:
+
    ```bash
    ping postgres-host
    traceroute postgres-host
    ```
 
 3. **Check firewall/proxy**:
+
    ```bash
    # Try direct connection
    nc -zv postgres-host 5432
    ```
 
 4. **Implement reconnection logic**:
+
    ```rust
    async fn robust_query(
        conn_string: &str,
@@ -715,6 +798,7 @@ Error: io error: connection reset by peer
 ## Error Messages Reference
 
 ### Connection Category
+
 | Error | Meaning | Fix |
 |-------|---------|-----|
 | "connection refused" | Postgres not running/listening | Start Postgres, check host/port |
@@ -723,6 +807,7 @@ Error: io error: connection reset by peer
 | "connection already in use" | Trying to query twice on one connection | Create new client or wait for stream to complete |
 
 ### Authentication Category
+
 | Error | Meaning | Fix |
 |-------|---------|-----|
 | "invalid password" | Wrong credentials | Verify user/password with `psql` |
@@ -730,6 +815,7 @@ Error: io error: connection reset by peer
 | "permission denied" | User lacks privileges | Grant privileges: `GRANT CONNECT ON DATABASE...` |
 
 ### Query Category
+
 | Error | Meaning | Fix |
 |-------|---------|-----|
 | "invalid result schema" | Query doesn't return single JSON column | Use `SELECT data FROM ...` |
@@ -738,6 +824,7 @@ Error: io error: connection reset by peer
 | "syntax error" | Malformed SQL | Test WHERE clause in `psql` |
 
 ### Data Category
+
 | Error | Meaning | Fix |
 |-------|---------|-----|
 | "json decode error" | Invalid JSON in `data` column | Check data validity with `jsonb_valid()` |
@@ -782,6 +869,7 @@ async fn main() -> Result<()> {
 ### Common Patterns
 
 **Safe predicate handling**:
+
 ```rust
 fn escape_sql_string(s: &str) -> String {
     s.replace("'", "''")
@@ -797,6 +885,7 @@ client
 ```
 
 **Robust streaming**:
+
 ```rust
 match client.query("projects").execute().await {
     Ok(mut stream) => {
@@ -814,6 +903,7 @@ match client.query("projects").execute().await {
 ---
 
 **Still stuck?** Check the error message carefully - it should guide you to the solution. Common issues are almost always:
+
 1. Postgres not running
 2. Wrong connection string
 3. Query returning wrong column structure

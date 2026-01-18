@@ -17,30 +17,36 @@ Results are stored in `target/criterion/` for trend analysis.
 ### Benchmark Groups
 
 **json_parsing**: JSON parsing performance
+
 - `small` - Small JSON object (~200 bytes)
 - `large` - Large JSON with nested structures (~2KB)
 - `deeply_nested` - Deeply nested JSON to test recursion depth
 
 **connection_parsing**: Connection string parsing
+
 - `parse_0` - Simple localhost connection
 - `parse_1` - Connection with credentials
 - `parse_2` - Connection with query parameters
 - `parse_3` - Unix socket default
 
 **chunking**: BytesMut chunking overhead
+
 - `64` - Small chunk size
 - `256` - Medium chunk size (default)
 - `1024` - Large chunk size
 
 **error_handling**: Error type overhead
+
 - `error_construction` - Creating an io::Error
 - `error_conversion_to_string` - Converting error to string
 
 **string_matching**: SQL predicate string operations
+
 - `contains_check` - Checking if string contains substring
 - `split_operation` - Splitting string by delimiter
 
 **hashmap_ops**: Connection parameter lookups
+
 - `insert_5_items` - Creating HashMap with 5 items
 - `lookup_existing` - Looking up existing key
 - `lookup_missing` - Looking up missing key
@@ -85,38 +91,46 @@ cargo bench --bench integration_benchmarks --features bench-with-postgres
 ### Integration Benchmark Groups
 
 **throughput**: Streaming performance (rows/second)
+
 - `1000_rows` - Small result set
 - `10000_rows` - Medium result set
 - `100000_rows` - Large result set
 
 **latency**: Time-to-first-row under different result sizes
+
 - `ttfr_1k` - 1,000 row set
 - `ttfr_100k` - 100,000 row set
 - `ttfr_1m` - 1,000,000 row set
 
 **connection_setup**: Connection overhead
+
 - `tcp_connection` - Network connection (localhost)
 - `unix_socket_connection` - Unix socket (faster)
 
 **memory_usage**: Memory consumption by chunk size
+
 - `chunk_64` - 64-byte chunks
 - `chunk_256` - 256-byte chunks (default)
 - `chunk_1024` - 1024-byte chunks
 
 **chunking_strategy**: Chunking efficiency impact
+
 - `chunk_64` through `chunk_1024` - Processing with different chunk sizes
 
 **predicate_effectiveness**: SQL predicate filtering impact
+
 - `no_filter` - All 100,000 rows
 - `sql_1percent` - Filtered to 1% (1,000 rows)
 - `sql_10percent` - Filtered to 10% (10,000 rows)
 - `sql_50percent` - Filtered to 50% (50,000 rows)
 
 **streaming_stability**: Long-running stability benchmarks
+
 - `large_result_set_1m_rows` - 1M row streaming memory stability
 - `high_throughput_small_chunks` - High throughput with small chunks
 
 **json_parsing_load**: JSON parsing under realistic loads
+
 - `small_200b` - Small JSON payloads
 - `medium_2kb` - Medium JSON payloads
 - `large_10kb` - Large JSON payloads

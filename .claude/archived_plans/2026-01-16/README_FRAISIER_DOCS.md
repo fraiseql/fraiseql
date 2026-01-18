@@ -5,9 +5,11 @@ This directory contains comprehensive documentation for integrating Fraisier (th
 ## Documents Included
 
 ### 1. **FRAISIER_INTEGRATION_ANALYSIS.md** ⭐ START HERE
+
 **Purpose:** Comprehensive analysis of Fraisier and its role in FraiseQL
 
 **Contents:**
+
 - What is Fraisier and what does it do
 - Current repository structure and the duplication problem
 - Detailed integration points with FraiseQL core
@@ -17,6 +19,7 @@ This directory contains comprehensive documentation for integrating Fraisier (th
 - Workspace and dependency management
 
 **When to Read:**
+
 - Onboarding to Fraisier
 - Understanding architecture decisions
 - Planning integration phases
@@ -27,9 +30,11 @@ This directory contains comprehensive documentation for integrating Fraisier (th
 ---
 
 ### 2. **FRAISIER_QUICK_REFERENCE.md** ⭐ FOR DAILY USE
+
 **Purpose:** Quick reference guide for development and deployment
 
 **Contents:**
+
 - What is Fraisier (one-paragraph summary)
 - Quick architecture overview
 - Configuration examples (fraises.yaml)
@@ -43,6 +48,7 @@ This directory contains comprehensive documentation for integrating Fraisier (th
 - File reference guide
 
 **When to Use:**
+
 - Daily development work
 - Setting up webhooks
 - Remembering CLI commands
@@ -54,9 +60,11 @@ This directory contains comprehensive documentation for integrating Fraisier (th
 ---
 
 ### 3. **FRAISIER_ACTION_ITEMS.md** ⭐ FOR PROJECT MANAGEMENT
+
 **Purpose:** Concrete action items organized by phase
 
 **Contents:**
+
 - Phase 0: Immediate consolidation (remove duplication)
 - Phase 1: Monorepo integration
 - Phase 2: Documentation (provider setup guides, deployment guides)
@@ -67,6 +75,7 @@ This directory contains comprehensive documentation for integrating Fraisier (th
 - Phase 7: Production hardening
 
 **Each Action Includes:**
+
 - Status (✅ DONE / ⏳ TODO)
 - Priority (P0/P1/P2)
 - Effort estimate
@@ -75,6 +84,7 @@ This directory contains comprehensive documentation for integrating Fraisier (th
 - Code examples
 
 **When to Use:**
+
 - Project planning
 - Assigning work
 - Tracking progress
@@ -87,7 +97,7 @@ This directory contains comprehensive documentation for integrating Fraisier (th
 
 ## Quick Navigation
 
-### I need to understand...
+### I need to understand
 
 | Question | Document | Section |
 |----------|----------|---------|
@@ -106,6 +116,7 @@ This directory contains comprehensive documentation for integrating Fraisier (th
 ## Key Findings
 
 ### Current Status
+
 - ✅ Fraisier code is **feature complete**
 - ✅ Supports 4 Git providers (GitHub, GitLab, Gitea, Bitbucket)
 - ✅ Supports 4 service types (API, ETL, Scheduled, Backup)
@@ -113,6 +124,7 @@ This directory contains comprehensive documentation for integrating Fraisier (th
 - ⏳ Not yet integrated with fraiseql-server and fraiseql-cli
 
 ### Integration Strategy
+
 ```
 Step 1: Consolidate into monorepo (Phase 0)
   ↓
@@ -128,6 +140,7 @@ Step 6: Production hardening (Phase 7)
 ```
 
 ### Immediate Action Required
+
 **Delete `/home/lionel/code/fraisier/` and establish `/home/lionel/code/fraiseql/fraisier/` as the single source of truth.**
 
 This should take ~5 minutes but is critical to prevent maintenance headaches.
@@ -163,21 +176,25 @@ fraiseql/fraisier/                     (Reference implementation)
 ### For New Team Members
 
 **Day 1: Understand the Concept**
+
 1. Read: QUICK_REFERENCE → "What is Fraisier?"
 2. Read: INTEGRATION_ANALYSIS → "What is Fraisier?"
 3. Skim: QUICK_REFERENCE → "Configuration"
 
 **Day 2: Understand the Architecture**
+
 1. Read: INTEGRATION_ANALYSIS → "Core Architecture Principle"
 2. Read: INTEGRATION_ANALYSIS → "Architecture Patterns"
 3. Read: QUICK_REFERENCE → "Quick Architecture"
 
 **Day 3: Hands-On**
+
 1. Read: QUICK_REFERENCE → "CLI Commands"
 2. Read: QUICK_REFERENCE → "Webhook Setup" (pick one provider)
 3. Try: Set up a test webhook locally
 
 **Day 4-5: Deep Dive**
+
 1. Read: INTEGRATION_ANALYSIS → "Integration Points with FraiseQL Core"
 2. Read: QUICK_REFERENCE → "Git Providers"
 3. Explore: `/home/lionel/code/fraiseql/fraisier/` code
@@ -187,34 +204,40 @@ fraiseql/fraisier/                     (Reference implementation)
 ## Key Concepts to Understand
 
 ### 1. **Fraise** (French: Strawberry)
+
 - A deployable service (API, ETL, scheduled job, or backup)
 - Defined in `fraises.yaml`
 - Has multiple environments (dev, staging, prod)
 - Has a Git branch mapping
 
 ### 2. **Fraisier** (French: Strawberry Plant)
+
 - The orchestrator that manages fraises
 - Listens for Git webhooks
 - Triggers deployments based on branch mapping
 - Tracks deployment history
 
 ### 3. **Webhook Workflow**
+
 ```
 Git Push → Webhook Sent → Fraisier Receives → Branch Matched → Deploy Triggered
 ```
 
 ### 4. **CQRS Pattern** (Used for Deployment History)
+
 - **Write tables:** Append-only (tb_deployments, tb_webhook_events)
 - **Read views:** Materialized views for queries (v_fraise_status, v_deployment_history)
 - Benefits: Audit trail, query optimization, immutable history
 
 ### 5. **Provider Abstraction**
+
 - Different Git platforms (GitHub, GitLab, Gitea, Bitbucket)
 - Each implements `GitProvider` interface
 - Signature verification (HMAC-SHA256 or tokens)
 - Webhook payload normalization
 
 ### 6. **Deployment Strategies**
+
 - **API:** systemd service, health checks, database migrations
 - **ETL:** script execution, logging, notifications
 - **Scheduled:** systemd timers (cron-like)
@@ -247,6 +270,7 @@ Git Push → Webhook Sent → Fraisier Receives → Branch Matched → Deploy Tr
 ### Common Workflows
 
 **Adding a new Git provider:**
+
 1. Read: ACTION_ITEMS.md → "Action 2.1"
 2. Reference: QUICK_REFERENCE.md → "Git Providers"
 3. Implement `fraisier/git/new_provider.py`
@@ -254,6 +278,7 @@ Git Push → Webhook Sent → Fraisier Receives → Branch Matched → Deploy Tr
 5. Add documentation: `fraisier/docs/setup-newprovider.md`
 
 **Fixing a bug:**
+
 1. Check: ACTION_ITEMS.md → "Phase 3: Testing Infrastructure"
 2. Add test case to `tests/`
 3. Implement fix
@@ -261,6 +286,7 @@ Git Push → Webhook Sent → Fraisier Receives → Branch Matched → Deploy Tr
 5. Update `docs/troubleshooting.md` if applicable
 
 **Adding a feature:**
+
 1. Define in ACTION_ITEMS.md which phase it belongs to
 2. Plan implementation steps
 3. Check dependencies on other phases
@@ -299,6 +325,7 @@ Git Push → Webhook Sent → Fraisier Receives → Branch Matched → Deploy Tr
 ## Document Maintenance
 
 **These documents should be updated when:**
+
 - [ ] Phase completes (update action item status)
 - [ ] New feature added (update QUICK_REFERENCE.md)
 - [ ] Architecture decision made (update INTEGRATION_ANALYSIS.md)

@@ -1,47 +1,38 @@
 # Rustfmt configuration for FraiseQL v2
 
+brace_style = "SameLineWhere"
+# Chains
+chain_width = 80
+comment_width = 100
+# Control flow
+control_brace_style = "AlwaysSameLine"
 # Edition
 edition = "2021"
-
-# Line width
-max_width = 100
-hard_tabs = false
-tab_spaces = 4
-
-# Imports
-imports_granularity = "Crate"
-group_imports = "StdExternalCrate"
-reorder_imports = true
-reorder_modules = true
-
-# Comments
-wrap_comments = true
-comment_width = 100
-normalize_comments = true
-normalize_doc_attributes = true
-
+enum_discrim_align_threshold = 20
 # Functions
 fn_args_layout = "Tall"
 fn_call_width = 80
-
-# Chains
-chain_width = 80
-reorder_impl_items = true
-
-# Structs and enums
-struct_field_align_threshold = 20
-enum_discrim_align_threshold = 20
-
-# Match
-match_block_trailing_comma = true
+group_imports = "StdExternalCrate"
+hard_tabs = false
+# Imports
+imports_granularity = "Crate"
 match_arm_blocks = true
 match_arm_leading_pipes = "Never"
-
-# Control flow
-control_brace_style = "AlwaysSameLine"
-brace_style = "SameLineWhere"
-
+# Match
+match_block_trailing_comma = true
+# Line width
+max_width = 100
 # Misc
 newline_style = "Unix"
+normalize_comments = true
+normalize_doc_attributes = true
+reorder_impl_items = true
+reorder_imports = true
+reorder_modules = true
+# Structs and enums
+struct_field_align_threshold = 20
+tab_spaces = 4
 use_small_heuristics = "Default"
 version = "Two"
+# Comments
+wrap_comments = true

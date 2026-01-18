@@ -46,6 +46,7 @@ Fragments are **syntactic sugar** for field reuse. In a compiled model:
 #### Implementation
 
 **Add to `compiler/ir.rs`:**
+
 ```rust
 /// Fragment definition for query reuse
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -62,6 +63,7 @@ pub struct IRFragment {
 ```
 
 **Add to `schema.json` format:**
+
 ```json
 {
   "fragments": {
@@ -79,6 +81,7 @@ pub struct IRFragment {
 ```
 
 **Compilation Output**: Fragments are fully expanded in `schema.compiled.json`:
+
 ```json
 {
   "queries": {
@@ -99,6 +102,7 @@ pub struct IRFragment {
 ```
 
 **Files to Modify:**
+
 - `crates/fraiseql-core/src/compiler/ir.rs` - Add `IRFragment`
 - `crates/fraiseql-core/src/compiler/parser.rs` - Parse fragments from schema.json
 - `crates/fraiseql-core/src/compiler/validator.rs` - Validate fragment cycles
@@ -116,6 +120,7 @@ pub struct IRFragment {
 #### Strategy
 
 Aliases rename fields in the output. In SQL:
+
 - Source: `SELECT author.name FROM posts JOIN users AS author`
 - GraphQL: `{ post { writer: author { name } } }`
 - Output: `{ "post": { "writer": { "name": "..." } } }`
@@ -123,6 +128,7 @@ Aliases rename fields in the output. In SQL:
 #### Implementation
 
 **Add to projection model:**
+
 ```rust
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FieldProjection {
@@ -136,6 +142,7 @@ pub struct FieldProjection {
 ```
 
 **schema.json with aliases:**
+
 ```json
 {
   "queries": {
@@ -152,6 +159,7 @@ pub struct FieldProjection {
 ```
 
 **Compilation**: Generates SQL with proper aliasing:
+
 ```sql
 SELECT
   json_build_object(
@@ -166,6 +174,7 @@ JOIN users author ON p.author_id = author.id
 ```
 
 **Files to Modify:**
+
 - `crates/fraiseql-core/src/schema/compiled.rs` - Add alias to `CompiledField`
 - `crates/fraiseql-core/src/db/postgres/adapter.rs` - Use alias in JSON projection
 - `crates/fraiseql-core/src/db/mysql/adapter.rs` - Same for MySQL
@@ -193,6 +202,7 @@ JOIN users author ON p.author_id = author.id
 #### Implementation
 
 **Static Directives** (literal booleans):
+
 ```json
 // schema.json
 {
@@ -209,6 +219,7 @@ JOIN users author ON p.author_id = author.id
 ```
 
 **Dynamic Directives** (variable-based):
+
 ```rust
 // Add to runtime executor
 pub struct ConditionalField {
@@ -244,6 +255,7 @@ impl Executor {
 ```
 
 **Files to Modify:**
+
 - `crates/fraiseql-core/src/compiler/ir.rs` - Add directive support to `IRField`
 - `crates/fraiseql-core/src/schema/compiled.rs` - Add `skip_if`, `include_if`
 - `crates/fraiseql-core/src/runtime/executor.rs` - Apply runtime directives
@@ -261,6 +273,7 @@ impl Executor {
 #### Strategy
 
 FraiseQL needs to respond to standard introspection queries:
+
 ```graphql
 {
   __schema {
@@ -327,6 +340,7 @@ fn resolve_schema(&self) -> IntrospectionSchema {
 ```
 
 **Files to Modify:**
+
 - `crates/fraiseql-core/src/schema/introspection.rs` - NEW: Introspection types
 - `crates/fraiseql-core/src/runtime/executor.rs` - Handle `__schema`/`__type`
 - `crates/fraiseql-cli/src/commands/compile.rs` - Generate introspection JSON
@@ -381,6 +395,7 @@ pub async fn graphql_get_handler<A: DatabaseAdapter>(
 ```
 
 **Files to Modify:**
+
 - `crates/fraiseql-server/src/routes/graphql.rs` - Add GET handler
 - `crates/fraiseql-server/src/server.rs` - Register GET route
 
@@ -409,6 +424,7 @@ fn build_json_projection(&self, type_def: &TypeDefinition) -> String {
 ```
 
 **Files to Modify:**
+
 - `crates/fraiseql-core/src/db/postgres/adapter.rs` - Add `__typename`
 - `crates/fraiseql-core/src/db/mysql/adapter.rs` - Same
 - `crates/fraiseql-core/src/db/sqlserver/adapter.rs` - Same
@@ -462,6 +478,7 @@ const APOLLO_SANDBOX_HTML: &str = r#"
 ```
 
 **Files to Modify:**
+
 - `crates/fraiseql-server/src/config.rs` - Add `playground_tool`
 - `crates/fraiseql-server/src/routes/mod.rs` - Add playground route
 - `crates/fraiseql-server/src/server.rs` - Register playground
@@ -541,23 +558,26 @@ After implementation:
 ### Phase 5 Implementation Details
 
 **Rust Core (fraiseql-core)**:
+
 - Added `specified_by_u_r_l` field to `IntrospectionType` struct
 - Added `filter_deprecated_fields()` and `filter_deprecated_enum_values()` methods
 - Added `filter_all_deprecated()` convenience method
 - Updated `builtin_scalars()` to include spec URLs for custom scalars:
-  - DateTime → https://scalars.graphql.org/andimarek/date-time
-  - Date → https://scalars.graphql.org/andimarek/local-date
-  - Time → https://scalars.graphql.org/andimarek/local-time
-  - UUID → https://tools.ietf.org/html/rfc4122
-  - JSON → https://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf
+  - DateTime → <https://scalars.graphql.org/andimarek/date-time>
+  - Date → <https://scalars.graphql.org/andimarek/local-date>
+  - Time → <https://scalars.graphql.org/andimarek/local-time>
+  - UUID → <https://tools.ietf.org/html/rfc4122>
+  - JSON → <https://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf>
 
 **Rust CLI (fraiseql-cli)**:
+
 - Added `IntermediateUnion` struct to intermediate.rs
 - Added `unions` field to `IntermediateSchema`
 - Added `convert_union()` method to converter.rs
 - Added tests for union parsing and conversion
 
 **Python SDK**:
+
 - Added `@fraiseql.union(members=[...])` decorator
 - Updated `SchemaRegistry.register_union()` method
 - Updated `get_schema()` to include unions in output
@@ -568,16 +588,19 @@ After implementation:
 ## Testing Strategy
 
 ### Unit Tests
+
 - Fragment expansion correctness
 - Alias projection mapping
 - Directive evaluation
 
 ### Integration Tests
+
 - Apollo DevTools connection
 - GraphiQL introspection
 - Full query with fragments + aliases + directives
 
 ### Spec Compliance Tests
+
 ```rust
 #[test]
 fn test_introspection_schema_query() {

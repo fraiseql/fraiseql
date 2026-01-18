@@ -17,6 +17,7 @@ Phase 8.6.1 successfully implements direct visibility into channel backpressure 
 ### 1. Metrics Layer (`src/metrics/histograms.rs`)
 
 **Added**:
+
 - `channel_occupancy(entity: &str, items_buffered: u64)` function
 - Records `fraiseql_channel_occupancy_rows{entity}` histogram
 - Documentation with backpressure interpretation guide:
@@ -25,20 +26,24 @@ Phase 8.6.1 successfully implements direct visibility into channel backpressure 
   - High (> 240): Consumer is slow, producer waiting
 
 **Test Coverage**:
+
 - `test_channel_occupancy()` - Basic histogram recording
 
 ### 2. Stream Implementation (`src/stream/json_stream.rs`)
 
 **Modified**:
+
 - Added `entity: String` field to `JsonStream` struct
 - Updated `JsonStream::new()` constructor to accept entity name
 - Enhanced `poll_next()` to record occupancy before each poll:
+
   ```rust
   let occupancy = self.receiver.len() as u64;
   crate::metrics::histograms::channel_occupancy(&self.entity, occupancy);
   ```
 
 **Design Notes**:
+
 - Uses `receiver.len()` which is O(1) - no locks, just bounded queue introspection
 - Records on every poll, enabling fine-grained occupancy tracking
 - Entity name captured at stream creation, passed through to metrics
@@ -46,6 +51,7 @@ Phase 8.6.1 successfully implements direct visibility into channel backpressure 
 ### 3. Connection Layer (`src/connection/conn.rs`)
 
 **Modified**:
+
 - Clone entity name before tokio::spawn to avoid move conflicts
 - Pass entity to `JsonStream::new()` for metrics
 - No logic changes, purely plumbing
@@ -53,6 +59,7 @@ Phase 8.6.1 successfully implements direct visibility into channel backpressure 
 ### 4. Integration Tests (`tests/metrics_integration.rs`)
 
 **Added**:
+
 - `test_channel_occupancy_metrics()` - Tests backpressure patterns:
   - Low occupancy (0-10)
   - Medium occupancy (50-200)
@@ -76,6 +83,7 @@ Phase 8.6.1 successfully implements direct visibility into channel backpressure 
 ## Test Results
 
 ### Unit Tests
+
 ```
 ✅ 91 unit tests passing
    - 1x test_channel_occupancy (histograms.rs)
@@ -83,6 +91,7 @@ Phase 8.6.1 successfully implements direct visibility into channel backpressure 
 ```
 
 ### Integration Tests
+
 ```
 ✅ 17 metrics integration tests passing
    - test_channel_occupancy_metrics
@@ -91,6 +100,7 @@ Phase 8.6.1 successfully implements direct visibility into channel backpressure 
 ```
 
 ### Code Quality
+
 ```
 ✅ No clippy warnings on modified files
 ✅ No regressions introduced
@@ -98,6 +108,7 @@ Phase 8.6.1 successfully implements direct visibility into channel backpressure 
 ```
 
 ### Performance
+
 ```
 ✅ Micro benchmarks complete (same as baseline)
 ✅ Overhead: receiver.len() + histogram record < 0.1μs per poll
@@ -109,16 +120,19 @@ Phase 8.6.1 successfully implements direct visibility into channel backpressure 
 ## Architecture Impact
 
 ### Before
+
 - No direct visibility into channel fill
 - Operators had to infer backpressure from chunk timing
 - Hard to distinguish "Postgres slow" vs "consumer slow"
 
 ### After
+
 - Real-time occupancy histogram per entity
 - Immediate diagnosis of bottlenecks
 - Self-documenting backpressure patterns
 
 ### Invariants Preserved
+
 ✅ Single active query per connection
 ✅ Streaming-first design (no buffering)
 ✅ O(chunk_size) memory bounds
@@ -148,6 +162,7 @@ tests/
 ## Backward Compatibility
 
 ✅ **100% Backward Compatible**
+
 - Metrics collected automatically (no user code changes needed)
 - New entity parameter is internal (not exposed in public API)
 - Stream behavior identical from consumer perspective
@@ -192,6 +207,7 @@ avg by (entity) (fraiseql_channel_occupancy_rows)
 ## Next Steps (8.6.2+)
 
 Phase 8.6.1 provides the foundation for:
+
 - **8.6.2**: Stream statistics API (inline query of buffer state)
 - **8.6.3**: Memory bounds enforcement
 - **8.6.4**: Adaptive chunk sizing (using occupancy feedback)
@@ -203,12 +219,14 @@ These can be implemented independently or sequentially.
 ## Performance Notes
 
 **Measurement Impact**:
+
 - `receiver.len()`: Single atomic load, no allocation
 - `histogram!()`: Metrics crate macro, pre-allocated buckets
 - Estimated overhead: < 0.1% per poll
 - Channel send remains the bottleneck (not measurement)
 
 **Query Scenarios**:
+
 - Small queries (< 1K rows): Occupancy stays low (0-50)
 - Large queries (100K+ rows): Occupancy shows batching (50-256 pattern)
 - Slow consumer: Occupancy maxes out (250+) consistently
@@ -220,6 +238,7 @@ These can be implemented independently or sequentially.
 **Phase 8.6.1: COMPLETE** ✅
 
 All acceptance criteria met:
+
 - [x] Histogram metric added to `histograms.rs`
 - [x] JsonStream tracks buffer depth
 - [x] Metric recorded on each poll_next()

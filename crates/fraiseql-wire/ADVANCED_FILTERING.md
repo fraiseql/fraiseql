@@ -38,6 +38,7 @@ client
 ```
 
 **Benefits**:
+
 - Reduces network bandwidth
 - Leverages Postgres indexes
 - Scales to millions of rows
@@ -61,6 +62,7 @@ client
 ```
 
 **Benefits**:
+
 - Express arbitrary Rust logic
 - No SQL injection risk
 - Compose multiple predicates easily

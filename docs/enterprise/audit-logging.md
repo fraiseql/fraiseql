@@ -159,6 +159,7 @@ class DebeziumEvent:
 ```
 
 **Example**:
+
 ```json
 {
   "before": {
@@ -204,6 +205,7 @@ Event 3
 ```
 
 **Chain Verification**:
+
 1. Compute hash of each event's data
 2. Verify hash matches stored `event_hash`
 3. Verify each event's `previous_hash` matches prior event
@@ -445,6 +447,7 @@ schema = strawberry.Schema(
 ```
 
 **Automatically logs**:
+
 - All mutations (create, update, delete)
 - Failed queries with error details
 - Authentication events
@@ -485,12 +488,14 @@ async def publish_post(
 ### Immutability Guarantees
 
 Audit events are **immutable**:
+
 - `created_at` timestamp set once
 - All fields are read-only in database
 - No UPDATE or DELETE operations allowed
 - Only append-only INSERT
 
 **Database enforcement**:
+
 ```sql
 -- Audit table is append-only
 CREATE TABLE audit_events (
@@ -834,11 +839,13 @@ if not verification_result.is_valid:
 ### Chain Verification Fails
 
 1. Check event counts:
+
    ```sql
    SELECT COUNT(*) FROM audit_events WHERE tenant_id = ?;
    ```
 
 2. Inspect event at break point:
+
    ```sql
    SELECT id, event_hash, previous_hash FROM audit_events
    WHERE tenant_id = ? AND created_at > ?
@@ -846,6 +853,7 @@ if not verification_result.is_valid:
    ```
 
 3. Verify signatures:
+
    ```sql
    SELECT id, signature FROM audit_events WHERE tenant_id = ?
    ORDER BY created_at DESC LIMIT 100;
@@ -854,6 +862,7 @@ if not verification_result.is_valid:
 ### High Event Logging Latency
 
 1. Check database:
+
    ```sql
    EXPLAIN ANALYZE INSERT INTO audit_events (...);
    ```
@@ -863,6 +872,7 @@ if not verification_result.is_valid:
    - Check fallback to Python if slow
 
 3. Consider batching:
+
    ```python
    # Batch multiple events
    events = [...]

@@ -11,6 +11,7 @@
 The **CDC Format** defines how database mutations (INSERT, UPDATE, DELETE) are captured and emitted as events for real-time subscriptions, audit logging, and external system synchronization.
 
 **Key characteristics:**
+
 - **Universal format** — all databases produce same event structure
 - **Deterministic** — every mutation generates exactly one CDC event
 - **Rich** — includes before/after state, changed fields, cascade information
@@ -67,6 +68,7 @@ The **CDC Format** defines how database mutations (INSERT, UPDATE, DELETE) are c
 | `metadata` | object | ✓ | Custom metadata |
 
 **Related Specifications:**
+
 - **docs/specs/schema-conventions.md section 6.2** — Debezium envelope format used in `tb_entity_change_log` matches the `operation` structure here
 - **docs/guides/observability.md section 9** — CDC event streaming patterns and consumption strategies
 
@@ -160,6 +162,7 @@ For multi-tenant systems, always include tenant:
 ```
 
 Used for:
+
 - Event filtering in multi-tenant systems
 - Audit log partitioning
 - Cache invalidation scoping
@@ -632,6 +635,7 @@ Queries/lists that should be cache-invalidated:
 PostgreSQL can emit CDC events via:
 
 **Option 1: Triggers**
+
 ```sql
 CREATE TRIGGER user_cdc_trigger
 AFTER INSERT OR UPDATE OR DELETE ON tb_user
@@ -640,11 +644,13 @@ EXECUTE FUNCTION emit_cdc_event();
 ```
 
 **Option 2: Logical Replication** (WAL)
+
 - Use pg_logical_decode
 - Consume events from replication slot
 - Transform to CDC format
 
 **Option 3: Event Table**
+
 ```sql
 INSERT INTO audit_log (event_type, entity_type, entity_id, operation)
 VALUES ('entity:updated', 'User', NEW.id, row_to_json(NEW));

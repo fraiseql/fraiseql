@@ -2,13 +2,11 @@
 
 > Regular expression for matching a [shebang](https://en.wikipedia.org/wiki/Shebang_(Unix)) line
 
-
 ## Install
 
 ```
-$ npm install shebang-regex
+npm install shebang-regex
 ```
-
 
 ## Usage
 
@@ -26,7 +24,6 @@ shebangRegex.exec(string)[0];
 shebangRegex.exec(string)[1];
 //=> '/usr/bin/env node'
 ```
-
 
 ## License
 

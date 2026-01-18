@@ -10,13 +10,11 @@ Never use this before handling a file though:
 
 > In particular, checking if a file exists before opening it is an anti-pattern that leaves you vulnerable to race conditions: another process may remove the file between the calls to `fs.exists()` and `fs.open()`. Just open the file and handle the error when it's not there.
 
-
 ## Install
 
 ```
-$ npm install path-exists
+npm install path-exists
 ```
-
 
 ## Usage
 
@@ -25,11 +23,10 @@ $ npm install path-exists
 const pathExists = require('path-exists');
 
 (async () => {
-	console.log(await pathExists('foo.js'));
-	//=> true
+ console.log(await pathExists('foo.js'));
+ //=> true
 })();
 ```
-
 
 ## API
 
@@ -41,11 +38,9 @@ Returns a `Promise<boolean>` of whether the path exists.
 
 Returns a `boolean` of whether the path exists.
 
-
 ## Related
 
 - [path-exists-cli](https://github.com/sindresorhus/path-exists-cli) - CLI for this module
-
 
 ## License
 

@@ -19,6 +19,7 @@
 You have **10 documents** in `.claude/`:
 
 ### 🚀 START WITH THESE (30 minutes)
+
 1. **[QUICK_START_GUIDE.md](QUICK_START_GUIDE.md)** ← Read this first!
    - Quick checklist of what to do
    - Copy-paste commands
@@ -54,27 +55,33 @@ You have **10 documents** in `.claude/`:
 ## ⚡ Quick Path (Read in This Order)
 
 ### For Quick Understanding (30 min)
+
 ```
 1. This file (00_START_HERE.md)
 2. QUICK_START_GUIDE.md
 3. LANGUAGE_GENERATORS_DASHBOARD.md
 ```
+
 Result: Understand what needs to be done and timeline
 
 ### For Implementation (1-2 hours)
+
 ```
 1. IMPLEMENTATION_PLAN.md (read fully)
 2. Keep it open while implementing
 3. Reference E2E_TESTING_STRATEGY.md for code examples
 ```
+
 Result: Ready to start Phase 1
 
 ### For Deep Dive (3-4 hours)
+
 ```
 1. LANGUAGE_GENERATORS_STATUS.md
 2. E2E_TESTING_STRATEGY.md
 3. COMPREHENSIVE_ROADMAP.md
 ```
+
 Result: Understand every detail
 
 ---
@@ -109,6 +116,7 @@ TOTAL: 16-18 hours over 3-4 days
 ## 📋 The 4 Phases
 
 ### PHASE 1: Quick Fixes (5-6 hours)
+
 - Python: `pip install -e fraiseql-python/`
 - TypeScript: Edit tsconfig.json (add 2 flags)
 - Java: Install Maven
@@ -117,17 +125,20 @@ TOTAL: 16-18 hours over 3-4 days
 - CLI: Investigate schema format issue
 
 ### PHASE 2: E2E Infrastructure (8-9 hours)
+
 - Create E2E test files for all 5 languages
 - Add Makefile targets for test orchestration
 - Set up GitHub Actions CI/CD workflow
 - Test locally with `make e2e-all`
 
 ### PHASE 3: CLI Integration (1-2 hours)
+
 - Fix schema format compatibility issue
 - Verify all 5 languages compile
 - Update E2E tests for runtime execution
 
 ### PHASE 4: Documentation (2-3 hours)
+
 - Update README.md
 - Create language generators guide
 - Create E2E testing guide
@@ -138,17 +149,20 @@ TOTAL: 16-18 hours over 3-4 days
 ## 🚀 Next Steps
 
 ### Right Now
+
 1. Read **QUICK_START_GUIDE.md** (10 minutes)
 2. Read **IMPLEMENTATION_PLAN.md** (20 minutes)
 3. Choose: Sequential or parallel approach?
 
 ### Phase 1 (Start Tomorrow)
+
 1. Open **IMPLEMENTATION_PLAN.md** → Phase 1 → Task 1.1
 2. Follow the step-by-step instructions
 3. Execute the copy-paste commands
 4. Verify tests pass
 
 ### Phase 2-4
+
 Continue following **IMPLEMENTATION_PLAN.md** for each phase
 
 ---
@@ -192,6 +206,7 @@ A: Yes! All E2E test code is in E2E_TESTING_STRATEGY.md (copy-paste ready).
 ## 📁 Document Locations
 
 All documents are in:
+
 ```
 /home/lionel/code/fraiseql/.claude/
 ├── 00_START_HERE.md                    ← You are here
@@ -209,18 +224,22 @@ All documents are in:
 
 ---
 
-## 🎬 Let's Begin!
+## 🎬 Let's Begin
 
 ### Step 1: Right Now (5 minutes)
+
 Read this file (you're doing it!)
 
 ### Step 2: Next 15 minutes
+
 Read **QUICK_START_GUIDE.md**
 
 ### Step 3: Next 20 minutes
+
 Read **IMPLEMENTATION_PLAN.md** introduction and Phase 1 overview
 
 ### Step 4: Tomorrow Morning
+
 Start **IMPLEMENTATION_PLAN.md** Phase 1 Task 1.1
 
 ---
@@ -265,6 +284,7 @@ You have the plan. You have the code. You have the documentation.
 ---
 
 **Questions?** Check the relevant reference document:
+
 - Overview: LANGUAGE_GENERATORS_DASHBOARD.md
 - Details: LANGUAGE_GENERATORS_STATUS.md
 - Navigation: ASSESSMENT_INDEX.md

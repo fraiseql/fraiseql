@@ -42,7 +42,7 @@ Each phase plan includes:
 
 ## Development Workflow
 
-### For Claude (or another AI agent):
+### For Claude (or another AI agent)
 
 When the user requests implementation:
 
@@ -55,7 +55,7 @@ When the user requests implementation:
 7. Commit changes if successful
 8. Move to next phase
 
-### For Human Developers:
+### For Human Developers
 
 1. Read phase plan
 2. Understand context and design decisions
@@ -185,6 +185,7 @@ For questions about the implementation plan:
 ---
 
 **Status Legend**:
+
 * 📋 Not Started
 * 🔄 In Progress
 * ✅ Complete

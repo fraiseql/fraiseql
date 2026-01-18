@@ -9,11 +9,13 @@
 ## Executive Summary
 
 ### Current Test Status
+
 - ✅ **758 tests passing** (all phases 1-3 functionality)
 - ⏳ **30 tests ignored** (requiring database infrastructure or Phase 4 compiler)
 - 📊 **96.2% test coverage** (passing tests / total tests)
 
 ### Infrastructure Status
+
 - ✅ **PostgreSQL test database**: Fully configured (Docker Compose)
 - ✅ **Test schema**: Complete (v_user, v_post, v_product, tf_sales)
 - ✅ **Database adapters**: Ready for testing
@@ -22,6 +24,7 @@
 - ❌ **Query analyzer tests**: Blocked by Phase 4 compiler (3 tests)
 
 ### Quick Win Opportunity
+
 **28 out of 30 ignored tests (93%) are ready to be enabled immediately** with zero infrastructure work. The test database, schema, and all dependencies already exist.
 
 ---
@@ -144,6 +147,7 @@ The test is marked as ignored with a TODO comment, but **all dependencies alread
 **Edit**: `crates/fraiseql-core/src/runtime/aggregation.rs:958-961`
 
 **Replace**:
+
 ```rust
 #[test]
 #[ignore]
@@ -153,6 +157,7 @@ fn test_having_clause() {
 ```
 
 **With**:
+
 ```rust
 #[test]
 fn test_having_clause() {
@@ -200,6 +205,7 @@ fn test_having_clause() {
 #### Timeline
 
 These tests will be enabled in **Phase 4 (Compiler)** when:
+
 1. Schema JSON parsing is implemented
 2. `AuthoringIR` → `IRQuery` conversion exists
 3. Test fixtures can be created
@@ -351,6 +357,7 @@ Docker Compose (docker-compose.test.yml)
 ### Cleanup Strategy
 
 **Current**: Full reset between test runs
+
 ```bash
 make db-down -v  # Remove volumes
 make db-up       # Fresh start
@@ -360,6 +367,7 @@ make db-up       # Fresh start
 **Cost**: 3-5 seconds startup per test run
 
 **Future Option**: Transaction-based (Phase 2 optimization)
+
 - Each test runs in transaction
 - Automatic rollback after test
 - Fast, no cleanup needed
@@ -392,17 +400,20 @@ make db-up       # Fresh start
 ## Implementation Roadmap
 
 ### Week 1 (Immediate)
+
 - [ ] Enable 28 adapter + introspector tests
 - [ ] Implement HAVING test
 - [ ] Verify all 787 tests passing locally
 
 ### Week 2
+
 - [ ] Update CI/CD workflow (add init scripts)
 - [ ] Test PR and verify CI passes
 - [ ] Merge to v2-development
 - [ ] Close Phase 1 with 787/790 tests passing
 
 ### Phase 4 (Future)
+
 - [ ] Implement IRQuery struct
 - [ ] Enable 3 query analyzer tests
 - [ ] Achieve 790/790 tests (100%)
@@ -467,6 +478,7 @@ make db-up       # Fresh start
 **Action**: Execute 30-minute plan to enable 28 tests, implement HAVING test, and update CI/CD.
 
 **Outcome**:
+
 - Test coverage: 96.2% → 99.6%
 - Passing tests: 758 → 787
 - Production readiness: High confidence in database layer

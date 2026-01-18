@@ -11,6 +11,7 @@
 This document catalogs anti-patterns—designs that seem reasonable but lead to problems in practice. Learning what NOT to do is as important as learning what TO do.
 
 Each anti-pattern includes:
+
 - **Problem**: Why it's wrong
 - **Symptoms**: How you'll know you're doing it
 - **Solution**: Correct approach
@@ -45,11 +46,13 @@ query GetUserWithEverything {
 ```
 
 **Problem:**
+
 - For 10 posts with 5 comments each = 50 database queries
 - Exponential explosion with deeper nesting
 - Can timeout or crash database
 
 **Symptoms:**
+
 - Queries timeout despite small result set
 - Database CPU spikes with simple queries
 - "Query too complex" errors
@@ -108,11 +111,13 @@ query GetAllUsers {
 ```
 
 **Problem:**
+
 - Returns millions of rows
 - Timeouts, memory exhaustion
 - Network overload (10GB+ response)
 
 **Symptoms:**
+
 - Server runs out of memory
 - Client connection hangs
 - Database performance tanks
@@ -159,11 +164,13 @@ def create_order(input: OrderInput) -> Order:
 ```
 
 **Problem:**
+
 - Mutation latency includes side effect latency
 - External service slowness delays user feedback
 - Failed external services block entire operation
 
 **Symptoms:**
+
 - Mutations taking 1-5 seconds
 - User sees spinning wheel
 - Dependent systems failure crashes mutations
@@ -224,12 +231,14 @@ def delete_user(id: ID) -> bool:
 ```
 
 **Problem:**
+
 - Authorization rules scattered everywhere
 - Impossible to audit (where are all checks?)
 - Easy to forget authorization (security hole)
 - Hard to maintain (change rule = find all places)
 
 **Symptoms:**
+
 - Authorization inconsistency between operations
 - Security audits find missing checks
 - Accidental exposure of sensitive data
@@ -278,11 +287,13 @@ def get_admin_panel() -> AdminPanel:
 ```
 
 **Problem:**
+
 - Client can modify GraphQL to claim any role
 - Security boundary is client-side (non-existent)
 - Any user can become admin
 
 **Symptoms:**
+
 - Users access restricted data
 - Audit shows unauthorized access
 - Security breach
@@ -327,11 +338,13 @@ mutation UpdateProduct {
 ```
 
 **Problem:**
+
 - Stale data served to users
 - Data inconsistency between instances
 - User sees old data, confused
 
 **Symptoms:**
+
 - Users report stale data
 - Updates not visible immediately
 - Cache hits show old values
@@ -368,11 +381,13 @@ cache.set(f"user:{user_id}", user_data)  # Contains email!
 ```
 
 **Problem:**
+
 - PII leakage between users
 - Privacy violation, compliance issue
 - Cannot be forgotten (cache persists)
 
 **Symptoms:**
+
 - Audit findings of PII in cache
 - GDPR/privacy violations
 - Users see other users' emails
@@ -419,11 +434,13 @@ def get_users():
 ```
 
 **Problem:**
+
 - Wasted effort on wrong bottleneck
 - Complex code harder to maintain
 - Solution might be slower than original
 
 **Symptoms:**
+
 - Optimization makes things slower
 - Complexity increases without benefit
 - Time wasted on wrong problems
@@ -466,12 +483,14 @@ Configuration:
 ```
 
 **Problem:**
+
 - Replication lag grows with replicas
 - Storage cost multiplied
 - Complexity in managing 11 instances
 - Diminishing returns (beyond 3-5 replicas)
 
 **Symptoms:**
+
 - High replication lag (>10 seconds)
 - Huge storage costs
 - Difficult operational overhead
@@ -515,11 +534,13 @@ user = {
 ```
 
 **Problem:**
+
 - Stale derived data
 - Inconsistency with calculated value
 - Hard to know when last updated
 
 **Symptoms:**
+
 - User score doesn't match their activities
 - Reports show wrong aggregates
 - Users confused by stale data
@@ -573,11 +594,13 @@ db.update("tb_user", user_id, {"email": "alice@example.com", "version": 1})
 ```
 
 **Problem:**
+
 - Lost updates (Thread 1 overwrites Thread 2)
 - Data corruption
 - No conflict detection
 
 **Symptoms:**
+
 - Users report updates being lost
 - Data inconsistency
 - Stale data overwrites newer data
@@ -627,11 +650,13 @@ if (event.type === "order_created") {
 ```
 
 **Problem:**
+
 - Network bloat (receiving events you don't care about)
 - Buffer overflow (too many events)
 - Wasted bandwidth
 
 **Symptoms:**
+
 - WebSocket connection drops (buffer full)
 - Network usage very high
 - Client CPU high (filtering all events)
@@ -668,11 +693,13 @@ async for event in subscription:
 ```
 
 **Problem:**
+
 - Connection dies silently
 - Client thinks still connected
 - Missed events
 
 **Symptoms:**
+
 - Subscription appears active but receives no events
 - User doesn't know they missed events
 - Must manually refresh
@@ -717,11 +744,13 @@ def test_delete_user():
 ```
 
 **Problem:**
+
 - Authorization bypassed in tests
 - Security hole not caught
 - Test passes but production fails
 
 **Symptoms:**
+
 - Tests pass but users report access denied
 - Security audit finds authorization not tested
 - Production bugs
@@ -770,11 +799,13 @@ Problem: Instance 3 has different behavior
 ```
 
 **Problem:**
+
 - Different query plans per instance
 - Non-deterministic results
 - Hard to debug (works on some instances, fails on others)
 
 **Symptoms:**
+
 - Some instances work, others fail
 - Errors are random (instance-dependent)
 - User sees different results on refresh

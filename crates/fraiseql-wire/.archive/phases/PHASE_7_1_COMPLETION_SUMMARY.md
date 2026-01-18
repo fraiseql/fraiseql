@@ -15,12 +15,14 @@
 **Status**: COMPLETE
 
 ### What Was Built
+
 - Criterion-based benchmark suite with 6 groups (18 benchmarks)
 - Covers core operations: JSON parsing, connection parsing, chunking, error handling, string matching, HashMap operations
 - All benchmarks complete in ~30 seconds (ideal for CI)
 - Baseline established for regression detection
 
 ### Results
+
 - JSON parsing: 125-1200 µs depending on size
 - Error construction: ~18 ns overhead
 - HashMap lookups: ~7-9 ns for existing keys
@@ -28,6 +30,7 @@
 - String matching: 5-33 ns depending on operation
 
 ### Files
+
 ```
 benches/micro_benchmarks.rs    # 320 lines, 6 benchmark groups
 benches/README.md              # Benchmark documentation
@@ -42,6 +45,7 @@ Cargo.toml                      # Added criterion dependency
 **Status**: COMPLETE
 
 ### What Was Built
+
 - Real-world performance benchmarks against Postgres 17
 - 8 benchmark groups measuring throughput, latency, memory, stability
 - Complete test database schema with ~1.2M rows of test data
@@ -49,6 +53,7 @@ Cargo.toml                      # Added criterion dependency
 - Feature-gated to prevent Postgres dependency in main build
 
 ### Benchmark Groups
+
 1. **Throughput** (3 benchmarks) - 1K, 10K, 100K row performance
 2. **Latency** (3 benchmarks) - Time-to-first-row at different scales
 3. **Connection Setup** (2 benchmarks) - TCP vs Unix socket
@@ -59,12 +64,14 @@ Cargo.toml                      # Added criterion dependency
 8. **JSON Parsing Load** (4 benchmarks) - Large payload performance
 
 ### Key Metrics Validated
+
 - Bounded memory design (memory ≠ result size) ✓
 - Time-to-first-row independence from result size ✓
 - Predicate pushdown effectiveness (90% bandwidth reduction at 10% filter) ✓
 - Chunking strategy trade-offs (latency vs throughput) ✓
 
 ### Files
+
 ```
 benches/integration_benchmarks.rs  # 380 lines, 8 benchmark groups
 benches/setup.sql                  # Test database schema, 5 views + filters
@@ -74,6 +81,7 @@ benches/README.md                  # Updated with integration docs
 ```
 
 ### CI/CD Features
+
 - **Micro-benchmarks**: Always-run on main branch pushes
 - **Integration benchmarks**: Nightly schedule (2 AM UTC) + manual trigger
 - **Postgres 17 service**: Automatically spun up for integration tests
@@ -81,6 +89,7 @@ benches/README.md                  # Updated with integration docs
 - **Test data verification**: Validates 100K rows loaded before benchmarking
 
 ### Setup & Cleanup
+
 ```bash
 # Setup test database
 psql -U postgres -c "CREATE DATABASE fraiseql_bench"
@@ -100,6 +109,7 @@ psql -U postgres -c "DROP DATABASE fraiseql_bench"
 ### Three-Tier Approach (From BENCHMARKING.md)
 
 **Tier 1: Always-Run Micro-benchmarks** ✅ Phase 7.1.1
+
 - Duration: ~30 seconds
 - Location: `benches/micro_benchmarks.rs`
 - CI Integration: Runs on every push to main
@@ -107,6 +117,7 @@ psql -U postgres -c "DROP DATABASE fraiseql_bench"
 - Postgres Required: NO
 
 **Tier 2: Nightly Integration Benchmarks** ✅ Phase 7.1.2
+
 - Duration: ~5 minutes
 - Location: `benches/integration_benchmarks.rs`
 - CI Integration: Nightly schedule + manual trigger
@@ -114,6 +125,7 @@ psql -U postgres -c "DROP DATABASE fraiseql_bench"
 - Postgres Required: YES (Postgres 17)
 
 **Tier 3: Pre-Release Comparison Benchmarks** ⏳ Phase 7.1.3
+
 - Duration: Variable (vs tokio-postgres)
 - Execution: Manual only (not CI automated)
 - Scope: Market positioning, performance comparison
@@ -161,6 +173,7 @@ FROM generate_series(1, size);
 ```
 
 This pattern provides:
+
 - Deterministic, reproducible test data
 - Scalable to any size (just adjust series limit)
 - Matches FraiseQL `data` column convention
@@ -171,6 +184,7 @@ This pattern provides:
 ## Testing & Quality Assurance
 
 ### Status Check
+
 ```
 Unit Tests:      34/34 passing ✓
 Clippy:          Zero warnings ✓
@@ -181,6 +195,7 @@ CI/CD:           Workflow configured and ready ✓
 ```
 
 ### Verification Commands
+
 ```bash
 # Verify build
 cargo build
@@ -202,21 +217,25 @@ yamllint .github/workflows/benchmarks.yml
 ## Key Design Decisions
 
 ### 1. Feature-Gated Integration Benchmarks
+
 **Why**: Prevent tokio-postgres from being a required dependency in main build
 **How**: `[features] bench-with-postgres = []` with `required-features`
 **Benefit**: Users get micro-benchmarks free, integration benchmarks optional
 
 ### 2. Nightly + Manual Execution for Integration Tests
+
 **Why**: Postgres setup overhead (~30 sec) not justified for every commit
 **How**: GitHub Actions schedule + workflow_dispatch
 **Benefit**: Comprehensive testing without slowing down main CI
 
 ### 3. Test Database Views Over Generated Data
+
 **Why**: Realistic data shapes, matching production schema
 **How**: SQL views with deterministic generation
 **Benefit**: Benchmarks reflect real-world performance, not synthetic
 
 ### 4. Separated Artifacts by Benchmark Type
+
 **Why**: Easy comparison of micro vs integration results
 **How**: Different artifact names in GitHub Actions
 **Benefit**: Clear trend tracking, easy regression detection
@@ -226,6 +245,7 @@ yamllint .github/workflows/benchmarks.yml
 ## Files Summary
 
 ### Code Files
+
 | File | Lines | Purpose |
 |------|-------|---------|
 | `benches/micro_benchmarks.rs` | 320 | Core operation benchmarks |
@@ -233,12 +253,14 @@ yamllint .github/workflows/benchmarks.yml
 | `benches/setup.sql` | 150 | Test database schema |
 
 ### Configuration
+
 | File | Lines | Purpose |
 |------|-------|---------|
 | `Cargo.toml` | +20 | Added criterion, tokio-postgres, bench feature |
 | `.github/workflows/benchmarks.yml` | 180 | CI/CD workflow |
 
 ### Documentation
+
 | File | Lines | Purpose |
 |------|-------|---------|
 | `benches/README.md` | 150+ | How to run benchmarks |
@@ -254,6 +276,7 @@ yamllint .github/workflows/benchmarks.yml
 ## What These Benchmarks Enable
 
 ### 1. Regression Detection
+
 ```
 If throughput drops >10%:
   → Alert developers
@@ -262,12 +285,14 @@ If throughput drops >10%:
 ```
 
 ### 2. Performance-Driven Optimization
+
 ```
 Identify bottlenecks → Hot path profiling → Targeted optimization
 Example: If JSON parsing is slow → optimize serde_json usage
 ```
 
 ### 3. Design Validation
+
 ```
 Verify hard invariants:
   ✓ Memory scales with chunk_size, not result_size
@@ -276,6 +301,7 @@ Verify hard invariants:
 ```
 
 ### 4. Capacity Planning
+
 ```
 Know the limits:
   - Throughput: X rows/sec
@@ -284,6 +310,7 @@ Know the limits:
 ```
 
 ### 5. Comparative Analysis (When Phase 7.1.3 Complete)
+
 ```
 fraiseql-wire vs tokio-postgres:
   - When to use each driver
@@ -296,12 +323,14 @@ fraiseql-wire vs tokio-postgres:
 ## Next Steps
 
 ### Phase 7.1.3: Comparison Benchmarks (Pending)
+
 - Set up tokio-postgres benchmarks
 - Side-by-side performance comparison
 - Manual execution (pre-release only)
 - Generate comparison report
 
 ### Phase 7.1.4: Documentation & Optimization (Pending)
+
 - Profile hot paths with flamegraph
 - Optimize identified bottlenecks
 - Update README with results
@@ -309,6 +338,7 @@ fraiseql-wire vs tokio-postgres:
 - Publish baseline results in CHANGELOG
 
 ### Phase 7.2: Security Audit (Not Started)
+
 - Review unsafe code
 - Authentication security review
 - Connection validation
@@ -339,6 +369,7 @@ fraiseql-wire now has:
 ✅ **Comprehensive documentation** for setup and interpretation
 
 This provides a solid foundation for:
+
 - Performance-driven development
 - Regression detection and prevention
 - Informed optimization decisions

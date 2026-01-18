@@ -204,6 +204,7 @@ Standard LIKE pattern matching.
 ```
 
 **Patterns**:
+
 - `%` = any characters
 - `_` = single character
 - `\` = escape character
@@ -402,6 +403,7 @@ Web search-style query parsing (AND, OR, NOT, quoted phrases).
 ```
 
 **Query Syntax**:
+
 - `term1 term2` = AND (both terms)
 - `term1 OR term2` = OR
 - `term1 AND NOT term2` = exclude term2
@@ -440,6 +442,7 @@ Check if address is IPv6.
 Check if IP is in a private range.
 
 **Private Ranges**:
+
 - 10.0.0.0/8
 - 172.16.0.0/12
 - 192.168.0.0/16
@@ -539,6 +542,7 @@ Skip first N rows.
 ```
 
 **Pagination Pattern**:
+
 ```rust
 .limit(per_page)
 .offset((page - 1) * per_page)
@@ -567,6 +571,7 @@ Sort results by one or more fields.
 ```
 
 **Collation Names**:
+
 - `C` - Binary/C locale (fastest)
 - `C.UTF-8` - UTF-8 binary
 - `en-US`, `en_US.UTF-8` - English (US)
@@ -585,16 +590,19 @@ Data extracted from the `data` JSONB column.
 **SQL Generation**: `(data->>'field_name')`
 
 **Example**:
+
 ```rust
 .where_sql("(data->>'name')::text = 'John'")
 ```
 
 **Nested Paths**:
+
 ```rust
 .where_sql("(data->'profile'->>'location')::text = 'NYC'")
 ```
 
 **Type Casting**:
+
 - String fields: `::text`
 - Numeric: `::numeric` or `::integer`
 - Boolean: `::boolean`
@@ -610,11 +618,13 @@ Database columns exposed directly (not from JSONB).
 **SQL Generation**: Direct column reference
 
 **Example**:
+
 ```rust
 .where_sql("created_at > NOW() - INTERVAL '7 days'")
 ```
 
 **Columns Available**:
+
 - `id` - UUID primary key
 - `created_at` - Timestamp
 - `updated_at` - Timestamp
@@ -643,11 +653,13 @@ let results = client
 ## Performance Tips
 
 1. **JSONB Indexes**: Create indexes on frequently filtered JSONB fields
+
    ```sql
    CREATE INDEX idx_status ON projects USING GIN ((data->'status'));
    ```
 
 2. **Type Casting**: Apply minimal casting - PostgreSQL optimizes native types better
+
    ```rust
    // Good: Direct columns
    .where_sql("created_at > '2024-01-01'::timestamp")
@@ -657,6 +669,7 @@ let results = client
    ```
 
 3. **LIMIT Early**: Use LIMIT in query, not client-side
+
    ```rust
    // Good: Database filters
    .where_sql("(data->>'status') = 'active'")
@@ -668,6 +681,7 @@ let results = client
    ```
 
 4. **ORDER BY**: Push to database, don't sort client-side
+
    ```rust
    // Good
    .order_by("(data->>'name') ASC")
@@ -679,6 +693,7 @@ let results = client
    ```
 
 5. **COLLATE**: Only use when needed for locale-aware sorting
+
    ```rust
    // Good: Binary sort (fastest)
    .order_by("(data->>'status') ASC")
@@ -694,18 +709,22 @@ let results = client
 ### Common Error Messages
 
 **"column does not exist"**
+
 - Cause: Referenced a column not in the view
 - Solution: Only JSONB fields available in v_* views
 
 **"cannot cast type jsonb to..."**
+
 - Cause: Incorrect type casting
 - Solution: Use `::text` for text fields, `jsonb_array_length()` for arrays
 
 **"does not exist (42703)"**
+
 - Cause: Field doesn't exist in JSONB data
 - Solution: Check JSON structure, use nested paths if needed
 
 **"operator does not exist"**
+
 - Cause: Type mismatch in comparison
 - Solution: Apply correct type cast (`::text`, `::numeric`, etc.)
 
@@ -772,4 +791,3 @@ let results = client
 - [PostgreSQL INET Type](https://www.postgresql.org/docs/current/datatype-net-types.html)
 - [PostgreSQL Full-Text Search](https://www.postgresql.org/docs/current/textsearch.html)
 - [pgvector Documentation](https://github.com/pgvector/pgvector)
-

@@ -78,7 +78,7 @@ Two parallel work streams:
    - Status: **AUTO-FIX**
 
 3. **Lines 204, 239** - Unused `Result` from pbkdf2
-   - Prefix with `let _ = ` or `_ =`
+   - Prefix with `let _ =` or `_ =`
    - Status: **VERIFY CONTEXT** before applying
 
 **File**: `src/operators/sql_gen.rs`
@@ -125,6 +125,7 @@ L2Distance {
 ```
 
 **Affected variants** (22 fields total):
+
 - `L2Distance` (3 fields)
 - `CosineDistance` (3 fields)
 - `InnerProduct` (3 fields)
@@ -157,6 +158,7 @@ L2Distance {
 ### 2.1 Architecture Overview
 
 **Current State**:
+
 ```rust
 client.query("users")
     .where_sql("status='active'")
@@ -166,6 +168,7 @@ client.query("users")
 ```
 
 **Desired State**:
+
 ```rust
 client.query("users")
     .select(Field::JsonbField("name".to_string()))
@@ -177,6 +180,7 @@ client.query("users")
 ```
 
 **Key Constraints**:
+
 - Wire protocol: still single JSON column (no changes to protocol)
 - Backward compatible: default is `SELECT data` (all rows return as-is)
 - API: fluent builder pattern (add `.select()` methods)
@@ -280,6 +284,7 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
 **File**: `src/operators/field.rs` - NO CHANGES NEEDED
 
 The module already supports what we need:
+
 - `Field::JsonbField(String)` → `(data->>'name')`
 - `Field::JsonbPath(Vec<String>)` → `(data->'user'->>'name')`
 - `Field::DirectColumn(String)` → `direct_column`
@@ -303,6 +308,7 @@ The key insight: we're still selecting a single column from Postgres, just extra
 Both still return text from Postgres. The JSON stream decoder will receive text values instead of full JSON objects.
 
 **Deserialization** (`stream/json_stream.rs`):
+
 - If projections selected: receive text strings, deserialize to T
 - If no projections: receive full JSON, deserialize to T as usual
 - Type T is still consumer-side only, framework doesn't care what was selected
@@ -444,6 +450,7 @@ fn test_build_sql_with_projections() {
 - New API is additive (optional `.select()` methods)
 
 **Public API Surface Changes**:
+
 - Add `select(Field) -> Self`
 - Add `select_fields(Vec<Field>) -> Self`
 - Export `Field` from `client` module if not already exported
@@ -453,6 +460,7 @@ fn test_build_sql_with_projections() {
 ## Part 3: Implementation Order
 
 ### Phase 1: Clippy Cleanup (Quick Wins)
+
 1. Remove unused imports (2 files)
 2. Remove unused constants and fields (2 files)
 3. Fix variable mutability (1 file - auto-fix friendly)
@@ -462,6 +470,7 @@ fn test_build_sql_with_projections() {
 **Expected outcome**: `cargo clippy -- -D warnings` passes with 0 errors
 
 ### Phase 2: JSONB Field Projection
+
 1. Add `select_projections` field to `QueryBuilder`
 2. Add `.select()` and `.select_fields()` methods
 3. Update `build_sql()` to generate correct SELECT clause
@@ -472,6 +481,7 @@ fn test_build_sql_with_projections() {
 **Expected outcome**: New feature works, old tests pass, new tests pass
 
 ### Phase 3: Verification
+
 1. Run `cargo clippy -- -D warnings` (0 errors)
 2. Run `cargo test --all` (all tests pass)
 3. Run `cargo test --test integration` (projection tests pass)
@@ -520,4 +530,3 @@ So we can change what we SELECT without touching the type system! 🎯
 4. ✅ Backward compatibility verified
 5. ✅ Documentation updated
 6. ✅ Clean `cargo clippy -- -D warnings`
-

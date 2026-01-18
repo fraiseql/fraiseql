@@ -16,6 +16,7 @@ Complete architectural documentation for FraiseQL v2.
 | **[IMPLEMENTATION_GUIDE.md](IMPLEMENTATION_GUIDE.md)** | Day-by-day implementation plan | 1,000+ | ✅ Ready |
 
 **Core Features Designed:**
+
 - ✅ Database abstraction layer (PostgreSQL, MySQL, SQLite, SQL Server)
 - ✅ WHERE clause generation (50+ operators, SQL injection proof)
 - ✅ JSONB projection (recursive, auth-aware)
@@ -24,6 +25,7 @@ Complete architectural documentation for FraiseQL v2.
 - ✅ Caching (LRU + Redis)
 
 **Advanced Features Designed:**
+
 - ✅ **Federation** - Apollo Federation v2 with view-based protocol
 - ✅ **RBAC** - Hierarchical roles with permission caching
 - ✅ **Subscriptions** - Database-driven event streams (LISTEN/NOTIFY)
@@ -37,6 +39,7 @@ Complete architectural documentation for FraiseQL v2.
 ## 📁 Directory Structure
 
 ### [Core Pipeline](core/)
+
 Fundamental compilation and execution architecture.
 
 | Document | Description | Lines | Est. Time |
@@ -53,6 +56,7 @@ Fundamental compilation and execution architecture.
 ---
 
 ### [Database Integration](database/)
+
 Multi-database support and data plane architecture.
 
 | Document | Description | Lines | Est. Time |
@@ -65,6 +69,7 @@ Multi-database support and data plane architecture.
 ---
 
 ### [Reliability](reliability/)
+
 Consistency, error handling, failure recovery, and versioning.
 
 | Document | Description | Lines | Est. Time |
@@ -79,6 +84,7 @@ Consistency, error handling, failure recovery, and versioning.
 ---
 
 ### [Security](security/)
+
 Security architecture and authentication.
 
 | Document | Description | Lines | Est. Time |
@@ -91,6 +97,7 @@ Security architecture and authentication.
 ---
 
 ### [Performance](performance/)
+
 Performance optimization and tuning.
 
 | Document | Description | Lines | Est. Time |
@@ -103,6 +110,7 @@ Performance optimization and tuning.
 ---
 
 ### [Integration](integration/)
+
 Federation, multi-plane architecture, and extension points.
 
 | Document | Description | Lines | Est. Time |
@@ -117,6 +125,7 @@ Federation, multi-plane architecture, and extension points.
 ---
 
 ### [Real-time](realtime/)
+
 Subscriptions and event streaming.
 
 | Document | Description | Lines | Est. Time |
@@ -128,6 +137,7 @@ Subscriptions and event streaming.
 ---
 
 ### [Design Decisions](decisions/)
+
 Architectural patterns and anti-patterns.
 
 | Document | Description | Lines | Est. Time |
@@ -141,6 +151,7 @@ Architectural patterns and anti-patterns.
 ---
 
 ### [Observability](observability/)
+
 Monitoring, logging, and instrumentation.
 
 | Document | Description | Lines | Est. Time |
@@ -154,18 +165,21 @@ Monitoring, logging, and instrumentation.
 ## 🎯 Recommended Reading Order
 
 **For System Understanding:**
+
 1. Core: compilation-pipeline.md
 2. Core: execution-model.md
 3. Database: database-targeting.md
 4. Security: security-model.md
 
 **For Deep Dive:**
+
 1. Core: compilation-phases.md
 2. Core: execution-semantics.md
 3. Integration: federation.md
 4. Real-time: subscriptions.md
 
 **For Production:**
+
 1. Reliability: consistency-model.md
 2. Reliability: failure-modes-and-recovery.md
 3. Performance: advanced-optimization.md

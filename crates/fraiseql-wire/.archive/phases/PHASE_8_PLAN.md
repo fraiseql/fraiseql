@@ -10,6 +10,7 @@
 ## Overview
 
 After completing Phase 7 (Stabilization), fraiseql-wire has:
+
 - ✅ Solid performance benchmarks
 - ✅ Comprehensive test coverage
 - ✅ Production security audit passed
@@ -22,6 +23,7 @@ Phase 8 focuses on **feature expansion** based on production feedback and common
 ## Feature Priority Matrix
 
 ### Priority 1: TLS Support (8.1)
+
 **Impact**: 🔴 **Critical** - Required for cloud/remote deployments
 **Effort**: 🟡 **Medium** (~1-2 weeks)
 **Complexity**: Medium (TLS negotiation, certificate handling)
@@ -30,6 +32,7 @@ Phase 8 focuses on **feature expansion** based on production feedback and common
 **Recommendation**: **START HERE**
 
 ### Priority 2: Connection Configuration (8.3)
+
 **Impact**: 🟢 **High** - Better control over timeouts/keepalive
 **Effort**: 🟢 **Low** (~3-5 days)
 **Complexity**: Low (API expansion)
@@ -38,6 +41,7 @@ Phase 8 focuses on **feature expansion** based on production feedback and common
 **Recommendation**: **Quick win after TLS**
 
 ### Priority 3: Query Metrics (8.5)
+
 **Impact**: 🟢 **High** - Essential for observability
 **Effort**: 🟡 **Low-Medium** (~1 week)
 **Complexity**: Low-Medium (metrics collection)
@@ -46,6 +50,7 @@ Phase 8 focuses on **feature expansion** based on production feedback and common
 **Recommendation**: **Implement with TLS**
 
 ### Priority 4: Typed Streaming (8.2)
+
 **Impact**: 🟡 **Medium** - Nice to have for type safety
 **Effort**: 🟡 **Medium** (~1-2 weeks)
 **Complexity**: Medium (generic trait bounds)
@@ -54,6 +59,7 @@ Phase 8 focuses on **feature expansion** based on production feedback and common
 **Recommendation**: **After TLS + Metrics**
 
 ### Priority 5: SCRAM Authentication (8.4)
+
 **Impact**: 🟡 **Medium** - Security improvement
 **Effort**: 🟡 **Medium** (~2 weeks)
 **Complexity**: High (authentication protocol)
@@ -62,6 +68,7 @@ Phase 8 focuses on **feature expansion** based on production feedback and common
 **Recommendation**: **If user demands it**
 
 ### Priority 6: Connection Pooling (8.6)
+
 **Impact**: 🟢 **High** - Common production need
 **Effort**: 🔴 **High** (~4-6 weeks)
 **Complexity**: High (state management, concurrency)
@@ -78,6 +85,7 @@ Phase 8 focuses on **feature expansion** based on production feedback and common
 #### v0.1.1: TLS + Connection Config - Weeks 1-2
 
 **Deliverables**:
+
 1. **TLS Support** (`FraiseClient::connect_tls`)
    - rustls backend (cross-platform, pure Rust)
    - Certificate validation
@@ -98,6 +106,7 @@ Phase 8 focuses on **feature expansion** based on production feedback and common
 #### v0.1.2: Query Metrics - Week 3
 
 **Deliverables**:
+
 1. **Query Metrics**
    - Per-query metrics (rows, bytes, duration, throughput)
    - `stream.metrics()` API after execution
@@ -110,6 +119,7 @@ Phase 8 focuses on **feature expansion** based on production feedback and common
 #### v0.1.3+: Typed Streaming & SCRAM (If Needed)
 
 **Deliverables** (Defer if not requested):
+
 1. **Typed Streaming** - Optional generic `query::<T>()`
 2. **SCRAM Auth** - Optional `AuthMethod` enum for better security
 
@@ -256,6 +266,7 @@ println!("Throughput: {:.0} rows/sec", metrics.throughput());
   - `first_row_time`: Time to first row
 
 - **Metrics Structure**:
+
 ```rust
 pub struct QueryMetrics {
     pub row_count: u64,
@@ -472,6 +483,7 @@ let stream = client.query("projects").execute().await?;
 ### Testing Strategy
 
 Each feature gets:
+
 - Unit tests (in-memory, no Postgres)
 - Integration tests (with Postgres)
 - Example programs (user-facing verification)
@@ -481,6 +493,7 @@ Each feature gets:
 ### Documentation Requirements
 
 Each feature must document:
+
 - **API**: Full rustdoc with examples
 - **Guide**: How/when to use the feature
 - **Examples**: Runnable example programs
@@ -522,6 +535,7 @@ Connection Pooling (8.6)
 ### Per Feature
 
 Each completed feature must:
+
 - ✅ Have > 90% test coverage
 - ✅ Build with zero clippy warnings
 - ✅ Have complete rustdoc (zero missing docs)
@@ -542,6 +556,7 @@ Each completed feature must:
 ## Timeline Estimate
 
 ### Release v0.1.1 (TLS + Config)
+
 | Feature | Estimate | Status |
 |---------|----------|--------|
 | TLS Support | 1-2 weeks | ✅ Foundation in place |
@@ -550,6 +565,7 @@ Each completed feature must:
 | **Total for v0.1.1** | **2-3 weeks** | **Ready to start** |
 
 ### Release v0.1.2 (Metrics)
+
 | Feature | Estimate | Status |
 |---------|----------|--------|
 | Query Metrics | 1 week | 📋 Planned |
@@ -557,6 +573,7 @@ Each completed feature must:
 | **Total for v0.1.2** | **1-2 weeks** | **Dependent on v0.1.1** |
 
 ### Deferred (v0.1.3+)
+
 | Feature | Estimate | Status |
 |---------|----------|--------|
 | Typed Streaming | 1-2 weeks | ⏳ If requested |

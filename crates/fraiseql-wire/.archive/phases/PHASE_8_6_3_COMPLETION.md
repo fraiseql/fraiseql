@@ -17,6 +17,7 @@ Phase 8.6.3 successfully implements hard memory limits for streaming queries. Th
 ### 1. Error Semantics (`src/error.rs`)
 
 **MemoryLimitExceeded Variant** with comprehensive documentation:
+
 ```rust
 /// **Terminal error**: The consumer cannot keep pace with data arrival.
 ///
@@ -35,6 +36,7 @@ MemoryLimitExceeded {
 ```
 
 **Key properties**:
+
 - ✅ Non-retriable: `is_retriable()` returns false
 - ✅ Category: `memory_limit_exceeded` for metrics/alerting
 - ✅ Fully documented with terminal error semantics
@@ -42,6 +44,7 @@ MemoryLimitExceeded {
 ### 2. API Design (`src/client/query_builder.rs`)
 
 **New `max_memory()` builder method**:
+
 ```rust
 pub fn max_memory(mut self, bytes: usize) -> Self {
     self.max_memory = Some(bytes);
@@ -50,11 +53,13 @@ pub fn max_memory(mut self, bytes: usize) -> Self {
 ```
 
 **Key design**:
+
 - Default: None (unbounded, backward compatible)
 - Returns Self for method chaining
 - Comprehensive docstring with example and rationale
 
 **Usage Example**:
+
 ```rust
 let stream = client
     .query::<Project>("projects")
@@ -66,6 +71,7 @@ let stream = client
 ### 3. Memory Enforcement (`src/stream/json_stream.rs`)
 
 **Added `max_memory` field** to JsonStream struct:
+
 ```rust
 pub struct JsonStream {
     receiver: mpsc::Receiver<Result<Value>>,
@@ -78,6 +84,7 @@ pub struct JsonStream {
 ```
 
 **Pre-enqueue enforcement in `poll_next()`**:
+
 ```rust
 // Check BEFORE receiving (pre-enqueue strategy)
 if let Some(limit) = self.max_memory {
@@ -97,6 +104,7 @@ self.receiver.poll_recv(cx)
 ```
 
 **Key design decisions**:
+
 - ✅ **Pre-enqueue strategy**: Check BEFORE receiving from channel
 - ✅ **Conservative estimation**: 2KB per buffered item (typical JSON)
 - ✅ **O(1) operation**: receiver.len() is atomic, no overhead
@@ -105,6 +113,7 @@ self.receiver.poll_recv(cx)
 ### 4. Metrics Integration (`src/metrics/counters.rs`)
 
 **New counter function**:
+
 ```rust
 pub fn memory_limit_exceeded(entity: &str) {
     counter!(
@@ -120,6 +129,7 @@ pub fn memory_limit_exceeded(entity: &str) {
 ### 5. Connection Layer (`src/connection/conn.rs`)
 
 **Updated `streaming_query()` signature**:
+
 ```rust
 pub async fn streaming_query(
     mut self,
@@ -135,6 +145,7 @@ pub async fn streaming_query(
 ### 6. Client Layer (`src/client/fraise_client.rs`)
 
 **Updated `execute_query()` signature**:
+
 ```rust
 pub(crate) async fn execute_query(
     self,
@@ -157,6 +168,7 @@ pub(crate) async fn execute_query(
 5. **test_memory_limit_error_properties**: Verify terminal error semantics
 
 **Test Coverage**:
+
 - ✅ Error message contains both limit and current values
 - ✅ Error category is "memory_limit_exceeded"
 - ✅ Error is non-retriable
@@ -168,6 +180,7 @@ pub(crate) async fn execute_query(
 ## Test Results
 
 ### Unit Tests
+
 ```
 ✅ 97 unit tests passing
    - All existing tests still pass
@@ -175,6 +188,7 @@ pub(crate) async fn execute_query(
 ```
 
 ### Integration Tests
+
 ```
 ✅ 26 integration tests passing
    - 5 new memory bounds tests
@@ -189,17 +203,20 @@ pub(crate) async fn execute_query(
 ## Architecture Alignment
 
 ### Backward Compatibility
+
 - ✅ Default unbounded (None) maintains existing behavior
 - ✅ No changes to existing APIs (only additions)
 - ✅ All existing code continues working unchanged
 
 ### Orthogonal Design
+
 - ✅ Separate from Phase 8.6.4 (Adaptive Chunking)
 - ✅ Memory limits are ceiling, chunking optimizes within bounds
 - ✅ No interaction between features (no hardwired assumptions)
 - ✅ Clear composition semantics
 
 ### Pre-Enqueue Strategy Benefits
+
 | Aspect | Pre-Enqueue | Post-Enqueue |
 |--------|------------|--------------|
 | Semantics | Clean cutoff | Allows burst (complex state) |
@@ -210,6 +227,7 @@ pub(crate) async fn execute_query(
 **✓ Chosen: Pre-enqueue** (simpler, cleaner, more predictable)
 
 ### Memory Estimation
+
 - **Conservative**: 2KB per item (assumes worst case)
 - **Typical JSON**: 1-5KB average (this estimate is safe)
 - **Small objects**: Underestimated (safer - hits limit later)
@@ -233,6 +251,7 @@ pub(crate) async fn execute_query(
 ## Usage Guide
 
 ### Basic Usage
+
 ```rust
 let stream = client
     .query::<MyType>("entity")
@@ -265,11 +284,13 @@ while let Some(result) = stream.next().await {
 ### Tuning Memory Limits
 
 **Recommended formula**:
+
 ```
 max_memory = available_heap * 0.3 to 0.5
 ```
 
 **Example**:
+
 - 4GB available heap
 - 30% for buffers = 1.2 GB
 - Set `max_memory(1_200_000_000)`
@@ -277,12 +298,14 @@ max_memory = available_heap * 0.3 to 0.5
 ### Interaction with Chunk Size
 
 **Relationship**:
+
 ```
 max_items_buffered = max_memory / 2048
 max_rows_buffered = chunk_size * max_items_buffered
 ```
 
 **Example**:
+
 - `max_memory(500MB)` = ~244K items max
 - `chunk_size(256)` = ~62K chunks in flight
 
@@ -303,17 +326,20 @@ stream
 ## Error Message Clarity
 
 **Example output**:
+
 ```
 memory limit exceeded: 600000000 bytes buffered > 500000000 bytes limit
 ```
 
 **User sees**:
+
 - Exact current memory usage
 - Exact limit configured
 - Clear comparison (600MB > 500MB)
 - Category for alerting: "memory_limit_exceeded"
 
 **Solutions offered in docs**:
+
 1. Increase `.next()` polling frequency
 2. Reduce `chunk_size` (lower `.chunk_size(n)`)
 3. Remove limit (omit `.max_memory()`)
@@ -361,11 +387,13 @@ memory limit exceeded: 600000000 bytes buffered > 500000000 bytes limit
 **Phase 8.6.4: Adaptive Chunking** can now proceed:
 
 **Dependencies satisfied**:
+
 - ✅ 8.6.1 (occupancy metrics) - Available
 - ✅ 8.6.2 (StreamStats API) - Available
 - ✅ 8.6.3 (memory bounds) - COMPLETE
 
 **8.6.4 will**:
+
 - Use occupancy metrics from 8.6.1 as tuning input
 - Respect memory limits from 8.6.3
 - Auto-adjust `chunk_size` based on backpressure
@@ -394,6 +422,7 @@ memory limit exceeded: 600000000 bytes buffered > 500000000 bytes limit
 ## Implementation Quality
 
 **Code Quality**: ⭐⭐⭐⭐⭐
+
 - Pre-enqueue strategy is clean and simple
 - Conservative memory estimation is safe
 - O(1) operations with atomic loads
@@ -401,6 +430,7 @@ memory limit exceeded: 600000000 bytes buffered > 500000000 bytes limit
 - Comprehensive documentation
 
 **Testing**: ⭐⭐⭐⭐⭐
+
 - 5 new integration tests covering all scenarios
 - Error properties validated
 - Formula validation across sizes
@@ -408,6 +438,7 @@ memory limit exceeded: 600000000 bytes buffered > 500000000 bytes limit
 - 100% pass rate
 
 **API Design**: ⭐⭐⭐⭐⭐
+
 - Minimal, intuitive builder method
 - Clear default (unbounded)
 - Comprehensive documentation
@@ -415,6 +446,7 @@ memory limit exceeded: 600000000 bytes buffered > 500000000 bytes limit
 - Actionable error messages
 
 **Architecture**: ⭐⭐⭐⭐⭐
+
 - Orthogonal to future phases
 - Clear composition with 8.6.4
 - Backward compatible
@@ -430,20 +462,25 @@ memory limit exceeded: 600000000 bytes buffered > 500000000 bytes limit
 After initial completion, three refinements were added to enhance production readiness:
 
 ### Refinement 1: Expose estimated_memory in Error Payload
+
 **Field rename**: `current` → `estimated_memory`
+
 - **Why**: Structured logging and programmatic error handling
 - **Benefit**: Clearer semantics for applications responding to limit events
 - **Impact**: Minimal (field rename, fully backward compatible at API level)
 
 ### Refinement 2: Configurable Memory Estimator Trait
+
 **New module**: `src/stream/memory_estimator.rs`
 
 **Key types**:
+
 - `MemoryEstimator` trait: pluggable estimation strategy
 - `ConservativeEstimator`: default 2KB/item (safe for typical workloads)
 - `FixedEstimator`: custom bytes/item for empirically-tuned workloads
 
 **Use case**: If measurements show your JSON averages 4KB instead of 2KB:
+
 ```rust
 // Future (8.6.5+): would allow custom estimators
 // Currently internal-only for future extensibility
@@ -452,9 +489,11 @@ After initial completion, three refinements were added to enhance production rea
 **Tests**: 5 new unit tests for estimator implementations
 
 ### Refinement 3: Soft Limit Mode (Progressive Degradation)
+
 **New method**: `QueryBuilder.memory_soft_limits(warn_threshold, fail_threshold)`
 
 **Example**:
+
 ```rust
 stream
     .max_memory(500_000_000)                // 500 MB hard limit
@@ -464,6 +503,7 @@ stream
 ```
 
 **Semantics**:
+
 - `warn_threshold` (0.0-1.0): Percentage at which warn signal would be emitted
   - Currently: documented for application-level instrumentation
   - Future: could integrate with logging/tracing frameworks
@@ -472,6 +512,7 @@ stream
   - Default: 1.0 (100% = hard limit)
 
 **Use cases**:
+
 - Progressive degradation: alert operators before hitting hard limit
 - Capacity planning: detect trends before they cause errors
 - SLO monitoring: warn when approaching memory budget
@@ -483,6 +524,7 @@ stream
 All acceptance criteria met, plus three production-focused refinements.
 
 **Final commits**:
+
 - **2fa4300**: feat(phase-8.6.3) - Core implementation
 - **cf2c5e5**: docs(phase-8.6.3) - Completion report
 - **97ba2c8**: refine(phase-8.6.3) - Three refinements

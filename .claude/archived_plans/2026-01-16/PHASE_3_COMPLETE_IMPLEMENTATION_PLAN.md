@@ -1,4 +1,5 @@
 # Phase 3: Complete Implementation Plan
+
 ## Make FraiseQL v2 Production-Ready
 
 **Timeline**: 7-10 days
@@ -11,6 +12,7 @@
 ### ✅ What Already Works
 
 **Infrastructure**:
+
 - ✅ HTTP server structure (Axum-based)
 - ✅ Routes defined (/graphql, /health, /introspection)
 - ✅ Middleware configured (CORS, tracing, compression)
@@ -23,6 +25,7 @@
 - ✅ 762 tests passing (only 1 failing optimizer test)
 
 **Core Engine**:
+
 - ✅ Query compilation
 - ✅ Window functions
 - ✅ Aggregations
@@ -33,6 +36,7 @@
 ### ❌ What's Missing
 
 **Critical Path** (Blocks other work):
+
 1. **GraphQL Executor Connection** - Wire HTTP requests → Database queries
 2. **Response Formatting** - Turn database results into GraphQL JSON
 3. **Schema Validation** - Ensure compiled schemas work
@@ -61,6 +65,7 @@
 #### 3.1.1: GraphQL Executor Integration (1.5 days)
 
 **Current State**:
+
 - `graphql_handler()` exists but only validates requests
 - Doesn't call `executor.execute()`
 - Returns validation-only responses
@@ -68,12 +73,14 @@
 **Tasks**:
 
 **3.1.1a: Request Parsing** (4 hours)
+
 - ✅ Already done! `GraphQLRequest` struct exists
 - Has: query, variables, operation_name
 - Tests pass
 
 **3.1.1b: Executor Integration** (4 hours)
 **Current**:
+
 ```rust
 // In routes/graphql.rs line 135-148
 let result = state
@@ -84,12 +91,14 @@ let result = state
 ```
 
 **Status**:
+
 - This code EXISTS but might not be complete
 - Need to verify `Executor::execute()` implementation
 - Check if it returns GraphQL-formatted JSON
 - Verify error handling
 
 **Work**:
+
 ```rust
 // Verify this path works:
 1. Call executor.execute(query, variables)
@@ -99,21 +108,25 @@ let result = state
 ```
 
 **3.1.1c: Response Formatting** (2 hours)
+
 - ✅ Already implemented! `GraphQLResponse` struct exists
 - Takes serde_json::Value and wraps it
 - Tests pass
 - Just needs to return properly formatted data
 
 **3.1.1d: Error Handling** (3 hours)
+
 - Map executor errors to GraphQL errors
 - Add error messages with proper codes
 - Return 400/500 with appropriate status codes
 
 **Files to Modify**:
+
 - `crates/fraiseql-server/src/routes/graphql.rs` - Verify executor integration
 - `crates/fraiseql-server/src/error.rs` - Add GraphQL error types if missing
 
 **Verification**:
+
 ```bash
 # Test with curl
 curl -X POST http://localhost:8000/graphql \
@@ -132,6 +145,7 @@ curl -X POST http://localhost:8000/graphql \
 #### 3.1.2: Health Check Implementation (8 hours)
 
 **Current State** (health.rs lines 49-93):
+
 - Route exists
 - Checks `executor.schema().validate()` (might not work)
 - Returns static database_type "PostgreSQL"
@@ -140,6 +154,7 @@ curl -X POST http://localhost:8000/graphql \
 **Tasks**:
 
 **3.1.2a: Real Database Connectivity Check** (4 hours)
+
 ```rust
 // Instead of: executor.schema().validate()
 // Need: executor.adapter().test_connection()
@@ -154,12 +169,14 @@ pub trait DatabaseAdapter: Send + Sync {
 ```
 
 **Work**:
+
 1. Add `health_check()` method to `DatabaseAdapter` trait
 2. Implement in all adapters (PostgreSQL, MySQL, SQLite, SQL Server)
 3. Call from health handler
 4. Return real metrics
 
 **3.1.2b: Connection Metrics** (2 hours)
+
 ```rust
 struct ConnectionMetrics {
     connected: bool,
@@ -171,10 +188,12 @@ struct ConnectionMetrics {
 ```
 
 **3.1.2c: Response Formatting** (2 hours)
+
 - ✅ Already done! `HealthResponse` and `DatabaseStatus` exist
 - Just need real data
 
 **Files to Modify**:
+
 - `crates/fraiseql-core/src/db/traits.rs` - Add `health_check()` to trait
 - `crates/fraiseql-core/src/db/postgres.rs` - Implement health check
 - `crates/fraiseql-core/src/db/mysql.rs` - Implement health check
@@ -183,6 +202,7 @@ struct ConnectionMetrics {
 - `crates/fraiseql-server/src/routes/health.rs` - Call adapter health check
 
 **Verification**:
+
 ```bash
 curl http://localhost:8000/health
 
@@ -202,12 +222,14 @@ curl http://localhost:8000/health
 #### 3.1.3: Introspection Endpoint (8 hours)
 
 **Current State** (introspection.rs):
+
 - Route exists but implementation unclear
 - Need to expose schema information
 
 **Tasks**:
 
 **3.1.3a: Schema Information Extraction** (4 hours)
+
 ```rust
 pub struct IntrospectionSchema {
     pub types: Vec<TypeInfo>,
@@ -230,6 +252,7 @@ pub struct OperationInfo {
 ```
 
 **3.1.3b: CompiledSchema Conversion** (2 hours)
+
 ```rust
 // In introspection handler:
 impl IntrospectionSchema {
@@ -244,6 +267,7 @@ impl IntrospectionSchema {
 ```
 
 **3.1.3c: Handler Implementation** (2 hours)
+
 ```rust
 pub async fn introspection_handler<A: DatabaseAdapter>(
     State(state): State<AppState<A>>,
@@ -254,9 +278,11 @@ pub async fn introspection_handler<A: DatabaseAdapter>(
 ```
 
 **Files to Modify**:
+
 - `crates/fraiseql-server/src/routes/introspection.rs` - Full implementation
 
 **Verification**:
+
 ```bash
 curl http://localhost:8000/introspection
 
@@ -284,11 +310,13 @@ curl http://localhost:8000/introspection
 #### 3.2.1: Test Infrastructure (1 day)
 
 **Create**:
+
 - `crates/fraiseql-server/tests/e2e_graphql.rs`
 - `crates/fraiseql-server/tests/e2e_health.rs`
 - `crates/fraiseql-server/tests/e2e_introspection.rs`
 
 **Test Structure**:
+
 ```rust
 #[tokio::test]
 async fn test_graphql_simple_query() {
@@ -318,6 +346,7 @@ async fn test_introspection() {
 #### 3.2.2: Test Scenarios (1 day)
 
 **GraphQL Tests**:
+
 - [ ] Simple query: `{ user { id } }`
 - [ ] Query with variables: `query($id: ID!) { user(id: $id) { name } }`
 - [ ] Multiple fields: `{ users { id name email } }`
@@ -327,12 +356,14 @@ async fn test_introspection() {
 - [ ] Performance: Parallel requests, slow queries
 
 **Health Tests**:
+
 - [ ] Status: Returns healthy/unhealthy
 - [ ] Database: Shows connected status
 - [ ] Metrics: Shows active/idle connections
 - [ ] Version: Matches package version
 
 **Introspection Tests**:
+
 - [ ] Lists all types
 - [ ] Lists all queries
 - [ ] Lists all mutations
@@ -342,6 +373,7 @@ async fn test_introspection() {
 #### 3.2.3: Test Database (1 day)
 
 **Create test schema**:
+
 ```sql
 -- Minimal test tables for E2E testing
 CREATE TABLE users (
@@ -362,6 +394,7 @@ INSERT INTO posts VALUES ('{uuid}', 'Hello World', '{user_uuid}');
 ```
 
 **Create test schema.compiled.json**:
+
 ```json
 {
   "types": [
@@ -395,17 +428,20 @@ INSERT INTO posts VALUES ('{uuid}', 'Hello World', '{user_uuid}');
 
 **Current**: Basic error framework exists
 **Needed**:
+
 - [ ] User-friendly error messages
 - [ ] Error codes (PARSE_ERROR, VALIDATION_ERROR, EXECUTION_ERROR, etc.)
 - [ ] Error suggestions/hints
 - [ ] Structured error logging
 
 **Files**:
+
 - Enhance `crates/fraiseql-server/src/error.rs`
 
 #### 3.3.2: Logging & Observability (1 day)
 
 **Implement**:
+
 - [ ] Request logging (query, variables, client)
 - [ ] Response logging (status, duration, error count)
 - [ ] Performance metrics (query duration, result size)
@@ -413,11 +449,13 @@ INSERT INTO posts VALUES ('{uuid}', 'Hello World', '{user_uuid}');
 - [ ] Tracing spans for debugging
 
 **Files**:
+
 - Enhance middleware in `crates/fraiseql-server/src/middleware/trace.rs`
 
 #### 3.3.3: Configuration & Deployment (1 day)
 
 **Create**:
+
 - [ ] `Dockerfile` - Production image
 - [ ] `docker-compose.yml` - Local dev stack
 - [ ] `.dockerignore` - Exclude unnecessary files
@@ -432,6 +470,7 @@ INSERT INTO posts VALUES ('{uuid}', 'Hello World', '{user_uuid}');
 #### 3.4.1: Documentation (2 days)
 
 **Create**:
+
 - [ ] `docs/GETTING_STARTED.md` - Quick start guide
 - [ ] `docs/ARCHITECTURE.md` - System architecture
 - [ ] `docs/API_REFERENCE.md` - HTTP API endpoints
@@ -441,6 +480,7 @@ INSERT INTO posts VALUES ('{uuid}', 'Hello World', '{user_uuid}');
 - [ ] `README.md` - Project overview
 
 **Content**:
+
 - How to compile a schema
 - How to start the server
 - How to execute queries
@@ -469,6 +509,7 @@ INSERT INTO posts VALUES ('{uuid}', 'Hello World', '{user_uuid}');
    - Filtering
 
 Each example:
+
 - `schema.json` - Generated schema
 - `schema.compiled.json` - Compiled schema
 - `queries.graphql` - Example queries
@@ -479,6 +520,7 @@ Each example:
 ## Critical Success Path
 
 **Minimum Viable Phase 3 (5 days)**:
+
 1. ✅ Verify GraphQL executor integration works
 2. ✅ Implement real health check with database ping
 3. ✅ Implement introspection endpoint
@@ -487,6 +529,7 @@ Each example:
 6. ✅ Basic documentation
 
 **Full Phase 3 (7-10 days)**:
+
 - Everything above
 - Production error handling
 - Comprehensive logging
@@ -498,11 +541,13 @@ Each example:
 ## Testing Strategy
 
 ### Unit Tests (Already Have)
+
 - ✅ 715 fraiseql-core tests
 - ✅ 23 fraiseql-server tests
 - Total: 738 tests
 
 ### Integration Tests (Phase 3.2 - Need)
+
 - [ ] HTTP → Database flow (20 tests)
 - [ ] Health check scenarios (5 tests)
 - [ ] Introspection scenarios (5 tests)
@@ -510,10 +555,12 @@ Each example:
 - Total: ~40 new tests
 
 ### E2E Tests (Can Leverage)
+
 - ✅ velocitybench_compilation_test.py (10 languages)
 - Already proves semantic equivalence
 
 ### Performance Tests (Phase 4+)
+
 - [ ] Query performance benchmarks
 - [ ] Concurrent request handling
 - [ ] Large result set handling
@@ -536,30 +583,35 @@ Each example:
 ## Definition of Done: Phase 3
 
 ✅ **Implementation**:
+
 - [ ] Executor integration verified and tested
 - [ ] Health check with real database connectivity
 - [ ] Introspection endpoint functional
 - [ ] All routes integrated and working
 
 ✅ **Testing**:
+
 - [ ] 40+ integration tests pass
 - [ ] 100% route coverage
 - [ ] Error scenarios handled
 - [ ] Performance acceptable
 
 ✅ **Documentation**:
+
 - [ ] 20+ pages of docs
 - [ ] 5 example schemas with queries
 - [ ] API reference complete
 - [ ] Deployment guides (Docker, Kubernetes)
 
 ✅ **Quality**:
+
 - [ ] No compiler warnings
 - [ ] All tests pass
 - [ ] Code reviewed
 - [ ] Linting passes (Clippy)
 
 ✅ **Deliverables**:
+
 - [ ] Working GraphQL server
 - [ ] Can execute queries end-to-end
 - [ ] Health monitoring
@@ -573,6 +625,7 @@ Each example:
 **Phase 3 is complete when**:
 
 1. **Functional**:
+
 ```bash
 curl -X POST http://localhost:8000/graphql \
   -H "Content-Type: application/json" \
@@ -582,6 +635,7 @@ curl -X POST http://localhost:8000/graphql \
 ```
 
 2. **Healthy**:
+
 ```bash
 curl http://localhost:8000/health
 
@@ -589,6 +643,7 @@ curl http://localhost:8000/health
 ```
 
 3. **Introspectable**:
+
 ```bash
 curl http://localhost:8000/introspection
 
@@ -596,11 +651,13 @@ curl http://localhost:8000/introspection
 ```
 
 4. **Tested**:
+
 - `cargo test` - All 800+ tests pass
 - E2E tests demonstrate real queries work
 - Error handling verified
 
 5. **Documented**:
+
 - User can start server from README
 - User can execute queries from examples
 - User can deploy with Docker/Kubernetes

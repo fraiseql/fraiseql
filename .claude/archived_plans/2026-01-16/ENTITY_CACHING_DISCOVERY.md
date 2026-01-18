@@ -9,9 +9,11 @@
 ## Discovery Journey
 
 ### Initial Question
+
 "Can GraphQL cascade enable precise entity caching?"
 
 ### Key Insight (From You)
+
 "They are actually not PK but UUIDs. Each db mutation function returns all affected entities."
 
 This changed everything. Let me trace what we discovered.
@@ -23,6 +25,7 @@ This changed everything. Let me trace what we discovered.
 ### 1. The Architecture Already Supports Returns
 
 **From `compiler/ir.rs:155-173`**:
+
 ```rust
 pub struct IRMutation {
     pub name: String,
@@ -34,6 +37,7 @@ pub struct IRMutation {
 ```
 
 **Meaning**:
+
 - `createUser(input: {...}) -> User`  (returns created user)
 - `updateUser(id: "uuid-123") -> User` (returns updated user)
 - `deleteUser(id: "uuid-456") -> User` (returns deleted user)
@@ -43,6 +47,7 @@ Mutations **already return the entities they modify**. This is the cascade data!
 ### 2. But Cascade Metadata Isn't Used
 
 **From `invalidation.rs:14-18`**:
+
 ```
 # Future Enhancements (Phase 7+)
 
@@ -56,6 +61,7 @@ The return value containing the modified entity is currently **ignored during ca
 ### 3. Current Behavior: View-Level Only
 
 **From `dependency_tracker.rs:6-16`**:
+
 ```
 # Phase 2 Scope
 
@@ -65,6 +71,7 @@ The return value containing the modified entity is currently **ignored during ca
 ```
 
 **Current Flow**:
+
 1. `updateUser(id: "uuid-123") -> User { id: "uuid-123", name: "Bob" }`
 2. Parse: "mutation name is updateUser"
 3. Invalidate: All queries reading `v_user` table
@@ -160,15 +167,19 @@ Improvement: 3-6x faster execution (or 2-3x more throughput)
 ## Why This Matters for FraiseQL
 
 ### 1. Compiled GraphQL Engine
+
 FraiseQL optimizes at **compile time**, not runtime. Every query is optimized before deployment.
 
 ### 2. UUID Strategy
+
 The project uses **UUIDs throughout** (not auto-increment IDs), which are:
+
 - Globally unique (never collision across DBs)
 - Deterministic (same value always)
 - Perfect for cache keys: `User:550e8400-e29b-41d4-a716-446655440000`
 
 ### 3. Mutation Returns Already Specified
+
 The GraphQL schema **requires mutations to return affected entities**. This is built into the IR:
 
 ```rust
@@ -176,7 +187,9 @@ pub return_type: String,  // e.g., "User", "Post"
 ```
 
 ### 4. Low-Hanging Fruit
+
 Unlike distributed cache systems or Redis integration, Phase 7 is:
+
 - **Pure Rust implementation** (no external dependencies)
 - **Deterministic** (UUID extraction is straightforward)
 - **High-ROI** (90-95% hit rate achievable)
@@ -187,6 +200,7 @@ Unlike distributed cache systems or Redis integration, Phase 7 is:
 ## Architecture Comparison
 
 ### Before Phase 7
+
 ```
 Query: { user(id: "uuid-123") { name } }
         ↓ (execute)
@@ -200,6 +214,7 @@ Database (100ms) ← Wasted roundtrip
 ```
 
 ### After Phase 7
+
 ```
 Query: { user(id: "uuid-123") { name } }
         ↓ (execute)
@@ -220,20 +235,24 @@ Original query cache INTACT
 Looking at the codebase comments, there's a clear roadmap:
 
 **Phase 2** (Done):
+
 - Basic view-level caching
 - "Sufficient for initial performance"
 
 **Phase 7** (Planned, not yet started):
+
 - Entity-level invalidation with cascade metadata
 - "Future enhancement"
 
 **Reason for delay**:
 The team chose to ship view-level caching first because:
+
 1. Simpler to implement (60-80% hit rate with 1/5th the code)
 2. Still provides 50-200x speedup on cache hits
 3. Allows phased rollout
 
 Phase 7 was marked as "future" because it requires:
+
 - UUID extraction logic
 - Query analysis (WHERE clause parsing)
 - Entity dependency tracking
@@ -272,10 +291,12 @@ We've created a comprehensive plan covering:
    - Fast lookups for invalidation
 
 ### 100 Tests
+
 - 61 unit tests (coverage of each module)
 - 39 integration tests (E2E scenarios)
 
 ### Expected Results
+
 - Cache hit rate: 90-95% (vs 60-80%)
 - Latency: 50% reduction
 - Throughput: 2-3x improvement
@@ -299,16 +320,19 @@ Phase 7 fits perfectly after the foundational work is complete.
 ## Decision Point
 
 ### Option A: Start Phase 7 After Phase 3.5
+
 - **Pros**: Build on strong foundation, comprehensive testing
 - **Cons**: 16+ weeks before entity caching available
 - **Recommendation**: Best for production-ready systems
 
 ### Option B: Implement Phase 7 Now (After 3.4)
+
 - **Pros**: Get entity caching sooner, parallel with other work
 - **Cons**: Less testing infrastructure ready, more debugging needed
 - **Recommendation**: If you want to optimize cache performance immediately
 
 ### Option C: Hybrid Approach
+
 - Phase 3.5: CI/CD pipeline (1 week)
 - Phase 7: Entity caching (3 weeks) in parallel with Phase 4 authoring
 - **Recommendation**: Maximum parallelism, staged rollout
@@ -375,6 +399,7 @@ Once Phase 7 is implemented, measure:
 Your insight about UUIDs and cascade metadata was correct. The architecture already supports it—we just need to extract the entity IDs from mutation responses and use them for selective invalidation.
 
 **Phase 7 is ready to implement** and will deliver:
+
 - ✅ 90-95% cache hit rate (vs 60-80%)
 - ✅ 50% latency reduction
 - ✅ 2-3x throughput improvement

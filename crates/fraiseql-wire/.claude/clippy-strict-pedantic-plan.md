@@ -1,9 +1,11 @@
 # Clippy Strict Pedantic Compliance Plan
 
 ## Objective
+
 Make fraiseql-wire pass `cargo clippy -- -D warnings -W clippy::pedantic` without errors.
 
 ## Current Status
+
 - **Total Violations**: 496 errors across entire codebase
 - **Violations in operators module**: ~31 missing documentation errors (newly created code)
 - **Violations in existing code**: ~465 errors in protocol, auth, stream, connection, metrics, util modules
@@ -24,11 +26,13 @@ Make fraiseql-wire pass `cargo clippy -- -D warnings -W clippy::pedantic` withou
 ### Geographic Distribution
 
 **Operators Module** (newly created, ~31 errors):
+
 - Missing struct field documentation: ~31 errors
 - Unused import: 1 error
 - All violations are in `where_operator.rs` and `field.rs`
 
 **Existing Codebase** (~465 errors):
+
 - `auth/scram.rs`: Format strings, must_use, error docs
 - `connection/conn.rs`: Unused variables, assignments, format strings
 - `stream/`: Dead code fields, format strings, must_use
@@ -39,9 +43,11 @@ Make fraiseql-wire pass `cargo clippy -- -D warnings -W clippy::pedantic` withou
 ## Implementation Strategy
 
 ### Phase 1: Fix Operators Module (Quick Win) - ~1 hour
+
 **Goal**: Make newly-created operators module fully compliant
 
 **Tasks**:
+
 1. **Remove unused import** in `where_operator.rs:7`
    - Remove: `use super::order_by::FieldSource;`
    - Impact: 1 error fixed
@@ -50,10 +56,12 @@ Make fraiseql-wire pass `cargo clippy -- -D warnings -W clippy::pedantic` withou
    - Files: `where_operator.rs`, `field.rs`, `order_by.rs`
    - Add doc comments for each field in enums and structs
    - Pattern:
+
      ```rust
      /// Description of what this field represents
      field: Type,
      ```
+
    - Expected lines to add: ~150-200 lines of documentation
    - Violations fixed: ~31 errors
 
@@ -66,6 +74,7 @@ Make fraiseql-wire pass `cargo clippy -- -D warnings -W clippy::pedantic` withou
 This handles the bulk of violations in the existing, pre-operators code.
 
 #### Phase 2a: Low-Hanging Fruit - Documentation Fixes (~1.5 hours)
+
 1. **Backticks in documentation** (120 errors)
    - Find: Documentation items missing backticks
    - Fix: Wrap code items in backticks (e.g., `` `Field` ``, `` `JsonStream` ``)
@@ -75,6 +84,7 @@ This handles the bulk of violations in the existing, pre-operators code.
    - Find: Functions returning `Result` without error docs
    - Fix: Add `# Errors` section to doc comments
    - Pattern:
+
      ```rust
      /// Does something.
      ///
@@ -88,11 +98,13 @@ This handles the bulk of violations in the existing, pre-operators code.
    - Fix: Add `# Panics` section if panics are intentional
 
 #### Phase 2b: Format String Modernization (~1 hour)
+
 1. **Variables directly in format strings** (95 errors)
    - Find: `format!("{}", var)` style
    - Fix: Use inline syntax: `format!("{var}")`
    - Script approach: Can be automated with regex replacements
    - Example:
+
      ```rust
      // Before
      write!(f, "Error: {}", msg)
@@ -102,10 +114,12 @@ This handles the bulk of violations in the existing, pre-operators code.
      ```
 
 #### Phase 2c: `#[must_use]` Attributes (~67 errors)
+
 1. **Methods without `#[must_use]`** (44 errors)
    - Find: Methods that return `T` and are commonly forgotten
    - Fix: Add `#[must_use]` attribute
    - Pattern:
+
      ```rust
      #[must_use]
      pub fn method(&self) -> Result<String> { ... }
@@ -116,6 +130,7 @@ This handles the bulk of violations in the existing, pre-operators code.
    - Fix: Add `#[must_use = "builder method returns Self, should be used in a chain or assigned"]`
 
 #### Phase 2d: Dead Code Cleanup (~13 errors)
+
 1. **Unused fields** (6-8 errors)
    - Evaluate: Are they truly unused or are they used by serialization/debug derives?
    - Options:
@@ -130,6 +145,7 @@ This handles the bulk of violations in the existing, pre-operators code.
    - Evaluate: Remove or mark with `#[allow(dead_code)]`
 
 #### Phase 2e: Other Violations (~10 errors)
+
 1. **Numeric precision warnings** (13 errors)
    - Type: `u64` to `f64` cast precision loss
    - Fix: Either accept loss with comment or use alternative type
@@ -146,12 +162,14 @@ This handles the bulk of violations in the existing, pre-operators code.
 ### Phase 3: Configuration & Verification (~30 minutes)
 
 1. **Add clippy configuration to Cargo.toml or lib.rs**
+
    ```rust
    #![deny(clippy::pedantic)]
    #![allow(clippy::module_name_repetitions)] // If needed for naming conventions
    ```
 
 2. **Run full verification**
+
    ```bash
    cargo clippy -- -D warnings -W clippy::pedantic
    cargo test
@@ -166,6 +184,7 @@ This handles the bulk of violations in the existing, pre-operators code.
 ### Order (Recommended Execution Sequence)
 
 **Day 1 - Morning (Phase 1 & 2a)** (~2-3 hours):
+
 1. ✅ Fix operators module (31 violations)
 2. ✅ Add backticks in documentation (120 violations)
 3. ✅ Add missing `# Errors` sections (39 violations)
@@ -184,16 +203,19 @@ This handles the bulk of violations in the existing, pre-operators code.
 ## Risk Assessment
 
 **Low Risk**:
+
 - Documentation additions (comments only)
 - Format string modernization (no semantic change)
 - `#[must_use]` additions (no semantic change)
 - Prefixing unused variables with `_` (no semantic change)
 
 **Medium Risk**:
+
 - Removing truly unused fields/methods (verify they're not used elsewhere)
 - Dead code cleanup (might affect serialization/derives)
 
 **Verification Strategy**:
+
 - Run `cargo test` after each phase
 - Use `cargo clippy --fix` for auto-fixable issues where appropriate
 - Manual review of risky changes
@@ -208,6 +230,7 @@ This handles the bulk of violations in the existing, pre-operators code.
 ## Files That Will Need Changes (By Module)
 
 **Must Change**:
+
 - `src/operators/where_operator.rs` - Add 30+ field docs
 - `src/operators/field.rs` - Add field docs
 - `src/operators/order_by.rs` - Add field docs
@@ -218,12 +241,14 @@ This handles the bulk of violations in the existing, pre-operators code.
 - Multiple files - Backticks in docs, errors sections
 
 **Likely Changes**:
+
 - `src/metrics/*.rs`
 - `src/util/*.rs`
 - `src/client/*.rs`
 - `src/json/*.rs`
 
 **Unlikely Changes**:
+
 - `src/lib.rs` (main library exports)
 
 ## Estimated Effort
@@ -242,11 +267,13 @@ This handles the bulk of violations in the existing, pre-operators code.
 ## Tools & Automation
 
 **Can Use**:
+
 - `cargo clippy --fix` - Auto-fixes some violations
 - Search & replace - For systematic format string fixes
 - Script to add missing doc sections
 
 **Cannot Use**:
+
 - Full automation (requires understanding context)
 
 ## Notes

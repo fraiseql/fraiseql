@@ -26,6 +26,7 @@ FraiseQL provides three introspection policies to balance developer experience w
 ### DISABLED Policy (Production)
 
 **Configuration**:
+
 ```python
 from fraiseql import FraiseQLConfig
 from fraiseql.security.profiles.definitions import IntrospectionPolicy
@@ -37,11 +38,13 @@ config = FraiseQLConfig(
 ```
 
 **Environment Variable**:
+
 ```bash
 export FRAISEQL_INTROSPECTION_POLICY=disabled
 ```
 
 **Behavior**:
+
 - ❌ No introspection queries allowed
 - ❌ Blocks `__schema` queries
 - ❌ Blocks `__type` queries
@@ -51,6 +54,7 @@ export FRAISEQL_INTROSPECTION_POLICY=disabled
 - ✅ Suitable for production/public APIs
 
 **Client Request** (rejected):
+
 ```graphql
 query {
   __schema {
@@ -62,6 +66,7 @@ query {
 ```
 
 **Server Response**:
+
 ```json
 {
   "errors": [{
@@ -74,6 +79,7 @@ query {
 ```
 
 **Use Cases**:
+
 - Production GraphQL APIs
 - Public-facing APIs with untrusted clients
 - Regulated industries (financial, healthcare)
@@ -81,6 +87,7 @@ query {
 - APIs where schema should not be exposed
 
 **Security Benefits**:
+
 - Prevents schema reconnaissance by attackers
 - Hides available mutations and their signatures
 - Blocks query complexity analysis via introspection
@@ -89,6 +96,7 @@ query {
 ### AUTHENTICATED Policy (Default for STANDARD)
 
 **Configuration**:
+
 ```python
 config = FraiseQLConfig(
     database_url="postgresql://localhost/fraiseql_db",
@@ -97,11 +105,13 @@ config = FraiseQLConfig(
 ```
 
 **Environment Variable**:
+
 ```bash
 export FRAISEQL_INTROSPECTION_POLICY=authenticated
 ```
 
 **Behavior**:
+
 - ✅ Introspection allowed only for authenticated users
 - ✅ Requires valid authentication (JWT, OAuth, etc.)
 - ❌ Unauthenticated users blocked
@@ -109,6 +119,7 @@ export FRAISEQL_INTROSPECTION_POLICY=authenticated
 - ✅ Production API consumed by internal/trusted clients
 
 **Client Request** (unauthenticated):
+
 ```graphql
 query {
   __type(name: "User") {
@@ -119,6 +130,7 @@ query {
 ```
 
 **Server Response** (unauthenticated):
+
 ```json
 {
   "errors": [{
@@ -132,6 +144,7 @@ query {
 ```
 
 **Client Request** (authenticated):
+
 ```graphql
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 
@@ -147,6 +160,7 @@ query {
 ```
 
 **Server Response** (authenticated - success):
+
 ```json
 {
   "data": {
@@ -163,6 +177,7 @@ query {
 ```
 
 **Use Cases**:
+
 - Staging environments
 - Internal company APIs
 - APIs with trusted internal clients
@@ -171,6 +186,7 @@ query {
 - GraphQL playgrounds for internal tools
 
 **Security Characteristics**:
+
 - Prevents external schema reconnaissance
 - Allows internal development tools to function
 - Requires credential possession (authentication)
@@ -179,6 +195,7 @@ query {
 ### PUBLIC Policy (Development Only)
 
 **Configuration**:
+
 ```python
 config = FraiseQLConfig(
     database_url="postgresql://localhost/fraiseql_db",
@@ -187,17 +204,20 @@ config = FraiseQLConfig(
 ```
 
 **Environment Variable**:
+
 ```bash
 export FRAISEQL_INTROSPECTION_POLICY=public
 ```
 
 **Behavior**:
+
 - ✅ Introspection allowed for all clients
 - ✅ No authentication required
 - ✅ Full schema disclosure
 - ✅ Developer-friendly (supports IDE tooling, Apollo Studio, etc.)
 
 **Client Request**:
+
 ```graphql
 query {
   __schema {
@@ -212,6 +232,7 @@ query {
 ```
 
 **Server Response** (success):
+
 ```json
 {
   "data": {
@@ -240,6 +261,7 @@ query {
 ```
 
 **Use Cases**:
+
 - Local development
 - CI/CD test environments
 - Public/open source APIs
@@ -289,6 +311,7 @@ export FRAISEQL_INTROSPECTION_POLICY=disabled
 ```
 
 **Default Behavior**:
+
 - Development: PUBLIC
 - Staging: AUTHENTICATED
 - Production: DISABLED
@@ -301,6 +324,7 @@ export FRAISEQL_INTROSPECTION_POLICY=disabled
 FraiseQL's pre-configured security profiles automatically set appropriate introspection policies:
 
 ### STANDARD Profile
+
 - Introspection Policy: **AUTHENTICATED**
 - TLS: Optional
 - Audit: Standard
@@ -308,6 +332,7 @@ FraiseQL's pre-configured security profiles automatically set appropriate intros
 - Suitable for: Development, staging, trusted internal users
 
 ### REGULATED Profile
+
 - Introspection Policy: **DISABLED**
 - TLS: Required (1.2+)
 - Audit: Enhanced with field tracking
@@ -315,6 +340,7 @@ FraiseQL's pre-configured security profiles automatically set appropriate intros
 - Suitable for: Financial services, healthcare, PCI-DSS compliance
 
 ### RESTRICTED Profile
+
 - Introspection Policy: **DISABLED**
 - TLS: Required (1.3+)
 - mTLS: Required
@@ -363,6 +389,7 @@ FraiseQL detects introspection queries using pattern matching on reserved GraphQ
 FraiseQL blocks queries containing any of these patterns:
 
 - **`__schema`** - Schema type
+
   ```graphql
   query {
     __schema { types { name } }
@@ -370,6 +397,7 @@ FraiseQL blocks queries containing any of these patterns:
   ```
 
 - **`__type`** - Specific type inspection
+
   ```graphql
   query {
     __type(name: "User") { name fields { name } }
@@ -377,6 +405,7 @@ FraiseQL blocks queries containing any of these patterns:
   ```
 
 - **`__typename`** - Type name of objects
+
   ```graphql
   query {
     users {
@@ -388,6 +417,7 @@ FraiseQL blocks queries containing any of these patterns:
   ```
 
 - **`__directive`** - Directive inspection
+
   ```graphql
   query {
     __schema {
@@ -399,6 +429,7 @@ FraiseQL blocks queries containing any of these patterns:
 ### Detection Behavior
 
 **Case Insensitive**: Detection is case-insensitive
+
 ```graphql
 # All of these are detected and blocked:
 query { __schema { ... } }
@@ -407,6 +438,7 @@ query { __Schema { ... } }
 ```
 
 **Mixed Queries**: Introspection combined with regular queries is blocked
+
 ```graphql
 # Blocked (contains introspection)
 query {
@@ -627,23 +659,27 @@ for field_name, field_info in description["fields"].items():
 When introspection is disabled, clients need alternative ways to discover the schema:
 
 **1. Automatic Persisted Queries (APQ)**
+
 - Queries pre-registered at build time
 - Client sends only hash, not full query
 - No introspection needed
 - See: [Persisted Queries Specification](persisted-queries.md)
 
 **2. Static Schema Export**
+
 ```bash
 # Export schema at build time
 fraiseql schema export --format graphql --output schema.graphql
 ```
 
 **3. API Documentation Site**
+
 - Host schema documentation on separate website
 - Markdown, HTML, or interactive explorer
 - Updated with each release
 
 **4. GraphQL Code Generation**
+
 ```bash
 # Generate TypeScript types from schema (during build)
 graphql-codegen --config codegen.yml
@@ -665,6 +701,7 @@ logger = SecurityLogger(
 ```
 
 **Log Example**:
+
 ```json
 {
   "timestamp": "2025-01-11T10:30:45Z",
@@ -832,6 +869,7 @@ config = FraiseQLConfig(
 ```
 
 **Environment Variables**:
+
 ```bash
 FRAISEQL_ENVIRONMENT=development
 FRAISEQL_INTROSPECTION_POLICY=public
@@ -851,6 +889,7 @@ config = FraiseQLConfig(
 ```
 
 **Environment Variables**:
+
 ```bash
 FRAISEQL_ENVIRONMENT=staging
 FRAISEQL_INTROSPECTION_POLICY=authenticated
@@ -874,6 +913,7 @@ config = FraiseQLConfig(
 ```
 
 **Environment Variables**:
+
 ```bash
 FRAISEQL_ENVIRONMENT=production
 FRAISEQL_INTROSPECTION_POLICY=disabled
@@ -949,6 +989,7 @@ query {
   }
 }
 ```
+
 ```
 
 ---

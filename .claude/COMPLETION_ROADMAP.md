@@ -39,16 +39,19 @@ Python decorators → schema.json → fraiseql-cli compile → schema.compiled.j
 ### Priority 1: Production Readiness ✅ COMPLETE
 
 #### 1.1 Fix Compilation Warnings ✅
+
 - Code compiles and builds cleanly
 - All tests pass (759+ in fraiseql-core, 74 in fraiseql-server)
 - `cargo build --all-targets --workspace` completes successfully
 
 #### 1.2 Clean Up Python SDK ✅
+
 - Using `uv` for package management
 - `uv.lock` tracked in git
 - All 34 tests passing
 
 #### 1.3 Clean Up TypeScript SDK ✅
+
 - Using `bun` for package management
 - `bun.lock` tracked in git
 - All 10 tests passing
@@ -61,17 +64,20 @@ Python decorators → schema.json → fraiseql-cli compile → schema.compiled.j
 The documentation is already comprehensive with 48+ documents totaling 53,000+ lines:
 
 #### 2.1 Getting Started ✅
+
 - Main `README.md` (863 lines) - Complete quick start guide
 - `docs/README.md` - Documentation index with reading paths
 - `docs/reading-order.md` - Curated reading paths by role
 
 #### 2.2 API Reference ✅
+
 - `docs/reference/scalars.md` - 56 custom scalar types
 - `docs/reference/where-operators.md` - 150+ WHERE operators
 - `docs/specs/compiled-schema.md` - Runtime contract
 - `docs/specs/authoring-contract.md` - SDK authoring guide
 
 #### 2.3 Architecture Overview ✅
+
 - `docs/architecture/` - Complete architecture documentation
   - `compilation-pipeline.md` - 6-phase compilation
   - `execution-model.md` - Query execution flow
@@ -93,6 +99,7 @@ All database adapters are fully implemented and compile successfully:
 | SQL Server | ✅ Complete | tiberius + bb8 | `sqlserver` |
 
 **Build with features:**
+
 ```bash
 cargo build --features "mysql,sqlite,sqlserver"  # All adapters
 cargo check -p fraiseql-core --features "mysql,sqlite,sqlserver"  # Verified ✅
@@ -101,6 +108,7 @@ cargo check -p fraiseql-core --features "mysql,sqlite,sqlserver"  # Verified ✅
 ### 3.2 Example Applications ✅ COMPLETE
 
 Created `examples/basic/` with:
+
 - `schema.py` - Python SDK schema definition
 - `schema.json` - Intermediate schema
 - `sql/setup.sql` - PostgreSQL tables, views, sample data
@@ -114,39 +122,48 @@ Created `examples/basic/` with:
 ### Future Enhancements
 
 #### Database Integration Testing
+
 **Effort**: 4-6 hours per database
 
 Integration tests that run against real databases:
+
 - Docker Compose setup for MySQL, SQLite, SQL Server
 - CI matrix for multi-database testing
 - Performance benchmarks per database
 
 **Implementation path**:
+
 1. Create Docker Compose config for each database
 2. Add test setup scripts
 3. Write integration tests
 4. Add to CI matrix
 
 #### 3.2 Database-Agnostic Test Suite
+
 **Effort**: 4-6 hours
 
 Create tests that run against any database adapter:
+
 - Abstract test fixtures
 - Database-agnostic assertions
 - CI matrix for multiple databases
 
 #### 3.3 Example Applications
+
 **Effort**: 4-6 hours
 
 Create `examples/` directory with:
+
 - `basic/` - Simple User/Post schema
 - `analytics/` - Fact tables and aggregations
 - `full-stack/` - Python backend + compiled schema
 
 #### 3.4 Performance Benchmarks Documentation
+
 **Effort**: 1-2 hours
 
 Document benchmark results and how to run them:
+
 ```bash
 cargo bench -p fraiseql-server --bench performance_benchmarks
 ```

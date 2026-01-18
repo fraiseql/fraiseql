@@ -31,6 +31,7 @@ cargo run -p fraiseql-server
 ### Development Environment Setup
 
 Create `.env.dev`:
+
 ```bash
 # Server Configuration
 FRAISEQL_HOST=127.0.0.1
@@ -56,6 +57,7 @@ RUST_LOG=debug
 ```
 
 Load environment:
+
 ```bash
 source .env.dev
 cargo run -p fraiseql-server
@@ -64,6 +66,7 @@ cargo run -p fraiseql-server
 ### Local Database Setup
 
 PostgreSQL (with Docker):
+
 ```bash
 docker run --name fraiseql-dev \
   -e POSTGRES_DB=fraiseql_dev \
@@ -80,6 +83,7 @@ psql -h localhost -U devuser -d fraiseql_dev -c "SELECT 1"
 ```
 
 SQLite (simplest for testing):
+
 ```bash
 # Create in-memory database for testing
 DATABASE_URL=sqlite::memory: cargo run -p fraiseql-server
@@ -90,6 +94,7 @@ DATABASE_URL=sqlite::memory: cargo run -p fraiseql-server
 ### Build Docker Image
 
 Create `Dockerfile`:
+
 ```dockerfile
 # Builder stage
 FROM rust:1.75 as builder
@@ -133,6 +138,7 @@ CMD ["fraiseql-server"]
 ```
 
 Build image:
+
 ```bash
 docker build -t fraiseql-server:v2.0 .
 ```
@@ -152,6 +158,7 @@ docker run -d \
 ### Docker Compose (Development)
 
 Create `docker-compose.yml`:
+
 ```yaml
 version: '3.8'
 
@@ -199,6 +206,7 @@ volumes:
 ```
 
 Start services:
+
 ```bash
 docker-compose up -d
 
@@ -221,6 +229,7 @@ docker-compose down
 ### ConfigMap (Configuration)
 
 Create `k8s/configmap.yaml`:
+
 ```yaml
 apiVersion: v1
 kind: ConfigMap
@@ -241,6 +250,7 @@ data:
 ### Secret (Database Credentials)
 
 Create `k8s/secret.yaml`:
+
 ```yaml
 apiVersion: v1
 kind: Secret
@@ -255,6 +265,7 @@ stringData:
 ### Deployment
 
 Create `k8s/deployment.yaml`:
+
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -348,6 +359,7 @@ spec:
 ### Service
 
 Create `k8s/service.yaml`:
+
 ```yaml
 apiVersion: v1
 kind: Service
@@ -396,11 +408,13 @@ curl http://localhost:8000/health
 ### ECS (Elastic Container Service)
 
 1. **Create ECR Repository**:
+
 ```bash
 aws ecr create-repository --repository-name fraiseql-server
 ```
 
 2. **Push Image**:
+
 ```bash
 docker tag fraiseql-server:v2.0 {account}.dkr.ecr.us-east-1.amazonaws.com/fraiseql-server:v2.0
 aws ecr get-login-password | docker login --username AWS --password-stdin {account}.dkr.ecr.us-east-1.amazonaws.com
@@ -408,6 +422,7 @@ docker push {account}.dkr.ecr.us-east-1.amazonaws.com/fraiseql-server:v2.0
 ```
 
 3. **Create RDS Database**:
+
 ```bash
 aws rds create-db-instance \
   --db-instance-identifier fraiseql-prod \
@@ -418,6 +433,7 @@ aws rds create-db-instance \
 ```
 
 4. **Create ECS Task Definition** (in AWS Console):
+
 - Container image: ECR URL
 - Memory: 512 MB
 - CPU: 256 units
@@ -425,6 +441,7 @@ aws rds create-db-instance \
 - Port mappings: 8000:8000
 
 5. **Create ECS Service**:
+
 ```bash
 aws ecs create-service \
   --cluster fraiseql-prod \
@@ -442,6 +459,7 @@ Not recommended for FraiseQL due to connection pooling and persistent connection
 ### Cloud Run
 
 1. **Build and Push**:
+
 ```bash
 gcloud builds submit --tag gcr.io/PROJECT_ID/fraiseql-server
 
@@ -451,6 +469,7 @@ docker push gcr.io/PROJECT_ID/fraiseql-server:v2.0
 ```
 
 2. **Deploy**:
+
 ```bash
 gcloud run deploy fraiseql-server \
   --image gcr.io/PROJECT_ID/fraiseql-server:v2.0 \
@@ -465,6 +484,7 @@ gcloud run deploy fraiseql-server \
 ### GKE (Google Kubernetes Engine)
 
 Follow Kubernetes section above, then:
+
 ```bash
 gcloud container clusters create fraiseql-cluster \
   --num-nodes 3 \
@@ -550,6 +570,7 @@ fraiseql_connection_pool_idle
 ### Server Won't Start
 
 Check logs:
+
 ```bash
 # Docker
 docker logs fraiseql
@@ -562,6 +583,7 @@ RUST_LOG=debug cargo run -p fraiseql-server
 ```
 
 Common issues:
+
 - Schema file not found: Check `FRAISEQL_SCHEMA_PATH`
 - Database unreachable: Check `DATABASE_URL` and network connectivity
 - Port already in use: Change `FRAISEQL_PORT`
@@ -569,16 +591,19 @@ Common issues:
 ### High Latency
 
 1. Check database performance:
+
 ```sql
 SELECT * FROM pg_stat_statements ORDER BY mean_time DESC LIMIT 10;
 ```
 
 2. Monitor connection pool:
+
 ```bash
 curl http://localhost:8000/health | jq .database.connection_pool
 ```
 
 3. Check query complexity:
+
 - Simplify queries
 - Add pagination
 - Use field selection (don't fetch all fields)
@@ -594,6 +619,7 @@ curl http://localhost:8000/health | jq .database.connection_pool
 ### Horizontal Scaling
 
 Add more replicas:
+
 ```yaml
 # Kubernetes
 replicas: 5
@@ -607,6 +633,7 @@ Connection pool scales across instances (no coordination needed).
 ### Vertical Scaling
 
 Increase resources:
+
 ```yaml
 resources:
   limits:
@@ -634,6 +661,7 @@ docker service rollback fraiseql-server
 ### Manual
 
 Keep previous image tags:
+
 ```bash
 docker run -p 8000:8000 fraiseql-server:v1.9  # Previous version
 ```

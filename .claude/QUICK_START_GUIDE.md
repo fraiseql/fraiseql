@@ -15,6 +15,7 @@ Building complete E2E testing infrastructure for 5 language generators (Python, 
 ## 📋 Quick Checklist
 
 ### Day 1: Quick Fixes (5-6 hours)
+
 - [ ] **Python**: `pip install -e fraiseql-python/` → 7 tests pass
 - [ ] **TypeScript**: Edit tsconfig.json → 10 tests + 2 examples pass
 - [ ] **Java**: `sudo pacman -S maven` → 82 tests pass
@@ -23,17 +24,20 @@ Building complete E2E testing infrastructure for 5 language generators (Python, 
 - [ ] **CLI**: Investigate schema format issue (2-4 hours) → document findings
 
 ### Days 2-3: E2E Infrastructure (8-9 hours)
+
 - [ ] Create E2E test files (Python, TypeScript, Java, Go, PHP)
 - [ ] Add Makefile E2E targets
 - [ ] Set up GitHub Actions workflow (.github/workflows/e2e-tests.yml)
 - [ ] Test locally: `make e2e-setup` → `make e2e-go`
 
 ### Day 3-4: CLI Integration (1-2 hours)
+
 - [ ] Implement CLI schema format fix
 - [ ] Verify all 5 languages compile
 - [ ] Update E2E tests for runtime execution
 
 ### Day 4-5: Documentation (2-3 hours)
+
 - [ ] Update README.md
 - [ ] Create docs/language-generators.md
 - [ ] Create docs/e2e-testing.md
@@ -143,6 +147,7 @@ done
 At the end, you should have:
 
 ✅ **5 languages with passing tests**:
+
 - Python: 7/7 tests
 - TypeScript: 10/10 tests + 2 examples
 - Java: 82/82 tests
@@ -150,16 +155,19 @@ At the end, you should have:
 - PHP: 40+/40+ tests
 
 ✅ **CLI working**:
+
 - All 5 generators produce valid schema.json
 - fraiseql-cli compiles all schemas
 - schema.compiled.json generated
 
 ✅ **E2E infrastructure**:
+
 - `make e2e-all` runs successfully
 - GitHub Actions workflow active
 - Docker containers automated
 
 ✅ **Documentation**:
+
 - README updated
 - Language generator guides created
 - E2E testing documented
@@ -169,6 +177,7 @@ At the end, you should have:
 ## 🔧 Key Files to Edit/Create
 
 ### Phase 1: No file edits needed
+
 (Just run commands)
 
 ### Phase 2: Create these files
@@ -191,6 +200,7 @@ fraiseql/
 ```
 
 ### Phase 3: Edit (based on CLI investigation)
+
 ```
 fraiseql-python/src/fraiseql/schema.py  (Maybe)
 fraiseql-typescript/src/schema.ts       (Maybe)
@@ -243,7 +253,7 @@ A: After this, you might want to do package releases (PyPI, NPM, Maven, etc.) in
 
 ---
 
-## 🎬 Let's Get Started!
+## 🎬 Let's Get Started
 
 1. **Read**: IMPLEMENTATION_PLAN.md (15 minutes)
 2. **Do**: Phase 1 Task 1.1 - Python pip install (5 minutes)

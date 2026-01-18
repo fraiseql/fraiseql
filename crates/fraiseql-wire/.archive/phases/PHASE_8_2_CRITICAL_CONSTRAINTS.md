@@ -13,6 +13,7 @@ Without explicit boundaries, future contributors might think:
 > "Typed streaming means we can use type information to optimize SQL, filtering, or ordering"
 
 This would violate fraiseql-wire's fundamental design:
+
 - **One query family**: `SELECT data FROM v_{entity} WHERE predicate [ORDER BY ...]`
 - **Minimal scope**: JSON streaming, nothing more
 - **Zero "query planning"**: Type information never affects SQL generation or execution strategy
@@ -24,6 +25,7 @@ This would violate fraiseql-wire's fundamental design:
 ### What Type T Does NOT Affect
 
 ✅ **SQL generation is identical**
+
 ```rust
 // For ANY type T, this generates the same SQL:
 client.query::<T>("entity").where_sql(...).execute()
@@ -31,6 +33,7 @@ client.query::<T>("entity").where_sql(...).execute()
 ```
 
 ✅ **Filtering is identical**
+
 ```rust
 // where_sql() - Still SQL, unaffected by T
 // where_rust() - Still operates on serde_json::Value, unaffected by T
@@ -38,12 +41,14 @@ client.query::<T>("entity").where_sql(...).execute()
 ```
 
 ✅ **Wire protocol is identical**
+
 ```rust
 // Same row format, same chunking, same cancellation
 // Whether T is Project or Value: network packets are identical
 ```
 
 ✅ **Performance characteristics are identical**
+
 ```rust
 // < 2% overhead from serde deserialization, that's it
 // No "optimized" path for typed queries
@@ -52,6 +57,7 @@ client.query::<T>("entity").where_sql(...).execute()
 ### What Type T ONLY Affects
 
 ✅ **Consumer-side deserialization**
+
 ```rust
 fn poll_next(...) -> Poll<Option<Result<T>>> {
     match self.inner.poll_next_unpin(cx) {
@@ -66,6 +72,7 @@ fn poll_next(...) -> Poll<Option<Result<T>>> {
 ```
 
 ✅ **Error messages**
+
 ```rust
 Error::Deserialization {
     type_name: std::any::type_name::<T>(),  // ← T used here for debugging
@@ -87,6 +94,7 @@ let stream = client.query::<serde_json::Value>("entity").execute().await?;
 ### Why This Matters
 
 1. **Debugging**: Inspect actual JSON structure
+
    ```rust
    let stream = client.query::<Value>("projects").execute().await?;
    while let Some(result) = stream.next().await {
@@ -95,12 +103,14 @@ let stream = client.query::<serde_json::Value>("entity").execute().await?;
    ```
 
 2. **Forward Compatibility**: Change types without changing code
+
    ```rust
    // Old: client.query::<Project>("projects")
    // New: client.query::<Value>("projects")  // No code changes needed
    ```
 
 3. **Operations Workflows**: Generic handlers
+
    ```rust
    async fn export_entity(entity: &str) -> Result<()> {
        let mut stream = client.query::<Value>(entity).execute().await?;
@@ -111,6 +121,7 @@ let stream = client.query::<serde_json::Value>("entity").execute().await?;
    ```
 
 4. **Partial Type Safety**: Opt-out from specific types
+
    ```rust
    let stream = client.query::<Value>("projects").execute().await?;
    // Extract and validate manually if needed
@@ -144,6 +155,7 @@ fn execute(self) -> Result<...> {
 ```
 
 **Correct approach**: SQL is identical regardless of T
+
 ```rust
 fn execute(self) -> Result<...> {
     let sql = self.build_sql();  // Same for all T
@@ -161,6 +173,7 @@ pub fn where_rust<F: Fn(&T) -> bool>(self, pred: F) -> Self {
 ```
 
 **Correct approach**: Predicates operate on JSON
+
 ```rust
 pub fn where_rust<F: Fn(&Value) -> bool>(self, pred: F) -> Self {
     // RIGHT - Predicate receives JSON Value, regardless of T
@@ -183,6 +196,7 @@ fn poll_next(...) -> Poll<Option<Result<T>>> {
 ```
 
 **Correct approach**: Filter JSON, then deserialize
+
 ```rust
 fn poll_next(...) -> Poll<Option<Result<T>>> {
     loop {
@@ -206,6 +220,7 @@ fn deserialize_item(value: Value) -> Result<T> {
 ```
 
 **Correct approach**: Include type name
+
 ```rust
 fn deserialize_item(value: Value) -> Result<T> {
     serde_json::from_value(value)
@@ -231,6 +246,7 @@ fn execute(self) -> Result<...> {
 ```
 
 **Correct approach**: Single code path for all T
+
 ```rust
 fn execute(self) -> Result<...> {
     // RIGHT - No special cases, Value is treated like any other type
@@ -353,6 +369,7 @@ let stream = client.query::<serde_json::Value>("entity").execute().await?;
 
 This is identical to any typed query - no special handling, same SQL,
 same filtering, same performance.
+
 ```
 
 ---

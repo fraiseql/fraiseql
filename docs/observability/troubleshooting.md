@@ -16,6 +16,7 @@ This guide covers common issues with FraiseQL's observability system and their s
 ### Issue 1: No Metrics Being Collected
 
 **Symptoms**:
+
 - Metrics tables are empty
 - `fraiseql-cli analyze` returns "No data found"
 
@@ -104,6 +105,7 @@ CREATE INDEX idx_query_executions_name_time
 ### Issue 2: Metrics Collection Lag
 
 **Symptoms**:
+
 - Latest metrics are 5+ minutes old
 - Buffer not flushing
 
@@ -156,6 +158,7 @@ export FRAISEQL_METRICS_FLUSH_INTERVAL_SECS=60
 ### Issue 3: High Memory Usage
 
 **Symptoms**:
+
 - Application memory grows over time
 - OOM (Out of Memory) errors
 
@@ -206,6 +209,7 @@ ORDER BY minute DESC;
 ### Issue 4: No Suggestions Generated
 
 **Symptoms**:
+
 - `fraiseql-cli analyze` returns 0 suggestions
 - "No optimization opportunities found"
 
@@ -274,6 +278,7 @@ AND column_name LIKE '%_id';
 ### Issue 5: Analysis Takes Too Long
 
 **Symptoms**:
+
 - `fraiseql-cli analyze` runs for > 5 minutes
 - High CPU usage during analysis
 
@@ -353,12 +358,14 @@ GROUP BY query_name;
 ### Issue 6: Unrealistic Speedup Estimates
 
 **Symptoms**:
+
 - "Estimated speedup: 1000x" (seems too high)
 - Actual improvement doesn't match estimate
 
 **Explanation**:
 
 Speedup estimates are **theoretical** based on:
+
 - Table size (larger = higher speedup)
 - Selectivity (lower = higher speedup)
 - Database-specific cost models
@@ -457,6 +464,7 @@ CREATE INDEX idx_tf_sales_region
 ### Issue 9: Backfill Takes Too Long
 
 **Symptoms**:
+
 - `UPDATE` statement runs for > 30 minutes
 - Table locked during backfill
 
@@ -500,6 +508,7 @@ END $$;
 ### Issue 10: High Database CPU After Migration
 
 **Symptoms**:
+
 - Database CPU usage increases from 30% to 80%
 - Queries slower than before migration
 
@@ -570,6 +579,7 @@ CREATE INDEX idx_name_gist ON users USING GiST (name gist_trgm_ops);
 ### Issue 11: Increased Write Latency
 
 **Symptoms**:
+
 - INSERT/UPDATE operations slower after adding indexes
 - Write throughput decreased
 
@@ -608,6 +618,7 @@ DROP INDEX IF EXISTS idx_unused;
 ### Issue 12: Replication Lag Increased
 
 **Symptoms** (PostgreSQL streaming replication):
+
 - Replica lag increased from < 1s to 30s+
 - Replica queries returning stale data
 
@@ -732,6 +743,7 @@ sudo systemctl start postgresql
 ### Issue 14: Incorrect Selectivity Estimates
 
 **Symptoms**:
+
 - Analysis suggests optimizing low-selectivity filters
 - "90% of rows match" but suggested for optimization
 
@@ -828,7 +840,7 @@ echo -e "\n=== Health Check Complete ==="
 - **GitHub Issues**: [github.com/fraiseql/fraiseql/issues](https://github.com/fraiseql/fraiseql/issues)
 - **Discord**: [discord.gg/fraiseql](https://discord.gg/fraiseql)
 - **Documentation**: [docs.fraiseql.com/observability](https://docs.fraiseql.com/observability)
-- **Email**: support@fraiseql.com
+- **Email**: <support@fraiseql.com>
 
 ---
 

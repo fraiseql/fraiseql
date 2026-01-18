@@ -51,24 +51,28 @@
 ### By Role
 
 **Project Lead** 📋
+
 - Read: EXECUTIVE_SUMMARY_CLI_FIX.md
 - Understand: Timeline, risk, effort
 - Decide: Implementation strategy
 - Monitor: E2E test results
 
 **Developer Implementing Fixes** 👨‍💻
+
 - Follow: QUICK_FIX_CHECKLIST.md
 - Reference: CLI_SCHEMA_FIX_IMPLEMENTATION_PLAN.md
 - Verify: With provided commands
 - Commit: When all tests pass
 
 **Code Reviewer** 🔍
+
 - Check: All 11 files have `returns_list` (no `return_list`)
 - Verify: No unintended changes
 - Test: Run `python3 tests/e2e/velocitybench_compilation_test.py`
 - Approve: When E2E tests show ✅ for all 10 languages
 
 **Technical Investigator** 🔬
+
 - Deep-dive: CLI_SCHEMA_FORMAT_ANALYSIS.md
 - Reference: IntermediateSchema struct definitions
 - Verify: Field name requirements are exact
@@ -93,6 +97,7 @@
 ## The Solution (TL;DR)
 
 Replace all `"return_list"` with `"returns_list"` in 11 files:
+
 - 1 canonical schema file (tests/e2e/velocitybench_schemas.py)
 - 10 language generators (Python, TypeScript, Go, Java, PHP, Kotlin, C#, Rust, JavaScript, Ruby)
 
@@ -128,6 +133,7 @@ Replace all `"return_list"` with `"returns_list"` in 11 files:
 ## Implementation Paths
 
 ### Path 1: Quick & Dirty (Manual)
+
 1. Read: QUICK_FIX_CHECKLIST.md
 2. Edit: Each file's `return_list` → `returns_list`
 3. Test: Commands in checklist
@@ -135,6 +141,7 @@ Replace all `"return_list"` with `"returns_list"` in 11 files:
 **Time**: 1-2 hours
 
 ### Path 2: Smart & Fast (Local Model Assistance)
+
 1. Read: QUICK_FIX_CHECKLIST.md
 2. Use local 8B model for bulk fixes:
    - Prompt: "Replace all 'return_list' with 'returns_list' in [file]"
@@ -145,6 +152,7 @@ Replace all `"return_list"` with `"returns_list"` in 11 files:
 **Time**: ~60 minutes total
 
 ### Path 3: Guided Implementation (Claude + Local Model)
+
 1. Claude: Fix canonical schema (velocitybench_schemas.py)
 2. Local Model: Fix all 10 generators (parallel)
 3. Claude: Run verification + E2E tests
@@ -156,9 +164,11 @@ Replace all `"return_list"` with `"returns_list"` in 11 files:
 ## Files to Modify
 
 ### Primary (Canonical Schema)
+
 - [ ] `tests/e2e/velocitybench_schemas.py` - 8 occurrences
 
 ### Secondary (Language Generators)
+
 - [ ] Python generator
 - [ ] TypeScript generator
 - [ ] Go generator
@@ -189,6 +199,7 @@ After all fixes:
 ## Success Criteria
 
 **Primary**: E2E test output shows:
+
 ```
 ✅ ALL TIER 1A COMPILATION E2E TESTS PASSED!
 ✅ Phase 1: All 10 languages generate valid schema code
@@ -196,6 +207,7 @@ After all fixes:
 ```
 
 **Secondary**:
+
 - All 10 language boxes show ✅
 - No compilation errors
 - All compiled schemas are bit-identical
@@ -217,12 +229,14 @@ After all fixes:
 ## Related Documentation
 
 **In this project**:
+
 - `.claude/IMPLEMENTATION_ROADMAP.md` - Full 11-phase plan
 - `crates/fraiseql-cli/src/schema/intermediate.rs` - CLI schema struct definitions
 - `crates/fraiseql-cli/src/schema/validator.rs` - CLI validation rules
 - `tests/e2e/velocitybench_compilation_test.py` - E2E test framework
 
 **External**:
+
 - Rust serde documentation - Field renaming with `#[serde(rename = "...")]`
 - JSON Schema specification - For understanding field requirements
 
@@ -231,6 +245,7 @@ After all fixes:
 ## Progress Tracking
 
 ### Phase Status
+
 - ✅ **Phase 1**: Diagnosis complete
 - ✅ **Phase 2-4 Planning**: Documentation complete
 - ⏳ **Phase 2**: Fix canonical schema (pending)
@@ -238,6 +253,7 @@ After all fixes:
 - ⏳ **Phase 4**: Verification (pending)
 
 ### Estimated Timeline
+
 | Phase | Est. Time | Status |
 |-------|-----------|--------|
 | Diagnosis | 30 min | ✅ Done |
@@ -251,12 +267,15 @@ After all fixes:
 ## Contact & Questions
 
 **Documentation questions?**
+
 - See: EXECUTIVE_SUMMARY_CLI_FIX.md, "Questions Answered" section
 
 **Implementation stuck?**
+
 - See: CLI_SCHEMA_FIX_IMPLEMENTATION_PLAN.md, "Troubleshooting" section
 
 **Need technical details?**
+
 - See: CLI_SCHEMA_FORMAT_ANALYSIS.md
 
 ---
@@ -264,6 +283,7 @@ After all fixes:
 ## Summary
 
 This is a **straightforward fix** with:
+
 - ✅ Clear problem (field name mismatch)
 - ✅ Clear solution (rename 1 field)
 - ✅ Clear scope (11 files)

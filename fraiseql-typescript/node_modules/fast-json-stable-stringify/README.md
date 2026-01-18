@@ -21,7 +21,6 @@ output:
 {"a":3,"b":[{"x":4,"y":5,"z":6},7],"c":8}
 ```
 
-
 # methods
 
 ``` js
@@ -31,7 +30,6 @@ var stringify = require('fast-json-stable-stringify')
 ## var str = stringify(obj, opts)
 
 Return a deterministic stringified string `str` from the object `obj`.
-
 
 ## options
 
@@ -87,7 +85,6 @@ Pass `true` in `opts.cycles` to stringify circular property as `__cycle__` - the
 
 TypeError will be thrown in case of circular object without this option.
 
-
 # install
 
 With [npm](https://npmjs.org) do:
@@ -96,15 +93,16 @@ With [npm](https://npmjs.org) do:
 npm install fast-json-stable-stringify
 ```
 
-
 # benchmark
 
 To run benchmark (requires Node.js 6+):
+
 ```
 node benchmark
 ```
 
 Results:
+
 ```
 fast-json-stable-stringify x 17,189 ops/sec ±1.43% (83 runs sampled)
 json-stable-stringify x 13,634 ops/sec ±1.39% (85 runs sampled)
@@ -113,18 +111,15 @@ faster-stable-stringify x 15,549 ops/sec ±1.12% (84 runs sampled)
 The fastest is fast-stable-stringify
 ```
 
-
 ## Enterprise support
 
 fast-json-stable-stringify package is a part of [Tidelift enterprise subscription](https://tidelift.com/subscription/pkg/npm-fast-json-stable-stringify?utm_source=npm-fast-json-stable-stringify&utm_medium=referral&utm_campaign=enterprise&utm_term=repo) - it provides a centralised commercial support to open-source software users, in addition to the support provided by software maintainers.
-
 
 ## Security contact
 
 To report a security vulnerability, please use the
 [Tidelift security contact](https://tidelift.com/security).
 Tidelift will coordinate the fix and disclosure. Please do NOT report security vulnerability via GitHub issues.
-
 
 # license
 

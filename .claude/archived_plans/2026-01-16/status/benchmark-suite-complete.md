@@ -27,6 +27,7 @@ Created **two comprehensive benchmark suites** to measure FraiseQL adapter perfo
 | `pagination` | Repeated small queries | 10×100 | 100 | Connection overhead |
 
 **Run Command**:
+
 ```bash
 cargo bench --bench adapter_comparison --features "postgres,wire-backend"
 ```
@@ -34,11 +35,13 @@ cargo bench --bench adapter_comparison --features "postgres,wire-backend"
 ### Expected Results
 
 **Speed**: Comparable (both use same PostgreSQL execution)
+
 - PostgresAdapter: ~385K rows/s
 - FraiseWireAdapter: ~385K rows/s
 - Difference: <5%
 
 **Memory**: FraiseWireAdapter wins dramatically
+
 - PostgresAdapter: O(result_size) - 260KB to 260MB
 - FraiseWireAdapter: O(1) - constant 1.3KB
 - Improvement: **200x to 200,000x**
@@ -48,6 +51,7 @@ cargo bench --bench adapter_comparison --features "postgres,wire-backend"
 **File**: `crates/fraiseql-core/benches/full_pipeline_comparison.rs` (~440 lines)
 
 **Purpose**: Measure complete FraiseQL execution pipeline including:
+
 1. Database query execution
 2. Field projection (selecting requested fields)
 3. Field name transformation (snake_case → camelCase)
@@ -63,6 +67,7 @@ cargo bench --bench adapter_comparison --features "postgres,wire-backend"
 | `full_pipeline_1m` | Large GraphQL queries | 1,000,000 | 10 | Maximum streaming benefit |
 
 **Run Command**:
+
 ```bash
 cargo bench --bench full_pipeline_comparison --features "postgres,wire-backend"
 ```
@@ -99,6 +104,7 @@ For each row, the pipeline performs:
 ```
 
 **Operations Per Row**:
+
 1. Field selection: 5 fields kept, 2 discarded
 2. snake_case → camelCase: 1 field transformed (`created_at` → `createdAt`)
 3. `__typename` addition: 1 field added
@@ -135,6 +141,7 @@ For each row, the pipeline performs:
 | 1M full pipeline | ~3.5s | ~2.8s | **20% faster** ⚡⚡⚡ |
 
 **Key Advantages**:
+
 1. **Parallel processing**: Transform chunks while query continues
 2. **No GC pressure**: Constant memory prevents garbage collection pauses
 3. **Better cache locality**: Processing smaller chunks fits in CPU cache
@@ -294,17 +301,20 @@ crates/fraiseql-core/
 For each benchmark, Criterion provides:
 
 **Timing Metrics**:
+
 - **Mean time**: Average execution time
 - **Median time**: Middle value (50th percentile)
 - **Standard deviation**: Consistency measure
 - **Confidence intervals**: Statistical reliability (95% CI)
 
 **Throughput Metrics**:
+
 - **Elements per second**: Rows/second processed
 - **Kelem/s**: Thousands of elements per second
 - **Comparison**: % difference from previous run
 
 **Statistical Analysis**:
+
 - **Outlier detection**: Identifies anomalous runs
 - **Regression detection**: Alerts on performance degradation
 - **Trend analysis**: Performance over time
@@ -342,6 +352,7 @@ heaptrack_gui heaptrack.full_pipeline_comparison.*.gz
 ```
 
 **Expected Results**:
+
 - PostgresAdapter: Peak ~26 MB (result buffering)
 - FraiseWireAdapter: Peak ~1.3 KB (streaming)
 - Difference: **20,000x improvement**
@@ -363,6 +374,7 @@ heaptrack_gui heaptrack.full_pipeline_comparison.*.gz
 ### 3. When to Use Each
 
 **Use PostgresAdapter when**:
+
 - ✅ Small result sets (<10K rows)
 - ✅ Need transactions
 - ✅ Need write operations
@@ -370,6 +382,7 @@ heaptrack_gui heaptrack.full_pipeline_comparison.*.gz
 - ✅ Prepared statements critical
 
 **Use FraiseWireAdapter when**:
+
 - ✅ Large result sets (>100K rows)
 - ✅ Memory constrained environments
 - ✅ Streaming workflows (real-time processing)
@@ -392,6 +405,7 @@ The benchmark suite demonstrates that **fraiseql-wire provides**:
 **Ready to analyze results!** 🚀
 
 Run benchmarks and view results:
+
 ```bash
 cargo bench --bench full_pipeline_comparison --features "postgres,wire-backend"
 open target/criterion/report/index.html

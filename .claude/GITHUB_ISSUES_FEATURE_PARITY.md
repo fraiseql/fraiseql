@@ -48,11 +48,13 @@ WHERE "items__product__category_id" = '123'
 ### Column Naming Conventions
 
 **1. Human-readable (when path fits in 63 chars)**:
+
 ```sql
 items__product__category__code
 ```
 
 **2. Entity ID format (for long paths)**:
+
 ```sql
 f{entity_id}__field_name
 -- Example: f200100__code (Category entity = 200100)
@@ -137,6 +139,7 @@ f{entity_id}__field_name
 **Status**: ✅ **Complete** - This IS the v2 implementation
 
 The current codebase IS the Rust-first architecture described in #226:
+
 - Python/TypeScript for authoring only (decorators → JSON)
 - Rust core engine with compiled execution
 - Pluggable HTTP servers (Axum)
@@ -207,17 +210,20 @@ The current codebase IS the Rust-first architecture described in #226:
 ## Files Reference
 
 ### Indexed Columns (#250)
+
 - `crates/fraiseql-core/src/db/postgres/introspector.rs`
 - `crates/fraiseql-core/src/db/postgres/where_generator.rs`
 - `crates/fraiseql-cli/src/commands/compile.rs`
 
 ### LTree (#248)
+
 - `crates/fraiseql-core/src/db/where_clause.rs`
 - `crates/fraiseql-core/src/db/postgres/where_generator.rs`
 - `crates/fraiseql-wire/src/operators/where_operator.rs`
 - `crates/fraiseql-wire/src/operators/sql_gen.rs`
 
 ### Security (#225)
+
 - `crates/fraiseql-core/src/security/auth_middleware.rs` - JWT signature verification
 - `crates/fraiseql-core/src/security/field_filter.rs` - Field selection filtering
 - `crates/fraiseql-core/src/security/mod.rs` - Module exports
@@ -225,4 +231,5 @@ The current codebase IS the Rust-first architecture described in #226:
 - `crates/fraiseql-core/src/runtime/executor.rs` - execute_with_scopes()
 
 ### Subscriptions (#247)
+
 - `crates/fraiseql-core/src/runtime/subscription.rs`

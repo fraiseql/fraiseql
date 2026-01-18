@@ -39,6 +39,7 @@ while let Some(item) = stream.next().await {
 ```
 
 **Only tune if you observe**:
+
 - Memory usage issues (> 10MB for unbounded streams)
 - Latency issues (first row > 10ms without network delay)
 - Throughput issues (< 50K rows/sec)
@@ -612,6 +613,7 @@ let stream = client.query("entity").execute().await?;
 ### Issue: Out of Memory on Large Result Sets
 
 **Symptoms**:
+
 - Peak memory > available RAM
 - OOM killer terminating process
 - Process crashes after processing N rows
@@ -619,11 +621,13 @@ let stream = client.query("entity").execute().await?;
 **Solutions**:
 
 1. **Verify chunk size is reasonable**:
+
    ```rust
    let stream = client.query("entity").chunk_size(256).execute().await?;
    ```
 
 2. **Ensure user code processes immediately**:
+
    ```rust
    // ❌ Wrong: Buffering
    let results: Vec<_> = stream.collect::<Result<_, _>>()?;
@@ -635,6 +639,7 @@ let stream = client.query("entity").execute().await?;
    ```
 
 3. **Push more filtering to Postgres**:
+
    ```rust
    // Reduce data transmission
    .where_sql("data->>'year' = '2024'")
@@ -643,22 +648,26 @@ let stream = client.query("entity").execute().await?;
 ### Issue: First Row Takes Too Long
 
 **Symptoms**:
+
 - Connection established, but first data row slow
 - Visible delay before streaming starts
 
 **Solutions**:
 
 1. **Check Postgres is responsive**:
+
    ```bash
    psql -c "SELECT now()"
    ```
 
 2. **Verify WHERE clause efficiency**:
+
    ```sql
    EXPLAIN ANALYZE SELECT data FROM v_entity WHERE data->>'status' = 'active';
    ```
 
 3. **Use Unix socket instead of TCP**:
+
    ```rust
    let client = FraiseClient::connect("postgres:///db").await?;
    ```
@@ -666,17 +675,20 @@ let stream = client.query("entity").execute().await?;
 ### Issue: Throughput Lower Than Expected
 
 **Symptoms**:
+
 - Processing < 50K rows/sec
 - Network bandwidth not fully utilized
 
 **Solutions**:
 
 1. **Increase chunk size**:
+
    ```rust
    .chunk_size(1000)  // From default 256
    ```
 
 2. **Batch process**:
+
    ```rust
    let mut batch = Vec::with_capacity(1000);
    while let Some(item) = stream.next().await {
@@ -689,6 +701,7 @@ let stream = client.query("entity").execute().await?;
    ```
 
 3. **Profile user code**:
+
    ```bash
    cargo flamegraph -- your_app
    ```

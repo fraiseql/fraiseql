@@ -7,6 +7,7 @@ This directory contains Architecture Decision Records documenting significant ar
 ## What are ADRs?
 
 ADRs document the **context, decision, and consequences** of architectural choices. They serve as:
+
 - Historical record of "why" behind design decisions
 - Reference for future architectural discussions
 - Learning resource for new contributors
@@ -24,6 +25,7 @@ ADRs document the **context, decision, and consequences** of architectural choic
 ## ADR Format
 
 Each ADR should include:
+
 1. **Status:** Proposed / Accepted / Deprecated / Superseded
 2. **Context:** What problem are we solving?
 3. **Decision:** What did we decide to do?

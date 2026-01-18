@@ -33,9 +33,11 @@ locale
 ```
 
 **Scope**: Part of the `profile` scope in OIDC:
+
 - When a client requests the `profile` scope, the authorization server may return: `name`, `family_name`, `given_name`, `locale`, `zoneinfo`, etc.
 
 **Sources**:
+
 - [OpenID Connect Core 1.0 - Final](https://openid.net/specs/openid-connect-core-1_0.html)
 - [OpenID Connect Standard Claims](https://www.cerberauth.com/blog/openid-connect-standard-claims/)
 
@@ -44,6 +46,7 @@ locale
 **`locale` is NOT a registered claim** in [RFC 7519](https://datatracker.ietf.org/doc/html/rfc7519).
 
 The core JWT standard defines only:
+
 - `iss` (issuer)
 - `sub` (subject)
 - `aud` (audience)
@@ -55,6 +58,7 @@ The core JWT standard defines only:
 **However**: RFC 7519 explicitly allows **public claims** (like `locale` from OIDC) and **private claims** (custom application-specific).
 
 **Sources**:
+
 - [RFC 7519 - JSON Web Token (JWT)](https://datatracker.ietf.org/doc/html/rfc7519)
 - [JWT.IO - Introduction](https://www.jwt.io/introduction)
 
@@ -67,6 +71,7 @@ The core JWT standard defines only:
 **Support**: ✅ Yes (via custom claims or UserInfo endpoint)
 
 **ID Token**:
+
 ```json
 {
   "sub": "auth0|123",
@@ -78,7 +83,9 @@ The core JWT standard defines only:
 ```
 
 **Implementation**:
+
 1. **Via Auth0 Actions** (custom claims):
+
    ```javascript
    exports.onExecutePostLogin = async (event, api) => {
      const locale = event.user.user_metadata.locale || 'en-US';
@@ -87,6 +94,7 @@ The core JWT standard defines only:
    ```
 
 2. **Via UserInfo endpoint** (standard):
+
    ```bash
    curl https://your-domain.auth0.com/userinfo \
      -H "Authorization: Bearer ACCESS_TOKEN"
@@ -100,11 +108,13 @@ The core JWT standard defines only:
    ```
 
 **Best Practice**: Use namespaced custom claims to avoid collisions:
+
 ```javascript
 api.idToken.setCustomClaim('https://yourdomain.com/locale', locale);
 ```
 
 **Sources**:
+
 - [Auth0 - Create Custom Claims](https://auth0.com/docs/secure/tokens/json-web-tokens/create-custom-claims)
 - [Auth0 - Adding Custom Claims with Actions](https://auth0.com/blog/adding-custom-claims-to-id-token-with-auth0-actions/)
 
@@ -113,6 +123,7 @@ api.idToken.setCustomClaim('https://yourdomain.com/locale', locale);
 **Support**: ✅ Yes (via custom authorization server)
 
 **ID Token**:
+
 ```json
 {
   "sub": "00u123",
@@ -124,6 +135,7 @@ api.idToken.setCustomClaim('https://yourdomain.com/locale', locale);
 ```
 
 **Implementation**:
+
 1. Configure custom claim in authorization server:
    - Claim name: `locale`
    - Value type: Expression
@@ -134,6 +146,7 @@ api.idToken.setCustomClaim('https://yourdomain.com/locale', locale);
 **Limitation**: Custom claims can only be added to **custom authorization server**, not org authorization server.
 
 **Sources**:
+
 - [Okta - Customize Tokens with Custom Claims](https://developer.okta.com/docs/guides/customize-tokens-returned-from-okta/main/)
 - [Okta - Identity, Claims, & Tokens Primer](https://developer.okta.com/blog/2017/07/25/oidc-primer-part-1)
 
@@ -142,6 +155,7 @@ api.idToken.setCustomClaim('https://yourdomain.com/locale', locale);
 **Support**: ✅ Yes (automatic with providers, manual setup)
 
 **ID Token**:
+
 ```json
 {
   "sub": "user_123",
@@ -153,11 +167,13 @@ api.idToken.setCustomClaim('https://yourdomain.com/locale', locale);
 ```
 
 **Implementation**:
+
 - Clerk normalizes claims automatically across different OAuth providers
 - User profile can include locale preference
 - Built-in support for major providers
 
 **Sources**:
+
 - [Clerk - SSO Best Practices](https://clerk.com/articles/sso-best-practices-for-secure-scalable-logins)
 
 ### Azure AD / Microsoft Identity Platform
@@ -165,6 +181,7 @@ api.idToken.setCustomClaim('https://yourdomain.com/locale', locale);
 **Support**: ✅ Yes (standard OIDC claim)
 
 **ID Token**:
+
 ```json
 {
   "sub": "AAAAAbbbb",
@@ -178,6 +195,7 @@ api.idToken.setCustomClaim('https://yourdomain.com/locale', locale);
 **UserInfo Endpoint**: Standard OIDC UserInfo returns locale
 
 **Sources**:
+
 - [Microsoft - UserInfo Endpoint](https://learn.microsoft.com/en-us/azure/active-directory-b2c/userinfo-endpoint)
 
 ---
@@ -263,11 +281,13 @@ api.idToken.setCustomClaim('https://yourdomain.com/locale', locale);
 **Pattern**: Store locale in database, query on each request
 
 **Pros**:
+
 - Always up-to-date (no token expiry lag)
 - Guaranteed present (default value)
 - Can have multiple preferences (locale, timezone, currency, etc.)
 
 **Cons**:
+
 - Additional database query per request
 - Increased latency (~5-10ms)
 - Requires user management system
@@ -280,11 +300,13 @@ api.idToken.setCustomClaim('https://yourdomain.com/locale', locale);
 **Pattern**: Use `Accept-Language` HTTP header
 
 **Pros**:
+
 - Standard HTTP header
 - Browser sends automatically
 - No JWT dependency
 
 **Cons**:
+
 - Browser preference, not user account preference
 - Can be overridden by browser settings
 - Not reliable for logged-in users
@@ -297,11 +319,13 @@ api.idToken.setCustomClaim('https://yourdomain.com/locale', locale);
 **Pattern**: Client sends locale in every query
 
 **Pros**:
+
 - Explicit and controllable
 - No backend state needed
 - Works for unauthenticated users
 
 **Cons**:
+
 - Requires client to send every time
 - Easy to forget/inconsistent
 - Duplicates data if user is authenticated
@@ -332,6 +356,7 @@ fn resolve_locale(
 ### Implementation Tiers
 
 **Tier 1: JWT Claim** (Primary - 80% of cases)
+
 ```rust
 // Extract from JWT during authentication
 let user = AuthMiddleware::validate_request(&req).await?;
@@ -342,6 +367,7 @@ let collation = user.icu_collation(); // "fr-FR-x-icu"
 ```
 
 **Tier 2: Database Fallback** (Secondary - 15% of cases)
+
 ```sql
 -- User preferences table
 CREATE TABLE user_preferences (
@@ -356,6 +382,7 @@ SELECT locale FROM user_preferences WHERE user_id = $1;
 ```
 
 **Tier 3: Accept-Language Header** (Tertiary - 4% of cases)
+
 ```rust
 // Extract from HTTP headers
 let accept_lang = req.headers().get("Accept-Language");
@@ -363,6 +390,7 @@ let accept_lang = req.headers().get("Accept-Language");
 ```
 
 **Tier 4: System Default** (Fallback - 1% of cases)
+
 ```rust
 // Hardcoded system default
 const DEFAULT_LOCALE: &str = "en-US";
@@ -389,6 +417,7 @@ Based on [JWT Security Best Practices (Curity)](https://curity.io/resources/lear
    - Limits exposure if token compromised
 
 4. **Locale Format Validation** ⚠️ (Must Implement)
+
    ```rust
    fn validate_locale(locale: &str) -> bool {
        // BCP47 format: en-US, fr-FR, ja-JP
@@ -398,6 +427,7 @@ Based on [JWT Security Best Practices (Curity)](https://curity.io/resources/lear
    ```
 
 5. **Collation Whitelist** ⚠️ (Must Implement)
+
    ```rust
    const ALLOWED_LOCALES: &[&str] = &[
        "en-US", "en-GB", "fr-FR", "de-DE", "ja-JP", // ...
@@ -411,34 +441,42 @@ Based on [JWT Security Best Practices (Curity)](https://curity.io/resources/lear
 ### Attack Scenarios & Mitigations
 
 **Scenario 1: Malicious Locale Injection**
+
 ```json
 {
   "sub": "user123",
   "locale": "'; DROP TABLE users; --"  // ← SQL injection attempt
 }
 ```
+
 **Mitigation**:
+
 - JWT signature validation (claim can't be modified)
 - Locale format validation (regex)
 - Collation whitelist
 - COLLATE clause is safe (not string interpolation)
 
 **Scenario 2: Invalid Collation**
+
 ```json
 {
   "sub": "user123",
   "locale": "xx-YY"  // ← Non-existent locale
 }
 ```
+
 **Mitigation**:
+
 - PostgreSQL will error if collation doesn't exist
 - Catch error, log warning, fallback to default
 - Pre-validate against whitelist
 
 **Scenario 3: JWT Replay Attack**
+
 - Attacker reuses old JWT with different locale
 
 **Mitigation**:
+
 - Expiration validation (already done)
 - Worst case: Incorrect sorting (not a security breach)
 
@@ -475,6 +513,7 @@ From [FusionAuth Forum Discussion](https://fusionauth.io/community/forum/topic/2
 ### ✅ YES, Relying on JWT Locale is Best Practice
 
 **Reasons**:
+
 1. **Standard**: OIDC standard claim, widely recognized
 2. **Supported**: All major providers (Auth0, Okta, Clerk, Azure AD)
 3. **Performant**: No additional queries, cached with JWT
@@ -484,6 +523,7 @@ From [FusionAuth Forum Discussion](https://fusionauth.io/community/forum/topic/2
 ### Implementation Guidelines
 
 **DO**:
+
 - ✅ Extract `locale` from JWT claims
 - ✅ Validate format (BCP47: `en-US`, `fr-FR`)
 - ✅ Whitelist allowed locales
@@ -492,6 +532,7 @@ From [FusionAuth Forum Discussion](https://fusionauth.io/community/forum/topic/2
 - ✅ Log collation strategy for debugging
 
 **DON'T**:
+
 - ❌ Trust locale without validation
 - ❌ Use only JWT locale (have fallbacks)
 - ❌ Store sensitive data based on locale

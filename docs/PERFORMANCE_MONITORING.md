@@ -18,6 +18,7 @@ FraiseQL v2 provides comprehensive performance monitoring capabilities to track 
 ### Core Components
 
 #### QueryPerformance
+
 Captures all performance metrics for a single query execution.
 
 ```rust
@@ -43,6 +44,7 @@ assert!(!perf.is_slow(10.0));                    // Not slow vs 10ms threshold
 ```
 
 #### PerformanceMonitor
+
 Central aggregation point for performance statistics.
 
 ```rust
@@ -63,6 +65,7 @@ println!("Cache hit rate: {:.1}%", monitor.cache_hit_rate() * 100.0);
 ```
 
 #### PerformanceTimer
+
 RAII-based timer for measuring operation duration.
 
 ```rust
@@ -75,6 +78,7 @@ println!("Operation took {} microseconds", duration_us);
 ```
 
 #### PerformanceStats
+
 Snapshot of aggregated performance statistics.
 
 ```rust
@@ -96,6 +100,7 @@ println!("Slow query rate: {:.1}%", stats.slow_query_percentage());
 ```
 
 #### OperationProfile
+
 Performance profile for a specific GraphQL operation type.
 
 ```rust
@@ -336,11 +341,13 @@ let dev_monitor = PerformanceMonitor::new(500.0); // 500ms threshold
 ## Performance Considerations
 
 ### Memory Usage
+
 - PerformanceMonitor: ~120 bytes base + atomic operations
 - Negligible memory overhead per query (atoms reused)
 - Safe for high-throughput scenarios (1000s queries/second)
 
 ### CPU Usage
+
 - Atomic operations: ~5-10 ns per record
 - No locks or mutex overhead
 - Scales linearly with query volume

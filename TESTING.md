@@ -56,11 +56,13 @@ docker compose -f docker-compose.test.yml down -v
 - **Password:** `fraiseql_test_password`
 
 **Test Views:**
+
 - `v_user` - 5 test users with email, name, age, role, tags, metadata
 - `v_post` - 4 test posts with title, content, author (joined), published, views, tags
 - `v_product` - 4 test products with name, price, stock, category, attributes
 
 **Usage in tests:**
+
 ```rust
 #[tokio::test]
 #[ignore]
@@ -82,10 +84,12 @@ async fn test_postgres_query() {
 - **Extensions:** `vector`, `uuid-ossp`
 
 **Test Views:**
+
 - `v_embedding` - 5 test embeddings with 3D vectors
 - `v_document` - 4 test documents with full-text search vectors
 
 **Usage in tests:**
+
 ```rust
 #[tokio::test]
 #[ignore]
@@ -115,6 +119,7 @@ async fn test_vector_operators() {
 - **Password:** `fraiseql_test_password`
 
 **Test Views:**
+
 - `v_user` - Same schema as PostgreSQL
 - `v_post` - Same schema as PostgreSQL
 - `v_product` - Same schema as PostgreSQL
@@ -150,6 +155,7 @@ cargo test -p fraiseql-core db::where_clause
 ```
 
 **What's tested:**
+
 - WHERE clause AST construction
 - WHERE operator validation
 - SQL generation (without execution)
@@ -167,6 +173,7 @@ cargo test -- --ignored --nocapture
 ```
 
 **What's tested:**
+
 - Database connections
 - Query execution
 - JSONB projection
@@ -415,6 +422,7 @@ docker network prune
 | Coverage | `cargo tarpaulin` | ❌ No |
 
 **Quick Reference:**
+
 ```bash
 # Full test cycle
 docker compose -f docker-compose.test.yml up -d

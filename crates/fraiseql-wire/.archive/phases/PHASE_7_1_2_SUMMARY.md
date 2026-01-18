@@ -21,7 +21,9 @@ Implemented integration benchmarking infrastructure for measuring fraiseql-wire 
 Structured around 8 benchmark groups measuring real-world performance:
 
 #### Throughput Benchmarks
+
 Measures streaming performance (rows/second) with varying result set sizes:
+
 - 1,000 rows - Small queries
 - 10,000 rows - Medium queries
 - 100,000 rows - Large queries
@@ -29,7 +31,9 @@ Measures streaming performance (rows/second) with varying result set sizes:
 **Key metrics**: Rows/sec throughput, bytes/sec throughput
 
 #### Latency Benchmarks (Time-to-First-Row)
+
 Measures how quickly first row arrives from Postgres for queries returning:
+
 - 1,000 rows
 - 100,000 rows
 - 1,000,000 rows
@@ -37,14 +41,18 @@ Measures how quickly first row arrives from Postgres for queries returning:
 **Finding**: TTFR should be consistent regardless of result size (dominated by connection/protocol overhead, not data volume)
 
 #### Connection Setup Benchmarks
+
 Measures connection establishment overhead:
+
 - TCP connections (network-based)
 - Unix socket connections (should be faster)
 
 **Key insight**: Connection overhead is fixed, amortized across query lifetime
 
 #### Memory Usage Benchmarks
+
 Measures memory consumption with different chunk sizes:
+
 - 64-byte chunks (high frequency, more overhead)
 - 256-byte chunks (default, balanced)
 - 1024-byte chunks (low frequency, less overhead)
@@ -52,7 +60,9 @@ Measures memory consumption with different chunk sizes:
 **Finding**: Memory should scale with chunk_size, not result_size (bounded memory invariant)
 
 #### Chunking Strategy Benchmarks
+
 Measures throughput impact of different chunking strategies:
+
 - Small chunks (64 bytes) - More channel operations
 - Medium chunks (256 bytes) - Balanced
 - Large chunks (1024 bytes) - Fewer channel operations
@@ -60,7 +70,9 @@ Measures throughput impact of different chunking strategies:
 **Finding**: Trade-off between latency (smaller chunks = faster first item) vs throughput (larger chunks = fewer context switches)
 
 #### Predicate Effectiveness Benchmarks
+
 Measures SQL predicate filtering effectiveness on bandwidth:
+
 - No filter: 100,000 rows (baseline)
 - SQL 1% filter: ~1,000 rows
 - SQL 10% filter: ~10,000 rows
@@ -69,14 +81,18 @@ Measures SQL predicate filtering effectiveness on bandwidth:
 **Key metric**: Throughput improvement from server-side filtering
 
 #### Streaming Stability Benchmarks
+
 Long-running benchmarks to verify memory stability:
+
 - 1M row streaming - Checks memory doesn't grow unbounded
 - High throughput small chunks - Stress test with rapid context switching
 
 **Critical check**: Memory usage stays constant, no unbounded growth with collection size
 
 #### JSON Parsing Load Benchmarks
+
 Measures JSON parsing performance under realistic loads:
+
 - Small: 200 byte JSON
 - Medium: 2 KB JSON
 - Large: 10 KB JSON
@@ -91,6 +107,7 @@ Measures JSON parsing performance under realistic loads:
 SQL script to create test data views matching FraiseQL conventions:
 
 #### Views with Different Row Counts
+
 - `v_test_1k` - 1,000 rows with simple JSON
 - `v_test_100k` - 100,000 rows with moderate JSON (team, timeline, metadata)
 - `v_test_1m` - 1,000,000 rows for streaming stability tests
@@ -98,11 +115,13 @@ SQL script to create test data views matching FraiseQL conventions:
 - `v_test_large_payloads` - Rows > 100KB each
 
 #### Filtered Views (for predicate effectiveness testing)
+
 - `v_test_100k_active` - Only "active" status rows (~20% of 100K)
 - `v_test_100k_high_priority` - Priority >= 8 (~20% of 100K)
 - `v_test_100k_expensive` - Cost > $50,000 (~variable % of 100K)
 
 #### Helper Function
+
 - `generate_benchmark_row(count_seed)` - Function to generate consistent test rows
 
 **Total test data**: ~1.2M rows across all views
@@ -114,6 +133,7 @@ SQL script to create test data views matching FraiseQL conventions:
 Implemented three-tier CI/CD approach:
 
 #### Tier 1: Always-Run Micro-Benchmarks
+
 ```yaml
 # Runs on every push to main (after successful build)
 # Duration: ~30 seconds
@@ -122,11 +142,13 @@ Implemented three-tier CI/CD approach:
 ```
 
 **Triggered by**:
+
 - Manual workflow dispatch
 - Nightly schedule (2 AM UTC)
 - Push to main with code/benchmark changes
 
 #### Tier 2: Nightly Integration Benchmarks
+
 ```yaml
 # Runs on nightly schedule and manual trigger
 # Duration: ~5 minutes (includes Postgres setup)
@@ -135,6 +157,7 @@ Implemented three-tier CI/CD approach:
 ```
 
 **What it does**:
+
 1. Spins up Postgres 17 service
 2. Waits for database to be ready
 3. Creates test database (`fraiseql_bench`)
@@ -144,6 +167,7 @@ Implemented three-tier CI/CD approach:
 7. Uploads results as artifacts (30-day retention)
 
 #### Tier 3: Summary Job
+
 Reports overall benchmark health with clear pass/fail status
 
 ### 4. Documentation Updates
@@ -158,15 +182,18 @@ Reports overall benchmark health with clear pass/fail status
 ## Key Features
 
 ### Bounded Memory Design Verification
+
 Integration benchmarks directly verify fraiseql-wire's hard invariant:
 
 > Memory usage scales with **chunk_size**, not result_size
 
 Test: Stream 1M rows with different chunk sizes
+
 - Expected: Memory constant across result sizes
 - Actual: Verified through streaming_stability benchmark
 
 ### Predicate Pushdown Effectiveness
+
 Quantifies SQL predicate filtering impact:
 
 ```
@@ -178,12 +205,15 @@ sql_50percent:  50,000 rows → 50% data over wire (50% reduction)
 Shows clear bandwidth/latency benefits of server-side filtering.
 
 ### Connection Overhead Amortization
+
 Tests verify that:
+
 - Connection setup is O(1) - constant per connection
 - Time-to-first-row is O(1) - independent of result size
 - Benefits of long-running queries for data streaming
 
 ### Chunking Strategy Trade-offs
+
 Benchmarks measure the fundamental trade-off:
 
 ```
@@ -197,7 +227,9 @@ Large chunks (1024):
 ```
 
 ### JSON Parsing Efficiency
+
 Validates JSON parsing performance at scale:
+
 - Small payloads: ~126 µs (from micro-benchmarks)
 - Large payloads: ~862 µs (from micro-benchmarks)
 - Under load: Measured in real streaming context
@@ -236,6 +268,7 @@ FROM generate_series(1, size) AS n;
 ```
 
 This pattern ensures:
+
 - Consistent JSON structure across sizes
 - Deterministic data (same seed = same data)
 - Easy scalability (just change series limit)
@@ -246,22 +279,26 @@ This pattern ensures:
 ### Expected Results (From Micro-benchmarks + Theory)
 
 **Throughput** (100K row set, 256-byte chunks):
+
 - Small JSON (200b): ~50,000 rows/sec (estimated)
 - Large JSON (2KB): ~10,000 rows/sec (estimated)
 - Complex JSON (nested): ~5,000 rows/sec (estimated)
 
 **Time-to-First-Row**:
+
 - TCP connection: ~1-5 ms (connection overhead)
 - Unix socket: ~0.5-2 ms (faster than TCP)
 - Consistent regardless of result size
 
 **Memory Usage** (100K rows):
+
 - 64-byte chunks: ~64 KB + overhead
 - 256-byte chunks: ~256 KB + overhead
 - 1024-byte chunks: ~1 MB + overhead
 - Should stay constant even with 1M rows
 
 **Predicate Effectiveness**:
+
 - 10% filter: ~90% reduction in network traffic
 - 50% filter: ~50% reduction in network traffic
 - Connection overhead amortized across remaining rows
@@ -279,6 +316,7 @@ CI/CD: Configured and tested ✓
 ## Next Phase
 
 Phase 7.1.3 (Comparison Benchmarks vs tokio-postgres):
+
 - Set up tokio-postgres benchmarks
 - Side-by-side performance comparison
 - Identify where fraiseql-wire excels
@@ -322,21 +360,25 @@ psql -U postgres -c "DROP DATABASE fraiseql_bench"
 Implements Tier 2 of the three-tier benchmarking strategy from BENCHMARKING.md:
 
 **Tier 1 (Always Run)**: ✅ Phase 7.1.1 COMPLETE
+
 - Micro-benchmarks (~30 sec, no Postgres)
 - Regression detection enabled
 
 **Tier 2 (Nightly/Manual)**: ✅ Phase 7.1.2 COMPLETE
+
 - Integration benchmarks with Postgres
 - Real-world performance measurement
 - ~5 minutes with setup
 
 **Tier 3 (Pre-release)**: ⏳ Phase 7.1.3 Pending
+
 - Comparison vs tokio-postgres
 - Manual execution only
 
 ## Documentation
 
 Complete setup and execution documentation available in:
+
 - `benches/README.md` - How to run and interpret results
 - `.github/workflows/benchmarks.yml` - CI/CD configuration
 - `benches/setup.sql` - Test database schema and views

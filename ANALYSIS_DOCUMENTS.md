@@ -11,9 +11,11 @@ This directory contains comprehensive analysis of the FraiseQL v2 test infrastru
 ## Documents
 
 ### 1. **TEST_READINESS_QUICK_REFERENCE.md** (Start here!)
+
 **Length**: ~80 lines | **Read Time**: 5 minutes
 
 Quick reference guide with:
+
 - Status summary (758 tests passing, 30 ignored)
 - What's ready to enable (28 tests, 0 hours)
 - What needs implementation (1 test, 15 minutes)
@@ -27,9 +29,11 @@ Quick reference guide with:
 ---
 
 ### 2. **.claude/TEST_INFRASTRUCTURE_ANALYSIS.md** (Comprehensive)
+
 **Length**: ~400 lines | **Read Time**: 20-30 minutes
 
 Deep dive analysis with:
+
 - Executive summary
 - Detailed breakdown of all 30 ignored tests
 - Infrastructure requirements (database, schema, data)
@@ -74,6 +78,7 @@ Ignored Tests:     30 ⏳
 ## The 30 Ignored Tests
 
 ### PostgreSQL Adapter Tests (25 tests) - ✅ READY
+
 - Connection management (4 tests)
 - Query execution (2 tests)
 - WHERE clause operators (12 tests)
@@ -85,6 +90,7 @@ Ignored Tests:     30 ⏳
 **Status**: All dependencies exist, can enable immediately
 
 ### PostgreSQL Introspector Tests (3 tests) - ✅ READY
+
 - Database type detection (1 test)
 - Column introspection (1 test)
 - Index introspection (1 test)
@@ -92,11 +98,13 @@ Ignored Tests:     30 ⏳
 **Status**: Schema and data ready, can enable immediately
 
 ### Aggregation HAVING Test (1 test) - ✅ 15 MIN WORK
+
 - HAVING clause SQL generation
 
 **Status**: All code dependencies exist, just needs test body
 
 ### Query Analyzer Tests (3 tests) - ❌ BLOCKED BY PHASE 4
+
 - Return type extraction (1 test)
 - Array return type handling (1 test)
 - Error case validation (1 test)
@@ -108,6 +116,7 @@ Ignored Tests:     30 ⏳
 ## Infrastructure Status
 
 ### Database
+
 ✅ PostgreSQL on localhost:5433
 ✅ Test database: test_fraiseql
 ✅ Schema: v_user, v_post, v_product, tf_sales
@@ -115,12 +124,14 @@ Ignored Tests:     30 ⏳
 ✅ Docker Compose configured
 
 ### Application Code
+
 ✅ PostgresAdapter complete
 ✅ PostgresIntrospector complete
 ✅ HavingOperator enum complete
 ✅ All dependencies exist for 28 tests
 
 ### CI/CD
+
 ✅ GitHub Actions configured
 ✅ PostgreSQL service available
 ⚠️ Needs init script configuration
@@ -173,17 +184,20 @@ cargo test -p fraiseql-core --lib introspector -- --ignored
 ## How to Use These Documents
 
 ### For Quick Decision (5 minutes)
+
 1. Read this file
 2. Skim **TEST_READINESS_QUICK_REFERENCE.md**
 3. Decide: Do it now? Yes ✅
 
 ### For Implementation (30 minutes)
+
 1. Follow quick implementation plan above
 2. Reference **TEST_READINESS_QUICK_REFERENCE.md** for detailed steps
 3. Execute 3 steps
 4. All 28 tests should pass
 
 ### For Detailed Understanding (30 minutes)
+
 1. Read **TEST_READINESS_QUICK_REFERENCE.md** first
 2. Deep dive into **.claude/TEST_INFRASTRUCTURE_ANALYSIS.md**
 3. Understand infrastructure choices and rationale
@@ -194,16 +208,19 @@ cargo test -p fraiseql-core --lib introspector -- --ignored
 ## Files to Modify
 
 ### To Enable 28 Tests
+
 - No files need modification (infrastructure ready)
 - Just run: `cargo test -- --ignored`
 
 ### To Implement HAVING Test
+
 - **File**: `crates/fraiseql-core/src/runtime/aggregation.rs`
 - **Lines**: 958-961
 - **Change**: Replace empty `#[ignore]` test with implementation
 - **Time**: 15 minutes
 
 ### To Update CI/CD
+
 - **File**: `.github/workflows/ci.yml`
 - **Change**: Add PostgreSQL init scripts
 - **Time**: 1 hour
@@ -225,6 +242,7 @@ cargo test -p fraiseql-core --lib introspector -- --ignored
 ## Questions?
 
 See the Q&A section in **.claude/TEST_INFRASTRUCTURE_ANALYSIS.md** for detailed answers to:
+
 - Why aren't these tests running in CI/CD now?
 - Do we need to set up a separate database?
 - What about the 3 query analyzer tests?

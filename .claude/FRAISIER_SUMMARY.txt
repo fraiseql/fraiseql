@@ -82,7 +82,7 @@ INTEGRATION WITH FRAISEQL CORE
   ✅ fraiseql-python     (Phase 8) - For @fraiseql decorators
   ⏳ fraiseql-server     (Phase 6) - To run GraphQL API
   ⏳ fraiseql-cli        (Phase 9) - To compile schema
-  
+
   Provides:
   ✅ E2E testing (webhook → deploy → run)
   ✅ Real-world example (shows how to build production apps)
@@ -92,16 +92,16 @@ DOCUMENTATION CREATED
 ─────────────────────────────────────────────────────────────────────────────
   ✅ FRAISIER_INTEGRATION_ANALYSIS.md     (400 lines)
      → Comprehensive architecture, patterns, risks, phases
-  
+
   ✅ FRAISIER_QUICK_REFERENCE.md         (300 lines)
      → Daily reference for CLI, config, webhooks, troubleshooting
-  
+
   ✅ FRAISIER_ACTION_ITEMS.md            (250 lines)
      → Concrete tasks organized by phase with estimates
-  
+
   ✅ FRAISIER_GRAPHQL_API.md             (400 lines)
      → Complete GraphQL schema, examples, implementation guide
-  
+
   ✅ README_FRAISIER_DOCS.md             (150 lines)
      → Navigation guide for documentation
 
@@ -111,11 +111,11 @@ IMMEDIATE ACTIONS (THIS WEEK)
      RECOMMENDED: Delete /home/lionel/code/fraisier/
      → Make /home/lionel/code/fraiseql/fraisier/ authoritative
      → Effort: 5 minutes
-  
+
   2. VERIFY: Monorepo copy is complete
      Check all files present in /home/lionel/code/fraiseql/fraisier/
      → Effort: 10 minutes
-  
+
   3. QUALITY: Run linting and tests
      ruff check . && pytest tests/
      → Effort: 30 minutes

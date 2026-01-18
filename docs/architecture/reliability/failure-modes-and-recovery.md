@@ -16,6 +16,7 @@ This document specifies how FraiseQL fails and recovers. Understanding failure m
 > **Fail fast, recover gracefully.**
 
 When FraiseQL encounters failure, it:
+
 1. **Detects** the failure immediately
 2. **Stops processing** (no partial/corrupt state)
 3. **Reports** error to client
@@ -55,6 +56,7 @@ When FraiseQL encounters failure, it:
 **When:** Runtime panic, OOM, segfault, kill -9
 
 **Client Impact:**
+
 ```
 Immediate: All in-flight requests fail
 Response: Connection reset / 502 Bad Gateway
@@ -64,11 +66,13 @@ Error: E_INTERNAL_UNKNOWN_ERROR_703
 **Detection:** Load balancer health check fails (TCP connection refused)
 
 **Recovery:**
+
 - **Automatic:** Kubernetes restarts pod / systemd restarts service
 - **RTO:** 5-30 seconds (depends on restart mechanism)
 - **Data Impact:** None (database not affected)
 
 **During Recovery:**
+
 ```
 T0: Process dies
 T1-2s: Load balancer detects unhealthy
@@ -82,6 +86,7 @@ T30s+: Instance healthy, accepts traffic
 **When:** Query result too large, memory leak, cache fills
 
 **Client Impact:**
+
 ```
 Gradual: Queries become slower
 Then: Connection timeouts / 503 Service Unavailable
@@ -89,10 +94,12 @@ Error: E_EXEC_LIMIT_EXCEEDED_405 or E_INTERNAL_PANIC_701
 ```
 
 **Detection:**
+
 - Monitoring: Memory usage > 90%
 - Automatic: Queries rejected if < 100MB free
 
 **Recovery:**
+
 - **Automatic:** Kill process, restart
 - **Manual:** Reduce query complexity, add cache tuning
 - **RTO:** 5-30 seconds
@@ -103,6 +110,7 @@ Error: E_EXEC_LIMIT_EXCEEDED_405 or E_INTERNAL_PANIC_701
 **When:** High query volume, expensive queries, denial of service
 
 **Client Impact:**
+
 ```
 Gradual: Query latency increases (p99 > 30s)
 Then: Query timeouts / slow client requests
@@ -110,10 +118,12 @@ Error: E_DB_POSTGRES_QUERY_TIMEOUT_302
 ```
 
 **Detection:**
+
 - Monitoring: CPU usage > 90%
 - Automatic: Query timeout enforcement
 
 **Recovery:**
+
 - **Automatic:** Queries rejected if CPU utilization > 95%
 - **Manual:** Scale out to more instances
 - **RTO:** Immediate (no restart needed, queries queue)
@@ -124,16 +134,19 @@ Error: E_DB_POSTGRES_QUERY_TIMEOUT_302
 **When:** Unbounded connection pool growth, subscription client leaks
 
 **Client Impact:**
+
 ```
 Slow: Memory gradually increases over hours/days
 Then: OOM crash (see 2.1.2)
 ```
 
 **Detection:**
+
 - Monitoring: Goroutine count increasing over time
 - Manual: pprof profiling
 
 **Recovery:**
+
 - **Manual:** Rolling restart of instances
 - **RTO:** 5-30 seconds per instance
 - **Prevention:** Connection limits, goroutine limits, monitoring
@@ -147,6 +160,7 @@ Then: OOM crash (see 2.1.2)
 **When:** Database unreachable, network partition, DNS failure
 
 **Client Impact:**
+
 ```
 Immediate: Query returns error
 Response: HTTP 504 Gateway Timeout (after 5s wait)
@@ -155,15 +169,18 @@ Retryable: YES
 ```
 
 **Detection:**
+
 - Automatic: Connection attempt fails with timeout
 - Monitoring: Connection time > threshold
 
 **Recovery:**
+
 - **Automatic:** Retry connection after backoff (1s, 2s, 4s, 8s)
 - **Client:** Retry with exponential backoff
 - **RTO:** < 30 seconds (depends on retry strategy)
 
 **Connection Pool State:**
+
 ```
 Before: 10/20 connections in use
 Error: Connection attempt fails
@@ -176,6 +193,7 @@ Next query: Reconnection attempted
 **When:** More queries than pool size, slow query victims
 
 **Client Impact:**
+
 ```
 Immediate: Connection request blocks
 After 5s: Query times out
@@ -185,16 +203,19 @@ Retryable: YES (with backoff)
 ```
 
 **Detection:**
+
 - Automatic: Pool size < available connections
 - Monitoring: Active connections > 90% of pool
 
 **Recovery:**
+
 - **Automatic:** Increase pool size (if below max)
 - **Automatic:** Wait for active queries to complete
 - **Manual:** Scale out to more instances
 - **RTO:** Depends on query duration (typically <30s)
 
 **Pool Configuration:**
+
 ```
 min_connections: 5
 max_connections: 20
@@ -209,6 +230,7 @@ If 20 queries active + 5 queued:
 **When:** Database restarts, network interruption, auth failure
 
 **Client Impact:**
+
 ```
 Request: Executing query
 Error: Connection closed mid-query
@@ -218,10 +240,12 @@ Retryable: YES (connection reopened)
 ```
 
 **Detection:**
+
 - Automatic: Network error reading response
 - Automatic: Connection marked unhealthy
 
 **Recovery:**
+
 - **Automatic:** Reopen connection
 - **Automatic:** Retry query on new connection
 - **Max retries:** 3 attempts
@@ -232,6 +256,7 @@ Retryable: YES (connection reopened)
 **When:** Planned maintenance, crash, failover
 
 **Client Impact:**
+
 ```
 During restart: All connections fail
 Error: E_DB_POSTGRES_CONNECTION_FAILED_300
@@ -241,16 +266,19 @@ Queries: Some fail, some succeed after restart
 ```
 
 **Detection:**
+
 - Automatic: Connection attempts fail
 - Monitoring: Database not responding
 
 **Recovery:**
+
 - **Automatic:** Retry connection exponentially
 - **All queries:** Fail initially, queued for retry
 - **RTO:** 10 seconds - 5 minutes (database dependent)
 - **Data Impact:** None (durable state persisted)
 
 **During Database Restart:**
+
 ```
 T0: Database starts shutdown
 T1-5s: In-flight queries error
@@ -270,6 +298,7 @@ T30s+: Queries succeed again
 **When:** Slow query, missing index, resource contention
 
 **Client Impact:**
+
 ```
 Waiting: Client waits for result (up to 30s default)
 Timeout: Query killed by database
@@ -279,10 +308,12 @@ Retryable: YES (with better query)
 ```
 
 **Detection:**
+
 - Automatic: Query execution > timeout threshold
 - Monitoring: p99 query time > SLO
 
 **Recovery:**
+
 - **Automatic:** Kill query, return error
 - **Client:** Retry with fewer results (add filter/limit)
 - **Manual:** Add index, optimize query
@@ -294,6 +325,7 @@ Retryable: YES (with better query)
 **When:** Concurrent mutations conflicting
 
 **Client Impact:**
+
 ```
 Execution: Queries start conflicting
 Deadlock detected: One query victim selected
@@ -303,16 +335,19 @@ Retryable: YES (automatic on retry)
 ```
 
 **Detection:**
+
 - Automatic: Database detects and kills one query
 - Monitoring: Deadlock count increasing
 
 **Recovery:**
+
 - **Automatic:** Runtime retries query automatically (up to 3x)
 - **If persists:** Returns error, client retries
 - **RTO:** < 1 second per retry
 - **Data Impact:** First query's changes persist, second rolls back
 
 **Deadlock Scenario:**
+
 ```
 Client A: UPDATE users SET balance -= 100 WHERE id = 1
          UPDATE orders SET total += 100 WHERE user_id = 1
@@ -330,6 +365,7 @@ Database: Detects circular dependency
 **When:** Unique constraint, foreign key, check constraint
 
 **Client Impact:**
+
 ```
 Execution: Constraint violation during INSERT/UPDATE
 Response: HTTP 400 Bad Request
@@ -338,15 +374,18 @@ Retryable: NO
 ```
 
 **Detection:**
+
 - Automatic: Database rejects write
 - User-actionable: Clear error message
 
 **Recovery:**
+
 - **Client:** Fix data (use different email, valid user_id, etc.)
 - **Retry:** Retry with corrected data
 - **RTO:** User must fix (not automatic)
 
 **No Recovery Needed:**
+
 ```
 Mutation { createUser(email: "taken@example.com") { id } }
 → Error: Unique constraint violation on email
@@ -359,6 +398,7 @@ Mutation { createUser(email: "taken@example.com") { id } }
 **When:** Query result too large, insufficient RAM
 
 **Client Impact:**
+
 ```
 Execution: Query consumes too much memory
 Response: HTTP 503 Service Unavailable
@@ -367,10 +407,12 @@ Retryable: YES (reduce query size)
 ```
 
 **Detection:**
+
 - Monitoring: Database memory > 90%
 - Automatic: Query killed before consuming all memory
 
 **Recovery:**
+
 - **Client:** Retry with pagination (smaller batch size)
 - **Manual:** Add WHERE filter, reduce JOIN complexity
 - **Manual:** Increase database RAM
@@ -381,6 +423,7 @@ Retryable: YES (reduce query size)
 **When:** Database cannot write (INSERT/UPDATE fails)
 
 **Client Impact:**
+
 ```
 Execution: Database cannot allocate space
 Response: HTTP 503 Service Unavailable
@@ -389,10 +432,12 @@ Retryable: YES (after manual intervention)
 ```
 
 **Detection:**
+
 - Monitoring: Disk usage > 95%
 - Automatic: Database rejects writes
 
 **Recovery:**
+
 - **Manual:** DBA frees disk space
 - **RTO:** 5-30 minutes (operational)
 - **Data Impact:** Writes fail until space available
@@ -407,6 +452,7 @@ Retryable: YES (after manual intervention)
 **When:** Redis/Memcached instance crashes
 
 **Client Impact:**
+
 ```
 Query: Cache miss (server unavailable)
 Result: Query executes against database
@@ -415,16 +461,19 @@ Error: None (graceful degradation)
 ```
 
 **Detection:**
+
 - Automatic: Cache connection fails
 - Monitoring: Cache server not responding
 
 **Recovery:**
+
 - **Automatic:** Cache marked unavailable, queries bypass cache
 - **Automatic:** Cache reconnection attempted
 - **RTO:** < 5 seconds (cache warming starts)
 - **Data Impact:** None (queries still work, slower)
 
 **Graceful Degradation:**
+
 ```
 Before cache failure:
   Query: 50ms (cache hit)
@@ -441,6 +490,7 @@ After cache recovery:
 **When:** Stale/invalid data in cache
 
 **Client Impact:**
+
 ```
 Query: Cache returns invalid data
 Result: Inconsistent response to client
@@ -448,10 +498,12 @@ Monitoring: Data inconsistency detected
 ```
 
 **Detection:**
+
 - Monitoring: Hash validation fails
 - Automatic: Data type mismatch
 
 **Recovery:**
+
 - **Automatic:** Invalidate entry, fetch from database
 - **Automatic:** Rebuild cache from fresh data
 - **RTO:** < 1 second
@@ -462,6 +514,7 @@ Monitoring: Data inconsistency detected
 **When:** Memory limit reached
 
 **Client Impact:**
+
 ```
 Write: Cannot add new entries to cache
 Behavior: Entries evicted (LRU policy)
@@ -470,10 +523,12 @@ Error: None (automatic eviction)
 ```
 
 **Detection:**
+
 - Monitoring: Cache memory > 90%
 - Automatic: Eviction triggered
 
 **Recovery:**
+
 - **Automatic:** LRU entries evicted
 - **Manual:** Increase cache memory
 - **RTO:** Immediate (queries work, but slower)
@@ -487,6 +542,7 @@ Error: None (automatic eviction)
 **When:** OIDC provider down, Auth0 down, corporate SSO down
 
 **Client Impact:**
+
 ```
 Request: No valid token
 Recovery: Request uses cached/local auth
@@ -494,12 +550,14 @@ Behavior: Depends on auth provider type
 ```
 
 **Detection:**
+
 - Automatic: Token validation request fails
 - Monitoring: Auth provider not responding
 
 **Recovery Strategy (depends on provider):**
 
 **Scenario A: JWT Token (self-contained)**
+
 ```
 Token validation: Cached public key used
 Auth provider unreachable: Token still validated locally
@@ -508,6 +566,7 @@ RTO: 0 (no recovery needed)
 ```
 
 **Scenario B: OAuth2 Token (external validation)**
+
 ```
 Token validation: HTTP request to provider fails
 Behavior: Option 1: Cache last 5min, allow
@@ -523,6 +582,7 @@ RTO: Until provider recovers (5-30 min)
 **When:** Long-running query, token expires mid-execution
 
 **Client Impact:**
+
 ```
 Auth check: Passed (token valid at start)
 Execution: Query runs normally
@@ -543,6 +603,7 @@ Token expiry: Ignored (already authenticated)
 **When:** Federated subgraph is down or unreachable
 
 **Client Impact:**
+
 ```
 Query: Needs federated entity
 Attempt: HTTP request to subgraph fails
@@ -552,10 +613,12 @@ Retryable: YES
 ```
 
 **Detection:**
+
 - Automatic: HTTP connection fails
 - Monitoring: Subgraph health check fails
 
 **Recovery:**
+
 - **Automatic:** Retry with exponential backoff (1s, 2s, 4s)
 - **Automatic:** Fallback to stale cache (if available)
 - **Max retries:** 3 attempts × 5s = 15s total wait
@@ -563,6 +626,7 @@ Retryable: YES
 - **Fallback:** Return stale federated data if cached
 
 **During Subgraph Outage:**
+
 ```
 Request 1 (T0): Subgraph unavailable
   → Retry 1 (T1s): Still unavailable
@@ -579,6 +643,7 @@ Request 2 (T0): Parallel requests
 **When:** Subgraph responds slowly
 
 **Client Impact:**
+
 ```
 Query: Needs federated entity
 Wait: 5s timeout
@@ -588,10 +653,12 @@ Retryable: YES
 ```
 
 **Detection:**
+
 - Automatic: HTTP request > timeout threshold
 - Monitoring: Subgraph response time > SLO
 
 **Recovery:**
+
 - **Automatic:** Retry with backoff
 - **Client:** Retry entire query
 - **Manual:** Optimize subgraph query, scale out
@@ -602,6 +669,7 @@ Retryable: YES
 **When:** Subgraph returns unexpected entity type
 
 **Client Impact:**
+
 ```
 Query: Expects User { name, email }
 Subgraph: Returns { name, org_id } (wrong shape)
@@ -612,10 +680,12 @@ Retryable: NO
 ```
 
 **Detection:**
+
 - Automatic: Schema validation fails
 - Monitoring: Type mismatches detected
 
 **Recovery:**
+
 - **Manual:** Fix subgraph schema
 - **RTO:** Depends on schema update process (5-30 min)
 - **Interim:** Disable federation for this entity type
@@ -629,6 +699,7 @@ Retryable: NO
 **When:** Network interruption, client disconnect, server restart
 
 **Client Impact:**
+
 ```
 Subscription: Active WebSocket
 Event: Network failure
@@ -639,16 +710,19 @@ Retryable: YES (reconnect)
 ```
 
 **Detection:**
+
 - Automatic: Socket close detected
 - Automatic: Keep-alive timeout (60s)
 
 **Recovery:**
+
 - **Client:** Reconnect and resubscribe
 - **RTO:** < 5 seconds (reconnect + resubscribe)
 - **Events during outage:** Buffered in `tb_entity_change_log`
 - **Replay:** Client can query from last sequence_number
 
 **Recovery Sequence:**
+
 ```
 T0: Connection lost
 T1-5s: Client detects and reconnects
@@ -661,6 +735,7 @@ T5+: Resume receiving events from buffer
 **When:** Too many events, subscriber is slow
 
 **Client Impact:**
+
 ```
 Events: Accumulating faster than delivery
 Buffer: Fills up (default: 1000 events)
@@ -670,10 +745,12 @@ Retryable: YES (reconnect and replay from sequence)
 ```
 
 **Detection:**
+
 - Monitoring: Buffer usage > 90%
 - Automatic: Overflow detected
 
 **Recovery:**
+
 - **Client:** Reconnect and replay from last sequence number
 - **Automatic:** Filter events (add WHERE clause) to reduce volume
 - **Manual:** Increase buffer size
@@ -684,6 +761,7 @@ Retryable: YES (reconnect and replay from sequence)
 **When:** Webhook endpoint returns error or is slow
 
 **Client Impact:**
+
 ```
 Event: Needs delivery to webhook
 Request: HTTP POST to endpoint
@@ -693,10 +771,12 @@ Attempts: Up to 5 retries over 10 minutes
 ```
 
 **Detection:**
+
 - Automatic: HTTP response code >= 400
 - Monitoring: Webhook delivery failures
 
 **Recovery:**
+
 - **Automatic:** Retry with exponential backoff
   - Attempt 1: Immediately
   - Attempt 2: After 1s
@@ -715,6 +795,7 @@ Attempts: Up to 5 retries over 10 minutes
 **When:** Malformed, expired, or tampered token
 
 **Client Impact:**
+
 ```
 Request: Includes invalid token
 Auth: Validation fails
@@ -724,10 +805,12 @@ Retryable: NO (user must re-authenticate)
 ```
 
 **Detection:**
+
 - Automatic: Token signature invalid
 - Automatic: Token expiration date passed
 
 **Recovery:**
+
 - **Client:** Re-authenticate to get new token
 - **RTO:** Depends on auth flow (typically < 1 minute)
 
@@ -736,6 +819,7 @@ Retryable: NO (user must re-authenticate)
 **When:** User role/permissions changed after token issued
 
 **Client Impact:**
+
 ```
 Request: Token valid but permissions changed
 Authorization: Evaluated against stale role
@@ -744,10 +828,12 @@ Probability: Low (permissions don't change frequently)
 ```
 
 **Detection:**
+
 - Monitoring: Authorization denials after known permission grant
 - Manual: Security audit
 
 **Recovery:**
+
 - **Automatic:** Re-fetch auth context on periodic basis (TTL)
 - **Manual:** Revoke and re-issue tokens
 - **RTO:** 0-1 hour (depends on token refresh interval)
@@ -757,6 +843,7 @@ Probability: Low (permissions don't change frequently)
 **When:** Row-level security policy prevents access
 
 **Client Impact:**
+
 ```
 Query: Attempts cross-tenant access
 RLS: Policy prevents unauthorized access
@@ -766,10 +853,12 @@ Retryable: NO (user doesn't have permission)
 ```
 
 **Detection:**
+
 - Automatic: RLS policy evaluation
 - Monitoring: RLS denials by policy
 
 **Recovery:**
+
 - **No automatic recovery** (intentional security boundary)
 - **Manual:** DBA grants access or user requests permission
 - **RTO:** Depends on access request process
@@ -827,6 +916,7 @@ T4: Clients must replay from last sequence_number
 ### 4.1 Single Instance Crash
 
 **Automatic (no human intervention):**
+
 ```
 1. Instance crashes
 2. Kubernetes detects unhealthy pod (10-30s)
@@ -841,6 +931,7 @@ Data loss: None
 ```
 
 **Manual verification:**
+
 ```bash
 # Check pod logs for crash reason
 kubectl logs pod-name
@@ -853,6 +944,7 @@ kubectl logs pod-name
 ### 4.2 Database Connection Lost
 
 **Automatic:**
+
 ```
 1. Query fails with connection error
 2. Runtime closes stale connection
@@ -868,6 +960,7 @@ Data loss: None
 ### 4.3 Database Unavailable (Recovery)
 
 **Steps:**
+
 ```
 1. Monitor: Detect database not responding (< 5 seconds)
 2. Alert: Page on-call DBA
@@ -887,6 +980,7 @@ Data loss: None (if durability persisted)
 ### 4.4 Complete Data Center Failure
 
 **Steps (assume multi-datacenter setup):**
+
 ```
 1. Monitor: Detect all instances/database in region down
 2. Alert: Page incident commander
@@ -1123,6 +1217,7 @@ If Week 4 has additional 2 min outage:
 ✅ **Observable:** Traceability via trace IDs and structured logs
 
 **Key RTO targets:**
+
 - Single instance crash: 30-60 seconds
 - Database connection: < 10 seconds
 - Cache failure: < 5 seconds

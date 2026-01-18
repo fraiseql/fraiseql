@@ -3,15 +3,10 @@
 [Coverage]: http://img.shields.io/coveralls/litejs/natural-compare-lite.png
 [1]: https://travis-ci.org/litejs/natural-compare-lite
 [2]: https://coveralls.io/r/litejs/natural-compare-lite
-[npm package]: https://npmjs.org/package/natural-compare-lite
-[GitHub repo]: https://github.com/litejs/natural-compare-lite
-
-
 
     @version    1.4.0
     @date       2015-10-26
     @stability  3 - Stable
-
 
 Natural Compare &ndash; [![Build][]][1] [![Coverage][]][2]
 ===============
@@ -32,8 +27,6 @@ String.naturalCompare returns a number indicating
 whether a reference string comes before or after or is the same
 as the given string in sort order.
 Use it with builtin sort() function.
-
-
 
 ### Installation
 
@@ -90,7 +83,6 @@ a.sort(function(a, b){
 
 - Works well with dates in ISO format eg "Rev 2012-07-26.doc".
 
-
 ### Custom alphabet
 
 It is possible to configure a custom alphabet
@@ -108,18 +100,14 @@ String.alphabet = "АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬ�
 // ["А", "Б", "Ё"]
 ```
 
-
 External links
 --------------
 
--   [GitHub repo][https://github.com/litejs/natural-compare-lite]
--   [jsperf test](http://jsperf.com/natural-sort-2/12)
-
+- [GitHub repo][https://github.com/litejs/natural-compare-lite]
+- [jsperf test](http://jsperf.com/natural-sort-2/12)
 
 Licence
 -------
 
-Copyright (c) 2012-2015 Lauri Rooden &lt;lauri@rooden.ee&gt;  
+Copyright (c) 2012-2015 Lauri Rooden &lt;<lauri@rooden.ee>&gt;  
 [The MIT License](http://lauri.rooden.ee/mit-license.txt)
-
-

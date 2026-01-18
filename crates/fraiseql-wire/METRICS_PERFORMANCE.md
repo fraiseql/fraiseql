@@ -27,6 +27,7 @@ fraiseql-wire metrics are designed with **minimal performance overhead** through
 ### Metrics Overhead Benchmarks
 
 Run benchmarks with:
+
 ```bash
 cargo bench --bench micro_benchmarks metrics_overhead
 ```
@@ -34,6 +35,7 @@ cargo bench --bench micro_benchmarks metrics_overhead
 #### Individual Metric Operations
 
 **Counter Increment** (~0.1μs)
+
 ```
 fraiseql_queries_total:              ~0.07μs
 fraiseql_query_completed_total:      ~0.08μs
@@ -43,6 +45,7 @@ fraiseql_json_parse_errors_total:    ~0.07μs
 ```
 
 **Histogram Recording** (~0.3-0.5μs)
+
 ```
 fraiseql_query_startup_duration_ms:  ~0.45μs
 fraiseql_auth_duration_ms:           ~0.42μs
@@ -52,6 +55,7 @@ fraiseql_deserialization_duration:   ~0.47μs
 ```
 
 **Combined Operations** (~1-2μs)
+
 ```
 auth_metrics_full_path:              ~1.2μs  (3 operations)
 deserialization_success:             ~1.5μs  (2 operations)
@@ -63,6 +67,7 @@ error_tracking:                      ~0.5μs  (2 counters)
 #### Complete Query Pipeline
 
 **Full Query Instrumentation** (~50-100μs total)
+
 ```
 complete_query_instrumentation:      ~75μs
 
@@ -85,23 +90,27 @@ Overhead: ~50-75μs for 1280 row query = <0.1% of typical query time
 ### Design for Low Overhead
 
 **1. Lock-Free Atomics**
+
 - All counters use atomic operations
 - No locks, no contention
 - Safe for concurrent access
 - Overhead: ~50-100 CPU cycles
 
 **2. Zero Allocations**
+
 - No string allocations in hot paths
 - No Vec/HashMap allocations
 - Label strings are &str (stack references)
 - All operations are stack-based
 
 **3. Minimal Timing Cost**
+
 - `std::time::Instant::now()` is ~50-100ns per call
 - Only used for histogram measurements
 - Results validated by benchmarks
 
 **4. Framework Integration**
+
 - `metrics` crate is optimized for low-overhead collection
 - Atomic operations are inlined by compiler
 - No runtime reflection or dynamic dispatch
@@ -109,12 +118,14 @@ Overhead: ~50-75μs for 1280 row query = <0.1% of typical query time
 ### Memory Impact
 
 **Per-Process Memory**
+
 - Metrics state: 0 bytes (stateless)
 - Per-counter: Atomic<u64> = 8 bytes
 - Per-histogram bucket: f64 = 8 bytes
 - Total: ~1KB for all metrics
 
 **Per-Query Memory**
+
 - No allocations for metrics
 - No buffers created
 - No state accumulation
@@ -133,6 +144,7 @@ Overhead: ~50-75μs for 1280 row query = <0.1% of typical query time
 ### Overhead Verification
 
 **Atomic Counter Operation**
+
 ```
 Theory: ~50 CPU cycles (lock-free atomic write)
 Measured: ~0.07μs @ 3GHz = ~210 cycles
@@ -141,6 +153,7 @@ Conclusion: ✅ Within expected range (3x overhead accounts for
 ```
 
 **Histogram Recording**
+
 ```
 Theory: ~50 cycles (atomic write to bucket)
 Measured: ~0.45μs @ 3GHz = ~1350 cycles
@@ -148,6 +161,7 @@ Conclusion: ✅ Expected overhead for atomic operation + bucket selection
 ```
 
 **Complete Query Instrumentation**
+
 ```
 Scenario: 1280-row query with 5 chunks, 10% filtering
 Theory: ~75μs (sum of all operations)
@@ -164,21 +178,25 @@ Conclusion: ✅ Well below 0.1% target
 ### Query Execution Timeline
 
 **Baseline (no metrics)**: 180ms
+
 - Network: 50ms
 - Query planning: 30ms
 - Data retrieval: 80ms
 - Stream processing: 20ms
 
 **With Metrics**: ~180.08ms
+
 - Additional overhead: 0.08ms (from benchmarks)
 - Percentage impact: 0.044%
 
 ### Throughput Impact
 
 **Baseline Throughput**
+
 - Queries per second: 5.5 (at 180ms per query)
 
 **With Metrics Overhead**
+
 - Queries per second: 5.49 (180.08ms per query)
 - Loss: 0.01 queries/sec = 0.18% impact
 
@@ -226,6 +244,7 @@ Total: ~150 metrics stored vs millions with high cardinality
 ### No Hot Path Allocations
 
 All label strings are `&str`:
+
 ```rust
 // ✅ Good - no allocation
 metrics::counters::query_submitted("users", true, false, false);
@@ -240,21 +259,25 @@ metrics::counters::query_submitted(&entity, true, false, false);
 ## Comparison with Alternatives
 
 ### vs. No Metrics
+
 - Overhead: 0.042% - 0.1%
 - Benefit: Complete observability pipeline
 - **Verdict**: Worth the small overhead
 
 ### vs. Manual Logging
+
 - Manual logs: ~100-1000μs per log (I/O bound)
 - Metrics: ~1μs per metric (CPU bound)
 - **Verdict**: Metrics 100x more efficient
 
 ### vs. Sampling (Random)
+
 - Sampling misses rare events
 - Metrics capture all events
 - **Verdict**: Metrics provides better visibility
 
 ### vs. Push Metrics (Synchronous)
+
 - Push metrics: ~10-100ms (network I/O)
 - fraiseql-wire metrics: ~1μs (async-friendly)
 - **Verdict**: fraiseql-wire approach is better
@@ -291,11 +314,13 @@ cargo bench --bench micro_benchmarks metrics_overhead -- \
 In production, monitor these metrics to detect performance issues:
 
 ### Red Flags
+
 - Histogram operations > 1μs (suggests lock contention)
 - Memory growth without query volume increase (suggests leak)
 - CPU > 5% for metrics processing (suggests over-instrumentation)
 
 ### Normal Values
+
 - Counter increments: 0.05-0.1μs
 - Histogram records: 0.3-0.5μs
 - Complete query: 0.042% overhead
@@ -305,18 +330,21 @@ In production, monitor these metrics to detect performance issues:
 ## Recommendations
 
 ### For Most Users
+
 - ✅ Use default metrics configuration
 - ✅ Enable all metrics for complete visibility
 - ✅ Export to Prometheus/OpenTelemetry
 - Overhead: < 0.1%, benefit: Complete observability
 
 ### For Ultra-High-Performance Scenarios
+
 - Consider disabling deserialization per-type metrics
 - Aggregate by entity only (reduces cardinality)
 - Expected overhead reduction: ~20% (from ~75μs to ~60μs)
 - Trade-off: Less detailed per-type breakdown
 
 ### For Development/Testing
+
 - ✅ Enable all metrics
 - Use for performance profiling
 - Identify slow query patterns

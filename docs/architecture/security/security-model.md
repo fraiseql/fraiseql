@@ -910,6 +910,7 @@ class PaymentMethod:
 ### 9.1 Authorization Rules
 
 **DO:**
+
 - ✅ Always define authorization rules on sensitive types
 - ✅ Use most restrictive rule that makes sense
 - ✅ Include role-based checks when applicable
@@ -919,6 +920,7 @@ class PaymentMethod:
 - ✅ Use custom rules for complex business logic
 
 **DON'T:**
+
 - ❌ Rely on client-side authorization checks
 - ❌ Store authorization rules in comments only
 - ❌ Use overly permissive rules (avoid "public" when inappropriate)
@@ -929,6 +931,7 @@ class PaymentMethod:
 ### 9.2 Field Masking
 
 **DO:**
+
 - ✅ Mask PII (personally identifiable information)
 - ✅ Mask sensitive financial data
 - ✅ Mask authentication secrets
@@ -936,6 +939,7 @@ class PaymentMethod:
 - ✅ Document which fields are masked and why
 
 **DON'T:**
+
 - ❌ Rely on masking instead of authorization
 - ❌ Mask data that's already filtered by RLS
 - ❌ Return misleading masked values
@@ -944,6 +948,7 @@ class PaymentMethod:
 ### 9.3 Audit Logging
 
 **DO:**
+
 - ✅ Enable audit logging in production
 - ✅ Retain audit logs per compliance requirements
 - ✅ Monitor for suspicious access patterns
@@ -951,6 +956,7 @@ class PaymentMethod:
 - ✅ Alert on access to sensitive data
 
 **DON'T:**
+
 - ❌ Disable audit logging for performance
 - ❌ Delete audit logs (immutable)
 - ❌ Modify audit log entries

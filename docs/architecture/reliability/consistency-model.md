@@ -39,11 +39,13 @@ FraiseQL queries and mutations respect the database's ACID properties:
 **What it means:** Mutation either fully succeeds or fully fails. No partial updates.
 
 **Scope:** Single mutation operation
+
 - Mutation: `createUser(name: "Bob", email: "bob@example.com")`
 - All side effects apply, or none apply
 - No partial state visible to other queries
 
 **Guarantee:**
+
 ```python
 # Before mutation
 SELECT COUNT(*) FROM users  # 100
@@ -62,12 +64,14 @@ SELECT COUNT(*) FROM users  # Still 100 (no partial insert)
 **What it means:** Database integrity constraints are never violated.
 
 **Scope:** All queries, mutations, subscriptions
+
 - Foreign key constraints enforced
 - Unique constraints enforced
 - Check constraints enforced
 - Referential integrity maintained
 
 **Guarantee:**
+
 ```python
 # Foreign key constraint: order.user_id → user.id
 # This mutation will fail (invalid user_id):
@@ -114,11 +118,13 @@ mutation {
 **What it means:** Once mutation succeeds, it persists even after failure.
 
 **Scope:** Confirmed mutations
+
 - Mutation returns success response (in GraphQL `data` field, not `errors`)
 - Database has written change to durable storage
 - Change survives server restart, power loss, etc.
 
 **Guarantee:**
+
 ```python
 # Mutation succeeds (returns in data field)
 mutation {
@@ -136,6 +142,7 @@ query {
 ```
 
 **Non-guarantee:**
+
 ```python
 # Mutation fails (returns in errors field)
 mutation {
@@ -156,6 +163,7 @@ mutation {
 **What it means:** After a write succeeds, subsequent reads see the write.
 
 **Scope:** Same client connection
+
 ```python
 # Write succeeds
 mutation {
@@ -176,6 +184,7 @@ query {
 **What it means:** Client always sees results of its own writes, even if different server processes handle the requests.
 
 **Scope:** Same authenticated user
+
 ```python
 # Request 1: Write to Server A
 mutation {
@@ -189,6 +198,7 @@ query {
 ```
 
 **Implementation:** Achieved via:
+
 - Database replication (all writes go to primary)
 - Session affinity (client sticky to server)
 - Causal token tracking (server sends version, client tracks)
@@ -198,6 +208,7 @@ query {
 **What it means:** Client never sees a version of data earlier than a previous read.
 
 **Scope:** Same client over time
+
 ```python
 # Read 1: User has 5 posts
 query { user(id: 1) { posts { count } } }
@@ -217,6 +228,7 @@ query { user(id: 1) { posts { count } } }
 **What it means:** Client sees causally-consistent sequence of updates, not out-of-order.
 
 **Scope:** Related data across reads
+
 ```python
 # Event 1: Create order (id: 100)
 mutation { createOrder(user_id: 1, amount: 100) { id } }
@@ -239,6 +251,7 @@ query { order(id: 100) { status } }
 **What it means:** Concurrent writes are serialized (don't interleave).
 
 **Scope:** All mutations
+
 ```python
 # Concurrent mutations on same row
 # Client A: UPDATE user SET balance = balance - 100 WHERE id = 1
@@ -256,6 +269,7 @@ query { order(id: 100) { status } }
 **What it means:** Multi-statement mutations are atomic.
 
 **Scope:** Multiple queries within single mutation (future feature)
+
 ```python
 mutation {
   # Statement 1
@@ -275,6 +289,7 @@ mutation {
 **What it means:** Conflicting writes are detected and one fails.
 
 **Scope:** Concurrent modifications
+
 ```python
 # Client A: updateUser(id: 1, name: "Alice", version: 5)
 # Client B: updateUser(id: 1, name: "Bob", version: 5)
@@ -294,6 +309,7 @@ When FraiseQL fetches federated entities from multiple databases, it provides **
 **Definition:** If operation A causally affects operation B, every observer sees A before B.
 
 **Example:**
+
 ```python
 # Database 1: Users
 # Database 2: Orders
@@ -320,6 +336,7 @@ query {
 ### 5.2 Consistency Across Databases
 
 **Single-Database Query (Strict Serializable):**
+
 ```
 Database: PostgreSQL
 Consistency: Serializable ACID
@@ -327,6 +344,7 @@ Latency: <10ms
 ```
 
 **Federated Query (Causal Consistent):**
+
 ```
 Database 1: PostgreSQL (Users)
 Database 2: MySQL (Orders)
@@ -393,6 +411,7 @@ Event 3: status = "delivered" (timestamp: T3)
 ### 6.2 Event Delivery Consistency
 
 **At-least-once delivery:**
+
 - Events are delivered at least once
 - Client may receive duplicates (same event twice)
 - Client should be idempotent
@@ -485,6 +504,7 @@ query @cacheControl(maxAge: 60) {
 ### 8.1 Database Unavailable
 
 **Query:** Returns error, no partial data
+
 ```python
 query { user(id: 1) { name } }
 # Database is down
@@ -492,6 +512,7 @@ query { user(id: 1) { name } }
 ```
 
 **Mutation:** Returns error, no changes applied
+
 ```python
 mutation { updateUser(id: 1, name: "Bob") { name } }
 # Database is down
@@ -577,6 +598,7 @@ mutation @consistency(level: "serializable", timeout: 30000) {
 **Consistency Level:** Serializable ACID
 **Mechanism:** Serializable Snapshot Isolation (SSI)
 **Guarantee:**
+
 ```
 ✅ Serializable isolation
 ✅ MVCC (Multi-Version Concurrency Control)
@@ -589,6 +611,7 @@ mutation @consistency(level: "serializable", timeout: 30000) {
 **Consistency Level:** Repeatable Read (default) → Serializable (FraiseQL default)
 **Mechanism:** MVCC + Gap locks
 **Guarantee:**
+
 ```
 ✅ Serializable isolation (with locks)
 ✅ MVCC
@@ -601,6 +624,7 @@ mutation @consistency(level: "serializable", timeout: 30000) {
 **Consistency Level:** Serializable ACID
 **Mechanism:** Snapshot isolation + row versioning
 **Guarantee:**
+
 ```
 ✅ Serializable isolation
 ✅ Snapshot isolation available
@@ -613,6 +637,7 @@ mutation @consistency(level: "serializable", timeout: 30000) {
 **Consistency Level:** Serializable ACID
 **Mechanism:** Write-ahead logging + locking
 **Guarantee:**
+
 ```
 ⚠️ Limited MVCC (single file)
 ✅ Atomic transactions
@@ -627,6 +652,7 @@ mutation @consistency(level: "serializable", timeout: 30000) {
 ### 13.1 Assuming Eventual Consistency
 
 **❌ WRONG:**
+
 ```python
 # This is NOT eventually consistent!
 mutation { updateUser(id: 1, name: "Alice") }
@@ -638,6 +664,7 @@ result = query { user(id: 1) { name } }
 ```
 
 **✅ RIGHT:**
+
 ```python
 mutation { updateUser(id: 1, name: "Alice") }
 # Result: Always consistent immediately, no need to wait
@@ -647,6 +674,7 @@ result = query { user(id: 1) { name } }  # Sees "Alice"
 ### 13.2 Assuming Cross-Database Transactions
 
 **❌ WRONG:**
+
 ```python
 mutation {
   createUser(name: "Alice") { id }  # Database 1
@@ -658,6 +686,7 @@ mutation {
 ```
 
 **✅ RIGHT:**
+
 ```python
 # Handle failure manually
 try {
@@ -672,6 +701,7 @@ try {
 ### 13.3 Assuming Global Event Ordering
 
 **❌ WRONG:**
+
 ```python
 subscription {
   orderUpdated { id, status }
@@ -683,6 +713,7 @@ subscription {
 ```
 
 **✅ RIGHT:**
+
 ```python
 subscription {
   orderUpdated { id, status, timestamp }

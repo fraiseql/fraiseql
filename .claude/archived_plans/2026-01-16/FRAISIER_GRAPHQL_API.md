@@ -5,6 +5,7 @@
 **Fraisier will eventually expose its entire functionality as a GraphQL API** using FraiseQL's compiled execution engine.
 
 This means:
+
 - Fraisier deployments status is **queryable via GraphQL**
 - Deployments can be **triggered via mutations**
 - Status changes are **available via subscriptions**
@@ -27,6 +28,7 @@ POST /api/deployments (body: fraise, env) (trigger)
 ```
 
 **Problems:**
+
 - Multiple endpoints to fetch related data (N+1 queries)
 - Over-fetching (getting fields you don't need)
 - Under-fetching (need multiple requests)
@@ -261,6 +263,7 @@ query DashboardQuery {
 ```
 
 **Response:**
+
 ```json
 {
   "data": {
@@ -356,6 +359,7 @@ subscription OnDeploymentChange {
 ### Database Layer (SQLite)
 
 **Write Tables (Append-Only):**
+
 ```sql
 CREATE TABLE tb_deployments (
   id TEXT PRIMARY KEY,
@@ -381,6 +385,7 @@ CREATE TABLE tb_webhook_events (
 ```
 
 **Read Views (Optimized for Queries):**
+
 ```sql
 CREATE VIEW v_fraise_status AS
   SELECT DISTINCT ON (fraise_id, environment)
@@ -584,6 +589,7 @@ SQLite Database (custom queries)
 ```
 
 **Issues:**
+
 - Custom REST endpoints
 - Manual query writing
 - No type safety

@@ -23,6 +23,7 @@ Java Code (annotations + builders)
 ## Installation
 
 ### Requirements
+
 - Java 17 or later
 - Maven 3.8.0 or later
 
@@ -117,12 +118,14 @@ Java types map to GraphQL types:
 ### Annotations
 
 **@GraphQLType**: Marks a class as a GraphQL type
+
 ```java
 @GraphQLType(description = "A user account")
 public class User { ... }
 ```
 
 **@GraphQLField**: Marks a field as a GraphQL field
+
 ```java
 @GraphQLField(name = "user_id", nullable = true)
 public int id;
@@ -145,6 +148,7 @@ public int id;
 See `examples/BasicSchema.java` for a complete example with Users and Posts.
 
 Run:
+
 ```bash
 mvn exec:java -Dexec.mainClass="com.fraiseql.examples.BasicSchema"
 ```
@@ -189,16 +193,19 @@ mvn package
 After generating `schema.json`:
 
 1. **Compile schema:**
+
    ```bash
    fraiseql-cli compile schema.json -o schema.compiled.json
    ```
 
 2. **Start server:**
+
    ```bash
    fraiseql-server --schema schema.compiled.json --port 8000
    ```
 
 3. **Test GraphQL:**
+
    ```bash
    curl -X POST http://localhost:8000/graphql \
      -H "Content-Type: application/json" \

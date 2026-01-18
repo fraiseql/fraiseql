@@ -10,6 +10,7 @@
 ## Current State Assessment
 
 **What's Done:**
+
 - ✅ Server infrastructure (Axum-based, routes defined)
 - ✅ Configuration system (ServerConfig with sensible defaults)
 - ✅ Middleware (CORS, tracing)
@@ -18,6 +19,7 @@
 - ✅ Core Executor exists in fraiseql-core
 
 **What's Missing:**
+
 - ❌ Schema loading from JSON files (critical)
 - ❌ Complete graphql_handler implementation
 - ❌ Health/introspection endpoints
@@ -32,6 +34,7 @@
 ### Phase 0.1: Schema Loading Module (0.5 days)
 
 **Files to Create/Modify:**
+
 - `crates/fraiseql-server/src/schema/mod.rs` (NEW)
 - `crates/fraiseql-server/src/schema/loader.rs` (NEW)
 - `crates/fraiseql-server/src/lib.rs` (MODIFY - add schema module)
@@ -39,6 +42,7 @@
 **Implementation Details:**
 
 1. Create `CompiledSchemaLoader` struct:
+
    ```rust
    pub struct CompiledSchemaLoader {
        path: PathBuf,
@@ -62,6 +66,7 @@
    - Validate path on server startup
 
 **Tests:**
+
 - Unit test: Load valid schema JSON
 - Unit test: Handle missing file error
 - Unit test: Handle invalid JSON error
@@ -71,6 +76,7 @@
 ### Phase 0.2: Complete GraphQL Handler (0.5 days)
 
 **Files to Modify:**
+
 - `crates/fraiseql-server/src/routes/graphql.rs` (COMPLETE)
 - `crates/fraiseql-server/src/server.rs` (ENHANCE)
 
@@ -93,6 +99,7 @@
    - Handle timeout scenarios
 
 **Tests:**
+
 - Unit test: Valid query execution
 - Unit test: Query with variables
 - Unit test: Invalid query (parse error)
@@ -103,6 +110,7 @@
 ### Phase 0.3: Health & Introspection Endpoints (0.5 days)
 
 **Files to Modify:**
+
 - `crates/fraiseql-server/src/routes/health.rs` (ENHANCE)
 - `crates/fraiseql-server/src/routes/introspection.rs` (ENHANCE)
 - `crates/fraiseql-server/src/routes/mod.rs` (if needed)
@@ -121,6 +129,7 @@
    - Useful for client code generation
 
 **Tests:**
+
 - Integration test: Health check on startup
 - Integration test: Health check with no schema
 - Integration test: Introspection returns valid schema
@@ -130,6 +139,7 @@
 ### Phase 0.4: Main Binary Implementation (0.5 days)
 
 **Files to Modify:**
+
 - `crates/fraiseql-server/src/main.rs` (COMPLETE)
 
 **Implementation Details:**
@@ -164,12 +174,14 @@ async fn main() -> anyhow::Result<()> {
 ```
 
 **Database Adapter Initialization:**
+
 - Accept DATABASE_URL environment variable
 - Parse connection string to determine database type
 - Create appropriate adapter (PostgresAdapter, etc.)
 - Support connection pooling
 
 **Tests:**
+
 - Integration test: Server startup with valid config
 - Integration test: Server rejects invalid schema path
 - Integration test: Server rejects invalid database URL
@@ -179,6 +191,7 @@ async fn main() -> anyhow::Result<()> {
 ### Phase 0.5: Integration Tests (0.5 days)
 
 **Files to Create:**
+
 - `crates/fraiseql-server/tests/integration_test.rs` (NEW)
 - `crates/fraiseql-server/tests/fixtures/` (NEW - test schemas)
 
@@ -213,6 +226,7 @@ async fn main() -> anyhow::Result<()> {
    - Connection pool behavior
 
 **Test Database:**
+
 - Use test fixtures with sample schema
 - Create minimal test data
 - Clean up after each test
@@ -230,6 +244,7 @@ The server needs to determine which database adapter to use. Strategy:
    - `mssql://...` → SqlServerAdapter
 
 2. **Configuration File:** Optional `[database]` section in TOML:
+
    ```toml
    [database]
    type = "postgres"
@@ -270,6 +285,7 @@ The server needs to determine which database adapter to use. Strategy:
 ## Dependency Changes
 
 **No new dependencies needed.** Existing stack:
+
 - ✅ `axum` - HTTP server (already present)
 - ✅ `tokio` - async runtime (already present)
 - ✅ `serde`/`serde_json` - JSON parsing (already present)

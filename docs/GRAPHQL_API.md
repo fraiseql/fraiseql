@@ -29,6 +29,7 @@ Content-Type: application/json
 ```
 
 **Fields:**
+
 - `query` (string, required): GraphQL query document
 - `variables` (object, optional): Variable values as JSON object
 - `operationName` (string, optional): Operation name to execute
@@ -61,6 +62,7 @@ Validation errors return HTTP 400 with error details.
 ```
 
 **Fields:**
+
 - `data`: Query result (object) or null if errors occurred during parsing
 - `errors`: Array of errors (omitted if no errors)
 
@@ -151,6 +153,7 @@ query GetUser($userId: ID!) {
 ```
 
 **Variables**:
+
 ```json
 {
   "userId": "123"
@@ -277,6 +280,7 @@ mutation CreateUser($input: CreateUserInput!) {
 ```
 
 **Variables**:
+
 ```json
 {
   "input": {
@@ -420,6 +424,7 @@ query {
 ### Available Fields
 
 **Type**:
+
 - `name`: Type name
 - `kind`: OBJECT, INTERFACE, ENUM, SCALAR, UNION, INPUT_OBJECT
 - `description`: Type documentation
@@ -429,6 +434,7 @@ query {
 - `possibleTypes`: Possible types for INTERFACE/UNION
 
 **Field**:
+
 - `name`: Field name
 - `type`: Field type
 - `args`: Arguments this field accepts
@@ -441,6 +447,7 @@ query {
 ### 1. Use Query Variables
 
 ❌ **Bad** (string interpolation):
+
 ```graphql
 query {
   user(id: "123") {
@@ -450,6 +457,7 @@ query {
 ```
 
 ✅ **Good** (variables):
+
 ```graphql
 query GetUser($id: ID!) {
   user(id: $id) {
@@ -463,6 +471,7 @@ query GetUser($id: ID!) {
 ### 2. Request Only Needed Fields
 
 ❌ **Bad** (overfetch):
+
 ```graphql
 query {
   user(id: "123") {
@@ -478,6 +487,7 @@ query {
 ```
 
 ✅ **Good** (exact fields):
+
 ```graphql
 query {
   user(id: "123") {
@@ -493,6 +503,7 @@ query {
 ### 3. Use Fragments for Reuse
 
 ❌ **Bad** (repetition):
+
 ```graphql
 query {
   user1: user(id: "1") {
@@ -509,6 +520,7 @@ query {
 ```
 
 ✅ **Good** (fragments):
+
 ```graphql
 query {
   user1: user(id: "1") {
@@ -540,6 +552,7 @@ query {
 ```
 
 Always check for null in client code:
+
 ```javascript
 const user = data.user;
 if (user.email) {
@@ -557,6 +570,7 @@ The server enforces query limits to prevent abuse:
 - **Query Complexity**: Maximum 100 complexity points
 
 Optimize complex queries by:
+
 - Reducing nesting depth
 - Using pagination for lists
 - Requesting fewer fields
@@ -587,6 +601,7 @@ query($id: ID!) {
 ### 1. Batch Requests
 
 ❌ **Inefficient** (3 requests):
+
 ```
 POST /graphql { query: GetUser($id: "1") ... }
 POST /graphql { query: GetUser($id: "2") ... }
@@ -594,6 +609,7 @@ POST /graphql { query: GetUser($id: "3") ... }
 ```
 
 ✅ **Efficient** (1 request):
+
 ```graphql
 query {
   user1: user(id: "1") { ... }
@@ -625,6 +641,7 @@ query {
 ### 3. Cache Queries
 
 Store frequently used queries in client:
+
 ```javascript
 const GET_USER_PROFILE = `
   query GetUserProfile($id: ID!) {

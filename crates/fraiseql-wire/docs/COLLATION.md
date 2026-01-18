@@ -7,6 +7,7 @@ Comprehensive guide to using collations in fraiseql-wire for internationalizatio
 Collation defines how strings are compared and sorted in different languages and locales.
 
 **Without Collation** (ASCII binary):
+
 ```
 apple
 APPLE
@@ -15,6 +16,7 @@ banana
 ```
 
 **With "en-US" Collation** (case-insensitive, English):
+
 ```
 apple
 APPLE   ← Treated as same position
@@ -23,6 +25,7 @@ Banana  ← Treated as same position
 ```
 
 **With "de-DE" Collation** (German):
+
 ```
 ö comes after o
 ä comes after a
@@ -75,6 +78,7 @@ Banana  ← Treated as same position
 ```
 
 **Behavior**:
+
 - Case-insensitive (apple = APPLE = Apple)
 - Accents matter (café ≠ cafe)
 - Follows English dictionary order
@@ -86,6 +90,7 @@ Banana  ← Treated as same position
 ```
 
 **Special Characters**:
+
 - ä/Ä, ö/Ö, ü/Ü are recognized
 - ß handled correctly
 
@@ -264,6 +269,7 @@ async fn search_products(
 ### Optimization Tips
 
 1. **Use C for IDs and codes**
+
    ```rust
    // Good: IDs don't need collation
    .order_by("(data->>'product_id') COLLATE \"C\" ASC")
@@ -273,6 +279,7 @@ async fn search_products(
    ```
 
 2. **Create Indexes with Collation**
+
    ```sql
    -- For frequently sorted JSONB fields
    CREATE INDEX idx_users_name
@@ -285,6 +292,7 @@ async fn search_products(
    - ⚠️ Risky: Setting collation on column (affects all queries)
 
 4. **Avoid Collation in WHERE Clauses**
+
    ```rust
    // ❌ Slower: WHERE with collation requires full scan
    .where_sql("(data->>'name') COLLATE \"en-US\" = 'John'")
@@ -318,6 +326,7 @@ SELECT 1 FROM pg_collation WHERE collname = 'en_US.utf8';
 ### PostgreSQL Collation Format
 
 Most common formats:
+
 - `en-US.UTF-8` (hyphen)
 - `en_US.UTF-8` (underscore)
 - `en_US.utf8` (lowercase utf8)
@@ -410,6 +419,7 @@ async fn search_products(
 **Common Format**: `language_TERRITORY.ENCODING`
 
 Examples:
+
 - `en_US.UTF-8` - English, United States
 - `en_GB.UTF-8` - English, Great Britain
 - `de_DE.UTF-8` - German, Germany
@@ -438,4 +448,3 @@ Examples:
 - [PostgreSQL Collation Documentation](https://www.postgresql.org/docs/current/collation.html)
 - [Unicode Collation Algorithm](https://unicode.org/reports/tr10/)
 - [Windows Collation Names](https://docs.microsoft.com/en-us/sql/t-sql/statements/create-collation-transact-sql)
-

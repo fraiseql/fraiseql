@@ -13,12 +13,14 @@ This benchmark suite compares **fraiseql-wire** against **tokio-postgres**, the 
 ### When to Use These Benchmarks
 
 **Use fraiseql-wire if you need:**
+
 - ✅ JSON streaming with bounded memory
 - ✅ Minimal protocol overhead
 - ✅ High throughput for specific queries
 - ✅ Simple, predictable async interface
 
 **Use tokio-postgres if you need:**
+
 - ✅ General-purpose Postgres access
 - ✅ Prepared statements or transactions
 - ✅ Complex type handling
@@ -40,6 +42,7 @@ tokio_postgres_unix_socket:     ~120-250 ns  (simpler parsing)
 ```
 
 **Key Finding**:
+
 - Connection setup overhead is nearly identical
 - Difference is in the I/O (1-15 ms), not CPU parsing
 - Both negligible for production workloads
@@ -56,6 +59,7 @@ tokio_postgres_complex_query:   ~20-30 µs   (multiple predicates)
 ```
 
 **Key Finding**:
+
 - Query parsing overhead similar between both
 - Both scale linearly with query complexity
 - CPU portion negligible vs network round-trip
@@ -70,11 +74,13 @@ tokio_postgres_full_protocol:    ~10 ns     (Multiple protocol modes)
 ```
 
 **Key Finding**:
+
 - fraiseql-wire: Minimal feature set = simpler code path
 - tokio-postgres: Full protocol = more flexible but more complex
 - Both fast in absolute terms
 
 **Architecture Implication**:
+
 - fraiseql-wire is simpler and more predictable
 - tokio-postgres is more feature-complete but harder to optimize
 
@@ -90,6 +96,7 @@ tokio_postgres_row_parse_large: ~900 µs    (similar row parsing)
 ```
 
 **Key Finding**:
+
 - JSON parsing (fraiseql-wire) comparable to row parsing (tokio-postgres)
 - Both use serde internally for similar performance
 - fraiseql-wire advantage: specialized for JSON, single focus
@@ -107,6 +114,7 @@ tokio_postgres_100k_rows_collected: 26 MB   (100K rows × 256 bytes)
 ```
 
 **Key Finding** ⭐ **CRITICAL DIFFERENCE**:
+
 - fraiseql-wire: O(chunk_size) - bounded memory regardless of result size
 - tokio-postgres: O(result_size) - must buffer entire result set
 - 100K rows: 26 MB vs 1.3 KB = **20,000x difference**
@@ -118,6 +126,7 @@ tokio_postgres_100k_rows_collected: 26 MB   (100K rows × 256 bytes)
 **Reference information** (not performance benchmarks)
 
 **fraiseql-wire supports**:
+
 - Simple Query protocol (streaming)
 - JSON document streaming
 - Async/await
@@ -127,6 +136,7 @@ tokio_postgres_100k_rows_collected: 26 MB   (100K rows × 256 bytes)
 - ORDER BY
 
 **fraiseql-wire does NOT support**:
+
 - Extended Query protocol
 - Prepared statements
 - Transactions
@@ -135,6 +145,7 @@ tokio_postgres_100k_rows_collected: 26 MB   (100K rows × 256 bytes)
 - Generic row types
 
 **tokio-postgres supports**:
+
 - Simple AND Extended Query protocols
 - Prepared statements
 - Transactions
@@ -186,6 +197,7 @@ tokio_postgres_100k_rows_collected: 26 MB   (100K rows × 256 bytes)
 ### Choose fraiseql-wire
 
 **Best for:**
+
 - **Streaming JSON data** from Postgres to clients
 - **Large result sets** (1M+ rows)
 - **Bounded memory** requirements
@@ -196,6 +208,7 @@ tokio_postgres_100k_rows_collected: 26 MB   (100K rows × 256 bytes)
 - **Specialized JSON queries** (not general Postgres)
 
 **Performance advantage:**
+
 - ✅ **Memory: 1000x-20000x better** for large result sets
 - ✅ **Latency: 10-100x better** for time-to-first-row
 - ✅ **Throughput: Comparable** for actual I/O
@@ -203,6 +216,7 @@ tokio_postgres_100k_rows_collected: 26 MB   (100K rows × 256 bytes)
 ### Choose tokio-postgres
 
 **Best for:**
+
 - **General Postgres access** patterns
 - **Mixed query types** (SELECT, INSERT, UPDATE, DELETE)
 - **Transactions** required
@@ -213,6 +227,7 @@ tokio_postgres_100k_rows_collected: 26 MB   (100K rows × 256 bytes)
 - **Enterprise** database features
 
 **Advantages:**
+
 - ✅ **Feature complete**: Full SQL support
 - ✅ **Flexible**: Works with any Postgres schema
 - ✅ **Mature**: Battle-tested, widely used
@@ -225,6 +240,7 @@ tokio_postgres_100k_rows_collected: 26 MB   (100K rows × 256 bytes)
 ### Throughput (rows/second)
 
 **Both drivers achieve similar throughput for actual data transmission:**
+
 ```
 fraiseql-wire:    ~100K-500K rows/sec (depends on JSON size)
 tokio-postgres:   ~100K-500K rows/sec (similar transmission)
@@ -249,6 +265,7 @@ tokio-postgres:   2-5 ms      (connection overhead same)
 ```
 
 **After first row:**
+
 ```
 fraiseql-wire:    Immediate   (streaming continues)
 tokio-postgres:   Waits       (collecting full result)
@@ -326,6 +343,7 @@ Results with **>20% difference** suggest real performance characteristics.
 ### Memory Benchmarks
 
 Memory benchmarks show **theoretical maximum** not actual peak:
+
 ```
 fraiseql_100k_rows_bounded:      1.3 KB  (1 chunk + overhead)
 tokio_postgres_100k_rows:        26 MB   (all rows buffered)
@@ -340,16 +358,19 @@ This is the **architectural difference**, not measurement error.
 ### Q: Why is fraiseql-wire faster for memory?
 
 **A**: Different architectural approach:
+
 - fraiseql-wire: Streaming (process one chunk at a time)
 - tokio-postgres: Blocking (collect entire result then process)
 
 For a 100K row set:
+
 - fraiseql-wire: Process 1-10 rows in memory, yield, repeat
 - tokio-postgres: Allocate 26 MB, load all rows, return collection
 
 ### Q: Why similar throughput?
 
 **A**: I/O dominates:
+
 - Network is slow (1-10 ms per round-trip)
 - CPU is fast (sub-microsecond overhead)
 - Actual data transmission is nearly identical
@@ -360,6 +381,7 @@ Difference is **how they buffer**, not transmission speed.
 ### Q: Should I use fraiseql-wire for all JSON queries?
 
 **A**: Only if you have **one of these requirements**:
+
 1. Result sets > 10 MB
 2. Memory-constrained environment
 3. Very low latency needed
@@ -390,6 +412,7 @@ These benchmarks follow Criterion.rs best practices:
 ## Limitations
 
 These benchmarks **do not measure**:
+
 - ❌ Actual network latency (depends on infrastructure)
 - ❌ Full connection with Postgres authentication
 - ❌ Real query execution (measured in ms, not ns)
@@ -405,11 +428,13 @@ To measure these, run integration benchmarks against actual Postgres.
 ### fraiseql-wire vs tokio-postgres
 
 **fraiseql-wire excels at**:
+
 - Memory efficiency for large result sets (1000x-20000x better)
 - Streaming JSON with bounded memory
 - Specific use cases (JSON documents, read-only)
 
 **tokio-postgres excels at**:
+
 - Feature completeness and flexibility
 - General-purpose Postgres access
 - Complex SQL and type handling

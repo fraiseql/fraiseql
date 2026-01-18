@@ -34,6 +34,7 @@ FraiseQL's testing strategy is **layered and deterministic**, mirroring its comp
 ```
 
 **Target metrics:**
+
 - **Coverage:** 95%+ line coverage, 90%+ branch coverage
 - **Speed:** Unit tests <1s total, integration tests <30s total, E2E tests <5min total
 - **Reliability:** 0% flaky tests (deterministic execution = deterministic tests)
@@ -2441,6 +2442,7 @@ FraiseQL's testing strategy is **comprehensive, deterministic, and fast**:
 - **Continuous testing** (CI/CD pipeline + pre-commit hooks)
 
 **Test pyramid distribution:**
+
 - 60% unit tests (1000-2000 tests) — Fast, isolated
 - 30% integration tests (500-800 tests) — Database-dependent
 - 10% E2E tests (100-200 tests) — Full workflows

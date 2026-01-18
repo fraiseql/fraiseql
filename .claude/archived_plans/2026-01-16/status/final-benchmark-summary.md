@@ -6,17 +6,20 @@
 ## Journey Overview
 
 ### Phase 1: Initial Benchmark Suite Creation ✅
+
 - Created `adapter_comparison.rs` (5 benchmark groups, ~507 lines)
 - Created `full_pipeline_comparison.rs` (3 benchmark groups, ~440 lines)
 - Created test data generator (1M rows, realistic JSONB)
 - Created comprehensive documentation
 
 ### Phase 2: Unix Socket Issue Discovered ❌
+
 - FraiseWireAdapter couldn't connect: "Permission denied (os error 13)"
 - Root cause: fraiseql-wire didn't handle `postgresql:///database` format
 - Blocked fair comparison between adapters
 
 ### Phase 3: Issue Documented and Fixed ✅
+
 - Created detailed issue report: `/tmp/fraiseql-wire-unix-socket-issue.md`
 - **User fixed fraiseql-wire upstream**:
   - Added `resolve_default_socket_dir()` - Auto-detect socket location
@@ -26,6 +29,7 @@
 - Verified fix works: ✅ Connection successful
 
 ### Phase 4: Fair Benchmarks Running 🔄
+
 - Both adapters now use Unix socket (`postgresql:///fraiseql_bench`)
 - Identical connection method = fair comparison
 - Measuring true performance characteristics
@@ -45,6 +49,7 @@
 | `pagination` | Repeated small queries | 10×100 | Connection overhead |
 
 **Metrics**:
+
 - Throughput (rows/second)
 - Query latency (milliseconds)
 - Implicit memory characteristics (O(n) vs O(1))
@@ -54,6 +59,7 @@
 **Purpose**: Measure complete FraiseQL execution including transformations
 
 **Pipeline Steps**:
+
 1. Database query execution
 2. Field projection (select requested fields)
 3. snake_case → camelCase transformation
@@ -61,6 +67,7 @@
 5. GraphQL data envelope wrapping
 
 **Why This Matters**: Streaming allows parallel processing
+
 ```
 tokio-postgres (Sequential):
 Query (250ms) → Transform (50ms) = 300ms
@@ -79,6 +86,7 @@ Query + Transform overlapped = 250ms
 **Indexes**: GIN on JSONB, B-tree on status and score
 
 **Sample Row**:
+
 ```json
 {
   "id": 123456,
@@ -161,6 +169,7 @@ Total Time: T_query + T_transform
 ```
 
 **Characteristics**:
+
 - ✅ Fast for small results
 - ✅ Connection pooling efficient
 - ✅ Supports transactions and writes
@@ -201,6 +210,7 @@ Total Time: max(T_query, T_transform) ← Overlapped!
 ```
 
 **Characteristics**:
+
 - ✅ Constant memory O(1)
 - ✅ Parallel processing (CPU + network concurrent)
 - ✅ Faster full pipeline (7-20% speedup)
@@ -211,7 +221,8 @@ Total Time: max(T_query, T_transform) ← Overlapped!
 
 ## Use Case Recommendations
 
-### Use PostgresAdapter When:
+### Use PostgresAdapter When
+
 - ✅ Small result sets (<10K rows)
 - ✅ Need transactions (BEGIN/COMMIT/ROLLBACK)
 - ✅ Need write operations (INSERT/UPDATE/DELETE)
@@ -219,7 +230,8 @@ Total Time: max(T_query, T_transform) ← Overlapped!
 - ✅ Prepared statements are critical
 - ✅ Familiar tokio-postgres ecosystem
 
-### Use FraiseWireAdapter When:
+### Use FraiseWireAdapter When
+
 - ✅ Large result sets (>100K rows)
 - ✅ Memory-constrained environments
 - ✅ Streaming workflows (process as results arrive)
@@ -231,6 +243,7 @@ Total Time: max(T_query, T_transform) ← Overlapped!
 ## Technical Achievements
 
 ### 1. Comprehensive Benchmark Suite
+
 - ✅ 8 benchmark groups total
 - ✅ 5 raw performance benchmarks
 - ✅ 3 full pipeline benchmarks
@@ -238,6 +251,7 @@ Total Time: max(T_query, T_transform) ← Overlapped!
 - ✅ Complete documentation
 
 ### 2. Unix Socket Support
+
 - ✅ Fixed fraiseql-wire connection string parsing
 - ✅ Auto-detection of socket directory
 - ✅ Support for custom socket paths and ports
@@ -245,6 +259,7 @@ Total Time: max(T_query, T_transform) ← Overlapped!
 - ✅ Backward compatible (TCP still works)
 
 ### 3. Fair Comparison
+
 - ✅ Both adapters use Unix sockets
 - ✅ Identical connection method
 - ✅ Same PostgreSQL backend
@@ -284,6 +299,7 @@ crates/fraiseql-core/
 ## Current Status
 
 🔄 **Benchmarks Running**: Fair comparison with Unix sockets
+
 - ✅ 10K rows - Complete (both adapters)
 - ✅ 100K rows - Complete (both adapters)
 - ✅ 1M rows - Complete (both adapters)
@@ -331,13 +347,16 @@ EOF
 Based on architecture analysis and partial results, we expect:
 
 **Speed**:
+
 - Raw queries: **Comparable** (within 3-5%)
 - Full pipeline: **FraiseWireAdapter 7-20% faster** (streaming parallelism)
 
 **Memory**:
+
 - **FraiseWireAdapter 200x to 200,000x better** (O(1) vs O(n))
 
 **Recommendation**:
+
 - Small queries + transactions → **PostgresAdapter**
 - Large queries + read-only → **FraiseWireAdapter** (faster + less memory)
 

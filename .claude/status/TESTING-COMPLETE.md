@@ -22,20 +22,24 @@
 ### Unit Tests (27/27 Passing)
 
 **WHERE SQL Generator** (16 tests)
+
 - ✅ Simple equality, nested paths, string operations
 - ✅ Logical operators (AND, OR, NOT)
 - ✅ NULL checks, IN operators, complex conditions
 - ✅ SQL injection prevention verified
 
 **Connection Factory** (2 tests)
+
 - ✅ Factory creation and cloneability
 
 **Wire Adapter** (5 tests)
+
 - ✅ Adapter creation with chunk sizes
 - ✅ Query building (simple + with LIMIT/OFFSET)
 - ✅ Pool metrics
 
 **Compilation**
+
 - ✅ cargo check
 - ✅ cargo clippy
 - ✅ All 705+ project tests passing
@@ -43,6 +47,7 @@
 ### Integration Test (1/1 Passing)
 
 **wire_direct_test.rs**
+
 ```
 Test: wire_direct_tests::test_direct_v_users_query
 Result: PASSED
@@ -63,6 +68,7 @@ Expected wire improvement: 0-22% faster + 200-20,000x memory savings
 ## Implementation Checklist
 
 ### Completed ✅
+
 - [x] fraiseql_wire_adapter.rs (343 lines, production-ready)
 - [x] where_sql_generator.rs (480 lines, 16 tests)
 - [x] wire_pool.rs (95 lines, 2 tests)
@@ -75,6 +81,7 @@ Expected wire improvement: 0-22% faster + 200-20,000x memory savings
 - [x] PostgreSQL baseline benchmarks
 
 ### Not Needed for Production
+
 - [ ] Full wire adapter benchmarks (high confidence from baselines)
 - [ ] Memory profiling (streaming architecture guarantees 1.3KB overhead)
 - [ ] All 25 WHERE operators (19 supported, 6 niche features fail gracefully)
@@ -117,6 +124,7 @@ crates/fraiseql-core/
 ## Production Deployment
 
 ### Enable the Feature
+
 ```bash
 # In Cargo.toml for deployment target:
 [features]
@@ -124,6 +132,7 @@ wire-backend = ["fraiseql-wire"]
 ```
 
 ### Conditional Usage
+
 ```rust
 // In query execution:
 #[cfg(feature = "wire-backend")]
@@ -135,6 +144,7 @@ if should_use_wire_for_large_queries {
 ```
 
 ### Monitor These Metrics
+
 - Query latency (target: within 5% of PostgreSQL)
 - Memory usage per query (target: <2MB vs. 26MB for PostgreSQL)
 - Error rates (target: 0% regression)
@@ -157,6 +167,7 @@ if should_use_wire_for_large_queries {
 ## Confidence Level: 95%
 
 **Rationale**:
+
 1. ✅ All unit tests passing (highest confidence)
 2. ✅ Integration test validates end-to-end flow
 3. ✅ PostgreSQL baselines establish performance floor
@@ -164,6 +175,7 @@ if should_use_wire_for_large_queries {
 5. ⚠️ Only missing: full wire benchmarks (non-critical, expected to match predictions)
 
 **Risk**: LOW
+
 - Drop-in replacement design minimizes integration risk
 - Feature-gated deployment allows instant rollback
 - Graceful error handling for unsupported operators
@@ -176,6 +188,7 @@ if should_use_wire_for_large_queries {
 ✅ **APPROVED FOR PRODUCTION DEPLOYMENT**
 
 This integration has completed all critical testing phases and is ready for:
+
 - Immediate deployment in controlled environments
 - Gradual rollout starting at 10% traffic
 - Full adoption after 1 week of monitoring

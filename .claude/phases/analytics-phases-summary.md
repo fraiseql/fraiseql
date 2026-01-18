@@ -25,6 +25,7 @@
 ## Completed Features (Phases 1-6)
 
 ### ✅ Phase 1: Fact Table Introspection
+
 - **Module**: `compiler/fact_table.rs` (23,555 bytes)
 - **Features**:
   - Automatic detection of fact tables (tf_* prefix)
@@ -35,6 +36,7 @@
 - **Commit**: `b160546` - feat(compiler): Phase 1 - Fact table introspection module
 
 ### ✅ Phase 2: Aggregate Type Generation
+
 - **Module**: `compiler/aggregate_types.rs` (22,429 bytes)
 - **Features**:
   - GraphQL type generation for aggregates
@@ -45,6 +47,7 @@
 - **Commit**: `c08c474` - feat(compiler): Phase 2 - Aggregate type generation
 
 ### ✅ Phase 3: Aggregation Execution Plan
+
 - **Module**: `compiler/aggregation.rs` (24,751 bytes)
 - **Features**:
   - Execution plan generation from GraphQL queries
@@ -55,6 +58,7 @@
 - **Commit**: `57d7823` - feat(compiler): Phase 3 - Aggregation execution plan generation
 
 ### ✅ Phase 4: Runtime Aggregation SQL
+
 - **Module**: `runtime/aggregation.rs` (32,878 bytes)
 - **Features**:
   - Multi-database SQL generation (PostgreSQL, MySQL, SQLite, SQL Server)
@@ -66,6 +70,7 @@
 - **Commit**: `db75239` - feat(runtime): Phase 4 - Database-specific aggregation SQL generation
 
 ### ✅ Phase 5: Temporal Bucketing & Integration
+
 - **Modules**: `runtime/aggregate_parser.rs`, `runtime/executor.rs`
 - **Features**:
   - JSON query parsing
@@ -77,6 +82,7 @@
   - `15febf1` - feat(runtime): Phase 5 - Part 2: Complete aggregate query execution pipeline
 
 ### ✅ Phase 6: Advanced Aggregates
+
 - **Module**: `runtime/aggregate_projector.rs` (16,304 bytes)
 - **Features**:
   - ARRAY_AGG (PostgreSQL)
@@ -96,12 +102,14 @@
 ## Remaining Work (Phases 7-9)
 
 ### ⏳ Phase 7: Window Functions (Optional)
+
 **Status**: Not Started
 **Priority**: Medium (Optional feature)
 **Effort**: 3-4 days
 **Plan**: `.claude/phases/analytics-phase-7-window-functions.md`
 
 **Features to Implement**:
+
 - Ranking functions: ROW_NUMBER, RANK, DENSE_RANK, NTILE, PERCENT_RANK, CUME_DIST
 - Value functions: LAG, LEAD, FIRST_VALUE, LAST_VALUE, NTH_VALUE
 - Aggregate window functions: SUM, AVG, COUNT, MIN, MAX (with OVER clause)
@@ -110,6 +118,7 @@
 - Frame exclusion: EXCLUDE CURRENT ROW, EXCLUDE GROUP, EXCLUDE TIES (PostgreSQL)
 
 **Modules to Create**:
+
 ```
 compiler/window_functions.rs       # Window function planning
 runtime/window.rs                  # Window SQL generation
@@ -117,6 +126,7 @@ tests/integration/window_functions_test.rs
 ```
 
 **Key Use Cases**:
+
 - Running totals and cumulative sums
 - Moving averages (7-day, 30-day)
 - Period-over-period comparisons (LAG/LEAD)
@@ -124,6 +134,7 @@ tests/integration/window_functions_test.rs
 - Percentile analysis
 
 **Database Support**:
+
 - PostgreSQL: Full support (all functions + GROUPS frames)
 - MySQL 8.0+: Full support (no GROUPS, no EXCLUDE)
 - SQLite 3.25+: Basic support (no GROUPS, no PERCENT_RANK/CUME_DIST)
@@ -134,12 +145,14 @@ tests/integration/window_functions_test.rs
 ---
 
 ### ⏳ Phase 8: Integration & Wiring
+
 **Status**: Not Started
 **Priority**: **High** (Required for production)
 **Effort**: 1-2 days
 **Plan**: `.claude/phases/analytics-phase-8-integration-wiring.md`
 
 **Critical Tasks**:
+
 1. **Compiler Integration**:
    - Integrate fact table detection into compilation pipeline
    - Auto-generate aggregate types during schema compilation
@@ -163,6 +176,7 @@ tests/integration/window_functions_test.rs
    - Serialize/deserialize analytics metadata
 
 **Files to Modify**:
+
 ```
 compiler/mod.rs               # Add fact table detection
 compiler/validator.rs         # Add analytics validation
@@ -172,6 +186,7 @@ schema/compiled.rs           # Add fact_tables field
 ```
 
 **Acceptance Criteria**:
+
 - Fact tables auto-detected during compilation
 - Aggregate types auto-generated
 - GraphQL queries dispatch correctly
@@ -183,6 +198,7 @@ schema/compiled.rs           # Add fact_tables field
 ---
 
 ### ⏳ Phase 9: Integration Tests
+
 **Status**: Not Started
 **Priority**: **High** (Required for production)
 **Effort**: 2-3 days
@@ -222,6 +238,7 @@ schema/compiled.rs           # Add fact_tables field
    - HAVING filter efficiency
 
 **Test Infrastructure**:
+
 ```
 tests/common/test_db.rs           # Database setup/teardown
 tests/common/test_data.rs         # Test data generators
@@ -231,6 +248,7 @@ tests/fixtures/sample_data.sql    # Sample data
 ```
 
 **CI/CD Integration**:
+
 - Run on PostgreSQL in GitHub Actions
 - MySQL/SQLite/SQL Server optional (local dev)
 - Performance tests manual only (too slow for CI)
@@ -244,9 +262,11 @@ tests/fixtures/sample_data.sql    # Sample data
 ## Testing Status
 
 ### Unit Tests
+
 **Status**: ✅ **643 tests passing**
 
 All analytics modules have comprehensive unit tests:
+
 - `compiler/fact_table.rs` - Fact table detection and validation
 - `compiler/aggregate_types.rs` - Type generation logic
 - `compiler/aggregation.rs` - Plan generation and validation
@@ -255,9 +275,11 @@ All analytics modules have comprehensive unit tests:
 - `runtime/aggregate_projector.rs` - Result projection
 
 ### Integration Tests
+
 **Status**: ⚠️ **Partial coverage**
 
 Existing tests:
+
 - `tests/integration/aggregation_test.rs` (11,035 bytes) - Basic end-to-end tests
 - `tests/integration/fact_table_test.rs` (8,647 bytes) - Introspection tests
 
@@ -290,6 +312,7 @@ Existing tests:
 | GROUPS frame | ⏳ (PG only) | ❌ | ❌ | ❌ |
 
 **Legend**:
+
 - ✅ Fully supported
 - ⚠️ Supported with different syntax
 - ❌ Not supported
@@ -300,6 +323,7 @@ Existing tests:
 ## Implementation Priorities
 
 ### Must Have (Blocking v2.0 Release)
+
 1. **Phase 8: Integration & Wiring** ⭐⭐⭐
    - Required for production use
    - Connects all components
@@ -313,6 +337,7 @@ Existing tests:
 **Estimated time to production-ready**: 3-5 days
 
 ### Nice to Have (Can defer to v2.1)
+
 3. **Phase 7: Window Functions** ⭐⭐
    - Advanced analytics feature
    - Not blocking core functionality
@@ -323,6 +348,7 @@ Existing tests:
 ## Quick Reference
 
 ### Files Created (Phases 1-6)
+
 ```
 crates/fraiseql-core/src/
 ├── compiler/
@@ -343,6 +369,7 @@ tests/integration/
 ```
 
 ### Documentation Created
+
 ```
 .claude/phases/
 ├── analytics-phase-5-integration.md              # 13,608 bytes ✅
@@ -371,6 +398,7 @@ docs/observability/                                # Observability docs ✅
 ```
 
 ### Test Commands
+
 ```bash
 # Unit tests (643 passing)
 cargo test -p fraiseql-core
@@ -421,12 +449,14 @@ cargo build --release
 ## Success Metrics
 
 ### Code Quality
+
 - ✅ 643 unit tests passing
 - ⏳ 30+ integration tests (Phase 9)
 - ✅ Zero clippy warnings
 - ✅ Comprehensive error handling
 
 ### Functionality
+
 - ✅ All basic aggregates (COUNT, SUM, AVG, MIN, MAX)
 - ✅ Statistical aggregates (STDDEV, VARIANCE) - PostgreSQL/SQL Server
 - ✅ Advanced aggregates (ARRAY_AGG, JSON_AGG, STRING_AGG)
@@ -437,12 +467,14 @@ cargo build --release
 - ⏳ Window functions (Phase 7)
 
 ### Database Support
+
 - ✅ PostgreSQL (full features)
 - ✅ MySQL (basic features)
 - ✅ SQLite (basic features)
 - ✅ SQL Server (full features)
 
 ### Documentation
+
 - ✅ Implementation plan
 - ✅ Phase 5-6 detailed docs
 - ✅ Phase 7-9 detailed plans

@@ -448,6 +448,7 @@ FraiseQL's Arrow plane automatically optimizes columnar data transfer for pre-ag
 ### PostgreSQL
 
 **Strengths**:
+
 - Full JSONB support: `@>`, `?`, `?&` for complex filters
 - Native `DATE_TRUNC` for all temporal buckets
 - `FILTER (WHERE ...)` for conditional aggregates
@@ -468,11 +469,13 @@ GROUP BY dimensions->>'category';
 ### MySQL
 
 **Strengths**:
+
 - JSON_EXTRACT, JSON_CONTAINS for JSON handling
 - DATE_FORMAT for temporal bucketing
 - GROUP_CONCAT for string aggregation
 
 **Limitations**:
+
 - No ILIKE (case-insensitive)
 - No regex operators
 - Emulate FILTER with CASE WHEN
@@ -490,11 +493,13 @@ GROUP BY JSON_EXTRACT(data, '$.category');
 ### SQLite
 
 **Strengths**:
+
 - Lightweight, embedded
 - json_extract for basic JSON
 - strftime for temporal bucketing
 
 **Limitations**:
+
 - No statistical functions
 - Limited JSON operators
 - Use pre-aggregated views for performance
@@ -512,12 +517,14 @@ GROUP BY json_extract(data, '$.category');
 ### SQL Server
 
 **Strengths**:
+
 - JSON_VALUE, JSON_QUERY for JSON handling
 - DATEPART for temporal bucketing
 - Statistical functions (STDEV, VAR)
 - FOR JSON clause for output formatting
 
 **Limitations**:
+
 - Emulate FILTER with CASE WHEN
 - OPENJSON required for complex queries
 

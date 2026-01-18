@@ -1,4 +1,5 @@
 # levn [![Build Status](https://travis-ci.org/gkz/levn.png)](https://travis-ci.org/gkz/levn) <a name="levn" />
+
 __Light ECMAScript (JavaScript) Value Notation__
 Levn is a library which allows you to parse a string into a JavaScript value based on an expected type. It is meant for short amounts of human entered data (eg. config files, command line arguments).
 
@@ -9,7 +10,6 @@ __How is this different than JSON?__ levn is meant to be written by humans only,
     npm install levn
 
 For updates on levn, [follow me on twitter](https://twitter.com/gkzahariev).
-
 
 ## Quick Examples
 
@@ -42,6 +42,7 @@ parse('{a: String, b: Number}', 'a: str, b: 2'); // {a: 'str', b: 2}
 // wildcard - auto choose type
 parse('*', '[hi,(null,[42]),{k: true}]'); // ['hi', [null, [42]], {k: true}]
 ```
+
 ## Usage
 
 `require('levn');` returns an object that exposes three properties. `VERSION` is the current version of the library as a string. `parse` and `parsedTypeParse` are functions.
@@ -60,14 +61,17 @@ parsedTypeParse(parsedType, '1,2,3'); // [1, 2, 3]
 `parse` casts the string `input` into a JavaScript value according to the specified `type` in the [type format](https://github.com/gkz/type-check#type-format) (and taking account the optional `options`) and returns the resulting JavaScript value.
 
 ##### arguments
+
 * type - `String` - the type written in the [type format](https://github.com/gkz/type-check#type-format) which to check against
 * input - `String` - the value written in the [levn format](#levn-format)
 * options - `Maybe Object` - an optional parameter specifying additional [options](#options)
 
 ##### returns
+
 `*` - the resulting JavaScript value
 
 ##### example
+
 ```js
 parse('[Number]', '1,2,3'); // [1, 2, 3]
 ```
@@ -77,14 +81,17 @@ parse('[Number]', '1,2,3'); // [1, 2, 3]
 `parsedTypeParse` casts the string `input` into a JavaScript value according to the specified `type` which has already been parsed (and taking account the optional `options`) and returns the resulting JavaScript value. You can parse a type using the [type-check](https://github.com/gkz/type-check) library's `parseType` function.
 
 ##### arguments
+
 * type - `Object` - the type in the parsed type format which to check against
 * input - `String` - the value written in the [levn format](#levn-format)
 * options - `Maybe Object` - an optional parameter specifying additional [options](#options)
 
 ##### returns
+
 `*` - the resulting JavaScript value
 
 ##### example
+
 ```js
 var parsedType = require('type-check').parseType('[Number]');
 parsedTypeParse(parsedType, '1,2,3'); // [1, 2, 3]
@@ -161,6 +168,7 @@ parse('Even', '3', options); // Error: Value: "3" does not type check...
 ```
 
 __Another Example:__
+
 ```js
 function Person(name, age){
   this.name = name;

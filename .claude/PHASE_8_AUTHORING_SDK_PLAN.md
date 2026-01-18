@@ -42,11 +42,13 @@ This phase completes the **left side of the architecture**:
 ## 📊 Current Status
 
 ### What's Completed
+
 - ✅ Phase 1-7: Core engine, database, caching, cascade
 - ✅ Phase 4-6: Schema compilation and GraphQL execution
 - ✅ Phase 7: Entity-level cache invalidation
 
 ### What's Missing (Phase 8)
+
 - ❌ Python decorator layer (`@Type`, `@Field`, `@Query`, `@Mutation`)
 - ❌ Schema generator (Python → JSON)
 - ❌ Type system mapping
@@ -186,6 +188,7 @@ analytics = ["numpy>=1.20", "pandas>=1.3"]  # Optional
 **Objective**: Implement basic type system and field definitions
 
 #### Task 8.1.1: Type System Foundation
+
 **File**: `fraiseql/core/type_system.py`
 
 ```python
@@ -224,6 +227,7 @@ class TypeRegistry:
 ```
 
 **Tests** (`test_type_mapping.py`):
+
 - ✅ Map Python str → JSON string
 - ✅ Map Python int → JSON integer
 - ✅ Map Python List[str] → JSON string[]
@@ -232,6 +236,7 @@ class TypeRegistry:
 - ✅ Reject unsupported types
 
 #### Task 8.1.2: Field Decorator
+
 **File**: `fraiseql/core/field.py`
 
 ```python
@@ -262,6 +267,7 @@ class User:
 ```
 
 **Tests** (`test_decorators.py`):
+
 - ✅ Parse Field metadata from class
 - ✅ Extract primary key designation
 - ✅ Handle nullable fields
@@ -270,6 +276,7 @@ class User:
 - ✅ Reject invalid constraint combinations
 
 #### Task 8.1.3: Type Decorator
+
 **File**: `fraiseql/core/decorators.py`
 
 ```python
@@ -304,6 +311,7 @@ class User:
 ```
 
 **Tests**:
+
 - ✅ Decorator preserves class functionality
 - ✅ Extracts all annotated fields
 - ✅ Registers in global registry
@@ -317,6 +325,7 @@ class User:
 **Objective**: Implement query and mutation definitions
 
 #### Task 8.2.1: Query Decorator
+
 **File**: `fraiseql/query/query.py`
 
 ```python
@@ -357,6 +366,7 @@ class UserQueries:
 ```
 
 **Tests** (`test_query_builder.py`):
+
 - ✅ Extract query methods from class
 - ✅ Infer return types
 - ✅ Parse method arguments
@@ -365,6 +375,7 @@ class UserQueries:
 - ✅ Support list returns
 
 #### Task 8.2.2: Mutation Decorator
+
 **File**: `fraiseql/query/mutation.py`
 
 ```python
@@ -401,6 +412,7 @@ class UserMutations:
 ```
 
 **Tests**:
+
 - ✅ Extract mutation methods
 - ✅ Track mutation side effects
 - ✅ Support input objects
@@ -414,6 +426,7 @@ class UserMutations:
 **Objective**: Convert decorated classes → JSON schema
 
 #### Task 8.3.1: Schema Generator Core
+
 **File**: `fraiseql/schema/generator.py`
 
 ```python
@@ -492,6 +505,7 @@ schema = generator.generate([User, UserQueries, UserMutations])
 ```
 
 **Tests** (`test_schema_generator.py`):
+
 - ✅ Generate type definitions
 - ✅ Generate query definitions
 - ✅ Generate mutation definitions
@@ -500,6 +514,7 @@ schema = generator.generate([User, UserQueries, UserMutations])
 - ✅ Export valid JSON
 
 #### Task 8.3.2: Schema Exporter
+
 **File**: `fraiseql/schema/exporter.py`
 
 ```python
@@ -540,6 +555,7 @@ SchemaExporter.to_file(schema, 'schema.json')
 ```
 
 **Tests**:
+
 - ✅ Generate valid JSON
 - ✅ Write to file with correct formatting
 - ✅ Validate schema structure
@@ -553,6 +569,7 @@ SchemaExporter.to_file(schema, 'schema.json')
 **Objective**: Implement data warehouse patterns
 
 #### Task 8.4.1: Fact Table Decorator
+
 **File**: `fraiseql/analytics/fact_table.py`
 
 ```python
@@ -586,6 +603,7 @@ class SalesFactTable:
 ```
 
 #### Task 8.4.2: Dimension & Measure Markers
+
 **File**: `fraiseql/analytics/dimensions.py` & `measures.py`
 
 ```python
@@ -610,6 +628,7 @@ class SalesMetrics:
 ```
 
 #### Task 8.4.3: Automatic Aggregate Queries
+
 **File**: `fraiseql/analytics/aggregate.py`
 
 ```python
@@ -642,6 +661,7 @@ class AggregateQueryGenerator:
 ```
 
 **Tests** (`test_analytics.py`):
+
 - ✅ Mark fact tables correctly
 - ✅ Distinguish dimensions from measures
 - ✅ Generate rollup queries
@@ -809,6 +829,7 @@ curl -X POST http://localhost:3000/graphql \
   -H "Content-Type: application/json" \
   -d '{"query": "{ getUser(id: \"1\") { id name } }"}'
 ```
+
 ```
 
 ---
@@ -842,6 +863,7 @@ black --check fraiseql/
 - Analytics tests: 100+ assertions
 
 #### Task 8.6.2: Package Publication
+
 **File**: `setup.py` / `pyproject.toml`
 
 ```bash
@@ -856,6 +878,7 @@ twine upload dist/*
 ```
 
 **Publication Checklist**:
+
 - ✅ Build succeeds
 - ✅ Tests pass
 - ✅ Documentation generated
@@ -987,14 +1010,17 @@ def test_schema_generation_performance():
 ## 🔀 Integration Points
 
 ### With Phase 7 (Cache)
+
 - Cascade metadata in mutations (already defined)
 - Schema includes cascade field
 
 ### With Phase 4 (Compiler)
+
 - Generated JSON must match compiler's expected schema format
 - Verify with compiler tests
 
 ### With Phase 6 (Server)
+
 - E2E test: Generate → Compile → Serve → Query
 
 ---
@@ -1015,14 +1041,17 @@ def test_schema_generation_performance():
 ## 📚 Reference Documentation
 
 ### Phase 4 Schema Format
+
 - See: `crates/fraiseql-core/src/schema/compiled.rs`
 - Key fields: `types`, `queries`, `mutations`, `version`
 
 ### Type System
+
 - See: Phase 4 docs for canonical type names
 - Mapping: `UUID` → `"uuid"`, `str` → `"string"`, etc.
 
 ### Examples
+
 - See: `.claude/examples/` for expected JSON format
 - See: `crates/fraiseql-core/tests/` for E2E patterns
 
@@ -1082,11 +1111,13 @@ git push origin feature/phase-8-python-authoring
 ## 📞 Support & Questions
 
 ### Key Reference Files
+
 - Phase 4 Schema: `crates/fraiseql-core/src/schema/`
 - Type System: `crates/fraiseql-core/src/schema/types.rs`
 - Existing Examples: `crates/fraiseql-core/tests/fixtures/`
 
 ### Testing Patterns
+
 - See: `crates/fraiseql-core/tests/` for integration patterns
 - See: `tests/test_schemas/` for example inputs/outputs
 
@@ -1095,6 +1126,7 @@ git push origin feature/phase-8-python-authoring
 **Plan Status**: ✅ READY TO IMPLEMENT
 
 **Next Steps**:
+
 1. Create Python package structure
 2. Implement Phase 8.1 (Type System)
 3. Run daily E2E tests against Phase 4 compiler

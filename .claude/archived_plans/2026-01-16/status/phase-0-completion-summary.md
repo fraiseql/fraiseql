@@ -14,16 +14,19 @@
 **Issue**: Missing fields in schema structs causing test compilation failures.
 
 **Root Cause**:
+
 - `FactTableMetadata` missing `calendar_dimensions: Vec<CalendarDimension>`
 - `CompiledSchema` missing `fact_tables: HashMap<String, Value>` in some test instantiations
 
 **Files Modified**:
+
 - `crates/fraiseql-core/tests/phase8_integration.rs` - Added `calendar_dimensions: vec![]`
 - `crates/fraiseql-core/tests/common/test_db.rs` - Added `calendar_dimensions: vec![]`
 - `crates/fraiseql-cli/src/commands/compile.rs` - Added `fact_tables: Default::default()` (2 instances)
 - `crates/fraiseql-cli/src/schema/optimizer.rs` - Added `fact_tables: Default::default()` (3 instances)
 
 **Verification**:
+
 ```bash
 ✅ cargo check --all-targets (passed)
 ✅ cargo clippy --all-targets (passed with warnings only)
@@ -37,16 +40,19 @@
 ### 2. Verify Tests Compile and Pass ✅
 
 **Test Results**:
+
 ```
 fraiseql-core: 682 tests passed, 0 failed, 26 ignored
 fraiseql-server: 8 tests passed, 0 failed
 ```
 
 **Clippy Status**:
+
 - No errors
 - Only warnings: unused imports, missing docs (not blocking)
 
 **Build Status**:
+
 - All crates compile successfully
 - Benches compile successfully
 - No breaking changes detected
@@ -56,6 +62,7 @@ fraiseql-server: 8 tests passed, 0 failed
 ### 3. Create Baseline Benchmark Suite ✅
 
 **Created**:
+
 - `crates/fraiseql-core/benches/database_baseline.rs`
   - Benchmark structure for 10K, 100K, 1M row queries
   - Time-to-first-row latency measurement
@@ -63,21 +70,25 @@ fraiseql-server: 8 tests passed, 0 failed
   - Memory profiling hooks (heaptrack integration)
 
 **Configuration**:
+
 - Added `[[bench]]` section to `Cargo.toml`
 - Criterion configured with async runtime support
 - Environment variable gating (`DATABASE_URL`)
 
 **Compilation**:
+
 ```bash
 ✅ cargo build --benches (passed)
 ```
 
 **Current Status**:
+
 - ⚠️ **Placeholder implementation**: Uses `tokio::time::sleep()` for timing simulation
 - ⚠️ **No actual database queries**: Requires PostgresAdapter integration
 - ⚠️ **No test data**: Requires PostgreSQL database setup
 
 **Next Steps for Benchmarks**:
+
 1. Setup test database with 1M+ rows
 2. Integrate PostgresAdapter into benchmark code
 3. Run benchmarks with `DATABASE_URL` set
@@ -89,6 +100,7 @@ fraiseql-server: 8 tests passed, 0 failed
 ### 4. Document Baseline Metrics ✅
 
 **Created**:
+
 - `.claude/analysis/baseline-metrics.md`
   - Expected performance characteristics (from fraiseql-wire benchmarks)
   - Measurement methodology
@@ -198,6 +210,7 @@ fraiseql-server: 8 tests passed, 0 failed
 **Estimated Effort**: 3-4 days
 
 **Key Tasks**:
+
 1. Add fraiseql-wire dependency
 2. Implement WHERE clause SQL generator
 3. Implement connection pool (deadpool-based)
@@ -206,12 +219,14 @@ fraiseql-server: 8 tests passed, 0 failed
 6. Comparison benchmarks
 
 **Entry Criteria** (all met):
+
 - ✅ Build errors fixed
 - ✅ All tests passing
 - ✅ Baseline metrics documented
 - ✅ Implementation plan ready
 
 **Exit Criteria**:
+
 - [ ] FraiseWireAdapter implements DatabaseAdapter trait
 - [ ] All existing tests pass with wire backend
 - [ ] Memory usage reduced for large queries
@@ -231,12 +246,15 @@ fraiseql-server: 8 tests passed, 0 failed
 ### Remaining Risks
 
 ⚠️ **WHERE Clause Translation**: Need comprehensive operator coverage
+
 - *Mitigation*: Can reuse existing WhereClauseGenerator code from postgres adapter
 
 ⚠️ **Connection Pooling**: fraiseql-wire doesn't have built-in pooling
+
 - *Mitigation*: Implement client pool in adapter (standard deadpool pattern)
 
 ⚠️ **Test Database**: Benchmarks require PostgreSQL with test data
+
 - *Mitigation*: Docker Compose setup + SQL generation script provided
 
 ---

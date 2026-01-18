@@ -7,12 +7,14 @@ Implement client-side JSON filtering using Rust predicates that are applied to t
 ## Context
 
 Rust predicates allow filtering logic that:
+
 * Cannot be expressed in SQL
 * Requires application-specific logic
 * Needs to access external state (read-only)
 * Is more maintainable in Rust than SQL
 
 **Design constraints**:
+
 * Predicates must not block (async-friendly)
 * Predicates must be `Send` (can cross task boundaries)
 * Predicates run on each JSON value in the stream
@@ -335,6 +337,7 @@ cargo clippy -- -D warnings
 ## Expected Output
 
 ### cargo test stream::filter
+
 ```
 running 3 tests
 test stream::filter::tests::test_filter_stream ... ok
@@ -346,15 +349,15 @@ test result: ok. 3 passed; 0 failed; 0 ignored
 
 ## Acceptance Criteria
 
-- [ ] FilteredStream wraps underlying stream
-- [ ] Predicates filter values correctly
-- [ ] Errors propagate through filtered stream
-- [ ] Filtered stream implements Stream trait
-- [ ] Query builder integrates Rust predicates
-- [ ] Both filtered and unfiltered streams work
-- [ ] Example shows hybrid filtering (SQL + Rust)
-- [ ] All tests pass
-- [ ] No clippy warnings
+* [ ] FilteredStream wraps underlying stream
+* [ ] Predicates filter values correctly
+* [ ] Errors propagate through filtered stream
+* [ ] Filtered stream implements Stream trait
+* [ ] Query builder integrates Rust predicates
+* [ ] Both filtered and unfiltered streams work
+* [ ] Example shows hybrid filtering (SQL + Rust)
+* [ ] All tests pass
+* [ ] No clippy warnings
 
 ## DO NOT
 
@@ -424,18 +427,21 @@ async fn test_hybrid_filtering() {
 ## Design Notes
 
 **Why predicates are `Fn` not `FnMut`**:
+
 * Predicates should not maintain state
 * Makes reasoning about behavior simpler
 * Allows potential parallelization later
 * Enforces functional style
 
 **Why predicates are sync not async**:
+
 * Simpler implementation
 * Encourages lightweight predicates
 * Heavy operations should be in SQL
 * Can revisit if real need emerges
 
 **Type erasure trade-off**:
+
 * Using `impl Stream` hides the concrete type
 * Enables returning different stream types (filtered vs unfiltered)
 * Slight loss of type information, but cleaner API

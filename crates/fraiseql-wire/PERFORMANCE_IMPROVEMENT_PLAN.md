@@ -12,6 +12,7 @@
 Benchmark results show fraiseql-wire is **14-20% slower** than tokio-postgres across all metrics (10K to 1M rows), with a catastrophic **1680% regression on pagination** (LIMIT 100: 150ms vs 8.95ms).
 
 **Root Cause**: The slowdown is NOT inherent to the streaming wire protocol architecture. It's caused by **implementation inefficiencies** in:
+
 1. **Protocol decoding** - Buffer cloned on every message (5-8% overhead)
 2. **Async channel pipeline** - MPSC overhead and lock contention (3-5%)
 3. **Metrics recording** - Per-row instrumentation (2-3%)
@@ -91,6 +92,7 @@ For small result sets, the setup dominates (≈140ms setup + 100 rows ≈ 150ms 
 **Objective**: Eliminate buffer clone in `decode_message()` loop
 
 **Current Code** (`src/connection/conn.rs:538`):
+
 ```rust
 if let Ok((msg, remaining)) = decode_message(self.read_buf.clone().freeze()) {
     let consumed = self.read_buf.len() - remaining.len();
@@ -99,6 +101,7 @@ if let Ok((msg, remaining)) = decode_message(self.read_buf.clone().freeze()) {
 ```
 
 **Problem**:
+
 - `self.read_buf.clone()` copies entire BytesMut
 - Called for every protocol message (100k+ times for 100K row result)
 - This is purely defensive cloning - decode doesn't need ownership
@@ -116,6 +119,7 @@ pub fn decode_message(buf: &BytesMut) -> Result<(BackendMessage, usize)>
 ```
 
 **Implementation Steps**:
+
 1. Update `protocol/decode.rs` to accept `&BytesMut` instead of `Bytes`
 2. Return `usize` for consumed bytes instead of remaining `Bytes`
 3. Update all decode functions (`decode_data_row`, `decode_error_response`, etc.) to work with references
@@ -127,6 +131,7 @@ pub fn decode_message(buf: &BytesMut) -> Result<(BackendMessage, usize)>
 **Estimated Gain**: 5-8% throughput improvement
 
 **Verification**:
+
 ```bash
 # Before: 611 ms for 100K rows = 163.6 Kelem/s
 # After: 585 ms target = ~171 Kelem/s (5% improvement)
@@ -140,6 +145,7 @@ cargo bench --bench integration_benchmarks -- 100k_rows/wire
 **Objective**: Reduce lock contention and improve channel efficiency
 
 **Current Code** (`src/stream/json_stream.rs:389`):
+
 ```rust
 impl Stream for JsonStream {
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
@@ -149,6 +155,7 @@ impl Stream for JsonStream {
 ```
 
 **Problems**:
+
 1. **Lock per poll**: Every `poll_next()` calls `poll_recv()` which acquires receiver lock
 2. **MPSC bounded capacity**: Channel at 256 items causes context switches
 3. **Metrics on every poll**: `channel_occupancy()` called on every poll_next
@@ -156,16 +163,19 @@ impl Stream for JsonStream {
 **Solutions** (pick one based on testing):
 
 **Option A: Reduce lock contention** (Quick, 2-3% gain)
+
 - Batch JSON parsing and sending: Send 8-16 values per channel send instead of 1
 - Reduces channel operations by 8-16x
 - Requires minimal refactoring in `src/connection/conn.rs:771-787`
 
 **Option B: Use higher-capacity channel** (Quick, 1-2% gain)
+
 - Change `mpsc::channel(chunk_size)` to `mpsc::channel(chunk_size * 4)`
 - Reduces context switches
 - May increase memory usage slightly
 
 **Option C: Batch-aware channel** (More complex, 3-5% gain)
+
 - Create custom `batch_channel` that sends multiple items in one operation
 - More complex but best performance
 - Future optimization
@@ -175,6 +185,7 @@ impl Stream for JsonStream {
 **Implementation** (Option A):
 
 1. Modify `src/connection/conn.rs` lines 771-787:
+
 ```rust
 // Current: Send one row at a time
 for row_bytes in rows {
@@ -214,6 +225,7 @@ for v in batch {
 **Estimated Gain**: 2-3% throughput improvement
 
 **Verification**:
+
 ```bash
 # Before: 611 ms for 100K rows
 # After: 595 ms target with Phase 1 = ~168 Kelem/s
@@ -227,6 +239,7 @@ cargo bench --bench integration_benchmarks -- 100k_rows/wire
 **Objective**: Make instrumentation optional and sampling-based
 
 **Current Code** (`src/stream/json_stream.rs:352-357`):
+
 ```rust
 pub fn stats(&self) -> StreamStats {
     let occupancy = self.receiver.len() as u64;
@@ -237,6 +250,7 @@ pub fn stats(&self) -> StreamStats {
 ```
 
 **Problems**:
+
 - Metrics recorded on every `poll_next()` (millions of times)
 - Histograms acquire locks
 - No way to disable for performance-critical paths
@@ -244,6 +258,7 @@ pub fn stats(&self) -> StreamStats {
 **Solution**:
 
 1. **Add metrics feature flag** (make optional):
+
    ```toml
    # Cargo.toml
    [features]
@@ -252,6 +267,7 @@ pub fn stats(&self) -> StreamStats {
    ```
 
 2. **Sampling-based metrics**:
+
    ```rust
    pub fn stats(&self) -> StreamStats {
        // Only record metrics 1 in 1000 polls
@@ -262,6 +278,7 @@ pub fn stats(&self) -> StreamStats {
    ```
 
 3. **Move timing off hot path** (`src/stream/filter.rs:36-38`):
+
    ```rust
    // Current: Timer on every filter evaluation
    let filter_start = std::time::Instant::now();
@@ -280,6 +297,7 @@ pub fn stats(&self) -> StreamStats {
    ```
 
 **Implementation**:
+
 1. Add `metrics` feature to `Cargo.toml`
 2. Wrap metric calls with `#[cfg(feature = "metrics")]`
 3. Implement sampling counter for hot path metrics
@@ -291,6 +309,7 @@ pub fn stats(&self) -> StreamStats {
 **Estimated Gain**: 2-3% when metrics disabled
 
 **Verification**:
+
 ```bash
 # Run benchmark without metrics
 cargo bench --bench integration_benchmarks --no-default-features -- 100k_rows/wire
@@ -303,11 +322,13 @@ cargo bench --bench integration_benchmarks --no-default-features -- 100k_rows/wi
 **Objective**: Reduce per-chunk overhead and simplify state machine
 
 **Current Code** (`src/connection/conn.rs:764-834`):
+
 - Adaptive chunking strategy with observation/adjustment
 - Per-chunk metrics recording
 - Multiple state checks per row
 
 **Problems**:
+
 1. **Adaptive chunking overhead**: Calculates new chunk size on every chunk completion
 2. **Per-chunk metrics**: Histogram updates on every chunk
 3. **Strategy object allocation**: Creates new ChunkingStrategy instances
@@ -328,6 +349,7 @@ cargo bench --bench integration_benchmarks --no-default-features -- 100k_rows/wi
    - Inline instead of method call
 
 **Implementation**:
+
 ```rust
 // src/connection/conn.rs
 const DEFAULT_CHUNK_SIZE: usize = 256;
@@ -354,6 +376,7 @@ for row_bytes in rows {
 **Estimated Gain**: 1-2% throughput improvement
 
 **Verification**:
+
 ```bash
 # Measure with fixed 256-byte chunk
 cargo bench --bench integration_benchmarks -- 100k_rows/wire
@@ -366,6 +389,7 @@ cargo bench --bench integration_benchmarks -- 100k_rows/wire
 **Objective**: Reduce synchronization overhead on state machine
 
 **Current Code** (`src/stream/json_stream.rs:73-79`):
+
 ```rust
 state: Arc<Mutex<StreamState>>,        // Async mutex
 pause_signal: Arc<Notify>,             // Notification
@@ -376,6 +400,7 @@ pause_start_time: Arc<Mutex<Option<std::time::Instant>>>,  // Another async mute
 ```
 
 **Problems**:
+
 1. **Async Mutex for tiny state**: StreamState is just an enum
 2. **Double-lock pattern**: Locks, releases, locks again in pause loop
 3. **Three Arc allocations**: Unnecessary indirection
@@ -383,11 +408,13 @@ pause_start_time: Arc<Mutex<Option<std::time::Instant>>>,  // Another async mute
 **Solution**:
 
 1. **Replace async Mutex with AtomicU8**:
+
    ```rust
    state: Arc<AtomicU8>,  // 0=Running, 1=Paused, 2=Completed, 3=Failed
    ```
 
 2. **Simplify pause logic**:
+
    ```rust
    // Remove double-lock pattern
    // Just: compare-and-swap state, then wait on signal
@@ -416,6 +443,7 @@ pause_start_time: Arc<Mutex<Option<std::time::Instant>>>,  // Another async mute
 **Estimated Gain**: 1-2% throughput improvement
 
 **Verification**:
+
 ```bash
 # Measure without creating many streams with pause/resume
 cargo bench --bench integration_benchmarks -- 100k_rows/wire
@@ -434,6 +462,7 @@ cargo bench --bench integration_benchmarks -- 100k_rows/wire
 | Phase 5 | State synchronization | 1-2% | **11-18%** |
 
 **Target Performance**:
+
 - 100K rows: 611 ms → ~520 ms (15% improvement) = **197 Kelem/s** (PostgreSQL: 195.5)
 - 1M rows: 6.1 s → ~5.2 s (15% improvement) = **192 Kelem/s** (PostgreSQL: 192.5)
 - Pagination: 150 ms → TBD (depends on connection pooling)
@@ -443,12 +472,14 @@ cargo bench --bench integration_benchmarks -- 100k_rows/wire
 ## Implementation Schedule
 
 ### Week 1: Phases 1-2 (High Impact)
+
 - Phase 1 (Buffer cloning): 2-3 hours
 - Phase 2 (MPSC batching): 1-2 hours
 - Comprehensive benchmarking: 1 hour
 - **Expected gain**: 7-11% improvement
 
 ### Week 2: Phases 3-5 (Medium/Low Impact)
+
 - Phase 3 (Metrics sampling): 1-2 hours
 - Phase 4 (Chunk simplification): 1 hour
 - Phase 5 (State sync): 2 hours
@@ -456,6 +487,7 @@ cargo bench --bench integration_benchmarks -- 100k_rows/wire
 - **Expected gain**: Additional 4-7% improvement
 
 ### Week 3: Validation & Documentation
+
 - End-to-end benchmark suite
 - Performance regression tests
 - Document findings in Performance Tuning Guide
@@ -470,6 +502,7 @@ The **1680% regression on LIMIT 100** (150ms vs 8.95ms) is likely **NOT** a wire
 **Hypothesis**: The benchmark creates a new connection for each pagination query instead of reusing connections.
 
 **Investigation Steps**:
+
 1. Check if benchmark uses connection pooling
 2. If not, add connection reuse in benchmark
 3. Re-measure with reused connections
@@ -499,6 +532,7 @@ cargo bench --bench integration_benchmarks --no-default-features --features benc
 ### Expected Results
 
 **Phase 1 Complete** (Buffer cloning fix):
+
 ```
 100k_rows/wire_adapter/stream_collect
   Before: 611 ms
@@ -506,6 +540,7 @@ cargo bench --bench integration_benchmarks --no-default-features --features benc
 ```
 
 **Phase 2 Complete** (MPSC batching):
+
 ```
 100k_rows/wire_adapter/stream_collect
   Before: 575 ms (with Phase 1)
@@ -513,6 +548,7 @@ cargo bench --bench integration_benchmarks --no-default-features --features benc
 ```
 
 **All Phases Complete**:
+
 ```
 100k_rows/wire_adapter/stream_collect
   Before: 611 ms

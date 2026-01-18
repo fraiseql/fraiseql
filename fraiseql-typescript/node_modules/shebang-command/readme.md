@@ -2,13 +2,11 @@
 
 > Get the command from a shebang
 
-
 ## Install
 
 ```
-$ npm install shebang-command
+npm install shebang-command
 ```
-
 
 ## Usage
 
@@ -21,7 +19,6 @@ shebangCommand('#!/usr/bin/env node');
 shebangCommand('#!/bin/bash');
 //=> 'bash'
 ```
-
 
 ## API
 

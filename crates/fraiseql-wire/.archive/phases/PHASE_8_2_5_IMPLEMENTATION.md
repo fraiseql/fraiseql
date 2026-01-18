@@ -11,6 +11,7 @@
 Phase 8.2.5 creates a comprehensive example program demonstrating all Phase 8.2 typed streaming features with five real-world scenarios.
 
 **Accomplishments:**
+
 - ✅ Created `examples/typed_streaming.rs` (350+ lines)
 - ✅ Demonstrates 5 distinct use cases
 - ✅ Example compiles successfully
@@ -31,6 +32,7 @@ Phase 8.2.5 creates a comprehensive example program demonstrating all Phase 8.2 
 **Five Examples Implemented:**
 
 #### Example 1: Type-Safe Query
+
 Demonstrates deserialization to custom struct
 
 ```rust
@@ -50,6 +52,7 @@ while let Some(result) = stream.next().await {
 ---
 
 #### Example 2: Raw JSON Escape Hatch
+
 Demonstrates forward compatibility with raw JSON
 
 ```rust
@@ -69,6 +72,7 @@ while let Some(result) = stream.next().await {
 ---
 
 #### Example 3: SQL WHERE Predicate
+
 Demonstrates SQL is unaffected by type T
 
 ```rust
@@ -89,6 +93,7 @@ while let Some(result) = stream.next().await {
 ---
 
 #### Example 4: Rust-Side Predicate
+
 Demonstrates client-side filtering is unaffected by type T
 
 ```rust
@@ -115,6 +120,7 @@ while let Some(result) = stream.next().await {
 ---
 
 #### Example 5: Type Transparency
+
 Demonstrates type is truly transparent to SQL/filtering
 
 ```rust
@@ -207,6 +213,7 @@ cargo run --example typed_streaming
 ## Entity Types Demonstrated
 
 ### Project Entity
+
 ```rust
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Project {
@@ -217,6 +224,7 @@ struct Project {
 ```
 
 ### User Entity
+
 ```rust
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct User {
@@ -233,6 +241,7 @@ struct User {
 **Size**: 500+ lines
 **Sections**: 15+
 **Topics covered**:
+
 1. Quick start instructions
 2. Five examples with detailed explanations
 3. API reference
@@ -249,26 +258,34 @@ struct User {
 ## Type Constraints Verified by Examples
 
 ### Constraint 1: Type ≠ SQL Generation ✅
+
 **Example 5** demonstrates:
+
 - Query with Project type
 - Query with Value type
 - Both generate: `SELECT data FROM v_{entity}`
 - Type T irrelevant to SQL
 
 ### Constraint 2: Type ≠ Filtering ✅
+
 **Example 4** demonstrates:
+
 - Predicate receives `serde_json::Value`, not typed struct
 - Filtering happens before deserialization
 - Type T irrelevant to filter logic
 
 ### Constraint 3: Type ≠ Ordering ✅
+
 **Example 3** demonstrates:
+
 - ORDER BY applied on server
 - Type T irrelevant to sort order
 - Ordering happens before deserialization
 
 ### Constraint 4: Type ≠ Wire Protocol ✅
+
 **All examples** demonstrate:
+
 - Same connection handling
 - Same message encoding/decoding
 - Same streaming semantics
@@ -308,6 +325,7 @@ struct User {
 ## Common Patterns Documented
 
 ### Pattern 1: Pagination via Filtering
+
 ```rust
 .query::<User>("users")
 .where_sql("data->>'id' > $last_id")
@@ -316,6 +334,7 @@ struct User {
 ```
 
 ### Pattern 2: Schema Evolution
+
 ```rust
 struct User {
     id: String,
@@ -325,12 +344,14 @@ struct User {
 ```
 
 ### Pattern 3: Multi-Type Queries
+
 ```rust
 let users = client.query::<User>("users").execute().await?;
 let projects = client.query::<Project>("projects").execute().await?;
 ```
 
 ### Pattern 4: Conditional Deserialization
+
 ```rust
 // Try typed, fall back to raw JSON on error
 match result {
@@ -344,6 +365,7 @@ match result {
 ## Testing
 
 ### Compilation Test ✅
+
 ```bash
 $ cargo build --example typed_streaming
 Compiling fraiseql-wire v0.1.0
@@ -353,6 +375,7 @@ Finished `dev` profile in 0.49s
 **Result**: ✅ Example compiles without errors
 
 ### Unit Tests Still Pass ✅
+
 ```bash
 $ cargo test --lib
 test result: ok. 58 passed
@@ -361,6 +384,7 @@ test result: ok. 58 passed
 **Result**: ✅ No regressions introduced
 
 ### Documentation Complete ✅
+
 - Example program: ✅ 350+ lines
 - Guide: ✅ 500+ lines
 - All constraints explained: ✅
@@ -372,16 +396,19 @@ test result: ok. 58 passed
 ## Performance Characteristics Explained
 
 ### Memory
+
 - PhantomData: Zero cost (proven in Phase 8.2.1)
 - Per-stream: O(1) overhead
 - Per-item: Lazy deserialization only
 
 ### Latency
+
 - Filtering before deserialization: Optimization
 - Expected overhead: < 2%
 - Time-to-first-result: Identical for all T
 
 ### Streaming
+
 - No buffering of full result sets
 - Backpressure propagates correctly
 - Identical performance for all T
@@ -391,6 +418,7 @@ test result: ok. 58 passed
 ## Files Changed
 
 ### New Files
+
 1. **examples/typed_streaming.rs** (350+ lines)
    - 5 comprehensive examples
    - Entity type definitions
@@ -444,6 +472,7 @@ test result: ok. 58 passed
 ## What's Demonstrated
 
 ### 1. Type-Safe Deserialization
+
 ```rust
 let project: Project = stream.next().await??;
 // Type-safe field access
@@ -451,6 +480,7 @@ println!("{}", project.title);
 ```
 
 ### 2. Raw JSON Escape Hatch
+
 ```rust
 let json: Value = stream.next().await??;
 // Runtime access
@@ -458,6 +488,7 @@ println!("{}", json["title"]);
 ```
 
 ### 3. Type + SQL Predicates
+
 ```rust
 .query::<Project>(entity)
 .where_sql("...")  // SQL unaffected by type
@@ -465,6 +496,7 @@ println!("{}", json["title"]);
 ```
 
 ### 4. Type + Rust Predicates
+
 ```rust
 .query::<Project>(entity)
 .where_rust(|json| {...})  // Predicate on JSON, not type
@@ -472,6 +504,7 @@ println!("{}", json["title"]);
 ```
 
 ### 5. Type Transparency
+
 ```rust
 // Same SQL, different types
 .query::<Project>(...)      // Typed
@@ -484,17 +517,20 @@ println!("{}", json["title"]);
 ## How to Use as End-User Documentation
 
 ### For New Users
+
 1. Start with the **Quick Start** section in TYPED_STREAMING_GUIDE.md
 2. Run the example: `cargo run --example typed_streaming`
 3. Read **Example 1: Type-Safe Query** to understand basic usage
 4. Explore Examples 2-5 for advanced features
 
 ### For Experienced Users
+
 1. Refer to **API Reference** in the guide
 2. Check **Common Patterns** for your use case
 3. Review **Best Practices** for optimization tips
 
 ### For Debugging
+
 1. Enable tracing: `RUST_LOG=fraiseql_wire=debug`
 2. Check **Error Handling with Type Information**
 3. Reference **Debugging** section in guide
@@ -504,6 +540,7 @@ println!("{}", json["title"]);
 ## Integration into Project
 
 The example and guide are:
+
 - ✅ Part of official fraiseql-wire examples
 - ✅ Demonstrates Phase 8.2 features
 - ✅ Ready for inclusion in documentation
@@ -545,4 +582,3 @@ Phase 8.2.5 provides:
 **Quality**: 🟢 Production ready
 **Tests**: 58/58 passing, 0 regressions
 **Documentation**: 850+ lines (example + guide)
-

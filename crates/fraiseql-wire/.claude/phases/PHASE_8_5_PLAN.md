@@ -10,6 +10,7 @@
 ## Objective
 
 Add comprehensive metrics collection to fraiseql-wire for production observability, enabling users to:
+
 - Track query execution performance (latency, throughput)
 - Monitor error rates and error categories
 - Understand deserialization success/failure patterns
@@ -64,12 +65,14 @@ Add comprehensive metrics collection to fraiseql-wire for production observabili
 #### 1. Query-Level Metrics
 
 **Counters:**
+
 - `fraiseql_queries_total` - Total queries submitted (label: entity, has_where_sql, has_where_rust, has_order_by)
 - `fraiseql_query_success_total` - Successful query completions (label: entity)
 - `fraiseql_query_error_total` - Failed queries (label: entity, error_category)
 - `fraiseql_query_cancelled_total` - Cancelled queries (label: entity)
 
 **Histograms:**
+
 - `fraiseql_query_startup_duration_ms` - Time from submit to first DataRow (label: entity)
 - `fraiseql_query_total_duration_ms` - Wall-clock query execution time (label: entity)
 - `fraiseql_query_rows_processed` - Distribution of row counts per query (label: entity)
@@ -78,12 +81,14 @@ Add comprehensive metrics collection to fraiseql-wire for production observabili
 #### 2. Row Processing Metrics
 
 **Counters:**
+
 - `fraiseql_rows_processed_total` - Rows received from Postgres (label: entity, status: ok/parse_error)
 - `fraiseql_rows_filtered_total` - Rows filtered by where_rust() (label: entity)
 - `fraiseql_rows_deserialized_total` - Rows successfully deserialized (label: entity, type_name)
 - `fraiseql_rows_deserialization_failed_total` - Deserialization failures (label: entity, type_name, reason)
 
 **Histograms:**
+
 - `fraiseql_chunk_processing_duration_ms` - Time to process one chunk (label: entity)
 - `fraiseql_chunk_size_rows` - Distribution of rows per chunk (label: entity)
 - `fraiseql_json_parse_duration_ms` - JSON parsing time per chunk (label: entity)
@@ -93,6 +98,7 @@ Add comprehensive metrics collection to fraiseql-wire for production observabili
 #### 3. Error Metrics
 
 **Counters:**
+
 - `fraiseql_errors_total` - All errors (label: category, retriable, phase: auth/startup/query/streaming)
 - `fraiseql_protocol_errors_total` - Protocol violations (label: message_type, field)
 - `fraiseql_json_parse_errors_total` - JSON parsing failures (label: reason)
@@ -101,6 +107,7 @@ Add comprehensive metrics collection to fraiseql-wire for production observabili
 #### 4. Connection-Level Metrics
 
 **Counters:**
+
 - `fraiseql_connections_created_total` - Connections established (label: transport: tcp/unix)
 - `fraiseql_connections_failed_total` - Connection failures (label: phase: transport/auth/startup, error_category)
 - `fraiseql_authentications_total` - Auth attempts (label: mechanism: cleartext/scram)
@@ -108,6 +115,7 @@ Add comprehensive metrics collection to fraiseql-wire for production observabili
 - `fraiseql_authentications_failed_total` - Failed auth (label: mechanism, reason)
 
 **Gauges:**
+
 - `fraiseql_active_connections` - Current active connections
 - `fraiseql_active_queries` - Current active queries
 - `fraiseql_connection_state` - Current connection state (label: state)
@@ -115,10 +123,12 @@ Add comprehensive metrics collection to fraiseql-wire for production observabili
 #### 5. Backpressure & Channel Metrics
 
 **Counters:**
+
 - `fraiseql_channel_send_blocked_total` - Times send() blocked (label: reason: full/backpressure)
 - `fraiseql_channel_send_duration_ms_total` - Cumulative send latency (label: entity)
 
 **Histograms:**
+
 - `fraiseql_channel_send_latency_ms` - Per-send latency distribution (measures backpressure)
 
 ---
@@ -128,6 +138,7 @@ Add comprehensive metrics collection to fraiseql-wire for production observabili
 ### Phase 8.5.1: Create Metrics Module
 
 **Files to Create:**
+
 - `src/metrics/mod.rs` - Public API, initialization
 - `src/metrics/counters.rs` - Counter definitions
 - `src/metrics/histograms.rs` - Histogram definitions
@@ -136,6 +147,7 @@ Add comprehensive metrics collection to fraiseql-wire for production observabili
 **Steps:**
 
 1. **Create `src/metrics/mod.rs`**
+
    ```rust
    pub mod counters;
    pub mod histograms;
@@ -158,6 +170,7 @@ Add comprehensive metrics collection to fraiseql-wire for production observabili
    ```
 
 2. **Create `src/metrics/counters.rs`**
+
    ```rust
    use metrics::counter;
 
@@ -178,6 +191,7 @@ Add comprehensive metrics collection to fraiseql-wire for production observabili
    ```
 
 3. **Create `src/metrics/histograms.rs`**
+
    ```rust
    use metrics::histogram;
 
@@ -193,6 +207,7 @@ Add comprehensive metrics collection to fraiseql-wire for production observabili
    ```
 
 4. **Create `src/metrics/labels.rs`**
+
    ```rust
    pub const ENTITY_LABEL: &str = "entity";
    pub const ERROR_CATEGORY_LABEL: &str = "error_category";
@@ -204,6 +219,7 @@ Add comprehensive metrics collection to fraiseql-wire for production observabili
    ```
 
 5. **Update `Cargo.toml`**
+
    ```toml
    [dependencies]
    metrics = "0.22"
@@ -211,6 +227,7 @@ Add comprehensive metrics collection to fraiseql-wire for production observabili
    ```
 
 6. **Update `src/lib.rs`**
+
    ```rust
    pub mod metrics;
 
@@ -222,7 +239,9 @@ Add comprehensive metrics collection to fraiseql-wire for production observabili
 **File**: `src/client/query_builder.rs`
 
 **Changes:**
+
 1. In `QueryBuilder::execute()`:
+
    ```rust
    pub async fn execute(mut self) -> Result<StreamType> {
        // Record query submission
@@ -243,7 +262,9 @@ Add comprehensive metrics collection to fraiseql-wire for production observabili
 **File**: `src/connection/conn.rs`
 
 **Changes:**
+
 1. In `Connection::streaming_query()`:
+
    ```rust
    pub async fn streaming_query(
        mut self,
@@ -277,6 +298,7 @@ Add comprehensive metrics collection to fraiseql-wire for production observabili
    ```
 
 2. In `Connection::authenticate()`:
+
    ```rust
    async fn authenticate(&mut self, config: &ConnectionConfig) -> Result<()> {
        let auth_start = Instant::now();
@@ -306,7 +328,9 @@ Add comprehensive metrics collection to fraiseql-wire for production observabili
 **File**: `src/connection/conn.rs` (background_query_task)
 
 **Changes:**
+
 1. Wrap chunk processing:
+
    ```rust
    async fn background_query_task_with_metrics(
        // ... existing params ...
@@ -390,7 +414,9 @@ Add comprehensive metrics collection to fraiseql-wire for production observabili
 **File**: `src/stream/typed_stream.rs`
 
 **Changes:**
+
 1. In `TypedJsonStream::poll_next()`:
+
    ```rust
    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<T>>> {
        let deser_start = Instant::now();
@@ -423,7 +449,9 @@ Add comprehensive metrics collection to fraiseql-wire for production observabili
 **File**: `src/stream/filter.rs`
 
 **Changes:**
+
 1. In `FilteredStream::poll_next()`:
+
    ```rust
    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<Value>>> {
        loop {
@@ -453,6 +481,7 @@ Add comprehensive metrics collection to fraiseql-wire for production observabili
 **File**: `tests/metrics_integration.rs`
 
 **Tests:**
+
 1. `test_query_metrics_recorded` - Verify metrics captured for query
 2. `test_error_metrics_by_category` - Error categorization metrics
 3. `test_deserialization_metrics_per_type` - Type-specific tracking
@@ -471,6 +500,7 @@ Add comprehensive metrics collection to fraiseql-wire for production observabili
    - Integration examples
 
 2. **`examples/metrics.rs`** - Working example
+
    ```rust
    #[tokio::main]
    async fn main() -> Result<()> {
@@ -510,22 +540,26 @@ Add comprehensive metrics collection to fraiseql-wire for production observabili
 ## Testing Strategy
 
 ### Unit Tests
+
 - Test each metric recording function in isolation
 - Verify label handling
 - Test error conditions
 
 ### Integration Tests
+
 - Execute query, verify metrics recorded
 - Test error scenarios (auth failures, protocol errors, etc.)
 - Test deserialization errors per type
 - Verify histogram distributions
 
 ### Performance Tests
+
 - Benchmark metrics overhead (should be < 1% for typical queries)
 - Verify no allocation in hot paths
 - Test under high throughput (1K+ rows/sec)
 
 ### Manual Testing
+
 - Prometheus scrape endpoint
 - Dashboard visualization
 - Alert rule definition
@@ -553,28 +587,36 @@ Add comprehensive metrics collection to fraiseql-wire for production observabili
 ## Risk Mitigation
 
 ### Risk: Performance Regression
+
 **Mitigation:**
+
 - All metrics operations are O(1)
 - Batch measurements (per chunk, not per row)
 - Optional feature flag for high-verbosity metrics
 - Benchmark before/after
 
 ### Risk: Label Cardinality Explosion
+
 **Mitigation:**
+
 - Carefully limit label dimensions
 - Use enum constants for label values
 - Document label constraints
 - Monitor metric count growth
 
 ### Risk: Memory Overhead
+
 **Mitigation:**
+
 - Metrics stored in external crate (bounded)
 - No per-query state retained
 - Periodic export & reset
 - Profile memory usage
 
 ### Risk: Measurement Overhead in Hot Paths
+
 **Mitigation:**
+
 - Use batch measurements (per-chunk boundaries)
 - Avoid allocation in poll_next()
 - Use atomic operations for counters
@@ -585,6 +627,7 @@ Add comprehensive metrics collection to fraiseql-wire for production observabili
 ## Next Phase (Phase 8.6)
 
 After Phase 8.5 completes, consider:
+
 - **Phase 8.6: Connection Configuration Enhancements** (if needed)
 - **Phase 7.3-7.6: Stabilization** (real-world testing, CI/CD)
 - **Phase 8.7: Connection Pooling** (as separate crate)
@@ -604,6 +647,7 @@ After Phase 8.5 completes, consider:
 ## Files Modified/Created
 
 ### New Files
+
 - `src/metrics/mod.rs`
 - `src/metrics/counters.rs`
 - `src/metrics/histograms.rs`
@@ -614,6 +658,7 @@ After Phase 8.5 completes, consider:
 - `INTEGRATION_EXAMPLES.md`
 
 ### Modified Files
+
 - `Cargo.toml` - Add metrics crate
 - `src/lib.rs` - Export metrics module
 - `src/client/query_builder.rs` - Record query submission

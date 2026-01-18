@@ -37,20 +37,24 @@ Phase 8.6.4 implements **self-tuning chunk sizes** that automatically adjust bat
 **Critical Semantics** (from code analysis):
 
 `chunk_size` controls **both**:
+
 1. MPSC channel capacity (line 608 in conn.rs): `mpsc::channel(chunk_size)`
 2. Batch size for Postgres row parsing (ChunkingStrategy)
 
 **Producer-side flow**:
+
 - Reads rows from Postgres
 - Accumulates in RowChunk until `chunk.len() >= chunk_size`
 - Parses all rows in batch
 - Sends each parsed Value to channel (blocking if channel full)
 
 **Consumer-side flow**:
+
 - Drains from channel via poll_recv
 - Occupancy = how many Values buffered in channel at any moment
 
 **Control signal interpretation**:
+
 - **High occupancy** (>80%): Producer waiting on channel capacity, consumer slow to drain
   → **Reduce chunk_size**: smaller batches reduce pressure, lower latency per item
 
@@ -182,6 +186,7 @@ impl AdaptiveChunking {
 ```
 
 **Key Design Decisions**:
+
 - ✅ Measurement-based (not threshold-crossing-based) for stability
 - ✅ Hysteresis band (20%-80%) prevents frequent oscillation
 - ✅ Minimum adjustment interval (1 second) prevents thrashing
@@ -251,6 +256,7 @@ loop {
 ```
 
 **Key Integration Points**:
+
 1. Create `AdaptiveChunking` before loop
 2. Observe occupancy after each chunk send
 3. If adjustment returned, update both `chunk_size` and `strategy`
@@ -282,6 +288,7 @@ pub fn adaptive_chunk_adjusted(
 **Metric Name**: `fraiseql_adaptive_chunk_adjusted_total{entity, direction, old_size, new_size}`
 
 **Use Cases**:
+
 - Alert if adjustments happen too frequently (sign of instability)
 - Monitor distribution of old_size/new_size to understand patterns
 - Track per-entity adaptation behavior
@@ -318,6 +325,7 @@ impl QueryBuilder {
 ```
 
 **API Design**:
+
 - ✅ Adaptive enabled by default (opt-out, not opt-in)
 - ✅ Optional bounds override for power users
 - ✅ Simple, discoverable methods
@@ -344,23 +352,27 @@ pub async fn streaming_query(
 ## Implementation Steps
 
 ### Step 1: Create AdaptiveChunking Module (30 min)
+
 - [ ] Create `src/stream/adaptive_chunking.rs`
 - [ ] Implement `AdaptiveChunking` type with all methods
 - [ ] Add docstrings and examples
 - [ ] Export from `src/stream/mod.rs`
 
 ### Step 2: Add Metrics (15 min)
+
 - [ ] Add `adaptive_chunk_adjusted()` to `src/metrics/counters.rs`
 - [ ] Verify metric naming conventions
 - [ ] Check label cardinality (size values could be high - mitigate)
 
 ### Step 3: Extend QueryBuilder (20 min)
+
 - [ ] Add fields to `QueryBuilder` struct
 - [ ] Implement three new methods
 - [ ] Pass values through to connection layer
 - [ ] Update docstrings
 
 ### Step 4: Integrate into Connection (40 min)
+
 - [ ] Create `AdaptiveChunking` instance
 - [ ] Observe occupancy after each chunk send
 - [ ] Handle adjustment returns
@@ -369,6 +381,7 @@ pub async fn streaming_query(
 - [ ] Add tracing logs
 
 ### Step 5: Comprehensive Testing (60 min)
+
 - [ ] Unit tests for `AdaptiveChunking` logic
 - [ ] Integration tests for end-to-end behavior
 - [ ] Test occupancy thresholds (10%, 30%, 70%, 90%)
@@ -381,6 +394,7 @@ pub async fn streaming_query(
 - [ ] Stress test with rapid occupancy changes
 
 ### Step 6: Verify & Document (30 min)
+
 - [ ] Run full test suite
 - [ ] Run benchmarks (verify < 1% overhead)
 - [ ] Check for clippy warnings
@@ -681,18 +695,23 @@ async fn test_metrics_recorded_on_adjustment() {
 ## Risk Mitigation
 
 ### Risk: Unstable Oscillation
+
 **Mitigation**: Wide hysteresis band (20%-80%), min adjustment interval (1s), window reset
 
 ### Risk: Chunk Size Too Large (Memory Issues)
+
 **Mitigation**: Hard max bound (1024), respect memory limit from 8.6.3
 
 ### Risk: Chunk Size Too Small (High Overhead)
+
 **Mitigation**: Hard min bound (16), start conservative (256)
 
 ### Risk: Adjustment Decision Delayed
+
 **Mitigation**: Measurement window = 50 observations (reasonable latency)
 
 ### Risk: Metric Label Cardinality
+
 **Mitigation**: old_size/new_size are discrete values (16,24,36,54,...) - bounded set
 
 ---
@@ -710,6 +729,7 @@ adaptive.max_size = min(1024, max_items) = 1024
 ```
 
 If memory limit is very tight:
+
 ```
 max_memory = 50 MB
   ↓
@@ -719,6 +739,7 @@ adaptive.max_size = min(1024, max_items) = 1024 (still valid)
 ```
 
 **Fallback strategy**: If max_memory would create max_size < 16:
+
 - Don't enable adaptive chunking (disable automatically)
 - Fall back to fixed chunk_size
 - Record warning metric
@@ -728,16 +749,19 @@ adaptive.max_size = min(1024, max_items) = 1024 (still valid)
 ## Expected Outcomes
 
 ### For Developers
+
 - Zero configuration needed (adaptive by default)
 - Can disable if needed: `.adaptive_chunking(false)`
 - Can fine-tune bounds if needed: `.adaptive_min_size()`, `.adaptive_max_size()`
 
 ### For Operators
+
 - Reduced need to manually tune chunk_size
 - Metrics show adaptation behavior
 - Memory limits still respected (hard ceiling)
 
 ### For Production
+
 - Self-tuning reduces operational burden
 - Backpressure handled gracefully
 - Clear observability via metrics
@@ -756,17 +780,20 @@ adaptive.max_size = min(1024, max_items) = 1024 (still valid)
 ## Notes for Implementation
 
 ### JSON Stream Interaction
+
 - Adaptive chunking is background-task-only
 - No changes to JsonStream itself needed
 - No changes to consumer API (poll_next, stats, etc.)
 
 ### Backward Compatibility
+
 - All changes are additive
 - Adaptive enabled by default (safe default)
 - Can disable completely
 - Existing code works unchanged
 
 ### Future Extensions (Beyond 8.6.4)
+
 - Measurement-based chunk size (adjust based on JSON size)
 - Time-based chunk flush (reduce latency if occupancy stays low)
 - Different occupancy thresholds per entity type

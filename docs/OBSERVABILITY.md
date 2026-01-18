@@ -124,6 +124,7 @@ curl http://localhost:8000/metrics/json
 **Purpose**: Real-time metric collection and time-series analysis
 
 **Key Metrics**:
+
 - `fraiseql_graphql_queries_total`: Total queries executed
 - `fraiseql_graphql_queries_success`: Successful queries
 - `fraiseql_graphql_queries_error`: Failed queries
@@ -135,6 +136,7 @@ curl http://localhost:8000/metrics/json
 - `fraiseql_execution_errors_total`: Execution errors
 
 **Endpoints**:
+
 - `/metrics` - Prometheus text format (for scraping)
 - `/metrics/json` - JSON format (for dashboards)
 
@@ -145,6 +147,7 @@ curl http://localhost:8000/metrics/json
 **Purpose**: Contextual logging for debugging and analysis
 
 **Log Entry Structure**:
+
 ```json
 {
   "timestamp": "2024-01-16T15:30:45.123Z",
@@ -172,11 +175,13 @@ curl http://localhost:8000/metrics/json
 **Purpose**: Request correlation across service boundaries
 
 **W3C Trace Context Header Format**:
+
 ```
 traceparent: 00-{32-hex-trace-id}-{16-hex-span-id}-{trace-flags}
 ```
 
 **Key Features**:
+
 - Automatic trace ID generation
 - Parent-child span relationships
 - Cross-cutting context via baggage
@@ -189,6 +194,7 @@ traceparent: 00-{32-hex-trace-id}-{16-hex-span-id}-{trace-flags}
 **Purpose**: Detailed performance analysis and optimization
 
 **Tracking**:
+
 - Query execution phases (parse, validation, DB, formatting)
 - Slow query detection and analysis
 - Cache efficiency analysis
@@ -444,12 +450,14 @@ Service Level Objectives for FraiseQL v2:
 ### 1. Logging Best Practices
 
 ✅ **DO:**
+
 - Include request IDs in all log entries
 - Log at appropriate levels (DEBUG/TRACE only in development)
 - Include business context (user_id, operation, tenant)
 - Use structured JSON format
 
 ❌ **DON'T:**
+
 - Log sensitive data (passwords, tokens, PII)
 - Use vague error messages
 - Mix structured and unstructured logs
@@ -458,12 +466,14 @@ Service Level Objectives for FraiseQL v2:
 ### 2. Metrics Best Practices
 
 ✅ **DO:**
+
 - Use consistent metric names
 - Export metrics every 30-60 seconds
 - Track both success and error cases
 - Monitor resource usage (CPU, memory, connections)
 
 ❌ **DON'T:**
+
 - Create unbounded cardinality metrics
 - Export sensitive information
 - Change metric names without versioning
@@ -472,12 +482,14 @@ Service Level Objectives for FraiseQL v2:
 ### 3. Tracing Best Practices
 
 ✅ **DO:**
+
 - Create traces at system boundaries
 - Propagate trace IDs across services
 - Sample appropriately for traffic volume
 - Set meaningful span names
 
 ❌ **DON'T:**
+
 - Create traces for every operation
 - Store sensitive data in baggage
 - Forget to finish spans
@@ -486,12 +498,14 @@ Service Level Objectives for FraiseQL v2:
 ### 4. Performance Monitoring
 
 ✅ **DO:**
+
 - Monitor slow query rate
 - Track cache efficiency
 - Analyze database performance
 - Use performance data for optimization
 
 ❌ **DON'T:**
+
 - Ignore performance trends
 - Rely on averages alone (use percentiles)
 - Skip error analysis
@@ -504,6 +518,7 @@ Service Level Objectives for FraiseQL v2:
 **Symptoms**: `/metrics` endpoint works but Prometheus scrape fails
 
 **Solutions**:
+
 1. Check Prometheus configuration: `curl http://prometheus:9090/-/healthy`
 2. Verify target is reachable: `telnet fraiseql 8000`
 3. Check scrape interval: Default is 15 seconds
@@ -514,6 +529,7 @@ Service Level Objectives for FraiseQL v2:
 **Symptoms**: Some requests not logged
 
 **Solutions**:
+
 1. Check log level: Set `RUST_LOG=debug` for verbose logging
 2. Verify sink is configured correctly
 3. Check for log buffering: May have 1-2 second delay
@@ -524,6 +540,7 @@ Service Level Objectives for FraiseQL v2:
 **Symptoms**: Trace IDs not propagating
 
 **Solutions**:
+
 1. Verify `traceparent` header is being set
 2. Check header format: `00-{32-hex}-{16-hex}-{2-hex}`
 3. Ensure services parse and propagate headers
@@ -534,6 +551,7 @@ Service Level Objectives for FraiseQL v2:
 **Symptoms**: Server memory grows over time
 
 **Solutions**:
+
 1. Check for trace context leaks
 2. Monitor baggage size (should be < 1KB per request)
 3. Verify metrics aren't accumulating unbounded
@@ -552,6 +570,7 @@ Service Level Objectives for FraiseQL v2:
 ## Support
 
 For issues or questions about observability in FraiseQL v2:
+
 - Check [troubleshooting section](#troubleshooting)
 - Review logs with `RUST_LOG=debug`
 - Enable tracing for detailed execution flow

@@ -182,11 +182,13 @@ This matches the behavior of libpq and other PostgreSQL clients.
 ## Impact on Benchmarks
 
 ### Before Fix
+
 - ❌ PostgresAdapter: Used Unix socket (fast)
 - ❌ FraiseWireAdapter: **Blocked** - couldn't connect
 - ❌ **Unfair comparison** - different connection methods
 
 ### After Fix
+
 - ✅ PostgresAdapter: Uses Unix socket
 - ✅ FraiseWireAdapter: Uses Unix socket
 - ✅ **Fair comparison** - identical connection method
@@ -214,11 +216,13 @@ open target/criterion/report/index.html
 ### Unix Socket Path Format
 
 PostgreSQL Unix sockets use this format:
+
 ```
 {socket_directory}/.s.PGSQL.{port}
 ```
 
 Examples:
+
 - `/run/postgresql/.s.PGSQL.5432` (default)
 - `/var/run/postgresql/.s.PGSQL.5433` (custom port)
 - `/tmp/.s.PGSQL.5432` (fallback location)
@@ -275,10 +279,12 @@ Unix socket vs TCP localhost:
 ## Files Modified
 
 **Upstream (fraiseql-wire)**:
+
 - `src/client/connection_string.rs` - Added socket path construction logic
 - Tests added for all connection string formats
 
 **Downstream (fraiseql)**:
+
 - `crates/fraiseql-core/tests/wire_conn_test.rs` - Verification test
 - `/tmp/fraiseql-wire-unix-socket-issue.md` - Issue documentation (no longer needed, fixed!)
 

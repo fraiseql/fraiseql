@@ -75,11 +75,13 @@ The FraiseQL Go authoring layer is a complete implementation for defining GraphQ
 ### Builder Pattern
 
 All builders follow Go conventions:
+
 - Methods return `*Builder` for chaining
 - `Register()` method finalizes and registers the definition
 - Fluent API for readable schema definitions
 
 Example:
+
 ```go
 fraiseql.NewQuery("users").
     ReturnType(User{}).
@@ -93,6 +95,7 @@ fraiseql.NewQuery("users").
 ### Analytics Support
 
 Fact tables for OLAP workloads:
+
 ```go
 fraiseql.NewFactTable("sales").
     TableName("tf_sales").
@@ -104,6 +107,7 @@ fraiseql.NewFactTable("sales").
 ```
 
 Aggregate queries:
+
 ```go
 fraiseql.NewAggregateQueryConfig("salesByCategory").
     FactTableName("sales").
@@ -137,6 +141,7 @@ fraiseql.NewAggregateQueryConfig("salesByCategory").
   - Complex schema with multiple tables
 
 ### Total Test Coverage
+
 - **45 test cases** across all modules
 - **100% pass rate** on all tests
 - Test execution time: < 5ms
@@ -144,6 +149,7 @@ fraiseql.NewAggregateQueryConfig("salesByCategory").
 ### Integration Testing
 
 All examples verified:
+
 - ✅ basic_schema.go (Users, Posts, CRUD operations)
 - ✅ analytics_schema.go (Sales and Events fact tables)
 - ✅ complete_schema.go (Production-like schema with all features)
@@ -151,21 +157,27 @@ All examples verified:
 ## Examples
 
 ### 1. Basic Schema
+
 Demonstrates fundamental schema definition with:
+
 - Type definitions using struct tags
 - Query builders (list and single-item queries)
 - Mutation builders (CRUD operations)
 - Pagination and filtering
 
 ### 2. Analytics Schema
+
 Demonstrates OLAP workload with:
+
 - Multiple fact tables (Sales, Events)
 - Measures (sum, avg, count, min, max)
 - Dimensions (categories, regions, dates)
 - Aggregate queries
 
 ### 3. Complete Schema
+
 Production-like schema combining:
+
 - 3 types (User, Post, Revenue)
 - 4 queries
 - 7 mutations
@@ -198,6 +210,7 @@ Production-like schema combining:
 ## Code Quality
 
 ### Standards
+
 - Go 1.22+ compatibility
 - No external dependencies (uses only standard library)
 - Thread-safe registry with RWMutex
@@ -205,6 +218,7 @@ Production-like schema combining:
 - Clean separation of concerns
 
 ### Build Targets
+
 ```makefile
 make test          # Run tests
 make test-verbose  # Verbose output
@@ -216,6 +230,7 @@ make clean        # Clean artifacts
 ## Dependencies
 
 **Zero external dependencies**. Uses only Go standard library:
+
 - `encoding/json` - JSON serialization
 - `reflect` - Struct introspection
 - `sync` - Thread-safe registry
@@ -231,22 +246,26 @@ make clean        # Clean artifacts
 ## Next Steps for Users
 
 1. **Define Your Schema**
+
    ```bash
    cd examples
    go run complete_schema.go
    ```
 
 2. **Compile the Schema**
+
    ```bash
    fraiseql-cli compile schema.json -o schema.compiled.json
    ```
 
 3. **Start the Server**
+
    ```bash
    fraiseql-server --schema schema.compiled.json --port 8000
    ```
 
 4. **Test GraphQL Queries**
+
    ```bash
    curl -X POST http://localhost:8000/graphql \
      -H "Content-Type: application/json" \
@@ -256,22 +275,27 @@ make clean        # Clean artifacts
 ## Key Design Decisions
 
 ### 1. Pure JSON Output
+
 **Decision**: Go is authoring only, no runtime FFI
 **Rationale**: Keeps the Go module lightweight and focused on schema definition. Schema compilation and execution happen in Rust.
 
 ### 2. Struct Tags for Type Metadata
+
 **Decision**: Use `fraiseql` struct tags for field configuration
 **Rationale**: Go-idiomatic approach, leverages reflection for field extraction, minimal boilerplate
 
 ### 3. Builder Pattern
+
 **Decision**: Use fluent builders with method chaining
 **Rationale**: Go convention, readable schema definitions, flexible configuration
 
 ### 4. Singleton Registry
+
 **Decision**: Thread-safe global registry for collecting definitions
 **Rationale**: Simple API for users, typical pattern in Go DSLs, allows bulk operations
 
 ### 5. Separate Analytics Module
+
 **Decision**: Analytics in separate `analytics.go` file
 **Rationale**: Clear separation from core query/mutation builders, better code organization
 
@@ -285,6 +309,7 @@ make clean        # Clean artifacts
 ## Maintenance and Future Work
 
 ### Potential Enhancements
+
 - Input validation decorators
 - Schema inheritance/composition
 - Custom type aliases
@@ -292,6 +317,7 @@ make clean        # Clean artifacts
 - Directive support
 
 ### Stability
+
 - All public APIs stable
 - Backward compatible changes only
 - Well-tested core functionality

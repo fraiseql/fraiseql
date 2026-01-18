@@ -59,11 +59,13 @@ fraiseql/
 ## Current Status
 
 **Phase 1: Foundation** ✅ Complete
+
 - Copied 4,516 lines from v1
 - schema/, error.rs, config/, apq/ modules
 - All code compiles, clippy clean
 
 **Phase 2: Database & Cache** ⏳ Next
+
 - Adapt db/ module (90-95% reusable)
 - Adapt cache/ module (90-95% reusable)
 - Database abstraction traits
@@ -192,15 +194,18 @@ open target/llvm-cov/html/index.html
 ## Common Issues
 
 ### Compilation slow?
+
 - Install mold linker (see Performance Tips)
 - Use `cargo check` instead of `cargo build` during development
 
 ### Tests failing?
+
 - Check PostgreSQL is running: `systemctl status postgresql`
 - Clean build: `cargo clean && cargo test`
 - Single test with output: `cargo test test_name -- --nocapture`
 
 ### Clippy too strict?
+
 - We use `deny` level intentionally for code quality
 - Don't use `#[allow]` without good reason
 - Fix the issue or discuss if it's a false positive
@@ -214,7 +219,7 @@ open target/llvm-cov/html/index.html
 
 ## Links
 
-- **GitHub**: https://github.com/fraiseql/fraiseql
-- **Docs**: https://fraiseql.com (when published)
-- **Rust Book**: https://doc.rust-lang.org/book/
-- **Clippy Lints**: https://rust-lang.github.io/rust-clippy/
+- **GitHub**: <https://github.com/fraiseql/fraiseql>
+- **Docs**: <https://fraiseql.com> (when published)
+- **Rust Book**: <https://doc.rust-lang.org/book/>
+- **Clippy Lints**: <https://rust-lang.github.io/rust-clippy/>

@@ -39,10 +39,12 @@ The `fraiseql-cli` command-line tool compiles FraiseQL schemas from JSON format 
 ### Type Definition
 
 Every type must have:
+
 - `name`: Unique type name
 - `fields`: Array of field definitions
 
 Each field has:
+
 - `name`: Field identifier
 - `type`: GraphQL type (Int, String, Float, Boolean, or custom type name)
 - `nullable`: Whether field can be null (default: true)
@@ -50,6 +52,7 @@ Each field has:
 ### Query Definition
 
 Each query has:
+
 - `name`: Query name (must be unique)
 - `arguments`: Array of input arguments (optional)
 - `return_type`: Type name or scalar type
@@ -59,6 +62,7 @@ Each query has:
 ### Mutation Definition
 
 Similar to queries but for write operations:
+
 - `name`: Mutation name
 - `arguments`: Input arguments (required)
 - `return_type`: Return type
@@ -67,6 +71,7 @@ Similar to queries but for write operations:
 ### Fact Table Definition
 
 For analytics schemas:
+
 - `name`: Fact table name (convention: starts with `tf_`)
 - `table_name`: Actual SQL table name
 - `measures`: List of numeric columns for aggregation
@@ -78,6 +83,7 @@ For analytics schemas:
 All language generators produce compatible JSON schemas:
 
 ### Python
+
 ```python
 @fraiseql.type
 class User:
@@ -95,6 +101,7 @@ fraiseql.export_schema("schema.json")
 Output: Valid `schema.json` for CLI compilation
 
 ### TypeScript
+
 ```typescript
 @Type()
 class User {
@@ -112,6 +119,7 @@ ExportSchema("schema.json");
 Output: Valid `schema.json` for CLI compilation
 
 ### Go
+
 ```go
 type User struct {
     ID    int    `fraiseql:"id"`
@@ -133,6 +141,7 @@ Output: Valid `schema.json` for CLI compilation
 ### Step 1: Validate Schema
 
 The CLI validates:
+
 - All type names are unique
 - All referenced types exist
 - Required fields are present
@@ -143,6 +152,7 @@ fraiseql-cli compile schema.json
 ```
 
 Output includes validation warnings and suggestions:
+
 ```
 ⚠️  Warnings (2):
    Query 'posts' returns a list but has no sql_source
@@ -152,6 +162,7 @@ Output includes validation warnings and suggestions:
 ### Step 2: Generate Compiled Schema
 
 The compiler produces `schema.compiled.json`:
+
 ```json
 {
   "version": "2.0.0",
@@ -171,6 +182,7 @@ The compiler produces `schema.compiled.json`:
 ### Step 3: Optimization Suggestions
 
 The compiler provides optimization hints:
+
 ```
 📊 Optimization Suggestions:
 
@@ -224,6 +236,7 @@ All 5 language generators produce compatible schemas:
 **Cause**: The CLI was not built
 
 **Solution**:
+
 ```bash
 cargo build --release -p fraiseql-cli
 export PATH="$(pwd)/target/release:$PATH"
@@ -250,6 +263,7 @@ fraiseql-server --schema schema.compiled.json --port 4000
 ```
 
 The server then:
+
 1. Loads compiled schema
 2. Accepts GraphQL queries
 3. Executes optimized SQL

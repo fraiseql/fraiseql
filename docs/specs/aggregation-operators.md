@@ -12,6 +12,7 @@
 This specification defines the aggregation operators available in FraiseQL, organized by database target and phase of implementation.
 
 **Phases**:
+
 - **Phase 1-2** (✅ Complete): Basic aggregates (COUNT, SUM, AVG, MIN, MAX, STDDEV, VARIANCE)
 - **Phase 3** (📋 Planned): Advanced aggregates (ARRAY_AGG, JSON_AGG, STRING_AGG, BOOL_AND/OR)
 - **Phase 4** (📋 Planned): Auto-generated GraphQL types (perfect for v2 compiler!)
@@ -325,6 +326,7 @@ type SalesAggregate {
 Aggregate values into an array.
 
 **PostgreSQL**:
+
 ```sql
 SELECT
     data->>'category' AS category,
@@ -334,6 +336,7 @@ GROUP BY data->>'category';
 ```
 
 **MySQL**:
+
 ```sql
 -- Use JSON_ARRAYAGG instead
 SELECT
@@ -352,6 +355,7 @@ GROUP BY JSON_EXTRACT(data, '$.category');
 Aggregate rows into JSON.
 
 **PostgreSQL**:
+
 ```sql
 SELECT
     data->>'customer_id' AS customer_id,
@@ -364,6 +368,7 @@ GROUP BY data->>'customer_id';
 ```
 
 **MySQL**:
+
 ```sql
 SELECT
     JSON_EXTRACT(data, '$.customer_id') AS customer_id,
@@ -380,6 +385,7 @@ GROUP BY JSON_EXTRACT(data, '$.customer_id');
 **SQLite**: Not supported
 
 **SQL Server**:
+
 ```sql
 -- Use FOR JSON PATH
 SELECT
@@ -401,6 +407,7 @@ GROUP BY JSON_VALUE(data, '$.customer_id');
 Concatenate strings with delimiter.
 
 **PostgreSQL**:
+
 ```sql
 SELECT
     data->>'customer_id' AS customer_id,
@@ -410,6 +417,7 @@ GROUP BY data->>'customer_id';
 ```
 
 **MySQL**:
+
 ```sql
 SELECT
     JSON_EXTRACT(data, '$.customer_id') AS customer_id,
@@ -419,6 +427,7 @@ GROUP BY JSON_EXTRACT(data, '$.customer_id');
 ```
 
 **SQLite**:
+
 ```sql
 SELECT
     json_extract(data, '$.customer_id') AS customer_id,
@@ -428,6 +437,7 @@ GROUP BY json_extract(data, '$.customer_id');
 ```
 
 **SQL Server**:
+
 ```sql
 SELECT
     JSON_VALUE(data, '$.customer_id') AS customer_id,
@@ -441,6 +451,7 @@ GROUP BY JSON_VALUE(data, '$.customer_id');
 Boolean aggregates (all true / any true).
 
 **PostgreSQL**:
+
 ```sql
 SELECT
     data->>'category' AS category,
@@ -459,11 +470,13 @@ GROUP BY data->>'category';
 ### Measure Column Detection
 
 **Criteria**:
+
 - Numeric type: INT, BIGINT, DECIMAL, FLOAT, NUMERIC, REAL, DOUBLE PRECISION
 - Non-nullable preferred (but nullable allowed)
 - Excluded by convention: `id`, `created_at`, `updated_at`
 
 **Example**:
+
 ```rust
 fn is_measure_column(column: &Column) -> bool {
     let numeric_types = ["int", "bigint", "decimal", "float", "numeric", "real", "double"];
@@ -477,11 +490,13 @@ fn is_measure_column(column: &Column) -> bool {
 ### Dimension Path Detection
 
 **Criteria**:
+
 - References JSONB column (default: `data`)
 - Supports nested paths: `data->>'key'`, `data#>>'{path,to,key}'`
 - Database-specific operators from capability manifest
 
 **Example**:
+
 ```rust
 fn extract_dimension(column_name: &str, jsonb_column: &str) -> String {
     match database_target {
@@ -496,6 +511,7 @@ fn extract_dimension(column_name: &str, jsonb_column: &str) -> String {
 ### Temporal Bucketing
 
 **PostgreSQL**:
+
 ```rust
 fn temporal_bucket_postgres(field: &str, bucket: &str) -> String {
     format!("DATE_TRUNC('{}', {})", bucket, field)
@@ -503,6 +519,7 @@ fn temporal_bucket_postgres(field: &str, bucket: &str) -> String {
 ```
 
 **MySQL**:
+
 ```rust
 fn temporal_bucket_mysql(field: &str, bucket: &str) -> String {
     let format = match bucket {
@@ -517,6 +534,7 @@ fn temporal_bucket_mysql(field: &str, bucket: &str) -> String {
 ```
 
 **SQLite**:
+
 ```rust
 fn temporal_bucket_sqlite(field: &str, bucket: &str) -> String {
     let format = match bucket {
@@ -531,6 +549,7 @@ fn temporal_bucket_sqlite(field: &str, bucket: &str) -> String {
 ```
 
 **SQL Server**:
+
 ```rust
 fn temporal_bucket_sqlserver(field: &str, bucket: &str) -> String {
     let part = bucket; // day, week, month, quarter, year

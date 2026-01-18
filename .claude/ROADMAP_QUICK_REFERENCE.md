@@ -24,11 +24,13 @@ Total                          27-40 days│ 4-6 weeks
 ## Phase 0: HTTP Server E2E (2-3 days)
 
 ### What's Missing
+
 - HTTP server doesn't load compiled schemas yet
 - GraphQL route not connected to executor
 - Integration tests needed
 
 ### Key Tasks
+
 1. **Schema Loader** (1 day)
    - Create `fraiseql-server/src/schema/loader.rs`
    - Load compiled schema JSON files
@@ -47,14 +49,17 @@ Total                          27-40 days│ 4-6 weeks
    - Test error handling
 
 ### Success Criteria
+
 ```bash
 curl -X POST http://localhost:3000/graphql \
   -H "Content-Type: application/json" \
   -d '{"query": "{ users { id name } }"}'
 ```
+
 Should return valid GraphQL JSON response.
 
 ### Files to Create
+
 ```
 fraiseql-server/src/schema/
 ├── loader.rs       # SchemaLoader trait
@@ -68,6 +73,7 @@ fraiseql-server/src/schema/
 ## Phase 1: Core Completion (5-7 days)
 
 ### Breakdown
+
 - **Documentation** (2 days): 20+ pages, 5 examples
 - **API Docs** (1.5 days): rustdoc + CLI reference
 - **Production Hardening** (2 days): Errors, monitoring, config
@@ -75,6 +81,7 @@ fraiseql-server/src/schema/
 - **Release Management** (1 day): Version, CHANGELOG, GitHub
 
 ### Key Deliverables
+
 - [ ] `docs/ARCHITECTURE.md` (architecture overview)
 - [ ] `docs/GETTING_STARTED.md` (quick start guide)
 - [ ] `docs/SCHEMA_GUIDE.md` (schema reference)
@@ -88,6 +95,7 @@ fraiseql-server/src/schema/
 - [ ] `CHANGELOG.md` (release history)
 
 ### Success Criteria
+
 - ✅ 90%+ code coverage
 - ✅ All modules documented
 - ✅ 5 example schemas with docs
@@ -99,6 +107,7 @@ fraiseql-server/src/schema/
 ## Phase 2: Python SDK (7-10 days)
 
 ### What You're Building
+
 ```python
 from fraiseql import Type, Field, Query, Mutation
 from fraiseql.analytics import FactTable, Dimension, Measure
@@ -125,6 +134,7 @@ schema.save('schema.json')
 ```
 
 ### Key Tasks
+
 1. **Base Decorators** (1 day)
    - `@Type`, `@Field`, `@Query`, `@Mutation`
    - Type system support (str, int, bool, lists, etc.)
@@ -152,6 +162,7 @@ schema.save('schema.json')
    - Create release announcement
 
 ### Files to Create
+
 ```
 fraiseql_python/
 ├── __init__.py
@@ -179,6 +190,7 @@ fraiseql_python/
 ```
 
 ### Success Criteria
+
 ```bash
 pip install fraiseql
 python -c "from fraiseql import Type, Field; print('OK')"
@@ -196,6 +208,7 @@ fraiseql-cli serve schema.compiled.json
 ### Languages & Timeline
 
 #### 3.1: TypeScript/JavaScript (4-5 days)
+
 ```typescript
 import { Type, Field, Query } from '@fraiseql/core';
 
@@ -212,11 +225,13 @@ const schema = SchemaGenerator.from([User]);
 ```
 
 **Deliverables**:
+
 - `@fraiseql/core` npm package
 - Full TypeScript support
 - Published to npm
 
 #### 3.2: Go (3-4 days)
+
 ```go
 type User struct {
     ID   string `fraiseql:"primary_key"`
@@ -228,11 +243,13 @@ schema.WriteToFile("schema.json")
 ```
 
 **Deliverables**:
+
 - `fraiseql-go` GitHub package
 - Struct tag parsing
 - Published to GitHub
 
 #### 3.3: Java (3-4 days)
+
 ```java
 @Type
 public class User {
@@ -247,18 +264,22 @@ new SchemaGenerator().generate(User.class).writeToFile("schema.json");
 ```
 
 **Deliverables**:
+
 - `fraiseql-java` Maven package
 - Annotation support
 - Published to Maven Central
 
 #### 3.4: Other Languages (2-3 days each)
+
 - Ruby
 - C#/.NET
 - PHP
 - Swift
 
 ### Success Criteria
+
 All SDKs support:
+
 - [ ] Type definitions
 - [ ] Query/Mutation builders
 - [ ] Analytics decorators
@@ -272,23 +293,27 @@ All SDKs support:
 ## Key Metrics to Track
 
 ### Phase 0
+
 - [ ] HTTP server startup time < 100ms
 - [ ] Query execution latency < 10ms (cold)
 - [ ] Query execution throughput > 100 qps
 
 ### Phase 1
+
 - [ ] Code coverage: 90%+
 - [ ] Documentation: 20+ pages
 - [ ] Examples: 5 complete schemas
 - [ ] CI/CD: Automated tests + releases
 
 ### Phase 2
+
 - [ ] Python package on PyPI
 - [ ] Install works: `pip install fraiseql`
 - [ ] All tests passing
 - [ ] E2E: decorators → CLI → execution works
 
 ### Phase 3
+
 - [ ] All language SDKs published
 - [ ] Feature parity across languages
 - [ ] Documentation for each language
@@ -299,6 +324,7 @@ All SDKs support:
 ## Testing Checklist
 
 ### Phase 0
+
 - [ ] Server loads compiled schema
 - [ ] GraphQL queries execute
 - [ ] Mutations work
@@ -308,6 +334,7 @@ All SDKs support:
 - [ ] Introspection endpoint works
 
 ### Phase 1
+
 - [ ] 90%+ code coverage achieved
 - [ ] All error scenarios tested
 - [ ] Docker image builds and runs
@@ -315,6 +342,7 @@ All SDKs support:
 - [ ] Documentation builds without errors
 
 ### Phase 2
+
 - [ ] Decorators parse correctly
 - [ ] Schema generation matches spec
 - [ ] Type mapping is complete
@@ -323,6 +351,7 @@ All SDKs support:
 - [ ] PyPI package installs correctly
 
 ### Phase 3
+
 - [ ] Each language SDK generates valid JSON
 - [ ] Generated schemas compile with CLI
 - [ ] All SDK examples work end-to-end
@@ -346,6 +375,7 @@ All SDKs support:
 ## How to Execute
 
 ### Week 1: Phase 0 + Phase 1 Start
+
 ```bash
 # Day 1-2: HTTP Server E2E
 cargo test --lib fraiseql-server
@@ -359,6 +389,7 @@ cargo test --lib fraiseql-server
 ```
 
 ### Week 2: Phase 1 Finish + Phase 2 Start
+
 ```bash
 # Day 1-2: Testing & coverage
 cargo tarpaulin --out Html
@@ -372,6 +403,7 @@ cargo tarpaulin --out Html
 ```
 
 ### Week 3: Phase 2 Continue + Phase 3 Start
+
 ```bash
 # Day 1-2: Python publication
 cargo build --release
@@ -387,6 +419,7 @@ go mod init
 ```
 
 ### Week 4: Phase 3 Finish + Release
+
 ```bash
 # Day 1-3: Complete Go, Java SDKs
 # Publish to Maven, GitHub
@@ -404,6 +437,7 @@ go mod init
 ## Release Checklist
 
 Before v2.0.0 release:
+
 - [ ] All 100 tests passing
 - [ ] 90%+ code coverage
 - [ ] HTTP server E2E working
@@ -425,16 +459,19 @@ Before v2.0.0 release:
 ## Key Contacts & Resources
 
 ### Documentation
+
 - Full roadmap: `.claude/FRAISEQL_V2_COMPLETION_ROADMAP.md`
 - Actual status: `.claude/ACTUAL_IMPLEMENTATION_STATUS.md`
 - Archived plans: `.claude/archived_plans/`
 
 ### Code References
+
 - HTTP Server: `crates/fraiseql-server/`
 - Core: `crates/fraiseql-core/`
 - CLI: `crates/fraiseql-cli/`
 
 ### Testing
+
 - Integration tests: `crates/fraiseql-core/tests/`
 - Benchmarks: `crates/fraiseql-core/benches/`
 
@@ -443,6 +480,7 @@ Before v2.0.0 release:
 ## Success Definition
 
 **100% Complete when:**
+
 1. ✅ HTTP server loads compiled schemas and executes queries
 2. ✅ All core modules have 90%+ test coverage
 3. ✅ Complete user documentation (20+ pages)
@@ -457,4 +495,3 @@ Before v2.0.0 release:
 ---
 
 **For detailed information, see `FRAISEQL_V2_COMPLETION_ROADMAP.md`**
-

@@ -10,6 +10,7 @@
 ## Executive Summary
 
 Phase 8.6.4 successfully implements **self-tuning chunk sizes** that automatically adjust based on channel occupancy. The system observes backpressure patterns and tunes itself:
+
 - **High occupancy** (>80%): Decreases chunk_size to reduce producer pressure
 - **Low occupancy** (<20%): Increases chunk_size to optimize batching efficiency
 - **Hysteresis band** (20-80%): No adjustment, preventing oscillation
@@ -25,6 +26,7 @@ The implementation is **orthogonal to Phase 8.6.3** (memory bounds) and **transp
 **Type**: `pub struct AdaptiveChunking`
 
 Fields:
+
 - `current_size: usize` — mutable, starts at 256
 - `min_size: usize` = 16 (hard minimum)
 - `max_size: usize` = 1024 (hard maximum)
@@ -34,12 +36,14 @@ Fields:
 - `min_adjustment_interval: Duration` = 1 second
 
 **Public API** (4 methods):
+
 - `pub fn new() -> Self` — create with defaults
 - `pub fn observe(&mut self, items_buffered: usize, capacity: usize) -> Option<usize>` — observe occupancy, returns Some(new_size) if adjustment needed
 - `pub fn current_size(&self) -> usize` — getter
 - `impl Default` — delegates to new()
 
 **Key Semantics**:
+
 ```
 chunk_size controls BOTH:
   1. MPSC channel capacity (lines 608 in conn.rs)
@@ -57,6 +61,7 @@ Low occupancy means:
 ```
 
 **Test Coverage**: 10 unit tests, 100% pass rate
+
 - `test_new_defaults()` ✅
 - `test_no_adjustment_in_hysteresis_band()` ✅
 - `test_decrease_on_high_occupancy()` ✅
@@ -71,6 +76,7 @@ Low occupancy means:
 ### 2. Metrics: `src/metrics/counters.rs`
 
 **New function** (32 lines):
+
 ```rust
 pub fn adaptive_chunk_adjusted(entity: &str, old_size: usize, new_size: usize)
 ```
@@ -78,6 +84,7 @@ pub fn adaptive_chunk_adjusted(entity: &str, old_size: usize, new_size: usize)
 **Metric name**: `fraiseql_adaptive_chunk_adjusted_total`
 
 **Labels**:
+
 - `entity`: query entity name (e.g., "projects")
 - `direction`: "increase" or "decrease"
 - `old_size`: previous chunk size
@@ -86,12 +93,14 @@ pub fn adaptive_chunk_adjusted(entity: &str, old_size: usize, new_size: usize)
 **Usage**: Called every time an adjustment happens (after 50 observations + hysteresis check)
 
 **Tests**: 2 new tests
+
 - `test_adaptive_chunk_adjusted_increase()` ✅
 - `test_adaptive_chunk_adjusted_decrease()` ✅
 
 ### 3. QueryBuilder API: `src/client/query_builder.rs`
 
 **3 new fields**:
+
 ```rust
 enable_adaptive_chunking: bool,           // default: true
 adaptive_min_chunk_size: Option<usize>,   // default: None (use 16)
@@ -101,7 +110,9 @@ adaptive_max_chunk_size: Option<usize>,   // default: None (use 1024)
 **3 new public methods**:
 
 #### `adaptive_chunking(bool) -> Self`
+
 Enable/disable adaptive tuning (default: enabled).
+
 ```rust
 let stream = client
     .query::<Project>("projects")
@@ -111,7 +122,9 @@ let stream = client
 ```
 
 #### `adaptive_min_size(usize) -> Self`
+
 Override minimum chunk size (default: 16).
+
 ```rust
 let stream = client
     .query::<Project>("projects")
@@ -122,7 +135,9 @@ let stream = client
 ```
 
 #### `adaptive_max_size(usize) -> Self`
+
 Override maximum chunk size (default: 1024).
+
 ```rust
 let stream = client
     .query::<Project>("projects")
@@ -137,6 +152,7 @@ let stream = client
 ### 4. Connection Layer Integration: `src/connection/conn.rs`
 
 **Method signature update** (lines 562-572):
+
 - Added `enable_adaptive_chunking: bool`
 - Added `adaptive_min_chunk_size: Option<usize>`
 - Added `adaptive_max_chunk_size: Option<usize>`
@@ -160,6 +176,7 @@ let stream = client
      - Emit debug log
 
 **Key integration points**:
+
 - Observes after chunk is flushed (producer-side)
 - Uses flushed rows as occupancy estimate
 - Rate-limited by AdaptiveChunking (1s minimum interval)
@@ -168,6 +185,7 @@ let stream = client
 ### 5. Client Layer: `src/client/fraise_client.rs`
 
 **Updated call** (lines 281-290):
+
 ```rust
 self.conn.streaming_query(
     &sql,
@@ -221,19 +239,23 @@ Consumer (JsonStream) polls:
 ### Composition with Other Phases
 
 **Phase 8.6.1 (Occupancy Metrics)**:
+
 - ✅ Adaptive chunking uses occupancy observations for tuning signal
 - ✅ No conflicts (occupancy metric still recorded on every poll)
 
 **Phase 8.6.2 (StreamStats API)**:
+
 - ✅ Fully independent (consumer-side introspection)
 - ✅ Stats still available (items_buffered, memory estimate, etc.)
 
 **Phase 8.6.3 (Memory Bounds)**:
+
 - ✅ Orthogonal constraints (both active at same time)
 - ✅ Adaptive tuning respects hard memory limits
 - ✅ Example: If max_memory=500MB → max_items≈244K → adaptive operates within safe bounds
 
 **Phase 8.2 (Typed Streaming)**:
+
 - ✅ Complete transparency (deserialization is consumer-side only)
 - ✅ Adaptive chunking doesn't care about type T
 - ✅ Works identically for Value, Project, or any T
@@ -245,6 +267,7 @@ Consumer (JsonStream) polls:
 ### Unit Tests: 114/114 Passing ✅
 
 **Adaptive Chunking Tests** (10):
+
 ```
 ✅ test_new_defaults
 ✅ test_no_adjustment_in_hysteresis_band
@@ -259,12 +282,14 @@ Consumer (JsonStream) polls:
 ```
 
 **Metrics Tests** (2):
+
 ```
 ✅ test_adaptive_chunk_adjusted_increase
 ✅ test_adaptive_chunk_adjusted_decrease
 ```
 
 **All Other Tests**:
+
 ```
 ✅ 102 existing tests (zero regressions)
 ```
@@ -298,6 +323,7 @@ Consumer (JsonStream) polls:
 ## Usage Examples
 
 ### Basic Usage (Defaults)
+
 ```rust
 let stream = client
     .query::<Project>("projects")
@@ -307,6 +333,7 @@ let stream = client
 ```
 
 ### Disable Adaptive Tuning
+
 ```rust
 let stream = client
     .query::<Project>("projects")
@@ -317,6 +344,7 @@ let stream = client
 ```
 
 ### Custom Bounds
+
 ```rust
 let stream = client
     .query::<Project>("projects")
@@ -328,6 +356,7 @@ let stream = client
 ```
 
 ### With Memory Limits
+
 ```rust
 let stream = client
     .query::<Project>("projects")
@@ -346,12 +375,14 @@ let stream = client
 
 **When**: Every time chunk size is adjusted
 **Labels**:
+
 - `entity`: query entity
 - `direction`: "increase" or "decrease"
 - `old_size`: size before adjustment (e.g., "256")
 - `new_size`: size after adjustment (e.g., "384")
 
 **Example queries**:
+
 ```promql
 # Adjustments per entity
 fraiseql_adaptive_chunk_adjusted_total by (entity)
@@ -384,43 +415,55 @@ fraiseql_adaptive_chunk_adjusted_total by (old_size, new_size)
 ## Design Decisions & Rationale
 
 ### 1. Enabled by Default
+
 **Decision**: Adaptive chunking enabled by default in QueryBuilder
 **Rationale**:
+
 - Self-tuning requires zero configuration
 - Power users can disable if needed
 - Safe defaults (16-1024 bounds prevent pathological behavior)
 
 ### 2. Measurement-Based Adjustment (50 observations)
+
 **Decision**: Observe for 50 measurements before deciding
 **Rationale**:
+
 - Filters noise (single spikes don't trigger adjustments)
 - Stable control (avoids oscillation)
 - Responsive enough (50 observations ≈ seconds at normal rates)
 
 ### 3. Wide Hysteresis Band (20-80%)
+
 **Decision**: Only adjust if occupancy is outside 20-80% range
 **Rationale**:
+
 - Prevents oscillation (don't flip near boundaries)
 - Reduces adjustment frequency (less metric churn)
 - Tolerates normal variation (fine-tuning is wasteful)
 
 ### 4. Rate Limiting (1 second minimum interval)
+
 **Decision**: Never adjust more than once per second
 **Rationale**:
+
 - Prevents rapid feedback loops
 - Allows previous adjustment to stabilize
 - Observable in metrics (too many adjustments indicate instability)
 
 ### 5. Conservative Adjustment Factor (1.5x)
+
 **Decision**: Multiply/divide by 1.5 when adjusting
 **Rationale**:
+
 - Smooth changes (not doubling/halving abruptly)
 - Predictable convergence (takes 3-4 steps to reach extremes)
 - Prevents pathological overshooting
 
 ### 6. Occupancy Estimation (chunk size as proxy)
+
 **Decision**: Use flushed rows count as occupancy estimate
 **Rationale**:
+
 - Cheap to measure (just count rows flushed)
 - Correlates with pressure (full chunks = high throughput = likely backpressure)
 - Works for all query patterns (no query-specific tuning)
@@ -430,11 +473,13 @@ fraiseql_adaptive_chunk_adjusted_total by (old_size, new_size)
 ## Known Limitations & Future Work
 
 ### Current Limitations
+
 1. **Custom bounds not fully wired**: `adaptive_min_size()` and `adaptive_max_size()` are stored but not yet applied to AdaptiveChunking (planned for 8.6.5)
 2. **No statistical feedback**: Adjustments don't consider historical effectiveness (pure reactive)
 3. **Single occupancy signal**: Only channel occupancy drives tuning (could add latency-based tuning in future)
 
 ### Planned Enhancements (8.6.5+)
+
 1. **Custom bounds enforcement**: Pass min/max through to AdaptiveChunking
 2. **Decay strategy**: Slowly adjust back toward default if conditions stable
 3. **Per-query history**: Track what chunk sizes worked well for different workloads
@@ -483,12 +528,14 @@ fraiseql_adaptive_chunk_adjusted_total by (old_size, new_size)
 **Phase 8.6.5: Stream Pause/Resume** can now proceed:
 
 **Dependencies satisfied**:
+
 - ✅ 8.6.1 (occupancy metrics)
 - ✅ 8.6.2 (StreamStats)
 - ✅ 8.6.3 (memory bounds)
 - ✅ 8.6.4 (adaptive chunking)
 
 **8.6.5 will**:
+
 - Add pause() and resume() methods to JsonStream
 - Suspend background task during pause (keep connection alive)
 - Resume reading on demand
@@ -502,6 +549,7 @@ fraiseql_adaptive_chunk_adjusted_total by (old_size, new_size)
 **Phase 8.6.4 is COMPLETE and PRODUCTION READY** ✅
 
 The system is now self-tuning:
+
 - Zero configuration (enabled by default)
 - Observable (metrics for every adjustment)
 - Safe (bounds prevent pathological extremes)
@@ -513,6 +561,7 @@ All 114 tests passing. All acceptance criteria met. Ready for Phase 8.6.5.
 ---
 
 **Commits**:
+
 - Core implementation, metrics, QueryBuilder API, connection integration
 - All tests passing
 - Full documentation

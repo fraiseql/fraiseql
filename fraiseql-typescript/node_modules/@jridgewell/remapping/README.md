@@ -168,7 +168,6 @@ console.log(remapped);
 // };
 ```
 
-
 #### `content`
 
 The `content` property can be overridden when we encounter an original source file. Eg, this allows

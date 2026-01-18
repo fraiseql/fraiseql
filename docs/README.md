@@ -9,6 +9,7 @@
 ## 🚀 Quick Start
 
 **New to FraiseQL?** Start here:
+
 1. Read the main [README.md](../README.md) (5 minutes)
 2. Follow the [Reading Order Guide](reading-order.md) for your role
 3. Bookmark the [Glossary](GLOSSARY.md) for reference
@@ -18,54 +19,70 @@
 ## 📚 Documentation Structure
 
 ### [Product Requirements](prd/)
+
 High-level vision, philosophy, and system requirements.
+
 - **[PRD.md](prd/PRD.md)** — Complete product requirements and design philosophy
 
 ### [Architecture](architecture/)
+
 System architecture, design decisions, and technical specifications.
 
 **Core Compilation & Execution:**
+
 - [Core Pipeline](architecture/core/) — Compilation and execution fundamentals
 - [Database Integration](architecture/database/) — Database targeting and Arrow support
 
 **System Qualities:**
+
 - [Reliability](architecture/reliability/) — Consistency, error handling, failure modes
 - [Security](architecture/security/) — Security model and authentication
 - [Performance](architecture/performance/) — Optimization and performance characteristics
 - [Observability](architecture/observability/) — Monitoring and instrumentation model
 
 **Advanced Topics:**
+
 - [Integration](architecture/integration/) — Federation, extension points, integration patterns
 - [Real-time](architecture/realtime/) — Subscriptions and event streaming
 - [Design Decisions](architecture/decisions/) — Architectural decisions and patterns
 
 ### [Specifications](specs/)
+
 Detailed technical specifications for implementers.
+
 - Compilation artifacts (CompiledSchema, AuthoringContract, Capability Manifest)
 - Runtime features (Caching, Persisted Queries, Introspection, Pagination)
 - Data formats (CDC, Schema Conventions)
 - Security & Compliance
 
 ### [Guides](guides/)
+
 Practical how-to guides for operators and developers.
+
 - [Testing Strategy](guides/testing-strategy.md) — Complete testing approach
 - [Production Deployment](guides/production-deployment.md) — Kubernetes deployment
 - [Monitoring](guides/monitoring.md) — Prometheus, OpenTelemetry, health checks
 - [Observability](guides/observability.md) — Logging, tracing, metrics
 
 ### [Enterprise Features](enterprise/)
+
 Enterprise-grade features for production deployments.
+
 - [RBAC](enterprise/rbac.md) — Role-based access control
 - [Audit Logging](enterprise/audit-logging.md) — Cryptographic audit trails
 - [KMS Integration](enterprise/kms.md) — Key management for field encryption
 
 ### [Reference](reference/)
+
 Complete API and operator references.
+
 - [Scalars](reference/scalars.md) — Scalar type library
 - [WHERE Operators](reference/where-operators.md) — Query filter operators
 
 ### [Architecture Decision Records](adrs/)
+
 Historical record of architectural decisions and rationale.
+
 - [ADR-009: Federation Architecture](adrs/ADR-009-federation-architecture.md)
 
 ---
@@ -130,6 +147,7 @@ Not sure where to start? See the **[Reading Order Guide](reading-order.md)** for
 ## 🤝 Contributing
 
 Found an issue or have suggestions?
+
 - File an issue in the repository
 - Documentation feedback is always welcome
 - See unclear sections? Let us know!

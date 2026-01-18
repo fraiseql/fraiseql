@@ -1315,6 +1315,7 @@ fn detect_database_type(url: &Option<String>) -> Result<DatabaseType> {
 **Output Formats**:
 
 1. **Text Format** (human-readable):
+
 ```
 📊 Observability Analysis Report
 
@@ -1336,6 +1337,7 @@ fn detect_database_type(url: &Option<String>) -> Result<DatabaseType> {
 ```
 
 2. **JSON Format** (for CI/CD):
+
 ```json
 {
   "version": "1.0",
@@ -1361,6 +1363,7 @@ fn detect_database_type(url: &Option<String>) -> Result<DatabaseType> {
 ```
 
 3. **SQL Format** (ready to apply):
+
 ```sql
 -- Migration 1: Denormalize tf_sales.dimensions->>'region'
 -- Database: SQL Server
@@ -1425,6 +1428,7 @@ cargo bench --bench query_execution -- --baseline on
 **Rationale**: Production safety - metrics collection disabled unless explicitly enabled
 
 **Configuration**:
+
 ```bash
 # Must explicitly enable
 export FRAISEQL_OBSERVABILITY_ENABLED=true
@@ -1439,12 +1443,14 @@ enabled = true
 ### Decision 2: PostgreSQL/SQL Server Metrics Storage
 
 **Rationale**:
+
 - Persistent across restarts
 - Time-series queries for analysis
 - Production-grade (replicated, backed up)
 - SQL analysis queries
 
 **Trade-off**:
+
 - ✅ Durability, queryability
 - ❌ Requires database connection (optional, can export to JSON)
 
@@ -1455,6 +1461,7 @@ enabled = true
 **Rationale**: Flexibility - can analyze offline from exported JSON
 
 **Modes**:
+
 1. **With DB connection** (best): Uses `pg_stats` / `sys.stats` for accurate estimates
 2. **Without DB** (good): Uses metrics-only heuristics
 
@@ -1465,6 +1472,7 @@ enabled = true
 **Rationale**: Reduce noise, only suggest clear wins
 
 **Defaults**:
+
 - Frequency: 1000+ queries/day
 - Speedup: 5x+ improvement
 - Selectivity: 10%+ filtered rows

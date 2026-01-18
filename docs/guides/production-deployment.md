@@ -175,6 +175,7 @@ trivy image myregistry/fraiseql:1.0.0
 #### Hardened Image (Government-Grade)
 
 FraiseQL provides a hardened Dockerfile with:
+
 - Non-root user (UID: 65532)
 - Reduced attack surface
 - CVE fixes
@@ -589,6 +590,7 @@ config = FraiseQLConfig(
 ```
 
 **Introspection Policies**:
+
 - `DISABLED` - No introspection (recommended for production)
 - `AUTHENTICATED` - Only authenticated users can introspect
 - `PUBLIC` - Anyone can introspect (development only)
@@ -693,6 +695,7 @@ cors_max_age=3600
 ### APQ (Automatic Persisted Queries)
 
 **For bandwidth optimization**:
+
 ```python
 config = FraiseQLConfig(
     apq_mode=APQMode.REQUIRED,           # Only persisted queries
@@ -703,6 +706,7 @@ config = FraiseQLConfig(
 ```
 
 **Register queries at deploy time**:
+
 ```bash
 # Move GraphQL files to directory
 FRAISEQL_APQ_QUERIES_DIR=/app/graphql/queries
@@ -711,6 +715,7 @@ FRAISEQL_APQ_QUERIES_DIR=/app/graphql/queries
 ```
 
 **Expected performance**:
+
 - Payload reduction: 95%+
 - Cache hit rate: 85-95%
 - Bandwidth savings: 10-50x
@@ -728,6 +733,7 @@ config = FraiseQLConfig(
 ```
 
 **Expected hit rates**:
+
 - Stable APIs: 95%+
 - Dynamic queries: 80-90%
 - Admin interfaces: 70-85%
@@ -784,6 +790,7 @@ setup_health_endpoints(app)
 ```
 
 **Available endpoints**:
+
 - `GET /health` - Full health status
 - `GET /health/live` - Liveness (Kubernetes)
 - `GET /health/ready` - Readiness (Kubernetes)
@@ -892,6 +899,7 @@ Prometheus (1 instance)
 ```
 
 **Capacity**:
+
 - Up to 1,000 requests/second
 - Sub-100ms P95 latency
 - Database: 100-500GB
@@ -905,6 +913,7 @@ Cross-region failover
 ```
 
 **Capacity**:
+
 - Up to 10,000+ requests/second
 - <50ms P95 latency globally
 - Database: 500GB-10TB

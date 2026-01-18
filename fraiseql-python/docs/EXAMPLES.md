@@ -468,15 +468,20 @@ To use any of these examples:
 
 1. **Create schema file** with the code above
 2. **Export schema**:
+
    ```bash
    python blog_schema.py  # or your schema file
    ```
+
 3. **Create SQL views/functions** for each `sql_source`
 4. **Compile schema**:
+
    ```bash
    fraiseql-cli compile blog_schema.json -o schema.compiled.json
    ```
+
 5. **Deploy server**:
+
    ```bash
    fraiseql-server --schema schema.compiled.json
    ```

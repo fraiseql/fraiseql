@@ -46,6 +46,7 @@ Client → HTTP Request → GraphQL Handler → Executor → Database → Respon
 ### Tasks
 
 #### 1.1 Create Test Server Harness
+
 **File**: `crates/fraiseql-server/tests/test_server_harness.rs`
 
 ```rust
@@ -77,6 +78,7 @@ impl TestServer {
 ```
 
 #### 1.2 Compile Example Schema
+
 **Prerequisite**: Ensure `examples/basic/schema.compiled.json` exists
 
 ```bash
@@ -87,9 +89,11 @@ impl TestServer {
 ```
 
 #### 1.3 Update E2E Tests to Use Harness
+
 **File**: `crates/fraiseql-server/tests/http_server_e2e_test.rs`
 
 Update each ignored test to:
+
 1. Start TestServer
 2. Run test against server
 3. Shutdown server
@@ -112,17 +116,21 @@ async fn test_health_endpoint_responds() {
 ```
 
 #### 1.4 Verify Schema Loading in Server
+
 **Files to verify**:
+
 - `crates/fraiseql-server/src/main.rs` - Entry point
 - `crates/fraiseql-server/src/server.rs` - Server initialization
 - `crates/fraiseql-server/src/schema/loader.rs` - Schema loading
 
 Ensure:
+
 - Server correctly loads `CompiledSchema` from file
 - Executor is properly initialized with schema
 - Routes have access to executor
 
 #### 1.5 Run Full E2E Test Suite
+
 ```bash
 # Build everything
 cargo build --release
@@ -168,6 +176,7 @@ cargo test -p fraiseql-server --test http_server_e2e_test
 #### Tasks
 
 ##### 2.1.1 Create Comprehensive README
+
 **File**: `fraiseql-python/README.md`
 
 ```markdown
@@ -213,6 +222,7 @@ fraiseql.export_schema("schema.json")
 ## Documentation
 
 See [FraiseQL Documentation](https://fraiseql.dev/docs)
+
 ```
 
 ##### 2.1.2 Add Unit Tests
@@ -261,6 +271,7 @@ def test_nullable_fields():
 ```
 
 ##### 2.1.3 Add Integration Test
+
 **File**: `fraiseql-python/tests/test_schema_export.py`
 
 ```python
@@ -295,6 +306,7 @@ def test_full_schema_export():
 ```
 
 ##### 2.1.4 Set Up CI/CD for PyPI
+
 **File**: `.github/workflows/python-publish.yml`
 
 ```yaml
@@ -335,6 +347,7 @@ jobs:
 ```
 
 ##### 2.1.5 Test Local Installation
+
 ```bash
 cd fraiseql-python
 pip install -e .
@@ -359,6 +372,7 @@ python -c "import fraiseql; print(fraiseql.__version__)"
 #### Tasks
 
 ##### 2.2.1 Create Comprehensive README
+
 **File**: `fraiseql-typescript/README.md`
 
 ```markdown
@@ -406,6 +420,7 @@ exportSchema('schema.json');
 ## Documentation
 
 See [FraiseQL Documentation](https://fraiseql.dev/docs)
+
 ```
 
 ##### 2.2.2 Add Unit Tests
@@ -447,6 +462,7 @@ describe('@query decorator', () => {
 ```
 
 ##### 2.2.3 Set Up CI/CD for npm
+
 **File**: `.github/workflows/npm-publish.yml`
 
 ```yaml
@@ -487,6 +503,7 @@ jobs:
 ```
 
 ##### 2.2.4 Test Local Build
+
 ```bash
 cd fraiseql-typescript
 npm install
@@ -522,6 +539,7 @@ The CLI has fact table commands with stub implementations:
 ### Tasks
 
 #### 3.1 Implement Database Connection in CLI
+
 **File**: `crates/fraiseql-cli/src/db.rs`
 
 ```rust
@@ -541,6 +559,7 @@ pub async fn create_adapter(database_url: &str) -> Result<Box<dyn DatabaseAdapte
 ```
 
 #### 3.2 Complete validate_facts Command
+
 **File**: `crates/fraiseql-cli/src/commands/validate_facts.rs`
 
 ```rust
@@ -593,6 +612,7 @@ pub async fn run(schema_path: &Path, database_url: &str) -> Result<()> {
 ```
 
 #### 3.3 Complete introspect_facts Command
+
 **File**: `crates/fraiseql-cli/src/commands/introspect_facts.rs`
 
 ```rust
@@ -649,11 +669,13 @@ pub async fn run(database_url: &str, format: OutputFormat) -> Result<()> {
 #### 4.2 API Reference
 
 Generate rustdoc with:
+
 ```bash
 cargo doc --no-deps --open
 ```
 
 Create landing page at `docs/api/index.md` linking to:
+
 - fraiseql-core API
 - fraiseql-server API
 - fraiseql-cli API
@@ -663,6 +685,7 @@ Create landing page at `docs/api/index.md` linking to:
 **File**: `docs/architecture.md`
 
 Cover:
+
 - Compilation pipeline (Schema → IR → SQL → Execution)
 - Database abstraction layer
 - Cache coherency model
@@ -686,6 +709,7 @@ Cover:
 ### Tasks
 
 #### 5.1 E-commerce Example
+
 **Location**: `examples/ecommerce/`
 
 ```
@@ -700,17 +724,21 @@ examples/ecommerce/
 Types: Product, Order, OrderItem, Customer, Inventory
 
 #### 5.2 SaaS Multi-tenant Example
+
 **Location**: `examples/saas-multitenant/`
 
 Demonstrates:
+
 - Tenant isolation
 - Row-level security
 - Shared schema
 
 #### 5.3 Analytics Dashboard Example
+
 **Location**: `examples/analytics/`
 
 Demonstrates:
+
 - Fact tables
 - Aggregate queries
 - Temporal bucketing
@@ -727,30 +755,35 @@ Demonstrates:
 ## Implementation Order
 
 ### Phase A: Critical Path (Week 1)
+
 1. **Server E2E Integration** (2-3 days)
    - Create test harness
    - Verify server pipeline
    - Fix any issues found
 
 ### Phase B: CLI Completion (Week 1-2)
+
 2. **CLI Fact Table Commands** (2-3 days)
    - Database connection
    - Validation logic
    - Introspection output
 
 ### Phase C: Documentation (Week 2-3)
+
 3. **Documentation** (5-7 days)
    - Getting started
    - CLI reference
    - API docs
 
 ### Phase D: Examples (Week 3)
+
 4. **Example Schemas** (3-5 days)
    - E-commerce
    - SaaS multi-tenant
    - Analytics
 
 ### Phase E: Distribution (Week 4)
+
 5. **Python SDK Distribution** (2 days)
    - README, tests, CI/CD
 

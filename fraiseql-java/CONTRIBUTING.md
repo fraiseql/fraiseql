@@ -109,6 +109,7 @@ git checkout -b feature/your-feature-name
 ```
 
 Use descriptive branch names:
+
 - `feature/support-enum-types`
 - `fix/invalid-type-validation`
 - `docs/update-api-guide`
@@ -117,6 +118,7 @@ Use descriptive branch names:
 ### What to Modify
 
 **Core Classes** (in `src/main/java/com/fraiseql/core/`):
+
 - `GraphQLType.java` - Annotation attributes
 - `GraphQLField.java` - Field annotation attributes
 - `TypeConverter.java` - Type conversion logic
@@ -127,11 +129,13 @@ Use descriptive branch names:
 - `PerformanceMonitor.java` - Metrics collection
 
 **Tests** (in `src/test/java/com/fraiseql/core/`):
+
 - Always add tests for new features
 - Update existing tests when changing behavior
 - Follow the existing test structure
 
 **Documentation**:
+
 - Update `INSTALL.md` for setup changes
 - Update `API_GUIDE.md` for API changes
 - Update `EXAMPLES.md` for new examples
@@ -139,6 +143,7 @@ Use descriptive branch names:
 - Add JavaDoc to new public methods
 
 **Configuration**:
+
 - `pom.xml` - For dependency or build changes
 
 ## Submitting Changes
@@ -159,6 +164,7 @@ Closes #123"
 ```
 
 **Commit Message Format**:
+
 ```
 <type>(<scope>): <subject>
 
@@ -168,6 +174,7 @@ Closes #123"
 ```
 
 **Types**:
+
 - `feat` - New feature
 - `fix` - Bug fix
 - `refactor` - Code refactoring without feature change
@@ -176,6 +183,7 @@ Closes #123"
 - `chore` - Build, dependencies, or tooling
 
 **Scopes**:
+
 - `annotations` - @GraphQLType, @GraphQLField
 - `types` - Type system and conversion
 - `registry` - SchemaRegistry
@@ -189,6 +197,7 @@ Closes #123"
 ### Submitting a Pull Request
 
 1. Push your branch to GitHub:
+
    ```bash
    git push -u origin feature/your-feature-name
    ```
@@ -200,6 +209,7 @@ Closes #123"
    - Screenshots for UI changes (if applicable)
 
 3. PR Template:
+
    ```markdown
    ## Description
    Brief description of the change
@@ -470,14 +480,15 @@ git push origin v2.0.1
 
 ## Help and Questions
 
-- **Issues**: https://github.com/fraiseql/fraiseql/issues
-- **Discussions**: https://github.com/fraiseql/fraiseql/discussions
-- **Email**: team@fraiseql.com
-- **Discord**: https://discord.gg/fraiseql
+- **Issues**: <https://github.com/fraiseql/fraiseql/issues>
+- **Discussions**: <https://github.com/fraiseql/fraiseql/discussions>
+- **Email**: <team@fraiseql.com>
+- **Discord**: <https://discord.gg/fraiseql>
 
 ## Recognition
 
 Contributors will be recognized in:
+
 - Release notes
 - GitHub contributors page
 - Project documentation

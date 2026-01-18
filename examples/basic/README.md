@@ -5,6 +5,7 @@ A simple blog-style schema demonstrating FraiseQL's core features.
 ## Schema Overview
 
 This example includes:
+
 - **User** type with id, name, email, created_at
 - **Post** type with id, title, content, author_id, created_at
 - Queries for listing and fetching users/posts
@@ -70,6 +71,7 @@ curl -X POST http://localhost:8000/graphql \
 ## GraphQL Queries
 
 See `queries/` directory for example queries:
+
 - `list_users.graphql` - List all users
 - `get_user.graphql` - Get user by ID with posts
 - `filter_posts.graphql` - Filter posts by author

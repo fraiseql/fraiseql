@@ -171,6 +171,7 @@ fi
 ### ROI Calculation
 
 **Benefits**:
+
 - 5 major optimizations applied in 3 months
 - Average 10x speedup per optimization
 - Reduced server count from 8 to 4 (due to efficiency)

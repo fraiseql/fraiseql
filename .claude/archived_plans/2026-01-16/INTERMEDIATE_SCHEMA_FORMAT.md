@@ -89,6 +89,7 @@ Represents a GraphQL object type.
 ### Supported Type Names
 
 **Scalars**:
+
 - `Int` - 32-bit integer
 - `Float` - Double-precision float
 - `String` - UTF-8 string
@@ -282,6 +283,7 @@ class User {
 ```
 
 **Type Mappings**:
+
 - `number` → `Int` or `Float` (infer from usage or annotation)
 - `string` → `String`
 - `boolean` → `Boolean`
@@ -311,6 +313,7 @@ type User struct {
 ```
 
 **Type Mappings**:
+
 - `int`, `int32` → `Int`
 - `int64` → `Int` (or custom `BigInt` scalar)
 - `float32`, `float64` → `Float`
@@ -407,6 +410,7 @@ Subscriptions will be added in a future version of this spec.
 ## Reference Implementation
 
 See `fraiseql-python` package for a complete reference implementation:
+
 - `/home/lionel/code/fraiseql/fraiseql-python/src/fraiseql/`
 
 ## See Also

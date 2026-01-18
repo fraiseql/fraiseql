@@ -13,6 +13,7 @@ Practical how-to guides for operators, developers, and DevOps teams.
 | [testing-strategy.md](testing-strategy.md) | Complete testing approach and patterns | 2,454 | 90 min |
 
 **Topics Covered:**
+
 - Unit testing strategies
 - Integration testing patterns
 - End-to-end testing
@@ -31,6 +32,7 @@ Practical how-to guides for operators, developers, and DevOps teams.
 | [observability.md](observability.md) | Logging, tracing, metrics best practices | 966 | 40 min |
 
 **Topics Covered:**
+
 - Kubernetes manifests and Helm charts
 - High availability setup
 - Connection pooling configuration

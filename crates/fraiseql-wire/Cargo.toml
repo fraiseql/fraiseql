@@ -1,83 +1,64 @@
-[package]
-name = "fraiseql-wire"
-version = "0.1.0"
-edition = "2021"
-rust-version = "1.75"
-authors = ["Lionel Hamayon <lionel@evolution-digitale.fr>"]
-license = "MIT OR Apache-2.0"
-description = "Streaming JSON query engine for Postgres 17"
-homepage = "https://github.com/fraiseql/fraiseql-wire"
-repository = "https://github.com/fraiseql/fraiseql-wire"
-documentation = "https://docs.rs/fraiseql-wire"
-readme = "README.md"
-keywords = ["postgres", "postgresql", "json", "streaming", "async"]
-categories = ["database", "asynchronous"]
-
-[dependencies]
-# Async runtime
-tokio = { version = "1", features = ["full"] }
-futures = "0.3"
-
-# Serialization
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-
-# Bytes manipulation
-bytes = "1"
-
-# Error handling
-thiserror = "1"
-
-# Tracing
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-
-# User info for default values
-whoami = "1"
-
-# TLS support
-rustls = { version = "0.23", features = ["ring"] }
-rustls-pemfile = "2.0"
-webpki-roots = "0.26"
-rustls-pki-types = "1"
-rustls-native-certs = "0.8.3"
-tokio-rustls = "0.26"
-
-# Cryptography for SCRAM authentication
-sha2 = "0.10"           # HMAC-SHA256 for SCRAM
-pbkdf2 = "0.12"         # Key derivation for SCRAM
-base64 = "0.22"         # Base64 encoding/decoding
-rand = "0.8"            # Random nonce generation
-hmac = "0.12"           # HMAC-SHA256
-
-# Metrics for observability
-metrics = "0.22"        # Metrics collection framework
-
-[dev-dependencies]
-tokio-test = "0.4"
-criterion = { version = "0.5", features = ["async_tokio"] }
-tokio-postgres = "0.7"
-testcontainers = "0.26"
-testcontainers-modules = { version = "0.14", features = ["postgres"] }
-
 [[bench]]
+harness = false
 name = "micro_benchmarks"
-harness = false
 
 [[bench]]
-name = "integration_benchmarks"
 harness = false
+name = "integration_benchmarks"
 required-features = ["bench-with-postgres"]
 
 [[bench]]
-name = "comparison_benchmarks"
 harness = false
+name = "comparison_benchmarks"
 required-features = ["bench-with-tokio-postgres"]
 
 [[bench]]
-name = "phase6_validation"
 harness = false
+name = "phase6_validation"
 required-features = ["bench-with-postgres"]
+
+[dependencies]
+base64 = "0.22"  # Base64 encoding/decoding
+# Bytes manipulation
+bytes = "1"
+futures = "0.3"
+hmac = "0.12"  # HMAC-SHA256
+# Metrics for observability
+metrics = "0.22"  # Metrics collection framework
+pbkdf2 = "0.12"  # Key derivation for SCRAM
+rand = "0.8"  # Random nonce generation
+# TLS support
+rustls = {version = "0.23", features = ["ring"]}
+rustls-native-certs = "0.8.3"
+rustls-pemfile = "2.0"
+rustls-pki-types = "1"
+# Serialization
+serde = {version = "1", features = ["derive"]}
+serde_json = "1"
+# Cryptography for SCRAM authentication
+sha2 = "0.10"  # HMAC-SHA256 for SCRAM
+# Error handling
+thiserror = "1"
+# Async runtime
+tokio = {version = "1", features = ["full"]}
+tokio-rustls = "0.26"
+# Tracing
+tracing = "0.1"
+tracing-subscriber = {version = "0.3", features = ["env-filter"]}
+webpki-roots = "0.26"
+# User info for default values
+whoami = "1"
+
+[dev-dependencies]
+criterion = {version = "0.5", features = ["async_tokio"]}
+testcontainers = "0.26"
+testcontainers-modules = {version = "0.14", features = ["postgres"]}
+tokio-postgres = "0.7"
+tokio-test = "0.4"
+
+[[example]]
+name = "basic_stream"
+path = "examples/basic_stream.rs"
 
 [features]
 bench-with-postgres = []
@@ -87,6 +68,17 @@ bench-with-tokio-postgres = []
 name = "fraiseql_wire"
 path = "src/lib.rs"
 
-[[example]]
-name = "basic_stream"
-path = "examples/basic_stream.rs"
+[package]
+authors = ["Lionel Hamayon <lionel@evolution-digitale.fr>"]
+categories = ["database", "asynchronous"]
+description = "Streaming JSON query engine for Postgres 17"
+documentation = "https://docs.rs/fraiseql-wire"
+edition = "2021"
+homepage = "https://github.com/fraiseql/fraiseql-wire"
+keywords = ["postgres", "postgresql", "json", "streaming", "async"]
+license = "MIT OR Apache-2.0"
+name = "fraiseql-wire"
+readme = "README.md"
+repository = "https://github.com/fraiseql/fraiseql-wire"
+rust-version = "1.75"
+version = "0.1.0"

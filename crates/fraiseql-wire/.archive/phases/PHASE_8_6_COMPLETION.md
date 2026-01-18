@@ -27,18 +27,22 @@ Phase 8.6 successfully enhanced the streaming architecture with comprehensive re
 **Objective**: Add direct visibility into channel backpressure
 
 **Implementation**:
+
 - Histogram metric: `fraiseql_channel_occupancy_rows{entity}`
 - Recorded on each `poll_next()` call
 - Shows buffer depth: low = fast consumer, high = slow consumer
 - Zero-cost observation (single `len()` call)
 
 **Metrics Added**: 1
+
 - `fraiseql_channel_occupancy_rows` - Histogram of channel buffer depth
 
 **Test Coverage**: 1 test
+
 - `test_channel_occupancy()` - Verify histogram recording
 
 **Files Modified**: 2
+
 - `src/metrics/histograms.rs` - Added histogram function
 - `src/stream/json_stream.rs` - Record occupancy in poll_next()
 
@@ -49,12 +53,14 @@ Phase 8.6 successfully enhanced the streaming architecture with comprehensive re
 **Objective**: Allow consumers to query stream state inline
 
 **Implementation**:
+
 - `StreamStats` struct with: items_buffered, estimated_memory, total_rows_yielded, total_rows_filtered
 - `stats()` method on JsonStream returns point-in-time snapshot
 - Zero-copy snapshot (reads atomic counters)
 - No blocking, safe to call during streaming
 
 **API Added**:
+
 ```rust
 pub struct StreamStats {
     pub items_buffered: usize,
@@ -69,11 +75,13 @@ impl JsonStream {
 ```
 
 **Test Coverage**: 4 tests
+
 - `test_stream_stats_creation()` - Zero-valued stats
 - `test_stream_stats_memory_estimation()` - Memory calculation
 - `test_stream_stats_clone()` - Stats are cloneable
 
 **Files Modified**: 1
+
 - `src/stream/json_stream.rs` - StreamStats struct and stats() method
 
 ---
@@ -83,18 +91,21 @@ impl JsonStream {
 **Objective**: Implement configurable memory limits with enforcement
 
 **Implementation**:
+
 - Optional `max_memory` limit (bytes)
 - Soft limit thresholds: warn_threshold (%), fail_threshold (%)
 - Hard failure when exceed hard limit or fail threshold
 - Conservative estimation: 2KB per item
 
 **Features**:
+
 - `MemoryLimitExceeded` error variant
 - Metric: `fraiseql_memory_limit_exceeded_total` counter
 - Pre-enqueue strategy stops consuming at limit
 - Three refinements in continuation phase
 
 **API Added**:
+
 ```rust
 pub enum Error {
     MemoryLimitExceeded { limit: usize, estimated_memory: usize },
@@ -103,10 +114,12 @@ pub enum Error {
 ```
 
 **Test Coverage**: 3 tests
+
 - `test_memory_limit_exceeded()` - Counter recorded
 - Plus integration with poll_next() verification
 
 **Files Modified**: 3
+
 - `src/stream/json_stream.rs` - Memory limit checking in poll_next()
 - `src/error.rs` - MemoryLimitExceeded error variant
 - `src/metrics/counters.rs` - Counter function
@@ -118,6 +131,7 @@ pub enum Error {
 **Objective**: Implement self-tuning chunk size based on backpressure
 
 **Implementation**:
+
 - `AdaptiveChunking` strategy observes channel occupancy
 - Auto-increases chunk size when occupancy low (<10 items)
 - Auto-decreases chunk size when occupancy high (>200 items)
@@ -127,12 +141,14 @@ pub enum Error {
 - Sliding window of last 100 observations
 
 **Refinement Added**:
+
 - `with_bounds(min_size, max_size)` method allows custom bounds
 - QueryBuilder bounds wired through to AdaptiveChunking
 - Validation: rejects invalid bounds (min=0 or max<min)
 - Metrics recorded on adjustment with old/new size labels
 
 **Algorithm**:
+
 1. Track occupancy across 100-item sliding window
 2. Calculate average occupancy
 3. Compare to thresholds every 5+ seconds
@@ -140,9 +156,11 @@ pub enum Error {
 5. Record metric with direction (increase/decrease)
 
 **Metrics Added**: 1
+
 - `fraiseql_adaptive_chunk_adjusted_total{direction,old_size,new_size}` - Counter
 
 **Test Coverage**: 10 tests
+
 - `test_new_defaults()` - Initial state
 - `test_average_occupancy_calculation()` - Window averaging
 - `test_increase_on_low_occupancy()` - Auto-increase logic
@@ -155,6 +173,7 @@ pub enum Error {
 - `test_zero_capacity_handling()` - Edge case handling
 
 **Files Modified**: 2
+
 - `src/stream/adaptive_chunking.rs` - Full implementation + with_bounds()
 - `src/connection/conn.rs` - Integration and bounds wiring
 
@@ -165,6 +184,7 @@ pub enum Error {
 **Objective**: Implement explicit stream lifecycle control
 
 **Implementation**:
+
 - `StreamState` enum: Running, Paused, Completed, Failed
 - Async `pause()` and `resume()` methods
 - Idempotent semantics (safe to call multiple times)
@@ -174,6 +194,7 @@ pub enum Error {
 - Terminal states (Completed, Failed) prevent pause/resume
 
 **Features**:
+
 - Pause suspends background task, connection stays alive
 - Buffered rows preserved during pause, consumable normally
 - Resume resumes background task
@@ -181,6 +202,7 @@ pub enum Error {
 - Metrics: `stream_paused_total`, `stream_resumed_total` counters
 
 **API Added**:
+
 ```rust
 pub enum StreamState {
     Running, Paused, Completed, Failed,
@@ -197,6 +219,7 @@ impl JsonStream {
 **Test Coverage**: Implicit in integration tests
 
 **Files Modified**: 2
+
 - `src/stream/json_stream.rs` - Full pause/resume state machine
 - `src/connection/conn.rs` - Background task integration
 
@@ -207,12 +230,14 @@ impl JsonStream {
 **Objective**: Enhance pause/resume with advanced control and observability
 
 **Refinement 1: Custom Bounds Enforcement**
+
 - `with_bounds()` method on AdaptiveChunking
 - Pass min/max chunk sizes from query builder
 - Wired through connection layer
 - Tests verify bounds are enforced
 
 **Refinement 2: Pause Timeout**
+
 - Optional `Duration` timeout on pause
 - Auto-resume after timeout if not explicitly resumed
 - Uses `tokio::time::timeout()` on resume signal
@@ -220,18 +245,21 @@ impl JsonStream {
 - Methods: `set_pause_timeout()`, `clear_pause_timeout()`, `pause_timeout()`
 
 **Refinement 3: Per-Pause Duration Metrics**
+
 - Track pause start time with `Arc<Mutex<Option<Instant>>>`
 - Record duration (ms) in histogram on resume
 - Metric: `fraiseql_stream_pause_duration_ms` histogram
 - Helps analyze pause patterns for backpressure tuning
 
 **Refinement 4: Pause Reason Tracking**
+
 - `pause_with_reason(reason: &str)` convenience method
 - Logs reason at debug level for diagnostics
 - Helps track why streams paused in production
 - Simple, zero-overhead wrapper around pause()
 
 **Refinement 5: Dashboard Metrics (Gauges)**
+
 - New `src/metrics/gauges.rs` module
 - Two gauge metrics:
   - `current_chunk_size{entity}` - Real-time chunk size in bytes
@@ -241,18 +269,21 @@ impl JsonStream {
 - Zero-cost gauges (just set values)
 
 **Metrics Added**: 3
+
 - `fraiseql_stream_pause_duration_ms` histogram
 - `fraiseql_stream_pause_timeout_expired_total` counter
 - `fraiseql_chunk_size_bytes` gauge
 - `fraiseql_stream_buffered_items` gauge (2 gauges total)
 
 **Test Coverage**: 4 new tests
+
 - `test_stream_pause_duration()` - Histogram recording
 - `test_current_chunk_size()` - Gauge recording
 - `test_stream_buffered_items()` - Gauge recording
 - `test_gauges_exported()` - Module export test
 
 **Files Modified**: 7
+
 - `src/stream/adaptive_chunking.rs` - with_bounds() method
 - `src/connection/conn.rs` - Bounds wiring + gauge recording
 - `src/stream/json_stream.rs` - Pause timeout + duration tracking + reason method
@@ -268,6 +299,7 @@ impl JsonStream {
 ### Metrics Added
 
 **Counters** (increment-only):
+
 - `fraiseql_queries_total` - Queries submitted
 - `fraiseql_query_success_total` - Successful completions
 - `fraiseql_query_error_total` - Query failures
@@ -292,6 +324,7 @@ impl JsonStream {
 - `fraiseql_stream_pause_timeout_expired_total` - Auto-resumes
 
 **Histograms** (distributions):
+
 - `fraiseql_query_startup_duration_ms` - Time to first row
 - `fraiseql_query_total_duration_ms` - Total query time
 - `fraiseql_query_rows_processed` - Row count per query
@@ -307,6 +340,7 @@ impl JsonStream {
 - `fraiseql_stream_pause_duration_ms` - Pause duration
 
 **Gauges** (instantaneous):
+
 - `fraiseql_chunk_size_bytes` - Current chunk size
 - `fraiseql_stream_buffered_items` - Current buffered items
 
@@ -347,6 +381,7 @@ impl JsonStream {
 ### API Additions
 
 **New Methods**:
+
 - `AdaptiveChunking::with_bounds(min_size, max_size)` - Custom bounds
 - `JsonStream::set_pause_timeout(duration)` - Configure auto-resume
 - `JsonStream::clear_pause_timeout()` - Remove timeout
@@ -359,9 +394,11 @@ impl JsonStream {
 - `JsonStream::paused_occupancy()` - Buffered rows when paused
 
 **New Modules**:
+
 - `src/metrics/gauges.rs` - Gauge metrics module
 
 **New Types**:
+
 - `StreamState` enum - Running, Paused, Completed, Failed
 - `StreamStats` struct - Statistics snapshot
 - `Error::MemoryLimitExceeded` - Error variant
@@ -386,23 +423,27 @@ impl JsonStream {
 ## Verification & Quality Assurance
 
 ### Build Status
+
 ✅ Release build succeeds: 2.8s
 ✅ Zero compiler errors
 ✅ Zero new warnings (7 pre-existing from SCRAM)
 
 ### Test Status
+
 ✅ All 120 library tests passing
 ✅ 0 failures, 0 ignored
 ✅ Test suite executes in 0.03s
 ✅ No flaky tests
 
 ### Code Quality
+
 ✅ Zero clippy warnings in new code
 ✅ Zero unsafe code
 ✅ Full documentation coverage
 ✅ Consistent error handling
 
 ### Backward Compatibility
+
 ✅ All Phase 8.1-8.5 features intact
 ✅ No breaking API changes
 ✅ Optional features (metrics are auto-recorded)
@@ -429,18 +470,21 @@ impl JsonStream {
 ## Key Learnings
 
 ### Architecture
+
 1. **Streaming with backpressure** - MPSC channel naturally provides backpressure
 2. **Adaptive algorithms** - Sliding windows + hysteresis prevent oscillation
 3. **State machines** - Arc<Mutex<>> + Notify excellent for async coordination
 4. **Zero-cost abstractions** - Metrics can be comprehensive without overhead
 
 ### Best Practices
+
 1. **Idempotent APIs** - Safe to call pause/resume multiple times
 2. **Conservative estimation** - 2KB per item works well for most JSON
 3. **Metric design** - Counters, histograms, gauges serve different observability needs
 4. **Terminal states** - Clear error states prevent invalid operations
 
 ### Performance Insights
+
 1. **Memory matters** - Bounded streaming prevents OOM in production
 2. **Adaptive tuning** - Auto-chunk-sizing removes manual configuration burden
 3. **Observability essential** - Metrics enable debugging without instrumentation
@@ -451,14 +495,17 @@ impl JsonStream {
 ## Recommendations for Phase 9+
 
 ### Immediate (v0.1.x patches)
+
 1. **Phase 8.2.2: Typed Streaming API** - Generic type safety
 2. **Phase 8.3: Connection Configuration** - Better timeout control
 
 ### Medium-term (v0.2.0)
+
 1. **Phase 8.4: Connection Pooling** - Separate crate (fraiseql-pool)
 2. **Phase 9.1: API Stabilization** - Lock down for v1.0
 
 ### Long-term (v1.0+)
+
 1. **Phase 9.2: Production Deployment** - Real-world validation
 2. **Phase 9.3: Ecosystem** - Integrations (Tokio, Axum, etc.)
 
@@ -477,4 +524,3 @@ Phase 8.6 transformed fraiseql-wire from a basic streaming library to a producti
 **Status**: Phase 8 (Feature Expansion) is functionally complete and ready for production use.
 
 **Next Phase**: Phase 8.7 (Stabilization) verification complete. Ready for Phase 8.2.2 (Typed Streaming API) or Phase 9 (Production Readiness).
-

@@ -12,6 +12,7 @@
 **Phase 8 is already complete** in the codebase, contrary to the status marked in `ACTUAL_IMPLEMENTATION_STATUS.md` which shows it as "NOT DONE | 0%".
 
 The Python authoring SDK (`fraiseql-python`) is **fully functional and production-ready**, with:
+
 - ✅ Core decorators (@Type, @Query, @Mutation)
 - ✅ Advanced analytics support (@FactTable, @AggregateQuery)
 - ✅ Type system with full Python → GraphQL mapping
@@ -26,6 +27,7 @@ The Python authoring SDK (`fraiseql-python`) is **fully functional and productio
 ### 1. Core Schema Decorators
 
 **@Type Decorator** (`decorators.py:14-62`)
+
 - Marks Python classes as GraphQL types
 - Extracts field information from type annotations
 - Supports nullable types (using `| None` syntax)
@@ -33,12 +35,14 @@ The Python authoring SDK (`fraiseql-python`) is **fully functional and productio
 - Registers types with schema registry
 
 **@Query Decorator** (`decorators.py:65-129`)
+
 - Marks functions as GraphQL queries
 - Supports both `@query` and `@query(...)` syntax
 - Extracts return types and arguments with defaults
 - Registers queries with metadata (sql_source, auto_params, etc.)
 
 **@Mutation Decorator** (`decorators.py:132-196`)
+
 - Marks functions as GraphQL mutations
 - Supports operation types (CREATE, UPDATE, DELETE, CUSTOM)
 - Similar signature extraction as @Query
@@ -46,6 +50,7 @@ The Python authoring SDK (`fraiseql-python`) is **fully functional and productio
 ### 2. Advanced Analytics
 
 **@FactTable Decorator** (`analytics.py:14-164`)
+
 - Marks classes as fact tables (for OLAP)
 - Enforces `tf_` prefix naming convention
 - Separates measures (numeric columns) from filters
@@ -54,6 +59,7 @@ The Python authoring SDK (`fraiseql-python`) is **fully functional and productio
 - Registers denormalized filters automatically
 
 **@AggregateQuery Decorator** (`analytics.py:167-232`)
+
 - Marks queries as aggregate/GROUP BY operations
 - Supports auto-generation of:
   - groupBy fields
@@ -63,16 +69,19 @@ The Python authoring SDK (`fraiseql-python`) is **fully functional and productio
 ### 3. Type System (`types.py`)
 
 **Python → GraphQL Type Mapping**:
+
 - Basic types: `int` → `Int`, `str` → `String`, `float` → `Float`, `bool` → `Boolean`
 - Nullable: `str | None` → `String` (nullable)
 - Lists: `list[User]` → `[User!]` (non-nullable elements)
 - Custom classes: Auto-detected as GraphQL types
 
 **extract_field_info()** (lines 64-97)
+
 - Converts class annotations to GraphQL fields
 - Returns dict with type and nullable info
 
 **extract_function_signature()** (lines 100-168)
+
 - Parses function signature for arguments and return type
 - Handles default values
 - Validates type annotations
@@ -80,20 +89,24 @@ The Python authoring SDK (`fraiseql-python`) is **fully functional and productio
 ### 4. Schema Management (`schema.py`)
 
 **config()** (lines 15-45)
+
 - Temporary holder for configuration during function definition
 - Stores sql_source, operation, auto_params
 
 **export_schema()** (lines 48-81)
+
 - Exports schema registry to JSON file
 - Supports pretty-printing
 - Reports statistics (types, queries, mutations)
 
 **get_schema_dict()** (lines 84-95)
+
 - Returns schema as dictionary without file export
 
 ### 5. Schema Registry (`registry.py`)
 
 Central registry managing all decorators:
+
 - `register_type()` - Stores type definitions
 - `register_query()` - Stores query definitions
 - `register_mutation()` - Stores mutation definitions
@@ -127,6 +140,7 @@ Central registry managing all decorators:
 ### Test Breakdown
 
 **test_analytics.py** (14 tests)
+
 - ✅ Fact table decorator validation
 - ✅ Measure type validation
 - ✅ Dimension column support
@@ -139,6 +153,7 @@ Central registry managing all decorators:
 - ✅ Nullable measures
 
 **test_decorators.py** (10 tests)
+
 - ✅ @type decorator on classes
 - ✅ @query decorator on functions
 - ✅ @mutation decorator on functions
@@ -150,6 +165,7 @@ Central registry managing all decorators:
 - ✅ Registry clearing
 
 **test_types.py** (10 tests)
+
 - ✅ Basic type mapping (int, str, float, bool)
 - ✅ Nullable types (`| None`)
 - ✅ List types
@@ -196,6 +212,7 @@ if __name__ == "__main__":
 ```
 
 Generates `schema.json`:
+
 ```json
 {
   "types": [
@@ -271,6 +288,7 @@ All follow the same pattern: decorators/annotations → `schema.json` → compil
 **Package Manager**: Uses `uv` for dependency management
 
 **Installation**:
+
 ```bash
 # From PyPI (once published)
 pip install fraiseql
@@ -280,6 +298,7 @@ uv pip install -e .
 ```
 
 **pyproject.toml**:
+
 - Modern Python packaging (PEP 517/518)
 - Metadata: name, version, description, author, license
 - Dependencies: None (pure Python)
@@ -292,6 +311,7 @@ uv pip install -e .
 ### Planned (from PHASE_8_AUTHORING_SDK_PLAN.md)
 
 The plan outlined:
+
 - ✅ @Type, @Field, @Query, @Mutation decorators
 - ✅ Type system mapping
 - ✅ Schema generator
@@ -305,6 +325,7 @@ The plan outlined:
 ### Actually Built
 
 What exists in the codebase:
+
 - ✅ All core decorators (@type, @query, @mutation)
 - ✅ Advanced analytics (@fact_table, @aggregate_query)
 - ✅ Complete type system (python_type_to_graphql, extract_field_info)
@@ -315,6 +336,7 @@ What exists in the codebase:
 - ✅ 932 LOC of clean, well-documented code
 
 **Gap**: Missing are:
+
 - Detailed examples/documentation in docs/ folder
 - TypeScript/Java/Go/PHP authoring SDKs (separate packages)
 
@@ -377,6 +399,7 @@ The status document was written before Phase 8 implementation was completed. The
 **Phase 8 is complete and ready for production use.** The Python authoring SDK provides a clean, intuitive API for defining FraiseQL schemas using Python decorators. With 34 passing tests and comprehensive feature coverage, it successfully bridges the gap between Python developer experience and the Rust-based compilation/execution engine.
 
 **Action Items**:
+
 1. ✅ Investigate discrepancy between status document and actual implementation
 2. ✅ Document Phase 8 completion
 3. ⏳ Publish Python SDK to PyPI
@@ -386,6 +409,7 @@ The status document was written before Phase 8 implementation was completed. The
 ---
 
 **Test Results Summary**:
+
 ```
 ================= 34 passed in 0.02s =================
 

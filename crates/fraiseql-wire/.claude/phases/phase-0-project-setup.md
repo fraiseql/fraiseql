@@ -334,12 +334,14 @@ cargo doc --no-deps --open
 ## Expected Output
 
 ### cargo build
+
 ```
    Compiling fraiseql-wire v0.1.0
     Finished dev [unoptimized + debuginfo] target(s) in X.XXs
 ```
 
 ### cargo test
+
 ```
 running 3 tests
 test util::oid::tests::test_json_oids ... ok
@@ -350,12 +352,14 @@ test result: ok. 3 passed; 0 failed; 0 ignored
 ```
 
 ### cargo clippy
+
 ```
     Checking fraiseql-wire v0.1.0
     Finished dev [unoptimized + debuginfo] target(s) in X.XXs
 ```
 
 ### cargo run --example basic_stream
+
 ```
 fraiseql-wire v0.1.0
 Example will be implemented in later phases
@@ -363,14 +367,14 @@ Example will be implemented in later phases
 
 ## Acceptance Criteria
 
-- [ ] Project compiles without errors
-- [ ] All unit tests pass
-- [ ] No clippy warnings
-- [ ] Code is formatted per rustfmt.toml
-- [ ] Error types are defined and properly derive Debug/Display
-- [ ] Utility functions have unit tests
-- [ ] Example runs without panic
-- [ ] Documentation builds without warnings
+* [ ] Project compiles without errors
+* [ ] All unit tests pass
+* [ ] No clippy warnings
+* [ ] Code is formatted per rustfmt.toml
+* [ ] Error types are defined and properly derive Debug/Display
+* [ ] Utility functions have unit tests
+* [ ] Example runs without panic
+* [ ] Documentation builds without warnings
 
 ## DO NOT
 

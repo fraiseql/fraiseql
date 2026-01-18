@@ -73,11 +73,13 @@ Analysis of codebase shows:
 **Problem**: Arc<Mutex<StreamState>> is allocated even though pause/resume is rarely used
 
 **Solution**:
+
 - Don't allocate pause/resume infrastructure by default
 - Only initialize when `pause()` is called
 - Use `Once` or lazy initialization pattern
 
 **Changes**:
+
 ```rust
 // BEFORE: Always allocate (expensive)
 state: Arc<Mutex<StreamState>>,
@@ -101,11 +103,13 @@ resume_signal: Option<Arc<Notify>>,
 **Problem**: tokio::spawn allocates a new task struct every query (8-10ms)
 
 **Solution**:
+
 - Pre-allocate background task infrastructure when connection is created
 - Reuse same task across multiple queries (not applicable for single-query connections)
 - **OR** use async block without spawn for small result sets
 
 **Alternative Approach: Spawn-less Streaming**
+
 ```rust
 // Instead of:
 tokio::spawn(async move { ... });
@@ -131,11 +135,13 @@ if estimated_rows < 50_000 {
 **Problem**: Full state machine with Mutex is overkill for queries that never pause
 
 **Solution**:
+
 - Detect if pause/resume will be used at query time
 - Use lightweight Arc<AtomicU8> for common case (no pause)
 - Upgrade to Arc<Mutex> only if pause() is called
 
 **Changes**:
+
 ```rust
 // Lightweight state (97% of queries)
 state_simple: Arc<AtomicU8>,  // 0=Running, 1=Paused, 2=Completed
@@ -155,6 +161,7 @@ state_full: Option<Arc<Mutex<StreamState>>>,
 **Problem**: Multiple Arc allocations for pause/resume signals
 
 **Solution**:
+
 - Combine pause/resume signals into single Arc<(Notify, Notify)> pair
 - Reduce Arc allocation count from 2 to 1
 
@@ -169,6 +176,7 @@ state_full: Option<Arc<Mutex<StreamState>>>,
 **Problem**: MPSC channel capacity parameter adds indirection in hot path
 
 **Solution**:
+
 - Use fixed channel capacity (e.g., 256) for 95% of queries
 - Query-time parameter only for special cases
 
@@ -210,6 +218,7 @@ state_full: Option<Arc<Mutex<StreamState>>>,
 ## Expected Results
 
 ### After Phase 6 (Lazy Pause/Resume)
+
 ```
 Startup overhead: 15-20ms → 10-12ms
 10K rows latency: 65ms → 60ms
@@ -217,6 +226,7 @@ Gap reduction: 23.5% → 19.2% improvement
 ```
 
 ### After Phases 6+8 (Add State Optimization)
+
 ```
 Startup overhead: 10-12ms → 8-10ms
 10K rows latency: 60ms → 57.5ms
@@ -224,6 +234,7 @@ Gap reduction: 23.5% → 17.1% improvement
 ```
 
 ### After Phases 6+8+9+10 (Add Quick Wins)
+
 ```
 Startup overhead: 8-10ms → 7-8.5ms
 10K rows latency: 57.5ms → 56.5ms
@@ -231,6 +242,7 @@ Gap reduction: 23.5% → 16.5% improvement
 ```
 
 ### After Phase 7 (Spawn-less Streaming) - IF DONE
+
 ```
 Startup overhead: 7-8.5ms → 2-3ms
 10K rows latency: 56.5ms → 51.5ms
@@ -254,12 +266,14 @@ Gap reduction: 23.5% → 10.2% improvement
 ## Testing Strategy
 
 For each phase:
+
 1. Run existing 158 library tests (must all pass)
 2. Run benchmark: 10K, 100K, 1M row tests
 3. Verify memory usage (should decrease or stay same)
 4. Check CPU usage (should decrease or stay same)
 
 Critical tests:
+
 - `test_pause_resume()` (Phase 6)
 - `test_query_execution()` (Phase 7)
 - `test_streaming_1m_rows()` (all phases - memory must be bounded)

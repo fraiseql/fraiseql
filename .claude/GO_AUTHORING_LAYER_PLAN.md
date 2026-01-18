@@ -5,6 +5,7 @@
 Create a Go package (`fraiseql-go`) for schema authoring that mirrors the functionality of existing Python and TypeScript implementations. The package generates `schema.json` files without runtime FFI, following the compile-to-JSON architecture.
 
 **Architecture**:
+
 ```
 Go Code (struct tags) → schema.json → fraiseql-cli compile → schema.compiled.json → Rust runtime
 ```
@@ -14,12 +15,14 @@ Go Code (struct tags) → schema.json → fraiseql-cli compile → schema.compil
 ### 1. Go-Idiomatic API (vs Direct Copy from Python/TS)
 
 **Option: Hybrid Approach (Recommended)**
+
 - Use **struct tags** for type definitions (Go standard pattern)
 - Use **builder pattern** for queries/mutations (Go convention)
 - Leverage Go's reflection for runtime metadata extraction
 - Keep JSON export simple and testable
 
 **Why**:
+
 - Go developers expect tags (`json:`, `db:`, etc.)
 - Builder pattern is idiomatic for complex configuration
 - Go's reflection can extract type info at build time
@@ -62,6 +65,7 @@ fraiseql-go/
 ### 3. API Design
 
 **Type Definition** (using struct tags):
+
 ```go
 type User struct {
     ID        int       `fraiseql:"id,type=Int"`
@@ -73,6 +77,7 @@ type User struct {
 ```
 
 **Query Definition** (using builder):
+
 ```go
 fraiseql.NewQuery("users").
     ReturnType(User{}).
@@ -94,6 +99,7 @@ fraiseql.NewQuery("users").
 ```
 
 **Mutation Definition** (using builder):
+
 ```go
 fraiseql.NewMutation("createUser").
     ReturnType(User{}).
@@ -108,6 +114,7 @@ fraiseql.NewMutation("createUser").
 ```
 
 **Schema Export**:
+
 ```go
 func main() {
     if err := fraiseql.RegisterTypes(User{}, Post{}); err != nil {
@@ -125,6 +132,7 @@ func main() {
 ### Phase 1: Core Infrastructure (Step 1-2)
 
 **Step 1: Project Setup & Module Structure**
+
 - Create `fraiseql-go/` directory at `/home/lionel/code/fraiseql/fraiseql-go/`
 - Initialize Go module: `go.mod` with version 2.0.0-alpha.1
 - Create directory structure (fraiseql/, examples/, tests/)
@@ -133,6 +141,7 @@ func main() {
 - Add LICENSE (MIT)
 
 **Files to create**:
+
 - `go.mod`
 - `go.sum` (empty initially)
 - `Makefile`
@@ -142,6 +151,7 @@ func main() {
 - Directory structure
 
 **Step 2: Type System & Conversion**
+
 - `fraiseql/types.go`: Go → GraphQL type conversion
   - `GoToGraphQLType(reflect.Type)` → (string, bool) // (type, nullable)
   - Type mappings: int→Int, string→String, bool→Boolean, float64→Float
@@ -152,6 +162,7 @@ func main() {
 - Document supported types in README
 
 **Files to create**:
+
 - `fraiseql/types.go`
 - `fraiseql/types_test.go`
 - Update `README.md` with type mapping table
@@ -159,6 +170,7 @@ func main() {
 ### Phase 2: Registry & Decorators (Step 3-4)
 
 **Step 3: Global Schema Registry**
+
 - `fraiseql/registry.go`: Singleton registry pattern
   - `SchemaRegistry` struct with maps for types, queries, mutations, fact_tables
   - `RegisterType(name, fields, description)`
@@ -169,10 +181,12 @@ func main() {
 - Unit tests for registration logic
 
 **Files to create**:
+
 - `fraiseql/registry.go`
 - `fraiseql/registry_test.go`
 
 **Step 4: Query & Mutation Builders**
+
 - `fraiseql/decorators.go`: Builder pattern for operations
   - `QueryBuilder` struct with chainable methods
     - `ReturnType(any)`
@@ -188,12 +202,14 @@ func main() {
 - Test argument order preservation
 
 **Files to create**:
+
 - `fraiseql/decorators.go`
 - `fraiseql/decorators_test.go`
 
 ### Phase 3: Type Registration & Export (Step 5-6)
 
 **Step 5: Struct Field Extraction**
+
 - Add to `fraiseql/types.go`:
   - `ExtractFields(any) → map[string]FieldInfo`
   - Uses reflection to read struct fields
@@ -204,6 +220,7 @@ func main() {
 - Handle edge cases (embedded structs, unexported fields)
 
 **Step 6: Schema Export to JSON**
+
 - `fraiseql/schema.go`:
   - `RegisterTypes(types ...any)` → error
   - `ExportSchema(path string)` → error
@@ -215,6 +232,7 @@ func main() {
 - Test comparison with Python/TS output
 
 **Files to create**:
+
 - Update `fraiseql/types.go` with field extraction
 - `fraiseql/schema.go`
 - `fraiseql/schema_test.go`
@@ -223,6 +241,7 @@ func main() {
 ### Phase 4: Analytics Support (Step 7)
 
 **Step 7: Fact Tables & Aggregate Queries**
+
 - Add to `fraiseql/analytics.go`:
   - `FactTableBuilder` for defining fact tables
   - `AggregateQueryBuilder` for aggregate queries
@@ -239,6 +258,7 @@ func main() {
 - Unit tests matching Python analytics tests
 
 **Files to create**:
+
 - `fraiseql/analytics.go`
 - `fraiseql/analytics_test.go`
 - `examples/analytics_schema.go`
@@ -246,6 +266,7 @@ func main() {
 ### Phase 5: Examples & Documentation (Step 8-9)
 
 **Step 8: Basic Schema Example**
+
 - `examples/basic_schema.go`:
   - Define User and Post types (same as Python example)
   - Define all queries (users, user, posts)
@@ -255,6 +276,7 @@ func main() {
 - Include copy-paste instructions for using with fraiseql-cli
 
 **Step 9: Analytics Schema Example**
+
 - `examples/analytics_schema.go`:
   - Define Sale fact table with measures and dimensions
   - Define aggregate query
@@ -262,6 +284,7 @@ func main() {
   - Matches Python analytics example
 
 **Files to create**:
+
 - `examples/basic_schema.go`
 - `examples/analytics_schema.go`
 - Update `README.md` with examples section
@@ -269,6 +292,7 @@ func main() {
 ### Phase 6: Testing & Package Publishing (Step 10-11)
 
 **Step 10: Comprehensive Test Suite**
+
 - `fraiseql/decorators_test.go`: Test all builder methods
 - `fraiseql/types_test.go`: Type conversion edge cases
 - `fraiseql/schema_test.go`: Integration tests
@@ -278,6 +302,7 @@ func main() {
 - Run with: `make test`, `make coverage`
 
 **Step 11: Go Module Packaging**
+
 - Finalize `go.mod` with correct versions
 - Add `.gitignore` for Go artifacts
 - Create `cmd/schema-export/main.go` (optional CLI)
@@ -285,6 +310,7 @@ func main() {
 - Add go.pkg.dev badge and documentation
 
 **Files to update**:
+
 - Finalize `go.mod`
 - Add `go.sum` with all dependencies
 - Create `.gitignore`
@@ -344,6 +370,7 @@ When users run `go run schema.go`, the output should match this structure:
 ## Verification Checklist
 
 For each phase:
+
 - [ ] `go build ./...` succeeds with no warnings
 - [ ] `go test -v ./...` passes all tests
 - [ ] `golangci-lint run` clean (if available)
@@ -363,11 +390,13 @@ For each phase:
 ## File Count & Complexity
 
 **Core Package**:
+
 - 5 main files (types, registry, decorators, schema, analytics)
 - ~800-1200 lines of code
 - Moderate complexity (similar to Python/TS)
 
 **Tests & Examples**:
+
 - 5 test files (~600 lines)
 - 2 example files (~150 lines)
 - 5 testdata golden files

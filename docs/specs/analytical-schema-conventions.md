@@ -24,6 +24,7 @@ This document defines naming conventions and patterns for analytical tables in F
 **Purpose**: Raw, finest-granularity transactional data
 
 **Examples**:
+
 - `tf_sales` - Sales transactions (one row per sale)
 - `tf_events` - Application events (one row per event)
 - `tf_api_requests` - API usage (one row per request)
@@ -32,6 +33,7 @@ This document defines naming conventions and patterns for analytical tables in F
 - `tf_payments` - Payment records
 
 **Structure**:
+
 ```sql
 CREATE TABLE tf_sales (
     id BIGSERIAL PRIMARY KEY,
@@ -58,12 +60,14 @@ CREATE TABLE tf_sales (
 **Purpose**: Pre-computed aggregates for faster queries on common patterns
 
 **Examples**:
+
 - `tf_sales_daily` - Daily sales rollup (same as `tf_sales` but at day granularity)
 - `tf_sales_by_category` - Sales grouped by category
 - `tf_events_monthly` - Monthly event aggregates
 - `tf_api_requests_hourly` - Hourly API usage
 
 **Structure** (identical to fact tables):
+
 ```sql
 -- Pre-aggregated fact table at daily granularity
 CREATE TABLE tf_sales_daily (
@@ -91,12 +95,14 @@ CREATE TABLE tf_sales_daily (
 **Important**: FraiseQL does NOT join these tables. They are used by ETL to populate `dimensions` JSONB in fact tables.
 
 **Examples**:
+
 - `td_products` - Product catalog
 - `td_customers` - Customer master data
 - `td_locations` - Geographic hierarchy
 - `td_categories` - Category taxonomy
 
 **Structure** (regular table, not fact pattern):
+
 ```sql
 CREATE TABLE td_products (
     id UUID PRIMARY KEY,
@@ -119,6 +125,7 @@ CREATE TABLE td_products (
 **Purpose**: Fast aggregation (10-100x faster than JSONB)
 
 **Examples**:
+
 - `revenue DECIMAL(10,2)` - Monetary value
 - `quantity INT` - Count of items
 - `duration_ms BIGINT` - Duration in milliseconds
@@ -127,6 +134,7 @@ CREATE TABLE td_products (
 - `response_time_ms INT` - Response time
 
 **Naming Rules**:
+
 - Use snake_case
 - Include units if ambiguous (`_ms`, `_bytes`, `_pct`)
 - Be specific (`revenue` not `amount`, `quantity` not `count`)
@@ -137,6 +145,7 @@ CREATE TABLE td_products (
 **Path Pattern**: Snake_case keys in JSONB
 
 **Examples**:
+
 ```json
 {
   "category": "Electronics",
@@ -149,6 +158,7 @@ CREATE TABLE td_products (
 ```
 
 **Nested Paths**:
+
 ```json
 {
   "customer": {
@@ -163,6 +173,7 @@ CREATE TABLE td_products (
 ```
 
 **Access Pattern**:
+
 ```sql
 -- Top-level
 dimensions->>'category'
@@ -177,6 +188,7 @@ dimensions#>>'{customer,segment}'
 **Purpose**: Fast WHERE filtering (avoid JSONB for high-selectivity filters)
 
 **Examples**:
+
 - `customer_id UUID` - Foreign key
 - `product_id UUID` - Foreign key
 - `occurred_at TIMESTAMPTZ` - Temporal filter
@@ -184,6 +196,7 @@ dimensions#>>'{customer,segment}'
 - `priority INT` - Priority level
 
 **Why Denormalized?**:
+
 ```sql
 -- ✅ FAST: Indexed SQL column
 WHERE customer_id = 'uuid-123'  -- Uses B-tree index
@@ -204,6 +217,7 @@ WHERE dimensions->>'customer_id' = 'uuid-123'  -- GIN index slower for exact mat
 4. **Refreshing aggregate tables** via scheduled jobs
 
 **Example ETL Flow**:
+
 ```sql
 -- Step 1: Staging table receives raw data
 INSERT INTO staging_sales (transaction_id, product_id, customer_id, revenue)
@@ -268,6 +282,7 @@ CREATE INDEX idx_sales_daily_dimensions_gin ON tf_sales_daily USING GIN(dimensio
 ```
 
 **Don't Over-Index**:
+
 - Every index slows INSERT/UPDATE
 - Monitor query patterns before adding indexes
 - Use composite indexes for common filter combinations

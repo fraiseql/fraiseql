@@ -9,6 +9,7 @@ The project uses GitHub Actions to automatically publish new releases to crates.
 ### How It Works
 
 1. **Push a version tag** (e.g., `v0.2.0`)
+
    ```bash
    git tag v0.2.0
    git push origin v0.2.0
@@ -24,7 +25,7 @@ The project uses GitHub Actions to automatically publish new releases to crates.
    - Creates a GitHub Release with CHANGELOG.md
 
 3. **Result:**
-   - Package appears on https://crates.io/crates/fraiseql-wire
+   - Package appears on <https://crates.io/crates/fraiseql-wire>
    - GitHub Release created automatically
    - Documentation updated on docs.rs
 
@@ -32,7 +33,7 @@ The project uses GitHub Actions to automatically publish new releases to crates.
 
 ### 1. Get crates.io API Token
 
-1. Go to https://crates.io/me
+1. Go to <https://crates.io/me>
 2. Click "API Tokens"
 3. Create a new token
 4. Copy the token (you won't see it again)
@@ -40,6 +41,7 @@ The project uses GitHub Actions to automatically publish new releases to crates.
 ### 2. Add Token to GitHub
 
 1. Go to your repository settings:
+
    ```
    https://github.com/fraiseql/fraiseql-wire/settings/secrets/actions
    ```
@@ -55,11 +57,13 @@ The project uses GitHub Actions to automatically publish new releases to crates.
 ### 3. Verify Setup
 
 Check that the workflow file exists:
+
 ```bash
 cat .github/workflows/publish.yml
 ```
 
 The workflow should:
+
 - Trigger on tags matching `v*` (e.g., v0.1.0, v0.2.0)
 - Run tests before publishing
 - Verify version matches tag
@@ -71,6 +75,7 @@ The workflow should:
 ### Process
 
 1. **Update version in Cargo.toml** (if not already done):
+
    ```toml
    [package]
    version = "0.2.0"  # Change this
@@ -79,19 +84,21 @@ The workflow should:
 2. **Update CHANGELOG.md** with release notes
 
 3. **Commit changes:**
+
    ```bash
    git add Cargo.toml CHANGELOG.md
    git commit -m "chore: Prepare v0.2.0 release"
    ```
 
 4. **Create and push git tag:**
+
    ```bash
    git tag -a v0.2.0 -m "Release v0.2.0"
    git push origin v0.2.0
    ```
 
 5. **Watch the workflow:**
-   - Go to https://github.com/fraiseql/fraiseql-wire/actions
+   - Go to <https://github.com/fraiseql/fraiseql-wire/actions>
    - Click the workflow run
    - Watch logs in real-time
 
@@ -121,6 +128,7 @@ git push origin v0.2.0
 ### Test Job
 
 Runs before publishing to catch issues early:
+
 - Unit and integration tests
 - Code formatting check
 - Clippy linter warnings
@@ -162,7 +170,8 @@ Only runs if Test job succeeds:
 ### Workflow Failed
 
 Check the GitHub Actions logs:
-1. Go to https://github.com/fraiseql/fraiseql-wire/actions
+
+1. Go to <https://github.com/fraiseql/fraiseql-wire/actions>
 2. Click the failed workflow
 3. Look at the error message
 4. Common issues:
@@ -173,7 +182,7 @@ Check the GitHub Actions logs:
 
 ### Token Expired/Invalid
 
-1. Go to https://crates.io/me
+1. Go to <https://crates.io/me>
 2. Regenerate your API token
 3. Update the GitHub secret:
    - Go to repository settings → Secrets → Actions
@@ -183,6 +192,7 @@ Check the GitHub Actions logs:
 ### Package Already Published
 
 If you get "cannot overwrite published crate":
+
 - You can't republish the same version
 - Use the next version number (e.g., 0.2.1)
 - Update Cargo.toml and tag again
@@ -190,7 +200,8 @@ If you get "cannot overwrite published crate":
 ### Docs.rs Not Updating
 
 Documentation on docs.rs updates automatically:
-1. Check build status at https://docs.rs/fraiseql-wire
+
+1. Check build status at <https://docs.rs/fraiseql-wire>
 2. If build failed, see why on docs.rs build logs
 3. Usually due to doc comments with syntax errors
 

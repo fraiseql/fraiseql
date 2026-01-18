@@ -11,6 +11,7 @@
 The **CompiledSchema** is the compiled output from the authoring layer. It contains all information the Rust runtime needs to execute GraphQL queries without further interpretation.
 
 **Key properties:**
+
 - Contains NO executable code
 - Fully serializable to JSON
 - Database-agnostic (capability manifest applies operators)
@@ -76,6 +77,7 @@ The **CompiledSchema** is the compiled output from the authoring layer. It conta
 ```
 
 **Fields:**
+
 - `version` — CompiledSchema format version
 - `name` — Schema identifier
 - `schemaVersion` — API semantic version
@@ -513,6 +515,7 @@ Bindings connect GraphQL types to database resources:
 ```
 
 **Binding fields:**
+
 - `view` — PostgreSQL view to query
 - `dataColumn` — Column containing JSONB projection
 - `idColumns` — Columns used for WHERE clauses (public IDs)

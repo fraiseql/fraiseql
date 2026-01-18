@@ -1,36 +1,36 @@
 [build-system]
-requires = ["hatchling"]
 build-backend = "hatchling.build"
+requires = ["hatchling"]
 
 [project]
-name = "fraiseql"
-version = "2.0.0-alpha.1"
-description = "FraiseQL v2 - Compiled GraphQL execution engine (schema authoring)"
-readme = "README.md"
-requires-python = ">=3.10"
-license = {text = "MIT"}
 authors = [
-    {name = "FraiseQL Team"}
+  {name = "FraiseQL Team"}
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
-    "Topic :: Software Development :: Libraries :: Python Modules",
-    "Topic :: Database :: Front-Ends",
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Topic :: Database :: Front-Ends"
 ]
+description = "FraiseQL v2 - Compiled GraphQL execution engine (schema authoring)"
 keywords = ["graphql", "database", "sql", "compiler", "schema"]
+license = {text = "MIT"}
+name = "fraiseql"
+readme = "README.md"
+requires-python = ">=3.10"
+version = "2.0.0-alpha.1"
 
 [project.urls]
-Homepage = "https://github.com/yourusername/fraiseql"
 Documentation = "https://fraiseql.readthedocs.io"
-Repository = "https://github.com/yourusername/fraiseql"
+Homepage = "https://github.com/yourusername/fraiseql"
 Issues = "https://github.com/yourusername/fraiseql/issues"
+Repository = "https://github.com/yourusername/fraiseql"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/fraiseql"]
@@ -40,6 +40,9 @@ line-length = 100
 target-version = "py310"
 
 [tool.ruff.lint]
+ignore = [
+  "ANN401"  # typing.Any usage allowed for dynamic types, **kwargs, runtime introspection
+]
 # Select rule categories:
 # E - pycodestyle errors
 # F - pyflakes
@@ -53,11 +56,8 @@ target-version = "py310"
 # SIM - flake8-simplify (simplification suggestions)
 # TCH - flake8-type-checking (type checking imports)
 select = ["E", "F", "I", "N", "W", "UP", "ANN", "B", "C4", "SIM", "TCH"]
-ignore = [
-    "ANN401",  # typing.Any usage allowed for dynamic types, **kwargs, runtime introspection
-]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = [
-    "ANN",  # Don't require type annotations in tests
+  "ANN"  # Don't require type annotations in tests
 ]

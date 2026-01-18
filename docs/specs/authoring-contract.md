@@ -11,6 +11,7 @@
 The **authoring contract** defines how schema authors declare GraphQL types, queries, mutations, and bindings. The contract is language-agnostic (Python, TypeScript, YAML, CLI, etc.) — all must produce a valid `CompiledSchema`.
 
 **Core principle:** Authoring layer is responsible for:
+
 1. Declaring types and queries
 2. Specifying view/procedure bindings
 3. Declaring authorization rules
@@ -178,6 +179,7 @@ input UserWhereInput {
 ### 3.1 Object Types
 
 **Python:**
+
 ```python
 @schema.type(description="A user account")
 class User:
@@ -195,6 +197,7 @@ class User:
 ```
 
 **YAML:**
+
 ```yaml
 types:
   User:
@@ -214,6 +217,7 @@ types:
 ```
 
 **Rules:**
+
 - Type names are PascalCase (singular)
 - Field names are camelCase
 - All fields must map to view columns or JSONB paths
@@ -291,6 +295,7 @@ class UserRole:
 ### 4.1 Basic Queries
 
 **Python:**
+
 ```python
 @schema.query(description="Get all users")
 def users(
@@ -304,6 +309,7 @@ def users(
 ```
 
 **Rules:**
+
 - Function body is IGNORED (for compile-time only)
 - Parameters become GraphQL arguments
 - Return type determines query return
@@ -350,6 +356,7 @@ def user_by_email(email: str) -> User:
 ```
 
 **Binding:**
+
 ```python
 schema.bind("user_by_id", "view", "v_user", where_column="id")
 schema.bind("user_by_email", "view", "v_user", where_column="email")
@@ -362,6 +369,7 @@ schema.bind("user_by_email", "view", "v_user", where_column="email")
 ### 5.1 Basic Mutations
 
 **Python:**
+
 ```python
 @schema.mutation
 def create_user(email: str, name: str) -> User:
@@ -380,6 +388,7 @@ def delete_user(id: ID) -> DeleteUserResult:
 ```
 
 **Rules:**
+
 - Parameters become mutation input
 - Return type is the mutation output
 - Body is IGNORED at compile time
@@ -501,6 +510,7 @@ schema.compile(
 ```
 
 **Compiler checks:**
+
 1. Does view exist? ✓
 2. Does `data` column exist? ✓
 3. Do filter columns exist? ✓
@@ -515,6 +525,7 @@ schema.compile(
 The compiler must validate:
 
 ### 8.1 Type Closure
+
 ```
 All referenced types must be defined.
 
@@ -525,6 +536,7 @@ def user() -> UndefinedType:  # Error: UndefinedType not defined
 ```
 
 ### 8.2 Binding Existence
+
 ```
 All types with queries/mutations must have bindings.
 
@@ -539,6 +551,7 @@ schema.bind("users", "view", "v_user")
 ```
 
 ### 8.3 View Column Validation
+
 ```
 All fields must exist as columns or JSONB paths.
 
@@ -558,6 +571,7 @@ class User:
 ```
 
 ### 8.4 Operator Support
+
 ```
 Used filters must be in capability manifest.
 
@@ -572,6 +586,7 @@ where: {
 ```
 
 ### 8.5 Authorization Validity
+
 ```
 Auth rules must reference valid auth context fields.
 
@@ -609,31 +624,40 @@ $ fraiseql compile schema.py
 FraiseQL provides a comprehensive library of **56 custom scalar types** beyond the GraphQL standard scalars. These are organized into 18 domain-specific categories:
 
 **Core Temporal Types:**
+
 - `Date`, `DateTime`, `Time`, `Duration`, `DateRange`, `Timezone`
 
 **Geographic & Spatial:**
+
 - `Coordinate`, `Latitude`, `Longitude`, `Point`, `Polygon`, `Box`
 
 **Network & Connectivity:**
+
 - `IpAddress`, `CIDR`, `MacAddress`, `Hostname`, `DomainName`, `URL`
 
 **Financial & Monetary:**
+
 - `Money`, `CurrencyCode`, `Percentage`, `ExchangeRate`, `ISIN`, `CUSIP`, `SEDOL`, `LEI`
 
 **Vector & Embeddings (pgvector):**
+
 - `Vector`, `HalfVector`, `SparseVector`, `QuantizedVector`
 
 **Content & Markup:**
+
 - `Markdown`, `RichText`, `HTML`, `EmailAddress`, `PhoneNumber`, `JSON`, `JSONB`
 
 **Identifiers & Codes:**
+
 - `UUID`, `ULID`, `Snowflake`, `Slug`, `VIN`, `GTIN`, `ISBN`
 
 **Enterprise & Hierarchical:**
+
 - `LTree` (PostgreSQL hierarchies), `ApiKey`, `Signature`
 
 **Complete Reference:**
 See [`docs/reference/scalars.md`](../reference/scalars.md) for detailed documentation of all 56 custom scalar types, including:
+
 - Type definitions and validation rules
 - GraphQL representation (as strings or JSON)
 - Example values for each scalar
@@ -642,6 +666,7 @@ See [`docs/reference/scalars.md`](../reference/scalars.md) for detailed document
 - Use cases and best practices
 
 **Quick Example:**
+
 ```graphql
 type User {
   id: UUID!
@@ -655,6 +680,7 @@ type User {
 ```
 
 Each scalar type is validated at:
+
 1. **Compile-time** — Schema validation ensures scalar is recognized
 2. **Runtime** — Input validation checks value conforms to scalar's rules
 3. **Database** — SQL column type matches scalar's storage format

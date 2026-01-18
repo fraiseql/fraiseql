@@ -7,6 +7,7 @@ Finalize the fraiseql-wire MVP with comprehensive documentation, improved error 
 ## Context
 
 This phase focuses on:
+
 * User-facing documentation (README, examples, API docs)
 * Integration tests against real Postgres
 * Error message quality
@@ -176,12 +177,14 @@ fraiseql-wire follows these principles:
 ## What Belongs in fraiseql-wire
 
 ✅ Features that:
+
 * Improve JSON streaming performance
 * Enhance error messages
 * Add observability (metrics, tracing)
 * Improve documentation
 
 ❌ Features that:
+
 * Add general SQL support
 * Implement writes/transactions
 * Add connection pooling (separate crate)
@@ -191,6 +194,7 @@ fraiseql-wire follows these principles:
 ## Questions?
 
 Open an issue for discussion before implementing large features.
+
 ```
 
 ### 5. Improve error messages in src/error.rs
@@ -668,18 +672,18 @@ cargo package --dry-run
 
 ## Acceptance Criteria
 
-- [ ] README is comprehensive and accurate
-- [ ] All public APIs have documentation
-- [ ] Examples demonstrate key use cases
-- [ ] Integration tests cover main scenarios
-- [ ] Error messages are clear and actionable
-- [ ] Tracing spans are added to key operations
-- [ ] CHANGELOG documents features and constraints
-- [ ] CONTRIBUTING guides new contributors
-- [ ] Package metadata is complete
-- [ ] Documentation builds without warnings
-- [ ] All tests pass
-- [ ] No clippy warnings
+* [ ] README is comprehensive and accurate
+* [ ] All public APIs have documentation
+* [ ] Examples demonstrate key use cases
+* [ ] Integration tests cover main scenarios
+* [ ] Error messages are clear and actionable
+* [ ] Tracing spans are added to key operations
+* [ ] CHANGELOG documents features and constraints
+* [ ] CONTRIBUTING guides new contributors
+* [ ] Package metadata is complete
+* [ ] Documentation builds without warnings
+* [ ] All tests pass
+* [ ] No clippy warnings
 
 ## Performance Validation
 
@@ -727,14 +731,14 @@ criterion_main!(benches);
 
 Before releasing 0.1.0:
 
-- [ ] All phases (0-5) completed
-- [ ] All tests pass
-- [ ] Documentation complete
-- [ ] Examples work
-- [ ] CHANGELOG updated
-- [ ] Version bumped in Cargo.toml
-- [ ] Git tag created
-- [ ] Crates.io publish (optional)
+* [ ] All phases (0-5) completed
+* [ ] All tests pass
+* [ ] Documentation complete
+* [ ] Examples work
+* [ ] CHANGELOG updated
+* [ ] Version bumped in Cargo.toml
+* [ ] Git tag created
+* [ ] Crates.io publish (optional)
 
 ## Post-Release
 
@@ -743,18 +747,19 @@ After 0.1.0:
 * Gather user feedback
 * Identify performance bottlenecks
 * Plan Phase 7 features (if needed):
-  - Typed streaming (`T: DeserializeOwned`)
-  - Connection pooling (separate crate?)
-  - TLS support
-  - SCRAM authentication
-  - Metrics collection
-  - Postgres 17 chunked rows mode via libpq
+  * Typed streaming (`T: DeserializeOwned`)
+  * Connection pooling (separate crate?)
+  * TLS support
+  * SCRAM authentication
+  * Metrics collection
+  * Postgres 17 chunked rows mode via libpq
 
 ## Next Steps
 
 After Phase 6, the MVP is complete. Future work depends on user feedback and real-world usage patterns.
 
 Consider:
+
 * Monitoring adoption and pain points
 * Benchmarking against alternatives
 * Identifying optimization opportunities

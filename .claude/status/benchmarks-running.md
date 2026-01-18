@@ -6,10 +6,12 @@
 ## Issue Fixed
 
 The initial benchmark run failed because the FraiseWireAdapter benchmarks were using the wrong table name:
+
 - ❌ **Wrong**: `"benchmark_data"` (raw table)
 - ✅ **Correct**: `"v_benchmark_data"` (view)
 
 This caused all FraiseWireAdapter benchmarks to fail. The issue has been fixed in all 5 locations:
+
 1. `bench_wire_10k_rows` (line 156)
 2. `bench_wire_100k_rows` (line 228)
 3. `bench_wire_1m_rows` (line 300)
@@ -39,12 +41,14 @@ Each group compares PostgresAdapter (tokio-postgres) vs FraiseWireAdapter (frais
 ### What We're Measuring
 
 **Performance Metrics**:
+
 - ⏱️  **Throughput**: Rows per second
 - 📊 **Latency**: Total query execution time
 - 🔍 **WHERE clause performance**: SQL predicate filtering
 - 📄 **Pagination overhead**: Small repeated queries
 
 **Memory Characteristics** (measured via external profiling):
+
 - PostgresAdapter: O(result_size) - buffers all results in memory
 - FraiseWireAdapter: O(chunk_size) - streams results with fixed buffer
 

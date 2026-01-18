@@ -101,6 +101,7 @@ cargo clippy --all-targets --all-features -- -D warnings
 ```
 
 **Allowed pedantic lints** (see `Cargo.toml`):
+
 - `too_many_lines` - Some modules will be large
 - `module_name_repetitions` - Common pattern in Rust
 - `similar_names` - Sometimes unavoidable
@@ -145,6 +146,7 @@ pub fn example(arg: i32) -> Result<String, Error> {
 ### Test Levels
 
 1. **Unit Tests** (in module files)
+
    ```rust
    #[cfg(test)]
    mod tests {
@@ -156,6 +158,7 @@ pub fn example(arg: i32) -> Result<String, Error> {
    ```
 
 2. **Integration Tests** (`tests/integration/`)
+
    ```rust
    #[test]
    fn test_module_integration() {
@@ -164,6 +167,7 @@ pub fn example(arg: i32) -> Result<String, Error> {
    ```
 
 3. **End-to-End Tests** (`tests/e2e/`)
+
    ```rust
    #[tokio::test]
    async fn test_complete_flow() {
@@ -230,6 +234,7 @@ criterion_main!(benches);
 ### GitHub Actions
 
 All PRs must pass:
+
 - ✅ Format check (`cargo fmt`)
 - ✅ Clippy lints (`cargo clippy`)
 - ✅ Tests on Linux, macOS, Windows
@@ -248,6 +253,7 @@ pre-commit install
 ```
 
 Runs before each commit:
+
 - `cargo fmt`
 - `cargo clippy`
 - Trailing whitespace
@@ -258,6 +264,7 @@ Runs before each commit:
 ### VSCode Setup
 
 Recommended extensions installed via `.vscode/extensions.json`:
+
 - `rust-lang.rust-analyzer` - Rust language support
 - `tamasfe.even-better-toml` - TOML support
 - `vadimcn.vscode-lldb` - Debugging
@@ -265,6 +272,7 @@ Recommended extensions installed via `.vscode/extensions.json`:
 ### Configuration
 
 Settings in `.vscode/settings.json`:
+
 - Format on save
 - Clippy on check
 - Inlay hints enabled
@@ -287,17 +295,20 @@ Settings in `.vscode/settings.json`:
 Configurations in `.vscode/launch.json`:
 
 1. **Debug unit tests**
+
    ```json
    "name": "Debug unit tests"
    ```
 
 2. **Debug integration tests**
+
    ```json
    "name": "Debug integration tests"
    "env": { "DATABASE_URL": "..." }
    ```
 
 3. **Debug CLI**
+
    ```json
    "name": "Debug CLI"
    ```
@@ -330,7 +341,7 @@ RUST_LOG=fraiseql_core=trace cargo run
 
 See `CONTRIBUTING.md` for full guidelines.
 
-### Quick checklist:
+### Quick checklist
 
 - [ ] Code compiles without warnings
 - [ ] Tests pass (`make test`)
@@ -343,9 +354,9 @@ See `CONTRIBUTING.md` for full guidelines.
 
 - **Implementation Roadmap**: `IMPLEMENTATION_ROADMAP.md`
 - **Architecture Docs**: `docs/architecture/`
-- **Rust Book**: https://doc.rust-lang.org/book/
-- **Clippy Lints**: https://rust-lang.github.io/rust-clippy/
-- **Criterion Guide**: https://bheisler.github.io/criterion.rs/book/
+- **Rust Book**: <https://doc.rust-lang.org/book/>
+- **Clippy Lints**: <https://rust-lang.github.io/rust-clippy/>
+- **Criterion Guide**: <https://bheisler.github.io/criterion.rs/book/>
 
 ---
 

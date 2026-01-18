@@ -34,14 +34,17 @@ let client = FraiseClient::connect("postgres:///mydb").await?;
 **Current Status** (v0.1.0): TLS support not yet implemented.
 
 **Temporary Workaround**:
+
 1. **Use Unix sockets** if Postgres and application are on the same machine
 2. **VPN or private network** to Postgres server
 3. **SSH tunnel** to Postgres:
+
    ```bash
    ssh -N -L 5432:localhost:5432 user@remote-host
    ```
 
 **Permanent Solution** (Phase 8):
+
 - TLS support will be added in future release
 - Watch ROADMAP.md for implementation status
 
@@ -128,6 +131,7 @@ Why: HTTP input is untrusted and could be malicious.
 ### Best Practices
 
 1. **Prefer `.where_rust()` for untrusted input**:
+
    ```rust
    // For any untrusted input, use Rust predicates
    client.query("users")
@@ -140,6 +144,7 @@ Why: HTTP input is untrusted and could be malicious.
    ```
 
 2. **Whitelist enum values**:
+
    ```rust
    #[derive(Clone, Copy)]
    enum Status {
@@ -165,6 +170,7 @@ Why: HTTP input is untrusted and could be malicious.
    ```
 
 3. **Escape JSON strings for WHERE clauses**:
+
    ```rust
    fn escape_json_string(s: &str) -> String {
        // Escape single quotes for SQL
@@ -343,13 +349,14 @@ Email: [maintainers@fraiseql.dev] (placeholder - update with real address)
 
 - **SECURITY_AUDIT.md** - Detailed security audit findings
 - **ROADMAP.md** - Future security features (TLS, SCRAM, query timeouts)
-- **Postgres Security** - https://www.postgresql.org/docs/current/sql-syntax.html
+- **Postgres Security** - <https://www.postgresql.org/docs/current/sql-syntax.html>
 
 ---
 
 ## Questions?
 
 If you have security questions:
+
 1. Check this document first
 2. Review SECURITY_AUDIT.md for detailed findings
 3. Check GitHub Discussions

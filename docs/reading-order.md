@@ -10,12 +10,14 @@
 ## How to Use This Guide
 
 This document provides **reading paths** tailored to different roles and use cases. Each path includes:
+
 - **Documents to read** in recommended order
 - **Estimated time** to complete each document
 - **Key takeaways** from each document
 - **What you'll be able to do** after completing the path
 
 **Choose your path:**
+
 1. [New to FraiseQL? Start Here](#new-to-frais
 
 eql-start-here)
@@ -57,12 +59,14 @@ eql-start-here)
    - **Key Takeaway:** Same schema source, different compiled outputs per database
 
 **After this path, you'll understand:**
+
 - What FraiseQL is and isn't
 - Core architectural principles
 - How multi-database support works
 - Key terminology
 
 **Next Steps:**
+
 - Choose a role-specific path below based on your work
 - Or continue to "Complete Documentation Path" for comprehensive coverage
 
@@ -110,16 +114,19 @@ eql-start-here)
    - **Key Takeaway:** Immutable artifact, database-target-specific
 
 10. **`docs/specs/schema-conventions.md`** (35 min)
-   - Database patterns (tb_*, v_*, fn_*)
-   - **Key Takeaway:** Conventions enable automatic CQRS, efficient composition
+
+- Database patterns (tb_*, v_*, fn_*)
+- **Key Takeaway:** Conventions enable automatic CQRS, efficient composition
 
 **After this path, you'll be able to:**
+
 - Explain FraiseQL's architecture to stakeholders
 - Understand compile-time vs runtime responsibilities
 - Evaluate FraiseQL for your use case
 - Design schema conventions for your domain
 
 **Recommended Next:**
+
 - `docs/adrs/ADR-009-federation-architecture.md` — Federation design decisions
 - `docs/architecture/realtime/subscriptions.md` — Real-time events and event streaming
 - `docs/architecture/performance/advanced-optimization.md` — Advanced performance optimization
@@ -168,12 +175,14 @@ eql-start-here)
    - **Key Takeaway:** Compiler validates bindings against database schema
 
 **After this path, you'll be able to:**
+
 - Implement a new authoring language (e.g., Rust, Go)
 - Extend the compiler with new phases
 - Add database target support (new capability manifest)
 - Debug compilation errors
 
 **Recommended Next:**
+
 - `docs/reference/where-operators.md` — Complete operator catalog
 - `docs/reference/scalars.md` — Scalar type library
 - `docs/architecture/core/compilation-phases.md` — Deep dive into each compilation phase
@@ -221,6 +230,7 @@ eql-start-here)
    - **Key Takeaway:** Subscriptions are compiled event projections, not GraphQL resolvers
 
 **After this path, you'll be able to:**
+
 - Implement a new backend lowering module (e.g., DuckDB, ClickHouse)
 - Extend the runtime with new execution phases
 - Add performance optimizations
@@ -228,6 +238,7 @@ eql-start-here)
 - Build subscription transport adapters (graphql-ws, webhooks, Kafka)
 
 **Recommended Next:**
+
 - `docs/reference/where-operators.md` — SQL generation for each operator
 - `docs/enterprise/rbac.md` — Authorization enforcement
 - `docs/guides/monitoring.md` — Instrumentation
@@ -271,12 +282,14 @@ eql-start-here)
    - **Key Takeaway:** Audit columns required for CDC
 
 **After this path, you'll be able to:**
+
 - Design FraiseQL-compatible database schemas
 - Create efficient read views with JSONB projections
 - Set up pre-aggregated views for relationships
 - Implement audit logging and soft deletes
 
 **Recommended Next:**
+
 - `docs/reference/where-operators.md` — Understanding filterable paths
 - `docs/guides/production-deployment.md` — Index strategies
 - `docs/architecture/database/arrow-plane.md` — Arrow-based data plane for analytics
@@ -321,7 +334,7 @@ eql-start-here)
    - **Key Takeaway:** Compile-time schema analysis → optimized SQL
 
 6. **`docs/specs/analytical-schema-conventions.md`** (20 min)
-   - Naming conventions: tf_ (fact tables, any granularity), td_ (dimension)
+   - Naming conventions: tf_(fact tables, any granularity), td_ (dimension)
    - Column patterns: measures, dimensions, denormalized filters
    - Index recommendations
    - **Key Takeaway:** Conventions required by FraiseQL compiler
@@ -353,6 +366,7 @@ eql-start-here)
     - **Key Takeaway:** Copy-paste patterns for real analytics queries
 
 **After this path, you'll be able to:**
+
 - Design fact tables with measures + dimensions
 - Write GraphQL aggregate queries (GROUP BY, HAVING, temporal bucketing)
 - Understand performance characteristics (SQL columns 10-100x faster than JSONB)
@@ -360,12 +374,14 @@ eql-start-here)
 - Leverage database-specific aggregate functions
 
 **Recommended Next:**
+
 - `docs/architecture/database/arrow-plane.md` — Section 5.5 for BI tool integration
 - `docs/architecture/analytics/window-functions.md` — Window functions (ROW_NUMBER, LAG/LEAD)
 - `docs/specs/window-operators.md` — Window function reference
 - `docs/specs/schema-conventions.md` — Section 4.3.1 for analytical fact tables
 
 **Important Notes:**
+
 - FraiseQL does **NOT** support joins; all dimensions must be denormalized at ETL time
 - ETL is managed by DBA/data team; FraiseQL provides GraphQL query interface only
 - Pre-aggregated fact tables use same structure, just different granularity (e.g., `tf_sales_daily` vs `tf_sales`)
@@ -405,12 +421,14 @@ eql-start-here)
    - **Key Takeaway:** 3 security modes for different environments
 
 **After this path, you'll be able to:**
+
 - Deploy FraiseQL to Kubernetes
 - Configure monitoring and alerting
 - Tune performance (caching, connection pooling)
 - Implement security best practices
 
 **Recommended Next:**
+
 - `docs/enterprise/rbac.md` — Role-based access control setup
 - `docs/enterprise/kms.md` — Key management integration
 - `docs/guides/observability.md` — Observability best practices
@@ -455,12 +473,14 @@ eql-start-here)
    - **Key Takeaway:** Pod Security Standards, network policies
 
 **After this path, you'll be able to:**
+
 - Configure authentication providers
 - Design authorization rules
 - Set up audit logging
 - Harden production deployments
 
 **Recommended Next:**
+
 - `docs/enterprise/kms.md` — Field encryption with KMS
 - `docs/architecture/security/security-model.md` — Security architecture deep dive
 - `docs/architecture/security/authentication-detailed.md` — Authentication implementation details
@@ -504,12 +524,14 @@ eql-start-here)
    - **Key Takeaway:** Database-specific operators available
 
 **After this path, you'll be able to:**
+
 - Write efficient GraphQL queries
 - Implement client-side caching with cache invalidation
 - Use APQ for security and performance
 - Filter queries with database-specific operators
 
 **Recommended Next:**
+
 - `docs/specs/introspection.md` — Schema introspection
 - `docs/reference/scalars.md` — Custom scalar types
 - `docs/specs/pagination-keyset.md` — Advanced pagination techniques
@@ -528,6 +550,7 @@ eql-start-here)
 ### Week 1: Foundation (4-5 hours)
 
 **Day 1:**
+
 1. README.md (5 min)
 2. PRD.md (60 min)
 3. GLOSSARY.md (30 min)
@@ -696,21 +719,27 @@ eql-start-here)
 ## Tips for Effective Reading
 
 ### 1. Start with Your Role Path
+
 Don't try to read everything at once. Follow the path for your role first.
 
 ### 2. Keep GLOSSARY.md Open
+
 Reference terminology as you read. Most confusion comes from undefined terms.
 
 ### 3. Skim First, Deep Dive Later
+
 Read document headers and summaries first. Deep dive only when needed.
 
 ### 4. Follow Cross-References
+
 Specs link to related specs. Follow links when concepts aren't clear.
 
 ### 5. Use Real Examples
+
 Try building a simple schema as you read. Learning by doing reinforces concepts.
 
 ### 6. Ask Questions
+
 If documentation is unclear, file an issue. Documentation improves through feedback.
 
 ---
@@ -807,6 +836,7 @@ architecture/reliability/versioning-strategy.md (standalone, recommended after r
 ## Feedback
 
 This reading order guide is a living document. If you find:
+
 - A path doesn't make sense for your role
 - A document should be read earlier/later
 - Time estimates are inaccurate

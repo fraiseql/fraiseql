@@ -103,6 +103,7 @@ def sales_by_region(region: str = None):
 ### Sample Queries
 
 **GraphQL Query**:
+
 ```graphql
 query {
   salesByRegion(where: { region: "US" }) {
@@ -114,6 +115,7 @@ query {
 ```
 
 **Generated SQL (PostgreSQL)**:
+
 ```sql
 SELECT
     SUM(revenue) AS totalRevenue,
@@ -124,6 +126,7 @@ WHERE dimensions->>'region' = 'US';  -- ⚠️ Slow: JSONB extraction on every r
 ```
 
 **Generated SQL (SQL Server)**:
+
 ```sql
 SELECT
     SUM(revenue) AS totalRevenue,
@@ -140,6 +143,7 @@ WHERE JSON_VALUE(dimensions, '$.region') = 'US';  -- ⚠️ Slow: JSON parsing o
 ### Performance Issues
 
 **User Complaints**:
+
 - Dashboard takes 5-10 seconds to load
 - Timeout errors during peak traffic
 - Poor user experience
@@ -168,6 +172,7 @@ export FRAISEQL_METRICS_DATABASE_URL=postgres://metrics:pass@localhost:5432/metr
 ```
 
 **Or in `fraiseql.toml`**:
+
 ```toml
 [observability]
 enabled = true
@@ -195,6 +200,7 @@ kubectl logs -f deployment/fraiseql-api | grep observability
 **Wait Period**: 24-48 hours for statistically significant data
 
 **During this time**:
+
 - Metrics automatically collected in background
 - No performance impact (< 5% overhead with 10% sampling)
 - No application changes needed
@@ -431,6 +437,7 @@ psql staging -c "\d tf_sales"
 ### Run Benchmark Queries
 
 **Before Optimization**:
+
 ```bash
 psql staging -c "
 EXPLAIN ANALYZE
@@ -446,6 +453,7 @@ cat benchmark-before.txt
 ```
 
 **After Optimization**:
+
 ```bash
 psql staging -c "
 EXPLAIN ANALYZE
@@ -508,6 +516,7 @@ fraiseql-cli compile schema.json
 ### New Generated SQL
 
 **New PostgreSQL Query** (after schema update):
+
 ```sql
 SELECT
     SUM(revenue) AS totalRevenue,
@@ -634,6 +643,7 @@ LIMIT 5
 | Storage | 520 MB | 535 MB | +15 MB |
 
 **User Feedback**:
+
 - Dashboard load time: 5-10s → **< 1s** ✅
 - No timeout errors ✅
 - Positive user feedback ✅

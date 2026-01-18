@@ -164,6 +164,7 @@ Tag format: `fraiseql:"<field_name>,type=<graphql_type>,nullable=<true|false>"`
 See `examples/basic_schema.go` for a complete example with Users and Posts.
 
 Run it:
+
 ```bash
 cd examples
 go run basic_schema.go
@@ -212,6 +213,7 @@ qb := fraiseql.NewQuery("users")
 ```
 
 Methods:
+
 - `ReturnType(any)` - Set the return type (required)
 - `ReturnsArray(bool)` - Whether query returns a list (default: false)
 - `Nullable(bool)` - Whether result can be null (default: false)
@@ -221,6 +223,7 @@ Methods:
 - `Register()` - Register the query
 
 Example:
+
 ```go
 fraiseql.NewQuery("user").
     ReturnType(User{}).
@@ -268,6 +271,7 @@ fraiseql.NewFactTable("sales").
 ```
 
 Methods:
+
 - `TableName(string)` - Underlying database table name
 - `Measure(name string, aggregates ...string)` - Add a measure (specify aggregation functions like "sum", "avg", "count", "min", "max")
 - `Dimension(name, jsonPath, dataType string)` - Add a dimension with JSON path and data type
@@ -287,6 +291,7 @@ fraiseql.NewAggregateQueryConfig("salesByCategory").
 ```
 
 Methods:
+
 - `FactTableName(string)` - Reference the fact table to aggregate
 - `AutoGroupBy(bool)` - Enable automatic GROUP BY generation
 - `AutoAggregates(bool)` - Enable automatic aggregate function generation
@@ -320,21 +325,25 @@ make coverage
 ### Code Quality
 
 Format code:
+
 ```bash
 make fmt
 ```
 
 Check formatting:
+
 ```bash
 make fmt-check
 ```
 
 Run linter (requires golangci-lint):
+
 ```bash
 make lint
 ```
 
 Run go vet:
+
 ```bash
 make vet
 ```
@@ -383,6 +392,7 @@ Contributions welcome! Please open issues and pull requests on GitHub.
 ---
 
 **FraiseQL v2**: Compiled GraphQL execution engine
+
 - [Official Documentation](https://fraiseql.dev)
 - [GitHub](https://github.com/fraiseql/fraiseql)
 - [Issue Tracker](https://github.com/fraiseql/fraiseql/issues)

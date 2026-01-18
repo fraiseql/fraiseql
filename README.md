@@ -16,6 +16,7 @@ FraiseQL v2 is a **compiled GraphQL execution engine** designed for deterministi
 **Core Concept:** Treat GraphQL as a **declarative interface over a transactional state machine**, not as an application runtime.
 
 **Key Properties:**
+
 - ✅ **Compiled, not interpreted** — All GraphQL semantics resolved at build time
 - ✅ **Deterministic execution** — No resolvers, hooks, or dynamic logic
 - ✅ **Database-centric** — All joins, filters, and derivations belong in the database
@@ -269,6 +270,7 @@ and development (authoring language).
 **Quality:** ✅ Good | **Lines:** 650+ | **Completeness:** 85%
 
 #### 6. **Execution Model Architecture** `docs/architecture/execution-model.md`
+
 - 6-phase query execution pipeline
 - GraphQL validation
 - Authorization enforcement (context extraction, decision algorithm, field-level auth)
@@ -303,6 +305,7 @@ and development (authoring language).
 ### Phase 2: Production Features & Operations (✅ Complete)
 
 #### 8. **Caching Specification** `docs/specs/caching.md`
+
 - Query result caching architecture (memory, database, custom backends)
 - Cache key generation with tenant isolation
 - Cache invalidation strategies via graphql-cascade
@@ -313,6 +316,7 @@ and development (authoring language).
 **Quality:** ✅ Excellent | **Lines:** 450+ | **Completeness:** 95%
 
 #### 9. **Automatic Persisted Queries (APQ)** `docs/specs/persisted-queries.md`
+
 - APQ implementation overview
 - Query hash generation (SHA-256)
 - 3 security modes (OPTIONAL, REQUIRED, DISABLED)
@@ -326,6 +330,7 @@ and development (authoring language).
 **Quality:** ✅ Excellent | **Lines:** 1,100+ | **Completeness:** 95%
 
 #### 10. **Security & Compliance** `docs/specs/security-compliance.md`
+
 - Security profiles (STANDARD, REGULATED, RESTRICTED)
 - SBOM generation (CycloneDX format)
 - NIS2 compliance features
@@ -339,6 +344,7 @@ and development (authoring language).
 **Quality:** ✅ Excellent | **Lines:** 750+ | **Completeness:** 95%
 
 #### 11. **Introspection Control** `docs/specs/introspection.md`
+
 - Introspection policies (DISABLED, AUTHENTICATED, PUBLIC)
 - Security considerations for schema disclosure
 - Production best practices
@@ -349,6 +355,7 @@ and development (authoring language).
 **Quality:** ✅ Excellent | **Lines:** 400+ | **Completeness:** 95%
 
 #### 12. **Scalars Reference** `docs/reference/scalars.md`
+
 - Complete library of 56 custom scalar types
 - 18 domain-specific categories (temporal, geographic, network, financial, vectors, content, identifiers, enterprise, etc.)
 - Type definitions and validation rules
@@ -361,6 +368,7 @@ and development (authoring language).
 **Quality:** ✅ Excellent | **Lines:** 900+ | **Completeness:** 95%
 
 #### 13. **WHERE Operators Reference** `docs/reference/where-operators.md`
+
 - Complete reference for 150+ WHERE clause operators
 - 15 operator categories (basic comparison, string/text, arrays, JSONB, date/time, network, geographic, vector distance, LTree, full-text search, numeric, UUID, enum, boolean, logical)
 - SQL equivalents and performance characteristics
@@ -372,6 +380,7 @@ and development (authoring language).
 **Quality:** ✅ Excellent | **Lines:** 1,200+ | **Completeness:** 95%
 
 #### 14. **Monitoring & Observability Guide** `docs/guides/monitoring.md`
+
 - Prometheus metrics (15+ metric types for queries, mutations, cache, database, errors)
 - OpenTelemetry tracing (OTLP, Jaeger, Zipkin exporters)
 - Kubernetes health checks (/health/live, /health/ready)
@@ -443,6 +452,7 @@ and development (authoring language).
 #### **Total Phase 2 Documentation:** 11 new specifications, ~10,000 lines
 
 **Coverage:**
+
 - ✅ Caching and query optimization
 - ✅ Security and compliance (SBOM, NIS2, introspection control)
 - ✅ Complete scalar type library (56 types)
@@ -579,6 +589,7 @@ The following Phase 2 documentation is now complete:
 - ✅ Comprehensive Testing (ongoing)
 
 **Deliverables:**
+
 - Working Python SDK with all decorators
 - Compiler producing valid CompiledSchema
 - Rust runtime executing all query types
@@ -588,6 +599,7 @@ The following Phase 2 documentation is now complete:
 - Complete documentation
 
 **Success Criteria:**
+
 - Compile a complex real-world schema
 - Execute queries and mutations
 - Pass test suite
@@ -607,6 +619,7 @@ The following Phase 2 documentation is now complete:
 - ⚠️ Document deployment procedures
 
 **Deliverables:**
+
 - All Phase 2 specifications complete
 - Versioning system tested
 - Performance guidelines validated
@@ -751,12 +764,14 @@ FraiseQL enforces strict naming conventions to enable automatic compilation and 
 ## Next Actions
 
 ✅ **Phase 1: Review** (Complete)
+
 - Architecture designed ✅
 - Specifications written ✅
 - Quality assessed ✅
 - Gaps identified ✅
 
 🟡 **Phase 2: Preparation** (This Week)
+
 - [ ] Fix terminology inconsistencies
 - [ ] Add clarifying examples
 - [ ] Create specification index
@@ -764,6 +779,7 @@ FraiseQL enforces strict naming conventions to enable automatic compilation and 
 - [ ] Set up repositories
 
 🟢 **Phase 3: Implementation** (Next Week)
+
 - [ ] Kickoff with team
 - [ ] Begin Python SDK
 - [ ] Begin Rust runtime
@@ -775,15 +791,18 @@ FraiseQL enforces strict naming conventions to enable automatic compilation and 
 ## Questions & Feedback
 
 **Architecture Questions:**
+
 - See `ARCHITECTURE_REVIEW.md` for known gaps
 - Schedule sync with architecture team
 
 **Specification Clarifications:**
+
 - See relevant specification document
 - Check `docs/prd/PRD.md` for context
 - Ask in weekly sync
 
 **Implementation Help:**
+
 - See `NEXT_STEPS.md` for detailed tasks
 - Review examples in relevant specs
 - Refer to existing FraiseQL v1 patterns
@@ -793,6 +812,7 @@ FraiseQL enforces strict naming conventions to enable automatic compilation and 
 ## Success Metrics
 
 ### Phase 1 (8-10 weeks)
+
 ✅ Python SDK + Compiler functional
 ✅ Rust runtime executes queries
 ✅ All database adapters working
@@ -801,12 +821,14 @@ FraiseQL enforces strict naming conventions to enable automatic compilation and 
 ✅ Performance goals met
 
 ### Phase 2 (4-6 weeks)
+
 ✅ Operational specifications complete
 ✅ Versioning system validated
 ✅ Observability implemented
 ✅ Production-ready documentation
 
 ### Beyond (Future)
+
 ❓ Federation (if prioritized)
 ❓ Subscriptions (if prioritized)
 ❓ Arrow plane (if prioritized)
@@ -856,11 +878,13 @@ FraiseQL enforces strict naming conventions to enable automatic compilation and 
 ## Credits
 
 **Specification Authors:**
+
 - Architecture & Authoring Contract: Claude Code (AI)
 - Compilation Pipeline & Execution Model: Claude Code (AI)
 - CDC Format & Schema Conventions: Claude Code (AI)
 
 **Reviewed By:**
+
 - Architecture Team (TBD)
 
 ---

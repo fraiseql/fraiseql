@@ -308,12 +308,12 @@ All methods and classes take a final `options` object argument.  All
 options in this object are `false` by default.  The options supported
 are:
 
-- `loose`  Be more forgiving about not-quite-valid semver strings.
+* `loose`  Be more forgiving about not-quite-valid semver strings.
   (Any resulting output will always be 100% strict compliant, of
   course.)  For backwards compatibility reasons, if the `options`
   argument is a boolean value instead of an object, it is interpreted
   to be the `loose` param.
-- `includePrerelease`  Set to suppress the [default
+* `includePrerelease`  Set to suppress the [default
   behavior](https://github.com/npm/node-semver#prerelease-tags) of
   excluding prerelease tagged versions from ranges unless they are
   explicitly opted into.
@@ -430,9 +430,10 @@ any other overlapping SemVer tuple.
 
 * `clean(version)`: Clean a string to be a valid semver if possible
 
-This will return a cleaned and trimmed semver version. If the provided version is not valid a null will be returned. This does not work for ranges. 
+This will return a cleaned and trimmed semver version. If the provided version is not valid a null will be returned. This does not work for ranges.
 
 ex.
+
 * `s.clean(' = v 2.1.5foo')`: `null`
 * `s.clean(' = v 2.1.5foo', { loose: true })`: `'2.1.5-foo'`
 * `s.clean(' = v 2.1.5-foo')`: `null`

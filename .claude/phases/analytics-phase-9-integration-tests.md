@@ -10,6 +10,7 @@
 ## Objective
 
 Comprehensive integration testing across all analytics features and databases:
+
 - End-to-end query execution tests
 - Multi-database compatibility tests
 - Performance benchmarks
@@ -21,12 +22,14 @@ Comprehensive integration testing across all analytics features and databases:
 ## Context
 
 Phase 9 ensures all analytics components work together correctly across all supported databases. Tests cover:
+
 - PostgreSQL (primary database, full features)
 - MySQL 8.0+ (secondary database, basic features)
 - SQLite 3.25+ (local dev, basic features)
 - SQL Server (enterprise, statistical functions)
 
 **Test Strategy**:
+
 1. Unit tests → Module-level correctness
 2. Integration tests → Cross-module correctness
 3. End-to-end tests → Full pipeline validation
@@ -37,6 +40,7 @@ Phase 9 ensures all analytics components work together correctly across all supp
 ## Files to Create
 
 ### Test Infrastructure
+
 ```
 tests/common/test_db.rs          # Database setup utilities
 tests/common/test_data.rs        # Test data generators
@@ -44,6 +48,7 @@ tests/common/assertions.rs       # Custom assertion helpers
 ```
 
 ### Integration Test Suites
+
 ```
 tests/integration/e2e_aggregate_queries.rs
 tests/integration/e2e_window_functions.rs
@@ -53,6 +58,7 @@ tests/integration/performance_tests.rs
 ```
 
 ### Test Fixtures
+
 ```
 tests/fixtures/fact_tables.sql           # Fact table schemas
 tests/fixtures/sample_data.sql           # Sample data for testing
@@ -68,6 +74,7 @@ tests/fixtures/complex_queries.json      # Complex query scenarios
 **Duration**: 4 hours
 
 **Create `tests/common/test_db.rs`**:
+
 ```rust
 //! Database setup and teardown utilities for integration tests
 
@@ -316,6 +323,7 @@ pub fn generate_test_data(count: usize) -> Vec<TestRow> {
 ```
 
 **Create `tests/common/assertions.rs`**:
+
 ```rust
 //! Custom assertion helpers for analytics tests
 
@@ -378,6 +386,7 @@ pub fn assert_sql_contains(sql: &str, expected: &[&str]) {
 ```
 
 **Verification**:
+
 ```bash
 cargo test -p fraiseql-core --test '*' common::
 ```
@@ -389,6 +398,7 @@ cargo test -p fraiseql-core --test '*' common::
 **Duration**: 6 hours
 
 **Create `tests/integration/e2e_aggregate_queries.rs`**:
+
 ```rust
 //! End-to-end aggregate query tests
 
@@ -748,6 +758,7 @@ fn create_sales_metadata() -> FactTableMetadata {
 ```
 
 **Tests to Add** (8+ test cases):
+
 - ✅ Simple count all
 - ✅ Group by single dimension
 - ✅ Group by multiple dimensions
@@ -761,6 +772,7 @@ fn create_sales_metadata() -> FactTableMetadata {
 - [ ] NULL handling
 
 **Verification**:
+
 ```bash
 cargo test --test e2e_aggregate_queries
 ```
@@ -772,6 +784,7 @@ cargo test --test e2e_aggregate_queries
 **Duration**: 4 hours
 
 **Create `tests/integration/database_compatibility.rs`**:
+
 ```rust
 //! Test analytics features across all databases
 
@@ -850,6 +863,7 @@ fn test_mysql_no_statistical_functions() {
 ```
 
 **Verification**:
+
 ```bash
 cargo test --test database_compatibility
 ```
@@ -861,6 +875,7 @@ cargo test --test database_compatibility
 **Duration**: 3 hours
 
 **Create `tests/integration/performance_tests.rs`**:
+
 ```rust
 //! Performance benchmarks for analytics queries
 
@@ -905,6 +920,7 @@ async fn benchmark_simple_aggregation() {
 ```
 
 **Verification**:
+
 ```bash
 cargo test --test performance_tests -- --ignored --nocapture
 ```
@@ -947,6 +963,7 @@ cargo tarpaulin --out Html --output-dir coverage
 ```
 
 **Expected Output**:
+
 ```
 running 35 tests
 test e2e_aggregate_queries::test_simple_count_all ... ok
@@ -973,17 +990,20 @@ test result: ok. 35 passed; 0 failed; 0 ignored
 ## Notes
 
 **Test Organization**:
+
 - `common/` - Shared test utilities
 - `integration/` - Cross-module integration tests
 - `fixtures/` - SQL schemas and sample data
 
 **Database Setup**:
+
 - PostgreSQL: Docker container on port 5433
 - MySQL: Docker container on port 3307
 - SQLite: In-memory (no setup needed)
 - SQL Server: Docker container on port 1434
 
 **CI/CD Integration**:
+
 ```yaml
 # .github/workflows/test.yml
 name: Analytics Tests
@@ -1007,6 +1027,7 @@ jobs:
 ```
 
 **Test Data Considerations**:
+
 - Generate deterministic data for reproducible tests
 - Use realistic data distributions
 - Include edge cases (nulls, empty strings, etc.)

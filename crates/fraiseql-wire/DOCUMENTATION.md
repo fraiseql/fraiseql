@@ -19,17 +19,20 @@
 ## Core Documentation
 
 ### Essential
+
 - **[README.md](README.md)** – What fraiseql-wire is and why you'd use it
 - **[QUICK_START.md](QUICK_START.md)** – Installation and basic examples
 - **[PRD.md](PRD.md)** – Product requirements and design philosophy
 
 ### Development
+
 - **[DEVELOPMENT.md](DEVELOPMENT.md)** – Local setup, build commands, architecture
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** – Contribution guidelines and workflows
 - **[TESTING_GUIDE.md](TESTING_GUIDE.md)** – Unit, integration, and load tests
 - **[CI_CD_GUIDE.md](CI_CD_GUIDE.md)** – GitHub Actions and release workflow
 
 ### Operational
+
 - **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** – Error diagnosis and solutions
 - **[SECURITY.md](SECURITY.md)** – Security considerations and best practices
 - **[DOCKER_SETUP.md](DOCKER_SETUP.md)** – Docker development environment
@@ -39,6 +42,7 @@
 ## Advanced Topics
 
 ### Performance & Optimization
+
 - **[PERFORMANCE_TUNING.md](PERFORMANCE_TUNING.md)** – Benchmarking and optimization strategies
 - **[BENCHMARK_IMPROVEMENTS.md](BENCHMARK_IMPROVEMENTS.md)** – Performance optimization history
 - **[PERFORMANCE_VALIDATION_RESULTS.md](PERFORMANCE_VALIDATION_RESULTS.md)** – Measured improvements
@@ -46,10 +50,12 @@
 - **[METRICS_PERFORMANCE.md](METRICS_PERFORMANCE.md)** – Metrics collection performance
 
 ### Features
+
 - **[TYPED_STREAMING_GUIDE.md](TYPED_STREAMING_GUIDE.md)** – Type-safe deserialization (Phase 8.2)
 - **[METRICS.md](METRICS.md)** – Metrics and tracing (Phase 8.3-8.4)
 
 ### Project Info
+
 - **[CHANGELOG.md](CHANGELOG.md)** – Release notes and version history
 - **[ROADMAP.md](ROADMAP.md)** – Future plans and priorities
 - **[SECURITY_AUDIT.md](SECURITY_AUDIT.md)** – Security audit results
@@ -61,6 +67,7 @@
 Historical phase documentation has been archived in **[.archive/phases/](.archive/phases/)**.
 
 This includes:
+
 - Complete Phase 7 (Foundation) documentation
 - Complete Phase 8 (8-phase optimization journey) documentation
 - Session notes and intermediate planning documents

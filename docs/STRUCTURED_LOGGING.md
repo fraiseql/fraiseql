@@ -18,6 +18,7 @@ FraiseQL v2 provides a comprehensive structured logging system that outputs all 
 ### Core Components
 
 #### RequestId
+
 Unique identifier for each request, automatically generated using UUID v4.
 
 ```rust
@@ -28,6 +29,7 @@ println!("{}", request_id); // e.g., "550e8400-e29b-41d4-a716-446655440000"
 ```
 
 #### RequestContext
+
 Tracks request-level information for correlation and analysis.
 
 ```rust
@@ -41,6 +43,7 @@ let context = RequestContext::new()
 ```
 
 #### StructuredLogEntry
+
 The main log entry structure containing message, context, metrics, and error information.
 
 ```rust
@@ -54,6 +57,7 @@ println!("{}", entry.to_json_string());
 ```
 
 #### RequestLogger
+
 Convenience wrapper for contextual logging within a request scope.
 
 ```rust
@@ -82,6 +86,7 @@ println!("{}", entry.to_json_string());
 ```
 
 **Output:**
+
 ```json
 {
   "timestamp": "2024-01-16T15:30:45.123Z",
@@ -115,6 +120,7 @@ println!("{}", entry.to_json_string());
 ```
 
 **Output:**
+
 ```json
 {
   "timestamp": "2024-01-16T15:30:45.456Z",
@@ -155,6 +161,7 @@ println!("{}", entry.to_json_string());
 ```
 
 **Output:**
+
 ```json
 {
   "timestamp": "2024-01-16T15:30:45.789Z",
@@ -191,6 +198,7 @@ println!("{}", entry.to_json_string());
 ```
 
 **Output:**
+
 ```json
 {
   "timestamp": "2024-01-16T15:30:46.123Z",
@@ -347,6 +355,7 @@ FraiseQL uses standard log levels:
 ### Storage and Transmission
 
 Estimate log volume:
+
 - Average JSON log entry: ~400-600 bytes
 - 1,000 requests/second: ~400-600 MB/hour
 - Use compression (gzip) for storage and transmission

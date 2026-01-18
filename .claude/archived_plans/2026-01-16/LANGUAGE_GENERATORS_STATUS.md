@@ -46,6 +46,7 @@ FraiseQL v2 has **5 complete language authoring implementations**:
 **Tests**: 45/45 Passing
 
 #### Implementation
+
 - ✅ Type system with struct tag parsing
 - ✅ Thread-safe registry with RWMutex
 - ✅ QueryBuilder and MutationBuilder
@@ -54,6 +55,7 @@ FraiseQL v2 has **5 complete language authoring implementations**:
 - ✅ Zero external dependencies (stdlib only)
 
 #### Code Quality
+
 ```
 Files:        7 core files, 2 test files
 LOC:          2,500+
@@ -63,26 +65,31 @@ Execution:    <5ms
 ```
 
 #### Examples
+
 - ✅ basic_schema.go - Works perfectly
 - ✅ analytics_schema.go - Fact tables work
 - ✅ complete_schema.go - Full example works
 
 #### Tests Passing (45/45)
+
 - types_test.go: 33 tests - Type conversion, field extraction
 - analytics_test.go: 12 tests - Fact tables, aggregates
 
 #### Documentation
+
 - 400+ line README with examples
 - Implementation summary with architecture
 - Contributing guide
 - All code has docstrings
 
 #### What To Do Next
+
 1. Test CLI integration with fraiseql-cli (currently blocked on schema format)
 2. Verify generated schema.json format matches CLI expectations
 3. Consider as reference implementation for other languages
 
 #### Known Issues
+
 - CLI compilation blocked (schema format mismatch - not a Go issue)
 
 ---
@@ -94,6 +101,7 @@ Execution:    <5ms
 **Tests**: 82 tests designed, can't execute (Maven not available)
 
 #### Implementation
+
 - ✅ @GraphQLType, @GraphQLField annotations
 - ✅ TypeConverter (500+ LOC) with 40+ type mappings
 - ✅ TypeInfo metadata class
@@ -105,6 +113,7 @@ Execution:    <5ms
 - ✅ PerformanceMonitor with metrics
 
 #### Code Quality
+
 ```
 Files:        13 core classes
 LOC:          3,000+
@@ -113,6 +122,7 @@ Modules:      core (complete), analytics (future), builders (future)
 ```
 
 #### Test Suite Designed (Not Executable)
+
 - Phase2Test.java: 21 tests - Type system, registry
 - Phase3Test.java: 16 tests - JSON export, formatting
 - Phase4IntegrationTest.java: 9 tests - Real-world scenarios
@@ -120,10 +130,12 @@ Modules:      core (complete), analytics (future), builders (future)
 - Phase6OptimizationTest.java: 19 tests - Caching, performance
 
 #### Examples
+
 - ✅ BasicSchema.java - Blog/CMS app (3 types, 5 queries, 5 mutations)
 - ✅ EcommerceSchema.java - Full e-commerce (7 types, 6 queries, 6 mutations)
 
 #### Documentation
+
 - README.md (45 lines) - Quick start
 - INSTALL.md (75 lines) - Installation & setup
 - API_GUIDE.md (150+ lines) - Complete API reference
@@ -133,11 +145,13 @@ Modules:      core (complete), analytics (future), builders (future)
 - CHANGELOG.md (200+ lines) - Version history by phase
 
 #### What To Do Next
+
 1. Install Maven and run tests: `mvn test`
 2. Test CLI integration once schema format is fixed
 3. Consider for Java/JVM ecosystem official support
 
 #### Known Issues
+
 - Maven not available in environment (not a code issue)
 - Tests not executed (but structure is solid)
 - CLI compilation blocked (schema format issue)
@@ -151,6 +165,7 @@ Modules:      core (complete), analytics (future), builders (future)
 **Tests**: 12 test classes designed, can't execute (Composer vendor not installed)
 
 #### Implementation
+
 - ✅ PHP 8 Attributes (#[GraphQLType], #[GraphQLField], #[GraphQLMethod])
 - ✅ TypeConverter (PHP-to-GraphQL type mapping)
 - ✅ TypeInfo metadata class
@@ -168,6 +183,7 @@ Modules:      core (complete), analytics (future), builders (future)
 - ✅ StaticAPI (static convenience methods)
 
 #### Code Quality
+
 ```
 Files:        15 implementation files + tests
 LOC:          2,500+
@@ -177,6 +193,7 @@ Versions:     Phases 1-6 complete
 ```
 
 #### Test Suite Designed (Not Executable)
+
 - TypeConverterTest.php
 - TypeInfoTest.php
 - FieldDefinitionTest.php
@@ -191,15 +208,18 @@ Versions:     Phases 1-6 complete
 - IntegrationTest.php
 
 #### Examples
+
 - ✅ BasicSchema.php - CRUD operations
 - ✅ EcommerceSchema.php - Complex e-commerce schema
 
 #### Documentation
+
 - Comprehensive doc files in `docs/` directory
 - Example files with detailed comments
 - Inline docblocks throughout
 
 #### Recent Commits (Phases 1-6)
+
 - Phase 1: Foundation & project setup
 - Phase 2: Type system implementation
 - Phase 3: JSON export & schema formatting
@@ -208,11 +228,13 @@ Versions:     Phases 1-6 complete
 - Phase 6: Optimization (caching, performance monitoring)
 
 #### What To Do Next
+
 1. Install Composer dependencies: `composer install` in fraiseql-php/
 2. Run tests: `vendor/bin/phpunit tests/`
 3. Test CLI integration once schema format is fixed
 
 #### Known Issues
+
 - Composer vendor dependencies not installed (environmental)
 - Tests not executed (but structure verified as solid)
 - CLI compilation blocked (schema format issue)
@@ -226,6 +248,7 @@ Versions:     Phases 1-6 complete
 **Tests**: 0/3 Passing (ModuleNotFoundError)
 
 #### Implementation
+
 - ✅ @fraiseql.type decorator
 - ✅ @fraiseql.query decorator
 - ✅ @fraiseql.mutation decorator
@@ -236,6 +259,7 @@ Versions:     Phases 1-6 complete
 - ✅ schema.py (JSON export)
 
 #### Code Quality
+
 ```
 Files:        6 implementation files
 LOC:          529 (excluding tests)
@@ -244,6 +268,7 @@ Python:       3.10+ (modern syntax)
 ```
 
 #### Test Status ❌
+
 ```
 test_decorators.py:    import error
 test_types.py:         import error
@@ -251,6 +276,7 @@ test_analytics.py:     import error
 ```
 
 **Root Cause**: Package not installed in editable mode
+
 ```bash
 # Currently:
 $ cd fraiseql-python && python -m pytest tests/
@@ -262,10 +288,12 @@ $ cd fraiseql-python && python -m pytest tests/
 ```
 
 #### Examples
+
 - ✅ examples/basic_schema.py - User, Post types
 - ✅ examples/analytics_schema.py - Fact tables
 
 #### Documentation
+
 - ✅ **GETTING_STARTED.md** (comprehensive)
 - ✅ **DECORATORS_REFERENCE.md** (full API reference)
 - ✅ **ANALYTICS_GUIDE.md** (fact tables guide)
@@ -276,18 +304,21 @@ $ cd fraiseql-python && python -m pytest tests/
 Total: 53 KB of documentation
 
 #### Dependencies
+
 ```toml
 requires-python = ">=3.10"
 dev-dependencies = ["pytest>=8.0", "ruff>=0.1"]
 ```
 
 #### What To Do Next
+
 1. Install package in editable mode: `pip install -e fraiseql-python/`
 2. Run tests: `pytest fraiseql-python/tests/`
 3. Verify all tests pass
 4. Test CLI integration
 
 #### How To Fix (Trivial - 5 minutes)
+
 ```bash
 cd /home/lionel/code/fraiseql
 pip install -e fraiseql-python/
@@ -306,6 +337,7 @@ python -m pytest tests/ -v
 **Tests**: 10/10 Passing (only registry tests)
 
 #### Implementation
+
 - ✅ @Type decorator (with configuration)
 - ✅ @Query decorator
 - ✅ @Mutation decorator
@@ -316,6 +348,7 @@ python -m pytest tests/ -v
 - ✅ schema.ts (JSON export)
 
 #### Code Quality
+
 ```
 Files:        6 implementation files, 1 test file
 LOC:          1,800+
@@ -325,6 +358,7 @@ Node:         18.0.0+
 ```
 
 #### Test Status ✅ (Partial)
+
 ```
 tests/registry.test.ts:  10/10 PASSING ✅
   - Type registration: 2 tests
@@ -337,6 +371,7 @@ tests/registry.test.ts:  10/10 PASSING ✅
 ```
 
 #### Examples ❌ (Both Broken)
+
 ```
 npm run example:basic  ❌ ERROR
 npm run example:analytics ❌ ERROR
@@ -344,6 +379,7 @@ Error: Decorators are not valid here (7 instances)
 ```
 
 **Root Cause**: TypeScript decorator syntax requires specific tsconfig.json and experimental flag
+
 ```json
 {
   "compilerOptions": {
@@ -356,6 +392,7 @@ Error: Decorators are not valid here (7 instances)
 Current tsconfig.json doesn't have these flags enabled for decorator execution.
 
 #### Documentation
+
 - ✅ **README.md** (480 lines)
   - Quick start guide
   - API reference for all decorators
@@ -366,12 +403,14 @@ Current tsconfig.json doesn't have these flags enabled for decorator execution.
 - ❌ Empty docs/ directory
 
 #### Known Issues
+
 1. **Decorator Execution**: Examples fail due to tsx not recognizing decorator syntax
 2. **Manual Registration Workaround**: Works with registerQuery/registerMutation API
 3. **Runtime Type Loss**: TypeScript generics don't preserve type info at runtime
    - Workaround: Manual registerTypeFields() required
 
 #### What To Do Next
+
 1. Fix tsconfig.json to enable experimentalDecorators and emitDecoratorMetadata
 2. Update tsx/esbuild configuration
 3. Run examples: `npm run example:basic`
@@ -379,6 +418,7 @@ Current tsconfig.json doesn't have these flags enabled for decorator execution.
 5. Test CLI integration
 
 #### How To Fix (10 minutes)
+
 ```json
 // tsconfig.json needs:
 {
@@ -403,6 +443,7 @@ And update build/run scripts to handle decorators properly.
 All generators produce valid schema.json files, but fraiseql-cli rejects them.
 
 ### Attempted Integration
+
 ```bash
 # Test with Go (most complete)
 $ go run examples/basic_schema.go > schema.json
@@ -411,9 +452,11 @@ Error: Failed to parse schema.json
 ```
 
 ### Root Cause Analysis
+
 Generated schema format ≠ CLI expected format
 
 **Need to investigate**:
+
 1. What schema.json format fraiseql-cli expects
 2. Whether generated schemas need transformation
 3. Whether CLI compiler has schema format validation issues
@@ -421,6 +464,7 @@ Generated schema format ≠ CLI expected format
 ### Schema Format Examples
 
 **Generated by Go:**
+
 ```json
 {
   "types": [
@@ -439,11 +483,13 @@ Generated schema format ≠ CLI expected format
 ```
 
 **CLI Compiled Format (schema.compiled.json):**
+
 - Not clear from documentation
 - Appears to require additional metadata
 - May include SQL templates and optimization hints
 
 ### Next Steps
+
 1. Review fraiseql-cli schema parser implementation
 2. Compare generated format with expected format
 3. Either:
@@ -456,6 +502,7 @@ Generated schema format ≠ CLI expected format
 ## Summary: What Works & What Doesn't
 
 ### What Works ✅
+
 | Language | Decorators | JSON Export | Examples | Tests | Docs |
 |----------|-----------|-------------|----------|-------|------|
 | Go       | ✅        | ✅         | ✅       | ✅    | ✅   |
@@ -467,6 +514,7 @@ Generated schema format ≠ CLI expected format
 *Tests designed but not executable in current environment
 
 ### What Doesn't Work ❌
+
 - **All**: CLI integration (schema format mismatch)
 - **Python**: Import errors (trivial fix)
 - **TypeScript**: Decorator execution (configuration issue)
@@ -477,6 +525,7 @@ Generated schema format ≠ CLI expected format
 ## Action Items by Priority
 
 ### P0: CRITICAL
+
 1. **Investigate CLI Schema Format**
    - [ ] Review fraiseql-cli schema parser
    - [ ] Document expected schema format
@@ -484,6 +533,7 @@ Generated schema format ≠ CLI expected format
    - Effort: 2-4 hours
 
 ### P1: HIGH (Unblock All Languages)
+
 1. **Python Package Install**
    - [ ] `pip install -e fraiseql-python/`
    - [ ] Run tests: `pytest fraiseql-python/tests/ -v`
@@ -511,6 +561,7 @@ Generated schema format ≠ CLI expected format
    - Expected: All 12 test classes passing ✅
 
 ### P2: MEDIUM (After P0 & P1)
+
 1. **Test CLI Integration**
    - [ ] Once schema format is fixed
    - [ ] Test each language: `fraiseql-cli compile schema.json`
@@ -523,6 +574,7 @@ Generated schema format ≠ CLI expected format
    - Effort: 2 hours
 
 ### P3: LOW (Polish)
+
 1. **TypeScript Decorator Support**
    - [ ] Fix runtime type introspection
    - [ ] Eliminate manual registerTypeFields() need
@@ -538,11 +590,13 @@ Generated schema format ≠ CLI expected format
 ## Success Criteria
 
 ### Phase: Quick Fixes (Today)
+
 - [ ] Python: 3/3 tests passing
 - [ ] TypeScript: Examples running successfully
 - [ ] All 5 languages generate valid schema.json
 
 ### Phase: Full Integration (This Week)
+
 - [ ] Java: 82/82 tests passing
 - [ ] PHP: All 12 test classes passing
 - [ ] Go: Still 45/45 passing
@@ -550,6 +604,7 @@ Generated schema format ≠ CLI expected format
 - [ ] TypeScript: Still 10/10 passing + examples work
 
 ### Phase: CLI Integration (Next Week)
+
 - [ ] Schema format issue resolved
 - [ ] All 5 languages compile with fraiseql-cli
 - [ ] schema.compiled.json generated successfully

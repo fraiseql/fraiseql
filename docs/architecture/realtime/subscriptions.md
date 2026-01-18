@@ -22,6 +22,7 @@ FraiseQL subscriptions are **compiled projections of database events** delivered
 ### Why Subscriptions Work Differently in FraiseQL
 
 **Traditional GraphQL Subscriptions:**
+
 ```
 Client subscribes to User.nameChanged
     ↓
@@ -33,6 +34,7 @@ Resolver emits value to client
 ```
 
 **FraiseQL Subscriptions:**
+
 ```
 Database commits transaction (user.name updated)
     ↓
@@ -48,21 +50,25 @@ Delivered via transport adapter (graphql-ws, webhook, Kafka)
 ### Use Cases
 
 **1. Real-Time UI Updates**
+
 - Client subscribes to OrderCreated events
 - Receives updates within typical target envelope of <10ms (local network, reference deployment)
 - No polling, deterministic delivery
 
 **2. Event Streaming to External Systems**
+
 - Backend service consumes events via Kafka adapter
 - Replicates data to data warehouse
 - Replays events from any point in time
 
 **3. Multi-Tenant Change Notification**
+
 - Organization receives updates for their entities only
 - Row-level filtering enforced at compile time
 - No cross-tenant data leakage
 
 **4. Audit Trail Emission**
+
 - All mutations automatically create subscription events
 - Events sent to logging/analytics system
 - Immutable record of all changes
@@ -139,28 +145,33 @@ Delivered via transport adapter (graphql-ws, webhook, Kafka)
 ### 2.2 Components
 
 **Database Layer (PostgreSQL)**
+
 - Transactions commit changes to `tb_*` tables
 - LISTEN/NOTIFY notifies subscription system of changes
 - CDC captures changes for durability and replay
 
 **Event Buffer (`tb_entity_change_log`)**
+
 - Persists all events with monotonic sequence numbers
 - Enables replay from any point in time
 - Acts as backpressure buffer if transport is slow
 - Debezium-compatible envelope format
 
 **Subscription Matcher**
+
 - Evaluates compiled subscription filters
 - Groups events by destination (graphql-ws client, webhook, Kafka topic)
 - Transforms event to projection shape
 
 **Transport Adapters**
+
 - `graphql-ws`: WebSocket for browser clients
 - `webhooks`: HTTP POST to external endpoints
 - `kafka`: Push to Kafka topic
 - `grpc`: Future extension for service-to-service
 
 **Client Connections**
+
 - Establish transport connection (WebSocket, webhook, etc.)
 - Authenticate and authorize
 - Subscribe to specific subscription types with filters
@@ -189,6 +200,7 @@ All subscription events follow this structure:
 ```
 
 **Mapping:**
+
 - `event_name`: Subscription type name (e.g., `OrderCreated`)
 - `entity_name`: GraphQL type (e.g., `Order`)
 - `operation`: CREATE, UPDATE, DELETE
@@ -274,6 +286,7 @@ When the schema is compiled, the compiler:
    - Soft-delete logic applied automatically (WHERE deleted_at IS NULL)
 
 4. **Generates subscription dispatch table**
+
    ```json
    {
      "subscriptions": {
@@ -427,6 +440,7 @@ export function LiveOrders() {
 ```
 
 **Common errors:**
+
 - `AUTHENTICATION_REQUIRED` — User not authenticated
 - `FORBIDDEN` — User lacks authorization for subscription
 - `SUBSCRIPTION_NOT_FOUND` — Subscription type not defined in schema
@@ -490,6 +504,7 @@ For high-throughput consumption by backend systems.
 Topic name: `fraiseql.{entity_type}.{operation}`
 
 Examples:
+
 - `fraiseql.order.created`
 - `fraiseql.user.updated`
 - `fraiseql.order.deleted`
@@ -643,6 +658,7 @@ subscription OrderCreated(
 ```
 
 **At runtime:**
+
 1. Client provides variables: `{ "since_date": "2026-01-01", "min_amount": 50.00 }`
 2. Compiler validates variable types match WHERE operator expectations
 3. SQL predicate: `WHERE user_id = $1 AND created_at > $2 AND amount >= $3`
@@ -653,6 +669,7 @@ subscription OrderCreated(
 Subscriptions enforce authorization rules at compile time with runtime-safe parameter binding:
 
 **How it works:**
+
 - Authorization rules are **defined and validated** at schema compile time (schema defines who can access what)
 - Authorization values are **bound safely** at runtime (context.user_id, context.role, etc. resolved when subscription is established)
 - No dynamic authorization logic—filters are deterministic SQL predicates evaluated by database
@@ -861,6 +878,7 @@ FOR EACH ROW EXECUTE FUNCTION notify_change();
 ```
 
 **Advantages (Reference Implementation):**
+
 - Sub-millisecond latency (in-process notification)
 - No additional infrastructure (built-in to PostgreSQL)
 - Logical decoding for durability and replay
@@ -868,6 +886,7 @@ FOR EACH ROW EXECUTE FUNCTION notify_change();
 - Full feature parity with subscription architecture
 
 **Limitations:**
+
 - Notifications lost if server restarts (use CDC for durability)
 - CDC requires enterprise features or wal2json plugin
 - Single database only (no cross-database subscriptions)
@@ -898,11 +917,13 @@ VALUES ('Order', NEW.id, 'INSERT', JSON_OBJECT(...));
 ```
 
 **Advantages:**
+
 - Scalable to large datasets
 - Debezium ecosystem mature and well-supported
 - Works with managed MySQL services (AWS RDS, Cloud SQL)
 
 **Limitations:**
+
 - Additional infrastructure (Debezium/maxwell)
 - Higher latency (seconds vs milliseconds)
 - Outbox pattern required (separate table)
@@ -928,11 +949,13 @@ ORDER BY __$seqval;
 ```
 
 **Advantages:**
+
 - Built-in to SQL Server (no plugins)
 - Mature, enterprise-grade CDC
 - Integrated with query execution
 
 **Limitations:**
+
 - Enterprise/Standard editions only (not Express)
 - Overhead on transactional workload
 - Slightly higher latency than LISTEN/NOTIFY
@@ -962,10 +985,12 @@ VALUES ('Order', NEW.id, 'INSERT', json(...));
 ```
 
 **Advantages:**
+
 - No additional infrastructure
 - Suitable for development/testing
 
 **Limitations:**
+
 - Pull-based only (clients must poll)
 - In-memory (events lost on disconnect)
 - Single process only (no network clients)
@@ -998,6 +1023,7 @@ impl CDCBackend for SQLiteCDC { ... }
 Subscriptions are **compiled at schema build time** into the CompiledSchema:
 
 **Compile-time processing:**
+
 - Parse subscription declarations (all authoring languages)
 - Validate subscription fields against event entity types
 - Compile WHERE filters to SQL predicates
@@ -1006,6 +1032,7 @@ Subscriptions are **compiled at schema build time** into the CompiledSchema:
 - Type-check against type system (same rules as queries/mutations)
 
 **Output:** Subscription metadata in CompiledSchema includes:
+
 - Event entity type(s) and operation types (INSERT/UPDATE/DELETE)
 - WHERE filter predicates
 - Field projection list
@@ -1017,15 +1044,18 @@ Subscriptions are **compiled at schema build time** into the CompiledSchema:
 At runtime, subscriptions follow a unified event pipeline:
 
 **PostgreSQL (primary mechanism):**
+
 - LISTEN/NOTIFY: Fast, in-process notification of database changes
 - Triggers: Capture changes to `tb_entity_change_log`
 
 **Other databases (same event structure):**
+
 - MySQL: CDC via Debezium or Maxwell
 - SQL Server: Native Change Data Capture (built-in)
 - SQLite: Trigger-based capture to temporary table
 
 **Event buffer:** All events written to `tb_entity_change_log` with:
+
 - Monotonic sequence numbers (for replay and ordering)
 - Debezium-compatible envelope format
 - Full before/after data
@@ -1036,21 +1066,25 @@ At runtime, subscriptions follow a unified event pipeline:
 Same event stream dispatched to multiple transports simultaneously:
 
 **graphql-ws (WebSocket)** — Real-time UI clients
+
 - Standard graphql-ws protocol
 - Sub-millisecond latency (reference deployment)
 - Connection pooling and state management
 
 **Webhooks** — External system integration
+
 - Outgoing HTTP POST with signed payloads
 - Retry logic with exponential backoff
 - Delivery status tracking
 
 **Kafka** — Event streaming to data warehouses
+
 - Producer integration with topic mapping
 - Offset tracking for consumer resume
 - Batching and buffer management
 
 **gRPC** — Inter-service events (future)
+
 - Server streaming for scalable event delivery
 - Language-agnostic protocol
 - Connection multiplexing
@@ -1060,12 +1094,14 @@ Same event stream dispatched to multiple transports simultaneously:
 Authorization enforced at **event capture time** (not delivery time):
 
 **Compile-time rules:**
+
 - WHERE clauses applied to event stream
 - Row-level security policies enforced
 - Field-level masking/redaction applied
 - Multi-tenant isolation guaranteed
 
 **Runtime binding:**
+
 - Auth context variables resolved per subscriber
 - User-specific filtering applied
 - Compliance audits generated
@@ -1103,11 +1139,13 @@ Total: ~10ms (sub-second perceived latency)
 ### 9.2 Throughput
 
 **Concurrent subscriptions:**
+
 - Single process: 1,000-10,000 concurrent WebSocket connections (depends on memory)
 - Horizontal scaling: Multiple FraiseQL instances behind load balancer
 - Event buffering: `tb_entity_change_log` handles burst traffic
 
 **Event throughput (observed in reference deployments):**
+
 - PostgreSQL LISTEN/NOTIFY: 10,000+ events/second (target)
 - Webhook delivery: Limited by HTTP endpoint capacity (external factor)
 - Kafka: 100,000+ events/second (broker-dependent; target with typical configurations)
@@ -1115,11 +1153,13 @@ Total: ~10ms (sub-second perceived latency)
 ### 9.3 Memory Usage
 
 **Per subscription:**
+
 - graphql-ws connection: ~10-50 KB (WebSocket buffer)
 - Event filter state: Negligible (compiled SQL predicates)
 - Buffered events: 1-10 MB (configurable retention)
 
 **Example:** 1,000 concurrent subscriptions (reference deployment)
+
 - Connection buffers: ~50 MB
 - Event buffer: ~100 MB
 - **Total observed: ~150 MB** (typical, single process)
@@ -1127,11 +1167,13 @@ Total: ~10ms (sub-second perceived latency)
 ### 9.4 Resource Utilization
 
 **CPU:**
+
 - Event filtering: <1% per 1,000 events/second (database-side)
 - GraphQL transformation: <1% per 1,000 events/second (deterministic)
 - Negligible overhead for idle subscriptions
 
 **Network:**
+
 - graphql-ws keeps connection open (minimal bandwidth if idle)
 - Webhook bursts: Limited by retry backoff
 - Kafka: Configurable batch size
@@ -1160,6 +1202,7 @@ Total: ~10ms (sub-second perceived latency)
 - Execute arbitrary user code
 - Modify subscription filter at runtime (must be declared at compile time)
 - Subscribe across multiple entities in single query
+
   ```graphql
   # NOT ALLOWED: Subscribes to Order changes, but also User changes
   subscription {
@@ -1167,11 +1210,13 @@ Total: ~10ms (sub-second perceived latency)
     userUpdated { id }
   }
   ```
+
 - Guarantee global event ordering (only per-entity ordering)
 - Transform events via resolvers
 - Access fields not declared in subscription schema
 
 **Why these limitations exist:**
+
 - Subscriptions are **projections**, not programs
 - Filters must be compile-time deterministic
 - No user code execution (aligned with FraiseQL philosophy)
@@ -1179,11 +1224,13 @@ Total: ~10ms (sub-second perceived latency)
 ### 10.3 Delivery Guarantees
 
 **Guaranteed:**
+
 - At-least-once delivery (events not lost)
 - Per-entity ordering (events for same entity in order)
 - Event idempotence (can process same event twice safely)
 
 **NOT guaranteed:**
+
 - Exactly-once delivery (transport-dependent)
 - Global event ordering (use event sequence_number for ordering)
 - Delivery to all transports simultaneously (Kafka may lag WebSocket)
@@ -1191,21 +1238,25 @@ Total: ~10ms (sub-second perceived latency)
 ### 10.4 Database Limitations
 
 **PostgreSQL:**
+
 - LISTEN/NOTIFY lost on server restart (use CDC/WAL for durability)
 - No cross-database subscriptions
 - Logical decoding requires wal_level=logical
 
 **MySQL:**
+
 - Requires Debezium/maxwell (additional infrastructure)
 - Higher latency than PostgreSQL (seconds vs milliseconds)
 - Binary log must be enabled
 
 **SQL Server:**
+
 - CDC available only in Standard+ editions
 - Overhead on transactional load
 - Enterprise licensing
 
 **SQLite:**
+
 - Pull-based only (no push)
 - In-memory (no durability)
 - Single process (no network clients)
@@ -1233,6 +1284,7 @@ class OrderCreated:
 WHERE clauses enforce row-level access control through compile-time rule definition and runtime-safe parameter binding:
 
 **Mechanism:**
+
 - Authorization rules **defined** at compile time in schema (WHERE clause states who can access what)
 - Authorization values **bound** at runtime (context.user_id, context.org_id resolved from AuthContext when subscription established)
 - Filters are deterministic SQL predicates—no dynamic logic
@@ -1551,6 +1603,7 @@ fraiseql.subscription.error_count      # Delivery failures
 ### C. Connection Pool Sizing
 
 **Recommendation:**
+
 - Pool size = (expected_concurrent_subscriptions / 10) + overhead
 - Default: 20 connections
 - Monitor connection count and adjust
@@ -1571,15 +1624,17 @@ config = FraiseQLConfig(
 ### D. References
 
 **Related specifications:**
+
 - `docs/specs/cdc-format.md` — CDC event structure and format
 - `docs/specs/schema-conventions.md section 6` — `tb_entity_change_log` table definition
 - `docs/architecture/core/execution-model.md section 9.3` — CDC integration
 - Apollo Federation v2: `docs/architecture/integration/federation.md` — Cross-subgraph subscriptions (future)
 
 **External standards:**
-- graphql-ws protocol: https://github.com/enisdenjo/graphql-ws/blob/master/PROTOCOL.md
-- Debezium format: https://debezium.io/
-- Kafka consumers: https://kafka.apache.org/documentation/#consumerconfigs
+
+- graphql-ws protocol: <https://github.com/enisdenjo/graphql-ws/blob/master/PROTOCOL.md>
+- Debezium format: <https://debezium.io/>
+- Kafka consumers: <https://kafka.apache.org/documentation/#consumerconfigs>
 
 ---
 
@@ -1588,6 +1643,7 @@ config = FraiseQLConfig(
 **Subscriptions in FraiseQL are event projections from the database, not GraphQL resolver-based subscriptions.**
 
 **Key properties:**
+
 - ✅ Database-native (LISTEN/NOTIFY, CDC)
 - ✅ Compiled, not interpreted
 - ✅ Transport-agnostic (graphql-ws, webhooks, Kafka, etc.)
@@ -1595,6 +1651,7 @@ config = FraiseQLConfig(
 - ✅ Durable (buffered in `tb_entity_change_log`)
 
 **Architecture:**
+
 1. Database transaction commits
 2. Change captured via LISTEN/NOTIFY or CDC
 3. Event buffered in `tb_entity_change_log`
@@ -1606,11 +1663,13 @@ config = FraiseQLConfig(
 **For external systems:** Webhooks with retry logic
 
 **Security:**
+
 - Row-level filtering enforced at compile time
 - No cross-tenant data leakage
 - Authorization via AuthContext
 
 **Limitations:**
+
 - Subscriptions are read-only (no mutations)
 - Filters compile-time determined
 - Per-entity ordering only

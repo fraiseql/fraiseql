@@ -140,12 +140,14 @@ scheduler.add_job(key_manager.rotate_data_key, trigger="interval", hours=1)
 ```
 
 **Performance**:
+
 - `initialize()`: 50-200ms (one-time at startup)
 - `local_encrypt()`: < 1 microsecond
 - `local_decrypt()`: < 1 microsecond
 - `rotate_data_key()`: 50-200ms (background task)
 
 **Envelope Encryption**:
+
 ```
 KMS stores: Master key (never leaves KMS)
 Application stores: Data key (AES-256) encrypted by master key
@@ -169,10 +171,12 @@ plaintext = await key_manager.decrypt(encrypted, context={"purpose": "api_key_en
 ```
 
 **Performance**:
+
 - `encrypt()`: 50-200ms (contacts KMS)
 - `decrypt()`: 50-200ms (contacts KMS)
 
 **Use Cases**:
+
 - API key encryption (rare, high-security)
 - Master password hashing (rare)
 - Credential storage (infrequent)
@@ -197,6 +201,7 @@ Encrypted data
 ```
 
 **Security Properties**:
+
 - **Confidentiality**: AES-256 (256-bit key)
 - **Authenticity**: GCM authentication tag
 - **Uniqueness**: Random nonce per encryption
@@ -226,6 +231,7 @@ provider = VaultKMSProvider(config)
 ```
 
 **Vault Setup** (one-time):
+
 ```bash
 # Enable transit secrets engine
 vault secrets enable transit
@@ -252,6 +258,7 @@ vault write auth/approle/role/app policies="app"
 ```
 
 **Authentication Methods**:
+
 - Token (shown above)
 - Kubernetes auth (in K8s cluster)
 - AppRole auth (recommended for CI/CD)
@@ -274,6 +281,7 @@ provider = AWSKMSProvider(config)
 ```
 
 **Key ID Formats**:
+
 ```
 arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012
 alias/my-encryption-key
@@ -281,6 +289,7 @@ alias/my-encryption-key
 ```
 
 **Permissions Required**:
+
 ```json
 {
   "Version": "2012-10-17",
@@ -318,6 +327,7 @@ provider = GCPKMSProvider(config)
 ```
 
 **Key ID Format**:
+
 ```
 projects/my-project/locations/global/keyRings/my-keyring/cryptoKeys/my-key
 ```

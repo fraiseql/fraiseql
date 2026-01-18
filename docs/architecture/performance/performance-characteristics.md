@@ -62,6 +62,7 @@ Overhead:           7ms         (parsing, auth, response)
 ```
 
 **Breakdown:**
+
 - Parsing & validation: 0.5ms
 - Authorization: 0.5ms
 - Parameter binding: 0.5ms
@@ -90,6 +91,7 @@ Overhead:          10ms         (parsing, auth, response)
 ```
 
 **Breakdown:**
+
 - Parsing & validation: 0.5ms
 - Authorization: 1ms
 - Parameter binding: 0.5ms
@@ -119,6 +121,7 @@ Cold local cache:   100ms ± 10ms (local + federation)
 ```
 
 **Breakdown:**
+
 - Local query: 12ms
 - HTTP overhead: 5ms (connection + headers)
 - Remote database: 60ms (on remote subgraph)

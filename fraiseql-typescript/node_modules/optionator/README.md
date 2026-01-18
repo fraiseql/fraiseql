@@ -1,4 +1,5 @@
 # Optionator
+
 <a name="optionator" />
 
 Optionator is a JavaScript/Node.js option parsing and help generation library used by [eslint](http://eslint.org), [Grasp](http://graspjs.com), [LiveScript](http://livescript.net), [esmangle](https://github.com/estools/esmangle), [escodegen](https://github.com/estools/escodegen), and [many more](https://www.npmjs.com/browse/depended/optionator).
@@ -8,6 +9,7 @@ For an online demo, check out the [Grasp online demo](http://www.graspjs.com/#de
 [About](#about) &middot; [Usage](#usage) &middot; [Settings Format](#settings-format) &middot; [Argument Format](#argument-format)
 
 ## Why?
+
 The  problem with other option parsers, such as `yargs` or `minimist`, is they just accept all input, valid or not.
 With Optionator, if you mistype an option, it will give you an error (with a suggestion for what you meant).
 If you give the wrong type of argument for an option, it will give you an error rather than supplying the wrong input to your application.
@@ -21,6 +23,7 @@ If you give the wrong type of argument for an option, it will give you an error 
 Other helpful features include reformatting the help text based on the size of the console, so that it fits even if the console is narrow, and accepting not just an array (eg. process.argv), but a string or object as well, making things like testing much easier.
 
 ## About
+
 Optionator uses [type-check](https://github.com/gkz/type-check) and [levn](https://github.com/gkz/levn) behind the scenes to cast and verify input according the specified types.
 
 MIT license. Version 0.9.4
@@ -32,6 +35,7 @@ For updates on Optionator, [follow me on twitter](https://twitter.com/gkzahariev
 Optionator is a Node.js module, but can be used in the browser as well if packed with webpack/browserify.
 
 ## Usage
+
 `require('optionator');` returns a function. It has one property, `VERSION`, the current version of the library as a string. This function is called with an object specifying your options and other information, see the [settings format section](#settings-format). This in turn returns an object with three properties, `parse`, `parseArgv`, `generateHelp`, and `generateHelpForOption`, which are all functions.
 
 ```js
@@ -60,17 +64,21 @@ if (options.help) {
 ```
 
 ### parse(input, parseOptions)
+
 `parse` processes the `input` according to your settings, and returns an object with the results.
 
 ##### arguments
+
 * input - `[String] | Object | String` - the input you wish to parse
 * parseOptions - `{slice: Int}` - all options optional
-    - `slice` specifies how much to slice away from the beginning if the input is an array or string - by default `0` for string, `2` for array (works with `process.argv`)
+  * `slice` specifies how much to slice away from the beginning if the input is an array or string - by default `0` for string, `2` for array (works with `process.argv`)
 
 ##### returns
+
 `Object` - the parsed options, each key is a camelCase version of the option name (specified in dash-case), and each value is the processed value for that option. Positional values are in an array under the `_` key.
 
 ##### example
+
 ```js
 parse(['node', 't.js', '--count', '2', 'positional']); // {count: 2, _: ['positional']}
 parse('--count 2 positional');                         // {count: 2, _: ['positional']}
@@ -78,31 +86,39 @@ parse({count: 2, _:['positional']});                   // {count: 2, _: ['positi
 ```
 
 ### parseArgv(input)
+
 `parseArgv` works exactly like `parse`, but only for array input and it slices off the first two elements.
 
 ##### arguments
+
 * input - `[String]` - the input you wish to parse
 
 ##### returns
+
 See "returns" section in "parse"
 
 ##### example
+
 ```js
 parseArgv(process.argv);
 ```
 
 ### generateHelp(helpOptions)
+
 `generateHelp` produces help text based on your settings.
 
 ##### arguments
+
 * helpOptions - `{showHidden: Boolean, interpolate: Object}` - all options optional
-    - `showHidden` specifies whether to show options with `hidden: true` specified, by default it is `false`
-    - `interpolate` specify data to be interpolated in `prepend` and `append` text, `{{key}}` is the format - eg. `generateHelp({interpolate:{version: '0.4.2'}})`, will change this `append` text: `Version {{version}}` to `Version 0.4.2`
+  * `showHidden` specifies whether to show options with `hidden: true` specified, by default it is `false`
+  * `interpolate` specify data to be interpolated in `prepend` and `append` text, `{{key}}` is the format - eg. `generateHelp({interpolate:{version: '0.4.2'}})`, will change this `append` text: `Version {{version}}` to `Version 0.4.2`
 
 ##### returns
+
 `String` - the generated help text
 
 ##### example
+
 ```js
 generateHelp(); /*
 "Usage: cmd [options] positional
@@ -115,15 +131,19 @@ Version  1.0.0
 ```
 
 ### generateHelpForOption(optionName)
+
 `generateHelpForOption` produces expanded help text for the specified with `optionName` option. If an `example` was specified for the option, it will be displayed,  and if a `longDescription` was specified, it will display that instead of the `description`.
 
 ##### arguments
+
 * optionName - `String` - the name of the option to display
 
 ##### returns
+
 `String` - the generated help text for the option
 
 ##### example
+
 ```js
 generateHelpForOption('count'); /*
 "-c, --count Int
@@ -133,6 +153,7 @@ example: cmd --count 2
 ```
 
 ## Settings Format
+
 When your `require('optionator')`, you get a function that takes in a settings object. This object has the type:
 
     {
@@ -173,6 +194,7 @@ When your `require('optionator')`, you get a function that takes in a settings o
 All of the properties are optional (the `Maybe` has been excluded for brevities sake), except for having either `heading: String` or `option: String` in each object in the `options` array.
 
 ### Top Level Properties
+
 * `prepend` is an optional string to be placed before the options in the help text
 * `append` is an optional string to be placed after the options in the help text
 * `options` is a required array specifying your options and headings, the options and headings will be displayed in the order specified
@@ -185,9 +207,11 @@ All of the properties are optional (the `Maybe` has been excluded for brevities 
 * `defaults` is an optional object following the option properties format, which specifies default values for all options. A default will be overridden if manually set. For example, you can do `default: { type: "String" }` to set the default type of all options to `String`, and then override that default in an individual option by setting the `type` property
 
 #### Heading Properties
+
 * `heading` a required string, the name of the heading
 
 #### Option Properties
+
 * `option` the required name of the option - use dash-case, without the leading dashes
 * `alias` is an optional string or array of strings which specify any aliases for the option
 * `type` is a required string in the [type check](https://github.com/gkz/type-check) [format](https://github.com/gkz/type-check#type-format), this will be used to cast the inputted value and validate it
@@ -199,6 +223,7 @@ All of the properties are optional (the `Maybe` has been excluded for brevities 
 * `concatRepeatedArrays` is an optional boolean or tuple with boolean and options object (defaults to `false`) - when set to `true` and an option contains an array value and is repeated, the subsequent values for the flag will be appended rather than overwriting the original value - eg. option `g` of type `[String]`: `-g a -g b -g c,d` will result in `['a','b','c','d']`
 
  You can supply an options object by giving the following value: `[true, options]`. The one currently supported option is `oneValuePerFlag`, this only allows one array value per flag. This is useful if your potential values contain a comma.
+
 * `mergeRepeatedObjects` is an optional boolean (defaults to `false`) - when set to `true` and an option contains an object value and is repeated, the subsequent values for the flag will be merged rather than overwriting the original value - eg. option `g` of type `Object`: `-g a:1 -g b:2 -g c:3,d:4` will result in `{a: 1, b: 2, c: 3, d: 4}`
 * `dependsOn` is an optional string or array of strings - if simply a string (the name of another option), it will make sure that that other option is set, if an array of strings, depending on whether `'and'` or `'or'` is first, it will either check whether all (`['and', 'option-a', 'option-b']`), or at least one (`['or', 'option-a', 'option-b']`) other options are set
 * `description` is an optional string, which will be displayed next to the option in the help text
@@ -206,6 +231,7 @@ All of the properties are optional (the `Maybe` has been excluded for brevities 
 * `example` is an optional string or array of strings with example(s) for the option - these will be displayed when `generateHelpForOption` is used
 
 #### Help Style Properties
+
 * `aliasSeparator` is an optional string, separates multiple names from each other - default: ' ,'
 * `typeSeparator` is an optional string, separates the type from the names - default: ' '
 * `descriptionSeparator` is an optional string , separates the description from the padded name and type - default: '  '
@@ -214,6 +240,7 @@ All of the properties are optional (the `Maybe` has been excluded for brevities 
 * `maxPadFactor` is an optional number - affects the default level of padding for the names/type, it is multiplied by the average of the length of the names/type - default: 1.5
 
 ## Argument Format
+
 At the highest level there are two types of arguments: named, and positional.
 
 Name arguments of any length are prefixed with `--` (eg. `--go`), and those of one character may be prefixed with either `--` or `-` (eg. `-g`).
@@ -235,4 +262,5 @@ If you specify the option `NUM`, then any argument using a single `-` followed b
 If duplicate named arguments are present, the last one will be taken.
 
 ## Technical About
+
 `optionator` is written in [LiveScript](http://livescript.net/) - a language that compiles to JavaScript. It uses [levn](https://github.com/gkz/levn) to cast arguments to their specified type, and uses [type-check](https://github.com/gkz/type-check) to validate values. It also uses the [prelude.ls](http://preludels.com/) library.

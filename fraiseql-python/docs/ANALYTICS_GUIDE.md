@@ -21,6 +21,7 @@ Fact tables follow a three-column pattern optimized for analytics:
 ## Why This Pattern?
 
 **Traditional OLAP** (dimensional modeling):
+
 ```
 Fact Table ──→ Dimension Table (customers)
            ──→ Dimension Table (products)
@@ -28,11 +29,13 @@ Fact Table ──→ Dimension Table (customers)
 ```
 
 Problems:
+
 - Lots of joins (slow)
 - Schema flexibility (hard to add columns)
 - Data duplication across dimensions
 
 **FraiseQL Fact Tables** (denormalized):
+
 ```
 Fact Table with:
   - Numeric measures (sum, avg, count)
@@ -42,6 +45,7 @@ Fact Table with:
 ```
 
 Benefits:
+
 - **Fast**: No expensive joins
 - **Flexible**: JSONB allows adding dimensions without schema changes
 - **Simple**: All data in one table
@@ -187,6 +191,7 @@ query {
 ```
 
 Generated dimensions:
+
 - `category` - From data->>'category'
 - `region` - From data->>'region'
 - `product` - From data->>'product'
@@ -195,6 +200,7 @@ Generated dimensions:
 - `occurred_at_year` - Year bucket of occurred_at
 
 Generated aggregates:
+
 - `revenue_sum`, `revenue_avg`, `revenue_min`, `revenue_max`
 - `quantity_sum`, `quantity_avg`, `quantity_min`, `quantity_max`
 - `cost_sum`, `cost_avg`, `cost_min`, `cost_max`

@@ -147,6 +147,7 @@ function users(limit: number = 10): User[] {
 ```
 
 **Config Options**:
+
 - `sqlSource`: SQL view/table name (required for data operations)
 - `autoParams`: Auto-parameter configuration
 - Other custom configuration
@@ -163,6 +164,7 @@ function createUser(name: string): User {
 ```
 
 **Config Options**:
+
 - `sqlSource`: SQL function name (required)
 - `operation`: "CREATE" | "UPDATE" | "DELETE" | "CUSTOM"
 - Other custom configuration
@@ -324,6 +326,7 @@ T | undefined   →  T         (optional param)
 ### Fact Tables
 
 Fact tables are special analytics tables with:
+
 - **Measures**: Numeric columns for aggregation (SUM, AVG, COUNT)
 - **Dimensions**: JSONB column for flexible GROUP BY
 - **Denormalized Filters**: Indexed columns for fast WHERE clauses
@@ -366,6 +369,7 @@ function salesSummary(): Record<string, unknown>[] {
 ```
 
 These queries support:
+
 - `groupBy`: Dimensions and temporal buckets
 - `aggregates`: COUNT, SUM, AVG, MIN, MAX
 - `where`: Pre-aggregation filters
@@ -412,6 +416,7 @@ npm run format
 ## Testing
 
 Tests verify:
+
 - Type introspection and conversion
 - Schema registration and retrieval
 - Decorator functionality
@@ -463,6 +468,7 @@ npx fraiseql-cli compile schema.json
 This package generates **JSON only**. There's no FFI, no native bindings, no runtime dependencies on the Rust engine.
 
 The workflow is:
+
 1. Write TypeScript with decorators
 2. Run `exportSchema()` to generate `schema.json`
 3. Compile with `fraiseql-cli` to get `schema.compiled.json`
@@ -480,8 +486,8 @@ MIT
 
 ## Support
 
-- **Documentation**: https://docs.fraiseql.io
-- **Issues**: https://github.com/fraiseql/fraiseql/issues
+- **Documentation**: <https://docs.fraiseql.io>
+- **Issues**: <https://github.com/fraiseql/fraiseql/issues>
 - **Examples**: See `examples/` directory
 
 ## Contributing

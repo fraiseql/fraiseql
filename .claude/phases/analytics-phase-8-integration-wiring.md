@@ -10,6 +10,7 @@
 ## Objective
 
 Wire all analytics modules into the compiler and runtime pipeline:
+
 - Integrate fact table detection into schema compilation
 - Add aggregate query routing to executor
 - Update GraphQL type generation
@@ -21,6 +22,7 @@ Wire all analytics modules into the compiler and runtime pipeline:
 ## Context
 
 Phase 8 connects all individual analytics components into a cohesive system. After this phase:
+
 - Fact tables are automatically detected during schema compilation
 - Aggregate/window queries route to correct executors
 - Type generation includes aggregate types
@@ -34,6 +36,7 @@ Phase 8 connects all individual analytics components into a cohesive system. Aft
 ## Files to Modify
 
 ### Compiler Integration
+
 ```
 crates/fraiseql-core/src/compiler/mod.rs
 crates/fraiseql-core/src/compiler/validator.rs
@@ -41,6 +44,7 @@ crates/fraiseql-core/src/compiler/codegen.rs
 ```
 
 ### Runtime Integration
+
 ```
 crates/fraiseql-core/src/runtime/mod.rs
 crates/fraiseql-core/src/runtime/executor.rs
@@ -48,6 +52,7 @@ crates/fraiseql-core/src/runtime/planner.rs
 ```
 
 ### Schema Updates
+
 ```
 crates/fraiseql-core/src/schema/compiled.rs
 ```
@@ -63,6 +68,7 @@ crates/fraiseql-core/src/schema/compiled.rs
 **Goal**: Automatically detect and introspect fact tables during schema compilation.
 
 **Update `compiler/mod.rs`**:
+
 ```rust
 pub struct Compiler {
     config: CompilerConfig,
@@ -208,6 +214,7 @@ struct GeneratedAggregateType {
 ```
 
 **Tests**:
+
 ```rust
 #[cfg(test)]
 mod tests {
@@ -255,6 +262,7 @@ mod tests {
 ```
 
 **Verification**:
+
 ```bash
 cargo test -p fraiseql-core compiler::tests::test_detect_fact_tables
 cargo test -p fraiseql-core compiler::tests::test_generate_aggregate_types
@@ -269,6 +277,7 @@ cargo test -p fraiseql-core compiler::tests::test_generate_aggregate_types
 **Goal**: Add validation for aggregate/window queries.
 
 **Update `compiler/validator.rs`**:
+
 ```rust
 impl SchemaValidator {
     pub fn validate(&self, ir: AuthoringIR) -> Result<AuthoringIR> {
@@ -497,6 +506,7 @@ mod tests {
 ```
 
 **Verification**:
+
 ```bash
 cargo test -p fraiseql-core validator::tests
 ```
@@ -510,6 +520,7 @@ cargo test -p fraiseql-core validator::tests
 **Goal**: Route aggregate/window queries to correct executors.
 
 **Update `runtime/executor.rs`**:
+
 ```rust
 impl Executor {
     /// Execute GraphQL query (dispatch to appropriate executor)
@@ -663,6 +674,7 @@ mod tests {
 ```
 
 **Verification**:
+
 ```bash
 cargo test -p fraiseql-core runtime::executor
 ```
@@ -674,6 +686,7 @@ cargo test -p fraiseql-core runtime::executor
 **Duration**: 2 hours
 
 **Update `schema/compiled.rs`**:
+
 ```rust
 /// Compiled schema with pre-generated SQL templates
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -801,6 +814,7 @@ const SCHEMA_WITH_FACT_TABLES: &str = r#"{
 ```
 
 **Verification**:
+
 ```bash
 cargo test --test analytics_integration_test
 ```
@@ -839,6 +853,7 @@ cargo check --all-targets
 ```
 
 **Expected Output**:
+
 ```
 running 680 tests (668 existing + 12 new)
 test compiler::tests::test_detect_fact_tables ... ok
@@ -864,17 +879,20 @@ test result: ok. 680 passed; 0 failed; 0 ignored
 ## Notes
 
 **Key Integration Points**:
+
 1. Compiler: Detect fact tables → Generate types → Merge into IR
 2. Validator: Validate aggregate types, GroupBy inputs, Having inputs
 3. Executor: Classify query → Route to appropriate executor
 4. Schema: Store fact table metadata for runtime lookup
 
 **Backward Compatibility**:
+
 - Regular queries must continue to work unchanged
 - Analytics features are additive, not replacing existing functionality
 - Schema without fact tables should compile without errors
 
 **Performance**:
+
 - Fact table detection runs once at compile time
 - No runtime overhead for regular queries
 - Metadata cached in CompiledSchema

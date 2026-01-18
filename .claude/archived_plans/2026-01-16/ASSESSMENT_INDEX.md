@@ -9,6 +9,7 @@
 ## Quick Navigation
 
 ### 📊 Status & Assessment
+
 - **[LANGUAGE_GENERATORS_DASHBOARD.md](LANGUAGE_GENERATORS_DASHBOARD.md)** - Visual status dashboard
   - Quick status table (1 page)
   - Implementation completion charts
@@ -22,6 +23,7 @@
   - Conclusion & next steps
 
 ### 🔍 Detailed Analysis
+
 - **[LANGUAGE_GENERATORS_STATUS.md](LANGUAGE_GENERATORS_STATUS.md)** - Comprehensive analysis
   - 800+ lines
   - Detailed breakdown per language
@@ -30,6 +32,7 @@
   - Feature completeness matrix
 
 ### ✅ Action Items
+
 - **[QUICK_FIXES_CHECKLIST.md](QUICK_FIXES_CHECKLIST.md)** - Quick fixes checklist
   - 300+ lines
   - Python: 5 minute fix
@@ -40,6 +43,7 @@
   - Copy-paste ready commands
 
 ### 🧪 E2E Testing
+
 - **[E2E_TESTING_STRATEGY.md](E2E_TESTING_STRATEGY.md)** - Complete E2E testing plan
   - 600+ lines
   - Architecture diagram
@@ -56,6 +60,7 @@
   - Success criteria per phase
 
 ### 🗺️ Roadmap
+
 - **[COMPREHENSIVE_ROADMAP.md](COMPREHENSIVE_ROADMAP.md)** - Complete implementation roadmap
   - 500+ lines
   - Day-by-day breakdown
@@ -69,6 +74,7 @@
 ## Reading Recommendations
 
 ### For Quick Understanding (20 minutes)
+
 1. Start with this file (ASSESSMENT_INDEX.md)
 2. Read LANGUAGE_GENERATORS_DASHBOARD.md
 3. Skim QUICK_FIXES_CHECKLIST.md
@@ -76,6 +82,7 @@
 **Result**: Understand current status and immediate blockers
 
 ### For Implementation Planning (1 hour)
+
 1. Read LANGUAGE_GENERATORS_SUMMARY.txt
 2. Review QUICK_FIXES_CHECKLIST.md (full)
 3. Scan E2E_IMPLEMENTATION_CHECKLIST.md
@@ -84,6 +91,7 @@
 **Result**: Ready to start implementation
 
 ### For Deep Technical Dive (3-4 hours)
+
 1. Read LANGUAGE_GENERATORS_STATUS.md (full)
 2. Study E2E_TESTING_STRATEGY.md (full)
 3. Review example code in E2E_TESTING_STRATEGY.md
@@ -116,6 +124,7 @@ TIME TO PRODUCTION
 ## Key Findings Summary
 
 ### Strengths ✅
+
 - **Code Quality**: 95% complete, production-grade implementation
 - **Documentation**: Excellent (500+ lines per language)
 - **Testing**: 45-82 tests per language (100% passing where runnable)
@@ -123,6 +132,7 @@ TIME TO PRODUCTION
 - **Examples**: Working code examples in each language
 
 ### Blockers ❌
+
 - **Python**: Not installed in editable mode (trivial fix)
 - **TypeScript**: Decorator config missing (config fix)
 - **Java**: Maven not in environment (tool install)
@@ -130,7 +140,9 @@ TIME TO PRODUCTION
 - **CLI**: Schema format mismatch (investigation + fix)
 
 ### Critical Issue 🔴
+
 **CLI Schema Format Incompatibility**
+
 - All 5 generators produce valid schema.json
 - fraiseql-cli rejects the format
 - Blocks entire pipeline: authoring → compilation → runtime
@@ -141,7 +153,9 @@ TIME TO PRODUCTION
 ## Decision Points
 
 ### 1. Implementation Approach
+
 Choose one:
+
 - **Sequential**: One person, all tasks in order (3-4 days)
 - **Parallel**: Multiple people, divide work
   - Person 1: Quick fixes + CLI investigation (Day 1)
@@ -152,7 +166,9 @@ Choose one:
 **Recommendation**: Sequential is simpler for single person. Parallel better for teams.
 
 ### 2. E2E Testing Infrastructure
+
 Choose scope:
+
 - **Local Only**: Makefile targets for local testing
 - **With CI/CD**: Add GitHub Actions workflow for automation
 - **Full Stack**: Include Docker services, parallel execution, reporting
@@ -160,7 +176,9 @@ Choose scope:
 **Recommendation**: Start with local + CI/CD. Skip Docker services (already configured).
 
 ### 3. CLI Fix Strategy (After Investigation)
+
 Will depend on findings, but likely one of:
+
 - **Fix Generators**: Adjust schema export format
 - **Fix CLI**: Update schema parser to accept generated format
 - **Add Transformer**: Create conversion layer between formats
@@ -174,22 +192,27 @@ Will depend on findings, but likely one of:
 ### For Different Roles
 
 **Project Manager**
+
 - Read: LANGUAGE_GENERATORS_DASHBOARD.md + COMPREHENSIVE_ROADMAP.md
 - Know: Status, timeline, risks, resource needs
 
 **Developer (Implementation)**
+
 - Read: QUICK_FIXES_CHECKLIST.md + E2E_IMPLEMENTATION_CHECKLIST.md
 - Know: Step-by-step what to do, how long each phase takes
 
 **Architect (Design Review)**
+
 - Read: LANGUAGE_GENERATORS_STATUS.md + E2E_TESTING_STRATEGY.md
 - Know: Architecture, completeness, design patterns
 
 **QA (Testing)**
+
 - Read: E2E_TESTING_STRATEGY.md + E2E_IMPLEMENTATION_CHECKLIST.md
 - Know: Test coverage, test files, CI/CD pipeline
 
 **DevOps (CI/CD)**
+
 - Read: E2E_TESTING_STRATEGY.md (GitHub Actions section)
 - Know: Workflow configuration, service setup, caching strategy
 
@@ -198,6 +221,7 @@ Will depend on findings, but likely one of:
 ## Success Milestones
 
 ### Milestone 1: Quick Fixes (Target: Today)
+
 - [ ] Python tests passing (7/7)
 - [ ] TypeScript tests + examples passing (10/10 + 2 examples)
 - [ ] Java tests runnable (82/82)
@@ -209,6 +233,7 @@ Will depend on findings, but likely one of:
 **Documents**: QUICK_FIXES_CHECKLIST.md + COMPREHENSIVE_ROADMAP.md (Phase 1)
 
 ### Milestone 2: E2E Infrastructure (Target: Days 2-3)
+
 - [ ] All 5 E2E test files created
 - [ ] Makefile targets working locally
 - [ ] GitHub Actions workflow operational
@@ -218,6 +243,7 @@ Will depend on findings, but likely one of:
 **Documents**: E2E_TESTING_STRATEGY.md + E2E_IMPLEMENTATION_CHECKLIST.md
 
 ### Milestone 3: CLI Integration (Target: Day 3-4)
+
 - [ ] Schema format issue understood
 - [ ] Fix implemented and tested
 - [ ] All 5 languages compile successfully
@@ -227,6 +253,7 @@ Will depend on findings, but likely one of:
 **Documents**: COMPREHENSIVE_ROADMAP.md (Phase 3)
 
 ### Milestone 4: Production Ready (Target: Week 2)
+
 - [ ] All tests passing in CI/CD
 - [ ] Package releases prepared
 - [ ] Documentation updated
@@ -240,6 +267,7 @@ Will depend on findings, but likely one of:
 ## Metrics Dashboard
 
 ### Code Completion
+
 ```
 Python      [=======>       ] 60%
 TypeScript  [=====>         ] 55%
@@ -249,6 +277,7 @@ PHP         [==============> ] 90%
 ```
 
 ### Test Coverage
+
 ```
 Python      [           ] 0/7 (import issues)
 TypeScript  [===========] 10/10 ✅
@@ -258,6 +287,7 @@ PHP         [===========] 40+/40+ (can't run)
 ```
 
 ### Documentation
+
 ```
 Python      [================] 100%
 TypeScript  [================] 100%
@@ -267,6 +297,7 @@ PHP         [================] 100%
 ```
 
 ### CLI Integration
+
 ```
 Status: [=       ] 15% (blocked)
 Blocker: Schema format mismatch
@@ -278,6 +309,7 @@ Fix ETA: 2-4 hours (investigation + fix)
 ## Files & Locations
 
 ### Assessment Documents (.claude/)
+
 ```
 ASSESSMENT_INDEX.md                 This navigation guide
 LANGUAGE_GENERATORS_DASHBOARD.md    Visual status dashboard
@@ -290,6 +322,7 @@ COMPREHENSIVE_ROADMAP.md            Complete implementation roadmap
 ```
 
 ### Language Generators (Monorepo Root)
+
 ```
 fraiseql-python/                    Python generator (60%)
 fraiseql-typescript/                TypeScript generator (55%)
@@ -299,6 +332,7 @@ fraiseql-php/                       PHP generator (90%)
 ```
 
 ### Test Infrastructure (Existing)
+
 ```
 docker-compose.test.yml             PostgreSQL, MySQL, pgvector
 tests/                              Rust-level E2E tests
@@ -310,17 +344,20 @@ Makefile                            Build & test targets
 ## Next Steps
 
 ### Immediate (Next Hour)
+
 1. Choose reading depth based on role (see "Document Usage Guide" above)
 2. Understand current status (read LANGUAGE_GENERATORS_DASHBOARD.md)
 3. Decide on implementation approach (sequential vs parallel)
 
 ### Short Term (This Week)
+
 1. Day 1 Morning: Execute quick fixes (QUICK_FIXES_CHECKLIST.md)
 2. Day 1 Afternoon: Investigate CLI issue (COMPREHENSIVE_ROADMAP.md, Phase 1)
 3. Day 2-3: Build E2E infrastructure (E2E_IMPLEMENTATION_CHECKLIST.md)
 4. Day 3-4: Fix CLI integration (based on findings)
 
 ### Medium Term (Week 2)
+
 1. Prepare package releases (PyPI, NPM, Maven, Packagist, pkg.go.dev)
 2. Update main documentation
 3. Set up automated testing
@@ -331,17 +368,20 @@ Makefile                            Build & test targets
 ## Key Contacts & Resources
 
 **This Assessment**:
+
 - Created: January 16, 2026
 - Location: /home/lionel/code/fraiseql/.claude/
 - Total Size: 3,500+ lines across 8 documents
 
 **Existing Infrastructure**:
+
 - Docker: Available (docker-compose.test.yml)
 - fraiseql-cli: Available
 - fraiseql-server: Available
 - Languages: Python 3.10+, Node 18+, Java 17, Go 1.22+, PHP 8.2+
 
 **Installation Needed**:
+
 - Maven (for Java): `sudo pacman -S maven`
 - Composer (for PHP): `sudo pacman -S composer`
 

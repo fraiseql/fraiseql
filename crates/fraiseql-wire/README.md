@@ -415,6 +415,7 @@ RUST_LOG=fraiseql_wire=debug cargo run
 * Ready for production use
 
 All core features implemented with comprehensive CI validation:
+
 * ✅ Async JSON streaming (integration tests across PostgreSQL 15-18)
 * ✅ Hybrid SQL + Rust predicates (25+ WHERE operators with full test coverage)
 * ✅ Type-safe deserialization (generic streaming API with custom struct support)
@@ -480,7 +481,7 @@ By narrowing scope, `fraiseql-wire` delivers performance and clarity that genera
 ## Credits
 
 **Author:**
-- Lionel Hamayon (@evoludigit)
+* Lionel Hamayon (@evoludigit)
 
 **Part of:** FraiseQL — Compiled GraphQL for deterministic Postgres execution
 

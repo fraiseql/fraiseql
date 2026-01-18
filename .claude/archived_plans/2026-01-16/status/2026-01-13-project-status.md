@@ -18,6 +18,7 @@
 ## ✅ What's Been Completed
 
 ### **Phase 1: Foundation** ✅ COMPLETE (100%)
+
 - ✅ Cargo workspace structure
 - ✅ Schema module (from v1, adapted)
 - ✅ Error handling (comprehensive FraiseQLError enum)
@@ -29,6 +30,7 @@
 ---
 
 ### **Phase 2: Database & Cache** ✅ COMPLETE (100%)
+
 - ✅ Database abstraction layer (`db/` module)
 - ✅ PostgreSQL adapter (~809 LOC)
 - ✅ WHERE clause generator (~500 LOC)
@@ -41,6 +43,7 @@
 ---
 
 ### **Phase 3: Security** ✅ COMPLETE (100%)
+
 - ✅ Authentication middleware (~808 LOC)
 - ✅ Query validation (~550 LOC)
 - ✅ Field masking (~658 LOC)
@@ -54,6 +57,7 @@
 ---
 
 ### **Phase 4: Compiler** ✅ COMPLETE (~95%)
+
 - ✅ Parser (~575 LOC) - GraphQL schema parsing
 - ✅ Validator (~672 LOC) - Schema validation
 - ✅ Intermediate Representation (~8,686 LOC)
@@ -72,6 +76,7 @@
 ---
 
 ### **Phase 5: Runtime** ✅ COMPLETE (~90%)
+
 - ✅ Executor (~15,818 LOC) - Query execution
 - ✅ Planner (~5,725 LOC) - Query plan selection
 - ✅ Matcher (~9,932 LOC) - Query pattern matching
@@ -89,6 +94,7 @@
 ---
 
 ### **Phase 6: HTTP Server** ⚠️ PARTIAL (~60%)
+
 - ✅ Server infrastructure (Axum-based)
 - ✅ Basic route structure
 - ✅ Health checks
@@ -101,6 +107,7 @@
 ---
 
 ### **Phase 7: Utilities** ✅ COMPLETE (100%)
+
 - ✅ Vector operations (~758 LOC) - pgvector support
 - ✅ Operators registry (~889 LOC)
 - ✅ Casing utilities (in utils/)
@@ -111,6 +118,7 @@
 ---
 
 ### **Phase 8: Python Authoring** ⚠️ PARTIAL (~40%)
+
 - ⚠️ CLI has schema conversion infrastructure
 - ❌ Python decorator package NOT implemented yet
 - ❌ JSON schema generation from Python decorators
@@ -121,6 +129,7 @@
 ---
 
 ### **Phase 9: CLI Tool** ✅ COMPLETE (~80%)
+
 - ✅ CLI structure with commands
 - ✅ Compile command
 - ✅ Validate command
@@ -134,6 +143,7 @@
 ---
 
 ### **Phase 10: Testing** ⚠️ PARTIAL (~50%)
+
 - ✅ E2E aggregate query tests (comprehensive)
 - ✅ E2E window function tests
 - ✅ Phase 8 integration tests
@@ -148,6 +158,7 @@
 ---
 
 ### **Phase 11: Documentation** ⚠️ PARTIAL (~40%)
+
 - ✅ Implementation roadmap complete
 - ✅ Project CLAUDE.md with dev guidelines
 - ✅ Comprehensive analytics documentation (calendar dimensions, schema conventions)
@@ -164,6 +175,7 @@
 ## 🚧 Current Issues
 
 ### **Build Errors** 🔴 CRITICAL
+
 ```
 error[E0063]: missing field `calendar_dimensions` in initializer of `FactTableMetadata`
 error[E0063]: missing field `fact_tables` in initializer of `fraiseql_core::CompiledSchema`
@@ -200,7 +212,9 @@ error[E0063]: missing field `fact_tables` in initializer of `fraiseql_core::Comp
 ## 🎯 What's Working
 
 ### **Analytics Pipeline** ✅ EXCELLENT
+
 The analytics support is **remarkably complete**:
+
 - Fact table introspection (detect measures, dimensions, calendar support)
 - Auto-generate aggregate types (count, sum, avg, min, max)
 - GROUP BY execution with temporal bucketing
@@ -210,6 +224,7 @@ The analytics support is **remarkably complete**:
 - Database-agnostic SQL generation (PostgreSQL, MySQL, SQLite, SQL Server)
 
 ### **Compiler Infrastructure** ✅ SOLID
+
 - GraphQL schema parsing
 - Schema validation with comprehensive error messages
 - IR (Intermediate Representation) well-designed
@@ -217,9 +232,11 @@ The analytics support is **remarkably complete**:
 - Fact table detection and metadata extraction
 
 ### **Security Layer** ✅ PRODUCTION-READY
+
 Complete auth/audit/masking infrastructure from v1, battle-tested.
 
 ### **Database Layer** ✅ ROBUST
+
 Connection pooling, transaction management, WHERE clause generation all working.
 
 ---
@@ -227,17 +244,20 @@ Connection pooling, transaction management, WHERE clause generation all working.
 ## ⚠️ What Needs Work
 
 ### **1. Fix Build Errors** 🔴 HIGH PRIORITY
+
 - Update test fixtures with `fact_tables: HashMap::new()`
 - Update test fixtures with `calendar_dimensions` field
 - **Estimated effort**: 1-2 hours
 
 ### **2. Complete HTTP Server Integration** 🟡 MEDIUM PRIORITY
+
 - Wire up GraphQL endpoint to v2 runtime
 - Test compiled schema loading
 - Verify APQ + caching integration
 - **Estimated effort**: 2-3 days
 
 ### **3. Python Authoring Package** 🟡 MEDIUM PRIORITY
+
 - Implement Python decorators (@fraiseql.type, @fraiseql.query, etc.)
 - JSON schema output (no FFI, pure JSON generation)
 - Analytics decorators (@fraiseql.fact_table, @fraiseql.aggregate_query)
@@ -245,6 +265,7 @@ Connection pooling, transaction management, WHERE clause generation all working.
 - **Estimated effort**: 4-5 days
 
 ### **4. End-to-End Testing** 🟡 MEDIUM PRIORITY
+
 - Multi-database tests (MySQL, SQLite, SQL Server)
 - Full compilation → execution flow tests
 - Performance benchmarks
@@ -252,6 +273,7 @@ Connection pooling, transaction management, WHERE clause generation all working.
 - **Estimated effort**: 5-7 days
 
 ### **5. User Documentation** 🟢 LOW PRIORITY (can defer to beta)
+
 - API docs (rustdoc)
 - User guide with examples
 - Migration guide from v1
@@ -277,6 +299,7 @@ Connection pooling, transaction management, WHERE clause generation all working.
 ## 🎯 Recommended Next Steps (Priority Order)
 
 ### **Immediate (This Week)**
+
 1. **Fix build errors** (1-2 hours)
    - Update test fixtures with missing fields
    - Verify all tests compile
@@ -287,6 +310,7 @@ Connection pooling, transaction management, WHERE clause generation all working.
    - Establish green CI baseline
 
 ### **Short Term (Next 2 Weeks)**
+
 3. **Complete HTTP server integration** (2-3 days)
    - Wire GraphQL endpoint to v2 runtime
    - Test schema loading and execution
@@ -298,6 +322,7 @@ Connection pooling, transaction management, WHERE clause generation all working.
    - Verify all databases work
 
 ### **Medium Term (Next 4-6 Weeks)**
+
 5. **Python authoring package** (4-5 days)
    - Implement decorator system
    - JSON schema generation
@@ -329,6 +354,7 @@ Connection pooling, transaction management, WHERE clause generation all working.
 ## 🎯 Path to Alpha Release
 
 **Blockers to v2.0.0-alpha.2**:
+
 - [ ] Fix test compilation errors (1-2 hours)
 - [ ] Complete HTTP server integration (2-3 days)
 - [ ] End-to-end validation tests (2-3 days)
@@ -341,6 +367,7 @@ Connection pooling, transaction management, WHERE clause generation all working.
 ## 💡 Summary
 
 **You're ~75% done** with the core v2 implementation! The hardest parts (compiler, runtime, analytics) are working. What remains is:
+
 - **Critical path**: Fix tests, complete server integration, validate end-to-end
 - **Important**: Python package, expanded testing, documentation
 - **Nice-to-have**: Performance tuning, advanced examples, migration tooling
@@ -354,6 +381,7 @@ The analytics foundation is **remarkably complete** - fact tables, aggregations,
 ## 📝 Change Log
 
 ### 2026-01-13 - Initial Assessment
+
 - Analyzed current codebase structure
 - Assessed completion status of all 11 phases
 - Identified critical build errors

@@ -52,6 +52,7 @@ let stream = client.query::<serde_json::Value>("projects").execute().await?;
 **What**: Explicit guidance on what to forbid in code review
 
 **Examples**:
+
 - ❌ Don't add "typed query planning"
 - ❌ Don't make predicates generic
 - ❌ Don't deserialize before filtering
@@ -65,6 +66,7 @@ let stream = client.query::<serde_json::Value>("projects").execute().await?;
 **What**: Every code location must document the constraint
 
 **Required Comment**:
+
 ```rust
 /// Type parameter T is **consumer-side only**.
 ///
@@ -88,7 +90,9 @@ let stream = client.query::<serde_json::Value>("projects").execute().await?;
 ## Documents Updated
 
 ### 1. `.phases/phase-8-2-typed-streaming.md` (550+ lines)
+
 **Updates**:
+
 - Objective: Added "consumer-side only" emphasis
 - New section: "⚠️ CRITICAL: Typing is Consumer-Side Only" (detailed breakdown)
 - QueryBuilder comments: Added "type T does NOT affect SQL" annotations
@@ -97,14 +101,18 @@ let stream = client.query::<serde_json::Value>("projects").execute().await?;
 - Implementation notes: Updated to emphasize "ONLY" and "consumer-side"
 
 ### 2. `PHASE_8_2_PLANNING_SUMMARY.md` (350+ lines)
+
 **Updates**:
+
 - Overview: Added example showing SQL is unaffected by T
 - Key Features: Added escape hatch to features list
 - New section: "⚠️ CRITICAL DESIGN CONSTRAINT" with detailed breakdown
 - Architecture: Updated to show SQL is generated same way for all T
 
 ### 3. `.phases/README_PHASE_8_2.md` (250+ lines)
+
 **Updates**:
+
 - What is Phase 8.2: Added consumer-side emphasis
 - Critical Design Constraint: Explicit section showing what T affects
 - Escape Hatch: Added as first-class feature
@@ -113,7 +121,9 @@ let stream = client.query::<serde_json::Value>("projects").execute().await?;
 - Each pattern includes code examples showing what to forbid
 
 ### 4. `PHASE_8_2_CRITICAL_CONSTRAINTS.md` (NEW - 400+ lines)
+
 **Content**:
+
 - Explains the issue being prevented (drift into typed query planning)
 - Rule 1: Typing is consumer-side only (with examples)
 - Rule 2: Escape hatch is first-class (with use cases)
@@ -145,17 +155,22 @@ These phrases now appear consistently throughout all documents:
 ## Enforcement Mechanisms
 
 ### 1. Code Comments
+
 Every implementation file must include:
+
 ```rust
 /// Type T is **consumer-side only**...
 ```
 
 ### 2. Documentation
+
 Every user guide must state:
 > Typing does NOT affect SQL, filtering, ordering, or wire protocol
 
 ### 3. PR Review Checklist
+
 Every Phase 8.2 PR must verify:
+
 - [ ] Type isolation verified: SQL is identical for all T
 - [ ] No "typed query planning"
 - [ ] Predicates are JSON-based
@@ -163,7 +178,9 @@ Every Phase 8.2 PR must verify:
 - [ ] Documentation explicit
 
 ### 4. Tests
+
 Future PRs proposing optimizations will be rejected if:
+
 - They make SQL conditional on T
 - They special-case Value
 - They optimize for specific types
@@ -177,6 +194,7 @@ Without explicit boundaries, the natural question arises:
 > "Now that we have type T, can we use it to optimize SQL?"
 
 This leads to:
+
 1. Type-conditional SQL generation
 2. Query planning based on T
 3. Gradual expansion of scope
@@ -185,6 +203,7 @@ This leads to:
 **Explicit constraints prevent this slide.**
 
 The documents now make it impossible to miss:
+
 - Type is consumer-side only
 - SQL is identical for all T
 - Value is first-class, not a fallback
@@ -204,6 +223,7 @@ The documents now make it impossible to miss:
 ### For Code Reviewers
 
 Use this checklist from `PHASE_8_2_CRITICAL_CONSTRAINTS.md`:
+
 ```
 Before Merge:
 - [ ] Type isolation verified: SQL is identical for all T
@@ -232,6 +252,7 @@ The 7-phase implementation plan remains unchanged. These updates are **constrain
 ### During Implementation: Enforce Boundaries
 
 Each phase should verify:
+
 - No SQL conditionals based on T
 - Predicates stay JSON-based
 - Deserialization happens at poll_next() only

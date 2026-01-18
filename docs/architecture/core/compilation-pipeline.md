@@ -11,6 +11,7 @@
 The **compilation pipeline** transforms an authoring-layer schema (Python, TypeScript, YAML, etc.) into a **CompiledSchema** — a database-agnostic JSON artifact that the Rust runtime executes.
 
 **Key phases:**
+
 1. **Schema Parsing** — Parse authoring language syntax (queries, mutations, **subscriptions**)
 2. **Database Introspection** — Discover views, columns, procedures, constraints, CDC capabilities
 3. **Type Binding** — Map GraphQL types to database views/JSONB paths
@@ -124,6 +125,7 @@ class SubscriptionBindingDef:
 ### 3.1 Purpose
 
 Introspection discovers what the database provides:
+
 - View columns and JSONB paths
 - Stored procedure signatures
 - Column indexing and types
@@ -164,6 +166,7 @@ ORDER BY ordinal_position;
 ```
 
 **Discovered columns:**
+
 ```
 id          → UUID
 email       → TEXT (nullable: false)
@@ -205,6 +208,7 @@ WHERE proname = 'fn_create_user';
 ```
 
 **Discovered signature:**
+
 ```
 fn_create_user(
     email_param: TEXT,
@@ -259,6 +263,7 @@ User.createdAt → v_user.created_at (SQL column)
 ```
 
 **Discovery algorithm:**
+
 ```
 for each field in GraphQL type:
     1. Check if column exists with same name
@@ -284,6 +289,7 @@ class Post:
 ```
 
 **Verification:**
+
 - If view declares `user_id` column, FK is explicit
 - If JSONB nesting available, FK is implicit
 - Compiler warns if both explicit and implicit conflict
@@ -295,6 +301,7 @@ class Post:
 ### 5.1 Purpose
 
 Automatically generate WHERE input types based on:
+
 - Available database columns
 - Column types
 - **Database target** (from compiler configuration)
@@ -441,6 +448,7 @@ The generated `StringFilter` for SQLite would **omit** `_regex` and `_ilike`.
 FraiseQL supports **150+ WHERE clause operators** across 15 categories, automatically applied based on column types and database capabilities:
 
 **Operator Categories:**
+
 1. **Basic Comparison** (all types)
    - `_eq`, `_neq`, `_gt`, `_gte`, `_lt`, `_lte`, `_in`, `_nin`
 
@@ -488,6 +496,7 @@ FraiseQL supports **150+ WHERE clause operators** across 15 categories, automati
 
 **Complete Reference:**
 See [`docs/reference/where-operators.md`](../reference/where-operators.md) for:
+
 - Full operator specifications by category
 - SQL equivalents for each operator
 - Performance characteristics and indexing recommendations
@@ -495,6 +504,7 @@ See [`docs/reference/where-operators.md`](../reference/where-operators.md) for:
 - Database compatibility matrix
 
 **Example: Complex WHERE Using Multiple Operators**
+
 ```graphql
 query {
   users(where: {
@@ -528,6 +538,7 @@ query {
 
 **Capability Detection:**
 At compilation time, the compiler:
+
 1. Introspects column types from database view
 2. Maps column types to available operators (from capability manifest)
 3. Generates WHERE input types only for supported operators
@@ -571,6 +582,7 @@ schema.bind("OrderCreated",
 ```
 
 **Binding validates:**
+
 - Event source is supported by database target
 - Entity types exist in schema
 - Operation types are valid (`INSERT`, `UPDATE`, `DELETE`)
@@ -635,14 +647,17 @@ The compiler generates a dispatch table for runtime:
 Validate subscription schema consistency:
 
 **Subscription Return Type Check:**
+
 - Subscription fields must be projectable from event data
 - Same field resolution as queries (SQL columns + JSONB paths)
 
 **Event Type Coverage:**
+
 - Subscription fields must exist in all operation types
 - Example: `ORDER_CANCELLED` event cannot project `ORDER_SHIPPED` fields
 
 **Authorization Validity:**
+
 - Rules must be decidable at compile time
 - Dynamic fields disallowed (use only static roles and entity attributes)
 
@@ -665,6 +680,7 @@ def users() -> list[User]:  # User must be @fraiseql.type
 ```
 
 **Error if violated:**
+
 ```
 Error: Type closure violation
   Query 'users' returns 'list[User]'
@@ -686,6 +702,7 @@ schema.bind("users", view="v_user")
 ```
 
 **Error if violated:**
+
 ```
 Error: Missing binding
   Query 'users' returns 'list[User]'
@@ -701,6 +718,7 @@ schema.bind("users", view="v_user_missing")  # ❌ Doesn't exist
 ```
 
 **Error if violated:**
+
 ```
 Error: View not found
   Binding 'users' references 'v_user_missing'
@@ -720,6 +738,7 @@ class User:
 ```
 
 **Error if violated:**
+
 ```
 Error: Column not found
   Type 'User' field 'undefinedField'
@@ -745,6 +764,7 @@ schema.bind("create_user", procedure="fn_create_user")
 ```
 
 **Error if violated:**
+
 ```
 Error: Procedure signature mismatch
   Mutation 'createUser' declares inputs: email, name
@@ -764,6 +784,7 @@ where: {
 ```
 
 **Error if violated:**
+
 ```
 Error: Operator not supported
   Filter uses '_regex' on 'email' field
@@ -783,6 +804,7 @@ def secure_query() -> User:
 ```
 
 **Error if violated:**
+
 ```
 Error: Auth context mismatch
   Rule requires claim 'invalidField'
@@ -1006,6 +1028,7 @@ fraiseql compile schema.py \
 ```
 
 Each target produces:
+
 - `CompiledSchema-postgresql.json`
 - `CompiledSchema-sqlite.json`
 - `CompiledSchema-mysql.json`

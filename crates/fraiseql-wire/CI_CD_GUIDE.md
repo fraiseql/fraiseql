@@ -28,6 +28,7 @@ The fraiseql-wire project uses GitHub Actions for automated testing, quality che
 ### Jobs
 
 #### 1. Build & Test
+
 ```yaml
 name: Build
 - Installs Rust (stable)
@@ -42,6 +43,7 @@ name: Build
 **Status**: Shows passing ✅ or failing ❌
 
 #### 2. Coverage
+
 ```yaml
 name: Code Coverage
 - Installs cargo-tarpaulin
@@ -53,6 +55,7 @@ name: Code Coverage
 **Badge**: Can be displayed in README
 
 #### 3. MSRV (Minimum Supported Rust Version)
+
 ```yaml
 name: MSRV (Rust 1.70)
 - Tests with Rust 1.70
@@ -61,6 +64,7 @@ name: MSRV (Rust 1.70)
 ```
 
 #### 4. Integration Tests
+
 ```yaml
 name: Integration Tests
 - Starts Postgres 15 service
@@ -70,6 +74,7 @@ name: Integration Tests
 ```
 
 #### 5. Documentation
+
 ```yaml
 name: Documentation
 - Builds rustdoc
@@ -91,6 +96,7 @@ git push origin v0.2.0
 ```
 
 Workflow automatically:
+
 1. Builds and tests the release
 2. Creates GitHub Release
 3. Publishes to crates.io
@@ -98,6 +104,7 @@ Workflow automatically:
 ### Jobs
 
 #### 1. Create Release
+
 ```yaml
 name: Create Release
 - Checks out code
@@ -111,6 +118,7 @@ name: Create Release
 ```
 
 #### 2. Publish to crates.io
+
 ```yaml
 name: Publish to crates.io
 - Waits for create-release job
@@ -174,11 +182,13 @@ psql -U postgres -d fraiseql_test -f tests/fixtures/seed_data.sql
 ## Running Tests Locally
 
 ### Unit Tests (Always runs)
+
 ```bash
 cargo test --lib
 ```
 
 ### Integration Tests (Requires Postgres)
+
 ```bash
 export POSTGRES_HOST=localhost
 export POSTGRES_USER=postgres
@@ -190,6 +200,7 @@ cargo test --test streaming_integration -- --ignored
 ```
 
 ### Load Tests (Requires Postgres + Schema)
+
 ```bash
 # Initialize schema first
 psql -U postgres -d fraiseql_test -f tests/fixtures/schema.sql
@@ -199,6 +210,7 @@ cargo test --test load_tests -- --ignored --nocapture
 ```
 
 ### All Tests
+
 ```bash
 cargo test -- --ignored --nocapture
 ```
@@ -208,24 +220,28 @@ cargo test -- --ignored --nocapture
 ## Code Quality Checks
 
 ### Formatting
+
 ```bash
 cargo fmt
 cargo fmt -- --check  # Verify without changing
 ```
 
 ### Linting
+
 ```bash
 cargo clippy
 cargo clippy -- -D warnings  # Deny all warnings
 ```
 
 ### Security Audit
+
 ```bash
 cargo audit
 cargo audit --deny warnings
 ```
 
 ### Coverage
+
 ```bash
 cargo install cargo-tarpaulin
 cargo tarpaulin --out Html  # Generates coverage report
@@ -233,6 +249,7 @@ open tarpaulin-report.html
 ```
 
 ### Documentation
+
 ```bash
 RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
 cargo doc --open
@@ -270,6 +287,7 @@ Use the release script:
 ```
 
 The script:
+
 1. Validates version format
 2. Checks you're on main branch
 3. Pulls latest changes
@@ -283,13 +301,15 @@ The script:
 ### Step 3: Verify
 
 Check that:
-1. GitHub Release was created: https://github.com/fraiseql/fraiseql-wire/releases
-2. Crates.io has new version: https://crates.io/crates/fraiseql-wire
-3. Documentation built: https://docs.rs/fraiseql-wire
+
+1. GitHub Release was created: <https://github.com/fraiseql/fraiseql-wire/releases>
+2. Crates.io has new version: <https://crates.io/crates/fraiseql-wire>
+3. Documentation built: <https://docs.rs/fraiseql-wire>
 
 ### Step 4: Announce
 
 Post release notes to:
+
 - GitHub Discussions
 - Rust forums
 - Social media
@@ -327,6 +347,7 @@ For coverage reports:
 **Cause**: Different Postgres version or environment
 
 **Solution**:
+
 - Check `ci.yml` for Postgres version (postgres:15-alpine)
 - Use Docker Compose to match CI environment
 - Run tests with `--nocapture` to see output
@@ -336,6 +357,7 @@ For coverage reports:
 **Cause**: Various reasons
 
 **Solution**:
+
 1. Check workflow logs: GitHub repo → Actions → specific run
 2. Verify `CARGO_TOKEN` is set correctly
 3. Ensure `Cargo.toml` version was updated
@@ -346,6 +368,7 @@ For coverage reports:
 **Cause**: New code not tested
 
 **Solution**:
+
 - Add tests for new code
 - Run `cargo tarpaulin` locally to identify untested code
 - Update coverage target if intentional
@@ -355,6 +378,7 @@ For coverage reports:
 **Cause**: Using features from newer Rust version
 
 **Solution**:
+
 1. Identify which Rust 1.71+ feature you used
 2. Replace with equivalent 1.70 compatible code
 3. Re-run: `cargo +1.70 build`
@@ -378,6 +402,7 @@ RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
 ### Commit Messages
 
 Use conventional commits:
+
 - `feat:` New feature
 - `fix:` Bug fix
 - `refactor:` Code reorganization

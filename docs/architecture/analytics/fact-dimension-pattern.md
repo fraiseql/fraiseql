@@ -10,6 +10,7 @@
 ## Overview
 
 FraiseQL enforces the **fact table pattern** for analytical workloads:
+
 - One record = one immutable fact (transaction, measurement, event)
 - Measures stored as SQL columns (10-100x faster aggregation)
 - Dimensions stored in JSONB `data` column (flexible grouping)
@@ -97,12 +98,14 @@ CREATE INDEX idx_sales_customer_occurred
 **Performance**: 10-100x faster than JSONB
 
 **Examples**:
+
 - `revenue DECIMAL(10,2)` - Total sale amount
 - `quantity INT` - Number of items
 - `duration_ms BIGINT` - Event duration in milliseconds
 - `error_count INT` - Number of errors
 
 **Why SQL Columns?**:
+
 ```sql
 -- ✅ FAST: Direct aggregation on SQL column
 SELECT SUM(revenue) FROM tf_sales WHERE customer_id = $1;
@@ -123,18 +126,21 @@ SELECT SUM((dimensions->>'revenue')::numeric) FROM tf_sales WHERE customer_id = 
 **Performance**: Slower than SQL columns, but flexible (no ALTER TABLE needed)
 
 **Examples**:
+
 - `dimensions->>'category'` - Product category
 - `dimensions->>'region'` - Geographic region
 - `dimensions->>'product_type'` - Product classification
 - `data#>>'{customer,segment}'` - Nested path for customer segment
 
 **Why JSONB?**:
+
 - Schema flexibility (add dimensions without ALTER TABLE)
 - Sparse dimensions (not all facts have all dimensions)
 - Nested structures (hierarchical dimensions)
 - No need to create columns for rarely-used dimensions
 
 **Query Pattern**:
+
 ```sql
 SELECT
     dimensions->>'category' AS category,
@@ -153,12 +159,14 @@ GROUP BY dimensions->>'category', dimensions->>'region';
 **Performance**: B-tree index access (microseconds)
 
 **Examples**:
+
 - `customer_id UUID` - Filter by customer (high cardinality)
 - `product_id UUID` - Filter by product
 - `occurred_at TIMESTAMPTZ` - Filter by time range
 - `status VARCHAR(50)` - Filter by status (low cardinality but frequently filtered)
 
 **Why Denormalized?**:
+
 ```sql
 -- ✅ FAST: Indexed SQL column filter
 SELECT * FROM tf_sales
@@ -257,6 +265,7 @@ TRUNCATE staging_sales;
 When the compiler encounters a schema with `fact_table=True`:
 
 1. **Introspect Fact Table Structure**:
+
    ```rust
    let columns = introspect_table("tf_sales");
    let measures = columns.filter(|col| col.is_numeric());
@@ -280,6 +289,7 @@ When the compiler encounters a schema with `fact_table=True`:
 When executing an aggregation query:
 
 1. **Parse GROUP BY Request**:
+
    ```graphql
    query {
      sales_aggregate(
@@ -294,6 +304,7 @@ When executing an aggregation query:
    ```
 
 2. **Generate SELECT Statement**:
+
    ```sql
    SELECT
        dimensions->>'category' AS category,
@@ -313,6 +324,7 @@ When executing an aggregation query:
 ### PostgreSQL
 
 **Strengths**:
+
 - Full JSONB support: `->`, `->>`, `#>`, `#>>`, `@>`, `?`, `?&`
 - Native DATE_TRUNC for temporal bucketing
 - FILTER (WHERE ...) for conditional aggregates
@@ -320,6 +332,7 @@ When executing an aggregation query:
 - Statistical functions (STDDEV, VARIANCE)
 
 **Example**:
+
 ```sql
 -- Advanced JSONB queries
 SELECT
@@ -334,16 +347,19 @@ GROUP BY dimensions->>'category';
 ### MySQL
 
 **Strengths**:
+
 - JSON_EXTRACT, JSON_CONTAINS for JSON handling
 - DATE_FORMAT for temporal bucketing
 - GROUP_CONCAT for string aggregation
 
 **Limitations**:
+
 - No ILIKE (case-insensitive like)
 - No native regex operators
 - CASE WHEN emulation for conditional aggregates
 
 **Example**:
+
 ```sql
 -- MySQL JSON extraction
 SELECT
@@ -356,16 +372,19 @@ GROUP BY JSON_EXTRACT(data, '$.category');
 ### SQLite
 
 **Strengths**:
+
 - Lightweight, embedded
 - json_extract for basic JSON handling
 - strftime for temporal bucketing
 
 **Limitations**:
+
 - Limited JSON support (no JSON operators beyond extraction)
 - No GIN indexes
 - No statistical functions
 
 **Example**:
+
 ```sql
 -- SQLite JSON extraction
 SELECT
@@ -378,16 +397,19 @@ GROUP BY json_extract(data, '$.category');
 ### SQL Server
 
 **Strengths**:
+
 - JSON_VALUE, JSON_QUERY for JSON handling
 - DATEPART for temporal bucketing
 - Statistical functions (STDEV, VAR with population variants)
 - FOR JSON clause for output formatting
 
 **Limitations**:
+
 - OPENJSON required for complex JSON queries
 - CASE WHEN emulation for conditional aggregates
 
 **Example**:
+
 ```sql
 -- SQL Server JSON extraction
 SELECT
@@ -467,19 +489,22 @@ query {
 ### When to Use Fact Tables (tf_*)
 
 ✅ **Use for**:
+
 - High-volume transactional data (sales, events, logs)
 - Any granularity (raw transactions or pre-aggregated rollups)
 - Real-time or near-real-time data ingestion
 - Data requiring full history retention
 
 ❌ **Don't use for**:
+
 - Low-volume reference data (use regular tables)
 - Frequently updated records (facts are immutable)
 - Data requiring joins (FraiseQL doesn't support joins)
 
-### When to Use Pre-Aggregated Fact Tables (tf_*_daily, tf_*_monthly, etc.)
+### When to Use Pre-Aggregated Fact Tables (tf_**daily, tf**_monthly, etc.)
 
 ✅ **Use for**:
+
 - Pre-computed aggregates for common queries
 - Coarser granularity (daily, monthly, per-category, etc.)
 - Query performance optimization
@@ -489,17 +514,20 @@ query {
 ### When to Use Dimension Tables (td_*)
 
 ✅ **Use for**:
+
 - Reference data for ETL denormalization (products, customers, locations)
 - Lookup data used to enrich fact tables during data loading
 - Master data management
 
 ❌ **Don't use for**:
+
 - Query-time joins (FraiseQL doesn't support joins)
 - Direct GraphQL exposure (use denormalized data in fact tables instead)
 
 ### Index Strategy
 
 **Denormalized Filter Columns**:
+
 ```sql
 -- High-cardinality filters
 CREATE INDEX idx_sales_customer ON tf_sales(customer_id);
@@ -514,6 +542,7 @@ CREATE INDEX idx_sales_customer_occurred
 ```
 
 **JSONB Dimensions** (PostgreSQL):
+
 ```sql
 -- GIN index for JSONB queries
 CREATE INDEX idx_sales_data_gin ON tf_sales USING GIN(data);
@@ -524,6 +553,7 @@ CREATE INDEX idx_sales_category
 ```
 
 **Don't Over-Index**:
+
 - Every index slows INSERT/UPDATE operations
 - Index only frequently-filtered columns
 - Monitor query patterns before adding indexes

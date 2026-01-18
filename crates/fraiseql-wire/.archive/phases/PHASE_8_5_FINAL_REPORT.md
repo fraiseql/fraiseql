@@ -15,24 +15,28 @@ Phase 8.5 has achieved comprehensive observability across the entire fraiseql-wi
 ## ✅ Completed Work (7 of 8 Sub-phases)
 
 ### Phase 8.5.1: Metrics Module Infrastructure ✅
+
 - Created metrics module with 19 counter + 10 histogram functions
 - Implemented label constants for consistent labeling
 - All metric functions tested and verified
 - **Status**: Complete and working
 
 ### Phase 8.5.2: QueryBuilder Instrumentation ✅
+
 - Record query submissions with predicate details
 - Track entity, SQL predicates, Rust predicates, ORDER BY
 - Non-breaking API change
 - **Metrics**: `fraiseql_queries_total`
 
 ### Phase 8.5.3: Connection Instrumentation ✅
+
 - Authentication metrics (mechanism, duration, success/failure)
 - Query startup timing (time to first row)
 - Entity extraction from SQL queries
 - **Metrics**: Auth attempts/successes/failures, query startup duration
 
 ### Phase 8.5.4: Background Task Instrumentation ✅
+
 - Row processing and chunking metrics
 - Per-chunk timing and size distribution
 - Query completion status tracking
@@ -40,6 +44,7 @@ Phase 8.5 has achieved comprehensive observability across the entire fraiseql-wi
 - **Metrics**: Chunk size, processing duration, rows processed, completion status
 
 ### Phase 8.5.5: Stream Type Instrumentation ✅
+
 - Deserialization latency tracking by type
 - Per-type success and failure counting
 - Rust filter execution timing
@@ -47,6 +52,7 @@ Phase 8.5 has achieved comprehensive observability across the entire fraiseql-wi
 - **Metrics**: Deserialization duration, filter duration, type-specific counters
 
 ### Phase 8.5.6: Integration Tests ✅
+
 - 15 comprehensive integration tests
 - Validation of all metric functions
 - End-to-end query lifecycle testing
@@ -54,6 +60,7 @@ Phase 8.5 has achieved comprehensive observability across the entire fraiseql-wi
 - **Results**: All 15 tests passing
 
 ### Phase 8.5.7: Documentation & Examples ✅
+
 - **METRICS.md** (495 lines): Complete metrics reference
   - All 17 metrics documented with specifications
   - Label cardinality analysis
@@ -77,6 +84,7 @@ Phase 8.5 has achieved comprehensive observability across the entire fraiseql-wi
 ### 17 Active Metrics
 
 **Counters (10)**:
+
 1. `fraiseql_queries_total` - Query submissions
 2. `fraiseql_authentications_total` - Auth attempts
 3. `fraiseql_authentications_successful_total` - Successful auth
@@ -89,6 +97,7 @@ Phase 8.5 has achieved comprehensive observability across the entire fraiseql-wi
 10. `fraiseql_rows_deserialization_failed_total` - Deserialization failures
 
 **Histograms (7)**:
+
 1. `fraiseql_query_startup_duration_ms` - Time to first row
 2. `fraiseql_query_total_duration_ms` - Total query time
 3. `fraiseql_chunk_processing_duration_ms` - Per-chunk latency
@@ -155,10 +164,13 @@ All 6 stages of query execution now fully instrumented:
 ## Test Results
 
 ### Unit Tests
+
 ✅ 90 library tests passing (19 metrics + 71 other)
 
 ### Integration Tests
+
 ✅ 15 metrics integration tests:
+
 - Module exports validation
 - Counter operations
 - Histogram operations
@@ -171,6 +183,7 @@ All 6 stages of query execution now fully instrumented:
 - Cancellation handling
 
 ### Build Status
+
 ✅ Clean compilation (no new warnings)
 ✅ All examples working (metrics_collection.rs)
 
@@ -179,6 +192,7 @@ All 6 stages of query execution now fully instrumented:
 ## Documentation
 
 ### METRICS.md (495 lines)
+
 - Quick start guide
 - Metrics overview table
 - Detailed metric specifications
@@ -195,6 +209,7 @@ All 6 stages of query execution now fully instrumented:
   - Alert rule examples
 
 ### examples/metrics_collection.rs (204 lines)
+
 - 5 demonstration sections:
   1. Query submission patterns
   2. Authentication scenarios
@@ -212,6 +227,7 @@ All 6 stages of query execution now fully instrumented:
 ### Overhead Analysis
 
 **Per-Query Overhead**:
+
 - Query submission: ~0.1μs (1 atomic counter)
 - Auth timing: ~0.5-1μs (Instant::now() calls)
 - Query startup: ~0.5μs (Instant::now())
@@ -219,6 +235,7 @@ All 6 stages of query execution now fully instrumented:
 - Deserialization timing: ~0.5μs (Instant::now())
 
 **Key Optimizations**:
+
 - No allocations in hot paths
 - No locks (lock-free atomics)
 - Minimal timing cost
@@ -227,6 +244,7 @@ All 6 stages of query execution now fully instrumented:
 **Expected Impact**: < 0.1% for typical workloads
 
 ### Memory Impact
+
 - Negligible (counters and histograms are stateless in metrics crate)
 - No per-query buffers
 - No state accumulation
@@ -238,6 +256,7 @@ All 6 stages of query execution now fully instrumented:
 ### Phase 8.5.8: Performance Validation (1-2 hours)
 
 **Pending Tasks**:
+
 1. Benchmark overhead measurement
 2. Profile hot paths with metrics enabled
 3. Verify < 0.1% impact on real workloads
@@ -245,6 +264,7 @@ All 6 stages of query execution now fully instrumented:
 5. Create performance validation test suite
 
 **Approach**:
+
 - Use criterion.rs for micro-benchmarks
 - Measure with/without metrics enabled
 - Calculate actual overhead percentage
@@ -264,6 +284,7 @@ All 6 stages of query execution now fully instrumented:
 ## What Works Now
 
 ✅ **Complete Observability**
+
 - Query submissions tracked with full predicate details
 - Authentication latency and success/failure monitored
 - Query startup performance visible
@@ -273,6 +294,7 @@ All 6 stages of query execution now fully instrumented:
 - Query completion status and errors recorded
 
 ✅ **Production Ready**
+
 - 17 metrics across complete query pipeline
 - Low cardinality labels prevent metric explosion
 - Compatible with Prometheus/OpenTelemetry/Grafana
@@ -282,6 +304,7 @@ All 6 stages of query execution now fully instrumented:
 - Working example program
 
 ✅ **Developer Experience**
+
 - Automatic metric collection (no setup required)
 - Clear, consistent metric names
 - Intuitive label structure

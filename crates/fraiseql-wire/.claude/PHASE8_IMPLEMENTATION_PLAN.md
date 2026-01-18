@@ -21,6 +21,7 @@ pub struct PauseResumeState {
 ```
 
 **Current behavior**:
+
 - `pause_resume` is `None` until `pause()` called
 - When `pause()` is called, all Arc allocations happen at once
 - Even though only ~3% of queries call `pause()`
@@ -58,9 +59,11 @@ const STATE_ERROR: u8 = 3;      // Stream encountered error
 ### Implementation Strategy
 
 #### 1. Define State Constants
+
 File: `src/stream/json_stream.rs`
 
 Add at top of module:
+
 ```rust
 const STATE_RUNNING: u8 = 0;
 const STATE_PAUSED: u8 = 1;
@@ -69,9 +72,11 @@ const STATE_ERROR: u8 = 3;
 ```
 
 #### 2. Add Atomic State to JsonStream
+
 File: `src/stream/json_stream.rs`
 
 Add to `pub struct JsonStream`:
+
 ```rust
 /// Lightweight state tracking (AtomicU8)
 /// Used for queries that never pause (97% of cases)
@@ -80,9 +85,11 @@ state_atomic: Arc<AtomicU8>,
 ```
 
 #### 3. Update JsonStream::new()
+
 File: `src/stream/json_stream.rs`
 
 In the constructor, add:
+
 ```rust
 let state_atomic = Arc::new(AtomicU8::new(STATE_RUNNING));
 
@@ -94,6 +101,7 @@ JsonStream {
 ```
 
 #### 4. Create Helper Methods
+
 File: `src/stream/json_stream.rs`
 
 ```rust
@@ -137,9 +145,11 @@ impl JsonStream {
 ```
 
 #### 5. Update Background Task
+
 File: `src/connection/conn.rs`
 
 Replace state checks with atomic checks where possible:
+
 ```rust
 // OLD (Phase 6):
 if let (Some(ref state_lock), Some(ref pause_signal), ...) =
@@ -158,9 +168,11 @@ if current_state == STATE_PAUSED {
 ```
 
 #### 6. Update Pause/Resume Methods
+
 File: `src/stream/json_stream.rs`
 
 In `pause()` method:
+
 ```rust
 pub async fn pause(&mut self) -> Result<()> {
     // Fast path: mark as paused using atomic
@@ -178,9 +190,11 @@ pub async fn pause(&mut self) -> Result<()> {
 In `resume()` method - similar pattern
 
 #### 7. Update Error Handling
+
 File: `src/stream/json_stream.rs`, `src/connection/conn.rs`
 
 When error occurs, set state using atomic:
+
 ```rust
 match result {
     Ok(item) => {
@@ -197,17 +211,20 @@ match result {
 ## Testing Strategy
 
 ### Unit Tests
+
 1. Verify state transitions work with AtomicU8
 2. Test pause/resume still works (upgrades to Mutex)
 3. Test error state marking
 4. Verify thread-safe state transitions
 
 ### Existing Tests
+
 - All 158 existing tests should still pass
 - No API changes (internal optimization only)
 - Pause/resume behavior must be identical
 
 ### New Tests (if needed)
+
 ```rust
 #[test]
 fn test_atomic_state_transitions() {
@@ -225,6 +242,7 @@ fn test_pause_upgrade_to_mutex() {
 ### Atomic Ordering
 
 Use appropriate memory ordering:
+
 - **`Acquire`** on reads: Ensure we see all previous writes
 - **`Release`** on writes: Ensure all our writes are visible before next operation
 - This is safe for state machine transitions
@@ -263,6 +281,7 @@ Total Phase 8 impact: ~0.5ms on small result sets
 ## Risk Assessment
 
 **Low Risk**:
+
 - AtomicU8 is simple and well-understood
 - Pause/resume behavior unchanged (still uses Mutex when needed)
 - All existing tests should pass
@@ -270,11 +289,13 @@ Total Phase 8 impact: ~0.5ms on small result sets
 - Backward compatible
 
 **Potential Issues**:
+
 - Memory ordering bugs (mitigated by using Acquire/Release)
 - State transition race conditions (mitigated by careful ordering)
 - Interactions with pause/resume (handled by ensure_pause_resume())
 
 **Mitigation**:
+
 - Run all 158 tests
 - Verify with benchmarks
 - Code review for atomic ordering correctness
@@ -312,6 +333,7 @@ Total Phase 8 impact: ~0.5ms on small result sets
 ## Rollback Plan
 
 If Phase 8 causes issues:
+
 1. Remove `state_atomic` field and all atomic state methods
 2. Revert to Phase 6 (all prior commits intact)
 3. Single commit to roll back (~10 minutes)

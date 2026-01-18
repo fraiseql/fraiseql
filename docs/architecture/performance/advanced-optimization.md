@@ -1385,6 +1385,7 @@ class BackpressureManager:
 ## 8. Performance Optimization Checklist
 
 ### Database Layer
+
 - [ ] Indexes on all WHERE/JOIN/ORDER BY columns
 - [ ] Composite indexes for common filter combinations
 - [ ] Partial indexes for soft-deleted rows (WHERE deleted_at IS NULL)
@@ -1396,6 +1397,7 @@ class BackpressureManager:
 - [ ] Slow query log enabled and monitored
 
 ### Query Layer
+
 - [ ] Query execution plans analyzed
 - [ ] Predicates pushed to database
 - [ ] Join order optimized
@@ -1407,6 +1409,7 @@ class BackpressureManager:
 - [ ] Query timeout configured
 
 ### Caching Layer
+
 - [ ] L1 in-memory cache for hot data
 - [ ] L2 Redis cache for distributed caching
 - [ ] Cache invalidation strategy defined
@@ -1417,6 +1420,7 @@ class BackpressureManager:
 - [ ] Eviction policy appropriate for workload
 
 ### Infrastructure
+
 - [ ] Connection pool sized for CPU cores
 - [ ] Garbage collection tuned
 - [ ] Memory usage monitored
@@ -1427,6 +1431,7 @@ class BackpressureManager:
 - [ ] Graceful degradation implemented
 
 ### Monitoring
+
 - [ ] Query latency percentiles (p50, p95, p99)
 - [ ] Cache hit/miss rates
 - [ ] Database connection pool status
@@ -1443,36 +1448,42 @@ class BackpressureManager:
 FraiseQL advanced optimization covers:
 
 ✅ **Query Optimization**
+
 - Execution plan analysis and adaptation
 - Predicate pushdown to database
 - Join order optimization
 - Index effectiveness
 
 ✅ **Database Tuning**
+
 - Index design strategy (B-tree, GIN, GIST)
 - Materialized views for aggregations
 - Partitioning for large tables
 - Statistics and query planning
 
 ✅ **Caching Edge Cases**
+
 - Hot key detection and mitigation
 - Thundering herd prevention
 - Eviction policy selection
 - Cache consistency
 
 ✅ **Multi-Instance Scaling**
+
 - Replica consistency management
 - Session affinity routing
 - Load balancing strategies
 - Connection locality
 
 ✅ **Resource Optimization**
+
 - Memory profiling and GC tuning
 - Connection pool configuration
 - Query profiling
 - Distributed tracing
 
 ✅ **Emergency Procedures**
+
 - Circuit breaker pattern
 - Graceful degradation under load
 - Backpressure handling

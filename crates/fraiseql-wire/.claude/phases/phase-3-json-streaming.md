@@ -13,6 +13,7 @@ This phase builds the core streaming pipeline:
 ```
 
 Key requirements:
+
 * Bounded memory (scales with chunk size, not result size)
 * Backpressure (consumer controls flow)
 * Cancellation (dropping stream stops query)
@@ -589,6 +590,7 @@ cargo clippy -- -D warnings
 ## Expected Output
 
 ### cargo test
+
 ```
 running 10 tests
 test json::validate::tests::test_valid_row_description ... ok
@@ -607,15 +609,15 @@ test result: ok. 10 passed; 0 failed; 0 ignored
 
 ## Acceptance Criteria
 
-- [ ] JSON stream implements `Stream<Item = Result<Value>>`
-- [ ] Row schema validation enforces single `data` column
-- [ ] Row schema validation enforces JSON/JSONB type
-- [ ] Chunking batches rows efficiently
-- [ ] Backpressure works (bounded channel)
-- [ ] Cancellation works (dropping stream stops background task)
-- [ ] Invalid JSON returns error in stream
-- [ ] All tests pass
-- [ ] No clippy warnings
+* [ ] JSON stream implements `Stream<Item = Result<Value>>`
+* [ ] Row schema validation enforces single `data` column
+* [ ] Row schema validation enforces JSON/JSONB type
+* [ ] Chunking batches rows efficiently
+* [ ] Backpressure works (bounded channel)
+* [ ] Cancellation works (dropping stream stops background task)
+* [ ] Invalid JSON returns error in stream
+* [ ] All tests pass
+* [ ] No clippy warnings
 
 ## DO NOT
 

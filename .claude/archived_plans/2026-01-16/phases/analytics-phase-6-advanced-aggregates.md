@@ -16,12 +16,14 @@
 ## Context
 
 **What Was Done (Phase 5)**:
+
 - ✅ Basic aggregates (COUNT, SUM, AVG, MIN, MAX, STDDEV, VARIANCE)
 - ✅ GROUP BY with dimensions and temporal buckets
 - ✅ HAVING, ORDER BY, LIMIT/OFFSET
 - ✅ Full pipeline: Parse → Plan → SQL → Execute → Project
 
 **What Was Implemented (Phase 6)**:
+
 - ✅ Array aggregation (collect values into arrays)
 - ✅ JSON aggregation (build JSON objects/arrays)
 - ✅ String aggregation (concatenate with delimiter)
@@ -38,6 +40,7 @@
 **Use Case**: Collect related items per group
 
 **Example**:
+
 ```sql
 SELECT
   category,
@@ -47,6 +50,7 @@ GROUP BY category
 ```
 
 **Result**:
+
 ```json
 [
   {"category": "Electronics", "top_products": ["prod_1", "prod_5", "prod_3"]},
@@ -55,6 +59,7 @@ GROUP BY category
 ```
 
 **Database Support**:
+
 - **PostgreSQL**: `ARRAY_AGG(column ORDER BY x)` ✅
 - **MySQL**: `JSON_ARRAYAGG(column)` (returns JSON array, not native array)
 - **SQLite**: Not supported natively (emulate with `GROUP_CONCAT`)
@@ -65,6 +70,7 @@ GROUP BY category
 **Use Case**: Build nested JSON responses
 
 **Example**:
+
 ```sql
 SELECT
   category,
@@ -79,6 +85,7 @@ GROUP BY category
 ```
 
 **Result**:
+
 ```json
 [
   {
@@ -92,6 +99,7 @@ GROUP BY category
 ```
 
 **Database Support**:
+
 - **PostgreSQL**: `JSON_AGG(expr)`, `JSONB_AGG(expr)` ✅
 - **MySQL**: `JSON_ARRAYAGG(column)`, `JSON_OBJECTAGG(key, value)` ✅
 - **SQLite**: Limited (manual JSON construction)
@@ -102,6 +110,7 @@ GROUP BY category
 **Use Case**: Display comma-separated lists
 
 **Example**:
+
 ```sql
 SELECT
   category,
@@ -111,6 +120,7 @@ GROUP BY category
 ```
 
 **Result**:
+
 ```json
 [
   {"category": "Electronics", "products": "Laptop, Phone, Tablet"},
@@ -119,6 +129,7 @@ GROUP BY category
 ```
 
 **Database Support**:
+
 - **PostgreSQL**: `STRING_AGG(column, delimiter ORDER BY x)` ✅
 - **MySQL**: `GROUP_CONCAT(column ORDER BY x SEPARATOR delimiter)` ✅
 - **SQLite**: `GROUP_CONCAT(column, delimiter)` (no ORDER BY in older versions)
@@ -129,6 +140,7 @@ GROUP BY category
 **Use Case**: Check if all/any conditions are true
 
 **Example**:
+
 ```sql
 SELECT
   category,
@@ -139,6 +151,7 @@ GROUP BY category
 ```
 
 **Result**:
+
 ```json
 [
   {"category": "Electronics", "all_active": true, "any_discounted": false},
@@ -147,6 +160,7 @@ GROUP BY category
 ```
 
 **Database Support**:
+
 - **PostgreSQL**: `BOOL_AND(condition)`, `BOOL_OR(condition)` ✅
 - **MySQL**: `MIN(condition)`, `MAX(condition)` (emulate with 0/1)
 - **SQLite**: `MIN(condition)`, `MAX(condition)` (emulate with 0/1)
@@ -161,6 +175,7 @@ GROUP BY category
 **File**: `crates/fraiseql-core/src/compiler/aggregate_types.rs`
 
 Add new variants:
+
 ```rust
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AggregateFunction {
@@ -184,6 +199,7 @@ pub enum AggregateFunction {
 ```
 
 Add SQL name mapping:
+
 ```rust
 impl AggregateFunction {
     pub fn sql_name(&self) -> &'static str {
@@ -205,6 +221,7 @@ impl AggregateFunction {
 **File**: `crates/fraiseql-core/src/compiler/aggregation.rs`
 
 Extend `AggregateSelection` enum:
+
 ```rust
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum AggregateSelection {
@@ -250,6 +267,7 @@ pub enum BoolAggregateFunction {
 Add database-specific SQL generation for each function:
 
 **ARRAY_AGG**:
+
 ```rust
 fn generate_array_agg_sql(&self, column: &str, order_by: &Option<Vec<OrderByClause>>) -> String {
     match self.database_type {
@@ -278,6 +296,7 @@ fn generate_array_agg_sql(&self, column: &str, order_by: &Option<Vec<OrderByClau
 ```
 
 **JSON_AGG**:
+
 ```rust
 fn generate_json_agg_sql(
     &self,
@@ -322,6 +341,7 @@ fn generate_json_agg_sql(
 ```
 
 **STRING_AGG**:
+
 ```rust
 fn generate_string_agg_sql(
     &self,
@@ -362,6 +382,7 @@ fn generate_string_agg_sql(
 ```
 
 **BOOL_AND / BOOL_OR**:
+
 ```rust
 fn generate_bool_agg_sql(&self, column: &str, function: BoolAggregateFunction) -> String {
     match self.database_type {
@@ -394,6 +415,7 @@ fn generate_bool_agg_sql(&self, column: &str, function: BoolAggregateFunction) -
 **File**: `crates/fraiseql-core/src/runtime/aggregate_parser.rs`
 
 Add parsing for advanced aggregates:
+
 ```rust
 fn parse_aggregate_selection(agg_name: &str, metadata: &FactTableMetadata) -> Result<AggregateSelection> {
     // Existing: count, count_distinct, measure_sum, measure_avg, etc.
@@ -457,6 +479,7 @@ fn parse_aggregate_selection(agg_name: &str, metadata: &FactTableMetadata) -> Re
 **File**: `crates/fraiseql-core/src/compiler/aggregate_types.rs`
 
 Add GraphQL types for array/JSON results:
+
 ```rust
 fn generate_aggregate_type_fields(metadata: &FactTableMetadata) -> Vec<GraphQLField> {
     let mut fields = vec![];
@@ -516,6 +539,7 @@ fn generate_aggregate_type_fields(metadata: &FactTableMetadata) -> Vec<GraphQLFi
 **File**: `tests/integration/advanced_aggregates_test.rs`
 
 Test scenarios:
+
 1. ✅ ARRAY_AGG with ORDER BY
 2. ✅ JSON_AGG with multiple columns
 3. ✅ STRING_AGG with custom delimiter
@@ -524,6 +548,7 @@ Test scenarios:
 6. ✅ Projection of array/JSON results to GraphQL
 
 **Example Test**:
+
 ```rust
 #[test]
 fn test_array_agg_postgres() {
@@ -576,6 +601,7 @@ fn test_array_agg_postgres() {
 ## Acceptance Criteria
 
 ### Functional Requirements
+
 ✅ ARRAY_AGG collects values into arrays
 ✅ JSON_AGG builds JSON objects/arrays
 ✅ STRING_AGG concatenates with delimiters
@@ -584,6 +610,7 @@ fn test_array_agg_postgres() {
 ✅ All 4 databases supported
 
 ### Non-Functional Requirements
+
 ✅ Tests pass for all databases
 ✅ No performance degradation
 ✅ Code is documented
@@ -601,6 +628,7 @@ fn test_array_agg_postgres() {
 | BOOL_AND/OR | ✅ Native | 🔄 MIN/MAX | 🔄 MIN/MAX | 🔄 MIN/MAX CAST |
 
 **Legend**:
+
 - ✅ Native support
 - 🔄 Emulated/alternative syntax
 - ❌ Not supported
@@ -610,6 +638,7 @@ fn test_array_agg_postgres() {
 ## Example Queries
 
 ### ARRAY_AGG - Top 5 Products per Category
+
 ```graphql
 query {
   sales_aggregate(
@@ -622,6 +651,7 @@ query {
 ```
 
 ### JSON_AGG - Nested Product Details
+
 ```graphql
 query {
   sales_aggregate(
@@ -634,6 +664,7 @@ query {
 ```
 
 ### STRING_AGG - Display List
+
 ```graphql
 query {
   sales_aggregate(
@@ -646,6 +677,7 @@ query {
 ```
 
 ### BOOL_AND/OR - Flags
+
 ```graphql
 query {
   sales_aggregate(
@@ -663,27 +695,35 @@ query {
 ## ✅ Implementation Complete Summary
 
 ### Part 1: Type Definitions ✅
+
 **Commit**: `2a2757b` - feat(compiler): Phase 6 - Part 1: Add advanced aggregate function types
+
 - Extended `AggregateFunction` enum with ArrayAgg, JsonAgg, JsonbAgg, StringAgg
 - Added `BoolAggregateFunction` enum (And/Or)
 - Helper methods for SQL/field names
 
 ### Part 2: SQL Generation ✅
+
 **Commit**: `22255f5` - feat(runtime): Phase 6 - Part 2: Advanced aggregate SQL generation
+
 - Database-specific SQL generation for all advanced aggregates
 - PostgreSQL, MySQL, SQLite, SQL Server support
 - 18 aggregation tests passing (11 existing + 7 new)
 - ORDER BY support within aggregate functions
 
 ### Part 3: Parser Support ✅
+
 **Commit**: `fe1f6e5` - feat(runtime): Phase 6 - Part 3: Parser and planner support
+
 - Extended `AggregateSelection` with `BoolAggregate` variant
 - Parser recognizes advanced aggregate field names
 - Planner validates and converts to correct expression types
 - Supports aggregating measures, dimensions, and filter columns
 
 ### Part 4: Projection Support ✅
+
 **Commit**: `40897e6` - feat(runtime): Phase 6 - Part 4: Projection support
+
 - Added 6 new projector tests for advanced aggregates
 - Verified correct handling of arrays, JSON, strings, booleans
 - 12 projector tests passing (6 existing + 6 new)

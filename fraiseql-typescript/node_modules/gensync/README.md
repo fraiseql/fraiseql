@@ -10,7 +10,6 @@ Take for example `fs.readFile` and `fs.readFileSync`, if you're writing an API
 that loads a file and then performs a synchronous operation on the data, it
 can be frustrating to maintain two parallel functions.
 
-
 ## Example
 
 ```js
@@ -43,6 +42,7 @@ myOperation.errback("./some-file.js", (err, result) => {
 ```
 
 This could even be exposed as your official API by doing
+
 ```js
 // Using the common 'Sync' suffix for sync functions, and 'Async' suffix for
 // promise-returning versions.
@@ -50,13 +50,14 @@ exports.myOperationSync = myOperation.sync;
 exports.myOperationAsync = myOperation.async;
 exports.myOperation = myOperation.errback;
 ```
+
 or potentially expose one of the async versions as the default, with a
 `.sync` property on the function to expose the synchronous version.
+
 ```js
 module.exports = myOperation.errback;
 module.exports.sync = myOperation.sync;
 ````
-
 
 ## API
 
@@ -68,7 +69,6 @@ function, or executed via
 * `.sync(...args)` - Returns the computed value, or throws.
 * `.async(...args)` - Returns a promise for the computed value.
 * `.errback(...args, (err, result) => {})` - Calls the callback with the computed value, or error.
-
 
 #### Passed a generator
 
@@ -95,7 +95,6 @@ readFileAndMore.errback("./file.js", "utf8", (err, code) => {});
 // In a generator being called indirectly with .sync/.async/.errback
 const code = yield* readFileAndMore("./file.js", "utf8");
 ```
-
 
 #### Passed an options object
 
@@ -159,7 +158,6 @@ readFile.async("./file.js", "utf8").then(code => {})
 readFile.errback("./file.js", "utf8", (err, code) => {});
 ```
 
-
 ### gensync.all(iterable)
 
 `Promise.all`-like combinator that works with an iterable of generator objects
@@ -176,7 +174,6 @@ const loadFiles = gensync(function* () {
   ]);
 });
 ```
-
 
 ### gensync.race(iterable)
 

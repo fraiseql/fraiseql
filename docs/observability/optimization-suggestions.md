@@ -26,6 +26,7 @@ Every suggestion has a priority based on **impact score**:
 | **Low** | < 1,000 | Minor improvement |
 
 **Example**:
+
 ```
 Suggestion: Denormalize dimensions->>'region'
 - 8,500 queries/day × 12.5x speedup = 106,250 impact score
@@ -41,6 +42,7 @@ Suggestion: Denormalize dimensions->>'region'
 Move frequently-accessed data from JSON/JSONB column to a dedicated direct column.
 
 **Before (PostgreSQL)**:
+
 ```sql
 CREATE TABLE tf_sales (
     id BIGINT PRIMARY KEY,
@@ -54,6 +56,7 @@ WHERE dimensions->>'region' = 'US';  -- Parses JSON on every row
 ```
 
 **After**:
+
 ```sql
 CREATE TABLE tf_sales (
     id BIGINT PRIMARY KEY,
@@ -70,6 +73,7 @@ WHERE region_id = 'US';  -- Direct column lookup with index
 ```
 
 **Before (SQL Server)**:
+
 ```sql
 CREATE TABLE tf_sales (
     id BIGINT PRIMARY KEY,
@@ -83,6 +87,7 @@ WHERE JSON_VALUE(dimensions, '$.region') = 'US';
 ```
 
 **After**:
+
 ```sql
 CREATE TABLE tf_sales (
     id BIGINT PRIMARY KEY,
@@ -171,6 +176,7 @@ Speedup: 100,000ms ÷ 16.02ms ≈ 6,242x (capped at 100x)
 ```
 
 **Note**: Actual speedup varies by:
+
 - Table size (larger = higher speedup)
 - Selectivity (lower = higher speedup)
 - Hardware (SSD vs HDD)
@@ -207,17 +213,20 @@ Benefit: 8,500 queries/day × 1,150ms saved = 9,775 seconds/day saved
 ### When to Apply
 
 ✅ **Apply When**:
+
 - High frequency (> 1000 queries/day)
 - Used in filters with high selectivity
 - Used in `ORDER BY` or `GROUP BY`
 - Storage cost is acceptable (< 1 GB)
 
 ⚠️ **Consider Carefully When**:
+
 - Low selectivity filters (> 50% of rows match)
 - Rarely accessed path (< 100 queries/day)
 - Very large storage cost (> 10 GB)
 
 ❌ **Don't Apply When**:
+
 - Path only used in `SELECT` (projection)
 - Path values change very frequently (high write cost)
 - Path is deeply nested and complex
@@ -231,6 +240,7 @@ Benefit: 8,500 queries/day × 1,150ms saved = 9,775 seconds/day saved
 **Impact**: INSERT/UPDATE operations need to update additional column + index.
 
 **Mitigation**:
+
 - Typically negligible (< 5% write overhead)
 - For write-heavy tables, test in staging first
 
@@ -241,6 +251,7 @@ Benefit: 8,500 queries/day × 1,150ms saved = 9,775 seconds/day saved
 **Solution**: Use database triggers or computed columns (SQL Server):
 
 **PostgreSQL Trigger**:
+
 ```sql
 CREATE OR REPLACE FUNCTION sync_region_id()
 RETURNS TRIGGER AS $$
@@ -256,6 +267,7 @@ FOR EACH ROW EXECUTE FUNCTION sync_region_id();
 ```
 
 **SQL Server Computed Column** (automatic):
+
 ```sql
 ALTER TABLE tf_sales
 ADD region_id AS JSON_VALUE(dimensions, '$.region') PERSISTED;
@@ -266,6 +278,7 @@ ADD region_id AS JSON_VALUE(dimensions, '$.region') PERSISTED;
 **Problem**: Adding columns requires schema migration.
 
 **Mitigation**:
+
 - Use FraiseQL's schema compilation to manage changes
 - Apply migrations during low-traffic windows
 
@@ -278,6 +291,7 @@ ADD region_id AS JSON_VALUE(dimensions, '$.region') PERSISTED;
 Create an index on an existing column that's frequently filtered or sorted.
 
 **Before**:
+
 ```sql
 CREATE TABLE users (
     id BIGINT PRIMARY KEY,
@@ -292,6 +306,7 @@ ORDER BY created_at DESC;
 ```
 
 **After (PostgreSQL)**:
+
 ```sql
 CREATE INDEX idx_users_created_at ON users (created_at);
 
@@ -302,6 +317,7 @@ ORDER BY created_at DESC;
 ```
 
 **After (SQL Server)**:
+
 ```sql
 CREATE NONCLUSTERED INDEX idx_users_created_at
 ON users (created_at DESC);
@@ -350,16 +366,19 @@ Query patterns:
 ### When to Apply
 
 ✅ **Apply When**:
+
 - Column frequently filtered or sorted
 - Table has > 10,000 rows
 - Read-heavy workload (reads >> writes)
 
 ⚠️ **Consider Carefully When**:
+
 - Write-heavy table (index slows inserts)
 - Low selectivity (column has few distinct values)
 - Table is small (< 1,000 rows - index overhead not worth it)
 
 ❌ **Don't Apply When**:
+
 - Column is already indexed
 - Very high write rate (> 10,000 inserts/sec)
 - Index would be larger than the table
@@ -373,6 +392,7 @@ Query patterns:
 Remove an index that's never or rarely used.
 
 **Before**:
+
 ```sql
 CREATE TABLE products (
     id BIGINT PRIMARY KEY,
@@ -385,6 +405,7 @@ CREATE INDEX idx_products_legacy_sku ON products (legacy_sku);
 ```
 
 **After**:
+
 ```sql
 -- Drop unused index
 DROP INDEX idx_products_legacy_sku;
@@ -432,16 +453,19 @@ Statistics:
 ### When to Apply
 
 ✅ **Apply When**:
+
 - Zero usage in 30+ days
 - Index is large (> 100 MB)
 - High insert rate (write optimization)
 
 ⚠️ **Consider Carefully When**:
+
 - Index used occasionally (< 10x/month)
 - Part of a deployment rollback plan
 - Used by ad-hoc analytics queries
 
 ❌ **Don't Apply When**:
+
 - Index supports unique constraint
 - Required by foreign key
 - Used for rare but critical queries
@@ -455,6 +479,7 @@ Statistics:
 Pre-compute expensive aggregate queries and store results.
 
 **Before**:
+
 ```sql
 -- Expensive aggregate (runs every time):
 SELECT
@@ -467,6 +492,7 @@ GROUP BY region_id, month;
 ```
 
 **After (PostgreSQL)**:
+
 ```sql
 CREATE MATERIALIZED VIEW mv_monthly_revenue AS
 SELECT
@@ -532,6 +558,7 @@ Refresh Strategy:
 **p95** = 95th percentile latency (95% of queries are faster than this).
 
 **Example**:
+
 ```
 Current p95: 1,250ms
 - 95% of queries complete in ≤ 1,250ms
@@ -545,6 +572,7 @@ Projected p95: 100ms (after optimization)
 **Why p95 instead of average?**
 
 Average can be misleading:
+
 ```
 Query times: [50ms, 55ms, 60ms, 45ms, 5000ms]
 - Average: 1,042ms (skewed by outlier)
@@ -558,6 +586,7 @@ Query times: [50ms, 55ms, 60ms, 45ms, 5000ms]
 **Selectivity** = (Rows Matched) ÷ (Total Rows)
 
 **Example**:
+
 ```
 Table: users (100,000 rows)
 Query: WHERE region = 'US'
@@ -581,6 +610,7 @@ Selectivity: 15,000 ÷ 100,000 = 0.15 (15%)
 **Calculation**: Total executions in analysis window ÷ window days.
 
 **Example**:
+
 ```
 Analysis window: 7 days
 Total executions: 59,500
@@ -590,6 +620,7 @@ Queries per day: 59,500 ÷ 7 = 8,500
 **Why it matters**:
 
 Higher frequency = higher impact:
+
 ```
 Optimization 1: 10,000 queries/day × 5x speedup = 50,000 impact
 Optimization 2: 100 queries/day × 50x speedup = 5,000 impact
@@ -609,6 +640,7 @@ Each suggestion includes a **confidence score**:
 | **Low (50-70%)** | May succeed | Low frequency, estimated selectivity |
 
 **Example**:
+
 ```
 Suggestion: Denormalize dimensions->>'category'
 
@@ -696,6 +728,7 @@ Suggestion C: Materialize view mv_monthly_revenue
 ### Q: Should I apply all suggestions?
 
 **A**: No. Focus on:
+
 - High/critical priority suggestions
 - Low-risk changes first (add index before denormalization)
 - Test incrementally
@@ -705,6 +738,7 @@ Suggestion C: Materialize view mv_monthly_revenue
 ### Q: What if actual speedup doesn't match estimate?
 
 **A**: Estimates are based on theoretical models. Actual speedup depends on:
+
 - Hardware (SSD vs HDD)
 - Database configuration
 - Cache hit rates

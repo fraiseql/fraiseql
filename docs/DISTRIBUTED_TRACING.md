@@ -19,6 +19,7 @@ FraiseQL v2 provides comprehensive distributed tracing support for tracking requ
 ### Core Components
 
 #### TraceContext
+
 Main context for request propagation across service boundaries.
 
 ```rust
@@ -43,6 +44,7 @@ assert_eq!(ctx_with_baggage.baggage_item("user_id"), Some("user_id"));
 ```
 
 #### TraceSpan
+
 Individual operation within a trace.
 
 ```rust
@@ -68,6 +70,7 @@ assert!(span.end_time_ms.is_some());
 ```
 
 #### TraceEvent
+
 Significant event during span execution.
 
 ```rust
@@ -81,6 +84,7 @@ println!("Event: {} at {}", event.name, event.timestamp_ms);
 ```
 
 #### SpanStatus
+
 Status enumeration for span execution.
 
 ```rust
@@ -396,11 +400,13 @@ fn should_sample(user_id: Option<&str>, priority: Option<&str>) -> bool {
 ## Performance Considerations
 
 ### Memory Usage
+
 - TraceContext: ~400 bytes (including baggage)
 - TraceSpan: ~600 bytes (with events)
 - Negligible overhead per request
 
 ### CPU Usage
+
 - Trace ID generation: < 1 microsecond
 - Header parsing: < 5 microseconds
 - No blocking operations

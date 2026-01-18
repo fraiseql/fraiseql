@@ -33,6 +33,7 @@ compiled = compiler.compile(config)
 ```
 
 This single configuration choice determines:
+
 1. ✅ Which WHERE operators are available in GraphQL schema
 2. ✅ How WHERE filters compile to SQL
 3. ✅ Which scalar types are supported
@@ -120,6 +121,7 @@ The **capability manifest** declares what each database can do:
 ```
 
 **This manifest is:**
+
 - ✅ Static (checked in)
 - ✅ Declarative (not code)
 - ✅ Extensible (add new databases easily)
@@ -244,7 +246,7 @@ schema.bind("users", "view", "v_user")
 ### Compilation: PostgreSQL Target
 
 ```bash
-$ fraiseql compile schema.py --database postgresql
+fraiseql compile schema.py --database postgresql
 ```
 
 Generated GraphQL schema includes:
@@ -279,7 +281,7 @@ input StringFilter {
 ### Compilation: MySQL Target
 
 ```bash
-$ fraiseql compile schema.py --database mysql
+fraiseql compile schema.py --database mysql
 ```
 
 Generated GraphQL schema includes:
@@ -312,7 +314,7 @@ input StringFilter {
 ### Compilation: SQLite Target
 
 ```bash
-$ fraiseql compile schema.py --database sqlite
+fraiseql compile schema.py --database sqlite
 ```
 
 Generated GraphQL schema includes:
@@ -480,6 +482,7 @@ pub fn lower_filter(filter: &Filter, args: &mut Vec<Value>) -> String {
 ### Step 3: No Changes to Schema
 
 Your schema authoring, compiler phases 1-3, or GraphQL type system changes. Only:
+
 - Capability manifest gains new database entry
 - One new lowering module added
 
@@ -514,6 +517,7 @@ impl DbAdapter for SqliteAdapter {
 ```
 
 **Problems:**
+
 - GraphQL lies (says regex is available everywhere)
 - Runtime surprises (query works in dev/PostgreSQL, fails in prod/SQLite)
 - Maintenance nightmare (every new operator needs adapter methods)
@@ -542,6 +546,7 @@ impl DbAdapter for SqliteAdapter {
 ```
 
 **Advantages:**
+
 - Truth in schema (GraphQL schema matches database reality)
 - Compile-time safety (errors caught during build)
 - Simple implementation (no runtime adapters)

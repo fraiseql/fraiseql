@@ -425,4 +425,3 @@ fn test_introspection_with_descriptions() {
     assert!(json.contains("Fetch a user by ID"));
     assert!(json.contains("Create a new user account"));
 }
-

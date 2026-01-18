@@ -104,6 +104,7 @@ def sales_aggregate() -> list[dict]:
 ```
 
 This generates a GraphQL query that supports:
+
 - **GROUP BY**: Dimensions (`category`, `region`) and temporal buckets (`occurred_at_day`, `occurred_at_month`)
 - **Aggregates**: `count`, `revenue_sum`, `revenue_avg`, `quantity_sum`, etc.
 - **WHERE**: Pre-aggregation filters (`customer_id`, `occurred_at` range)
@@ -132,6 +133,7 @@ CREATE INDEX ON tf_sales(occurred_at);
 ```
 
 **Key Principles:**
+
 - **Measures**: SQL columns (numeric types) for fast aggregation
 - **Dimensions**: JSONB `data` column for flexible grouping
 - **Denormalized Filters**: Indexed SQL columns for fast WHERE clauses
@@ -151,7 +153,7 @@ CREATE INDEX ON tf_sales(occurred_at);
 
 ## Documentation
 
-Full documentation: https://fraiseql.readthedocs.io
+Full documentation: <https://fraiseql.readthedocs.io>
 
 ## License
 

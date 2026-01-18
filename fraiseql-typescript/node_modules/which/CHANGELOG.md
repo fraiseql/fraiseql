@@ -1,6 +1,5 @@
 # Changes
 
-
 ## 2.0.2
 
 * Rename bin to `node-which`

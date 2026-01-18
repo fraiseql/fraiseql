@@ -13,21 +13,25 @@
 ## What Was Fixed
 
 ### Root Cause
+
 Schema generators were producing fields that didn't match the CLI's expected IntermediateSchema format.
 
 ### Issues Discovered & Fixed
 
 **Issue 1: Query/Mutation Field Name**
+
 - **Problem**: Generators used `"return_list"` but CLI expected `"returns_list"`
 - **Impact**: CRITICAL - Blocked all 10 languages from compiling
 - **Fix**: Renamed all occurrences of `return_list` to `returns_list`
 
 **Issue 2: Missing Mutation Fields**
+
 - **Problem**: Mutations were missing required `returns_list` and `nullable` fields
 - **Impact**: HIGH - Mutations weren't being compiled
 - **Fix**: Added `returns_list: false` and `nullable: false` to all mutations
 
 **Issue 3: Missing Argument Nullable Field**
+
 - **Problem**: Arguments with default values were missing `nullable` field (required by CLI)
 - **Impact**: HIGH - CLI validation failed with "missing field 'nullable'" error
 - **Fix**: Added `nullable: true` to all pagination/optional arguments
@@ -59,10 +63,12 @@ Compiled schema structure:
 ### E2E Test Results
 
 **Phase 1: Schema Code Generation** ✅
+
 - All 10 languages successfully generate syntactically valid schema code
 - No regressions in any language generator
 
 **Phase 2: CLI Compilation** ✅
+
 - All 10 languages compile to identical canonical schema.compiled.json
 - Languages tested:
   - Python:     ✅ CANONICAL (baseline)
@@ -96,6 +102,7 @@ All 10 languages expressing the same blogging app schema produce **bit-identical
 ### Schema Format Requirements (Discovered)
 
 **IntermediateQuery Fields**:
+
 ```json
 {
   "name": "string",           // REQUIRED
@@ -110,6 +117,7 @@ All 10 languages expressing the same blogging app schema produce **bit-identical
 ```
 
 **IntermediateMutation Fields**:
+
 ```json
 {
   "name": "string",           // REQUIRED
@@ -124,6 +132,7 @@ All 10 languages expressing the same blogging app schema produce **bit-identical
 ```
 
 **IntermediateArgument Fields**:
+
 ```json
 {
   "name": "string",           // REQUIRED
@@ -138,6 +147,7 @@ All 10 languages expressing the same blogging app schema produce **bit-identical
 ## Verification Evidence
 
 ### CLI Output
+
 ```bash
 $ ./target/release/fraiseql-cli compile velocitybench_schema.json -o compiled.json
 ✓ Schema compiled successfully
@@ -149,6 +159,7 @@ $ ./target/release/fraiseql-cli compile velocitybench_schema.json -o compiled.js
 ```
 
 ### Test Output
+
 ```
 ======================================================================
 ✅ 10/10 languages compiled successfully
@@ -157,6 +168,7 @@ $ ./target/release/fraiseql-cli compile velocitybench_schema.json -o compiled.js
 ```
 
 ### Commit
+
 ```
 [feature/phase-1-foundation d58136a] fix(schema): Normalize schema field names and types for CLI compatibility
  3 files changed, 28 insertions(+), 18 deletions(-)
@@ -185,6 +197,7 @@ $ ./target/release/fraiseql-cli compile velocitybench_schema.json -o compiled.js
 ## Next Steps
 
 ### Immediate
+
 - ✅ All schema fixes committed
 - Proceed with Phase 3 implementation
 

@@ -54,6 +54,7 @@ Functions
 ---------
 
 ### MurmurHash3 ([string], [seed])
+
 Get a hash state object, optionally initialized with the given _string_ and _seed_. _Seed_ must be a positive integer if provided. Calling this function without the `new` keyword will return a cached state object that has been reset. This is safe to use as long as the object is only used from a single thread and no other hashes are created while operating on this one. If this constraint cannot be met, you can use `new` to create a new state object. For example:
 
 ```javascript
@@ -73,11 +74,13 @@ Both methods can be mixed however you like if you have different use cases.
 ---
 
 ### MurmurHash3.prototype.hash (string)
+
 Incrementally add _string_ to the hash. This can be called as many times as you want for the hash state object, including after a call to `result()`. Returns `this` so calls can be chained.
 
 ---
 
 ### MurmurHash3.prototype.result ()
+
 Get the result of the hash as a 32-bit positive integer. This performs the tail and finalizer portions of the algorithm, but does not store the result in the state object. This means that it is perfectly safe to get results and then continue adding strings via `hash`.
 
 ```javascript
@@ -96,12 +99,14 @@ m.hash(' test string').result();
 ---
 
 ### MurmurHash3.prototype.reset ([seed])
+
 Reset the state object for reuse, optionally using the given _seed_ (defaults to 0 like the constructor). Returns `this` so calls can be chained.
 
 ---
 
 License (MIT)
 -------------
+
 Copyright (c) 2013 Gary Court, Jens Taylor
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of

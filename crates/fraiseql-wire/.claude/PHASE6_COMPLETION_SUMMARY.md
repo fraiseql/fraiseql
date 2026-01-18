@@ -11,13 +11,16 @@ Phase 6 (lazy pause/resume initialization) has been successfully implemented, be
 ## What Was Done
 
 ### 1. Phase 6 Implementation ✓
+
 **Commit**: `2ce80c3` - perf(phase-6): Implement lazy pause/resume initialization
 
 **Files Modified**:
+
 - `src/stream/json_stream.rs`: Created `PauseResumeState` struct, added lazy initialization
 - `src/connection/conn.rs`: Updated background task to handle Option types
 
 **Key Changes**:
+
 ```rust
 // BEFORE: Always allocate Arc<Mutex>, Arc<Notify> on every query
 state: Arc<Mutex<StreamState>>,
@@ -33,19 +36,24 @@ pause_resume: Option<PauseResumeState>
 ---
 
 ### 2. Benchmark Infrastructure Created ✓
+
 **Commits**:
+
 - `d89c18a` - test(phase-6): Add real-world validation benchmarks
 - `323202b` - docs(phase-6): Add comprehensive benchmark validation results
 
 **Files Created**:
+
 - `benches/phase6_validation.rs` - Real Postgres benchmarks (1K, 10K, 50K, 100K row queries)
 - `.claude/PHASE6_VALIDATION_GUIDE.md` - Comprehensive benchmarking guide
 - `.claude/PHASE6_BENCHMARK_RESULTS.md` - Detailed analysis of validation results
 
 **Files Modified**:
+
 - `Cargo.toml` - Added phase6_validation benchmark configuration
 
 **Benchmark Design**:
+
 - Fresh FraiseClient connection per iteration (no pooling)
 - 100 iterations for small sets (1K-50K rows)
 - 10 iterations for large sets (100K rows)
@@ -55,6 +63,7 @@ pause_resume: Option<PauseResumeState>
 ---
 
 ### 3. Real-World Validation ✓
+
 **Commit**: `7d31c72` - docs: Update optimization summary with Phase 6 benchmark results
 
 **Benchmark Results Obtained**:
@@ -67,6 +76,7 @@ pause_resume: Option<PauseResumeState>
 | 100K rows | 209.5ms | -0.3% | ✅ Stable |
 
 **Key Findings**:
+
 - Small result sets show 3-4% improvement (~1.5-2ms absolute)
 - Large result sets show no regression (startup cost becomes <1% of total)
 - All improvements on small sets statistically significant (p < 0.05)
@@ -75,11 +85,14 @@ pause_resume: Option<PauseResumeState>
 ---
 
 ### 4. Documentation Updated ✓
+
 **Updated Files**:
+
 - `OPTIMIZATION_PHASES_COMPLETE.md` - Added real benchmark results and validation status
 - `.claude/PHASE6_BENCHMARK_RESULTS.md` - Comprehensive analysis document
 
 **Key Documentation**:
+
 - Implementation details of PauseResumeState
 - Lazy initialization design and rationale
 - Complete benchmark methodology and results
@@ -175,14 +188,17 @@ Combined Phases 1-6:
 ## Files in Repository
 
 ### Implementation
+
 - `src/stream/json_stream.rs` - PauseResumeState struct, lazy initialization
 - `src/connection/conn.rs` - Background task integration
 
 ### Benchmarks
+
 - `benches/phase6_validation.rs` - Real Postgres validation benchmarks
 - `benches/setup.sql` - Test database schema (v_test_1m with 1M rows)
 
 ### Documentation
+
 - `.claude/PHASE6_VALIDATION_GUIDE.md` - How to run benchmarks
 - `.claude/PHASE6_BENCHMARK_RESULTS.md` - Detailed results analysis
 - `OPTIMIZATION_PHASES_COMPLETE.md` - Updated with real results
@@ -193,6 +209,7 @@ Combined Phases 1-6:
 ## How to Use Phase 6
 
 ### For End Users
+
 No changes needed - Phase 6 is a transparent optimization. The API remains identical:
 
 ```rust
@@ -235,16 +252,20 @@ vim .claude/PHASE6_BENCHMARK_RESULTS.md
 ## Why This Matters
 
 ### Performance Validation
+
 fraiseql-wire now **provably matches PostgreSQL's native protocol performance** for the critical 10K row use case. This validates the entire 6-phase optimization effort.
 
 ### Architecture Benefits
+
 - **Lazy initialization pattern** demonstrates clean Rust design (Option types, ensure_ methods)
 - **Measurable improvement** via real benchmarks (not theoretical)
 - **Zero regression** on large result sets (architecture is sound)
 - **Backward compatible** (no API changes)
 
 ### Production Readiness
+
 Phase 6 is **production-ready**:
+
 - ✅ All tests passing
 - ✅ Real benchmarks validate improvement
 - ✅ No known regressions
@@ -256,6 +277,7 @@ Phase 6 is **production-ready**:
 ## Next Steps
 
 ### No Further Optimization Needed
+
 The 23.5% latency gap has been successfully closed. Further optimization (Phases 7-10) would provide diminishing returns:
 
 - **Phase 7** (spawn-less): 4-6ms saving, very high complexity, high risk
@@ -265,7 +287,9 @@ The 23.5% latency gap has been successfully closed. Further optimization (Phases
 **Recommendation**: Stop at Phase 6. Current performance matches PostgreSQL.
 
 ### Deployment
+
 Phase 6 is ready to deploy to production:
+
 1. All tests pass (158/158)
 2. Benchmarks validate improvement
 3. No regressions detected
@@ -273,7 +297,9 @@ Phase 6 is ready to deploy to production:
 5. Performance matches native Postgres
 
 ### Monitoring
+
 No special monitoring needed:
+
 - Pause/resume still works identically
 - Metrics collection unchanged
 - Performance improvements automatic
@@ -285,6 +311,7 @@ No special monitoring needed:
 ### What Phase 6 Optimizes
 
 **Before Phase 6**:
+
 ```
 Every query startup allocated:
 ├─ Arc<Mutex<StreamState>>        (~1-2ms)
@@ -296,6 +323,7 @@ Total: ~2-3ms even if pause never used
 ```
 
 **After Phase 6**:
+
 ```
 Query startup now allocates:
 ├─ Option<PauseResumeState>        (~0ms - None until pause() called)
@@ -337,6 +365,7 @@ fn ensure_pause_resume(&mut self) -> &mut PauseResumeState {
 Phase 6 is **complete, validated, and production-ready**.
 
 The optimization:
+
 - ✅ Reduces startup overhead by ~2ms
 - ✅ Contributes to closing 23.5% latency gap
 - ✅ Matches PostgreSQL native performance
@@ -347,6 +376,7 @@ The optimization:
 **fraiseql-wire now delivers streaming JSON from Postgres with performance matching the native PostgreSQL protocol** while maintaining bounded memory usage and streaming semantics.
 
 For details, see:
+
 - `OPTIMIZATION_PHASES_COMPLETE.md` - Full optimization journey
 - `.claude/PHASE6_BENCHMARK_RESULTS.md` - Detailed benchmark analysis
 - `.claude/PHASE6_VALIDATION_GUIDE.md` - How to run benchmarks yourself

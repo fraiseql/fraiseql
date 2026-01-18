@@ -49,6 +49,7 @@ Examples:
 ```
 
 **Causes:**
+
 - Type referenced but not declared
 - Field referenced but not in database view
 - Query/mutation without binding
@@ -56,6 +57,7 @@ Examples:
 - Authorization rule references non-existent auth context field
 
 **Example:**
+
 ```
 Error: Schema compilation failed
   Type: Type closure violation
@@ -80,12 +82,14 @@ Examples:
 ```
 
 **Causes:**
+
 - Binding references view that doesn't exist in database
 - Field maps to column that doesn't exist
 - Field type doesn't match database column type
 - Mutation input doesn't match stored procedure parameters
 
 **Example:**
+
 ```
 Error: Database binding failed
   Type: View not found
@@ -109,10 +113,12 @@ Examples:
 ```
 
 **Causes:**
+
 - Schema uses operator not supported by target database
 - Database lacks required extension (pgvector, PostGIS)
 
 **Example:**
+
 ```
 Error: Operator not supported by database
   Type: Database capability mismatch
@@ -136,6 +142,7 @@ Examples:
 ```
 
 **Causes:**
+
 - Authorization rule references non-existent auth context field
 - Authorization rule references undefined role
 - Authorization rules have circular dependencies
@@ -186,6 +193,7 @@ Structure:
 | DIRECTIVE_INVALID | E_VALIDATION_DIRECTIVE_INVALID_106 | Unknown or invalid directive | No | `@unknown_directive` |
 
 **Example:**
+
 ```json
 {
   "errors": [{
@@ -227,6 +235,7 @@ Structure: Same as validation errors above
 | TENANT_ISOLATION_VIOLATION | E_AUTH_TENANT_VIOLATION_206 | Query crosses tenant boundary | No | Cannot query another tenant's data |
 
 **Example:**
+
 ```json
 {
   "errors": [{
@@ -270,6 +279,7 @@ Structure: Same as others
 | UNKNOWN | E_DB_UNKNOWN_ERROR_309 | Unclassified database error | **Yes** | See error details |
 
 **Example (Retryable):**
+
 ```json
 {
   "errors": [{
@@ -291,6 +301,7 @@ Structure: Same as others
 ```
 
 **Example (Non-Retryable):**
+
 ```json
 {
   "errors": [{
@@ -333,6 +344,7 @@ Structure: Same as others
 | LIMIT_EXCEEDED | E_EXEC_LIMIT_EXCEEDED_405 | Query result exceeds size limit | No | Reduce page size or filter |
 
 **Example:**
+
 ```json
 {
   "errors": [{
@@ -372,6 +384,7 @@ Structure: Same as others
 | ENTITY_TYPE_MISMATCH | E_FED_TYPE_MISMATCH_504 | Entity has unexpected type | No | Schema mismatch |
 
 **Example:**
+
 ```json
 {
   "errors": [{
@@ -413,6 +426,7 @@ Structure: Same as others (sent to client over WebSocket)
 | EVENT_DELIVERY_FAILED | E_SUB_DELIVERY_FAILED_605 | Cannot deliver event | **Yes** | Transport issue |
 
 **Example:**
+
 ```json
 {
   "type": "error",
@@ -454,6 +468,7 @@ Structure: Same as others
 | UNKNOWN_ERROR | E_INTERNAL_UNKNOWN_ERROR_703 | Unclassified internal error | **Yes** | Unknown issue, retry |
 
 **Example:**
+
 ```json
 {
   "errors": [{
@@ -514,6 +529,7 @@ All runtime errors follow the GraphQL spec with FraiseQL extensions:
 ### 3.2 Error Context Fields
 
 **Always included:**
+
 - `code` — Unique error identifier (E_XXX_NNN)
 - `category` — Error classification (VALIDATION_FAILED, DATABASE_ERROR, etc.)
 - `message` — Human-readable message
@@ -521,6 +537,7 @@ All runtime errors follow the GraphQL spec with FraiseQL extensions:
 - `trace_id` — Request trace ID for logging
 
 **Conditional fields:**
+
 - `remediable` — Can client fix this? (schema/query fixes)
 - `retryable` — Should client retry? (transient errors)
 - `user_actionable` — Should client show to user? (not security details)
@@ -528,6 +545,7 @@ All runtime errors follow the GraphQL spec with FraiseQL extensions:
 - `retry_after_ms` — Milliseconds to wait before retry
 
 **Context-specific:**
+
 - `database` — Which database (E_DB_* errors)
 - `constraint` — Which constraint violated (database errors)
 - `field` — Which field caused the error
@@ -536,6 +554,7 @@ All runtime errors follow the GraphQL spec with FraiseQL extensions:
 ### 3.3 Sensitive Data Redaction
 
 **Never expose:**
+
 - SQL queries (even if query is client-safe)
 - Internal file paths
 - Stack traces (unless debug mode)
@@ -544,6 +563,7 @@ All runtime errors follow the GraphQL spec with FraiseQL extensions:
 - Unencrypted user data
 
 **Safe to expose:**
+
 - Field names (part of schema)
 - Constraint names (helps debugging)
 - Error codes (for client classification)
@@ -559,6 +579,7 @@ All runtime errors follow the GraphQL spec with FraiseQL extensions:
 **Remediable:** Error indicates client code/schema is wrong. Client can fix it.
 
 Examples:
+
 - Invalid query syntax
 - Missing required field
 - Constraint violation
@@ -567,6 +588,7 @@ Examples:
 **Non-Remediable:** Error indicates system state issue. Client cannot fix it.
 
 Examples:
+
 - Database connection failure
 - Authorization denial
 - Authentication failure
@@ -577,6 +599,7 @@ Examples:
 **Retryable:** Error is transient. Retrying may succeed.
 
 Examples:
+
 - Database connection timeout
 - Connection pool exhausted
 - Query timeout (retry with better query)
@@ -586,6 +609,7 @@ Examples:
 **Non-Retryable:** Error is deterministic. Retrying will fail identically.
 
 Examples:
+
 - Schema validation error
 - Authorization denial
 - Constraint violation
@@ -596,6 +620,7 @@ Examples:
 **User-Actionable:** Error message safe to show end-users.
 
 Examples:
+
 - "Email already exists"
 - "You don't have permission to access this"
 - "Invalid input format"
@@ -603,6 +628,7 @@ Examples:
 **Hidden:** Error message for developers only, not end-users.
 
 Examples:
+
 - "Database connection lost" (not user's problem)
 - "Query timeout after 30s" (implementation detail)
 - "Insufficient permissions" (doesn't explain why)
@@ -721,6 +747,7 @@ Event 3: Success (continues after error)
 ### 6.1 Recommended Client Error Handling
 
 **Step 1: Check for errors in response**
+
 ```python
 response = await client.execute(query)
 if response.get("errors"):
@@ -729,6 +756,7 @@ if response.get("errors"):
 ```
 
 **Step 2: Classify errors by category**
+
 ```python
 for error in response["errors"]:
     code = error["extensions"]["code"]
@@ -749,6 +777,7 @@ for error in response["errors"]:
 ```
 
 **Step 3: Implement retry logic**
+
 ```python
 async def retry_query(query, max_attempts=3, backoff_base=1000):
     for attempt in range(1, max_attempts + 1):
@@ -778,12 +807,14 @@ async def retry_query(query, max_attempts=3, backoff_base=1000):
 ### 6.2 Error Display to End-Users
 
 **Show these errors to users:**
+
 - Validation errors with suggestions (query/input fixes)
 - Constraint violations ("Email already exists")
 - Authorization denials (general message, not details)
 - Timeouts (with retry option)
 
 **Hide these errors from users:**
+
 - Database connection details
 - Internal stack traces
 - SQL queries
@@ -815,6 +846,7 @@ Server logs:
 ```
 
 **Use trace_id to:**
+
 - Correlate client-side errors with server logs
 - Track error through entire system (across services in federation)
 - Debug transient errors that are hard to reproduce

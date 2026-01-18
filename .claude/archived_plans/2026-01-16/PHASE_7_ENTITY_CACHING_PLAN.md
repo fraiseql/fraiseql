@@ -15,6 +15,7 @@ Phase 7 implements entity-level cache invalidation leveraging GraphQL mutation r
 ## Vision
 
 Current cache invalidation is view-level:
+
 ```
 mutation updateUser(id: "abc-123") -> User { id, name, email }
 Result: ALL queries reading v_user invalidated
@@ -22,6 +23,7 @@ Problem: Query "{ user(id: "xyz-456") { name } }" doesn't need invalidation
 ```
 
 Phase 7 enables entity-level invalidation:
+
 ```
 mutation updateUser(id: "abc-123") -> User { id: "abc-123", ... }
 Result: ONLY queries reading User:abc-123 invalidated
@@ -84,6 +86,7 @@ Cache Hit Rate: 90-95% ✓
 **Duration**: 5 days (40 hours)
 
 **Files to Create/Modify**:
+
 - `fraiseql-core/src/cache/uuid_extractor.rs` (new)
 - `fraiseql-core/src/cache/entity_key.rs` (new, replaces string "User:uuid")
 - `fraiseql-core/src/cache/cascade_metadata.rs` (new)
@@ -93,6 +96,7 @@ Cache Hit Rate: 90-95% ✓
 **Key Tasks**:
 
 1. **Create UUID Extractor** (`uuid_extractor.rs`)
+
    ```rust
    pub struct UUIDExtractor;
 
@@ -132,6 +136,7 @@ Cache Hit Rate: 90-95% ✓
    - Error cases (missing id, invalid format)
 
 2. **Create EntityKey Type** (`entity_key.rs`)
+
    ```rust
    #[derive(Debug, Clone, Eq, PartialEq, Hash)]
    pub struct EntityKey {
@@ -160,6 +165,7 @@ Cache Hit Rate: 90-95% ✓
    - Hash consistency for HashMap
 
 3. **Create Cascade Metadata Module** (`cascade_metadata.rs`)
+
    ```rust
    pub struct CascadeMetadata {
        /// Mutation name → entity type it affects
@@ -189,6 +195,7 @@ Cache Hit Rate: 90-95% ✓
    - Nested entity types
 
 4. **Enhance IRMutation** (modify `compiler/ir.rs`)
+
    ```rust
    pub struct IRMutation {
        pub name: String,
@@ -205,6 +212,7 @@ Cache Hit Rate: 90-95% ✓
    ```
 
 **Acceptance Criteria**:
+
 - UUID extraction handles 95%+ of real mutation responses
 - EntityKey properly hashes/compares
 - CascadeMetadata accurately maps mutations
@@ -217,6 +225,7 @@ Cache Hit Rate: 90-95% ✓
 **Duration**: 5 days (40 hours)
 
 **Files to Create/Modify**:
+
 - `fraiseql-core/src/cache/query_analyzer.rs` (new)
 - `fraiseql-core/src/cache/entity_dependency_tracker.rs` (new)
 - `fraiseql-core/src/runtime/planner.rs` (integrate analyzer)
@@ -224,6 +233,7 @@ Cache Hit Rate: 90-95% ✓
 **Key Tasks**:
 
 1. **Create Query Analyzer** (`query_analyzer.rs`)
+
    ```rust
    pub struct QueryAnalyzer;
 
@@ -270,6 +280,7 @@ Cache Hit Rate: 90-95% ✓
    - Cardinality classification
 
 2. **Create Entity Dependency Tracker** (`entity_dependency_tracker.rs`)
+
    ```rust
    pub struct EntityDependencyTracker {
        /// cache_key → set of entity keys
@@ -319,6 +330,7 @@ Cache Hit Rate: 90-95% ✓
    - Concurrent access safety
 
 3. **Integrate with Query Planner** (modify `runtime/planner.rs`)
+
    ```rust
    pub struct QueryPlanner {
        // existing fields...
@@ -355,6 +367,7 @@ Cache Hit Rate: 90-95% ✓
    ```
 
 **Acceptance Criteria**:
+
 - Query analyzer accurately identifies entity constraints
 - Entity tracker maintains consistency (bidirectional)
 - Cardinality classification matches actual query patterns
@@ -367,6 +380,7 @@ Cache Hit Rate: 90-95% ✓
 **Duration**: 5 days (40 hours)
 
 **Files to Create/Modify**:
+
 - `fraiseql-core/src/runtime/executor.rs` (enhance mutation execution)
 - `fraiseql-core/src/cache/mutation_response_tracker.rs` (new)
 - `fraiseql-core/src/cache/mod.rs` (integrate)
@@ -374,6 +388,7 @@ Cache Hit Rate: 90-95% ✓
 **Key Tasks**:
 
 1. **Create Mutation Response Tracker** (`mutation_response_tracker.rs`)
+
    ```rust
    pub struct MutationResponseTracker {
        /// Track which entities were modified by each mutation execution
@@ -443,6 +458,7 @@ Cache Hit Rate: 90-95% ✓
    - Concurrent tracking
 
 2. **Enhance Executor** (modify `runtime/executor.rs`)
+
    ```rust
    impl<A: DatabaseAdapter> Executor<A> {
        /// Execute mutation with entity tracking
@@ -469,6 +485,7 @@ Cache Hit Rate: 90-95% ✓
    ```
 
 **Acceptance Criteria**:
+
 - Extract UUIDs from 99%+ of mutation responses
 - Handle batch mutations correctly
 - Performance: < 1ms per mutation tracking
@@ -481,12 +498,14 @@ Cache Hit Rate: 90-95% ✓
 **Duration**: 5 days (40 hours)
 
 **Files to Create/Modify**:
+
 - `fraiseql-core/src/cache/invalidation.rs` (enhance)
 - `fraiseql-core/src/cache/adapter.rs` (integrate entity tracking)
 
 **Key Tasks**:
 
 1. **Enhance InvalidationContext** (modify `invalidation.rs`)
+
    ```rust
    pub struct InvalidationContext {
        /// Views modified (existing)
@@ -542,6 +561,7 @@ Cache Hit Rate: 90-95% ✓
    - Serialization
 
 2. **Enhance CachedDatabaseAdapter** (modify `adapter.rs`)
+
    ```rust
    pub struct CachedDatabaseAdapter<A: DatabaseAdapter> {
        // existing fields...
@@ -572,6 +592,7 @@ Cache Hit Rate: 90-95% ✓
    ```
 
 **Acceptance Criteria**:
+
 - Entity-aware invalidation reduces false invalidations by 40%+
 - No cache coherency violations
 - Performance: invalidate 1000 caches in < 1ms
@@ -584,6 +605,7 @@ Cache Hit Rate: 90-95% ✓
 **Duration**: 3 days (24 hours)
 
 **Files to Create/Modify**:
+
 - `fraiseql-server/src/main.rs` (enable entity caching)
 - `fraiseql-server/tests/entity_cache_e2e_test.rs` (new)
 - `fraiseql-core/src/cache/tests.rs` (comprehensive suite)
@@ -591,6 +613,7 @@ Cache Hit Rate: 90-95% ✓
 **Key Tasks**:
 
 1. **Enable in Server** (modify `fraiseql-server/src/main.rs`)
+
    ```rust
    // Initialize cascade metadata from schema
    let cascade_metadata = CascadeMetadata::from_schema(&schema);
@@ -612,6 +635,7 @@ Cache Hit Rate: 90-95% ✓
    ```
 
 2. **Create E2E Test Suite** (`entity_cache_e2e_test.rs`)
+
    ```rust
    #[tokio::test]
    async fn test_entity_level_cache_invalidation() {
@@ -654,6 +678,7 @@ Cache Hit Rate: 90-95% ✓
    - Cascade metadata accuracy
 
 **Acceptance Criteria**:
+
 - Entity caching enabled in server
 - 90%+ cache hit rate in realistic workloads
 - E2E tests pass
@@ -745,6 +770,7 @@ criterion_group!(benches,
 ## Deliverables
 
 ### Code
+
 - `uuid_extractor.rs` (150 lines)
 - `entity_key.rs` (80 lines)
 - `cascade_metadata.rs` (100 lines)
@@ -756,11 +782,13 @@ criterion_group!(benches,
 **Total New Code**: ~1000 lines
 
 ### Tests
+
 - 61 unit tests
 - 39 integration tests
 - 6 performance benchmarks
 
 ### Documentation
+
 - Architecture guide
 - UUID extraction specification
 - Entity tracking concepts
@@ -784,6 +812,7 @@ criterion_group!(benches,
 ## Next Phase
 
 **Phase 8: Coherency Validation & Audit Logging**
+
 - Validate no stale reads occur
 - Comprehensive audit trail for cache operations
 - Performance regression testing

@@ -20,6 +20,7 @@ The JSON plane handles application queries (nested objects, flexible schema). Th
 The **Arrow plane** is an optional, high-performance data projection layer that exposes FraiseQL data in **Apache Arrow format** — a language-agnostic, columnar, strongly-typed in-memory representation optimized for analytics, BI tools, and data science workloads.
 
 While FraiseQL's **JSON plane** is optimized for application clients (nested objects, flexible schema), the Arrow plane is optimized for:
+
 - **Analytics workflows** (Pandas, Polars, DuckDB, Spark)
 - **BI tools** (Tableau, Looker, PowerBI native connectors)
 - **ML pipelines** (columnar feature extraction, batch inference)
@@ -31,6 +32,7 @@ While FraiseQL's **JSON plane** is optimized for application clients (nested obj
 Where the JSON plane represents nested GraphQL selections as single responses with composed JSONB objects, the Arrow plane represents them as **multiple flat, keyed batches**:
 
 **JSON Plane (Nested):**
+
 ```json
 {
   "user": {
@@ -45,6 +47,7 @@ Where the JSON plane represents nested GraphQL selections as single responses wi
 ```
 
 **Arrow Plane (Flat, Relational):**
+
 ```
 users_batch:
   | id  | name  |
@@ -74,6 +77,7 @@ Arrow plane definitions are **compiled, not interpreted**:
 Arrow projections are not merely data formats—they are **stable, versioned analytical contracts** between FraiseQL and downstream systems (BI tools, data warehouses, ML pipelines, dashboards).
 
 **Contract Guarantees:**
+
 - ✅ **Schema stability** — Column names, types, and nullability are versioned and change-tracked
 - ✅ **Backward compatibility** — Existing consumers (Tableau, Looker, Parquet pipelines) continue working across versions
 - ✅ **Deprecation clarity** — Removed projections have documented migration paths
@@ -111,6 +115,7 @@ Arrow projections follow **semantic versioning** for their schemas:
 | **Bug fix to values** | PATCH (2.3→2.3.1) | Fix timezone conversion | No schema change |
 
 **Deprecation Period:**
+
 - Removed/renamed fields require **2 minor releases (60 days)** notice
 - During deprecation: Both old and new field names available
 - Consumers must migrate; support ends after period
@@ -118,12 +123,14 @@ Arrow projections follow **semantic versioning** for their schemas:
 ### Backward Compatibility Rules
 
 ✅ **Always backward-compatible** (MINOR version):
+
 - Add new optional columns at end of batch
 - Extend enum with new values
 - Expand Decimal precision
 - Extend nullable fields from non-null to nullable
 
 ❌ **Breaking changes** (MAJOR version):
+
 - Remove or rename columns
 - Change column type
 - Make nullable field non-null
@@ -135,6 +142,7 @@ Arrow projections follow **semantic versioning** for their schemas:
 When a projection becomes obsolete:
 
 1. **Announce** (version N): Mark as `stability="deprecated"` with replacement guidance
+
    ```python
    @fraiseql.arrow_projection(
      name="orders_v1",
@@ -170,6 +178,7 @@ class OrderAnalytics:
 ```
 
 **Scenario 1: Add column to order_items only**
+
 ```python
 # v1.1: order_items now has 6 columns (new "discount" column)
 orders: Arrow.Batch([...])         # ← Still 4 columns
@@ -177,10 +186,12 @@ order_items: Arrow.Batch([...])    # ← Now 6 columns (NEW)
 ```
 
 **Decision:** Increment to v1.1 (backward-compatible MINOR change)
+
 - Reason: Adding optional column is safe
 - Downstream systems: See new column but can ignore
 
 **Scenario 2: Remove column from order_items**
+
 ```python
 # v2.0: order_items no longer has "price" column
 orders: Arrow.Batch([...])         # ← Still 4 columns
@@ -188,11 +199,13 @@ order_items: Arrow.Batch([...])    # ← Now 4 columns (removed "price")
 ```
 
 **Decision:** Increment to v2.0 (breaking MAJOR change)
+
 - Reason: Removing column breaks downstream systems expecting it
 - Downstream systems: MUST migrate before v2.0 release
 - Why entire projection versioned: BI tools treat whole projection as atomic dataset
 
 **Why projection-level versioning?**
+
 - BI tools (Tableau, Looker) import projections as datasets
 - They see "order_analytics" as one entity, not as independent batches
 - A breaking change in any batch affects the entire dataset
@@ -226,6 +239,7 @@ query {
 Compiles to **two Arrow batches**:
 
 **Batch 1: `users`**
+
 ```
 ┌────┬───────┬──────────────────┐
 │ id │ name  │ email            │
@@ -235,6 +249,7 @@ Compiles to **two Arrow batches**:
 ```
 
 **Batch 2: `user_posts`** (with foreign key reference)
+
 ```
 ┌────┬──────┬─────────────────────────────┐
 │ id │ user_id │ title        │ createdAt │
@@ -245,6 +260,7 @@ Compiles to **two Arrow batches**:
 ```
 
 **Client reconstruction** (Pandas):
+
 ```python
 import pandas as pd
 
@@ -280,6 +296,7 @@ Foreign keys in Arrow projections are **logical, not enforced constraints**. The
 **Implications for analytical work:**
 
 **Scenario 1: Orphaned rows (valid)**
+
 ```
 users: [id=1, id=2, id=3]
 posts: [user_id=1, user_id=1, user_id=99]  ← user_id=99 doesn't exist
@@ -290,6 +307,7 @@ BI tool must treat as missing parent.
 ```
 
 **Scenario 2: Empty child batch (valid)**
+
 ```
 users: [id=1, id=2, id=3]
 posts: []  ← No posts from any user
@@ -299,6 +317,7 @@ Null rows in join are expected.
 ```
 
 **Scenario 3: Multiple parents per child (possible in wide projections)**
+
 ```
 # If projection includes: orders + items + warehouses
 items.warehouse_id could reference multiple batches
@@ -306,6 +325,7 @@ items.warehouse_id could reference multiple batches
 
 **Best practice:**
 Treat Arrow FK joins like SQL LEFT OUTER JOIN, not INNER JOIN:
+
 ```python
 # ✅ Correct: Preserve unmatched rows
 result = pd.merge(users_df, posts_df, on='user_id', how='left')
@@ -321,12 +341,14 @@ This prevents silent data loss when processing.
 Arrow projections should remain **shallow** (1–2 relationship hops maximum).
 
 **Why:**
+
 - **Batch explosion** — 5 levels deep can produce 50+ batches for a single query
 - **Client complexity** — Multiple sequential joins become difficult to reason about
 - **Performance degradation** — More batches = more network, more memory, slower aggregation
 - **Analytical clarity** — Wide, flat projections are easier to optimize than deep graphs
 
 **Design Rule:**
+
 ```
 Arrow Depth Limit: 2 relationship hops maximum
 ├─ Level 0: Entity (User, Order, Product)
@@ -338,6 +360,7 @@ For deeper requirements: Define multiple specialized projections
 ```
 
 **Example: What NOT to do**
+
 ```graphql
 # ❌ BAD: 4 levels deep
 query {
@@ -356,6 +379,7 @@ query {
 ```
 
 **Solution: Create focused projections**
+
 ```python
 # ✅ GOOD: 3 separate projections for different analytical needs
 
@@ -481,12 +505,14 @@ Accept: application/json                  → JSON (fallback)
 ### 2.6 Key Differences from JSON Plane
 
 **JSON Plane (Composition):**
+
 1. Single nested response
 2. Database composes JSONB
 3. Client receives complete object graph
 4. Implicit relationships (nested objects)
 
 **Arrow Plane (Relational):**
+
 1. Multiple flat batches
 2. Database materializes columns
 3. Client joins batches via foreign keys
@@ -593,6 +619,7 @@ FraiseQL validates Arrow projections at compile time:
 ✅ **Timestamps must have timezone** — Prevent ambiguous times
 
 **Example Validation Error:**
+
 ```
 ❌ ArrowProjectionError in order_with_items:
    Field 'metadata' (JSON type) cannot be represented in Arrow.
@@ -608,6 +635,7 @@ FraiseQL validates Arrow projections at compile time:
 Arrow projections are exposed via standard FraiseQL query endpoint with `Accept` header:
 
 **Request:**
+
 ```bash
 curl -X POST https://api.example.com/graphql \
   -H "Content-Type: application/json" \
@@ -618,6 +646,7 @@ curl -X POST https://api.example.com/graphql \
 ```
 
 **Response Format:**
+
 - `Content-Type: application/x-arrow`
 - Body: Apache Arrow IPC streaming format (binary)
 
@@ -630,6 +659,7 @@ Arrow IPC (Inter-Process Communication) is a standardized binary format that tra
 ```
 
 **Example Decoded (for reference):**
+
 ```
 Batch 1 (orders):
   ┌─────────────────────────┐
@@ -664,6 +694,7 @@ Batch 2 (order_items):
 ### 4.3 Client-Side Deserialization
 
 **Python (Pandas):**
+
 ```python
 import pyarrow as pa
 import pandas as pd
@@ -688,6 +719,7 @@ result = pd.merge(orders_df, items_df, left_on='id', right_on='order_id')
 ```
 
 **JavaScript (Node.js):**
+
 ```javascript
 import * as arrow from 'apache-arrow';
 
@@ -770,11 +802,13 @@ Large Arrow projections support **keyset-based pagination** (cursor-backed by mo
 **Why keyset pagination?**
 
 OFFSET/LIMIT works fine at small offsets (<1M rows):
+
 ```sql
 SELECT ... ORDER BY id LIMIT 1000 OFFSET 10000000;
 ```
 
 But at 10M+ rows, OFFSET scans and skips all prior rows. **Keyset pagination** only reads from the last cursor:
+
 ```sql
 -- ❌ Slow: Scan 10M rows, skip 10M rows, return 1000
 SELECT ... LIMIT 1000 OFFSET 10000000;
@@ -800,6 +834,7 @@ cursor = base64(encode({
 ```
 
 **Request Pattern (Relay-Compatible):**
+
 ```graphql
 query {
   orderAnalytics(first: 1000, after: "eyJpZCI6IjEyMyJ9") {
@@ -816,6 +851,7 @@ query {
 ```
 
 **Compiled SQL:**
+
 ```sql
 -- Phase 1: Simple keyset on primary key
 SELECT ... WHERE id > ? ORDER BY id LIMIT 1000;
@@ -828,6 +864,7 @@ LIMIT 1000;
 ```
 
 **Response Format:**
+
 ```json
 {
   "edges": [
@@ -854,6 +891,7 @@ LIMIT 1000;
 **Backward Compatibility with JSON Plane:**
 
 Both Arrow and JSON planes use **identical keyset pagination**:
+
 - Same cursor format
 - Same `Relay` pagination interface
 - Clients switch between planes without pagination logic changes
@@ -861,11 +899,13 @@ Both Arrow and JSON planes use **identical keyset pagination**:
 **Note on Offset-Limit:**
 
 ⚠️ **OFFSET/LIMIT will be available but discouraged** for analytical queries:
+
 - ✅ Encouraged: Keyset-based pagination (cursor-backed)
 - ⚠️ Discouraged: OFFSET/LIMIT (only for small offsets <100K rows)
 - ❌ Anti-pattern: Large OFFSET on 100M+ row tables
 
 FraiseQL will emit warnings in logs if clients attempt large OFFSETs:
+
 ```
 WARNING: Large OFFSET (10000000) detected.
 Consider using keyset pagination for better performance.
@@ -903,6 +943,7 @@ WHERE deleted_at IS NULL;
 ```
 
 **Arrow schema**:
+
 ```json
 {
   "fields": [
@@ -943,6 +984,7 @@ FROM tf_sales_daily;
 Arrow's columnar format excels at exporting aggregated data:
 
 **GraphQL Query**:
+
 ```graphql
 query {
   sales_aggregate(
@@ -958,6 +1000,7 @@ query {
 ```
 
 **SQL Execution** (PostgreSQL):
+
 ```sql
 SELECT
     data->>'category' AS category,
@@ -970,6 +1013,7 @@ GROUP BY data->>'category', data->>'region';
 ```
 
 **Arrow Batch** (columnar layout):
+
 - Column 1: `category` (utf8)
 - Column 2: `region` (utf8)
 - Column 3: `revenue_sum` (decimal)
@@ -994,6 +1038,7 @@ ORDER BY day;
 ```
 
 **Arrow Schema**:
+
 ```json
 {
   "fields": [
@@ -1011,6 +1056,7 @@ Arrow batches can be used to stream grouped aggregates incrementally:
 **Scenario**: Export 1M rows grouped by category (100 categories, 10K rows each)
 
 **Strategy**:
+
 ```sql
 -- Batch 1: Electronics (10K rows)
 SELECT * FROM av_sales WHERE category = 'Electronics' LIMIT 10000;
@@ -1034,6 +1080,7 @@ SELECT * FROM av_sales WHERE category = 'Clothing' LIMIT 10000;
 | Type safety | Runtime parsing | Compile-time schema | Type-safe |
 
 **Related documentation**:
+
 - `docs/specs/analytical-schema-conventions.md` - Fact table naming conventions
 - `docs/architecture/analytics/aggregation-model.md` - Aggregation compilation
 - `docs/guides/analytics-patterns.md` - Practical query patterns
@@ -1055,6 +1102,7 @@ SELECT * FROM av_sales WHERE category = 'Clothing' LIMIT 10000;
 | Analytics (1M rows) | Arrow | 1,000,000 | 100M+/sec | 1s | 500MB |
 
 **Key Observations:**
+
 - Arrow excels at **bulk analytical queries** (100+ rows)
 - JSON excels at **single-entity queries** (navigation patterns)
 - Arrow memory is **proportional to batch size**, not query complexity
@@ -1157,10 +1205,10 @@ class CustomerAnalytics:
 
 | Strategy | Input | Output | Use Case |
 |---|---|---|---|
-| `redact` | alice@example.com | [REDACTED] | PII removal |
-| `hash` | alice@example.com | 7d8f92c... | Matching without revealing |
+| `redact` | <alice@example.com> | [REDACTED] | PII removal |
+| `hash` | <alice@example.com> | 7d8f92c... | Matching without revealing |
 | `encrypt` | 123-45-6789 | {encrypted-blob} | Reversible encryption |
-| `first_n` | alice@example.com | alic... | Partial reveal |
+| `first_n` | <alice@example.com> | alic... | Partial reveal |
 
 **Compile-Time Validation:**
 
@@ -1239,12 +1287,14 @@ class AnalyticsExport:
 **Status:** ✅ Production-ready
 
 **Features:**
+
 - Full Arrow projection support
 - Columnar compression via BRIN indexes
 - Native decimal support (numeric type)
 - Timezone-aware timestamps
 
 **Indexes:**
+
 ```sql
 CREATE INDEX idx_order_created_at_brin ON tb_order
   USING BRIN (created_at);
@@ -1255,11 +1305,13 @@ CREATE INDEX idx_order_created_at_brin ON tb_order
 **Status:** ✅ Full support
 
 **Features:**
+
 - Arrow projections compile to SQL Server views
 - Columnstore indexes for batch performance
 - Native decimal2/numeric types
 
 **Indexes:**
+
 ```sql
 CREATE CLUSTERED COLUMNSTORE INDEX idx_order_cs
   ON tb_order;
@@ -1270,11 +1322,13 @@ CREATE CLUSTERED COLUMNSTORE INDEX idx_order_cs
 **Status:** ✅ Compatible
 
 **Features:**
+
 - Arrow projections work with standard views
 - JSON functions for complex aggregations
 - Decimal type support
 
 **Notes:**
+
 - No native columnar storage (use Infinispan external)
 - Performance may be 2-5x slower than PostgreSQL/SQL Server
 
@@ -1283,10 +1337,12 @@ CREATE CLUSTERED COLUMNSTORE INDEX idx_order_cs
 **Status:** ⚠️ Limited
 
 **Features:**
+
 - Arrow projections supported
 - Limited to in-process performance
 
 **Limitations:**
+
 - No columnar indexes
 - <1M rows per query (memory constraint)
 - Not recommended for analytics workloads
@@ -1298,12 +1354,14 @@ CREATE CLUSTERED COLUMNSTORE INDEX idx_order_cs
 ### Phase 1: Core Arrow Support (v2.1)
 
 **Goals:**
+
 - Compile Arrow projection definitions
 - Generate Arrow views in database
 - Serialize Arrow IPC streaming format
 - Support simple, non-nested projections
 
 **Deliverables:**
+
 - Arrow schema compilation (from Python authoring)
 - Arrow view DDL generation
 - IPC serialization in Rust runtime
@@ -1314,12 +1372,14 @@ CREATE CLUSTERED COLUMNSTORE INDEX idx_order_cs
 ### Phase 2: Advanced Features (v2.2)
 
 **Goals:**
+
 - Multi-batch composition with FK references
 - Aggregate queries (GROUP BY, COUNT, SUM)
 - Pagination support
 - Parquet export
 
 **Deliverables:**
+
 - Multi-batch projection compilation
 - Foreign key metadata in schema
 - Aggregate function support
@@ -1330,12 +1390,14 @@ CREATE CLUSTERED COLUMNSTORE INDEX idx_order_cs
 ### Phase 3: Performance & Optimization (v2.3)
 
 **Goals:**
+
 - Columnar compression (BRIN, Columnstore)
 - Query optimization for large batches
 - Caching of Arrow schemas
 - Zero-copy deserialization
 
 **Deliverables:**
+
 - Index generation advice
 - Query optimization recommendations
 - Client-side caching headers
@@ -1346,12 +1408,14 @@ CREATE CLUSTERED COLUMNSTORE INDEX idx_order_cs
 ### Phase 4: Ecosystem Integration (v2.4+)
 
 **Goals:**
+
 - Native BI tool connectors
 - Parquet/Iceberg support
 - Real-time streaming (Kafka, WebSocket)
 - SDK improvements (Pandas, Polars, DuckDB)
 
 **Deliverables:**
+
 - Tableau native connector
 - Parquet streaming format
 - Kafka sink adapter
@@ -1402,6 +1466,7 @@ CREATE CLUSTERED COLUMNSTORE INDEX idx_order_cs
 ### Example 1: Simple Analytics Projection
 
 **Schema Definition:**
+
 ```python
 @fraiseql.type
 class Product:
@@ -1421,6 +1486,7 @@ class ProductsAnalytics:
 ```
 
 **Query:**
+
 ```graphql
 query {
   productsAnalytics {
@@ -1433,6 +1499,7 @@ query {
 ```
 
 **Result (Arrow):**
+
 ```
 products_batch:
   | id  | name          | price  | category    |
@@ -1444,6 +1511,7 @@ products_batch:
 ### Example 2: Multi-Batch with Foreign Keys
 
 **Schema Definition:**
+
 ```python
 @fraiseql.type
 class Customer:
@@ -1474,6 +1542,7 @@ class CustomersWithOrders:
 ```
 
 **Client Code (Pandas):**
+
 ```python
 import pyarrow as pa
 import pandas as pd
@@ -1490,6 +1559,7 @@ result = pd.merge(customers, orders,
 ### Example 3: Aggregated Metrics Batch
 
 **Schema Definition:**
+
 ```python
 @fraiseql.arrow_projection(name="daily_sales_metrics")
 class DailySalesMetrics:
@@ -1502,6 +1572,7 @@ class DailySalesMetrics:
 ```
 
 **Compiled SQL:**
+
 ```sql
 SELECT
   DATE(created_at) as date,
@@ -1579,12 +1650,14 @@ Start: "I want to query FraiseQL data"
 ### Performance Considerations
 
 **Choose JSON if:**
+
 - Entity depth < 3 levels (minimal nesting)
 - Result set < 10,000 rows
 - Client has immediate UI dependency
 - Real-time performance critical
 
 **Choose Arrow if:**
+
 - Bulk read (10K+ rows)
 - Columnar operations natural (Pandas, Spark, DuckDB)
 - Need to export to data warehouse
@@ -1605,6 +1678,7 @@ Start: "I want to query FraiseQL data"
 ### Client Library Support
 
 **JSON Plane:**
+
 - Apollo Client (JavaScript)
 - Relay (JavaScript)
 - Apollo iOS/Android
@@ -1612,6 +1686,7 @@ Start: "I want to query FraiseQL data"
 - Any GraphQL client library
 
 **Arrow Plane:**
+
 - Apache Arrow (all languages)
 - Pandas (Python)
 - Polars (Rust, Python)
@@ -1658,12 +1733,14 @@ The Delta plane is **already implemented in subscriptions architecture** with:
 ### How Delta Plane Complements Arrow
 
 **Arrow plane:** "Give me 10K rows for analysis"
+
 ```sql
 SELECT * FROM orders LIMIT 10000
 -- Keyset pagination for next batch
 ```
 
 **Delta plane:** "Stream me ORDER changes in real-time"
+
 ```graphql
 subscription {
   orderCreated(where: { status: "HIGH_VALUE" }) {
@@ -1674,6 +1751,7 @@ subscription {
 ```
 
 **Both use identical::**
+
 - Authorization model (compile-time WHERE filters)
 - Batching semantics (chunked delivery)
 - Type system (same schema)
@@ -1682,6 +1760,7 @@ subscription {
 ### Use Cases: Delta Plane Today
 
 **Real-time dashboards**
+
 ```graphql
 subscription {
   orderUpdated(where: { store_id: $storeId }) {
@@ -1692,6 +1771,7 @@ subscription {
 ```
 
 **Incremental data lake sync**
+
 ```graphql
 subscription {
   customerUpdated(where: { modified_after: $cursor }) {
@@ -1704,6 +1784,7 @@ subscription {
 ```
 
 **Event-driven federation (Phase 3+)**
+
 ```graphql
 subscription {
   # FraiseQL User subgraph subscribes to Order changes
@@ -1715,6 +1796,7 @@ subscription {
 ```
 
 **Audit trail (compliance)**
+
 - All mutations automatically appear in Delta plane
 - Immutable, time-sequenced events
 - Exportable to compliance systems
@@ -1722,6 +1804,7 @@ subscription {
 ### Event Format (Already Specified)
 
 **CDC event structure** (from `specs/cdc-format.md`):
+
 ```json
 {
   "event_id": "evt_550e8400...",
@@ -1755,6 +1838,7 @@ Same format across all databases and transports.
 **One schema, optimized for three distinct access patterns.**
 
 This is why FraiseQL can be:
+
 - An application GraphQL API (JSON)
 - An analytics accelerator (Arrow)
 - An event backbone (Delta)
@@ -1764,18 +1848,21 @@ This is why FraiseQL can be:
 ### Delta Plane Capabilities
 
 **Core Event Capture & Delivery**
+
 - Database-native event capture: LISTEN/NOTIFY (PostgreSQL), CDC (MySQL, SQL Server, SQLite)
 - Durable event buffer (`tb_entity_change_log`) with monotonic sequence numbers
 - Replay capability: Events queryable from any point in time
 - Debezium-compatible event envelope format
 
 **Transport Adapters**
+
 - GraphQL WebSocket (graphql-ws) — Real-time UI subscription protocol
 - Webhooks — Outgoing HTTP delivery with signature verification and retry logic
 - Kafka — Event stream producer for data warehouse integration
 - gRPC — Inter-service event delivery with server streaming
 
 **Authorization & Filtering**
+
 - Compile-time WHERE clause evaluation on event streams
 - Row-level security (RLS) policies enforced at event capture
 - Field-level masking and redaction
@@ -1783,6 +1870,7 @@ This is why FraiseQL can be:
 - Per-subscriber authorization context binding
 
 **Performance & Operations**
+
 - Sub-10ms event latency target (reference deployment)
 - 100K+ events/second throughput capability
 - Connection pooling and backpressure handling

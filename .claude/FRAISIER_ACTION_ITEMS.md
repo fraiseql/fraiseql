@@ -15,6 +15,7 @@ Fraisier (deployment orchestrator) currently exists in two locations. This docum
 **Effort:** 5 minutes
 
 **Current Problem:**
+
 - `/home/lionel/code/fraisier/` - standalone repository (original)
 - `/home/lionel/code/fraiseql/fraisier/` - copied into monorepo during Phase 1
 
@@ -23,6 +24,7 @@ This creates maintenance burden and confusion about which is authoritative.
 **Decision Required:**
 
 **Option A: RECOMMENDED - Keep in Monorepo**
+
 ```bash
 # Delete standalone (make monorepo the single source of truth)
 rm -rf /home/lionel/code/fraisier
@@ -32,6 +34,7 @@ rm -rf /home/lionel/code/fraisier
 ```
 
 **Option B: Keep Both (Requires CI Sync)**
+
 ```bash
 # Keep both, but use GitHub Actions to sync changes:
 # /home/lionel/code/fraiseql/fraisier/ (source) → /home/lionel/code/fraisier/ (mirror)
@@ -48,6 +51,7 @@ rm -rf /home/lionel/code/fraisier
 **Effort:** 10 minutes
 
 **Checklist:**
+
 - [ ] `/home/lionel/code/fraiseql/fraisier/README.md` exists ✅
 - [ ] `/home/lionel/code/fraiseql/fraisier/pyproject.toml` exists ✅
 - [ ] `/home/lionel/code/fraiseql/fraisier/fraises.example.yaml` exists ✅
@@ -74,11 +78,13 @@ rm -rf /home/lionel/code/fraisier
 **File:** `/home/lionel/code/fraiseql/README.md`
 
 **Changes:**
+
 1. Add section about Fraisier in README
 2. Point to `/home/lionel/code/fraiseql/fraisier/` as canonical location
 3. Add "Reference Implementation" badge
 
 **Example addition:**
+
 ```markdown
 ## Fraisier - Reference Implementation
 
@@ -98,6 +104,7 @@ See `fraisier/README.md` for complete documentation.
 **Effort:** 2 hours
 
 **Files Created:**
+
 - ✅ `.claude/FRAISIER_INTEGRATION_ANALYSIS.md` - Detailed analysis
 - ✅ `.claude/FRAISIER_QUICK_REFERENCE.md` - Quick start guide
 - ✅ `.claude/FRAISIER_ACTION_ITEMS.md` - This file
@@ -125,6 +132,7 @@ python -m fraisier --help
 ```
 
 **Expected Results:**
+
 - [ ] Zero linting errors
 - [ ] All tests passing
 - [ ] CLI working correctly
@@ -161,6 +169,7 @@ fraisier/fraisier.db
 **Create files:**
 
 #### `docs/setup-github.md` - GitHub & GitHub Enterprise
+
 - [ ] Webhook configuration steps
 - [ ] Secret management
 - [ ] Self-signed certificate support
@@ -168,18 +177,21 @@ fraisier/fraisier.db
 - [ ] Screenshots
 
 #### `docs/setup-gitlab.md` - GitLab.com & Self-hosted
+
 - [ ] Webhook configuration steps
 - [ ] Self-hosted GitLab setup
 - [ ] Secret token configuration
 - [ ] Testing webhook delivery
 
 #### `docs/setup-gitea.md` - Gitea / Forgejo
+
 - [ ] Webhook configuration
 - [ ] Self-hosted setup
 - [ ] Forgejo compatibility
 - [ ] Testing
 
 #### `docs/setup-bitbucket.md` - Bitbucket Cloud & Server
+
 - [ ] Webhook configuration
 - [ ] Bitbucket Server vs Data Center
 - [ ] Bitbucket Cloud setup
@@ -195,6 +207,7 @@ fraisier/fraisier.db
 **Create files:**
 
 #### `docs/deployment-api.md` - API Service Deployment
+
 - [ ] Systemd configuration
 - [ ] Health check setup
 - [ ] Database migration integration
@@ -202,18 +215,21 @@ fraisier/fraisier.db
 - [ ] Troubleshooting
 
 #### `docs/deployment-etl.md` - ETL Pipeline Deployment
+
 - [ ] Script execution
 - [ ] Logging setup
 - [ ] Error notifications
 - [ ] Monitoring
 
 #### `docs/deployment-scheduled.md` - Scheduled Jobs
+
 - [ ] Systemd timer configuration
 - [ ] Cron scheduling
 - [ ] Log rotation
 - [ ] Monitoring
 
 #### `docs/deployment-backup.md` - Backup Jobs
+
 - [ ] Database backup strategy
 - [ ] Remote sync (S3, rsync, etc.)
 - [ ] Retention policies
@@ -227,6 +243,7 @@ fraisier/fraisier.db
 **File:** `/home/lionel/code/fraiseql/fraisier/docs/troubleshooting.md`
 
 **Common Issues:**
+
 - [ ] Webhook not triggering
 - [ ] Deployment failing
 - [ ] Health check timeout
@@ -311,6 +328,7 @@ tests/integration/
 **Location:** `/home/lionel/code/fraiseql/fraisier/tests/load/`
 
 **Test Scenarios:**
+
 - [ ] 100 concurrent webhook requests
 - [ ] Large payload handling
 - [ ] Database connection pool under load
@@ -389,6 +407,7 @@ class FraiseStatus:
 **Create files:**
 
 #### `db/schema.sql` - Database structure
+
 ```sql
 -- Write tables (append-only)
 CREATE TABLE IF NOT EXISTS tb_deployments (...)
@@ -402,6 +421,7 @@ CREATE VIEW IF NOT EXISTS v_deployment_stats AS (...)
 ```
 
 #### `db/functions.sql` - PostgreSQL functions (future)
+
 ```sql
 -- When using PostgreSQL instead of SQLite
 CREATE FUNCTION fn_request_deployment(...) RETURNS TABLE (...)
@@ -416,6 +436,7 @@ CREATE FUNCTION fn_complete_deployment(...) RETURNS void
 **File:** `/home/lionel/code/fraiseql/fraisier/docs/schema.md`
 
 **Content:**
+
 - [ ] CQRS pattern explanation
 - [ ] Write tables (append-only)
 - [ ] Read views (query optimization)
@@ -499,6 +520,7 @@ subscription {
 **Effort:** 6 hours
 
 **Test Scenario:**
+
 1. Start fraiseql-server with Fraisier schema
 2. Send webhook event
 3. Trigger deployment
@@ -513,6 +535,7 @@ subscription {
 **File:** `/home/lionel/code/fraiseql/fraisier/docker-compose.test.yml`
 
 **Services:**
+
 - [ ] PostgreSQL (for schema storage)
 - [ ] fraiseql-server (running Fraisier schema)
 - [ ] Fraisier webhook server
@@ -526,6 +549,7 @@ subscription {
 **File:** `.github/workflows/fraisier-tests.yml`
 
 **Test Pipeline:**
+
 - [ ] Lint with ruff
 - [ ] Run unit tests
 - [ ] Run integration tests (Docker Compose)
@@ -543,6 +567,7 @@ subscription {
 **Effort:** 3 hours
 
 **Improvements:**
+
 - [ ] Better error messages
 - [ ] Structured logging
 - [ ] Error recovery mechanisms
@@ -555,6 +580,7 @@ subscription {
 **Effort:** 3 hours
 
 **Checklist:**
+
 - [ ] Secret management (HashiCorp Vault, AWS Secrets Manager)
 - [ ] Rate limiting on webhook endpoint
 - [ ] CSRF protection
@@ -569,6 +595,7 @@ subscription {
 **Effort:** 2 hours
 
 **Improvements:**
+
 - [ ] Connection pooling
 - [ ] Query optimization
 - [ ] Cache deployment status
@@ -610,17 +637,20 @@ subscription {
 ## Quick Start: What to Do First
 
 **This Week (3 hours):**
+
 1. Decide on Option A vs B (consolidation strategy)
 2. Execute Action 0.1 (remove duplication)
 3. Execute Action 0.2 (verify completeness)
 4. Execute Action 1.3 (code quality check)
 
 **Next Week (5 hours):**
+
 1. Action 1.1 (update README)
 2. Action 1.4 (update gitignore)
 3. Action 2.1 (start provider guides)
 
 **By end of Month 1 (20 hours):**
+
 - Complete Phase 0 & 1 (consolidation & integration)
 - Complete Phase 2 (documentation)
 - Start Phase 3 (testing)

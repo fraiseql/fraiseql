@@ -41,6 +41,7 @@ Counters track events that only increase over time.
 ### Query Submission
 
 #### `fraiseql_queries_total`
+
 - **Type**: Counter
 - **Labels**: `entity`, `has_where_sql`, `has_where_rust`, `has_order_by`
 - **Purpose**: Track query submissions with predicate details
@@ -57,6 +58,7 @@ fraiseql_queries_total{entity="users", has_where_sql="true", has_where_rust="fal
 ### Authentication
 
 #### `fraiseql_authentications_total`
+
 - **Type**: Counter
 - **Labels**: `mechanism`
 - **Values**: `cleartext`, `scram`
@@ -69,6 +71,7 @@ fraiseql_authentications_total{mechanism="cleartext"} 15
 ```
 
 #### `fraiseql_authentications_successful_total`
+
 - **Type**: Counter
 - **Labels**: `mechanism`
 - **Purpose**: Count successful authentications
@@ -80,6 +83,7 @@ fraiseql_authentications_successful_total{mechanism="cleartext"} 15
 ```
 
 #### `fraiseql_authentications_failed_total`
+
 - **Type**: Counter
 - **Labels**: `mechanism`, `reason`
 - **Values (reason)**: `invalid_password`, `server_error`, `timeout`
@@ -96,6 +100,7 @@ fraiseql_authentications_failed_total{mechanism="scram", reason="server_error"} 
 ### Query Execution
 
 #### `fraiseql_query_completed_total`
+
 - **Type**: Counter
 - **Labels**: `entity`, `status`
 - **Values (status)**: `success`, `error`, `cancelled`
@@ -109,6 +114,7 @@ fraiseql_query_completed_total{entity="users", status="cancelled"} 3
 ```
 
 #### `fraiseql_query_error_total`
+
 - **Type**: Counter
 - **Labels**: `entity`, `error_category`
 - **Values (error_category)**: `server_error`, `protocol_error`, `connection_error`, `json_parse_error`
@@ -121,6 +127,7 @@ fraiseql_query_error_total{entity="projects", error_category="server_error"} 2
 ```
 
 #### `fraiseql_json_parse_errors_total`
+
 - **Type**: Counter
 - **Labels**: `entity`
 - **Purpose**: Track JSON deserialization failures at row level
@@ -135,6 +142,7 @@ fraiseql_json_parse_errors_total{entity="events"} 7
 ### Row Processing
 
 #### `fraiseql_rows_filtered_total`
+
 - **Type**: Counter
 - **Labels**: `entity`
 - **Purpose**: Count rows removed by Rust predicates
@@ -149,6 +157,7 @@ fraiseql_rows_filtered_total{entity="tasks"} 320
 ### Deserialization
 
 #### `fraiseql_rows_deserialized_total`
+
 - **Type**: Counter
 - **Labels**: `entity`, `type_name`
 - **Purpose**: Count successful type conversions
@@ -160,6 +169,7 @@ fraiseql_rows_deserialized_total{entity="users", type_name="serde_json::Value"} 
 ```
 
 #### `fraiseql_rows_deserialization_failed_total`
+
 - **Type**: Counter
 - **Labels**: `entity`, `type_name`, `reason`
 - **Values (reason)**: `serde_error`, `missing_field`, `type_mismatch`
@@ -180,6 +190,7 @@ Histograms track distributions of values (timing, sizes, counts).
 ### Query Timing
 
 #### `fraiseql_query_startup_duration_ms`
+
 - **Type**: Histogram (milliseconds)
 - **Labels**: `entity`
 - **Purpose**: Time from query submit to first DataRow
@@ -194,6 +205,7 @@ fraiseql_query_startup_duration_ms_bucket{entity="users", le="500"} 2200
 ```
 
 #### `fraiseql_query_total_duration_ms`
+
 - **Type**: Histogram (milliseconds)
 - **Labels**: `entity`
 - **Purpose**: Total time from query start to completion
@@ -211,6 +223,7 @@ fraiseql_query_total_duration_ms_bucket{entity="projects", le="5000"} 9000
 ### Row Processing
 
 #### `fraiseql_chunk_processing_duration_ms`
+
 - **Type**: Histogram (milliseconds)
 - **Labels**: `entity`
 - **Purpose**: Time to process each chunk of rows
@@ -224,6 +237,7 @@ fraiseql_chunk_processing_duration_ms_bucket{entity="events", le="100"} 1300
 ```
 
 #### `fraiseql_chunk_size_rows`
+
 - **Type**: Histogram (row count)
 - **Labels**: `entity`
 - **Purpose**: Distribution of rows per chunk
@@ -241,6 +255,7 @@ fraiseql_chunk_size_rows_bucket{entity="users", le="1024"} 1000
 ### Filtering & Deserialization
 
 #### `fraiseql_filter_duration_ms`
+
 - **Type**: Histogram (milliseconds)
 - **Labels**: `entity`
 - **Purpose**: Per-row Rust filter execution time
@@ -254,6 +269,7 @@ fraiseql_filter_duration_ms_bucket{entity="tasks", le="10"} 10000
 ```
 
 #### `fraiseql_deserialization_duration_ms`
+
 - **Type**: Histogram (milliseconds)
 - **Labels**: `entity`, `type_name`
 - **Purpose**: Per-row deserialization latency by type
@@ -267,6 +283,7 @@ fraiseql_deserialization_duration_ms_bucket{entity="users", type_name="User", le
 ```
 
 #### `fraiseql_auth_duration_ms`
+
 - **Type**: Histogram (milliseconds)
 - **Labels**: `mechanism`
 - **Purpose**: Authentication latency by mechanism
@@ -373,11 +390,13 @@ scrape_configs:
 ```
 
 **Query successful queries per entity:**
+
 ```promql
 sum(increase(fraiseql_query_completed_total{status="success"}[5m])) by (entity)
 ```
 
 **Query error rate:**
+
 ```promql
 sum(increase(fraiseql_query_completed_total{status="error"}[5m])) by (entity)
 /
@@ -385,6 +404,7 @@ sum(increase(fraiseql_query_completed_total[5m])) by (entity)
 ```
 
 **P95 query latency:**
+
 ```promql
 histogram_quantile(0.95, fraiseql_query_total_duration_ms)
 ```
@@ -410,6 +430,7 @@ let exporter = PrometheusExporter::new(Default::default(), global::meter_provide
 Example Grafana panels:
 
 **Query Success Rate (over 5m)**
+
 ```
 sum(increase(fraiseql_query_completed_total{status="success"}[5m])) by (entity)
 /
@@ -417,11 +438,13 @@ sum(increase(fraiseql_query_completed_total[5m])) by (entity)
 ```
 
 **P99 Query Latency**
+
 ```
 histogram_quantile(0.99, rate(fraiseql_query_total_duration_ms_sum[5m]) / rate(fraiseql_query_total_duration_ms_count[5m]))
 ```
 
 **Error Rate by Category**
+
 ```
 sum(increase(fraiseql_query_error_total[5m])) by (error_category)
 ```

@@ -15,12 +15,14 @@ Wire the analytics aggregation system into the GraphQL runtime executor, enablin
 ## Context
 
 **What's Done (Phases 1-4)**:
+
 - ✅ Fact table introspection from database schema
 - ✅ Auto-generated GraphQL aggregate types
 - ✅ Validated execution plans for GROUP BY queries
 - ✅ Database-specific SQL generation (PostgreSQL, MySQL, SQLite, SQL Server)
 
 **What's Missing**:
+
 - ❌ Integration with GraphQL executor
 - ❌ GraphQL AST parsing for aggregate queries
 - ❌ End-to-end pipeline from query → SQL → JSON results
@@ -33,6 +35,7 @@ Wire the analytics aggregation system into the GraphQL runtime executor, enablin
 ## Architecture
 
 ### Current Flow (Regular Queries)
+
 ```
 GraphQL Query
     ↓
@@ -48,6 +51,7 @@ GraphQL Response
 ```
 
 ### New Flow (Aggregate Queries)
+
 ```
 GraphQL Aggregate Query
     ↓
@@ -71,7 +75,9 @@ GraphQL Response
 ## Files to Modify/Create
 
 ### 1. Runtime Executor (`runtime/executor.rs`)
+
 **Add method**:
+
 ```rust
 pub async fn execute_aggregate_query(
     &self,
@@ -83,9 +89,11 @@ pub async fn execute_aggregate_query(
 **Integration point**: Call from `execute()` when query is detected as aggregate query.
 
 ### 2. GraphQL Parser (`runtime/aggregate_parser.rs`) - NEW FILE
+
 **Purpose**: Parse GraphQL aggregate queries into `AggregationRequest`
 
 **Key functions**:
+
 ```rust
 pub struct AggregateQueryParser;
 
@@ -108,9 +116,11 @@ impl AggregateQueryParser {
 ```
 
 ### 3. Result Projector (`runtime/aggregate_projector.rs`) - NEW FILE
+
 **Purpose**: Project SQL aggregate results to GraphQL JSON
 
 **Key functions**:
+
 ```rust
 pub struct AggregationProjector;
 
@@ -124,7 +134,9 @@ impl AggregationProjector {
 ```
 
 ### 4. Database Adapter Trait (`db/traits.rs`)
+
 **Add method**:
+
 ```rust
 async fn execute_raw_query(
     &self,
@@ -133,7 +145,9 @@ async fn execute_raw_query(
 ```
 
 ### 5. Integration Tests (`tests/integration/aggregation_test.rs`) - NEW FILE
+
 **Test scenarios**:
+
 - Simple COUNT query
 - Multiple measures (SUM, AVG, MIN, MAX)
 - GROUP BY dimension (category)
@@ -150,6 +164,7 @@ async fn execute_raw_query(
 **File**: `crates/fraiseql-core/src/db/traits.rs`
 
 Add method to `DatabaseAdapter` trait:
+
 ```rust
 /// Execute raw SQL query and return rows as JSON objects
 async fn execute_raw_query(
@@ -159,6 +174,7 @@ async fn execute_raw_query(
 ```
 
 Implement for:
+
 - `PostgresAdapter`
 - `MySQLAdapter` (if exists)
 - `SQLiteAdapter` (if exists)
@@ -171,6 +187,7 @@ Implement for:
 **File**: `crates/fraiseql-core/src/runtime/aggregate_parser.rs`
 
 **GraphQL Query Example**:
+
 ```graphql
 query {
   sales_aggregate(
@@ -190,6 +207,7 @@ query {
 ```
 
 **Parse to**:
+
 ```rust
 AggregationRequest {
     table_name: "tf_sales",
@@ -237,6 +255,7 @@ AggregationRequest {
 ```
 
 **Parsing Logic**:
+
 1. Use `graphql_parser` crate to parse query AST
 2. Find `sales_aggregate` field
 3. Extract `where`, `groupBy`, `having`, `orderBy`, `limit` arguments
@@ -249,6 +268,7 @@ AggregationRequest {
 **File**: `crates/fraiseql-core/src/runtime/aggregate_projector.rs`
 
 **SQL Result Example** (PostgreSQL row):
+
 ```json
 {
   "category": "Electronics",
@@ -260,6 +280,7 @@ AggregationRequest {
 ```
 
 **Project to GraphQL**:
+
 ```json
 {
   "data": {
@@ -277,6 +298,7 @@ AggregationRequest {
 ```
 
 **Key Logic**:
+
 - SQL returns `Vec<HashMap<String, Value>>`
 - Wrap in `{ "data": { "query_name": [...] } }`
 - Map SQL column types to GraphQL types (Int, Float, String, DateTime)
@@ -288,6 +310,7 @@ AggregationRequest {
 **File**: `crates/fraiseql-core/src/runtime/executor.rs`
 
 Add new method:
+
 ```rust
 pub async fn execute_aggregate_query(
     &self,
@@ -332,6 +355,7 @@ pub async fn execute_aggregate_query(
 ```
 
 **Integration with existing `execute()` method**:
+
 ```rust
 pub async fn execute(
     &self,
@@ -360,6 +384,7 @@ fn is_aggregate_query(&self, query: &str) -> bool {
 **File**: `tests/integration/aggregation_test.rs`
 
 **Test Structure**:
+
 ```rust
 #[cfg(test)]
 mod tests {
@@ -426,6 +451,7 @@ mod tests {
 ```
 
 **Test Data**:
+
 ```sql
 -- tf_sales test data
 INSERT INTO tf_sales (revenue, data, occurred_at) VALUES
@@ -436,6 +462,7 @@ INSERT INTO tf_sales (revenue, data, occurred_at) VALUES
 ```
 
 **Expected Results**:
+
 ```json
 {
   "data": {
@@ -471,6 +498,7 @@ Before marking this phase complete, verify:
 ## Acceptance Criteria
 
 ### Functional Requirements
+
 ✅ Execute aggregate queries end-to-end
 ✅ Parse GraphQL aggregate queries
 ✅ Generate correct SQL for all databases
@@ -482,6 +510,7 @@ Before marking this phase complete, verify:
 ✅ Support ORDER BY + LIMIT
 
 ### Non-Functional Requirements
+
 ✅ Tests pass for all 4 databases
 ✅ No clippy warnings
 ✅ Code is well-documented
@@ -492,20 +521,24 @@ Before marking this phase complete, verify:
 ## Next Steps After Phase 5
 
 **Phase 6 (Optional)**: Advanced Aggregates (2 days)
+
 - ARRAY_AGG, JSON_AGG, STRING_AGG
 - BOOL_AND, BOOL_OR
 
 **Phase 7 (Optional)**: Window Functions (3-4 days)
+
 - ROW_NUMBER, RANK, DENSE_RANK
 - LAG, LEAD, FIRST_VALUE, LAST_VALUE
 - Running totals, moving averages
 
 **Phase 8**: Integration Tests & Refinement (2 days)
+
 - Comprehensive test suite
 - Performance testing
 - Bug fixes
 
 **Phase 9**: Documentation (1-2 days)
+
 - Architecture docs
 - API documentation
 - Usage guides

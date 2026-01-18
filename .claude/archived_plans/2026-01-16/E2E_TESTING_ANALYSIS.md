@@ -70,6 +70,7 @@ async fn test_postgres_adapter_initialization() {
 ### Current Approach
 
 **Good Async Support:**
+
 ```rust
 #[tokio::test]                          // ✅ Async runtime
 async fn test_postgres_adapter_initialization() {
@@ -79,6 +80,7 @@ async fn test_postgres_adapter_initialization() {
 ```
 
 **Limited HTTP Testing:**
+
 - No actual HTTP server spinning up during tests
 - No network requests being made
 - Pure in-memory validation
@@ -131,6 +133,7 @@ optional = true
 I recommend implementing comprehensive E2E tests that would:
 
 #### 1. **Add HTTP Server E2E Tests** (NEW)
+
 ```rust
 #[tokio::test]
 async fn test_graphql_query_end_to_end() {
@@ -158,6 +161,7 @@ async fn test_graphql_query_end_to_end() {
 ```
 
 #### 2. **Add Database Query E2E Tests** (NEW)
+
 ```rust
 #[tokio::test]
 #[sqlx::test]  // Uses SQLx test harness
@@ -181,6 +185,7 @@ async fn test_graphql_query_with_real_database(db: PgPool) {
 ```
 
 #### 3. **Add fraiseql-wire Performance Tests** (NEW)
+
 ```rust
 #[tokio::test]
 async fn test_fraiseql_wire_protocol_performance() {
@@ -198,6 +203,7 @@ async fn test_fraiseql_wire_protocol_performance() {
 ```
 
 #### 4. **Add Concurrent Load Tests** (NEW)
+
 ```rust
 #[tokio::test]
 async fn test_concurrent_graphql_queries() {
@@ -257,6 +263,7 @@ E2E Tests:        ❌ Missing
 ## Recommendations Priority
 
 ### Phase 3.4 (Next Phase)
+
 1. **Add HTTP Server E2E Tests** (3-4 hours)
    - Spin up actual server in test
    - Make HTTP requests
@@ -273,6 +280,7 @@ E2E Tests:        ❌ Missing
    - Detect race conditions
 
 ### Phase 3.5 (Optional)
+
 4. **Add fraiseql-wire Protocol Tests** (3-4 hours)
    - Test wire protocol performance
    - Verify async execution
@@ -323,6 +331,7 @@ tempfile = "3.8"
 ## Conclusion
 
 **Current Status:**
+
 - ✅ NO mocking (good architecture)
 - ✅ Async support ready
 - ❌ NO true E2E tests
@@ -333,6 +342,7 @@ tempfile = "3.8"
 Implement Phase 3.4 to add comprehensive E2E tests that execute through full stack (HTTP → Validation → Executor → PostgreSQL → Response formatting).
 
 This would enable:
+
 - Real performance profiling
 - Concurrency validation
 - Error scenario testing

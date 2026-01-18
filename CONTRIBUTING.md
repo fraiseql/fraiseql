@@ -25,11 +25,14 @@ Be respectful, professional, and collaborative. We're building something great t
 
 1. **Fork the repository** on GitHub
 2. **Clone your fork**:
+
    ```bash
    git clone git@github.com:YOUR_USERNAME/fraiseql.git
    cd fraiseql
    ```
+
 3. **Add upstream remote**:
+
    ```bash
    git remote add upstream git@github.com:fraiseql/fraiseql.git
    ```
@@ -127,6 +130,7 @@ git commit -m "feat(scope): description
 ```
 
 **Commit Message Format:**
+
 ```
 <type>(<scope>): <subject>
 
@@ -136,6 +140,7 @@ git commit -m "feat(scope): description
 ```
 
 **Types:**
+
 - `feat`: New feature
 - `fix`: Bug fix
 - `docs`: Documentation only
@@ -162,6 +167,7 @@ Then create a Pull Request on GitHub targeting `v2-development`.
 We follow the official [Rust Style Guide](https://doc.rust-lang.org/nightly/style-guide/).
 
 **Key points:**
+
 - **Line width**: 100 characters
 - **Indentation**: 4 spaces
 - **Imports**: Organized with `cargo fmt`
@@ -208,6 +214,7 @@ cargo clippy --all-targets --all-features -- -D warnings
 ### Test Levels
 
 1. **Unit Tests**: Test individual functions/modules
+
    ```rust
    #[cfg(test)]
    mod tests {
@@ -221,6 +228,7 @@ cargo clippy --all-targets --all-features -- -D warnings
    ```
 
 2. **Integration Tests**: Test module interactions
+
    ```rust
    // tests/integration/test_schema.rs
    #[test]
@@ -231,6 +239,7 @@ cargo clippy --all-targets --all-features -- -D warnings
    ```
 
 3. **End-to-End Tests**: Test complete flows
+
    ```rust
    // tests/e2e/test_query_execution.rs
    #[tokio::test]
@@ -321,6 +330,7 @@ FraiseQL v2 is a **compiled GraphQL execution engine**. Key principles:
 ### 2. Code Reuse from v1
 
 See `IMPLEMENTATION_ROADMAP.md` for guidance on reusing v1 code:
+
 - **100% Reuse**: Schema, Error, Config, APQ
 - **90% Reuse**: Database, Security, Cache
 - **Refactor**: Query utilities, GraphQL parsing
@@ -340,7 +350,7 @@ See `IMPLEMENTATION_ROADMAP.md` for guidance on reusing v1 code:
 
 - **Questions**: Open a GitHub Discussion
 - **Bugs**: File a GitHub Issue
-- **Security**: Email security@fraiseql.dev
+- **Security**: Email <security@fraiseql.dev>
 
 ---
 

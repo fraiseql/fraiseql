@@ -11,6 +11,7 @@
 ## What's the Problem?
 
 **Current (Phase 2)**:
+
 ```
 Query: { user(id: "uuid-1") { name } }  ← reads v_user
 Mutation: updateUser(id: "uuid-2") → triggers invalidation of v_user
@@ -19,6 +20,7 @@ Impact: 60-80% cache hit rate
 ```
 
 **With Phase 7**:
+
 ```
 Query: { user(id: "uuid-1") { name } }  ← reads User:uuid-1
 Mutation: updateUser(id: "uuid-2") → invalidates User:uuid-2 only
@@ -53,6 +55,7 @@ Mutation Execution
 ## 5 New Modules
 
 ### 1. UUID Extractor
+
 - **File**: `fraiseql-core/src/cache/uuid_extractor.rs`
 - **Purpose**: Parse mutation responses to extract entity UUIDs
 - **Key Function**: `extract_entity_uuid(response, entity_type) → Option<String>`
@@ -60,6 +63,7 @@ Mutation Execution
 - **Tests**: 8
 
 ### 2. Entity Key
+
 - **File**: `fraiseql-core/src/cache/entity_key.rs`
 - **Purpose**: Type-safe representation of "EntityType:UUID"
 - **Key Type**: `EntityKey { entity_type: String, entity_id: String }`
@@ -67,6 +71,7 @@ Mutation Execution
 - **Tests**: 6
 
 ### 3. Cascade Metadata
+
 - **File**: `fraiseql-core/src/cache/cascade_metadata.rs`
 - **Purpose**: Map mutations to entity types
 - **Key Function**: `get_entity_type(mutation_name) → Option<&str>`
@@ -74,6 +79,7 @@ Mutation Execution
 - **Tests**: 5
 
 ### 4. Query Analyzer
+
 - **File**: `fraiseql-core/src/cache/query_analyzer.rs`
 - **Purpose**: Extract entity constraints from compiled queries
 - **Key Output**: `QueryEntityProfile { entity_type, cardinality }`
@@ -81,6 +87,7 @@ Mutation Execution
 - **Tests**: 10
 
 ### 5. Entity Dependency Tracker
+
 - **File**: `fraiseql-core/src/cache/entity_dependency_tracker.rs`
 - **Purpose**: Track which caches depend on which entities
 - **Key Function**: `get_affected_caches(entity) → Vec<cache_keys>`
@@ -92,6 +99,7 @@ Mutation Execution
 ## Implementation Order
 
 ### Day 1-5: Foundation (Phase 7.1)
+
 ```bash
 # Implement UUID extraction
 cargo test -p fraiseql-core uuid_extractor
@@ -106,6 +114,7 @@ cargo test -p fraiseql-core cascade_metadata
 ```
 
 ### Day 6-10: Tracking (Phase 7.2)
+
 ```bash
 # Implement query analyzer
 cargo test -p fraiseql-core query_analyzer
@@ -117,6 +126,7 @@ cargo test -p fraiseql-core entity_dependency_tracker
 ```
 
 ### Day 11-15: Mutation Handling (Phase 7.3)
+
 ```bash
 # Enhance executor with entity tracking
 cargo test -p fraiseql-core executor
@@ -128,6 +138,7 @@ cargo test -p fraiseql-core mutation_response_tracker
 ```
 
 ### Day 16-20: Invalidation (Phase 7.4)
+
 ```bash
 # Enhance invalidation system
 cargo test -p fraiseql-core invalidation
@@ -139,6 +150,7 @@ cargo test -p fraiseql-core adapter
 ```
 
 ### Day 21: Integration (Phase 7.5)
+
 ```bash
 # Enable in server
 cargo build -p fraiseql-server
@@ -176,6 +188,7 @@ Response: null
 ## Key Data Structures
 
 ### EntityKey
+
 ```rust
 pub struct EntityKey {
     entity_type: String,  // "User", "Post", "Comment"
@@ -186,6 +199,7 @@ pub struct EntityKey {
 ```
 
 ### QueryEntityProfile
+
 ```rust
 pub struct QueryEntityProfile {
     query_name: String,
@@ -199,6 +213,7 @@ pub struct QueryEntityProfile {
 ```
 
 ### MutationResult
+
 ```rust
 pub struct MutationResult {
     mutation_name: String,
@@ -213,6 +228,7 @@ pub struct MutationResult {
 ## Testing Checklist
 
 ### Unit Tests (61 total)
+
 - [ ] UUID extractor: 8 tests
 - [ ] Entity key: 6 tests
 - [ ] Cascade metadata: 5 tests
@@ -222,12 +238,14 @@ pub struct MutationResult {
 - [ ] Invalidation context: 10 tests
 
 ### Integration Tests (39 total)
+
 - [ ] Entity cache E2E: 15 tests
 - [ ] Cache coherency: 8 tests
 - [ ] Performance: 6 tests
 - [ ] Mutation tracking: 10 tests
 
 ### Performance Benchmarks
+
 - [ ] UUID extraction: < 10µs
 - [ ] Batch extraction: < 1ms for 100
 - [ ] Query analysis: < 5µs
@@ -235,6 +253,7 @@ pub struct MutationResult {
 - [ ] Invalidation lookup: < 100µs
 
 ### Acceptance Criteria
+
 - [ ] 95%+ code coverage
 - [ ] 90-95% cache hit rate
 - [ ] All tests passing
@@ -259,22 +278,27 @@ pub struct MutationResult {
 ## Common Pitfalls to Avoid
 
 ### 1. UUID Parsing
+
 ❌ WRONG: String matching for UUID format
 ✅ RIGHT: Use uuid crate validation
 
 ### 2. Race Conditions
+
 ❌ WRONG: Mutable HashMap without locks
 ✅ RIGHT: RwLock<HashMap> for safe concurrent access
 
 ### 3. Memory Leaks
+
 ❌ WRONG: Unbounded growth of entity tracking maps
 ✅ RIGHT: Cleanup on cache entry eviction
 
 ### 4. False Negatives
+
 ❌ WRONG: Only track queried entities
 ✅ RIGHT: Also track entities in WHERE clauses
 
 ### 5. False Positives
+
 ❌ WRONG: Invalidate all queries reading same view
 ✅ RIGHT: Only invalidate queries reading specific entity
 
@@ -283,6 +307,7 @@ pub struct MutationResult {
 ## Success Metrics
 
 ### Before Phase 7
+
 ```
 Cache hit rate: 60-80%
 Average latency: 100-200ms
@@ -290,6 +315,7 @@ Queries/sec: 50-100
 ```
 
 ### After Phase 7
+
 ```
 Cache hit rate: 90-95%
 Average latency: 50-75ms (50% reduction)
@@ -340,16 +366,19 @@ cargo tarpaulin -p fraiseql-core -o Html
 ## Next Steps After Phase 7
 
 **Phase 8: Coherency Validation**
+
 - Audit logging for all cache operations
 - Validation tests (no stale reads)
 - Performance regression detection
 
 **Phase 9: Optimization**
+
 - Batch invalidation
 - LRU eviction with entity tracking
 - Memory pressure handling
 
 **Phase 10+: Advanced**
+
 - Distributed caching (Redis)
 - Multi-tenant cache isolation
 - Cache warming strategies

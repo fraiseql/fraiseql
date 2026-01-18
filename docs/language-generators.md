@@ -496,6 +496,7 @@ fraiseql-cli compile schema.json
 ```
 
 This produces `schema.compiled.json` with:
+
 - Optimized SQL templates
 - Type validation
 - Performance suggestions

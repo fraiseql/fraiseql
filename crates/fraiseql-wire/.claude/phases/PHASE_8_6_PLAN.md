@@ -13,12 +13,14 @@ Enhance streaming architecture with observability, adaptive mechanics, and expli
 ## Current State (Phase 8.5 Completion)
 
 ✅ **Phase 8.5 Complete (100%)**:
+
 - 17 production metrics implemented
 - 105 passing tests
 - Zero-overhead metric collection (~0.042% overhead)
 - Complete observability framework
 
 **Streaming Architecture** (from Explore analysis):
+
 - One-way MPSC channel with bounded capacity (default: 256 rows)
 - Automatic backpressure via tokio::select!
 - Chunking strategy reduces per-item overhead
@@ -26,6 +28,7 @@ Enhance streaming architecture with observability, adaptive mechanics, and expli
 - O(chunk_size) memory scaling
 
 **Key Invariants**:
+
 - Single active query per connection
 - Exactly one JSON column named `data`
 - No buffering of full result sets
@@ -40,6 +43,7 @@ Enhance streaming architecture with observability, adaptive mechanics, and expli
 **Objective**: Add direct visibility into channel backpressure
 **Effort**: 2-3 days
 **Files**:
+
 - `src/metrics/histograms.rs` - Add occupancy tracking
 - `src/metrics/labels.rs` - Add backpressure label (optional)
 - `src/stream/json_stream.rs` - Wrap receiver to track occupancy
@@ -70,15 +74,18 @@ fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self
 ```
 
 **Metrics Added**:
+
 - `fraiseql_channel_occupancy_rows{entity}` - Histogram of buffer depth per poll
 - Shows backpressure patterns: low values → fast consumer, high values → slow consumer
 
 **Tests**:
+
 - Verify occupancy recorded for each poll
 - Test occupancy spikes under load
 - Verify occupancy zeros on stream completion
 
 **Acceptance**:
+
 - [ ] Histogram metric added to `histograms.rs`
 - [ ] JsonStream tracks buffer depth
 - [ ] Metric recorded on each poll_next()
@@ -92,6 +99,7 @@ fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self
 **Objective**: Allow consumers to query stream state inline
 **Effort**: 2-3 days
 **Files**:
+
 - `src/stream/json_stream.rs` - Add stats() method
 - `src/stream/mod.rs` - Export StreamStats type
 - `tests/streaming_integration.rs` - Stats in real queries
@@ -132,18 +140,21 @@ impl JsonStream {
 ```
 
 **Implementation Notes**:
+
 - `receiver.len()` is cheap (reads bounded queue length)
 - Memory estimate is conservative (2KB default, configurable)
 - Counters tracked via Arc<AtomicU64> (no locks)
 - No polling side effects
 
 **Tests**:
+
 - Stats available before consuming any rows
 - Stats update as stream is consumed
 - Filtered items tracked separately from yielded
 - Memory estimate stays reasonable
 
 **Acceptance**:
+
 - [ ] StreamStats type defined and public
 - [ ] JsonStream implements stats() method
 - [ ] All fields updated correctly
@@ -157,6 +168,7 @@ impl JsonStream {
 **Objective**: Enable memory-limited streaming with graceful enforcement
 **Effort**: 3-4 days
 **Files**:
+
 - `src/stream/json_stream.rs` - Memory tracking
 - `src/connection/conn.rs` - Max memory configuration
 - `src/client/query_builder.rs` - API: max_memory()
@@ -209,6 +221,7 @@ impl QueryBuilder {
 ```
 
 **Error Type** (in `src/error.rs`):
+
 ```rust
 pub enum Error {
     // ... existing variants
@@ -220,18 +233,21 @@ pub enum Error {
 ```
 
 **Behavior**:
+
 - Default: no limit (backward compatible)
 - With limit: emit error when exceeded
 - Includes metric for alerting
 - Connection state unclear after error (unsafe to reuse)
 
 **Tests**:
+
 - Set limit below single JSON object → error immediately
 - Set limit = expected buffer size → no errors
 - Set limit = buffer size / 2 → error when half-full
 - Verify error includes actual/limit values
 
 **Acceptance**:
+
 - [ ] max_memory() method on QueryBuilder
 - [ ] Memory tracking in JsonStream
 - [ ] MemoryLimitExceeded error type
@@ -245,6 +261,7 @@ pub enum Error {
 **Objective**: Automatically adjust chunk_size based on backpressure conditions
 **Effort**: 4-5 days
 **Files**:
+
 - `src/stream/adaptive_chunking.rs` (new)
 - `src/connection/conn.rs` - Use adaptive strategy
 - `src/stream/mod.rs` - Export AdaptiveChunking
@@ -317,22 +334,26 @@ impl AdaptiveChunking {
 ```
 
 **Integration**:
+
 - Use AdaptiveChunking in conn.rs streaming_query()
 - Pass observed occupancy on each chunk flush
 - Record adjustment in metrics
 - Bounds prevent pathological behavior
 
 **Metrics**:
+
 - `fraiseql_chunk_size_adjusted{entity, direction}` - Counter for increases/decreases
 - `fraiseql_adaptive_chunk_size{entity}` - Current size histogram
 
 **Tuning Parameters**:
+
 - Min: 16 rows (minimum sensible batch)
 - Max: 1024 rows (prevent memory spikes)
 - Window: 50 measurements (balance reactivity vs noise)
 - Thresholds: 20%/80% (wide hysteresis band)
 
 **Tests**:
+
 - Stable occupancy → no adjustments
 - High occupancy → increases chunk_size
 - Low occupancy → decreases chunk_size
@@ -340,6 +361,7 @@ impl AdaptiveChunking {
 - Metrics recorded on adjustment
 
 **Acceptance**:
+
 - [ ] AdaptiveChunking type defined
 - [ ] observe_occupancy() called per chunk
 - [ ] Adjustment logic correct
@@ -355,6 +377,7 @@ impl AdaptiveChunking {
 **Objective**: Allow consumers to suspend stream without dropping connection
 **Effort**: 5-7 days
 **Files**:
+
 - `src/stream/json_stream.rs` - Add pause/resume control
 - `src/stream/mod.rs` - Export StreamState enum
 - `src/connection/conn.rs` - Suspend background task
@@ -451,6 +474,7 @@ tokio::spawn(async move {
 ```
 
 **Error Types** (in `src/error.rs`):
+
 ```rust
 pub enum Error {
     // ... existing
@@ -460,17 +484,20 @@ pub enum Error {
 ```
 
 **Semantics**:
+
 - Pause: Background task waits in loop, connection stays open
 - Resume: Background task continues reading from Postgres
 - Drop: Cancellation signal sent (same as before)
 - State: Queried via `stream.state()`
 
 **Metrics**:
+
 - `fraiseql_stream_paused_total{entity}` - Pause events
 - `fraiseql_stream_resumed_total{entity}` - Resume events
 - `fraiseql_stream_pause_duration_ms{entity}` - Pause time
 
 **Tests**:
+
 - Pause stream, resume, continue consuming
 - Pause, drop → cleanup happens correctly
 - Resume when not paused → error
@@ -478,6 +505,7 @@ pub enum Error {
 - Pause/resume doesn't lose buffered rows
 
 **Acceptance**:
+
 - [ ] pause() and resume() methods
 - [ ] StreamState enum with all variants
 - [ ] state() method returns current state
@@ -493,6 +521,7 @@ pub enum Error {
 **Objective**: Make cancellation async-aware with optional timeout
 **Effort**: 2-3 days
 **Files**:
+
 - `src/stream/json_stream.rs` - Add cancel_async() method
 - `src/connection/conn.rs` - Graceful shutdown
 - `src/metrics/counters.rs` - Cancellation timing
@@ -542,6 +571,7 @@ impl JsonStream {
 ```
 
 **Alternative Design** (if timeout enforcement needed):
+
 ```rust
 // Store JoinHandle in JsonStream
 pub struct JsonStream {
@@ -564,6 +594,7 @@ impl JsonStream {
 ```
 
 **Current Limitation**:
+
 - Drop-based cleanup doesn't expose completion
 - Task completion depends on receiving cancel signal
 - Alternative requires storing JoinHandle (adds complexity)
@@ -571,14 +602,17 @@ impl JsonStream {
 **Recommendation**: Start with simple `cancel_timeout()` that returns timeout error if cleanup takes too long.
 
 **Metrics**:
+
 - `fraiseql_cancellation_duration_ms{entity}` - Time to cancel
 
 **Tests**:
+
 - Cancel immediately after creation
 - Cancel after consuming some rows
 - Cancel timeout fires if task hangs
 
 **Acceptance**:
+
 - [ ] cancel() method (existing drop semantics)
 - [ ] cancel_timeout() with Duration param
 - [ ] Metrics recorded
@@ -590,6 +624,7 @@ impl JsonStream {
 ## Implementation Sequence
 
 **Week 1**:
+
 1. 8.6.1: Channel Occupancy Metrics (2-3 days)
 2. 8.6.2: Stream Statistics API (2-3 days)
 3. Integration testing & bug fixes (1 day)
@@ -605,6 +640,7 @@ impl JsonStream {
 9. Full integration, benchmarks, documentation (2-3 days)
 
 **Alternative Sequencing** (if time constrained):
+
 - **Minimum (1 week)**: 8.6.1 + 8.6.2 + 8.6.3 (core observability & bounds)
 - **Standard (2 weeks)**: Add 8.6.4 (adaptive mechanics)
 - **Full (3 weeks)**: Add 8.6.5 + 8.6.6 (lifecycle control)
@@ -660,23 +696,27 @@ docs/
 ## Testing Strategy
 
 ### Unit Tests
+
 - Each sub-phase has dedicated unit tests
 - Metrics recording verified
 - Edge cases: empty streams, large objects, rapid pause/resume
 
 ### Integration Tests
+
 - Real Postgres queries
 - Metrics collected end-to-end
 - Memory bounds enforced
 - Adaptive behavior under realistic load
 
 ### Stress Tests
+
 - 1M+ row queries with memory limits
 - Rapid pause/resume cycles
 - Occupancy spikes
 - Verify metrics under high load
 
 ### Benchmarks
+
 - Channel occupancy recording overhead
 - Stats() method latency
 - Pause/resume latency
@@ -712,6 +752,7 @@ Each of 8.6.1 through 8.6.6 must satisfy its acceptance criteria (listed above).
 ### Breaking Changes
 
 **None planned**. All features are additive:
+
 - Existing APIs unchanged
 - New APIs optional
 - Metrics automatically collected (no opt-in needed)
@@ -724,6 +765,7 @@ Each of 8.6.1 through 8.6.6 must satisfy its acceptance criteria (listed above).
 ### Risk: Adaptive Chunking Instability
 
 **Mitigation**:
+
 - Wide hysteresis band (20-80%)
 - Bounds prevent pathological sizes
 - Metrics track every adjustment
@@ -732,6 +774,7 @@ Each of 8.6.1 through 8.6.6 must satisfy its acceptance criteria (listed above).
 ### Risk: Memory Bound Enforced Too Late
 
 **Mitigation**:
+
 - Check on every send(), not just chunk boundaries
 - Record metric immediately
 - Error includes details for debugging
@@ -740,6 +783,7 @@ Each of 8.6.1 through 8.6.6 must satisfy its acceptance criteria (listed above).
 ### Risk: Pause/Resume Complexity
 
 **Mitigation**:
+
 - Keep background task simple (select! with pause loop)
 - Don't change connection state machine
 - Drop cancellation still works
@@ -748,6 +792,7 @@ Each of 8.6.1 through 8.6.6 must satisfy its acceptance criteria (listed above).
 ### Risk: Metrics Overhead
 
 **Mitigation**:
+
 - All changes use existing metrics crate
 - No new dependencies
 - Benchmarks verify overhead
@@ -758,18 +803,21 @@ Each of 8.6.1 through 8.6.6 must satisfy its acceptance criteria (listed above).
 ## Success Stories (Expected Outcomes)
 
 **For Operators**:
+
 - Real-time visibility into backpressure via `fraiseql_channel_occupancy_rows`
 - Memory limits prevent OOM: `stream.max_memory(1GB).execute()`
 - Pause/resume for resource-constrained environments
 - Query cancellation completion guarantees
 
 **For Developers**:
+
 - Inline stats API: `stream.stats().items_buffered`
 - Adaptive system requires zero configuration
 - Clear error messages on memory limits
 - Comprehensive metrics for profiling
 
 **For Production**:
+
 - Self-tuning chunk sizes reduce manual configuration
 - Backpressure metrics enable alerting
 - Memory bounds catch runaway queries
@@ -782,11 +830,13 @@ Each of 8.6.1 through 8.6.6 must satisfy its acceptance criteria (listed above).
 ### JSON Stream Modifications
 
 The JsonStream type currently:
+
 - Owns mpsc::Receiver<Result<Value>>
 - Holds _cancel_tx to signal cancellation on drop
 - Implements Stream trait
 
 For Phase 8.6, we add:
+
 - Arc<AtomicUsize> for buffer depth tracking
 - Arc<AtomicU64> for counters (rows yielded, filtered)
 - Arc<AtomicU8> for state tracking
@@ -798,6 +848,7 @@ All additions are Arc-backed (cloneable if needed) and atomic-only (no locks).
 ### Backward Compatibility
 
 All changes maintain backward compatibility:
+
 - Existing execute() returns JsonStream unchanged
 - New methods are optional (stats(), pause(), etc.)
 - Metrics collected automatically (invisible to users)
@@ -807,6 +858,7 @@ All changes maintain backward compatibility:
 ### Metric Integration
 
 Uses existing `metrics` crate patterns:
+
 - histogram!() for distributions
 - counter!() for events
 - Labels follow existing conventions
@@ -844,15 +896,18 @@ Uses existing `metrics` crate patterns:
 ## Future Phases (Deferred)
 
 **Phase 8.7: Connection Pooling** (1-2 weeks)
+
 - Connection pool management
 - Health checking and auto-reconnect
 - Pool statistics
 
 **Phase 8.8: Advanced Error Handling** (1 week)
+
 - Retry policies with exponential backoff
 - Circuit breaker pattern
 
 **Phase 8.9: Production Hardening** (2-3 weeks)
+
 - Deployment guides
 - Operational best practices
 - Production troubleshooting

@@ -23,6 +23,7 @@ Your original comprehensive implementation plan has been converted to a fully se
 ### 🎯 Original Plan (Kept for Reference)
 
 All original documents still available:
+
 - IMPLEMENTATION_PLAN.md (original with parallelization)
 - QUICK_START_GUIDE.md
 - LANGUAGE_GENERATORS_STATUS.md
@@ -34,6 +35,7 @@ All original documents still available:
 ## The Sequential Plan Structure
 
 ### Phase 1: Quick Fixes (2.5 hours)
+
 ```
 Task 1.1: Python          ✅ (5 min)    → THEN
 Task 1.2: TypeScript      ✅ (15 min)   → THEN
@@ -44,6 +46,7 @@ Task 1.6: CLI Investig.   ✅ (2 hrs)    → COMPLETE
 ```
 
 ### Phase 2: E2E Infrastructure (9 hours)
+
 ```
 Task 2.1a: Python E2E     ✅ (1 hr)     → THEN
 Task 2.1b: TypeScript E2E ✅ (1 hr)     → THEN
@@ -55,6 +58,7 @@ Task 2.3:  GitHub Actions ✅ (3 hrs)    → COMPLETE
 ```
 
 ### Phase 3: CLI Integration (2.25 hours)
+
 ```
 Task 3.1: Analyze         ✅ (30 min)   → THEN
 Task 3.2: Implement       ✅ (45 min)   → THEN
@@ -63,6 +67,7 @@ Task 3.4: Update Tests    ✅ (30 min)   → COMPLETE
 ```
 
 ### Phase 4: Documentation (2.5 hours)
+
 ```
 Task 4.1: README          ✅ (30 min)   → THEN
 Task 4.2: Language Docs   ✅ (45 min)   → THEN
@@ -77,6 +82,7 @@ Task 4.4: Final Commit    ✅ (30 min)   → COMPLETE
 ## How to Execute (Step by Step)
 
 ### Step 1: Read the Plan (1 hour)
+
 ```bash
 1. Read this file (10 min)
 2. Read SEQUENTIAL_PLAN_SUMMARY.md (10 min)
@@ -85,6 +91,7 @@ Task 4.4: Final Commit    ✅ (30 min)   → COMPLETE
 ```
 
 ### Step 2: Start Executing (Follow the plan exactly)
+
 ```bash
 1. Open IMPLEMENTATION_PLAN_SEQUENTIAL.md
 2. Start with Phase 1 Task 1.1
@@ -94,12 +101,14 @@ Task 4.4: Final Commit    ✅ (30 min)   → COMPLETE
 ```
 
 ### Step 3: Check Progress (After each phase)
+
 ```bash
 # Run the summary verification for that phase
 # All checks must pass before proceeding to next phase
 ```
 
 ### Step 4: Submit Final Results (After all phases)
+
 ```bash
 # All changes committed to git
 # All tests passing
@@ -111,6 +120,7 @@ Task 4.4: Final Commit    ✅ (30 min)   → COMPLETE
 ## Key Principles (IMPORTANT!)
 
 ### 🔴 DO NOT
+
 - ❌ Skip ahead to a later task
 - ❌ Run multiple tasks in parallel
 - ❌ Start a new task before previous one completes
@@ -118,6 +128,7 @@ Task 4.4: Final Commit    ✅ (30 min)   → COMPLETE
 - ❌ Skip verification checks
 
 ### 🟢 DO
+
 - ✅ Finish each task 100% before moving on
 - ✅ Run each verification check before proceeding
 - ✅ Fix failures immediately (don't defer)
@@ -125,7 +136,9 @@ Task 4.4: Final Commit    ✅ (30 min)   → COMPLETE
 - ✅ Stop if something doesn't match expectations
 
 ### 📍 Checkpoints
+
 Each task has "DO NOT PROCEED" checkpoints. These are hard stops:
+
 - You MUST pass all success criteria
 - You MUST run verification checks
 - You MUST NOT skip ahead if something fails
@@ -135,6 +148,7 @@ Each task has "DO NOT PROCEED" checkpoints. These are hard stops:
 ## File Overview
 
 ### Main Planning Documents
+
 - **IMPLEMENTATION_PLAN_SEQUENTIAL.md** (1,300+ lines)
   - Complete step-by-step plan
   - All commands copy-paste ready
@@ -148,6 +162,7 @@ Each task has "DO NOT PROCEED" checkpoints. These are hard stops:
   - Timeline at a glance
 
 ### Reference Documents
+
 - **SEQUENTIAL_PLAN_SUMMARY.md**
   - Explains what changed from original
   - Highlights sequential execution model
@@ -159,6 +174,7 @@ Each task has "DO NOT PROCEED" checkpoints. These are hard stops:
   - Shows document organization
 
 ### Supporting Documentation (Original Plan)
+
 - E2E_TESTING_STRATEGY.md (E2E test code examples)
 - LANGUAGE_GENERATORS_STATUS.md (Status details)
 - QUICK_START_GUIDE.md (Original quick start)
@@ -169,6 +185,7 @@ Each task has "DO NOT PROCEED" checkpoints. These are hard stops:
 ## What You'll Get at the End
 
 ### ✅ All Tests Passing
+
 - Python: 7/7 tests ✅
 - TypeScript: 10/10 tests + 2 examples ✅
 - Java: 82/82 tests ✅
@@ -177,23 +194,27 @@ Each task has "DO NOT PROCEED" checkpoints. These are hard stops:
 - **Total: 315+ tests passing** ✅
 
 ### ✅ E2E Infrastructure Complete
+
 - Docker test database setup ✅
 - Makefile orchestration (`make e2e-all`) ✅
 - GitHub Actions CI/CD pipeline ✅
 - All 5 languages integrated ✅
 
 ### ✅ CLI Integration Working
+
 - All 5 languages compile with `fraiseql-cli` ✅
 - Schema format compatibility fixed ✅
 - `schema.compiled.json` generation working ✅
 
 ### ✅ Documentation Complete
+
 - README.md updated ✅
 - Language generators guide ✅
 - E2E testing guide ✅
 - CLI schema format guide ✅
 
 ### ✅ Ready for Production
+
 - All code changes committed to git ✅
 - GitHub Actions pipeline active ✅
 - Ready for package releases (PyPI, NPM, Maven, etc.) ✅
@@ -203,6 +224,7 @@ Each task has "DO NOT PROCEED" checkpoints. These are hard stops:
 ## Typical Daily Schedule
 
 ### Day 1 (3 hours)
+
 ```
 Morning (2.5 hrs): Phase 1 - Quick Fixes for all 5 languages
   - Python (5 min)
@@ -219,6 +241,7 @@ Afternoon (2+ hrs): Phase 1.6 - CLI Investigation
 ```
 
 ### Day 2 (4-5 hours)
+
 ```
 Full day: Phase 2.1-2.2 - E2E Tests & Makefile
   - Python E2E test (1 hr)
@@ -230,6 +253,7 @@ Full day: Phase 2.1-2.2 - E2E Tests & Makefile
 ```
 
 ### Day 3 (5-6 hours)
+
 ```
 Morning (3 hrs): Phase 2.3 - GitHub Actions
 Afternoon (2.25 hrs): Phase 3 - CLI Fix
@@ -240,6 +264,7 @@ Afternoon (2.25 hrs): Phase 3 - CLI Fix
 ```
 
 ### Day 4 (2.5 hours)
+
 ```
 Full morning: Phase 4 - Documentation
   - README (30 min)
@@ -255,11 +280,13 @@ Full morning: Phase 4 - Documentation
 ## Getting Started
 
 ### Right Now
+
 1. ✅ You're reading this file
 2. ✅ Next: Read SEQUENTIAL_PLAN_SUMMARY.md (10 min)
 3. ✅ Then: Read IMPLEMENTATION_PLAN_SEQUENTIAL.md Phase 1 (20 min)
 
 ### Ready to Start?
+
 ```bash
 # Open the quick reference
 cat /home/lionel/code/fraiseql/.claude/QUICK_REFERENCE_SEQUENTIAL.md
@@ -277,18 +304,21 @@ pip install -e fraiseql-python/
 ## Troubleshooting
 
 ### Can't Find Files?
+
 ```bash
 ls /home/lionel/code/fraiseql/.claude/
 # Should show all .claude files including the sequential plan docs
 ```
 
 ### Need Help?
+
 - **Quick commands?** → Use QUICK_REFERENCE_SEQUENTIAL.md
 - **Detailed steps?** → Use IMPLEMENTATION_PLAN_SEQUENTIAL.md
 - **Understanding changes?** → Use SEQUENTIAL_PLAN_SUMMARY.md
 - **Original context?** → Use LANGUAGE_GENERATORS_STATUS.md or E2E_TESTING_STRATEGY.md
 
 ### Task Failed?
+
 - Read the "If tests fail" section in that task
 - Fix the issue
 - Retry the task
@@ -369,6 +399,7 @@ All documents are in: `/home/lionel/code/fraiseql/.claude/`
 ## Final Notes
 
 ### Philosophy
+
 - **One task at a time**: You will not jump ahead
 - **Complete each task**: Success criteria must be met before moving on
 - **No parallelization**: Sequential execution only
@@ -376,12 +407,14 @@ All documents are in: `/home/lionel/code/fraiseql/.claude/`
 - **Commit frequently**: Small commits for each phase
 
 ### Expectations
+
 - Tasks should take the time specified (if they don't, something's wrong)
 - Commands should work as written (copy-paste ready)
 - Success criteria should be unambiguous
 - If something fails, it's a blocker (fix it immediately)
 
 ### Support
+
 - All commands are provided
 - All success criteria are explicit
 - All troubleshooting steps are included
@@ -400,6 +433,7 @@ You have:
 ✅ Quick reference card
 
 **Next Steps**:
+
 1. Read SEQUENTIAL_PLAN_SUMMARY.md (10 min)
 2. Read IMPLEMENTATION_PLAN_SEQUENTIAL.md Phase 1 (20 min)
 3. Start Phase 1 Task 1.1 (5 min)

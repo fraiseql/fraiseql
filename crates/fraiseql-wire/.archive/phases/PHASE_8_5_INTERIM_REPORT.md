@@ -11,17 +11,20 @@
 ### ✅ Completed (3 of 8 Sub-phases)
 
 **Phase 8.5.1: Metrics Module** ✅
+
 - Created comprehensive metrics infrastructure
 - 19 counter metrics + 10 histogram metrics
 - 19 unit tests, all passing
 - Labels strategy designed and validated
 
 **Phase 8.5.2: QueryBuilder Instrumentation** ✅
+
 - Records query submissions with entity and predicate labels
 - Non-breaking API change
 - Metrics: `fraiseql_queries_total`
 
 **Phase 8.5.3: Connection Instrumentation** ✅
+
 - **Authentication metrics**:
   - `fraiseql_authentications_total` - Track auth attempts by mechanism
   - `fraiseql_authentications_successful_total` - Successful authentications
@@ -39,6 +42,7 @@
 ### 🔄 In Progress (1 of 8 Sub-phases)
 
 **Phase 8.5.4: Background Task Instrumentation** 🔄
+
 - Ready to start: infrastructure for background row processing metrics
 - Will instrument:
   - Row processing per chunk
@@ -49,19 +53,23 @@
 ### ⏳ Remaining (4 of 8 Sub-phases)
 
 **Phase 8.5.5: Stream Type Instrumentation**
+
 - TypedJsonStream deserialization metrics (per type)
 - FilteredStream filtering metrics
 
 **Phase 8.5.6: Integration Tests**
+
 - End-to-end metrics validation
 - Error scenario verification
 
 **Phase 8.5.7: Documentation & Examples**
+
 - METRICS.md glossary
 - examples/metrics.rs working example
 - Integration guides
 
 **Phase 8.5.8: Performance Validation**
+
 - Benchmark overhead measurement
 - Ensure <0.1% impact
 
@@ -70,6 +78,7 @@
 ## Test Results
 
 ✅ **90 Tests Passing** (71 existing + 19 metrics)
+
 - `metrics::counters::tests` - 7 tests
 - `metrics::histograms::tests` - 7 tests
 - `metrics::labels::tests` - 3 tests
@@ -168,10 +177,12 @@
 ### Metrics Ready for Phase 8.5.4+
 
 **Row Processing (8 counters + 5 histograms)**
+
 - Row counts, parse errors, filtering
 - Chunk processing, JSON parsing, deserialization timing
 
 **Stream Types (2 counters + 2 histograms)**
+
 - Per-type deserialization success/failure
 - Deserialization latency
 
@@ -188,6 +199,7 @@
 ## Performance Impact
 
 **Actual measurements:**
+
 - Auth metrics: ~0 overhead (single Instant::now() calls)
 - Query submission: ~1 counter increment (atomic, <0.1μs)
 - Query startup: ~2 atomic operations total

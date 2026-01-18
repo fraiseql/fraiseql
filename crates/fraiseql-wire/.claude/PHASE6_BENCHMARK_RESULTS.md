@@ -13,6 +13,7 @@ The benchmarks confirm that Phase 6's optimization successfully reduces startup 
 ## Benchmark Results
 
 ### Test Environment
+
 - **System**: Linux (Arch)
 - **PostgreSQL**: Version 17 (localhost)
 - **Test Database**: `fraiseql_bench`
@@ -31,6 +32,7 @@ The benchmarks confirm that Phase 6's optimization successfully reduces startup 
 ### Detailed Results
 
 #### 1K Rows
+
 ```
 time:   [36.047 ms 36.157 ms 36.295 ms]
 thrpt:  [27.552 Kelem/s 27.657 Kelem/s 27.741 Kelem/s]
@@ -41,12 +43,14 @@ Outliers: 4 (4%)
 ```
 
 **Analysis**:
+
 - **Improvement**: 4% faster (baseline: ~37.7ms → optimized: 36.2ms)
 - **Absolute saving**: ~1.5ms per query
 - **Significance**: Statistically significant (p < 0.05)
 - **Impact**: On startup-dominated operations, ~4% faster
 
 #### 10K Rows (Critical Measurement)
+
 ```
 time:   [51.792 ms 51.904 ms 52.047 ms]
 thrpt:  [192.13 Kelem/s 192.66 Kelem/s 193.08 Kelem/s]
@@ -57,6 +61,7 @@ Outliers: 4 (4%)
 ```
 
 **Analysis**:
+
 - **Improvement**: 3.4% faster (baseline: ~53.7ms → optimized: 51.9ms)
 - **Absolute saving**: ~1.8ms per query
 - **Significance**: Statistically significant (p < 0.05)
@@ -66,6 +71,7 @@ Outliers: 4 (4%)
   - This represents Phase 6's specific contribution
 
 #### 50K Rows
+
 ```
 time:   [121.39 ms 121.52 ms 121.71 ms]
 thrpt:  [410.80 Kelem/s 411.44 Kelem/s 411.90 Kelem/s]
@@ -76,12 +82,14 @@ Outliers: 4 (4%)
 ```
 
 **Analysis**:
+
 - **Improvement**: 0.3% (essentially unchanged)
 - **Absolute change**: ~0.4ms
 - **Significance**: Within measurement noise
 - **Expected**: Startup overhead becomes smaller % of total time as result set grows
 
 #### 100K Rows
+
 ```
 time:   [208.56 ms 209.54 ms 210.60 ms]
 thrpt:  [474.84 Kelem/s 477.24 Kelem/s 479.47 Kelem/s]
@@ -92,6 +100,7 @@ Outliers: 1 (10%)
 ```
 
 **Analysis**:
+
 - **Improvement**: Negligible (-0.3%, within noise)
 - **Significance**: p = 0.17 (not statistically significant)
 - **Expected**: Initialization overhead is now <0.5% of total time for 100K rows
@@ -126,6 +135,7 @@ The improvement pattern matches the Phase 6 optimization design:
 ### 2. Phase 6 Validates As Designed
 
 The benchmarks confirm Phase 6's implementation:
+
 - ✅ Lazy initialization working correctly
 - ✅ ~2ms absolute savings on startup (from Arc allocations)
 - ✅ No regression on larger queries
@@ -144,11 +154,13 @@ Phase 6 is part of a 6-phase optimization effort:
 ### 4. Latency Gap Progress
 
 **Original measurement** (before any optimization):
+
 - PostgreSQL (native): 52ms
 - fraiseql-wire: 65ms
 - **Gap**: 13ms (23.5% slower)
 
 **After Phase 6**:
+
 - fraiseql-wire (Phase 6): ~52ms
 - **Estimated gap**: ~0ms (matches PostgreSQL!)
 
@@ -159,12 +171,14 @@ This suggests **Phases 1-6 combined have successfully closed the gap**.
 ## Statistical Significance
 
 All improvements on small result sets are **statistically significant**:
+
 - 1K rows: p < 0.05 ✅
 - 10K rows: p < 0.05 ✅
 - 50K rows: p = 0.00 (within noise) ✅
 - 100K rows: p = 0.17 (no change) ✅
 
 The large result sets showing no change is **expected and correct**:
+
 - Initialization overhead is fixed (~2ms)
 - At 100K rows (~200ms total), 2ms is <1% impact
 - Criterion correctly reports "no change detected"
@@ -185,6 +199,7 @@ The throughput numbers show consistent performance:
 ```
 
 **Observations**:
+
 - Per-row throughput improves as batch size increases (cache efficiency)
 - No regression from lazy initialization
 - Consistent with expected JSON parsing performance
@@ -208,15 +223,18 @@ Streaming Time (depends on size)
 ## Validation Against Predictions
 
 **Phase 6 Planning** predicted:
+
 - Startup savings: 5-8ms from pause/resume lazy allocation
 - 10K row improvement: Reduce from 65ms to ~60ms (7.7% gain)
 
 **Actual results**:
+
 - Startup savings: ~2ms measured (1-3ms range)
 - 10K row result: ~52ms (3.4% improvement from Phase 6 specifically)
 - Combined Phases 1-6: Likely ~8-12ms total improvement
 
 **Why less than predicted?**
+
 1. **Optimization already present**: The code base had Phases 1-5 already implemented
 2. **Cumulative effect**: ~2ms is Phase 6's specific contribution
 3. **Hardware variance**: Postgres performance varies with system load
@@ -240,6 +258,7 @@ Streaming Time (depends on size)
 ## What Phase 6 Accomplishes
 
 ### Before Phase 6
+
 ```rust
 // Every query allocation (expensive)
 Arc::new(Mutex::new(StreamState::Running))  // ~1ms
@@ -250,6 +269,7 @@ Arc::new(AtomicUsize::new(0))               // ~0.2ms
 ```
 
 ### After Phase 6
+
 ```rust
 // Lazy allocation (only when pause() called)
 pause_resume: Option<PauseResumeState>  // ~0ms (97% of queries)
@@ -260,6 +280,7 @@ pause_resume: Option<PauseResumeState>  // ~0ms (97% of queries)
 ```
 
 ### Impact
+
 - ✅ Eliminates 2ms fixed overhead on 97% of queries
 - ✅ Zero cost for queries that never pause
 - ✅ One additional allocation only when pause() called
@@ -270,6 +291,7 @@ pause_resume: Option<PauseResumeState>  // ~0ms (97% of queries)
 ## Benchmark Artifacts
 
 ### Criterion Output Location
+
 ```
 target/criterion/phase6_small_sets/
 ├── 1k_rows/
@@ -281,6 +303,7 @@ target/criterion/phase6_large_sets/
 ```
 
 ### Re-running the Benchmark
+
 ```bash
 # Full validation run
 cargo bench --bench phase6_validation --features bench-with-postgres
@@ -296,6 +319,7 @@ cargo bench --bench phase6_validation --features bench-with-postgres -- phase6_s
 ### Phases 8-10 Feasibility
 
 Given that:
+
 - Phase 6 achieved its estimated savings (~2ms confirmed)
 - 10K row latency is now ~52ms (vs PostgreSQL 52ms)
 - Latency gap appears to be ~0% (essentially matched PostgreSQL)
@@ -303,11 +327,13 @@ Given that:
 **Conclusion**: The original 23.5% gap has been successfully closed through Phases 1-6.
 
 Further optimization (Phases 8-10) would provide diminishing returns:
+
 - Phase 8 (lightweight state): Estimated 0.5-1ms, high complexity
 - Phase 10 (fixed channel): Estimated 0.5-1ms, low complexity
 - Phase 7 (spawn-less): Estimated 4-6ms, very high complexity, high risk
 
 **Recommendation**:
+
 - ✅ **Phases 1-6 complete and validated** - Stop here
 - ⚠️ **Phases 7-10**: Only pursue if targeting <5% gap or <45ms latency
 - 📊 **Current performance**: Matches PostgreSQL native driver
@@ -317,6 +343,7 @@ Further optimization (Phases 8-10) would provide diminishing returns:
 ## Conclusion
 
 Phase 6 validation benchmarks confirm:
+
 1. ✅ Lazy pause/resume initialization is working correctly
 2. ✅ Small result sets show 3-4% improvement (~1.8ms on 10K rows)
 3. ✅ Large result sets show no regression (within noise)
@@ -326,6 +353,7 @@ Phase 6 validation benchmarks confirm:
 **Phase 6 is VALIDATED and READY FOR PRODUCTION.**
 
 The 6-phase optimization effort has successfully reduced the latency gap from 23.5% to essentially 0% by:
+
 - Eliminating unnecessary allocations (Phase 1)
 - Reducing lock contention (Phase 2)
 - Sampling expensive metrics (Phases 3-4)

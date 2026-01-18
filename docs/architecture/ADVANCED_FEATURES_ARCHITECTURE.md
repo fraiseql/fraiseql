@@ -1096,31 +1096,37 @@ impl WebhookAdapter {
 ### Phase Timeline
 
 **Phase 2-3 (Basic):**
+
 - ✅ Core database + WHERE + projection + auth
 - ✅ Basic field-level authorization
 - ✅ Connection pooling + caching
 
 **Phase 6 (HTTP Server):**
+
 - 🔧 Add `ExtensionRegistry`
 - 🔧 Add `Middleware` support
 - 🔧 Add basic metrics middleware
 
 **Phase 7 (Federation Support):**
+
 - 🔧 Implement `FederationResolver`
 - 🔧 Add `_entities` query resolver
 - 🔧 Support view-based + HTTP federation
 
 **Phase 8 (Enterprise Features):**
+
 - 🔧 Implement `RBACResolver`
 - 🔧 Add hierarchical role support
 - 🔧 Permission caching with domain versioning
 
 **Phase 9 (Subscriptions):**
+
 - 🔧 Implement `EventStream` trait
 - 🔧 Add PostgreSQL LISTEN/NOTIFY
 - 🔧 Build transport adapters (WebSocket, webhooks)
 
 **Phase 10 (Observability):**
+
 - 🔧 Add full Prometheus metrics
 - 🔧 Add OpenTelemetry tracing
 - 🔧 Build dashboards

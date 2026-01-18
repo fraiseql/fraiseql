@@ -11,8 +11,10 @@ Your original comprehensive implementation plan was excellent, but it suggested 
 ### Key Changes
 
 #### 1. **Phase 1: No Parallelization**
+
 **Original**: Suggested doing Python, TypeScript, Java, PHP, Go in parallel
 **Sequential**: Each language is done completely before moving to next
+
 - Task 1.1: Python (5 min) ✅ THEN
 - Task 1.2: TypeScript (15 min) ✅ THEN
 - Task 1.3: Java (10 min) ✅ THEN
@@ -23,8 +25,10 @@ Your original comprehensive implementation plan was excellent, but it suggested 
 **Total Phase 1**: 2.5-2.5 hours (not parallelizable)
 
 #### 2. **Phase 2: Strict Sequencing**
+
 **Original**: Could be done in parallel
 **Sequential**: Each E2E test file created one at a time
+
 - Task 2.1a: Python E2E (1 hour) ✅ THEN
 - Task 2.1b: TypeScript E2E (1 hour) ✅ THEN
 - Task 2.1c: Java E2E (1 hour) ✅ THEN
@@ -36,8 +40,10 @@ Your original comprehensive implementation plan was excellent, but it suggested 
 **Total Phase 2**: 9 hours (pure sequential)
 
 #### 3. **Phase 3: Sequential with Clear Blockers**
+
 **Original**: Could potentially skip if time-limited
 **Sequential**: One fix at a time
+
 - Task 3.1: Analyze (30 min) ✅ THEN
 - Task 3.2: Implement (45 min) ✅ THEN
 - Task 3.3: Verify (30 min) ✅ THEN
@@ -46,8 +52,10 @@ Your original comprehensive implementation plan was excellent, but it suggested 
 **Total Phase 3**: 2.25 hours
 
 #### 4. **Phase 4: Sequential Documentation**
+
 **Original**: Tasks could be done in any order
 **Sequential**: Each doc in order
+
 - Task 4.1: Update README (30 min) ✅ THEN
 - Task 4.2: Language generators docs (45 min) ✅ THEN
 - Task 4.3: E2E testing docs (45 min) ✅ THEN
@@ -85,21 +93,25 @@ Total: 16-18 hours over 3-4 days (as originally estimated)
 ## How to Use This Plan
 
 ### 1. Read First
+
 - Read this file (5 min)
 - Read IMPLEMENTATION_PLAN_SEQUENTIAL.md (20 min)
 
 ### 2. Execute Step by Step
+
 - Start with **Phase 1 Task 1.1**
 - Follow each numbered step
 - Don't skip ahead
 - Wait for success criteria before proceeding
 
 ### 3. Use Checkpoints
+
 - Each task has "DO NOT PROCEED" checkpoints
 - Verify success criteria before continuing
 - If a task fails, fix it before moving on
 
 ### 4. Run Verification Checks
+
 - Each phase has a summary check
 - Run before moving to next phase
 - All checks should pass before proceeding
@@ -109,25 +121,30 @@ Total: 16-18 hours over 3-4 days (as originally estimated)
 ## Key Principles
 
 ### Sequential Execution
+
 ✅ **One task at a time**
 ✅ **Each task must complete before next starts**
 ✅ **No background processes running while you work**
 ✅ **Each checkpoint must pass before proceeding**
 
 ### Error Handling
+
 If a task fails:
+
 1. Don't skip it
 2. Follow "If tests fail" section in that task
 3. Re-run the task until it passes
 4. Then move to next task
 
 ### Time-Boxing
+
 - Phase 1.6 (CLI Investigation): **2 hours max**
   - If not resolved after 2 hours, move to Phase 2
   - Document what you found
   - Return to it if time allows
 
 ### Documentation
+
 - All success criteria are explicit
 - All commands are copy-paste ready
 - All expected outputs shown

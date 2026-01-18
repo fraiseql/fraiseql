@@ -27,6 +27,7 @@ Phase 8.4 is **100% complete** with all deferred tasks finished:
 Created comprehensive integration tests for testing SCRAM-SHA-256 with real PostgreSQL:
 
 **Test Coverage:**
+
 - ✅ `test_scram_auth_success` - Successful SCRAM authentication and query execution
 - ✅ `test_scram_auth_wrong_password` - Proper rejection of incorrect credentials
 - ✅ `test_scram_auth_different_iterations` - Handling server-provided iteration counts
@@ -36,6 +37,7 @@ Created comprehensive integration tests for testing SCRAM-SHA-256 with real Post
 - ✅ `test_scram_with_timeout` - Connection timeout handling
 
 **How to Run Integration Tests:**
+
 ```bash
 # Set environment variables
 export SCRAM_TEST_DB_URL="postgres://localhost:5432/postgres"
@@ -51,6 +53,7 @@ cargo test --test scram_integration -- --nocapture --ignored
 Created a working example that demonstrates SCRAM authentication:
 
 **Features:**
+
 - Connection with SCRAM-SHA-256 authentication
 - Query execution to verify authentication succeeded
 - Detailed explanation of the 4-step SCRAM flow
@@ -59,6 +62,7 @@ Created a working example that demonstrates SCRAM authentication:
 - Password masking for safe display
 
 **How to Run:**
+
 ```bash
 # Set database URL
 export SCRAM_DB_URL="postgres://user:password@localhost:5432/mydb"
@@ -80,12 +84,14 @@ cargo run --example scram_auth
 ### 3. Code Quality Verification
 
 **Test Results:**
+
 ```
 running 71 tests
 test result: ok. 71 passed; 0 failed; 0 ignored
 ```
 
 **Build Status:**
+
 - ✅ Example builds successfully
 - ✅ Integration tests compile cleanly
 - ✅ No compilation errors or warnings
@@ -98,6 +104,7 @@ test result: ok. 71 passed; 0 failed; 0 ignored
 ### SCRAM-SHA-256 Implementation
 
 **Cryptographic Operations:**
+
 - PBKDF2 key derivation (4096 iterations, configurable per server)
 - HMAC-SHA256 calculations
 - Client proof generation (PBKDF2 + HMAC)
@@ -105,12 +112,14 @@ test result: ok. 71 passed; 0 failed; 0 ignored
 - Constant-time comparison (timing attack resistant)
 
 **Protocol Support:**
+
 - Client first message: `n,a=<username>,r=<nonce>`
 - Server first message: `r=<nonce>,s=<salt>,i=<iterations>`
 - Client final message: `c=<channel_binding>,r=<nonce>,p=<proof>`
 - Server final message: `v=<server_signature>`
 
 **Authentication Flow:**
+
 1. Client sends initial message with username and random nonce
 2. Server responds with challenge (salt, iteration count, combined nonce)
 3. Client computes PBKDF2-derived key and generates proof
@@ -120,6 +129,7 @@ test result: ok. 71 passed; 0 failed; 0 ignored
 ### Connection API
 
 **Simple Usage:**
+
 ```rust
 // Automatic SCRAM authentication if server supports it
 let client = FraiseClient::connect("postgres://user:pass@localhost:5432/db").await?;
@@ -129,6 +139,7 @@ let mut stream = client.query::<serde_json::Value>("my_table").execute().await?;
 ```
 
 **Features:**
+
 - ✅ Automatic SCRAM selection (if available)
 - ✅ Falls back to cleartext for older servers
 - ✅ Clear error messages for auth failures
@@ -140,6 +151,7 @@ let mut stream = client.query::<serde_json::Value>("my_table").execute().await?;
 ## Files Added/Modified
 
 ### New Files
+
 1. **tests/scram_integration.rs** - Integration tests with PostgreSQL
    - 8 comprehensive test cases
    - Environment variable configuration
@@ -152,6 +164,7 @@ let mut stream = client.query::<serde_json::Value>("my_table").execute().await?;
    - Error handling and troubleshooting
 
 ### Existing Files (from Phase 8.4 Foundation)
+
 - `Cargo.toml` - Crypto dependencies (sha2, pbkdf2, base64, rand, hmac)
 - `src/auth/mod.rs` - Authentication module public API
 - `src/auth/scram.rs` - Complete SCRAM-SHA-256 implementation
@@ -169,6 +182,7 @@ let mut stream = client.query::<serde_json::Value>("my_table").execute().await?;
 ### Unit Tests (71/71 passing ✅)
 
 **SCRAM-specific tests:**
+
 - `test_scram_client_creation` - Client initialization
 - `test_client_first_message_format` - First message format validation
 - `test_parse_server_first_valid` - Server message parsing (valid)
@@ -179,6 +193,7 @@ let mut stream = client.query::<serde_json::Value>("my_table").execute().await?;
 - `test_scram_client_final_flow` - End-to-end client flow
 
 **All existing tests still passing:**
+
 - Protocol encoding/decoding
 - Connection lifecycle
 - JSON validation
@@ -206,22 +221,27 @@ cargo test --test scram_integration -- --nocapture --ignored
 ## Security Considerations
 
 ✅ **Password never transmitted over network**
+
 - Client sends only proof, not password
 
 ✅ **Mutual authentication**
+
 - Client verifies server signature
 - Server verifies client proof
 - Prevents man-in-the-middle attacks
 
 ✅ **Protection against brute-force**
+
 - PBKDF2 with server-provided iterations (typically 4096)
 - Computationally expensive to crack
 
 ✅ **Timing attack resistance**
+
 - Constant-time comparison for signature verification
 - Prevents timing-based side-channel attacks
 
 ✅ **Replay attack protection**
+
 - Random nonce per connection
 - Combined client and server nonce
 - Server signature includes full auth message
@@ -231,16 +251,19 @@ cargo test --test scram_integration -- --nocapture --ignored
 ## Performance
 
 **Authentication Overhead:**
+
 - Negligible (~1-2ms per connection)
 - PBKDF2 computation: ~100-200ms (expected, protects password)
 - Dominated by network round-trips with server
 
 **Memory Usage:**
+
 - Bounded, no full-result buffering
 - Per-connection state only
 - Crypto buffers cleaned up after use
 
 **Scalability:**
+
 - No per-connection resource leaks
 - Multiple sequential connections work independently
 - Connection pooling compatible
@@ -289,16 +312,19 @@ cargo test --test scram_integration -- --nocapture --ignored
 ## What's Next? (Future Phases)
 
 ### Phase 8.4 Continuation (Optional)
+
 - [ ] Add SCRAM-SHA-512 support (more secure hash)
 - [ ] Add SCRAM-SHA-256-PLUS (channel binding variant)
 - [ ] Performance benchmarking with large-scale connections
 
 ### Phase 8.5
+
 - [ ] Additional authentication mechanisms (Kerberos, LDAP)
 - [ ] Connection pooling optimization
 - [ ] Extended Query protocol support
 
 ### Beyond Phase 8.5
+
 - [ ] TLS improvements
 - [ ] Client certificate authentication
 - [ ] Session recovery and pause/resume
@@ -310,6 +336,7 @@ cargo test --test scram_integration -- --nocapture --ignored
 **Phase 8.4 Status: COMPLETE ✅**
 
 All tasks finished and verified:
+
 - ✅ SCRAM-SHA-256 cryptography implemented and tested
 - ✅ Protocol layer fully integrated
 - ✅ Connection authentication working end-to-end

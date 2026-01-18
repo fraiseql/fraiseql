@@ -12,6 +12,7 @@
 Phase 8.6.5 successfully implements **idempotent pause/resume semantics** for streams, enabling explicit user control over query execution.
 
 The system adds:
+
 - **Real pause** (Option B) - background task actually stops reading from Postgres
 - **Idempotent semantics** - safe to call pause/resume multiple times
 - **Connection preservation** - connection stays open across pause/resume cycles
@@ -27,6 +28,7 @@ This is the **missing manual control plane** to complement automatic features (a
 ### 1. Core StreamState Enum (`src/stream/json_stream.rs`)
 
 New public enum:
+
 ```rust
 pub enum StreamState {
     Running,      // Background task actively reading
@@ -39,6 +41,7 @@ pub enum StreamState {
 ### 2. JsonStream Extensions (`src/stream/json_stream.rs`)
 
 **New fields** (lines 72-76):
+
 ```rust
 state: Arc<Mutex<StreamState>>,           // Current state
 pause_signal: Arc<Notify>,                 // Signal pause to background task
@@ -49,14 +52,17 @@ paused_occupancy: Arc<AtomicUsize>,       // Buffered rows when paused
 **New public methods**:
 
 #### `state_snapshot() -> StreamState`
+
 - Returns current state (Running, Paused, Completed, Failed)
 - Non-blocking getter for diagnostics
 
 #### `paused_occupancy() -> usize`
+
 - Returns buffered rows when paused
 - Useful for monitoring memory during pause
 
 #### `pause() -> Result<()>` (async)
+
 - Suspends background task from reading Postgres
 - Connection stays open, can be resumed
 - Buffered rows preserved
@@ -64,12 +70,14 @@ paused_occupancy: Arc<AtomicUsize>,       // Buffered rows when paused
 - Records metric: `fraiseql_stream_paused_total`
 
 #### `resume() -> Result<()>` (async)
+
 - Resumes background task reading
 - Only has effect if paused
 - Idempotent: calling before pause is a no-op
 - Records metric: `fraiseql_stream_resumed_total`
 
 **Internal helper methods**:
+
 - `clone_state()` - for passing state to background task
 - `clone_pause_signal()` - for background task to receive pause signal
 - `clone_resume_signal()` - for background task to receive resume signal
@@ -78,12 +86,14 @@ paused_occupancy: Arc<AtomicUsize>,       // Buffered rows when paused
 ### 3. Background Task Integration (`src/connection/conn.rs`)
 
 **Reorganized streaming_query()** (lines 614-630):
+
 - Create JsonStream FIRST (before spawning task)
 - Clone state/signals from stream
 - Pass clones into background task
 - Return stream instead of creating new instance
 
 **Pause/resume check** (lines 654-667):
+
 ```rust
 loop {
     // Check pause/resume state machine at loop start
@@ -104,6 +114,7 @@ loop {
 ```
 
 **Integration points**:
+
 - Check happens on every loop iteration (low overhead)
 - Lock released before awaiting (no deadlock)
 - State properly updated back to Running after resume
@@ -113,11 +124,13 @@ loop {
 **New functions**:
 
 #### `stream_paused(entity: &str)`
+
 - Metric: `fraiseql_stream_paused_total`
 - Label: `entity`
 - Incremented when user calls `pause()`
 
 #### `stream_resumed(entity: &str)`
+
 - Metric: `fraiseql_stream_resumed_total`
 - Label: `entity`
 - Incremented when user calls `resume()`
@@ -143,6 +156,7 @@ loop {
 ### 6. Example Code (`examples/pause_resume.rs`)
 
 Demonstrates pause/resume usage:
+
 - Creating a stream
 - Pausing for processing
 - Resuming to continue
@@ -151,6 +165,7 @@ Demonstrates pause/resume usage:
 ### 7. Module Exports (`src/stream/mod.rs`)
 
 Added `StreamState` to public API:
+
 ```rust
 pub use json_stream::{extract_json_bytes, parse_json, JsonStream, StreamState, StreamStats};
 ```
@@ -212,6 +227,7 @@ This implementation is **real pause** (Option B):
 ### Unit Tests: 116/116 Passing ✅
 
 **New metric tests** (2):
+
 ```
 ✅ test_stream_paused
 ✅ test_stream_resumed
@@ -222,6 +238,7 @@ This implementation is **real pause** (Option B):
 ### Integration Tests: 8 Scenarios Ready
 
 All scenarios compile and are ready to run against real database:
+
 ```bash
 cargo test -- --ignored --test integration_pause_resume
 ```
@@ -332,11 +349,13 @@ stream.resume().await?; // No-op, still safe
 ## Metrics Available
 
 ### Counter: `fraiseql_stream_paused_total`
+
 - **When**: Every time stream.pause() is called
 - **Labels**: `entity` (query entity name)
 - **Semantics**: Increases on each pause event
 
 ### Counter: `fraiseql_stream_resumed_total`
+
 - **When**: Every time stream.resume() is called
 - **Labels**: `entity` (query entity name)
 - **Semantics**: Increases on each resume event
@@ -346,53 +365,65 @@ stream.resume().await?; // No-op, still safe
 ## Design Decisions & Rationale
 
 ### 1. Real Pause (Option B)
+
 **Decision**: Implement "stop background task" not "stop yielding but keep reading"
 
 **Rationale**:
+
 - True pause semantics (background task actually suspends)
 - Memory safety (no buffering while paused)
 - Practical utility (control resource usage)
 - Matches user expectations
 
 ### 2. Async Methods (pause/resume)
+
 **Decision**: Make pause() and resume() async
 
 **Rationale**:
+
 - pause() signals background task and may need to wait for state change
 - resume() unblocks potentially waiting background task
 - Idempotence requires state management (need Mutex)
 - Natural fit with async/await patterns
 
 ### 3. Arc<Mutex<>> for State
+
 **Decision**: Use Arc<Mutex<StreamState>> for shared mutable state
 
 **Rationale**:
+
 - Multiple owners (stream + background task)
 - Async-safe synchronization
 - Lock released before long waits (no deadlock)
 
 ### 4. Notify for Signaling
+
 **Decision**: Use tokio::sync::Notify for pause/resume signals
 
 **Rationale**:
+
 - Lightweight event notification
 - No spurious wakeups (unlike polling)
 - Async-friendly (no blocking)
 - Clear semantics (one-way signal)
 
 ### 5. Idempotence Design
+
 **Decision**: Allow pause() when running, resume() when paused OR running
 
 **Rationale**:
+
 - pause() when paused: no-op (already paused)
 - resume() when running: no-op (already running)
 - resume() before pause(): no-op (makes logical sense)
 - Reduces user error (safer API)
 
 ### 6. Terminal States
+
 **Decision**: Cannot pause/resume Completed or Failed streams
 
 **Rationale**:
+
 - Stream lifecycle is finished
 - No background task to suspend
 - Clear error message to user
@@ -403,11 +434,13 @@ stream.resume().await?; // No-op, still safe
 ## Known Limitations & Future Work
 
 ### Current Limitations
+
 1. **Custom bounds not yet enforced**: `adaptive_min_size()` and `adaptive_max_size()` stored but not passed to AdaptiveChunking (can be added in future)
 2. **state_snapshot() best-effort**: May return stale state if called during state change (intentional - avoids lock on getter)
 3. **No pause timeout**: Pause is indefinite (resume required)
 
 ### Future Enhancements
+
 1. **Pause timeout**: Auto-resume after configured duration
 2. **Pause budget**: Limit total pause time before hard stop
 3. **Per-pause metrics**: Track how long streams stay paused
@@ -458,6 +491,7 @@ All 116 tests passing. All acceptance criteria met. Ready for Phase 8.6.6.
 Recommended next phase: **Continuation and refinement**
 
 Possible directions:
+
 - Custom bounds enforcement for adaptive chunking
 - Pause timeout (auto-resume after duration)
 - Per-pause duration metrics

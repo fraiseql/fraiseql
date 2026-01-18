@@ -14,6 +14,7 @@ fraiseql-wire now includes a complete Docker and CI/CD infrastructure for local 
 ```
 
 This will:
+
 1. Check dependencies (Docker, docker-compose, Rust)
 2. Build the Docker image
 3. Start PostgreSQL container
@@ -96,6 +97,7 @@ POSTGRES_DB=fraiseql_test
 ```
 
 Or use the default connection string in integration tests:
+
 ```rust
 Transport::connect_tcp("localhost", 5433).await?
 ```
@@ -168,10 +170,12 @@ The project includes automated CI/CD with GitHub Actions:
 Location: `.github/workflows/ci.yml`
 
 Runs on:
+
 - Push to `main` or `develop` branches
 - Pull requests to `main` or `develop` branches
 
 Services:
+
 - PostgreSQL 15 (Alpine) automatically started for integration tests
 - Caches dependencies for faster builds
 
@@ -184,6 +188,7 @@ The setup script (`scripts/dev-setup.sh`) provides one-command environment setup
 ```
 
 It verifies:
+
 - Docker installation
 - docker-compose installation
 - Rust toolchain
@@ -196,12 +201,14 @@ It verifies:
 If port 5433 is in use:
 
 1. Edit `docker-compose.yml`:
+
    ```yaml
    ports:
      - "127.0.0.1:5434:5432"  # Use 5434 instead
    ```
 
 2. Update integration tests to use the new port:
+
    ```rust
    Transport::connect_tcp("localhost", 5434).await?
    ```
@@ -209,11 +216,13 @@ If port 5433 is in use:
 ### PostgreSQL Won't Start
 
 Check logs:
+
 ```bash
 docker-compose logs postgres
 ```
 
 Restart:
+
 ```bash
 make docker-clean
 make docker-up
@@ -222,6 +231,7 @@ make docker-up
 ### Connection Refused
 
 Wait longer for PostgreSQL to start (up to 30 seconds):
+
 ```bash
 docker-compose exec -T postgres pg_isready -U postgres
 ```
@@ -229,6 +239,7 @@ docker-compose exec -T postgres pg_isready -U postgres
 ### Build Failures
 
 Clean and rebuild:
+
 ```bash
 make clean
 docker-compose down -v
@@ -241,6 +252,7 @@ cargo build
 ### Faster Docker Builds
 
 The Dockerfile is optimized for Alpine Linux:
+
 - Small base image (~7MB)
 - Minimal dependencies
 - Fast startup time

@@ -1,17 +1,16 @@
 # json-schema-traverse
+
 Traverse JSON Schema passing each schema object to callback
 
 [![Build Status](https://travis-ci.org/epoberezkin/json-schema-traverse.svg?branch=master)](https://travis-ci.org/epoberezkin/json-schema-traverse)
 [![npm version](https://badge.fury.io/js/json-schema-traverse.svg)](https://www.npmjs.com/package/json-schema-traverse)
 [![Coverage Status](https://coveralls.io/repos/github/epoberezkin/json-schema-traverse/badge.svg?branch=master)](https://coveralls.io/github/epoberezkin/json-schema-traverse?branch=master)
 
-
 ## Install
 
 ```
 npm install json-schema-traverse
 ```
-
 
 ## Usage
 
@@ -57,7 +56,6 @@ Callback is passed these parameters:
 - _parent schema_: not necessarily parent object/array; in the example above the parent schema for `{type: 'string'}` is the root schema
 - _index/property_: index or property name in the array/object containing multiple schemas; in the example above for `{type: 'string'}` the property name is `'foo'`
 
-
 ## Traverse objects in all unknown keywords
 
 ```javascript
@@ -76,7 +74,6 @@ traverse(schema, {allKeys: true, cb});
 ```
 
 Without option `allKeys: true` callback will be called only with root schema.
-
 
 ## License
 

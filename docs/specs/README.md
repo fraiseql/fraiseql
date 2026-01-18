@@ -41,22 +41,26 @@ Detailed technical specifications for implementers and integrators.
 ## 🎯 Reading Paths
 
 **For Compiler Developers:**
+
 1. authoring-contract.md — What schema authors write
 2. capability-manifest.md — Database-specific capabilities
 3. compiled-schema.md — Compiler output format
 
 **For Runtime Developers:**
+
 1. compiled-schema.md — Runtime input format
 2. caching.md — Query result caching
 3. persisted-queries.md — APQ implementation
 4. pagination-keyset.md — Pagination logic
 
 **For Database Architects:**
+
 1. schema-conventions.md — Required database patterns
 2. cdc-format.md — Event stream format
 3. capability-manifest.md — Database capability declaration
 
 **For Operations/Security:**
+
 1. security-compliance.md — Security profiles
 2. persisted-queries.md — Query security modes
 3. introspection.md — Schema introspection controls

@@ -38,6 +38,7 @@ Phase 8:   Python Authoring ✅
 ```
 
 **Integration Points**:
+
 - **Phase 4 (Compiler)**: Schema compilation needs to understand aggregate fields
 - **Phase 2 (Database)**: SQL generation needs GROUP BY/HAVING/COLLATE clauses
 - **Phase 8 (Python)**: Decorators need aggregate configuration options
@@ -49,6 +50,7 @@ Phase 8:   Python Authoring ✅
 ### v1 Architecture (Reference)
 
 **Fact Table Pattern** (from v1):
+
 ```sql
 CREATE TABLE sales_facts (
     id UUID PRIMARY KEY,
@@ -65,6 +67,7 @@ CREATE TABLE sales_facts (
 ```
 
 **Design Rules**:
+
 - ✅ Aggregate functions (SUM, AVG) operate on SQL columns
 - ✅ GROUP BY operates on JSONB paths
 - ✅ HAVING uses WhereClause pattern for type safety
@@ -98,6 +101,7 @@ class GroupBySet:
 ```
 
 **Generated SQL** (example):
+
 ```sql
 SELECT
     data->'category' AS category,
@@ -210,6 +214,7 @@ async fn execute_aggregate_query(
 ```
 
 **SQL Generation Logic**:
+
 ```rust
 // SELECT clause
 let select_parts: Vec<String> = vec![
@@ -296,6 +301,7 @@ ORDER BY name COLLATE "en-US-x-icu"
 ```
 
 **Collation Types**:
+
 - `en-US-x-icu`: English (United States) - ICU collation
 - `fr-FR-x-icu`: French (France)
 - `de-DE-x-icu`: German (Germany)
@@ -379,6 +385,7 @@ fn generate_order_by_sql(order_by: &[OrderByField], jsonb_column: &str) -> Strin
 ```
 
 **Generated SQL**:
+
 ```sql
 -- Without collation
 ORDER BY data->>'name' ASC
@@ -429,6 +436,7 @@ def users() -> list[User]:
 **Goal**: Add aggregation and collation types to schema
 
 **Tasks**:
+
 1. Update `crates/fraiseql-core/src/schema/compiled.rs`:
    - Add `AggregationConfig`, `GroupByField`, `AggregateField`, `TemporalBucket`
    - Add `collation` field to existing `OrderBy` type (if exists)
@@ -442,6 +450,7 @@ def users() -> list[User]:
    - Type validation
 
 **Verification**:
+
 ```bash
 cargo test --lib schema::compiled
 cargo test --lib db::types
@@ -452,6 +461,7 @@ cargo test --lib db::types
 **Goal**: Generate SQL for GROUP BY/HAVING/COLLATE
 
 **Tasks**:
+
 1. Create `crates/fraiseql-core/src/db/postgres/aggregate.rs`:
    - `generate_aggregate_select()` - SELECT with aggregates
    - `generate_group_by()` - GROUP BY clause
@@ -467,6 +477,7 @@ cargo test --lib db::types
    - Test HAVING clause filtering
 
 **Verification**:
+
 ```bash
 # Start test database
 make db-up
@@ -481,6 +492,7 @@ cargo test --lib db::postgres::order_by -- --ignored
 **Goal**: Add aggregation and collation to Python API
 
 **Tasks**:
+
 1. Update `fraiseql-python/src/fraiseql/decorators.py`:
    - Add `aggregation` parameter to `@query` decorator
    - Add `order_by` configuration to `auto_params`
@@ -495,6 +507,7 @@ cargo test --lib db::postgres::order_by -- --ignored
    - Test schema JSON output
 
 **Verification**:
+
 ```bash
 cd fraiseql-python
 PYTHONPATH=src python -m pytest tests/ -v
@@ -505,6 +518,7 @@ PYTHONPATH=src python -m pytest tests/ -v
 **Goal**: Document new features with examples
 
 **Tasks**:
+
 1. Update `fraiseql-python/README.md`:
    - Add aggregation example
    - Add collation example
@@ -523,6 +537,7 @@ PYTHONPATH=src python -m pytest tests/ -v
    - Update feature matrix
 
 **Verification**:
+
 ```bash
 cd fraiseql-python
 python examples/aggregation_query.py
@@ -536,17 +551,20 @@ python examples/collation_query.py
 ### Unit Tests
 
 **Schema** (Rust):
+
 - Aggregation config serialization
 - Collation field validation
 - Temporal bucket enum
 
 **SQL Generation** (Rust):
+
 - GROUP BY clause generation
 - HAVING clause generation
 - ORDER BY with COLLATE
 - Aggregate SELECT generation
 
 **Decorators** (Python):
+
 - Aggregation parameter validation
 - Collation string validation
 - Schema JSON output
@@ -554,12 +572,14 @@ python examples/collation_query.py
 ### Integration Tests
 
 **Database** (Rust with test DB):
+
 - Aggregate query execution
 - HAVING clause filtering
 - Collation sorting with unicode
 - Temporal bucketing
 
 **End-to-End** (Python + Rust):
+
 - Python decorator → JSON → Rust compilation
 - Full query execution with aggregates
 - Locale-aware sorting verification
@@ -567,6 +587,7 @@ python examples/collation_query.py
 ### Test Data
 
 **For Aggregation**:
+
 ```sql
 CREATE TABLE test_sales (
     id UUID PRIMARY KEY,
@@ -583,6 +604,7 @@ INSERT INTO test_sales VALUES
 ```
 
 **For Collation**:
+
 ```sql
 CREATE TABLE test_users (
     id UUID PRIMARY KEY,
@@ -595,6 +617,7 @@ CREATE TABLE test_users (
 ## Success Criteria
 
 ### Functional
+
 - [x] Schema supports aggregation configuration
 - [x] Schema supports collation in ORDER BY
 - [x] SQL generation for GROUP BY/HAVING works
@@ -603,12 +626,14 @@ CREATE TABLE test_users (
 - [x] Python decorators support collation
 
 ### Quality
+
 - [x] 50+ unit tests (Rust + Python)
 - [x] 10+ integration tests with test DB
 - [x] Examples demonstrate all features
 - [x] Documentation complete
 
 ### Performance
+
 - [x] Aggregate queries execute correctly
 - [x] Collation sorting performs well
 - [x] No regression in existing query performance
@@ -618,6 +643,7 @@ CREATE TABLE test_users (
 ## Migration from v1
 
 **v1 API** (Python runtime):
+
 ```python
 # GROUP BY in v1 (runtime)
 result = await db.aggregate(
@@ -629,6 +655,7 @@ result = await db.aggregate(
 ```
 
 **v2 API** (compile-time):
+
 ```python
 # GROUP BY in v2 (compile-time)
 @fraiseql.query(
@@ -644,6 +671,7 @@ def sales_summary() -> list[SalesSummary]:
 ```
 
 **Benefits of v2**:
+
 - Compile-time validation
 - Type-safe aggregates
 - Pre-compiled SQL (faster)
@@ -654,16 +682,19 @@ def sales_summary() -> list[SalesSummary]:
 ## Risks & Mitigations
 
 ### Risk 1: Schema Breaking Changes
+
 **Impact**: High - Existing schemas may break
 **Probability**: Medium
 **Mitigation**: Make aggregation optional, maintain backward compatibility
 
 ### Risk 2: SQL Generation Complexity
+
 **Impact**: Medium - Complex SQL may have bugs
 **Probability**: Medium
 **Mitigation**: Comprehensive test suite, leverage v1 implementation
 
 ### Risk 3: Database Compatibility
+
 **Impact**: Medium - Collation may vary across databases
 **Probability**: Low (PostgreSQL primary target)
 **Mitigation**: Document PostgreSQL-specific features, test with multiple PG versions

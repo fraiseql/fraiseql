@@ -14,17 +14,14 @@ These are the breaking changes:
 - Code that rely on some token objects not having the `closed` property could
   now behave differently.
 
-
 ### Version 3.0.2 (2017-06-28) ###
 
 - No code changes. Just updates to the readme.
-
 
 ### Version 3.0.1 (2017-01-30) ###
 
 - Fixed: ES2015 unicode escapes with more than 6 hex digits are now matched
   correctly.
-
 
 ### Version 3.0.0 (2017-01-11) ###
 
@@ -66,7 +63,6 @@ var matchToToken = require("js-tokens").matchToToken
 
 [v8-perf]: http://v8project.blogspot.se/2017/01/speeding-up-v8-regular-expressions.html
 
-
 ### Version 2.0.0 (2016-06-19) ###
 
 - Added: Support for ES2016. In other words, support for the `**` exponentiation
@@ -77,23 +73,19 @@ These are the breaking changes:
 - `'**'.match(jsTokens)` no longer returns `['*', '*']`, but `['**']`.
 - `'**='.match(jsTokens)` no longer returns `['*', '*=']`, but `['**=']`.
 
-
 ### Version 1.0.3 (2016-03-27) ###
 
 - Improved: Made the regex ever so slightly smaller.
 - Updated: The readme.
-
 
 ### Version 1.0.2 (2015-10-18) ###
 
 - Improved: Limited npm package contents for a smaller download. Thanks to
   @zertosh!
 
-
 ### Version 1.0.1 (2015-06-20) ###
 
 - Fixed: Declared an undeclared variable.
-
 
 ### Version 1.0.0 (2015-02-26) ###
 
@@ -105,11 +97,9 @@ These are the breaking changes:
   such thing as negative number literals. (Possibly backwards-incompatible
   change.)
 
-
 ### Version 0.4.1 (2015-02-21) ###
 
 - Added: Support for the regex `u` flag.
-
 
 ### Version 0.4.0 (2015-02-21) ###
 
@@ -117,13 +107,11 @@ These are the breaking changes:
 - Added: Support for octal and binary number literals.
 - Added: Support for template strings.
 
-
 ### Version 0.3.1 (2015-01-06) ###
 
 - Fixed: Support for unicode spaces. They used to be allowed in names (which is
   very confusing), and some unicode newlines were wrongly allowed in strings and
   regexes.
-
 
 ### Version 0.3.0 (2014-12-19) ###
 
@@ -137,14 +125,12 @@ These are the breaking changes:
 
 [gist]: https://gist.github.com/lydell/be49dbf80c382c473004
 
-
 ### Version 0.2.0 (2014-06-19) ###
 
 - Changed: Match ES6 function arrows (`=>`) as an operator, instead of its own
   category (“functionArrow”), for simplicity. (Backwards-incompatible change.)
 - Added: ES6 splats (`...`) are now matched as an operator (instead of three
   punctuations). (Backwards-incompatible change.)
-
 
 ### Version 0.1.0 (2014-03-08) ###
 

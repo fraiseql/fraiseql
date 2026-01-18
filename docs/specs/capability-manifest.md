@@ -574,6 +574,7 @@ def generate_where_input_types(
 ### 6.2 Result: Database-Specific Schema
 
 **PostgreSQL compilation:**
+
 ```graphql
 input OrderWhereInput {
   id: IDFilter
@@ -591,6 +592,7 @@ input JSONBFilter {
 ```
 
 **MySQL compilation:**
+
 ```graphql
 input OrderWhereInput {
   id: IDFilter
@@ -638,6 +640,7 @@ The manifest supports version-specific operator availability:
 ```
 
 **Compilation Target:**
+
 ```yaml
 # fraiseql.yaml
 database:
@@ -654,6 +657,7 @@ database:
 FraiseQL validates manifests at load time:
 
 ✅ **Valid:**
+
 ```json
 {
   "postgresql": {
@@ -663,6 +667,7 @@ FraiseQL validates manifests at load time:
 ```
 
 ❌ **Invalid (unknown operator):**
+
 ```json
 {
   "postgresql": {
@@ -670,9 +675,11 @@ FraiseQL validates manifests at load time:
   }
 }
 ```
+
 Error: `Unknown operator: _unknown_op (did you mean _neq?)`
 
 ✅ **Compiler catches undefined operators:**
+
 ```graphql
 query {
   orders(where: { customer_id: { _cosine_distance: 0.5 } }) {
@@ -738,6 +745,7 @@ To add `_array_contains` for PostgreSQL:
 ```
 
 The compiler automatically:
+
 1. Recognizes the new operator
 2. Generates GraphQL input field for it
 3. Maps it to SQL (`@>` operator)

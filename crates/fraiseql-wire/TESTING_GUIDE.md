@@ -44,6 +44,7 @@ This guide explains how to run the fraiseql-wire test suite, including unit test
 ### Prerequisites
 
 1. **Postgres 17** (or compatible)
+
    ```bash
    # Check if Postgres is running
    pg_isready
@@ -53,6 +54,7 @@ This guide explains how to run the fraiseql-wire test suite, including unit test
    ```
 
 2. **Test Database**
+
    ```bash
    # Create test database
    sudo -u postgres createdb fraiseql_test
@@ -62,6 +64,7 @@ This guide explains how to run the fraiseql-wire test suite, including unit test
    ```
 
 3. **Load Test Schema** (required for load/stress tests)
+
    ```bash
    # Initialize staging schema and tables
    psql -U postgres -d fraiseql_test -f tests/fixtures/schema.sql
@@ -91,11 +94,13 @@ docker-compose exec postgres psql -U postgres -d fraiseql_test -f tests/fixtures
 ## Running Tests
 
 ### All Unit Tests
+
 ```bash
 cargo test --lib
 ```
 
 **Expected Output**:
+
 ```
 running 47 tests
 
@@ -103,6 +108,7 @@ test result: ok. 47 passed; 0 failed; 0 ignored
 ```
 
 ### All Integration Tests (Requires Postgres)
+
 ```bash
 # Set environment variables
 export POSTGRES_HOST=localhost
@@ -115,6 +121,7 @@ cargo test --test integration -- --ignored --nocapture
 ```
 
 ### Load Tests (Requires Postgres + Schema)
+
 ```bash
 # Ensure schema is loaded first
 psql -U postgres -d fraiseql_test -f tests/fixtures/schema.sql
@@ -130,6 +137,7 @@ cargo test --test load_tests -- --ignored --nocapture
 ```
 
 **Load Tests Include**:
+
 - Moderate volume streaming
 - Large volume with custom chunk size
 - SQL predicate filtering
@@ -142,6 +150,7 @@ cargo test --test load_tests -- --ignored --nocapture
 - Partial stream consumption
 
 ### Stress Tests (Requires Postgres + Schema)
+
 ```bash
 export POSTGRES_HOST=localhost
 export POSTGRES_USER=postgres
@@ -152,6 +161,7 @@ cargo test --test stress_tests -- --ignored --nocapture
 ```
 
 **Stress Tests Include**:
+
 - Early stream drop (client disconnect)
 - Invalid connection strings
 - Connection refused (unreachable host)
@@ -172,6 +182,7 @@ cargo test --test stress_tests -- --ignored --nocapture
 - Complex ORDER BY expressions
 
 ### Run All Tests
+
 ```bash
 # Unit tests (always runs)
 cargo test --lib
@@ -185,6 +196,7 @@ cargo test -- --ignored --nocapture
 ## Test Database Verification
 
 ### Check Schema
+
 ```bash
 # List all tables in test_staging schema
 psql -U postgres -d fraiseql_test -c "\dt test_staging.*"
@@ -200,11 +212,13 @@ psql -U postgres -d fraiseql_test -c "\dt test_staging.*"
 ```
 
 ### Check Views
+
 ```bash
 psql -U postgres -d fraiseql_test -c "\dv test_staging.*"
 ```
 
 ### Check Data
+
 ```bash
 # Count rows in each table
 psql -U postgres -d fraiseql_test -c "SELECT * FROM test_staging.row_counts();"
@@ -214,6 +228,7 @@ psql -U postgres -d fraiseql_test -c "SELECT jsonb_pretty(data) FROM test_stagin
 ```
 
 ### Truncate Test Data (Reset)
+
 ```bash
 psql -U postgres -d fraiseql_test -c "SELECT test_staging.truncate_all();"
 ```
@@ -232,6 +247,7 @@ Test: Moderate data volume streaming
 ```
 
 **What This Means**:
+
 - 5 rows were streamed from the projects table
 - Took 15 milliseconds
 - Throughput is 333 rows/sec
@@ -246,6 +262,7 @@ Test: Early stream drop (client disconnect)
 ```
 
 **What This Means**:
+
 - Stream was successfully dropped after receiving one row
 - Client can reconnect and use the connection again
 - Error handling and resource cleanup work correctly
@@ -355,6 +372,7 @@ cargo test --test integration -- --ignored
 ### When Writing Tests
 
 1. **Use `#[ignore]` for tests requiring Postgres**
+
    ```rust
    #[tokio::test]
    #[ignore] // Requires Postgres running
@@ -366,6 +384,7 @@ cargo test --test integration -- --ignored
    - Describes what is being tested
 
 3. **Include println! for diagnostics**
+
    ```rust
    println!("  Rows: {}", count);
    println!("  Time: {:?}", elapsed);
@@ -399,6 +418,7 @@ Error: connection error: failed to connect to localhost:5432: connection refused
 ```
 
 **Solution**:
+
 1. Verify Postgres is running: `pg_isready`
 2. Check hostname/port environment variables
 3. Start Postgres: `sudo systemctl start postgresql`
@@ -410,6 +430,7 @@ Error: connection error: database "fraiseql_test" does not exist
 ```
 
 **Solution**:
+
 1. Create database: `createdb fraiseql_test`
 2. Load schema: `psql -U postgres -d fraiseql_test -f tests/fixtures/schema.sql`
 
@@ -420,6 +441,7 @@ Error: sql error: relation "test_staging.projects" does not exist
 ```
 
 **Solution**:
+
 1. Schema not loaded: `psql -U postgres -d fraiseql_test -f tests/fixtures/schema.sql`
 2. Wrong schema: Verify connection string uses correct database
 
@@ -430,6 +452,7 @@ Error: authentication failed: role "test" does not exist
 ```
 
 **Solution**:
+
 1. Check `POSTGRES_USER` environment variable
 2. Verify user exists: `psql -U postgres -c "\du"`
 3. Use correct credentials

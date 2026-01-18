@@ -152,6 +152,7 @@ query {
 ```
 
 **If authorization succeeds:**
+
 - User context (user ID, roles) is bound to SQL parameters
 - Authorization rules become WHERE clauses
 - Field-level masking rules recorded for response transformation
@@ -163,12 +164,14 @@ query {
 **Steps:**
 
 1. **Load compiled SQL plan:**
+
    ```rust
    let sql_plan = compiled_schema.queries.get("GetUserPosts")?;
    // Already optimized from compilation phase
    ```
 
 2. **Bind variables to SQL parameters:**
+
    ```rust
    let mut params = Vec::new();
    params.push(sql_param("user_id", variables["userId"]));
@@ -178,6 +181,7 @@ query {
    ```
 
 3. **Resolve dynamic values:**
+
    ```rust
    // Some fields may have runtime defaults:
    // @field(default=NOW()) → Bind current timestamp
@@ -185,6 +189,7 @@ query {
    ```
 
 4. **Type coercion:**
+
    ```rust
    // Convert GraphQL types to database types:
    // ID → UUID or String (depending on database)
@@ -193,6 +198,7 @@ query {
    ```
 
 5. **Prepared statement execution:**
+
    ```rust
    // Use prepared statement for safety and performance:
    let prepared = db.prepare(sql_plan.query)?;
@@ -302,6 +308,7 @@ match pg_error.code {
 **Transformation steps:**
 
 1. **Deserialize database values:**
+
    ```rust
    // JSONB → Rust struct
    // TIMESTAMP → DateTime
@@ -309,6 +316,7 @@ match pg_error.code {
    ```
 
 2. **Apply field-level masking:**
+
    ```rust
    // Fields with @authorize rules:
    // If user not authorized → Set field to NULL
@@ -321,6 +329,7 @@ match pg_error.code {
    ```
 
 3. **Transform to GraphQL response format:**
+
    ```rust
    // Rust struct → JSON (GraphQL response)
    // Rename fields (database column names → GraphQL field names)
@@ -328,6 +337,7 @@ match pg_error.code {
    ```
 
 4. **Stream response (if large):**
+
    ```rust
    // For large result sets, stream response:
    // Chunk data into 64KB packets
@@ -336,6 +346,7 @@ match pg_error.code {
    ```
 
 5. **Include execution metadata:**
+
    ```rust
    {
      "data": {...},
@@ -483,6 +494,7 @@ async fn execute_query_with_cache(
 **Cache invalidation:**
 
 Query cache is invalidated when:
+
 - TTL expires
 - Related table is modified (INSERT/UPDATE/DELETE)
 - User authorization changes
@@ -682,6 +694,7 @@ mutation CreatePostAndComment {
 ```
 
 **Result:**
+
 - If first operation succeeds but second fails → Entire transaction rolls back
 - Both operations must succeed for changes to be persisted
 - Either all operations complete or none do (atomicity)
@@ -742,6 +755,7 @@ match db.execute(INSERT_STATEMENT).await {
 **After transaction commits:**
 
 1. **Event publishing:**
+
    ```rust
    // Publish change events (for subscriptions)
    event_bus.publish(Event {
@@ -758,6 +772,7 @@ match db.execute(INSERT_STATEMENT).await {
    ```
 
 2. **Side effects (webhooks, notifications):**
+
    ```rust
    // Post-mutation side effects (not in transaction)
    // These run after commit, so they see changes
@@ -767,6 +782,7 @@ match db.execute(INSERT_STATEMENT).await {
    ```
 
 3. **Response transformation:**
+
    ```rust
    // Return new entity state
    {
@@ -1328,16 +1344,19 @@ for (sub_id, listener) in connection.subscriptions {
 ### 4.2 Performance Trade-offs
 
 **Query vs Caching:**
+
 - Uncached query: ~50-100ms
 - Cached query: ~1-5ms (100x faster)
 - Cache TTL: Application-dependent (default 5 minutes)
 
 **Mutation vs Atomicity:**
+
 - Atomic transaction: ~20-50ms (slower, but safe)
 - Non-atomic: ~5-10ms (faster, but risky)
 - Default: Atomic (safety over speed)
 
 **Subscription vs Latency:**
+
 - Direct event: <5ms (fast, high volume)
 - With entity resolution: 10-50ms (slower, complete data)
 - With authorization: 10-50ms (safety overhead)

@@ -674,6 +674,7 @@ Alert: Consumer lag increasing
 ### 8.1 Federation
 
 **DO:**
+
 - ✅ Use federation for loosely-coupled services
 - ✅ Use FDW for same-database services (10x faster)
 - ✅ Design shallow federation (max 2 levels)
@@ -681,6 +682,7 @@ Alert: Consumer lag increasing
 - ✅ Monitor subgraph latency
 
 **DON'T:**
+
 - ❌ Chain more than 2 levels of federation
 - ❌ Use federation for internal services (too slow)
 - ❌ Assume federation latency <100ms (plan for 100-200ms)
@@ -688,6 +690,7 @@ Alert: Consumer lag increasing
 ### 8.2 Webhooks
 
 **DO:**
+
 - ✅ Verify webhook signatures
 - ✅ Implement idempotent processing
 - ✅ Handle delivery failures gracefully
@@ -695,6 +698,7 @@ Alert: Consumer lag increasing
 - ✅ Provide webhook dashboard for debugging
 
 **DON'T:**
+
 - ❌ Trust webhook source without signature verification
 - ❌ Process duplicate events twice
 - ❌ Block webhook processing (use async)
@@ -703,6 +707,7 @@ Alert: Consumer lag increasing
 ### 8.3 Messaging
 
 **DO:**
+
 - ✅ Use message brokers for high-throughput events
 - ✅ Partition by entity for ordering
 - ✅ Monitor consumer lag
@@ -710,6 +715,7 @@ Alert: Consumer lag increasing
 - ✅ Version message format
 
 **DON'T:**
+
 - ❌ Expect global event ordering (not possible)
 - ❌ Use message broker for real-time (latency too high)
 - ❌ Ignore message loss

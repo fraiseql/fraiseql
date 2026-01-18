@@ -10,6 +10,7 @@
 ## Overview
 
 This plan implements a **dual data plane architecture** for FraiseQL v2:
+
 - **fraiseql-wire**: Standard GraphQL queries (memory-efficient streaming)
 - **Arrow + Polars**: Analytics queries (high-performance aggregations)
 - **Unified Router**: Transparent query routing in `Executor`
@@ -29,16 +30,19 @@ This plan implements a **dual data plane architecture** for FraiseQL v2:
 **Issue**: Tests failing due to missing fields in schema structs.
 
 **Files**:
+
 - `crates/fraiseql-core/src/schema/compiled.rs`
 - `crates/fraiseql-core/tests/integration/schema_test.rs`
 
 **Steps**:
+
 1. Add missing `fact_tables` field to `CompiledSchema`
 2. Add missing `calendar_dimensions` field to `CompiledSchema`
 3. Update all schema construction in tests
 4. Verify all tests compile and pass
 
 **Verification**:
+
 ```bash
 cargo check --all-targets
 cargo clippy --all-targets --all-features
@@ -46,6 +50,7 @@ cargo nextest run
 ```
 
 **Expected Output**:
+
 ```
 ✅ All checks pass
 ✅ All clippy lints pass
@@ -53,6 +58,7 @@ cargo nextest run
 ```
 
 **Acceptance Criteria**:
+
 - [ ] `cargo check` passes with zero errors
 - [ ] `cargo clippy` passes with zero warnings
 - [ ] `cargo nextest run` shows 100% pass rate
@@ -65,12 +71,14 @@ cargo nextest run
 **Goal**: Measure current memory usage and latency for comparison.
 
 **Steps**:
+
 1. Create benchmark suite for standard queries
 2. Measure memory usage for 10K, 100K, 1M row queries
 3. Measure time-to-first-row latency
 4. Document baseline metrics
 
 **Create Benchmark** (`benches/database_baseline.rs`):
+
 ```rust
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use fraiseql_core::db::PostgresAdapter;
@@ -97,6 +105,7 @@ criterion_main!(benches);
 ```
 
 **Run Benchmarks**:
+
 ```bash
 # Memory profiling
 cargo build --release --benches
@@ -107,6 +116,7 @@ cargo bench --bench database_baseline
 ```
 
 **Document Results** (`.claude/analysis/baseline-metrics.md`):
+
 ```markdown
 ## Baseline Metrics (tokio-postgres)
 
@@ -118,6 +128,7 @@ cargo bench --bench database_baseline
 ```
 
 **Acceptance Criteria**:
+
 - [ ] Benchmark suite created in `benches/`
 - [ ] Memory measurements documented for 10K, 100K, 1M rows
 - [ ] Latency measurements documented
@@ -138,6 +149,7 @@ cargo bench --bench database_baseline
 **File**: `crates/fraiseql-core/Cargo.toml`
 
 **Changes**:
+
 ```toml
 [dependencies]
 # Existing dependencies...
@@ -151,11 +163,13 @@ wire-backend = ["fraiseql-wire", "deadpool"]  # NEW
 ```
 
 **Verification**:
+
 ```bash
 cargo check --features wire-backend
 ```
 
 **Acceptance Criteria**:
+
 - [ ] fraiseql-wire added as optional dependency
 - [ ] deadpool added for connection pooling
 - [ ] `wire-backend` feature compiles successfully
@@ -169,6 +183,7 @@ cargo check --features wire-backend
 **Purpose**: Convert `WhereClause` AST to SQL string for fraiseql-wire.
 
 **Implementation**:
+
 ```rust
 //! WHERE clause to SQL string generator.
 //!
@@ -379,11 +394,13 @@ mod tests {
 ```
 
 **Verification**:
+
 ```bash
 cargo test --lib where_sql_generator
 ```
 
 **Acceptance Criteria**:
+
 - [ ] All WHERE operators supported (Eq, Ne, Gt, Lt, Contains, etc.)
 - [ ] Nested JSON paths work correctly
 - [ ] SQL injection protection (string escaping)
@@ -399,6 +416,7 @@ cargo test --lib where_sql_generator
 **Purpose**: Pool of `FraiseClient` connections for reuse.
 
 **Implementation**:
+
 ```rust
 //! Connection pool for fraiseql-wire clients.
 
@@ -480,6 +498,7 @@ mod tests {
 ```
 
 **Acceptance Criteria**:
+
 - [ ] Pool creates connections on demand
 - [ ] Pool reuses connections efficiently
 - [ ] Pool respects max_size configuration
@@ -494,6 +513,7 @@ mod tests {
 **Purpose**: Implement `DatabaseAdapter` trait using fraiseql-wire.
 
 **Implementation**:
+
 ```rust
 //! FraiseQL-Wire database adapter.
 //!
@@ -773,6 +793,7 @@ mod tests {
 ```
 
 **Acceptance Criteria**:
+
 - [ ] Implements all `DatabaseAdapter` methods
 - [ ] WHERE clause translation works correctly
 - [ ] Pagination (limit/offset) applied correctly
@@ -787,6 +808,7 @@ mod tests {
 **File**: `crates/fraiseql-core/src/db/mod.rs`
 
 **Changes**:
+
 ```rust
 pub mod collation;
 pub mod traits;
@@ -811,6 +833,7 @@ pub use fraiseql_wire_adapter::FraiseWireAdapter;  // NEW
 ```
 
 **Acceptance Criteria**:
+
 - [ ] New modules exported correctly
 - [ ] Feature flags respected
 - [ ] No compilation errors
@@ -824,6 +847,7 @@ pub use fraiseql_wire_adapter::FraiseWireAdapter;  // NEW
 **Purpose**: Compare tokio-postgres vs fraiseql-wire memory usage and performance.
 
 **Implementation**:
+
 ```rust
 use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
 use fraiseql_core::db::{DatabaseAdapter, PostgresAdapter};
@@ -885,6 +909,7 @@ criterion_main!(benches);
 ```
 
 **Run Benchmarks**:
+
 ```bash
 # With memory profiling
 cargo build --release --features wire-backend --benches
@@ -895,6 +920,7 @@ cargo bench --features wire-backend --bench adapter_comparison
 ```
 
 **Acceptance Criteria**:
+
 - [ ] Benchmarks run successfully for both adapters
 - [ ] Memory usage shows significant reduction for wire adapter
 - [ ] Latency is comparable between adapters
@@ -915,6 +941,7 @@ cargo bench --features wire-backend --bench adapter_comparison
 **File**: `crates/fraiseql-core/Cargo.toml`
 
 **Changes**:
+
 ```toml
 [dependencies]
 # Existing...
@@ -927,6 +954,7 @@ analytics = ["arrow", "polars", "datafusion"]
 ```
 
 **Acceptance Criteria**:
+
 - [ ] Arrow/Polars dependencies added
 - [ ] `analytics` feature compiles successfully
 
@@ -939,6 +967,7 @@ analytics = ["arrow", "polars", "datafusion"]
 **Purpose**: Execute analytics queries using Arrow/Polars.
 
 **Implementation Outline**:
+
 ```rust
 use arrow::record_batch::RecordBatch;
 use polars::prelude::*;
@@ -994,6 +1023,7 @@ impl ArrowAnalyticsAdapter {
 ```
 
 **Acceptance Criteria**:
+
 - [ ] Can load fact tables from Postgres
 - [ ] Aggregations execute using Polars
 - [ ] Window functions supported
@@ -1007,6 +1037,7 @@ impl ArrowAnalyticsAdapter {
 **File**: `crates/fraiseql-core/src/runtime/executor.rs`
 
 **Changes**:
+
 ```rust
 pub struct Executor {
     schema: CompiledSchema,
@@ -1088,6 +1119,7 @@ impl Executor {
 ```
 
 **Acceptance Criteria**:
+
 - [ ] Query router selects correct backend
 - [ ] Standard queries use fraiseql-wire
 - [ ] Analytics queries use Arrow/Polars
@@ -1109,6 +1141,7 @@ impl Executor {
 **File**: `crates/fraiseql-core/tests/integration/dual_backend_test.rs` (NEW)
 
 **Tests**:
+
 ```rust
 #[tokio::test]
 #[cfg(feature = "wire-backend")]
@@ -1152,6 +1185,7 @@ async fn test_concurrent_queries() {
 ```
 
 **Acceptance Criteria**:
+
 - [ ] Standard queries route to wire backend
 - [ ] Analytics queries route to Arrow backend
 - [ ] Memory usage validated
@@ -1165,12 +1199,14 @@ async fn test_concurrent_queries() {
 **File**: `tests/performance/regression_tests.rs` (NEW)
 
 **Tests**:
+
 - Compare latency before/after integration
 - Measure memory usage reduction
 - Verify throughput maintained
 - Check connection pool efficiency
 
 **Acceptance Criteria**:
+
 - [ ] No latency regression for standard queries
 - [ ] Memory usage reduced as expected (20,000x for 100K rows)
 - [ ] Throughput matches baseline
@@ -1181,12 +1217,14 @@ async fn test_concurrent_queries() {
 #### 3.3: Update Documentation
 
 **Files to Update**:
+
 - `README.md` - Add dual backend architecture section
 - `docs/architecture.md` - Explain query routing
 - `docs/performance.md` - Document memory improvements
 - `.claude/CLAUDE.md` - Update implementation status
 
 **Acceptance Criteria**:
+
 - [ ] Architecture documented clearly
 - [ ] Performance characteristics explained
 - [ ] Examples provided for both backends
@@ -1207,6 +1245,7 @@ async fn test_concurrent_queries() {
 **Purpose**: Track which backend handles which queries.
 
 **Implementation** (`runtime/telemetry.rs`):
+
 ```rust
 pub struct QueryMetrics {
     pub backend: BackendType,
@@ -1246,6 +1285,7 @@ impl Executor {
 ```
 
 **Acceptance Criteria**:
+
 - [ ] Backend selection tracked
 - [ ] Latency measured per backend
 - [ ] Memory usage recorded
@@ -1258,6 +1298,7 @@ impl Executor {
 **File**: `crates/fraiseql-server/src/health.rs`
 
 **Endpoints**:
+
 ```rust
 GET /health
 {
@@ -1276,6 +1317,7 @@ GET /ready
 ```
 
 **Acceptance Criteria**:
+
 - [ ] Health endpoints respond correctly
 - [ ] Backend status checked individually
 - [ ] Pool metrics exposed
@@ -1310,6 +1352,7 @@ parallel_execution = true
 ```
 
 **Acceptance Criteria**:
+
 - [ ] Configuration file parsed correctly
 - [ ] Backend selection configurable
 - [ ] Pool sizes configurable
@@ -1320,6 +1363,7 @@ parallel_execution = true
 ## Timeline & Milestones
 
 ### Week 1: Foundation
+
 - **Days 1-2**: Phase 0 (Fix build errors, establish baseline)
 - **Days 3-5**: Phase 1.1-1.3 (Dependencies, WHERE generator, connection pool)
 
@@ -1328,6 +1372,7 @@ parallel_execution = true
 ---
 
 ### Week 2-3: Wire Backend
+
 - **Days 6-8**: Phase 1.4 (FraiseWireAdapter implementation)
 - **Days 9-10**: Phase 1.5-1.6 (Module exports, benchmarks)
 - **Days 11-12**: Phase 1 testing and iteration
@@ -1337,6 +1382,7 @@ parallel_execution = true
 ---
 
 ### Week 3-4: Arrow Backend
+
 - **Days 13-15**: Phase 2.1-2.2 (Arrow dependencies, adapter implementation)
 - **Days 16-18**: Phase 2.3 (Executor integration)
 - **Days 19-20**: Phase 2 testing
@@ -1346,6 +1392,7 @@ parallel_execution = true
 ---
 
 ### Week 5: Testing & Production
+
 - **Days 21-23**: Phase 3 (Integration tests, performance validation)
 - **Days 24-26**: Phase 4 (Telemetry, health checks, configuration)
 - **Days 27-28**: Documentation and final validation
@@ -1357,6 +1404,7 @@ parallel_execution = true
 ## Success Criteria
 
 ### Functional
+
 - [ ] All existing tests pass without modification
 - [ ] Standard queries route to fraiseql-wire backend
 - [ ] Analytics queries route to Arrow/Polars backend
@@ -1365,12 +1413,14 @@ parallel_execution = true
 - [ ] Health checks verify backend availability
 
 ### Performance
+
 - [ ] No latency regression for standard queries (<5% variance)
 - [ ] Memory usage reduced by 1000x+ for queries >10K rows
 - [ ] Throughput maintained (>100K rows/sec)
 - [ ] Connection pools scale to 32+ concurrent queries
 
 ### Quality
+
 - [ ] Zero clippy warnings (pedantic mode)
 - [ ] 100% of integration tests passing
 - [ ] Comprehensive documentation
@@ -1384,6 +1434,7 @@ parallel_execution = true
 If integration reveals critical issues:
 
 ### Phase 1 Rollback (Wire Backend)
+
 ```rust
 // Use feature flag to disable wire backend
 cargo build --no-default-features --features postgres
@@ -1392,6 +1443,7 @@ cargo build --no-default-features --features postgres
 ```
 
 ### Phase 2 Rollback (Arrow Backend)
+
 ```rust
 // Keep SQL-based analytics execution
 // Disable Arrow backend via feature flag
@@ -1399,6 +1451,7 @@ cargo build --features wire-backend  // without analytics
 ```
 
 ### Full Rollback
+
 ```rust
 // Use original PostgresAdapter only
 cargo build --no-default-features --features postgres
@@ -1411,6 +1464,7 @@ cargo build --no-default-features --features postgres
 ## Dependencies & Risks
 
 ### External Dependencies
+
 - **fraiseql-wire**: v0.1.0 (local path dependency)
   - Risk: API changes, need to vendor or coordinate releases
   - Mitigation: Lock to specific git commit, vendor if needed
@@ -1420,6 +1474,7 @@ cargo build --no-default-features --features postgres
   - Mitigation: Pin versions, thorough testing before upgrades
 
 ### Internal Dependencies
+
 - **Build errors must be fixed first** (Phase 0)
   - Blocking: Cannot proceed without clean build
   - Priority: CRITICAL
@@ -1429,6 +1484,7 @@ cargo build --no-default-features --features postgres
   - Mitigation: Comprehensive test suite, gradual rollout
 
 ### Resource Dependencies
+
 - **Test database**: Requires Postgres 17 with test data
 - **Benchmarking**: Requires stable environment for accurate measurements
 - **Memory profiling**: Requires heaptrack or similar tools
@@ -1438,17 +1494,20 @@ cargo build --no-default-features --features postgres
 ## Communication Plan
 
 ### Weekly Updates
+
 - Status report every Friday
 - Blockers identified and escalated
 - Performance metrics tracked
 
 ### Milestones
+
 - Phase 0 complete: Build clean, baseline established
 - Phase 1 complete: Wire adapter functional
 - Phase 2 complete: Dual backend working
 - Phase 3-4 complete: Production ready
 
 ### Success Metrics
+
 - Memory reduction: Target 10,000x+ for 100K row queries
 - Latency: Within 5% of baseline
 - Test coverage: 100% of integration tests passing

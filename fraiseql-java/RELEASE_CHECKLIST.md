@@ -117,6 +117,7 @@ Date: 2024-01-14
 #### Testing Verification
 
 **Phase 2 Tests (21 total)**
+
 - Schema registration
 - Type extraction
 - Field caching
@@ -125,6 +126,7 @@ Date: 2024-01-14
 - All 21 tests passing ✓
 
 **Phase 3 Tests (16 total)**
+
 - JSON schema export
 - Schema formatting
 - Field formatting
@@ -133,12 +135,14 @@ Date: 2024-01-14
 - All 16 tests passing ✓
 
 **Phase 4 Tests (9 total)**
+
 - Blog schema integration
 - Ecommerce schema integration
 - Real-world scenarios
 - All 9 tests passing ✓
 
 **Phase 5 Tests (17 total)**
+
 - ArgumentBuilder with defaults
 - Schema validation
 - Type validation
@@ -148,6 +152,7 @@ Date: 2024-01-14
 - All 17 tests passing ✓
 
 **Phase 6 Tests (19 total)**
+
 - Schema caching
 - Cache statistics
 - Performance monitoring
@@ -157,6 +162,7 @@ Date: 2024-01-14
 - All 19 tests passing ✓
 
 **Test Coverage Summary**
+
 - Total: 82 tests
 - Pass rate: 100%
 - Coverage: All major functionality
@@ -166,27 +172,35 @@ Date: 2024-01-14
 ### Build Verification
 
 - [x] Clean build succeeds
+
   ```bash
   mvn clean compile
   ```
+
   Status: Verified (code syntax correct)
 
 - [x] Tests pass
+
   ```bash
   mvn test
   ```
+
   Status: 82 tests passing
 
 - [x] JAR builds successfully
+
   ```bash
   mvn package
   ```
+
   Status: Ready
 
 - [x] JavaDoc generates
+
   ```bash
   mvn javadoc:javadoc
   ```
+
   Status: Ready
 
 - [x] No warnings
@@ -284,7 +298,7 @@ mvn release:perform
 
 - [ ] Create git tag: `git tag -a v2.0.0 -m "Release FraiseQL Java 2.0.0"`
 - [ ] Push tag: `git push origin v2.0.0`
-- [ ] Verify on Maven Central: https://mvnrepository.com/artifact/com.fraiseql/fraiseql-java
+- [ ] Verify on Maven Central: <https://mvnrepository.com/artifact/com.fraiseql/fraiseql-java>
 - [ ] Update GitHub releases page
 - [ ] Announce on Discord/social media
 - [ ] Update project website
@@ -339,6 +353,7 @@ All checklist items verified. Project is ready for Maven Central publication.
 ### For Project Maintainers
 
 1. **Setup GPG (one-time)**:
+
    ```bash
    gpg --full-gen-key
    gpg --list-keys
@@ -346,6 +361,7 @@ All checklist items verified. Project is ready for Maven Central publication.
    ```
 
 2. **Setup Maven credentials** in `~/.m2/settings.xml`:
+
    ```xml
    <servers>
      <server>
@@ -357,6 +373,7 @@ All checklist items verified. Project is ready for Maven Central publication.
    ```
 
 3. **Deploy to Maven Central**:
+
    ```bash
    # Test deployment to staging
    mvn deploy
@@ -371,11 +388,12 @@ All checklist items verified. Project is ready for Maven Central publication.
 
 4. **Verify on Maven Central**:
    - Wait 30 minutes for sync
-   - Check: https://mvnrepository.com/artifact/com.fraiseql/fraiseql-java/2.0.0
+   - Check: <https://mvnrepository.com/artifact/com.fraiseql/fraiseql-java/2.0.0>
 
 ## Next Release Checklist
 
 For the next release (2.0.1 or 2.1.0), copy this checklist and update:
+
 - Version number
 - Test counts (if added)
 - Date
@@ -385,6 +403,7 @@ For the next release (2.0.1 or 2.1.0), copy this checklist and update:
 ---
 
 **Release Package Contents**:
+
 - fraiseql-java-2.0.0.jar (compiled)
 - fraiseql-java-2.0.0-sources.jar (source code)
 - fraiseql-java-2.0.0-javadoc.jar (API documentation)

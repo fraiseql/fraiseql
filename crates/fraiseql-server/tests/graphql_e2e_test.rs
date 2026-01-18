@@ -383,4 +383,3 @@ fn test_query_field_selection() {
         let _ = validator.validate_query(query);
     }
 }
-

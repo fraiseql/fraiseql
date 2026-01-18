@@ -49,6 +49,7 @@ fraiseql-cli analyze --database postgres://... --format text
 ```
 
 **Output**:
+
 ```
 🚀 High-Impact Optimizations (5):
 

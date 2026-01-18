@@ -274,6 +274,7 @@ FraiseQL enforces opinionated schema conventions that unlock powerful features a
 - **View composition** — Pre-aggregated views enable O(1) relationship composition without ORM overhead
 
 **Analytical tables** use specialized naming conventions:
+
 - **Fact tables (`tf_*`)** — Transactional data with measures (SQL columns) + dimensions (JSONB), any granularity
 - **Dimension tables (`td_*`)** — Reference data for ETL denormalization (not joined at query time)
 
@@ -333,6 +334,7 @@ Arrow support is optional and feature-gated.
 Delta plane provides **database-driven change event streaming** integrated with compilation and execution. Unlike JSON and Arrow planes which respond to explicit queries, Delta plane pushes events based on database changes.
 
 **Key characteristics:**
+
 - Events originate from database transactions, not application logic
 - Subscription schemas compiled at build time, no dynamic schema introspection
 - Multiple transport adapters (graphql-ws, webhooks, Kafka) consume same event stream
@@ -357,6 +359,7 @@ Analytical workloads use **fact tables** following a standardized pattern:
 **No Joins**: FraiseQL does not support joins. All dimensional data must be denormalized into the `dimensions` JSONB column at ETL time (managed by DBA/data team, not FraiseQL).
 
 **Example fact table**:
+
 ```sql
 CREATE TABLE tf_sales (
     id BIGSERIAL PRIMARY KEY,
@@ -392,14 +395,17 @@ When a type is marked as a fact table, the compiler:
 Supported aggregate functions vary by database target (from capability manifest):
 
 **Basic (all databases)**:
+
 - COUNT(*), COUNT(DISTINCT field)
 - SUM(field), AVG(field), MIN(field), MAX(field)
 
 **Statistical (PostgreSQL, SQL Server)**:
+
 - STDDEV(field), VARIANCE(field)
 - PERCENTILE_CONT(field, percentile)
 
 **Conditional Aggregates**:
+
 - PostgreSQL: `SUM(revenue) FILTER (WHERE status = 'completed')`
 - MySQL/SQLite/SQL Server: `SUM(CASE WHEN status = 'completed' THEN revenue ELSE 0 END)`
 
@@ -422,7 +428,7 @@ Post-aggregation filters are compiled into HAVING clauses with compile-time vali
 
 - Validate that HAVING references aggregated measures (not raw columns)
 - Generate database-specific HAVING SQL
-- Support comparisons: _gt, _gte, _lt, _lte, _eq, _neq
+- Support comparisons: _gt,_gte, _lt,_lte, _eq,_neq
 
 **Example**: `having: { revenue_sum_gt: 10000 }` compiles to `HAVING SUM(revenue) > $1`.
 
@@ -444,6 +450,7 @@ FraiseQL provides the **GraphQL query interface** over existing tables. The DBA/
 FraiseQL does **not** manage ETL pipelines or data loading.
 
 **Detailed specifications**: See:
+
 - `docs/architecture/analytics/aggregation-model.md` - Compilation and execution
 - `docs/architecture/analytics/fact-dimension-pattern.md` - Table structure patterns
 - `docs/specs/aggregation-operators.md` - Database-specific operators
@@ -604,6 +611,7 @@ FraiseQL explicitly forbids:
 FraiseQL subscriptions are **compiled database event projections** delivered through multiple transport adapters, not GraphQL resolver-based subscriptions.
 
 **Architecture:**
+
 - Events originate from **database transactions** (LISTEN/NOTIFY, CDC)
 - Events buffered in `tb_entity_change_log` for durability and replay
 - Subscriptions declared at schema definition time (compile-time)
@@ -611,18 +619,21 @@ FraiseQL subscriptions are **compiled database event projections** delivered thr
 - Multiple transports (graphql-ws, webhooks, Kafka, gRPC) consume same event stream
 
 **Event sources (database-native, no polling):**
+
 - PostgreSQL: LISTEN/NOTIFY + Logical Decoding
 - MySQL: Debezium CDC + event outbox
 - SQL Server: Native Change Data Capture
 - SQLite: Trigger-based (pull-only, development use)
 
 **Supported transports (observed latencies in reference deployment):**
+
 - `graphql-ws` — WebSocket for real-time UI updates (~5-10ms target, local network)
 - HTTP Webhooks — Push-based delivery to external systems (50-200ms typical)
 - Kafka/SQS/Kinesis — High-throughput event streaming for data platforms (target: 100k+ events/sec)
 - gRPC — Future service-to-service streaming
 
 **Subscription features:**
+
 - Compile-time WHERE clause filters with authentication context (rules defined at compile-time)
 - Runtime variables for additional runtime filtering (values bound safely at subscription establishment)
 - Field projection same as queries (select only needed fields)
@@ -631,12 +642,14 @@ FraiseQL subscriptions are **compiled database event projections** delivered thr
 - Replay capability from event buffer
 
 **Database support (PostgreSQL is reference implementation):**
+
 - PostgreSQL: LISTEN/NOTIFY + CDC (reference, full feature parity)
 - MySQL: Debezium CDC (Phase 2, may vary in maturity)
 - SQL Server: Native CDC (Phase 2, may vary in maturity)
 - SQLite: Trigger-based (development-use only)
 
 **Constraints:**
+
 - Subscriptions are read-only (event projections only)
 - Filters must be compile-time deterministic (no dynamic WHERE generation)
 - No user code execution in subscriptions
@@ -668,11 +681,13 @@ Custom scalar semantics are defined at compile time. Input coercion and validati
 FraiseQL implements **Apollo Federation v2** as a subgraph with three entity resolution strategies:
 
 **Strategy 1: Local Resolution**
+
 - Entity owned by current subgraph
 - Direct database query to `v_{entity}`
 - Latency: <5ms
 
 **Strategy 2: Direct DB Federation** (Optimized for FraiseQL-to-FraiseQL)
+
 - Entity in another FraiseQL subgraph
 - Direct database connection (no HTTP)
 - Rust runtime queries remote database views
@@ -680,6 +695,7 @@ FraiseQL implements **Apollo Federation v2** as a subgraph with three entity res
 - Latency: <10-20ms depending on network
 
 **Strategy 3: HTTP Federation** (Standard for external subgraphs)
+
 - Entity in non-FraiseQL subgraph (Apollo Server, Yoga, etc.)
 - Standard Apollo Federation v2 protocol
 - HTTP POST to external subgraph's `_entities` endpoint
@@ -687,6 +703,7 @@ FraiseQL implements **Apollo Federation v2** as a subgraph with three entity res
 - Latency: 50-200ms
 
 **Key Principles:**
+
 - ✅ Automatic strategy selection at compile time
 - ✅ Each subgraph independently compiled for its database
 - ✅ Database-specific WHERE operators preserved per subgraph
@@ -810,6 +827,7 @@ FraiseQL v2 is a **unified system** with three complementary data planes serving
 ### 10.1 The Three-Plane System
 
 **JSON Plane** — Interaction layer
+
 - GraphQL queries and mutations
 - Request-response semantics
 - Nested object graphs (client-friendly)
@@ -817,6 +835,7 @@ FraiseQL v2 is a **unified system** with three complementary data planes serving
 - Real-time caching and invalidation
 
 **Arrow Plane** — Computation layer
+
 - Columnar, batch-oriented analytics
 - Pre-computed analytical projections
 - Multiple entity batches per query
@@ -824,6 +843,7 @@ FraiseQL v2 is a **unified system** with three complementary data planes serving
 - BI tool integration
 
 **Delta Plane** — Change data layer
+
 - Event-driven subscription model
 - Database-native change capture (LISTEN/NOTIFY, CDC)
 - Durable event buffer with replay capability
@@ -831,6 +851,7 @@ FraiseQL v2 is a **unified system** with three complementary data planes serving
 - Multi-tenant event filtering and authorization
 
 **All three planes:**
+
 - Source from the same database transactions
 - Use identical authorization model (compile-time WHERE clauses)
 - Share type system and schema bindings

@@ -24,11 +24,13 @@
 **A protocol for registering and reusing GraphQL queries by hash.**
 
 APQ allows clients to send a SHA-256 hash of a query instead of the full query text. The server stores the hash→query mapping and executes queries by hash lookup. This:
+
 - Reduces network bandwidth (hash is smaller than query)
 - Enables query allowlisting for security
 - Improves cache hit rates
 
 **Three security modes:**
+
 1. **OPTIONAL** — Accept both hashed and full queries
 2. **REQUIRED** — Only accept hashed queries (allowlist security)
 3. **DISABLED** — Ignore APQ extension, require full queries
@@ -36,6 +38,7 @@ APQ allows clients to send a SHA-256 hash of a query instead of the full query t
 **Important:** APQ is NOT query result caching. It stores query text by hash, not execution results.
 
 **Related specs:**
+
 - `docs/specs/persisted-queries.md` — Complete APQ specification
 - `docs/specs/caching.md` — Query result caching (different feature)
 
@@ -48,6 +51,7 @@ APQ allows clients to send a SHA-256 hash of a query instead of the full query t
 **An optional columnar data projection format for analytics workloads.**
 
 Arrow plane produces typed, columnar batches instead of nested JSON objects. Benefits:
+
 - Batch-oriented (not row-oriented)
 - Zero-copy deserialization
 - Efficient for OLAP queries, BI tools, ML pipelines
@@ -55,10 +59,12 @@ Arrow plane produces typed, columnar batches instead of nested JSON objects. Ben
 **Content-Type:** `application/x-arrow`
 
 **Key difference from JSON plane:**
+
 - JSON: Nested object graph in single response
 - Arrow: Multiple flat batches with explicit key references
 
 **Related specs:**
+
 - `docs/architecture/database/arrow-plane.md` — Arrow plane architecture
 - `docs/prd/PRD.md` Section 3.4.2 — Overview
 
@@ -71,6 +77,7 @@ Arrow plane produces typed, columnar batches instead of nested JSON objects. Ben
 **Standard timestamp and user tracking columns required in all FraiseQL tables.**
 
 All tables must include:
+
 - `created_at` (TIMESTAMPTZ) — Creation timestamp
 - `created_by` (INTEGER FK) — User who created
 - `updated_at` (TIMESTAMPTZ) — Last update timestamp
@@ -79,12 +86,14 @@ All tables must include:
 - `deleted_by` (INTEGER FK) — User who deleted
 
 **Enables:**
+
 - Automatic audit trails
 - Soft delete with temporal queries
 - Cache invalidation based on `updated_at`
 - CDC event generation
 
 **Related specs:**
+
 - `docs/specs/schema-conventions.md` Section 3 — Audit columns
 - `docs/enterprise/audit-logging.md` — Audit event logging
 - `docs/prd/PRD.md` Section 3.2 — Schema conventions
@@ -98,17 +107,20 @@ All tables must include:
 **Immutable, typed data structure representing authenticated user identity and claims.**
 
 Produced by external authentication providers and consumed by authorization enforcement. Contains:
+
 - `subject` — User identifier
 - `roles` — Array of role names
 - `claims` — Key-value map of additional attributes (tenant_id, email, etc.)
 
 **Properties:**
+
 - Schema-declared at compile time
 - Validated at runtime
 - Immutable during request execution
 - Does not participate in query execution (only authorization checks)
 
 **Related specs:**
+
 - `docs/prd/PRD.md` Section 4 — Security model
 - `docs/specs/security-compliance.md` — Authentication integration
 - `docs/enterprise/rbac.md` — Role-based authorization
@@ -122,17 +134,20 @@ Produced by external authentication providers and consumed by authorization enfo
 **External system responsible for validating user credentials and producing AuthContext.**
 
 FraiseQL does NOT authenticate users itself. Authentication is delegated to pluggable providers:
+
 - JWT / session-based providers
 - OAuth2 / OIDC providers
 - Auth0, Keycloak, etc.
 - Custom providers via defined interface
 
 **Provider responsibilities:**
+
 1. Validate incoming credentials
 2. Produce typed, immutable AuthContext
 3. Do not mutate or observe query execution
 
 **Related specs:**
+
 - `docs/prd/PRD.md` Section 4.2 — Authentication
 - `docs/specs/security-compliance.md` — Provider integration
 
@@ -145,6 +160,7 @@ FraiseQL does NOT authenticate users itself. Authentication is delegated to plug
 **Declarative, compile-time rules enforced at runtime to restrict data access.**
 
 Authorization in FraiseQL:
+
 - Declared at compile time (not runtime logic)
 - Enforced at runtime deterministically
 - Uses AuthContext for decision input
@@ -154,12 +170,14 @@ Authorization in FraiseQL:
   3. Post-projection filtering (last resort)
 
 **NOT allowed:**
+
 - Resolver-level authorization logic
 - Dynamic permission checks
 - Runtime directives or hooks
 - Imperative branching based on auth
 
 **Related specs:**
+
 - `docs/prd/PRD.md` Section 4.3 — Authorization
 - `docs/enterprise/rbac.md` — Role-based access control
 - `docs/specs/authoring-contract.md` — Authorization declarations
@@ -173,16 +191,19 @@ Authorization in FraiseQL:
 **Language-agnostic intermediate representation that all authoring languages compile to.**
 
 AuthoringIR unifies schema definitions from Python, TypeScript, YAML, GraphQL SDL, and CLI into a single canonical structure before compilation. This enables:
+
 - Organization-scale language choice (one canonical language per org)
 - Identical execution plans regardless of authoring language
 - Translation tools for migration between languages
 
 **Compilation flow:**
+
 ```
 Python/TypeScript/YAML/SDL/CLI → AuthoringIR → Compilation Pipeline → CompiledSchema
 ```
 
 **Related specs:**
+
 - `docs/architecture/core/authoring-languages.md` — Language-agnostic authoring
 - `docs/architecture/core/compilation-pipeline.md` Phase 1b — IR building
 - `docs/prd/PRD.md` Principle 10 — Language-agnostic authoring
@@ -198,6 +219,7 @@ Python/TypeScript/YAML/SDL/CLI → AuthoringIR → Compilation Pipeline → Comp
 **Process of translating WHERE filters from SDL (Schema Definition Language) predicates to database-specific SQL.**
 
 Each database target has a lowering module:
+
 - `backends/postgresql.rs` — PostgreSQL-specific SQL generation
 - `backends/mysql.rs` — MySQL-specific SQL generation
 - `backends/sqlite.rs` — SQLite-specific SQL generation
@@ -206,6 +228,7 @@ Each database target has a lowering module:
 **Key property:** No runtime translation or emulation. If an operator isn't in the capability manifest, it cannot be expressed in the GraphQL schema.
 
 **Related specs:**
+
 - `docs/architecture/database/database-targeting.md` Section 3 — Backend lowering
 - `docs/architecture/core/execution-model.md` Phase 4 — Database execution
 
@@ -218,16 +241,19 @@ Each database target has a lowering module:
 **Connection between a GraphQL type and a database view or stored procedure.**
 
 Bindings declare how types map to database resources:
+
 - **Read bindings** — Type → database view (e.g., `User` → `v_user`)
 - **Write bindings** — Mutation → stored procedure (e.g., `createUser` → `fn_create_user`)
 
 **Properties:**
+
 - Declared in authoring schema
 - Validated at compile time
 - One type can have multiple bindings (multi-projection)
 - One view can back multiple types
 
 **Related specs:**
+
 - `docs/specs/authoring-contract.md` Section 4 — Bindings
 - `docs/prd/PRD.md` Section 3.1 — Database contract
 
@@ -242,6 +268,7 @@ Bindings declare how types map to database resources:
 **Process of emitting signals indicating which cached data is stale after mutations.**
 
 FraiseQL mutations return cascade metadata indicating:
+
 - **Updated entities** — IDs of modified entities
 - **Deleted entities** — IDs of removed entities
 - **Invalidations** — Type-level or relationship-level invalidation hints
@@ -249,10 +276,12 @@ FraiseQL mutations return cascade metadata indicating:
 **Deterministic:** Because execution is deterministic and writes are declarative, invalidation signals are predictable and complete.
 
 **Integrations:**
+
 - graphql-cascade library (JavaScript/TypeScript clients)
 - Custom cache invalidation handlers
 
 **Related specs:**
+
 - `docs/specs/caching.md` Section 4 — Cache invalidation
 - `docs/specs/persisted-queries.md` — APQ + caching
 - `docs/architecture/core/execution-model.md` Phase 6 — Cache invalidation emission
@@ -266,18 +295,21 @@ FraiseQL mutations return cascade metadata indicating:
 **Static JSON declaration of which WHERE operators each database supports.**
 
 The capability manifest is the source of truth for multi-database support. For each database target (PostgreSQL, MySQL, SQLite, etc.), it declares:
+
 - Scalar type operators (string, numeric, boolean, etc.)
 - Complex type operators (JSONB, arrays, vectors, etc.)
 - Extension operators (pgvector, PostGIS, LTree, etc.)
-- Logical combinators (_and, _or, _not)
+- Logical combinators (_and,_or, _not)
 
 **Properties:**
+
 - Static (checked into version control)
 - Declarative (not code)
 - Extensible (add new databases by adding manifest entries)
 - Source of truth for compiler Phase 4 (WHERE type generation)
 
 **Related specs:**
+
 - `docs/architecture/database/database-targeting.md` Section 2 — Capability manifest
 - `docs/prd/PRD.md` Section 3.3 — Compile-time database specialization
 
@@ -290,6 +322,7 @@ The capability manifest is the source of truth for multi-database support. For e
 **Structured data returned by mutations indicating which cached data should be invalidated.**
 
 Format:
+
 ```json
 {
   "status": "success",
@@ -303,6 +336,7 @@ Format:
 ```
 
 **Related specs:**
+
 - `docs/specs/caching.md` Section 4 — Cache invalidation
 - `docs/architecture/core/execution-model.md` Phase 6 — Emission
 
@@ -315,6 +349,7 @@ Format:
 **System for capturing and streaming database changes as structured events.**
 
 FraiseQL emits Debezium-compatible CDC events containing:
+
 - Before/after snapshots
 - Event type (insert, update, delete)
 - Business semantics (entity ID, tenant ID, etc.)
@@ -322,12 +357,14 @@ FraiseQL emits Debezium-compatible CDC events containing:
 - HMAC signatures for authenticity
 
 **Use cases:**
+
 - Real-time subscriptions
 - Audit trails
 - Event-driven architectures
 - Cross-system synchronization
 
 **Related specs:**
+
 - `docs/specs/cdc-format.md` — Event format specification
 - `docs/enterprise/audit-logging.md` — Enterprise audit system
 
@@ -340,6 +377,7 @@ FraiseQL emits Debezium-compatible CDC events containing:
 **Immutable JSON artifact produced by compiler, consumed by Rust runtime.**
 
 CompiledSchema contains:
+
 - Type system (all types, fields, scalars)
 - Query and mutation definitions
 - Database bindings (JSON + Arrow)
@@ -349,18 +387,21 @@ CompiledSchema contains:
 - Feature flags and versioning
 
 **Properties:**
+
 - Pure data (no executable code)
 - Database-target-specific (PostgreSQL CompiledSchema differs from MySQL)
 - Serializable and versionable (git-friendly)
 - Immutable at runtime (changes require recompilation)
 
 **Important:** CompiledSchema is NOT:
+
 - The database schema (that's schema conventions)
 - A GraphQL schema (that's schema.graphql, generated from CompiledSchema)
 - Runtime-mutable
 - The source of truth for types (authoring schema is; this is derived)
 
 **Related specs:**
+
 - `docs/specs/compiled-schema.md` — Complete JSON specification
 - `docs/prd/PRD.md` Section 2 — System architecture
 
@@ -373,6 +414,7 @@ CompiledSchema contains:
 **Multi-phase process transforming authoring schema into CompiledSchema.**
 
 **Phases:**
+
 1. **Phase 1a:** Language-specific parsing (Python AST, TypeScript AST, etc.)
 2. **Phase 1b:** AuthoringIR building (unify language-specific types)
 3. **Phase 2:** Type system resolution
@@ -382,6 +424,7 @@ CompiledSchema contains:
 7. **Phase 6:** CompiledSchema serialization
 
 **Related specs:**
+
 - `docs/architecture/core/compilation-pipeline.md` — Complete pipeline specification
 - `docs/architecture/core/authoring-languages.md` — Language-agnostic authoring
 
@@ -402,6 +445,7 @@ CompiledSchema contains:
 **Configuration parameter specifying which database the schema compiles for.**
 
 Example:
+
 ```python
 config = CompilerConfig(
     database_target="postgresql",  # or "mysql", "sqlite", "sqlserver"
@@ -411,6 +455,7 @@ config = CompilerConfig(
 ```
 
 **Impact:**
+
 - Drives WHERE operator availability (Phase 4 of compilation)
 - Affects SQL generation (backend lowering)
 - Determines scalar type support
@@ -419,6 +464,7 @@ config = CompilerConfig(
 **Key principle:** Same schema source, different compiled outputs per database target.
 
 **Related specs:**
+
 - `docs/architecture/database/database-targeting.md` — Complete multi-database architecture
 - `docs/prd/PRD.md` Section 3.3 — Compile-time specialization
 
@@ -431,27 +477,32 @@ config = CompilerConfig(
 **FraiseQL's three-key system for optimal performance and usability.**
 
 Every entity has:
+
 1. **`pk_{entity}` (INTEGER)** — Primary key for internal joins (4 bytes, max performance)
 2. **`id` (UUID)** — External identity, globally unique, exposed via GraphQL (16 bytes)
 3. **`identifier` (TEXT)** — Human-readable slug for URLs (e.g., "john-doe")
 
 **Why integers for joins?**
+
 - 4 bytes vs 16 bytes (UUIDs)
 - Faster B-tree index operations
 - Better cache efficiency
 
 **Why UUIDs for external identity?**
+
 - Globally unique across federated schemas
 - No information leakage (unlike sequential integers)
 - Client-side generation possible
 - Cache key compatibility
 
 **Why identifiers (slugs)?**
+
 - Human-readable URLs: `/users/john-doe`
 - No joins required for lookup (indexed)
 - SEO-friendly
 
 **Related specs:**
+
 - `docs/specs/schema-conventions.md` Section 2 — Column conventions
 - `docs/prd/PRD.md` Section 3.2 — Schema conventions
 
@@ -466,6 +517,7 @@ Every entity has:
 **The deterministic, phase-based process the Rust runtime follows to execute GraphQL requests.**
 
 **Phases:**
+
 - **Phase 0:** Request preparation (APQ resolution, cache check)
 - **Phase 1:** GraphQL validation
 - **Phase 2:** Authorization enforcement
@@ -475,12 +527,14 @@ Every entity has:
 - **Phase 6:** Cache invalidation emission
 
 **Properties:**
+
 - Deterministic (same input always produces same output)
 - No user code execution
 - No runtime schema interpretation
 - Fixed at compile time
 
 **Related specs:**
+
 - `docs/architecture/core/execution-model.md` — Complete execution specification
 - `docs/prd/PRD.md` Section 2.3 — Runtime responsibilities
 
@@ -495,18 +549,21 @@ Every entity has:
 **Compile-time composition of multiple CompiledSchemas into a single unified execution plan.**
 
 FraiseQL federation is NOT runtime GraphQL-to-GraphQL calls. Instead:
+
 - Multiple schemas compile into single unified execution plan
 - Cross-schema entity resolution via coordinated database joins
 - Static entity keys
 - Explicit ownership
 
 **Properties:**
+
 - Compile-time only (no runtime service calls)
 - Shared auth context across schemas
 - Authorization rules validated across boundaries
 - Conflicting rules are compile-time errors
 
 **Related specs:**
+
 - `docs/architecture/integration/federation.md` — Federation architecture
 - `docs/adrs/ADR-009-federation-architecture.md` — Federation design decisions
 - `docs/prd/PRD.md` Section 6.1 — Federation model
@@ -522,16 +579,19 @@ FraiseQL federation is NOT runtime GraphQL-to-GraphQL calls. Instead:
 Example: All users can see `User.name`, but only admins can see `User.email`.
 
 **Enforcement:**
+
 - Compile-time declaration in authoring schema
 - Runtime enforcement during projection (Phase 5)
 - Deterministic (field present or absent based on AuthContext)
 - Monotonic (only removes data, never adds)
 
 **Performance:**
+
 - Rust FFI filtering: <1 µs overhead per field
 - Python filtering: 5-10 µs overhead per field
 
 **Related specs:**
+
 - `docs/enterprise/rbac.md` Section 6 — Field-level authorization
 - `docs/architecture/core/execution-model.md` Section 7.3 — Filtering during projection
 
@@ -546,6 +606,7 @@ Example: All users can see `User.name`, but only admins can see `User.email`.
 **One of the supported authoring languages for defining FraiseQL schemas.**
 
 SDL is the GraphQL native schema language:
+
 ```graphql
 type User {
   id: ID!
@@ -555,11 +616,13 @@ type User {
 ```
 
 **In FraiseQL:**
+
 - SDL is an authoring language (not the only one)
 - Compiles to AuthoringIR like all other languages
 - Produces identical execution plans as Python/TypeScript/YAML/CLI
 
 **Related specs:**
+
 - `docs/architecture/core/authoring-languages.md` Section 5 — GraphQL SDL authoring
 - `docs/specs/authoring-contract.md` — Type declarations
 
@@ -574,6 +637,7 @@ type User {
 **GraphQL introspection protocol for schema reflection.**
 
 FraiseQL supports three introspection policies:
+
 1. **DISABLED** — No introspection (production default)
 2. **AUTHENTICATED** — Introspection requires authentication
 3. **PUBLIC** — Anyone can introspect (development only)
@@ -581,6 +645,7 @@ FraiseQL supports three introspection policies:
 **Security consideration:** Introspection exposes full schema structure including types, fields, and authorization metadata. Disable in production unless schema is intentionally public.
 
 **Related specs:**
+
 - `docs/specs/introspection.md` — Introspection policies and security
 - `docs/specs/security-compliance.md` — Security profiles
 
@@ -597,12 +662,14 @@ FraiseQL supports three introspection policies:
 **Content-Type:** `application/json`
 
 **Properties:**
+
 - Nested object graph in single response
 - Frontend-oriented
 - Human-readable
 - Efficient for OLTP (transactional) queries
 
 **Example:**
+
 ```json
 {
   "data": {
@@ -618,6 +685,7 @@ FraiseQL supports three introspection policies:
 ```
 
 **Related specs:**
+
 - `docs/prd/PRD.md` Section 3.4.1 — JSON plane
 - `docs/architecture/core/execution-model.md` Phase 5 — Projection
 
@@ -649,11 +717,13 @@ LEFT JOIN v_posts_by_user p ON p.fk_user = u.pk_user;
 ```
 
 **Benefits:**
+
 - Zero-cost projection (database does all composition)
 - O(1) relationship composition (not N+1)
 - Flexibility (add fields without schema migration)
 
 **Related specs:**
+
 - `docs/prd/PRD.md` Section 3.1.5 — Projection composition
 - `docs/specs/schema-conventions.md` Section 4 — View composition
 
@@ -668,12 +738,14 @@ LEFT JOIN v_posts_by_user p ON p.fk_user = u.pk_user;
 **GraphQL mutation mapped to a stored procedure or database function.**
 
 Mutations in FraiseQL:
+
 - Invoked as stored procedures/functions (not resolvers)
 - Input: GraphQL arguments → validated JSON payload
 - Execution: Transactional in database
 - Output: Procedure returns JSON with `status`, `entity`, `cascade`
 
 **Example:**
+
 ```graphql
 mutation {
   createUser(input: {name: "Alice", email: "alice@example.com"}) {
@@ -686,6 +758,7 @@ mutation {
 Executes: `fn_create_user(jsonb)` stored procedure.
 
 **Related specs:**
+
 - `docs/prd/PRD.md` Section 3.1.2 — Write model
 - `docs/specs/authoring-contract.md` — Mutation declarations
 
@@ -702,6 +775,7 @@ Executes: `fn_create_user(jsonb)` stored procedure.
 Pattern: `v_{entities}_by_{parent}`
 
 Example:
+
 ```sql
 CREATE VIEW v_posts_by_user AS
 SELECT
@@ -712,11 +786,13 @@ GROUP BY fk_user;
 ```
 
 **Benefits:**
+
 - O(1) composition (single join, not N queries)
 - Database-owned (not runtime logic)
 - Efficient (grouped once, joined many times)
 
 **Related specs:**
+
 - `docs/specs/schema-conventions.md` Section 4 — View patterns
 - `docs/prd/PRD.md` Section 3.1.5 — Composition
 
@@ -731,6 +807,7 @@ GROUP BY fk_user;
 Convention: `pk_{entity}` (e.g., `pk_user`, `pk_post`)
 
 **Why integers?**
+
 - 4 bytes (vs 16 bytes for UUID)
 - Faster B-tree operations
 - Better cache efficiency
@@ -738,6 +815,7 @@ Convention: `pk_{entity}` (e.g., `pk_user`, `pk_post`)
 **Not exposed via GraphQL** — clients use `id` (UUID) instead.
 
 **Related specs:**
+
 - `docs/specs/schema-conventions.md` Section 2 — Column conventions
 - `docs/prd/PRD.md` Section 3.2 — Dual-key strategy
 
@@ -750,15 +828,18 @@ Convention: `pk_{entity}` (e.g., `pk_user`, `pk_post`)
 **The process of transforming database results into GraphQL response shape.**
 
 Two forms:
+
 1. **Type projection** — Mapping database view columns to GraphQL type fields
 2. **Result projection** — Extracting requested fields from JSONB `data` column
 
 **In execution:**
+
 - Happens in Phase 5 (result projection)
 - Uses compiled projection rules (not runtime interpretation)
 - Field-level authorization applied during projection
 
 **Related specs:**
+
 - `docs/architecture/core/execution-model.md` Phase 5 — Result projection
 - `docs/prd/PRD.md` Section 3.1 — Read model
 
@@ -773,12 +854,14 @@ Two forms:
 **Caching of GraphQL query execution results (not to be confused with APQ).**
 
 Caches the full response of a query:
+
 - Key: Query hash + arguments + auth context
 - Value: JSON response
 - TTL: Configurable (default 5-60 minutes)
 - Backends: Memory, Database (PostgreSQL), Custom
 
 **Invalidation:**
+
 - Automatic via cascade metadata from mutations
 - Manual via cache invalidation API
 - TTL-based expiration
@@ -786,6 +869,7 @@ Caches the full response of a query:
 **Important:** This is different from APQ (which caches query text, not results).
 
 **Related specs:**
+
 - `docs/specs/caching.md` — Query caching specification
 - `docs/specs/persisted-queries.md` — APQ (different feature)
 
@@ -800,17 +884,20 @@ Caches the full response of a query:
 **Hierarchical role system for authorization with multi-layer caching.**
 
 **Features:**
+
 - Role hierarchy with inheritance
 - Field-level authorization
 - Row-level security integration
 - Per-tenant RBAC
 
 **Performance:**
+
 - Request-level cache: <1 µs
 - PostgreSQL UNLOGGED cache: 0.1-0.3 ms
 - Domain versioning for automatic invalidation
 
 **Related specs:**
+
 - `docs/enterprise/rbac.md` — Complete RBAC specification
 - `docs/prd/PRD.md` Section 4.3 — Authorization
 
@@ -825,12 +912,14 @@ Caches the full response of a query:
 **Opinionated database schema patterns required by FraiseQL.**
 
 **Naming:**
+
 - `tb_{entity}` — Write tables
 - `v_{entity}` — Read views
 - `v_{entities}_by_{parent}` — Pre-aggregated views
 - `fn_{action}_{entity}` — Stored procedures
 
 **Columns:**
+
 - `pk_{entity}` (INTEGER) — Primary key
 - `fk_{entity}` (INTEGER) — Foreign key
 - `id` (UUID) — External identifier
@@ -838,9 +927,11 @@ Caches the full response of a query:
 - `data` (JSONB) — Projection output
 
 **Audit columns:**
+
 - `created_at`, `created_by`, `updated_at`, `updated_by`, `deleted_at`, `deleted_by`
 
 **Related specs:**
+
 - `docs/specs/schema-conventions.md` — Complete conventions reference
 - `docs/prd/PRD.md` Section 3.2 — Overview
 
@@ -853,11 +944,13 @@ Caches the full response of a query:
 **Predefined security configuration level.**
 
 Three profiles:
+
 1. **STANDARD** — Basic security (development, internal tools)
 2. **REGULATED** — Enhanced security, TLS required (production, regulated industries)
 3. **RESTRICTED** — Maximum security, mTLS required (high-security environments)
 
 Each profile configures:
+
 - Security headers (CSP, HSTS, etc.)
 - Introspection policy
 - Rate limiting
@@ -865,6 +958,7 @@ Each profile configures:
 - Token requirements
 
 **Related specs:**
+
 - `docs/specs/security-compliance.md` Section 2 — Security profiles
 - `docs/prd/PRD.md` Section 4 — Security model
 
@@ -877,22 +971,26 @@ Each profile configures:
 **Pattern of marking records as deleted without physically removing them.**
 
 Uses `deleted_at` audit column:
+
 - `NULL` = active
 - `TIMESTAMPTZ` = soft deleted
 
 **Read views filter soft-deleted records:**
+
 ```sql
 CREATE VIEW v_user AS
 SELECT ... FROM tb_user WHERE deleted_at IS NULL;
 ```
 
 **Benefits:**
+
 - Audit trail preservation
 - Temporal queries (see historical state)
 - Cache invalidation tracking
 - Accidental deletion recovery
 
 **Related specs:**
+
 - `docs/specs/schema-conventions.md` Section 3 — Audit columns
 - `docs/prd/PRD.md` Section 3.2 — Conventions
 
@@ -909,6 +1007,7 @@ Pattern: `fn_{action}_{entity}` (e.g., `fn_create_user`, `fn_update_post`)
 **Input:** JSON payload (validated GraphQL arguments)
 
 **Output:** JSON with structure:
+
 ```json
 {
   "status": "success|error|noop",
@@ -922,6 +1021,7 @@ Pattern: `fn_{action}_{entity}` (e.g., `fn_create_user`, `fn_update_post`)
 ```
 
 **Related specs:**
+
 - `docs/prd/PRD.md` Section 3.1.2 — Write model
 - `docs/specs/schema-conventions.md` Section 5 — Stored procedures
 
@@ -934,12 +1034,14 @@ Pattern: `fn_{action}_{entity}` (e.g., `fn_create_user`, `fn_update_post`)
 **Compiled database event projections delivered via multiple transport adapters.**
 
 FraiseQL subscriptions are NOT GraphQL resolver-based subscriptions. Instead:
+
 - Events originate from database transactions (source of truth)
 - Subscriptions are declared at schema definition time (compile-time)
 - Events are buffered in `tb_entity_change_log` (durability)
 - Multiple transport adapters (graphql-ws, webhooks, Kafka) consume same event stream
 
 **Key characteristics:**
+
 - Database-native (LISTEN/NOTIFY, CDC)
 - Deterministic, no user code execution
 - Compile-time WHERE filters + runtime variables
@@ -947,18 +1049,21 @@ FraiseQL subscriptions are NOT GraphQL resolver-based subscriptions. Instead:
 - Per-entity event ordering
 
 **Supported transports:**
+
 - `graphql-ws` — WebSocket for real-time UI updates
 - Webhooks — HTTP POST to external systems
 - Kafka/SQS — Event streaming to data platforms
 - gRPC — Future service-to-service streaming
 
 **Database support (PostgreSQL is reference implementation):**
+
 - PostgreSQL: LISTEN/NOTIFY + CDC (Phase 1, reference implementation)
 - MySQL: Debezium CDC (Phase 2, varies in maturity)
 - SQL Server: Native CDC (Phase 2, varies in maturity)
 - SQLite: Trigger-based (Phase 2, pull-only, development-use)
 
 **Related specs:**
+
 - `docs/architecture/realtime/subscriptions.md` — Complete subscription architecture and implementation
 - `docs/specs/cdc-format.md` — CDC event structure (events originate here)
 - `docs/prd/PRD.md` Section 5.2 — Subscription requirements
@@ -973,12 +1078,14 @@ FraiseQL subscriptions are NOT GraphQL resolver-based subscriptions. Instead:
 **Compile-time WHERE clause that determines which events match a subscription.**
 
 Subscription filters:
+
 - Defined using `WhereEntity` types at schema authoring time
 - Compiled to SQL predicates
 - Eligible for database indexing and optimization
 - Can reference authentication context (e.g., user_id, org_id, role)
 
 **Example:**
+
 ```python
 @fraiseql.subscription
 class OrderCreated:
@@ -990,6 +1097,7 @@ class OrderCreated:
 **Distinguished from runtime variables** — Filters are static, variables are dynamic (see Subscription Variable).
 
 **Related specs:**
+
 - `docs/architecture/realtime/subscriptions.md` section 5 — Filtering & Variables
 
 **See also:** Subscriptions, Subscription Variable, Authorization
@@ -1001,12 +1109,14 @@ class OrderCreated:
 **Typed runtime variable that further filters subscription events at execution time.**
 
 Subscription variables:
+
 - Declared explicitly in subscription schema (type-safe)
 - Provided by client at subscription time (runtime)
 - Can modify filters (e.g., date range, amount threshold)
 - Validated by compiler against WHERE operators
 
 **Example:**
+
 ```python
 @fraiseql.subscription
 class OrderCreated:
@@ -1018,6 +1128,7 @@ class OrderCreated:
 ```
 
 **Client usage:**
+
 ```graphql
 subscription OrderCreated($since_date: DateTime) {
   orderCreated(since_date: $since_date) {
@@ -1029,6 +1140,7 @@ subscription OrderCreated($since_date: DateTime) {
 **Distinguished from compile-time filters** — Variables are client-provided, filters are schema-defined.
 
 **Related specs:**
+
 - `docs/architecture/realtime/subscriptions.md` section 5 — Filtering & Variables
 
 **See also:** Subscriptions, Subscription Filter
@@ -1040,6 +1152,7 @@ subscription OrderCreated($since_date: DateTime) {
 **Pluggable module that delivers events from the subscription system to different destinations.**
 
 FraiseQL uses a layered architecture:
+
 ```
 Database Event Stream (LISTEN/NOTIFY, CDC)
          ↓
@@ -1053,12 +1166,14 @@ Transport Adapters
 ```
 
 **Each adapter handles:**
+
 - Connection lifecycle (establish, authenticate, maintain, close)
 - Message transformation (event → transport format)
 - Retry logic and backpressure
 - Delivery semantics (at-least-once, exactly-once, etc.)
 
 **Example: Webhook adapter**
+
 ```python
 config = FraiseQLConfig(
     webhooks={
@@ -1072,6 +1187,7 @@ config = FraiseQLConfig(
 ```
 
 **Related specs:**
+
 - `docs/architecture/realtime/subscriptions.md` section 4 — Transport Protocols
 - `docs/architecture/realtime/subscriptions.md` section 9 — Performance Characteristics
 
@@ -1084,12 +1200,14 @@ config = FraiseQLConfig(
 **Persistent table (`tb_entity_change_log`) that stores database change events for durability and replay.**
 
 The event buffer serves four purposes in subscriptions:
+
 1. **Durability** — Events persisted across system restarts
 2. **Replay** — Clients can request events from any point in time
 3. **Backpressure** — Slow subscribers don't block event generation
 4. **Ordering** — Monotonic sequence numbers ensure per-entity ordering
 
 **Structure:**
+
 ```sql
 tb_entity_change_log (
     id BIGINT PRIMARY KEY,
@@ -1102,6 +1220,7 @@ tb_entity_change_log (
 ```
 
 **Event delivery timeline:**
+
 ```
 Database Transaction (Commit)
     → LISTEN/NOTIFY notification (<1ms)
@@ -1113,6 +1232,7 @@ Database Transaction (Commit)
 **Retention policy:** Configurable (default: 30 days)
 
 **Related specs:**
+
 - `docs/specs/cdc-format.md` — CDC event format
 - `docs/specs/schema-conventions.md section 6` — Table schema and indices
 - `docs/architecture/realtime/subscriptions.md` section 2 — Architecture
@@ -1142,6 +1262,7 @@ The "trinity" refers to the three identifiers: `pk_*`, `id`, `identifier`.
 Column: `id` (UUID type, 16 bytes)
 
 **Why UUIDs?**
+
 - Globally unique (federated schemas)
 - No information leakage
 - Client-side generation possible
@@ -1150,6 +1271,7 @@ Column: `id` (UUID type, 16 bytes)
 **Not used for joins** — internal joins use `pk_*` (INTEGER) for performance.
 
 **Related specs:**
+
 - `docs/specs/schema-conventions.md` Section 2 — Column conventions
 - `docs/prd/PRD.md` Section 3.2 — Dual-key strategy
 
@@ -1166,6 +1288,7 @@ Column: `id` (UUID type, 16 bytes)
 **Read view pattern:** `v_{entity}` (e.g., `v_user`, `v_post`)
 
 **Structure:**
+
 ```sql
 CREATE VIEW v_user AS
 SELECT
@@ -1182,12 +1305,14 @@ WHERE deleted_at IS NULL;
 ```
 
 **Key columns:**
+
 - `pk_{entity}` — Internal primary key
 - `id` — UUID for external identity
 - `identifier` — Human-readable slug
 - `data` — JSONB projection output
 
 **Related specs:**
+
 - `docs/specs/schema-conventions.md` Section 4 — View patterns
 - `docs/prd/PRD.md` Section 3.1.1 — Read model
 
@@ -1202,6 +1327,7 @@ WHERE deleted_at IS NULL;
 **Filter operators available in GraphQL `where` input arguments.**
 
 Examples:
+
 - **Equality:** `_eq`, `_neq`
 - **Comparison:** `_lt`, `_gt`, `_lte`, `_gte`
 - **Inclusion:** `_in`, `_nin`
@@ -1214,6 +1340,7 @@ Examples:
 **Database-specific:** PostgreSQL gets 60+ operators, MySQL gets 20+, SQLite gets 15.
 
 **Related specs:**
+
 - `docs/reference/where-operators.md` — Complete operator reference
 - `docs/architecture/database/database-targeting.md` — Multi-database operator generation
 
@@ -1228,6 +1355,7 @@ Examples:
 Generated automatically by compiler based on database target capabilities.
 
 Example:
+
 ```graphql
 input UserWhereInput {
   id: IDFilter
@@ -1250,6 +1378,7 @@ input StringFilter {
 **Database-specific:** Same schema source produces different WHERE types per database target.
 
 **Related specs:**
+
 - `docs/architecture/database/database-targeting.md` Section 4 — WHERE type generation
 - `docs/prd/PRD.md` Section 3.3 — Compile-time specialization
 
@@ -1262,18 +1391,21 @@ input StringFilter {
 ### By Feature Area
 
 **Compilation:**
+
 - AuthoringIR
 - Compilation Pipeline
 - CompiledSchema
 - Database Target
 
 **Execution:**
+
 - Execution Model
 - Projection
 - Backend Lowering
 - Query Result Caching
 
 **Database:**
+
 - Schema Conventions
 - View
 - Stored Procedure
@@ -1281,6 +1413,7 @@ input StringFilter {
 - Pre-Aggregated View
 
 **Security:**
+
 - Authentication Provider
 - AuthContext
 - Authorization
@@ -1289,18 +1422,21 @@ input StringFilter {
 - Security Profile
 
 **Performance:**
+
 - Dual-Key Strategy
 - JSONB Composition
 - Query Result Caching
 - APQ
 
 **Operations:**
+
 - Introspection
 - CDC
 - Audit Columns
 - Soft Delete
 
 **Federation:**
+
 - Federation v2
 - Subgraph
 - Entity Resolution
@@ -1321,16 +1457,19 @@ input StringFilter {
 FraiseQL implements Federation v2 as a subgraph (not a gateway), using Apollo Router or compatible gateway for composition.
 
 **Key concepts:**
+
 - **Subgraph**: A FraiseQL backend that exposes `_service` and `_entities` endpoints
 - **Entity**: A type with `@key` that can be resolved across subgraphs
 - **Gateway**: Apollo Router or compatible federation-capable gateway that composes subgraphs
 
 **Three resolution strategies in FraiseQL:**
+
 1. **Local**: Entity owned by current subgraph (direct query, <5ms)
 2. **Direct DB**: Entity in another FraiseQL subgraph (direct database connection, <10ms)
 3. **HTTP**: Entity in non-FraiseQL subgraph (standard federation HTTP, 50-200ms)
 
 **Related specs:**
+
 - `docs/architecture/integration/federation.md` — Complete federation specification
 - `docs/prd/PRD.md` Section 6.1 — Federation requirements
 
@@ -1343,6 +1482,7 @@ FraiseQL implements Federation v2 as a subgraph (not a gateway), using Apollo Ro
 **A self-contained GraphQL backend that participates in federation.**
 
 Each FraiseQL instance is a subgraph. Subgraphs:
+
 - Expose `_service` endpoint (returns SDL with federation directives)
 - Expose `_entities` endpoint (resolves entities by key)
 - Have `@key` decorated types that can be extended by other subgraphs
@@ -1351,6 +1491,7 @@ Each FraiseQL instance is a subgraph. Subgraphs:
 **Not a subgraph gateway:** FraiseQL is the subgraph, not the gateway. Apollo Router acts as the gateway.
 
 **Related specs:**
+
 - `docs/architecture/integration/federation.md` Section 1-2 — Subgraph architecture
 - Apollo Federation v2 specification
 
@@ -1373,6 +1514,7 @@ When Apollo Router needs to resolve an entity (e.g., User with id "123"), it sen
 **Error handling:** Null entities allowed in response if resolution fails.
 
 **Related specs:**
+
 - `docs/architecture/integration/federation.md` Section 9 — Runtime entity resolution
 - `docs/architecture/integration/federation.md` Section 10-11 — Strategy selection
 
@@ -1394,11 +1536,13 @@ Users Subgraph (PostgreSQL)
 ```
 
 **Performance:**
+
 - Same database: <5ms
 - Different databases: <10-20ms
 - HTTP (fallback): 50-200ms
 
 **Requirements:**
+
 - Both subgraphs must be FraiseQL
 - Network access from Rust runtime to remote database
 - Database credentials securely configured
@@ -1406,6 +1550,7 @@ Users Subgraph (PostgreSQL)
 **Graceful fallback:** If database connection unavailable, automatically falls back to HTTP.
 
 **Related specs:**
+
 - `docs/architecture/integration/federation.md` Section 10 — Multi-database federation architecture
 - `docs/architecture/integration/federation.md` Section 11 — Deployment & configuration
 
@@ -1418,6 +1563,7 @@ Users Subgraph (PostgreSQL)
 **GraphQL federation directive declaring which fields uniquely identify an entity across subgraphs.**
 
 **Syntax:**
+
 ```graphql
 type User @key(fields: "id") {
   id: ID!
@@ -1433,15 +1579,18 @@ type Product @key(fields: "upc") @key(fields: "sku") {
 ```
 
 **Compile-time validation:**
+
 - Key fields must exist in type
 - Key fields must be selectable (in database view)
 - Key must be unique identifier for entity
 
 **Runtime behavior:**
+
 - `_entities` query uses @key fields to identify entities
 - Multiple keys enable multiple federation patterns
 
 **Related specs:**
+
 - `docs/architecture/integration/federation.md` Section 3 — Federation contract
 - `docs/architecture/integration/federation.md` Section 5 — Schema authoring with @key
 - Apollo Federation v2 specification
@@ -1455,6 +1604,7 @@ type Product @key(fields: "upc") @key(fields: "sku") {
 **GraphQL federation directive marking fields provided by another subgraph.**
 
 **Syntax:**
+
 ```graphql
 # In extended type
 type User @key(fields: "id") {
@@ -1466,15 +1616,18 @@ type User @key(fields: "id") {
 ```
 
 **Indicates:**
+
 - These fields come from owning subgraph
 - This subgraph should not query them from database
 - Router will fetch them from entity resolution
 
 **Compile-time validation:**
+
 - External fields must match owning subgraph's schema
 - Cannot mark owned fields as external
 
 **Related specs:**
+
 - `docs/architecture/integration/federation.md` Section 3 — Federation contract
 - `docs/architecture/integration/federation.md` Section 5 — Schema authoring
 - Apollo Federation v2 specification
@@ -1488,6 +1641,7 @@ type User @key(fields: "id") {
 **GraphQL federation directive declaring that a field needs data from another subgraph.**
 
 **Syntax:**
+
 ```graphql
 type Order @key(fields: "id") {
   id: ID!
@@ -1496,16 +1650,19 @@ type Order @key(fields: "id") {
 ```
 
 **Execution:**
+
 1. Fetch Order entity (local)
 2. Extract `email` field from Order
 3. Call User subgraph's `_entities` with email
 4. Merge returned User into response
 
 **Supports:**
+
 - Direct DB federation: Database join via foreign table
 - HTTP federation: HTTP call to external subgraph
 
 **Related specs:**
+
 - `docs/architecture/integration/federation.md` Section 8 — @requires support
 - Apollo Federation v2 specification
 
@@ -1518,6 +1675,7 @@ type Order @key(fields: "id") {
 **GraphQL federation directive declaring that a field already includes data from another subgraph (optimization).**
 
 **Syntax:**
+
 ```graphql
 type Product {
   id: ID!
@@ -1529,6 +1687,7 @@ type Product {
 **Optimization:** Router can satisfy vendor requests from this field without calling Vendor subgraph.
 
 **Database level:** View already includes vendor data as JSONB:
+
 ```sql
 CREATE VIEW v_product AS
 SELECT
@@ -1540,6 +1699,7 @@ JOIN tb_vendor v ON p.fk_vendor = v.pk_vendor;
 ```
 
 **Related specs:**
+
 - `docs/architecture/integration/federation.md` Section 8 — @provides support
 - Apollo Federation v2 specification
 

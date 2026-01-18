@@ -7,6 +7,7 @@ Phase 3 focuses on finalizing the HTTP server implementation and bringing all co
 ## Current Status Analysis
 
 ### Completed (Phases 0-2)
+
 - ✅ Phase 0: HTTP Server Infrastructure (Axum framework, routes, middleware)
 - ✅ Phase 1: Foundation (schema, errors, config, APQ)
 - ✅ Phase 2.1: Database Adapter Integration (PostgreSQL with Arc wrapping)
@@ -15,7 +16,9 @@ Phase 3 focuses on finalizing the HTTP server implementation and bringing all co
 - ✅ Phase 2.4: Database Integration Tests (16 comprehensive tests)
 
 ### HTTP Server Status (60% - Partial)
+
 **Working**:
+
 - ✅ Server infrastructure (Axum-based)
 - ✅ Routes defined (/graphql, /health, /introspection)
 - ✅ Middleware configured (CORS, tracing, compression)
@@ -24,6 +27,7 @@ Phase 3 focuses on finalizing the HTTP server implementation and bringing all co
 - ✅ Configuration system
 
 **Missing**:
+
 - ❌ End-to-end GraphQL query execution
 - ❌ Health check with actual database status
 - ❌ Introspection endpoint with schema metadata
@@ -38,9 +42,11 @@ Phase 3 focuses on finalizing the HTTP server implementation and bringing all co
 **Goal**: Enable complete GraphQL query execution through HTTP server
 
 #### 3.1.1: GraphQL Route Handler Enhancement
+
 **Current State**: Route exists in `routes/graphql.rs` but doesn't execute queries
 
 **Tasks**:
+
 1. Implement GraphQL query parsing from HTTP request body
 2. Create request validation middleware
 3. Wire GraphQL request to Executor
@@ -48,6 +54,7 @@ Phase 3 focuses on finalizing the HTTP server implementation and bringing all co
 5. Add error handling for malformed queries
 
 **Files to Modify**:
+
 - `crates/fraiseql-server/src/routes/graphql.rs`
   - Add `GraphQLRequest` struct for incoming queries
   - Add `GraphQLResponse` struct for outgoing results
@@ -55,6 +62,7 @@ Phase 3 focuses on finalizing the HTTP server implementation and bringing all co
   - Wire to Executor trait
 
 **Code Structure**:
+
 ```rust
 #[derive(Deserialize)]
 pub struct GraphQLRequest {
@@ -82,6 +90,7 @@ pub async fn graphql_handler<A: DatabaseAdapter>(
 ```
 
 **Verification**:
+
 ```bash
 curl http://localhost:8000/graphql -X POST \
   -H "Content-Type: application/json" \
@@ -89,21 +98,25 @@ curl http://localhost:8000/graphql -X POST \
 ```
 
 #### 3.1.2: Health Check Integration
+
 **Current State**: Route exists but returns static response
 
 **Tasks**:
+
 1. Query database adapter for connectivity
 2. Check pool metrics (active/idle connections)
 3. Include schema loading status
 4. Return comprehensive health status
 
 **Files to Modify**:
+
 - `crates/fraiseql-server/src/routes/health.rs`
   - Add database connectivity check
   - Include pool metrics
   - Add schema validation status
 
 **Response Format**:
+
 ```json
 {
   "status": "healthy",
@@ -123,21 +136,25 @@ curl http://localhost:8000/graphql -X POST \
 ```
 
 #### 3.1.3: Introspection Endpoint
+
 **Current State**: Route exists but returns placeholder
 
 **Tasks**:
+
 1. Extract type information from compiled schema
 2. Format according to GraphQL introspection spec
 3. Support query filters (include only public types, etc.)
 4. Return metadata for all types, queries, mutations
 
 **Files to Modify**:
+
 - `crates/fraiseql-server/src/routes/introspection.rs`
   - Parse CompiledSchema
   - Extract type definitions
   - Format as introspection response
 
 **Response Structure**:
+
 ```json
 {
   "types": [
@@ -158,26 +175,32 @@ curl http://localhost:8000/graphql -X POST \
 **Goal**: Comprehensive error handling and request validation
 
 #### 3.2.1: GraphQL Error Formatting
+
 **Tasks**:
+
 1. Implement GraphQL error spec compliance
 2. Add error location tracking
 3. Add error codes for client handling
 4. Mask internal errors in production
 
 **Files to Modify**:
+
 - `crates/fraiseql-server/src/error.rs`
   - Add GraphQL error wrapping
   - Implement error serialization
   - Add error code mappings
 
 #### 3.2.2: Request Validation
+
 **Tasks**:
+
 1. Validate query syntax
 2. Check query depth limits
 3. Validate variables against schema
 4. Rate limiting (future)
 
 **Files to Modify**:
+
 - `crates/fraiseql-server/src/middleware/validation.rs` (NEW)
   - Query depth validation
   - Complexity scoring
@@ -188,10 +211,13 @@ curl http://localhost:8000/graphql -X POST \
 **Goal**: Comprehensive E2E tests validating HTTP server functionality
 
 #### 3.3.1: Server Integration Tests
+
 **Files to Create**:
+
 - `crates/fraiseql-server/tests/server_e2e_test.rs`
 
 **Test Cases**:
+
 1. Server startup with compiled schema
 2. Simple GraphQL query execution
 3. Query with variables
@@ -204,6 +230,7 @@ curl http://localhost:8000/graphql -X POST \
 10. Request/response JSON validation
 
 **Example Test**:
+
 ```rust
 #[tokio::test]
 async fn test_simple_query_execution() {
@@ -223,7 +250,9 @@ async fn test_simple_query_execution() {
 ```
 
 #### 3.3.2: Load & Concurrency Tests
+
 **Tasks**:
+
 1. Test concurrent request handling (10-100 simultaneous)
 2. Verify connection pool doesn't exhaust
 3. Measure latency under load
@@ -234,12 +263,15 @@ async fn test_simple_query_execution() {
 **Goal**: Document Phase 3 changes and provide usage examples
 
 #### 3.4.1: API Documentation
+
 **Files to Create**:
+
 - `docs/HTTP_SERVER.md` - HTTP server usage guide
 - `docs/GRAPHQL_API.md` - GraphQL API specification
 - `docs/DEPLOYMENT.md` - Deployment guide
 
 **Content**:
+
 - Server startup and configuration
 - GraphQL query examples
 - Error handling and recovery
@@ -247,7 +279,9 @@ async fn test_simple_query_execution() {
 - Connection pool configuration
 
 #### 3.4.2: Example Schemas and Queries
+
 **Files to Create**:
+
 - `examples/basic_schema.json` - Simple example
 - `examples/queries.graphql` - Query examples
 - `examples/README.md` - Getting started
@@ -255,6 +289,7 @@ async fn test_simple_query_execution() {
 ## Success Criteria
 
 ### Functional
+
 - ✅ HTTP server loads compiled schema on startup
 - ✅ GraphQL queries execute and return valid responses
 - ✅ Mutations work correctly
@@ -265,6 +300,7 @@ async fn test_simple_query_execution() {
 - ✅ Introspection returns complete type information
 
 ### Quality
+
 - ✅ All E2E tests passing (>20 tests)
 - ✅ No new warnings in cargo clippy
 - ✅ Load test shows <100ms latency at 50 concurrent requests
@@ -272,6 +308,7 @@ async fn test_simple_query_execution() {
 - ✅ Pool never exhausts under normal load
 
 ### Documentation
+
 - ✅ HTTP API fully documented
 - ✅ Example schemas provided
 - ✅ Deployment guide written
@@ -280,12 +317,14 @@ async fn test_simple_query_execution() {
 ## Timeline & Dependencies
 
 **Total Effort**: 5-7 days
+
 - Phase 3.1: 2-3 days (GraphQL execution, health, introspection)
 - Phase 3.2: 1 day (error handling)
 - Phase 3.3: 1-2 days (integration tests)
 - Phase 3.4: 1-2 days (documentation)
 
 **Dependencies**:
+
 - ✅ Phase 0-2 complete (prerequisite)
 - ✅ Database adapter working
 - ✅ Schema loading functional
@@ -301,6 +340,7 @@ async fn test_simple_query_execution() {
 ## Next Phase Preview
 
 **Phase 4**: Python Authoring Layer
+
 - Python decorators for schema definition
 - Schema JSON generation
 - Integration with fraiseql-cli compile

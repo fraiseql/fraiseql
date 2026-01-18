@@ -12,6 +12,7 @@
 Phase 8.2 adds **generic, type-safe JSON streaming** to fraiseql-wire, enabling automatic deserialization of rows into user-defined types.
 
 ### Before (Current API)
+
 ```rust
 let mut stream = client.query("projects").execute().await?;
 
@@ -22,6 +23,7 @@ while let Some(result) = stream.next().await {
 ```
 
 ### After (Typed API)
+
 ```rust
 #[derive(Deserialize)]
 struct Project {
@@ -63,6 +65,7 @@ let raw_stream = client.query::<serde_json::Value>("projects").execute().await?;
 ### Typing is Consumer-Side Only
 
 **Type T does NOT affect:**
+
 - SQL generation (still `SELECT data FROM v_{entity}`)
 - Filtering (where_sql, where_rust, order_by unchanged)
 - Ordering (ORDER BY is identical)
@@ -70,6 +73,7 @@ let raw_stream = client.query::<serde_json::Value>("projects").execute().await?;
 - Chunking, cancellation, backpressure
 
 **Type T ONLY affects:**
+
 - Consumer-side deserialization at `poll_next()`
 - Error messages (type name included for debugging)
 
@@ -93,11 +97,13 @@ This prevents future contributors from accidentally adding "typed query planning
 ## Architecture Summary
 
 ### Type System
+
 - **QueryBuilder<T>** - Generic over `DeserializeOwned`
 - **TypedJsonStream<T>** - Wraps `Box<dyn Stream<Item = Result<Value>>>`, deserializes to T
 - **Error::Deserialization** - New error variant with type info
 
 ### Processing Pipeline
+
 ```
 Raw Data → JsonStream → FilteredStream (optional) → TypedJsonStream<T> → User Code
                         ↑ filters on JSON        ↑ deserializes to T
@@ -105,6 +111,7 @@ Raw Data → JsonStream → FilteredStream (optional) → TypedJsonStream<T> →
 ```
 
 ### Rust Predicates
+
 - Still operate on JSON Values
 - Applied BEFORE deserialization (optimization)
 - Avoids deserializing filtered-out rows
@@ -114,22 +121,26 @@ Raw Data → JsonStream → FilteredStream (optional) → TypedJsonStream<T> →
 ## Implementation Phases
 
 ### Phase 8.2.1: Core Type System (2-3 days)
+
 - Refactor QueryBuilder to be generic: `QueryBuilder<T: DeserializeOwned>`
 - Implement TypedJsonStream<T>
 - Add Error::Deserialization variant
 - All chainable APIs preserve generic type
 
 ### Phase 8.2.2: Client Integration (1 day)
+
 - Update FraiseClient::query() to be generic
 - Ensure PhantomData doesn't add size
 - Support turbofish syntax and type inference
 
 ### Phase 8.2.3: Stream Enhancement (1 day)
+
 - Verify FilteredStream works with typed streams
 - Ensure filtering happens before deserialization
 - Minimal changes needed (backward compatible)
 
 ### Phase 8.2.4: Comprehensive Tests (2-3 days)
+
 - Basic struct deserialization
 - Field type mismatches
 - Missing fields
@@ -139,17 +150,20 @@ Raw Data → JsonStream → FilteredStream (optional) → TypedJsonStream<T> →
 - Error messages include type names
 
 ### Phase 8.2.5: Example Program (1 day)
+
 - `examples/typed_streaming.rs`
 - Shows: simple query, filtering, combined filters, error handling
 - Demonstrates best practices
 
 ### Phase 8.2.6: Documentation (2-3 days)
+
 - API rustdoc for QueryBuilder<T>, TypedJsonStream<T>, Error variants
 - User guide: `docs/TYPED_STREAMING.md`
 - README section with typed example
 - FAQ and troubleshooting
 
 ### Phase 8.2.7: Performance & Quality (1-2 days)
+
 - Benchmarking: Typed vs JSON streaming
 - Verify < 2% overhead
 - Code review and cleanup
@@ -160,9 +174,11 @@ Raw Data → JsonStream → FilteredStream (optional) → TypedJsonStream<T> →
 ## Code Changes Required
 
 ### New Files
+
 - `src/stream/typed_stream.rs` - TypedJsonStream implementation
 
 ### Modified Files
+
 - `src/client/query_builder.rs` - Make generic, add default type parameter
 - `src/error.rs` - Add Deserialization variant
 - `src/client/fraise_client.rs` - Make query() generic
@@ -170,6 +186,7 @@ Raw Data → JsonStream → FilteredStream (optional) → TypedJsonStream<T> →
 - `src/lib.rs` - Update public API
 
 ### New Documentation
+
 - `.phases/phase-8-2-typed-streaming.md` - Detailed implementation plan (created ✅)
 - `docs/TYPED_STREAMING.md` - User guide
 - `examples/typed_streaming.rs` - Example program
@@ -179,12 +196,14 @@ Raw Data → JsonStream → FilteredStream (optional) → TypedJsonStream<T> →
 ## Success Criteria
 
 ### Functionality
+
 - [ ] `query::<T>()` works with any type implementing Deserialize
 - [ ] All APIs (where_sql, where_rust, order_by, chunk_size) preserve generic type
 - [ ] Deserialization errors are clear and actionable
 - [ ] Backward compatibility maintained (Value still works)
 
 ### Quality
+
 - [ ] > 90% test coverage
 - [ ] Zero clippy warnings
 - [ ] Complete rustdoc
@@ -192,11 +211,13 @@ Raw Data → JsonStream → FilteredStream (optional) → TypedJsonStream<T> →
 - [ ] Performance < 2% overhead
 
 ### Performance
+
 - [ ] TypedJsonStream vs JsonStream: < 2% latency difference
 - [ ] Deserialization per-item (lazy)
 - [ ] Memory impact negligible
 
 ### Documentation
+
 - [ ] Full API documentation
 - [ ] Example program with comments
 - [ ] User guide with patterns
@@ -235,6 +256,7 @@ Raw Data → JsonStream → FilteredStream (optional) → TypedJsonStream<T> →
 ## Dependencies
 
 **No new dependencies** - uses existing:
+
 - `serde` (already in Cargo.toml)
 - `serde_json` (already in Cargo.toml)
 - `futures` (already in Cargo.toml)
@@ -246,15 +268,18 @@ Users must add `serde` derive to their types, which is standard practice.
 ## Relationship to Other Features
 
 ### Phase 8.1: TLS Support (Completed ✅)
+
 - Independent feature
 - No interaction with typed streaming
 - Both can coexist
 
 ### Phase 8.3: Connection Config (Planned)
+
 - Independent feature
 - No interaction with typed streaming
 
 ### Phase 8.5: Query Metrics (Planned)
+
 - Can work together
 - Metrics collected regardless of stream type
 
@@ -263,25 +288,33 @@ Users must add `serde` derive to their types, which is standard practice.
 ## Design Decisions
 
 ### 1. Generic vs Separate Method ✅
+
 **Chosen**: Generic `query::<T>()` not separate `query_typed::<T>()`
+
 - Cleaner, idiomatic Rust
 - One API rather than two
 - Type inference works from context
 
 ### 2. Deserialization Timing ✅
+
 **Chosen**: Lazy (per-item in poll_next)
+
 - Efficient: don't deserialize filtered rows
 - Natural error propagation
 - Works with existing stream architecture
 
 ### 3. Rust Predicates Approach ✅
+
 **Chosen**: Keep JSON-based, applied before deserialization
+
 - Simpler mental model
 - Optimization: skip deserializing filtered rows
 - Flexibility: use JSON accessors if needed
 
 ### 4. Error Representation ✅
+
 **Chosen**: New Error::Deserialization variant with type_name + details
+
 - Clear error categorization
 - Includes serde error details
 - Type name aids debugging
@@ -291,6 +324,7 @@ Users must add `serde` derive to their types, which is standard practice.
 ## Example Usage
 
 ### Simple Typed Query
+
 ```rust
 #[derive(Deserialize)]
 struct Project { id: String, name: String }
@@ -303,6 +337,7 @@ while let Some(result) = stream.next().await {
 ```
 
 ### With Filtering
+
 ```rust
 let mut stream = client
     .query::<Project>("projects")
@@ -314,6 +349,7 @@ let mut stream = client
 ```
 
 ### Error Handling
+
 ```rust
 while let Some(result) = stream.next().await {
     match result {
@@ -328,17 +364,20 @@ while let Some(result) = stream.next().await {
 ## Testing Strategy
 
 ### Unit Tests
+
 - Generic type parameter handling
 - Error construction with type info
 - PhantomData has zero size
 
 ### Integration Tests
+
 - Real Postgres with custom types
 - Nested structs, Optional, Collections
 - Filtering + typing
 - Error messages with real data
 
 ### Benchmarks
+
 - Typed vs JSON throughput
 - Deserialization overhead measurement
 - Memory impact analysis
@@ -348,12 +387,14 @@ while let Some(result) = stream.next().await {
 ## Documentation Plan
 
 ### API Documentation (rustdoc)
+
 - QueryBuilder<T>
 - TypedJsonStream<T>
 - Error::Deserialization
 - FraiseClient::query::<T>()
 
 ### User Guide
+
 - Introduction to typed streaming
 - Common patterns (filtering, ordering, error handling)
 - Advanced types (nested, optional, collections)
@@ -361,6 +402,7 @@ while let Some(result) = stream.next().await {
 - FAQ and troubleshooting
 
 ### Examples
+
 - Basic typed query
 - SQL + Rust filtering
 - Nested types

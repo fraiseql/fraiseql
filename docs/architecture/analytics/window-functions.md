@@ -29,6 +29,7 @@ Assign ranks to rows within partitions.
 - `CUME_DIST()` - Cumulative distribution (0.0 to 1.0)
 
 **Example**:
+
 ```sql
 SELECT
     data->>'category' AS category,
@@ -50,6 +51,7 @@ Access values from other rows in the window.
 - `NTH_VALUE(field, n)` - Nth value in window
 
 **Example**:
+
 ```sql
 SELECT
     data->>'category' AS category,
@@ -71,6 +73,7 @@ Apply aggregate functions with window semantics (running totals, moving averages
 - `MAX(field) OVER (...)` - Running maximum
 
 **Example**:
+
 ```sql
 SELECT
     data->>'category' AS category,
@@ -93,11 +96,13 @@ FROM tf_sales;
 Divides rows into partitions (groups). Window function applies separately to each partition.
 
 **Syntax**:
+
 ```sql
 OVER (PARTITION BY column1, column2, ...)
 ```
 
 **Example**:
+
 ```sql
 -- Row number within each category
 ROW_NUMBER() OVER (PARTITION BY data->>'category' ORDER BY revenue DESC)
@@ -111,11 +116,13 @@ ROW_NUMBER() OVER (ORDER BY revenue DESC)
 Defines row ordering within each partition. Required for ranking functions and frame clauses.
 
 **Syntax**:
+
 ```sql
 OVER (PARTITION BY ... ORDER BY column1 [ASC|DESC], column2 [ASC|DESC], ...)
 ```
 
 **Example**:
+
 ```sql
 -- Rank by revenue descending within category
 RANK() OVER (PARTITION BY data->>'category' ORDER BY revenue DESC)
@@ -129,11 +136,13 @@ SUM(revenue) OVER (PARTITION BY data->>'category' ORDER BY occurred_at ASC)
 Define which rows are included in the window frame relative to current row. Used with aggregate window functions.
 
 **Frame Types**:
+
 - `ROWS` - Physical row-based window (count rows)
 - `RANGE` - Logical value-based window (based on ORDER BY value)
 - `GROUPS` - Group-based window (PostgreSQL only)
 
 **Frame Boundaries**:
+
 - `UNBOUNDED PRECEDING` - Start of partition
 - `n PRECEDING` - n rows/range units before current
 - `CURRENT ROW` - Current row
@@ -141,6 +150,7 @@ Define which rows are included in the window frame relative to current row. Used
 - `UNBOUNDED FOLLOWING` - End of partition
 
 **Default Frame** (if not specified):
+
 - With ORDER BY: `RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW`
 - Without ORDER BY: `ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING`
 
@@ -201,6 +211,7 @@ SUM(revenue) OVER (
 5. Return results with window columns
 
 **Execution Order**:
+
 ```
 WHERE → GROUP BY → HAVING → Window Functions → ORDER BY → LIMIT
 ```
@@ -214,12 +225,14 @@ WHERE → GROUP BY → HAVING → Window Functions → ORDER BY → LIMIT
 **Support Level**: ✅ Full
 
 **Features**:
+
 - All ranking functions (ROW_NUMBER, RANK, DENSE_RANK, NTILE, PERCENT_RANK, CUME_DIST)
 - All value functions (LAG, LEAD, FIRST_VALUE, LAST_VALUE, NTH_VALUE)
 - All frame types (ROWS, RANGE, GROUPS)
 - EXCLUDE clause (EXCLUDE CURRENT ROW, EXCLUDE GROUP, EXCLUDE TIES, EXCLUDE NO OTHERS)
 
 **Example**:
+
 ```sql
 SELECT
     data->>'category' AS category,
@@ -238,6 +251,7 @@ FROM tf_sales;
 **Support Level**: ✅ Near-full (requires MySQL 8.0+)
 
 **Features**:
+
 - All ranking functions
 - All value functions
 - Frame types: ROWS, RANGE
@@ -245,6 +259,7 @@ FROM tf_sales;
 - ❌ No EXCLUDE clause
 
 **Example**:
+
 ```sql
 SELECT
     JSON_EXTRACT(data, '$.category') AS category,
@@ -258,6 +273,7 @@ FROM tf_sales;
 **Support Level**: ✅ Good (requires SQLite 3.25+, released 2018)
 
 **Features**:
+
 - All ranking functions
 - All value functions
 - Frame types: ROWS, RANGE
@@ -265,6 +281,7 @@ FROM tf_sales;
 - ❌ No EXCLUDE clause
 
 **Example**:
+
 ```sql
 SELECT
     json_extract(data, '$.category') AS category,
@@ -282,6 +299,7 @@ FROM tf_sales;
 **Support Level**: ✅ Full
 
 **Features**:
+
 - All ranking functions
 - All value functions (LAG, LEAD, FIRST_VALUE, LAST_VALUE)
 - Frame types: ROWS, RANGE
@@ -289,6 +307,7 @@ FROM tf_sales;
 - ❌ No EXCLUDE clause
 
 **Example**:
+
 ```sql
 SELECT
     JSON_VALUE(data, '$.category') AS category,
@@ -419,18 +438,21 @@ ORDER BY occurred_at::DATE;
 ### Indexing Strategy
 
 **PARTITION BY Columns**:
+
 ```sql
 -- Index columns used in PARTITION BY
 CREATE INDEX idx_sales_category ON tf_sales ((dimensions->>'category'));
 ```
 
 **ORDER BY Columns**:
+
 ```sql
 -- Index columns used in ORDER BY within window
 CREATE INDEX idx_sales_occurred ON tf_sales(occurred_at);
 ```
 
 **Composite Indexes**:
+
 ```sql
 -- Composite index for common window pattern
 CREATE INDEX idx_sales_category_occurred
@@ -440,6 +462,7 @@ CREATE INDEX idx_sales_category_occurred
 ### Window Function Evaluation
 
 **Execution Order**:
+
 1. WHERE clause filters rows
 2. GROUP BY aggregates (if present)
 3. HAVING filters aggregated results (if present)
@@ -448,6 +471,7 @@ CREATE INDEX idx_sales_category_occurred
 6. LIMIT/OFFSET applies
 
 **Performance Impact**:
+
 - Window functions evaluated AFTER WHERE/GROUP BY/HAVING
 - Can be expensive for large windows (UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)
 - Proper indexes on PARTITION BY and ORDER BY columns critical
@@ -455,6 +479,7 @@ CREATE INDEX idx_sales_category_occurred
 ### Optimization Tips
 
 1. **Use Specific Frame Clauses**:
+
    ```sql
    -- ❌ SLOW: Large frame
    SUM(revenue) OVER (
@@ -474,6 +499,7 @@ CREATE INDEX idx_sales_category_occurred
    - Use meaningful partitions (category, region, etc.)
 
 3. **Consider Materialized Views**:
+
    ```sql
    -- For frequently-used window calculations
    CREATE MATERIALIZED VIEW mv_sales_running_totals AS

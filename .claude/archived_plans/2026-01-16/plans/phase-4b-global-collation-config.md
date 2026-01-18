@@ -407,6 +407,7 @@ def users() -> list[User]:
 ### PostgreSQL (Full Support)
 
 **Configuration**:
+
 ```toml
 [runtime.collation.database_overrides.postgres]
 use_icu = true
@@ -414,6 +415,7 @@ provider = "icu"
 ```
 
 **Generated SQL**:
+
 ```sql
 -- User locale: fr-FR
 ORDER BY data->>'name' COLLATE "fr-FR-x-icu" ASC
@@ -423,6 +425,7 @@ ORDER BY data->>'name' COLLATE "ja-JP-x-icu" ASC
 ```
 
 **Collation Discovery** (optional at startup):
+
 ```rust
 impl PostgresAdapter {
     pub async fn discover_available_collations(&self) -> Result<Vec<String>> {
@@ -440,6 +443,7 @@ impl PostgresAdapter {
 ### MySQL (Limited Support)
 
 **Configuration**:
+
 ```toml
 [runtime.collation.database_overrides.mysql]
 charset = "utf8mb4"
@@ -447,6 +451,7 @@ suffix = "_unicode_ci"
 ```
 
 **Generated SQL**:
+
 ```sql
 -- ALL locales use the same collation (MySQL limitation)
 ORDER BY JSON_UNQUOTE(JSON_EXTRACT(data, '$.name'))
@@ -456,6 +461,7 @@ ORDER BY JSON_UNQUOTE(JSON_EXTRACT(data, '$.name'))
 **Why**: MySQL collations are charset-based, not locale-based. `utf8mb4_unicode_ci` handles all Unicode correctly but doesn't distinguish between locales.
 
 **Alternative** (MySQL 8.0+):
+
 ```toml
 suffix = "_0900_ai_ci"  # More modern, better Unicode support
 ```
@@ -463,18 +469,21 @@ suffix = "_0900_ai_ci"  # More modern, better Unicode support
 ### SQLite (Minimal Support)
 
 **Configuration**:
+
 ```toml
 [runtime.collation.database_overrides.sqlite]
 use_nocase = true
 ```
 
 **Generated SQL**:
+
 ```sql
 -- NOCASE is the only built-in case-insensitive collation
 ORDER BY json_extract(data, '$.name') COLLATE NOCASE ASC
 ```
 
 **Limitation**: SQLite doesn't have locale-aware collations built-in. Options:
+
 1. Use `NOCASE` (case-insensitive only)
 2. Register custom collation functions (complex)
 3. Accept database default (byte order)
@@ -484,12 +493,14 @@ ORDER BY json_extract(data, '$.name') COLLATE NOCASE ASC
 ### SQL Server (Good Support)
 
 **Configuration**:
+
 ```toml
 [runtime.collation.database_overrides.sqlserver]
 # Mapped internally based on locale
 ```
 
 **Generated SQL**:
+
 ```sql
 -- User locale: fr-FR
 ORDER BY JSON_VALUE(data, '$.name') COLLATE French_100_CI_AI ASC
@@ -599,31 +610,37 @@ curl -H "Authorization: Bearer $TOKEN_FR" \
 ## Advantages of Global Config
 
 ### 1. **Simplicity** ✅
+
 - One place to configure collation behavior
 - No per-query decisions needed
 - Schema stays clean and focused on data model
 
 ### 2. **Consistency** ✅
+
 - All queries behave the same way
 - User sees consistent sorting everywhere
 - No edge cases where some queries have collation and others don't
 
 ### 3. **Database-Aware** ✅
+
 - Configuration adapts to database capabilities
 - PostgreSQL gets ICU, MySQL gets utf8mb4, SQLite gets NOCASE
 - No invalid collations sent to database
 
 ### 4. **Security** ✅
+
 - Centralized whitelist validation
 - Easier to audit and update
 - Clear policy enforcement
 
 ### 5. **Performance** ✅
+
 - Collation mapper initialized once at startup
 - No per-query configuration parsing
 - Can cache collation mappings
 
 ### 6. **Observability** ✅
+
 - Single place to log collation behavior
 - Easier to monitor and debug
 - Clear metrics on collation usage
@@ -691,6 +708,7 @@ query {
 ## Summary: Why Global Config is Better
 
 **Original Plan**:
+
 ```python
 # Every query needs configuration
 @fraiseql.query(
@@ -700,6 +718,7 @@ query {
 ```
 
 **Revised Plan**:
+
 ```python
 # Collation works automatically for all queries
 @fraiseql.query(sql_source="v_user")
@@ -708,6 +727,7 @@ def users() -> list[User]:
 ```
 
 **Configuration** (one time, applies everywhere):
+
 ```toml
 [runtime.collation]
 enabled = true
@@ -719,6 +739,7 @@ use_icu = true
 ```
 
 **Result**:
+
 - ✅ Simpler schemas (less boilerplate)
 - ✅ Consistent behavior (no query-specific surprises)
 - ✅ Database-aware (adapts to capabilities)

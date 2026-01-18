@@ -11,6 +11,7 @@
 Implement **idempotent pause/resume semantics** for streams, enabling explicit user control over query execution.
 
 When paused:
+
 - Suspend background task (Postgres stops reading)
 - Keep connection alive
 - Stop yielding items from the stream
@@ -18,6 +19,7 @@ When paused:
 - Update metrics to reflect paused state
 
 When resumed:
+
 - Restart background task
 - Continue from where it left off
 - Respect occupancy patterns across pause boundary
@@ -32,6 +34,7 @@ Idempotence: `pause().pause()` is safe, `resume().resume()` is safe, `resume()` 
 ### Control Plane Addition
 
 Current (Phases 8.6.1-8.6.4):
+
 ```
 Automatic constraints:
   - Memory bounds (hard ceiling, soft warnings)
@@ -40,6 +43,7 @@ Automatic constraints:
 ```
 
 New (Phase 8.6.5):
+
 ```
 Manual control plane:
   - pause() → suspend background task
@@ -50,12 +54,14 @@ Manual control plane:
 ### Implementation Strategy: Option B (Real Pause)
 
 **What we're NOT doing**: "Stop yielding but keep producing"
+
 - ❌ Consumer stops polling
 - ❌ Background task keeps reading/buffering
 - ❌ Memory can grow unbounded (violates hard ceiling)
 - ❌ Defeats the purpose of pause
 
 **What we ARE doing**: "Suspend background task entirely"
+
 - ✅ Consumer stops polling
 - ✅ Background task stops reading
 - ✅ Memory bounded by current channel occupancy
@@ -69,6 +75,7 @@ Manual control plane:
 ### JsonStream Additions
 
 #### New State Machine
+
 ```rust
 enum StreamState {
     Running,      // Background task is reading
@@ -79,6 +86,7 @@ enum StreamState {
 ```
 
 #### New Fields on JsonStream
+
 ```rust
 pub struct JsonStream<T> {
     // Existing fields
@@ -94,6 +102,7 @@ pub struct JsonStream<T> {
 ```
 
 #### New Public Methods
+
 ```rust
 impl<T> JsonStream<T> {
     /// Pause the stream. Idempotent.
@@ -135,6 +144,7 @@ impl<T> JsonStream<T> {
 #### Integration Point: Connection Layer (`src/connection/conn.rs`)
 
 Current flow:
+
 ```rust
 loop {
     // 1. Read rows from Postgres
@@ -154,6 +164,7 @@ loop {
 ```
 
 New flow with pause/resume:
+
 ```rust
 loop {
     // Check pause signal (non-blocking)
@@ -185,6 +196,7 @@ loop {
 #### Dropping Stream While Paused
 
 When `JsonStream` is dropped while paused:
+
 1. Background task sees channel closed (receiver dropped)
 2. Task exits cleanly (no resources leak)
 3. No hanging connections
@@ -198,12 +210,14 @@ When `JsonStream` is dropped while paused:
 **Files**: `src/stream/mod.rs`
 
 Changes:
+
 - Import `Arc`, `Mutex`, `Notify` from tokio/std
 - Add new fields to `JsonStream<T>` struct
 - Implement `state()`, `paused_occupancy()` getters
 - Add `StreamState` enum to pub API
 
 Test:
+
 ```bash
 cargo test --lib stream
 # Verify struct compiles and fields are accessible
@@ -214,6 +228,7 @@ cargo test --lib stream
 **Files**: `src/stream/mod.rs`
 
 The `pause()` method:
+
 ```rust
 pub async fn pause(&mut self) -> Result<(), JsonStreamError> {
     let mut state = self.state.lock().await;
@@ -236,6 +251,7 @@ pub async fn pause(&mut self) -> Result<(), JsonStreamError> {
 ```
 
 Test:
+
 ```bash
 cargo test --lib stream::tests::test_pause_idempotent
 cargo test --lib stream::tests::test_pause_running
@@ -247,6 +263,7 @@ cargo test --lib stream::tests::test_pause_completed_fails
 **Files**: `src/stream/mod.rs`
 
 The `resume()` method:
+
 ```rust
 pub async fn resume(&mut self) -> Result<(), JsonStreamError> {
     let mut state = self.state.lock().await;
@@ -267,6 +284,7 @@ pub async fn resume(&mut self) -> Result<(), JsonStreamError> {
 ```
 
 Test:
+
 ```bash
 cargo test --lib stream::tests::test_resume_idempotent
 cargo test --lib stream::tests::test_resume_before_pause
@@ -278,6 +296,7 @@ cargo test --lib stream::tests::test_resume_completed_fails
 **Files**: `src/connection/conn.rs`
 
 Changes:
+
 - Pass `pause_signal` and `resume_signal` Notify handles to background task
 - Add pause check at top of main loop
 - When paused: block on `resume_signal.notified()`
@@ -300,6 +319,7 @@ loop {
 ```
 
 Test:
+
 ```bash
 cargo test --test integration --test pause
 # (integration test against real DB)
@@ -310,6 +330,7 @@ cargo test --test integration --test pause
 **Files**: `src/error.rs`
 
 Add new error variants:
+
 ```rust
 pub enum JsonStreamError {
     // Existing...
@@ -325,6 +346,7 @@ pub enum JsonStreamError {
 **Files**: `src/metrics/counters.rs`
 
 Add metrics:
+
 ```rust
 pub fn stream_paused(entity: &str) {
     // Counter: fraiseql_stream_paused_total
@@ -347,6 +369,7 @@ pub fn stream_paused_duration_ms(entity: &str, duration_ms: u64) {
 **Files**: `tests/integration_pause_resume.rs` (NEW)
 
 Test scenarios:
+
 ```rust
 #[tokio::test]
 async fn test_pause_stops_reading() {
@@ -404,6 +427,7 @@ async fn test_pause_state_transitions() {
 **Files**: `README.md` or new `examples/pause_resume.rs`
 
 Example code:
+
 ```rust
 use fraiseql_wire::FraiseClient;
 
@@ -489,16 +513,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ## Success Metrics
 
 ✅ **Functional**:
+
 - pause() and resume() work correctly
 - Idempotence verified by tests
 - Background task correctly integrated
 
 ✅ **Operational**:
+
 - Metrics expose pause events
 - Example code demonstrates typical usage
 - Error messages are clear
 
 ✅ **Quality**:
+
 - 100% test pass rate (114 + 7 new = 121 total)
 - Zero regressions
 - Code reviewed and documented
@@ -522,6 +549,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ## Timeline
 
 **Estimated breakdown**:
+
 - Steps 1-3: 30 minutes (stream type + methods)
 - Step 4: 30 minutes (connection integration + testing)
 - Steps 5-6: 15 minutes (error types + metrics)
@@ -535,20 +563,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ## Related Issues & Decisions
 
 **Why not store pause signal on JsonStream?**
+
 - Connection task is in background, needs separate ownership
 - Use `Arc<Notify>` to share across task boundary
 
 **Why not make pause/resume sync?**
+
 - Pause must signal background task and wait for it to actually pause (async)
 - Resume needs to wait for task to resume reading (async)
 - Making them sync would block caller indefinitely
 
 **Why idle/block instead of cancel?**
+
 - Cancellation would lose buffered rows
 - Idle preserves connection state (no reconnect needed)
 - User can drop stream anytime to cancel
 
 **Why occupancy limits during pause?**
+
 - Memory bounds still apply (hard ceiling doesn't change)
 - If paused with high buffer, new resume could exceed soft limit
 - Metrics track this (paused_occupancy)

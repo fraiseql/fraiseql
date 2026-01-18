@@ -16,14 +16,17 @@ After completing Phase 8.1 (TLS Support), the project is ready for Phase 8.2. Th
 ## What Was Planned
 
 ### Phase 8.2: Typed Streaming
+
 **Goal**: Add generic, type-safe JSON streaming with automatic deserialization
 
 **Key API**:
+
 ```rust
 let mut stream = client.query::<Project>("projects").execute().await?;
 ```
 
 **Deliverables**:
+
 1. Generic QueryBuilder<T>
 2. TypedJsonStream<T> struct
 3. Comprehensive tests
@@ -36,26 +39,31 @@ let mut stream = client.query::<Project>("projects").execute().await?;
 ## Design Decisions Made
 
 ### 1. Generic vs Separate Method
+
 - **Decision**: Use generic `query::<T>()` on existing QueryBuilder
 - **Why**: More idiomatic, cleaner API, one method instead of two
 - **Alternative rejected**: Separate `query_typed::<T>()` method
 
 ### 2. Deserialization Timing
+
 - **Decision**: Lazy per-item in `poll_next()`
 - **Why**: Don't deserialize filtered rows, natural error flow
 - **Alternative rejected**: Deserialize all rows upfront
 
 ### 3. Rust Predicates
+
 - **Decision**: Keep JSON-based, applied before deserialization
 - **Why**: Simpler model, optimization, flexibility
 - **Alternative rejected**: Generic predicates over both JSON and T
 
 ### 4. Error Handling
+
 - **Decision**: New `Error::Deserialization { type_name, details }` variant
 - **Why**: Clear categorization, includes type info, includes serde details
 - **Alternative rejected**: Wrap serde_json::Error (loses type info)
 
 ### 5. Backward Compatibility
+
 - **Decision**: Default type parameter `T = serde_json::Value`
 - **Why**: All existing code works unchanged
 - **Impact**: Zero breaking changes, fully backward compatible
@@ -92,22 +100,26 @@ JsonStream → FilteredStream (opt) → TypedJsonStream<T> → User
 ## Implementation Breakdown
 
 ### Phase 8.2.1: Core Type System (2-3 days)
+
 - Refactor QueryBuilder to generic
 - Implement TypedJsonStream
 - Add deserialization error variant
 - All chainable methods preserve type
 
 ### Phase 8.2.2: Client Integration (1 day)
+
 - Update FraiseClient::query() to generic
 - PhantomData integration
 - Type inference support
 
 ### Phase 8.2.3: Stream Enhancement (1 day)
+
 - Verify FilteredStream compatibility
 - Ensure correct pipeline order
 - Minimal changes needed
 
 ### Phase 8.2.4: Comprehensive Tests (2-3 days)
+
 - Basic deserialization
 - Type mismatches
 - Nested types
@@ -117,16 +129,19 @@ JsonStream → FilteredStream (opt) → TypedJsonStream<T> → User
 - Error messages
 
 ### Phase 8.2.5: Example Program (1 day)
+
 - `examples/typed_streaming.rs`
 - Shows all patterns
 
 ### Phase 8.2.6: Documentation (2-3 days)
+
 - Full rustdoc
 - User guide
 - README section
 - FAQ
 
 ### Phase 8.2.7: Performance & QA (1-2 days)
+
 - Benchmarking
 - Code review
 - Final cleanup
@@ -138,12 +153,14 @@ JsonStream → FilteredStream (opt) → TypedJsonStream<T> → User
 ## Key Files to Create/Modify
 
 ### New
+
 - `.phases/phase-8-2-typed-streaming.md` ✅ (550 lines, comprehensive plan)
 - `src/stream/typed_stream.rs`
 - `examples/typed_streaming.rs`
 - `docs/TYPED_STREAMING.md`
 
 ### Modified
+
 - `src/client/query_builder.rs` (make generic)
 - `src/client/fraise_client.rs` (generic query method)
 - `src/error.rs` (add Deserialization variant)
@@ -168,11 +185,13 @@ JsonStream → FilteredStream (opt) → TypedJsonStream<T> → User
 ## Testing Coverage
 
 ### Unit Tests
+
 - Type parameter handling
 - Error construction
 - PhantomData size
 
 ### Integration Tests (real Postgres)
+
 - Simple struct deserialization
 - Nested types
 - Optional/Collection fields
@@ -180,6 +199,7 @@ JsonStream → FilteredStream (opt) → TypedJsonStream<T> → User
 - Error scenarios
 
 ### Benchmarks
+
 - Typed vs JSON throughput
 - Deserialization overhead
 - Memory impact
@@ -202,9 +222,11 @@ JsonStream → FilteredStream (opt) → TypedJsonStream<T> → User
 ## Documentation Generated
 
 ### 1. Detailed Implementation Plan
+
 **File**: `.phases/phase-8-2-typed-streaming.md`
 **Size**: 550+ lines
 **Content**:
+
 - Complete objective & design
 - 7 implementation phases with code examples
 - Error handling strategy
@@ -214,9 +236,11 @@ JsonStream → FilteredStream (opt) → TypedJsonStream<T> → User
 - Timeline estimates
 
 ### 2. Planning Summary
+
 **File**: `PHASE_8_2_PLANNING_SUMMARY.md`
 **Size**: 350+ lines
 **Content**:
+
 - Executive summary
 - Architecture overview
 - Implementation phases
@@ -227,8 +251,10 @@ JsonStream → FilteredStream (opt) → TypedJsonStream<T> → User
 - Next steps
 
 ### 3. Updated Phase Index
+
 **File**: `.claude/phases/PHASES_INDEX.md`
 **Changes**:
+
 - Phase 8.1 marked as ✅ complete
 - Phase 8.2 marked as 📋 ready to start
 - Added to quick links table
@@ -267,6 +293,7 @@ JsonStream → FilteredStream (opt) → TypedJsonStream<T> → User
 ## Success Criteria
 
 ### Functionality ✅
+
 - [x] API design complete
 - [x] Error handling strategy
 - [x] Backward compatibility plan
@@ -275,6 +302,7 @@ JsonStream → FilteredStream (opt) → TypedJsonStream<T> → User
 - [ ] Examples working
 
 ### Quality ✅
+
 - [x] > 90% test coverage target
 - [x] Zero clippy warnings requirement
 - [x] Complete rustdoc requirement
@@ -282,6 +310,7 @@ JsonStream → FilteredStream (opt) → TypedJsonStream<T> → User
 - [ ] Performance verification
 
 ### Documentation ✅
+
 - [x] Detailed plan written
 - [x] Planning summary created
 - [x] User guide outline
@@ -330,12 +359,14 @@ JsonStream → FilteredStream (opt) → TypedJsonStream<T> → User
 ## Next Actions (For Implementation)
 
 ### Immediate (Start Phase 8.2.1)
+
 1. Read `.phases/phase-8-2-typed-streaming.md`
 2. Refactor QueryBuilder to generic
 3. Implement TypedJsonStream
 4. Add deserialization error variant
 
 ### Following Phases
+
 5. Update FraiseClient API
 6. Write comprehensive tests
 7. Create example program
@@ -375,6 +406,7 @@ JsonStream → FilteredStream (opt) → TypedJsonStream<T> → User
 Phase 8.2 planning is **complete and thorough**. All design decisions have been made with clear rationales. The implementation plan is detailed enough to execute immediately while remaining flexible for refinements during coding.
 
 **Key Strengths**:
+
 - ✅ Backward compatible (default type parameter)
 - ✅ Lazy deserialization (efficient)
 - ✅ Clear error messages (type info included)

@@ -7,6 +7,7 @@ Fix the schema format mismatch that prevents all 10 language generators from com
 **Root Issue**: `"return_list"` → must be `"returns_list"`
 
 **Scope**: 11 files total
+
 - 1 canonical schema file (velocitybench_schemas.py)
 - 10 language generators (Python, TypeScript, Go, Java, PHP, Kotlin, C#, Rust, JavaScript, Ruby)
 
@@ -26,6 +27,7 @@ find . -type f -name "*.py" -o -name "*.ts" -o -name "*.go" -o -name "*.java" \
 ```
 
 **Expected locations:**
+
 - `fraiseql-python/fraiseql/schema.py` or `tests/e2e/velocitybench_schemas.py`
 - `fraiseql-typescript/src/schema.ts` or similar
 - `fraisier/langgen/*/generator.*`
@@ -44,6 +46,7 @@ grep -r "return_list" --include="*.py" --include="*.ts" --include="*.go" \
 ### Task 1.3: Verify this is the ONLY issue
 
 After fixing `return_list`, test one language:
+
 ```bash
 python3 -c "
 from tests.e2e.velocitybench_schemas import get_velocitybench_schema
@@ -76,6 +79,7 @@ If still failing after fix, investigate further. Document any additional issues.
 Search pattern: `"return_list":`
 
 Locations:
+
 - Line ~88 (ping query)
 - Line ~109 (users query)
 - Line ~131 (posts query)
@@ -83,6 +87,7 @@ Locations:
 - Line ~212 (other queries)
 
 **Verification**:
+
 ```python
 # After fix, check schema is still valid
 from tests.e2e.velocitybench_schemas import get_velocitybench_schema
@@ -98,12 +103,14 @@ print("✅ Schema format corrected")
 ### Task 3.1: Python Generator
 
 **Location**: Find where Python generates schema JSON
+
 - Likely: `fraiseql-python/fraiseql/schema.py` or similar
 - Look for: Function that returns query/mutation dicts
 
 **Change**: All occurrences of `"return_list"` → `"returns_list"`
 
 **Verification**:
+
 ```bash
 python3 -c "from tests.e2e.velocitybench_schemas import get_python_schema_code; \
   code = get_python_schema_code(); print('return_list' in code)"
@@ -113,6 +120,7 @@ python3 -c "from tests.e2e.velocitybench_schemas import get_python_schema_code; 
 ### Task 3.2: TypeScript Generator
 
 **Location**: Find where TypeScript generates schema JSON
+
 - Likely: `fraiseql-typescript/src/schema.ts` or in test examples
 - Look for: Functions returning query/mutation objects
 
@@ -121,6 +129,7 @@ python3 -c "from tests.e2e.velocitybench_schemas import get_python_schema_code; 
 ### Task 3.3: Go Generator
 
 **Location**: `fraisier/langgen/golang/generator.go` or similar
+
 - Look for: String literals with `"return_list"`
 - May use struct field mapping
 
@@ -129,6 +138,7 @@ python3 -c "from tests.e2e.velocitybench_schemas import get_python_schema_code; 
 ### Task 3.4: Java Generator
 
 **Location**: `fraisier/langgen/java/generator.java` or similar
+
 - Look for: String constants or JSON building code
 
 **Change**: Update all string references
@@ -136,6 +146,7 @@ python3 -c "from tests.e2e.velocitybench_schemas import get_python_schema_code; 
 ### Task 3.5: PHP Generator
 
 **Location**: `fraisier/langgen/php/generator.php` or similar
+
 - Look for: Array keys or string literals
 
 **Change**: Update all keys
@@ -143,6 +154,7 @@ python3 -c "from tests.e2e.velocitybench_schemas import get_python_schema_code; 
 ### Task 3.6: Kotlin Generator
 
 **Location**: `fraisier/langgen/kotlin/generator.kt` or similar
+
 - Look for: JSON building or string literals
 
 **Change**: Update all occurrences
@@ -150,6 +162,7 @@ python3 -c "from tests.e2e.velocitybench_schemas import get_python_schema_code; 
 ### Task 3.7: C# Generator
 
 **Location**: `fraisier/langgen/csharp/generator.cs` or similar
+
 - Look for: String literals or property names
 
 **Change**: Update all occurrences
@@ -157,6 +170,7 @@ python3 -c "from tests.e2e.velocitybench_schemas import get_python_schema_code; 
 ### Task 3.8: Rust Generator
 
 **Location**: `fraisier/langgen/rust/generator.rs` or similar
+
 - Look for: JSON or map building code
 
 **Change**: Update all occurrences
@@ -164,6 +178,7 @@ python3 -c "from tests.e2e.velocitybench_schemas import get_python_schema_code; 
 ### Task 3.9: JavaScript Generator
 
 **Location**: `fraisier/langgen/javascript/generator.js` or similar
+
 - Look for: Object property keys or JSON strings
 
 **Change**: Update all occurrences
@@ -171,6 +186,7 @@ python3 -c "from tests.e2e.velocitybench_schemas import get_python_schema_code; 
 ### Task 3.10: Ruby Generator
 
 **Location**: `fraisier/langgen/ruby/generator.rb` or similar
+
 - Look for: Symbol keys or string literals
 
 **Change**: Update all occurrences
@@ -214,6 +230,7 @@ python3 tests/e2e/velocitybench_compilation_test.py
 ```
 
 **Expected Output**:
+
 ```
 ======================================================================
 Phase 2: CLI Compilation E2E Test
@@ -277,11 +294,13 @@ else:
    - Ensure mutations have `"operation"` field if specified
 
 2. **Debug with verbose output**:
+
    ```bash
    ./target/release/fraiseql-cli compile schema.json -o out.json --debug
    ```
 
 3. **Run CLI tests**:
+
    ```bash
    cargo test -p fraiseql-cli schema::tests
    ```
@@ -293,6 +312,7 @@ else:
 ### If one language produces different output
 
 1. **Compare JSON structures**:
+
    ```bash
    diff -u <(jq -S . compiled_python.json) <(jq -S . compiled_typescript.json)
    ```
@@ -326,6 +346,7 @@ All of the following must pass:
 ## Next Steps After Fix
 
 1. **Commit Changes**:
+
    ```bash
    git add -A
    git commit -m "fix(schema): Normalize schema field names for CLI compatibility"
@@ -337,6 +358,7 @@ All of the following must pass:
    - Add examples for each language
 
 3. **Run Full Test Suite**:
+
    ```bash
    cargo test
    python3 -m pytest tests/

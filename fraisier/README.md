@@ -35,6 +35,7 @@ github.com/fraiseql/fraiseql
 ```
 
 **FraiseQL architecture:**
+
 1. **Author schema** in any language (Python, TypeScript, YAML, etc.)
 2. **Compile** with `fraiseql-cli compile` → `CompiledSchema.json`
 3. **Run** with `fraiseql-server` (Rust runtime)
@@ -175,6 +176,7 @@ fraisier.db (SQLite)  →  State & History (what's deployed)
 ```
 
 Fraisier follows the CQRS pattern with clear separation:
+
 - **Write tables** (`tb_*`): Record deployments, webhooks, state changes
 - **Read views** (`v_*`): Query deployment history, statistics, status
 
@@ -214,6 +216,7 @@ Fraisier integrates with the entire FraiseQL stack:
 | **fraiseql-data** | Seed data generation | Dev/test environments |
 
 **Deployment flow:**
+
 ```bash
 # What fraisier deploy does under the hood:
 confiture build                    # 1. Build database schema
@@ -223,6 +226,7 @@ fraiseql-server --schema ...       # 4. Start runtime
 ```
 
 **One clone, everything you need:**
+
 ```bash
 git clone https://github.com/fraiseql/fraiseql
 cd fraiseql/fraisier

@@ -3,6 +3,7 @@
 ## Current State
 
 **Phase 6 Results**:
+
 - 10K rows: 51.9ms (matches PostgreSQL 52ms)
 - Latency gap: 0% (CLOSED)
 - All 158 tests passing
@@ -21,6 +22,7 @@
 **Problem**: `tokio::spawn()` allocates new task for every query (~8-10ms original estimate)
 
 **However**: With Phases 1-6 already implemented, actual tokio::spawn overhead is now much smaller because:
+
 - Buffer cloning eliminated (Phase 1)
 - Channel contention reduced (Phase 2)
 - Metrics overhead eliminated (Phases 3-4)
@@ -30,6 +32,7 @@
 **Estimated remaining cost**: 1-2ms (vs 8-10ms originally)
 
 **Solution**: Use different code paths for small result sets
+
 ```rust
 // Small result sets: Process inline in caller's task
 if estimated_rows < 50_000 {
@@ -42,11 +45,13 @@ if estimated_rows < 50_000 {
 ```
 
 **Pros**:
+
 - Could save 1-2ms on small sets
 - No allocation overhead for small queries
 - Still maintains streaming semantics
 
 **Cons**:
+
 - ⚠️ **HIGH COMPLEXITY**: Requires completely different code paths
 - ⚠️ **HIGH RISK**: Potential for blocking on network I/O
 - ⚠️ **Testing burden**: Must test both paths thoroughly
@@ -63,11 +68,13 @@ if estimated_rows < 50_000 {
 **Problem**: Full `Arc<Mutex<StreamState>>` is overkill for queries that never pause (97%)
 
 **Current State** (with Phase 6):
+
 - Lazy-allocated now, so only if pause() called
 - Most queries pay zero cost
 - Only 3% of queries allocate the Mutex
 
 **Further Optimization**:
+
 ```rust
 // Use simple atomic for common case
 state: Arc<AtomicU8>,  // 0=Running, 1=Paused, 2=Complete
@@ -81,11 +88,13 @@ if needs_pause {
 **Estimated Savings**: 0.5-1ms (from AtomicU8 vs Mutex allocation)
 
 **Pros**:
+
 - Modest complexity increase
 - Lower risk (detection logic is straightforward)
 - Could save ~0.5ms more
 
 **Cons**:
+
 - Minimal gain (0.5ms on already 51.9ms baseline)
 - Adds dual-path logic in state checking
 - More code to maintain
@@ -101,6 +110,7 @@ if needs_pause {
 **Problem**: Two separate Arc<Notify> allocations (pause and resume signals)
 
 **Solution**: Combine into single Arc
+
 ```rust
 // BEFORE
 pause_signal: Arc<Notify>,
@@ -113,11 +123,13 @@ signals: Arc<(Notify, Notify)>
 **Estimated Savings**: 0.2-0.5ms (minor Arc allocation overhead)
 
 **Pros**:
+
 - Very low risk (just restructuring)
 - Minimal code changes
 - Clean design (related items grouped)
 
 **Cons**:
+
 - 0.2-0.5ms savings on already 51.9ms baseline (<1% improvement)
 - Changes internal structure
 - Minimal real-world benefit
@@ -131,6 +143,7 @@ signals: Arc<(Notify, Notify)>
 **Problem**: MPSC channel capacity is parameter-based, adds indirection
 
 **Solution**: Use fixed capacity (e.g., 256) for 95%+ of queries
+
 ```rust
 // BEFORE: Parameterized
 let (tx, rx) = mpsc::channel::<Result<Value>>(chunk_size);
@@ -143,11 +156,13 @@ let (tx, rx) = mpsc::channel::<Result<Value>>(256);
 **Estimated Savings**: 0.2-0.5ms (allocation overhead)
 
 **Pros**:
+
 - Very low risk
 - Simplifies initialization
 - Fixed capacity is plenty for typical use
 
 **Cons**:
+
 - 0.2-0.5ms savings on 51.9ms baseline (<1% improvement)
 - Removes flexibility
 - May not be suitable for all use cases
@@ -173,6 +188,7 @@ Final theoretical: 48-50ms (vs PostgreSQL's 52ms)
 ```
 
 **Reality Check**:
+
 - PostgreSQL performance varies by system, load, cache state
 - Our baseline (51.9ms) already matches PostgreSQL (52ms)
 - Further gains are sub-millisecond (measurement noise territory)
@@ -197,6 +213,7 @@ Final theoretical: 48-50ms (vs PostgreSQL's 52ms)
 ### Option A: Stop at Phase 6 ✅ RECOMMENDED
 
 **Rationale**:
+
 - ✅ Performance matches PostgreSQL (51.9ms vs 52ms)
 - ✅ Latency gap closed (23.5% → 0%)
 - ✅ All tests passing (158/158)
@@ -212,6 +229,7 @@ Final theoretical: 48-50ms (vs PostgreSQL's 52ms)
 ### Option B: Implement Phase 8 Only (Lightweight State)
 
 **Rationale**:
+
 - Low-risk optimization (~0.5-1ms)
 - Could push toward sub-50ms territory
 - Detection logic is simple
@@ -229,6 +247,7 @@ Final theoretical: 48-50ms (vs PostgreSQL's 52ms)
 ### Option C: Implement Phase 7 (Spawn-less Streaming)
 
 **Rationale**:
+
 - Could save 1-2ms on small queries
 - Might be worth if targeting <45ms latency
 - Already matches PostgreSQL, so not critical
@@ -239,6 +258,7 @@ Final theoretical: 48-50ms (vs PostgreSQL's 52ms)
 **Code Complexity**: +100-200 lines, multiple code paths
 
 **When to choose**: ONLY if:
+
 1. Benchmarks require <45ms for SLA
 2. Customer explicitly requests it
 3. You have time for extensive testing
@@ -257,6 +277,7 @@ Final theoretical: 48-50ms (vs PostgreSQL's 52ms)
 **Verdict**: ❌ **STRONGLY NOT RECOMMENDED**
 
 **Why**:
+
 - Diminishing returns (each phase worth less than previous)
 - Risk accumulation (bugs compound)
 - Code maintenance burden increases significantly
@@ -299,25 +320,29 @@ Phases 9-10: "0.2-0.5ms savings each"
 
 ## Decision Framework
 
-### Stop at Phase 6 If:
+### Stop at Phase 6 If
+
 - ✅ Performance matches target (51.9ms ≈ 52ms PostgreSQL) ← **Current state**
 - ✅ Latency gap closed (0%) ← **Current state**
 - ✅ Tests all passing (158/158) ← **Current state**
 - ✅ Code is clean and maintainable ← **Current state**
 - ✅ No external SLA requirements pushing below 50ms
 
-### Pursue Phase 8 Only If:
+### Pursue Phase 8 Only If
+
 - Customer explicitly requests sub-50ms performance
 - You need 0.5-1ms additional headroom
 - Willing to accept minimal code complexity increase
 
-### Pursue Phase 7 If:
+### Pursue Phase 7 If
+
 - ⚠️ Contractual SLA requires <45ms latency
 - ⚠️ Willing to invest 2-4 weeks of effort
 - ⚠️ Extensive testing budget available
 - ⚠️ Understand the risk of introducing subtle bugs
 
-### Pursue Phases 9-10:
+### Pursue Phases 9-10
+
 - ❌ **NOT RECOMMENDED** - Not worth the code maintenance burden
 
 ---
@@ -325,7 +350,9 @@ Phases 9-10: "0.2-0.5ms savings each"
 ## Conclusion
 
 ### Current Status (Phase 6)
+
 ✅ **EXCELLENT**
+
 - Matches PostgreSQL performance (51.9ms)
 - Closed 23.5% latency gap
 - All tests passing
@@ -333,15 +360,19 @@ Phases 9-10: "0.2-0.5ms savings each"
 - Optimal risk/reward ratio
 
 ### Further Optimization
+
 ⚠️ **DIMINISHING RETURNS**
+
 - Phase 7: 1-2ms, HIGH risk, HIGH effort
 - Phase 8: 0.5-1ms, LOW risk, MEDIUM effort
 - Phases 9-10: <0.5ms each, negligible benefit
 
 ### Recommendation
+
 ✅ **STOP AT PHASE 6**
 
 The optimization effort has reached a natural stopping point where:
+
 1. Primary objective achieved (match PostgreSQL)
 2. Secondary objective exceeded (closed 23.5% gap)
 3. Further gains are marginal
@@ -350,9 +381,10 @@ The optimization effort has reached a natural stopping point where:
 
 **fraiseql-wire is production-ready with excellent performance.**
 
-### If You Want to Continue...
+### If You Want to Continue
 
 **Phase 8 is the only reasonable next step** if you must optimize further:
+
 - Lowest risk (detection logic is simple)
 - Modest complexity (dual-path state handling)
 - Small but measurable gain (0.5-1ms)

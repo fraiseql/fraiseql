@@ -13,6 +13,7 @@ Enterprise-grade security, compliance, and audit capabilities.
 | [rbac.md](rbac.md) | Role-Based Access Control | 844 | 60 min |
 
 **Topics Covered:**
+
 - Hierarchical role system
 - Field-level permissions
 - Row-level security
@@ -29,6 +30,7 @@ Enterprise-grade security, compliance, and audit capabilities.
 | [audit-logging.md](audit-logging.md) | Cryptographic audit trails | 887 | 60 min |
 
 **Topics Covered:**
+
 - Immutable audit log
 - HMAC signature chains
 - Tamper detection
@@ -45,6 +47,7 @@ Enterprise-grade security, compliance, and audit capabilities.
 | [kms.md](kms.md) | Key Management Service integration | 854 | 50 min |
 
 **Topics Covered:**
+
 - Field-level encryption
 - AWS KMS integration
 - Azure Key Vault integration
@@ -57,11 +60,13 @@ Enterprise-grade security, compliance, and audit capabilities.
 ## 🎯 Quick Start
 
 **For Security Engineers:**
+
 1. Read [rbac.md](rbac.md) for access control design
 2. Review [audit-logging.md](audit-logging.md) for compliance requirements
 3. Configure [kms.md](kms.md) for data encryption
 
 **For Compliance Teams:**
+
 1. Start with [audit-logging.md](audit-logging.md)
 2. Review security profiles in [Specs: Security Compliance](../specs/security-compliance.md)
 3. Understand RBAC enforcement in [rbac.md](rbac.md)

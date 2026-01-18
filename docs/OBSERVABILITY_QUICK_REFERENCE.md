@@ -220,31 +220,37 @@ RUST_BACKTRACE=1
 ## Debugging Checklist
 
 1. **Check Health**
+
    ```bash
    curl http://localhost:8000/health
    ```
 
 2. **View Metrics**
+
    ```bash
    curl http://localhost:8000/metrics
    ```
 
 3. **Check Logs**
+
    ```bash
    RUST_LOG=debug cargo run
    ```
 
 4. **Verify Database**
+
    ```bash
    psql $DATABASE_URL -c "SELECT NOW();"
    ```
 
 5. **Test Prometheus Scrape**
+
    ```bash
    curl http://prometheus:9090/api/v1/targets
    ```
 
 6. **View Grafana Logs**
+
    ```bash
    docker-compose logs grafana
    ```
@@ -252,11 +258,13 @@ RUST_BACKTRACE=1
 ## Performance Tuning
 
 ### Slow Query Threshold
+
 ```rust
 let monitor = PerformanceMonitor::new(50.0); // 50ms instead of 100ms
 ```
 
 ### Connection Pool
+
 ```toml
 [pool]
 min_size = 5
@@ -265,6 +273,7 @@ timeout_secs = 30
 ```
 
 ### Logging Volume
+
 ```bash
 # Reduce log volume in production
 RUST_LOG=info,tower_http=warn,axum=warn

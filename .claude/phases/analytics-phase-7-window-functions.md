@@ -10,6 +10,7 @@
 ## Objective
 
 Implement SQL window functions for advanced analytical queries:
+
 - Ranking functions (ROW_NUMBER, RANK, DENSE_RANK, NTILE)
 - Value functions (LAG, LEAD, FIRST_VALUE, LAST_VALUE, NTH_VALUE)
 - Aggregate window functions (running totals, moving averages)
@@ -22,6 +23,7 @@ Implement SQL window functions for advanced analytical queries:
 Window functions enable powerful analytical queries that cannot be expressed with GROUP BY:
 
 **Examples**:
+
 ```sql
 -- Running total by category
 SELECT
@@ -52,6 +54,7 @@ FROM tf_sales;
 ```
 
 **Database Support**:
+
 - PostgreSQL: Full support (all functions + GROUPS frame)
 - MySQL 8.0+: Full support (no GROUPS frame)
 - SQLite 3.25+: Full support (no GROUPS frame)
@@ -62,16 +65,19 @@ FROM tf_sales;
 ## Files to Create
 
 ### Compiler Module
+
 ```
 crates/fraiseql-core/src/compiler/window_functions.rs
 ```
 
 ### Runtime Module
+
 ```
 crates/fraiseql-core/src/runtime/window.rs
 ```
 
 ### Tests
+
 ```
 crates/fraiseql-core/src/compiler/window_functions.rs (unit tests)
 crates/fraiseql-core/src/runtime/window.rs (unit tests)
@@ -87,6 +93,7 @@ tests/integration/window_functions_test.rs (integration tests)
 **Duration**: 4 hours
 
 **Code**:
+
 ```rust
 //! Window Function Planning Module
 //!
@@ -450,12 +457,14 @@ mod tests {
 ```
 
 **Tests to Add**:
+
 - Serialization/deserialization of all types
 - Plan generation from JSON queries
 - Validation of PARTITION BY columns
 - Validation of frame types per database
 
 **Verification**:
+
 ```bash
 cargo test -p fraiseql-core window_functions
 ```
@@ -467,6 +476,7 @@ cargo test -p fraiseql-core window_functions
 **Duration**: 6 hours
 
 **Code**:
+
 ```rust
 //! Window Function SQL Generation
 //!
@@ -890,6 +900,7 @@ mod tests {
 ```
 
 **Tests to Add**:
+
 - ROW_NUMBER, RANK, DENSE_RANK generation
 - LAG/LEAD with defaults
 - Running totals with frames
@@ -897,6 +908,7 @@ mod tests {
 - Multi-database SQL generation
 
 **Verification**:
+
 ```bash
 cargo test -p fraiseql-core runtime::window
 ```
@@ -1125,6 +1137,7 @@ async fn test_execute_window_query() {
 ```
 
 **Verification**:
+
 ```bash
 # Unit tests
 cargo test -p fraiseql-core window
@@ -1140,6 +1153,7 @@ cargo test --test window_functions_test -- --ignored
 **Duration**: 30 minutes
 
 Update `compiler/mod.rs`:
+
 ```rust
 pub mod window_functions;
 
@@ -1147,6 +1161,7 @@ pub use window_functions::{WindowFunctionPlanner, WindowExecutionPlan, WindowFun
 ```
 
 Update `runtime/mod.rs`:
+
 ```rust
 pub mod window;
 
@@ -1266,6 +1281,7 @@ query PeriodOverPeriod {
   }
 }
 ```
+
 ```
 
 ---
@@ -1309,6 +1325,7 @@ cargo test -p fraiseql-core
 ```
 
 **Expected Output**:
+
 ```
 running 25 tests
 test compiler::window_functions::tests::test_window_function_type_serialization ... ok
@@ -1335,18 +1352,21 @@ test result: ok. 25 passed; 0 failed; 0 ignored
 ## Notes
 
 **Database Compatibility**:
+
 - PostgreSQL: Full support including GROUPS frames
 - MySQL 8.0+: No GROUPS, no EXCLUDE
 - SQLite 3.25+: No GROUPS, no EXCLUDE, no PERCENT_RANK/CUME_DIST
 - SQL Server: STDEV/VAR instead of STDDEV/VARIANCE
 
 **Performance Considerations**:
+
 - Window functions can be expensive on large datasets
 - Add WHERE clause filters before window computation
 - Use LIMIT to restrict result size
 - Consider materialized views for frequently-used windows
 
 **Common Use Cases**:
+
 - Top-N per category (ROW_NUMBER with PARTITION BY)
 - Running totals / cumulative sums
 - Moving averages (time series)

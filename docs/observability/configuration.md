@@ -252,17 +252,20 @@ Database connection string for metrics storage.
 **Options**:
 
 1. **Same database as application** (simple):
+
    ```toml
    # Omit this setting to use main database
    ```
 
 2. **Separate database on same server** (recommended):
+
    ```toml
    [observability.database]
    url = "postgres://app:pass@localhost:5432/fraiseql_metrics"
    ```
 
 3. **Separate metrics server** (production best practice):
+
    ```toml
    [observability.database]
    url = "postgres://metrics:pass@metrics-db.internal:5432/metrics"
@@ -746,11 +749,13 @@ GO
 If auto-creation is disabled or fails:
 
 **PostgreSQL**:
+
 ```bash
 psql -U fraiseql_metrics -d fraiseql_metrics -f schema/postgres_metrics.sql
 ```
 
 **SQL Server**:
+
 ```bash
 sqlcmd -S localhost -U fraiseql_metrics -P password -i schema/sqlserver_metrics.sql
 ```
@@ -853,23 +858,27 @@ ORDER BY hour DESC;
 **Check**:
 
 1. Is observability enabled?
+
    ```bash
    echo $FRAISEQL_OBSERVABILITY_ENABLED
    # Should output: true
    ```
 
 2. Is sample rate too low?
+
    ```bash
    echo $FRAISEQL_OBSERVABILITY_SAMPLE_RATE
    # Should be > 0.0
    ```
 
 3. Check database connection:
+
    ```bash
    psql $FRAISEQL_METRICS_DATABASE_URL -c "SELECT 1"
    ```
 
 4. Check application logs:
+
    ```
    grep "observability" app.log
    ```
@@ -899,18 +908,21 @@ flush_interval_secs = 30  # Flush more frequently
 **Solutions**:
 
 1. **Increase timeout**:
+
    ```toml
    [observability.database]
    timeout_secs = 60  # From 30
    ```
 
 2. **Increase pool size**:
+
    ```toml
    [observability.database]
    pool_size = 20  # From 10
    ```
 
 3. **Use separate database** (recommended):
+
    ```toml
    [observability.database]
    url = "postgres://metrics-only-db:5432/metrics"

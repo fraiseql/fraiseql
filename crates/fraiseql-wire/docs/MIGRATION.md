@@ -7,6 +7,7 @@ Guide for migrating existing code to use new operators and query modifiers (Phas
 **Good News**: This is a **non-breaking change**. Your existing code continues to work unchanged.
 
 The new operator system is purely additive - you can:
+
 - Keep using `where_sql()` with raw SQL strings
 - Gradually migrate to type-safe operators
 - Mix both approaches in the same application
@@ -16,10 +17,12 @@ The new operator system is purely additive - you can:
 ### Phase 0: Field Source Support
 
 **Before**:
+
 - All filters assumed JSONB fields
 - Direct column filtering not well documented
 
 **After**:
+
 - Explicit field sources: `JsonbPayload` vs `DirectColumn`
 - Automatic type casting for JSONB text extraction
 - Mixed filtering support in single WHERE clause
@@ -27,12 +30,14 @@ The new operator system is purely additive - you can:
 ### Phase 1: Query Modifiers
 
 **Before**:
+
 ```rust
 // Only raw ORDER BY strings
 .order_by("data->>'name' ASC")
 ```
 
 **After**:
+
 ```rust
 // ORDER BY with collation support
 .order_by("(data->>'name') COLLATE \"en-US\" ASC")
@@ -45,6 +50,7 @@ The new operator system is purely additive - you can:
 ### Phases 2-3: Operators
 
 **Before**:
+
 ```rust
 // Hard to remember correct SQL syntax
 .where_sql("(data->>'status')::text = 'active'")
@@ -53,6 +59,7 @@ The new operator system is purely additive - you can:
 ```
 
 **After**:
+
 ```rust
 // Same raw SQL still works ✓
 
@@ -68,6 +75,7 @@ The new operator system is purely additive - you can:
 ### ✅ No Changes Required
 
 Your existing code automatically benefits from:
+
 - Better type casting in JSONB filters
 - LIMIT/OFFSET support
 - ORDER BY with collation
@@ -110,6 +118,7 @@ client
 ### Example 1: Basic Filtering
 
 **Before** (still works):
+
 ```rust
 let results = client
     .query::<Project>("projects")
@@ -120,6 +129,7 @@ let results = client
 ```
 
 **After** (enhanced):
+
 ```rust
 let results = client
     .query::<Project>("projects")
@@ -134,11 +144,13 @@ let results = client
 ### Example 2: Internationalization (i18n)
 
 **Before** (no collation):
+
 ```rust
 .order_by("data->>'name' ASC")  // ASCII-only sorting
 ```
 
 **After** (with locale-aware collation):
+
 ```rust
 // English US
 .order_by("(data->>'name') COLLATE \"en-US\" ASC")
@@ -153,6 +165,7 @@ let results = client
 ### Example 3: Pagination
 
 **Before** (no pagination in fraiseql-wire):
+
 ```rust
 // Had to use application-level pagination
 let all = client
@@ -166,6 +179,7 @@ let all = client
 ```
 
 **After** (SQL-level pagination):
+
 ```rust
 // SQL does the pagination
 let page1 = client
@@ -190,11 +204,13 @@ let page2 = client
 ### Example 4: Array Length
 
 **Before** (remember correct casting syntax):
+
 ```rust
 .where_sql("array_length((data->'tags')::text[], 1) > 3")
 ```
 
 **After** (JSONB-aware casting):
+
 ```rust
 .where_sql("jsonb_array_length(data->'tags') > 3")  // ✨ Cleaner for JSONB
 ```
@@ -202,11 +218,13 @@ let page2 = client
 ### Example 5: Full-Text Search
 
 **Before** (raw SQL):
+
 ```rust
 .where_sql("(data->>'content') @@ plainto_tsquery('english', 'machine learning')")
 ```
 
 **After** (same syntax, better documented):
+
 ```rust
 .where_sql("(data->>'content') @@ plainto_tsquery('english', 'machine learning')")
 // See docs/OPERATORS.md for full-text search guide
@@ -217,6 +235,7 @@ let page2 = client
 **None**. ✅
 
 All existing APIs remain unchanged:
+
 - `where_sql()` works exactly as before
 - `order_by()` accepts same syntax
 - No changes to `execute()` or streaming
@@ -261,6 +280,7 @@ All existing APIs remain unchanged:
 ### Q: How do I choose between collations?
 
 **A**:
+
 - Use `C` for binary/fastest sorting
 - Use `en-US` for English locale-aware (accents, case)
 - Use `de-DE` for German (ö, ä, ü)
@@ -273,6 +293,7 @@ All existing APIs remain unchanged:
 ### Q: How do I handle NULL values in ORDER BY?
 
 **A**:
+
 ```rust
 .order_by("(data->>'name') ASC NULLS LAST")  // NULLs at end
 .order_by("(data->>'name') ASC NULLS FIRST") // NULLs at start
@@ -349,4 +370,3 @@ async fn test_migration() {
 - [Operators Reference](OPERATORS.md)
 - [Streaming Guide](STREAMING.md)
 - [Query Builder API](../README.md)
-

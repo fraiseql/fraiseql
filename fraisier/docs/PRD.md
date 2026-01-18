@@ -105,6 +105,7 @@ Part of the FraiseQL ecosystem:
 ### Fraisier is a Fraise
 
 Fraisier itself is a fraise - a FraiseQL API that:
+
 - Follows CQRS patterns
 - Has its own database
 - Can deploy itself
@@ -273,12 +274,14 @@ def deploy(fraise: str, environment: str) -> Deployment:
 ```
 
 **FraiseQL principles:**
+
 - **Compiled, not interpreted** - All GraphQL resolved at build time
 - **Deterministic** - No resolvers, no hooks, no dynamic logic
 - **Database-centric** - Business logic lives in SQL
 - **Multi-database** - PostgreSQL, MySQL, SQL Server, SQLite
 
 **Fraisier as a FraiseQL project:**
+
 - Schema authored in your preferred language (Python, TypeScript, etc.)
 - Compiled to `CompiledSchema.json`
 - Served by the Rust runtime (`fraiseql-server`)
@@ -975,6 +978,7 @@ environments:
 ```
 
 **Why Coolify?**
+
 - Open source
 - Self-hostable
 - Handles infrastructure complexity
@@ -1245,6 +1249,7 @@ Hosted FraiseQL platform, powered by Fraisier:
 ## Roadmap
 
 ### v0.1.0 - MVP
+
 - [x] Fraise registry (fraises.yaml)
 - [x] SQLite database (CQRS)
 - [x] CLI: list, deploy, status, history
@@ -1253,29 +1258,34 @@ Hosted FraiseQL platform, powered by Fraisier:
 - [ ] Providers: bare-metal, docker-compose
 
 ### v0.2.0 - Providers
+
 - [ ] Coolify provider
 - [ ] AWS provider (ECS)
 - [ ] Scaleway provider
 - [ ] PostgreSQL support
 
 ### v0.3.0 - Polish
+
 - [ ] Custom Git provider support (plugin API)
 - [ ] Deployment locks
 - [ ] Slack/Discord notifications
 - [ ] Web UI (optional)
 
 ### v1.0.0 - Production Ready
+
 - [ ] All major deployment providers
 - [ ] Full documentation
 - [ ] Comprehensive tests
 - [ ] Battle-tested
 
 ### v1.1.0 - Multi-Language
+
 - [ ] fraisier-ts (TypeScript implementation)
 - [ ] fraisier-go (Go implementation)
 - [ ] Implementation guide for new languages
 
 ### Future
+
 - [ ] fraisier-rs (Rust implementation)
 - [ ] FraiseQL Cloud (hosted platform)
 - [ ] SQL Server support

@@ -17,6 +17,7 @@ The fraiseql-wire streaming JSON adapter has completed 8 phases of optimization 
 ## Test Results Overview
 
 ### Unit Tests
+
 ```
 ✅ All 158 library tests passing
    - Zero panics or assertion failures
@@ -25,6 +26,7 @@ The fraiseql-wire streaming JSON adapter has completed 8 phases of optimization 
 ```
 
 ### Integration Tests
+
 ```
 ✅ Benchmark suite runs successfully
    - Mock benchmarks: All passing
@@ -34,6 +36,7 @@ The fraiseql-wire streaming JSON adapter has completed 8 phases of optimization 
 ```
 
 ### Code Quality
+
 ```
 ✅ Compilation: Success
    - Minor warnings (unused imports/variables): Non-critical
@@ -46,13 +49,16 @@ The fraiseql-wire streaming JSON adapter has completed 8 phases of optimization 
 ## Optimization Phases & Validation
 
 ### Phase 1: Protocol Decode Buffer Cloning (5-8% potential)
+
 **Status**: ✅ Complete & Validated
 
 **What was optimized**:
+
 - Eliminated buffer cloning on every message decode (100K+ times per query)
 - Changed from cloning full `Bytes` to working with `&mut BytesMut` slices
 
 **Validation**:
+
 - Code review: ✅ No unsafe code
 - Tests: ✅ All passing
 - Performance: ✅ Expected 5-8% improvement
@@ -61,13 +67,16 @@ The fraiseql-wire streaming JSON adapter has completed 8 phases of optimization 
 ---
 
 ### Phase 2: MPSC Channel Batching (3-5% potential)
+
 **Status**: ✅ Complete & Validated
 
 **What was optimized**:
+
 - Reduced lock acquisitions on MPSC channel by 8x
 - Batched JSON values (size: 8) before sending
 
 **Validation**:
+
 - Code review: ✅ Lock contention reduced
 - Tests: ✅ All passing
 - Stress test: ✅ High throughput stable
@@ -78,14 +87,17 @@ The fraiseql-wire streaming JSON adapter has completed 8 phases of optimization 
 ---
 
 ### Phase 3: Metrics Sampling (2-3% potential)
+
 **Status**: ✅ Complete & Validated
 
 **What was optimized**:
+
 - Sample channel occupancy 1-in-1000 polls
 - Sample filter evaluation timing 1-in-1000
 - Removed unconditional timing from hot paths
 
 **Validation**:
+
 - Code review: ✅ Sampling correct
 - Tests: ✅ All passing
 - Overhead: ✅ 99.9% of paths unaffected
@@ -95,13 +107,16 @@ The fraiseql-wire streaming JSON adapter has completed 8 phases of optimization 
 ---
 
 ### Phase 4: Chunk Metrics Sampling (2-3% potential)
+
 **Status**: ✅ Complete & Validated
 
 **What was optimized**:
+
 - Chunk processing metrics sampled 1-in-10
 - Module-level atomic counter prevents per-chunk overhead
 
 **Validation**:
+
 - Code review: ✅ Sample counter safe
 - Tests: ✅ All passing
 - Chunk overhead: ✅ 90% reduction achieved
@@ -110,14 +125,17 @@ The fraiseql-wire streaming JSON adapter has completed 8 phases of optimization 
 ---
 
 ### Phase 5: Simplified State Machine (1-2% potential)
+
 **Status**: ✅ Complete & Validated
 
 **What was optimized**:
+
 - Removed `Arc<Mutex<Option<Instant>>>` for pause timing
 - Kept pause/resume state but removed duration tracking
 - Simplified synchronization for rarely-used feature
 
 **Validation**:
+
 - Code review: ✅ State machine logic correct
 - Tests: ✅ All passing
 - Pause/resume: ✅ Functional, not broken
@@ -127,13 +145,16 @@ The fraiseql-wire streaming JSON adapter has completed 8 phases of optimization 
 ---
 
 ### Phase 6: Lazy Pause/Resume Initialization (2% potential)
+
 **Status**: ✅ Complete & Validated
 
 **What was optimized**:
+
 - Pause/resume infrastructure only initialized when actually used
 - Saves initialization overhead for queries that never pause
 
 **Validation**:
+
 - Code review: ✅ Lazy logic correct
 - Tests: ✅ All passing
 - Normal queries: ✅ Faster (no pause overhead)
@@ -143,13 +164,16 @@ The fraiseql-wire streaming JSON adapter has completed 8 phases of optimization 
 ---
 
 ### Phase 7: Spawn-less Architecture (1-2% potential)
+
 **Status**: ✅ Analyzed & Validated
 
 **What was attempted**:
+
 - Evaluate removing background task spawning
 - Analysis: Showed minimal benefit vs complexity cost
 
 **Validation**:
+
 - Code review: ✅ Current architecture optimal
 - Tests: ✅ All passing
 - Decision: ✅ Not implemented (cost/benefit justified)
@@ -158,14 +182,17 @@ The fraiseql-wire streaming JSON adapter has completed 8 phases of optimization 
 ---
 
 ### Phase 8: Lightweight State Machine (Foundation)
+
 **Status**: ✅ Complete & Validated
 
 **What was optimized**:
+
 - Atomic `u8` state instead of heavier synchronization
 - Minimal state footprint for AsyncRead wrapper
 - Foundation for future optimizations
 
 **Validation**:
+
 - Code review: ✅ Atomic operations correct
 - Tests: ✅ All passing (158/158)
 - State safety: ✅ Verified
@@ -179,18 +206,21 @@ The fraiseql-wire streaming JSON adapter has completed 8 phases of optimization 
 ### Throughput Benchmarks
 
 **1K Rows**:
+
 ```
 throughput: 4,331.9 - 4,353.7 Gelem/s
 Status: ✅ Baseline maintained
 ```
 
 **10K Rows**:
+
 ```
 throughput: 43,414 - 43,446 Gelem/s
 Status: ✅ Baseline maintained
 ```
 
 **100K Rows**:
+
 ```
 throughput: 434,416 - 436,518 Gelem/s
 Status: ✅ Baseline maintained
@@ -205,6 +235,7 @@ Status: ✅ Baseline maintained
 **1M Rows**: 22.630 - 22.681 ns
 
 **Critical Finding**: ✅ **TTFR is identical (~22.6 ns) regardless of result set size**
+
 - No added overhead from optimizations
 - Consistent latency across scales
 - **ZERO REGRESSION DETECTED**
@@ -217,6 +248,7 @@ Status: ✅ Baseline maintained
 **Huge (100 KB)**:         36.498 - 36.731 µs @ 2.60 GiB/s
 
 **Key Finding**: ✅ **JSON parsing throughput constant (~2.6 GiB/s) regardless of payload size**
+
 - Excellent scalability
 - No overhead for large payloads
 - Linear performance characteristics
@@ -232,9 +264,11 @@ Status: ✅ Baseline maintained
 ### Connection Setup
 
 **TCP Connection**: 232.38 - 233.71 ps
+
 - Status: ✅ Slightly improved (-2.2% to -1.6%)
 
 **Unix Socket**: 231.77 - 232.80 ps
+
 - Status: ✅ No change detected
 
 ### Predicate Effectiveness
@@ -267,6 +301,7 @@ Status: ✅ Baseline maintained
 ## Test Coverage
 
 ### Unit Tests
+
 ```
 Total: 158 tests
 Passed: 158 ✅
@@ -276,6 +311,7 @@ Skipped: 0 ✅
 ```
 
 **Test categories**:
+
 - Protocol message decoding: ✅ All passing
 - Stream operations: ✅ All passing
 - Pause/resume functionality: ✅ All passing
@@ -284,6 +320,7 @@ Skipped: 0 ✅
 - Type deserialization: ✅ All passing
 
 ### Integration Tests
+
 ```
 Benchmark categories: 12
 Status: ✅ All passing
@@ -296,12 +333,14 @@ Regression detection: ✅ Working
 ## Key Validation Findings
 
 ### 1. Zero Overhead Demonstrated
+
 ✅ TTFR (time-to-first-row) identical before and after optimizations (~22.6 ns)
 ✅ Throughput baseline maintained across all result set sizes
 ✅ No latency regressions in any benchmark
 ✅ No memory overhead introduced
 
 ### 2. Optimization Effectiveness
+
 ✅ Phase 1 (buffer cloning): Eliminated O(N) allocations
 ✅ Phase 2 (batching): Reduced lock acquisitions by 8x
 ✅ Phase 3-4 (metrics): Moved 99% of overhead off hot path
@@ -309,12 +348,14 @@ Regression detection: ✅ Working
 ✅ Phase 8 (atomic state): Foundation for future optimization
 
 ### 3. Code Quality
+
 ✅ All 158 tests passing
 ✅ No unsafe code added
 ✅ No panics or assertion failures
 ✅ Clippy warnings: Non-critical (unused imports/variables)
 
 ### 4. Scalability
+
 ✅ Performance consistent with 1K, 10K, 100K, 1M row result sets
 ✅ JSON parsing throughput constant regardless of payload size
 ✅ Chunking strategy effective across all chunk sizes
@@ -324,6 +365,7 @@ Regression detection: ✅ Working
 ## Regression Testing
 
 ### What We Tested For
+
 - ✅ Performance regressions (measured by TTFR, throughput)
 - ✅ Functional correctness (all tests passing)
 - ✅ Memory safety (no panics or UB)
@@ -331,6 +373,7 @@ Regression detection: ✅ Working
 - ✅ Error handling (malformed data, network errors)
 
 ### Result
+
 ```
 Regressions Found: 0
 Status: ✅ CLEAN
@@ -342,16 +385,19 @@ Confidence: High (comprehensive benchmark suite)
 ## Performance Gap Analysis
 
 ### Original Gap: PostgreSQL vs fraiseql-wire
+
 - PostgreSQL (tokio-postgres): ~52ms baseline
 - fraiseql-wire (before): ~65ms (14-20% slower)
 - **Gap**: 13ms / 20%
 
 ### After Optimizations
+
 - fraiseql-wire (after 8 phases): ~52ms
 - **Gap**: ~0% (matches PostgreSQL)
 - **Achieved**: ✅ Full closure of performance gap
 
 ### Optimization Breakdown
+
 - Phase 1: ~3-5ms (buffer allocation)
 - Phase 2: ~2-4ms (lock contention)
 - Phase 3-4: ~1-2ms (metrics overhead)
@@ -388,6 +434,7 @@ Confidence: High (comprehensive benchmark suite)
 5. ✅ **Ready for production** - Comprehensive testing proves reliability
 
 The streaming JSON query pipeline is now optimized for:
+
 - High-throughput data streaming (434K+ Gelem/s)
 - Low-latency query startup (~22.6 ns)
 - Bounded memory usage (scalable chunk processing)
@@ -396,4 +443,3 @@ The streaming JSON query pipeline is now optimized for:
 ---
 
 **Status**: ✅ **TESTING COMPLETE - ZERO OVERHEAD VALIDATED**
-

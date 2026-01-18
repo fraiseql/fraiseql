@@ -11,7 +11,9 @@
 Your original comprehensive implementation plan (11 documents, 5,000+ lines) has been converted to a **fully sequential edition** optimized for single-person execution.
 
 ### Original Plan Review
+
 ✅ **Strengths**:
+
 - Excellent structure and organization
 - Clear objectives and success criteria
 - Copy-paste ready commands
@@ -45,6 +47,7 @@ Your original comprehensive implementation plan (11 documents, 5,000+ lines) has
 ## How to Use
 
 ### Start Here (Read in this order)
+
 ```
 1. 00_START_HERE_SEQUENTIAL.md (5 min)
 2. README_SEQUENTIAL_EDITION.md (10 min)
@@ -53,6 +56,7 @@ Your original comprehensive implementation plan (11 documents, 5,000+ lines) has
 ```
 
 ### Then Execute
+
 ```
 5. Start Phase 1 Task 1.1 and follow sequentially
 6. Don't skip tasks
@@ -64,6 +68,7 @@ Your original comprehensive implementation plan (11 documents, 5,000+ lines) has
 ## Plan Structure (100% Sequential)
 
 ### Phase 1: Quick Fixes (2.5 hours)
+
 ```
 Task 1.1: Python        ✅ 5 min  → THEN
 Task 1.2: TypeScript    ✅ 15 min → THEN
@@ -74,6 +79,7 @@ Task 1.6: CLI Invest.   ✅ 2 hrs  → COMPLETE
 ```
 
 ### Phase 2: E2E Infrastructure (9 hours)
+
 ```
 Task 2.1a: Python E2E      ✅ 1 hr → THEN
 Task 2.1b: TypeScript E2E  ✅ 1 hr → THEN
@@ -85,6 +91,7 @@ Task 2.3:  GitHub Actions  ✅ 3 hrs → COMPLETE
 ```
 
 ### Phase 3: CLI Integration (2.25 hours)
+
 ```
 Task 3.1: Analyze    ✅ 30 min → THEN
 Task 3.2: Implement  ✅ 45 min → THEN
@@ -93,6 +100,7 @@ Task 3.4: Update     ✅ 30 min → COMPLETE
 ```
 
 ### Phase 4: Documentation (2.5 hours)
+
 ```
 Task 4.1: README     ✅ 30 min → THEN
 Task 4.2: Language   ✅ 45 min → THEN
@@ -107,6 +115,7 @@ Task 4.4: Commit     ✅ 30 min → COMPLETE
 ## Key Changes From Original
 
 ### Execution Model
+
 | Aspect | Original | Sequential |
 |--------|----------|-----------|
 | **Approach** | Parallel options available | 100% sequential only |
@@ -115,6 +124,7 @@ Task 4.4: Commit     ✅ 30 min → COMPLETE
 | **Target** | Team OR single person | Single person only |
 
 ### New Features
+
 ✅ One task at a time (no context switching)
 ✅ Hard checkpoints between tasks
 ✅ "DO NOT PROCEED" blockers
@@ -123,6 +133,7 @@ Task 4.4: Commit     ✅ 30 min → COMPLETE
 ✅ Copy-paste commands for everything
 
 ### Structure
+
 ✅ **6 sequential documents** (3,300+ lines)
 ✅ **All original documents preserved** (for reference)
 ✅ **Step-by-step numbered tasks**
@@ -163,6 +174,7 @@ ls -1 /home/lionel/code/fraiseql/.claude/ | grep -E "^[0-9]|SEQUENTIAL|QUICK_REF
 ## Quality Assurance
 
 ### Verification Done ✅
+
 - ✅ Original plan reviewed (excellent quality)
 - ✅ Conversion to sequential completed
 - ✅ All commands copy-paste ready
@@ -172,6 +184,7 @@ ls -1 /home/lionel/code/fraiseql/.claude/ | grep -E "^[0-9]|SEQUENTIAL|QUICK_REF
 - ✅ All 4 phases complete and verified
 
 ### Document Characteristics ✅
+
 - ✅ Clear table of contents
 - ✅ Step-by-step instructions
 - ✅ Copy-paste commands provided
@@ -199,6 +212,7 @@ When you complete this sequential plan, you'll have:
 ## Next Steps
 
 ### Immediate (Next 30 seconds)
+
 ```
 1. Open 00_START_HERE_SEQUENTIAL.md
 2. Read the first 5 minutes
@@ -206,6 +220,7 @@ When you complete this sequential plan, you'll have:
 ```
 
 ### If You Want to Get Started Fast
+
 ```
 1. Read 00_START_HERE_SEQUENTIAL.md (5 min)
 2. Read README_SEQUENTIAL_EDITION.md (10 min)
@@ -214,6 +229,7 @@ When you complete this sequential plan, you'll have:
 ```
 
 ### If You Want Deep Understanding First
+
 ```
 1. Read all 6 sequential documents (1-2 hours)
 2. Read E2E_TESTING_STRATEGY.md for test code examples
@@ -226,18 +242,23 @@ When you complete this sequential plan, you'll have:
 ## Document Quick Links
 
 **Entry Point**:
+
 - `/home/lionel/code/fraiseql/.claude/00_START_HERE_SEQUENTIAL.md`
 
 **Main Plan**:
+
 - `/home/lionel/code/fraiseql/.claude/IMPLEMENTATION_PLAN_SEQUENTIAL.md`
 
 **Quick Reference**:
+
 - `/home/lionel/code/fraiseql/.claude/QUICK_REFERENCE_SEQUENTIAL.md`
 
 **Guidance**:
+
 - `/home/lionel/code/fraiseql/.claude/README_SEQUENTIAL_EDITION.md`
 
 **Navigation**:
+
 - `/home/lionel/code/fraiseql/.claude/SEQUENTIAL_EDITION_INDEX.md`
 
 ---
@@ -245,24 +266,28 @@ When you complete this sequential plan, you'll have:
 ## Key Principles
 
 ### ✅ Sequential Execution
+
 - One task at a time
 - Complete before moving to next
 - No parallel work
 - No context switching
 
 ### ✅ Hard Checkpoints
+
 - Each task has explicit success criteria
 - You must pass all criteria before proceeding
 - "DO NOT PROCEED" sections are blockers
 - If something fails, it's a blocker (fix it)
 
 ### ✅ Time-Boxed Tasks
+
 - Most tasks have explicit time limits
 - Phase 1.6 (CLI investigation) capped at 2 hours
 - Prevents rabbit holes
 - Move forward even if not 100% resolved
 
 ### ✅ Copy-Paste Ready
+
 - Every command provided
 - No guessing or adapting needed
 - Commands work as-is
@@ -306,6 +331,7 @@ Before declaring this conversion complete:
 Your sequential implementation plan is **complete, comprehensive, and ready to execute**.
 
 ### What You Have
+
 ✅ 6 sequential documents (3,300+ lines)
 ✅ Step-by-step instructions
 ✅ Copy-paste commands
@@ -316,6 +342,7 @@ Your sequential implementation plan is **complete, comprehensive, and ready to e
 ✅ Troubleshooting help
 
 ### What You Need to Do
+
 1. Read 00_START_HERE_SEQUENTIAL.md
 2. Follow the plan exactly as written
 3. One task at a time
@@ -323,6 +350,7 @@ Your sequential implementation plan is **complete, comprehensive, and ready to e
 5. Commit after each phase
 
 ### Timeline
+
 - Day 1: Phase 1 (2.5 hours)
 - Day 2: Phase 2 (5+ hours)
 - Day 3: Phase 2.3 + Phase 3 (5+ hours)

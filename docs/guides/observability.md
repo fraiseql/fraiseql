@@ -29,6 +29,7 @@ FraiseQL's observability is **database-first**: The database is the source of tr
 ### 2.1 Entity Change Log — Source of Truth
 
 The **`tb_entity_change_log` table** (see **docs/specs/schema-conventions.md section 6**) is the centralized audit log for all entity writes. This table provides:
+
 - **Debezium envelope format** for CDC compatibility (see schema-conventions.md section 6.2)
 - **Helper functions** for logging and response building (see schema-conventions.md section 6.4)
 - **Status taxonomy** for machine-readable outcome tracking (see schema-conventions.md section 6.3)
@@ -50,6 +51,7 @@ ORDER BY created_at DESC;
 ```
 
 **What's recorded:**
+
 - **Before/After state** — Full entity snapshots (Debezium envelope)
 - **Operation type** — INSERT, UPDATE, DELETE, or NOOP
 - **Status** — Success, error, conflict, validation, noop, blocked
@@ -95,6 +97,7 @@ ORDER BY object_type, count DESC;
 ```
 
 **Common statuses:**
+
 - `new`, `updated`, `deleted`, `success` — Success
 - `failed:*`, `not_found`, `forbidden` — Errors
 - `conflict:*`, `duplicate:*` — Conflicts
@@ -345,6 +348,7 @@ ORDER BY denial_rate_pct DESC;
 ### 4.1 Correlation IDs
 
 Every request should have a **request ID** that traces through:
+
 1. GraphQL request entry
 2. SQL query execution
 3. CDC event emission
@@ -719,6 +723,7 @@ WHERE change_status LIKE 'blocked:%'
 The `tb_entity_change_log` is the source for CDC events (see **docs/specs/cdc-format.md** for complete event structure and **docs/architecture/core/execution-model.md section 9.3** for execution model integration):
 
 **Key References:**
+
 - **docs/specs/cdc-format.md section 2** — Complete CDC event structure with all fields
 - **docs/specs/schema-conventions.md section 6.2** — Debezium envelope format stored in change log's `object_data` column
 - **docs/architecture/core/execution-model.md section 9** — Mutation execution pipeline and cache invalidation

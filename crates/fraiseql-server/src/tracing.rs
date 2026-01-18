@@ -32,7 +32,7 @@ pub struct TraceContext {
 
 impl TraceContext {
     /// Create new trace context with generated IDs.
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self {
             trace_id: generate_trace_id(),
@@ -45,7 +45,7 @@ impl TraceContext {
     }
 
     /// Create from request ID.
-    #[must_use] 
+    #[must_use]
     pub fn from_request_id(request_id: RequestId) -> Self {
         Self {
             trace_id: request_id.to_string(),
@@ -58,9 +58,9 @@ impl TraceContext {
     }
 
     /// Create child span from parent context.
-    #[must_use] 
+    #[must_use]
     pub fn child_span(&self) -> Self {
-        
+
         // Don't modify baggage in child
         Self {
             trace_id: self.trace_id.clone(),
@@ -73,14 +73,14 @@ impl TraceContext {
     }
 
     /// Add baggage item (cross-cutting context).
-    #[must_use] 
+    #[must_use]
     pub fn with_baggage(mut self, key: String, value: String) -> Self {
         self.baggage.insert(key, value);
         self
     }
 
     /// Get baggage item.
-    #[must_use] 
+    #[must_use]
     pub fn baggage_item(&self, key: &str) -> Option<&str> {
         self.baggage.get(key).map(std::string::String::as_str)
     }
@@ -91,7 +91,7 @@ impl TraceContext {
     }
 
     /// Generate W3C Trace Context header value.
-    #[must_use] 
+    #[must_use]
     pub fn to_w3c_traceparent(&self) -> String {
         // Format: version-traceid-spanid-traceflags
         // version: 00, traceid: 32 hex chars, spanid: 16 hex chars, traceflags: 2 hex chars
@@ -134,7 +134,7 @@ impl TraceContext {
     }
 
     /// Check if trace should be sampled.
-    #[must_use] 
+    #[must_use]
     pub fn is_sampled(&self) -> bool {
         self.sampled == 1
     }
@@ -189,7 +189,7 @@ pub struct TraceSpan {
 
 impl TraceSpan {
     /// Create new span.
-    #[must_use] 
+    #[must_use]
     pub fn new(trace_id: String, operation: String) -> Self {
         Self {
             span_id: generate_span_id(),
@@ -205,21 +205,21 @@ impl TraceSpan {
     }
 
     /// Set parent span.
-    #[must_use] 
+    #[must_use]
     pub fn with_parent_span(mut self, parent_span_id: String) -> Self {
         self.parent_span_id = Some(parent_span_id);
         self
     }
 
     /// Add span attribute.
-    #[must_use] 
+    #[must_use]
     pub fn add_attribute(mut self, key: String, value: String) -> Self {
         self.attributes.insert(key, value);
         self
     }
 
     /// Add span event.
-    #[must_use] 
+    #[must_use]
     pub fn add_event(mut self, event: TraceEvent) -> Self {
         self.events.push(event);
         self
@@ -231,20 +231,20 @@ impl TraceSpan {
     }
 
     /// Get span duration in milliseconds.
-    #[must_use] 
+    #[must_use]
     pub fn duration_ms(&self) -> Option<i64> {
         self.end_time_ms.map(|end| end - self.start_time_ms)
     }
 
     /// Set span status to error.
-    #[must_use] 
+    #[must_use]
     pub fn set_error(mut self, message: String) -> Self {
         self.status = SpanStatus::Error { message };
         self
     }
 
     /// Set span status to ok.
-    #[must_use] 
+    #[must_use]
     pub fn set_ok(mut self) -> Self {
         self.status = SpanStatus::Ok;
         self
@@ -292,7 +292,7 @@ pub struct TraceEvent {
 
 impl TraceEvent {
     /// Create new trace event.
-    #[must_use] 
+    #[must_use]
     pub fn new(name: String) -> Self {
         Self {
             name,
@@ -302,7 +302,7 @@ impl TraceEvent {
     }
 
     /// Add event attribute.
-    #[must_use] 
+    #[must_use]
     pub fn with_attribute(mut self, key: String, value: String) -> Self {
         self.attributes.insert(key, value);
         self

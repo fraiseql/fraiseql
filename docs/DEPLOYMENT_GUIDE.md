@@ -25,12 +25,14 @@ This guide covers deploying FraiseQL v2 GraphQL server in different environments
 ### Setup
 
 1. **Clone repository**
+
    ```bash
    git clone https://github.com/fraiseql/fraiseql-v2.git
    cd fraiseql-v2
    ```
 
 2. **Create database**
+
    ```bash
    createdb fraiseql
    createuser fraiseql -P
@@ -38,11 +40,13 @@ This guide covers deploying FraiseQL v2 GraphQL server in different environments
    ```
 
 3. **Compile schema**
+
    ```bash
    cargo run -p fraiseql-cli -- compile schemas/example.json -o schemas/schema.compiled.json
    ```
 
 4. **Run server**
+
    ```bash
    # Set database URL
    export DATABASE_URL="postgresql://fraiseql:password@localhost:5432/fraiseql"
@@ -52,6 +56,7 @@ This guide covers deploying FraiseQL v2 GraphQL server in different environments
    ```
 
 5. **Test**
+
    ```bash
    curl -X POST http://localhost:8000/graphql \
      -H "Content-Type: application/json" \
@@ -104,6 +109,7 @@ docker-compose down -v
 ```
 
 **Services included**:
+
 - PostgreSQL (port 5432)
 - FraiseQL Server (port 8000)
 - Redis (optional, port 6379)
@@ -134,29 +140,34 @@ docker-compose down -v
 ### Deployment
 
 1. **Create namespace**
+
    ```bash
    kubectl create namespace fraiseql
    ```
 
 2. **Update secrets**
+
    ```bash
    kubectl -n fraiseql create secret generic fraiseql-secrets \
      --from-literal=database-url="postgresql://user:pass@postgres:5432/fraiseql"
    ```
 
 3. **Create ConfigMap with schemas**
+
    ```bash
    kubectl -n fraiseql create configmap fraiseql-schemas \
      --from-file=schemas/schema.compiled.json
    ```
 
 4. **Deploy server**
+
    ```bash
    kubectl apply -f k8s/service.yaml
    kubectl apply -f k8s/deployment.yaml
    ```
 
 5. **Verify deployment**
+
    ```bash
    # Check pod status
    kubectl -n fraiseql get pods
@@ -196,16 +207,19 @@ kubectl -n fraiseql autoscale deployment fraiseql-server \
 ### Database Connection
 
 **PostgreSQL**:
+
 ```
 postgresql://user:password@host:5432/database
 ```
 
 **MySQL**:
+
 ```
 mysql://user:password@host:3306/database
 ```
 
 **SQLite** (development only):
+
 ```
 sqlite:///path/to/database.db
 ```
@@ -303,6 +317,7 @@ RUST_LOG=debug cargo run -p fraiseql-server
 ### Server won't start
 
 **Check database connection**:
+
 ```bash
 # Test connection
 psql $DATABASE_URL -c "SELECT 1"
@@ -318,8 +333,8 @@ curl -v http://localhost:8000/health
 ### GraphQL queries failing
 
 **Check schema**:
+
 ```bash
 # View schema metadata
 curl http://localhost:8000/introspection
 ```
-

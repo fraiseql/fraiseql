@@ -26,6 +26,7 @@ Created a comprehensive benchmarking suite to compare PostgresAdapter (tokio-pos
 | `pagination` | Repeated small queries | 10×100 | Connection overhead test |
 
 **Metrics Measured**:
+
 - ⏱️  **Throughput**: Rows per second
 - 📊 **Latency**: Total query execution time
 - 💾 **Memory**: Peak heap usage (via external profiling)
@@ -40,6 +41,7 @@ Created a comprehensive benchmarking suite to compare PostgresAdapter (tokio-pos
 **Database Size**: ~200-300 MB
 
 **Data Schema**:
+
 ```sql
 {
   "id": 123456,
@@ -64,6 +66,7 @@ Created a comprehensive benchmarking suite to compare PostgresAdapter (tokio-pos
 ```
 
 **Indexes Created**:
+
 - GIN index on full JSONB data
 - B-tree index on `data->>'status'`
 - B-tree index on `(data->>'score')::numeric`
@@ -72,6 +75,7 @@ Created a comprehensive benchmarking suite to compare PostgresAdapter (tokio-pos
 
 **Location**: `crates/fraiseql-core/benches/README.md`
 **Sections**:
+
 - Quick start guide
 - Benchmark descriptions
 - Expected results with comparison tables
@@ -153,6 +157,7 @@ cargo bench --bench adapter_comparison -- "where_clause"
 ### When to Use Each
 
 **Use PostgresAdapter when**:
+
 - ✅ Small result sets (<10K rows)
 - ✅ Need transactions
 - ✅ Need write operations
@@ -160,6 +165,7 @@ cargo bench --bench adapter_comparison -- "where_clause"
 - ✅ Prepared statements important
 
 **Use FraiseWireAdapter when**:
+
 - ✅ Large result sets (>100K rows)
 - ✅ Memory constrained
 - ✅ Streaming workflows
@@ -188,6 +194,7 @@ heaptrack_gui heaptrack.adapter_comparison.*.gz
 ```
 
 **Expected Output**:
+
 - **PostgresAdapter**: Peak ~26 MB (result buffering)
 - **FraiseWireAdapter**: Peak ~1.3 KB (streaming)
 - **Difference**: 20,000x improvement
@@ -257,6 +264,7 @@ group.throughput(Throughput::Elements(100_000));
 ```
 
 Criterion automatically calculates:
+
 - **Throughput** = Elements / Time
 - **Unit**: Kelem/s (thousands of elements per second)
 - **Example**: 100,000 rows / 0.330s = 303K rows/s
@@ -266,27 +274,32 @@ Criterion automatically calculates:
 ### Common Issues
 
 **1. "DATABASE_URL not set"**
+
 ```bash
 export DATABASE_URL="postgresql:///fraiseql_bench"
 ```
 
 **2. "Test data not found"**
+
 ```bash
 psql $DATABASE_URL < crates/fraiseql-core/benches/fixtures/setup_bench_data.sql
 ```
 
 **3. "No database adapters enabled"**
+
 ```bash
 cargo bench --bench adapter_comparison --features postgres
 ```
 
 **4. Benchmarks timeout**
+
 ```bash
 # Reduce sample size (edit adapter_comparison.rs)
 group.sample_size(10);
 ```
 
 **5. Out of memory**
+
 ```bash
 # Skip 1M row benchmarks
 cargo bench --bench adapter_comparison -- "10k|100k"

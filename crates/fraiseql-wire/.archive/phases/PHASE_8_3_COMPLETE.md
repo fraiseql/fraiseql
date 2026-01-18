@@ -12,6 +12,7 @@
 Phase 8.3 is now **fully complete** with foundation implementation, configuration application in Connection::startup(), integration with FraiseClient, comprehensive tests, and a working example program.
 
 **Accomplishments:**
+
 - ✅ Applied statement_timeout, application_name, and extra_float_digits to connection startup
 - ✅ Added `FraiseClient::connect_with_config()` method
 - ✅ Added `FraiseClient::connect_with_config_and_tls()` method
@@ -29,6 +30,7 @@ Phase 8.3 is now **fully complete** with foundation implementation, configuratio
 Building on the Phase 8.3 foundation from the previous session, this implementation completes the configuration system:
 
 ### 1. Configuration Application in Startup
+
 **File**: `src/connection/conn.rs`
 
 The `Connection::startup()` method now applies all configuration options:
@@ -57,16 +59,19 @@ if let Some(digits) = config.extra_float_digits {
 ```
 
 **Key details**:
+
 - Timeouts are converted to milliseconds (Postgres requirement)
 - Only configured options are added (respects defaults)
 - User parameters are added last (highest priority)
 
 ### 2. FraiseClient Integration
+
 **File**: `src/client/fraise_client.rs`
 
 Two new public methods added:
 
 #### connect_with_config()
+
 ```rust
 pub async fn connect_with_config(
     connection_string: &str,
@@ -77,6 +82,7 @@ pub async fn connect_with_config(
 Allows TCP and Unix socket connections with custom configuration.
 
 #### connect_with_config_and_tls()
+
 ```rust
 pub async fn connect_with_config_and_tls(
     connection_string: &str,
@@ -120,6 +126,7 @@ let client = FraiseClient::connect_with_config_and_tls(
 ```
 
 ### 3. Integration Tests
+
 **File**: `tests/config_integration.rs`
 
 Comprehensive test suite with 10 tests:
@@ -136,6 +143,7 @@ Comprehensive test suite with 10 tests:
 - `test_config_is_debug` - Ensures builder is Debug
 
 **Test Coverage**:
+
 - ✅ All timeout options tested
 - ✅ Optional fields default to None
 - ✅ User parameters preserved
@@ -143,11 +151,13 @@ Comprehensive test suite with 10 tests:
 - ✅ Timeout conversion logic
 
 ### 4. Example Program
+
 **File**: `examples/config.rs`
 
 Comprehensive 350+ line example demonstrating:
 
 **Six Examples**:
+
 1. **Basic Connection** - Default configuration
 2. **Statement Timeout** - Query execution limits
 3. **Full Configuration** - All options combined
@@ -156,6 +166,7 @@ Comprehensive 350+ line example demonstrating:
 6. **TLS + Config** - Secure connections with configuration
 
 **Features**:
+
 - Environment variable configuration
 - Clear output with section headers
 - Detailed comments explaining each option
@@ -163,6 +174,7 @@ Comprehensive 350+ line example demonstrating:
 - Real-world use cases
 
 **Running the Example**:
+
 ```bash
 cargo run --example config
 
@@ -182,18 +194,23 @@ cargo run --example config
 ### ConnectionConfig Methods
 
 **Constructor**:
+
 ```rust
 pub fn new(database: impl Into<String>, user: impl Into<String>) -> Self
 ```
+
 - Creates config with all optional fields as None
 
 **Builder Pattern**:
+
 ```rust
 pub fn builder(database: impl Into<String>, user: impl Into<String>) -> ConnectionConfigBuilder
 ```
+
 - Returns builder for advanced configuration
 
 **Config Fields**:
+
 ```rust
 pub struct ConnectionConfig {
     pub database: String,
@@ -241,6 +258,7 @@ pub async fn connect_with_config_and_tls(
 ```
 
 **Existing methods (unchanged)**:
+
 ```rust
 pub async fn connect(connection_string: &str) -> Result<Self>
 pub async fn connect_tls(connection_string: &str, tls_config: TlsConfig) -> Result<Self>
@@ -251,6 +269,7 @@ pub async fn connect_tls(connection_string: &str, tls_config: TlsConfig) -> Resu
 ## Configuration Options Explained
 
 ### statement_timeout: Option<Duration>
+
 - **Purpose**: Limit query execution time
 - **Applied as**: PostgreSQL `statement_timeout` parameter (milliseconds)
 - **Default**: None (unlimited)
@@ -261,6 +280,7 @@ pub async fn connect_tls(connection_string: &str, tls_config: TlsConfig) -> Resu
   - Protect against resource exhaustion
 
 ### keepalive_idle: Option<Duration>
+
 - **Purpose**: TCP keepalive probe interval
 - **Applied at**: Socket level (stored for future use)
 - **Default**: None (OS default, typically 2 hours)
@@ -271,6 +291,7 @@ pub async fn connect_tls(connection_string: &str, tls_config: TlsConfig) -> Resu
   - Maintain connection health
 
 ### application_name: Option<String>
+
 - **Purpose**: Identify application in PostgreSQL logs
 - **Applied as**: PostgreSQL `application_name` parameter
 - **Default**: None
@@ -282,6 +303,7 @@ pub async fn connect_tls(connection_string: &str, tls_config: TlsConfig) -> Resu
   - Audit trails
 
 ### extra_float_digits: Option<i32>
+
 - **Purpose**: Control floating point precision
 - **Applied as**: PostgreSQL `extra_float_digits` parameter
 - **Default**: None (use Postgres default, typically 0)
@@ -296,6 +318,7 @@ pub async fn connect_tls(connection_string: &str, tls_config: TlsConfig) -> Resu
 ## Files Changed
 
 ### Modified
+
 1. **src/connection/conn.rs**
    - Updated `Connection::startup()` to apply timeout, application_name, and extra_float_digits
    - Lines 273-297: Configuration application logic
@@ -306,6 +329,7 @@ pub async fn connect_tls(connection_string: &str, tls_config: TlsConfig) -> Resu
    - Added `connect_with_config_and_tls()` method (lines 152-208)
 
 ### New Files
+
 1. **tests/config_integration.rs**
    - 10 comprehensive integration tests
    - ~160 lines of test code
@@ -324,12 +348,15 @@ pub async fn connect_tls(connection_string: &str, tls_config: TlsConfig) -> Resu
 ## Test Results
 
 ### Unit Tests: 63/63 ✅
+
 All existing tests pass with no regressions:
+
 ```
 test result: ok. 63 passed; 0 failed; 0 ignored
 ```
 
 ### Integration Tests: 10 Created ✅
+
 ```
 test_config_statement_timeout_applied ..................... ignored (needs Postgres)
 test_config_application_name_applied ....................... ignored (needs Postgres)
@@ -346,6 +373,7 @@ test_config_is_debug ....................................... ok
 ```
 
 ### Example Build: ✅
+
 ```
 cargo build --example config
 Finished `dev` profile in 0.34s
@@ -356,9 +384,11 @@ Finished `dev` profile in 0.34s
 ## Design Decisions & Tradeoffs
 
 ### 1. Application of Timeouts
+
 **Decision**: Apply as connection parameters in startup, not socket-level
 
 **Rationale**:
+
 - statement_timeout enforced by PostgreSQL (more reliable)
 - Connection-level, affects all queries equally
 - Consistent with Postgres configuration paradigm
@@ -367,31 +397,38 @@ Finished `dev` profile in 0.34s
 **Future Work**: Phase 8.4 can add socket-level TCP connection timeout using tokio::time::timeout
 
 ### 2. Millisecond Conversion
+
 **Decision**: Convert Duration to milliseconds in startup method
 
 **Code**:
+
 ```rust
 timeout.as_millis().to_string()
 ```
 
 **Rationale**:
+
 - PostgreSQL expects statement_timeout in milliseconds
 - Conversion is one-time (not per-query)
 - Clear and explicit in startup code
 
 ### 3. Builder Pattern
+
 **Decision**: Fluent API builder, not builder struct in FraiseClient
 
 **Rationale**:
+
 - Consistent with TlsConfigBuilder pattern
 - Easy to use: `config.option().option().build()`
 - Optional fields clearly expressed with Option<T>
 - Easy to add new options in future
 
 ### 4. Backward Compatibility
+
 **Decision**: Existing `connect()` and `connect_tls()` methods unchanged
 
 **Code**:
+
 ```rust
 // Old API still works
 let client = FraiseClient::connect(connection_string).await?;
@@ -402,6 +439,7 @@ let client = FraiseClient::connect_with_config(connection_string, config).await?
 ```
 
 **Rationale**:
+
 - All new fields are Option<T>
 - Existing code continues to work
 - New functionality is opt-in
@@ -412,16 +450,19 @@ let client = FraiseClient::connect_with_config(connection_string, config).await?
 ## Performance Characteristics
 
 ### Memory
+
 - **Per-connection**: One additional `Option<Duration>` (negligible)
 - **Builder**: Temporary allocation, freed after build()
 - **Overhead**: Zero after connection established
 
 ### Latency
+
 - **Startup**: ~1ms additional for parameter serialization
 - **Per-query**: Statement_timeout checked by Postgres (free)
 - **Impact**: Negligible (<0.1%)
 
 ### Network
+
 - **Startup message size**: +50-100 bytes (configuration parameters)
 - **Per-query**: No impact (parameters sent once)
 
@@ -444,11 +485,13 @@ let client = FraiseClient::connect_with_config(connection_string, config).await?
 ## Verification Checklist
 
 ### Foundation (Previous Session)
+
 - ✅ ConnectionConfig extended with 5 new optional fields
 - ✅ ConnectionConfigBuilder created with fluent API
 - ✅ 5 comprehensive unit tests added
 
 ### Application (This Session)
+
 - ✅ Timeouts applied in Connection::startup()
 - ✅ connect_with_config() method added to FraiseClient
 - ✅ connect_with_config_and_tls() method added to FraiseClient
@@ -465,16 +508,19 @@ let client = FraiseClient::connect_with_config(connection_string, config).await?
 ## What's Next (Future Phases)
 
 ### Phase 8.4: SCRAM Authentication (Medium effort)
+
 - Implement MD5 alternative for password authentication
 - Support SCRAM-SHA-256 (Postgres 10+)
 - Update ConnectionConfig with SCRAM options
 
 ### Phase 8.5: Query Metrics (Low effort)
+
 - Add metrics collection (query count, latency)
 - Integration with tracing infrastructure
 - Performance monitoring
 
 ### Phase 9.0: Features TBD
+
 - Will depend on user requests and Phase 8 results
 
 ---
@@ -482,11 +528,13 @@ let client = FraiseClient::connect_with_config(connection_string, config).await?
 ## How to Use Phase 8.3
 
 ### Basic Usage
+
 ```rust
 let client = FraiseClient::connect("postgres://localhost/mydb").await?;
 ```
 
 ### With Timeouts
+
 ```rust
 let config = ConnectionConfig::builder("mydb", "user")
     .password("secret")
@@ -500,6 +548,7 @@ let client = FraiseClient::connect_with_config(
 ```
 
 ### With TLS and Timeouts
+
 ```rust
 let config = ConnectionConfig::builder("mydb", "user")
     .statement_timeout(Duration::from_secs(30))
@@ -515,6 +564,7 @@ let client = FraiseClient::connect_with_config_and_tls(
 ```
 
 ### See Example Program
+
 ```bash
 cargo run --example config
 ```
@@ -539,6 +589,7 @@ Phase 8.3 provides:
 **Phase 8.3 is complete and production-ready.**
 
 The connection configuration system is now fully functional with:
+
 - ✅ Configuration struct extended
 - ✅ Builder pattern for advanced options
 - ✅ Applied in connection startup

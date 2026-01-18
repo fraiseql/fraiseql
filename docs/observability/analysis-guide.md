@@ -37,6 +37,7 @@ fraiseql-cli analyze --database sqlserver://user:pass@localhost:1433/mydb
 ```
 
 **Output**:
+
 ```
 📊 Observability Analysis Report
 
@@ -99,6 +100,7 @@ fraiseql-cli analyze --database postgres://...
 ```
 
 **Supported formats**:
+
 - `1h`, `6h`, `12h` - Hours
 - `1d`, `7d`, `30d`, `90d` - Days
 
@@ -142,10 +144,12 @@ fraiseql-cli analyze \
 **Example Impact**:
 
 With `--min-frequency 100`:
+
 - Suggests optimizing paths accessed 100+ times/day
 - Result: ~20 suggestions (more noise)
 
 With `--min-frequency 5000`:
+
 - Only suggests paths accessed 5000+ times/day
 - Result: ~3 suggestions (clear wins)
 
@@ -209,6 +213,7 @@ WHERE JSON_VALUE(metadata, '$.active') = 'true'
 ```
 
 **Why selectivity matters**:
+
 - **High selectivity** → Index helps significantly
 - **Low selectivity** → Index doesn't help (most rows match anyway)
 
@@ -227,6 +232,7 @@ fraiseql-cli analyze --database postgres://... --format text
 ```
 
 **Output**:
+
 ```
 📊 Observability Analysis Report
 
@@ -297,6 +303,7 @@ fraiseql-cli analyze --database postgres://... --format json > report.json
 ```
 
 **Output**:
+
 ```json
 {
   "version": "1.0",
@@ -349,6 +356,7 @@ fraiseql-cli analyze --database postgres://... --format json > report.json
 ```
 
 **Use in CI/CD**:
+
 ```bash
 # Run analysis and parse results
 SUGGESTIONS=$(fraiseql-cli analyze --database postgres://... --format json | jq '.suggestions | length')
@@ -372,6 +380,7 @@ fraiseql-cli analyze --database postgres://... --format sql > optimize.sql
 ```
 
 **PostgreSQL Output**:
+
 ```sql
 -- ============================================================
 -- FraiseQL Observability-Driven Schema Optimization
@@ -433,6 +442,7 @@ ANALYZE users;
 ```
 
 **SQL Server Output**:
+
 ```sql
 -- ============================================================
 -- FraiseQL Observability-Driven Schema Optimization
@@ -479,11 +489,13 @@ GO
 ### Step 1: Export Metrics
 
 **Via HTTP endpoint**:
+
 ```bash
 curl http://localhost:8080/metrics/export > metrics.json
 ```
 
 **Via CLI** (if server not running):
+
 ```bash
 fraiseql-cli export-metrics \
   --database postgres://... \
@@ -553,6 +565,7 @@ fraiseql-cli analyze \
 ```
 
 **Impact Score Calculation**:
+
 ```
 Impact = (Queries Per Day) × (Speedup Factor)
 
@@ -581,6 +594,7 @@ fraiseql-cli diff-analysis week1.json week2.json
 ```
 
 **Output**:
+
 ```
 📊 Analysis Comparison
 
@@ -641,6 +655,7 @@ fraiseql-cli analyze \
 Run analysis weekly and alert on new suggestions:
 
 **Cron job** (every Monday at 2 AM):
+
 ```bash
 # /etc/cron.d/fraiseql-analysis
 0 2 * * 1 fraiseql fraiseql-cli analyze \
@@ -649,6 +664,7 @@ Run analysis weekly and alert on new suggestions:
 ```
 
 **Alerting script**:
+
 ```bash
 #!/bin/bash
 SUGGESTIONS=$(fraiseql-cli analyze --database postgres://... --format json | \
@@ -671,6 +687,7 @@ fi
 **Possible Causes**:
 
 1. **Insufficient data**
+
    ```bash
    # Check metrics count
    psql postgres://... -c "
@@ -678,9 +695,11 @@ fi
      WHERE executed_at > NOW() - INTERVAL '7 days'
    "
    ```
+
    **Solution**: Wait for 24-48 hours of metrics collection
 
 2. **Thresholds too high**
+
    ```bash
    # Try lower thresholds
    fraiseql-cli analyze \
@@ -702,6 +721,7 @@ fi
 **Explanation**: Cost model uses theoretical O(n) vs O(log n) calculations.
 
 **Reality Check**:
+
 - **Filter speedup**: 5-20x typical, 50x+ possible for large tables
 - **Sort speedup**: 10-50x typical
 - **Aggregate speedup**: 5-15x typical
@@ -715,23 +735,27 @@ fi
 **Symptoms**: `analyze` command runs for > 5 minutes
 
 **Causes**:
+
 - Large metrics tables (> 100M rows)
 - Complex aggregations on unindexed metrics tables
 
 **Solutions**:
 
 1. **Add indexes to metrics tables**:
+
    ```sql
    CREATE INDEX idx_query_name ON fraiseql_metrics.query_executions (query_name);
    CREATE INDEX idx_jsonb_path ON fraiseql_metrics.jsonb_accesses (table_name, path);
    ```
 
 2. **Use shorter time window**:
+
    ```bash
    fraiseql-cli analyze --database postgres://... --window 1d
    ```
 
 3. **Export and analyze offline**:
+
    ```bash
    fraiseql-cli export-metrics --database postgres://... --output metrics.json
    fraiseql-cli analyze --metrics metrics.json

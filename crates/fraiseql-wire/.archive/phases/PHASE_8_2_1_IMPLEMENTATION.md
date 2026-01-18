@@ -36,11 +36,13 @@ Deserialization {
 ```
 
 **Impact**:
+
 - Clear error messages with type names
 - Helps users debug deserialization issues
 - Type information preserved in errors
 
 **Tests added**:
+
 - ✅ `test_deserialization_error()` - Verify error formatting
 - ✅ `test_deserialization_error_not_retriable()` - Verify error classification
 
@@ -56,12 +58,14 @@ pub struct TypedJsonStream<T: DeserializeOwned> {
 ```
 
 **Key design**:
+
 - ✅ Lazy deserialization (per-item at `poll_next()`)
 - ✅ PhantomData for zero-cost type information
 - ✅ Filters JSON before deserialization (optimization)
 - ✅ Type information only at consumer boundary
 
 **Implementation guarantee**:
+
 ```rust
 fn poll_next(...) -> Poll<Option<Result<T>>> {
     match self.inner.poll_next_unpin(cx) {
@@ -76,6 +80,7 @@ fn poll_next(...) -> Poll<Option<Result<T>>> {
 ```
 
 **Tests added** (6 total):
+
 - ✅ `test_typed_stream_creation()` - Creation with different types
 - ✅ `test_deserialize_valid_value()` - Successful deserialization
 - ✅ `test_deserialize_missing_field()` - Error with missing field
@@ -86,6 +91,7 @@ fn poll_next(...) -> Poll<Option<Result<T>>> {
 ### 3. QueryBuilder Refactoring (`src/client/query_builder.rs`)
 
 **Before**:
+
 ```rust
 pub struct QueryBuilder {
     client: FraiseClient,
@@ -96,6 +102,7 @@ impl QueryBuilder { ... }
 ```
 
 **After**:
+
 ```rust
 pub struct QueryBuilder<T: DeserializeOwned + Unpin + 'static = serde_json::Value> {
     client: FraiseClient,
@@ -107,12 +114,14 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> { ... }
 ```
 
 **Key changes**:
+
 - ✅ Generic over `T: DeserializeOwned + Unpin + 'static`
 - ✅ Default type parameter `T = serde_json::Value` (backward compatible)
 - ✅ All methods preserve generic type
 - ✅ Comments document that T doesn't affect SQL/filtering/ordering
 
 **API examples**:
+
 ```rust
 // Type-safe (recommended)
 client.query::<Project>("projects")
@@ -132,6 +141,7 @@ client.query("projects")  // Infers T = Value
 ```
 
 **Return type**:
+
 ```rust
 pub async fn execute(self) -> Result<Box<dyn Stream<Item = Result<T>> + Unpin>>
 ```
@@ -139,6 +149,7 @@ pub async fn execute(self) -> Result<Box<dyn Stream<Item = Result<T>> + Unpin>>
 ### 4. Stream Module Updates (`src/stream/mod.rs`)
 
 **Added export**:
+
 ```rust
 mod typed_stream;
 pub use typed_stream::TypedJsonStream;
@@ -151,6 +162,7 @@ pub use typed_stream::TypedJsonStream;
 ### Unit Tests: ✅ All 55 Pass
 
 Including 6 new typed_stream tests:
+
 ```
 test stream::typed_stream::tests::test_typed_stream_creation ... ok
 test stream::typed_stream::tests::test_deserialize_valid_value ... ok
@@ -165,6 +177,7 @@ Plus 49 existing tests still passing
 ### Clippy: ✅ No New Warnings
 
 Only pre-existing warnings (not related to Phase 8.2.1):
+
 ```
 warning: large size difference between variants
 ```
@@ -181,7 +194,8 @@ Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.03s
 
 All critical design constraints are documented in code:
 
-### In `src/client/query_builder.rs`:
+### In `src/client/query_builder.rs`
+
 ```rust
 //! Generic query builder that supports automatic JSON deserialization to target types.
 //!
@@ -197,14 +211,16 @@ All critical design constraints are documented in code:
 //! - Error messages (type name included)
 ```
 
-### In `src/stream/typed_stream.rs`:
+### In `src/stream/typed_stream.rs`
+
 ```rust
 //! TypedJsonStream wraps a raw JSON stream and deserializes each item to a target type T.
 //! Type T is **consumer-side only** - it does NOT affect SQL generation, filtering,
 //! ordering, or wire protocol. Deserialization happens lazily at poll_next().
 ```
 
-### Comments on every method:
+### Comments on every method
+
 ```rust
 pub fn where_sql(mut self, predicate: impl Into<String>) -> Self {
     /// Type T does NOT affect SQL generation.
@@ -229,23 +245,27 @@ pub async fn execute(self) -> Result<Box<dyn Stream<Item = Result<T>> + Unpin>> 
 ## Backward Compatibility Verified
 
 ### Default Type Parameter Works
+
 ```rust
 pub struct QueryBuilder<T: DeserializeOwned + Unpin + 'static = serde_json::Value>
 ```
 
 This means existing code like:
+
 ```rust
 // Old code (still compiles and works identically)
 client.query("projects").execute().await?
 ```
 
 Is equivalent to:
+
 ```rust
 // New code (explicit)
 client.query::<serde_json::Value>("projects").execute().await?
 ```
 
 ### Escape Hatch Always Available
+
 ```rust
 let stream = client.query::<serde_json::Value>("projects").execute().await?;
 // Works identically to untyped query
@@ -257,7 +277,9 @@ let stream = client.query::<serde_json::Value>("projects").execute().await?;
 ## Performance Analysis
 
 ### PhantomData Has Zero Cost
+
 Test verifies:
+
 ```rust
 #[test]
 fn test_phantom_data_has_no_size() {
@@ -267,6 +289,7 @@ fn test_phantom_data_has_no_size() {
 ```
 
 ### Deserialization Happens Once Per Item
+
 ```rust
 fn poll_next(...) -> Poll<Option<Result<T>>> {
     // Type T is resolved ONCE per item here
@@ -276,6 +299,7 @@ fn poll_next(...) -> Poll<Option<Result<T>>> {
 ```
 
 ### Filters Before Deserialization
+
 ```rust
 let filtered_stream = if let Some(predicate) = self.rust_predicate {
     Box::new(FilteredStream::new(stream, predicate))  // Filter JSON first
@@ -307,12 +331,14 @@ Expected overhead: < 2% (serde deserialization is fast)
 ## What's Ready for Phase 8.2.2
 
 ✅ **Core type system complete**
+
 - `QueryBuilder<T>` is generic with default type parameter
 - `TypedJsonStream<T>` handles deserialization
 - Error handling with type information
 - All constraint documentation in place
 
 **Next phase (8.2.2)**: Client integration
+
 - Make `FraiseClient::query()` generic
 - Support turbofish syntax: `client.query::<Project>()`
 - Type inference from context
@@ -350,6 +376,7 @@ PHASE_8_2_1_IMPLEMENTATION.md     (NEW, this file)
 Phase 8.2.1 is complete. Ready to proceed with:
 
 **Phase 8.2.2**: Client integration
+
 - Update `FraiseClient::query()` to be generic
 - Add turbofish support: `query::<Project>()`
 - Update public API exports

@@ -337,12 +337,14 @@ class OAuth2ClientCredentialsFlow:
 ```
 
 **Use Cases:**
+
 - Service-to-service API calls
 - Microservices authentication
 - Scheduled batch jobs
 - Integration with external systems
 
 **Security Considerations:**
+
 - Store client_secret securely (environment variables, secret management)
 - Rotate client_secret regularly
 - Use in backend only (never expose to frontend)
@@ -769,6 +771,7 @@ SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
 ```
 
 **Header** (JWT metadata):
+
 ```json
 {
   "alg": "RS256",     // Signing algorithm
@@ -778,6 +781,7 @@ SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
 ```
 
 **Payload** (Claims):
+
 ```json
 {
   "sub": "user:12345",           // Subject (user ID)
@@ -793,6 +797,7 @@ SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
 ```
 
 **Signature**:
+
 ```
 HMAC-SHA256 or RSA-SHA256 of (header + payload) using secret key
 ```
@@ -1198,12 +1203,14 @@ class User:
 ### 6.1 Stateless Sessions (JWT)
 
 **Advantages:**
+
 - Scalable (no server-side storage)
 - Distributed-friendly (each server can validate)
 - Mobile-friendly
 - CDN/edge-cacheable
 
 **Disadvantages:**
+
 - Cannot revoke immediately (token stays valid until expiry)
 - Token contains claims (privacy consideration)
 - Size overhead (increases request/response size)
@@ -1211,12 +1218,14 @@ class User:
 ### 6.2 Stateful Sessions (Cookies)
 
 **Advantages:**
+
 - Can revoke immediately
 - Smaller tokens (just session ID)
 - Traditional web browser support
 - CSRF protection easier
 
 **Disadvantages:**
+
 - Requires server-side state (session store)
 - Not as scalable
 - Requires sticky sessions or shared store
@@ -1686,18 +1695,21 @@ class AuthenticationAuditLog:
 ### 10.2 Compliance Requirements
 
 **SOC 2 Type II:**
+
 - Audit trail for all authentication events
 - Secure token storage and transmission
 - Rate limiting on authentication endpoints
 - Monitoring for suspicious patterns
 
 **GDPR:**
+
 - User consent for data processing
 - Right to deletion (archive authentication logs)
 - Audit trail retention policies
 - Data minimization (collect only necessary claims)
 
 **HIPAA:**
+
 - Secure token transmission (HTTPS only)
 - Encryption at rest and in transit
 - Access control and audit logging
@@ -1817,6 +1829,7 @@ class UnauthorizedError(FraiseSQLError):
 FraiseQL authentication specification provides:
 
 ✅ **Multiple Authentication Schemes**
+
 - OAuth2 (Authorization Code, Client Credentials, Refresh Token)
 - SAML 2.0 (Enterprise SSO)
 - JWT (Stateless tokens)
@@ -1824,12 +1837,14 @@ FraiseQL authentication specification provides:
 - Custom providers (Extensible)
 
 ✅ **Complete Token Lifecycle**
+
 - Generation and signing
 - Validation and claims extraction
 - Refresh and rotation
 - Revocation and expiration
 
 ✅ **Enterprise Security**
+
 - Multi-tenant isolation
 - CSRF protection
 - Rate limiting
@@ -1837,12 +1852,14 @@ FraiseQL authentication specification provides:
 - Compliance support (SOC 2, GDPR, HIPAA)
 
 ✅ **Performance**
+
 - Token caching
 - Parallel authentication
 - Efficient key rotation
 - Minimal crypto overhead
 
 ✅ **User Experience**
+
 - Seamless token refresh
 - Cross-domain SSO support
 - Mobile and SPA support

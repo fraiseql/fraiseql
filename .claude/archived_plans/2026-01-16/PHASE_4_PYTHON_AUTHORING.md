@@ -160,9 +160,11 @@ PYTHON_TO_GRAPHQL_TYPE_MAP = {
    - Custom scalar support
 
 **Files Modified**:
+
 - `src/fraiseql/types.py` - Complete implementation
 
 **Tests**:
+
 - Type mapping for all Python types
 - Nullable types (`T | None`)
 - List types (`list[T]`)
@@ -285,9 +287,11 @@ class UserMutations:
 5. Test all decorator combinations
 
 **Files Modified**:
+
 - `src/fraiseql/decorators.py` - Complete implementation
 
 **Tests**:
+
 - Type decorator registration
 - Query/mutation signature parsing
 - Return type extraction
@@ -389,10 +393,12 @@ class RequireRole(SecurityRule):
 6. Integration with `@type` decorator
 
 **Files Modified**:
+
 - `src/fraiseql/types.py` - Add `Field`, validation rules
 - `src/fraiseql/decorators.py` - Use Field in decorator
 
 **Tests**:
+
 - Field descriptor behavior
 - Validation rule application
 - Security rule application
@@ -517,10 +523,12 @@ def list_users(limit: int = 10) -> list[User]:
 ```
 
 **Files Modified**:
+
 - `src/fraiseql/schema.py` - Complete SchemaGenerator
 - `src/fraiseql/decorators.py` - Add config() function
 
 **Tests**:
+
 - Schema generation for types
 - Schema generation for queries
 - Schema generation for mutations
@@ -624,9 +632,11 @@ def aggregate_query(cls: type) -> type:
 6. Schema generation for aggregate queries
 
 **Files Modified**:
+
 - `src/fraiseql/analytics.py` - Complete implementation
 
 **Tests**:
+
 - Dimension/measure detection
 - Fact table validation
 - Aggregate query generation
@@ -694,11 +704,13 @@ def clear_registry():
 6. Update decorators to use registry
 
 **Files Modified**:
+
 - `src/fraiseql/registry.py` - Complete implementation
 - `src/fraiseql/decorators.py` - Use registry
 - `src/fraiseql/schema.py` - Use registry
 
 **Tests**:
+
 - Registry storage
 - Type registration
 - Query/mutation registration
@@ -756,9 +768,11 @@ def export_schema(
 5. Error handling
 
 **Files Modified**:
+
 - `src/fraiseql/schema.py` - Add export_schema()
 
 **Tests**:
+
 - Export to file
 - JSON validity
 - Pretty printing
@@ -862,6 +876,7 @@ ruff format --check src/ tests/
 5. Document any known limitations
 
 **Files to Create/Update**:
+
 - `tests/test_decorators.py` - Complete
 - `tests/test_types.py` - Complete
 - `tests/test_analytics.py` - Complete
@@ -911,9 +926,11 @@ fraiseql.export_schema()
 ## Full Documentation
 
 See `docs/python/` for:
+
 - [Getting Started](docs/python/GETTING_STARTED.md)
 - [API Reference](docs/python/API_REFERENCE.md)
 - [Examples](docs/python/EXAMPLES.md)
+
 ```
 
 #### 4.9.2: Create `docs/python/` Documentation
@@ -1153,10 +1170,12 @@ python examples/analytics_schema.py
 ## Dependencies
 
 **Runtime**:
+
 - Python 3.10+
 - No external dependencies (pure Python)
 
 **Development**:
+
 - `pytest` - Testing
 - `ruff` - Linting and formatting
 - `hatchling` - Build system
@@ -1180,6 +1199,7 @@ python examples/analytics_schema.py
 **Phase 5: TypeScript/JavaScript Authoring**
 
 Once Python SDK is published, similar effort for TypeScript:
+
 - TypeScript decorators (experimental decorators)
 - npm package (`@fraiseql/core`)
 - Similar feature set to Python

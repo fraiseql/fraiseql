@@ -1,6 +1,7 @@
 # Language Generators - Quick Fixes Checklist
 
 ## Objective
+
 Get all 5 language generators to production-ready status (runnable tests, working examples).
 
 **Timeline**: Today (5-6 hours total)
@@ -12,18 +13,21 @@ Get all 5 language generators to production-ready status (runnable tests, workin
 **Current Status**: 0/3 tests passing (import errors)
 
 ### Command
+
 ```bash
 cd /home/lionel/code/fraiseql
 pip install -e fraiseql-python/
 ```
 
 ### Verify
+
 ```bash
 cd fraiseql-python
 python -m pytest tests/ -v
 ```
 
 ### Expected Output
+
 ```
 test_types.py::test_int_conversion PASSED
 test_types.py::test_list_conversion PASSED
@@ -37,6 +41,7 @@ test_analytics.py::test_aggregate_query PASSED
 ```
 
 ### Success Criteria
+
 - ✅ All 7 tests pass
 - ✅ No ModuleNotFoundError
 
@@ -47,12 +52,15 @@ test_analytics.py::test_aggregate_query PASSED
 **Current Status**: 10/10 registry tests passing, but examples broken
 
 ### Step 1: Check Current tsconfig.json
+
 ```bash
 cat /home/lionel/code/fraiseql/fraiseql-typescript/tsconfig.json
 ```
 
 ### Step 2: Fix tsconfig.json
+
 Add to compilerOptions:
+
 ```json
 {
   "compilerOptions": {
@@ -70,6 +78,7 @@ Add to compilerOptions:
 ```
 
 ### Step 3: Update build script in package.json
+
 ```json
 {
   "scripts": {
@@ -82,6 +91,7 @@ Add to compilerOptions:
 ```
 
 ### Verify
+
 ```bash
 cd fraiseql-typescript
 npm test
@@ -90,6 +100,7 @@ npm run example:analytics
 ```
 
 ### Expected Output
+
 ```
 npm test:
   PASS  tests/registry.test.ts
@@ -104,6 +115,7 @@ npm run example:basic:
 ```
 
 ### Success Criteria
+
 - ✅ 10/10 tests still pass
 - ✅ Both examples execute without errors
 - ✅ JSON schema printed to stdout
@@ -115,17 +127,20 @@ npm run example:basic:
 **Current Status**: 45/45 tests passing ✅, examples working ✅
 
 ### Verify Tests
+
 ```bash
 cd /home/lionel/code/fraiseql/fraiseql-go
 go test ./fraiseql/... -v
 ```
 
 ### Verify Examples
+
 ```bash
 go run examples/basic_schema.go 2>/dev/null | head -20
 ```
 
 ### Expected Output
+
 ```
 go test:
   ok      fraiseql/fraiseql  0.234s
@@ -139,6 +154,7 @@ go run examples/basic_schema.go:
 ```
 
 ### Success Criteria
+
 - ✅ 45/45 tests still passing
 - ✅ Examples generate valid JSON
 
@@ -149,12 +165,14 @@ go run examples/basic_schema.go:
 **Current Status**: 95% complete, 82 tests designed but can't run
 
 ### Step 1: Check if Maven is installed
+
 ```bash
 which mvn
 mvn --version
 ```
 
 **If not installed:**
+
 ```bash
 # On Arch Linux:
 sudo pacman -S maven
@@ -165,12 +183,14 @@ sudo pacman -S maven
 ```
 
 ### Step 2: Run Tests
+
 ```bash
 cd /home/lionel/code/fraiseql/fraiseql-java
 mvn clean test
 ```
 
 ### Expected Output
+
 ```
 [INFO] Running com.fraiseql.core.Phase2Test
 [INFO] Tests run: 21, Failures: 0, Errors: 0, Skipped: 0
@@ -188,6 +208,7 @@ mvn clean test
 ```
 
 ### Success Criteria
+
 - ✅ 82/82 tests pass
 - ✅ BUILD SUCCESS
 
@@ -198,12 +219,14 @@ mvn clean test
 **Current Status**: 90% complete, 12 test classes designed but can't run
 
 ### Step 1: Check if Composer is installed
+
 ```bash
 which composer
 composer --version
 ```
 
 **If not installed:**
+
 ```bash
 # On Arch Linux:
 sudo pacman -S php composer
@@ -215,17 +238,20 @@ sudo pacman -S php composer
 ```
 
 ### Step 2: Install Dependencies
+
 ```bash
 cd /home/lionel/code/fraiseql/fraiseql-php
 composer install
 ```
 
 ### Step 3: Run Tests
+
 ```bash
 vendor/bin/phpunit tests/
 ```
 
 ### Expected Output
+
 ```
 PHPUnit 11.0.4 by Sebastian Bergmann and contributors.
 
@@ -236,6 +262,7 @@ Configuration: phpunit.xml
 ```
 
 ### Success Criteria
+
 - ✅ All 40+ tests pass
 - ✅ No failures
 - ✅ ~0.5s execution time
@@ -247,7 +274,9 @@ Configuration: phpunit.xml
 **Current Status**: All generators produce schema.json, but CLI rejects it
 
 ### Step 1: Check Schema Format
+
 Go example (most complete):
+
 ```bash
 cd /home/lionel/code/fraiseql/fraiseql-go
 go run examples/basic_schema.go > /tmp/go_schema.json
@@ -255,18 +284,23 @@ cat /tmp/go_schema.json | jq . | head -40
 ```
 
 ### Step 2: Try CLI Compilation
+
 ```bash
 fraiseql-cli compile /tmp/go_schema.json
 ```
 
 ### Step 3: Diagnose Error
+
 If compilation fails:
+
 - [ ] Check fraiseql-cli schema parser code
 - [ ] Compare generated format vs expected format
 - [ ] Review compiler error message carefully
 
 ### Step 4: Fix Generation or CLI
+
 Options:
+
 - A) Adjust schema generators to match CLI expectations
 - B) Fix CLI compiler to accept generator output
 - C) Add schema transformation layer
@@ -276,6 +310,7 @@ Options:
 ## EXECUTION PLAN
 
 ### Time Block 1: Python & TypeScript (20 minutes)
+
 ```bash
 # Terminal 1: Python
 cd /home/lionel/code/fraiseql
@@ -291,6 +326,7 @@ npm run example:basic
 ```
 
 ### Time Block 2: Go & Java (25 minutes)
+
 ```bash
 # Terminal 1: Go
 cd /home/lionel/code/fraiseql/fraiseql-go
@@ -304,6 +340,7 @@ mvn clean test
 ```
 
 ### Time Block 3: PHP (15 minutes)
+
 ```bash
 cd /home/lionel/code/fraiseql/fraiseql-php
 composer install
@@ -311,6 +348,7 @@ vendor/bin/phpunit tests/
 ```
 
 ### Time Block 4: CLI Investigation (1-2 hours)
+
 ```bash
 # After all languages verified:
 fraiseql-cli compile /tmp/go_schema.json

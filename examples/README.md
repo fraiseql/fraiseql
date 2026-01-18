@@ -18,6 +18,7 @@ A simple schema with User and Post types for learning the fundamentals.
 - Update user profile
 
 **Run**:
+
 ```bash
 # Compile schema
 fraiseql-cli compile examples/basic_schema.json -o schema.compiled.json
@@ -38,12 +39,14 @@ curl -X POST http://localhost:8000/graphql \
 ### basic_schema.json
 
 Simple schema with:
+
 - **User** type: id, name, email, createdAt
 - **Post** type: id, title, content, author (User), createdAt
 - **Query**: users, user(id), posts, post(id)
 - **Mutation**: createUser, createPost, updateUser
 
 **Use Cases**:
+
 - Learning the basics
 - Prototype applications
 - Testing query validation
@@ -52,6 +55,7 @@ Simple schema with:
 ### Blog Schema (future)
 
 More complex schema with:
+
 - Users, Posts, Comments, Tags
 - Relationships and connections
 - Pagination examples
@@ -60,6 +64,7 @@ More complex schema with:
 ### E-commerce Schema (future)
 
 Real-world schema with:
+
 - Products, Categories, Orders, Users
 - Cart management
 - Inventory tracking
@@ -213,6 +218,7 @@ query {
 ```
 
 **Response**:
+
 ```json
 {
   "errors": [
@@ -247,6 +253,7 @@ query {
 ```
 
 **Response**:
+
 ```json
 {
   "errors": [
@@ -271,6 +278,7 @@ query {
 ```
 
 **Response**:
+
 ```json
 {
   "errors": [

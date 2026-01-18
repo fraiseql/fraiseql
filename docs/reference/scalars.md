@@ -30,6 +30,7 @@ from fraiseql.types import Date, DateTime, UUID, Money, Vector, IpAddressString
 ### 1. Core System Scalars
 
 #### **UUID**
+
 - **GraphQL Type**: `UUID`
 - **Format**: RFC 4122 UUID format
 - **Validation**: Standard UUID v4 validation
@@ -39,6 +40,7 @@ from fraiseql.types import Date, DateTime, UUID, Money, Vector, IpAddressString
 - **Notes**: Hyphenated format required (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
 
 #### **ID**
+
 - **GraphQL Type**: `ID` (built-in GraphQL scalar)
 - **Format**: Any string or number
 - **Python Marker**: `IDField`, `ID` (NewType)
@@ -49,6 +51,7 @@ from fraiseql.types import Date, DateTime, UUID, Money, Vector, IpAddressString
 - **Use Cases**: Primary keys, entity identifiers
 
 #### **JSON**
+
 - **GraphQL Type**: `JSON`
 - **Format**: Arbitrary JSON-serializable values
 - **Python Marker**: `JSONField`
@@ -64,6 +67,7 @@ from fraiseql.types import Date, DateTime, UUID, Money, Vector, IpAddressString
 Temporal scalars represent dates, times, durations, and date ranges with ISO 8601 compliance.
 
 #### **Date**
+
 - **GraphQL Type**: `Date`
 - **Format**: ISO 8601 date format
 - **Pattern**: `YYYY-MM-DD`
@@ -74,6 +78,7 @@ Temporal scalars represent dates, times, durations, and date ranges with ISO 860
 - **Use Cases**: Birthdate, event dates, contract dates
 
 #### **DateTime**
+
 - **GraphQL Type**: `DateTime`
 - **Format**: ISO 8601 datetime with timezone
 - **Pattern**: `YYYY-MM-DDTHH:mm:ssZ` (always UTC)
@@ -88,6 +93,7 @@ Temporal scalars represent dates, times, durations, and date ranges with ISO 860
 - **Notes**: Input accepts timezone offsets (converted to UTC), output always in UTC with Z
 
 #### **Time**
+
 - **GraphQL Type**: `Time`
 - **Format**: 24-hour time format
 - **Pattern**: `HH:MM` or `HH:MM:SS`
@@ -99,6 +105,7 @@ Temporal scalars represent dates, times, durations, and date ranges with ISO 860
 - **Notes**: Seconds and milliseconds optional in input
 
 #### **Duration**
+
 - **GraphQL Type**: `Duration`
 - **Format**: ISO 8601 duration format
 - **Pattern**: `P[n]Y[n]M[n]DT[n]H[n]M[n]S`
@@ -120,6 +127,7 @@ Temporal scalars represent dates, times, durations, and date ranges with ISO 860
 - **Notes**: No timezone, represents an abstract duration
 
 #### **DateRange**
+
 - **GraphQL Type**: `DateRange`
 - **Format**: Range notation with inclusive/exclusive boundaries
 - **Database Type**: `daterange` (PostgreSQL range type)
@@ -132,9 +140,10 @@ Temporal scalars represent dates, times, durations, and date ranges with ISO 860
   - `(2024-12-31, 2026-01-01)` (all of 2025, exclusive boundaries)
   - `[2025-01-01, 2025-06-30)` (Jan 1 inclusive to Jun 30 exclusive)
 - **Use Cases**: Project timelines, availability windows, contract periods
-- **Database Operators**: Can use PostgreSQL range operators (`, `@>`, `<@`, etc.)
+- **Database Operators**: Can use PostgreSQL range operators (`,`@>`,`<@`, etc.)
 
 #### **Timezone**
+
 - **GraphQL Type**: `Timezone`
 - **Format**: IANA timezone identifier
 - **Pattern**: `Region/City` (case-sensitive)
@@ -156,6 +165,7 @@ Temporal scalars represent dates, times, durations, and date ranges with ISO 860
 Geographic scalars represent coordinates, latitude/longitude with GPS precision.
 
 #### **Coordinate**
+
 - **GraphQL Type**: `Coordinate`
 - **Format**: Multiple input formats supported, single canonical format
 - **Input Formats**:
@@ -177,6 +187,7 @@ Geographic scalars represent coordinates, latitude/longitude with GPS precision.
 - **Database Operators**: PostgreSQL point operators (`<->`, distance calculations)
 
 #### **Latitude**
+
 - **GraphQL Type**: `Latitude`
 - **Format**: Decimal degrees
 - **Range**: -90.0 to +90.0 degrees
@@ -198,6 +209,7 @@ Geographic scalars represent coordinates, latitude/longitude with GPS precision.
 - **Database Type**: `numeric` or `double precision` depending on precision needs
 
 #### **Longitude**
+
 - **GraphQL Type**: `Longitude`
 - **Format**: Decimal degrees
 - **Range**: -180.0 to +180.0 degrees
@@ -217,6 +229,7 @@ Geographic scalars represent coordinates, latitude/longitude with GPS precision.
 Network scalars represent IP addresses, MAC addresses, domains, and URLs.
 
 #### **IpAddressString**
+
 - **GraphQL Type**: `IpAddressString`
 - **Format**: IP address (IPv4 or IPv6)
 - **IPv4 Examples**: `192.168.1.1`, `10.0.0.1`, `8.8.8.8`
@@ -235,6 +248,7 @@ Network scalars represent IP addresses, MAC addresses, domains, and URLs.
   - Network containment queries
 
 #### **SubnetMaskString**
+
 - **GraphQL Type**: `SubnetMaskString`
 - **Format**: IPv4 netmask notation (CIDR prefix format also accepted)
 - **Examples**: `255.255.255.0`, `255.255.0.0`, `255.0.0.0`
@@ -248,6 +262,7 @@ Network scalars represent IP addresses, MAC addresses, domains, and URLs.
 - **Notes**: Only IPv4 (IPv6 uses CIDR prefix notation directly)
 
 #### **CIDR**
+
 - **GraphQL Type**: `CIDR`
 - **Format**: CIDR notation (Classless Inter-Domain Routing)
 - **Pattern**: `address/prefix`
@@ -268,6 +283,7 @@ Network scalars represent IP addresses, MAC addresses, domains, and URLs.
 - **Database Operators**: PostgreSQL supports network operators (`<<`, `>>`, `&&`)
 
 #### **MacAddress**
+
 - **GraphQL Type**: `MacAddress`
 - **Format**: Media Access Control (MAC/Physical) address
 - **Input Formats** (all equivalent, normalized to canonical):
@@ -290,6 +306,7 @@ Network scalars represent IP addresses, MAC addresses, domains, and URLs.
 - **Notes**: PostgreSQL `macaddr` type also supports network functions
 
 #### **Hostname**
+
 - **GraphQL Type**: `Hostname`
 - **Format**: RFC 1123 hostname format
 - **Rules**:
@@ -313,6 +330,7 @@ Network scalars represent IP addresses, MAC addresses, domains, and URLs.
 - **Notes**: Less strict than DomainName (doesn't require TLD)
 
 #### **DomainName**
+
 - **GraphQL Type**: `DomainName`
 - **Format**: RFC-compliant fully qualified domain name (FQDN)
 - **Rules**:
@@ -336,6 +354,7 @@ Network scalars represent IP addresses, MAC addresses, domains, and URLs.
 - **Notes**: Stricter than Hostname (requires TLD)
 
 #### **URL**
+
 - **GraphQL Type**: `URL`
 - **Format**: RFC 3986 compliant URL
 - **Required Components**: Scheme, domain
@@ -364,6 +383,7 @@ Network scalars represent IP addresses, MAC addresses, domains, and URLs.
 Financial scalars represent monetary values, currency codes, and exchange rates with proper precision.
 
 #### **Money**
+
 - **GraphQL Type**: `Money`
 - **Format**: Decimal number with exactly 4 decimal places
 - **Precision**: Up to 15 digits before decimal
@@ -385,6 +405,7 @@ Financial scalars represent monetary values, currency codes, and exchange rates 
 - **Notes**: Always 4 decimal places for accounting precision
 
 #### **CurrencyCode**
+
 - **GraphQL Type**: `CurrencyCode`
 - **Format**: ISO 4217 three-letter currency code
 - **Validation**: Must be valid ISO 4217 code
@@ -404,6 +425,7 @@ Financial scalars represent monetary values, currency codes, and exchange rates 
 - **Notes**: Often paired with Money scalar for complete monetary values
 
 #### **Percentage**
+
 - **GraphQL Type**: `Percentage`
 - **Format**: Decimal number 0.00 to 100.00
 - **Precision**: Exactly 2 decimal places
@@ -424,6 +446,7 @@ Financial scalars represent monetary values, currency codes, and exchange rates 
 - **Notes**: 2 decimal places for percentage precision
 
 #### **ExchangeRate**
+
 - **GraphQL Type**: `ExchangeRate`
 - **Format**: High-precision decimal
 - **Database Type**: `NUMERIC(20,8)` (PostgreSQL)
@@ -445,6 +468,7 @@ Financial scalars represent monetary values, currency codes, and exchange rates 
 Financial identifier scalars represent standardized security and financial institution identifiers.
 
 #### **ISIN**
+
 - **GraphQL Type**: `ISIN`
 - **Format**: International Securities Identification Number (ISO 6166)
 - **Length**: Exactly 12 characters
@@ -466,6 +490,7 @@ Financial identifier scalars represent standardized security and financial insti
 - **Notes**: Globally unique identifier for any security worldwide
 
 #### **CUSIP**
+
 - **GraphQL Type**: `CUSIP`
 - **Format**: Committee on Uniform Security Identification Procedures
 - **Length**: Exactly 9 characters
@@ -486,6 +511,7 @@ Financial identifier scalars represent standardized security and financial insti
 - **Notes**: CUSIP number is proprietary; ISIN is international equivalent
 
 #### **SEDOL**
+
 - **GraphQL Type**: `SEDOL`
 - **Format**: Stock Exchange Daily Official List (ISO 10149)
 - **Length**: Exactly 7 characters
@@ -506,6 +532,7 @@ Financial identifier scalars represent standardized security and financial insti
 - **Notes**: Vowel restriction reduces confusion with numbers
 
 #### **LEI**
+
 - **GraphQL Type**: `LEI`
 - **Format**: Legal Entity Identifier (ISO 17442)
 - **Length**: Exactly 20 characters
@@ -532,6 +559,7 @@ Financial identifier scalars represent standardized security and financial insti
 Stock market scalars represent ticker symbols, exchange codes, and market identifiers.
 
 #### **StockSymbol**
+
 - **GraphQL Type**: `StockSymbol`
 - **Format**: Stock ticker symbol
 - **Length**: 1-5 uppercase letters
@@ -553,6 +581,7 @@ Stock market scalars represent ticker symbols, exchange codes, and market identi
 - **Notes**: Same symbol can exist on different exchanges
 
 #### **ExchangeCode**
+
 - **GraphQL Type**: `ExchangeCode`
 - **Format**: Market exchange identifier
 - **Length**: 2-6 uppercase letters
@@ -572,6 +601,7 @@ Stock market scalars represent ticker symbols, exchange codes, and market identi
 - **Notes**: Symbol+Exchange combo uniquely identifies a tradable security
 
 #### **MIC**
+
 - **GraphQL Type**: `MIC`
 - **Format**: Market Identifier Code (ISO 10383)
 - **Length**: Exactly 4 alphanumeric characters
@@ -597,6 +627,7 @@ Stock market scalars represent ticker symbols, exchange codes, and market identi
 Banking and payment scalars represent account numbers, phone numbers, and payment identifiers.
 
 #### **IBAN**
+
 - **GraphQL Type**: `IBAN`
 - **Format**: International Bank Account Number (ISO 13616)
 - **Structure**:
@@ -631,6 +662,7 @@ Banking and payment scalars represent account numbers, phone numbers, and paymen
 - **Notes**: More common in Europe; Asia uses SWIFT/BIC
 
 #### **PhoneNumber**
+
 - **GraphQL Type**: `PhoneNumber`
 - **Format**: E.164 international format
 - **Pattern**: `+[country code][number]`
@@ -662,6 +694,7 @@ Banking and payment scalars represent account numbers, phone numbers, and paymen
 Identifier scalars represent unique identifiers and URL-friendly slugs.
 
 #### **Slug**
+
 - **GraphQL Type**: `Slug`
 - **Format**: URL-friendly identifier
 - **Valid Characters**: `a-z`, `0-9`, hyphen (`-`)
@@ -689,6 +722,7 @@ Identifier scalars represent unique identifiers and URL-friendly slugs.
 Cryptographic scalars represent hashes, keys, and security-related values.
 
 #### **HashSHA256**
+
 - **GraphQL Type**: `HashSHA256`
 - **Format**: SHA256 hexadecimal hash
 - **Length**: Exactly 64 hexadecimal characters
@@ -707,6 +741,7 @@ Cryptographic scalars represent hashes, keys, and security-related values.
 - **Notes**: Always 256 bits = 64 hex characters
 
 #### **ApiKey**
+
 - **GraphQL Type**: `ApiKey`
 - **Format**: Access token or API key
 - **Length**: 16-128 characters
@@ -732,6 +767,7 @@ Cryptographic scalars represent hashes, keys, and security-related values.
 Vehicle and transportation scalars represent vehicle identifiers, license plates, and tracking numbers.
 
 #### **VIN**
+
 - **GraphQL Type**: `VIN`
 - **Format**: Vehicle Identification Number (ISO 3779/3780)
 - **Length**: Exactly 17 characters
@@ -755,6 +791,7 @@ Vehicle and transportation scalars represent vehicle identifiers, license plates
 - **Notes**: Unique for each vehicle, used globally
 
 #### **LicensePlate**
+
 - **GraphQL Type**: `LicensePlate`
 - **Format**: International vehicle license plate
 - **Length**: 2-12 characters
@@ -777,6 +814,7 @@ Vehicle and transportation scalars represent vehicle identifiers, license plates
 - **Notes**: Format varies significantly by country
 
 #### **AirportCode**
+
 - **GraphQL Type**: `AirportCode`
 - **Format**: IATA airport code
 - **Length**: Exactly 3 uppercase letters
@@ -797,6 +835,7 @@ Vehicle and transportation scalars represent vehicle identifiers, license plates
 - **Notes**: Different from ICAO codes (4 letters)
 
 #### **TrackingNumber**
+
 - **GraphQL Type**: `TrackingNumber`
 - **Format**: Shipping tracking number
 - **Length**: 8-30 characters
@@ -820,6 +859,7 @@ Vehicle and transportation scalars represent vehicle identifiers, license plates
 Localization scalars represent language and locale information.
 
 #### **LanguageCode**
+
 - **GraphQL Type**: `LanguageCode`
 - **Format**: ISO 639-1 two-letter language code
 - **Standard**: ISO 639-1
@@ -844,6 +884,7 @@ Localization scalars represent language and locale information.
 - **Notes**: 2-letter codes; 3-letter codes (ISO 639-2/3) also exist
 
 #### **LocaleCode**
+
 - **GraphQL Type**: `LocaleCode`
 - **Format**: BCP 47 locale identifier
 - **Structure**: `language[-script][-region][-variant]`
@@ -870,6 +911,7 @@ Localization scalars represent language and locale information.
 ### 13. Versioning Scalar
 
 #### **SemanticVersion**
+
 - **GraphQL Type**: `SemanticVersion`
 - **Format**: Semantic Versioning (semver) specification
 - **Pattern**: `MAJOR.MINOR.PATCH[-prerelease][+build]`
@@ -905,6 +947,7 @@ Localization scalars represent language and locale information.
 Content scalars represent rich content and file formats.
 
 #### **Color**
+
 - **GraphQL Type**: `Color`
 - **Format**: Hexadecimal color code
 - **Formats**:
@@ -928,6 +971,7 @@ Content scalars represent rich content and file formats.
 - **Notes**: RGB color space (not CMYK or HSL)
 
 #### **HTMLScalar**
+
 - **GraphQL Type**: `HTML`
 - **Format**: HTML content (any valid HTML)
 - **Database Type**: `text`
@@ -941,6 +985,7 @@ Content scalars represent rich content and file formats.
 - **Notes**: No validation; sanitization recommended on display
 
 #### **MarkdownScalar**
+
 - **GraphQL Type**: `Markdown`
 - **Format**: Markdown content (GitHub Flavored Markdown compatible)
 - **Database Type**: `text`
@@ -953,6 +998,7 @@ Content scalars represent rich content and file formats.
 - **Notes**: No validation; render to HTML on display
 
 #### **MimeType**
+
 - **GraphQL Type**: `MimeType`
 - **Format**: MIME media type (RFC 6838)
 - **Pattern**: `type/subtype[+suffix]`
@@ -981,6 +1027,7 @@ Content scalars represent rich content and file formats.
 - **Notes**: Case-insensitive (normalized to lowercase)
 
 #### **Image**
+
 - **GraphQL Type**: `Image`
 - **Format**: Image file URL or path
 - **Supported Formats**:
@@ -999,6 +1046,7 @@ Content scalars represent rich content and file formats.
 - **Notes**: Validation is extension-based; actual image validation recommended
 
 #### **FileScalar**
+
 - **GraphQL Type**: `File`
 - **Format**: File reference (URL or file path)
 - **Can Represent**:
@@ -1019,6 +1067,7 @@ Content scalars represent rich content and file formats.
 Postal scalars represent address-related information.
 
 #### **PostalCode**
+
 - **GraphQL Type**: `PostalCode`
 - **Format**: International postal code
 - **Validation**: Flexible format (no strict validation)
@@ -1036,6 +1085,7 @@ Postal scalars represent address-related information.
 - **Notes**: Highly country-specific formats
 
 #### **PortCode**
+
 - **GraphQL Type**: `PortCode`
 - **Format**: Shipping port identifier
 - **Length**: Typically 3-5 characters
@@ -1057,6 +1107,7 @@ Postal scalars represent address-related information.
 ### 16. Networking Port
 
 #### **Port**
+
 - **GraphQL Type**: `Port`
 - **Format**: Network port number
 - **Type**: Integer
@@ -1088,6 +1139,7 @@ Postal scalars represent address-related information.
 ### 17. Hierarchical Scalar
 
 #### **LTreePath**
+
 - **GraphQL Type**: `LTreePath`
 - **Format**: PostgreSQL `ltree` hierarchical path
 - **Structure**: Dot-separated labels
@@ -1124,6 +1176,7 @@ Postal scalars represent address-related information.
 Vector scalars represent embeddings and vector data for semantic search and RAG (Retrieval-Augmented Generation).
 
 #### **Vector**
+
 - **GraphQL Type**: `Vector`
 - **Format**: List of floating-point numbers
 - **Precision**: 32-bit floats (IEEE 754)
@@ -1150,6 +1203,7 @@ Vector scalars represent embeddings and vector data for semantic search and RAG 
   - Memory: ~4 bytes per dimension
 
 #### **HalfVector**
+
 - **GraphQL Type**: `HalfVector`
 - **Format**: List of floating-point numbers (16-bit precision)
 - **Precision**: 16-bit floats (half precision, bfloat16)
@@ -1174,18 +1228,21 @@ Vector scalars represent embeddings and vector data for semantic search and RAG 
   - Recommended: 384-1536 dimensions
 
 #### **SparseVector**
+
 - **GraphQL Type**: `SparseVector`
 - **Format**: Dictionary with indices and values
 - **Structure**: `{indices: [int], values: [float]}`
 - **Database Type**: PostgreSQL `sparsevec` (pgvector extension)
 - **Dimension**: Implicit from max index
 - **Example**:
+
   ```json
   {
     "indices": [0, 2, 5],
     "values": [0.1, 0.3, 0.2]
   }
   ```
+
 - **Memory Advantage**: Extremely efficient for high-dimensional, sparse data
 - **Use Cases**:
   - Text BOW (Bag of Words) embeddings
@@ -1199,6 +1256,7 @@ Vector scalars represent embeddings and vector data for semantic search and RAG 
   - Only stores non-zero values
 
 #### **QuantizedVector**
+
 - **GraphQL Type**: `QuantizedVector`
 - **Format**: Dictionary with quantization metadata
 - **Structure**: `{codebook_id: int, code: int, scale: float, offset: [float]}`
@@ -1206,6 +1264,7 @@ Vector scalars represent embeddings and vector data for semantic search and RAG 
 - **Compression**: Product quantization (PQ) for extreme compression
 - **Memory**: Dramatically reduced vs Vector or HalfVector
 - **Example**:
+
   ```json
   {
     "codebook_id": 1,
@@ -1214,6 +1273,7 @@ Vector scalars represent embeddings and vector data for semantic search and RAG 
     "offset": [0.1, 0.2, 0.3]
   }
   ```
+
 - **Use Cases**:
   - Extremely large-scale embeddings (billions of vectors)
   - Mobile/edge deployment
@@ -1358,11 +1418,13 @@ class BlogPost:
 ## Performance Considerations
 
 ### Validation Overhead
+
 - **Minimal**: Most scalars use simple pattern matching
 - **Moderate**: Luhn algorithm (ISIN, CUSIP, LEI, IBAN)
 - **Database**: Geographic, network operations via PostgreSQL
 
 ### Storage Efficiency
+
 | Type | Bytes | Notes |
 |------|-------|-------|
 | UUID | 16 | Binary storage in DB |
@@ -1378,6 +1440,7 @@ class BlogPost:
 ## Best Practices
 
 ### Scalar Selection
+
 1. **Always use specific scalars** instead of generic string:
    - ✅ `email: EmailAddress`
    - ❌ `email: str`
@@ -1399,16 +1462,19 @@ class BlogPost:
    - ❌ `location: str`, `latitude: float`
 
 ### Validation
+
 - Scalars validate input at GraphQL execution time
 - Errors are returned as GraphQL errors (not exceptions)
 - Invalid values are rejected before reaching database
 
 ### Database Operations
+
 - Use PostgreSQL native types for indexing
 - Take advantage of type-specific operators (ltree, inet, vector)
 - Query optimization: index commonly filtered fields
 
 ### Security
+
 - **Sensitive data**: Use dedicated scalar types (ApiKey, HashSHA256)
 - **Email/Phone**: Validate format and consider additional verification
 - **Cryptographic**: Store hashes securely, never store plaintext equivalents

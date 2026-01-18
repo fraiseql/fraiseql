@@ -27,6 +27,7 @@ Measurements: criterion for latency, heaptrack for memory
 ### Query Patterns
 
 All queries follow the FraiseQL pattern:
+
 ```sql
 SELECT data
 FROM v_{entity}
@@ -97,6 +98,7 @@ Expected baseline:
 ### Next Steps
 
 1. **Setup Test Database**:
+
    ```bash
    # Create test database
    createdb fraiseql_bench
@@ -106,6 +108,7 @@ Expected baseline:
    ```
 
 2. **Run Benchmarks**:
+
    ```bash
    # Standard benchmarks
    DATABASE_URL=postgres://localhost/fraiseql_bench cargo bench --bench database_baseline
@@ -168,16 +171,19 @@ Expected for 100K rows:
 ### Memory Advantage
 
 **Before** (tokio-postgres):
+
 - Entire result set buffered in memory
 - 100K rows = 26 MB heap allocation
 - Memory pressure scales linearly with query size
 
 **After** (fraiseql-wire):
+
 - Streaming with bounded chunks
 - 100K rows = 1.3 KB heap allocation (chunk size)
 - Memory constant regardless of query size
 
 **Why It Matters**:
+
 - Large list queries (e.g., `users(limit: 100000)`)
 - Export operations (CSV, JSON streaming)
 - Cursor-based pagination
@@ -227,6 +233,7 @@ CREATE INDEX idx_test_data_status ON v_test_data USING gin ((data->'status'));
 ## Benchmark Execution Checklist
 
 ### Phase 0: Foundation
+
 - [x] Build errors fixed (fact_tables, calendar_dimensions)
 - [x] All tests compile and pass
 - [x] Baseline benchmark suite created
@@ -235,6 +242,7 @@ CREATE INDEX idx_test_data_status ON v_test_data USING gin ((data->'status'));
 - [ ] Memory profiling tools installed (heaptrack)
 
 ### Phase 0: Baseline Measurements
+
 - [ ] Run benchmarks: 10K rows
 - [ ] Run benchmarks: 100K rows
 - [ ] Run benchmarks: 1M rows
@@ -243,6 +251,7 @@ CREATE INDEX idx_test_data_status ON v_test_data USING gin ((data->'status'));
 - [ ] Validate against expected values
 
 ### Phase 1: fraiseql-wire Comparison
+
 - [ ] Implement FraiseWireAdapter
 - [ ] Run same benchmarks with wire backend
 - [ ] Compare memory usage (target: 20,000x reduction)
@@ -257,18 +266,21 @@ CREATE INDEX idx_test_data_status ON v_test_data USING gin ((data->'status'));
 ### Memory Reduction
 
 ✅ **Target**: 1000x+ memory reduction for 100K row queries
+
 - Baseline: 26 MB
 - Wire: <26 KB (< 0.1% of baseline)
 
 ### No Latency Regression
 
 ✅ **Target**: <5% latency variance
+
 - Time-to-first-row: ±0.5 ms
 - Total query time: ±10 ms for 100K rows
 
 ### Throughput Maintenance
 
 ✅ **Target**: >95% throughput maintenance
+
 - Baseline: 480K rows/sec
 - Wire: >450K rows/sec
 
@@ -279,12 +291,14 @@ CREATE INDEX idx_test_data_status ON v_test_data USING gin ((data->'status'));
 ### Current Baseline Benchmark
 
 **Limitations**:
+
 1. **No actual database queries yet**: Benchmarks use placeholder sleep() calls
 2. **No PostgresAdapter integration**: Requires implementing adapter in benchmark code
 3. **No test data**: Requires setting up test database with 1M+ rows
 4. **No memory profiling**: Requires heaptrack or similar tool installation
 
 **Next Actions**:
+
 1. Implement PostgresAdapter usage in benchmark
 2. Generate test data in PostgreSQL
 3. Run benchmarks with DATABASE_URL environment variable

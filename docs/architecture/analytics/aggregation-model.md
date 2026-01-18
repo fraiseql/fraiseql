@@ -20,6 +20,7 @@ FraiseQL v2 supports **database-native aggregations** through compile-time schem
 ### Supported Functions (All Databases)
 
 **Basic Aggregates** (Phase 1-2: ✅ Complete):
+
 - `COUNT(*)` - Count all rows
 - `COUNT(field)` - Count non-null values in field
 - `COUNT(DISTINCT field)` - Count unique values
@@ -29,6 +30,7 @@ FraiseQL v2 supports **database-native aggregations** through compile-time schem
 - `MAX(field)` - Maximum value
 
 **Example**:
+
 ```sql
 SELECT
     COUNT(*) AS total_count,
@@ -43,19 +45,23 @@ FROM tf_sales;
 ### Database-Specific Extensions
 
 **PostgreSQL**:
+
 - `STDDEV(field)` - Standard deviation
 - `VARIANCE(field)` - Variance
 - `PERCENTILE_CONT(fraction)` - Continuous percentile
 - `PERCENTILE_DISC(fraction)` - Discrete percentile
 
 **MySQL**:
+
 - `GROUP_CONCAT(field)` - Concatenate values with delimiter
 - `STDDEV(field)` - Standard deviation (limited support)
 
 **SQLite**:
+
 - Limited to basic functions only (COUNT, SUM, AVG, MIN, MAX)
 
 **SQL Server**:
+
 - `STDEV(field)` / `STDEVP(field)` - Standard deviation (sample/population)
 - `VAR(field)` / `VARP(field)` - Variance (sample/population)
 
@@ -98,6 +104,7 @@ When the compiler encounters a fact table (marked with `fact_table=True` in sche
 **Example**:
 
 GraphQL:
+
 ```graphql
 query {
   sales_aggregate(
@@ -112,6 +119,7 @@ query {
 ```
 
 Generated SQL (PostgreSQL):
+
 ```sql
 SELECT
     data->>'category' AS category,
@@ -137,6 +145,7 @@ The HAVING clause filters aggregated results after GROUP BY.
 ### Example
 
 GraphQL:
+
 ```graphql
 query {
   sales_aggregate(
@@ -150,6 +159,7 @@ query {
 ```
 
 Generated SQL (PostgreSQL):
+
 ```sql
 SELECT
     data->>'category' AS category,
@@ -169,6 +179,7 @@ Temporal bucketing groups timestamps into intervals (day, week, month, etc.).
 ### Database-Specific Functions
 
 **PostgreSQL**:
+
 ```sql
 DATE_TRUNC('day', occurred_at)    -- Day bucket
 DATE_TRUNC('week', occurred_at)   -- Week bucket
@@ -178,6 +189,7 @@ DATE_TRUNC('year', occurred_at)   -- Year bucket
 ```
 
 **MySQL**:
+
 ```sql
 DATE_FORMAT(occurred_at, '%Y-%m-%d')      -- Day bucket
 DATE_FORMAT(occurred_at, '%Y-%m')         -- Month bucket
@@ -185,6 +197,7 @@ DATE_FORMAT(occurred_at, '%Y')            -- Year bucket
 ```
 
 **SQLite**:
+
 ```sql
 strftime('%Y-%m-%d', occurred_at)  -- Day bucket
 strftime('%Y-%m', occurred_at)     -- Month bucket
@@ -192,6 +205,7 @@ strftime('%Y', occurred_at)        -- Year bucket
 ```
 
 **SQL Server**:
+
 ```sql
 DATEPART(day, occurred_at)     -- Day component
 DATEPART(week, occurred_at)    -- Week component
@@ -214,6 +228,7 @@ DATEPART(year, occurred_at)    -- Year component
 ### Example
 
 GraphQL:
+
 ```graphql
 query {
   sales_aggregate(
@@ -226,6 +241,7 @@ query {
 ```
 
 Generated SQL (PostgreSQL):
+
 ```sql
 SELECT
     DATE_TRUNC('day', occurred_at) AS occurred_at_day,
@@ -289,11 +305,13 @@ query {
 ### SQL Column Aggregation
 
 **10-100x faster than JSONB aggregation**:
+
 - Direct access to typed numeric columns
 - B-tree indexes on measure columns
 - Database native aggregation optimizations
 
 **Example**:
+
 ```sql
 -- ✅ FAST: SQL column aggregation
 SELECT SUM(revenue) FROM tf_sales;
@@ -360,6 +378,7 @@ FROM tf_sales;
 ```
 
 **ETL Responsibility**:
+
 - FraiseQL provides GraphQL query interface over existing tables
 - DBA/data team creates ETL pipelines to populate `tf_` tables
 - Dimensional data is denormalized from `td_` tables into `tf_` tables' `data` column

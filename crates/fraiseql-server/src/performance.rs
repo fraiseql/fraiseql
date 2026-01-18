@@ -35,7 +35,7 @@ pub struct QueryPerformance {
 
 impl QueryPerformance {
     /// Create new query performance tracker.
-    #[must_use] 
+    #[must_use]
     pub fn new(
         duration_us: u64,
         db_queries: u32,
@@ -55,27 +55,27 @@ impl QueryPerformance {
     }
 
     /// Set parse duration.
-    #[must_use] 
+    #[must_use]
     pub fn with_parse_duration(mut self, duration_us: u64) -> Self {
         self.parse_duration_us = duration_us;
         self
     }
 
     /// Set validation duration.
-    #[must_use] 
+    #[must_use]
     pub fn with_validation_duration(mut self, duration_us: u64) -> Self {
         self.validation_duration_us = duration_us;
         self
     }
 
     /// Calculate total non-database time in microseconds.
-    #[must_use] 
+    #[must_use]
     pub fn non_db_duration_us(&self) -> u64 {
         self.duration_us.saturating_sub(self.db_duration_us)
     }
 
     /// Calculate database time percentage.
-    #[must_use] 
+    #[must_use]
     pub fn db_percentage(&self) -> f64 {
         if self.duration_us == 0 {
             0.0
@@ -85,7 +85,7 @@ impl QueryPerformance {
     }
 
     /// Check if query is slow (over threshold).
-    #[must_use] 
+    #[must_use]
     pub fn is_slow(&self, threshold_ms: f64) -> bool {
         (self.duration_us as f64 / 1000.0) > threshold_ms
     }
@@ -121,7 +121,7 @@ pub struct OperationProfile {
 
 impl OperationProfile {
     /// Calculate average duration in milliseconds.
-    #[must_use] 
+    #[must_use]
     pub fn avg_duration_ms(&self) -> f64 {
         if self.count == 0 {
             0.0
@@ -131,7 +131,7 @@ impl OperationProfile {
     }
 
     /// Calculate average database queries per operation.
-    #[must_use] 
+    #[must_use]
     pub fn avg_db_queries(&self) -> f64 {
         if self.count == 0 {
             0.0
@@ -171,7 +171,7 @@ pub struct PerformanceMonitor {
 
 impl PerformanceMonitor {
     /// Create new performance monitor.
-    #[must_use] 
+    #[must_use]
     pub fn new(slow_query_threshold_ms: f64) -> Self {
         Self {
             queries_tracked: Arc::new(AtomicU64::new(0)),
@@ -221,7 +221,7 @@ impl PerformanceMonitor {
     }
 
     /// Get performance statistics.
-    #[must_use] 
+    #[must_use]
     pub fn stats(&self) -> PerformanceStats {
         let queries_tracked = self.queries_tracked.load(Ordering::Relaxed);
         let slow_queries = self.slow_queries.load(Ordering::Relaxed);
@@ -243,7 +243,7 @@ impl PerformanceMonitor {
     }
 
     /// Get average query duration in milliseconds.
-    #[must_use] 
+    #[must_use]
     pub fn avg_duration_ms(&self) -> f64 {
         let stats = self.stats();
         if stats.queries_tracked == 0 {
@@ -254,7 +254,7 @@ impl PerformanceMonitor {
     }
 
     /// Get slow query percentage.
-    #[must_use] 
+    #[must_use]
     pub fn slow_query_percentage(&self) -> f64 {
         let stats = self.stats();
         if stats.queries_tracked == 0 {
@@ -265,7 +265,7 @@ impl PerformanceMonitor {
     }
 
     /// Get cache hit rate (0.0-1.0).
-    #[must_use] 
+    #[must_use]
     pub fn cache_hit_rate(&self) -> f64 {
         let stats = self.stats();
         if stats.queries_tracked == 0 {
@@ -276,7 +276,7 @@ impl PerformanceMonitor {
     }
 
     /// Create timing guard for duration tracking.
-    #[must_use] 
+    #[must_use]
     pub fn create_timer(&self) -> PerformanceTimer {
         PerformanceTimer::new()
     }
@@ -309,7 +309,7 @@ pub struct PerformanceStats {
 
 impl PerformanceStats {
     /// Average query duration in milliseconds.
-    #[must_use] 
+    #[must_use]
     pub fn avg_duration_ms(&self) -> f64 {
         if self.queries_tracked == 0 {
             0.0
@@ -319,7 +319,7 @@ impl PerformanceStats {
     }
 
     /// Average database queries per operation.
-    #[must_use] 
+    #[must_use]
     pub fn avg_db_queries(&self) -> f64 {
         if self.queries_tracked == 0 {
             0.0
@@ -329,7 +329,7 @@ impl PerformanceStats {
     }
 
     /// Slow query percentage.
-    #[must_use] 
+    #[must_use]
     pub fn slow_query_percentage(&self) -> f64 {
         if self.queries_tracked == 0 {
             0.0
@@ -347,7 +347,7 @@ pub struct PerformanceTimer {
 
 impl PerformanceTimer {
     /// Create new performance timer.
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self {
             start: Instant::now(),
@@ -355,13 +355,13 @@ impl PerformanceTimer {
     }
 
     /// Record duration and consume timer.
-    #[must_use] 
+    #[must_use]
     pub fn record(self) -> u64 {
         self.start.elapsed().as_micros() as u64
     }
 
     /// Record duration and get reference to elapsed time.
-    #[must_use] 
+    #[must_use]
     pub fn elapsed_us(&self) -> u64 {
         self.start.elapsed().as_micros() as u64
     }

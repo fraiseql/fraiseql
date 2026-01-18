@@ -17,6 +17,7 @@ The **execution model** defines how the Rust runtime handles three orthogonal ex
 All three patterns compile to deterministic execution plans; only the delivery model differs.
 
 **Core principles (apply to all three):**
+
 - All execution is **planned at compile time** — runtime has no decisions to make
 - **Authorization is metadata** — checked statically, not during execution
 - **Database calls are fixed** — no dynamic joins or discovery at runtime
@@ -107,6 +108,7 @@ def check_cache(
 ```
 
 **Cache Layers Supported:**
+
 - **Memory Cache** — Fast, in-process, volatile
 - **Database Cache** — Persistent (PostgreSQL UNLOGGED tables)
 - **Custom Backend** — Redis, Memcached, or other
@@ -141,6 +143,7 @@ def resolve_apq(
 ```
 
 **APQ Security Modes:**
+
 - **OPTIONAL** — Accept both persisted and ad-hoc queries
 - **REQUIRED** — Only accept persisted queries (enforces allowlist)
 - **DISABLED** — Ignore APQ extensions entirely
@@ -179,6 +182,7 @@ async def resolve_phase_0(request) -> dict | None:
 ```
 
 **Performance Impact:**
+
 - Cache hit: Response in 1-10 ms (depending on cache layer)
 - APQ resolution: < 1 ms
 - Cache miss: Continue to validation (normal path)
@@ -190,12 +194,14 @@ async def resolve_phase_0(request) -> dict | None:
 ### 3.1 Static vs Runtime Validation
 
 **Compile-time validation** (in compiler):
+
 - Type closure
 - Field existence
 - Argument types
 - Authorization references
 
 **Runtime validation** (in executor):
+
 - Argument values conform to declared types
 - Required arguments provided
 - Query structure conforms to schema
@@ -387,6 +393,7 @@ For queries targeting fact tables (tables with `tf_*` prefix), Phase 2.5 perform
 ### 4.5.1 Fact Table Detection
 
 The compiler identifies fact tables during schema compilation by:
+
 1. Detecting `tf_*` table prefix
 2. Identifying measure columns (numeric types: INT, DECIMAL, FLOAT)
 3. Detecting dimension JSONB column (default: `data`)
@@ -397,6 +404,7 @@ At runtime, when a query targets a fact table aggregate query (e.g., `sales_aggr
 ### 4.5.2 GROUP BY Clause Generation
 
 Aggregation resolver:
+
 1. Parses `groupBy` input to extract dimension paths
 2. Generates SQL GROUP BY expressions:
    - Direct SQL columns: `GROUP BY customer_id`
@@ -407,6 +415,7 @@ Aggregation resolver:
 ### 4.5.3 Aggregate Function Selection
 
 For each requested aggregate measure:
+
 1. Validate measure column exists and is numeric
 2. Select database-specific aggregate function from capability manifest
    - PostgreSQL: COUNT, SUM, AVG, MIN, MAX, STDDEV, VARIANCE
@@ -418,12 +427,14 @@ For each requested aggregate measure:
 ### 4.5.4 Conditional Aggregates
 
 For filtered aggregates (e.g., `revenue_sum(filter: {status: "completed"})`):
+
 - **PostgreSQL**: Use FILTER clause: `SUM(revenue) FILTER (WHERE status = 'completed')`
 - **Others**: Emulate with CASE WHEN: `SUM(CASE WHEN status = 'completed' THEN revenue ELSE 0 END)`
 
 ### 4.5.5 HAVING Clause Validation
 
 For post-aggregation filters (`having` input):
+
 1. Validate references are to aggregated measures (not raw columns)
 2. Generate HAVING SQL: `HAVING SUM(revenue) > $1`
 3. Bind filter values as query parameters
@@ -431,6 +442,7 @@ For post-aggregation filters (`having` input):
 ### 4.5.6 Temporal Bucketing
 
 For temporal dimensions (e.g., `occurred_at_day`, `occurred_at_month`):
+
 - **PostgreSQL**: `DATE_TRUNC('day', occurred_at)`
 - **MySQL**: `DATE_FORMAT(occurred_at, '%Y-%m-%d')`
 - **SQLite**: `strftime('%Y-%m-%d', occurred_at)`
@@ -439,6 +451,7 @@ For temporal dimensions (e.g., `occurred_at_day`, `occurred_at_month`):
 ### 4.5.7 Execution Plan
 
 Phase 2.5 produces an AggregationExecutionPlan:
+
 ```json
 {
   "type": "aggregation",
@@ -461,6 +474,7 @@ Phase 2.5 produces an AggregationExecutionPlan:
 This plan is passed to Phase 3 (Query Planning) which converts it to database-specific SQL in Phase 4.
 
 **Related documentation**:
+
 - `docs/architecture/analytics/aggregation-model.md` - Complete aggregation architecture
 - `docs/specs/aggregation-operators.md` - Database-specific aggregate functions
 - `docs/specs/analytical-schema-conventions.md` - Fact table naming and structure
@@ -515,6 +529,7 @@ class ViewQueryPlan:
 ```
 
 **SQL generated:**
+
 ```sql
 SELECT id, email, name, data, created_at
 FROM v_user
@@ -535,6 +550,7 @@ class ProcedureCallPlan:
 ```
 
 **SQL generated:**
+
 ```sql
 SELECT fn_create_user(
     email_param := $1,
@@ -870,6 +886,7 @@ def project_result_with_auth(
 ```
 
 **Authorization Examples:**
+
 ```python
 # Hide password_hash from non-admin users
 class User:
@@ -884,10 +901,12 @@ class User:
 ```
 
 **Performance:**
+
 - Field-level auth uses Rust FFI when available (< 0.1 ms per field)
 - Falls back to Python implementation if needed (< 1 ms per field)
 
 See **docs/enterprise/rbac.md** for complete Role-Based Access Control documentation, including:
+
 - Hierarchical role inheritance
 - Permission caching strategies
 - Multi-tenant RBAC patterns
@@ -1093,6 +1112,7 @@ def emit_cache_events(
 ### 9.3 Integration with CDC Event Streaming
 
 Cache invalidation events are emitted from the `cascade` section of mutation responses. For real-time systems that stream these events via Change Data Capture (CDC), see:
+
 - **docs/specs/cdc-format.md** — Event structure and ordering guarantees
 - **docs/guides/observability.md section 9** — CDC event streaming patterns and real-time monitoring
 
@@ -1266,6 +1286,7 @@ Client Delivery
 ```
 
 **Key difference from queries:**
+
 - Queries: "Give me data" (pull model, request-driven)
 - Subscriptions: "Tell me when data changes" (push model, event-driven)
 
@@ -1342,6 +1363,7 @@ Order Created Event
 ```
 
 **Each adapter independently:**
+
 - Manages connection lifecycle
 - Handles authentication
 - Implements delivery semantics (at-least-once, exactly-once)
@@ -1350,6 +1372,7 @@ Order Created Event
 ### 13.5 Related Specifications
 
 For complete subscription architecture and implementation details, see:
+
 - **`docs/architecture/realtime/subscriptions.md`** — Full subscription specification
 - **`docs/specs/cdc-format.md`** — Event format and structure
 - **`docs/specs/schema-conventions.md` section 6** — Event buffering table

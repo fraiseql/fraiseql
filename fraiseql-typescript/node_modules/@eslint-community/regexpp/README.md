@@ -10,7 +10,7 @@ A regular expression parser for ECMAScript.
 ## 💿 Installation
 
 ```bash
-$ npm install @eslint-community/regexpp
+npm install @eslint-community/regexpp
 ```
 
 - require Node@^12.0.0 || ^14.0.0 || >=16.0.0.
@@ -36,10 +36,10 @@ Parse a given regular expression literal then make AST object.
 This is equivalent to `new RegExpParser(options).parseLiteral(source)`.
 
 - **Parameters:**
-    - `source` (`string | RegExp`) The source code to parse.
-    - `options?` ([`RegExpParser.Options`]) The options to parse.
+  - `source` (`string | RegExp`) The source code to parse.
+  - `options?` ([`RegExpParser.Options`]) The options to parse.
 - **Return:**
-    - The AST of the regular expression.
+  - The AST of the regular expression.
 
 ### validateRegExpLiteral(source, options?)
 
@@ -48,8 +48,8 @@ Validate a given regular expression literal.
 This is equivalent to `new RegExpValidator(options).validateLiteral(source)`.
 
 - **Parameters:**
-    - `source` (`string`) The source code to validate.
-    - `options?` ([`RegExpValidator.Options`]) The options to validate.
+  - `source` (`string`) The source code to validate.
+  - `options?` ([`RegExpValidator.Options`]) The options to validate.
 
 ### visitRegExpAST(ast, handlers)
 
@@ -58,98 +58,98 @@ Visit each node of a given AST.
 This is equivalent to `new RegExpVisitor(handlers).visit(ast)`.
 
 - **Parameters:**
-    - `ast` ([`AST.Node`]) The AST to visit.
-    - `handlers` ([`RegExpVisitor.Handlers`]) The callbacks.
+  - `ast` ([`AST.Node`]) The AST to visit.
+  - `handlers` ([`RegExpVisitor.Handlers`]) The callbacks.
 
 ### RegExpParser
 
 #### new RegExpParser(options?)
 
 - **Parameters:**
-    - `options?` ([`RegExpParser.Options`]) The options to parse.
+  - `options?` ([`RegExpParser.Options`]) The options to parse.
 
 #### parser.parseLiteral(source, start?, end?)
 
 Parse a regular expression literal.
 
 - **Parameters:**
-    - `source` (`string`) The source code to parse. E.g. `"/abc/g"`.
-    - `start?` (`number`) The start index in the source code. Default is `0`.
-    - `end?` (`number`) The end index in the source code. Default is `source.length`.
+  - `source` (`string`) The source code to parse. E.g. `"/abc/g"`.
+  - `start?` (`number`) The start index in the source code. Default is `0`.
+  - `end?` (`number`) The end index in the source code. Default is `source.length`.
 - **Return:**
-    - The AST of the regular expression.
+  - The AST of the regular expression.
 
 #### parser.parsePattern(source, start?, end?, flags?)
 
 Parse a regular expression pattern.
 
 - **Parameters:**
-    - `source` (`string`) The source code to parse. E.g. `"abc"`.
-    - `start?` (`number`) The start index in the source code. Default is `0`.
-    - `end?` (`number`) The end index in the source code. Default is `source.length`.
-    - `flags?` (`{ unicode?: boolean, unicodeSets?: boolean }`) The flags to enable Unicode mode, and Unicode Set mode.
+  - `source` (`string`) The source code to parse. E.g. `"abc"`.
+  - `start?` (`number`) The start index in the source code. Default is `0`.
+  - `end?` (`number`) The end index in the source code. Default is `source.length`.
+  - `flags?` (`{ unicode?: boolean, unicodeSets?: boolean }`) The flags to enable Unicode mode, and Unicode Set mode.
 - **Return:**
-    - The AST of the regular expression pattern.
+  - The AST of the regular expression pattern.
 
 #### parser.parseFlags(source, start?, end?)
 
 Parse a regular expression flags.
 
 - **Parameters:**
-    - `source` (`string`) The source code to parse. E.g. `"gim"`.
-    - `start?` (`number`) The start index in the source code. Default is `0`.
-    - `end?` (`number`) The end index in the source code. Default is `source.length`.
+  - `source` (`string`) The source code to parse. E.g. `"gim"`.
+  - `start?` (`number`) The start index in the source code. Default is `0`.
+  - `end?` (`number`) The end index in the source code. Default is `source.length`.
 - **Return:**
-    - The AST of the regular expression flags.
+  - The AST of the regular expression flags.
 
 ### RegExpValidator
 
 #### new RegExpValidator(options)
 
 - **Parameters:**
-    - `options` ([`RegExpValidator.Options`]) The options to validate.
+  - `options` ([`RegExpValidator.Options`]) The options to validate.
 
 #### validator.validateLiteral(source, start, end)
 
 Validate a regular expression literal.
 
 - **Parameters:**
-    - `source` (`string`) The source code to validate.
-    - `start?` (`number`) The start index in the source code. Default is `0`.
-    - `end?` (`number`) The end index in the source code. Default is `source.length`.
+  - `source` (`string`) The source code to validate.
+  - `start?` (`number`) The start index in the source code. Default is `0`.
+  - `end?` (`number`) The end index in the source code. Default is `source.length`.
 
 #### validator.validatePattern(source, start, end, flags)
 
 Validate a regular expression pattern.
 
 - **Parameters:**
-    - `source` (`string`) The source code to validate.
-    - `start?` (`number`) The start index in the source code. Default is `0`.
-    - `end?` (`number`) The end index in the source code. Default is `source.length`.
-    - `flags?` (`{ unicode?: boolean, unicodeSets?: boolean }`) The flags to enable Unicode mode, and Unicode Set mode.
+  - `source` (`string`) The source code to validate.
+  - `start?` (`number`) The start index in the source code. Default is `0`.
+  - `end?` (`number`) The end index in the source code. Default is `source.length`.
+  - `flags?` (`{ unicode?: boolean, unicodeSets?: boolean }`) The flags to enable Unicode mode, and Unicode Set mode.
 
 #### validator.validateFlags(source, start, end)
 
 Validate a regular expression flags.
 
 - **Parameters:**
-    - `source` (`string`) The source code to validate.
-    - `start?` (`number`) The start index in the source code. Default is `0`.
-    - `end?` (`number`) The end index in the source code. Default is `source.length`.
+  - `source` (`string`) The source code to validate.
+  - `start?` (`number`) The start index in the source code. Default is `0`.
+  - `end?` (`number`) The end index in the source code. Default is `source.length`.
 
 ### RegExpVisitor
 
 #### new RegExpVisitor(handlers)
 
 - **Parameters:**
-    - `handlers` ([`RegExpVisitor.Handlers`]) The callbacks.
+  - `handlers` ([`RegExpVisitor.Handlers`]) The callbacks.
 
 #### visitor.visit(ast)
 
 Validate a regular expression literal.
 
 - **Parameters:**
-    - `ast` ([`AST.Node`]) The AST to visit.
+  - `ast` ([`AST.Node`]) The AST to visit.
 
 ## 📰 Changelog
 

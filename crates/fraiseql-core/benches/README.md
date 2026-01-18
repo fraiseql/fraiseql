@@ -14,6 +14,7 @@ Compares performance between two database adapter implementations:
 | **FraiseWireAdapter** | fraiseql-wire | Streaming (O(1)) | Large results, memory-constrained |
 
 **Metrics Measured**:
+
 - ⏱️  Throughput (rows/second)
 - 📊 Query latency (total time)
 - 🚀 Time-to-first-row
@@ -24,6 +25,7 @@ Compares performance between two database adapter implementations:
 ### 2. `full_pipeline_comparison` - Complete GraphQL Pipeline
 
 Benchmarks the complete FraiseQL execution pipeline:
+
 1. Database query execution
 2. Field projection (selecting only requested fields)
 3. Field name transformation (snake_case → camelCase)
@@ -93,6 +95,7 @@ cargo bench --bench adapter_comparison -- "10k_rows"
 ```
 
 **Expected Results**:
+
 - **Throughput**: ~300K rows/s (both adapters)
 - **Latency**: 30-35ms (PostgresAdapter slightly faster)
 - **Memory**: 260KB vs 1.3KB (fraiseql-wire 200x better)
@@ -106,6 +109,7 @@ cargo bench --bench adapter_comparison -- "100k_rows"
 ```
 
 **Expected Results**:
+
 - **Throughput**: ~300K rows/s (comparable)
 - **Latency**: 300-350ms
 - **Memory**: 26MB vs 1.3KB (fraiseql-wire 20,000x better) ⭐
@@ -119,6 +123,7 @@ cargo bench --bench adapter_comparison -- "1m_rows"
 ```
 
 **Expected Results**:
+
 - **Throughput**: ~250K rows/s (fraiseql-wire may be faster due to less GC pressure)
 - **Latency**: 4-5 seconds
 - **Memory**: 260MB vs 1.3KB (fraiseql-wire 200,000x better) ⭐⭐⭐
@@ -134,6 +139,7 @@ cargo bench --bench adapter_comparison -- "where_clause"
 **Filters**: `data->>'status' = 'active'` (~250K matching rows out of 1M)
 
 **Expected Results**:
+
 - **Both adapters**: Comparable performance (PostgreSQL does the filtering)
 - **Memory**: fraiseql-wire still uses O(chunk_size), not O(result_size)
 
@@ -146,6 +152,7 @@ cargo bench --bench adapter_comparison -- "pagination"
 ```
 
 **Expected Results**:
+
 - **PostgresAdapter**: Faster (connection reuse, prepared statements)
 - **FraiseWireAdapter**: Slightly slower (creates new client per query)
 
@@ -192,6 +199,7 @@ ms_print massif.out.*
 ### Expected Memory Profile
 
 **PostgresAdapter (100K rows)**:
+
 ```
 Peak memory: ~26 MB
 - Result buffer: ~25 MB (all rows buffered)
@@ -199,6 +207,7 @@ Peak memory: ~26 MB
 ```
 
 **FraiseWireAdapter (100K rows)**:
+
 ```
 Peak memory: ~1.3 KB
 - Chunk buffer: ~1 KB (1024 rows × ~1 byte per row)
@@ -220,6 +229,7 @@ Peak memory: ~1.3 KB
 ```
 
 **Reading**:
+
 - `time`: Median query time with confidence interval
 - `thrpt`: Throughput in thousands of elements per second
 - Lower time = faster
@@ -236,6 +246,7 @@ Criterion generates comparison reports when you re-run benchmarks:
 ```
 
 **Reading**:
+
 - `+3.42%` = wire_adapter is 3.42% slower
 - `-3.31%` = wire_adapter has 3.31% lower throughput
 - Performance difference is minimal (<5%)
@@ -254,6 +265,7 @@ Criterion generates comparison reports when you re-run benchmarks:
 | WHERE clauses | ✅ Excellent | ✅ Excellent | Tie |
 
 **Summary**:
+
 - **Speed**: Comparable (PostgresAdapter 3-5% faster for small queries, fraiseql-wire catches up or wins on large queries)
 - **Memory**: fraiseql-wire wins by **orders of magnitude** (200x to 200,000x improvement)
 - **Use Case**: Choose based on workload characteristics

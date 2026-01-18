@@ -10,6 +10,7 @@
 This document catalogs all TODO comments, stub implementations, and incomplete features across the FraiseQL codebase. Items are organized by priority and effort level.
 
 **Last Review**: January 18, 2026 - All major features complete:
+
 - ✅ #250 Indexed filter columns
 - ✅ #248 LTree operators (12/12)
 - ✅ #225 Security (JWT, RBAC, field filtering) - all 13 features
@@ -17,6 +18,7 @@ This document catalogs all TODO comments, stub implementations, and incomplete f
 - ✅ FraiseQL-Wire integration (adapter, WHERE generator, benchmarks)
 
 **Archived Plans** (moved to `.claude/archived_plans/2026-01-18/`):
+
 - `analytics-implementation-plan.md` - ✅ Fully implemented
 - `fraiseql-wire-integration-plan.md` - ✅ Fully implemented
 
@@ -71,6 +73,7 @@ These items ensure v2 addresses all open issues from v1 development.
 **Solution**: Runtime view introspection with optional compile-time validation. DBA can optimize by adding indexed columns to views without code deployment.
 
 **Implementation** (January 18, 2026):
+
 - Added `get_indexed_nested_columns()` to `PostgresIntrospector` for view column introspection
 - Added `is_indexed_column_name()` helper to validate naming conventions
 - Added `IndexedColumnsCache` type and `with_indexed_columns()` constructor to `PostgresWhereGenerator`
@@ -79,6 +82,7 @@ These items ensure v2 addresses all open issues from v1 development.
 - Added `pool()` method to `PostgresAdapter` for pool sharing
 
 **Files Modified**:
+
 - `crates/fraiseql-core/src/db/postgres/introspector.rs` - View column introspection
 - `crates/fraiseql-core/src/db/postgres/where_generator.rs` - Indexed column optimization
 - `crates/fraiseql-core/src/db/postgres/adapter.rs` - Added `pool()` method
@@ -91,11 +95,13 @@ These items ensure v2 addresses all open issues from v1 development.
 #### Column Naming Conventions (both supported)
 
 **1. Human-readable (when path fits in 63 chars)**:
+
 ```sql
 items__product__category__code
 ```
 
 **2. Entity ID (for long paths)**:
+
 ```sql
 f{entity_id}__{field_name}
 -- Example: f200100__code (Category entity = 200100)
@@ -109,6 +115,7 @@ fraiseql compile schema.json --database postgresql://... -o schema.compiled.json
 ```
 
 At runtime, pass indexed columns to the where generator:
+
 ```rust
 let generator = PostgresWhereGenerator::with_indexed_columns(Arc::new(indexed_columns));
 ```
@@ -135,6 +142,7 @@ let generator = PostgresWhereGenerator::with_indexed_columns(Arc::new(indexed_co
 | `lca` | `lca()` | ✅ Implemented |
 
 **Files Modified** (January 18, 2026):
+
 - `crates/fraiseql-wire/src/operators/where_operator.rs` - Added 9 new enum variants
 - `crates/fraiseql-wire/src/operators/sql_gen.rs` - Added SQL generation with tests
 - `crates/fraiseql-core/src/db/where_clause.rs` - Added enum variants and from_str()
@@ -165,6 +173,7 @@ let generator = PostgresWhereGenerator::with_indexed_columns(Arc::new(indexed_co
 | `tb_entity_change_log` migration | ⏳ Future |
 
 **Remaining**:
+
 - gRPC streaming adapter (optional)
 
 **Effort**: 4-6 hours (gRPC only)
@@ -176,6 +185,7 @@ let generator = PostgresWhereGenerator::with_indexed_columns(Arc::new(indexed_co
 **Status**: ✅ **Complete (13/13 features)**
 
 **Fully Implemented** (13):
+
 - ✅ JWT token validation (structure + expiry)
 - ✅ Security profiles (STANDARD/REGULATED)
 - ✅ Field masking (40+ patterns, 4 sensitivity levels)
@@ -197,6 +207,7 @@ let generator = PostgresWhereGenerator::with_indexed_columns(Arc::new(indexed_co
 **Location**: `crates/fraiseql-core/src/security/auth_middleware.rs`
 
 **Implementation** (January 18, 2026):
+
 - Added `SigningKey` enum supporting HS256/HS384/HS512 (symmetric) and RS256/RS384/RS512 (asymmetric)
 - Updated `AuthConfig` with signing key, issuer, audience, and clock skew configuration
 - Implemented `validate_token_with_signature()` using `jsonwebtoken` crate
@@ -206,6 +217,7 @@ let generator = PostgresWhereGenerator::with_indexed_columns(Arc::new(indexed_co
 - Added 15 new tests covering signature verification, issuer/audience validation, tampering detection
 
 **Files Modified**:
+
 - `crates/fraiseql-core/src/security/auth_middleware.rs` - Complete rewrite with signature verification
 - `crates/fraiseql-core/src/security/mod.rs` - Exported `SigningKey`
 
@@ -220,18 +232,21 @@ let generator = PostgresWhereGenerator::with_indexed_columns(Arc::new(indexed_co
 RBAC is implemented via the `requires_scope` field attribute and `FieldFilter` runtime enforcement.
 
 **Schema-Level Support**:
+
 - `FieldDefinition.requires_scope` attribute in compiled schema
 - Converter properly passes `requires_scope` from intermediate to compiled schema
 - Python SDK: `fraiseql.field(requires_scope="...")` decorator
 - TypeScript SDK: `@field({ requiresScope: "..." })` decorator
 
 **Runtime Enforcement**:
+
 - `FieldFilter` validates field access based on JWT scopes
 - `FieldFilterConfig` defines protected fields and scope requirements
 - `FieldFilterBuilder` builds filter from schema `requires_scope` attributes
 - `Executor.execute_with_scopes()` validates fields before query execution
 
 **Files**:
+
 - `crates/fraiseql-core/src/schema/field_type.rs` - `requires_scope` field attribute
 - `crates/fraiseql-core/src/security/field_filter.rs` - Runtime enforcement (25 tests)
 - `crates/fraiseql-core/src/runtime/executor.rs` - `execute_with_scopes()`, `check_field_access()`
@@ -239,6 +254,7 @@ RBAC is implemented via the `requires_scope` field attribute and `FieldFilter` r
 - `fraiseql-python/src/fraiseql/decorators.py` - Python SDK support
 
 **Usage (Python SDK)**:
+
 ```python
 @fraiseql.type
 class Employee:
@@ -248,6 +264,7 @@ class Employee:
 ```
 
 **Usage (Rust Runtime)**:
+
 ```rust
 let config = RuntimeConfig::default()
     .with_field_filter(
@@ -266,6 +283,7 @@ let result = executor.execute_with_scopes(query, None, &user_scopes).await?;
 **Status**: ✅ **Complete** (January 18, 2026)
 
 **Implementation**:
+
 - Created `crates/fraiseql-core/src/security/field_filter.rs` module
 - `FieldFilter` validates field access based on JWT scopes
 - `FieldFilterConfig` defines protected fields and scope requirements
@@ -273,6 +291,7 @@ let result = executor.execute_with_scopes(query, None, &user_scopes).await?;
 - Added `execute_with_scopes()` method to validate fields before query execution
 
 **Scope Format**:
+
 ```
 {action}:{Type}.{field}    # e.g., read:User.salary
 {action}:{Type}.*          # e.g., read:User.*
@@ -281,12 +300,14 @@ admin                      # bypass all checks
 ```
 
 **Files Created/Modified**:
+
 - `crates/fraiseql-core/src/security/field_filter.rs` - New module (25 tests)
 - `crates/fraiseql-core/src/security/mod.rs` - Exported new types
 - `crates/fraiseql-core/src/runtime/mod.rs` - Added `field_filter` to `RuntimeConfig`
 - `crates/fraiseql-core/src/runtime/executor.rs` - Added `execute_with_scopes()`, `check_field_access()`
 
 **Usage**:
+
 ```rust
 use fraiseql_core::runtime::RuntimeConfig;
 use fraiseql_core::security::FieldFilterConfig;
@@ -329,6 +350,7 @@ let result = executor.execute_with_scopes(query, None, &user_scopes).await?;
 **Fix**: Changed `registerBuilder()` to create a proper `GraphQLType` instance instead of storing `null` as a placeholder. Now `getType()` returns a valid `GraphQLType` for builder-registered types.
 
 **Files Modified**:
+
 - `fraiseql-php/src/StaticAPI.php` - Added import, create proper `GraphQLType` instance
 - `fraiseql-php/tests/StaticAPITest.php` - Added 2 tests to verify fix
 
@@ -351,6 +373,7 @@ let result = executor.execute_with_scopes(query, None, &user_scopes).await?;
 **Status**: ✅ **Complete**
 
 Server has comprehensive test coverage (~250+ tests):
+
 - `fraiseql_wire_protocol_test.rs` (22 tests)
 - `server_e2e_test.rs` (20 tests)
 - `graphql_e2e_test.rs` (20 tests)
@@ -369,6 +392,7 @@ Server has comprehensive test coverage (~250+ tests):
 **Status**: ✅ **Complete** (January 18, 2026)
 
 **Implemented Benchmarks**:
+
 - `adapter_comparison.rs` - Comprehensive PostgreSQL vs FraiseQL-Wire comparison
   - 10K, 100K, 1M row queries
   - WHERE clause benchmarks
@@ -379,10 +403,12 @@ Server has comprehensive test coverage (~250+ tests):
 - `full_pipeline_comparison.rs` - Complete GraphQL execution pipeline benchmarks
 
 **Cleanup**:
+
 - Deleted `database_baseline.rs` (was placeholder, superseded by adapter_comparison)
 - Created `benches/fixtures/setup_bench_data.sql` - 1M row test data setup
 
 **Usage**:
+
 ```bash
 # Setup test database
 createdb fraiseql_bench
@@ -504,7 +530,7 @@ cargo bench --bench full_pipeline_comparison --features postgres
 
 ## References
 
-- GitHub Issues: https://github.com/fraiseql/fraiseql/issues
+- GitHub Issues: <https://github.com/fraiseql/fraiseql/issues>
 - Feature Parity Analysis: `.claude/GITHUB_ISSUES_FEATURE_PARITY.md`
 - Schema Conventions: `docs/specs/schema-conventions.md`
 - Security Docs: `docs/enterprise/rbac.md`

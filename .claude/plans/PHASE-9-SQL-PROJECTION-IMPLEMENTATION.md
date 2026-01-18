@@ -10,6 +10,7 @@
 ## Executive Summary
 
 Phase 9 implements Hybrid Strategy #2 for field projection optimization:
+
 - **PostgreSQL**: Generate SQL `jsonb_build_object()` at compile time → **37.2% improvement** (3.123ms → 1.961ms)
 - **Wire**: Add optional `.select_projection()` method → **No performance gain today**, but prepares framework for future async optimization
 - **Implementation**: ~300 total lines of code across compiler and runtime
@@ -357,6 +358,7 @@ fn bench_wire_with_projection(b: &mut Bencher) {
 ```
 
 **Expected Results**:
+
 - PostgreSQL: 3.123ms → 1.961ms (37% improvement)
 - Wire: ~6.027ms unchanged
 
@@ -369,6 +371,7 @@ fn bench_wire_with_projection(b: &mut Bencher) {
 **File**: `.claude/analysis/phase-9-implementation-notes.md` (NEW)
 
 Document:
+
 - How to enable projection for a type
 - Database-specific SQL patterns
 - __typename handling (Rust, not SQL)
@@ -398,22 +401,26 @@ Document:
 ## Success Criteria
 
 ### PostgreSQL Performance
+
 - ✅ 37% improvement documented (3.123ms → 1.961ms)
 - ✅ Large payloads (>1KB) benefit most
 - ✅ __typename overhead avoided (0.03ms Rust vs 0.37ms SQL)
 
 ### Wire Adapter
+
 - ✅ Enhancement added for consistency
 - ✅ No performance regression detected
 - ✅ Prepared for future async optimization
 
 ### Code Quality
+
 - ✅ All tests pass (100% of integration suite)
 - ✅ Clippy warnings addressed
 - ✅ No unsafe code added
 - ✅ Documentation complete
 
 ### Documentation
+
 - ✅ Implementation notes in analysis/
 - ✅ Code comments for projection logic
 - ✅ Example schemas showing projection

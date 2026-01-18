@@ -23,11 +23,13 @@ A staging database and comprehensive test suite that validates fraiseql-wire aga
 ### Key Deliverables
 
 #### 7.3.1 Staging Database
+
 - `tests/fixtures/schema.sql` — Database schema with 3-4 entity views
 - `tests/fixtures/seed_data.sql` — Realistic JSON data (small, medium, large, deeply nested)
 - Data generator for 1K, 100K, 1M row scenarios
 
 #### 7.3.2 Load Testing
+
 - `tests/load_tests.rs` — High concurrency and sustained throughput tests
 - Test scenarios:
   - 5-10 concurrent connections with 50-100K rows each
@@ -36,6 +38,7 @@ A staging database and comprehensive test suite that validates fraiseql-wire aga
 - Metrics: throughput, memory, CPU, connection overhead
 
 #### 7.3.3 Stress Testing
+
 - `tests/stress_tests.rs` — Failure scenario testing
 - Scenarios:
   - Sudden connection close
@@ -63,6 +66,7 @@ Actionable, user-friendly error messages and a troubleshooting guide for common 
 ### Key Deliverables
 
 #### 7.4.1 Error Audit
+
 - Review all error variants in `src/error.rs`
 - Enhance messages with context and helpful hints
 - Add helper methods for common error scenarios
@@ -71,12 +75,14 @@ Actionable, user-friendly error messages and a troubleshooting guide for common 
   - ❌ "invalid result schema" → ✅ "query returned 2 columns instead of 1..."
 
 #### 7.4.2 Troubleshooting Guide
+
 - `TROUBLESHOOTING.md` — 10+ common error scenarios
 - Each covers: cause, symptoms, and solutions
 - Cross-references to PERFORMANCE_TUNING.md and SECURITY.md
 - Copy-paste ready examples
 
 #### 7.4.3 Error Tests
+
 - Unit tests for error creation and categorization
 - Verify message clarity
 - Test error categories and retriability logic
@@ -99,6 +105,7 @@ Robust, automated CI/CD pipelines for reliable testing and easy releases.
 ### Key Deliverables
 
 #### 7.5.1 GitHub Actions Enhancements
+
 - `.github/workflows/ci.yml` — Enhanced with:
   - Code coverage reporting (tarpaulin)
   - Security audit (cargo audit)
@@ -107,11 +114,13 @@ Robust, automated CI/CD pipelines for reliable testing and easy releases.
 - Better integration test setup
 
 #### 7.5.2 Docker Improvements
+
 - Multi-platform Dockerfile (amd64, arm64)
 - `docker-compose.yml` for development
 - GitHub Actions for publishing images
 
 #### 7.5.3 Release Automation
+
 - `.github/workflows/release.yml` — Automated release workflow
 - `scripts/publish.sh` — Local release script
 - Automated crates.io publishing
@@ -136,11 +145,13 @@ Comprehensive, clear, accessible documentation for users and contributors.
 ### Key Deliverables
 
 #### 7.6.1 API Documentation
+
 - Complete doc comments on all public items
 - Practical examples with doc tests
 - Examples compile and run successfully
 
 #### 7.6.2 Example Programs
+
 - `examples/basic_query.rs` — Simple single query
 - `examples/filtering.rs` — WHERE clause + predicates
 - `examples/ordering.rs` — ORDER BY usage
@@ -148,18 +159,21 @@ Comprehensive, clear, accessible documentation for users and contributors.
 - `examples/error_handling.rs` — Error scenarios
 
 #### 7.6.3 README Update
+
 - Quick start guide (copy-paste ready)
 - Feature table with comparisons to tokio-postgres
 - Performance highlights
 - Learning resources section
 
 #### 7.6.4 CONTRIBUTING.md
+
 - Architecture overview
 - Development workflow
 - Testing strategy
 - Release procedures
 
 #### 7.6.5 Documentation Audit
+
 - All links verified
 - Markdown validated
 - Spell check
@@ -220,6 +234,7 @@ Comprehensive, clear, accessible documentation for users and contributors.
 ## Key Files Created/Modified
 
 ### New Files
+
 - `.claude/phases/phase-7-3-7-6-stabilization.md` — Detailed implementation plan (1358 lines)
 - `TROUBLESHOOTING.md` — Common error scenarios and solutions
 - `TESTING_GUIDE.md` — How to run load/stress tests
@@ -233,6 +248,7 @@ Comprehensive, clear, accessible documentation for users and contributors.
 - `docker-compose.yml` — Development environment
 
 ### Modified Files
+
 - `ROADMAP.md` — Updated Phase 7.3-7.6 status
 - `.github/workflows/ci.yml` — Enhanced with coverage, audit, MSRV
 - `README.md` — Updated with quick start, features, resources
@@ -244,6 +260,7 @@ Comprehensive, clear, accessible documentation for users and contributors.
 ## Decision Points Requiring User Input
 
 None at this stage. The plan is comprehensive and includes:
+
 - ✅ Specific implementation steps
 - ✅ Acceptance criteria for each task
 - ✅ Verification procedures
@@ -257,21 +274,27 @@ None at this stage. The plan is comprehensive and includes:
 ## Next Steps
 
 ### Option A: Execute Full Plan
+
 Run all phases 7.3-7.6 sequentially:
+
 1. Start with Phase 7.3 (Real-World Testing)
 2. Move to Phase 7.4 (Error Refinement)
 3. Then Phase 7.5 (CI/CD)
 4. Finish with Phase 7.6 (Documentation)
 
 ### Option B: Prioritized Subset
+
 If time is limited, prioritize in this order:
+
 1. **Phase 7.6** (Documentation) — Enables user adoption
 2. **Phase 7.4** (Error Refinement) — Improves user experience
 3. **Phase 7.5** (CI/CD) — Streamlines releases
 4. **Phase 7.3** (Testing) — Validates robustness
 
 ### Option C: Parallel Work
+
 Some phases can run in parallel:
+
 - Phase 7.4 & 7.6 (Documentation-heavy, can be done together)
 - Phase 7.5 (CI/CD can be done independently)
 - Phase 7.3 (Requires sequential Postgres setup)

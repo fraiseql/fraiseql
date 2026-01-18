@@ -23,6 +23,7 @@ FraiseQL v2 is exceptionally complete. The remaining 10-15% is primarily **user-
 **Goal:** Ensure HTTP server correctly loads and executes compiled schemas end-to-end
 
 **Current Status:**
+
 - ✅ Server infrastructure exists (Axum-based)
 - ✅ Routes defined (graphql, health, introspection)
 - ✅ Middleware configured (CORS, tracing)
@@ -31,6 +32,7 @@ FraiseQL v2 is exceptionally complete. The remaining 10-15% is primarily **user-
 **Tasks:**
 
 ### 0.1: Schema Loading Integration (1 day)
+
 - [ ] Create `SchemaLoader` trait in fraiseql-server
 - [ ] Implement loader that reads compiled schema JSON files
 - [ ] Add schema validation on load
@@ -38,6 +40,7 @@ FraiseQL v2 is exceptionally complete. The remaining 10-15% is primarily **user-
 - [ ] Add schema caching in server state
 
 **Files to Create:**
+
 ```rust
 // fraiseql-server/src/schema/
 ├── loader.rs           // SchemaLoader trait and implementation
@@ -47,6 +50,7 @@ FraiseQL v2 is exceptionally complete. The remaining 10-15% is primarily **user-
 ```
 
 **Code Example:**
+
 ```rust
 pub struct CompiledSchemaLoader {
     path: PathBuf,
@@ -64,6 +68,7 @@ impl CompiledSchemaLoader {
 ```
 
 ### 0.2: Request Pipeline Integration (0.5 days)
+
 - [ ] Update GraphQL route to use loaded schema
 - [ ] Connect request parsing to schema executor
 - [ ] Validate query against compiled schema
@@ -71,6 +76,7 @@ impl CompiledSchemaLoader {
 - [ ] Format response as GraphQL JSON
 
 **Update Files:**
+
 ```rust
 // fraiseql-server/src/routes/graphql.rs
 // - Load schema from state
@@ -80,6 +86,7 @@ impl CompiledSchemaLoader {
 ```
 
 ### 0.3: Integration Tests (0.5 days)
+
 - [ ] Test server startup with compiled schema
 - [ ] Test GraphQL query execution (simple SELECT)
 - [ ] Test mutation execution (INSERT/UPDATE/DELETE)
@@ -88,6 +95,7 @@ impl CompiledSchemaLoader {
 - [ ] Test schema hot-reload
 
 **Test File:**
+
 ```rust
 // fraiseql-server/tests/server_integration_test.rs
 // - Server startup tests
@@ -97,12 +105,14 @@ impl CompiledSchemaLoader {
 ```
 
 ### 0.4: Health & Introspection Endpoints (0.5 days)
+
 - [ ] Update health endpoint to check schema loading
 - [ ] Implement introspection endpoint (type info)
 - [ ] Add capability manifest endpoint
 - [ ] Test endpoints with real schema
 
 **Verification:**
+
 ```bash
 # Start server with compiled schema
 cargo run -p fraiseql-server -- --schema schema.compiled.json
@@ -115,6 +125,7 @@ curl http://localhost:3000/introspection
 ```
 
 **Acceptance Criteria:**
+
 - ✅ Server loads compiled schema on startup
 - ✅ GraphQL queries execute and return valid responses
 - ✅ Mutations work correctly
@@ -132,6 +143,7 @@ curl http://localhost:3000/introspection
 ### 1.1: Documentation & Examples (2 days)
 
 **Create Documentation Structure:**
+
 ```
 docs/
 ├── architecture/
@@ -161,6 +173,7 @@ docs/
 ```
 
 **Tasks:**
+
 - [ ] Write architecture overview (2-3 pages)
 - [ ] Document compiler internals
 - [ ] Document runtime executor
@@ -174,6 +187,7 @@ docs/
 - [ ] Write migration guide from v1
 
 **Files to Create:**
+
 - `docs/ARCHITECTURE.md` (~1500 words)
 - `docs/GETTING_STARTED.md` (~1000 words)
 - `docs/SCHEMA_GUIDE.md` (~2000 words)
@@ -186,11 +200,13 @@ docs/
 ### 1.2: API Documentation (1.5 days)
 
 **CLI Documentation:**
+
 - [ ] Document all commands with examples
 - [ ] Create command reference
 - [ ] Add CLI troubleshooting guide
 
 **Files to Create:**
+
 ```rust
 // Update Cargo.toml with better description
 // Add rustdoc comments to all public APIs
@@ -198,6 +214,7 @@ docs/
 ```
 
 **Rust API Docs:**
+
 - [ ] Add comprehensive rustdoc comments to:
   - fraiseql-core::compiler
   - fraiseql-core::runtime
@@ -207,6 +224,7 @@ docs/
   - fraiseql-cli
 
 **Commands:**
+
 ```bash
 # Generate and open docs
 cargo doc --open --all-features
@@ -215,35 +233,41 @@ cargo doc --open --all-features
 ### 1.3: Production Hardening (2 days)
 
 **Error Handling Improvements:**
+
 - [ ] Add error context for all errors
 - [ ] Create error codes for categorization
 - [ ] Add error recovery suggestions
 - [ ] Implement structured error logging
 
 **Performance Monitoring:**
+
 - [ ] Add query execution timing
 - [ ] Implement cache hit/miss tracking
 - [ ] Add database operation timing
 - [ ] Create metrics collection interface
 
 **Observability:**
+
 - [ ] Add request tracing (distributed tracing ready)
 - [ ] Implement structured logging
 - [ ] Create telemetry export interface
 - [ ] Add Prometheus metrics endpoint (optional)
 
 **Configuration:**
+
 - [ ] Support .fraiseqlrc config files
 - [ ] Environment variable configuration
 - [ ] Config validation on startup
 
 **Deployment:**
+
 - [ ] Create Docker image definition
 - [ ] Create docker-compose example
 - [ ] Document Kubernetes deployment
 - [ ] Create systemd service template
 
 **Files to Create:**
+
 ```
 ├── Dockerfile
 ├── docker-compose.yml
@@ -263,10 +287,13 @@ cargo doc --open --all-features
 ### 1.4: Comprehensive Testing & Coverage Analysis (1.5 days)
 
 **Coverage Enhancement:**
+
 - [ ] Run coverage report
+
   ```bash
   cargo tarpaulin --out Html
   ```
+
 - [ ] Identify coverage gaps
 - [ ] Add tests for:
   - [ ] Error edge cases
@@ -276,12 +303,14 @@ cargo doc --open --all-features
   - [ ] Deployment scenarios
 
 **Integration Tests Enhancement:**
+
 - [ ] Add multi-database integration tests (MySQL, SQLite, SQL Server)
 - [ ] Add federation scenario tests
 - [ ] Add large-scale dataset tests (10M+ rows)
 - [ ] Add stress tests (1000+ qps)
 
 **Acceptance Criteria:**
+
 - ✅ 90%+ code coverage
 - ✅ All happy path scenarios tested
 - ✅ All error scenarios tested
@@ -291,6 +320,7 @@ cargo doc --open --all-features
 ### 1.5: Version & Release Management (1 day)
 
 **Setup:**
+
 - [ ] Create VERSION file (v2.0.0-alpha.3)
 - [ ] Create CHANGELOG.md
 - [ ] Create CONTRIBUTING.md
@@ -298,6 +328,7 @@ cargo doc --open --all-features
 - [ ] Create release checklist
 
 **Files to Create:**
+
 ```
 ├── VERSION (v2.0.0-alpha.3)
 ├── CHANGELOG.md
@@ -308,6 +339,7 @@ cargo doc --open --all-features
 ```
 
 **Content:**
+
 - Version history (v2.0.0-alpha.1 through current)
 - Contribution guidelines
 - Development setup instructions
@@ -317,18 +349,21 @@ cargo doc --open --all-features
 ### 1.6: Build & Release Infrastructure (1 day)
 
 **GitHub Actions CI/CD:**
+
 - [ ] Add release workflow
 - [ ] Create Cargo publish automation
 - [ ] Add version bump automation
 - [ ] Create binary release artifacts
 
 **Cargo Publishing:**
+
 - [ ] Review Cargo.toml metadata
 - [ ] Add proper keywords and categories
 - [ ] Create crate README sections
 - [ ] Prepare for crates.io publishing
 
 **Binary Releases:**
+
 - [ ] Create GitHub Actions for building binaries
 - [ ] Build for Linux, macOS, Windows
 - [ ] Create release artifacts (tar.gz, zip)
@@ -345,6 +380,7 @@ cargo doc --open --all-features
 ### 2.1: Decorator System (3 days)
 
 **Design:**
+
 ```python
 # Example usage that we're enabling
 from fraiseql import Type, Field, Query, Mutation, Server
@@ -401,6 +437,7 @@ class TfSales:
 **Tasks:**
 
 #### 2.1.1: Base Decorator Implementation (1 day)
+
 - [ ] Create `fraiseql_python` package structure
 - [ ] Implement `@Type` decorator
 - [ ] Implement `@Field` descriptor
@@ -409,6 +446,7 @@ class TfSales:
 - [ ] Implement `@Subscription` decorator (basic)
 
 **Files to Create:**
+
 ```python
 fraiseql_python/
 ├── __init__.py
@@ -430,12 +468,14 @@ fraiseql_python/
 ```
 
 #### 2.1.2: JSON Schema Generation (1 day)
+
 - [ ] Implement `SchemaGenerator` class
 - [ ] Convert decorated classes → JSON schema
 - [ ] Generate JSON files
 - [ ] Support schema export options
 
 **Example:**
+
 ```python
 from fraiseql.schema import SchemaGenerator
 
@@ -454,6 +494,7 @@ with open('schema.json', 'w') as f:
 ```
 
 #### 2.1.3: Type System Support (0.5 days)
+
 - [ ] Map Python types → GraphQL types
 - [ ] Support custom scalars
 - [ ] Support enums
@@ -462,6 +503,7 @@ with open('schema.json', 'w') as f:
 - [ ] Support nullable types
 
 **Type Mapping:**
+
 ```python
 # Python Type → GraphQL Type
 str → String
@@ -477,12 +519,14 @@ Dict → JSON
 ```
 
 #### 2.1.4: Field Directives (0.5 days)
+
 - [ ] Implement field validation rules
 - [ ] Implement field indexing hints
 - [ ] Implement field security rules
 - [ ] Implement field caching hints
 
 **Example:**
+
 ```python
 from fraiseql import Type, Field, rules
 
@@ -499,6 +543,7 @@ class User:
 ### 2.2: Analytics Decorator System (2 days)
 
 #### 2.2.1: Fact Table Decorators (1 day)
+
 - [ ] Implement `@FactTable` decorator
 - [ ] Implement `@Dimension` marker
 - [ ] Implement `@Measure` marker
@@ -506,6 +551,7 @@ class User:
 - [ ] Implement fact table validation
 
 **Example:**
+
 ```python
 from fraiseql.analytics import FactTable, Dimension, Measure
 
@@ -526,6 +572,7 @@ class TfSales:
 ```
 
 #### 2.2.2: Aggregate Query Decorators (1 day)
+
 - [ ] Implement `@AggregateQuery` decorator
 - [ ] Support `@GroupBy` specification
 - [ ] Support `@Measures` specification
@@ -533,6 +580,7 @@ class TfSales:
 - [ ] Generate aggregate query types automatically
 
 **Example:**
+
 ```python
 from fraiseql.analytics import AggregateQuery, GroupBy
 
@@ -555,12 +603,14 @@ class SalesAnalytics:
 ### 2.3: Package Configuration & Building (1 day)
 
 **Setup:**
+
 - [ ] Create `setup.py` or `pyproject.toml`
 - [ ] Configure package metadata
 - [ ] Setup dev dependencies
 - [ ] Configure build system
 
 **Files to Create:**
+
 ```
 fraiseql_python/
 ├── pyproject.toml       # Python package config
@@ -576,6 +626,7 @@ fraiseql_python/
 ### 2.4: Testing & Documentation (2 days)
 
 **Unit Tests:**
+
 - [ ] Test decorator parsing
 - [ ] Test type mapping
 - [ ] Test schema generation
@@ -584,11 +635,13 @@ fraiseql_python/
 - [ ] Test error handling
 
 **Integration Tests:**
+
 - [ ] Test end-to-end: decorator → JSON → CLI compile → SQL execution
 - [ ] Test with real fraiseql-cli
 - [ ] Test with compiled schema
 
 **Documentation:**
+
 - [ ] Python SDK README
 - [ ] API documentation
 - [ ] Decorator reference
@@ -596,6 +649,7 @@ fraiseql_python/
 - [ ] Troubleshooting guide
 
 **Files to Create:**
+
 ```
 docs/python/
 ├── README.md
@@ -610,22 +664,27 @@ docs/python/
 ### 2.5: PyPI Publication (1 day)
 
 **Preparation:**
+
 - [ ] Finalize package structure
 - [ ] Update README with PyPI instructions
 - [ ] Create LICENSE file (Apache 2.0)
 - [ ] Add package classifiers
-- [ ] Setup __version__ in package
+- [ ] Setup **version** in package
 
 **Publishing:**
+
 - [ ] Build distribution
+
   ```bash
   python -m build
   ```
+
 - [ ] Upload to TestPyPI first
 - [ ] Upload to PyPI
 - [ ] Create release announcement
 
 **Installation:**
+
 ```bash
 pip install fraiseql
 # OR
@@ -641,6 +700,7 @@ pip install fraiseql[analytics]
 ### 3.1: TypeScript/JavaScript Authoring (4-5 days)
 
 **Design:**
+
 ```typescript
 // Example usage
 import { Type, Field, Query, Mutation, Server } from '@fraiseql/core';
@@ -676,6 +736,7 @@ export const schema = SchemaGenerator.from([User, UserQueries]);
 **Tasks:**
 
 #### 3.1.1: TypeScript Decorator System (2 days)
+
 - [ ] Create `@fraiseql/core` npm package
 - [ ] Implement TypeScript decorators (experimental)
 - [ ] Create type system
@@ -683,22 +744,26 @@ export const schema = SchemaGenerator.from([User, UserQueries]);
 - [ ] Implement Query/Mutation builders
 
 #### 3.1.2: TypeScript Schema Generator (1 day)
+
 - [ ] Implement TypeScript reflection
 - [ ] Generate JSON from decorators
 - [ ] Type validation
 - [ ] Export to file
 
 #### 3.1.3: TypeScript Analytics (1 day)
+
 - [ ] Analytics decorators for TypeScript
 - [ ] Aggregate query builders
 - [ ] Dimension/Measure types
 
 #### 3.1.4: NPM Publication (0.5 days)
+
 - [ ] Create package.json
 - [ ] Build process (TypeScript → JavaScript)
 - [ ] Publish to npm
 
 **Acceptance Criteria:**
+
 ```bash
 npm install @fraiseql/core
 npm install @fraiseql/analytics
@@ -707,6 +772,7 @@ npm install @fraiseql/analytics
 ### 3.2: Go Authoring (3-4 days)
 
 **Design:**
+
 ```go
 package main
 
@@ -734,6 +800,7 @@ func main() {
 ```
 
 **Tasks:**
+
 - [ ] Create Go package structure
 - [ ] Implement struct tag parsing
 - [ ] Implement schema generation
@@ -743,6 +810,7 @@ func main() {
 ### 3.3: Java Authoring (3-4 days)
 
 **Design:**
+
 ```java
 @Type
 public class User {
@@ -772,6 +840,7 @@ schema.writeToFile("schema.json");
 ```
 
 **Tasks:**
+
 - [ ] Create Java library with annotations
 - [ ] Implement reflection-based generation
 - [ ] Maven/Gradle plugin
@@ -780,12 +849,14 @@ schema.writeToFile("schema.json");
 ### 3.4: Other Languages (2-3 days per language)
 
 **Priority Languages:**
+
 1. **Ruby** (2-3 days)
 2. **C#/.NET** (2-3 days)
 3. **PHP** (2-3 days)
 4. **Swift** (2-3 days)
 
 **For Each Language:**
+
 - Decorator/annotation support
 - Type system mapping
 - Schema generation
@@ -806,6 +877,7 @@ Total:                        27-40 days  (4-6 weeks)
 ```
 
 **Suggested Schedule:**
+
 - **Week 1**: Phase 0 + Phase 1 (http server + core completion)
 - **Week 2**: Phase 1 (documentation, testing) + Phase 2 start (Python setup)
 - **Week 3**: Phase 2 (Python implementation) + Phase 3 start (TypeScript)
@@ -818,6 +890,7 @@ Total:                        27-40 days  (4-6 weeks)
 ## Success Criteria - 100% Complete Definition
 
 ### Core (Phase 0-1)
+
 - ✅ HTTP server loads compiled schemas and executes GraphQL queries
 - ✅ All core modules have 90%+ test coverage
 - ✅ All core modules have comprehensive documentation
@@ -826,6 +899,7 @@ Total:                        27-40 days  (4-6 weeks)
 - ✅ Release management is automated
 
 ### Python (Phase 2)
+
 - ✅ Python developers can write schemas without JSON
 - ✅ Full decorator system working
 - ✅ Analytics decorators working
@@ -834,6 +908,7 @@ Total:                        27-40 days  (4-6 weeks)
 - ✅ Documentation is complete
 
 ### Multi-Language (Phase 3)
+
 - ✅ TypeScript/JavaScript SDK published to npm
 - ✅ Go SDK published to GitHub
 - ✅ Java SDK published to Maven Central
@@ -846,12 +921,14 @@ Total:                        27-40 days  (4-6 weeks)
 ## Key Deliverables by Phase
 
 ### Phase 0
+
 - [ ] `fraiseql-server/src/schema/` module (loader, validator, cache)
 - [ ] Updated GraphQL route handler
 - [ ] Integration tests for server
 - [ ] Server E2E tests passing
 
 ### Phase 1
+
 - [ ] Complete documentation suite (20+ pages)
 - [ ] 5 example schemas with explanations
 - [ ] Production hardening features
@@ -860,6 +937,7 @@ Total:                        27-40 days  (4-6 weeks)
 - [ ] Docker/Kubernetes deployment files
 
 ### Phase 2
+
 - [ ] `fraiseql-python` package (7 modules)
 - [ ] Comprehensive test suite
 - [ ] Full documentation
@@ -867,6 +945,7 @@ Total:                        27-40 days  (4-6 weeks)
 - [ ] Example Python scripts
 
 ### Phase 3
+
 - [ ] `@fraiseql/core` npm package
 - [ ] `fraiseql-go` GitHub package
 - [ ] `fraiseql-java` Maven package
@@ -963,4 +1042,3 @@ This roadmap takes FraiseQL v2 from 85-90% to **100% complete and production-rea
 - **Testing & coverage** (90%+ coverage, comprehensive scenarios)
 
 The foundation is already solid. This roadmap focuses on bringing the user experience to the same level of quality as the core engine.
-

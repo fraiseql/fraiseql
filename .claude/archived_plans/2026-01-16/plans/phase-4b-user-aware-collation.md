@@ -14,6 +14,7 @@
 ### User Experience
 
 **Without user-aware collation** (manual):
+
 ```graphql
 query {
   users(orderBy: {field: "name", collation: "en-US-x-icu"}) {
@@ -24,6 +25,7 @@ query {
 ```
 
 **With user-aware collation** (automatic):
+
 ```graphql
 query {
   users(orderBy: {field: "name"}) {  # ✨ Collation auto-detected from user locale
@@ -34,6 +36,7 @@ query {
 ```
 
 **Benefits**:
+
 - ✅ Automatic locale-aware sorting based on user preferences
 - ✅ No client-side collation management
 - ✅ Consistent sorting across all queries for a user
@@ -129,6 +132,7 @@ impl AuthenticatedUser {
 ```
 
 **JWT Claim Extraction**:
+
 ```rust
 impl AuthMiddleware {
     /// Extract user info from JWT claims (including locale)
@@ -405,6 +409,7 @@ impl<A: DatabaseAdapter> Executor<A> {
 ### Schema Configuration
 
 **Python Decorator**:
+
 ```python
 @fraiseql.query(
     sql_source="v_user",
@@ -426,6 +431,7 @@ def users() -> list[User]:
 ```
 
 **Compiled Schema** (JSON):
+
 ```json
 {
   "queries": [{
@@ -447,6 +453,7 @@ def users() -> list[User]:
 ### JWT Claims Structure
 
 **Auth0 / Clerk / Custom JWT**:
+
 ```json
 {
   "sub": "user|12345",
@@ -460,6 +467,7 @@ def users() -> list[User]:
 ```
 
 **Alternative claim names** (auto-detected):
+
 - `locale` (Auth0, Clerk)
 - `lang` (some systems)
 - `language` (some systems)
@@ -471,6 +479,7 @@ def users() -> list[User]:
 ### Example 1: French User
 
 **JWT Claims**:
+
 ```json
 {
   "sub": "user|123",
@@ -479,6 +488,7 @@ def users() -> list[User]:
 ```
 
 **GraphQL Query**:
+
 ```graphql
 query {
   users(orderBy: {field: "name", direction: ASC}) {
@@ -489,6 +499,7 @@ query {
 ```
 
 **Generated SQL**:
+
 ```sql
 SELECT
     data->>'id' AS id,
@@ -498,6 +509,7 @@ ORDER BY data->>'name' COLLATE "fr-FR-x-icu" ASC
 ```
 
 **Result** (correct French sorting):
+
 ```
 André
 Béatrice
@@ -509,6 +521,7 @@ Zoë
 ### Example 2: Manual Override
 
 **JWT Claims**:
+
 ```json
 {
   "sub": "user|456",
@@ -517,6 +530,7 @@ Zoë
 ```
 
 **GraphQL Query** (manual German collation):
+
 ```graphql
 query {
   users(orderBy: {field: "name", direction: ASC, collation: "de-DE-x-icu"}) {
@@ -527,6 +541,7 @@ query {
 ```
 
 **Generated SQL** (uses explicit collation, not user locale):
+
 ```sql
 ORDER BY data->>'name' COLLATE "de-DE-x-icu" ASC
 ```
@@ -536,6 +551,7 @@ ORDER BY data->>'name' COLLATE "de-DE-x-icu" ASC
 **No JWT** (public API):
 
 **GraphQL Query**:
+
 ```graphql
 query {
   users(orderBy: {field: "name", direction: ASC}) {
@@ -546,6 +562,7 @@ query {
 ```
 
 **Generated SQL** (uses fallback or database default):
+
 ```sql
 -- If fallback_collation configured:
 ORDER BY data->>'name' COLLATE "en-US-x-icu" ASC
@@ -561,6 +578,7 @@ ORDER BY data->>'name' ASC
 ### Unit Tests
 
 **Collation Resolution**:
+
 ```rust
 #[test]
 fn test_collation_priority_explicit() {
@@ -619,6 +637,7 @@ fn test_collation_priority_fallback() {
 ### Integration Tests
 
 **Unicode Sorting** (with test database):
+
 ```rust
 #[tokio::test]
 async fn test_user_locale_french_sorting() {
@@ -653,6 +672,7 @@ async fn test_user_locale_french_sorting() {
 **Risk**: Malicious locale values in JWT could inject SQL.
 
 **Mitigation**:
+
 - Validate collation format (regex: `^[a-z]{2}-[A-Z]{2}(-x-icu)?$`)
 - Whitelist common locales
 - Use parameterized queries (collation in COLLATE clause is safe)
@@ -677,6 +697,7 @@ impl CollationResolver {
 **Risk**: ICU collations are slower than byte-order (C) collation.
 
 **Mitigation**:
+
 - Only apply to text fields (not numeric/timestamp)
 - Allow opt-out via explicit `collation: null`
 - Consider index implications (indexes should match collation)
@@ -686,6 +707,7 @@ impl CollationResolver {
 **Risk**: Locale claim in JWT could be manipulated.
 
 **Mitigation**:
+
 - JWT signature validation (already in AuthMiddleware)
 - Locale is non-security-critical (sorting preference, not authorization)
 - Worst case: incorrect sorting, not data breach
@@ -707,6 +729,7 @@ result = await db.find(
 ### v2 (Automatic Collation)
 
 **Step 1**: Add locale to JWT claims
+
 ```python
 # Auth provider configuration
 def generate_jwt(user):
@@ -718,6 +741,7 @@ def generate_jwt(user):
 ```
 
 **Step 2**: Enable auto-collation in schema
+
 ```python
 @fraiseql.query(
     sql_source="v_user",
@@ -733,6 +757,7 @@ def users() -> list[User]:
 ```
 
 **Step 3**: Remove manual collation from clients
+
 ```graphql
 # Before
 query { users(orderBy: {field: "name", collation: "fr-FR-x-icu"}) { name } }
@@ -800,6 +825,7 @@ impl PostgresAdapter {
 ## Success Criteria
 
 ### Functional
+
 - [x] AuthenticatedUser has `locale` field
 - [x] Locale extracted from JWT claims
 - [x] CollationResolver prioritizes explicit > user > default
@@ -808,12 +834,14 @@ impl PostgresAdapter {
 - [x] Unauthenticated requests use fallback/default
 
 ### Quality
+
 - [x] 20+ unit tests (collation resolution)
 - [x] 10+ integration tests (unicode sorting)
 - [x] Security validation (locale format)
 - [x] Performance benchmarks (ICU vs C collation)
 
 ### Documentation
+
 - [x] User guide with examples
 - [x] JWT claim documentation
 - [x] Migration guide from manual collation

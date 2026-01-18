@@ -5,7 +5,7 @@
 ## Install
 
 ```
-$ npm install find-up
+npm install find-up
 ```
 
 ## Usage
@@ -28,23 +28,24 @@ const path = require('path');
 const findUp = require('find-up');
 
 (async () => {
-	console.log(await findUp('unicorn.png'));
-	//=> '/Users/sindresorhus/unicorn.png'
+ console.log(await findUp('unicorn.png'));
+ //=> '/Users/sindresorhus/unicorn.png'
 
-	console.log(await findUp(['rainbow.png', 'unicorn.png']));
-	//=> '/Users/sindresorhus/unicorn.png'
+ console.log(await findUp(['rainbow.png', 'unicorn.png']));
+ //=> '/Users/sindresorhus/unicorn.png'
 
-	console.log(await findUp(async directory => {
-		const hasUnicorns = await findUp.exists(path.join(directory, 'unicorn.png'));
-		return hasUnicorns && directory;
-	}, {type: 'directory'}));
-	//=> '/Users/sindresorhus'
+ console.log(await findUp(async directory => {
+  const hasUnicorns = await findUp.exists(path.join(directory, 'unicorn.png'));
+  return hasUnicorns && directory;
+ }, {type: 'directory'}));
+ //=> '/Users/sindresorhus'
 })();
 ```
 
 ## API
 
 ### findUp(name, options?)
+
 ### findUp(matcher, options?)
 
 Returns a `Promise` for either the path or `undefined` if it couldn't be found.
@@ -54,6 +55,7 @@ Returns a `Promise` for either the path or `undefined` if it couldn't be found.
 Returns a `Promise` for either the first path found (by respecting the order of the array) or `undefined` if none could be found.
 
 ### findUp.sync(name, options?)
+
 ### findUp.sync(matcher, options?)
 
 Returns a path or `undefined` if it couldn't be found.
@@ -125,9 +127,9 @@ const path = require('path');
 const findUp = require('find-up');
 
 (async () => {
-	await findUp(directory => {
-		return path.basename(directory) === 'work' ? findUp.stop : 'logo.png';
-	});
+ await findUp(directory => {
+  return path.basename(directory) === 'work' ? findUp.stop : 'logo.png';
+ });
 })();
 ```
 
@@ -141,11 +143,11 @@ const findUp = require('find-up');
 ---
 
 <div align="center">
-	<b>
-		<a href="https://tidelift.com/subscription/pkg/npm-find-up?utm_source=npm-find-up&utm_medium=referral&utm_campaign=readme">Get professional support for 'find-up' with a Tidelift subscription</a>
-	</b>
-	<br>
-	<sub>
-		Tidelift helps make open source sustainable for maintainers while giving companies<br>assurances about security, maintenance, and licensing for their dependencies.
-	</sub>
+ <b>
+  <a href="https://tidelift.com/subscription/pkg/npm-find-up?utm_source=npm-find-up&utm_medium=referral&utm_campaign=readme">Get professional support for 'find-up' with a Tidelift subscription</a>
+ </b>
+ <br>
+ <sub>
+  Tidelift helps make open source sustainable for maintainers while giving companies<br>assurances about security, maintenance, and licensing for their dependencies.
+ </sub>
 </div>

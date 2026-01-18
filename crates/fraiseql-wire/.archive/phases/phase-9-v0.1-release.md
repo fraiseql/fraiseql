@@ -3,6 +3,7 @@
 **Target**: v0.1.0 release (already at this version - this phase is about shipping it formally)
 
 **Philosophy**: You're overdelivering. v0.1 gets:
+
 - Fully working streaming JSON API
 - TLS/authentication support
 - SCRAM-SHA256 auth
@@ -40,6 +41,7 @@ Everything is already built and tested. This phase is just about formalizing the
 ## Scope for v0.1.0
 
 ### ✅ Included
+
 - Streaming JSON queries via Postgres simple query protocol
 - TCP and Unix socket support
 - TLS support (optional, configurable)
@@ -55,6 +57,7 @@ Everything is already built and tested. This phase is just about formalizing the
 - Complete documentation suite
 
 ### ❌ Not Included (by design, not bugs)
+
 - Extended Query protocol (no prepared statements)
 - Transactions / multi-statement queries
 - Writes (INSERT/UPDATE/DELETE)
@@ -267,6 +270,7 @@ cargo build --release
 ### Step 5: Publish to crates.io (10 min)
 
 **Prerequisites**:
+
 - You have a crates.io account
 - You have an API token in `~/.cargo/credentials`
 
@@ -280,7 +284,7 @@ cargo publish --dry-run
 cargo publish
 ```
 
-**Verify**: Package appears on https://crates.io/crates/fraiseql-wire
+**Verify**: Package appears on <https://crates.io/crates/fraiseql-wire>
 
 ---
 
@@ -295,9 +299,10 @@ gh release create v0.1.0 \
   --notes-file CHANGELOG.md
 ```
 
-Alternatively, create manually via https://github.com/fraiseql/fraiseql-wire/releases/new
+Alternatively, create manually via <https://github.com/fraiseql/fraiseql-wire/releases/new>
 
 **What to include**:
+
 - Tag: `v0.1.0`
 - Title: `fraiseql-wire v0.1.0 - Streaming JSON Query Engine`
 - Notes: Copy from CHANGELOG.md (Added section)
@@ -332,6 +337,7 @@ Alternatively, create manually via https://github.com/fraiseql/fraiseql-wire/rel
 ## Acceptance Criteria
 
 ✅ **v0.1.0 is released when**:
+
 1. Git tag `v0.1.0` exists
 2. crates.io shows `fraiseql-wire v0.1.0`
 3. GitHub release page exists with CHANGELOG

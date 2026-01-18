@@ -660,6 +660,7 @@ fraiseql.state.configure({
 ### 9.1 Caching
 
 **DO:**
+
 - ✅ Monitor cache hit rate
 - ✅ Adjust TTL based on access patterns
 - ✅ Invalidate on all related mutations
@@ -667,6 +668,7 @@ fraiseql.state.configure({
 - ✅ Test cache behavior with failures
 
 **DON'T:**
+
 - ❌ Rely on cache for correctness (optional optimization)
 - ❌ Cache without TTL expiration
 - ❌ Ignore stale data during network partition
@@ -675,12 +677,14 @@ fraiseql.state.configure({
 ### 9.2 CDC
 
 **DO:**
+
 - ✅ Process events idempotently (handle duplicates)
 - ✅ Monitor event lag
 - ✅ Test failure scenarios (database down, network partition)
 - ✅ Use per-entity ordering guarantee
 
 **DON'T:**
+
 - ❌ Assume global event ordering
 - ❌ Lose events (use durable event log)
 - ❌ Block event processing (async handling)

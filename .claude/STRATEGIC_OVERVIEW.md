@@ -22,11 +22,13 @@
 **FraiseQL v2 is a compiled GraphQL execution engine** that eliminates the runtime/performance trade-off by moving complexity from runtime to compile-time.
 
 Traditional GraphQL servers:
+
 - Parse queries at runtime → slow
 - Resolve fields dynamically → unpredictable performance
 - Build SQL on the fly → N+1 queries, inefficient joins
 
 FraiseQL v2:
+
 - **Compile schemas ahead of time** → zero runtime parsing
 - **Generate optimized SQL at build time** → predictable, efficient queries
 - **Execute with zero overhead** → compiled Rust performance
@@ -73,6 +75,7 @@ schema.py              schema.compiled.json    GraphQL Server
 ```
 
 **Why this matters**:
+
 - Developers get ergonomic authoring (Python decorators)
 - Zero runtime overhead (no Python interpreter needed)
 - Pure Rust performance (compiled, not interpreted)
@@ -92,6 +95,7 @@ unsafe { fast_but_undefined_behavior() }
 ```
 
 **Why**:
+
 - Rust gives us both safety AND speed
 - Bugs are expensive; correctness is priceless
 - Fast and wrong is worse than slow and right
@@ -101,6 +105,7 @@ unsafe { fast_but_undefined_behavior() }
 ### 3. Feature-Rich Through Modularity
 
 FraiseQL v2 supports:
+
 - Multiple databases (PostgreSQL, MySQL, SQLite, SQL Server)
 - Relay pagination, connections, edges
 - Automatic query batching and optimization
@@ -123,17 +128,20 @@ Core Compiler
 ### 4. Zero Runtime Dependencies
 
 **Runtime server has ZERO dependencies on**:
+
 - Python interpreter
 - JavaScript runtime (Node.js, Deno)
 - Any ORM or query builder
 - GraphQL parsing libraries (except at compile-time)
 
 **Runtime server ONLY needs**:
+
 - Compiled schema (`schema.compiled.json`)
 - Database connection string
 - HTTP server (built-in)
 
 **Why**:
+
 - Deploy as a single binary
 - No version conflicts or dependency hell
 - Container images < 20MB (vs 500MB+ for Node.js GraphQL)
@@ -158,6 +166,7 @@ class User:
 ```
 
 **DX Checklist**:
+
 - ✅ Minimal boilerplate
 - ✅ Clear error messages
 - ✅ Fast feedback loop (watch mode)
@@ -249,6 +258,7 @@ impl DatabaseAdapter for MySQLAdapter {
 ```
 
 **Why this approach**:
+
 - Single codebase supports multiple databases
 - No ORM abstraction leaks
 - Can optimize for each database's strengths
@@ -259,6 +269,7 @@ impl DatabaseAdapter for MySQLAdapter {
 The compiler does heavy lifting so the runtime doesn't have to:
 
 **Query Analysis**:
+
 ```graphql
 query GetUser {
   user(id: 1) {
@@ -274,6 +285,7 @@ query GetUser {
 ```
 
 **Naive approach** (most GraphQL servers):
+
 ```sql
 -- 3 separate queries (N+1 problem)
 SELECT name FROM users WHERE id = 1;
@@ -282,6 +294,7 @@ SELECT text FROM comments WHERE post_id IN (...);
 ```
 
 **FraiseQL compiler generates**:
+
 ```sql
 -- Single optimized query
 SELECT
@@ -295,6 +308,7 @@ WHERE u.id = $1;
 ```
 
 **How the compiler does this**:
+
 1. Parse GraphQL query structure
 2. Build dependency graph (user → posts → comments)
 3. Generate optimal JOIN strategy
@@ -321,6 +335,7 @@ pub enum FraiseQLError {
 ```
 
 **Example of great error message**:
+
 ```
 ❌ Validation Error at Query.user.posts
 
@@ -351,6 +366,7 @@ To claim we've built the best GraphQL engine, we must excel in ALL dimensions:
 **Standard**: Zero data corruption, zero undefined behavior.
 
 **How we achieve it**:
+
 - `#![forbid(unsafe_code)]` - No unsafe Rust unless absolutely necessary
 - 100% clippy compliance (pedantic mode)
 - Property-based testing (QuickCheck/proptest)
@@ -358,6 +374,7 @@ To claim we've built the best GraphQL engine, we must excel in ALL dimensions:
 - Fuzz testing (cargo fuzz)
 
 **Metrics**:
+
 - ✅ All tests pass
 - ✅ Zero clippy warnings
 - ✅ Zero memory leaks (valgrind/miri)
@@ -368,6 +385,7 @@ To claim we've built the best GraphQL engine, we must excel in ALL dimensions:
 **Standard**: Fastest GraphQL engine in the world (measured, not claimed).
 
 **How we achieve it**:
+
 - Compile-time optimization (move work to build phase)
 - Zero-copy parsing where possible
 - Connection pooling with smart reuse
@@ -375,6 +393,7 @@ To claim we've built the best GraphQL engine, we must excel in ALL dimensions:
 - APQ (Automatic Persisted Queries) for repeat queries
 
 **Benchmarks**:
+
 ```
 Operation          FraiseQL    Apollo Server    Hasura
 ─────────────────────────────────────────────────────────
@@ -387,6 +406,7 @@ Relay pagination   3.1ms       200ms            12ms
 **Goal**: Be 5-10x faster than next-best alternative.
 
 **Methodology**:
+
 - Criterion benchmarks (statistical rigor)
 - Real-world query patterns (not synthetic)
 - Measure p50, p95, p99 (not just averages)
@@ -396,6 +416,7 @@ Relay pagination   3.1ms       200ms            12ms
 **Standard**: 99.99% uptime, graceful degradation.
 
 **How we achieve it**:
+
 - Comprehensive error handling (no panics in production)
 - Circuit breaker for database failures
 - Health check endpoints
@@ -403,12 +424,14 @@ Relay pagination   3.1ms       200ms            12ms
 - Rate limiting and backpressure
 
 **Chaos testing**:
+
 - Random database disconnects
 - Slow query injection
 - Memory pressure simulation
 - Concurrent load (1000s of requests/sec)
 
 **Metrics**:
+
 - ✅ Zero panics under load
 - ✅ Clean shutdown in < 5 seconds
 - ✅ Maintains p99 latency under 2x load
@@ -418,6 +441,7 @@ Relay pagination   3.1ms       200ms            12ms
 **Standard**: Developers should LOVE using FraiseQL.
 
 **DX Wins**:
+
 ```bash
 # Install
 cargo install fraiseql-cli
@@ -450,6 +474,7 @@ docker build -t my-api . && docker run -p 4000:4000 my-api
 **From zero to production in 5 minutes.**
 
 **DX Metrics**:
+
 - ✅ Time to first query: < 2 minutes
 - ✅ Error message clarity: "Excellent" rating
 - ✅ Documentation: Comprehensive + searchable
@@ -460,6 +485,7 @@ docker build -t my-api . && docker run -p 4000:4000 my-api
 **Standard**: Code that future developers (and future us) can understand.
 
 **How we achieve it**:
+
 - Clear module boundaries
 - Comprehensive inline documentation
 - Architecture decision records (ADRs)
@@ -467,6 +493,7 @@ docker build -t my-api . && docker run -p 4000:4000 my-api
 - No "clever" code (clarity > brevity)
 
 **Code Review Checklist**:
+
 - [ ] Does this have tests?
 - [ ] Is it documented?
 - [ ] Can a new contributor understand it?
@@ -478,12 +505,14 @@ docker build -t my-api . && docker run -p 4000:4000 my-api
 **Standard**: Easy to add new features without breaking existing code.
 
 **Design for extension**:
+
 - Plugin architecture (future: WebAssembly plugins)
 - Hook system (pre-query, post-query, error handling)
 - Custom scalar types
 - Middleware support
 
 **Extension points**:
+
 ```rust
 // Example: Custom authentication hook
 pub trait AuthenticationHook {
@@ -575,6 +604,7 @@ Phase 11: Documentation & Release (🔜)
 **We are currently at**: Phase 1 complete, starting Phase 2.
 
 **Why Phase 2 is critical**:
+
 - Database abstraction sets the foundation for ALL query execution
 - Cache architecture impacts performance for ALL queries
 - Connection pooling affects reliability for ALL deployments
@@ -613,6 +643,7 @@ Before starting any phase, ask:
 Each phase has specific success criteria:
 
 **Phase 2 (Database & Cache) Metrics**:
+
 - ✅ Connects to PostgreSQL, MySQL, SQLite
 - ✅ Connection pool: 100 concurrent connections
 - ✅ Query cache: 95%+ hit rate on repeated queries
@@ -622,28 +653,33 @@ Each phase has specific success criteria:
 ### Project-Level Metrics
 
 **Technical Excellence**:
+
 - ✅ 100% clippy compliance (pedantic + cargo)
 - ✅ Test coverage > 90%
 - ✅ Zero unsafe code (except where necessary, with justification)
 - ✅ Documentation coverage > 90%
 
 **Performance**:
+
 - ✅ p50 latency < 2ms (simple queries)
 - ✅ p99 latency < 10ms (complex queries)
 - ✅ Throughput > 10,000 queries/sec (single instance)
 - ✅ Memory usage < 50MB (idle)
 
 **Reliability**:
+
 - ✅ Handles 10,000 concurrent connections
 - ✅ Zero panics under load (chaos testing)
 - ✅ Graceful degradation when DB is slow
 
 **Developer Experience**:
+
 - ✅ Time to first query: < 2 minutes (from scratch)
 - ✅ Build time: < 30 seconds (full rebuild)
 - ✅ Hot reload: < 1 second (watch mode)
 
 **Community Adoption** (Post-1.0):
+
 - ⏳ 1,000 GitHub stars (year 1)
 - ⏳ 10 production deployments (year 1)
 - ⏳ 5 community contributors (year 1)
@@ -659,6 +695,7 @@ Each phase has specific success criteria:
 *Scenario*: Compiler becomes unmaintainable as we add features.
 
 *Mitigation*:
+
 - Modular compiler passes (each does one thing)
 - Extensive compiler tests (compare SQL output)
 - Property-based testing (random schemas → valid SQL)
@@ -669,6 +706,7 @@ Each phase has specific success criteria:
 *Scenario*: SQL generation becomes database-specific spaghetti.
 
 *Mitigation*:
+
 - Traits for database operations (enforce abstraction)
 - Per-database test suites (detect leaks early)
 - SQL builder pattern (composable, not string concat)
@@ -679,6 +717,7 @@ Each phase has specific success criteria:
 *Scenario*: We're faster than Node.js but not 10x faster.
 
 *Mitigation*:
+
 - Benchmark early and often (Criterion + real workloads)
 - Profile hot paths (flamegraphs)
 - Compare against raw SQL (our ceiling)
@@ -691,6 +730,7 @@ Each phase has specific success criteria:
 *Scenario*: We keep adding features and never ship 1.0.
 
 *Mitigation*:
+
 - Strict phase boundaries (no feature creep within phase)
 - "Future" label for nice-to-have features
 - 1.0 feature freeze (only bugfixes after Phase 11)
@@ -700,6 +740,7 @@ Each phase has specific success criteria:
 *Scenario*: We skip tests to ship faster.
 
 *Mitigation*:
+
 - Automated quality gates (CI blocks merge if tests fail)
 - No pressure! We said "no time constraints" - enforce it
 - Celebrate quality wins (not just feature completion)
@@ -713,12 +754,14 @@ Each phase has specific success criteria:
 This is a **superpower**, not a liability.
 
 What this means:
+
 - ✅ We can refactor when we learn better patterns
 - ✅ We can rewrite if the first approach was wrong
 - ✅ We can debate architecture for days if needed
 - ✅ We can achieve 95% test coverage (most projects: 60%)
 
 What this does NOT mean:
+
 - ❌ We can procrastinate
 - ❌ We can bikeshed endlessly
 - ❌ We can avoid hard decisions
@@ -730,6 +773,7 @@ What this does NOT mean:
 This is the bar. Every decision asks: **"Is this world-class?"**
 
 Examples:
+
 - ❓ "Should we add a config option for X?"
   - 🤔 Does it make UX better or worse? (More knobs = worse UX usually)
 
@@ -744,15 +788,18 @@ Examples:
 These are NOT in tension if we architect well:
 
 **Simple**:
+
 - For users: Minimal API surface, clear documentation
 - For contributors: Modular codebase, clear patterns
 
 **Rock Solid**:
+
 - Extensive testing (unit + integration + chaos)
 - No panics, no undefined behavior
 - Graceful error handling
 
 **Feature Rich**:
+
 - Support multiple databases
 - Relay compliance
 - Subscriptions
@@ -775,6 +822,7 @@ These are NOT in tension if we architect well:
 ### For Architectural Decisions
 
 When facing a tough choice:
+
 1. Revisit "Core Principles" section
 2. Check if similar decision exists in `docs/architecture/`
 3. Prototype both approaches (code is cheap)
@@ -784,6 +832,7 @@ When facing a tough choice:
 ### For Quality Checks
 
 Before merging any PR:
+
 - [ ] Does this align with "Quality Framework"?
 - [ ] Have we updated relevant docs?
 - [ ] Do tests cover new code?
@@ -821,11 +870,13 @@ Rust gives us memory safety, fearless concurrency, and zero-cost abstractions. P
 FraiseQL v2 is not a weekend project. It's a **multi-month journey** to build something enduring.
 
 **We optimize for**:
+
 - Code that's still understandable in 5 years
 - Architecture that supports features we haven't imagined yet
 - Performance that's still impressive in 10 years
 
 **We do NOT optimize for**:
+
 - Lines of code written per day
 - Feature count at launch
 - Hype cycles or trends

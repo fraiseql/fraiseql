@@ -12,12 +12,14 @@
 How should FraiseQL implement federation for composing multiple subgraphs into a single federated graph?
 
 **Context:**
+
 - FraiseQL is a compiled GraphQL backend with database as the primary source of truth
 - Each subgraph is independently compiled for its target database
 - Federation enables composition of multiple FraiseQL instances + external subgraphs
 - Performance and simplicity are critical concerns
 
 **Questions to resolve:**
+
 1. Should federation use HTTP only, or optimize for FraiseQL-to-FraiseQL coupling?
 2. How to handle multi-database scenarios (PostgreSQL + SQL Server + MySQL)?
 3. Should database-level linking mechanisms (FDW, Linked Servers) be used?
@@ -30,23 +32,27 @@ How should FraiseQL implement federation for composing multiple subgraphs into a
 ### Option 1: HTTP-Only Federation (Standard Apollo Federation v2)
 
 **Approach:**
+
 - All entity resolution via HTTP POST to external subgraph's `_entities` endpoint
 - Works with any GraphQL server (Apollo Server, Yoga, Mercurius, etc.)
 - Database-agnostic; no special setup required
 
 **Advantages:**
+
 - ✅ Simplicity: Standard federation protocol
 - ✅ Compatibility: Works with ANY GraphQL server
 - ✅ Portability: No database-specific configuration
 - ✅ No network assumptions between subgraphs
 
 **Disadvantages:**
+
 - ❌ Performance: 50-200ms latency for each entity batch
 - ❌ Lost optimization opportunity for FraiseQL-to-FraiseQL
 - ❌ Network overhead even for same-database subgraphs
 - ❌ Connection complexity: Each subgraph needs HTTP endpoint
 
 **Example latency:**
+
 ```
 User → Order federation:
   1. HTTP POST to Orders subgraph: 100-150ms
@@ -59,6 +65,7 @@ User → Order federation:
 ### Option 2: Database-Level Linking (FDW, Linked Servers, FEDERATED)
 
 **Approach:**
+
 - Use database-specific mechanisms for same-database subgraphs:
   - PostgreSQL: FDW (Foreign Data Wrapper)
   - SQL Server: Linked Servers
@@ -66,11 +73,13 @@ User → Order federation:
 - HTTP fallback for cross-database or external subgraphs
 
 **Advantages:**
+
 - ✅ Performance: <10ms for same-database
 - ✅ Optimization for tightly-coupled services
 - ✅ Native database mechanisms
 
 **Disadvantages:**
+
 - ❌ Complexity: Different setup per database type
 - ❌ Operational overhead: FDW/Linked Servers configuration
 - ❌ Database-specific knowledge required
@@ -83,6 +92,7 @@ User → Order federation:
 ### Option 3: Direct Database Connections from Rust Runtime (SELECTED)
 
 **Approach:**
+
 - Rust runtime maintains connection pools to all accessible FraiseQL databases
 - For each entity resolution request:
   1. Detect if target is FraiseQL subgraph or external
@@ -94,6 +104,7 @@ User → Order federation:
 **Entity Resolution Strategies:**
 
 1. **Local Resolution** (<5ms)
+
    ```
    User subgraph resolving User entity
    → Query local PostgreSQL database
@@ -101,6 +112,7 @@ User → Order federation:
    ```
 
 2. **Direct DB Federation** (<10-20ms)
+
    ```
    User subgraph resolving Order entity (from Orders subgraph on SQL Server)
    → Rust runtime has SQL Server connection pool
@@ -109,6 +121,7 @@ User → Order federation:
    ```
 
 3. **HTTP Fallback** (50-200ms)
+
    ```
    User subgraph resolving Review entity (from Apollo Server)
    → HTTP POST to reviews-api.example.com/graphql
@@ -116,6 +129,7 @@ User → Order federation:
    ```
 
 **Advantages:**
+
 - ✅ Performance: <5-20ms for FraiseQL-to-FraiseQL (10x better than HTTP)
 - ✅ Simplicity: Just connection strings, no FDW/Linked Servers setup
 - ✅ Portability: Works with PostgreSQL, SQL Server, MySQL, SQLite
@@ -127,6 +141,7 @@ User → Order federation:
 - ✅ No complex database linking mechanisms
 
 **Disadvantages:**
+
 - ⚠️ Requires network access from Rust runtime to remote databases
 - ⚠️ Database credentials must be configured
 - ⚠️ Firewall rules needed for database connections
@@ -203,6 +218,7 @@ for extended_type in schema.extended_types:
 ### Runtime
 
 **Initialization:**
+
 ```rust
 pub struct FederationRuntime {
     local_pool: DatabasePool,                      // Local database
@@ -222,6 +238,7 @@ for subgraph in &config.subgraphs {
 ```
 
 **Entity Resolution:**
+
 ```rust
 pub async fn resolve_entities(representations: Vec<_Any>) -> Result<Vec<Entity>> {
     for (typename, reps) in group_by_typename(representations) {
@@ -283,21 +300,25 @@ graphql_url = "https://reviews-api.example.com/graphql"
 ## Risk Mitigation
 
 ### Network Access Risk
+
 - **Risk:** Rust runtime needs network access to remote databases
 - **Mitigation:** Firewall rules, VPC configuration, SSL/TLS encryption
 - **Fallback:** HTTP endpoint configured for each external subgraph
 
 ### Credential Management
+
 - **Risk:** Database credentials in configuration
 - **Mitigation:** Environment variables, secrets management, encrypted storage
 - **Audit:** All database access logged via audit columns
 
 ### Connection Pool Exhaustion
+
 - **Risk:** Too many connections from runtime
 - **Mitigation:** Configurable pool sizes, monitoring, alerts
 - **Default:** 10-20 connections per database
 
 ### Cross-Database Consistency
+
 - **Risk:** Mutations across databases not atomic
 - **Mitigation:** Document limitation, handle in application layer
 - **Use case:** Read-heavy federation (OK), complex mutations (needs orchestration)
@@ -307,16 +328,19 @@ graphql_url = "https://reviews-api.example.com/graphql"
 ## Alternatives Rejected
 
 ### FDW-Only (Database-Level Linking)
+
 - ❌ Too complex for operational benefit
 - ❌ PostgreSQL-specific doesn't solve multi-database
 - ❌ SQL Server Linked Servers are fragile
 - ❌ MySQL FEDERATED has consistency issues
 
 ### HTTP-Only (No Direct DB Optimization)
+
 - ❌ Loses 10x performance opportunity for FraiseQL-to-FraiseQL
 - ❌ Unnecessary network overhead for same-database
 
 ### Hybrid (HTTP + Optional FDW)
+
 - ❌ Adds complexity without significant benefit
 - ❌ Direct DB connections simpler than FDW setup
 - ❌ Still supports same-database optimization

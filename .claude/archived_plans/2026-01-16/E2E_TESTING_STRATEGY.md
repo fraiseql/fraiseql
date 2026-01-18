@@ -49,12 +49,14 @@
 **Current Status**: ✅ docker-compose.test.yml already configured
 
 Services:
+
 - PostgreSQL 16 (primary, full features)
 - PostgreSQL + pgvector (for vector tests)
 - MySQL 8.3 (secondary support)
 - SQLite (local file-based)
 
 **Startup**:
+
 ```bash
 docker compose -f docker-compose.test.yml up -d
 docker compose -f docker-compose.test.yml logs -f
@@ -63,6 +65,7 @@ docker compose -f docker-compose.test.yml logs -f
 ### Phase 2: Language Virtual Environments
 
 #### Python Virtual Environment
+
 ```bash
 # Create isolated venv for Python tests
 python -m venv /tmp/fraiseql-python-venv
@@ -72,6 +75,7 @@ pip install pytest pytest-asyncio
 ```
 
 #### TypeScript/Node Environment
+
 ```bash
 # Node dependencies already in fraiseql-typescript/node_modules/
 # But create isolated npm cache for CI/CD
@@ -80,6 +84,7 @@ npm install --prefix fraiseql-typescript/
 ```
 
 #### Java Environment
+
 ```bash
 # Maven caches in ~/.m2/repository
 # No isolation needed for local testing
@@ -87,6 +92,7 @@ mvn clean install -f fraiseql-java/pom.xml -DskipTests
 ```
 
 #### Go Environment
+
 ```bash
 # Go modules cached in $GOPATH/pkg/mod
 # No isolation needed, dependencies in go.mod
@@ -94,6 +100,7 @@ go mod download ./fraiseql-go/...
 ```
 
 #### PHP Environment
+
 ```bash
 # Create isolated vendor directory
 cd fraiseql-php
@@ -166,103 +173,103 @@ Create comprehensive test targets in top-level Makefile:
 
 ## Setup: Start Docker databases and create virtual environments
 e2e-setup:
-	@echo "🔧 Setting up E2E test infrastructure..."
-	@echo "Starting Docker containers..."
-	docker compose -f docker-compose.test.yml up -d
-	@echo "Waiting for databases to be ready..."
-	sleep 10
-	docker compose -f docker-compose.test.yml logs
-	@echo "✅ Docker infrastructure ready"
+ @echo "🔧 Setting up E2E test infrastructure..."
+ @echo "Starting Docker containers..."
+ docker compose -f docker-compose.test.yml up -d
+ @echo "Waiting for databases to be ready..."
+ sleep 10
+ docker compose -f docker-compose.test.yml logs
+ @echo "✅ Docker infrastructure ready"
 
 ## Run E2E tests for all 5 languages (sequential)
 e2e-all: e2e-setup e2e-python e2e-typescript e2e-java e2e-go e2e-php
-	@echo ""
-	@echo "=============================================="
-	@echo "✅ All E2E tests completed!"
-	@echo "=============================================="
-	@echo ""
+ @echo ""
+ @echo "=============================================="
+ @echo "✅ All E2E tests completed!"
+ @echo "=============================================="
+ @echo ""
 
 ## E2E: Python (with venv)
 e2e-python:
-	@echo ""
-	@echo "========== PYTHON E2E TEST =========="
-	@echo "Setting up Python virtual environment..."
-	python -m venv /tmp/fraiseql-python-venv
-	source /tmp/fraiseql-python-venv/bin/activate && \
-		pip install -q -e fraiseql-python/ && \
-		pip install -q pytest pytest-asyncio && \
-		echo "✅ Python venv ready" && \
-		echo "" && \
-		echo "Running E2E tests..." && \
-		python tests/e2e/python_e2e_test.py && \
-		echo "✅ Python E2E tests passed"
-	@echo ""
+ @echo ""
+ @echo "========== PYTHON E2E TEST =========="
+ @echo "Setting up Python virtual environment..."
+ python -m venv /tmp/fraiseql-python-venv
+ source /tmp/fraiseql-python-venv/bin/activate && \
+  pip install -q -e fraiseql-python/ && \
+  pip install -q pytest pytest-asyncio && \
+  echo "✅ Python venv ready" && \
+  echo "" && \
+  echo "Running E2E tests..." && \
+  python tests/e2e/python_e2e_test.py && \
+  echo "✅ Python E2E tests passed"
+ @echo ""
 
 ## E2E: TypeScript (with npm)
 e2e-typescript:
-	@echo ""
-	@echo "========== TYPESCRIPT E2E TEST =========="
-	@echo "Installing TypeScript dependencies..."
-	cd fraiseql-typescript && npm ci -q && echo "✅ npm dependencies ready"
-	@echo ""
-	@echo "Running E2E tests..."
-	cd fraiseql-typescript && npm run test:e2e
-	@echo "✅ TypeScript E2E tests passed"
-	@echo ""
+ @echo ""
+ @echo "========== TYPESCRIPT E2E TEST =========="
+ @echo "Installing TypeScript dependencies..."
+ cd fraiseql-typescript && npm ci -q && echo "✅ npm dependencies ready"
+ @echo ""
+ @echo "Running E2E tests..."
+ cd fraiseql-typescript && npm run test:e2e
+ @echo "✅ TypeScript E2E tests passed"
+ @echo ""
 
 ## E2E: Java (with Maven)
 e2e-java:
-	@echo ""
-	@echo "========== JAVA E2E TEST =========="
-	@echo "Downloading Maven dependencies..."
-	mvn dependency:download-sources -f fraiseql-java/pom.xml -q 2>/dev/null || true
-	@echo "✅ Maven dependencies ready"
-	@echo ""
-	@echo "Running E2E tests..."
-	mvn test -f fraiseql-java/pom.xml -Dtest="*E2ETest"
-	@echo "✅ Java E2E tests passed"
-	@echo ""
+ @echo ""
+ @echo "========== JAVA E2E TEST =========="
+ @echo "Downloading Maven dependencies..."
+ mvn dependency:download-sources -f fraiseql-java/pom.xml -q 2>/dev/null || true
+ @echo "✅ Maven dependencies ready"
+ @echo ""
+ @echo "Running E2E tests..."
+ mvn test -f fraiseql-java/pom.xml -Dtest="*E2ETest"
+ @echo "✅ Java E2E tests passed"
+ @echo ""
 
 ## E2E: Go (with go modules)
 e2e-go:
-	@echo ""
-	@echo "========== GO E2E TEST =========="
-	@echo "Downloading Go modules..."
-	cd fraiseql-go && go mod download && echo "✅ Go modules ready"
-	@echo ""
-	@echo "Running E2E tests..."
-	cd fraiseql-go && go test ./... -run TestE2E -v
-	@echo "✅ Go E2E tests passed"
-	@echo ""
+ @echo ""
+ @echo "========== GO E2E TEST =========="
+ @echo "Downloading Go modules..."
+ cd fraiseql-go && go mod download && echo "✅ Go modules ready"
+ @echo ""
+ @echo "Running E2E tests..."
+ cd fraiseql-go && go test ./... -run TestE2E -v
+ @echo "✅ Go E2E tests passed"
+ @echo ""
 
 ## E2E: PHP (with Composer)
 e2e-php:
-	@echo ""
-	@echo "========== PHP E2E TEST =========="
-	@echo "Installing Composer dependencies..."
-	cd fraiseql-php && composer install -q && echo "✅ Composer dependencies ready"
-	@echo ""
-	@echo "Running E2E tests..."
-	cd fraiseql-php && vendor/bin/phpunit tests/e2e/ -v
-	@echo "✅ PHP E2E tests passed"
-	@echo ""
+ @echo ""
+ @echo "========== PHP E2E TEST =========="
+ @echo "Installing Composer dependencies..."
+ cd fraiseql-php && composer install -q && echo "✅ Composer dependencies ready"
+ @echo ""
+ @echo "Running E2E tests..."
+ cd fraiseql-php && vendor/bin/phpunit tests/e2e/ -v
+ @echo "✅ PHP E2E tests passed"
+ @echo ""
 
 ## Cleanup: Stop Docker containers and remove temp files
 e2e-clean:
-	@echo "🧹 Cleaning up E2E test infrastructure..."
-	docker compose -f docker-compose.test.yml down -v
-	rm -rf /tmp/fraiseql-python-venv
-	rm -rf /tmp/fraiseql-*-test-output
-	@echo "✅ Cleanup complete"
+ @echo "🧹 Cleaning up E2E test infrastructure..."
+ docker compose -f docker-compose.test.yml down -v
+ rm -rf /tmp/fraiseql-python-venv
+ rm -rf /tmp/fraiseql-*-test-output
+ @echo "✅ Cleanup complete"
 
 ## Status: Check E2E test infrastructure
 e2e-status:
-	@echo "Docker Compose Status:"
-	docker compose -f docker-compose.test.yml ps
-	@echo ""
-	@echo "Database Connectivity:"
-	docker compose -f docker-compose.test.yml exec -T postgres-test pg_isready -U fraiseql_test || echo "PostgreSQL: UNAVAILABLE"
-	docker compose -f docker-compose.test.yml exec -T mysql-test mysqladmin ping -u fraiseql_test -pfraiseql_test_password || echo "MySQL: UNAVAILABLE"
+ @echo "Docker Compose Status:"
+ docker compose -f docker-compose.test.yml ps
+ @echo ""
+ @echo "Database Connectivity:"
+ docker compose -f docker-compose.test.yml exec -T postgres-test pg_isready -U fraiseql_test || echo "PostgreSQL: UNAVAILABLE"
+ docker compose -f docker-compose.test.yml exec -T mysql-test mysqladmin ping -u fraiseql_test -pfraiseql_test_password || echo "MySQL: UNAVAILABLE"
 ```
 
 ---
@@ -467,103 +474,103 @@ describe("TypeScript E2E Tests", () => {
 package fraiseql
 
 import (
-	"encoding/json"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"testing"
-	"tempfile"
+ "encoding/json"
+ "os"
+ "os/exec"
+ "path/filepath"
+ "testing"
+ "tempfile"
 )
 
 func TestE2EBasicSchema(t *testing.T) {
-	// Create temporary directory
-	tmpDir, err := ioutil.TempDir("", "fraiseql-go-e2e-")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
+ // Create temporary directory
+ tmpDir, err := ioutil.TempDir("", "fraiseql-go-e2e-")
+ if err != nil {
+  t.Fatalf("Failed to create temp dir: %v", err)
+ }
+ defer os.RemoveAll(tmpDir)
 
-	// Step 1: Define schema
-	userType := TypeDef{
-		Name: "User",
-		Fields: []FieldDef{
-			{Name: "id", Type: "Int", Nullable: false},
-			{Name: "name", Type: "String", Nullable: false},
-			{Name: "email", Type: "String", Nullable: false},
-		},
-	}
+ // Step 1: Define schema
+ userType := TypeDef{
+  Name: "User",
+  Fields: []FieldDef{
+   {Name: "id", Type: "Int", Nullable: false},
+   {Name: "name", Type: "String", Nullable: false},
+   {Name: "email", Type: "String", Nullable: false},
+  },
+ }
 
-	registry := NewSchemaRegistry()
-	registry.RegisterType(userType)
+ registry := NewSchemaRegistry()
+ registry.RegisterType(userType)
 
-	// Step 2: Export to JSON
-	schema := registry.ExportSchema()
-	schemaPath := filepath.Join(tmpDir, "schema.json")
+ // Step 2: Export to JSON
+ schema := registry.ExportSchema()
+ schemaPath := filepath.Join(tmpDir, "schema.json")
 
-	schemaJSON, err := json.MarshalIndent(schema, "", "  ")
-	if err != nil {
-		t.Fatalf("Failed to marshal schema: %v", err)
-	}
+ schemaJSON, err := json.MarshalIndent(schema, "", "  ")
+ if err != nil {
+  t.Fatalf("Failed to marshal schema: %v", err)
+ }
 
-	err = ioutil.WriteFile(schemaPath, schemaJSON, 0644)
-	if err != nil {
-		t.Fatalf("Failed to write schema file: %v", err)
-	}
+ err = ioutil.WriteFile(schemaPath, schemaJSON, 0644)
+ if err != nil {
+  t.Fatalf("Failed to write schema file: %v", err)
+ }
 
-	// Step 3: Verify JSON structure
-	var exported map[string]interface{}
-	err = json.Unmarshal(schemaJSON, &exported)
-	if err != nil {
-		t.Fatalf("Failed to unmarshal schema: %v", err)
-	}
+ // Step 3: Verify JSON structure
+ var exported map[string]interface{}
+ err = json.Unmarshal(schemaJSON, &exported)
+ if err != nil {
+  t.Fatalf("Failed to unmarshal schema: %v", err)
+ }
 
-	if types, ok := exported["types"].([]interface{}); !ok || len(types) == 0 {
-		t.Fatalf("Schema missing types field")
-	}
+ if types, ok := exported["types"].([]interface{}); !ok || len(types) == 0 {
+  t.Fatalf("Schema missing types field")
+ }
 
-	// Step 4: Try CLI compilation
-	compiledPath := filepath.Join(tmpDir, "schema.compiled.json")
-	cmd := exec.Command("fraiseql-cli", "compile", schemaPath, "-o", compiledPath)
+ // Step 4: Try CLI compilation
+ compiledPath := filepath.Join(tmpDir, "schema.compiled.json")
+ cmd := exec.Command("fraiseql-cli", "compile", schemaPath, "-o", compiledPath)
 
-	if err := cmd.Run(); err == nil {
-		// CLI compilation succeeded
-		data, _ := ioutil.ReadFile(compiledPath)
-		var compiled map[string]interface{}
-		json.Unmarshal(data, &compiled)
+ if err := cmd.Run(); err == nil {
+  // CLI compilation succeeded
+  data, _ := ioutil.ReadFile(compiledPath)
+  var compiled map[string]interface{}
+  json.Unmarshal(data, &compiled)
 
-		if _, ok := compiled["sql_templates"]; !ok {
-			t.Logf("⚠️  CLI compilation format mismatch (expected during development)")
-		}
-	} else {
-		t.Logf("⚠️  CLI compilation failed (expected during development)")
-	}
+  if _, ok := compiled["sql_templates"]; !ok {
+   t.Logf("⚠️  CLI compilation format mismatch (expected during development)")
+  }
+ } else {
+  t.Logf("⚠️  CLI compilation failed (expected during development)")
+ }
 }
 
 func TestE2EAnalyticsSchema(t *testing.T) {
-	registry := NewSchemaRegistry()
+ registry := NewSchemaRegistry()
 
-	// Define fact table
-	factTable := FactTableDef{
-		Name:      "tf_sales",
-		Measures:  []string{"amount", "quantity"},
-		Dimensions: FieldDef{
-			Name: "dimensions",
-			Type: "JSON",
-		},
-	}
+ // Define fact table
+ factTable := FactTableDef{
+  Name:      "tf_sales",
+  Measures:  []string{"amount", "quantity"},
+  Dimensions: FieldDef{
+   Name: "dimensions",
+   Type: "JSON",
+  },
+ }
 
-	registry.RegisterFactTable(factTable)
+ registry.RegisterFactTable(factTable)
 
-	// Export schema
-	schema := registry.ExportSchema()
+ // Export schema
+ schema := registry.ExportSchema()
 
-	schemaJSON, _ := json.MarshalIndent(schema, "", "  ")
-	var exported map[string]interface{}
-	json.Unmarshal(schemaJSON, &exported)
+ schemaJSON, _ := json.MarshalIndent(schema, "", "  ")
+ var exported map[string]interface{}
+ json.Unmarshal(schemaJSON, &exported)
 
-	if types, ok := exported["types"].([]interface{}); !ok || len(types) == 0 {
-		t.Fatalf("Analytics schema missing types")
-	}
+ if types, ok := exported["types"].([]interface{}); !ok || len(types) == 0 {
+  t.Fatalf("Analytics schema missing types")
+ }
 }
 ```
 
@@ -948,6 +955,7 @@ jobs:
 ## Makefile Commands
 
 ### Quick Start (All E2E Tests)
+
 ```bash
 make e2e-all          # Run all E2E tests (requires ~30 minutes)
 make e2e-setup        # Start Docker infrastructure only
@@ -956,6 +964,7 @@ make e2e-status       # Check test infrastructure status
 ```
 
 ### Individual Language Tests
+
 ```bash
 make e2e-python       # Python E2E tests
 make e2e-typescript   # TypeScript E2E tests
@@ -965,6 +974,7 @@ make e2e-php          # PHP E2E tests
 ```
 
 ### Local Testing (Without Docker)
+
 ```bash
 # For individual language testing without Docker infrastructure:
 cd fraiseql-python && python -m pytest tests/e2e/ -v
@@ -1010,16 +1020,19 @@ cd fraiseql-php && vendor/bin/phpunit tests/e2e/ -v
 ## Benefits of This Approach
 
 ✅ **Isolated Environments**
+
 - Each language has its own virtual environment (venv/npm/Maven/composer)
 - No dependency conflicts between languages
 - Easy to run in CI/CD and local development
 
 ✅ **Docker-Based Databases**
+
 - Consistent test environment across machines
 - Easy setup/teardown with docker-compose
 - Supports PostgreSQL, MySQL, SQLite, pgvector
 
 ✅ **Language-Idiomatic Tests**
+
 - Python tests use pytest
 - TypeScript tests use Jest
 - Java tests use JUnit 5
@@ -1027,16 +1040,19 @@ cd fraiseql-php && vendor/bin/phpunit tests/e2e/ -v
 - PHP tests use PHPUnit
 
 ✅ **End-to-End Coverage**
+
 - Tests entire pipeline: authoring → export → compile → runtime
 - Catches integration issues
 - Validates CLI contract
 
 ✅ **CI/CD Ready**
+
 - GitHub Actions pipeline runs all tests in parallel
 - Reports results by language
 - Detects regressions early
 
 ✅ **Scalable**
+
 - Easy to add new languages
 - Same test pattern for each language
 - Reusable Docker infrastructure

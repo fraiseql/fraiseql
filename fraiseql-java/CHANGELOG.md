@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 #### Phase 1: Foundation
+
 - Initial project setup with Maven build configuration
 - `@GraphQLType` and `@GraphQLField` annotations for schema definition
 - `TypeConverter` for Java-to-GraphQL type mapping
@@ -20,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `TypeInfo` class for type metadata encapsulation
 
 #### Phase 2: Type System
+
 - `SchemaRegistry` singleton for managing types, queries, and mutations
 - `FraiseQL` main API for schema registration and export
 - `QueryBuilder` and `MutationBuilder` fluent builders
@@ -30,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `SchemaFormatter` for JSON schema generation
 
 #### Phase 3: JSON Export
+
 - Complete JSON schema export functionality
 - Schema version support (v1.0)
 - Pretty-printed JSON output
@@ -37,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comprehensive schema metadata in JSON format
 
 #### Phase 4: Examples and Integration
+
 - `BasicSchema` example demonstrating blog/CMS application
   - 3 types: User, Post, Comment
   - 5 queries and 5 mutations
@@ -47,6 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Complete schema workflow demonstrations
 
 #### Phase 5: Advanced Features
+
 - `ArgumentBuilder` for flexible argument definition
   - Support for default values
   - Support for argument descriptions
@@ -61,6 +66,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ArgumentInfo` for detailed argument metadata
 
 #### Phase 6: Optimization and Performance
+
 - `SchemaCache` singleton for high-performance caching
   - Field information caching with ConcurrentHashMap
   - Type conversion result caching
@@ -190,6 +196,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to contribute to Fr
 ### Version 2.0.0
 
 This is the first stable release of FraiseQL Java. It includes a complete GraphQL schema authoring system with:
+
 - Type definition through annotations
 - Query and mutation registration
 - JSON schema export

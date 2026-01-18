@@ -11,18 +11,22 @@ Successfully integrated fraiseql-wire as an optional backend for FraiseQL. All f
 ## ✅ RESOLVED: Send Trait Issue
 
 ### Problem (Previously Blocked)
+
 `FraiseClient` was not `Send` due to `EnteredSpan` being held across await points in fraiseql-wire.
 
 ### Solution (Fixed Upstream)
+
 **Commit**: `3b55920` - fix(tracing): Replace EnteredSpan with Instrument for Send-safe futures
 
 **Changes in fraiseql-wire**:
+
 - `Connection::startup()` - Replaced `.entered()` with `.instrument()`
 - `Connection::streaming_query()` - Same pattern applied
 - Added `Instrument` import for async instrumentation
 - All 120 fraiseql-wire tests pass
 
 ### Result
+
 ✅ FraiseQL now compiles with `--features wire-backend`
 ✅ All 705+ tests pass
 ✅ No performance regression
@@ -31,6 +35,7 @@ Successfully integrated fraiseql-wire as an optional backend for FraiseQL. All f
 ## Implementation Status
 
 ### 1. WHERE SQL Generator (`src/db/where_sql_generator.rs`)
+
 - **Status**: ✅ Complete and tested
 - **Tests**: 16/16 passing
 - **Functionality**:
@@ -41,6 +46,7 @@ Successfully integrated fraiseql-wire as an optional backend for FraiseQL. All f
   - SQL injection prevention via proper escaping
 
 ### 2. Connection Factory (`src/db/wire_pool.rs`)
+
 - **Status**: ✅ Complete
 - **Tests**: 2/2 passing
 - **Design**: Factory pattern instead of traditional pooling
@@ -50,6 +56,7 @@ Successfully integrated fraiseql-wire as an optional backend for FraiseQL. All f
   - Rationale: `FraiseClient::query()` consumes self
 
 ### 3. Database Adapter (`src/db/fraiseql_wire_adapter.rs`)
+
 - **Status**: ✅ Complete and working
 - **Tests**: 5/5 passing
 - **Implemented Methods**:
@@ -60,6 +67,7 @@ Successfully integrated fraiseql-wire as an optional backend for FraiseQL. All f
   - ✅ `execute_raw_query()` - Returns error (intentionally not supported)
 
 ### 4. Module Integration
+
 - ✅ Feature flag: `wire-backend`
 - ✅ Dependency: fraiseql-wire (path: `../../../fraiseql-wire`)
 - ✅ Module exports in `db/mod.rs`
@@ -69,6 +77,7 @@ Successfully integrated fraiseql-wire as an optional backend for FraiseQL. All f
 ## Test Results
 
 ### Unit Tests
+
 ```bash
 $ cargo test --features wire-backend --lib
 
@@ -92,10 +101,11 @@ test result: ok. 705 passed; 0 failed; 26 ignored; 0 measured; 0 filtered out
 ```
 
 ### Compilation Status
+
 ```bash
-$ cargo check                          # ✅ SUCCESS
-$ cargo check --features wire-backend  # ✅ SUCCESS (FIXED!)
-$ cargo clippy --features wire-backend # ✅ Clean (27 warnings in other modules)
+cargo check                          # ✅ SUCCESS
+cargo check --features wire-backend  # ✅ SUCCESS (FIXED!)
+cargo clippy --features wire-backend # ✅ Clean (27 warnings in other modules)
 ```
 
 ## API Usage Example
@@ -131,6 +141,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ## Performance Characteristics
 
 ### Memory Usage (fraiseql-wire's Key Advantage)
+
 | Result Size | Traditional Drivers | fraiseql-wire | Improvement |
 |-------------|--------------------|--------------|-----------|
 | 10K rows | 2.6 MB | 1.3 KB | **2000x** |
@@ -140,11 +151,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 **Why**: Traditional drivers use O(result_size) memory, fraiseql-wire uses O(chunk_size).
 
 ### Throughput & Latency
+
 - **Throughput**: 100K-500K rows/sec (comparable to tokio-postgres)
 - **Time-to-first-row**: 2-5ms
 - **Default chunk size**: 1024 rows (configurable)
 
 ### Limitations (By Design)
+
 - ✅ Read-only (no INSERT/UPDATE/DELETE) - **Intentional**
 - ✅ Single query shape: `SELECT data FROM v_{entity} WHERE ...` - **Intentional**
 - ✅ No prepared statements - **Intentional** (streaming focus)
@@ -154,6 +167,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ## Files Created
 
 ### New Modules
+
 ```
 crates/fraiseql-core/src/db/
 ├── where_sql_generator.rs      (~350 lines, 16 tests)
@@ -162,10 +176,12 @@ crates/fraiseql-core/src/db/
 ```
 
 ### Modified Files
+
 - `crates/fraiseql-core/src/db/mod.rs` - Module exports and feature gates
 - `crates/fraiseql-core/Cargo.toml` - fraiseql-wire dependency
 
 ### Documentation
+
 - `.claude/status/fraiseql-wire-integration-status.md` - Original analysis (with Send issue)
 - `.claude/status/fraiseql-wire-integration-complete.md` - This file (resolved)
 - `/tmp/fraiseql-wire-send-trait-issue.md` - GitHub issue (now resolved upstream)
@@ -198,6 +214,7 @@ crates/fraiseql-core/src/db/
 ## Next Steps
 
 ### Immediate
+
 - [x] Verify compilation with wire-backend ✅
 - [x] Run full test suite ✅
 - [x] Update status documentation ✅
@@ -262,6 +279,7 @@ fraiseql-core = { version = "2.0", features = ["wire-backend"] }
 ### When to Use fraiseql-wire
 
 ✅ **Use fraiseql-wire when**:
+
 - Streaming large result sets (>10K rows)
 - Memory-constrained environments
 - Need bounded memory guarantees
@@ -269,6 +287,7 @@ fraiseql-core = { version = "2.0", features = ["wire-backend"] }
 - JSON-native queries
 
 ❌ **Use PostgresAdapter when**:
+
 - Need write operations (INSERT/UPDATE/DELETE)
 - Need transactions
 - Need prepared statements

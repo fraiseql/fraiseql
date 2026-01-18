@@ -81,6 +81,7 @@ while let Some(result) = stream.next().await {
 ```
 
 **Key points**:
+
 - Type T = custom struct (Project)
 - Results are deserialized to Project structs
 - Compile-time type safety for field access
@@ -105,6 +106,7 @@ while let Some(result) = stream.next().await {
 ```
 
 **Key points**:
+
 - Type T = `serde_json::Value` (raw JSON)
 - No deserialization overhead for schema evolution
 - Works identically to untyped query
@@ -130,6 +132,7 @@ while let Some(result) = stream.next().await {
 ```
 
 **Key constraints verified**:
+
 - ✅ SQL predicate is identical for all T
 - ✅ Filtering happens on server BEFORE deserialization
 - ✅ Type parameter T irrelevant to SQL generation
@@ -161,6 +164,7 @@ while let Some(result) = stream.next().await {
 ```
 
 **Key constraints verified**:
+
 - ✅ Predicate receives JSON (Value), not typed struct
 - ✅ Predicate evaluates BEFORE deserialization
 - ✅ Type T irrelevant to filtering logic
@@ -186,6 +190,7 @@ let stream2 = client.query::<serde_json::Value>(entity).execute().await?;
 ```
 
 **Key insight**:
+
 - ✅ Both queries generate identical SQL
 - ✅ Both queries receive identical result sets
 - ✅ Only difference: deserialization type
@@ -248,6 +253,7 @@ while let Some(result) = stream.next().await {
 **What it means**: Type parameter T never used in SQL generation
 
 **Verified by Example 3 and 5**:
+
 ```rust
 .query::<Project>(...)       // Type = Project
 .query::<serde_json::Value>(...) // Type = Value
@@ -263,6 +269,7 @@ while let Some(result) = stream.next().await {
 **What it means**: SQL WHERE and Rust predicates work on JSON, not T
 
 **Verified by Example 4**:
+
 ```rust
 .where_rust(|json| {  // json is Value, not T
     json["id"].as_str()...
@@ -278,6 +285,7 @@ while let Some(result) = stream.next().await {
 **What it means**: ORDER BY executed entirely on server
 
 **Verified by Example 3**:
+
 ```rust
 .order_by("data->>'name' ASC")  // T irrelevant to ordering
 ```
@@ -291,6 +299,7 @@ while let Some(result) = stream.next().await {
 **What it means**: Postgres communication identical for all T
 
 **Verified by all examples**:
+
 - Same connection handling
 - Same message encoding/decoding
 - Same streaming semantics
@@ -325,11 +334,13 @@ let mut stream = client
 ## Performance Characteristics
 
 ### Memory
+
 - **Per-stream**: O(1) constant overhead (PhantomData)
 - **Per-item**: Lazy deserialization only for items passing filters
 - **Streaming**: No buffering of full result sets
 
 ### Latency
+
 - **Filtering before deserialization**: Avoids deserializing filtered items
 - **Expected overhead**: < 2% (serde_json deserialization is fast)
 - **Time-to-first-result**: Identical for all T
@@ -519,6 +530,7 @@ RUST_LOG=fraiseql_wire=debug cargo run --example typed_streaming
 ### Check Generated SQL
 
 Queries always follow pattern:
+
 ```sql
 SELECT data FROM v_{entity}
 [WHERE predicate]
@@ -540,6 +552,7 @@ Type name helps identify which struct failed deserialization.
 ## What's Next
 
 Phase 8.2.5 is complete with:
+
 - ✅ Comprehensive example program
 - ✅ Five real-world scenarios demonstrated
 - ✅ All constraints verified
@@ -547,6 +560,7 @@ Phase 8.2.5 is complete with:
 - ✅ Example compiles successfully
 
 **Future enhancements:**
+
 - Phase 9.0: Performance optimization (if needed)
 - Performance benchmarks comparing typed vs raw JSON
 - Additional example patterns (pagination, filtering, etc.)
@@ -564,7 +578,7 @@ The typed streaming example demonstrates:
 5. ✅ **Type transparency** - Type is truly consumer-side only
 
 **Run it today:**
+
 ```bash
 cargo run --example typed_streaming
 ```
-

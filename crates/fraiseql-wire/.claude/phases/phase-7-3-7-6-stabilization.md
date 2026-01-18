@@ -32,6 +32,7 @@ Validate fraiseql-wire against realistic data volumes, edge cases, and failure s
 **Objective**: Create a realistic test database with various JSON shapes and data volumes.
 
 **Files to Create/Modify**:
+
 - `tests/fixtures/schema.sql` — Create staging schema with v_* views
 - `tests/fixtures/seed_data.sql` — Realistic JSON data (small, medium, large, deeply nested)
 - `.github/workflows/staging-tests.yml` — CI workflow for staging tests
@@ -39,6 +40,7 @@ Validate fraiseql-wire against realistic data volumes, edge cases, and failure s
 **Implementation Steps**:
 
 1. Create `tests/fixtures/schema.sql`:
+
    ```sql
    -- Staging schema for realistic testing
    CREATE SCHEMA IF NOT EXISTS test_staging;
@@ -72,13 +74,16 @@ Validate fraiseql-wire against realistic data volumes, edge cases, and failure s
    - Various field types (strings, numbers, booleans, arrays, objects)
 
 3. Create test data generator script:
+
    ```bash
    tests/generate_test_data.sh
    ```
+
    - Generate realistic data volumes
    - Insert 1K, 100K, 1M row variations
 
 **Acceptance Criteria**:
+
 - [ ] Schema with 3-4 different entity shapes
 - [ ] Seed data includes small, medium, large, and nested JSON
 - [ ] Database can be populated in < 30 seconds
@@ -86,6 +91,7 @@ Validate fraiseql-wire against realistic data volumes, edge cases, and failure s
 - [ ] Total test database size < 5GB
 
 **Verification**:
+
 ```bash
 # Manual: Set up schema and seed
 psql -U postgres -d fraiseql_test -f tests/fixtures/schema.sql
@@ -102,12 +108,14 @@ psql -U postgres -d fraiseql_test -c "SELECT COUNT(*) FROM test_staging.v_projec
 **Objective**: Test throughput and memory stability under sustained load (multiple concurrent connections, high row volumes).
 
 **Files to Create**:
+
 - `tests/load_tests.rs` — Load testing with various concurrency levels
 - `benches/load_benchmark.rs` — Optional: integration benchmark suite
 
 **Implementation Steps**:
 
 1. Create `tests/load_tests.rs`:
+
    ```rust
    #[tokio::test]
    #[ignore]
@@ -142,6 +150,7 @@ psql -U postgres -d fraiseql_test -c "SELECT COUNT(*) FROM test_staging.v_projec
    - 3-hour sustained streaming test
 
 **Metrics to Collect**:
+
 - Peak memory usage
 - Throughput (rows/sec)
 - CPU utilization
@@ -149,6 +158,7 @@ psql -U postgres -d fraiseql_test -c "SELECT COUNT(*) FROM test_staging.v_projec
 - GC pauses (if applicable)
 
 **Acceptance Criteria**:
+
 - [ ] 10 concurrent connections maintained without errors
 - [ ] Memory stays within O(chunk_size) + 100MB overhead
 - [ ] Throughput consistent across concurrency levels
@@ -156,6 +166,7 @@ psql -U postgres -d fraiseql_test -c "SELECT COUNT(*) FROM test_staging.v_projec
 - [ ] Performance degrades gracefully under extreme load
 
 **Verification**:
+
 ```bash
 # Run load tests (manual)
 cargo test --test load_tests -- --ignored --nocapture --test-threads=1
@@ -171,11 +182,13 @@ cargo test --test load_tests -- --ignored --nocapture --test-threads=1
 **Objective**: Test fault tolerance under adverse conditions (connection drops, network delays, database unavailability, query timeouts).
 
 **Files to Create**:
+
 - `tests/stress_tests.rs` — Failure scenario testing
 
 **Implementation Steps**:
 
 1. Test failure scenarios:
+
    ```rust
    #[tokio::test]
    #[ignore]
@@ -220,6 +233,7 @@ cargo test --test load_tests -- --ignored --nocapture --test-threads=1
    - Resource exhaustion (very large JSON rows)
 
 **Acceptance Criteria**:
+
 - [ ] All stress scenarios produce actionable error messages
 - [ ] No panics or crashes
 - [ ] Stream cancellation works in all scenarios
@@ -227,6 +241,7 @@ cargo test --test load_tests -- --ignored --nocapture --test-threads=1
 - [ ] Resource cleanup is guaranteed (no fd leaks)
 
 **Verification**:
+
 ```bash
 # Run stress tests
 cargo test --test stress_tests -- --ignored --nocapture
@@ -240,10 +255,12 @@ toxiproxy-cli toxic add -t latency -a 10000 postgres_master
 ### Phase 7.3 Deliverables
 
 **Documentation**:
+
 - `TESTING_GUIDE.md` — How to run load/stress tests manually
 - Comments in test files explaining each scenario
 
 **Code**:
+
 - `tests/load_tests.rs` — Full load testing suite
 - `tests/stress_tests.rs` — Failure scenario testing
 - `tests/fixtures/schema.sql` — Staging database schema
@@ -251,6 +268,7 @@ toxiproxy-cli toxic add -t latency -a 10000 postgres_master
 - `.github/workflows/staging-tests.yml` — CI workflow (optional, can be manual)
 
 **Metrics**:
+
 - Baseline memory/throughput under load
 - Fault tolerance coverage matrix
 
@@ -274,6 +292,7 @@ Review all error messages for clarity, actionability, and user friendliness. Add
 **Objective**: Review every error message for clarity and actionability.
 
 **Files to Review**:
+
 - `src/error.rs` — All error types and messages
 - `src/client/fraise_client.rs` — Client-level errors
 - `src/connection/conn.rs` — Connection errors
@@ -289,6 +308,7 @@ Review all error messages for clarity, actionability, and user friendliness. Add
    - Is the phrasing user-friendly (not jargon)?
 
 2. Common error scenarios to enhance:
+
    ```rust
    // Before (unclear):
    Error::Connection("connection failed")
@@ -306,6 +326,7 @@ Review all error messages for clarity, actionability, and user friendliness. Add
 **Changes to Make in `src/error.rs`**:
 
 1. Add context fields to error variants:
+
    ```rust
    #[derive(Debug, Error)]
    pub enum Error {
@@ -320,6 +341,7 @@ Review all error messages for clarity, actionability, and user friendliness. Add
    ```
 
 2. Add helper methods with context:
+
    ```rust
    impl Error {
        pub fn connection_refused(addr: &str) -> Self {
@@ -335,12 +357,14 @@ Review all error messages for clarity, actionability, and user friendliness. Add
    ```
 
 **Acceptance Criteria**:
+
 - [ ] Every error variant is reviewed and audited
 - [ ] Error messages are clear and actionable
 - [ ] Error variants include helpful context
 - [ ] All existing tests still pass
 
 **Verification**:
+
 ```bash
 cargo test --lib error_tests
 ```
@@ -352,6 +376,7 @@ cargo test --lib error_tests
 **Objective**: Create a troubleshooting guide covering the most common issues users will face.
 
 **File to Create**:
+
 - `TROUBLESHOOTING.md` — Common errors and solutions
 
 **Structure**:
@@ -434,6 +459,7 @@ cargo test --lib error_tests
 ```
 
 **Acceptance Criteria**:
+
 - [ ] 10+ common error scenarios documented
 - [ ] Each includes cause, symptoms, and solutions
 - [ ] Cross-references to PERFORMANCE_TUNING.md and SECURITY.md
@@ -481,6 +507,7 @@ mod tests {
 ```
 
 **Acceptance Criteria**:
+
 - [ ] All error helper methods tested
 - [ ] Error message clarity verified
 - [ ] Categorization logic validated
@@ -491,10 +518,12 @@ mod tests {
 ### Phase 7.4 Deliverables
 
 **Documentation**:
+
 - `TROUBLESHOOTING.md` — Common error scenarios and solutions (~300-400 lines)
 - Updated comments in `src/error.rs`
 
 **Code**:
+
 - Enhanced error messages in `src/error.rs`
 - Additional error helper methods
 - Comprehensive error tests
@@ -518,6 +547,7 @@ Enhance GitHub Actions workflows, Docker support, and release automation for smo
 #### 7.5.1 GitHub Actions Enhancements
 
 **Current Status**:
+
 - ✅ Basic CI (build, test, clippy, fmt)
 - ✅ Integration tests with Postgres
 - ⚠️ Benchmarks are nightly-only
@@ -526,11 +556,13 @@ Enhance GitHub Actions workflows, Docker support, and release automation for smo
 - ❌ Automated releases
 
 **File to Modify**:
+
 - `.github/workflows/ci.yml` — Enhance main CI
 
 **Enhancements**:
 
 1. **Add code coverage reporting**:
+
    ```yaml
    - name: Install tarpaulin
      run: cargo install cargo-tarpaulin
@@ -545,12 +577,14 @@ Enhance GitHub Actions workflows, Docker support, and release automation for smo
    ```
 
 2. **Add security audit**:
+
    ```yaml
    - name: Security audit
      run: cargo audit --deny warnings
    ```
 
 3. **Add MSRV (Minimum Supported Rust Version) test**:
+
    ```yaml
    - name: Test MSRV
      uses: dtolnay/rust-toolchain@1.70
@@ -563,6 +597,7 @@ Enhance GitHub Actions workflows, Docker support, and release automation for smo
    - Better error messages on failure
 
 5. **Add performance regression detection** (optional):
+
    ```yaml
    - name: Run micro-benchmarks
      run: cargo bench --bench micro_benchmarks -- --output-format bencher | tee output.txt
@@ -614,6 +649,7 @@ jobs:
 ```
 
 **Acceptance Criteria**:
+
 - [ ] Coverage reporting added and working
 - [ ] Security audit in CI with no warnings
 - [ ] MSRV test passing
@@ -621,6 +657,7 @@ jobs:
 - [ ] All workflows documented in CONTRIBUTING.md
 
 **Verification**:
+
 ```bash
 # Test workflows locally with act
 act -l  # List all workflows
@@ -632,16 +669,19 @@ act push -b main  # Simulate push event
 #### 7.5.2 Docker Improvements
 
 **Current Status**:
+
 - Dockerfile exists
 - Single-platform build only
 
 **Files to Modify**:
+
 - `Dockerfile` — Multi-platform support
 - `docker-compose.yml` — Development environment (create if missing)
 
 **Enhancements**:
 
 1. **Multi-platform Docker image**:
+
    ```dockerfile
    # Dockerfile
    FROM rust:latest as builder
@@ -657,6 +697,7 @@ act push -b main  # Simulate push event
    ```
 
 2. **Development docker-compose.yml**:
+
    ```yaml
    version: '3.8'
    services:
@@ -677,6 +718,7 @@ act push -b main  # Simulate push event
    ```
 
 3. **GitHub Actions for Docker images**:
+
    ```yaml
    - name: Set up QEMU
      uses: docker/setup-qemu-action@v2
@@ -692,6 +734,7 @@ act push -b main  # Simulate push event
    ```
 
 **Acceptance Criteria**:
+
 - [ ] Multi-platform build tested (amd64, arm64)
 - [ ] docker-compose.yml works for development
 - [ ] GitHub Actions Docker workflow builds successfully
@@ -704,6 +747,7 @@ act push -b main  # Simulate push event
 **Objective**: Streamline the release process to crates.io and GitHub Releases.
 
 **Files to Create/Modify**:
+
 - `.github/workflows/release.yml` — Release workflow
 - `scripts/publish.sh` — Local release script
 - `CONTRIBUTING.md` — Release procedure documentation
@@ -711,6 +755,7 @@ act push -b main  # Simulate push event
 **Release Procedure**:
 
 1. **Version bump** (semantic versioning):
+
    ```bash
    # Edit Cargo.toml
    # version = "0.2.0"
@@ -722,6 +767,7 @@ act push -b main  # Simulate push event
    ```
 
 2. **Automated release**:
+
    ```bash
    # Push tag
    git tag -a v0.2.0 -m "Release 0.2.0"
@@ -781,6 +827,7 @@ echo "Release $VERSION pushed. GitHub Actions will handle publishing."
 ```
 
 **Acceptance Criteria**:
+
 - [ ] Release workflow tested with dry-run
 - [ ] Release script is idempotent
 - [ ] GitHub Release created with proper format
@@ -792,15 +839,18 @@ echo "Release $VERSION pushed. GitHub Actions will handle publishing."
 ### Phase 7.5 Deliverables
 
 **CI/CD**:
+
 - Enhanced `.github/workflows/ci.yml` with coverage, audit, MSRV
 - New `.github/workflows/release.yml` for automated releases
 - Updated `Dockerfile` with multi-platform support
 - `docker-compose.yml` for development
 
 **Scripts**:
+
 - `scripts/publish.sh` — Release automation script
 
 **Documentation**:
+
 - Updated `CONTRIBUTING.md` with CI/CD and release procedures
 
 ---
@@ -823,6 +873,7 @@ Ensure comprehensive, clear, accessible documentation for users and contributors
 **Objective**: Ensure all public items are well-documented with examples.
 
 **Files to Review/Enhance**:
+
 - `src/lib.rs` — Crate-level documentation
 - `src/client/fraise_client.rs` — Client API docs
 - `src/client/query_builder.rs` — Query builder docs
@@ -831,6 +882,7 @@ Ensure comprehensive, clear, accessible documentation for users and contributors
 **Requirements**:
 
 1. Every public item must have doc comments:
+
    ```rust
    /// Executes a query and returns a stream of JSON values.
    ///
@@ -868,12 +920,14 @@ Ensure comprehensive, clear, accessible documentation for users and contributors
    - Panics (if any)
 
 3. Run documentation check:
+
    ```bash
    cargo doc --no-deps --open
    RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
    ```
 
 **Acceptance Criteria**:
+
 - [ ] Every public function documented
 - [ ] Every public type documented
 - [ ] All examples compile and work
@@ -881,6 +935,7 @@ Ensure comprehensive, clear, accessible documentation for users and contributors
 - [ ] Examples demonstrate common patterns
 
 **Verification**:
+
 ```bash
 RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
 cargo test --doc
@@ -893,6 +948,7 @@ cargo test --doc
 **Objective**: Create practical, runnable examples for common use cases.
 
 **Files to Create**:
+
 - `examples/basic_query.rs` — Simple single query
 - `examples/filtering.rs` — WHERE clause + predicates
 - `examples/ordering.rs` — ORDER BY usage
@@ -955,6 +1011,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 6. **performance.rs** — Tuning chunk_size, predicates
 
 **Acceptance Criteria**:
+
 - [ ] 5+ examples covering common use cases
 - [ ] All examples compile and run
 - [ ] Examples have clear comments
@@ -962,6 +1019,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 - [ ] Running instructions are clear
 
 **Verification**:
+
 ```bash
 for example in examples/*.rs; do
     cargo run --example $(basename $example .rs)
@@ -979,6 +1037,7 @@ done
 **Sections to Review/Add**:
 
 1. **Quick Start** (copy-paste ready)
+
    ```markdown
    ## Quick Start
 
@@ -988,6 +1047,7 @@ done
    ```
 
    Basic example:
+
    ```rust
    use fraiseql_wire::FraiseClient;
    use futures::stream::StreamExt;
@@ -1016,6 +1076,7 @@ done
    - Running tests
 
 4. **Guide Navigation**
+
    ```markdown
    ## Learning Resources
 
@@ -1028,6 +1089,7 @@ done
    ```
 
 5. **Feature Table** (from COMPARISON_GUIDE.md)
+
    ```markdown
    | Feature | fraiseql-wire | tokio-postgres | Notes |
    |---------|---------------|----------------|-------|
@@ -1039,6 +1101,7 @@ done
    ```
 
 **Acceptance Criteria**:
+
 - [ ] README clearly explains what fraiseql-wire is for
 - [ ] Quick start example is copy-paste ready
 - [ ] Performance characteristics clearly stated
@@ -1083,6 +1146,7 @@ done
    - Review process
 
 **Example Section**:
+
 ```markdown
 ## Adding Features
 
@@ -1106,6 +1170,7 @@ Before implementing a feature, check:
 ```
 
 **Acceptance Criteria**:
+
 - [ ] Contributing guide is comprehensive
 - [ ] Workflow is clear for new contributors
 - [ ] Release procedure documented
@@ -1118,6 +1183,7 @@ Before implementing a feature, check:
 **Objective**: Ensure all documentation is correct, complete, and consistent.
 
 **Files to Audit**:
+
 - `ROADMAP.md` — Update Phase 7 status ✅
 - `DEVELOPMENT.md` — Setup instructions
 - `PERFORMANCE_TUNING.md` — Optimization guidance
@@ -1127,6 +1193,7 @@ Before implementing a feature, check:
 - `benches/COMPARISON_GUIDE.md` — Comparison with tokio-postgres
 
 **Checklist**:
+
 - [ ] All links are valid
 - [ ] Code examples are current
 - [ ] Version numbers are consistent
@@ -1136,6 +1203,7 @@ Before implementing a feature, check:
 - [ ] Tone is consistent
 
 **Verification**:
+
 ```bash
 # Check links
 cargo install markdown-link-check
@@ -1150,6 +1218,7 @@ cargo +nightly spellcheck --code 1
 ```
 
 **Acceptance Criteria**:
+
 - [ ] All documentation reviewed
 - [ ] Links verified working
 - [ ] Consistency checks pass
@@ -1160,6 +1229,7 @@ cargo +nightly spellcheck --code 1
 ### Phase 7.6 Deliverables
 
 **Documentation**:
+
 - Updated `README.md` with quick start and features
 - Enhanced `CONTRIBUTING.md` with workflow
 - API documentation (doc comments)
@@ -1167,10 +1237,12 @@ cargo +nightly spellcheck --code 1
 - All markdown files audited and validated
 
 **Code**:
+
 - Complete doc comments on all public items
 - Doc tests (compile and run examples)
 
 **Verification Scripts**:
+
 - Documentation build passes without warnings
 - All examples compile and run
 - All links valid
@@ -1238,23 +1310,28 @@ After Phase 7 completes:
 ## Appendix: Rollout Sequence
 
 ### Week 1
+
 - 7.3.1: Staging database setup
 - 7.3.2: Load testing framework
 
 ### Week 2
+
 - 7.3.3: Stress testing
 - 7.4.1: Error audit
 
 ### Week 3
+
 - 7.4.2: Troubleshooting guide
 - 7.5.1: CI/CD enhancements
 
 ### Week 4
+
 - 7.5.2: Docker improvements
 - 7.5.3: Release automation
 - 7.6.1: API documentation
 
 ### Week 5
+
 - 7.6.2: Examples
 - 7.6.3: README update
 - 7.6.4: CONTRIBUTING guide
@@ -1263,6 +1340,7 @@ After Phase 7 completes:
 ### Outcome
 
 **fraiseql-wire v0.1.x** is:
+
 - ✅ Battle-tested (phases 7.3-7.4)
 - ✅ Well-documented (phase 7.6)
 - ✅ Easy to release and deploy (phase 7.5)

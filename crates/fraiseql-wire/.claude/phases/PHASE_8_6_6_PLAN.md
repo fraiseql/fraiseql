@@ -9,6 +9,7 @@
 ## Objective
 
 Polish and enhance the pause/resume feature with:
+
 1. **Custom bounds enforcement** - Pass min/max to AdaptiveChunking
 2. **Pause timeout** - Auto-resume after configured duration
 3. **Per-pause metrics** - Track pause duration (histogram)
@@ -22,6 +23,7 @@ All refinements are **optional enhancements** that improve observability and con
 ## Refinement 1: Custom Bounds Enforcement
 
 ### Current State
+
 - QueryBuilder stores `adaptive_min_chunk_size` and `adaptive_max_chunk_size`
 - These are passed to `streaming_query()` but ignored by AdaptiveChunking
 - AdaptiveChunking hardcodes min=16, max=1024
@@ -31,6 +33,7 @@ All refinements are **optional enhancements** that improve observability and con
 **File**: `src/stream/adaptive_chunking.rs`
 
 Add new method:
+
 ```rust
 pub fn with_bounds(mut self, min_size: usize, max_size: usize) -> Self {
     self.min_size = min_size;
@@ -42,6 +45,7 @@ pub fn with_bounds(mut self, min_size: usize, max_size: usize) -> Self {
 **File**: `src/connection/conn.rs` (lines ~625-634)
 
 Update initialization:
+
 ```rust
 let mut adaptive = if enable_adaptive_chunking {
     let mut adp = AdaptiveChunking::new();
@@ -60,6 +64,7 @@ let mut adaptive = if enable_adaptive_chunking {
 ```
 
 ### Tests
+
 - `test_adaptive_bounds_enforced_min` - min bound respected
 - `test_adaptive_bounds_enforced_max` - max bound respected
 - `test_adaptive_bounds_custom_range` - custom range works end-to-end
@@ -69,6 +74,7 @@ let mut adaptive = if enable_adaptive_chunking {
 ## Refinement 2: Pause Timeout
 
 ### Current State
+
 - pause() blocks indefinitely until resume()
 - No auto-resume capability
 
@@ -77,11 +83,13 @@ let mut adaptive = if enable_adaptive_chunking {
 **File**: `src/stream/json_stream.rs`
 
 Add to JsonStream struct:
+
 ```rust
 pause_timeout: Option<Duration>,  // Optional timeout for pause
 ```
 
 Add new method:
+
 ```rust
 /// Set timeout for pause (auto-resume after duration)
 pub fn set_pause_timeout(&mut self, duration: Duration) {
@@ -97,6 +105,7 @@ pub fn clear_pause_timeout(&mut self) {
 **File**: `src/connection/conn.rs` (lines ~654-667)
 
 Update pause check with timeout:
+
 ```rust
 {
     let current_state = state_lock.lock().await;
@@ -130,7 +139,9 @@ Update pause check with timeout:
 ```
 
 ### Metrics
+
 Add new counter:
+
 ```rust
 pub fn stream_pause_timeout_expired(entity: &str) {
     counter!("fraiseql_stream_pause_timeout_expired_total", ...)
@@ -139,6 +150,7 @@ pub fn stream_pause_timeout_expired(entity: &str) {
 ```
 
 ### Tests
+
 - `test_pause_timeout_auto_resumes` - timeout expires and auto-resumes
 - `test_pause_no_timeout_blocks` - without timeout, pause blocks indefinitely
 - `test_pause_timeout_explicit_resume` - explicit resume before timeout
@@ -148,6 +160,7 @@ pub fn stream_pause_timeout_expired(entity: &str) {
 ## Refinement 3: Per-Pause Duration Metrics
 
 ### Current State
+
 - Count pause/resume events (counters)
 - No timing information
 
@@ -156,6 +169,7 @@ pub fn stream_pause_timeout_expired(entity: &str) {
 **File**: `src/stream/json_stream.rs`
 
 Add to JsonStream:
+
 ```rust
 pause_start_time: Arc<Mutex<Option<std::time::Instant>>>,
 ```
@@ -163,6 +177,7 @@ pause_start_time: Arc<Mutex<Option<std::time::Instant>>>,
 **File**: `src/stream/json_stream.rs` - Update pause() method
 
 Track when pause started:
+
 ```rust
 pub async fn pause(&mut self) -> Result<()> {
     let mut state = self.state.lock().await;
@@ -186,6 +201,7 @@ pub async fn pause(&mut self) -> Result<()> {
 **File**: `src/stream/json_stream.rs` - Update resume() method
 
 Record pause duration:
+
 ```rust
 pub async fn resume(&mut self) -> Result<()> {
     let mut state = self.state.lock().await;
@@ -213,6 +229,7 @@ pub async fn resume(&mut self) -> Result<()> {
 **File**: `src/metrics/histograms.rs`
 
 Add new histogram:
+
 ```rust
 pub fn stream_pause_duration(entity: &str, duration_ms: u64) {
     histogram!("fraiseql_stream_pause_duration_ms", "entity" => entity.to_string())
@@ -221,6 +238,7 @@ pub fn stream_pause_duration(entity: &str, duration_ms: u64) {
 ```
 
 ### Tests
+
 - `test_pause_duration_recorded` - duration recorded in histogram
 - `test_multiple_pauses_separate_durations` - each pause has own duration
 
@@ -229,6 +247,7 @@ pub fn stream_pause_duration(entity: &str, duration_ms: u64) {
 ## Refinement 4: Pause Reason Tracking
 
 ### Current State
+
 - pause() takes no parameters
 - No diagnostic info about why stream paused
 
@@ -237,11 +256,13 @@ pub fn stream_pause_duration(entity: &str, duration_ms: u64) {
 **File**: `src/stream/json_stream.rs`
 
 Add to JsonStream:
+
 ```rust
 pause_reason: Arc<Mutex<Option<String>>>,
 ```
 
 Add new method:
+
 ```rust
 /// Pause with an optional reason for diagnostics
 pub async fn pause_with_reason(&mut self, reason: Option<String>) -> Result<()> {
@@ -276,6 +297,7 @@ pub fn pause_reason(&self) -> Option<String> {
 ```
 
 **Alternative simpler approach**: Just add tracing to existing pause():
+
 ```rust
 pub async fn pause_with_reason(&mut self, reason: &str) -> Result<()> {
     tracing::info!("pausing stream: {}", reason);
@@ -286,6 +308,7 @@ pub async fn pause_with_reason(&mut self, reason: &str) -> Result<()> {
 (Recommend the simpler approach to avoid adding complexity)
 
 ### Tests
+
 - `test_pause_with_reason_logged` - reason appears in logs
 
 ---
@@ -293,6 +316,7 @@ pub async fn pause_with_reason(&mut self, reason: &str) -> Result<()> {
 ## Refinement 5: Dashboard Metrics (Gauges)
 
 ### Current State
+
 - Counters for pause/resume events
 - Histogram for pause duration
 - No real-time gauge for current chunk size
@@ -302,6 +326,7 @@ pub async fn pause_with_reason(&mut self, reason: &str) -> Result<()> {
 **File**: `src/metrics/gauges.rs` (NEW)
 
 Create new module:
+
 ```rust
 use metrics::gauge;
 
@@ -319,6 +344,7 @@ pub fn stream_buffered_items(entity: &str, count: usize) {
 **File**: `src/metrics/mod.rs`
 
 Add module:
+
 ```rust
 pub mod gauges;
 ```
@@ -326,6 +352,7 @@ pub mod gauges;
 **File**: `src/connection/conn.rs`
 
 Record chunk size after adjustments (lines ~700-705):
+
 ```rust
 // After setting new chunk_size
 crate::metrics::gauges::current_chunk_size(&entity_for_metrics, current_chunk_size);
@@ -334,6 +361,7 @@ crate::metrics::gauges::current_chunk_size(&entity_for_metrics, current_chunk_si
 **File**: `src/stream/json_stream.rs` - in poll_next()
 
 Record buffered items (lines ~127-130):
+
 ```rust
 // Record channel occupancy as gauge
 let occupancy = self.receiver.len() as usize;
@@ -342,6 +370,7 @@ crate::metrics::histograms::channel_occupancy(&self.entity, occupancy as u64);
 ```
 
 ### Tests
+
 - `test_chunk_size_gauge_recorded` - gauge reflects current size
 - `test_buffered_items_gauge_recorded` - gauge reflects buffered count
 
@@ -350,6 +379,7 @@ crate::metrics::histograms::channel_occupancy(&self.entity, occupancy as u64);
 ## Implementation Sequence
 
 ### Step 1: Custom Bounds Enforcement (20 min)
+
 1. Add `with_bounds()` to AdaptiveChunking
 2. Wire it up in connection layer
 3. Test min/max enforcement
@@ -357,6 +387,7 @@ crate::metrics::histograms::channel_occupancy(&self.entity, occupancy as u64);
 **Verification**: `cargo test --lib adaptive_chunking`
 
 ### Step 2: Pause Timeout (25 min)
+
 1. Add `pause_timeout` field to JsonStream
 2. Add methods to get/set timeout
 3. Update pause check loop with timeout logic
@@ -365,6 +396,7 @@ crate::metrics::histograms::channel_occupancy(&self.entity, occupancy as u64);
 **Verification**: `cargo test --lib stream`
 
 ### Step 3: Per-Pause Duration Metrics (20 min)
+
 1. Track pause start time
 2. Calculate duration on resume
 3. Record histogram
@@ -373,6 +405,7 @@ crate::metrics::histograms::channel_occupancy(&self.entity, occupancy as u64);
 **Verification**: `cargo test --lib metrics`
 
 ### Step 4: Pause Reason Tracking (10 min)
+
 1. Add simple `pause_with_reason()` method
 2. Just log the reason (defer complex state storage)
 3. Test that reasons are logged
@@ -380,6 +413,7 @@ crate::metrics::histograms::channel_occupancy(&self.entity, occupancy as u64);
 **Verification**: `cargo test --lib stream`
 
 ### Step 5: Dashboard Metrics (15 min)
+
 1. Create `gauges.rs` module
 2. Add two gauge metrics
 3. Record in appropriate places
@@ -388,6 +422,7 @@ crate::metrics::histograms::channel_occupancy(&self.entity, occupancy as u64);
 **Verification**: `cargo test --lib metrics`
 
 ### Step 6: Full Integration Test (10 min)
+
 1. Run all unit tests
 2. Verify no regressions
 3. Run clippy
@@ -428,16 +463,19 @@ crate::metrics::histograms::channel_occupancy(&self.entity, occupancy as u64);
 ## Success Metrics
 
 ✅ **Functional**:
+
 - All 5 refinements working
 - Metrics properly recorded
 - Composition verified
 
 ✅ **Operational**:
+
 - Users can set pause timeout
 - Users can specify pause reason
 - Dashboard metrics visible
 
 ✅ **Quality**:
+
 - 100% test pass rate
 - Zero regressions
 - Code reviewed

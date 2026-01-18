@@ -78,6 +78,7 @@ fraiseql.export_schema()  # Generates schema.json
 ```
 
 **Flow:**
+
 ```
 Python Code (decorators)
     ↓
@@ -307,24 +308,28 @@ print("✅ Phase 4 Complete!")
 **All must pass before proceeding to Phase 5:**
 
 ✅ Implementation
+
 - [ ] All decorators working
 - [ ] Schema generation complete
 - [ ] Registry functional
 - [ ] Analytics support complete
 
 ✅ Testing
+
 - [ ] All unit tests passing
 - [ ] All integration tests passing
 - [ ] 95%+ code coverage
 - [ ] No flaky tests
 
 ✅ Quality
+
 - [ ] Zero lint warnings
 - [ ] All tests passing
 - [ ] No type errors
 - [ ] Code properly formatted
 
 ✅ Documentation
+
 - [ ] README updated
 - [ ] API reference complete
 - [ ] Getting started guide written
@@ -332,6 +337,7 @@ print("✅ Phase 4 Complete!")
 - [ ] Troubleshooting guide written
 
 ✅ Release
+
 - [ ] Published to PyPI (v2.0.0-beta.1)
 - [ ] Installation verified
 - [ ] Package metadata correct
@@ -395,7 +401,7 @@ If you get stuck:
 
 ## Ready?
 
-### To Start:
+### To Start
 
 ```bash
 cd /home/lionel/code/fraiseql/fraiseql-python
@@ -415,7 +421,7 @@ cat ../.claude/PHASE_4_QUICK_START.md
 # Test: pytest tests/test_types.py -v
 ```
 
-### Daily Commits:
+### Daily Commits
 
 ```bash
 # After each sub-phase:
@@ -446,6 +452,7 @@ Tests:
 **Estimated effort**: 12 days of focused implementation
 
 **Expected outcome**:
+
 - Python SDK published to PyPI
 - 95%+ test coverage
 - Comprehensive documentation

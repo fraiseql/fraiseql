@@ -36,6 +36,7 @@ while let Some(result) = stream.next().await {
 ```
 
 **Key Requirements:**
+
 - Generic `query::<T>()` API with automatic deserialization **at consumer boundary only**
 - Preserve all existing filter/order APIs (`where_sql()`, `order_by()`, `where_rust()`)
 - **Typing does NOT affect SQL, filtering, ordering, or wire protocol**
@@ -128,6 +129,7 @@ let stream = client.query_typed::<Project>("projects").execute().await?;
 ### What Typing Does NOT Affect
 
 ✅ **SQL is unaffected**
+
 ```rust
 // Typing parameter T has ZERO impact on generated SQL
 client.query::<Project>("projects").where_sql("status='active'").execute()
@@ -135,6 +137,7 @@ client.query::<Project>("projects").where_sql("status='active'").execute()
 ```
 
 ✅ **Filtering is unaffected**
+
 ```rust
 // where_sql() produces same SQL regardless of T
 // where_rust() operates on JSON regardless of T
@@ -142,12 +145,14 @@ client.query::<Project>("projects").where_sql("status='active'").execute()
 ```
 
 ✅ **Wire protocol is unaffected**
+
 ```rust
 // Network communication identical for T=Project vs T=Value
 // Same row format, same chunking, same cancellation
 ```
 
 ✅ **Escape hatch always available**
+
 ```rust
 // Always supported, zero-cost
 client.query::<serde_json::Value>("projects").execute()
@@ -157,6 +162,7 @@ client.query::<serde_json::Value>("projects").execute()
 ### What Typing ONLY Affects
 
 ✅ **Consumer-side deserialization at poll_next()**
+
 ```rust
 // Type T is resolved at: `stream.next().await`
 // Deserialization happens here, nowhere else
@@ -166,6 +172,7 @@ fn poll_next(...) -> Poll<Option<Result<T>>> {
 ```
 
 ✅ **Error messages**
+
 ```rust
 // Type name included in error context
 // Helps debugging, doesn't affect operation
@@ -252,12 +259,14 @@ client
 ### Phase 8.2.1: Core Type System
 
 **Files**:
+
 - `src/client/query_builder.rs` (MODIFY)
 - `src/stream/typed_stream.rs` (NEW)
 
 #### QueryBuilder Refactoring
 
 Current (non-generic):
+
 ```rust
 pub struct QueryBuilder {
     // ...
@@ -265,6 +274,7 @@ pub struct QueryBuilder {
 ```
 
 New (generic):
+
 ```rust
 pub struct QueryBuilder<T: DeserializeOwned = serde_json::Value> {
     client: FraiseClient,
@@ -312,6 +322,7 @@ impl<T: DeserializeOwned> QueryBuilder<T> {
 ```
 
 **Key Points:**
+
 - Default type parameter `T = serde_json::Value` for backward compatibility
 - All chainable methods preserve generic type
 - `execute()` returns `Stream<Item = Result<T>>`
@@ -359,6 +370,7 @@ impl<T: DeserializeOwned + Unpin> Stream for TypedJsonStream<T> {
 ```
 
 **Design Decisions:**
+
 - Deserialization happens in `poll_next()` (lazy, per-item) **ONLY**
 - Type name captured in errors for debugging
 - PhantomData for compile-time type safety without runtime cost
@@ -439,6 +451,7 @@ pub fn query<T: DeserializeOwned>(&self, entity: impl Into<String>) -> QueryBuil
 #### Error Type Extension
 
 Current:
+
 ```rust
 pub enum Error {
     Protocol(String),
@@ -448,6 +461,7 @@ pub enum Error {
 ```
 
 New variant:
+
 ```rust
 pub enum Error {
     // ... existing variants
@@ -471,12 +485,14 @@ impl From<serde_json::Error> for Error {
 ```
 
 **Example error message:**
+
 ```
 Deserialization error for type 'Project':
   missing field `name` at line 1 column 42
 ```
 
 **Tests**:
+
 - [ ] QueryBuilder generic type parameter
 - [ ] where_sql() preserves type
 - [ ] where_rust() preserves type
@@ -539,12 +555,14 @@ impl FraiseClient {
 ```
 
 **Key Points:**
+
 - Generic over `T: DeserializeOwned`
 - Default type parameter in QueryBuilder handles backward compatibility
 - Turbofish syntax: `client.query::<Project>()`
 - Type inference from context works when possible
 
 **Tests**:
+
 - [ ] query::<Value>() works (backward compat)
 - [ ] query::<CustomType>() works
 - [ ] Type inference from context
@@ -589,6 +607,7 @@ impl Stream for FilteredStream {
 **No changes needed** - FilteredStream operates on JSON before deserialization, so it stays the same.
 
 **Tests**:
+
 - [ ] FilteredStream still works with typed streams
 - [ ] Filtering happens before deserialization
 - [ ] Performance impact minimal
@@ -602,6 +621,7 @@ impl Stream for FilteredStream {
 #### Test Categories
 
 **Basic Type Deserialization**
+
 ```rust
 #[derive(Deserialize)]
 struct SimpleProject {
@@ -626,6 +646,7 @@ async fn test_missing_field() {
 ```
 
 **Nested Types**
+
 ```rust
 #[derive(Deserialize)]
 struct ProjectWithOwner {
@@ -651,6 +672,7 @@ async fn test_deeply_nested() {
 ```
 
 **Optional & Collection Types**
+
 ```rust
 #[derive(Deserialize)]
 struct ProjectWithTags {
@@ -677,6 +699,7 @@ async fn test_default_fields() {
 ```
 
 **Filtering & Ordering with Types**
+
 ```rust
 #[tokio::test]
 async fn test_where_sql_with_typed_stream() {
@@ -700,6 +723,7 @@ async fn test_combined_filters_and_order() {
 ```
 
 **Backward Compatibility**
+
 ```rust
 #[tokio::test]
 async fn test_query_value_still_works() {
@@ -715,6 +739,7 @@ async fn test_default_type_parameter() {
 ```
 
 **Error Messages**
+
 ```rust
 #[tokio::test]
 async fn test_deserialization_error_message() {
@@ -733,6 +758,7 @@ async fn test_error_contains_field_details() {
 ```
 
 **Performance**
+
 ```rust
 #[bench]
 fn bench_typed_vs_json(b: &mut Bencher) {
@@ -746,6 +772,7 @@ fn bench_deserialization_overhead(b: &mut Bencher) {
 ```
 
 **Tests Checklist**:
+
 - [ ] Basic struct deserialization
 - [ ] Field type mismatches
 - [ ] Missing required fields
@@ -894,6 +921,7 @@ async fn error_handling(client: &FraiseClient) -> Result<(), Box<dyn std::error:
 ```
 
 **Example output:**
+
 ```
 === Example 1: Simple typed query ===
   [uuid-1] Project A (active)
@@ -921,12 +949,14 @@ async fn error_handling(client: &FraiseClient) -> Result<(), Box<dyn std::error:
 #### API Documentation
 
 Update rustdoc:
+
 - [ ] `QueryBuilder<T>` - generic query builder
 - [ ] `TypedJsonStream<T>` - typed stream struct
 - [ ] `Error::Deserialization` - deserialization errors
 - [ ] `FraiseClient::query::<T>()` - generic query method
 
 Example rustdoc:
+
 ```rust
 /// Create a new query builder with automatic deserialization
 ///
@@ -971,6 +1001,7 @@ pub fn query<T: DeserializeOwned>(
 Create `docs/TYPED_STREAMING.md`:
 
 **Contents**:
+
 1. **Introduction** - What is typed streaming?
 2. **Basic Usage** - Simple example with struct
 3. **Common Patterns** - Filtering, ordering, predicates
@@ -1009,6 +1040,7 @@ while let Some(result) = stream.next().await {
 ```
 
 See [Typed Streaming Guide](docs/TYPED_STREAMING.md) for details.
+
 ```
 
 ---
@@ -1101,6 +1133,7 @@ Could make T mandatory, but early versions prioritize compatibility.
 **Decision**: In `TypedJsonStream::poll_next()` (lazy, per-item)
 
 **Rationale**:
+
 - Deserialization is cheap compared to network I/O
 - Per-item deserialization allows backpressure to flow correctly
 - Stream stays JSON internally (compatible with FilteredStream)
@@ -1113,6 +1146,7 @@ Could make T mandatory, but early versions prioritize compatibility.
 **Decision**: Keep predicates JSON-based, applied BEFORE deserialization
 
 **Rationale**:
+
 - Avoids deserializing filtered-out rows (optimization)
 - Simpler mental model (filters work on raw data)
 - Flexibility to use JSON accessors
@@ -1124,6 +1158,7 @@ Could make T mandatory, but early versions prioritize compatibility.
 **Decision**: Add `Deserialization { type_name, details }` variant to Error enum
 
 **Rationale**:
+
 - Clear error categorization (not protocol/json error)
 - Includes type information for debugging
 - Includes serde error details
@@ -1135,6 +1170,7 @@ Could make T mandatory, but early versions prioritize compatibility.
 **Decision**: Generic `query::<T>()` not separate `query_typed::<T>()`
 
 **Rationale**:
+
 - Cleaner, more idiomatic Rust
 - One API rather than two
 - Type inference from context
@@ -1145,6 +1181,7 @@ Could make T mandatory, but early versions prioritize compatibility.
 **Decision**: Lazy deserialization, aim for < 2% overhead
 
 **Rationale**:
+
 - Streaming model means deserialization is typically not the bottleneck
 - Network I/O dominates, crypto is fast
 - Only deserialize items that pass filters
@@ -1185,6 +1222,7 @@ cargo test --lib typed_streaming
 ```
 
 Tests:
+
 - Generic type parameter handling
 - Deserialization with valid data
 - Error construction and messages
@@ -1203,6 +1241,7 @@ killall postgres
 ```
 
 Tests:
+
 - Real data deserialization
 - Nested types
 - Optional fields
@@ -1267,24 +1306,28 @@ POSTGRES_URL=postgres://localhost/testdb cargo run --example typed_streaming
 ## Timeline Estimate
 
 ### Code Implementation
+
 - Phase 8.2.1: Core type system (2-3 days)
 - Phase 8.2.2: Client integration (1 day)
 - Phase 8.2.3: Stream enhancement (1 day)
 - **Subtotal**: 4-5 days
 
 ### Testing
+
 - Unit tests (1-2 days)
 - Integration tests (2-3 days)
 - Example program (1 day)
 - **Subtotal**: 4-6 days
 
 ### Documentation
+
 - API documentation (1 day)
 - Guide document (2 days)
 - README updates (0.5 day)
 - **Subtotal**: 3-4 days
 
 ### Performance & Review
+
 - Benchmarking (1 day)
 - Code review & fixes (2 days)
 - **Subtotal**: 3 days
@@ -1320,6 +1363,7 @@ POSTGRES_URL=postgres://localhost/testdb cargo run --example typed_streaming
 ## Dependency Notes
 
 **No new dependencies required** for basic typed streaming:
+
 - `serde` (already in Cargo.toml)
 - `serde_json` (already in Cargo.toml)
 

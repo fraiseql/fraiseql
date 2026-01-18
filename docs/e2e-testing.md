@@ -53,6 +53,7 @@ make e2e-status
 ```
 
 Output shows which languages are available:
+
 ```
 Languages ready:
   ✅ Python
@@ -69,6 +70,7 @@ make e2e-setup
 ```
 
 This starts Docker containers for:
+
 - PostgreSQL 16
 - MySQL 8.3
 - SQLite (local)
@@ -88,6 +90,7 @@ Stops containers and removes temporary files.
 Each language generator creates a schema:
 
 **Python**:
+
 ```python
 @fraiseql_type
 class User:
@@ -102,6 +105,7 @@ fraiseql_schema.export_schema("schema.json")
 ```
 
 **TypeScript**:
+
 ```typescript
 @Type()
 class User {
@@ -116,6 +120,7 @@ ExportSchema("schema.json");
 ```
 
 **Go**:
+
 ```go
 type User struct {
     ID   int    `fraiseql:"id"`
@@ -128,6 +133,7 @@ fraiseql.ExportSchema("schema.json")
 ### Phase 2: JSON Validation
 
 Verify schema JSON structure:
+
 - ✅ Valid JSON syntax
 - ✅ Required fields present
 - ✅ Type references valid
@@ -140,6 +146,7 @@ fraiseql-cli compile schema.json -o schema.compiled.json
 ```
 
 Produces optimized execution plan with:
+
 - SQL templates
 - Type validation
 - Query optimization
@@ -198,6 +205,7 @@ python tests/e2e/python_e2e_test.py
 ### e2e-setup
 
 Starts Docker test databases:
+
 - PostgreSQL 16
 - MySQL 8.3
 - SQLite
@@ -215,6 +223,7 @@ make e2e-velocitybench
 ```
 
 This is a real-world integration test that:
+
 - Verifies FraiseQL implementation exists in VelocityBench
 - Tests blogging app schema structure (User, Post, Comment)
 - Validates schema compilation with fraiseql-cli
@@ -243,6 +252,7 @@ make e2e-python
 ```
 
 Output:
+
 ```
 ========== PYTHON E2E TEST ==========
 ✅ Python environment ready
@@ -326,6 +336,7 @@ Error: No module named 'fraiseql'
 ```
 
 Solution:
+
 ```bash
 cd fraiseql-python
 source .venv/bin/activate
@@ -340,6 +351,7 @@ Error: Cannot find module 'jest'
 ```
 
 Solution:
+
 ```bash
 cd fraiseql-typescript
 npm install
@@ -354,6 +366,7 @@ fraiseql-cli: command not found
 ```
 
 Solution:
+
 ```bash
 cargo build --release -p fraiseql-cli
 export PATH="$(pwd)/target/release:$PATH"
@@ -374,6 +387,7 @@ This is expected during development. Warnings don't block compilation. Use `sql_
 ### Scenario 1: Basic Schema
 
 Tests:
+
 - Type definition
 - Field mapping
 - Query definition
@@ -383,6 +397,7 @@ Tests:
 ### Scenario 2: Analytics Schema
 
 Tests:
+
 - Fact table definition
 - Measure specification
 - Dimension configuration
@@ -393,6 +408,7 @@ Tests:
 ### Scenario 3: Complex Schema
 
 Tests:
+
 - Multiple types with relationships
 - Nested queries
 - Mutations
@@ -509,6 +525,7 @@ git commit -m "feat: Add new feature"
 ### GitHub Actions
 
 Tests run automatically on:
+
 - Push to any branch
 - Pull requests
 - Scheduled nightly builds (optional)

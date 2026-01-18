@@ -82,6 +82,7 @@ Total Time: ~T_query (because T_transform overlaps)
 | 1M rows | ~3.5s | ~2.8s | **Wire (20% faster)** ⚡⚡⚡ |
 
 **Key Insight**: Larger result sets amplify the streaming advantage because:
+
 1. More opportunities for parallel processing
 2. Lower memory pressure reduces GC overhead
 3. Better CPU cache locality (processing smaller chunks)
@@ -107,6 +108,7 @@ Speedup: 10x reduction in transformation latency perception
 ### tokio-postgres: Memory Pressure Slows Down Performance
 
 For 1M rows (each ~250 bytes):
+
 ```
 Memory allocation: 250 MB buffer
 ↓
@@ -122,6 +124,7 @@ Total overhead: 50-100ms
 ### fraiseql-wire: Constant Memory = Consistent Speed
 
 For 1M rows:
+
 ```
 Memory allocation: 1.3 KB (chunk buffer)
 ↓
@@ -137,6 +140,7 @@ Total overhead: ~1ms
 ## Real-World GraphQL Query Example
 
 ### Query
+
 ```graphql
 query {
   users(limit: 100000) {
@@ -153,6 +157,7 @@ query {
 ### Execution Timeline
 
 **tokio-postgres (300ms total)**:
+
 ```
 0ms   ─── Query PostgreSQL ───────────────────────────── 250ms
 250ms ─── Transform 100K rows ──────────── 50ms
@@ -160,6 +165,7 @@ query {
 ```
 
 **fraiseql-wire (250ms total)**:
+
 ```
 0ms   ─┬─ Query PostgreSQL (streaming) ───────────────────── 250ms
       │  ↓ chunk 1 arrives at 25ms
@@ -224,6 +230,7 @@ Speedup:
 ## Additional Benefits of Streaming
 
 ### 1. Time to First Byte (TTFB)
+
 ```
 tokio-postgres: Must wait for ALL rows before returning first result
 fraiseql-wire: Can return first transformed chunk immediately
@@ -236,6 +243,7 @@ TTFB Comparison:
 ```
 
 ### 2. Backpressure Handling
+
 ```
 If client is slow:
 - tokio-postgres: Buffers everything in memory → OOM risk
@@ -243,6 +251,7 @@ If client is slow:
 ```
 
 ### 3. CPU Utilization
+
 ```
 tokio-postgres:
 - Query phase: CPU idle (waiting for network)
@@ -259,6 +268,7 @@ fraiseql-wire:
 The full FraiseQL pipeline benchmark should show **fraiseql-wire is 7-20% faster** than tokio-postgres for GraphQL queries, with the advantage growing as result sets increase.
 
 This speedup comes from:
+
 1. **Parallel processing**: Transform chunks while query continues
 2. **Lower memory pressure**: No GC pauses, better cache locality
 3. **Overlapped I/O and CPU**: Network and processing happen concurrently
@@ -268,11 +278,13 @@ This speedup comes from:
 ---
 
 **Benchmark Command**:
+
 ```bash
 cargo bench --bench full_pipeline_comparison --features "postgres,wire-backend"
 ```
 
 **Expected Results**:
+
 - ✅ fraiseql-wire faster on all benchmarks (7-20%)
 - ✅ fraiseql-wire maintains O(1) memory usage
 - ✅ tokio-postgres has predictable sequential performance

@@ -13,6 +13,7 @@ FraiseQL's compiler transforms user-defined schemas into deterministic, database
 **Core principle**: Compile-time certainty. Everything that can be determined at compile time is determined; nothing is left to runtime interpretation.
 
 **Compilation flow**:
+
 ```
 User Schema (Python/YAML)
     ↓ Phase 1: Schema Parsing & Validation
@@ -155,6 +156,7 @@ enum Role {
 ### 1.5 Parsing Rules
 
 **Type definitions:**
+
 - Extract all `@fraiseql.type` decorated classes
 - Extract all `@fraiseql.enum` enums
 - Extract all `@fraiseql.interface` interfaces
@@ -162,35 +164,41 @@ enum Role {
 - Extract all `@fraiseql.union` union types
 
 **Field extraction:**
+
 - From each type, extract all public fields (not starting with `_`)
 - Determine field type (scalar, enum, object, list, union)
 - Identify field modifiers (required `!`, list `[]`, nullable)
 - Extract field decorators (`@field`, `@authorize`, `@cache`, etc.)
 
 **Relationship detection:**
+
 - When field type is another defined type, mark as relationship
 - Identify foreign key relationships (e.g., `author_id` → `author: User`)
 - Mark one-to-one, one-to-many, many-to-many relationships
 
 **Decorator extraction:**
+
 - Extract all decorators: `@fraiseql.type`, `@fraiseql.key`, `@fraiseql.authorize`, `@fraiseql.cache`, `@fraiseql.requires`, etc.
 - Preserve decorator arguments for later phases
 
 ### 1.6 Validation Rules
 
 **Type naming:**
+
 - ✅ Type names must be PascalCase (User, UserProfile, Post)
 - ✅ Enum names must be PascalCase (Role, Status, Priority)
 - ✅ Field names must be snake_case (user_id, created_at, author_email)
-- ❌ Reserved type names: Query, Mutation, Subscription, _Any, _Entity
+- ❌ Reserved type names: Query, Mutation, Subscription, _Any,_Entity
 
 **Field definitions:**
+
 - ✅ Must have a type annotation
 - ✅ Field type must be defined or scalar
 - ❌ Circular non-nullable relationships (User.best_friend: User! creates infinite depth)
 - ❌ Self-referential without proper nesting control
 
 **Decorator usage:**
+
 - ✅ `@fraiseql.key(fields=[...])` only on types marked for federation
 - ✅ `@fraiseql.external()` only on `@fraiseql.type(extend=True)` types
 - ✅ `@fraiseql.authorize(rule=...)` on queries, mutations, subscriptions, or individual fields
@@ -342,20 +350,24 @@ UserProfile.user: User | None  # Nullable, can be null at leaf
 ### 2.4 Validation Rules
 
 **Type existence:**
+
 - ✅ All field types must be defined or built-in scalar
 - ❌ Reference to undefined type (e.g., `author: User` but User not defined)
 
 **Forward references:**
+
 - ✅ Can reference types defined later in schema
 - ✅ Can use string forward references in Python (e.g., `'User'`)
 
 **Circular dependencies:**
+
 - ✅ Allowed (User → Post → User)
 - ✅ If all cycles are through nullable fields
 - ✅ If marked with depth limit
 - ❌ If creates infinite non-nullable cycle (Post.self: Post!)
 
 **Generic types:**
+
 - ✅ List types (e.g., `[Post]`)
 - ✅ Nullable types (e.g., `Post | None`)
 - ✅ Non-nullable types (e.g., `Post!`)
@@ -619,6 +631,7 @@ class Post:
 ```
 
 **Validation rules:**
+
 - ✅ Extended types must have `@key` matching original type's `@key`
 - ✅ `@external()` fields must be in original type
 - ✅ New fields must not conflict with original type
@@ -1255,26 +1268,32 @@ error_cases = {
 ### 6.7 Optimization Techniques
 
 **1. Dead code elimination:**
+
 - Remove unreachable fields
 - Remove unused joins
 
 **2. Query plan merging:**
+
 - Combine multiple subqueries when possible
 - Flatten nested queries
 
 **3. Join order optimization:**
+
 - Order joins by selectivity (most filtering first)
 - Use statistics to determine best join order
 
 **4. Index utilization:**
+
 - Identify WHERE clauses that can use indexes
 - Prefer indexed columns in filters
 
 **5. Memory optimization:**
+
 - Avoid loading large JSONB objects unnecessarily
 - Use streaming for large result sets
 
 **6. Parallelization hints:**
+
 - Mark queries that can execute in parallel
 - Identify independent subqueries
 

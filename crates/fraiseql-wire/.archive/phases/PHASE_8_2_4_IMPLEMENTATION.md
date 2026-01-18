@@ -11,6 +11,7 @@
 Phase 8.2.4 creates a comprehensive suite of integration tests that verify the complete typed streaming implementation works correctly with real database connections.
 
 **Accomplishments:**
+
 - ✅ Created `tests/typed_streaming.rs` with 12 integration tests
 - ✅ Tests cover all Phase 8.2 features (8.2.1, 8.2.2, 8.2.3)
 - ✅ Tests verify type parameter behavior and constraints
@@ -160,6 +161,7 @@ All integration tests are marked `#[ignore]` because they require:
    - Views provide test data
 
 3. **Manual execution**
+
    ```bash
    cargo test --test typed_streaming -- --ignored --nocapture
    ```
@@ -169,6 +171,7 @@ All integration tests are marked `#[ignore]` because they require:
 ## Design Constraints Verified by Tests
 
 ### 1. Type is Consumer-Side Only
+
 ```rust
 // Same query with different types yields same result count
 .query::<TestUser>(...)          // Typed
@@ -177,6 +180,7 @@ All integration tests are marked `#[ignore]` because they require:
 ```
 
 ### 2. SQL Predicates Unaffected by Type
+
 ```rust
 .query::<TestUser>("test_user")
 .where_sql("data->>'name' LIKE 'A%'")  // SQL unaffected by T
@@ -184,6 +188,7 @@ All integration tests are marked `#[ignore]` because they require:
 ```
 
 ### 3. Filtering Unaffected by Type
+
 ```rust
 .query::<TestUser>("test_user")
 .where_rust(|json| {                   // json is Value, not TestUser
@@ -194,6 +199,7 @@ All integration tests are marked `#[ignore]` because they require:
 ```
 
 ### 4. Ordering Unaffected by Type
+
 ```rust
 .query::<TestUser>("test_user")
 .order_by("data->>'name' ASC")  // Executed on server, unaffected by T
@@ -233,24 +239,28 @@ No regressions introduced by Phase 8.2.4.
 Across all Phase 8.2 phases, we've implemented:
 
 ### Phase 8.2.1: Core Type System ✅
+
 - Error variant with type information
 - TypedJsonStream<T> struct
 - QueryBuilder<T> refactoring
 - 9 unit tests (6 new + 3 SQL builder)
 
 ### Phase 8.2.2: Client Integration ✅
+
 - FraiseClient::query() generic
 - Comprehensive rustdoc with examples
 - Typed and raw JSON doctests
 - All doctests passing
 
 ### Phase 8.2.3: Stream Verification ✅
+
 - Pipeline integration tests
 - FilteredStream compatibility
 - Full type flow validation
 - 3 integration tests (unit-level)
 
 ### Phase 8.2.4: Comprehensive Tests ✅
+
 - 12 end-to-end integration tests
 - Database connection tests
 - Type constraint verification
@@ -265,16 +275,19 @@ Across all Phase 8.2 phases, we've implemented:
 The integration tests showcase:
 
 1. **Type-Safe Queries**
+
    ```rust
    client.query::<User>("users").execute().await?
    ```
 
 2. **Raw JSON Escape Hatch**
+
    ```rust
    client.query::<Value>("users").execute().await?
    ```
 
 3. **Combined Filtering**
+
    ```rust
    client.query::<User>("users")
        .where_sql("status='active'")
@@ -285,12 +298,14 @@ The integration tests showcase:
    ```
 
 4. **Type-Specific Deserialization**
+
    ```rust
    let user: User = stream.next().await?.expect("item")?;
    println!("{}", user.name);  // Type-safe field access
    ```
 
 5. **Multiple Types in Single Application**
+
    ```rust
    let users = client.query::<User>("users").execute().await?;
    let projects = client.query::<Project>("projects").execute().await?;
@@ -314,6 +329,7 @@ Tests verify:
 To run integration tests with real Postgres:
 
 1. **Start Postgres**
+
    ```bash
    docker run -p 5433:5432 \
      -e POSTGRES_PASSWORD=postgres \
@@ -323,6 +339,7 @@ To run integration tests with real Postgres:
 2. **Create test schema** (with v_test_user, v_test_project views)
 
 3. **Run tests**
+
    ```bash
    cargo test --test typed_streaming -- --ignored --nocapture
    ```
@@ -361,6 +378,7 @@ The complete Phase 8.2 typed streaming system is now:
 4. **Tested** (8.2.4) - Comprehensive integration tests
 
 **All constraints documented and enforced:**
+
 - Type T affects only consumer-side deserialization
 - Type T does NOT affect SQL generation
 - Type T does NOT affect filtering or ordering
@@ -378,6 +396,7 @@ The complete Phase 8.2 typed streaming system is now:
 ## Code Examples in Tests
 
 ### Example 1: Type-Safe Query
+
 ```rust
 let mut stream = client
     .query::<TestUser>("test_user")
@@ -391,6 +410,7 @@ while let Some(result) = stream.next().await {
 ```
 
 ### Example 2: Escape Hatch
+
 ```rust
 let mut stream = client
     .query::<serde_json::Value>("test_user")
@@ -404,6 +424,7 @@ while let Some(result) = stream.next().await {
 ```
 
 ### Example 3: Combined Features
+
 ```rust
 let mut stream = client
     .query::<TestUser>("test_user")
@@ -419,4 +440,3 @@ while let Some(result) = stream.next().await {
     // User is typed, filtered (SQL + Rust), and sorted
 }
 ```
-

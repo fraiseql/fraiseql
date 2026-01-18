@@ -22,15 +22,19 @@ This plan implements production-ready analytics capabilities in FraiseQL v2, int
 ## Architecture Principles
 
 ### No Joins
+
 FraiseQL does NOT support joins. All dimensional data must be denormalized into `data` JSONB column at ETL time.
 
 ### Universal Pattern
+
 ALL analytical tables (fact AND aggregate) use:
+
 - **Measures**: SQL columns (INT, DECIMAL, FLOAT) - 10-100x faster aggregation
 - **Dimensions**: JSONB `data` column - flexible GROUP BY
 - **Denormalized filters**: Indexed SQL columns (customer_id, occurred_at) - fast WHERE
 
 ### Database Support
+
 - PostgreSQL (full): JSONB, DATE_TRUNC, FILTER, STDDEV, VARIANCE
 - MySQL (basic): JSON_EXTRACT, DATE_FORMAT, CASE WHEN emulation
 - SQLite (minimal): json_extract, strftime, CASE WHEN emulation
@@ -49,6 +53,7 @@ ALL analytical tables (fact AND aggregate) use:
 **1.1 Create `compiler/fact_table.rs`**
 
 **Module Structure**:
+
 ```rust
 // compiler/fact_table.rs
 
@@ -118,6 +123,7 @@ impl FactTableDetector {
 ```
 
 **SQL Queries**:
+
 ```rust
 // PostgreSQL introspection
 const INTROSPECT_COLUMNS_POSTGRES: &str = r#"
@@ -173,6 +179,7 @@ ORDER BY c.column_id;
 ```
 
 **Tests**:
+
 ```rust
 #[cfg(test)]
 mod tests {
@@ -251,6 +258,7 @@ mod tests {
 ```
 
 **Deliverables**:
+
 - [ ] `compiler/fact_table.rs` module
 - [ ] Database introspection for PostgreSQL, MySQL, SQLite, SQL Server
 - [ ] Validation logic
@@ -270,6 +278,7 @@ mod tests {
 **2.1 Create `compiler/aggregate_types.rs`**
 
 **Module Structure**:
+
 ```rust
 // compiler/aggregate_types.rs
 
@@ -352,6 +361,7 @@ impl AggregateTypeGenerator {
 ```
 
 **Generated GraphQL Schema** (PostgreSQL target):
+
 ```graphql
 type SalesAggregate {
   # Grouped dimensions
@@ -434,6 +444,7 @@ type Query {
 ```
 
 **Tests**:
+
 ```rust
 #[cfg(test)]
 mod tests {
@@ -535,6 +546,7 @@ mod tests {
 ```
 
 **Deliverables**:
+
 - [ ] `compiler/aggregate_types.rs` module
 - [ ] Type generation for all databases
 - [ ] Database-specific enum generation
@@ -554,6 +566,7 @@ mod tests {
 **3.1 Create `compiler/aggregation.rs`**
 
 **Module Structure**:
+
 ```rust
 // compiler/aggregation.rs
 
@@ -661,6 +674,7 @@ impl AggregationPlanGenerator {
 ```
 
 **Tests**:
+
 ```rust
 #[cfg(test)]
 mod tests {
@@ -799,6 +813,7 @@ mod tests {
 ```
 
 **Deliverables**:
+
 - [ ] `compiler/aggregation.rs` module
 - [ ] Execution plan generation
 - [ ] Validation logic
@@ -817,6 +832,7 @@ mod tests {
 **4.1 Create `runtime/aggregation.rs`**
 
 **Module Structure**:
+
 ```rust
 // runtime/aggregation.rs
 
@@ -973,6 +989,7 @@ fn aggregate_function_to_sql(func: &AggregateFunction) -> &'static str {
 ```
 
 **Example Generated SQL** (PostgreSQL):
+
 ```sql
 -- Simple aggregation
 SELECT
@@ -1008,6 +1025,7 @@ GROUP BY data->>'category';
 ```
 
 **Example Generated SQL** (MySQL):
+
 ```sql
 -- Simple aggregation (MySQL)
 SELECT
@@ -1031,6 +1049,7 @@ GROUP BY JSON_EXTRACT(data, '$.category');
 ```
 
 **Tests**:
+
 ```rust
 #[cfg(test)]
 mod tests {
@@ -1101,6 +1120,7 @@ mod tests {
 ```
 
 **Deliverables**:
+
 - [ ] `runtime/aggregation.rs` module
 - [ ] SQL generation for PostgreSQL
 - [ ] SQL generation for MySQL
@@ -1122,6 +1142,7 @@ mod tests {
 **5.1 Create `runtime/temporal.rs`**
 
 **Module Structure**:
+
 ```rust
 // runtime/temporal.rs
 
@@ -1175,6 +1196,7 @@ impl TemporalBucketGenerator {
 ```
 
 **Tests**:
+
 ```rust
 #[cfg(test)]
 mod tests {
@@ -1222,6 +1244,7 @@ mod tests {
 ```
 
 **Deliverables**:
+
 - [ ] `runtime/temporal.rs` module
 - [ ] Temporal functions for all databases
 - [ ] Unit tests (4+ test cases)
@@ -1240,6 +1263,7 @@ mod tests {
 **6.1 Add Advanced Aggregate Functions**
 
 **New Functions**:
+
 ```rust
 pub enum AggregateFunction {
     // ... existing ...
@@ -1254,6 +1278,7 @@ pub enum AggregateFunction {
 ```
 
 **PostgreSQL**:
+
 ```sql
 SELECT
     customer_id,
@@ -1265,6 +1290,7 @@ GROUP BY customer_id;
 ```
 
 **MySQL**:
+
 ```sql
 SELECT
     customer_id,
@@ -1276,6 +1302,7 @@ GROUP BY customer_id;
 ```
 
 **Deliverables**:
+
 - [ ] Add advanced aggregate functions to `AggregateFunction` enum
 - [ ] Update SQL generation for PostgreSQL
 - [ ] Update SQL generation for MySQL
@@ -1295,6 +1322,7 @@ GROUP BY customer_id;
 **7.1 Create `compiler/window_functions.rs`**
 
 **Module Structure**:
+
 ```rust
 // compiler/window_functions.rs
 
@@ -1373,6 +1401,7 @@ pub enum FrameExclusion {
 **7.2 Create `runtime/window.rs`**
 
 **Module Structure**:
+
 ```rust
 // runtime/window.rs
 
@@ -1509,6 +1538,7 @@ fn boundary_to_string(boundary: &FrameBoundary) -> String {
 ```
 
 **Example Generated SQL** (PostgreSQL):
+
 ```sql
 -- Running total
 SELECT
@@ -1562,6 +1592,7 @@ FROM tf_sales;
 ```
 
 **Tests**:
+
 ```rust
 #[cfg(test)]
 mod tests {
@@ -1621,6 +1652,7 @@ mod tests {
 ```
 
 **Deliverables**:
+
 - [ ] `compiler/window_functions.rs` module
 - [ ] `runtime/window.rs` module
 - [ ] Window function SQL generation for PostgreSQL
@@ -1661,6 +1693,7 @@ use window_functions::WindowFunctionPlanGenerator;
 **8.2 Update `compiler/validator.rs`**
 
 Add validation for:
+
 - [ ] Fact table structure
 - [ ] Aggregation queries
 - [ ] HAVING clause references
@@ -1669,6 +1702,7 @@ Add validation for:
 **8.3 Update `compiler/codegen.rs`**
 
 Add codegen for:
+
 - [ ] Aggregate types
 - [ ] GroupBy input types
 - [ ] Having input types
@@ -1693,10 +1727,12 @@ use window::WindowSqlGenerator;
 **8.5 Update `runtime/executor.rs`**
 
 Add execution handlers for:
+
 - [ ] Aggregation execution plans
 - [ ] Window function execution plans
 
 **Deliverables**:
+
 - [ ] All modules wired into compiler
 - [ ] All modules wired into runtime
 - [ ] Validation rules added
@@ -1714,6 +1750,7 @@ Add execution handlers for:
 #### Test Coverage
 
 **Fact Table Tests**:
+
 - [ ] Introspect PostgreSQL fact table
 - [ ] Introspect MySQL fact table
 - [ ] Introspect SQLite fact table
@@ -1722,6 +1759,7 @@ Add execution handlers for:
 - [ ] Detect measures, dimensions, filters
 
 **Aggregation Tests**:
+
 - [ ] Simple aggregation (GROUP BY single dimension)
 - [ ] Multi-dimensional aggregation
 - [ ] Temporal aggregation (day, week, month, quarter, year)
@@ -1734,6 +1772,7 @@ Add execution handlers for:
 - [ ] Execute on SQL Server
 
 **Window Function Tests**:
+
 - [ ] ROW_NUMBER, RANK, DENSE_RANK
 - [ ] Running totals
 - [ ] Moving averages
@@ -1744,11 +1783,13 @@ Add execution handlers for:
 - [ ] Execute on SQL Server
 
 **End-to-End Tests**:
+
 - [ ] Complete GraphQL query → SQL → Results
 - [ ] Type generation from fact table
 - [ ] Query execution with all features
 
 **Deliverables**:
+
 - [ ] 30+ integration tests
 - [ ] 4 database targets tested
 - [ ] CI/CD integration
@@ -1774,6 +1815,7 @@ Add execution handlers for:
 | 9 | Integration Tests | 2-3 days | ⭐⭐⭐ High |
 
 **Total**:
+
 - **Core (Phase 1-5, 8-9)**: 12-16 days
 - **With Window Functions (Phase 7)**: 15-20 days
 - **Full (all phases)**: 17-22 days
@@ -1781,19 +1823,23 @@ Add execution handlers for:
 ### Recommended Approach
 
 **Sprint 1** (1 week): Phase 1-3
+
 - Fact table introspection
 - Aggregate type generation
 - Execution plan generation
 
 **Sprint 2** (1 week): Phase 4-5
+
 - Runtime SQL generation (all databases)
 - Temporal bucketing
 
 **Sprint 3** (1 week): Phase 8-9
+
 - Integration & wiring
 - Testing
 
 **Sprint 4** (Optional, 1 week): Phase 7
+
 - Window functions
 
 ---

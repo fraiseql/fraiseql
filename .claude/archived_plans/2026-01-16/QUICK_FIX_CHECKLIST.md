@@ -1,11 +1,13 @@
 # Quick Fix Checklist - Return List Field Renaming
 
 ## The Change
+
 Replace all `"return_list"` with `"returns_list"` in 11 files.
 
 ## Canonical Schema
 
 ### File 1: tests/e2e/velocitybench_schemas.py
+
 ```bash
 # Command to find all occurrences
 grep -n "return_list" tests/e2e/velocitybench_schemas.py
@@ -14,6 +16,7 @@ grep -n "return_list" tests/e2e/velocitybench_schemas.py
 ```
 
 **Occurrences to fix**:
+
 - [ ] Line ~88: `"return_list": False` (ping query)
 - [ ] Line ~109: `"return_list": True` (users query)
 - [ ] Line ~131: `"return_list": True` (posts query)
@@ -22,6 +25,7 @@ grep -n "return_list" tests/e2e/velocitybench_schemas.py
 - [ ] Plus any others found by grep
 
 **Verification after fix**:
+
 ```bash
 python3 -c "
 from tests.e2e.velocitybench_schemas import get_velocitybench_schema
@@ -41,6 +45,7 @@ assert has_returns_list, 'Missing returns_list!'
 ## Language Generators
 
 ### File 2: Python Generator
+
 ```bash
 # Find Python generator
 find . -path ./target -prune -o -name "*.py" -type f -exec grep -l "return_list" {} \; | grep -v test
@@ -53,6 +58,7 @@ find . -path ./target -prune -o -name "*.py" -type f -exec grep -l "return_list"
 - [ ] Located generator file: `________________`
 - [ ] Fixed all `return_list` occurrences
 - [ ] Verified fix with:
+
   ```bash
   grep "return_list" [generator_file]  # Should return nothing
   ```
@@ -60,6 +66,7 @@ find . -path ./target -prune -o -name "*.py" -type f -exec grep -l "return_list"
 ---
 
 ### File 3: TypeScript Generator
+
 ```bash
 # Find TypeScript generator
 find . -path ./target -prune -o -name "*.ts" -type f -exec grep -l "return_list" {} \;
@@ -72,6 +79,7 @@ find . -path ./target -prune -o -name "*.ts" -type f -exec grep -l "return_list"
 ---
 
 ### File 4: Go Generator
+
 ```bash
 # Find Go generator
 find . -path ./target -prune -o -name "*.go" -type f -exec grep -l "return_list" {} \;
@@ -84,6 +92,7 @@ find . -path ./target -prune -o -name "*.go" -type f -exec grep -l "return_list"
 ---
 
 ### File 5: Java Generator
+
 ```bash
 # Find Java generator
 find . -path ./target -prune -o -name "*.java" -type f -exec grep -l "return_list" {} \;
@@ -96,6 +105,7 @@ find . -path ./target -prune -o -name "*.java" -type f -exec grep -l "return_lis
 ---
 
 ### File 6: PHP Generator
+
 ```bash
 # Find PHP generator
 find . -path ./target -prune -o -name "*.php" -type f -exec grep -l "return_list" {} \;
@@ -108,6 +118,7 @@ find . -path ./target -prune -o -name "*.php" -type f -exec grep -l "return_list
 ---
 
 ### File 7: Kotlin Generator
+
 ```bash
 # Find Kotlin generator
 find . -path ./target -prune -o -name "*.kt" -type f -exec grep -l "return_list" {} \;
@@ -120,6 +131,7 @@ find . -path ./target -prune -o -name "*.kt" -type f -exec grep -l "return_list"
 ---
 
 ### File 8: C# Generator
+
 ```bash
 # Find C# generator
 find . -path ./target -prune -o -name "*.cs" -type f -exec grep -l "return_list" {} \;
@@ -132,6 +144,7 @@ find . -path ./target -prune -o -name "*.cs" -type f -exec grep -l "return_list"
 ---
 
 ### File 9: Rust Generator
+
 ```bash
 # Find Rust generator (in fraisier, not fraiseql-core)
 find . -path ./target -prune -o -name "*.rs" -type f -exec grep -l "return_list" {} \; | grep fraisier
@@ -144,6 +157,7 @@ find . -path ./target -prune -o -name "*.rs" -type f -exec grep -l "return_list"
 ---
 
 ### File 10: JavaScript Generator
+
 ```bash
 # Find JavaScript generator
 find . -path ./target -prune -o -name "*.js" -type f -exec grep -l "return_list" {} \; | grep -v node_modules
@@ -156,6 +170,7 @@ find . -path ./target -prune -o -name "*.js" -type f -exec grep -l "return_list"
 ---
 
 ### File 11: Ruby Generator
+
 ```bash
 # Find Ruby generator
 find . -path ./target -prune -o -name "*.rb" -type f -exec grep -l "return_list" {} \;
@@ -170,6 +185,7 @@ find . -path ./target -prune -o -name "*.rb" -type f -exec grep -l "return_list"
 ## Final Verification
 
 ### Step 1: Check for remaining issues
+
 ```bash
 grep -r "return_list" . --include="*.py" --include="*.ts" --include="*.go" \
   --include="*.java" --include="*.php" --include="*.kt" --include="*.cs" \
@@ -181,6 +197,7 @@ grep -r "return_list" . --include="*.py" --include="*.ts" --include="*.go" \
 - [ ] No remaining `return_list` found
 
 ### Step 2: Test with CLI
+
 ```bash
 python3 -c "
 from tests.e2e.velocitybench_schemas import get_velocitybench_schema
@@ -215,11 +232,13 @@ with tempfile.TemporaryDirectory() as tmpdir:
 - [ ] Output contains expected types, queries, mutations
 
 ### Step 3: Run full E2E test
+
 ```bash
 python3 tests/e2e/velocitybench_compilation_test.py
 ```
 
 Expected output includes:
+
 ```
 Compiling Python       ... ✅
 Compiling TypeScript   ... ✅
@@ -287,14 +306,16 @@ git commit -m "fix(schema): Normalize schema field names for CLI compatibility
 
 ## Troubleshooting
 
-### If CLI still fails:
+### If CLI still fails
+
 1. Check for typos: Must be exactly `"returns_list"` (not `"returns_List"` or `"returnslist"`)
 2. Check for quotes: Must be double quotes `"` not single quotes `'`
 3. Check for case sensitivity: Field names are case-sensitive
 4. Look for any arguments with `"return_list"` (should never happen, but check)
 5. Review full error message: `RUST_LOG=debug ./target/release/fraiseql-cli compile schema.json`
 
-### If one language produces different output:
+### If one language produces different output
+
 1. Check if it generated from correct schema
 2. Verify both use `"returns_list"` not `"return_list"`
 3. Compare with working language using: `diff -u compiled1.json compiled2.json`

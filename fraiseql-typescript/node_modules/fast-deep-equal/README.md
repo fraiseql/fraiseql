@@ -1,17 +1,16 @@
 # fast-deep-equal
+
 The fastest deep equal with ES6 Map, Set and Typed arrays support.
 
 [![Build Status](https://travis-ci.org/epoberezkin/fast-deep-equal.svg?branch=master)](https://travis-ci.org/epoberezkin/fast-deep-equal)
 [![npm](https://img.shields.io/npm/v/fast-deep-equal.svg)](https://www.npmjs.com/package/fast-deep-equal)
 [![Coverage Status](https://coveralls.io/repos/github/epoberezkin/fast-deep-equal/badge.svg?branch=master)](https://coveralls.io/github/epoberezkin/fast-deep-equal?branch=master)
 
-
 ## Install
 
 ```bash
 npm install fast-deep-equal
 ```
-
 
 ## Features
 
@@ -20,10 +19,10 @@ npm install fast-deep-equal
 - checks equality of Date and RegExp objects by value.
 
 ES6 equal (`require('fast-deep-equal/es6')`) also supports:
+
 - Maps
 - Sets
 - Typed arrays
-
 
 ## Usage
 
@@ -47,7 +46,6 @@ comparing the elements - borrowed from [react-fast-compare](https://github.com/F
 var equal = require('fast-deep-equal/react');
 var equal = require('fast-deep-equal/es6/react');
 ```
-
 
 ## Performance benchmark
 
@@ -78,18 +76,15 @@ npm run benchmark
 
 __Please note__: this benchmark runs against the available test cases. To choose the most performant library for your application, it is recommended to benchmark against your data and to NOT expect this benchmark to reflect the performance difference in your application.
 
-
 ## Enterprise support
 
 fast-deep-equal package is a part of [Tidelift enterprise subscription](https://tidelift.com/subscription/pkg/npm-fast-deep-equal?utm_source=npm-fast-deep-equal&utm_medium=referral&utm_campaign=enterprise&utm_term=repo) - it provides a centralised commercial support to open-source software users, in addition to the support provided by software maintainers.
-
 
 ## Security contact
 
 To report a security vulnerability, please use the
 [Tidelift security contact](https://tidelift.com/security).
 Tidelift will coordinate the fix and disclosure. Please do NOT report security vulnerability via GitHub issues.
-
 
 ## License
 

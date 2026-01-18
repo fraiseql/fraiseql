@@ -48,6 +48,7 @@ FraiseQL provides three pre-configured security profiles that bundle together re
 ### STANDARD Profile (Default)
 
 **Configuration**:
+
 ```python
 from fraiseql.security.profiles.definitions import get_profile
 
@@ -59,6 +60,7 @@ config = FraiseQLConfig(
 ```
 
 **Settings**:
+
 - TLS: Optional (development-friendly)
 - mTLS: Not required
 - Authentication: Optional (except for introspection)
@@ -71,12 +73,14 @@ config = FraiseQLConfig(
 - Query Complexity: Unlimited (auto-estimated)
 
 **Use Cases**:
+
 - Development environments
 - Internal company APIs
 - Testing and staging
 - Learning and tutorials
 
 **Security Considerations**:
+
 - TLS is recommended (but not enforced) for production
 - Introspection requires authentication to prevent schema disclosure
 - Token expiry of 60 minutes is suitable for internal APIs
@@ -85,6 +89,7 @@ config = FraiseQLConfig(
 ### REGULATED Profile
 
 **Configuration**:
+
 ```python
 from fraiseql.security.profiles.definitions import get_profile
 
@@ -96,6 +101,7 @@ config = FraiseQLConfig(
 ```
 
 **Settings**:
+
 - TLS: **Required** (enforced at middleware layer)
 - mTLS: Not required
 - Authentication: Required for all operations
@@ -109,6 +115,7 @@ config = FraiseQLConfig(
 - Request Body Size: 1 MB limit
 
 **Use Cases**:
+
 - Financial services (banking, fintech, payment processing)
 - Healthcare providers (HIPAA compliance)
 - PCI-DSS compliance (requirement 6.3.2)
@@ -116,6 +123,7 @@ config = FraiseQLConfig(
 - SaaS platforms with regulated customers
 
 **Additional Requirements**:
+
 - Request validation: TLS 1.2 minimum
 - Token validation: Check `exp` claim strictly
 - CSRF protection: Enforce on all mutations
@@ -123,6 +131,7 @@ config = FraiseQLConfig(
 - Audit logging: Field access tracking for sensitive data
 
 **Production Deployment**:
+
 ```bash
 # Require HTTPS only
 export FRAISEQL_SECURITY_PROFILE=regulated
@@ -136,6 +145,7 @@ export FRAISEQL_AUDIT_FIELD_ACCESS=true
 ### RESTRICTED Profile
 
 **Configuration**:
+
 ```python
 from fraiseql.security.profiles.definitions import get_profile
 
@@ -147,6 +157,7 @@ config = FraiseQLConfig(
 ```
 
 **Settings**:
+
 - TLS: **Required TLS 1.3 minimum** (cutting-edge security)
 - mTLS: **Required** (mutual TLS - certificate-based client auth)
 - Authentication: Required for all operations
@@ -161,6 +172,7 @@ config = FraiseQLConfig(
 - CSRF: Strict validation with referrer checking
 
 **Use Cases**:
+
 - Government agencies (NSA/CISA standards)
 - Military systems (DoD IL4+)
 - Critical infrastructure (energy grid, water systems)
@@ -190,6 +202,7 @@ client_config = {
 ```
 
 **Production Deployment**:
+
 ```bash
 # Maximum security configuration
 export FRAISEQL_SECURITY_PROFILE=restricted
@@ -254,6 +267,7 @@ FraiseQL includes automated Software Bill of Materials (SBOM) generation for sup
 **What is an SBOM?**
 
 An SBOM is a structured list of all software components, libraries, and dependencies in an application. It includes:
+
 - Component identifiers (name, version, package URL)
 - License information (SPDX identifiers)
 - Cryptographic hashes (SHA-256 for integrity)
@@ -263,6 +277,7 @@ An SBOM is a structured list of all software components, libraries, and dependen
 **Why SBOM?**
 
 Modern software supply chain attacks target dependencies. An SBOM enables:
+
 - ✅ **Vulnerability Tracking**: Monitor known CVEs in your dependencies
 - ✅ **License Compliance**: Identify permissive vs. copyleft licenses
 - ✅ **Supply Chain Security**: Prove integrity via cryptographic signatures
@@ -396,6 +411,7 @@ sha256sum -c sbom.json.sha256
 ```
 
 **Security Properties**:
+
 - ✅ **Keyless Identity**: Signature tied to OIDC identity (GitHub Actions)
 - ✅ **Tamper Detection**: Any modification breaks signature
 - ✅ **Transparency Log**: Signature logged in Rekor transparency log
@@ -491,6 +507,7 @@ fraiseql sbom generate --copyleft-check
 ```
 
 **FraiseQL Core License**:
+
 - **License**: MIT (permissive, enterprise-friendly)
 - **Implication**: FraiseQL itself has no license restrictions
 - **Your SBOM**: Will inherit MIT for FraiseQL component
@@ -557,11 +574,13 @@ FraiseQL automatically injects security headers into all GraphQL responses. Thes
 Restricts what content the browser can load from external sources.
 
 **Strict Configuration** (production):
+
 ```
 Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'
 ```
 
 **Key Directives**:
+
 - `default-src 'none'`: Block all external content by default
 - `script-src 'self'`: Only allow inline scripts from same origin
 - `style-src 'self'`: Only allow stylesheets from same origin
@@ -570,11 +589,13 @@ Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'
 - `frame-ancestors 'none'`: Prevent embedding in frames (API security)
 
 **Development Configuration** (permissive):
+
 ```
 Content-Security-Policy: default-src *; script-src * 'unsafe-inline' 'unsafe-eval'; style-src * 'unsafe-inline'
 ```
 
 **CSP Violation Reporting**:
+
 ```python
 # Configure webhook to receive CSP violations
 config = FraiseQLConfig(
@@ -588,11 +609,13 @@ config = FraiseQLConfig(
 Forces browser to use HTTPS for all future connections.
 
 **Header**:
+
 ```
 Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
 ```
 
 **Directives**:
+
 - `max-age=31536000`: Cache policy for 1 year (31,536,000 seconds)
 - `includeSubDomains`: Apply to all subdomains
 - `preload`: Allow browser to preload domain in hardcoded list
@@ -616,6 +639,7 @@ X-Frame-Options: DENY
 ```
 
 **Options**:
+
 - `DENY`: Never allow embedding in frames
 - `SAMEORIGIN`: Allow embedding only from same origin
 - `ALLOW-FROM uri`: Allow embedding from specific URI (deprecated, use CSP instead)
@@ -637,6 +661,7 @@ Referrer-Policy: strict-origin-when-cross-origin
 ```
 
 **Policies**:
+
 - `strict-origin-when-cross-origin`: Send origin only for cross-origin requests
 - `no-referrer`: Never send referrer
 - `same-origin`: Send full referrer only for same-origin
@@ -739,12 +764,14 @@ FraiseQL provides comprehensive Cross-Site Request Forgery (CSRF) protection wit
 ### CSRF Token Generation
 
 **Token Structure**:
+
 - Cryptographically secure random 32 bytes
 - Base64 URL-safe encoding
 - HMAC-SHA256 signature with timestamp
 - Configurable expiry (default 1 hour)
 
 **Token Example**:
+
 ```
 Token: NrVy3e5K_J2x8aB9cDmQpRsT1uVwXyZa
 HMAC: e4c7e8f5a1b2c3d4e5f6a7b8c9d0e1f2
@@ -801,6 +828,7 @@ X-CSRF-Token: NrVy3e5K_J2x8aB9cDmQpRsT1uVwXyZa
 ```
 
 **Validation Checks**:
+
 1. Extract token from cookie/header/variable
 2. Validate HMAC signature
 3. Check token expiry
@@ -963,6 +991,7 @@ CREATE INDEX idx_token_revocation_expires ON token_revocation(expires_at);
 ### Logout Flow
 
 **Request**:
+
 ```bash
 POST /auth/logout HTTP/1.1
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
@@ -973,6 +1002,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ```
 
 **Processing**:
+
 1. Extract JWT from Authorization header
 2. Decode JWT (without verifying signature, for jti claim)
 3. Extract `jti` claim
@@ -980,6 +1010,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 5. Return success response
 
 **Response**:
+
 ```json
 HTTP/1.1 200 OK
 
@@ -1004,6 +1035,7 @@ HTTP/1.1 200 OK
 ```
 
 **Performance**:
+
 - In-memory store: < 1µs (sub-microsecond)
 - PostgreSQL store: 5-15ms (one database query)
 - Caching recommended for high-throughput APIs
@@ -1017,16 +1049,19 @@ FraiseQL provides sophisticated rate limiting based on GraphQL operations and qu
 ### Rate Limiting Strategies
 
 **Fixed Window** (traditional):
+
 - Time divided into fixed buckets (minute, hour, day)
 - Count requests in current window
 - Simple but susceptible to burst at window boundaries
 
 **Sliding Window** (recommended):
+
 - Requests in past N seconds
 - More accurate burst detection
 - Slightly more overhead
 
 **Token Bucket** (smoothing):
+
 - Tokens generated at constant rate
 - Each request consumes tokens
 - Burst capacity configurable
@@ -1123,6 +1158,7 @@ Retry-After: 45
 ### Store Implementations
 
 **In-Memory Store** (development):
+
 ```python
 RateLimitConfig(
     store="memory",  # No external dependencies
@@ -1131,6 +1167,7 @@ RateLimitConfig(
 ```
 
 **Redis Store** (production):
+
 ```python
 RateLimitConfig(
     store="redis",
@@ -1173,6 +1210,7 @@ class User:
 ### Permission Check Patterns
 
 **Current User Check**:
+
 ```python
 @authorize_field(
     lambda info: info.context.get("user_id") == self.id
@@ -1182,6 +1220,7 @@ def email(self) -> str:
 ```
 
 **Role Check**:
+
 ```python
 @authorize_field(
     lambda info: "manager" in info.context.get("roles", [])
@@ -1191,6 +1230,7 @@ def sensitive_data(self) -> str:
 ```
 
 **Combined Permissions**:
+
 ```python
 from fraiseql.security.field_auth import combine_permissions, any_permission
 
@@ -1255,32 +1295,38 @@ FraiseQL provides three introspection policies to balance schema transparency wi
 ### Introspection Policies
 
 **ENABLED** (development):
+
 ```python
 FraiseQLConfig(
     introspection_policy="enabled"
 )
 ```
+
 - Anyone can introspect the schema
 - ✅ Developer-friendly
 - ❌ Schema fully exposed to attackers
 
 **AUTHENTICATED** (default for STANDARD):
+
 ```python
 FraiseQLConfig(
     introspection_policy="authenticated"
 )
 ```
+
 - Only authenticated users can introspect
 - ✅ Balances usability and security
 - ✅ Allows internal tool development
 - ✅ Prevents external reconnaissance
 
 **DISABLED** (production):
+
 ```python
 FraiseQLConfig(
     introspection_policy="disabled"
 )
 ```
+
 - Introspection queries completely blocked
 - ✅ Maximum security
 - ✅ Prevents schema disclosure
@@ -1291,6 +1337,7 @@ FraiseQLConfig(
 Introspection queries like `{ __schema { ... } }` are blocked according to policy:
 
 **DISABLED Policy Response**:
+
 ```json
 {
   "errors": [{
@@ -1305,6 +1352,7 @@ Introspection queries like `{ __schema { ... } }` are blocked according to polic
 ### Introspection Query Examples
 
 **Full Schema Introspection**:
+
 ```graphql
 query {
   __schema {
@@ -1317,6 +1365,7 @@ query {
 ```
 
 **Type Information**:
+
 ```graphql
 query {
   __type(name: "User") {
@@ -1336,6 +1385,7 @@ FraiseQL supports multiple Key Management Service (KMS) providers for encryption
 ### Supported Providers
 
 **AWS KMS**:
+
 ```python
 config = FraiseQLConfig(
     kms_provider="aws",
@@ -1348,6 +1398,7 @@ config = FraiseQLConfig(
 ```
 
 **HashiCorp Vault**:
+
 ```python
 config = FraiseQLConfig(
     kms_provider="vault",
@@ -1360,6 +1411,7 @@ config = FraiseQLConfig(
 ```
 
 **Google Cloud KMS**:
+
 ```python
 config = FraiseQLConfig(
     kms_provider="gcp",
@@ -1373,6 +1425,7 @@ config = FraiseQLConfig(
 ```
 
 **Local KMS** (development):
+
 ```python
 config = FraiseQLConfig(
     kms_provider="local",
@@ -1456,6 +1509,7 @@ FraiseQL provides comprehensive security event logging for audit trails, complia
 ### Security Event Types
 
 **Authentication Events**:
+
 - `AUTH_SUCCESS`: Successful login
 - `AUTH_FAILURE`: Failed login attempt
 - `AUTH_TOKEN_EXPIRED`: Token expiry
@@ -1463,20 +1517,24 @@ FraiseQL provides comprehensive security event logging for audit trails, complia
 - `AUTH_LOGOUT`: User logout
 
 **Authorization Events**:
+
 - `AUTHZ_DENIED`: Operation authorization failed
 - `AUTHZ_FIELD_DENIED`: Field access denied
 - `AUTHZ_PERMISSION_DENIED`: Permission check failed
 - `AUTHZ_ROLE_DENIED`: Role requirement not met
 
 **Rate Limiting Events**:
+
 - `RATE_LIMIT_EXCEEDED`: Request exceeds rate limit
 - `RATE_LIMIT_WARNING`: Approaching rate limit
 
 **CSRF Events**:
+
 - `CSRF_TOKEN_INVALID`: CSRF token validation failed
 - `CSRF_TOKEN_MISSING`: CSRF token not provided
 
 **Query Security Events**:
+
 - `QUERY_COMPLEXITY_EXCEEDED`: Query too complex
 - `QUERY_DEPTH_EXCEEDED`: Query too deep
 - `QUERY_TIMEOUT`: Query execution timeout
@@ -1527,6 +1585,7 @@ fraiseql.audit.security_logger.set_global_logger(logger)
 ### Log Output
 
 **File Format**:
+
 ```json
 {
   "timestamp": "2025-01-11T10:30:45.123456Z",
@@ -1630,6 +1689,7 @@ FraiseQL's security features provide comprehensive support for major regulatory 
 FraiseQL's comprehensive security and compliance features provide enterprise-grade protection for GraphQL APIs. By leveraging security profiles, SBOM generation, cryptographic controls, and detailed audit logging, you can deploy with confidence to regulated industries and meet the most stringent security standards.
 
 **Key Takeaways**:
+
 - ✅ Use security profiles to bundle related settings by compliance tier
 - ✅ Generate and sign SBOMs for supply chain security compliance
 - ✅ Implement field-level authorization for data protection

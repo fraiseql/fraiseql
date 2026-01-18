@@ -11,6 +11,7 @@ Error: fraiseql-cli Failed to parse schema.json
 ## The Discovery
 
 **Root cause identified** ✅:
+
 - Generators produce: `"return_list": true`
 - CLI expects: `"returns_list": true`
 
@@ -37,6 +38,7 @@ That's it. One field name.
 ## What We've Done ✅
 
 We've completed:
+
 - ✅ Root cause diagnosis
 - ✅ Impact analysis
 - ✅ Comprehensive documentation
@@ -87,25 +89,33 @@ We've completed:
 ## Quick Start (5 minutes)
 
 ### 1. Understand the problem
+
 Read: **CLI_FIX_INDEX.md** or **EXECUTIVE_SUMMARY_CLI_FIX.md**
+
 - Time: ~10 minutes
 - Output: Understand why this fix matters
 
 ### 2. Get implementation checklist
+
 Read: **QUICK_FIX_CHECKLIST.md**
+
 - This is your execution guide
 - Follow the checkboxes step-by-step
 
 ### 3. Choose your approach
+
 Pick one:
+
 - **Manual**: Edit each file yourself (1-2 hours)
 - **Local Model**: Use 8B model for bulk fixes (~60 min)
 - **Hybrid**: Claude + local model (recommended, ~60 min)
 
 ### 4. Execute
+
 Follow the checklist and run the verification commands
 
 ### 5. Verify
+
 ```bash
 python3 tests/e2e/velocitybench_compilation_test.py
 ```
@@ -131,9 +141,11 @@ Expected output: `✅ ALL TIER 1A COMPILATION E2E TESTS PASSED!`
 ## Files to Modify
 
 ### Canonical Schema (1 file)
+
 - [x] `tests/e2e/velocitybench_schemas.py`
 
 ### Language Generators (10 files)
+
 - [ ] Python generator
 - [ ] TypeScript generator
 - [ ] Go generator
@@ -150,6 +162,7 @@ Expected output: `✅ ALL TIER 1A COMPILATION E2E TESTS PASSED!`
 ## Verification
 
 ### Quick Test
+
 ```bash
 # After you fix velocitybench_schemas.py, test with:
 python3 -c "
@@ -171,6 +184,7 @@ with tempfile.TemporaryDirectory() as tmpdir:
 ```
 
 ### Full Test
+
 ```bash
 # After all 10 generators are fixed, run:
 python3 tests/e2e/velocitybench_compilation_test.py
@@ -260,6 +274,7 @@ Without this fix, you can't prove all 10 languages produce identical output (sem
 ## Resources
 
 All documentation is in `.claude/` directory:
+
 - `CLI_FIX_INDEX.md` - Navigation guide
 - `EXECUTIVE_SUMMARY_CLI_FIX.md` - High-level overview
 - `QUICK_FIX_CHECKLIST.md` - Step-by-step guide

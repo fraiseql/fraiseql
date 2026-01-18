@@ -631,6 +631,7 @@ cargo clippy -- -D warnings
 ## Expected Output
 
 ### cargo test
+
 ```
 running 4 tests
 test protocol::encode::tests::test_encode_query ... ok
@@ -643,14 +644,14 @@ test result: ok. 4 passed; 0 failed; 0 ignored
 
 ## Acceptance Criteria
 
-- [ ] All protocol message types are defined
-- [ ] Encoding functions produce correct byte sequences
-- [ ] Decoding functions parse byte sequences correctly
-- [ ] Round-trip encode/decode tests pass
-- [ ] Error handling for malformed messages works
-- [ ] No clippy warnings
-- [ ] All tests pass
-- [ ] Protocol encoding/decoding is pure (no I/O side effects)
+* [ ] All protocol message types are defined
+* [ ] Encoding functions produce correct byte sequences
+* [ ] Decoding functions parse byte sequences correctly
+* [ ] Round-trip encode/decode tests pass
+* [ ] Error handling for malformed messages works
+* [ ] No clippy warnings
+* [ ] All tests pass
+* [ ] Protocol encoding/decoding is pure (no I/O side effects)
 
 ## DO NOT
 

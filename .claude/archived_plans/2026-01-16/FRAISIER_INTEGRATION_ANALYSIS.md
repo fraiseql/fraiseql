@@ -5,6 +5,7 @@
 **Fraisier** is a deployment orchestration platform for the FraiseQL ecosystem. Currently existing as a standalone repository at `/home/lionel/code/fraisier`, it should be integrated into the main FraiseQL monorepo as the **canonical reference implementation** of FraiseQL.
 
 **Current Status:**
+
 - ✅ Fraisier exists as a separate Python project with full CLI and webhook infrastructure
 - ✅ Fraisier is referenced in the FraiseQL README as "THE canonical FraiseQL application"
 - ⏳ Fraisier code is not yet integrated into the main `/home/lionel/code/fraiseql` monorepo
@@ -112,6 +113,7 @@ fraiseql/
 2. **Monorepo copy:** `/home/lionel/code/fraiseql/fraisier/` (duplicated during Phase 1)
 
 **This is problematic because:**
+
 - Changes to one won't be reflected in the other
 - It's unclear which is the "source of truth"
 - Maintenance burden is doubled
@@ -136,18 +138,21 @@ fraiseql/
 ```
 
 **Advantages:**
+
 - Single source of truth
 - Fraisier dependencies managed in monorepo workspace
 - Easy to update with Rust engine changes
 - E2E tests can run against both fraiseql-server and fraisier
 
 **Disadvantages:**
+
 - Breaking change for anyone using `/home/lionel/code/fraisier/` directly
 - Need to update docs to point to monorepo location
 
 **Option B: Mirror Both Repositories**
 
 Keep both repositories in sync via CI/CD:
+
 - Monorepo as source of truth
 - Standalone as published package
 - GitHub Actions to sync changes
@@ -155,6 +160,7 @@ Keep both repositories in sync via CI/CD:
 **Option C: Make Standalone the Primary**
 
 Keep `/home/lionel/code/fraisier/` as the primary, symlink in monorepo:
+
 - Avoids duplication
 - Preserves existing workflow
 - But contradicts "monorepo as single source"
@@ -216,6 +222,7 @@ Fraisier's deployment process:
 ```
 
 **Integration points:**
+
 - Uses `fraiseql-cli` for schema compilation
 - Uses `fraiseql-server` for runtime
 - Orchestrates `confiture` for database migrations
@@ -276,6 +283,7 @@ class FraiseStatus:
 ### 5. **Testing Integration**
 
 FraiseQL test suite should include:
+
 - Unit tests for Fraisier components (pytest)
 - E2E tests that deploy via Fraisier to local fraiseql-server
 - Load tests of the webhook server
@@ -334,6 +342,7 @@ rm -rf /home/lionel/code/fraisier
 **Recommendation:** **Option A** - Delete the standalone and consolidate completely.
 
 **TODO:**
+
 - [ ] Update `/home/lionel/code/fraiseql/fraisier/` to be complete
 - [ ] Delete `/home/lionel/code/fraisier/` (or make it a symlink)
 - [ ] Update README to reference monorepo location
@@ -358,6 +367,7 @@ fraises:
 ```
 
 **TODO:**
+
 - [ ] Add `python-dotenv` support for `.env` files
 - [ ] Implement secret manager abstraction
 - [ ] Support AWS Secrets Manager, Vault, etc.
@@ -387,6 +397,7 @@ class Deployment:
 ```
 
 **TODO:**
+
 - [ ] Create `fraiseql/fraisier/schema/py/models.py`
 - [ ] Add database views and functions
 - [ ] Document schema structure
@@ -396,6 +407,7 @@ class Deployment:
 **Key Vision:** Fraisier will eventually be a **GraphQL API** using FraiseQL.
 
 This means Fraisier will:
+
 1. **Host its own deployment status** via a FraiseQL server
 2. **Accept queries** about deployment history, status, and statistics
 3. **Accept mutations** to trigger deployments, cancel jobs, etc.
@@ -705,6 +717,7 @@ fn_retry_deployment()    → retry mutation
 ```
 
 **TODO:**
+
 - [ ] Create `fraiseql/fraisier/schema/py/models.py` with @fraiseql types
 - [ ] Define all queries, mutations, subscriptions
 - [ ] Implement GraphQL resolvers
@@ -731,6 +744,7 @@ tests/fraisier/
 ```
 
 **TODO:**
+
 - [ ] Set up Docker Compose with PostgreSQL for testing
 - [ ] Create webhook payload fixtures
 - [ ] Write E2E deployment tests

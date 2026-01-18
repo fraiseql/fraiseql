@@ -20,6 +20,7 @@ public class User {
 ```
 
 **Attributes:**
+
 - None (applies to class level only)
 
 ### @GraphQLField Annotation
@@ -38,6 +39,7 @@ public String username;
 ```
 
 **Attributes:**
+
 - `nullable` (boolean, default: false) - Whether the field can be null
 - `name` (String) - Custom field name in the schema (defaults to Java field name)
 - `type` (String) - Custom GraphQL type (defaults to auto-detected type)
@@ -139,6 +141,7 @@ FraiseQL.query("users")
 ```
 
 **Methods:**
+
 - `returnType(Class<?>)` - Set return type (required)
 - `returnType(String)` - Set return type by string name
 - `returnsArray(boolean)` - Whether result is an array
@@ -188,6 +191,7 @@ for (ArgumentBuilder.ArgumentInfo arg : withDefaults) {
 ```
 
 **Methods:**
+
 - `add(String name, String type)` - Add required argument
 - `add(String name, String type, Object default)` - Add optional argument with default
 - `add(String name, String type, Object default, String description)` - Add with description
@@ -261,6 +265,7 @@ System.out.println(stats);
 ```
 
 **ValidationResult Properties:**
+
 - `valid` (boolean) - Whether schema passed validation
 - `errors` (List<String>) - List of validation errors
 - `warnings` (List<String>) - List of non-fatal warnings

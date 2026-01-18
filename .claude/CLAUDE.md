@@ -43,6 +43,7 @@ unsafe_code = "forbid"
 ### Type Annotations
 
 Use modern Python 3.10+ style:
+
 ```python
 def get_user(user_id: int) -> User | None:  # ✅ Good
 def get_user(user_id: int) -> Optional[User]:  # ❌ Old style
@@ -109,18 +110,21 @@ cargo clippy --all-targets --all-features -- -D warnings
 ### 1. Authoring vs Runtime Separation
 
 **Authoring (Phase 8):**
+
 - Python/TypeScript decorators
 - Generate `schema.json`
 - NO runtime Rust calls
 - Pure JSON output
 
 **Compilation (Phase 4 + Phase 9):**
+
 - `fraiseql-cli compile schema.json`
 - Validate schema structure
 - Generate optimized SQL templates
 - Output `schema.compiled.json`
 
 **Runtime (Phase 5 + Phase 6):**
+
 - Load `schema.compiled.json`
 - Execute GraphQL queries
 - Pure Rust, zero Python dependencies
@@ -186,6 +190,7 @@ pub type Result<T> = std::result::Result<T, FraiseQLError>;
 ### 5. Testing Strategy
 
 **Unit tests**: Per-module in `mod.rs` or `tests.rs`
+
 ```rust
 #[cfg(test)]
 mod tests {
@@ -199,6 +204,7 @@ mod tests {
 ```
 
 **Integration tests**: `tests/` directory with database setup
+
 ```rust
 // tests/integration/schema_test.rs
 #[tokio::test]
@@ -364,6 +370,7 @@ RUST_LOG=debug cargo test
 **Current Phase**: Phase 1 ✅ Complete
 
 **Next Phase**: Phase 2 - Database & Cache (6 days)
+
 - Adapt `db/` module with database-agnostic traits
 - Adapt `cache/` module for query result caching
 - Add PostgreSQL/MySQL connection pooling

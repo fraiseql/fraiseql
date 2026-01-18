@@ -13,11 +13,13 @@ Session 2 completed Phase 8.5.4: Background Task Instrumentation. The background
 ### ✅ Completed (4 of 8 Sub-phases)
 
 **Previous (Session 1)**:
+
 - Phase 8.5.1: Metrics Module ✅
 - Phase 8.5.2: QueryBuilder Instrumentation ✅
 - Phase 8.5.3: Connection Auth/Startup Instrumentation ✅
 
 **This Session**:
+
 - **Phase 8.5.4: Background Task Instrumentation** ✅
   - Comprehensive row processing metrics
   - Per-chunk timing and size distribution
@@ -34,15 +36,18 @@ Session 2 completed Phase 8.5.4: Background Task Instrumentation. The background
 The background task spawned in `Connection::streaming_query()` processes rows from Postgres in a loop. Instrumentation captures:
 
 #### 1. **Row Processing Metrics**
+
 - **Total rows processed**: Accumulated and recorded at query completion
 - **Per-chunk row counts**: Histogram distribution of chunk sizes
 - **Per-chunk timing**: Duration to process each chunk
 
 #### 2. **Error Tracking**
+
 - **JSON parsing errors**: Counter incremented on deserialization failures
 - **Query errors**: Categorized by error type (server_error, protocol_error, connection_error)
 
 #### 3. **Query Lifecycle**
+
 - **Cancellation**: Tracked when stream is dropped before completion
 - **Success completion**: Recorded when CommandComplete received
 - **Error completion**: Recorded on any error path
@@ -51,12 +56,15 @@ The background task spawned in `Connection::streaming_query()` processes rows fr
 ### Metrics Added
 
 **New Counter Functions**:
+
 - `query_completed(status, entity)` - Tracks completion with status (success, error, cancelled)
 
 **Modified Counter Functions**:
+
 - `json_parse_error(entity)` - Changed from `reason` to `entity` label for consistency
 
 **Histogram Functions Used**:
+
 - `chunk_processing_duration(entity, duration_ms)` - Per-chunk processing latency
 - `chunk_size(entity, rows)` - Distribution of rows per chunk
 - `query_total_duration(entity, duration_ms)` - Total query execution time
@@ -67,6 +75,7 @@ The background task spawned in `Connection::streaming_query()` processes rows fr
 **Modified**: `src/connection/conn.rs` (lines 608-744)
 
 Added to background task spawning:
+
 1. Entity extraction for consistent labeling across query lifecycle
 2. Query start timestamp for total duration measurement
 3. Row counter initialization (`total_rows`)
@@ -81,6 +90,7 @@ Added to background task spawning:
 8. Cancellation metrics when stream drops
 
 **Key Design**:
+
 - Metrics only recorded for full chunks (strategy.is_full) during streaming
 - Final chunk recorded at CommandComplete
 - All measurements use `std::time::Instant::now()` for minimal overhead
@@ -90,6 +100,7 @@ Added to background task spawning:
 ### Error Handling
 
 Each error path now records:
+
 - Specific error category counter
 - Query completion status counter
 - Prevents loss of partial metrics on early exit
@@ -99,12 +110,14 @@ Each error path now records:
 ## Test Results
 
 ✅ **All tests passing**:
+
 - 19 metrics unit tests ✅
 - 21 connection module tests ✅
 - 1 integration test (ignored, needs DB) ✅
 - Clean build with no new warnings ✅
 
 ### Test Output
+
 ```
 test result: ok. 19 passed; 0 failed; 0 ignored (metrics tests)
 test result: ok. 21 passed; 0 failed; 0 ignored (connection tests)
@@ -156,6 +169,7 @@ Finished `dev` profile [unoptimized + debuginfo] target(s)
 ### Active Metrics (13 total)
 
 **Counters** (7):
+
 - `fraiseql_queries_total` - Query submissions
 - `fraiseql_authentications_total` - Auth attempts
 - `fraiseql_authentications_successful_total` - Successful auth
@@ -165,6 +179,7 @@ Finished `dev` profile [unoptimized + debuginfo] target(s)
 - `fraiseql_query_completed_total` - Query completions (NEW)
 
 **Histograms** (6):
+
 - `fraiseql_query_startup_duration_ms` - Time to first row
 - `fraiseql_query_total_duration_ms` - Total query time (NEW)
 - `fraiseql_chunk_processing_duration_ms` - Per-chunk latency (NEW)
@@ -244,20 +259,24 @@ Finished `dev` profile [unoptimized + debuginfo] target(s)
 ## Remaining Work (Phases 8.5.5-8.5.8)
 
 ### Phase 8.5.5: Stream Type Instrumentation (2 hours)
+
 - Instrument `TypedJsonStream::poll_next()` - Per-type deserialization metrics
 - Instrument `FilteredStream::poll_next()` - Rust filter metrics
 
 ### Phase 8.5.6: Integration Tests (2-3 hours)
+
 - End-to-end metrics validation
 - Error scenario verification
 - Verify metrics are recorded correctly for various query patterns
 
 ### Phase 8.5.7: Documentation & Examples (2-3 hours)
+
 - Create `METRICS.md` - Comprehensive metric glossary
 - Create `examples/metrics.rs` - Working metrics collection example
 - Update README with metrics feature
 
 ### Phase 8.5.8: Performance Validation (1-2 hours)
+
 - Benchmark overhead measurement
 - Ensure < 0.1% impact verified
 - Document performance characteristics
@@ -285,6 +304,7 @@ Finished `dev` profile [unoptimized + debuginfo] target(s)
 **Phase 8.5.4 is complete. Row processing metrics are now fully instrumented.**
 
 ### What Works Now
+
 ✅ Queries tracked from submission through completion
 ✅ Authentication latency and success/failure tracked
 ✅ Query startup timing captured
@@ -296,19 +316,23 @@ Finished `dev` profile [unoptimized + debuginfo] target(s)
 ✅ All tests passing
 
 ### What's Needed to Complete (40%)
+
 ⏳ Deserialization per-type metrics (Phase 8.5.5)
 ⏳ Integration tests (Phase 8.5.6)
 ⏳ Documentation and examples (Phase 8.5.7)
 ⏳ Performance benchmarking (Phase 8.5.8)
 
 ### Next Steps
+
 Ready to proceed with Phase 8.5.5: Stream Type Instrumentation (TypedJsonStream and FilteredStream).
 
 ---
 
 ## Git Status
+
 Working directory clean. Ready to commit Phase 8.5.4 implementation.
 
 **Commits in Progress**:
+
 - Session 1: Phases 8.5.1-8.5.3 (already committed)
 - Session 2: Phase 8.5.4 (ready to commit)

@@ -29,6 +29,7 @@ This document outlines the path from the current MVP (v0.1.0) to a production-re
 ## Phase 7: Stabilization (v0.1.x)
 
 ### Goal
+
 Harden the MVP for real-world use without adding new features.
 
 ### Status: ✅ COMPLETE (All 7.1-7.6 phases finished)
@@ -38,6 +39,7 @@ Harden the MVP for real-world use without adding new features.
 #### 7.1 Performance Profiling & Optimization ✅ COMPLETE
 
 ##### 7.1.1 Micro-benchmarks (Core Operations) ✅
+
 - [x] Set up Criterion benchmarking framework
 - [x] Protocol encoding/decoding benchmarks
 - [x] JSON parsing benchmarks (small, large, deeply nested)
@@ -51,6 +53,7 @@ Harden the MVP for real-world use without adding new features.
 **Status**: Complete - 6 benchmark groups with detailed statistical analysis
 
 ##### 7.1.2 Integration Benchmarks (With Postgres) ✅
+
 - [x] Throughput benchmarks (rows/sec) with 1K, 100K, 1M row sets
 - [x] Memory usage under load with different chunk sizes
 - [x] Time-to-first-row latency measurements
@@ -66,6 +69,7 @@ Harden the MVP for real-world use without adding new features.
 **Status**: Complete - 8 benchmark groups with Postgres, GitHub Actions integration, test database schema
 
 ##### 7.1.3 Comparison Benchmarks (vs tokio-postgres) ✅
+
 - [x] Set up tokio-postgres comparison suite
 - [x] Connection setup comparison (TCP vs Unix socket)
 - [x] Query execution overhead comparison
@@ -81,6 +85,7 @@ Harden the MVP for real-world use without adding new features.
 Key Finding: fraiseql-wire achieves 1000x-20000x memory savings for large result sets
 
 ##### 7.1.4 Documentation & Optimization ✅
+
 - [x] Profile hot paths with flamegraph (not needed: micro-benchmarks show negligible overhead)
 - [x] Optimize identified bottlenecks (optimization: use SQL predicates to reduce network)
 - [x] Update README with benchmark results
@@ -90,12 +95,14 @@ Key Finding: fraiseql-wire achieves 1000x-20000x memory savings for large result
 **Status**: Complete - Comprehensive performance tuning guide with practical guidance for production use
 
 **Deliverables**:
+
 - PERFORMANCE_TUNING.md: ~450 lines of practical optimization guidance
 - README.md: Updated with benchmarked performance tables
 - CHANGELOG.md: Phase 7.1 completion with key results
 - Key finding: WHERE clause optimization is most important (10-100x throughput gains)
 
 #### 7.2 Security Audit ✅
+
 - [x] Review all unsafe code
   - ✅ ZERO unsafe code found
   - Safety guaranteed by Rust type system
@@ -118,12 +125,14 @@ Key Finding: fraiseql-wire achieves 1000x-20000x memory savings for large result
 **Status**: Complete - Comprehensive security audit passed
 
 **Deliverables**:
+
 - SECURITY_AUDIT.md: Detailed technical audit (~500 lines)
 - SECURITY.md: User security guidance (~300 lines)
 - Key finding: Zero critical/high-severity issues; TLS required for production TCP (Phase 8)
 - Verdict: ✅ PASS - Ready for Phase 7.3
 
 #### 7.3 Real-World Testing ✅ COMPLETE
+
 - [x] Set up staging database for testing
   - ✅ Created schema with 4 entity tables (projects, users, tasks, documents)
   - ✅ Seeded realistic data (JSON sizes: 1KB to 100KB+)
@@ -143,6 +152,7 @@ Key Finding: fraiseql-wire achieves 1000x-20000x memory savings for large result
 **Deliverables**: TESTING_GUIDE.md (500+ lines), load_tests.rs, stress_tests.rs
 
 #### 7.4 Error Message Refinement ✅ COMPLETE
+
 - [x] Audit all error messages
   - ✅ Added 4 new helper methods to FraiseError
   - ✅ Enhanced context and actionability
@@ -159,6 +169,7 @@ Key Finding: fraiseql-wire achieves 1000x-20000x memory savings for large result
 **Deliverables**: TROUBLESHOOTING.md (1400+ lines), enhanced src/error.rs, error tests
 
 #### 7.5 CI/CD Improvement ✅ COMPLETE
+
 - [x] GitHub Actions enhancements
   - ✅ Code coverage reporting (tarpaulin + Codecov)
   - ✅ Security audit in CI (cargo audit)
@@ -178,6 +189,7 @@ Key Finding: fraiseql-wire achieves 1000x-20000x memory savings for large result
 **Deliverables**: ci.yml, release.yml, Dockerfile, docker-compose.yml, scripts/publish.sh, CI_CD_GUIDE.md
 
 #### 7.6 Documentation Polish ✅ COMPLETE
+
 - [x] API documentation review
   - ✅ All public APIs have doc comments
   - ✅ Documentation builds with zero warnings
@@ -210,6 +222,7 @@ Key Finding: fraiseql-wire achieves 1000x-20000x memory savings for large result
 ## Phase 8: Feature Additions (v0.1.x patch releases)
 
 ### Goal
+
 Add requested features to v0.1.0 while maintaining API stability and backward compatibility.
 
 ### Status: 📋 Planning Phase - Ready to Begin
@@ -217,6 +230,7 @@ Add requested features to v0.1.0 while maintaining API stability and backward co
 ### Implementation Approach
 
 **Version Strategy**: Stay at v0.1.0 with feature additions in patch releases (v0.1.1, v0.1.2, etc.)
+
 - Each feature is optional and backward compatible
 - Existing code continues to work without changes
 - New code can opt-in to new features as needed
@@ -251,6 +265,7 @@ Based on typical production needs, we recommend prioritizing in this order:
 ### Implementation Strategy
 
 Each feature will:
+
 1. Be implemented in a feature branch or main (depending on stability)
 2. Include comprehensive tests and documentation
 3. Get peer review before merging to main
@@ -260,6 +275,7 @@ Each feature will:
 ### Optional Features (Select Based on Feedback)
 
 #### 8.1 Typed Streaming
+
 ```rust
 // Instead of: Stream<Item = Result<serde_json::Value>>
 // Support: Stream<Item = Result<T: DeserializeOwned>>
@@ -275,7 +291,9 @@ let stream = client
 **Trade-offs**: Adds serde dependency to main API
 
 #### 8.2 Connection Pooling
+
 Create separate `fraiseql-pool` crate:
+
 ```rust
 let pool = PoolConfig::new("postgres://localhost/db")
     .max_size(10)
@@ -290,6 +308,7 @@ let client = pool.get().await?;
 **Trade-offs**: Separate crate, additional maintenance
 
 #### 8.3 TLS Support
+
 ```rust
 let client = FraiseClient::connect_tls(
     "postgres://localhost/db",
@@ -305,6 +324,7 @@ let client = FraiseClient::connect_tls(
 **Trade-offs**: Additional dependency, platform-specific issues
 
 #### 8.4 SCRAM Authentication
+
 - Current: Cleartext password only
 - Add: SCRAM-SHA-256 (Postgres 10+)
 
@@ -313,6 +333,7 @@ let client = FraiseClient::connect_tls(
 **Trade-offs**: More dependencies, more testing needed
 
 #### 8.5 Query Metrics/Tracing
+
 ```rust
 // Built-in metrics
 client.metrics()
@@ -327,7 +348,9 @@ client.metrics()
 **Trade-offs**: Slight performance overhead
 
 #### 8.6 Connection Configuration
+
 More connection options:
+
 ```rust
 ConnectionConfig::builder()
     .statement_timeout(Duration::from_secs(30))
@@ -345,11 +368,13 @@ ConnectionConfig::builder()
 ## Phase 9: Production Readiness (v1.0.0)
 
 ### Goal
+
 Achieve stable, production-ready release.
 
 ### Requirements for v1.0.0
 
 #### 9.1 API Stability
+
 - [ ] API audit and stabilization
   - Review all public APIs
   - Finalize error types
@@ -362,7 +387,9 @@ Achieve stable, production-ready release.
   - Deprecation warnings before removal
 
 #### 9.2 Performance SLAs
+
 Define and meet these targets:
+
 - [ ] Time-to-first-row: < 5ms over local network
 - [ ] Throughput: > 100k rows/sec
 - [ ] Memory: O(chunk_size) with < 1MB overhead
@@ -370,6 +397,7 @@ Define and meet these targets:
 - [ ] CPU efficiency: < 1% baseline idle
 
 #### 9.3 Production Testing
+
 - [ ] Real-world production trial
   - Deploy to actual FraiseQL application
   - Gather metrics and feedback
@@ -381,11 +409,13 @@ Define and meet these targets:
   - Verify recovery behavior
 
 #### 9.4 Security Certification
+
 - [ ] Third-party security audit (optional)
 - [ ] Vulnerability disclosure policy
 - [ ] Security update process
 
 #### 9.5 Compliance
+
 - [ ] License verification
   - All dependencies compatible with MIT OR Apache-2.0
   - REUSE compliance
@@ -397,6 +427,7 @@ Define and meet these targets:
   - Data handling
 
 #### 9.6 Release Preparation
+
 - [ ] Final documentation review
 - [ ] Create release notes
 - [ ] Tag release in git
@@ -408,18 +439,21 @@ Define and meet these targets:
 ## Success Metrics
 
 ### MVP (Current)
+
 - ✅ 6 phases completed
 - ✅ 34 unit tests passing
 - ✅ Documentation complete
 - ✅ Examples working
 
 ### Stabilization (Phase 7)
+
 - Performance benchmarks established
 - Real-world testing completed
 - Zero critical issues
 - Security audit passed
 
 ### v1.0.0 (Phase 9)
+
 - API stable (no breaking changes in 6+ months)
 - 1000+ downloads on crates.io
 - Integrated into FraiseQL production
@@ -432,12 +466,14 @@ Define and meet these targets:
 ### When to Add Features
 
 **YES** if:
+
 - Multiple users request it
 - It aligns with "JSON streaming from Postgres" scope
 - It doesn't violate hard invariants
 - It can be implemented without major refactoring
 
 **NO** if:
+
 - It's solving a different problem
 - It requires buffering full result sets
 - It breaks the "one query per connection" model
@@ -446,6 +482,7 @@ Define and meet these targets:
 ### When to Defer Features
 
 Most features should defer to Phase 8 or later unless:
+
 - They're critical for v0.1.0 stability
 - They're blocking real-world adoption
 - They're trivial to implement
@@ -455,12 +492,14 @@ Most features should defer to Phase 8 or later unless:
 ## Communication Plan
 
 ### Sharing Results
+
 1. **GitHub Releases**: Publish v0.1.0 with full release notes
 2. **Crates.io**: Publish v0.1.0 (when ready)
 3. **Blog/Announcement**: Share architecture and design
 4. **Community**: Share in Rust forums, Reddit, etc.
 
 ### Gathering Feedback
+
 1. **GitHub Issues**: Feature requests and bug reports
 2. **GitHub Discussions**: Questions and discussions
 3. **User Surveys**: Gather requirements for Phase 8
@@ -478,6 +517,7 @@ Most features should defer to Phase 8 or later unless:
 | **Total** | **MVP to v1.0.0** | **8-16 weeks** |
 
 *Actual timeline depends on:*
+
 - Feedback from real-world usage
 - Number of issues discovered
 - Community contributions
@@ -548,6 +588,7 @@ Before proceeding, consider:
 ## Conclusion
 
 fraiseql-wire has achieved MVP status with solid fundamentals:
+
 - **Minimal scope** keeps code maintainable
 - **Comprehensive testing** ensures reliability
 - **Clear documentation** enables adoption

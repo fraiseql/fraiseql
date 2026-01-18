@@ -24,6 +24,7 @@ Improved micro-benchmarks to measure **real API usage patterns** instead of synt
 ### 1. Real ConnectionConfig Creation (Replaced synthetic HashMap)
 
 **Previous Approach** (❌ Not ideal):
+
 ```rust
 group.bench_function("insert_5_items", |b| {
     b.iter(|| {
@@ -38,6 +39,7 @@ group.bench_function("insert_5_items", |b| {
 ```
 
 **Improved Approach** (✅ Real API):
+
 ```rust
 group.bench_function("minimal_config", |b| {
     b.iter(|| {
@@ -76,6 +78,7 @@ group.bench_function("complex_config_many_params", |b| {
 ```
 
 **Benefits**:
+
 - ✅ Measures actual code path used by applications
 - ✅ Shows parameter scaling impact (~45 ns per parameter)
 - ✅ Enables production config sizing decisions
@@ -117,6 +120,7 @@ Unix Socket Connections:
 ## New Benchmark Groups
 
 ### `connection_config` (3 benchmarks)
+
 Measures real `ConnectionConfig` creation with different parameter counts:
 
 | Benchmark | Result | Scenario |
@@ -126,11 +130,13 @@ Measures real `ConnectionConfig` creation with different parameter counts:
 | `complex_config_many_params` | 352.2 ns | With 7 parameters |
 
 **Scaling Pattern**:
+
 - Base overhead: ~15 ns (String creation)
 - Per parameter: ~45 ns (HashMap insert)
 - Typical real config (3-4 params): ~200-250 ns
 
 ### `connection_protocol` (4 benchmarks)
+
 Measures connection string parsing for different protocols:
 
 | Benchmark | Result | Scenario |
@@ -150,6 +156,7 @@ Measures connection string parsing for different protocols:
 **After**: 22 benchmarks (added 4 protocol variants, replaced HashMap)
 
 **Benchmark Groups** (6 total):
+
 1. ✅ json_parsing (3 benchmarks)
 2. ✅ connection_string_parsing (4 benchmarks)
 3. ✅ chunking_strategy (3 benchmarks)
@@ -167,6 +174,7 @@ Measures connection string parsing for different protocols:
 ### Real-World Overhead Analysis
 
 **Connection Setup Cost Breakdown**:
+
 ```
 Parse connection string:        30-40 ns  (CPU)
 Create ConnectionConfig:       200-350 ns  (CPU)
@@ -177,6 +185,7 @@ Total connection time:       3-15 ms
 ```
 
 **Key Insight**: Connection setup is **I/O bound**, not CPU bound.
+
 - CPU portion: ~250 ns (negligible)
 - I/O portion: 3-15 ms (dominates)
 - Optimization focus: connection pooling, not config parsing
@@ -184,6 +193,7 @@ Total connection time:       3-15 ms
 ### Parameter Scaling
 
 **Per-Parameter Cost**: ~45 ns
+
 - Minimal config (2 params): 15.6 ns
 - 5 params: ~215 ns
 - 9 params: ~352 ns
@@ -195,11 +205,13 @@ This is acceptable and expected for HashMap insertion during initialization.
 ### Protocol Comparison
 
 **TCP vs Unix Socket**:
+
 - TCP: 33-35 ns
 - Unix: 30-37 ns
 - Difference: ~5 ns (1-2%)
 
 **Recommendation**: Choose based on:
+
 - **Local Postgres**: Unix socket (avoids TCP overhead entirely, though not in parsing)
 - **Remote Postgres**: TCP (only option)
 - **Load balancing**: TCP (Unix sockets local only)
@@ -209,20 +221,24 @@ This is acceptable and expected for HashMap insertion during initialization.
 ## Before & After Comparison
 
 ### Old Benchmark
+
 ```
 hashmap_ops/insert_5_items: 102 ns
 ```
+
 - **Problem**: Not representative of actual API usage
 - **Misleading**: Shows 102 ns overhead for generic HashMap ops
 - **Limited insight**: Doesn't measure real connection patterns
 
 ### New Benchmarks
+
 ```
 connection_config/minimal_config: 15.6 ns
 connection_config/full_config_with_params: 216.5 ns
 connection_protocol/parse_tcp_localhost: 33.0 ns
 connection_protocol/parse_unix_socket: 29.8 ns
 ```
+
 - **Benefit**: Real API usage patterns measured
 - **Insight**: Actual overhead for production configs is ~200 ns
 - **Actionable**: Enables config sizing and deployment decisions
@@ -232,17 +248,20 @@ connection_protocol/parse_unix_socket: 29.8 ns
 ## Code Changes
 
 ### Import Addition
+
 ```rust
 use fraiseql_wire::connection::ConnectionConfig;
 ```
 
 ### New Functions
+
 ```rust
 fn connection_config_benchmarks(c: &mut Criterion)
 fn connection_protocol_benchmarks(c: &mut Criterion)
 ```
 
 ### Benchmark Group Updates
+
 ```rust
 criterion_group!(
     benches,
@@ -272,35 +291,41 @@ criterion_group!(
 ## Why These Changes Matter
 
 ### 1. **Measure Real Workload**
-   - Before: Generic HashMap operations
-   - After: Actual `ConnectionConfig` API usage
-   - Impact: Benchmarks now guide real optimization
+
+- Before: Generic HashMap operations
+- After: Actual `ConnectionConfig` API usage
+- Impact: Benchmarks now guide real optimization
 
 ### 2. **Protocol Comparison**
-   - Before: No protocol differentiation
-   - After: Clear TCP vs Unix socket metrics
-   - Impact: Supports deployment decisions
+
+- Before: No protocol differentiation
+- After: Clear TCP vs Unix socket metrics
+- Impact: Supports deployment decisions
 
 ### 3. **Parameter Impact**
-   - Before: No scaling information
-   - After: Clear per-parameter cost (~45 ns)
-   - Impact: Informs config complexity decisions
+
+- Before: No scaling information
+- After: Clear per-parameter cost (~45 ns)
+- Impact: Informs config complexity decisions
 
 ### 4. **Production Relevance**
-   - Before: Synthetic metrics
-   - After: Real application patterns
-   - Impact: Actionable performance data
+
+- Before: Synthetic metrics
+- After: Real application patterns
+- Impact: Actionable performance data
 
 ---
 
 ## Alignment with Best Practices
 
 ✅ **Micro-benchmark Anti-patterns Avoided**:
+
 - Don't measure unrelated operations (now measuring real API)
 - Don't ignore constant factors (now visible: 15 ns base + 45 ns/param)
 - Don't ignore protocol differences (now measured: TCP vs Unix)
 
 ✅ **Criterion.rs Best Practices**:
+
 - Use `black_box()` for inputs
 - Measure realistic code paths
 - Provide context for results

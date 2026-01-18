@@ -9,11 +9,13 @@ Common issues and solutions when using FraiseQL.
 **Problem**: FraiseQL package is not installed.
 
 **Solution**:
+
 ```bash
 pip install fraiseql
 ```
 
 Or verify installation:
+
 ```bash
 python -c "import fraiseql; print(fraiseql.__version__)"
 ```
@@ -366,6 +368,7 @@ pip install fraiseql-cli
 ```
 
 Or use Python module:
+
 ```bash
 python -m fraiseql.cli compile schema.json
 ```
@@ -470,11 +473,13 @@ Try these steps:
 3. **Check decorators reference**: See [DECORATORS_REFERENCE.md](DECORATORS_REFERENCE.md)
 4. **Run tests**: `pytest tests/ -v` to verify your installation
 5. **Enable debug output**:
+
    ```python
    import logging
    logging.basicConfig(level=logging.DEBUG)
    ```
-6. **Check GitHub issues**: https://github.com/yourusername/fraiseql/issues
+
+6. **Check GitHub issues**: <https://github.com/yourusername/fraiseql/issues>
 
 ---
 

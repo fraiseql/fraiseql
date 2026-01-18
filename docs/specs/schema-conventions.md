@@ -24,6 +24,7 @@ FraiseQL enforces opinionated PostgreSQL schema conventions that enable automati
 | `tb_{entity}_relationship` | Junction/bridge tables | `tb_user_role`, `tb_product_tag` | For many-to-many |
 
 **Rules:**
+
 - Must be lowercase
 - Must use snake_case
 - No abbreviations (use `tb_customer`, not `tb_cust`)
@@ -41,6 +42,7 @@ FraiseQL enforces opinionated PostgreSQL schema conventions that enable automati
 | `av_{entity}` | Arrow plane projection (columnar) | `av_user`, `av_post` |
 
 **Rules:**
+
 - Base views MUST produce a `data` JSONB column
 - Pre-aggregated views group by foreign key
 - Arrow views are flat, single-level only
@@ -54,6 +56,7 @@ FraiseQL enforces opinionated PostgreSQL schema conventions that enable automati
 | `fn_{verb}_{entity}_{detail}` | Complex operations | `fn_archive_user_posts`, `fn_transfer_order_items` |
 
 **Rules:**
+
 - Must be lowercase snake_case
 - Action verbs: `create`, `update`, `delete`, `upsert`, `archive`, etc.
 - Function must return JSON with result data
@@ -94,6 +97,7 @@ CREATE TABLE tb_post (
 ```
 
 **Rules:**
+
 - Primary key: `pk_{entity}` (INTEGER, auto-generated)
 - Foreign key: `fk_{entity}` (INTEGER, NOT NULL, references pk_*)
 - Public ID: `id` (UUID, exposed via GraphQL)
@@ -132,6 +136,7 @@ CREATE INDEX idx_v_post_user_id ON v_post(user_id);
 ```
 
 **Rules:**
+
 - Related views expose `{parent}_id` as native column
 - This column is UUID (matches public `id`)
 - Always indexed for fast filtering
@@ -178,6 +183,7 @@ CREATE INDEX idx_v_order_items__product__category_id
 ```
 
 **Rules:**
+
 - Column name = GraphQL filter path with `__` separators
 - Singular relationships: UUID type
 - Array relationships: UUID[] type
@@ -214,6 +220,7 @@ EXECUTE FUNCTION update_timestamp();
 ```
 
 **Rules:**
+
 - `created_at`: TIMESTAMPTZ, NOT NULL, default CURRENT_TIMESTAMP
 - `created_by`: INTEGER FK to user (nullable if system creates it)
 - `updated_at`: TIMESTAMPTZ, NOT NULL, updated by trigger
@@ -223,6 +230,7 @@ EXECUTE FUNCTION update_timestamp();
 - Add CHECK constraints to prevent invalid timestamps
 
 **Usage:**
+
 - Views filter on `WHERE deleted_at IS NULL` for soft delete
 - Cache invalidation uses `updated_at` as signal
 - CDC events use audit columns for timestamps
@@ -250,6 +258,7 @@ WHERE deleted_at IS NULL;
 ```
 
 **Rules:**
+
 - Column must be named `data`
 - Type: JSONB
 - Contains fully-formed projection in GraphQL field case
@@ -257,6 +266,7 @@ WHERE deleted_at IS NULL;
 - Never null (use `{}` for empty objects, `[]` for empty arrays)
 
 **Field naming in JSONB:**
+
 - Convert snake_case to camelCase
 - `created_at` → `createdAt`
 - `user_id` → `userId`
@@ -306,6 +316,7 @@ WHERE deleted_at IS NULL;                 -- Soft delete
 ```
 
 **Must include:**
+
 - `pk_*` for internal reference
 - `id` for public identity
 - `identifier` for URLs
@@ -337,6 +348,7 @@ CREATE INDEX idx_v_post_user_id ON v_post(user_id);
 ```
 
 **Must include:**
+
 - Native `{parent}_id` column for filtering
 - Index on FK columns
 - FK value in `data` JSONB for clients
@@ -366,6 +378,7 @@ LEFT JOIN v_posts_by_user p ON p.fk_user = u.pk_user;
 ```
 
 **Rules:**
+
 - Pre-aggregated views are NOT exposed directly to GraphQL
 - Used only for efficient composition
 - Join on internal `fk_*` columns
@@ -376,6 +389,7 @@ LEFT JOIN v_posts_by_user p ON p.fk_user = u.pk_user;
 For analytical workloads, FraiseQL supports **fact tables** with the `tf_` prefix:
 
 **Fact tables** (`tf_*`):
+
 - Transactional/event data at any granularity
 - Measures: SQL columns (numeric types for fast aggregation)
 - Dimensions: JSONB `dimensions` column (flexible grouping)
@@ -383,6 +397,7 @@ For analytical workloads, FraiseQL supports **fact tables** with the `tf_` prefi
 - Pre-aggregated versions use descriptive suffixes: `tf_sales_daily`, `tf_events_monthly`
 
 **Dimension tables** (`td_*`):
+
 - Reference data used at ETL time to denormalize into fact tables
 - Never joined at query time (FraiseQL does not support joins)
 - Managed by DBA/data team
@@ -471,6 +486,7 @@ WHERE deleted_at IS NULL;
 ```
 
 **Rules:**
+
 - Single level only (no nesting)
 - Each entity = separate Arrow batch
 - FK columns included for client-side joins
@@ -567,6 +583,7 @@ All stored procedures (mutations) MUST return a standardized JSON response match
 | `noop` | No changes applied (idempotent, already exists, etc.) |
 
 **Note:** The mutation response above is the **public-facing API response**. Internally, all mutations are also logged to `tb_entity_change_log` with a full Debezium envelope for complete audit trails. See **section 6: Mutation Logging & Audit Tables** for details. This enables:
+
 - Complete audit trail of all entity writes
 - CDC event emission for real-time systems
 - Observability and performance monitoring
@@ -663,6 +680,7 @@ $$;
 ```
 
 **Rules:**
+
 - Function name: `fn_{action}_{entity}`
 - Parameters: `tenant_id UUID`, `user_id UUID` (from auth context), `payload JSONB` (input)
 - Return type: **TEXT** (JSON serialized, portable across databases)
@@ -775,6 +793,7 @@ $$;
 ```
 
 **Rules:**
+
 - Extract entity ID from payload
 - Fetch BEFORE snapshot for comparison
 - Update only fields present in payload
@@ -869,6 +888,7 @@ $$;
 ```
 
 **Rules:**
+
 - Soft delete: set `deleted_at` and `deleted_by`
 - Never hard-delete from `tb_*`
 - Use `deleted` array in cascade (no `updated`)
@@ -880,13 +900,15 @@ $$;
 This spec defines the **response contract** that all databases must follow.
 
 **PostgreSQL can further optimize:**
+
 - See: `docs/specs/stored-procedures-postgresql.md`
 - Use composite types for efficiency
-- Two-layer architecture (app.* wrapper → core.* implementation)
+- Two-layer architecture (app.*wrapper → core.* implementation)
 - Built-in mutation logging and CDC
 - Industry-standard stored procedure patterns
 
 **Other databases:**
+
 - SQLite: See `docs/specs/stored-procedures-sqlite.md`
 - MySQL: See `docs/specs/stored-procedures-mysql.md`
 - Each maintains the JSON response contract above
@@ -930,6 +952,7 @@ CREATE INDEX idx_entity_log_status ON core.tb_entity_change_log (change_status);
 ```
 
 **Purpose:**
+
 - Centralized audit log for all entity writes (GraphQL mutations, batch imports, ETL, direct SQL, triggers, etc.)
 - Source of truth for observability and debugging
 - Enables CDC event emission for real-time systems
@@ -964,12 +987,14 @@ The `object_data` JSONB column contains a **Debezium-style change envelope** for
 ```
 
 **Operation Codes:**
+
 - `"c"` — Create (INSERT)
 - `"u"` — Update (UPDATE)
 - `"d"` — Delete (DELETE)
 - `"r"` — Read/Noop (NOOP, no change)
 
 **Field Semantics:**
+
 - `before` — Entity state before modification (null for INSERT)
 - `after` — Entity state after modification (null for DELETE)
 - `op` — Database operation code
@@ -1195,6 +1220,7 @@ This design separates **side effects (logging)** from **pure functions (response
 - `log_and_return_mutation()` — Combines both for typical mutations
 
 **Benefits:**
+
 - Testable: Each function can be tested independently
 - Flexible: Can log without returning, or return without logging if needed
 - Clear: Easy to understand what each function does
@@ -1248,6 +1274,7 @@ WHERE u.deleted_at IS NULL;
 ```
 
 **Rules:**
+
 - Junction table uses internal keys (`fk_*`)
 - View aggregates to UUID array
 - Include both array column AND in JSONB
@@ -1285,6 +1312,7 @@ CREATE INDEX idx_v_post_data_gin
 ```
 
 **Rules:**
+
 - B-tree on: public `id`, `identifier`, audit columns, FK columns
 - UNIQUE on: `id` and `identifier`
 - GIN on: array columns, deep path columns, `data` JSONB (optional)
@@ -1297,6 +1325,7 @@ CREATE INDEX idx_v_post_data_gin
 ### 9.1 When to Materialize
 
 Use materialized views for:
+
 - Complex aggregations (slow joins)
 - Deep denormalization needed for filtering
 - Rarely-changing data (stats, summaries)
@@ -1322,6 +1351,7 @@ REFRESH MATERIALIZED VIEW CONCURRENTLY mv_user_stats;
 ```
 
 **Rules:**
+
 - Name: `mv_{entity}`
 - Index on grouping columns
 - Refresh strategy documented

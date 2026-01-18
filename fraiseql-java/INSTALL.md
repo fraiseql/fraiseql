@@ -279,6 +279,7 @@ See the `examples/` directory for complete examples:
 ### "Cannot find @GraphQLType annotation"
 
 Ensure the JAR is properly on your classpath. Check:
+
 - `mvn dependency:tree` includes fraiseql-java
 - Java version is 17+
 
@@ -296,6 +297,7 @@ FraiseQL.registerType(MyType.class);
 ### "Field has no type"
 
 All `@GraphQLField` fields must have a detectable type. Check:
+
 - Primitive types: `int`, `String`, `boolean`, etc.
 - Annotated types: `@GraphQLType` classes
 - Supported types: See "Supported Types" section
@@ -314,9 +316,9 @@ FraiseQL.query("user").returnType("User").register();      // ❌ Bad - string w
 
 For issues, questions, or contributions:
 
-- **GitHub Issues**: https://github.com/fraiseql/fraiseql/issues
-- **Documentation**: https://docs.fraiseql.com
-- **Discord**: https://discord.gg/fraiseql
+- **GitHub Issues**: <https://github.com/fraiseql/fraiseql/issues>
+- **Documentation**: <https://docs.fraiseql.com>
+- **Discord**: <https://discord.gg/fraiseql>
 
 ## License
 

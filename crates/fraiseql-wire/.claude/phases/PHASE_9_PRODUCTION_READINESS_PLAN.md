@@ -24,6 +24,7 @@ This phase makes fraiseql-wire suitable for mission-critical production use with
 ## Current State Summary
 
 ### What's Complete (Phase 8)
+
 ✅ All streaming and resource management features implemented
 ✅ 37 production metrics for observability
 ✅ TLS support for secure connections
@@ -35,6 +36,7 @@ This phase makes fraiseql-wire suitable for mission-critical production use with
 ✅ Comprehensive documentation
 
 ### What Needs Phase 9
+
 - Formalize API stability guarantees
 - Define error recovery patterns
 - Production deployment guide
@@ -46,6 +48,7 @@ This phase makes fraiseql-wire suitable for mission-critical production use with
 ## Step 1: API Audit and Stabilization
 
 ### Objective
+
 Review all public APIs and lock them down for v1.0.0+
 
 ### Tasks
@@ -92,6 +95,7 @@ Review all public APIs and lock them down for v1.0.0+
    - Review for stability: All good for v1.0.0
 
 ### Checklist
+
 - [ ] Review all public exports in `src/lib.rs`
 - [ ] Verify all pub functions have documentation
 - [ ] Check for internal-only types marked pub by mistake
@@ -101,7 +105,9 @@ Review all public APIs and lock them down for v1.0.0+
 - [ ] Create API stability document
 
 ### Output
+
 File: `.claude/phases/PHASE_9_1_API_AUDIT.md`
+
 - List of all public APIs
 - Stability assessment for each
 - Any planned changes before v1.0.0
@@ -114,6 +120,7 @@ File: `.claude/phases/PHASE_9_1_API_AUDIT.md`
 ## Step 2: Error Handling Review
 
 ### Objective
+
 Ensure comprehensive error handling and recovery patterns
 
 ### Tasks
@@ -138,6 +145,7 @@ Ensure comprehensive error handling and recovery patterns
    - [ ] Error handling best practices
 
 ### Checklist
+
 - [ ] Review error.rs enum completeness
 - [ ] Verify all error variants have Display impl
 - [ ] Check error context is preserved through call stack
@@ -145,7 +153,9 @@ Ensure comprehensive error handling and recovery patterns
 - [ ] Verify tests cover error cases
 
 ### Output
+
 File: `ERROR_HANDLING_GUIDE.md`
+
 - Error recovery strategies
 - Common error patterns
 - Debugging tips
@@ -158,11 +168,13 @@ File: `ERROR_HANDLING_GUIDE.md`
 ## Step 3: Backward Compatibility Policy
 
 ### Objective
+
 Define clear compatibility guarantees for v1.0.0+
 
 ### Tasks
 
 1. **Define Policy**
+
    ```
    # Semantic Versioning for fraiseql-wire v1.0.0+
 
@@ -196,13 +208,16 @@ Define clear compatibility guarantees for v1.0.0+
    - How to handle security updates
 
 ### Checklist
+
 - [ ] Write compatibility policy document
 - [ ] Define deprecation procedures
 - [ ] Document minimum version guarantees
 - [ ] Clarify testing and regression commitment
 
 ### Output
+
 File: `COMPATIBILITY_POLICY.md`
+
 - Version strategy
 - Breaking change process
 - Deprecation procedures
@@ -215,6 +230,7 @@ File: `COMPATIBILITY_POLICY.md`
 ## Step 4: Production Deployment Guide
 
 ### Objective
+
 Help users run fraiseql-wire in production confidently
 
 ### Tasks
@@ -255,6 +271,7 @@ Help users run fraiseql-wire in production confidently
    - [ ] Metrics collection example
 
 ### Checklist
+
 - [ ] Write production deployment guide
 - [ ] Create configuration template
 - [ ] Write monitoring setup guide
@@ -262,7 +279,9 @@ Help users run fraiseql-wire in production confidently
 - [ ] Add production examples
 
 ### Output
+
 File: `PRODUCTION_DEPLOYMENT.md`
+
 - Deployment checklist
 - Configuration guidance
 - Monitoring setup
@@ -276,6 +295,7 @@ File: `PRODUCTION_DEPLOYMENT.md`
 ## Step 5: Release Preparation
 
 ### Objective
+
 Prepare for v1.0.0 release
 
 ### Tasks
@@ -310,6 +330,7 @@ Prepare for v1.0.0 release
    - [ ] Thank contributors
 
 ### Checklist
+
 - [ ] Bump version to 1.0.0
 - [ ] Update all docs
 - [ ] Update CHANGELOG.md
@@ -318,6 +339,7 @@ Prepare for v1.0.0 release
 - [ ] Create git tag for v1.0.0
 
 ### Output
+
 - Version bumped in Cargo.toml
 - Updated CHANGELOG.md
 - Updated README.md
@@ -331,6 +353,7 @@ Prepare for v1.0.0 release
 ## Implementation Sequence
 
 ### Phase 9.1: API Stabilization (3 hours)
+
 ```bash
 # Step 1
 1. Review all public APIs
@@ -340,6 +363,7 @@ Prepare for v1.0.0 release
 ```
 
 ### Phase 9.2: Error Handling (2 hours)
+
 ```bash
 # Step 2
 1. Review error.rs completeness
@@ -349,6 +373,7 @@ Prepare for v1.0.0 release
 ```
 
 ### Phase 9.3: Compatibility Policy (1 hour)
+
 ```bash
 # Step 3
 1. Define semantic versioning policy
@@ -357,6 +382,7 @@ Prepare for v1.0.0 release
 ```
 
 ### Phase 9.4: Production Guide (3 hours)
+
 ```bash
 # Step 4
 1. Write deployment checklist
@@ -367,6 +393,7 @@ Prepare for v1.0.0 release
 ```
 
 ### Phase 9.5: Release (2 hours)
+
 ```bash
 # Step 5
 1. Bump version to 1.0.0
@@ -415,26 +442,31 @@ Prepare for v1.0.0 release
 ## Success Metrics
 
 ✅ **API Ready**:
+
 - All public APIs documented
 - No ambiguities in API contract
 - Examples demonstrate proper usage
 
 ✅ **Error Handling**:
+
 - Clear recovery strategies for each error
 - Users understand when to retry
 - Error messages are helpful
 
 ✅ **Compatibility**:
+
 - Clear versioning policy
 - Users understand stability guarantees
 - Migration paths documented
 
 ✅ **Production Ready**:
+
 - Deployment guide comprehensive
 - Monitoring setup documented
 - Troubleshooting procedures clear
 
 ✅ **Release Ready**:
+
 - Version bumped
 - Changelog complete
 - Tests passing
@@ -447,17 +479,20 @@ Prepare for v1.0.0 release
 Once v1.0.0 is released:
 
 ### Immediate
+
 - Publish to crates.io
 - Announce on Rust forums
 - Create announcement blog post
 - Gather feedback from community
 
 ### Short-term (v1.1.0+)
+
 - Connection pooling improvements (fraiseql-pool)
 - Additional examples for common frameworks
 - Community feedback integration
 
 ### Long-term (v2.0.0+)
+
 - Major feature additions based on usage
 - Performance optimizations
 - Extended Postgres version support
@@ -471,4 +506,3 @@ Once v1.0.0 is released:
 - Main goal: lock down API for long-term commitment
 - This prepares fraiseql-wire for real-world production use
 - Users should feel confident deploying v1.0.0 to mission-critical systems
-

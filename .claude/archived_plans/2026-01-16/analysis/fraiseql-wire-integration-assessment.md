@@ -13,11 +13,13 @@
 ### Key Recommendation
 
 **Dual Data Plane Architecture**:
+
 - ✅ **fraiseql-wire**: Standard GraphQL queries (entity lookups, simple WHERE)
 - ✅ **Arrow + Polars**: Analytics queries (aggregations, window functions, fact tables)
 - ✅ **Tokio**: Async runtime unifying both data planes
 
 This architecture leverages the strengths of each component:
+
 - **fraiseql-wire** for memory-efficient streaming of entity data
 - **Arrow/Polars** for high-performance analytical transformations
 - **Unified API** that routes queries transparently based on query type
@@ -29,6 +31,7 @@ This architecture leverages the strengths of each component:
 ### What It Is
 
 A **minimal, async Rust query engine** that:
+
 - Implements Postgres Simple Query Protocol from scratch (no libpq)
 - Streams JSON data with bounded memory: **O(chunk_size)** vs **O(result_size)**
 - Provides 1000x-20,000x memory savings for large result sets
@@ -44,6 +47,7 @@ WHERE <predicate>
 ```
 
 **Constraints**:
+
 - Exactly **one column** (JSON/JSONB)
 - Read-only (no writes, transactions, or prepared statements)
 - Single active query per connection
@@ -170,6 +174,7 @@ enum QueryType {
 **Goal**: Create `FraiseWireAdapter` implementing `DatabaseAdapter` trait.
 
 **Files to Modify**:
+
 ```
 crates/fraiseql-core/
 ├── Cargo.toml                              # Add fraiseql-wire dependency
@@ -278,12 +283,14 @@ impl DatabaseAdapter for FraiseWireAdapter {
 ```
 
 **Benefits**:
+
 - ✅ Drop-in replacement for `PostgresAdapter`
 - ✅ Same trait interface (`DatabaseAdapter`)
 - ✅ Streaming semantics reduce memory pressure
 - ✅ No changes to executor or query planning logic
 
 **Challenges**:
+
 - ⚠ **WHERE clause translation**: Need to convert `WhereClause` AST → SQL string
 - ⚠ **Pagination**: `LIMIT`/`OFFSET` must be applied in Rust (post-stream)
 - ⚠ **Connection pooling**: fraiseql-wire has 1 connection per client
@@ -293,6 +300,7 @@ impl DatabaseAdapter for FraiseWireAdapter {
 **Goal**: Route analytics queries to Arrow/Polars pipeline.
 
 **Architecture**:
+
 ```rust
 // In executor.rs
 match query_type {
@@ -343,6 +351,7 @@ impl ArrowAnalyticsAdapter {
 ```
 
 **Benefits**:
+
 - ✅ Polars optimized for aggregations (SIMD, parallel execution)
 - ✅ Arrow columnar format perfect for analytics
 - ✅ Native support for window functions
@@ -394,6 +403,7 @@ impl Executor {
 ```
 
 **Benefits**:
+
 - ✅ Single API surface for all query types
 - ✅ Optimal backend selection per query
 - ✅ Easy to add telemetry (which backend handled which query)
@@ -412,6 +422,7 @@ Both FraiseQL v2 and fraiseql-wire **already use Tokio**:
 ### Compatibility
 
 ✅ **Perfect compatibility** - both use:
+
 - Tokio 1.x async runtime
 - `async_trait` for trait methods
 - `futures` for `Stream` trait
@@ -523,6 +534,7 @@ impl FraiseWireAdapter {
 ### fraiseql-wire Design
 
 fraiseql-wire uses **1 connection per client**:
+
 - Each `FraiseClient` owns a single `Connection`
 - Streams are single-query (no multiplexing)
 
@@ -569,6 +581,7 @@ impl FraiseWireAdapter {
 **Option 2: Connection Pool Inside fraiseql-wire** (Future Enhancement)
 
 Modify fraiseql-wire to support connection pooling internally:
+
 ```rust
 // In fraiseql-wire (future enhancement)
 pub struct FraiseClient {
@@ -591,10 +604,12 @@ impl FraiseClient {
 ### Memory Usage Improvement
 
 **Before** (tokio-postgres):
+
 - Query returning 100K rows: **26 MB** memory
 - Query returning 1M rows: **260 MB** memory
 
 **After** (fraiseql-wire):
+
 - Query returning 100K rows: **1.3 KB** memory (configurable chunk size)
 - Query returning 1M rows: **1.3 KB** memory
 
@@ -610,12 +625,14 @@ impl FraiseClient {
 ### When It Matters Most
 
 **High-impact scenarios**:
+
 - ✅ Large list queries (e.g., `users(limit: 10000)`)
 - ✅ Cursor-based pagination (streaming > buffering)
 - ✅ Real-time subscriptions (future feature)
 - ✅ Export queries (CSV, JSON streaming)
 
 **Low-impact scenarios**:
+
 - ⚠ Small queries (<1000 rows) - no significant difference
 - ⚠ Analytics queries - Arrow/Polars more important
 
@@ -641,6 +658,7 @@ impl FraiseClient {
 - [ ] Add feature flag: `cargo build --features wire-backend`
 
 **Acceptance Criteria**:
+
 - All existing tests pass with `FraiseWireAdapter`
 - Memory usage reduced for queries >10K rows
 - No latency regression
@@ -657,6 +675,7 @@ impl FraiseClient {
 - [ ] Write integration tests for analytics queries
 
 **Acceptance Criteria**:
+
 - All `_aggregate` queries route to Arrow backend
 - All `_window` queries route to Arrow backend
 - Performance matches or exceeds SQL-based approach
@@ -671,6 +690,7 @@ impl FraiseClient {
 - [ ] Update documentation and examples
 
 **Acceptance Criteria**:
+
 - Single `Executor::execute()` API routes transparently
 - Metrics show correct backend selection
 - All existing tests pass without modification
@@ -709,10 +729,12 @@ impl FraiseClient {
 ### Alternative 1: Single Backend (tokio-postgres only)
 
 **Pros**:
+
 - ✅ Simple (no dual backend complexity)
 - ✅ Mature, battle-tested driver
 
 **Cons**:
+
 - ❌ High memory usage for large result sets (26 MB for 100K rows)
 - ❌ No streaming semantics (buffers entire result)
 - ❌ Not optimized for analytics (row-oriented)
@@ -722,10 +744,12 @@ impl FraiseClient {
 ### Alternative 2: Single Backend (Arrow/Polars only)
 
 **Pros**:
+
 - ✅ Excellent analytics performance
 - ✅ Columnar format efficient for aggregations
 
 **Cons**:
+
 - ❌ Overkill for simple entity lookups
 - ❌ Higher overhead for small queries
 - ❌ More complex integration
@@ -735,12 +759,14 @@ impl FraiseClient {
 ### Alternative 3: Dual Backend (fraiseql-wire + Arrow/Polars)
 
 **Pros**:
+
 - ✅ Best of both worlds (memory efficiency + analytics performance)
 - ✅ Query router already exists in FraiseQL v2
 - ✅ Clean separation of concerns
 - ✅ Tokio compatibility is seamless
 
 **Cons**:
+
 - ⚠ Two backends to maintain
 - ⚠ WHERE clause translation needed
 
@@ -806,6 +832,7 @@ impl FraiseClient {
 ### Recommended Architecture
 
 **Dual Data Plane**:
+
 - **fraiseql-wire**: Standard queries (entity lookups, simple filtering)
 - **Arrow + Polars**: Analytics queries (aggregations, window functions, fact tables)
 - **Unified Router**: `Executor` routes queries based on type classification

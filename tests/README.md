@@ -115,11 +115,13 @@ All test data uses fixed UUIDs for predictable test assertions:
    - `mysql/init.sql` for MySQL
 
 2. Reset the databases:
+
    ```bash
    make db-reset
    ```
 
 3. Verify the data:
+
    ```bash
    make db-verify
    ```

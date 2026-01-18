@@ -47,6 +47,7 @@ Your original comprehensive 11-document plan was excellent. I've created **5 new
 ## How to Start (Next 30 minutes)
 
 ### Read These (In Order)
+
 ```
 1. This file (5 min) ← You're reading it
 2. README_SEQUENTIAL_EDITION.md (10 min) ← Next
@@ -55,6 +56,7 @@ Your original comprehensive 11-document plan was excellent. I've created **5 new
 ```
 
 ### Then Start
+
 ```
 5. Begin Phase 1 Task 1.1 (Python - 5 minutes)
 6. Follow each task sequentially
@@ -68,18 +70,22 @@ Your original comprehensive 11-document plan was excellent. I've created **5 new
 ### 4 Phases, 100% Sequential
 
 **Phase 1: Quick Fixes (2.5 hours)**
+
 - Python ✅ (5 min) → TypeScript ✅ (15 min) → Java ✅ (10 min) → PHP ✅ (5 min) → Go ✅ (5 min) → CLI Investigation ✅ (2 hrs)
 - **One task at a time. Each must complete before next starts.**
 
 **Phase 2: E2E Infrastructure (9 hours)**
+
 - Python E2E ✅ (1 hr) → TypeScript E2E ✅ (1 hr) → Java E2E ✅ (1 hr) → Go E2E ✅ (1 hr) → PHP E2E ✅ (1 hr) → Makefile ✅ (2 hrs) → GitHub Actions ✅ (3 hrs)
 - **Sequential. No parallelization.**
 
 **Phase 3: CLI Integration (2.25 hours)**
+
 - Analyze ✅ (30 min) → Implement ✅ (45 min) → Verify ✅ (30 min) → Update Tests ✅ (30 min)
 - **Fix the schema format issue.**
 
 **Phase 4: Documentation (2.5 hours)**
+
 - README ✅ (30 min) → Language Generators Docs ✅ (45 min) → E2E Testing Docs ✅ (45 min) → Final Commit ✅ (30 min)
 - **Document everything.**
 
@@ -90,11 +96,13 @@ Your original comprehensive 11-document plan was excellent. I've created **5 new
 ## What Makes This Sequential
 
 ### Original Plan
+
 - Suggested you could do Python, TypeScript, Java, PHP, Go in parallel
 - Could potentially skip ahead
 - Multiple paths possible
 
 ### Sequential Edition
+
 - **One task. Finish. Next task.**
 - No skipping. Ever.
 - One person. One task at a time.
@@ -105,6 +113,7 @@ Your original comprehensive 11-document plan was excellent. I've created **5 new
 ## Key Rules (IMPORTANT!)
 
 ### ✅ DO
+
 - Finish each task 100% before moving on
 - Run success criteria checks before proceeding
 - Fix failures immediately (they're blockers)
@@ -112,6 +121,7 @@ Your original comprehensive 11-document plan was excellent. I've created **5 new
 - Commit your work after each phase
 
 ### ❌ DON'T
+
 - Skip ahead to a later task
 - Run multiple tasks in parallel
 - Ignore test failures
@@ -123,6 +133,7 @@ Your original comprehensive 11-document plan was excellent. I've created **5 new
 ## Your Success Criteria
 
 ### At the End, You'll Have
+
 ✅ **315+ tests passing** across all 5 languages
 ✅ **E2E infrastructure** (Docker + Makefile + GitHub Actions)
 ✅ **CLI integration working** (all schemas compile)
@@ -158,6 +169,7 @@ ORIGINAL DOCUMENTS (reference):
 ## Reading Path (Choose One)
 
 ### Path 1: Just Get Started (25 min)
+
 ```
 1. README_SEQUENTIAL_EDITION.md (10 min)
 2. IMPLEMENTATION_PLAN_SEQUENTIAL.md Phase 1 (15 min)
@@ -165,6 +177,7 @@ ORIGINAL DOCUMENTS (reference):
 ```
 
 ### Path 2: Understand First (45 min) ← RECOMMENDED
+
 ```
 1. README_SEQUENTIAL_EDITION.md (10 min)
 2. SEQUENTIAL_PLAN_SUMMARY.md (10 min)
@@ -174,6 +187,7 @@ ORIGINAL DOCUMENTS (reference):
 ```
 
 ### Path 3: Deep Dive (2 hours)
+
 ```
 1. All sequential docs (1 hour)
 2. E2E_TESTING_STRATEGY.md (30 min)
@@ -186,23 +200,27 @@ ORIGINAL DOCUMENTS (reference):
 ## Timeline Example
 
 ### Day 1 (3 hours)
+
 ```
 Morning:   Phase 1.1-1.5 (40 min) - Quick language fixes
 Afternoon: Phase 1.6 (2 hrs) - CLI investigation
 ```
 
 ### Day 2 (4-5 hours)
+
 ```
 All day: Phase 2.1-2.2 (5 hrs) - E2E tests + Makefile
 ```
 
 ### Day 3 (5-6 hours)
+
 ```
 Morning: Phase 2.3 (3 hrs) - GitHub Actions
 Afternoon: Phase 3 (2.25 hrs) - CLI fix
 ```
 
 ### Day 4 (2.5 hours)
+
 ```
 Morning: Phase 4 (2.5 hrs) - Documentation
 ```
@@ -224,21 +242,27 @@ Morning: Phase 4 (2.5 hrs) - Documentation
 ## Questions Before You Start?
 
 ### "What if I get stuck?"
+
 → Every task has a "If fails" troubleshooting section
 
 ### "Can I skip a task?"
+
 → No. This is sequential. You must do all tasks in order.
 
 ### "What if Phase 1.6 (CLI) takes too long?"
+
 → Time-boxed to 2 hours max. Move to Phase 2 if needed.
 
 ### "Can I parallelize?"
+
 → No. This plan is 100% sequential.
 
 ### "Will 16-18 hours really be enough?"
+
 → Yes. That's the honest estimate based on existing code.
 
 ### "What about Week 2 (package releases)?"
+
 → Covered in the plan as next phase (not part of 16-18 hours)
 
 ---
@@ -246,6 +270,7 @@ Morning: Phase 4 (2.5 hrs) - Documentation
 ## Right Now
 
 ### Next 5 Steps
+
 1. ✅ Read this file (you're doing it)
 2. → Read README_SEQUENTIAL_EDITION.md (10 min)
 3. → Read QUICK_REFERENCE_SEQUENTIAL.md (10 min)
@@ -259,16 +284,19 @@ Morning: Phase 4 (2.5 hrs) - Documentation
 **All files location**: `/home/lionel/code/fraiseql/.claude/`
 
 **View sequential files**:
+
 ```bash
 ls -1 /home/lionel/code/fraiseql/.claude/ | grep -i sequential
 ```
 
 **Main plan**:
+
 ```bash
 cat /home/lionel/code/fraiseql/.claude/IMPLEMENTATION_PLAN_SEQUENTIAL.md
 ```
 
 **Quick reference**:
+
 ```bash
 cat /home/lionel/code/fraiseql/.claude/QUICK_REFERENCE_SEQUENTIAL.md
 ```
@@ -278,6 +306,7 @@ cat /home/lionel/code/fraiseql/.claude/QUICK_REFERENCE_SEQUENTIAL.md
 ## Ready?
 
 ### Your Next Action
+
 ```
 1. Read README_SEQUENTIAL_EDITION.md (in .claude/ folder)
 2. Keep it simple. One task at a time.

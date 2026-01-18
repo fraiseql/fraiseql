@@ -737,6 +737,7 @@ fraiseql.extensions.register(CustomExtensions)
 ### 11.1 Extension Development
 
 **DO:**
+
 - ✅ Keep extensions focused (single responsibility)
 - ✅ Use async/await for I/O operations
 - ✅ Cache expensive computations
@@ -746,6 +747,7 @@ fraiseql.extensions.register(CustomExtensions)
 - ✅ Use strong typing (type hints)
 
 **DON'T:**
+
 - ❌ Modify user context (read-only)
 - ❌ Perform long-running operations in hooks (use async)
 - ❌ Bypass authorization checks

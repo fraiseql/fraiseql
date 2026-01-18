@@ -52,6 +52,7 @@ sample_rate = 0.1  # 10% sampling
 ### 2. Run Your Application
 
 Let it collect metrics for **24-48 hours** with normal traffic. The system will:
+
 - Track query execution times
 - Monitor JSONB path accesses
 - Record filter selectivity
@@ -130,12 +131,14 @@ fraiseql-cli compile schema.json
 Observability-Driven Optimization is most valuable for:
 
 ### ✅ High-Traffic JSONB Queries
+
 - Analytics dashboards with dimension filtering
 - Multi-tenant SaaS with JSONB metadata
 - Event tracking with nested JSON properties
 - User profiles with flexible attributes
 
 ### ✅ Repeated Filtering on Nested Fields
+
 ```sql
 -- Slow: JSONB extraction on every query
 WHERE dimensions->>'region' = 'US'
@@ -145,6 +148,7 @@ WHERE region_id = 'US'  -- 10-15x faster
 ```
 
 ### ✅ Aggregate Queries on Dimensions
+
 ```sql
 -- Slow: GROUP BY on JSONB expression
 GROUP BY dimensions->>'category'
@@ -154,6 +158,7 @@ GROUP BY category_id  -- 5-10x faster
 ```
 
 ### ✅ Slow Query Alerts
+
 - Queries consistently over 1000ms
 - P95/P99 latency spikes
 - High database CPU usage
@@ -177,6 +182,7 @@ Before using observability:
 **Scenario**: E-commerce analytics dashboard
 
 **Before**:
+
 ```python
 @fraiseql.fact_table(
     table_name='tf_sales',
@@ -189,11 +195,13 @@ class SalesMetrics:
 ```
 
 **Metrics**:
+
 - 8,500 queries/day filtering on `region`
 - Average: 850ms
 - P95: 1,250ms
 
 **Suggested Optimization**:
+
 ```sql
 ALTER TABLE tf_sales ADD COLUMN region_id TEXT;
 UPDATE tf_sales SET region_id = dimensions->>'region';
@@ -201,6 +209,7 @@ CREATE INDEX idx_tf_sales_region ON tf_sales (region_id);
 ```
 
 **After**:
+
 ```python
 @fraiseql.fact_table(
     table_name='tf_sales',
@@ -215,6 +224,7 @@ class SalesMetrics:
 ```
 
 **Results**:
+
 - Average: 68ms (12.5x faster)
 - P95: 95ms
 - **95% reduction in query time**
@@ -225,17 +235,20 @@ class SalesMetrics:
 ## Next Steps
 
 ### Core Documentation
+
 - **[Architecture](architecture.md)** - System design and components
 - **[Configuration](configuration.md)** - Complete configuration reference
 - **[Metrics Collection](metrics-collection.md)** - What data is collected
 - **[Analysis Guide](analysis-guide.md)** - Using the analyze command
 
 ### Advanced Topics
+
 - **[Optimization Suggestions](optimization-suggestions.md)** - Understanding output
 - **[Migration Workflow](migration-workflow.md)** - Applying changes safely
 - **[Troubleshooting](troubleshooting.md)** - Common issues and solutions
 
 ### Examples
+
 - **[Basic Denormalization](examples/basic-denormalization.md)** - Simple JSONB → column
 - **[Analytics Optimization](examples/analytics-optimization.md)** - Complex aggregates
 - **[Production Deployment](examples/production-deployment.md)** - High-traffic setup
@@ -245,7 +258,9 @@ class SalesMetrics:
 ## Key Concepts
 
 ### Denormalization
+
 Moving data from JSONB column to dedicated column for faster access:
+
 ```sql
 -- Before: Slow JSONB extraction
 dimensions->>'region'
@@ -255,19 +270,25 @@ region_id
 ```
 
 ### Metrics Collection
+
 Observability tracks:
+
 - **Query timing**: Execution, SQL generation, projection
 - **JSONB accesses**: Which paths, how often, selectivity
 - **Database stats**: Row counts, cardinality, index usage
 
 ### Analysis Thresholds
+
 Conservative defaults (configurable):
+
 - **Frequency**: 1000+ queries/day
 - **Speedup**: 5x+ improvement
 - **Selectivity**: Filters that reduce result set
 
 ### Migration Safety
+
 Multi-stage process:
+
 1. Generate SQL
 2. Review changes
 3. Test in staging
@@ -310,7 +331,7 @@ Multi-stage process:
 - **GitHub Issues**: [github.com/fraiseql/fraiseql/issues](https://github.com/fraiseql/fraiseql/issues)
 - **Discord**: [discord.gg/fraiseql](https://discord.gg/fraiseql)
 - **Docs**: [docs.fraiseql.com](https://docs.fraiseql.com)
-- **Email**: support@fraiseql.com
+- **Email**: <support@fraiseql.com>
 
 ---
 

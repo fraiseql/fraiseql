@@ -214,6 +214,7 @@ query {
 ```
 
 **Compiled SQL:**
+
 ```sql
 -- Reverse keyset: find rows BEFORE cursor
 SELECT ... FROM v_user
@@ -294,6 +295,7 @@ GET /graphql \
 ```
 
 **Arrow Stream Structure:**
+
 ```
 [Schema Metadata] [Batch 1: users] [Batch 2: orders] [Footer with endCursor]
 ```
@@ -317,17 +319,20 @@ class User:
 ```
 
 **Compiled keyset:**
+
 ```python
 ORDER BY id
 LIMIT 100
 ```
 
 **Pros:**
+
 - Simple, predictable
 - Every table has a primary key
 - Scales well
 
 **Cons:**
+
 - Order changes if primary key is UUID (non-monotonic)
 - Insertion order not stable (new users appear randomly)
 
@@ -345,6 +350,7 @@ class UserAnalytics:
 ```
 
 **Compiled keyset:**
+
 ```sql
 WHERE (created_at, id) > (?, ?)
 ORDER BY created_at, id
@@ -375,6 +381,7 @@ Advanced use cases can define **custom keyset expressions**:
 ```
 
 **Keyset complexity:**
+
 - Simple columns: No overhead
 - Composite columns: Small overhead (<1% query time)
 - Expression-based: May require index hints
@@ -388,12 +395,14 @@ Advanced use cases can define **custom keyset expressions**:
 Cursors are validated at **compile time and runtime**:
 
 **Compile time:**
+
 ```python
 # ❌ Error: Cursor references non-existent field
 query = users(after: cursor)  # cursor built for old schema
 ```
 
 **Runtime:**
+
 ```python
 # Cursor decoded and validated
 cursor = base64_decode("eyJ...")
@@ -417,6 +426,7 @@ Cursors are **signed** to prevent tampering:
 ```
 
 **Validation:**
+
 ```python
 # Verify HMAC before using cursor
 if compute_hmac(cursor_data, secret) != cursor.hmac:
@@ -467,6 +477,7 @@ LIMIT 100
 ```
 
 **Why this works:**
+
 - Cursor value (id=2) is immutable
 - Query finds rows > that value
 - If id=2 deleted, id=3 is now next row
@@ -558,12 +569,14 @@ Sequential pagination through 1M rows:
 **Timeline:** Weeks 1-2
 
 **Deliverables:**
+
 - Single-column keyset (primary key only)
 - Relay pagination format
 - Forward pagination only
 - OFFSET/LIMIT deprecated (warnings emitted)
 
 **SQL Pattern:**
+
 ```sql
 SELECT ... FROM table
 WHERE primary_key > ?
@@ -576,12 +589,14 @@ LIMIT ?
 **Timeline:** Weeks 3-4
 
 **Deliverables:**
+
 - Multi-column composite keysets
 - Stable ordering (created_at + id)
 - Backward pagination support
 - Arrow plane integration
 
 **SQL Pattern:**
+
 ```sql
 SELECT ... FROM table
 WHERE (col1, col2) > (?, ?)
@@ -594,6 +609,7 @@ LIMIT ?
 **Timeline:** Weeks 5-6
 
 **Deliverables:**
+
 - Expression-based keysets
 - Query optimization hints
 - Index auto-suggestion
@@ -619,6 +635,7 @@ Better:  SELECT ... WHERE id > ? LIMIT 100;
 ### Client Migration Path
 
 **Step 1: Adopt Relay pagination interface**
+
 ```graphql
 # Old (offset-based)
 query { users(skip: 1000, take: 100) { ... } }
@@ -628,6 +645,7 @@ query { users(first: 100, after: cursor) { ... } }
 ```
 
 **Step 2: Update cursor handling**
+
 ```javascript
 // Old
 let offset = 1000;
@@ -643,6 +661,7 @@ while (true) {
 ```
 
 **Step 3: Remove pagination loops**
+
 ```javascript
 // Old (manual offset increment)
 for (let offset = 0; offset < total; offset += 100) {

@@ -33,6 +33,7 @@ Improvement:                       37.2% faster
 **Why**: PostgreSQL's bottleneck is JSON deserialization (~50% of latency). Reducing payload from 9.8KB to 450B eliminates this cost.
 
 **Implementation**: Generate `jsonb_build_object()` queries at compile time:
+
 ```sql
 SELECT jsonb_build_object(
     'id', data->>'id',
@@ -76,11 +77,13 @@ Difference:                        0.37ms (20% penalty!)
 ### PostgreSQL (Buffering-Based)
 
 **Bottleneck**: JSON deserialization
+
 - Parses full 9.8KB JSONB → Value
 - Iterates 50 fields, keeps 4
 - Cost dominates (50% of total latency)
 
 **Solution**: SQL projection
+
 - PostgreSQL constructs 450B JSONB
 - Rust receives already-filtered data
 - Result: 37% faster
@@ -88,17 +91,20 @@ Difference:                        0.37ms (20% penalty!)
 ### Wire (Streaming-Based)
 
 **Bottleneck**: Async context switching
+
 - Per-chunk polling overhead
 - Channel operations
 - Task scheduling
 - Cost dominates (45% of total latency)
 
 **Current Solution**: SQL projection doesn't help
+
 - JSON parsing is only 25% of latency
 - Query construction adds overhead
 - Net result: slightly slower
 
 **Future Solution** (Phase 11+): Optimize async overhead
+
 - If async drops to 35% of latency
 - JSON parsing becomes 43% of latency
 - SQL projection would save 43% → 37% improvement again
@@ -111,12 +117,14 @@ Difference:                        0.37ms (20% penalty!)
 ### What to Implement
 
 **For PostgreSQL** (immediate, ~3 days):
+
 1. Compiler detects large payloads (>1KB or >10 fields)
 2. Generate SQL projection queries at compile time
 3. Include in compiled schema as constants
 4. Runtime: Execute projection query, Rust adds __typename
 
 **For Wire** (optional, ~2 days):
+
 1. Enhance fraiseql-wire QueryBuilder with `.select_projection()` method
 2. Add ~30 lines to support custom SELECT clause
 3. Wire won't see performance benefit, but maintains architectural consistency
@@ -125,6 +133,7 @@ Difference:                        0.37ms (20% penalty!)
 ### Why This Approach
 
 **Pros**:
+
 - ✅ 37% improvement on PostgreSQL (substantial)
 - ✅ No regression on Wire (proven by benchmarks)
 - ✅ Simple implementation (~300 lines total)
@@ -133,6 +142,7 @@ Difference:                        0.37ms (20% penalty!)
 - ✅ Clear separation of concerns
 
 **Cons**:
+
 - ⚠️ Wire doesn't benefit (expected, by design)
 - ⚠️ Compiler gets database-specific code
 - ⚠️ Different SQL for each database (jsonb_build_object vs JSON_OBJECT vs json_object)
@@ -208,6 +218,7 @@ Wire:              (streaming) → 0% improvement (current)
 ### Recommendation: ✅ GO
 
 **This is a clear win**:
+
 1. Data-driven (comprehensive benchmarks)
 2. 37% improvement on primary adapter (PostgreSQL)
 3. No regression on secondary adapter (Wire)
@@ -218,6 +229,7 @@ Wire:              (streaming) → 0% improvement (current)
 ### Priority
 
 **High**: Implement Hybrid Strategy #2 for Phase 9
+
 - PostgreSQL first (quick win, 37% improvement)
 - Wire enhancement optional (architectural completeness)
 - MySQL/SQLite support stretch goal
@@ -290,4 +302,3 @@ All located in `/tmp/` for reference during Phase 9 implementation.
 ---
 
 **Status**: ✅ ANALYSIS COMPLETE - READY FOR PHASE 9 IMPLEMENTATION
-

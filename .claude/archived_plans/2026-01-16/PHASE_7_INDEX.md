@@ -7,7 +7,9 @@
 ## 📚 Documentation Files
 
 ### 1. **ENTITY_CACHING_DISCOVERY.md** (READ FIRST)
+
 **Purpose**: Executive summary of the discovery process
+
 - Your insight about UUIDs and cascade
 - What we found in the codebase
 - Why entity caching wasn't implemented yet
@@ -21,7 +23,9 @@
 ---
 
 ### 2. **PHASE_7_QUICK_START.md** (REFERENCE)
+
 **Purpose**: Quick reference guide for developers
+
 - 30-second architecture overview
 - 5 new modules to implement
 - Implementation order (day-by-day)
@@ -38,7 +42,9 @@
 ---
 
 ### 3. **PHASE_7_ENTITY_CACHING_PLAN.md** (COMPREHENSIVE)
+
 **Purpose**: Complete technical implementation plan
+
 - Executive summary
 - Vision and architecture
 - Implementation in 5 detailed phases:
@@ -60,6 +66,7 @@
 ## 🎯 How to Use This Documentation
 
 ### For Product Managers
+
 1. Read: **ENTITY_CACHING_DISCOVERY.md**
 2. Skim: "Timeline" section in **PHASE_7_ENTITY_CACHING_PLAN.md**
 3. Reference: Performance targets in **PHASE_7_QUICK_START.md**
@@ -69,6 +76,7 @@
 ---
 
 ### For Developers Starting Phase 7
+
 1. Read: **PHASE_7_QUICK_START.md** (full)
 2. Reference: **PHASE_7_ENTITY_CACHING_PLAN.md** for detailed specs
 3. Use: Code patterns and testing checklist from Quick Start
@@ -78,6 +86,7 @@
 ---
 
 ### For Architects Reviewing
+
 1. Read: **PHASE_7_ENTITY_CACHING_PLAN.md** (full)
 2. Review: Architecture diagrams in DISCOVERY document
 3. Assess: Risk section and testing strategy
@@ -201,14 +210,17 @@ Before              After           Improvement
 ## 🔗 Related Documentation
 
 ### Prerequisites
+
 - `.claude/CLAUDE.md` - FraiseQL development guide
 - `.claude/PHASE_2_PLAN.md` - View-level caching foundation
 
 ### Context
+
 - `.claude/PHASE_3_COMPLETION_SUMMARY.md` - E2E testing (just completed)
 - `.claude/E2E_TESTING_STRATEGY.md` - Testing framework
 
 ### Next Steps
+
 - `.claude/PHASE_8_PLAN.md` (to be created) - Coherency validation
 
 ---
@@ -270,18 +282,23 @@ Understand these before starting:
 ### During Implementation
 
 **Questions about UUID extraction?**
+
 - See: PHASE_7_QUICK_START.md → "Code Pattern: UUID Extraction"
 
 **Unsure about data structures?**
+
 - See: PHASE_7_QUICK_START.md → "Key Data Structures"
 
 **Need implementation details?**
+
 - See: PHASE_7_ENTITY_CACHING_PLAN.md → specific phase (7.1-7.5)
 
 **Performance targets not clear?**
+
 - See: PHASE_7_QUICK_START.md → "Performance Targets"
 
 **Testing strategy questions?**
+
 - See: PHASE_7_ENTITY_CACHING_PLAN.md → "Testing Strategy"
 
 ---

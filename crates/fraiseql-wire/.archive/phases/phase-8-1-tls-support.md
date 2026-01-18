@@ -11,6 +11,7 @@
 ## Objective
 
 Enable secure TLS connections to Postgres, supporting:
+
 - Server certificate validation (default)
 - Custom CA certificates
 - Optional client certificates
@@ -80,6 +81,7 @@ let client = FraiseClient::connect_tls("postgres://localhost/db", tls).await?;
 ### TLS Library Choice: rustls
 
 **Why rustls?**
+
 - Pure Rust (no OpenSSL/platform dependencies)
 - Memory-safe (no unsafe code in rustls)
 - Well-maintained and audited
@@ -87,6 +89,7 @@ let client = FraiseClient::connect_tls("postgres://localhost/db", tls).await?;
 - Good certificate handling
 
 **Dependencies to add:**
+
 ```toml
 rustls = "0.21"
 rustls-pemfile = "2.0"
@@ -95,6 +98,7 @@ webpki-roots = "0.25"  # System root certs
 ```
 
 **No dependencies on:**
+
 - OpenSSL (platform-specific)
 - native-tls (complex platform handling)
 
@@ -147,12 +151,14 @@ impl TlsConfigBuilder {
 ```
 
 **Responsibilities:**
+
 - Load CA certificate from file or use system roots
 - Build rustls::ClientConfig
 - Validate configuration (prevent invalid combinations)
 - Support both custom CA and system certs
 
 **Tests:**
+
 - [ ] Builder API works
 - [ ] Load CA from file
 - [ ] Use system roots by default
@@ -164,6 +170,7 @@ impl TlsConfigBuilder {
 ### Phase 8.1.2: Transport & Connection Layer
 
 **Files**:
+
 - `src/connection/transport.rs` (NEW)
 - `src/connection/socket.rs` (MODIFY)
 - `src/client/mod.rs` (MODIFY)
@@ -237,6 +244,7 @@ pub async fn connect_tls(
 ```
 
 **Tests:**
+
 - [ ] TCP connection with TLS
 - [ ] TLS handshake succeeds
 - [ ] Certificate validation works
@@ -251,12 +259,14 @@ pub async fn connect_tls(
 #### Test Categories
 
 **Unit Tests** (`tests/tls_unit.rs`):
+
 - [ ] TlsConfig builder
 - [ ] CA certificate loading
 - [ ] Client config generation
 - [ ] Configuration validation
 
 **Integration Tests** (`tests/tls_integration.rs`):
+
 - [ ] Connect with valid certificate
 - [ ] Certificate verification works
 - [ ] Hostname verification works
@@ -265,6 +275,7 @@ pub async fn connect_tls(
 - [ ] System roots work
 
 **Security Tests** (`tests/tls_security.rs`):
+
 - [ ] MITM protection (invalid cert rejected)
 - [ ] Hostname verification enforced
 - [ ] Dangerous flags require explicit opt-in
@@ -301,6 +312,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ## Implementation Checklist
 
 ### Code Changes
+
 - [ ] Add rustls dependency to Cargo.toml
 - [ ] Create `src/connection/tls.rs` with TlsConfig
 - [ ] Create `src/connection/transport.rs` with Transport enum
@@ -309,6 +321,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 - [ ] Update connection string parser (optional `tls://` scheme)
 
 ### Tests
+
 - [ ] TlsConfig builder tests
 - [ ] Certificate loading tests
 - [ ] Connection with TLS tests
@@ -318,6 +331,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 - [ ] Integration tests with real Postgres over TLS
 
 ### Documentation
+
 - [ ] TlsConfig rustdoc
 - [ ] `connect_tls()` rustdoc
 - [ ] `examples/tls.rs` with comments
@@ -326,11 +340,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 - [ ] Add FAQ for common TLS issues
 
 ### Benchmarks
+
 - [ ] TLS overhead measurement (< 5% acceptable)
 - [ ] Connection setup time with vs without TLS
 - [ ] Throughput impact
 
 ### CI/CD
+
 - [ ] Add TLS integration tests to GitHub Actions
 - [ ] Test with self-signed certificates
 - [ ] Performance regression detection
@@ -342,11 +358,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### Default Security
 
 ✅ **Secure by default:**
+
 - Hostname verification enabled by default
 - System CA certificates used by default
 - Dangerous flags require explicit opt-in with `danger_*` prefix
 
 ⚠️ **Development helpers:**
+
 - `danger_accept_invalid_certs()` - for self-signed certs
 - `danger_accept_invalid_hostnames()` - for internal testing
 - Clear warning in names
@@ -354,16 +372,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### Attack Prevention
 
 **Certificate Validation:**
+
 - ✅ Verify certificate chain
 - ✅ Verify hostname matches
 - ✅ Prevent MITM attacks
 
 **Credential Protection:**
+
 - ✅ Error messages don't leak credentials
 - ✅ Passwords never logged
 - ✅ Certificate details safe to log
 
 **Error Handling:**
+
 - ✅ Clear error messages
 - ✅ Actionable suggestions
 - ✅ No system internals exposed
@@ -373,12 +394,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ## Backward Compatibility
 
 **Fully backward compatible:**
+
 - Existing `connect()` method unchanged
 - All existing APIs work as before
 - New `connect_tls()` optional
 - Unix sockets unaffected
 
 **Migration path:**
+
 1. v0.2.0: Add `connect_tls()`
 2. v0.3.0: Consider deprecating TCP without TLS
 3. v1.0.0: TCP could default to TLS
@@ -388,11 +411,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ## Performance Impact
 
 **Expected overhead:**
+
 - TLS handshake: ~5-10ms per connection
 - Per-row throughput: < 1% impact (crypto is fast)
 - Memory: Minimal (rustls is efficient)
 
 **Benchmarks to verify:**
+
 - [ ] Handshake time: < 10ms
 - [ ] Throughput vs plaintext: > 99%
 - [ ] Memory impact: < 1MB additional
@@ -420,6 +445,7 @@ pub enum Error {
 ```
 
 **Example errors:**
+
 - "Certificate not found at /path/to/ca.pem"
 - "Certificate validation failed: self signed certificate"
 - "Hostname 'localhost' doesn't match certificate 'prod-db.example.com'"
@@ -432,6 +458,7 @@ pub enum Error {
 ### Local Testing
 
 1. **With real Postgres + TLS:**
+
    ```bash
    # Start Postgres with TLS
    docker run -e POSTGRES_HOST_AUTH_METHOD=trust \
@@ -443,6 +470,7 @@ pub enum Error {
    ```
 
 2. **With self-signed certs (dev):**
+
    ```bash
    # Generate self-signed cert
    openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem
@@ -460,6 +488,7 @@ pub enum Error {
 ### CI Testing
 
 GitHub Actions will:
+
 - [ ] Test with Postgres 17 + TLS
 - [ ] Test with self-signed certificates
 - [ ] Verify certificate validation
@@ -470,6 +499,7 @@ GitHub Actions will:
 ## Success Criteria
 
 ✅ **Functionality:**
+
 - [ ] `FraiseClient::connect_tls()` works
 - [ ] TLS handshake succeeds
 - [ ] All queries work over TLS
@@ -477,12 +507,14 @@ GitHub Actions will:
 - [ ] Hostname verification works
 
 ✅ **Security:**
+
 - [ ] Invalid certificates rejected
 - [ ] MITM attacks prevented
 - [ ] No credential leaks
 - [ ] Secure by default
 
 ✅ **Quality:**
+
 - [ ] > 90% test coverage
 - [ ] Zero clippy warnings
 - [ ] Complete rustdoc
@@ -490,6 +522,7 @@ GitHub Actions will:
 - [ ] Backward compatible
 
 ✅ **Documentation:**
+
 - [ ] API documentation
 - [ ] Example program
 - [ ] Integration guide
@@ -512,9 +545,9 @@ GitHub Actions will:
 
 ## Related Issues & References
 
-- Postgres TLS: https://www.postgresql.org/docs/current/ssl-tcp.html
-- rustls docs: https://docs.rs/rustls/latest/rustls/
-- Webpki: https://docs.rs/webpki/latest/webpki/
+- Postgres TLS: <https://www.postgresql.org/docs/current/ssl-tcp.html>
+- rustls docs: <https://docs.rs/rustls/latest/rustls/>
+- Webpki: <https://docs.rs/webpki/latest/webpki/>
 - PHASE_8_PLAN.md: Feature priority and design
 
 ---

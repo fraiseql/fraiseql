@@ -70,6 +70,7 @@ SELECT data FROM v_user WHERE data->>'email' ILIKE '%example.com%';
 ```
 
 **This fundamentally simplifies the architecture:**
+
 - ✅ No complex JOIN generation
 - ✅ No field list generation
 - ✅ Just WHERE clause + JSONB projection
@@ -1590,11 +1591,13 @@ async fn test_end_to_end_query() {
 **Decision: Use serde_json::Value**
 
 **Pros:**
+
 - ✅ Battle-tested, full JSON spec compliance
 - ✅ Rich API (as_array, as_object, get, etc.)
 - ✅ Interop with entire Rust JSON ecosystem
 
 **Cons:**
+
 - ❌ Allocates for every field access
 - ❌ Not optimized for projection use case
 
@@ -1607,6 +1610,7 @@ Start with `serde_json`. Profile. If projection is a bottleneck (unlikely given 
 - Cow-based borrowing
 
 **Metrics to watch:**
+
 - Projection time > 10% of total request time → optimize
 - Memory allocations > 1MB per request → optimize
 
@@ -1617,11 +1621,13 @@ Start with `serde_json`. Profile. If projection is a bottleneck (unlikely given 
 **Decision: Use AST (WhereClause enum)**
 
 **Pros:**
+
 - ✅ Type-safe (no SQL injection)
 - ✅ Composable (can analyze/optimize before generation)
 - ✅ Database-agnostic (same AST for all databases)
 
 **Cons:**
+
 - ❌ More code than string concatenation
 - ❌ Extra allocation for AST nodes
 
@@ -1630,6 +1636,7 @@ Start with `serde_json`. Profile. If projection is a bottleneck (unlikely given 
 Safety > convenience. WHERE clauses are complex (nested AND/OR/NOT), and an AST makes correctness provable. The performance cost is negligible compared to database I/O.
 
 **Metrics to watch:**
+
 - WHERE generation time > 1% of total request time → acceptable
 
 ---
@@ -1639,11 +1646,13 @@ Safety > convenience. WHERE clauses are complex (nested AND/OR/NOT), and an AST 
 **Decision: Use deadpool**
 
 **Pros:**
+
 - ✅ Production-ready (used by thousands)
 - ✅ Good metrics/monitoring
 - ✅ Generic (works with any database driver)
 
 **Cons:**
+
 - ❌ Generic abstraction may have minor overhead
 - ❌ Less control over internals
 
@@ -1652,6 +1661,7 @@ Safety > convenience. WHERE clauses are complex (nested AND/OR/NOT), and an AST 
 Reinventing connection pooling is a waste of time. `deadpool` handles edge cases (connection drops, health checks, backpressure) better than we would in a first implementation.
 
 **When to reconsider:**
+
 - If we need database-specific pooling features (PostgreSQL prepared statements)
 - If metrics show pool is a bottleneck (unlikely)
 
@@ -1662,11 +1672,13 @@ Reinventing connection pooling is a waste of time. `deadpool` handles edge cases
 **Decision: Use HashMap<String, HashMap<String, FieldAuthRule>>**
 
 **Pros:**
+
 - ✅ Simple, readable
 - ✅ O(1) lookups
 - ✅ Flexible (supports complex rules)
 
 **Cons:**
+
 - ❌ Higher memory usage than BitSet
 - ❌ String comparisons (slower than bit operations)
 
@@ -1679,6 +1691,7 @@ GraphQL schemas typically have < 100 types with < 50 fields each. HashMap overhe
 3. More complex code
 
 **When to reconsider:**
+
 - Schemas with > 1000 types
 - Auth checks > 10% of request time (profile first)
 

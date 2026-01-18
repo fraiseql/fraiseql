@@ -48,6 +48,7 @@ The fraiseql-wire integration is **complete, tested, and ready for production us
 ## Production Readiness Checklist
 
 ### Code Quality ✅
+
 - [x] No compilation errors
 - [x] All warnings documented (none are breaking)
 - [x] Unit test coverage for all critical paths
@@ -57,6 +58,7 @@ The fraiseql-wire integration is **complete, tested, and ready for production us
 - [x] Feature-gated compilation prevents runtime dependencies
 
 ### Architecture ✅
+
 - [x] Drop-in replacement for DatabaseAdapter trait
 - [x] No executor changes required
 - [x] Connection pooling pattern matches fraiseql-wire design
@@ -65,12 +67,14 @@ The fraiseql-wire integration is **complete, tested, and ready for production us
 - [x] Unix socket connections work correctly
 
 ### Performance ✅
+
 - [x] Baseline established (PostgreSQL 10K/100K/1M)
 - [x] Throughput sustained (180-200 K/s)
 - [x] Memory streaming confirmed (1.3 KB overhead)
 - [x] No latency regression vs. tokio-postgres
 
 ### Operations ✅
+
 - [x] Build passes with `--features wire-backend`
 - [x] Tests run with feature gate
 - [x] Database setup documented
@@ -86,11 +90,13 @@ The fraiseql-wire integration is **complete, tested, and ready for production us
 **When**: Limited RAM, large queries (100K+ rows), or many concurrent connections
 
 **Action**: Use FraiseWireAdapter
+
 - **Benefit**: 20,000x memory savings on 1M row queries
 - **Risk**: Minimal (wire adapter connection validated)
 - **Setup**: Enable `wire-backend` feature, point to fraiseql-wire database
 
 **Example**:
+
 ```rust
 // Instead of:
 let adapter = PostgresAdapter::new(&db_url).await?;
@@ -105,6 +111,7 @@ let adapter = FraiseWireAdapter::new(&db_url);
 **When**: Typical query loads (10K-100K rows), plenty of RAM
 
 **Action**: Start with PostgresAdapter, migrate if memory becomes issue
+
 - **Benefit**: Familiar implementation, tokio-postgres maturity
 - **Fallback**: Easy migration to FraiseWireAdapter
 - **Setup**: No changes needed
@@ -114,6 +121,7 @@ let adapter = FraiseWireAdapter::new(&db_url);
 **When**: Many concurrent requests, connection pool exhaustion
 
 **Action**: Use FraiseWireAdapter with upstream connection pooling
+
 - **Current**: Creates new client per query (fine for <1000 qps)
 - **Limitation**: Non-Send types prevent built-in pooling
 - **Solution**: Implement upstream connection pooling in fraiseql-wire (separate PR)
@@ -124,8 +132,10 @@ let adapter = FraiseWireAdapter::new(&db_url);
 **When**: Mission-critical deployments requiring proof before rollout
 
 **Action**: Run complete benchmark suite + memory profiling
+
 - **Time**: 2-3 hours (reduced sample sizes)
 - **Commands**:
+
   ```bash
   # Quick benchmarks (30-60 min)
   cargo bench --bench adapter_comparison -- --sample-size 5
@@ -135,6 +145,7 @@ let adapter = FraiseWireAdapter::new(&db_url);
   heaptrack target/release/deps/adapter_comparison-*
   heaptrack_gui heaptrack.adapter_comparison.*.gz
   ```
+
 - **Decision**: If results within 5% of baseline, safe to deploy
 
 ---
@@ -142,18 +153,21 @@ let adapter = FraiseWireAdapter::new(&db_url);
 ## Adoption Path
 
 ### Phase 1: Immediate (This Week)
+
 - ✅ Merge fraiseql-wire integration
 - ✅ Enable feature in test environment
 - ✅ Run integration tests in CI/CD
 - ✅ Update documentation with feature flag
 
 ### Phase 2: Controlled Rollout (Next 2 Weeks)
+
 - Run with 10% of traffic to memory-constrained services
 - Monitor: latency, error rates, memory usage
 - Gather: real-world performance data
 - Decide: full rollout or return to PostgreSQL
 
 ### Phase 3: Full Deployment (Month 1)
+
 - If Phase 2 successful: Enable for all services
 - If issues found: Roll back with zero downtime (adapter is swappable)
 - Gather: production baseline for future optimizations
@@ -165,6 +179,7 @@ let adapter = FraiseWireAdapter::new(&db_url);
 ### 1. WHERE Clause Operator Coverage (19/25 operators)
 
 **Unsupported operators** (handled gracefully):
+
 - Array length: `LenEq`, `LenGt`, `LenLt`, etc. → Returns error
 - Vectors: `L2Distance`, `CosineDistance` → Returns error
 - Full-text: `Matches`, `PlainQuery` → Returns error
@@ -225,6 +240,7 @@ The fraiseql-wire integration is **ready for immediate production deployment** w
 4. **If issues**: Feature-gated design allows instant rollback
 
 ### Critical Success Factors
+
 - ✅ Code quality: All tests passing
 - ✅ Architecture: Drop-in replacement trait
 - ✅ Performance: Baseline established
@@ -232,7 +248,9 @@ The fraiseql-wire integration is **ready for immediate production deployment** w
 - ✅ Operations: Feature-gated deployment
 
 ### Confidence Level: **HIGH (95%)**
+
 Based on:
+
 - Complete unit test coverage (27 tests)
 - Integration test validation
 - PostgreSQL baseline benchmarks
@@ -244,6 +262,7 @@ Based on:
 ## Next Steps (Optional, Not Blocking)
 
 For absolute certainty (not required for deployment):
+
 1. Run reduced-sample benchmarks (30-60 min)
 2. Perform memory profiling with heaptrack (30 min)
 3. Load test with real GraphQL queries (1 hour)

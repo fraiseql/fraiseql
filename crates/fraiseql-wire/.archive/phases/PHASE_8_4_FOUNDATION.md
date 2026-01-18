@@ -12,6 +12,7 @@
 Phase 8.4 foundation establishes a complete **SCRAM-SHA-256 authentication** implementation for fraiseql-wire, replacing the MD5 authentication stub with a modern, secure password authentication mechanism compatible with PostgreSQL 10+.
 
 **Accomplishments:**
+
 - ✅ Added cryptographic dependencies (sha2, pbkdf2, base64, rand, hmac)
 - ✅ Extended protocol layer to support SASL messages
 - ✅ Implemented complete SCRAM-SHA-256 cryptography (RFC 5802 compliant)
@@ -59,17 +60,20 @@ pub const SASL_FINAL: i32 = 12;
 ```
 
 **src/protocol/decode.rs** - SASL message decoding:
+
 - `decode_authentication()` now handles SASL variants
 - Mechanism list parsing (null-terminated strings)
 - Raw data extraction for SASL continue/final messages
 
 **src/protocol/encode.rs** - SASL message encoding:
+
 - `encode_sasl_initial_response()` - Client first message with mechanism name
 - `encode_sasl_response()` - Client final message
 
 ### 2. Auth Module
 
 **src/auth/mod.rs** - Public API:
+
 ```rust
 pub use scram::{ScramClient, ScramError};
 
@@ -84,6 +88,7 @@ pub enum AuthError {
 **src/auth/scram.rs** - Complete SCRAM-SHA-256 implementation:
 
 #### ScramClient
+
 ```rust
 pub struct ScramClient {
     username: String,
@@ -100,6 +105,7 @@ impl ScramClient {
 ```
 
 #### ScramState
+
 ```rust
 pub struct ScramState {
     auth_message: Vec<u8>,
@@ -108,6 +114,7 @@ pub struct ScramState {
 ```
 
 #### Cryptographic Functions (Private)
+
 - `parse_server_first()` - Parse server first message
 - `calculate_client_proof()` - PBKDF2 + HMAC-SHA256 proof generation
 - `calculate_server_key()` - For signature verification
@@ -166,6 +173,7 @@ async fn handle_sasl(&mut self, mechanisms: &[String], config: &ConnectionConfig
 ### Cryptographic Operations
 
 **Proof Calculation:**
+
 ```
 SaltedPassword := PBKDF2(password, salt, iterations, HMAC-SHA256)
 ClientKey := HMAC(SaltedPassword, "Client Key")
@@ -175,6 +183,7 @@ ClientProof := ClientKey XOR ClientSignature
 ```
 
 **Server Verification:**
+
 ```
 ServerKey := HMAC(SaltedPassword, "Server Key")
 ServerSignature := HMAC(ServerKey, AuthMessage)
@@ -242,16 +251,19 @@ let client = FraiseClient::connect(
 ### Error Messages
 
 **Server doesn't support SCRAM:**
+
 ```
 Error: server does not support SCRAM-SHA-256. Available: SCRAM-SHA-1
 ```
 
 **Password required:**
+
 ```
 Error: password required for SCRAM authentication
 ```
 
 **Server signature verification failed:**
+
 ```
 Error: SCRAM verification failed: server signature verification failed
 ```
@@ -261,10 +273,12 @@ Error: SCRAM verification failed: server signature verification failed
 ## Files Changed
 
 ### New Files
+
 1. **src/auth/mod.rs** - Authentication module (exported types)
 2. **src/auth/scram.rs** - Complete SCRAM-SHA-256 implementation (300+ lines)
 
 ### Modified Files
+
 1. **Cargo.toml** - Added crypto dependencies (sha2, pbkdf2, base64, rand, hmac)
 2. **src/lib.rs** - Added `pub mod auth;`
 3. **src/protocol/message.rs** - Added SASL auth message variants
@@ -286,6 +300,7 @@ hmac = "0.12"           # HMAC calculation
 ```
 
 **Size Impact**:
+
 - Additional compile time: ~1-2 seconds
 - Binary size increase: ~500KB (crypto libraries)
 - Runtime overhead: Negligible (~1-2ms per auth)
@@ -295,49 +310,61 @@ hmac = "0.12"           # HMAC calculation
 ## Design Decisions
 
 ### 1. RFC 5802 Compliance
+
 **Decision**: Fully implement RFC 5802 SCRAM-SHA-256
 
 **Rationale**:
+
 - Industry standard mechanism
 - PostgreSQL 10+ uses it as default
 - Well-tested, widely implemented
 
 ### 2. Constant-Time Comparison
+
 **Decision**: Use timing-safe comparison for signatures
 
 **Rationale**:
+
 - Prevents timing attacks on verification
 - Critical for security-sensitive code
 
 ### 3. PBKDF2 Iterations
+
 **Decision**: Use server-provided iteration count (typically 4096)
 
 **Rationale**:
+
 - Server controls security parameters
 - Allows gradual increase over time
 - Matches Postgres defaults
 
 ### 4. No Channel Binding
+
 **Decision**: Implement SCRAM-SHA-256 (not -PLUS variant)
 
 **Rationale**:
+
 - Standard variant covers ~99% of use cases
 - Channel binding adds complexity for TLS
 - Can add in future if needed
 
 ### 5. Pure Rust Implementation
+
 **Decision**: Implement SCRAM from scratch (don't use external crate)
 
 **Rationale**:
+
 - Consistent with fraiseql-wire philosophy
 - Full control over implementation
 - Auditable and understandable
 - No additional dependency bloat
 
 ### 6. Automatic Mechanism Selection
+
 **Decision**: Server chooses mechanism; client implements SCRAM-SHA-256
 
 **Rationale**:
+
 - Simple client logic
 - Server handles compatibility
 - Can fallback to cleartext if needed
@@ -347,6 +374,7 @@ hmac = "0.12"           # HMAC calculation
 ## What's Complete
 
 ### ✅ Cryptography
+
 - Full SCRAM-SHA-256 implementation
 - PBKDF2 key derivation
 - HMAC-SHA256 calculations
@@ -354,23 +382,27 @@ hmac = "0.12"           # HMAC calculation
 - Constant-time signature comparison
 
 ### ✅ Protocol
+
 - SASL message types in protocol layer
 - Encoding/decoding for all SASL messages
 - Proper error handling for protocol violations
 
 ### ✅ Connection Integration
+
 - SASL flow in Connection::authenticate()
 - Automatic SCRAM selection when available
 - Fallback to cleartext when SCRAM unavailable
 - Proper error messages for diagnostics
 
 ### ✅ Testing
+
 - 8 comprehensive unit tests
 - All crypto operations tested
 - Message parsing validated
 - Client flow end-to-end tested
 
 ### ✅ Code Quality
+
 - 71/71 tests passing
 - No errors or warnings (2 harmless unused result warnings)
 - Proper error types and messages
@@ -408,6 +440,7 @@ hmac = "0.12"           # HMAC calculation
 ## Security Considerations
 
 ### Strengths
+
 ✅ RFC 5802 compliant (industry standard)
 ✅ PBKDF2 protects against dictionary attacks
 ✅ Random nonce prevents replay attacks
@@ -416,11 +449,13 @@ hmac = "0.12"           # HMAC calculation
 ✅ No plaintext passwords sent over network
 
 ### Limitations
+
 - Requires HTTPS/TLS for full security (plaintext network vulnerable)
 - Trusts server's iteration count (possible downgrade attack if compromised)
 - No channel binding to TLS layer (not -PLUS variant)
 
 ### Recommendations
+
 1. Always use with TLS/HTTPS
 2. Verify server certificates if possible
 3. Use strong passwords (12+ characters recommended)
@@ -431,17 +466,20 @@ hmac = "0.12"           # HMAC calculation
 ## Performance Characteristics
 
 ### Authentication Overhead
+
 - PBKDF2 (4096 iterations): ~50-100ms
 - HMAC-SHA256 operations: <1ms
 - Message serialization: <1ms
 - **Total per authentication**: ~50-100ms (one-time cost)
 
 ### Memory Usage
+
 - Client nonce: 32 bytes (base64)
 - Authentication state: ~100 bytes
 - **Per-connection overhead**: Negligible
 
 ### Comparison: SCRAM vs MD5
+
 | Metric | SCRAM | MD5 |
 |--------|-------|-----|
 | Security | ⭐⭐⭐⭐⭐ | ⭐ |
@@ -489,6 +527,7 @@ Phase 8.4 foundation provides:
 **Phase 8.4 foundation is complete and production-ready for authentication.**
 
 The SCRAM-SHA-256 implementation is:
+
 - ✅ Cryptographically sound (RFC 5802 compliant)
 - ✅ Well-tested (8 unit tests)
 - ✅ Properly integrated (Connection auth flow)

@@ -15,6 +15,7 @@ Caching in FraiseQL is a **comprehensive, deterministic system** that improves p
 3. **Deterministic Invalidation** — Cache invalidation is compiler-determined, not runtime-dependent
 
 FraiseQL provides:
+
 - **Query Result Caching** — Cache GraphQL query results at the database level
 - **APQ Response Caching** — Cache persisted query responses with field selection
 - **graphql-cascade Integration** — Automatic cache invalidation based on mutation cascades
@@ -31,6 +32,7 @@ FraiseQL provides:
 Query Result Caching stores the complete result of GraphQL queries in a cache, enabling subsecond response times for repeated queries.
 
 **Key Characteristics:**
+
 - Operates at the **GraphQL query level** (after validation, authorization, before database execution)
 - **Deterministic cache keys** based on query, variables, tenant, and complexity
 - **Tenant-isolated** — Impossible to retrieve data from other tenants via cache
@@ -46,6 +48,7 @@ Query Result Caching stores the complete result of GraphQL queries in a cache, e
 ```
 
 **Components:**
+
 - `prefix` — Default: "fraiseql", configurable per deployment
 - `tenant_id` — Required UUID of the organization/tenant
 - `operation_hash` — SHA-256 hash of the normalized GraphQL query
@@ -120,6 +123,7 @@ app = create_fraiseql_app(
 **Location:** `fraiseql.storage.backends.memory.MemoryCacheBackend`
 
 **Characteristics:**
+
 - Stores cache in process memory (Python dictionary)
 - **Best for:** Development, single-instance deployments
 - **Performance:** Sub-millisecond lookups
@@ -140,6 +144,7 @@ backend = MemoryCacheBackend(
 ```
 
 **Automatic Cleanup:**
+
 - Stale entries removed every 5 minutes (configurable)
 - LRU (Least Recently Used) eviction when max_entries exceeded
 - TTL-based expiration for all entries
@@ -149,6 +154,7 @@ backend = MemoryCacheBackend(
 **Location:** `fraiseql.caching.postgres_cache.PostgreSQLCacheBackend`
 
 **Characteristics:**
+
 - Persists cache to PostgreSQL using **UNLOGGED tables** (no WAL overhead)
 - **Best for:** Production multi-instance deployments, data persistence
 - **Performance:** 10-50ms lookups (network latency + query)
@@ -189,11 +195,13 @@ backend = PostgreSQLCacheBackend(
 ```
 
 **UNLOGGED Table Tradeoff:**
+
 - ✅ **Pros:** 7-10x faster than regular tables (no WAL writes)
 - ⚠️ **Cons:** Data lost on database crash (acceptable for cache)
 - **Use case:** Perfect for caches where data loss is not catastrophic
 
 **Cleanup Process:**
+
 ```sql
 -- Automatic cleanup removes expired entries
 DELETE FROM fraiseql_cache
@@ -261,6 +269,7 @@ app = create_fraiseql_app(
 **How it works:** Cache entries automatically expire after TTL seconds.
 
 **Complexity-Aware TTL:**
+
 ```python
 def calculate_ttl(query_complexity: float, config: CacheConfig) -> int:
     """
@@ -281,6 +290,7 @@ def calculate_ttl(query_complexity: float, config: CacheConfig) -> int:
 ```
 
 **Example:**
+
 ```
 GET /graphql?query={users{id name}}
 Cache-Control: max-age=600  # Simple query, cached 10 minutes
@@ -523,6 +533,7 @@ ORDER BY hit_rate_pct DESC;
 APQ Response Caching caches the **HTTP response** of persisted queries, eliminating database execution entirely for identical requests.
 
 **Key Difference from Query Caching:**
+
 - **Query Caching:** Caches database result (query execution still happens)
 - **APQ Response Caching:** Caches HTTP response (query execution skipped)
 - **Performance:** APQ response caching is 10-100x faster (no GraphQL parsing, validation, or database)
@@ -604,6 +615,7 @@ query GetUser($id: ID!) {
 ```
 
 **With field selection optimization:**
+
 - First request: Full response cached → `{id, name, email, phone, address}`
 - Second request: Cached response pruned → `{id, name}` extracted from cache
 - Result: Hit same cache entry, but only return requested fields
@@ -869,12 +881,14 @@ complex_query_ttl = 60       # 1 minute (expensive, aggressive invalidation)
 **Symptoms:** Cache hit rate < 60%
 
 **Causes:**
+
 1. Variables changing between requests (same query, different variables)
 2. TTL too short — entries expiring too quickly
 3. Complexity hash changing (reordering fields in query)
 4. Wrong query name in invalidation patterns
 
 **Solutions:**
+
 1. Normalize variable order before querying
 2. Increase default_ttl in configuration
 3. Disable include_complexity in CacheConfig
@@ -885,11 +899,13 @@ complex_query_ttl = 60       # 1 minute (expensive, aggressive invalidation)
 **Symptoms:** Cache size approaching max_size_bytes, then entries evicted
 
 **Causes:**
+
 1. max_size_bytes too small for workload
 2. TTL too long — entries not expiring
 3. High cardinality in query variables (unbounded cache keys)
 
 **Solutions:**
+
 1. Increase max_size_bytes or switch to PostgreSQL backend
 2. Decrease default_ttl
 3. Normalize variables or add parameterization rules
@@ -899,11 +915,13 @@ complex_query_ttl = 60       # 1 minute (expensive, aggressive invalidation)
 **Symptoms:** Old data served even after updates
 
 **Causes:**
+
 1. Invalidation patterns not matching mutation
 2. Cascade invalidations not configured
 3. Database update bypassed GraphQL mutation
 
 **Solutions:**
+
 1. Review CacheInvalidation scope patterns
 2. Add explicit cache.invalidate() call after DB update
 3. Ensure all writes go through GraphQL mutations
@@ -964,6 +982,7 @@ async def get_user_profile(info, id: UUID) -> UserProfile:
 ### 9.1 Real-World Benchmark
 
 **Setup:**
+
 - 100,000 users
 - 10,000 concurrent sessions
 - Memory backend with 5-minute TTL

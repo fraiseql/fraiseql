@@ -51,6 +51,7 @@ less migrations/optimize-20260112.sql
 ```
 
 **What to check**:
+
 - ✅ SQL syntax is correct
 - ✅ Table/column names match your schema
 - ✅ No destructive operations (DROP TABLE, TRUNCATE)
@@ -66,11 +67,13 @@ Before applying to **any environment**:
 #### Database Checks
 
 - [ ] **Verify database connection**
+
   ```bash
   psql $DATABASE_URL -c "SELECT version()"
   ```
 
 - [ ] **Check database size and free space**
+
   ```bash
   # PostgreSQL
   psql $DATABASE_URL -c "
@@ -84,6 +87,7 @@ Before applying to **any environment**:
   ```
 
 - [ ] **Check current locks**
+
   ```bash
   # PostgreSQL
   psql $DATABASE_URL -c "
@@ -92,6 +96,7 @@ Before applying to **any environment**:
   ```
 
 - [ ] **Estimate migration duration**
+
   ```bash
   # Test on copy of production data
   time psql staging < migrations/optimize-20260112.sql
@@ -100,6 +105,7 @@ Before applying to **any environment**:
 #### Backup Checks
 
 - [ ] **Create full database backup**
+
   ```bash
   # PostgreSQL
   pg_dump -Fc $DATABASE_URL > backup-$(date +%Y%m%d-%H%M%S).dump
@@ -111,6 +117,7 @@ Before applying to **any environment**:
   ```
 
 - [ ] **Verify backup integrity**
+
   ```bash
   # PostgreSQL: List backup contents
   pg_restore --list backup-20260112-143000.dump | head
@@ -120,6 +127,7 @@ Before applying to **any environment**:
   ```
 
 - [ ] **Test backup restore** (in separate environment)
+
   ```bash
   # PostgreSQL
   createdb test_restore
@@ -132,12 +140,14 @@ Before applying to **any environment**:
 #### Application Checks
 
 - [ ] **Review application schema references**
+
   ```bash
   # Check if new columns need schema updates
   grep -r "dimensions->>region" app/
   ```
 
 - [ ] **Prepare schema.json updates**
+
   ```python
   # Before migration:
   @fraiseql.fact_table(
@@ -154,6 +164,7 @@ Before applying to **any environment**:
   ```
 
 - [ ] **Compile new schema**
+
   ```bash
   fraiseql-cli compile schema.json --check
   ```
@@ -176,6 +187,7 @@ psql $STAGING_DATABASE_URL < migrations/optimize-20260112.sql
 ```
 
 **Watch for**:
+
 - ✅ All statements execute successfully
 - ⚠️ Long-running operations (> 5 minutes)
 - ❌ Errors or failures
@@ -223,6 +235,7 @@ sqlcmd -Q "
 #### Run Benchmark Queries
 
 **Before Migration** (baseline):
+
 ```bash
 # Capture baseline performance
 psql $STAGING_DATABASE_URL -c "
@@ -233,6 +246,7 @@ psql $STAGING_DATABASE_URL -c "
 ```
 
 **After Migration**:
+
 ```bash
 # Measure new performance
 psql $STAGING_DATABASE_URL -c "
@@ -243,6 +257,7 @@ psql $STAGING_DATABASE_URL -c "
 ```
 
 **Compare Results**:
+
 ```bash
 # Extract execution times
 grep "Execution Time" benchmark-before.txt
@@ -286,12 +301,14 @@ curl http://staging-api.example.com/graphql \
 #### Monitor Staging for 24-48 Hours
 
 **Metrics to track**:
+
 - Query latency (p50, p95, p99)
 - Error rates
 - Database CPU/memory usage
 - Disk I/O
 
 **Tools**:
+
 ```bash
 # Query performance
 psql $STAGING_DATABASE_URL -c "
@@ -513,6 +530,7 @@ psql $PRODUCTION_DATABASE_URL -c "
 #### Short-Term Validation (First 24 Hours)
 
 **Metrics Dashboard**:
+
 - Query latency (p50, p95, p99)
 - Error rate
 - Throughput (queries per second)
@@ -536,6 +554,7 @@ psql $PRODUCTION_DATABASE_URL -c "
 ```
 
 **Expected Results**:
+
 ```
 Before Migration:
 query_snippet: SELECT * FROM tf_sales WHERE dimensions->>'region'
@@ -563,6 +582,7 @@ max_ms: 185.0 ✅
 ### When to Rollback
 
 Rollback if:
+
 - ❌ Query errors increase significantly (> 5%)
 - ❌ Latency increases instead of decreasing
 - ❌ Database CPU/memory spikes
@@ -584,6 +604,7 @@ ANALYZE tf_sales;
 ```
 
 **Execution**:
+
 ```bash
 psql $PRODUCTION_DATABASE_URL < migrations/rollback-20260112.sql
 ```
@@ -623,6 +644,7 @@ kubectl rollout restart deployment/fraiseql-api
 ### Full Database Restore (Last Resort)
 
 **Only if**:
+
 - Data corruption occurred
 - Rollback SQL fails
 - Critical production issue
@@ -702,6 +724,7 @@ CREATE INDEX CONCURRENTLY idx_medium_table_region
 **Strategy**: Online operations + extended migration window
 
 **PostgreSQL**:
+
 ```sql
 -- Use pg_repack for minimal blocking (requires extension)
 CREATE EXTENSION IF NOT EXISTS pg_repack;
@@ -711,6 +734,7 @@ CREATE EXTENSION IF NOT EXISTS pg_repack;
 ```
 
 **SQL Server**:
+
 ```sql
 -- Use online index build with MAXDOP
 CREATE NONCLUSTERED INDEX idx_large_table_region
@@ -735,11 +759,13 @@ CREATE NONCLUSTERED INDEX idx_large_table_region
 ### Real-Time Monitoring During Migration
 
 **Terminal 1: Run Migration**
+
 ```bash
 psql $DATABASE_URL < migrations/optimize-20260112.sql
 ```
 
 **Terminal 2: Monitor Progress**
+
 ```bash
 # PostgreSQL: Watch long-running queries
 watch -n 1 "psql $DATABASE_URL -c \"
@@ -755,6 +781,7 @@ watch -n 1 "psql $DATABASE_URL -c \"
 ```
 
 **Terminal 3: Monitor Locks**
+
 ```bash
 # PostgreSQL: Watch for blocking locks
 watch -n 1 "psql $DATABASE_URL -c \"
@@ -800,6 +827,7 @@ UPDATE table SET col = val;
 ### 4. Monitor Replication Lag
 
 For replicated databases:
+
 ```bash
 # Check replication lag
 psql $REPLICA_URL -c "
@@ -817,6 +845,7 @@ psql $REPLICA_URL -c "
 ### 5. Schedule During Low Traffic
 
 Apply migrations during:
+
 - Nighttime (2-6 AM local time)
 - Weekends
 - After feature freeze
@@ -830,12 +859,15 @@ Apply migrations during:
 **Symptoms**: Migration running for > 30 minutes
 
 **Solutions**:
+
 1. **Check for blocking locks**
+
    ```sql
    SELECT * FROM pg_locks WHERE NOT granted;
    ```
 
 2. **Kill long-running queries**
+
    ```sql
    SELECT pg_terminate_backend(pid)
    FROM pg_stat_activity
@@ -843,6 +875,7 @@ Apply migrations during:
    ```
 
 3. **Increase resources temporarily**
+
    ```sql
    -- PostgreSQL
    SET maintenance_work_mem = '2GB';
@@ -858,6 +891,7 @@ Apply migrations during:
 **Cause**: Duplicate values in column
 
 **Solution**:
+
 ```sql
 -- Find duplicates
 SELECT column_name, COUNT(*)

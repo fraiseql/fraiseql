@@ -53,7 +53,7 @@ pub struct RequestValidator {
 
 impl RequestValidator {
     /// Create a new validator with default settings.
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }

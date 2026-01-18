@@ -9,6 +9,7 @@ This directory contains examples demonstrating different use cases of the Fraise
 Demonstrates fundamental schema definition with queries and mutations.
 
 **Features:**
+
 - Type definitions with struct tags
 - Query builders (list and single-item queries)
 - Mutation builders (create, update, delete operations)
@@ -16,6 +17,7 @@ Demonstrates fundamental schema definition with queries and mutations.
 - Configuration for SQL sources
 
 **Run:**
+
 ```bash
 go run basic_schema.go
 ```
@@ -27,6 +29,7 @@ go run basic_schema.go
 Demonstrates OLAP (Online Analytical Processing) schema with fact tables and aggregate queries.
 
 **Features:**
+
 - Fact table definitions with measures and dimensions
 - Multiple fact tables (Sales and Events)
 - Aggregate queries with automatic grouping and aggregation
@@ -34,6 +37,7 @@ Demonstrates OLAP (Online Analytical Processing) schema with fact tables and agg
 - Dimension definitions with SQL paths and data types
 
 **Run:**
+
 ```bash
 go run analytics_schema.go
 ```
@@ -45,6 +49,7 @@ go run analytics_schema.go
 Demonstrates a complete production-like schema combining all features.
 
 **Features:**
+
 - Multiple types (User, Post, Revenue)
 - Complete CRUD query and mutation sets
 - Fact tables with multiple measures and dimensions
@@ -52,6 +57,7 @@ Demonstrates a complete production-like schema combining all features.
 - Comprehensive documentation and next steps
 
 **Run:**
+
 ```bash
 go run complete_schema.go
 ```
@@ -142,21 +148,25 @@ fraiseql.NewAggregateQueryConfig("salesByCategory").
 After generating a `schema.json` file:
 
 1. **Validate the schema:**
+
    ```bash
    fraiseql-cli validate schema.json
    ```
 
 2. **Compile the schema:**
+
    ```bash
    fraiseql-cli compile schema.json -o schema.compiled.json
    ```
 
 3. **Start a FraiseQL server:**
+
    ```bash
    fraiseql-server --schema schema.compiled.json --port 8000
    ```
 
 4. **Test with GraphQL:**
+
    ```bash
    curl -X POST http://localhost:8000/graphql \
      -H "Content-Type: application/json" \
@@ -175,6 +185,7 @@ After generating a `schema.json` file:
 ## Common Patterns
 
 ### Pagination Query
+
 ```go
 fraiseql.NewQuery("users").
     ReturnType(User{}).
@@ -185,6 +196,7 @@ fraiseql.NewQuery("users").
 ```
 
 ### Single Item Query
+
 ```go
 fraiseql.NewQuery("user").
     ReturnType(User{}).
@@ -193,6 +205,7 @@ fraiseql.NewQuery("user").
 ```
 
 ### Create Mutation
+
 ```go
 fraiseql.NewMutation("createUser").
     ReturnType(User{}).
@@ -202,6 +215,7 @@ fraiseql.NewMutation("createUser").
 ```
 
 ### Update Mutation
+
 ```go
 fraiseql.NewMutation("updateUser").
     ReturnType(User{}).
@@ -211,6 +225,7 @@ fraiseql.NewMutation("updateUser").
 ```
 
 ### Delete Mutation
+
 ```go
 fraiseql.NewMutation("deleteUser").
     ReturnType(User{}).
@@ -221,11 +236,13 @@ fraiseql.NewMutation("deleteUser").
 ## Troubleshooting
 
 **Schema generation fails:**
+
 - Check that all types are registered with `RegisterTypes()`
 - Verify struct field names match the fraiseql tags
 - Ensure all GraphQL types are valid
 
 **Empty queries/mutations in schema:**
+
 - Make sure `Register()` is called on all builders
 - Verify the builders are defined in `init()` function
 - Check for runtime errors in the output

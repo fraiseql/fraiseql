@@ -43,6 +43,7 @@ You have **5 language generators that are 55-100% complete**. The path to produc
 ### DAY 1: Quick Fixes (Today)
 
 **Morning** (2 hours)
+
 ```
 ✅ Python:     pip install -e fraiseql-python/
               Run: pytest tests/ -v
@@ -62,6 +63,7 @@ You have **5 language generators that are 55-100% complete**. The path to produc
 ```
 
 **Afternoon** (2-4 hours)
+
 ```
 🔍 CLI Integration Investigation
   - Review fraiseql-cli schema parser
@@ -79,6 +81,7 @@ Expected Output: Clear understanding of format issue + fix plan
 ### DAY 2-3: E2E Testing Infrastructure
 
 **Create E2E Test Files** (4 hours)
+
 ```
 ✅ Python:      tests/e2e/python_e2e_test.py
 ✅ TypeScript:  fraiseql-typescript/tests/e2e/e2e.test.ts
@@ -94,6 +97,7 @@ Each test covers:
 ```
 
 **Implement Makefile Targets** (2 hours)
+
 ```
 make e2e-setup        # Start Docker infrastructure
 make e2e-all          # Run all 5 languages (sequential)
@@ -106,6 +110,7 @@ make e2e-clean        # Cleanup
 ```
 
 **GitHub Actions Setup** (3 hours)
+
 ```
 ✅ Create .github/workflows/e2e-tests.yml
 ✅ Configure Python/TypeScript/Java/Go/PHP jobs
@@ -123,6 +128,7 @@ Expected: Full automation of E2E testing
 ### DAY 4: CLI Integration Fix (1-2 hours)
 
 **Execute Fix** (1-2 hours)
+
 ```
 Based on Day 1 investigation:
 
@@ -143,6 +149,7 @@ Option C: Add Transformer (if both formats are valid)
 ```
 
 **Verification** (30 minutes)
+
 ```
 fraiseql-cli compile /tmp/go_schema.json
 fraiseql-cli compile /tmp/python_schema.json
@@ -330,6 +337,7 @@ Phase C: GitHub Actions (3 hours)
 ## Success Criteria by Milestone
 
 ### Milestone 1: Quick Fixes Complete
+
 ```
 ✅ Python: 7/7 tests passing
 ✅ TypeScript: 10/10 tests + examples working
@@ -340,6 +348,7 @@ Phase C: GitHub Actions (3 hours)
 ```
 
 ### Milestone 2: E2E Infrastructure Complete
+
 ```
 ✅ All 5 E2E test files created & locally passing
 ✅ Makefile targets working (make e2e-all runs successfully)
@@ -349,6 +358,7 @@ Phase C: GitHub Actions (3 hours)
 ```
 
 ### Milestone 3: CLI Integration Complete
+
 ```
 ✅ Go schema compiles: fraiseql-cli compile → schema.compiled.json ✅
 ✅ Python schema compiles
@@ -359,6 +369,7 @@ Phase C: GitHub Actions (3 hours)
 ```
 
 ### Milestone 4: Production Ready
+
 ```
 ✅ All tests passing (E2E + unit + integration)
 ✅ CI/CD pipeline fully automated
@@ -373,11 +384,13 @@ Phase C: GitHub Actions (3 hours)
 ### Local Development Setup
 
 **Hardware**
+
 - 8+ GB RAM (for Docker services)
 - 10+ GB disk space
 - Internet connection for package downloads
 
 **Software Already Available**
+
 - ✅ Docker & Docker Compose
 - ✅ fraiseql-cli
 - ✅ fraiseql-server
@@ -385,6 +398,7 @@ Phase C: GitHub Actions (3 hours)
 - ✅ MySQL 8.3 (Docker)
 
 **Software to Install**
+
 - Python 3.10+ (already have)
 - Node 18+ (already have)
 - Java 17+ (need Maven: `sudo pacman -S maven`)
@@ -393,6 +407,7 @@ Phase C: GitHub Actions (3 hours)
 - Composer (need: `sudo pacman -S composer`)
 
 ### CI/CD Infrastructure
+
 - GitHub Actions (free tier: 2000 minutes/month)
 - Estimated per run: 30 minutes
 - Cost: $0 (within free tier)
@@ -436,11 +451,13 @@ Phase C: GitHub Actions (3 hours)
 ## Parallel Work Opportunities
 
 **Can be done in parallel after Day 1**:
+
 - E2E test file creation (5 people, 1 file each)
 - GitHub Actions setup (1 person)
 - CLI investigation (1 person)
 
 **Critical path**:
+
 1. Day 1: Quick fixes + CLI investigation
 2. Day 2-3: E2E infrastructure (depends on Day 1)
 3. Day 4: CLI fix implementation (depends on Day 1)
@@ -450,23 +467,27 @@ Phase C: GitHub Actions (3 hours)
 ## Next Steps
 
 ### Immediate (Today)
+
 1. Read LANGUAGE_GENERATORS_STATUS.md (detailed per-language analysis)
 2. Read QUICK_FIXES_CHECKLIST.md (see what needs fixing)
 3. Decide on implementation approach (sequential vs. parallel)
 
 ### Short Term (This Week)
+
 1. Execute quick fixes (Python, TypeScript, Java, PHP)
 2. Investigate CLI schema format issue
 3. Start E2E test file creation
 4. Set up GitHub Actions workflow
 
 ### Medium Term (Next Week)
+
 1. Complete E2E infrastructure
 2. Implement CLI fix
 3. Run full E2E pipeline locally
 4. Document everything
 
 ### Long Term (Week 3+)
+
 1. Package releases (PyPI, NPM, Maven Central, Packagist, pkg.go.dev)
 2. Public documentation
 3. Marketing/announcements

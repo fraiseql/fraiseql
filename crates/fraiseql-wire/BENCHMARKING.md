@@ -11,6 +11,7 @@ This document outlines the approach to benchmarking fraiseql-wire against tokio-
 **YES, with caveats:**
 
 #### Pros
+
 - **Regression Detection**: Catch performance regressions before release
 - **Design Validation**: Verify architectural decisions are sound
 - **Documentation**: Benchmarks show real-world performance characteristics
@@ -18,6 +19,7 @@ This document outlines the approach to benchmarking fraiseql-wire against tokio-
 - **Community Trust**: Transparent performance measurement
 
 #### Cons
+
 - **Maintenance Burden**: Benchmarks break when dependencies update
 - **Hardware Variance**: Results vary significantly across machines
 - **CI Cost**: Running comprehensive benchmarks slows down CI
@@ -25,7 +27,9 @@ This document outlines the approach to benchmarking fraiseql-wire against tokio-
 - **Complexity**: Benchmark code adds maintenance overhead
 
 #### Recommendation
+
 **YES, but strategically:**
+
 - Include **unit-level micro-benchmarks** (always run)
 - Include **integration benchmarks** (optional in CI, run locally)
 - Avoid **end-to-end benchmarks** in CI (too expensive/flaky)
@@ -37,12 +41,14 @@ This document outlines the approach to benchmarking fraiseql-wire against tokio-
 **YES, but separate:**
 
 #### Pros
+
 - **Market Positioning**: Shows where fraiseql-wire excels
 - **Decision Support**: Helps users choose the right tool
 - **Competitive Verification**: Validates performance claims
 - **Educational**: Demonstrates design trade-offs
 
 #### Cons
+
 - **Maintenance**: tokio-postgres updates may affect benchmarks
 - **Scope Creep**: Benchmarking two projects is 2x work
 - **Fairness**: Hard to compare apples-to-apples (different goals)
@@ -50,7 +56,9 @@ This document outlines the approach to benchmarking fraiseql-wire against tokio-
 - **CI Cost**: More benchmarks = slower CI
 
 #### Recommendation
+
 **YES, but separate from main benchmarks:**
+
 - Create optional `benches/vs-tokio-postgres/` directory
 - Mark as `#[ignore]` or exclude from default CI
 - Run locally before releases
@@ -64,40 +72,50 @@ This document outlines the approach to benchmarking fraiseql-wire against tokio-
 **CONDITIONAL:**
 
 #### For Always-Run CI
+
 **Only micro-benchmarks** that are:
+
 - Fast (< 1 second each)
 - Deterministic (not sensitive to system load)
 - Focused on unit-level operations
 - Don't require real database
 
 Examples:
+
 - Protocol encoding/decoding speed
 - JSON parsing performance
 - Chunking strategy efficiency
 - Error handling overhead
 
 #### For Optional/Nightly CI
+
 **Integration benchmarks** that:
+
 - Require running Postgres
 - Take 1-5 minutes to complete
 - Measure end-to-end performance
 - May be sensitive to system load
 
 Examples:
+
 - Throughput (rows/sec) against real Postgres
 - Memory usage under sustained load
 - Connection setup/teardown time
 - Streaming latency characteristics
 
 #### For Manual/Pre-Release
+
 **Comparison benchmarks** that:
+
 - Compare with tokio-postgres
 - Require specific hardware
 - Need statistical analysis
 - Are run before major releases
 
 #### Recommendation
+
 **Tiered approach:**
+
 1. **Always run** (< 5 sec): Fast unit benchmarks
 2. **Nightly run** (5-10 min): Integration benchmarks
 3. **Manual run**: Detailed comparisons
@@ -530,6 +548,7 @@ FROM generate_series(1, 10000) i;
 ### Strategy
 
 1. **Store baseline** in repository
+
    ```
    benchmarks/baselines/
    ├── v0.1.0.json
@@ -538,6 +557,7 @@ FROM generate_series(1, 10000) i;
    ```
 
 2. **Compare on each commit**
+
    ```bash
    # Run benchmark
    cargo bench --bench micro_benchmarks -- --baseline current
@@ -552,6 +572,7 @@ FROM generate_series(1, 10000) i;
    - Require explicit approval to merge
 
 4. **Track over time**
+
    ```rust
    // Save results
    cp target/criterion/current.json benchmarks/baselines/v0.1.0.json
@@ -608,6 +629,7 @@ FROM generate_series(1, 10000) i;
 ## Implementation Plan
 
 ### Week 1: Micro-benchmarks
+
 - [ ] Set up Criterion framework
 - [ ] Implement protocol encoding benchmarks
 - [ ] Implement JSON parsing benchmarks
@@ -615,6 +637,7 @@ FROM generate_series(1, 10000) i;
 - [ ] Integrate into CI (always-run)
 
 ### Week 2: Integration Benchmarks
+
 - [ ] Create benchmark data SQL
 - [ ] Implement throughput benchmarks
 - [ ] Implement memory usage benchmarks
@@ -622,12 +645,14 @@ FROM generate_series(1, 10000) i;
 - [ ] Create HTML reports
 
 ### Week 3: Comparison Benchmarks
+
 - [ ] Create vs-tokio-postgres suite
 - [ ] Document measurement methodology
 - [ ] Create comparison report template
 - [ ] Manual CI trigger setup
 
 ### Week 4: Documentation & Refinement
+
 - [ ] Update BENCHMARKING.md with results
 - [ ] Create performance guide
 - [ ] Document how to run locally
@@ -646,6 +671,7 @@ FROM generate_series(1, 10000) i;
 | Comparison | `benches/vs-*` | Manual | Pre-release | Market positioning |
 
 This balances:
+
 - **Fast CI** (micro-benchmarks only, ~30 sec)
 - **Comprehensive testing** (nightly integration, ~5 min)
 - **Accurate comparisons** (manual comparison, no CI noise)

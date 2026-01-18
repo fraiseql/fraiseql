@@ -55,6 +55,7 @@ For beta testing and early access:
 ```
 
 **Stability commitment:**
+
 - ❌ **Never** use pre-release versions in production
 - ✅ **Can** use for testing and feedback
 - ✅ **Will** provide migration guide before GA
@@ -71,6 +72,7 @@ A breaking change is **any modification that requires code changes in user schem
 #### 2.1.1 GraphQL Schema Breaking Changes
 
 **Removals** (require MAJOR bump):
+
 ```graphql
 # ❌ BREAKING: Remove a field
 # 1.x
@@ -84,6 +86,7 @@ type User {
 ```
 
 **Behavioral changes** (require MAJOR bump):
+
 ```graphql
 # ❌ BREAKING: Change return type
 # 1.x
@@ -96,6 +99,7 @@ type Query {
 ```
 
 **Argument changes** (require MAJOR bump):
+
 ```graphql
 # ❌ BREAKING: Add required argument
 # 1.x
@@ -110,6 +114,7 @@ type Query {
 ```
 
 **Input type changes** (require MAJOR bump):
+
 ```graphql
 # ❌ BREAKING: Add required field to input
 # 1.x
@@ -127,6 +132,7 @@ input CreateUserInput {
 ```
 
 **Enum value removal** (require MAJOR bump):
+
 ```graphql
 # ❌ BREAKING: Remove enum value
 # 1.x
@@ -142,6 +148,7 @@ enum Role {
 #### 2.1.2 Operator Changes Breaking Changes
 
 **Removing operators** (require MAJOR bump):
+
 ```python
 # ❌ BREAKING: Remove an operator
 # 1.x supports: eq, ne, gt, gte, lt, lte, in, nin, contains, regex
@@ -152,6 +159,7 @@ enum Role {
 ```
 
 **Changing operator semantics** (require MAJOR bump):
+
 ```python
 # ❌ BREAKING: Change operator behavior
 # 1.x: in operator is case-sensitive
@@ -162,6 +170,7 @@ enum Role {
 #### 2.1.3 Authorization Changes Breaking Changes
 
 **Removing authorization rules** (require MAJOR bump):
+
 ```python
 # ❌ BREAKING: Remove field-level masking
 # 1.x: User.ssn field masked for non-admins
@@ -172,6 +181,7 @@ enum Role {
 ```
 
 **Adding required authorization rules** (require MAJOR bump):
+
 ```python
 # ❌ BREAKING: Add row-level security that filters results
 # 1.x: Query returns all posts
@@ -182,6 +192,7 @@ enum Role {
 #### 2.1.4 Error Code Changes Breaking Changes
 
 **Removing error codes** (require MAJOR bump):
+
 ```python
 # ❌ BREAKING: Error code E_VALIDATION_EMAIL_001 removed
 # 1.x: query fails with E_VALIDATION_EMAIL_001
@@ -190,6 +201,7 @@ enum Role {
 ```
 
 **Changing error code semantics** (require MAJOR bump):
+
 ```python
 # ❌ BREAKING: Change what E_DB_POSTGRES_DEADLOCK_303 means
 # 1.x: Means database deadlock (retry with exponential backoff)
@@ -202,6 +214,7 @@ enum Role {
 #### 2.1.5 Compilation-Time Changes Breaking Changes
 
 **Changing compiled schema structure** (require MAJOR bump):
+
 ```
 # ❌ BREAKING: Compiled schema JSON structure changes
 # 1.x CompiledSchema:
@@ -225,6 +238,7 @@ enum Role {
 #### 2.1.6 Type System Breaking Changes
 
 **Removing a custom scalar** (require MAJOR bump):
+
 ```graphql
 # ❌ BREAKING: Remove custom scalar
 # 1.x
@@ -240,6 +254,7 @@ type Event {
 ```
 
 **Changing scalar serialization** (require MAJOR bump):
+
 ```graphql
 # ❌ BREAKING: Change how UUID is serialized
 # 1.x: UUID serialized as "f47ac10b-58cc-4372-a567-0e02b2c3d479"
@@ -254,6 +269,7 @@ These changes are safe within the same MAJOR version:
 #### 2.2.1 Safe Additions (MINOR version bump)
 
 **Adding new fields** (backward-compatible):
+
 ```graphql
 # ✅ SAFE: Add optional field
 # 1.x
@@ -274,6 +290,7 @@ type User {
 ```
 
 **Adding new types** (backward-compatible):
+
 ```graphql
 # ✅ SAFE: Add new type and query
 # 1.x types: User, Post, Comment
@@ -283,6 +300,7 @@ type User {
 ```
 
 **Adding new enum values** (backward-compatible):
+
 ```graphql
 # ✅ SAFE: Add enum value (if clients ignore unknown values)
 # 1.x
@@ -302,6 +320,7 @@ enum Role {
 ```
 
 **Adding optional arguments** (backward-compatible):
+
 ```graphql
 # ✅ SAFE: Add optional argument
 # 1.x
@@ -318,6 +337,7 @@ type Query {
 ```
 
 **Adding new operators** (backward-compatible):
+
 ```python
 # ✅ SAFE: Add new operator
 # 1.x supports: eq, ne, gt, gte, lt, lte, in, nin, contains
@@ -327,6 +347,7 @@ type Query {
 ```
 
 **Adding field-level masking** (backward-compatible):
+
 ```python
 # ✅ SAFE: Add masking that previously wasn't masked (restricts data, not expands it)
 # 1.x: User.ssn visible to everyone
@@ -335,6 +356,7 @@ type Query {
 ```
 
 **Expanding authorization** (backward-compatible):
+
 ```python
 # ✅ SAFE: Make row-level security more restrictive (fewer results is safe)
 # 1.x: Query returns posts from all users
@@ -343,6 +365,7 @@ type Query {
 ```
 
 **Adding new error codes** (backward-compatible):
+
 ```python
 # ✅ SAFE: Add new error codes (clients ignore codes they don't recognize)
 # 1.x error codes: E_VALIDATION_*, E_AUTH_*, E_DB_*
@@ -353,6 +376,7 @@ type Query {
 #### 2.2.2 Safe Modifications (PATCH version bump)
 
 **Performance improvements** (patch):
+
 ```
 # ✅ SAFE: Query execution faster, same semantics
 # 1.0.0 → 1.0.1: Database query optimized from 100ms to 50ms
@@ -360,6 +384,7 @@ type Query {
 ```
 
 **Bug fixes** (patch):
+
 ```
 # ✅ SAFE: Fix incorrect behavior to match specification
 # 1.0.0 had a bug: "in" operator case-sensitive despite spec saying case-insensitive
@@ -368,12 +393,14 @@ type Query {
 ```
 
 **Documentation updates** (patch):
+
 ```
 # ✅ SAFE: Documentation corrections, no code changes
 # 1.0.0 → 1.0.1: Update docs for clarity
 ```
 
 **Internal refactoring** (patch):
+
 ```
 # ✅ SAFE: Rewrite internals without changing external behavior
 # 1.0.0 → 1.0.1: Rewrite Rust pipeline for performance
@@ -483,6 +510,7 @@ For each deprecation, FraiseQL provides:
 5. **Help** — Link to detailed guide and support
 
 **Example migration guide structure:**
+
 ```
 docs/migration/
 ├── v2.1-regex-deprecation.md
@@ -831,6 +859,7 @@ To run multiple versions simultaneously, deploy multiple runtime instances:
 ```
 
 **Client routing**:
+
 - Requests for v1.0.0 schema → Route to Instance A
 - Requests for v1.1.0 schema → Route to Instance B
 - Requests for v1.2.0 schema → Route to Instance C
@@ -1211,6 +1240,7 @@ query SearchPosts {
 ```
 
 ### After (v2.1+)
+
 ```graphql
 query SearchPosts {
   posts(where: { title: { startsWith: "draft" } }) {
@@ -1221,19 +1251,23 @@ query SearchPosts {
 ```
 
 ## Impact
+
 - Affects ~3% of existing queries in telemetry
 - No performance impact on other queries
 - Removal affects only queries using `regex` operator
 
 ## Timeline
+
 - **v2.1 (2024-01)**: Deprecation announced, `regex` still works, warnings enabled
 - **v2.2-2.5 (2024-2025)**: `regex` still works, deprecation warnings continue
 - **v3.0 (2027)**: `regex` operator removed, queries fail at compile time
 
 ## Help
-- Migration guide: https://docs.fraiseql.io/migration/regex-deprecation
-- Support: support@fraiseql.io
-- Issues: https://github.com/fraiseql/fraiseql/issues
+
+- Migration guide: <https://docs.fraiseql.io/migration/regex-deprecation>
+- Support: <support@fraiseql.io>
+- Issues: <https://github.com/fraiseql/fraiseql/issues>
+
 ```
 
 ---
@@ -1245,6 +1279,7 @@ query SearchPosts {
 FraiseQL commits to support windows for each MAJOR version:
 
 ```
+
 v2.x (v2.0.0 released Date X)
   ├─ Active support: 2 years from release
   │  └─ Full features, bug fixes, security patches
@@ -1256,6 +1291,7 @@ v2.x (v2.0.0 released Date X)
 v3.x (released 3 years after v2.0)
   ├─ Active support: 2 years from release
   └─ ...continues pattern...
+
 ```
 
 ### 13.2 Security Patches
@@ -1263,11 +1299,13 @@ v3.x (released 3 years after v2.0)
 Security vulnerabilities are backported to all supported versions:
 
 ```
+
 Security vulnerability discovered in v3.0.0
   ├─ v3.0.1 released with patch (immediate)
   ├─ v2.5.3 released with patch (same day)
   ├─ v2.4.2 released with patch (same day)
   └─ v2.3.1 released with patch (same day)
+
 ```
 
 ### 13.3 End of Life (EOL) Handling
@@ -1324,6 +1362,7 @@ Does the change modify user-facing behavior?
 ### 15.1 For Framework Maintainers
 
 **DO:**
+
 - ✅ Increment MAJOR version for breaking changes
 - ✅ Increment MINOR version for new features (backward-compatible)
 - ✅ Increment PATCH version for bug fixes
@@ -1335,6 +1374,7 @@ Does the change modify user-facing behavior?
 - ✅ Lock error codes within MAJOR version
 
 **DON'T:**
+
 - ❌ Remove fields/operators without deprecation period
 - ❌ Change error code semantics
 - ❌ Use 0.x versioning forever (stabilize with 1.0)
@@ -1345,6 +1385,7 @@ Does the change modify user-facing behavior?
 ### 15.2 For Application Developers
 
 **DO:**
+
 - ✅ Lock to specific framework version in production
 - ✅ Test upgrades on staging first
 - ✅ Review changelog before upgrading
@@ -1353,6 +1394,7 @@ Does the change modify user-facing behavior?
 - ✅ Update error handling code for new error codes
 
 **DON'T:**
+
 - ❌ Use `latest` version in production
 - ❌ Upgrade MAJOR versions without planning
 - ❌ Ignore deprecation warnings
@@ -1464,6 +1506,7 @@ Migration required during 3-year window (v2.1 to v3.0).
 ### 17.2 Breaking Change Examples
 
 **Requires MAJOR version bump:**
+
 - Remove field from type
 - Change field return type
 - Remove operator
@@ -1474,6 +1517,7 @@ Migration required during 3-year window (v2.1 to v3.0).
 - Add required argument/input field
 
 **Backward-compatible (MINOR version bump):**
+
 - Add optional field
 - Add new operator
 - Add new type
@@ -1482,6 +1526,7 @@ Migration required during 3-year window (v2.1 to v3.0).
 - Add optional argument
 
 **Bug fixes and performance (PATCH version bump):**
+
 - Fix incorrect behavior
 - Improve performance
 - Update documentation

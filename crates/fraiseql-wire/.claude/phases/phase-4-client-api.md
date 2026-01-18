@@ -559,6 +559,7 @@ cargo doc --no-deps --open
 ## Expected Output
 
 ### cargo test
+
 ```
 running 5 tests
 test client::connection_string::tests::test_parse_tcp_full ... ok
@@ -572,16 +573,16 @@ test result: ok. 5 passed; 0 failed; 0 ignored
 
 ## Acceptance Criteria
 
-- [ ] FraiseClient can connect via connection string
-- [ ] Connection string parsing handles TCP and Unix sockets
-- [ ] Query builder has fluent API
-- [ ] Query builder generates correct SQL
-- [ ] ORDER BY is supported in query builder
-- [ ] chunk_size can be configured
-- [ ] Example compiles without errors
-- [ ] All tests pass
-- [ ] Documentation is complete
-- [ ] No clippy warnings
+* [ ] FraiseClient can connect via connection string
+* [ ] Connection string parsing handles TCP and Unix sockets
+* [ ] Query builder has fluent API
+* [ ] Query builder generates correct SQL
+* [ ] ORDER BY is supported in query builder
+* [ ] chunk_size can be configured
+* [ ] Example compiles without errors
+* [ ] All tests pass
+* [ ] Documentation is complete
+* [ ] No clippy warnings
 
 ## DO NOT
 

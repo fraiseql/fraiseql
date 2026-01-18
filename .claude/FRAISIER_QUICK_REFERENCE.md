@@ -180,12 +180,14 @@ Secret: Your FRAISIER_WEBHOOK_SECRET
 1. **Webhook received** at `/webhook` endpoint
 2. **Signature verified** using provider secret
 3. **Branch mapping checked** in fraises.yaml
+
    ```yaml
    branch_mapping:
      main:
        fraise: my_api
        environment: production
    ```
+
 4. **Deployment queued** for identified fraise + environment
 5. **Deployer runs** (api_deployer, etl_deployer, etc.)
 6. **History recorded** in SQLite database
@@ -321,6 +323,7 @@ RUST_LOG=fraisier=debug
 ### Current Dependencies
 
 Fraisier currently depends on:
+
 - ✅ **fraiseql-python** - For schema authoring (not yet using it)
 - ⏳ **fraiseql-cli** - For schema compilation (Phase 9)
 - ⏳ **fraiseql-server** - For GraphQL runtime (Phase 6)
@@ -375,6 +378,7 @@ class Query:
 ```
 
 Then access via GraphQL:
+
 ```graphql
 query {
   fraiseStatus(fraiseId: "my_api") {

@@ -30,23 +30,27 @@ This document outlines the implementation strategy for FraiseQL v2, a ground-up 
 ### Key Modules by Reusability
 
 **100% Reusable (Direct Copy):**
+
 - ✅ `schema/` - Compiled schema system (PERFECT alignment!)
 - ✅ `apq/` - Automatic Persisted Queries
 - ✅ `config/` - Configuration system
 - ✅ `error.rs` - Error handling
 
 **90-95% Reusable (Minor Changes):**
+
 - ✅ `db/` - Database layer (update query execution interface)
 - ✅ `security/` - Complete security layer
 - ✅ `cache/` - Result caching (adapt cache keys)
 
 **60-90% Reusable (Significant Adaptation):**
+
 - 🔧 `query/` - Extract utilities (casing, operators, vector queries)
 - 🔧 `graphql/` - Move parsing to compile-time
 - 🔧 `http/` - Update query dispatch logic
 - 🔧 `validation/` - Adapt to v2 schema
 
 **Not Reusable (v1-Specific):**
+
 - ❌ Runtime query builder (v2 uses compiled SQL)
 
 ---
@@ -160,6 +164,7 @@ fraiseql/
 **Goal**: Establish core infrastructure with zero-cost v1 code reuse
 
 **Tasks**:
+
 1. ✅ Set up Cargo workspace
 2. ✅ Copy v1 modules (direct reuse):
    - `schema/` → `fraiseql-core/src/schema/`
@@ -171,6 +176,7 @@ fraiseql/
 5. ✅ Set up CI/CD (GitHub Actions)
 
 **Deliverables**:
+
 - Compiling workspace
 - 4 modules with tests passing
 - CI pipeline green
@@ -184,6 +190,7 @@ fraiseql/
 **Goal**: Adapt database and caching layers for compiled queries
 
 **Tasks**:
+
 1. 🔧 Copy `db/` module from v1
 2. 🔧 Update `db/query.rs`:
    - Change from `build_query()` to `execute_compiled_query()`
@@ -196,6 +203,7 @@ fraiseql/
 6. ✅ Add connection pool benchmarks
 
 **Deliverables**:
+
 - Database layer executing compiled SQL
 - Cache layer with v2-compatible keys
 - Integration tests passing
@@ -210,6 +218,7 @@ fraiseql/
 **Goal**: Integrate complete security infrastructure
 
 **Tasks**:
+
 1. ✅ Copy `security/` module from v1:
    - `auth.rs` - JWT, Auth0, Clerk
    - `validator.rs` - Query depth, complexity
@@ -221,6 +230,7 @@ fraiseql/
 5. ✅ Add auth middleware benchmarks
 
 **Deliverables**:
+
 - Complete auth system
 - Query validation
 - Field masking
@@ -236,6 +246,7 @@ fraiseql/
 **Goal**: Build schema compiler (GraphQL decorators → CompiledSchema JSON)
 
 **Tasks**:
+
 1. ❌ Design compiler architecture:
    - Parse GraphQL schema (decorators, directives)
    - Build Authoring IR
@@ -281,6 +292,7 @@ fraiseql/
    - **[Analytics]** Aggregate type generation tests
 
 **Deliverables**:
+
 - Working schema compiler
 - SQL template generation
 - CompiledSchema JSON output
@@ -297,6 +309,7 @@ fraiseql/
 **Goal**: Build compiled query executor
 
 **Tasks**:
+
 1. ❌ Design runtime architecture:
    - Load CompiledSchema at startup
    - Parse incoming GraphQL queries
@@ -332,6 +345,7 @@ fraiseql/
    - **[Analytics]** Temporal bucketing tests (all databases)
 
 **Deliverables**:
+
 - Working runtime executor
 - Query pattern matching
 - Result projection
@@ -349,6 +363,7 @@ fraiseql/
 **Goal**: Build HTTP server with Axum
 
 **Tasks**:
+
 1. 🔧 Copy `http/` module from v1
 2. 🔧 Update `routes/graphql.rs`:
    - Replace resolver-based execution
@@ -360,6 +375,7 @@ fraiseql/
 6. ✅ Add load testing benchmarks
 
 **Deliverables**:
+
 - HTTP server with GraphQL endpoint
 - Health checks
 - Introspection
@@ -375,6 +391,7 @@ fraiseql/
 **Goal**: Extract and adapt v1 utilities
 
 **Tasks**:
+
 1. 🔧 Copy from v1 `query/`:
    - `casing.rs` → `utils/casing.rs` (direct copy)
    - `operators.rs` → `utils/operators.rs` (adapt for validation)
@@ -385,6 +402,7 @@ fraiseql/
 4. ✅ Add vector query benchmarks
 
 **Deliverables**:
+
 - Case conversion utilities
 - Operator registry
 - Vector query support
@@ -403,6 +421,7 @@ Python decorators generate JSON schema files that are compiled by `fraiseql-cli`
 There is NO PyO3/FFI layer - the compiled Rust engine runs standalone.
 
 **Tasks**:
+
 1. 🔧 Copy `fraiseql-python/` decorator structure from v1
 2. ❌ Implement decorator system (JSON output only):
    - `@fraiseql.type` → JSON schema
@@ -421,6 +440,7 @@ There is NO PyO3/FFI layer - the compiled Rust engine runs standalone.
 7. ✅ Build wheel packaging
 
 **Deliverables**:
+
 - Python package with decorators (authoring-only)
 - JSON schema output (consumed by fraiseql-cli)
 - **[Analytics]** Fact table and aggregate query decorators
@@ -440,6 +460,7 @@ and runtime (CompiledSchema → Execution). It compiles JSON schemas into optimi
 Rust-native CompiledSchema files.
 
 **Tasks**:
+
 1. ❌ Implement `cli/commands/compile.rs`:
    - Read `schema.json` (from Python/TS decorators)
    - Parse and validate schema structure
@@ -456,6 +477,7 @@ Rust-native CompiledSchema files.
 5. ✅ Add CLI documentation
 
 **Deliverables**:
+
 - CLI tool with compile/validate/serve commands
 - Dev server with hot-reload
 - CLI tests passing
@@ -470,6 +492,7 @@ Rust-native CompiledSchema files.
 **Goal**: Comprehensive testing and performance validation
 
 **Tasks**:
+
 1. ✅ Write integration tests:
    - End-to-end compilation
    - End-to-end query execution
@@ -489,6 +512,7 @@ Rust-native CompiledSchema files.
    - Add missing tests
 
 **Deliverables**:
+
 - 85%+ test coverage
 - Performance benchmarks
 - Load test results
@@ -503,6 +527,7 @@ Rust-native CompiledSchema files.
 **Goal**: Complete developer documentation and examples
 
 **Tasks**:
+
 1. ✅ Write API documentation:
    - Rust API docs (rustdoc)
    - Python API docs
@@ -519,6 +544,7 @@ Rust-native CompiledSchema files.
 5. ✅ Create changelog
 
 **Deliverables**:
+
 - Complete API documentation
 - Example schemas
 - Migration guide
@@ -547,6 +573,7 @@ Rust-native CompiledSchema files.
 | **Total** | **61-73 days** | | |
 
 **Calendar Time**:
+
 - **Optimistic**: 10 weeks (parallel work, minimal blockers)
 - **Realistic**: 12-14 weeks (sequential dependencies, testing)
 - **Conservative**: 16-18 weeks (architectural refinements, polish)
@@ -556,17 +583,20 @@ Rust-native CompiledSchema files.
 ## Risk Assessment
 
 ### Low Risk (Mitigated by v1 Reuse)
+
 - ✅ Database layer - proven in production
 - ✅ Security - battle-tested auth/audit
 - ✅ Configuration - stable and complete
 - ✅ Error handling - comprehensive types
 
 ### Medium Risk (New Development)
+
 - ⚠️ Compiler - new code but clear requirements
 - ⚠️ Runtime - new execution model but proven SQL patterns
 - ⚠️ HTTP server - adaptation of v1 patterns
 
 ### High Risk (Critical Path)
+
 - 🔴 Compiler correctness - must generate valid SQL
 - 🔴 Runtime performance - must match/exceed v1
 - 🔴 Schema validation - must catch errors at compile-time
@@ -576,6 +606,7 @@ Rust-native CompiledSchema files.
 ## Success Criteria
 
 ### Alpha Release (v2.0.0-alpha.2)
+
 - [ ] Core compilation working (PostgreSQL only)
 - [ ] Basic query execution (SELECT)
 - [ ] Mutations working (INSERT, UPDATE, DELETE)
@@ -585,6 +616,7 @@ Rust-native CompiledSchema files.
 - [ ] Basic benchmarks show feasibility
 
 ### Beta Release (v2.0.0-beta.1)
+
 - [ ] All databases supported (PostgreSQL, MySQL, SQLite, SQL Server)
 - [ ] Complete security layer (auth, RBAC, audit)
 - [ ] Caching working (APQ + result cache)
@@ -594,6 +626,7 @@ Rust-native CompiledSchema files.
 - [ ] Performance parity with v1
 
 ### Production Release (v2.0.0)
+
 - [ ] All documentation complete
 - [ ] Migration guide from v1
 - [ ] Example schemas

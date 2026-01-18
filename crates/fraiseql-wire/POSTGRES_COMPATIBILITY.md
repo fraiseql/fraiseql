@@ -22,11 +22,13 @@ This guide covers fraiseql-wire's compatibility with PostgreSQL versions and pla
 ### PostgreSQL 15-16: Standard Mode
 
 **Characteristics**:
+
 - Standard Postgres wire protocol with full row buffering
 - Data rows arrive as complete tuples
 - fraiseql-wire streams them without modification
 
 **Performance**:
+
 - Memory usage: Bounded by chunk size (default 256 rows)
 - Latency: 2-5ms per chunk delivery
 - Network efficiency: One row per message (standard)
@@ -45,17 +47,20 @@ let stream = client
 ### PostgreSQL 17: Chunked Rows Mode
 
 **Characteristics** (PostgreSQL 17 feature):
+
 - New wire protocol message: `ChunkedRow` (message type 'c')
 - Multiple rows packed into single protocol message
 - Reduces protocol overhead and improves throughput
 
 **Performance Gains**:
+
 - Throughput: 2-5x improvement (100K → 500K rows/sec)
 - Latency: Similar time-to-first-row
 - Memory: Identical scaling
 - Network: Fewer round-trips
 
 **Implementation Status**:
+
 - ✅ Protocol decoder supports `ChunkedRow` messages
 - ✅ Adaptive chunking automatically detects and uses them
 - ✅ Falls back gracefully to standard mode if unavailable
@@ -105,6 +110,7 @@ fraiseql-wire maintains **semantic versioning**:
 ### Stability Across PostgreSQL Versions
 
 The public API is guaranteed to work identically on:
+
 - PostgreSQL 15, 16, 17
 
 ```rust
@@ -184,11 +190,13 @@ jobs:
 No API changes, no breaking changes. Simply update your Postgres cluster:
 
 1. **Update fraiseql-wire** (optional, not required for PG18 support):
+
    ```toml
    fraiseql-wire = "0.1"  # Already supports PG18
    ```
 
 2. **Upgrade PostgreSQL**:
+
    ```bash
    # During maintenance window
    docker pull postgres:18-alpine
@@ -196,6 +204,7 @@ No API changes, no breaking changes. Simply update your Postgres cluster:
    ```
 
 3. **Verify performance**:
+
    ```bash
    cargo run --example basic_stream --release
    # Expect: 20-30% throughput improvement
@@ -216,6 +225,7 @@ Some new PostgreSQL 18 features are explicitly out of scope for fraiseql-wire:
 fraiseql-wire will continue supporting new PostgreSQL versions as they release.
 
 Expected release timeline:
+
 - **PostgreSQL 19**: Q4 2026 (planned support: 2027)
 - **PostgreSQL 20**: Q4 2027 (planned support: 2028)
 
@@ -352,6 +362,7 @@ client
 ### Custom PostgreSQL Builds
 
 fraiseql-wire supports **vanilla PostgreSQL only**:
+
 - ✅ PostgreSQL official releases
 - ✅ PostgreSQL from Debian/Ubuntu packages
 - ✅ PostgreSQL from Docker official images
@@ -360,6 +371,7 @@ fraiseql-wire supports **vanilla PostgreSQL only**:
 - ❌ pg_partman, custom forks
 
 If using a non-standard PostgreSQL build:
+
 1. Test fraiseql-wire thoroughly
 2. Report results (success/failure) to maintainers
 3. Open GitHub issue with details
@@ -415,6 +427,7 @@ See CI configuration for full setup.
 **Cause**: Chunk size too small or query too simple
 
 **Workaround**:
+
 ```rust
 client
     .query("project")
@@ -431,6 +444,7 @@ client
 **Cause**: Custom CA certificate or self-signed cert
 
 **Workaround**:
+
 ```rust
 let config = FraiseConnectionConfig::new(connection_string)
     .tls(fraiseql_wire::TlsConfig::disabled());  // ⚠️ Only for dev/test
@@ -446,6 +460,7 @@ client = FraiseClient::with_config(config).await?;
 ### Q: Will fraiseql-wire work with managed PostgreSQL services?
 
 **A**: Likely yes, but test first:
+
 - **AWS RDS**: ✅ Tested
 - **Google Cloud SQL**: ✅ Tested
 - **Azure Database**: ⚠️ Test before production
@@ -456,6 +471,7 @@ client = FraiseClient::with_config(config).await?;
 ### Q: How do I report version compatibility issues?
 
 **A**: Open a GitHub issue with:
+
 ```
 PostgreSQL version: X.X
 fraiseql-wire version: 0.1.0

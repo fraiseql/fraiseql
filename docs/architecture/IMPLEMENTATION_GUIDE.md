@@ -48,6 +48,7 @@ Rust: Project JSONB to requested fields + apply auth masking
 ```
 
 **This means:**
+
 - ✅ No complex JOIN generation
 - ✅ No field list generation
 - ✅ Just WHERE clause + JSONB projection

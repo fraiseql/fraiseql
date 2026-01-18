@@ -98,6 +98,7 @@ FraiseQL supports hierarchical role inheritance where roles can inherit from par
 ```
 
 **Key Concepts**:
+
 - Each role can have an optional `parent_role_id`
 - Child roles inherit all permissions from parents
 - Cycle detection prevents infinite loops (via PostgreSQL CTEs)
@@ -106,18 +107,21 @@ FraiseQL supports hierarchical role inheritance where roles can inherit from par
 ### Two-Layer Permission Cache
 
 **Layer 1: Request-Level Cache**
+
 - In-memory dictionary, scoped to single request
 - Instant access: < 1 microsecond
 - Automatic cleanup at request end
 - Zero latency for repeated permission checks
 
 **Layer 2: PostgreSQL UNLOGGED Table**
+
 - Persistent cache across requests
 - Domain versioning tracks cache validity
 - Automatic cascade invalidation on changes
 - Lookup performance: 0.1-0.3ms
 
 **Cache Invalidation**:
+
 ```
 User modifies permission
        ↓
@@ -169,11 +173,13 @@ class Role:
 ```
 
 **System Roles** (predefined):
+
 - `admin` - Full system access
 - `user` - Basic user access
 - `guest` - Limited access
 
 **Custom Roles**:
+
 - Department-specific (e.g., `sales_manager`, `engineering_lead`)
 - Feature-specific (e.g., `analytics_viewer`, `report_editor`)
 
@@ -192,6 +198,7 @@ class Permission:
 ```
 
 **Standard Permissions**:
+
 ```
 user.create, user.read, user.update, user.delete
 product.create, product.read, product.update, product.delete
@@ -199,6 +206,7 @@ order.create, order.read, order.update, order.delete
 ```
 
 **Constraints** (optional JSONB):
+
 ```json
 {
   "own_data_only": true,
@@ -317,6 +325,7 @@ mutation CreateRoles {
 ```
 
 **Inheritance Chain**:
+
 ```
 admin (system role)
   ↑
@@ -330,6 +339,7 @@ sales_director
 ```
 
 A `sales_director` inherits all permissions from:
+
 - `sales_director` (direct)
 - `sales_manager` (parent)
 - `sales_team` (grandparent)
@@ -422,6 +432,7 @@ class User:
 ```
 
 **Behavior**:
+
 - Field check: Permission required before field resolution
 - Missing permission: Returns GraphQL error, field returns null
 - No exception thrown: Graceful field hiding
@@ -446,6 +457,7 @@ class Product:
 ```
 
 **Behavior**:
+
 - Role check: User must have specified role
 - Multiple roles (OR logic): `@requires_role(roles=["admin", "manager"])`
 - If denied: Graceful null return with error
@@ -466,6 +478,7 @@ query {
 ```
 
 **Response**:
+
 ```json
 {
   "data": {
@@ -531,11 +544,13 @@ constraint = RowConstraint(
 ### Performance
 
 Row constraint checking with Rust FFI:
+
 - **Cached lookup**: < 0.1ms (LRU cache)
 - **Uncached lookup**: < 1ms (database query)
 - **Supports 10,000+ rows**: Transparent filtering
 
 **Example Query**:
+
 ```graphql
 query {
   users {
@@ -547,6 +562,7 @@ query {
 ```
 
 **Behind the scenes**:
+
 ```sql
 SELECT id, name, salary
 FROM users
@@ -598,6 +614,7 @@ await resolver.check_permission(
 ```
 
 **Isolation**:
+
 - User A (tenant-1) cannot inherit permissions from tenant-2 roles
 - Row-level filtering automatically includes tenant context
 - Cache keys include tenant_id
@@ -781,6 +798,7 @@ created_at: "2025-01-11T10:30:00Z"
 ### Permission Not Working
 
 1. Check role inheritance:
+
    ```graphql
    query {
      user(id: "user-123") {
@@ -794,6 +812,7 @@ created_at: "2025-01-11T10:30:00Z"
    ```
 
 2. Verify permission assignment:
+
    ```graphql
    query {
      role(id: "role-456") {
@@ -803,6 +822,7 @@ created_at: "2025-01-11T10:30:00Z"
    ```
 
 3. Check cache version:
+
    ```sql
    SELECT * FROM domain_versions WHERE domain = 'role';
    ```
@@ -810,17 +830,20 @@ created_at: "2025-01-11T10:30:00Z"
 ### High Latency on Permission Checks
 
 1. Check cache hit ratio:
+
    ```sql
    SELECT * FROM permission_cache_stats;
    ```
 
 2. Verify domain versioning is working:
+
    ```sql
    SELECT version FROM domain_versions WHERE domain = 'role';
    -- Should be same across requests unless roles changed
    ```
 
 3. Monitor role hierarchy depth:
+
    ```sql
    SELECT role_id, max_depth FROM role_hierarchy_depths;
    -- Limit to <10 for optimal performance

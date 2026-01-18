@@ -26,6 +26,7 @@ This document explains **what data** FraiseQL's observability system collects, *
 ### Purpose
 
 Track per-query performance to identify:
+
 - Slow queries (candidates for optimization)
 - Performance trends over time
 - Impact of schema changes
@@ -48,6 +49,7 @@ pub struct QueryMetrics {
 ### Example
 
 **GraphQL Query**:
+
 ```graphql
 query {
   users(where: { region: "US" }) {
@@ -59,6 +61,7 @@ query {
 ```
 
 **Collected Metrics**:
+
 ```json
 {
   "query_name": "users",
@@ -73,6 +76,7 @@ query {
 ```
 
 **Breakdown**:
+
 - **Total time**: 1250.5ms (user-perceived latency)
 - **SQL generation**: 2.3ms (compiler overhead, typically < 5ms)
 - **Database query**: 1240.1ms (where optimization happens!)
@@ -123,6 +127,7 @@ CREATE NONCLUSTERED INDEX idx_query_executions_name_time
 ### Purpose
 
 Identify which JSON/JSONB paths are frequently accessed, enabling:
+
 - Denormalization suggestions (JSON → direct column)
 - Index recommendations on computed columns
 - Query pattern analysis
@@ -151,6 +156,7 @@ pub enum JsonAccessType {
 ### Example: PostgreSQL JSONB
 
 **GraphQL Query**:
+
 ```graphql
 query {
   sales(
@@ -165,6 +171,7 @@ query {
 ```
 
 **Generated SQL**:
+
 ```sql
 SELECT
     SUM(revenue) AS revenue,
@@ -213,6 +220,7 @@ GROUP BY dimensions->>'category'
 ### Example: SQL Server JSON
 
 **GraphQL Query**:
+
 ```graphql
 query {
   users(where: { metadata: { country: "USA" } }) {
@@ -223,6 +231,7 @@ query {
 ```
 
 **Generated SQL**:
+
 ```sql
 SELECT id, name
 FROM users
@@ -248,12 +257,14 @@ WHERE JSON_VALUE(metadata, '$.country') = 'USA'
 **Selectivity** = (Rows Matched) ÷ (Total Rows)
 
 **Example**:
+
 - Query filters on `region = 'US'`
 - Returns 15,000 rows
 - Table has 100,000 total rows
 - **Selectivity** = 15,000 ÷ 100,000 = **0.15 (15%)**
 
 **Why it matters**:
+
 - **High selectivity** (1-20%): Good candidate for denormalization + index
 - **Medium selectivity** (20-50%): Index may help
 - **Low selectivity** (50-100%): Not worth indexing (most rows match)
@@ -346,6 +357,7 @@ CREATE NONCLUSTERED INDEX idx_json_accesses_lookup
 ### Purpose
 
 Gather **real database statistics** for accurate cost modeling:
+
 - Table sizes and row counts
 - Column cardinality (distinct values)
 - Index usage and effectiveness
@@ -358,6 +370,7 @@ Gather **real database statistics** for accurate cost modeling:
 #### Table Statistics
 
 **Query**:
+
 ```sql
 SELECT
     schemaname,
@@ -374,6 +387,7 @@ WHERE relname = $1;
 ```
 
 **Data Collected**:
+
 ```rust
 pub struct TableStatistics {
     pub table_name: String,
@@ -386,6 +400,7 @@ pub struct TableStatistics {
 ```
 
 **Example**:
+
 ```json
 {
   "table_name": "tf_sales",
@@ -400,6 +415,7 @@ pub struct TableStatistics {
 #### Column Statistics
 
 **Query**:
+
 ```sql
 SELECT
     attname AS column_name,
@@ -412,6 +428,7 @@ WHERE tablename = $1 AND attname = $2;
 ```
 
 **Data Collected**:
+
 ```rust
 pub struct ColumnStatistics {
     pub column_name: String,
@@ -423,6 +440,7 @@ pub struct ColumnStatistics {
 ```
 
 **Example**:
+
 ```json
 {
   "column_name": "region_id",
@@ -436,6 +454,7 @@ pub struct ColumnStatistics {
 #### Index Statistics
 
 **Query**:
+
 ```sql
 SELECT
     i.indexrelname AS index_name,
@@ -454,6 +473,7 @@ GROUP BY i.indexrelname, i.idx_scan, i.idx_tup_read,
 ```
 
 **Data Collected**:
+
 ```rust
 pub struct IndexStatistics {
     pub index_name: String,
@@ -467,6 +487,7 @@ pub struct IndexStatistics {
 ```
 
 **Example**:
+
 ```json
 {
   "index_name": "idx_tf_sales_region",
@@ -486,6 +507,7 @@ pub struct IndexStatistics {
 #### Table Statistics
 
 **Query**:
+
 ```sql
 SELECT
     t.name AS table_name,
@@ -501,6 +523,7 @@ GROUP BY t.name;
 ```
 
 **Data Collected**:
+
 ```rust
 pub struct TableStatistics {
     pub table_name: String,
@@ -515,6 +538,7 @@ pub struct TableStatistics {
 #### Column Statistics
 
 **Query** (uses DBCC):
+
 ```sql
 DBCC SHOW_STATISTICS('table_name', 'stat_name') WITH STAT_HEADER;
 ```
@@ -524,6 +548,7 @@ DBCC SHOW_STATISTICS('table_name', 'stat_name') WITH STAT_HEADER;
 #### Index Statistics
 
 **Query**:
+
 ```sql
 SELECT
     i.name AS index_name,
@@ -555,6 +580,7 @@ GROUP BY i.name, s.user_seeks, s.user_scans, s.user_lookups,
 ### Purpose
 
 Track query result caching effectiveness:
+
 - Hit rate (% of queries served from cache)
 - Cache size and memory usage
 - Eviction rate
@@ -584,6 +610,7 @@ impl CacheMetrics {
 ```
 
 **Example**:
+
 ```json
 {
   "hits": 45000,
@@ -604,6 +631,7 @@ impl CacheMetrics {
 To avoid analyzing millions of raw metrics, FraiseQL periodically aggregates statistics:
 
 **PostgreSQL**:
+
 ```sql
 CREATE TABLE fraiseql_metrics.query_stats (
     query_name TEXT PRIMARY KEY,
@@ -618,6 +646,7 @@ CREATE TABLE fraiseql_metrics.query_stats (
 ```
 
 **SQL Server**:
+
 ```sql
 CREATE TABLE fraiseql_metrics.query_stats (
     query_name NVARCHAR(256) PRIMARY KEY,
@@ -668,6 +697,7 @@ ON CONFLICT (query_name) DO UPDATE SET
 FraiseQL **never logs**:
 
 ❌ **Query Arguments/Variables**
+
 ```graphql
 query {
   user(id: "123e4567-e89b-12d3-a456-426614174000") {  # ❌ NOT logged
@@ -677,6 +707,7 @@ query {
 ```
 
 ❌ **Actual Data Values**
+
 ```sql
 -- Query result:
 -- id    | name          | email
@@ -685,6 +716,7 @@ query {
 ```
 
 ❌ **Personally Identifiable Information**
+
 - User IDs
 - Email addresses
 - Names
@@ -692,6 +724,7 @@ query {
 - Session tokens
 
 ❌ **Authentication Data**
+
 - Passwords
 - API keys
 - OAuth tokens
@@ -699,6 +732,7 @@ query {
 ### What IS Logged
 
 ✅ **Query Structure**
+
 ```graphql
 query {
   user(id: $userId) {  # ✅ Structure logged, $userId value NOT logged
@@ -708,6 +742,7 @@ query {
 ```
 
 ✅ **Performance Metrics**
+
 ```json
 {
   "query_name": "user",
@@ -717,6 +752,7 @@ query {
 ```
 
 ✅ **JSON Path Patterns**
+
 ```json
 {
   "path": "metadata.country",  # ✅ Path logged, NOT values
@@ -831,10 +867,12 @@ if self.metrics.should_sample() {
 **Question**: Is 10% sampling enough to detect patterns?
 
 **Answer**: Yes! With 1000 qps and 10% sampling:
+
 - **8.6M samples per day**
 - **60M samples per week**
 
 This is **statistically significant** for detecting:
+
 - Queries with frequency > 1000/day (detected with 99.9% confidence)
 - Slow queries (p95, p99 accurate within 5%)
 - JSON access patterns (accurate frequency counts)
@@ -850,12 +888,14 @@ This is **statistically significant** for detecting:
 ### Measurement
 
 **Baseline** (observability OFF):
+
 ```
 Query execution: 45.2ms
 Throughput: 1000 qps
 ```
 
 **With Observability** (10% sampling):
+
 ```
 Query execution: 47.1ms  (+1.9ms, 4.2% increase)
 Throughput: 980 qps  (2% decrease)
@@ -886,6 +926,7 @@ curl http://localhost:8080/metrics/export > metrics.json
 ```
 
 **Response Format**:
+
 ```json
 {
   "version": "1.0",
@@ -962,6 +1003,7 @@ WHERE executed_at > DATEADD(day, -1, GETDATE());
 ```
 
 **Expected Result** (10% sampling, 1000 qps):
+
 ```
 metrics_today: ~8,640,000
 first_metric:  2026-01-12 00:00:00
@@ -973,18 +1015,21 @@ last_metric:   2026-01-12 23:59:58
 Set up alerts for:
 
 1. **No metrics collected** (1 hour):
+
    ```sql
    SELECT MAX(executed_at) < NOW() - INTERVAL '1 hour'
    FROM fraiseql_metrics.query_executions;
    ```
 
 2. **Metrics lag** (> 5 minutes behind):
+
    ```sql
    SELECT MAX(executed_at) < NOW() - INTERVAL '5 minutes'
    FROM fraiseql_metrics.query_executions;
    ```
 
 3. **Low sample rate** (< expected):
+
    ```sql
    SELECT COUNT(*) < 7200000  -- Expected: 8.6M per day at 10% sampling
    FROM fraiseql_metrics.query_executions

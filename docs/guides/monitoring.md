@@ -40,6 +40,7 @@ setup_health_endpoints(app)
 ```
 
 **Available Endpoints**:
+
 - `GET /metrics` - Prometheus metrics
 - `GET /health` - Full health status
 - `GET /health/ready` - Readiness probe (Kubernetes)
@@ -101,6 +102,7 @@ FraiseQL exports 15+ metrics covering all operational aspects:
 | `fraiseql_graphql_queries_errors` | Counter | operation_type | Failed queries |
 
 **Labels**:
+
 - `operation_type`: `query`, `mutation`, `subscription`
 - `operation_name`: GraphQL operation name (if named)
 
@@ -124,6 +126,7 @@ FraiseQL exports 15+ metrics covering all operational aspects:
 | `fraiseql_db_query_duration_seconds` | Histogram | query_type | Query duration |
 
 **Labels**:
+
 - `query_type`: `SELECT`, `INSERT`, `UPDATE`, `DELETE`, `TRUNCATE`
 - `table_name`: Database table name
 
@@ -136,6 +139,7 @@ FraiseQL exports 15+ metrics covering all operational aspects:
 | `fraiseql_cache_hit_rate` | Gauge | cache_type | Hit rate percentage (0-100) |
 
 **Labels**:
+
 - `cache_type`: `result_cache`, `query_cache` (APQ), `http_cache`
 
 #### Error Metrics
@@ -146,6 +150,7 @@ FraiseQL exports 15+ metrics covering all operational aspects:
 | `fraiseql_error_rate` | Gauge | error_type | Error rate percentage |
 
 **Labels**:
+
 - `error_type`: `validation`, `authorization`, `database`, `timeout`, `internal`
 - `error_code`: HTTP or GraphQL error code
 - `operation`: Operation type causing error
@@ -158,6 +163,7 @@ FraiseQL exports 15+ metrics covering all operational aspects:
 | `fraiseql_http_request_duration_seconds` | Histogram | method, endpoint | HTTP duration |
 
 **Labels**:
+
 - `method`: `GET`, `POST`, `PUT`, `DELETE`
 - `endpoint`: Request path
 - `status`: HTTP status code
@@ -171,11 +177,13 @@ FraiseQL exports 15+ metrics covering all operational aspects:
 ### Histogram Buckets
 
 Default buckets (customizable):
+
 ```
 [0.005s, 0.01s, 0.025s, 0.05s, 0.1s, 0.25s, 0.5s, 1s, 2.5s, 5s, 10s]
 ```
 
 Buckets correspond to:
+
 - `5ms` - Extremely fast (in-memory cache hits)
 - `10ms` - Very fast (simple queries)
 - `25ms` - Fast (normal queries)
@@ -289,6 +297,7 @@ groups:
 FraiseQL integrates with OpenTelemetry for distributed tracing across microservices.
 
 **Supported Exporters**:
+
 - **OTLP** (gRPC) - Recommended, standard OpenTelemetry Protocol
 - **Jaeger** (Thrift) - Native Jaeger integration
 - **Zipkin** (HTTP) - Zipkin-compatible format
@@ -438,6 +447,7 @@ GET /health
 ```
 
 Response:
+
 ```json
 {
   "status": "healthy",
@@ -490,6 +500,7 @@ GET /health/tracing
 ### Health Assessment Rules
 
 **Database**:
+
 - Pool utilization > 90% → Critical
 - Pool utilization > 80% → Degraded
 - Error rate > 5% → Critical
@@ -497,11 +508,13 @@ GET /health/tracing
 - Slow query rate > 5% → Degraded
 
 **Cache**:
+
 - Hit rate < 50% → Critical
 - Hit rate < 60% → Degraded
 - Eviction rate high → Warning
 
 **GraphQL**:
+
 - Success rate < 90% → Critical
 - Success rate < 95% → Degraded
 - Operation latency high → Warning
@@ -543,6 +556,7 @@ GET /admin/apq/dashboard
 ```
 
 Features:
+
 - Query hit rate chart (historical)
 - Top queries by usage
 - Storage statistics
@@ -558,6 +572,7 @@ GET /admin/apq/stats
 ```
 
 Response:
+
 ```json
 {
   "query_cache": {
@@ -598,6 +613,7 @@ GET /admin/apq/top-queries?limit=10
 ```
 
 Response:
+
 ```json
 {
   "queries": [
@@ -625,21 +641,25 @@ GET /admin/apq/health
 ### Metrics Collected
 
 **Query Cache Metrics**:
+
 - Total hits, misses, stores
 - Hit rate (%)
 - Average parse time (ms)
 
 **Response Cache Metrics**:
+
 - Total hits, misses, stores
 - Hit rate (%)
 - Estimated memory usage (bytes)
 
 **Storage Statistics**:
+
 - Unique queries stored
 - Unique responses cached
 - Total storage bytes
 
 **Performance Indicators**:
+
 - Requests per second (derived)
 - P50, P95, P99 response times
 
@@ -1012,18 +1032,21 @@ Example Grafana JSON configuration:
 ### Sampling Strategy
 
 **Development**:
+
 ```python
 TracingConfig(sample_rate=1.0)  # 100%
 MetricsConfig(enabled=True)      # All metrics
 ```
 
 **Staging**:
+
 ```python
 TracingConfig(sample_rate=0.5)   # 50%
 MetricsConfig(enabled=True)      # All metrics
 ```
 
 **Production**:
+
 ```python
 TracingConfig(sample_rate=0.1)   # 10% (adjust based on volume)
 MetricsConfig(enabled=True)      # All metrics
@@ -1032,12 +1055,14 @@ MetricsConfig(enabled=True)      # All metrics
 ### Alert Thresholds
 
 **Critical Alerts** (page on-call):
+
 - Error rate > 5%
 - P99 latency > 5s
 - Database pool > 90%
 - Availability < 99%
 
 **Warning Alerts** (ticket):
+
 - Error rate > 1%
 - P95 latency > 1s
 - Database pool > 80%

@@ -14,6 +14,7 @@ Coverage: 758/788 = 96.2% → Can reach 99.6% with 28 tests
 ## What's Ready to Enable (28 tests, 0 hours setup)
 
 ### PostgreSQL Adapter Tests (25 tests)
+
 ✅ Database: Already running on localhost:5433
 ✅ Schema: v_user, v_post, v_product views with sample data
 ✅ All 25 tests can run immediately
@@ -21,6 +22,7 @@ Coverage: 758/788 = 96.2% → Can reach 99.6% with 28 tests
 **Enable**: `cargo test -p fraiseql-core --lib postgres::adapter -- --ignored`
 
 ### PostgreSQL Introspector Tests (3 tests)
+
 ✅ Database: Ready
 ✅ Schema: tf_sales fact table with indexes
 ✅ All 3 tests can run immediately
@@ -32,6 +34,7 @@ Coverage: 758/788 = 96.2% → Can reach 99.6% with 28 tests
 ## What Needs Implementation (1 test, 15 minutes)
 
 ### Aggregation Runtime Test (1 test)
+
 ⚠️ Dependencies exist but test body is empty
 ⏱️ Implementation time: 15 minutes
 🎯 Location: `crates/fraiseql-core/src/runtime/aggregation.rs:958-961`
@@ -43,6 +46,7 @@ Coverage: 758/788 = 96.2% → Can reach 99.6% with 28 tests
 ## What's Blocked (3 tests, Phase 4+)
 
 ### Query Analyzer Tests (3 tests)
+
 ❌ Blocked by IRQuery struct (not yet implemented)
 ❌ Blocked by AutoParams type (not yet implemented)
 🎯 Timeline: Phase 4 compiler work (2-4 weeks out)
@@ -113,16 +117,19 @@ Add to `.github/workflows/ci.yml`:
 ## Phase Timeline
 
 ### Immediate (Today, 30 min)
+
 - [ ] Enable 28 adapter + introspector tests
 - [ ] Implement 1 HAVING test
 - [ ] Achieve 787/790 tests passing
 
 ### This Week (1 hour)
+
 - [ ] Update CI/CD with init scripts
 - [ ] Test and merge PR
 - [ ] Verify CI passes
 
 ### Phase 4 (Future, 2-4 hours)
+
 - [ ] Implement IRQuery struct
 - [ ] Enable 3 query analyzer tests
 - [ ] Achieve 790/790 tests (100%)

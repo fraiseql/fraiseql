@@ -11,6 +11,7 @@
 ### 1. Error Semantics: MemoryLimitExceeded
 
 **What We Have**:
+
 ```rust
 MemoryLimitExceeded {
     limit: usize,
@@ -21,11 +22,13 @@ MemoryLimitExceeded {
 **What We Must Ensure**:
 
 #### Distinguishability
+
 - ✅ Already clear: separate from `Cancelled`, `ConnectionClosed`, `Io`
 - ✅ Non-transient: `is_retriable()` returns false
 - ⚠️ **Semantic clarity needed**: Document that this is a **terminal error**
 
 **Why it matters**:
+
 - Consumer must not attempt to retry the same query
 - Consumer should consider:
   - Increasing consumer throughput (faster `.next()` calls)
@@ -33,7 +36,9 @@ MemoryLimitExceeded {
   - Switching to unbounded mode (remove max_memory)
 
 #### Documentation Requirement
+
 Add to error.rs doc comment:
+
 ```rust
 /// Memory limit exceeded
 ///
@@ -54,6 +59,7 @@ Add to error.rs doc comment:
 ```
 
 #### Category Mapping
+
 ```rust
 "memory_limit_exceeded" → Use for alerting/metrics
 ```
@@ -67,6 +73,7 @@ Add to error.rs doc comment:
 **Decision Point**: Pre-enqueue vs Post-enqueue
 
 #### Option A: Pre-Enqueue (Before channel send)
+
 ```rust
 fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
     // Check BEFORE receiving from channel
@@ -87,11 +94,13 @@ fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self
 ```
 
 **Behavior**:
+
 - Stops consuming when buffer reaches limit
 - Clean cutoff
 - Producer blocked (backpressure visible)
 
 #### Option B: Post-Dequeue (After receiving item)
+
 ```rust
 fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
     // Normal recv first
@@ -117,12 +126,15 @@ fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self
 ```
 
 **Behavior**:
+
 - Allows one "burst" item through
 - Smoother user experience (consumers can drain buffer)
 - More lenient on producer backpressure
 
 #### Recommendation
+
 **Use Option A (Pre-Enqueue)**:
+
 1. Simpler semantics (no state machine)
 2. Clear enforcement boundary
 3. Producer gets immediate backpressure signal
@@ -133,6 +145,7 @@ fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self
 ### 3. UX of max_memory() API
 
 **What We're Adding**:
+
 ```rust
 pub fn max_memory(mut self, bytes: usize) -> Self {
     self.max_memory = Some(bytes);
@@ -143,15 +156,19 @@ pub fn max_memory(mut self, bytes: usize) -> Self {
 **Constraints**:
 
 #### Default Behavior
+
 ✅ **Must**: Default to unbounded (no max_memory)
+
 - Maintains backward compatibility
 - Avoids surprising existing code
 - Opt-in safety model
 
 #### Composition with Adaptive Chunking
+
 ⚠️ **Critical**: Don't hardwire assumptions
 
 **Bad**:
+
 ```rust
 // If adaptive chunking adjusts chunk_size automatically,
 // and we enforce memory limits, they could fight each other:
@@ -161,6 +178,7 @@ pub fn max_memory(mut self, bytes: usize) -> Self {
 ```
 
 **Good**:
+
 ```rust
 // Option 1: Separate concerns
 // - Memory limit: hard ceiling on buffered rows
@@ -176,7 +194,9 @@ stream
 ```
 
 #### Memory Estimation Accuracy
+
 ⚠️ **Must document assumptions**:
+
 ```rust
 /// Estimates buffered memory as items_buffered * 2KB
 ///
@@ -196,6 +216,7 @@ stream
 ### Why 8.6.3 → 8.6.4 is the right order
 
 **8.6.3 (Memory Bounds)**:
+
 - ✅ Safety feature (prevents OOM)
 - ✅ Defensive (catches misconfiguration)
 - ✅ Orthogonal (doesn't interact with other features)
@@ -203,6 +224,7 @@ stream
 - **Enables**: Users can set memory limits and know they're safe
 
 **8.6.4 (Adaptive Chunking)**:
+
 - ✅ Performance feature (improves throughput)
 - ✅ Data-driven (uses occupancy metrics from 8.6.1)
 - ✅ Composes with 8.6.3 (respects memory limits)
@@ -212,6 +234,7 @@ stream
 ### Why NOT to skip to 8.6.5 (Pause/Resume)
 
 **8.6.5 would introduce**:
+
 - Significant state machine complexity
 - Pause/resume semantics need careful definition
 - Harder to test (state explosion)
@@ -297,6 +320,7 @@ stream
 ## Success Criteria
 
 ### 8.6.3 (Memory Bounds)
+
 - ✅ Enforces memory limits correctly
 - ✅ Error semantics clear (terminal, non-retriable)
 - ✅ Zero regression in performance
@@ -304,6 +328,7 @@ stream
 - ✅ Composes well with future features
 
 ### 8.6.4 (Adaptive Chunking)
+
 - ✅ Chunk size adapts to backpressure
 - ✅ Respects memory limits from 8.6.3
 - ✅ Improves throughput without sacrificing latency
@@ -316,6 +341,7 @@ stream
 ### What NOT to do
 
 ❌ **Don't hardwire memory estimation**:
+
 ```rust
 // Bad: makes 8.6.4 harder
 if items_buffered > 256 { /* enforce */ }  // Assumes 256 items always ok
@@ -326,11 +352,13 @@ if estimated_memory > limit { /* enforce */ }
 ```
 
 ❌ **Don't make pause/resume a blocker**:
+
 - 8.6.5 is complex but orthogonal
 - Can land without it
 - Recommend doing after 8.6.4
 
 ❌ **Don't skip testing edge cases**:
+
 - Limit exactly equals one item size (should work)
 - Limit is 1 byte (should error immediately)
 - Unbounded (None) should work forever
@@ -338,17 +366,20 @@ if estimated_memory > limit { /* enforce */ }
 ### What TO do
 
 ✅ **Document assumptions clearly**:
+
 - Memory estimate is conservative
 - Applies to buffered items only
 - Doesn't include other overhead
 
 ✅ **Keep error messages actionable**:
+
 ```
 "memory limit exceeded: 600MB buffered > 500MB limit
 Suggestion: Increase consumer throughput, reduce chunk_size, or remove limit"
 ```
 
 ✅ **Test with real workloads**:
+
 - 1K small objects
 - 1K large objects
 - Mixed sizes
@@ -399,6 +430,7 @@ Risk: Medium (state machine complexity)
 ### Idea 1: Expose Estimated Memory in Error
 
 **Rationale**: Debugging aid and structured logging
+
 - Include `current_estimate: usize` in error payload
 - Helpful for logs, metrics, and programmatic response
 
@@ -407,6 +439,7 @@ Risk: Medium (state machine complexity)
 ### Idea 2: Configurable Memory Estimator
 
 **Rationale**: Workloads may skew from 2KB average
+
 - Internal-only trait for custom estimation
 - Allow tuning if empirical measurements differ
 - Default remains 2KB (conservative)
@@ -416,6 +449,7 @@ Risk: Medium (state machine complexity)
 ### Idea 3: Soft Limit Mode (Far Future)
 
 **Rationale**: Progressive degradation instead of hard error
+
 - Warn at threshold (e.g., 80% of limit)
 - Error at hard ceiling (100% of limit)
 - Separate from current hard-limit semantics
@@ -436,6 +470,7 @@ This phase sequence embodies good design:
 Each builds on prior work without interfering.
 
 **Production readiness progression**:
+
 - After 8.6.1: Observable
 - After 8.6.2: Debuggable
 - After 8.6.3: Safe

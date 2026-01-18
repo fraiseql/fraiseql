@@ -83,6 +83,7 @@ Executes GraphQL queries with optional variables.
 ```
 
 **Fields:**
+
 - `query` (string, required): GraphQL query string
 - `variables` (object, optional): Query variables as JSON object
 - `operationName` (string, optional): Operation name for multi-operation queries
@@ -148,6 +149,7 @@ Returns server and database health status.
 ```
 
 **Status Values:**
+
 - `healthy`: All systems operational
 - `degraded`: Database connected but slow
 - `unhealthy`: Database connection failed or schema not loaded
@@ -231,6 +233,7 @@ Prevents deeply nested queries that could cause exponential query complexity.
 Scores query complexity based on structural patterns to prevent resource-exhausting queries.
 
 **Scoring:**
+
 - Each `{` = 1 point
 - Each `[` = 2 points (array selections cost more)
 - Each `(` = 1 point (arguments)
@@ -327,6 +330,7 @@ The server implements GraphQL spec-compliant error responses with detailed error
 ```
 
 **Fields:**
+
 - `message`: Human-readable error description
 - `code`: Machine-readable error code (enum)
 - `locations`: Position in query where error occurred
@@ -383,6 +387,7 @@ FRAISEQL_POOL_TIMEOUT_SECS=60
 ```
 
 **Recommendations:**
+
 - `POOL_MIN`: Set to 5-10 for low-traffic (development) or 10-20 for production
 - `POOL_MAX`: Set to 20-50 for typical workloads, up to 100 for high-concurrency
 - `POOL_TIMEOUT`: Default 30 seconds is suitable for most cases; increase for slow networks
@@ -503,6 +508,7 @@ spec:
 **Error**: `Failed to bind server: Address already in use`
 
 **Solution**: Change port or kill existing process:
+
 ```bash
 kill -9 $(lsof -t -i:8000)
 FRAISEQL_PORT=8001 cargo run
@@ -513,6 +519,7 @@ FRAISEQL_PORT=8001 cargo run
 **Error**: `Failed to connect to database: connection refused`
 
 **Checklist**:
+
 1. Verify DATABASE_URL is correct: `psql $DATABASE_URL -c "SELECT 1"`
 2. Check database is running: `docker ps` or check service status
 3. Verify credentials: username, password, host, port, database name
@@ -524,6 +531,7 @@ FRAISEQL_PORT=8001 cargo run
 **Error**: `Request timeout` (408)
 
 **Solutions**:
+
 1. Simplify query (reduce complexity)
 2. Increase timeout: `FRAISEQL_POOL_TIMEOUT_SECS=60`
 3. Optimize database indexes
@@ -534,6 +542,7 @@ FRAISEQL_PORT=8001 cargo run
 **Error**: Queries taking >500ms
 
 **Diagnostics**:
+
 1. Run same query directly against database: `psql -c "EXPLAIN ANALYZE ..."`
 2. Check connection pool utilization via `/health`
 3. Monitor database CPU/memory
@@ -545,6 +554,7 @@ FRAISEQL_PORT=8001 cargo run
 **Error**: Memory usage grows over time
 
 **Debugging**:
+
 1. Check if connection pool is properly bounded (POOL_MAX)
 2. Monitor open connections: `SELECT count(*) FROM pg_stat_activity`
 3. Verify response body is being properly released

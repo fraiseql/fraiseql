@@ -9,6 +9,7 @@
 Fraisier is the **canonical reference implementation** of a production FraiseQL application.
 
 It demonstrates:
+
 - ✅ GraphQL schema definition with `@fraiseql` decorators
 - ✅ CQRS pattern for deployment history (write tables + read views)
 - ✅ Real-time updates via GraphQL subscriptions
@@ -81,12 +82,14 @@ fraiseql/
 ### 1. Deployment Orchestration
 
 **Fraise Types:**
+
 - **API** - Web services with systemd, health checks, database migrations
 - **ETL** - Data pipelines and batch processing
 - **Scheduled** - Cron jobs via systemd timers
 - **Backup** - Database backups with retention policies
 
 **Deployment Workflow:**
+
 1. Developer pushes to Git
 2. Webhook sent to Fraisier
 3. Signature verified (HMAC-SHA256)
@@ -98,15 +101,18 @@ fraiseql/
 ### 2. CQRS Database Pattern
 
 **Write Tables (Append-only):**
+
 - `tb_deployments` - Every deployment event
 - `tb_webhook_events` - Every webhook received
 
 **Read Views (Optimized):**
+
 - `v_fraise_status` - Current status per environment
 - `v_deployment_history` - Full history for queries
 - `v_deployment_stats` - Aggregated statistics
 
 **Benefits:**
+
 - Complete audit trail
 - Query optimization
 - Scalability
@@ -114,12 +120,14 @@ fraiseql/
 ### 3. Multi-Provider Support
 
 **Git Providers:**
+
 - GitHub (github.com + GitHub Enterprise)
 - GitLab (gitlab.com + self-hosted)
 - Gitea (self-hosted + Forgejo)
 - Bitbucket (Cloud + Server/Data Center)
 
 Each provider:
+
 - ✅ Signature verification
 - ✅ Webhook payload normalization
 - ✅ Branch mapping support
@@ -127,6 +135,7 @@ Each provider:
 ### 4. GraphQL API
 
 **Queries:**
+
 ```graphql
 query {
   fraise(id: "my_api") {
@@ -142,6 +151,7 @@ query {
 ```
 
 **Mutations:**
+
 ```graphql
 mutation {
   deploy(fraiseId: "my_api", environment: "production") {
@@ -152,6 +162,7 @@ mutation {
 ```
 
 **Subscriptions:**
+
 ```graphql
 subscription {
   deploymentStatusChanged(fraiseId: "my_api") {
@@ -478,16 +489,19 @@ Fraisier uses FraiseQL's compiled execution engine:
 ## Troubleshooting
 
 **Webhook not triggering:**
+
 - Check webhook delivery in Git provider
 - Verify webhook secret matches
 - Check Fraisier logs: `journalctl -u fraisier-webhook`
 
 **Deployment failed:**
+
 - Check: `fraisier status my_api prod`
 - View history: `fraisier history my_api`
 - Check deployment logs
 
 **Health check timeout:**
+
 - Increase timeout in `fraises.yaml`
 - Verify service is healthy: `curl /health`
 - Check service logs: `systemctl status api.service`
@@ -505,6 +519,7 @@ To contribute to Fraisier:
 5. Submit pull request
 
 Changes to the schema:
+
 - Edit `schema/py/models.py`
 - Recompile: `fraiseql-cli compile schema/py/models.py`
 - Test thoroughly

@@ -9,6 +9,7 @@
 ## Phase 1: Create E2E Test Files (4 hours)
 
 ### Python E2E Test
+
 - [ ] Create `tests/e2e/python_e2e_test.py`
   - [ ] test_python_e2e_basic_schema()
   - [ ] test_python_e2e_analytics_schema()
@@ -18,6 +19,7 @@
 - [ ] Run locally: `pytest tests/e2e/python_e2e_test.py -v`
 
 ### TypeScript E2E Test
+
 - [ ] Create `fraiseql-typescript/tests/e2e/e2e.test.ts`
   - [ ] should author basic schema
   - [ ] should export schema to JSON
@@ -27,6 +29,7 @@
 - [ ] Run locally: `npm run test:e2e`
 
 ### Java E2E Test
+
 - [ ] Create `fraiseql-java/src/test/java/com/fraiseql/E2ETest.java`
   - [ ] testBasicSchemaAuthoring()
   - [ ] testCliCompilation()
@@ -36,6 +39,7 @@
 - [ ] Run locally: `mvn test -Dtest="*E2ETest"`
 
 ### Go E2E Test
+
 - [ ] Create `fraiseql-go/fraiseql/e2e_test.go`
   - [ ] TestE2EBasicSchema()
   - [ ] TestE2EAnalyticsSchema()
@@ -44,6 +48,7 @@
 - [ ] Run locally: `go test ./fraiseql/... -run TestE2E -v`
 
 ### PHP E2E Test
+
 - [ ] Create `fraiseql-php/tests/e2e/E2ETest.php`
   - [ ] testBasicSchemaAuthoring()
   - [ ] testJsonExport()
@@ -57,6 +62,7 @@
 ## Phase 2: Implement Makefile Targets (2 hours)
 
 ### Update Main Makefile
+
 - [ ] Add `e2e-setup` target
   - [ ] Start Docker containers
   - [ ] Wait for databases
@@ -87,6 +93,7 @@
   - [ ] Test database connectivity
 
 ### Test Makefile Locally
+
 - [ ] `make e2e-setup` - Start infrastructure
 - [ ] `make e2e-status` - Verify databases ready
 - [ ] `make e2e-python` - Test Python pipeline
@@ -101,6 +108,7 @@
 ## Phase 3: GitHub Actions CI/CD Setup (3 hours)
 
 ### Create Workflow File
+
 - [ ] Create `.github/workflows/e2e-tests.yml`
   - [ ] Set up Python environment and cache
   - [ ] Set up Node environment and cache
@@ -109,6 +117,7 @@
   - [ ] Set up PHP environment and cache
 
 ### Configure Services
+
 - [ ] PostgreSQL 16 service
   - [ ] Health check configuration
   - [ ] Port mapping (5432)
@@ -119,6 +128,7 @@
   - [ ] Environment variables
 
 ### Create Job Matrix
+
 - [ ] Python test job
   - [ ] Dependencies installation
   - [ ] Test execution
@@ -145,6 +155,7 @@
   - [ ] Test with generated schemas
 
 ### Add Workflow Features
+
 - [ ] Trigger on push to main/develop
 - [ ] Trigger on pull requests
 - [ ] Scheduled daily run (optional)
@@ -155,6 +166,7 @@
 - [ ] Failure notifications
 
 ### Test Workflow
+
 - [ ] Push to feature branch
 - [ ] Verify workflow runs
 - [ ] Check all jobs execute
@@ -167,6 +179,7 @@
 ## Phase 4: CLI Schema Format Resolution (2-4 hours)
 
 ### Investigation
+
 - [ ] [ ] Review fraiseql-cli schema parser code
   - [ ] Look at `fraiseql-cli/src/compile.rs`
   - [ ] Check schema validation logic
@@ -184,9 +197,11 @@
   - [ ] Metadata issues?
 
 ### Fix Strategy
+
 Choose one approach:
 
 **Option A: Fix Generators** (if CLI format is correct)
+
 - [ ] Update Python generator
 - [ ] Update TypeScript generator
 - [ ] Update Java generator
@@ -194,17 +209,20 @@ Choose one approach:
 - [ ] Update PHP generator
 
 **Option B: Fix CLI** (if generator format is correct)
+
 - [ ] Update CLI schema parser
 - [ ] Update validation logic
 - [ ] Document schema format expectations
 - [ ] Add format conversion if needed
 
 **Option C: Add Transformation Layer**
+
 - [ ] Create schema transformer
 - [ ] Map between formats
 - [ ] Update E2E tests to use transformer
 
 ### Verification
+
 - [ ] [ ] Test with Go schema: `fraiseql-cli compile schema.json`
 - [ ] [ ] Verify compilation succeeds
 - [ ] [ ] Check schema.compiled.json output
@@ -218,6 +236,7 @@ Choose one approach:
 ## Phase 5: Full E2E Pipeline Testing (1 hour)
 
 ### Local Execution
+
 - [ ] Start all databases: `make e2e-setup`
 - [ ] Run all tests: `make e2e-all`
 - [ ] Monitor progress
@@ -225,6 +244,7 @@ Choose one approach:
 - [ ] Fix any failures
 
 ### Verification Checklist
+
 - [ ] Python: 7+ tests passing
 - [ ] TypeScript: 10+ tests passing
 - [ ] Java: 82+ tests passing
@@ -232,12 +252,14 @@ Choose one approach:
 - [ ] PHP: 40+ tests passing
 
 ### Report Generation
+
 - [ ] [ ] Collect test results
 - [ ] [ ] Generate coverage report
 - [ ] [ ] Document any issues
 - [ ] [ ] Create summary report
 
 ### Cleanup
+
 - [ ] `make e2e-clean` to stop infrastructure
 - [ ] Verify volumes removed
 - [ ] Verify temp files cleaned
@@ -247,17 +269,20 @@ Choose one approach:
 ## Post-Implementation Tasks
 
 ### Documentation
+
 - [ ] [ ] Update main README.md with E2E testing section
 - [ ] [ ] Document test running in CONTRIBUTING.md
 - [ ] [ ] Create E2E testing guide
 - [ ] [ ] Document CI/CD pipeline in DEVELOPMENT.md
 
 ### Monitoring
+
 - [ ] [ ] Set up GitHub Actions notifications
 - [ ] [ ] Configure Slack/email alerts for failures
 - [ ] [ ] Create dashboard for test results
 
 ### Maintenance
+
 - [ ] [ ] Schedule weekly E2E test runs
 - [ ] [ ] Monitor test flakiness
 - [ ] [ ] Update tests as new features added
@@ -268,30 +293,35 @@ Choose one approach:
 ## Success Criteria
 
 ### Phase 1 Complete
+
 - ✅ All 5 language E2E test files created
 - ✅ Tests locally runnable
 - ✅ No compilation errors
 - ✅ Docstrings and comments complete
 
 ### Phase 2 Complete
+
 - ✅ Makefile targets created
 - ✅ `make e2e-all` works locally
 - ✅ All virtual environments install correctly
 - ✅ Test results clear and understandable
 
 ### Phase 3 Complete
+
 - ✅ GitHub Actions workflow created
 - ✅ Workflow runs on push/PR
 - ✅ All jobs execute successfully
 - ✅ Summary report generated
 
 ### Phase 4 Complete
+
 - ✅ CLI schema format issue understood
 - ✅ Fix implemented (generator or CLI)
 - ✅ All 5 languages compile successfully
 - ✅ schema.compiled.json generated
 
 ### Phase 5 Complete
+
 - ✅ All E2E tests passing locally
 - ✅ CI/CD pipeline fully automated
 - ✅ Coverage at 90%+ for each language
@@ -315,17 +345,20 @@ Choose one approach:
 ## Resource Requirements
 
 ### Local Development
+
 - Docker (already available)
 - 8+ GB RAM for Docker services
 - 10+ GB disk space for volumes
 - Python 3.10+, Node 18+, Java 17, Go 1.22, PHP 8.2+
 
 ### CI/CD
+
 - GitHub Actions (free tier sufficient)
 - ~30 minutes per full pipeline run
 - ~$0 cost (GitHub Actions free tier: 2000 minutes/month)
 
 ### Databases
+
 - PostgreSQL 16
 - MySQL 8.3
 - SQLite (local)

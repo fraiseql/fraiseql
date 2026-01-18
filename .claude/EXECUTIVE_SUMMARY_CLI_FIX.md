@@ -1,6 +1,7 @@
 # Executive Summary: CLI Schema Format Fix
 
 ## One-Sentence Summary
+
 **Fix one field name (`"return_list"` → `"returns_list"`) across 11 files to enable all 10 language generators to compile with fraiseql-cli.**
 
 ---
@@ -8,12 +9,14 @@
 ## Current Status
 
 ### ✅ Diagnosis Complete
+
 - **Root cause identified**: Field name mismatch in schema JSON
 - **Severity**: Critical (blocks all Phase 2 E2E compilation tests)
 - **Scope**: Well-defined and isolated
 - **Confidence**: 99% (root cause is clear and testable)
 
 ### ⏳ Implementation Pending
+
 - 11 files need single field name change
 - ~50-60 total occurrences to fix
 - Estimated effort: 1-2 hours
@@ -58,6 +61,7 @@ Replace all `"return_list"` with `"returns_list"` in:
 ## Why This Matters
 
 ### Before Fix
+
 ```
 ❌ fraiseql-cli rejects all 10 language schemas
 ❌ Phase 2 E2E compilation tests cannot run
@@ -66,6 +70,7 @@ Replace all `"return_list"` with `"returns_list"` in:
 ```
 
 ### After Fix
+
 ```
 ✅ CLI accepts all 10 language schemas
 ✅ Phase 2 E2E compilation tests pass for all languages
@@ -86,6 +91,7 @@ Replace all `"return_list"` with `"returns_list"` in:
 | **Total** | | **2.75 hours** | |
 
 ### Parallel Execution Possible
+
 - Phase 1: Sequential (diagnostic, already done)
 - Phase 2: Single person, 15 min
 - Phase 3: Can parallelize across 2-3 people or use local AI models
@@ -94,6 +100,7 @@ Replace all `"return_list"` with `"returns_list"` in:
 - Phase 4: Sequential verification, 30 min
 
 **Best approach**:
+
 - Canonical schema fix (15 min)
 - Parallel generator fixes with local 8B model (15-20 min)
 - Verification (30 min)
@@ -119,6 +126,7 @@ Replace all `"return_list"` with `"returns_list"` in:
 ## What's Been Done
 
 ✅ **Analysis Phase** (Complete)
+
 - Investigated fraiseql-cli source code
 - Reviewed IntermediateSchema struct definition
 - Identified exact field name mismatch
@@ -126,6 +134,7 @@ Replace all `"return_list"` with `"returns_list"` in:
 - Created comprehensive documentation
 
 ✅ **Planning Phase** (Complete)
+
 - Designed step-by-step implementation plan
 - Created verification strategy
 - Identified all 11 files to modify
@@ -133,6 +142,7 @@ Replace all `"return_list"` with `"returns_list"` in:
 - Assessed risks and confidence
 
 ✅ **Documentation** (Complete)
+
 - `CLI_SCHEMA_FORMAT_ANALYSIS.md` - Technical deep dive
 - `CLI_SCHEMA_FIX_IMPLEMENTATION_PLAN.md` - Detailed step-by-step plan
 - `CLI_SCHEMA_FIX_SUMMARY.md` - Strategic overview
@@ -140,6 +150,7 @@ Replace all `"return_list"` with `"returns_list"` in:
 - `EXECUTIVE_SUMMARY_CLI_FIX.md` - This document
 
 ⏳ **Implementation Phase** (Ready to execute)
+
 - Next: Fix velocitybench_schemas.py
 - Then: Fix 10 language generators
 - Finally: Verify with comprehensive testing
@@ -148,7 +159,8 @@ Replace all `"return_list"` with `"returns_list"` in:
 
 ## Success Criteria
 
-### Phase 2 Complete When:
+### Phase 2 Complete When
+
 ```
 ✅ All 10 languages compile with fraiseql-cli
 ✅ All 10 produce valid schema.compiled.json files
@@ -156,7 +168,8 @@ Replace all `"return_list"` with `"returns_list"` in:
 ✅ E2E test output shows: "✅ ALL TIER 1A COMPILATION E2E TESTS PASSED!"
 ```
 
-### E2E Test Expected Output:
+### E2E Test Expected Output
+
 ```
 ======================================================================
 Phase 2: CLI Compilation E2E Test
@@ -183,17 +196,21 @@ Compiling Ruby         (Ruby DSL                      )... ✅ schema.compiled.j
 ## Implementation Strategy Recommendation
 
 ### Option A: Manual Fix
+
 **Pros**: Full control, understand each generator
 **Cons**: Time-consuming (1-2 hours), error-prone
 **Recommendation**: If only one person available and want deep understanding
 
 ### Option B: Local AI Model (8B)
+
 **Pros**: Fast, systematic, can parallelize
 **Cons**: Requires model setup, should verify outputs
 **Recommendation**: Best for bulk replacement tasks
 
 ### Option C: Hybrid (RECOMMENDED ✅)
+
 **Steps**:
+
 1. **Claude** (15 min): Fix canonical schema (velocitybench_schemas.py)
 2. **Local 8B Model** (15 min): Fix all 10 generators in parallel
    - Prompt: `Replace all "return_list" with "returns_list" in [file]`
@@ -242,6 +259,7 @@ A: E2E tests will pass and show all 10 languages compiling successfully.
 ## Technical Details Reference
 
 **For deeper information, see:**
+
 - Field name source: `crates/fraiseql-cli/src/schema/intermediate.rs:84`
 - Validation logic: `crates/fraiseql-cli/src/schema/validator.rs`
 - Conversion logic: `crates/fraiseql-cli/src/schema/converter.rs`
@@ -272,6 +290,7 @@ python3 tests/e2e/velocitybench_compilation_test.py 2>&1 | tail -20
 ```
 
 Should output:
+
 ```
 ======================================================================
 ✅ ALL TIER 1A COMPILATION E2E TESTS PASSED!
@@ -289,6 +308,7 @@ Should output:
 ## Conclusion
 
 **This is a straightforward fix with:**
+
 - Clear root cause ✓
 - Isolated scope ✓
 - Well-defined solution ✓

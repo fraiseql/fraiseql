@@ -11,6 +11,7 @@
 fraiseql-wire has been designed with security-first principles. The minimal scope and from-scratch protocol implementation result in a small attack surface.
 
 **Key Findings**:
+
 - ✅ **Zero unsafe code** in entire codebase
 - ✅ **No known vulnerabilities** in dependencies
 - ✅ **Strong authentication** (cleartext over TCP only; TLS support needed for production)
@@ -27,6 +28,7 @@ fraiseql-wire has been designed with security-first principles. The minimal scop
 **Result**: ✅ **PASS - Zero unsafe code**
 
 **Verification**:
+
 ```bash
 grep -r "unsafe" src/
 # Output: (empty)
@@ -35,6 +37,7 @@ grep -r "unsafe" src/
 **Finding**: The entire codebase uses safe Rust exclusively. No `unsafe` blocks, unsafe functions, or unsafe trait implementations.
 
 **Implications**:
+
 - Memory safety guaranteed by Rust's type system
 - No buffer overflows or use-after-free vulnerabilities
 - Panic behavior is well-defined (no undefined behavior)
@@ -48,6 +51,7 @@ grep -r "unsafe" src/
 #### 2.1 Supported Authentication Methods
 
 **Current Status**:
+
 - ✅ CleartextPassword (fully implemented)
 - ⚠️ MD5Password (intentionally unsupported)
 - ❌ SCRAM (not implemented, on v0.2.0 roadmap)
@@ -84,6 +88,7 @@ async fn authenticate(&mut self, config: &ConnectionConfig) -> Result<()> {
 **Findings**:
 
 ✅ **Strengths**:
+
 - Password is properly handled as `Option<String>` (not `Option<[u8]>` but acceptable)
 - Error message doesn't leak credentials
 - Password transmission is byte-perfect (no encoding manipulation)
@@ -91,6 +96,7 @@ async fn authenticate(&mut self, config: &ConnectionConfig) -> Result<()> {
 - No password logging or debug output
 
 ⚠️ **Limitations** (acceptable for current scope):
+
 - **CleartextPassword only over TCP/Unix sockets without TLS**
   - Passwords transmitted unencrypted over TCP
   - Safe for localhost/Unix sockets
@@ -138,17 +144,20 @@ let (user, password) = if let Some(auth) = auth {
 **Findings**:
 
 ✅ **Strengths**:
+
 - Password extracted from URL and converted to String (not leaked in debug output)
 - Connection string not logged (check: `grep -r "connection_string\|connection string" src/` shows no logging)
 - Password parsing is straightforward (no complex parsing that could be exploited)
 
 ⚠️ **Considerations**:
+
 - Connection strings with embedded passwords are visible in memory
 - Process inspection tools could reveal passwords
 - URLs appearing in logs or backtraces could expose passwords
 - Standard risk with embedded credentials (not fraiseql-wire specific)
 
 **Recommendation**: Document best practices for password handling:
+
 - Prefer environment variables: `FraiseQL_PASSWORD`
 - Never log connection strings containing credentials
 - Use TLS when credentials traverse networks
@@ -240,6 +249,7 @@ client.query("user")
 **Verdict**: ⚠️ **ACCEPTABLE with Documentation**
 
 Reasoning:
+
 1. **Simple Query protocol is inherently string-based** - no parameterized query support
 2. **Design is transparent** - fraiseql-wire clearly shows WHERE and ORDER BY are passed as-is
 3. **Users have alternatives** - Rust predicates provide type-safe filtering
@@ -250,6 +260,7 @@ Reasoning:
 **Recommendations**:
 
 1. **Add Security Warning to README**:
+
    ```markdown
    ## SQL Injection Prevention
 
@@ -305,6 +316,7 @@ fn encode_query(buf: &mut BytesMut, query: &str) -> io::Result<()> {
 **Findings**:
 
 ✅ **Strengths**:
+
 - Query is sent as raw bytes (no encoding manipulation that could introduce issues)
 - Null terminator properly added (`buf.put_u8(0)`)
 - Length field correctly calculated
@@ -319,16 +331,19 @@ fn encode_query(buf: &mut BytesMut, query: &str) -> io::Result<()> {
 **Code Review** (`src/connection/state.rs`):
 
 Connection uses explicit state machine:
+
 - `Initial` → `AwaitingAuth` → `Authenticating` → `Idle` → `QueryInProgress` → `ReadingResults` → `Idle`
 
 **Findings**:
 
 ✅ **State transitions are enforced**:
+
 - `transition()` method validates allowed state changes
 - Invalid state transitions return error
 - Prevents protocol violations
 
 ✅ **Cancellation safety**:
+
 - `CancelRequest` properly sent on drop
 - Process ID and secret key validated
 - Query cancellation prevents resource leaks
@@ -340,6 +355,7 @@ Connection uses explicit state machine:
 **Result**: ✅ **PASS - All dependencies current, no known vulnerabilities**
 
 **Dependency Tree**:
+
 ```
 fraiseql-wire v0.1.0
 ├── bytes v1.11.0
@@ -354,6 +370,7 @@ fraiseql-wire v0.1.0
 ```
 
 **Cargo Audit Results**:
+
 ```
 157 crate dependencies scanned
 0 vulnerabilities found
@@ -362,6 +379,7 @@ fraiseql-wire v0.1.0
 **Assessment**:
 
 ✅ **All dependencies are current** (January 2026):
+
 - tokio: 1.49.0 (active maintenance, security updates applied)
 - serde: 1.0.228 (stable, widely audited)
 - bytes: 1.11.0 (minimal, no history of vulnerabilities)
@@ -369,10 +387,12 @@ fraiseql-wire v0.1.0
 - whoami: 1.6.1 (minimal, well-maintained)
 
 ✅ **No security advisories**:
+
 - Ran `cargo audit` against latest RustSec advisory database
 - Zero matches found
 
 **Development Dependencies**:
+
 ```
 [dev-dependencies]
 ├── criterion v0.5.1
@@ -385,6 +405,7 @@ fraiseql-wire v0.1.0
 **Recommendations**:
 
 1. **Pin critical dependency versions**:
+
    ```toml
    [dependencies]
    tokio = "=1.49.0"  # Critical: async runtime
@@ -426,10 +447,12 @@ Connection(String),
 ✅ **No credential leakage**: Error messages don't expose passwords or sensitive data
 
 ⚠️ **SQL error details**: Error messages may expose query structure
+
 - Example: `"sql error: column 'extra_col' not found"`
 - Could reveal schema information to attacker
 
 **Assessment**: ACCEPTABLE because:
+
 - fraiseql-wire is intended for trusted frameworks, not direct user exposure
 - SQL errors go to application logs (not user-facing)
 - Developers should filter error messages in user-facing APIs
@@ -450,6 +473,7 @@ grep -r "#\[derive.*Debug" src/
 **Findings**:
 
 ⚠️ **ConnectionConfig includes passwords in Debug output**:
+
 ```rust
 #[derive(Debug, Clone)]
 pub struct ConnectionConfig {
@@ -461,6 +485,7 @@ pub struct ConnectionConfig {
 **Risk**: If config structure is logged with `{:?}` formatter, password appears.
 
 **Assessment**: LOW RISK because:
+
 - Config is created locally in user code
 - Not typically logged as a whole
 - Passwords only in memory, not serialized
@@ -526,6 +551,7 @@ impl std::fmt::Debug for ConnectionConfig {
 **Postgres Query Cancellation**:
 
 Code properly implements:
+
 1. Server sends `BackendKeyData` with process ID + secret key
 2. Client stores process ID and secret key
 3. Client sends `CancelRequest` on cancellation
@@ -563,6 +589,7 @@ Code properly implements:
 **Recommendations**:
 
 1. **Add query timeout** (Phase 8):
+
    ```rust
    client.query("entity")
        .timeout(Duration::from_secs(30))
@@ -582,6 +609,7 @@ Code properly implements:
 **Code Review** (`src/client/fraise_client.rs`):
 
 Streaming implementation ensures:
+
 - ✅ Query is cancelled when stream is dropped
 - ✅ `CancelRequest` sent with proper process_id and secret_key
 - ✅ Connection closed gracefully
@@ -594,9 +622,11 @@ Streaming implementation ensures:
 ## Summary of Findings
 
 ### Critical Issues
+
 **Count**: 0
 
 ### High Severity Issues
+
 **Count**: 0
 
 ### Medium Severity Issues
@@ -622,16 +652,19 @@ Streaming implementation ensures:
 ### Recommended for Users
 
 1. **Use Unix sockets for local Postgres**:
+
    ```rust
    FraiseClient::connect("postgres:///mydb").await?
    ```
 
 2. **Use Rust predicates for sensitive filtering**:
+
    ```rust
    .where_rust(|json| json["salary"] < 100000)  // Type-safe
    ```
 
 3. **Don't embed credentials in connection strings**:
+
    ```rust
    // Bad
    FraiseClient::connect("postgres://user:pass@host/db").await?
@@ -644,6 +677,7 @@ Streaming implementation ensures:
    ```
 
 4. **Validate user input before WHERE clauses**:
+
    ```rust
    // Whitelist values
    let valid_statuses = ["active", "inactive", "pending"];

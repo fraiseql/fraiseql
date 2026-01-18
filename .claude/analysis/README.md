@@ -9,11 +9,13 @@ This directory contains comprehensive analysis documents for FraiseQL v2 develop
 ## 📊 Core Analysis Documents
 
 ### Phase 9 Strategy & Architecture
+
 **File**: `phase-9-hybrid-strategy-analysis.md`
 
 Complete analysis of field projection optimization strategies for Phase 9 compiler implementation.
 
 **Contents**:
+
 - Hybrid Strategy #2 recommendation (SQL projection + Rust __typename)
 - PostgreSQL: 37% performance improvement
 - Wire adapter: 0% improvement (async overhead dominates)
@@ -25,11 +27,13 @@ Complete analysis of field projection optimization strategies for Phase 9 compil
 ---
 
 ### fraiseql-wire Testing Summary
+
 **File**: `fraiseql-wire-testing-summary.md`
 
 Complete validation of fraiseql-wire 8-phase optimization with zero overhead demonstrated.
 
 **Contents**:
+
 - All 158 unit tests passing
 - Benchmark results across throughput, latency, JSON parsing
 - Zero regressions detected (TTFR: 22.6ns constant)
@@ -43,11 +47,13 @@ Complete validation of fraiseql-wire 8-phase optimization with zero overhead dem
 ## 🔍 Detailed Investigation Documents
 
 ### Overhead Analysis
+
 **File**: `overhead-analysis.md`
 
 Deep dive into Wire adapter's async overhead and what it means for SQL projection.
 
 **Contents**:
+
 - Current Wire latency breakdown (async 45%, JSON parsing 25%)
 - If async overhead were optimized, SQL projection would regain 37% benefit
 - Hypothesis: Wire's 3x slowdown vs PostgreSQL is implementation-specific, not architectural
@@ -59,7 +65,7 @@ Deep dive into Wire adapter's async overhead and what it means for SQL projectio
 
 ## 📈 Related Documentation (Previously Generated)
 
-### In `/tmp/` (temporary analysis):
+### In `/tmp/` (temporary analysis)
 
 1. **FINAL_RECOMMENDATION.md** - Executive summary of all strategies
 2. **COMPREHENSIVE_STRATEGY_BENCHMARK_RESULTS.md** - All 5 strategies benchmarked on both adapters
@@ -72,6 +78,7 @@ Deep dive into Wire adapter's async overhead and what it means for SQL projectio
 ## 🎯 Phase 9 Implementation Plan
 
 ### Summary
+
 **Recommendation**: Implement Hybrid Strategy #2
 
 - **PostgreSQL**: Generate SQL projection at compile time → 37.2% faster (1.961ms vs 3.123ms)
@@ -91,6 +98,7 @@ SELECT jsonb_build_object(
 ```
 
 ### Critical Discovery
+
 **Don't add __typename in SQL** - It has 0.37ms overhead. Keep it in Rust (~0.03ms).
 
 ---
@@ -98,6 +106,7 @@ SELECT jsonb_build_object(
 ## 📊 Performance Metrics
 
 ### PostgreSQL Performance
+
 | Strategy | Latency | Improvement | Recommendation |
 |----------|---------|-------------|-----------------|
 | Full Rust | 3.123 ms | Baseline | ❌ |
@@ -106,12 +115,14 @@ SELECT jsonb_build_object(
 | SQL Projection Only | 1.939 ms | 37.9% | ℹ️ Theoretical min |
 
 ### Wire Performance
+
 | Strategy | Latency | Change | Reason |
 |----------|---------|--------|--------|
 | Full Rust (baseline) | 6.027 ms | — | Async overhead dominates |
 | SQL Projection | 6.048 ms | +0.4% | No benefit (noise) |
 
 **Why the difference?**
+
 - PostgreSQL: Bottleneck is JSON parsing (50%) → SQL projection solves it
 - Wire: Bottleneck is async overhead (45%) → SQL projection doesn't help
 
@@ -120,6 +131,7 @@ SELECT jsonb_build_object(
 ## 🧪 Testing & Validation
 
 ### fraiseql-wire 8 Phases
+
 All phases complete with zero overhead:
 
 | Phase | Optimization | Potential | Status |
@@ -141,16 +153,19 @@ All phases complete with zero overhead:
 ## 🚀 Next Steps
 
 ### Immediate (Phase 9 - Now)
+
 - [ ] Implement SQL projection for PostgreSQL in compiler
 - [ ] Generate jsonb_build_object() queries for large payloads
 - [ ] Keep __typename addition in Rust
 - [ ] Add MySQL/SQLite support (stretch goal)
 
 ### Short-term (Phase 9 - Optional)
+
 - [ ] Enhance fraiseql-wire QueryBuilder with `.select_projection()`
 - [ ] Add documentation explaining why Wire doesn't benefit
 
 ### Future (Phase 11+)
+
 - [ ] Optimize fraiseql-wire async overhead
 - [ ] Remeasure SQL projection effectiveness on Wire (expect 37% if async fixed)
 - [ ] Consider synchronous path for special cases
@@ -184,21 +199,25 @@ overhead-analysis.md
 ## 🎓 Key Insights
 
 ### 1. Different Architectures, Different Bottlenecks
+
 - **Buffering** (PostgreSQL): Bottleneck = JSON deserialization → SQL projection helps
 - **Streaming** (Wire): Bottleneck = async overhead → SQL projection doesn't help
 - **Lesson**: Optimize what actually bottlenecks, not what seems slow
 
 ### 2. Overhead Matters
+
 - Wire's async overhead is 45% of latency
 - This masks the 25% JSON parsing cost
 - Fixing async overhead would make SQL projection valuable for Wire too
 
 ### 3. Measurement-Driven Decisions
+
 - Initial assumption: "Full SQL should be faster"
 - Measurement result: "Full SQL is 20% SLOWER than hybrid"
 - Decision: Don't put __typename in SQL
 
 ### 4. Architecture is Not Destiny
+
 - Wire's 3x slowdown vs PostgreSQL is not because streaming is bad
 - It's due to implementation-specific overhead (channels, polling, allocation)
 - This overhead is fixable through Phase 11+ optimization
@@ -227,4 +246,3 @@ Refer to the specific analysis document for your question:
 **Status**: ✅ **ANALYSIS COMPLETE & DOCUMENTED**
 
 All investigations conclude: **Implement Hybrid Strategy #2 for Phase 9, enhance Wire for consistency, and optimize async overhead in Phase 11.**
-

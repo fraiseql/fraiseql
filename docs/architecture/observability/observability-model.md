@@ -704,6 +704,7 @@ tracestate: congo=t61rcWpm35YzTP60
 ```
 
 **Header format:**
+
 ```
 traceparent: version-trace_id-parent_span_id-trace_flags
 00         = version 0 (W3C spec v1)

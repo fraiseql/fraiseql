@@ -44,7 +44,9 @@ FraiseQL v2 is **substantially more complete** than the original 12-phase roadma
 ## Detailed Implementation Status
 
 ### Phase 1: Foundation (100%)
+
 **Files**:
+
 - ✅ `schema/` (3 files) - Compiled schema types
 - ✅ `error.rs` (15,889 LOC) - Comprehensive error enum
 - ✅ `config/` (2 files) - Configuration system
@@ -55,7 +57,9 @@ FraiseQL v2 is **substantially more complete** than the original 12-phase roadma
 ---
 
 ### Phase 2: Database & Cache (100%)
+
 **Database Layer** (9 files, ~3,500 LOC):
+
 - ✅ `db/mod.rs` - Main module
 - ✅ `db/postgres/adapter.rs` - PostgreSQL adapter with introspection
 - ✅ `db/postgres/where_generator.rs` - WHERE clause SQL generation
@@ -65,6 +69,7 @@ FraiseQL v2 is **substantially more complete** than the original 12-phase roadma
 - ✅ `db/fraiseql_wire_adapter.rs` - Custom wire protocol implementation
 
 **Cache Layer** (7 files, ~2,000 LOC):
+
 - ✅ `cache/mod.rs` - Main cache module
 - ✅ `cache/result.rs` - Result caching with TTL
 - ✅ `cache/key.rs` - Cache key generation
@@ -78,7 +83,9 @@ FraiseQL v2 is **substantially more complete** than the original 12-phase roadma
 ---
 
 ### Phase 3: Security (100%)
+
 **10 Security Modules** (~4,000 LOC):
+
 - ✅ `auth_middleware.rs` - JWT, Auth0, Clerk, OIDC
 - ✅ `query_validator.rs` - Query depth/complexity limits
 - ✅ `field_masking.rs` - PII field masking
@@ -99,11 +106,13 @@ FraiseQL v2 is **substantially more complete** than the original 12-phase roadma
 **Core Compiler Modules** (~20,000 LOC):
 
 **Parser & Validation**:
+
 - ✅ `parser.rs` (575 LOC) - GraphQL schema parsing
 - ✅ `validator.rs` (672 LOC) - Schema validation rules
 - ✅ `error.rs` - Compiler error types
 
 **Intermediate Representation**:
+
 - ✅ `ir.rs` (8,686 LOC) - Complete AST and IR system
   - Type definitions (8+ type enums)
   - Query/mutation/subscription structures
@@ -111,6 +120,7 @@ FraiseQL v2 is **substantially more complete** than the original 12-phase roadma
   - Field definition system
 
 **Schema Lowering & Codegen**:
+
 - ✅ `lowering.rs` (2,898 LOC) - IR to SQL template generation
   - PostgreSQL-specific SQL generation
   - Query plan selection
@@ -121,6 +131,7 @@ FraiseQL v2 is **substantially more complete** than the original 12-phase roadma
   - Query optimization
 
 **Analytics Extensions** (Built-in, not planned):
+
 - ✅ `fact_table.rs` (1,055 LOC) - Fact table introspection
   - Detects tf_* prefixed tables
   - Identifies measure columns (numeric types)
@@ -149,6 +160,7 @@ FraiseQL v2 is **substantially more complete** than the original 12-phase roadma
 **Core Runtime Modules** (~65,000 LOC):
 
 **Query Execution**:
+
 - ✅ `executor.rs` (15,818 LOC) - Main query execution engine
   - Query pattern matching
   - Variable binding and substitution
@@ -165,6 +177,7 @@ FraiseQL v2 is **substantially more complete** than the original 12-phase roadma
   - Directive processing
 
 **Result Projection**:
+
 - ✅ `projection.rs` (7,060 LOC) - JSONB → GraphQL response
   - Field extraction and transformation
   - Type conversion (scalar, object, enum, list)
@@ -172,6 +185,7 @@ FraiseQL v2 is **substantially more complete** than the original 12-phase roadma
   - Custom scalar serialization
 
 **Analytics Runtime** (Built-in, bonus):
+
 - ✅ `aggregation.rs` (1,162 LOC) - GROUP BY/HAVING execution
   - Aggregate function invocation
   - GROUP BY result combining
@@ -200,6 +214,7 @@ FraiseQL v2 is **substantially more complete** than the original 12-phase roadma
 ### Phase 6: HTTP Server (60%)
 
 **Server Infrastructure** (~806 LOC):
+
 - ✅ `server.rs` - Axum-based HTTP server
   - Port configuration
   - Route registration
@@ -219,6 +234,7 @@ FraiseQL v2 is **substantially more complete** than the original 12-phase roadma
   - Capability manifest
 
 **Middleware** (3 files):
+
 - ✅ `middleware/cors.rs` - CORS support
   - Origin validation
   - Method handling
@@ -231,6 +247,7 @@ FraiseQL v2 is **substantially more complete** than the original 12-phase roadma
 **Status**: 60% - Server infrastructure exists but needs E2E integration testing.
 
 **Missing**:
+
 - Verification that server correctly loads and executes compiled schemas
 - End-to-end request/response testing with real compiled schema
 - Performance validation under load
@@ -240,6 +257,7 @@ FraiseQL v2 is **substantially more complete** than the original 12-phase roadma
 ### Phase 7: Utilities (100%)
 
 **Utility Modules** (~2,000 LOC):
+
 - ✅ `vector.rs` (758 LOC) - pgvector support
   - Vector distance functions
   - Similarity search
@@ -261,12 +279,14 @@ FraiseQL v2 is **substantially more complete** than the original 12-phase roadma
 **Status**: Not started - Deferred to Phase 13+
 
 **Originally Planned**:
+
 - Python decorators: @fraiseql.type, @fraiseql.query, @fraiseql.mutation
 - JSON schema generation (authoring-only, no FFI)
 - Analytics decorators: @fraiseql.fact_table, @fraiseql.aggregate_query
 - Pip-installable wheel package
 
 **Current Workaround**:
+
 - CLI accepts hand-written JSON schema files
 - Schema validation via `fraiseql-cli validate`
 - Fact table introspection via CLI commands
@@ -278,6 +298,7 @@ FraiseQL v2 is **substantially more complete** than the original 12-phase roadma
 **CLI Implementation** (~2,620 LOC):
 
 **Commands**:
+
 - ✅ `compile.rs` - Schema compilation
   - Reads JSON schema files
   - Validates schema structure
@@ -293,6 +314,7 @@ FraiseQL v2 is **substantially more complete** than the original 12-phase roadma
   - Hot reload support
 
 **Analytics Commands**:
+
 - ✅ `introspect_facts.rs` - Fact table introspection
   - Analyzes database schema
   - Identifies fact tables (tf_* prefix)
@@ -305,6 +327,7 @@ FraiseQL v2 is **substantially more complete** than the original 12-phase roadma
   - Reports schema issues
 
 **Schema Handling** (4 files, ~2,000 LOC):
+
 - ✅ `schema/mod.rs` - Schema management
 - ✅ `schema/converter.rs` - Format conversion
 - ✅ `schema/intermediate.rs` - Intermediate representation
@@ -314,6 +337,7 @@ FraiseQL v2 is **substantially more complete** than the original 12-phase roadma
 **Status**: 80%+ complete - CLI fully functional for compilation, validation, and analytics.
 
 **Missing**:
+
 - Python package integration (generate decorators from CLI)
 - TypeScript schema generation
 - Config file support (.fraiseqlrc)
@@ -323,6 +347,7 @@ FraiseQL v2 is **substantially more complete** than the original 12-phase roadma
 ### Phase 10: Integration & E2E Testing (95%+)
 
 **Test Files** (10+ files, ~2,500 LOC):
+
 - ✅ `phase10_e2e_query_execution.rs` - Query execution E2E
 - ✅ `phase10_projection_integration.rs` - Result projection tests
 - ✅ `e2e_aggregate_queries.rs` - Aggregation E2E tests
@@ -334,6 +359,7 @@ FraiseQL v2 is **substantially more complete** than the original 12-phase roadma
 - ✅ Test utilities: `common/mod.rs`, `test_db.rs`, `assertions.rs`
 
 **Benchmarks** (4 files, ~1,500 LOC):
+
 - ✅ `adapter_comparison.rs` (450+ LOC) - PostgreSQL vs Wire protocol
   - 10K, 100K, 1M row benchmarks
   - WHERE clause performance
@@ -344,6 +370,7 @@ FraiseQL v2 is **substantially more complete** than the original 12-phase roadma
 - ✅ `full_pipeline_comparison.rs` - End-to-end pipeline timing
 
 **Results**:
+
 - 21 integration tests (all passing)
 - 22 E2E tests (all passing)
 - 11 benchmark groups
@@ -356,6 +383,7 @@ FraiseQL v2 is **substantially more complete** than the original 12-phase roadma
 ### Phase 11: Concurrent Load Testing (100%)
 
 **Test Implementation** (485 LOC):
+
 - ✅ `phase11_concurrent_load_testing.rs`
   - Simple query concurrency (100 queries, 10 tasks)
   - High concurrency (200 queries, 50 tasks)
@@ -364,6 +392,7 @@ FraiseQL v2 is **substantially more complete** than the original 12-phase roadma
   - Throughput measurement (500 queries, 58 qps peak)
 
 **Test Coverage**:
+
 - ✅ Result correctness validation
 - ✅ Error handling in concurrent scenarios
 - ✅ Field projection under load
@@ -372,6 +401,7 @@ FraiseQL v2 is **substantially more complete** than the original 12-phase roadma
 - ✅ Stress testing with JoinSet
 
 **Results**:
+
 - 37 load tests (all passing)
 - 300 concurrent queries validated
 - 58 qps peak throughput
@@ -384,6 +414,7 @@ FraiseQL v2 is **substantially more complete** than the original 12-phase roadma
 ### Phase 12: Coverage Analysis (100%)
 
 **Documentation**:
+
 - ✅ Phase 12 completion summary (489 LOC)
 - ✅ Test coverage analysis
 - ✅ Gap identification (none found)
@@ -391,6 +422,7 @@ FraiseQL v2 is **substantially more complete** than the original 12-phase roadma
 - ✅ Recommendations provided
 
 **Results**:
+
 - 854 total tests (715 unit + 21 integration + 22 E2E + 37 concurrent)
 - 100% test success rate
 - 88-92% estimated code coverage
@@ -405,6 +437,7 @@ FraiseQL v2 is **substantially more complete** than the original 12-phase roadma
 **Not in original roadmap but fully implemented:**
 
 **Compiler Support**:
+
 - Fact table introspection (tf_* detection)
 - Automatic aggregate type generation
 - Temporal bucketing (multiple databases)
@@ -412,6 +445,7 @@ FraiseQL v2 is **substantially more complete** than the original 12-phase roadma
 - GROUP BY/HAVING planning
 
 **Runtime Support**:
+
 - Full aggregation execution
 - Temporal dimension processing
 - Window function evaluation
@@ -419,11 +453,13 @@ FraiseQL v2 is **substantially more complete** than the original 12-phase roadma
 - Multi-database temporal SQL generation
 
 **CLI Support**:
+
 - `introspect_facts` command (analyze database schema)
 - `validate_facts` command (validate fact table structure)
 - Automatic aggregate query generation from fact tables
 
 **Test Coverage**:
+
 - `e2e_aggregate_queries.rs` - Comprehensive aggregation tests
 - `e2e_window_functions.rs` - Window function validation
 - Analytics CLI command testing
@@ -479,6 +515,7 @@ FraiseQL v2 is **substantially more complete** than the original 12-phase roadma
 ## What's Actually Missing
 
 ### 1. HTTP Server E2E Integration (Priority: HIGH)
+
 - Verify server correctly loads compiled schemas
 - Test server handles compiled query execution
 - Validate response formatting
@@ -486,6 +523,7 @@ FraiseQL v2 is **substantially more complete** than the original 12-phase roadma
 - **Effort**: 2-3 days
 
 ### 2. Python Authoring Package (Priority: MEDIUM)
+
 - Create Python decorators (@fraiseql.type, etc.)
 - JSON schema generation
 - Analytics decorators support
@@ -493,6 +531,7 @@ FraiseQL v2 is **substantially more complete** than the original 12-phase roadma
 - **Effort**: 5-7 days
 
 ### 3. User Documentation (Priority: MEDIUM)
+
 - API documentation (rustdoc)
 - User guides
 - Examples (basic, federation, enterprise)
@@ -500,12 +539,14 @@ FraiseQL v2 is **substantially more complete** than the original 12-phase roadma
 - **Effort**: 7-10 days
 
 ### 4. TypeScript Schema Support (Priority: LOW)
+
 - TypeScript decorators (parallel to Python)
 - JSON schema generation from TS
 - NPM package distribution
 - **Effort**: 5-7 days
 
 ### 5. Production Hardening (Priority: MEDIUM)
+
 - Advanced error handling edge cases
 - Observability improvements
 - Distributed tracing integration
@@ -513,6 +554,7 @@ FraiseQL v2 is **substantially more complete** than the original 12-phase roadma
 - **Effort**: 5-7 days
 
 ### 6. Advanced Features (Priority: LOW)
+
 - Subscriptions (CDC support)
 - Federation support
 - Custom directives
@@ -561,12 +603,14 @@ FraiseQL v2 is **85-90% complete** with an exceptionally solid foundation:
 - ✅ Comprehensive benchmarking infrastructure
 
 **The codebase is architecture-sound and ready for:**
+
 1. HTTP server integration verification
 2. Python/TypeScript authoring packages
 3. User documentation and examples
 4. Advanced feature implementation (Phase 13+)
 
 **Immediate Next Steps** (Highest ROI):
+
 1. Verify HTTP server end-to-end with compiled schemas
 2. Create Python authoring package
 3. Complete user documentation
@@ -577,4 +621,3 @@ FraiseQL v2 is **85-90% complete** with an exceptionally solid foundation:
 
 **Status**: Ready for production features and advanced development.
 **Recommendation**: Focus on user-facing features (Python package, documentation) rather than additional phases.
-

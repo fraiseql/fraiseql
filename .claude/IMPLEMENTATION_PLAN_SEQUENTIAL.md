@@ -19,6 +19,7 @@ This plan details **exactly what to do, in what order, with commands ready to ex
 ## PHASE 1: QUICK FIXES (Day 1 - 5-6 hours)
 
 ### Objective
+
 Get all 5 languages with passing tests + understand CLI issue, sequentially
 
 ### Task 1.1: Python - Install Package (5 minutes)
@@ -26,6 +27,7 @@ Get all 5 languages with passing tests + understand CLI issue, sequentially
 **Current Issue**: ModuleNotFoundError on import
 
 **Commands**:
+
 ```bash
 # Navigate to project
 cd /home/lionel/code/fraiseql
@@ -38,6 +40,7 @@ python -c "import fraiseql; print('✅ fraiseql imported successfully')"
 ```
 
 **Verify Tests**:
+
 ```bash
 cd fraiseql-python
 python -m pytest tests/ -v
@@ -51,11 +54,13 @@ python -m pytest tests/ -v
 ```
 
 **Success Criteria**:
+
 - ✅ All 7 tests passing
 - ✅ No ModuleNotFoundError
 - ✅ Import works: `from fraiseql import type as fraiseql_type`
 
 **If tests fail:**
+
 ```bash
 # Check Python version
 python --version  # Should be 3.10+
@@ -77,6 +82,7 @@ cd fraiseql-python && python -m pytest tests/ -v
 **Current Issue**: Decorator syntax not recognized in examples
 
 **Step 1: Edit tsconfig.json**
+
 ```bash
 cd /home/lionel/code/fraiseql/fraiseql-typescript
 ```
@@ -105,6 +111,7 @@ Open `fraiseql-typescript/tsconfig.json` and ensure these lines exist in `compil
 ```
 
 **Key additions if missing**:
+
 - `"experimentalDecorators": true` ← ADD THIS
 - `"emitDecoratorMetadata": true` ← ADD THIS
 
@@ -125,6 +132,7 @@ Open `fraiseql-typescript/package.json` and ensure scripts section has:
 ```
 
 **Verify Tests**:
+
 ```bash
 cd fraiseql-typescript
 npm test
@@ -139,6 +147,7 @@ npm test
 ```
 
 **Verify Examples**:
+
 ```bash
 npm run example:basic
 # Should output JSON schema to stdout (no errors)
@@ -148,12 +157,14 @@ npm run example:analytics
 ```
 
 **Success Criteria**:
+
 - ✅ 10/10 tests passing
 - ✅ `npm run example:basic` executes without errors
 - ✅ `npm run example:analytics` executes without errors
 - ✅ Both examples output valid JSON
 
 **If tests fail:**
+
 ```bash
 # Clean and reinstall
 rm -rf node_modules package-lock.json
@@ -170,12 +181,14 @@ npm test
 **Current Issue**: Maven not installed
 
 **Step 1: Check if Maven exists**
+
 ```bash
 which mvn
 mvn --version
 ```
 
 **Step 2: Install Maven (if NOT installed)**
+
 ```bash
 # On Arch Linux (your system)
 sudo pacman -S maven
@@ -196,6 +209,7 @@ mvn --version
 ```
 
 **Step 3: Verify Tests Can Run**
+
 ```bash
 cd /home/lionel/code/fraiseql/fraiseql-java
 
@@ -211,11 +225,13 @@ mvn test
 ```
 
 **Success Criteria**:
+
 - ✅ Maven installed and in PATH
 - ✅ `mvn --version` works
 - ✅ Tests executable (82/82 tests passing)
 
 **If tests fail:**
+
 ```bash
 # Clean Maven cache
 rm -rf ~/.m2/repository
@@ -233,12 +249,14 @@ mvn clean test
 **Current Issue**: Composer dependencies not installed
 
 **Step 1: Check if Composer exists**
+
 ```bash
 which composer
 composer --version
 ```
 
 **Step 2: Install Composer (if NOT installed)**
+
 ```bash
 # On Arch Linux (your system)
 sudo pacman -S composer
@@ -254,6 +272,7 @@ composer --version
 ```
 
 **Step 3: Install Dependencies**
+
 ```bash
 cd /home/lionel/code/fraiseql/fraiseql-php
 
@@ -266,6 +285,7 @@ composer install
 ```
 
 **Step 4: Verify Tests Can Run**
+
 ```bash
 vendor/bin/phpunit tests/ -v
 
@@ -276,11 +296,13 @@ vendor/bin/phpunit tests/ -v
 ```
 
 **Success Criteria**:
+
 - ✅ Composer installed
 - ✅ Dependencies in vendor/ directory
 - ✅ Tests executable (40+ tests passing)
 
 **If tests fail:**
+
 ```bash
 # Clean composer cache
 rm -rf vendor composer.lock
@@ -297,6 +319,7 @@ vendor/bin/phpunit tests/
 **Current Issue**: None (should already be working)
 
 **Verify Tests**:
+
 ```bash
 cd /home/lionel/code/fraiseql/fraiseql-go
 
@@ -311,6 +334,7 @@ go test ./fraiseql/... -v
 ```
 
 **Verify Examples**:
+
 ```bash
 # Test basic schema generation
 go run examples/basic_schema.go > /tmp/go_schema.json
@@ -320,11 +344,13 @@ cat /tmp/go_schema.json | jq . | head -20
 ```
 
 **Success Criteria**:
+
 - ✅ 45/45 tests passing
 - ✅ Examples generate valid JSON
 - ✅ No regressions
 
 **If tests fail:**
+
 ```bash
 # Download modules
 go mod download ./fraiseql-go/...
@@ -474,6 +500,7 @@ cat /tmp/cli_investigation_findings.md
 ```
 
 **Success Criteria**:
+
 - ✅ Generated 3+ test schemas
 - ✅ Examined schema structures
 - ✅ Reviewed CLI parser code
@@ -515,6 +542,7 @@ echo "=== PHASE 1 COMPLETE ==="
 ```
 
 **Expected Output**:
+
 ```
 ✅ Python tests: 7 passed
 ✅ TypeScript tests: 10 passed
@@ -535,6 +563,7 @@ echo "=== PHASE 1 COMPLETE ==="
 **Prerequisites**: Phase 1 complete with all tests passing
 
 ### Objective
+
 Create complete E2E testing infrastructure with Makefile and GitHub Actions
 
 ### Task 2.1: Create E2E Test Files (4 hours)
@@ -546,6 +575,7 @@ Create complete E2E testing infrastructure with Makefile and GitHub Actions
 **Location**: `/home/lionel/code/fraiseql/tests/e2e/python_e2e_test.py`
 
 **Steps**:
+
 ```bash
 # Create directory
 mkdir -p /home/lionel/code/fraiseql/tests/e2e
@@ -558,6 +588,7 @@ mkdir -p /home/lionel/code/fraiseql/tests/e2e
 ```
 
 **Verify**:
+
 ```bash
 cd /home/lionel/code/fraiseql
 python -m pytest tests/e2e/python_e2e_test.py -v --collect-only
@@ -565,6 +596,7 @@ python -m pytest tests/e2e/python_e2e_test.py -v --collect-only
 ```
 
 **Success Criteria**:
+
 - ✅ File exists at correct path
 - ✅ No syntax errors
 - ✅ pytest can discover tests
@@ -578,6 +610,7 @@ python -m pytest tests/e2e/python_e2e_test.py -v --collect-only
 **Location**: `/home/lionel/code/fraiseql/fraiseql-typescript/tests/e2e/e2e.test.ts`
 
 **Steps**:
+
 ```bash
 # Create directory
 mkdir -p /home/lionel/code/fraiseql/fraiseql-typescript/tests/e2e
@@ -590,6 +623,7 @@ mkdir -p /home/lionel/code/fraiseql/fraiseql-typescript/tests/e2e
 ```
 
 **Verify**:
+
 ```bash
 cd /home/lionel/code/fraiseql/fraiseql-typescript
 npm test -- --listTests 2>&1 | grep -i e2e
@@ -597,6 +631,7 @@ npm test -- --listTests 2>&1 | grep -i e2e
 ```
 
 **Success Criteria**:
+
 - ✅ File exists at correct path
 - ✅ No syntax errors
 - ✅ Jest can discover tests
@@ -610,6 +645,7 @@ npm test -- --listTests 2>&1 | grep -i e2e
 **Location**: `/home/lionel/code/fraiseql/fraiseql-java/src/test/java/com/fraiseql/E2ETest.java`
 
 **Steps**:
+
 ```bash
 # Create directory (already exists usually)
 mkdir -p /home/lionel/code/fraiseql/fraiseql-java/src/test/java/com/fraiseql
@@ -622,6 +658,7 @@ mkdir -p /home/lionel/code/fraiseql/fraiseql-java/src/test/java/com/fraiseql
 ```
 
 **Verify**:
+
 ```bash
 cd /home/lionel/code/fraiseql/fraiseql-java
 mvn test -Dtest="E2ETest" --collect-only 2>&1 | grep -E "test|Test"
@@ -629,6 +666,7 @@ mvn test -Dtest="E2ETest" --collect-only 2>&1 | grep -E "test|Test"
 ```
 
 **Success Criteria**:
+
 - ✅ File exists at correct path
 - ✅ No syntax errors
 - ✅ Maven can discover tests
@@ -642,6 +680,7 @@ mvn test -Dtest="E2ETest" --collect-only 2>&1 | grep -E "test|Test"
 **Location**: `/home/lionel/code/fraiseql/fraiseql-go/fraiseql/e2e_test.go`
 
 **Steps**:
+
 ```bash
 # Create file with content from E2E_TESTING_STRATEGY.md
 # (Use your editor or the Write tool)
@@ -651,6 +690,7 @@ mvn test -Dtest="E2ETest" --collect-only 2>&1 | grep -E "test|Test"
 ```
 
 **Verify**:
+
 ```bash
 cd /home/lionel/code/fraiseql/fraiseql-go
 go test ./fraiseql/... -run TestE2E -v --collect-only 2>&1 | grep -i e2e
@@ -658,6 +698,7 @@ go test ./fraiseql/... -run TestE2E -v --collect-only 2>&1 | grep -i e2e
 ```
 
 **Success Criteria**:
+
 - ✅ File exists at correct path
 - ✅ No syntax errors
 - ✅ Go test can discover tests
@@ -671,6 +712,7 @@ go test ./fraiseql/... -run TestE2E -v --collect-only 2>&1 | grep -i e2e
 **Location**: `/home/lionel/code/fraiseql/fraiseql-php/tests/e2e/E2ETest.php`
 
 **Steps**:
+
 ```bash
 # Create directory
 mkdir -p /home/lionel/code/fraiseql/fraiseql-php/tests/e2e
@@ -683,6 +725,7 @@ mkdir -p /home/lionel/code/fraiseql/fraiseql-php/tests/e2e
 ```
 
 **Verify**:
+
 ```bash
 cd /home/lionel/code/fraiseql/fraiseql-php
 vendor/bin/phpunit tests/e2e/ --list-tests 2>&1 | head -10
@@ -690,6 +733,7 @@ vendor/bin/phpunit tests/e2e/ --list-tests 2>&1 | head -10
 ```
 
 **Success Criteria**:
+
 - ✅ File exists at correct path
 - ✅ No syntax errors
 - ✅ PHPUnit can discover tests
@@ -703,6 +747,7 @@ vendor/bin/phpunit tests/e2e/ --list-tests 2>&1 | head -10
 **Location**: Update `/home/lionel/code/fraiseql/Makefile`
 
 **Step 1: Check if Makefile exists**
+
 ```bash
 cd /home/lionel/code/fraiseql
 [ -f Makefile ] && echo "✅ Makefile exists" || echo "❌ Creating new Makefile"
@@ -721,69 +766,71 @@ Append to end of Makefile:
 
 ## Setup: Start Docker databases
 e2e-setup:
-	@echo "🔧 Starting E2E test infrastructure..."
-	docker compose -f docker-compose.test.yml up -d
-	@echo "Waiting for databases..."
-	sleep 5
-	docker compose -f docker-compose.test.yml ps
-	@echo "✅ E2E infrastructure ready"
+ @echo "🔧 Starting E2E test infrastructure..."
+ docker compose -f docker-compose.test.yml up -d
+ @echo "Waiting for databases..."
+ sleep 5
+ docker compose -f docker-compose.test.yml ps
+ @echo "✅ E2E infrastructure ready"
 
 ## Run all E2E tests
 e2e-all: e2e-setup e2e-python e2e-typescript e2e-java e2e-go e2e-php
-	@echo "✅ All E2E tests completed!"
+ @echo "✅ All E2E tests completed!"
 
 ## E2E: Python
 e2e-python:
-	@echo "========== PYTHON E2E =========="
-	python -m pip install -q -e fraiseql-python/
-	cd fraiseql-python && python -m pytest tests/e2e/ -v
-	@echo "✅ Python E2E passed"
+ @echo "========== PYTHON E2E =========="
+ python -m pip install -q -e fraiseql-python/
+ cd fraiseql-python && python -m pytest tests/e2e/ -v
+ @echo "✅ Python E2E passed"
 
 ## E2E: TypeScript
 e2e-typescript:
-	@echo "========== TYPESCRIPT E2E =========="
-	cd fraiseql-typescript && npm ci -q && npm run test:e2e
-	@echo "✅ TypeScript E2E passed"
+ @echo "========== TYPESCRIPT E2E =========="
+ cd fraiseql-typescript && npm ci -q && npm run test:e2e
+ @echo "✅ TypeScript E2E passed"
 
 ## E2E: Java
 e2e-java:
-	@echo "========== JAVA E2E =========="
-	cd fraiseql-java && mvn test -Dtest="*E2ETest" -q
-	@echo "✅ Java E2E passed"
+ @echo "========== JAVA E2E =========="
+ cd fraiseql-java && mvn test -Dtest="*E2ETest" -q
+ @echo "✅ Java E2E passed"
 
 ## E2E: Go
 e2e-go:
-	@echo "========== GO E2E =========="
-	cd fraiseql-go && go test ./fraiseql/... -run TestE2E -v
-	@echo "✅ Go E2E passed"
+ @echo "========== GO E2E =========="
+ cd fraiseql-go && go test ./fraiseql/... -run TestE2E -v
+ @echo "✅ Go E2E passed"
 
 ## E2E: PHP
 e2e-php:
-	@echo "========== PHP E2E =========="
-	cd fraiseql-php && composer install -q
-	vendor/bin/phpunit tests/e2e/ -v
-	@echo "✅ PHP E2E passed"
+ @echo "========== PHP E2E =========="
+ cd fraiseql-php && composer install -q
+ vendor/bin/phpunit tests/e2e/ -v
+ @echo "✅ PHP E2E passed"
 
 ## Cleanup: Stop Docker
 e2e-clean:
-	@echo "🧹 Cleaning up..."
-	docker compose -f docker-compose.test.yml down -v
-	@echo "✅ Cleanup complete"
+ @echo "🧹 Cleaning up..."
+ docker compose -f docker-compose.test.yml down -v
+ @echo "✅ Cleanup complete"
 
 ## Status: Check E2E infrastructure
 e2e-status:
-	@echo "Docker Compose Status:"
-	docker compose -f docker-compose.test.yml ps
+ @echo "Docker Compose Status:"
+ docker compose -f docker-compose.test.yml ps
 
 ```
 
 **Step 2: Verify Makefile syntax**
+
 ```bash
 cd /home/lionel/code/fraiseql
 make help 2>&1 | grep -i e2e || echo "E2E targets added"
 ```
 
 **Step 3: Test one Makefile target (Go - fastest)**
+
 ```bash
 cd /home/lionel/code/fraiseql
 
@@ -792,6 +839,7 @@ make -n e2e-setup 2>&1 | head -5
 ```
 
 **Success Criteria**:
+
 - ✅ Makefile has all E2E targets
 - ✅ `make -n e2e-setup` shows no errors
 - ✅ `make -n e2e-go` shows no errors
@@ -805,6 +853,7 @@ make -n e2e-setup 2>&1 | head -5
 **Location**: Create `/home/lionel/code/fraiseql/.github/workflows/e2e-tests.yml`
 
 **Step 1: Create directory**
+
 ```bash
 mkdir -p /home/lionel/code/fraiseql/.github/workflows
 ```
@@ -817,6 +866,7 @@ Use your editor or the Write tool to create:
 **Content**: Copy from E2E_TESTING_STRATEGY.md → "GitHub Actions CI/CD Pipeline" section
 
 **Step 3: Verify YAML syntax**
+
 ```bash
 cd /home/lionel/code/fraiseql
 
@@ -829,6 +879,7 @@ cat .github/workflows/e2e-tests.yml | head -20
 ```
 
 **Step 4: Commit workflow**
+
 ```bash
 cd /home/lionel/code/fraiseql
 
@@ -838,6 +889,7 @@ git push origin feature/phase-1-foundation
 ```
 
 **Success Criteria**:
+
 - ✅ Workflow file created and valid YAML
 - ✅ Pushed to GitHub
 - ✅ Workflow visible in GitHub Actions
@@ -879,6 +931,7 @@ echo "=== PHASE 2 COMPLETE ==="
 ```
 
 **Expected Output**:
+
 ```
 === PHASE 2: VERIFICATION ===
 
@@ -907,6 +960,7 @@ GitHub Actions:
 **Prerequisites**: Phase 1 findings documented
 
 ### Objective
+
 Resolve CLI schema format issue so all 5 languages compile
 
 ### Task 3.1: Analyze CLI Schema Parser (30 minutes)
@@ -914,6 +968,7 @@ Resolve CLI schema format issue so all 5 languages compile
 Based on findings from Phase 1, Task 1.6:
 
 **Step 1: Review your findings**
+
 ```bash
 cat /tmp/cli_investigation_findings.md
 ```
@@ -921,11 +976,13 @@ cat /tmp/cli_investigation_findings.md
 **Step 2: Identify the fix strategy**
 
 Based on your findings, decide:
+
 - **Option A**: Fix generators to match CLI expectations
 - **Option B**: Fix CLI to accept generator output
 - **Option C**: Create transformer layer
 
 **Step 3: Document decision**
+
 ```bash
 cat > /tmp/fix_strategy.md << 'EOF'
 # CLI Schema Format Fix Strategy
@@ -974,6 +1031,7 @@ cat /tmp/fix_strategy.md
 ```
 
 **If implementing the fix:**
+
 ```bash
 cd /home/lionel/code/fraiseql
 
@@ -1025,11 +1083,13 @@ ls -lh schema.compiled.json 2>/dev/null && echo "✅ Compiled schema exists" || 
 ```
 
 **Success Criteria**:
+
 - ✅ All 5 schemas compile without errors
 - ✅ schema.compiled.json generated
 - ✅ Compiled schema is valid JSON
 
 **If verification fails:**
+
 - Review your Phase 1 findings again
 - Check error messages from CLI
 - Adjust fix and retry
@@ -1078,12 +1138,14 @@ fraiseql-cli compile schema.json
 ## Verification
 
 After compilation, verify:
+
 1. schema.compiled.json exists
 2. Contains optimized SQL templates
 3. Valid JSON structure
 EOF
 
 cat /home/lionel/code/fraiseql/docs/cli-schema-format.md
+
 ```
 
 ---
@@ -1163,6 +1225,7 @@ fraiseql.export_schema("schema.json")
 ```
 
 See [Language Generators Documentation](docs/language-generators.md) for details.
+
 ```
 
 **Success Criteria**:
@@ -1228,6 +1291,7 @@ FraiseQL supports schema authoring in 5 languages. Each language provides:
 ## How It Works
 
 ```
+
 Your Code (Python/TypeScript/Java/Go/PHP)
     ↓
 @fraiseql decorators/attributes
@@ -1241,6 +1305,7 @@ schema.compiled.json (optimized SQL templates)
 fraiseql-server
     ↓
 GraphQL API
+
 ```
 
 ## Testing
@@ -1289,6 +1354,7 @@ To add a new language:
 5. Test: E2E tests with fraiseql-cli and fraiseql-server
 
 See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelines.
+
 ```
 
 **Success Criteria**:
@@ -1335,6 +1401,7 @@ make e2e-php          # PHP E2E
 ## Test Infrastructure
 
 ### Docker Services
+
 - PostgreSQL 16 (primary)
 - PostgreSQL + pgvector (vector tests)
 - MySQL 8.3 (secondary support)
@@ -1343,6 +1410,7 @@ make e2e-php          # PHP E2E
 ### Test Coverage
 
 Each language tests:
+
 1. **Schema Authoring**: Type decorators/attributes
 2. **JSON Export**: Schema generation
 3. **CLI Compilation**: fraiseql-cli compile
@@ -1351,6 +1419,7 @@ Each language tests:
 ### CI/CD Pipeline
 
 GitHub Actions runs:
+
 - All 5 language tests in sequence
 - With PostgreSQL and MySQL services
 - Caches dependencies for speed
@@ -1359,6 +1428,7 @@ GitHub Actions runs:
 ## Test Files
 
 Each language has E2E test files:
+
 - `tests/e2e/python_e2e_test.py` - Python
 - `fraiseql-typescript/tests/e2e/e2e.test.ts` - TypeScript
 - `fraiseql-java/src/test/java/com/fraiseql/E2ETest.java` - Java
@@ -1382,20 +1452,24 @@ Each language has E2E test files:
 ## Troubleshooting
 
 ### Docker containers fail to start
+
 ```bash
 docker compose -f docker-compose.test.yml logs
 ```
 
 ### Tests timeout waiting for database
+
 ```bash
 # Increase sleep time in Makefile e2e-setup
 sleep 10  # Instead of 5
 ```
 
 ### Tests pass locally but fail in CI/CD
+
 - Check GitHub Actions logs
 - Ensure all file paths are absolute
 - Verify environment variables set correctly
+
 ```
 
 **Success Criteria**:
@@ -1415,11 +1489,13 @@ git status
 ```
 
 **Verify what's being committed**:
+
 ```bash
 git diff --stat HEAD
 ```
 
 **Commit with comprehensive message**:
+
 ```bash
 git add -A
 
@@ -1465,6 +1541,7 @@ git push origin feature/phase-1-foundation
 ```
 
 **Success Criteria**:
+
 - ✅ All changes committed
 - ✅ Pushed to GitHub
 - ✅ Commit message is descriptive
@@ -1557,6 +1634,7 @@ echo "=== FINAL VERIFICATION COMPLETE ==="
 ## SUCCESS CRITERIA
 
 ### ✅ All Tests Passing
+
 - Python: 7/7 tests
 - TypeScript: 10/10 tests + 2 examples
 - Java: 82/82 tests
@@ -1565,23 +1643,27 @@ echo "=== FINAL VERIFICATION COMPLETE ==="
 - **Total**: 315+ tests passing
 
 ### ✅ CLI Integration Working
+
 - All 5 languages compile: `fraiseql-cli compile schema.json`
 - Generates: `schema.compiled.json`
 - fraiseql-server can load compiled schemas
 
 ### ✅ E2E Infrastructure Complete
+
 - `make e2e-setup` starts Docker
 - `make e2e-all` runs all 5 languages
 - `make e2e-clean` stops and cleanup
 - GitHub Actions workflow triggers automatically
 
 ### ✅ Documentation Complete
+
 - README.md updated
 - Language generators guide created
 - E2E testing guide created
 - CLI schema format guide created
 
 ### ✅ Ready for Production
+
 - All tests passing in CI/CD
 - No known issues or blockers
 - Comprehensive documentation
@@ -1594,6 +1676,7 @@ echo "=== FINAL VERIFICATION COMPLETE ==="
 After this plan is complete:
 
 ### 1. PyPI Release (Python)
+
 ```bash
 cd fraiseql-python
 python -m build
@@ -1601,20 +1684,24 @@ python -m twine upload dist/*
 ```
 
 ### 2. NPM Release (TypeScript)
+
 ```bash
 cd fraiseql-typescript
 npm publish
 ```
 
 ### 3. Maven Central (Java)
+
 - Configure pom.xml with credentials
 - `mvn deploy`
 
 ### 4. Go Modules (Already available)
+
 - Tag release: `git tag v0.1.0`
 - `git push --tags`
 
 ### 5. Packagist (PHP)
+
 - Register on packagist.org
 - Add repository webhook
 

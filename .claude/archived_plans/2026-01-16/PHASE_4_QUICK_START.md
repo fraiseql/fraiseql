@@ -123,6 +123,7 @@ def field_to_json(field: FieldDefinition) -> dict: ...
 **Tests**: Tests in `tests/test_types.py` already written - make them pass.
 
 **Done when**:
+
 ```bash
 pytest tests/test_types.py -v  # All green
 ```
@@ -280,6 +281,7 @@ ruff format src/ tests/  # Auto-format
 ```
 
 **Success criteria**:
+
 - All tests pass
 - 90%+ coverage
 - Zero lint warnings
@@ -287,6 +289,7 @@ ruff format src/ tests/  # Auto-format
 ### Day 8-9: Documentation
 
 Create files:
+
 - `docs/python/INSTALLATION.md`
 - `docs/python/GETTING_STARTED.md`
 - `docs/python/DECORATORS_REFERENCE.md`
@@ -505,27 +508,32 @@ print("✅ Phase 4 complete!")
 ## Success Criteria
 
 **Implementation**: ✅
+
 - All decorators working
 - Schema JSON generation working
 - Registry system functional
 - Analytics support functional
 
 **Testing**: ✅
+
 - All tests passing
 - 90%+ coverage
 - No flaky tests
 
 **Quality**: ✅
+
 - Zero lint warnings
 - Proper type hints everywhere
 - All dependencies specified
 
 **Documentation**: ✅
+
 - README updated
 - API reference complete
 - 5+ examples provided
 
 **Release**: ✅
+
 - Published to PyPI
 - Installation verified
 - GitHub release created

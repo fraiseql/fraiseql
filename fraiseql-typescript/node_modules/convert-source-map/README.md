@@ -90,7 +90,6 @@ var json = convert
 console.log(json);
 ```
 
-
 **Asynchronous read in Node.js:**
 
 ```js
@@ -186,13 +185,13 @@ Returns `src` with all source map comments pointing to map files removed.
 
 ### commentRegex
 
-Provides __a fresh__ RegExp each time it is accessed. Can be used to find source map comments.
+Provides **a fresh** RegExp each time it is accessed. Can be used to find source map comments.
 
 Breaks down a source map comment into groups: Groups: 1: media type, 2: MIME type, 3: charset, 4: encoding, 5: data.
 
 ### mapFileCommentRegex
 
-Provides __a fresh__ RegExp each time it is accessed. Can be used to find source map comments pointing to map files.
+Provides **a fresh** RegExp each time it is accessed. Can be used to find source map comments pointing to map files.
 
 ### generateMapFileComment(file, [options])
 

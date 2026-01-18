@@ -18,6 +18,7 @@ fraiseql-wire is designed for streaming individual queries with bounded memory. 
 ### fraiseql-wire Connection Model
 
 Each `FraiseClient` connection:
+
 - Maintains **one active query** at a time
 - Automatically cancels queries when streams are dropped
 - Supports pause/resume for backpressure control
@@ -415,6 +416,7 @@ println!("Active: {}, Waiting: {}",
 **Symptom**: Connection pool rejects new connections
 **Cause**: Postgres `max_connections` exceeded
 **Fix**:
+
 ```sql
 -- Check current limit
 SHOW max_connections;
@@ -433,6 +435,7 @@ SELECT pg_reload_conf();
 **Symptom**: Requests wait forever for available connections
 **Cause**: All pool connections in use, new queries blocked
 **Fix**:
+
 ```rust
 // Add timeout to pool acquisition
 match timeout(Duration::from_secs(5), pool.get()).await {
@@ -447,6 +450,7 @@ match timeout(Duration::from_secs(5), pool.get()).await {
 **Symptom**: Individual queries are slow even with pooled connections
 **Cause**: May not be pool-related (check SQL plan)
 **Debug**:
+
 ```rust
 // Add tracing to see actual execution times
 client

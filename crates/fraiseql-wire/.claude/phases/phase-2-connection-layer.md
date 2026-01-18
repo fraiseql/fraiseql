@@ -536,6 +536,7 @@ cargo clippy -- -D warnings
 ## Expected Output
 
 ### cargo test
+
 ```
 running 5 tests
 test connection::state::tests::test_valid_transitions ... ok
@@ -549,14 +550,14 @@ test result: ok. 5 passed; 0 failed; 0 ignored
 
 ## Acceptance Criteria
 
-- [ ] TCP and Unix socket connections work
-- [ ] Connection state machine enforces valid transitions
-- [ ] Startup and authentication sequence completes
-- [ ] Simple query execution returns all messages
-- [ ] Connection can be closed gracefully
-- [ ] State transitions are validated
-- [ ] All tests pass
-- [ ] No clippy warnings
+* [ ] TCP and Unix socket connections work
+* [ ] Connection state machine enforces valid transitions
+* [ ] Startup and authentication sequence completes
+* [ ] Simple query execution returns all messages
+* [ ] Connection can be closed gracefully
+* [ ] State transitions are validated
+* [ ] All tests pass
+* [ ] No clippy warnings
 
 ## DO NOT
 
@@ -599,6 +600,7 @@ async fn test_connect_and_query() {
 ```
 
 Run with:
+
 ```bash
 cargo test --test integration -- --ignored --nocapture
 ```

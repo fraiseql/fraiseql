@@ -19,6 +19,7 @@ Instead, please use one of these secure channels:
 ### What to Include
 
 **Required Information:**
+
 - Brief description of the vulnerability type
 - Affected version(s) and components
 - Steps to reproduce the issue
@@ -26,6 +27,7 @@ Instead, please use one of these secure channels:
 - Confirm the issue is not present in test files (in other words, only via the official entry points in `exports`)
 
 **Helpful Additional Details:**
+
 - Full paths of affected source files
 - Specific commit or branch where the issue exists
 - Required configuration to reproduce
@@ -35,12 +37,14 @@ Instead, please use one of these secure channels:
 ## Our Response Process
 
 **Timeline Commitments:**
+
 - **Initial acknowledgment**: Within 24 hours
 - **Detailed response**: Within 3 business days
 - **Status updates**: Every 7 days until resolved
 - **Resolution target**: 90 days for most issues
 
 **What We’ll Do:**
+
 1. Acknowledge your report and assign a tracking ID
 2. Assess the vulnerability and determine severity
 3. Develop and test a fix
@@ -58,12 +62,14 @@ Instead, please use one of these secure channels:
 ## Scope
 
 **In Scope:**
+
 - **resolve** package (all supported versions)
 - Official examples and documentation
 - Core resolution APIs
 - Dependencies with direct security implications
 
 **Out of Scope:**
+
 - Third-party wrappers or extensions
 - Bundler-specific integrations
 - Social engineering or physical attacks
@@ -73,12 +79,14 @@ Instead, please use one of these secure channels:
 ## Security Measures
 
 **Our Commitments:**
+
 - Regular vulnerability scanning via `npm audit`
 - Automated security checks in CI/CD (GitHub Actions)
 - Secure coding practices and mandatory code review
 - Prompt patch releases for critical issues
 
 **User Responsibilities:**
+
 - Keep **resolve** updated
 - Monitor dependency vulnerabilities
 - Follow secure configuration guidelines for module resolution
@@ -86,11 +94,13 @@ Instead, please use one of these secure channels:
 ## Legal Safe Harbor
 
 **We will NOT:**
+
 - Initiate legal action
 - Contact law enforcement
 - Suspend or terminate your access
 
 **You must:**
+
 - Only test against your own installations
 - Not access, modify, or delete user data
 - Not degrade service availability
@@ -104,10 +114,12 @@ Instead, please use one of these secure channels:
 ## Security Updates
 
 **Stay Informed:**
+
 - Subscribe to npm updates for **resolve**
 - Enable GitHub Security Advisory notifications
 
 **Update Process:**
+
 - Patch releases (e.g., 1.22.10 → 1.22.11)
 - Out-of-band releases for critical issues
 - Advisories via GitHub Security Advisories
@@ -116,4 +128,3 @@ Instead, please use one of these secure channels:
 
 - **Security reports**: Security tab of [browserify/resolve](https://github.com/browserify/resolve/security)
 - **General inquiries**: GitHub Discussions or Issues
-
