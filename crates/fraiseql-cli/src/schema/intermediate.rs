@@ -1158,4 +1158,70 @@ mod tests {
         assert_eq!(union_def.member_types, vec!["User", "Post"]);
         assert_eq!(union_def.description, Some("Result from a search query".to_string()));
     }
+
+    #[test]
+    fn test_parse_field_with_requires_scope() {
+        let json = r#"{
+            "types": [{
+                "name": "Employee",
+                "fields": [
+                    {
+                        "name": "id",
+                        "type": "ID",
+                        "nullable": false
+                    },
+                    {
+                        "name": "name",
+                        "type": "String",
+                        "nullable": false
+                    },
+                    {
+                        "name": "salary",
+                        "type": "Float",
+                        "nullable": false,
+                        "description": "Employee salary - protected field",
+                        "requires_scope": "read:Employee.salary"
+                    },
+                    {
+                        "name": "ssn",
+                        "type": "String",
+                        "nullable": true,
+                        "description": "Social Security Number",
+                        "requires_scope": "admin"
+                    }
+                ]
+            }],
+            "queries": [],
+            "mutations": []
+        }"#;
+
+        let schema: IntermediateSchema = serde_json::from_str(json).unwrap();
+        assert_eq!(schema.types.len(), 1);
+
+        let employee = &schema.types[0];
+        assert_eq!(employee.name, "Employee");
+        assert_eq!(employee.fields.len(), 4);
+
+        // id - no scope required
+        assert_eq!(employee.fields[0].name, "id");
+        assert!(employee.fields[0].requires_scope.is_none());
+
+        // name - no scope required
+        assert_eq!(employee.fields[1].name, "name");
+        assert!(employee.fields[1].requires_scope.is_none());
+
+        // salary - requires specific scope
+        assert_eq!(employee.fields[2].name, "salary");
+        assert_eq!(
+            employee.fields[2].requires_scope,
+            Some("read:Employee.salary".to_string())
+        );
+
+        // ssn - requires admin scope
+        assert_eq!(employee.fields[3].name, "ssn");
+        assert_eq!(
+            employee.fields[3].requires_scope,
+            Some("admin".to_string())
+        );
+    }
 }

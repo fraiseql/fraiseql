@@ -1286,4 +1286,92 @@ mod tests {
         assert_eq!(union_def.member_types, vec!["User", "Post"]);
         assert_eq!(union_def.description, Some("Result from a search query".to_string()));
     }
+
+    #[test]
+    fn test_convert_field_requires_scope() {
+        use crate::schema::intermediate::{IntermediateType, IntermediateField};
+
+        let intermediate = IntermediateSchema {
+            version: "2.0.0".to_string(),
+            types: vec![IntermediateType {
+                name: "Employee".to_string(),
+                fields: vec![
+                    IntermediateField {
+                        name: "id".to_string(),
+                        field_type: "ID".to_string(),
+                        nullable: false,
+                        description: None,
+                        directives: None,
+                        requires_scope: None,
+                    },
+                    IntermediateField {
+                        name: "name".to_string(),
+                        field_type: "String".to_string(),
+                        nullable: false,
+                        description: None,
+                        directives: None,
+                        requires_scope: None,
+                    },
+                    IntermediateField {
+                        name: "salary".to_string(),
+                        field_type: "Float".to_string(),
+                        nullable: false,
+                        description: Some("Employee salary - protected field".to_string()),
+                        directives: None,
+                        requires_scope: Some("read:Employee.salary".to_string()),
+                    },
+                    IntermediateField {
+                        name: "ssn".to_string(),
+                        field_type: "String".to_string(),
+                        nullable: true,
+                        description: Some("Social Security Number - highly protected".to_string()),
+                        directives: None,
+                        requires_scope: Some("admin".to_string()),
+                    },
+                ],
+                description: None,
+                implements: vec![],
+            }],
+            enums: vec![],
+            input_types: vec![],
+            interfaces: vec![],
+            unions: vec![],
+            queries: vec![],
+            mutations: vec![],
+            subscriptions: vec![],
+            fragments: None,
+            directives: None,
+            fact_tables: None,
+            aggregate_queries: None,
+        };
+
+        let compiled = SchemaConverter::convert(intermediate).unwrap();
+
+        assert_eq!(compiled.types.len(), 1);
+        let employee_type = &compiled.types[0];
+        assert_eq!(employee_type.name, "Employee");
+        assert_eq!(employee_type.fields.len(), 4);
+
+        // id field - no scope required
+        assert_eq!(employee_type.fields[0].name, "id");
+        assert!(employee_type.fields[0].requires_scope.is_none());
+
+        // name field - no scope required
+        assert_eq!(employee_type.fields[1].name, "name");
+        assert!(employee_type.fields[1].requires_scope.is_none());
+
+        // salary field - requires specific scope
+        assert_eq!(employee_type.fields[2].name, "salary");
+        assert_eq!(
+            employee_type.fields[2].requires_scope,
+            Some("read:Employee.salary".to_string())
+        );
+
+        // ssn field - requires admin scope
+        assert_eq!(employee_type.fields[3].name, "ssn");
+        assert_eq!(
+            employee_type.fields[3].requires_scope,
+            Some("admin".to_string())
+        );
+    }
 }
