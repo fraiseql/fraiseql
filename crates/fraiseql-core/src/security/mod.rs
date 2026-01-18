@@ -27,7 +27,7 @@ pub mod tls_enforcer;
 
 // Re-export key types for convenience
 pub use audit::{AuditEntry, AuditLevel, AuditLogger, AuditStats};
-pub use auth_middleware::{AuthConfig, AuthMiddleware, AuthRequest, AuthenticatedUser};
+pub use auth_middleware::{AuthConfig, AuthMiddleware, AuthRequest, AuthenticatedUser, SigningKey};
 pub use error_formatter::{DetailLevel, ErrorFormatter};
 pub use errors::{Result, SecurityError};
 pub use field_masking::{FieldMasker, FieldSensitivity};
