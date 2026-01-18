@@ -21,6 +21,41 @@ impl PostgresIntrospector {
 
 #[async_trait]
 impl DatabaseIntrospector for PostgresIntrospector {
+    async fn list_fact_tables(&self) -> Result<Vec<String>> {
+        let client = self.pool.get().await.map_err(|e| {
+            FraiseQLError::ConnectionPool {
+                message: format!("Failed to acquire connection: {e}"),
+            }
+        })?;
+
+        // Query information_schema for tables matching tf_* pattern
+        let query = r"
+            SELECT table_name
+            FROM information_schema.tables
+            WHERE table_schema = 'public'
+              AND table_type = 'BASE TABLE'
+              AND table_name LIKE 'tf_%'
+            ORDER BY table_name
+        ";
+
+        let rows: Vec<Row> = client.query(query, &[]).await.map_err(|e| {
+            FraiseQLError::Database {
+                message: format!("Failed to list fact tables: {e}"),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            }
+        })?;
+
+        let tables = rows
+            .into_iter()
+            .map(|row| {
+                let name: String = row.get(0);
+                name
+            })
+            .collect();
+
+        Ok(tables)
+    }
+
     async fn get_columns(&self, table_name: &str) -> Result<Vec<(String, String, bool)>> {
         let client = self.pool.get().await.map_err(|e| {
             FraiseQLError::ConnectionPool {
@@ -103,6 +138,51 @@ impl DatabaseIntrospector for PostgresIntrospector {
 
     fn database_type(&self) -> DatabaseType {
         DatabaseType::PostgreSQL
+    }
+
+    async fn get_sample_jsonb(&self, table_name: &str, column_name: &str) -> Result<Option<serde_json::Value>> {
+        let client = self.pool.get().await.map_err(|e| {
+            FraiseQLError::ConnectionPool {
+                message: format!("Failed to acquire connection: {e}"),
+            }
+        })?;
+
+        // Query for a sample row with non-null JSON data
+        // Use format! for identifiers (safe because we validate table_name pattern)
+        let query = format!(
+            r#"
+            SELECT "{column}"::text
+            FROM "{table}"
+            WHERE "{column}" IS NOT NULL
+            LIMIT 1
+            "#,
+            table = table_name,
+            column = column_name
+        );
+
+        let rows: Vec<Row> = client.query(&query, &[]).await.map_err(|e| {
+            FraiseQLError::Database {
+                message: format!("Failed to query sample JSONB: {e}"),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            }
+        })?;
+
+        if rows.is_empty() {
+            return Ok(None);
+        }
+
+        let json_text: Option<String> = rows[0].get(0);
+        if let Some(text) = json_text {
+            let value: serde_json::Value = serde_json::from_str(&text).map_err(|e| {
+                FraiseQLError::Parse {
+                    message: format!("Failed to parse JSONB sample: {e}"),
+                    location: format!("{table_name}.{column_name}"),
+                }
+            })?;
+            Ok(Some(value))
+        } else {
+            Ok(None)
+        }
     }
 }
 

@@ -75,7 +75,7 @@ pub use where_clause::{HavingClause, WhereClause, WhereOperator};
 pub use where_sql_generator::WhereSqlGenerator;
 
 #[cfg(feature = "postgres")]
-pub use postgres::PostgresAdapter;
+pub use postgres::{PostgresAdapter, PostgresIntrospector};
 
 #[cfg(feature = "mysql")]
 pub use mysql::MySqlAdapter;

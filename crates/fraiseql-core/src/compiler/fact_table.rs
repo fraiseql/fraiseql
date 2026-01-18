@@ -41,6 +41,11 @@ use serde::{Deserialize, Serialize};
 /// Database introspection trait for querying table metadata
 #[async_trait]
 pub trait DatabaseIntrospector: Send + Sync {
+    /// List all fact tables in the database (tables starting with "tf_")
+    ///
+    /// Returns: Vec of table names matching the tf_* pattern
+    async fn list_fact_tables(&self) -> Result<Vec<String>>;
+
     /// Query column information for a table
     ///
     /// Returns: Vec of (column_name, data_type, is_nullable)
