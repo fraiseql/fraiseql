@@ -318,7 +318,7 @@ type SalesAggregate {
 
 ## Phase 3: Advanced Aggregate Functions
 
-**Status**: Planned (not yet implemented)
+**Status**: Implemented (database-dependent availability)
 
 ### ARRAY_AGG
 

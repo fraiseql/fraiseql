@@ -11,7 +11,7 @@
 
 This document defines naming conventions and patterns for analytical tables in FraiseQL.
 
-**Core Principle**: No joins. All tables use the same pattern: measures (SQL columns) + dimensions (`data` JSONB column).
+**Core Principle**: No joins. All fact tables use the same pattern: measures (SQL columns) + dimensions (`dimensions` JSONB column).
 
 ---
 
@@ -40,7 +40,7 @@ CREATE TABLE tf_sales (
     quantity INT NOT NULL,
     cost DECIMAL(10,2) NOT NULL,
     -- Dimensions (JSONB)
-    data JSONB NOT NULL,
+    dimensions JSONB NOT NULL,
     -- Denormalized filters (indexed)
     customer_id UUID NOT NULL,
     product_id UUID NOT NULL,
@@ -50,35 +50,37 @@ CREATE TABLE tf_sales (
 );
 ```
 
-### Aggregate Tables (ta_)
+### Pre-Aggregated Fact Tables (Different Granularity)
 
-**Prefix**: `ta_` (table aggregate)
-**Pattern**: `ta_<fact>_by_<granularity>`
-**Purpose**: Pre-computed aggregates at coarser granularity
+**Important**: Pre-aggregated tables are just **fact tables at a different granularity**. Use `tf_` prefix with a descriptive suffix indicating the granularity.
 
-**Key Point**: Aggregate tables ARE fact tables with different granularity. Same structure (measures + `data` JSONB).
+**Pattern**: `tf_<domain>_<granularity>` or `tf_<domain>_by_<dimension>`
+**Purpose**: Pre-computed aggregates for faster queries on common patterns
 
 **Examples**:
-- `ta_sales_by_day` - Daily sales rollup
-- `ta_sales_by_category_region` - Category × region rollup
-- `ta_events_by_user_month` - Monthly user activity
-- `ta_api_requests_by_endpoint_hour` - Hourly API usage per endpoint
+- `tf_sales_daily` - Daily sales rollup (same as `tf_sales` but at day granularity)
+- `tf_sales_by_category` - Sales grouped by category
+- `tf_events_monthly` - Monthly event aggregates
+- `tf_api_requests_hourly` - Hourly API usage
 
-**Structure** (same as fact tables!):
+**Structure** (identical to fact tables):
 ```sql
-CREATE TABLE ta_sales_by_day (
+-- Pre-aggregated fact table at daily granularity
+CREATE TABLE tf_sales_daily (
     id BIGSERIAL PRIMARY KEY,
     day DATE NOT NULL UNIQUE,  -- Granularity dimension
     -- Pre-aggregated measures
     revenue DECIMAL(10,2) NOT NULL,      -- SUM(revenue)
     quantity INT NOT NULL,               -- SUM(quantity)
     transaction_count INT NOT NULL,      -- COUNT(*)
-    -- Dimensions (same JSONB pattern!)
-    data JSONB NOT NULL,
+    -- Dimensions (same JSONB pattern as tf_sales)
+    dimensions JSONB NOT NULL,
     -- Timestamps
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
+
+**Note**: The legacy `ta_` prefix is deprecated. Use `tf_` for all fact tables regardless of granularity.
 
 ### Dimension Tables (td_)
 
@@ -86,7 +88,7 @@ CREATE TABLE ta_sales_by_day (
 **Pattern**: `td_<noun>`
 **Purpose**: Reference data for ETL denormalization (NOT used at query time)
 
-**Important**: FraiseQL does NOT join these tables. They are used by ETL to populate `data` JSONB in fact/aggregate tables.
+**Important**: FraiseQL does NOT join these tables. They are used by ETL to populate `dimensions` JSONB in fact tables.
 
 **Examples**:
 - `td_products` - Product catalog
@@ -163,10 +165,10 @@ CREATE TABLE td_products (
 **Access Pattern**:
 ```sql
 -- Top-level
-data->>'category'
+dimensions->>'category'
 
 -- Nested
-data#>>'{customer,segment}'
+dimensions#>>'{customer,segment}'
 ```
 
 ### Denormalized Filters (Indexed SQL Columns)
@@ -187,7 +189,7 @@ data#>>'{customer,segment}'
 WHERE customer_id = 'uuid-123'  -- Uses B-tree index
 
 -- ❌ SLOW: JSONB filter
-WHERE data->>'customer_id' = 'uuid-123'  -- GIN index slower for exact match
+WHERE dimensions->>'customer_id' = 'uuid-123'  -- GIN index slower for exact match
 ```
 
 ---
@@ -210,7 +212,7 @@ VALUES ('txn-001', 'prod-123', 'cust-456', 99.99);
 -- Step 2: ETL enriches and denormalizes
 INSERT INTO tf_sales (
     id, revenue, quantity, cost,
-    data,  -- ← Denormalized from td_products, td_customers
+    dimensions,  -- ← Denormalized from td_products, td_customers
     customer_id, product_id, occurred_at
 )
 SELECT
@@ -221,7 +223,7 @@ SELECT
         'product_name', p.name,
         'customer_segment', c.segment,
         'customer_region', c.region
-    ) AS data,  -- ← Denormalization happens here
+    ) AS dimensions,  -- ← Denormalization happens here
     s.customer_id, s.product_id, s.occurred_at
 FROM staging_sales s
 JOIN td_products p ON s.product_id = p.id  -- ← ETL time join
@@ -245,24 +247,24 @@ CREATE INDEX idx_sales_occurred ON tf_sales(occurred_at);
 CREATE INDEX idx_sales_status ON tf_sales(status);
 
 -- JSONB dimensions (GIN, PostgreSQL only)
-CREATE INDEX idx_sales_data_gin ON tf_sales USING GIN(data);
+CREATE INDEX idx_sales_dimensions_gin ON tf_sales USING GIN(dimensions);
 
 -- Specific JSONB path (faster than GIN for exact lookups)
-CREATE INDEX idx_sales_category ON tf_sales ((data->>'category'));
+CREATE INDEX idx_sales_category ON tf_sales ((dimensions->>'category'));
 
 -- Composite indexes for common query patterns
 CREATE INDEX idx_sales_customer_occurred
     ON tf_sales(customer_id, occurred_at DESC);
 ```
 
-### Aggregate Tables
+### Pre-Aggregated Fact Tables
 
 ```sql
 -- Granularity dimension (unique)
-CREATE UNIQUE INDEX idx_sales_by_day ON ta_sales_by_day(day);
+CREATE UNIQUE INDEX idx_sales_daily_day ON tf_sales_daily(day);
 
 -- JSONB dimensions (if still grouping within aggregates)
-CREATE INDEX idx_sales_by_day_data_gin ON ta_sales_by_day USING GIN(data);
+CREATE INDEX idx_sales_daily_dimensions_gin ON tf_sales_daily USING GIN(dimensions);
 ```
 
 **Don't Over-Index**:
@@ -286,11 +288,11 @@ class Sales:
     revenue: float
     quantity: int
     cost: float
-    # Dimensions (from data JSONB)
-    category: str            # data->>'category'
-    region: str              # data->>'region'
-    product_name: str        # data->>'product_name'
-    customer_segment: str    # data->>'customer_segment'
+    # Dimensions (from dimensions JSONB)
+    category: str            # dimensions->>'category'
+    region: str              # dimensions->>'region'
+    product_name: str        # dimensions->>'product_name'
+    customer_segment: str    # dimensions->>'customer_segment'
     # Denormalized filters
     customer_id: str
     product_id: str
@@ -324,7 +326,7 @@ When `fact_table=True`:
 
 ```graphql
 type SalesAggregate {
-  # Grouped dimensions (from data JSONB)
+  # Grouped dimensions (from dimensions JSONB)
   category: String
   region: String
   product_name: String
@@ -362,14 +364,14 @@ input SalesHavingInput {
 
 ### DO ✅
 
-- Use `tf_` prefix for fact tables (finest granularity)
-- Use `ta_` prefix for aggregate tables (coarser granularity)
+- Use `tf_` prefix for all fact tables (any granularity)
 - Use `td_` prefix for dimension tables (ETL reference data)
 - Store measures as SQL columns (fast aggregation)
 - Store dimensions in `data` JSONB (flexibility)
 - Index denormalized filter columns
-- Create aggregate tables for common queries
+- Create pre-aggregated fact tables for common query patterns
 - Use temporal bucketing for time-series analysis
+- Name pre-aggregated tables clearly: `tf_sales_daily`, `tf_events_monthly`
 
 ### DON'T ❌
 

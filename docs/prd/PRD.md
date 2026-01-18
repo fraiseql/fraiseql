@@ -274,8 +274,7 @@ FraiseQL enforces opinionated schema conventions that unlock powerful features a
 - **View composition** — Pre-aggregated views enable O(1) relationship composition without ORM overhead
 
 **Analytical tables** use specialized naming conventions:
-- **Fact tables (`tf_*`)** — Raw transactional data with measures (SQL columns) + dimensions (JSONB)
-- **Aggregate tables (`ta_*`)** — Pre-computed rollups with same structure as fact tables, different granularity
+- **Fact tables (`tf_*`)** — Transactional data with measures (SQL columns) + dimensions (JSONB), any granularity
 - **Dimension tables (`td_*`)** — Reference data for ETL denormalization (not joined at query time)
 
 These conventions are **not optional** — they are required by FraiseQL's compilation and execution model. For complete schema conventions reference, see **`docs/specs/schema-conventions.md`** and **`docs/specs/analytical-schema-conventions.md`**.
@@ -319,6 +318,8 @@ Single Arrow batches are limited to single-level projections.
 
 Arrow support is optional and feature-gated.
 
+**Implementation Status:** Planned (specification complete, implementation not started). Targeted for post-v2.0 release.
+
 **Detailed specification:** See `docs/architecture/database/arrow-plane.md` for complete Arrow architecture, authoring syntax, performance characteristics, and implementation phases.
 
 #### 3.4.3 Delta Data Plane (Event Streams)
@@ -350,10 +351,10 @@ Analytical workloads use **fact tables** following a standardized pattern:
 
 - **Naming**: `tf_*` prefix (table fact)
 - **Measures**: SQL columns with numeric types (INT, DECIMAL, FLOAT) for fast aggregation
-- **Dimensions**: JSONB `data` column for flexible GROUP BY grouping
+- **Dimensions**: JSONB `dimensions` column for flexible GROUP BY grouping
 - **Denormalized filters**: Indexed SQL columns (customer_id, occurred_at) for fast WHERE filtering
 
-**No Joins**: FraiseQL does not support joins. All dimensional data must be denormalized into the `data` JSONB column at ETL time (managed by DBA/data team, not FraiseQL).
+**No Joins**: FraiseQL does not support joins. All dimensional data must be denormalized into the `dimensions` JSONB column at ETL time (managed by DBA/data team, not FraiseQL).
 
 **Example fact table**:
 ```sql
@@ -363,16 +364,16 @@ CREATE TABLE tf_sales (
     revenue DECIMAL(10,2) NOT NULL,
     quantity INT NOT NULL,
     -- Dimensions (JSONB)
-    data JSONB NOT NULL,
+    dimensions JSONB NOT NULL,
     -- Denormalized filters (indexed)
     customer_id UUID NOT NULL,
     occurred_at TIMESTAMPTZ NOT NULL
 );
 ```
 
-**Aggregate tables** (`ta_*` prefix) follow the same structure as fact tables, just at different granularity (e.g., daily vs per-transaction). They are pre-computed fact tables with coarser granularity.
+**Pre-aggregated fact tables** (e.g., `tf_sales_daily`, `tf_events_monthly`) follow the same structure as raw fact tables, just at different granularity. Use descriptive suffixes to indicate granularity.
 
-**Dimension tables** (`td_*` prefix) are reference data used at ETL time to denormalize into fact/aggregate tables. They are never joined at query time.
+**Dimension tables** (`td_*` prefix) are reference data used at ETL time to denormalize into fact tables. They are never joined at query time.
 
 #### 3.5.2 GROUP BY Compilation
 
@@ -430,14 +431,14 @@ Post-aggregation filters are compiled into HAVING clauses with compile-time vali
 - **SQL column aggregation**: 10-100x faster than JSONB aggregation
 - **Indexed filters**: B-tree index access on denormalized columns (customer_id, occurred_at)
 - **JSONB dimensions**: Slower than SQL columns but more flexible (use GIN indexes)
-- **Pre-aggregated views**: Query pre-computed aggregate tables (`ta_*`) for common rollups
+- **Pre-aggregated tables**: Query pre-computed fact tables (e.g., `tf_sales_daily`) for common rollups
 
 #### 3.5.7 ETL Responsibility
 
 FraiseQL provides the **GraphQL query interface** over existing tables. The DBA/data team is responsible for:
 
 - Creating and populating `tf_*` (fact) tables with denormalized dimensions
-- Creating and refreshing `ta_*` (aggregate) tables via scheduled jobs
+- Creating and refreshing pre-aggregated fact tables (e.g., `tf_sales_daily`) via scheduled jobs
 - Maintaining `td_*` (dimension) tables as reference data for ETL processes
 
 FraiseQL does **not** manage ETL pipelines or data loading.
@@ -942,10 +943,12 @@ Traditional GraphQL servers use resolvers — functions that execute for each fi
 - `architecture/core/compilation-pipeline.md` — Compilation phases (1-6)
 - `architecture/database/database-targeting.md` — Multi-database specialization
 
-### In Development (Phase 3, Week 3-4)
+### Additional Architecture Documents
 
-- `architecture/auth-flow.md` — Authentication and authorization flow (TBD)
-- `architecture/composition-model.md` — JSONB projection composition patterns (TBD)
+- `architecture/security/authentication-detailed.md` — Authentication and authorization flow
+- `architecture/security/security-model.md` — Security model overview
+- `architecture/core/execution-semantics.md` — JSONB projection and composition patterns
+- `architecture/analytics/aggregation-model.md` — Analytical query patterns
 
 ---
 

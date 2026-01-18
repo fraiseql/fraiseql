@@ -55,13 +55,38 @@ final class StaticAPITest extends TestCase
 
     public function testTypeBuilderIntegration(): void
     {
-        StaticAPI::type('Query')
+        $builder = StaticAPI::type('Query')
             ->field('hello', 'String')
-            ->build();
+            ->description('Root query type');
 
-        // Note: This test checks that the builder is created successfully
-        // Full integration with registerBuilder requires reflection access
-        $this->assertTrue(true);
+        StaticAPI::registerBuilder($builder);
+
+        // Verify the type is registered and getType returns a proper GraphQLType
+        $this->assertTrue(StaticAPI::hasType('Query'));
+
+        $type = StaticAPI::getType('Query');
+        $this->assertNotNull($type, 'getType() should return GraphQLType for builder-registered types');
+        $this->assertInstanceOf(GraphQLType::class, $type);
+        $this->assertSame('Query', $type->name);
+        $this->assertSame('Root query type', $type->description);
+
+        // Verify fields are also registered
+        $fields = StaticAPI::getTypeFields('Query');
+        $this->assertCount(1, $fields);
+        $this->assertArrayHasKey('hello', $fields);
+    }
+
+    public function testTypeBuilderWithoutDescription(): void
+    {
+        $builder = StaticAPI::type('Mutation')
+            ->field('createUser', 'User');
+
+        StaticAPI::registerBuilder($builder);
+
+        $type = StaticAPI::getType('Mutation');
+        $this->assertNotNull($type);
+        $this->assertSame('Mutation', $type->name);
+        $this->assertNull($type->description);
     }
 
     public function testGetTypeNames(): void

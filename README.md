@@ -89,7 +89,7 @@ FraiseQL v2 supports **schema authoring in 5 programming languages**, all produc
 | **TypeScript** | 2.0.0-alpha.1 | ✅ Ready | 10/10 ✓ | Full support |
 | **Go** | 2.0.0-alpha.1 | ✅ Ready | 45+ ✓ | Full support |
 | **Java** | 2.0.0-alpha.1 | ⏳ WIP | Pending | Full support |
-| **PHP** | 2.0.0-alpha.1 | ⏳ WIP | Pending | Full support |
+| **PHP** | 2.0.0-alpha.1 | ✅ Ready | 15+ ✓ | Full support |
 
 ### Quick Example (Python)
 
@@ -704,6 +704,24 @@ fraiseql_v2/
 ---
 
 ## Quick Reference
+
+### Naming Conventions (Mandatory)
+
+FraiseQL enforces strict naming conventions to enable automatic compilation and CQRS routing:
+
+| Prefix | Purpose | Example | Notes |
+|--------|---------|---------|-------|
+| `tb_` | Write table (normalized) | `tb_user`, `tb_post` | Singular entity name |
+| `v_` | Read view (JSON plane) | `v_user`, `v_post` | Must have `data` JSONB column |
+| `fn_` | Stored procedure (mutations) | `fn_create_user`, `fn_update_post` | Returns JSON response |
+| `tf_` | Fact table (analytics) | `tf_sales`, `tf_events` | Measures + dimensions (any granularity) |
+| `td_` | Dimension table (ETL reference) | `td_products`, `td_customers` | Not joined at runtime |
+| `pk_` | Primary key (internal) | `pk_user INTEGER` | Auto-generated identity |
+| `fk_` | Foreign key (internal) | `fk_user INTEGER` | References `pk_*` |
+| `id` | Public identifier | `id UUID` | Exposed via GraphQL |
+| `identifier` | Human-readable slug | `identifier TEXT` | For URLs |
+
+**See:** `docs/specs/schema-conventions.md` for complete specification
 
 ### Core Concepts
 

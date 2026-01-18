@@ -321,7 +321,7 @@ eql-start-here)
    - **Key Takeaway:** Compile-time schema analysis → optimized SQL
 
 6. **`docs/specs/analytical-schema-conventions.md`** (20 min)
-   - Naming conventions: tf_ (fact), ta_ (aggregate), td_ (dimension)
+   - Naming conventions: tf_ (fact tables, any granularity), td_ (dimension)
    - Column patterns: measures, dimensions, denormalized filters
    - Index recommendations
    - **Key Takeaway:** Conventions required by FraiseQL compiler
@@ -356,19 +356,19 @@ eql-start-here)
 - Design fact tables with measures + dimensions
 - Write GraphQL aggregate queries (GROUP BY, HAVING, temporal bucketing)
 - Understand performance characteristics (SQL columns 10-100x faster than JSONB)
-- Use pre-aggregated tables (ta_*) for common rollups
+- Use pre-aggregated fact tables (e.g., `tf_sales_daily`) for common rollups
 - Leverage database-specific aggregate functions
 
 **Recommended Next:**
 - `docs/architecture/database/arrow-plane.md` — Section 5.5 for BI tool integration
-- `docs/architecture/analytics/window-functions.md` — Phase 5 planned features (ROW_NUMBER, LAG/LEAD)
+- `docs/architecture/analytics/window-functions.md` — Window functions (ROW_NUMBER, LAG/LEAD)
 - `docs/specs/window-operators.md` — Window function reference
-- `docs/specs/schema-conventions.md` — Section 4.3.1 for analytical pre-aggregated tables
+- `docs/specs/schema-conventions.md` — Section 4.3.1 for analytical fact tables
 
 **Important Notes:**
 - FraiseQL does **NOT** support joins; all dimensions must be denormalized at ETL time
 - ETL is managed by DBA/data team; FraiseQL provides GraphQL query interface only
-- Aggregate tables (`ta_*`) have same structure as fact tables (`tf_*`), just different granularity
+- Pre-aggregated fact tables use same structure, just different granularity (e.g., `tf_sales_daily` vs `tf_sales`)
 
 ---
 

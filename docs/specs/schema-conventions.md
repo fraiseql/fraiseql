@@ -371,38 +371,33 @@ LEFT JOIN v_posts_by_user p ON p.fk_user = u.pk_user;
 - Join on internal `fk_*` columns
 - Compose using JSONB merge (`||`)
 
-### 4.3.1 Analytical Pre-aggregated Tables
+### 4.3.1 Analytical Fact Tables
 
-For analytical workloads, FraiseQL supports **fact tables** with pre-aggregated rollups using specialized naming conventions:
+For analytical workloads, FraiseQL supports **fact tables** with the `tf_` prefix:
 
 **Fact tables** (`tf_*`):
-- Raw transactional data at finest granularity (one row per transaction/event)
+- Transactional/event data at any granularity
 - Measures: SQL columns (numeric types for fast aggregation)
-- Dimensions: JSONB `data` column (flexible grouping)
+- Dimensions: JSONB `dimensions` column (flexible grouping)
 - Denormalized filters: Indexed SQL columns (customer_id, occurred_at)
-
-**Aggregate tables** (`ta_*`):
-- Pre-computed rollups at coarser granularity (daily, monthly, per-category)
-- Same structure as fact tables (measures + `data` JSONB + filters)
-- Refreshed via scheduled ETL jobs
-- 10-100x faster queries for common analytics
+- Pre-aggregated versions use descriptive suffixes: `tf_sales_daily`, `tf_events_monthly`
 
 **Dimension tables** (`td_*`):
-- Reference data used at ETL time to denormalize into fact/aggregate tables
+- Reference data used at ETL time to denormalize into fact tables
 - Never joined at query time (FraiseQL does not support joins)
 - Managed by DBA/data team
 
 **Example:**
 
 ```sql
--- Fact table: Raw sales transactions
+-- Fact table: Raw sales transactions (finest granularity)
 CREATE TABLE tf_sales (
     id BIGSERIAL PRIMARY KEY,
     -- Measures (SQL columns for fast aggregation)
     revenue DECIMAL(10,2) NOT NULL,
     quantity INT NOT NULL,
     -- Dimensions (JSONB for flexible GROUP BY)
-    data JSONB NOT NULL,
+    dimensions JSONB NOT NULL,
     -- Denormalized filters (indexed for fast WHERE)
     customer_id UUID NOT NULL,
     occurred_at TIMESTAMPTZ NOT NULL,
@@ -411,10 +406,10 @@ CREATE TABLE tf_sales (
 
 CREATE INDEX idx_sales_customer ON tf_sales(customer_id);
 CREATE INDEX idx_sales_occurred ON tf_sales(occurred_at);
-CREATE INDEX idx_sales_data_gin ON tf_sales USING GIN(data);
+CREATE INDEX idx_sales_dimensions_gin ON tf_sales USING GIN(dimensions);
 
--- Aggregate table: Daily sales rollup (same structure, different granularity)
-CREATE TABLE ta_sales_by_day (
+-- Pre-aggregated fact table: Daily granularity (same structure, different granularity)
+CREATE TABLE tf_sales_daily (
     id BIGSERIAL PRIMARY KEY,
     day DATE NOT NULL UNIQUE,
     -- Pre-aggregated measures
@@ -422,12 +417,12 @@ CREATE TABLE ta_sales_by_day (
     quantity INT NOT NULL,               -- SUM(quantity)
     transaction_count INT NOT NULL,      -- COUNT(*)
     -- Dimensions (can still group within daily aggregates)
-    data JSONB NOT NULL,
+    dimensions JSONB NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE UNIQUE INDEX idx_sales_by_day ON ta_sales_by_day(day);
-CREATE INDEX idx_sales_by_day_data_gin ON ta_sales_by_day USING GIN(data);
+CREATE UNIQUE INDEX idx_sales_daily_day ON tf_sales_daily(day);
+CREATE INDEX idx_sales_daily_dimensions_gin ON tf_sales_daily USING GIN(dimensions);
 
 -- Dimension table: Product catalog (for ETL denormalization)
 CREATE TABLE td_products (
@@ -438,11 +433,11 @@ CREATE TABLE td_products (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- ETL process denormalizes td_products into tf_sales.data
--- Example: data->>'product_name', data->>'product_category'
+-- ETL process denormalizes td_products into tf_sales.dimensions
+-- Example: dimensions->>'product_name', dimensions->>'product_category'
 ```
 
-**Key architectural principle**: FraiseQL does NOT support joins. All dimensional data must be denormalized into the `data` JSONB column at ETL time. The DBA/data team manages ETL pipelines; FraiseQL provides the GraphQL query interface.
+**Key architectural principle**: FraiseQL does NOT support joins. All dimensional data must be denormalized into the `dimensions` JSONB column at ETL time. The DBA/data team manages ETL pipelines; FraiseQL provides the GraphQL query interface.
 
 **Related documentation**: See `docs/specs/analytical-schema-conventions.md` for complete analytical naming conventions, and `docs/architecture/analytics/fact-dimension-pattern.md` for detailed patterns.
 

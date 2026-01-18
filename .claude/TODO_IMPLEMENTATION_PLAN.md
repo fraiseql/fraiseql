@@ -322,11 +322,15 @@ let result = executor.execute_with_scopes(query, None, &user_scopes).await?;
 
 #### 5.2 PHP StaticAPI GraphQLType
 
+**Status**: ✅ **Complete** (January 18, 2026)
+
 **Location**: `fraiseql-php/src/StaticAPI.php:91`
 
-**Status**: Minimal impact - field definitions are stored separately.
+**Fix**: Changed `registerBuilder()` to create a proper `GraphQLType` instance instead of storing `null` as a placeholder. Now `getType()` returns a valid `GraphQLType` for builder-registered types.
 
-**Effort**: 1-2 hours if needed
+**Files Modified**:
+- `fraiseql-php/src/StaticAPI.php` - Added import, create proper `GraphQLType` instance
+- `fraiseql-php/tests/StaticAPITest.php` - Added 2 tests to verify fix
 
 ---
 
@@ -344,21 +348,51 @@ let result = executor.execute_with_scopes(query, None, &user_scopes).await?;
 
 #### 6.1 Server Tests
 
-**Location**: `crates/fraiseql-server/src/server.rs:218`
+**Status**: ✅ **Complete**
 
-**Issue**: Server module lacks integration tests.
-
-**Effort**: 4-6 hours
+Server has comprehensive test coverage (~250+ tests):
+- `fraiseql_wire_protocol_test.rs` (22 tests)
+- `server_e2e_test.rs` (20 tests)
+- `graphql_e2e_test.rs` (20 tests)
+- `endpoint_health_tests.rs` (19 tests)
+- `database_integration_test.rs` (16 tests)
+- `http_server_e2e_test.rs` (15 tests)
+- `database_query_test.rs` (11 tests)
+- `integration_test.rs` (10 tests)
+- `concurrent_load_test.rs` (9 tests)
+- Plus unit tests in `src/` modules (~100+ tests)
 
 ---
 
 #### 6.2 Database Benchmarks
 
-**Location**: `crates/fraiseql-core/benches/database_baseline.rs:55-147`
+**Status**: ✅ **Complete** (January 18, 2026)
 
-**Issue**: Benchmarks are placeholders without actual database queries.
+**Implemented Benchmarks**:
+- `adapter_comparison.rs` - Comprehensive PostgreSQL vs FraiseQL-Wire comparison
+  - 10K, 100K, 1M row queries
+  - WHERE clause benchmarks
+  - Pagination benchmarks
+  - Full HTTP response pipeline
+  - GraphQL transformation pipeline
+  - God objects (heavy JSONB) benchmarks
+- `full_pipeline_comparison.rs` - Complete GraphQL execution pipeline benchmarks
 
-**Effort**: 4-6 hours
+**Cleanup**:
+- Deleted `database_baseline.rs` (was placeholder, superseded by adapter_comparison)
+- Created `benches/fixtures/setup_bench_data.sql` - 1M row test data setup
+
+**Usage**:
+```bash
+# Setup test database
+createdb fraiseql_bench
+psql fraiseql_bench < benches/fixtures/setup_bench_data.sql
+export DATABASE_URL="postgresql:///fraiseql_bench"
+
+# Run benchmarks
+cargo bench --bench adapter_comparison --features "postgres,wire-backend"
+cargo bench --bench full_pipeline_comparison --features postgres
+```
 
 ---
 
@@ -385,15 +419,15 @@ let result = executor.execute_with_scopes(query, None, &user_scopes).await?;
 | P2 | #247 gRPC subscription adapter | fraiseql-core | 4-6h | ❌ Optional |
 | **Original Items** |
 | P5 | TypeScript metadata | fraiseql-ts | - | By Design |
-| P5 | PHP GraphQLType | fraiseql-php | 1-2h | Low priority |
+| P5 | PHP GraphQLType | fraiseql-php | 1-2h | ✅ Complete |
 | P5 | Fraisier status | fraisier | 2-4h | Pending |
-| P6 | Server tests | fraiseql-server | 4-6h | Pending |
-| P6 | DB benchmarks | fraiseql-core | 4-6h | Pending |
-| P6 | TLS tests | fraiseql-wire | 4-6h | Pending |
+| P6 | Server tests | fraiseql-server | 4-6h | ✅ Complete (~250+ tests) |
+| P6 | DB benchmarks | fraiseql-core | 4-6h | ✅ Complete |
+| P6 | TLS tests | fraiseql-wire | 4-6h | ✅ Complete (Docker infra) |
 
 **GitHub Issues Remaining**: 4-6 hours (gRPC adapter only - optional)
-**Original Items Total**: 15-25 hours
-**Grand Total**: 19-31 hours
+**Original Items Remaining**: 2-4 hours (Fraisier status only)
+**Grand Total**: 6-10 hours
 
 ---
 
@@ -440,13 +474,19 @@ let result = executor.execute_with_scopes(query, None, &user_scopes).await?;
    - Implement streaming adapter
    - Lower priority since webhooks and Kafka cover most use cases
 
-### Phase G: Testing & Polish - 15-25 hours
+### Phase G: Testing & Polish - 2-4 hours
 
-7. Server integration tests (P6) - 6h
-8. Database benchmarks (P6) - 6h
-9. TLS test infrastructure (P6) - 6h
-10. Fraisier status commands (P5) - 4h
-11. PHP GraphQLType (P5) - 2h
+7. ~~Server integration tests (P6)~~ - ✅ Complete (~250+ tests)
+8. ~~Database benchmarks (P6)~~ - ✅ Complete (adapter_comparison + full_pipeline)
+9. ~~TLS test infrastructure (P6)~~ - ✅ Complete (Docker infra)
+10. Fraisier status commands (P5) - 2-4h
+11. ~~PHP GraphQLType (P5)~~ - ✅ Complete
+12. ~~Documentation polish~~ - ✅ Complete (January 18, 2026)
+    - Updated `language-generators.md` - PHP marked as Ready
+    - Updated `window-functions.md` - Status: Implemented
+    - Updated `aggregation-operators.md` - Removed "not yet implemented"
+    - Updated `GLOSSARY.md` - Fixed federation reference
+    - Updated `PRD.md` - Replaced TBD references with actual docs
 
 ---
 

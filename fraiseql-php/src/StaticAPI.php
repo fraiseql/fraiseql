@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace FraiseQL;
 
+use FraiseQL\Attributes\GraphQLType;
+
 /**
  * Static API for easy schema construction and configuration.
  *
@@ -87,8 +89,11 @@ final class StaticAPI
         $fieldsProperty->setAccessible(true);
         $typeFields = $fieldsProperty->getValue($registry);
 
-        // Store the type
-        $types[$builder->getName()] = null; // Placeholder for GraphQLType
+        // Store the type with a proper GraphQLType instance
+        $types[$builder->getName()] = new GraphQLType(
+            name: $builder->getName(),
+            description: $builder->getDescription(),
+        );
         $typeFields[$builder->getName()] = $builder->getFields();
 
         $typesProperty->setValue($registry, $types);

@@ -65,11 +65,11 @@ query {
 
 ```sql
 SELECT
-    data->>'category' AS category,
+    dimensions->>'category' AS category,
     SUM(revenue) AS revenue_sum,
     COUNT(*) AS count
 FROM tf_sales
-GROUP BY data->>'category';
+GROUP BY dimensions->>'category';
 ```
 
 **Performance**: ~1-2ms for 1M rows (with GIN index on `data`)
@@ -102,12 +102,12 @@ query {
 
 ```sql
 SELECT
-    data->>'category' AS category,
-    data->>'region' AS region,
+    dimensions->>'category' AS category,
+    dimensions->>'region' AS region,
     SUM(revenue) AS revenue_sum,
     SUM(quantity) AS quantity_sum
 FROM tf_sales
-GROUP BY data->>'category', data->>'region';
+GROUP BY dimensions->>'category', dimensions->>'region';
 ```
 
 **Performance**: ~2-3ms for 1M rows
@@ -202,10 +202,10 @@ query {
 
 ```sql
 SELECT
-    data->>'category' AS category,
+    dimensions->>'category' AS category,
     SUM(revenue) AS revenue_sum
 FROM tf_sales
-GROUP BY data->>'category'
+GROUP BY dimensions->>'category'
 HAVING SUM(revenue) > $1;
 -- Parameters: [10000]
 ```
@@ -241,8 +241,8 @@ query {
 SELECT
     COUNT(*) AS count,
     SUM(revenue) AS revenue_sum,
-    SUM(revenue) FILTER (WHERE data->>'payment_method' = 'credit_card') AS revenue_sum_credit_card,
-    SUM(revenue) FILTER (WHERE data->>'payment_method' = 'paypal') AS revenue_sum_paypal
+    SUM(revenue) FILTER (WHERE dimensions->>'payment_method' = 'credit_card') AS revenue_sum_credit_card,
+    SUM(revenue) FILTER (WHERE dimensions->>'payment_method' = 'paypal') AS revenue_sum_paypal
 FROM tf_sales;
 ```
 
@@ -252,8 +252,8 @@ FROM tf_sales;
 SELECT
     COUNT(*) AS count,
     SUM(revenue) AS revenue_sum,
-    SUM(CASE WHEN data->>'payment_method' = 'credit_card' THEN revenue ELSE 0 END) AS revenue_sum_credit_card,
-    SUM(CASE WHEN data->>'payment_method' = 'paypal' THEN revenue ELSE 0 END) AS revenue_sum_paypal
+    SUM(CASE WHEN dimensions->>'payment_method' = 'credit_card' THEN revenue ELSE 0 END) AS revenue_sum_credit_card,
+    SUM(CASE WHEN dimensions->>'payment_method' = 'paypal' THEN revenue ELSE 0 END) AS revenue_sum_paypal
 FROM tf_sales;
 ```
 
@@ -288,15 +288,15 @@ query {
 ```sql
 SELECT
     DATE_TRUNC('month', occurred_at) AS occurred_at_month,
-    data->>'category' AS category,
-    data->>'region' AS region,
+    dimensions->>'category' AS category,
+    dimensions->>'region' AS region,
     SUM(revenue) AS revenue_sum,
     COUNT(*) AS count
 FROM tf_sales
 GROUP BY
     DATE_TRUNC('month', occurred_at),
-    data->>'category',
-    data->>'region'
+    dimensions->>'category',
+    dimensions->>'region'
 ORDER BY occurred_at_month, category, region;
 ```
 
@@ -314,7 +314,7 @@ ORDER BY occurred_at_month, category, region;
 @schema.type
 class Sales:
     # ...
-    customer_segment: str  # Maps to data#>>'{customer,segment}'
+    customer_segment: str  # Maps to dimensions#>>'{customer,segment}'
 ```
 
 ### GraphQL Query
@@ -334,10 +334,10 @@ query {
 
 ```sql
 SELECT
-    data#>>'{customer,segment}' AS customer_segment,
+    dimensions#>>'{customer,segment}' AS customer_segment,
     SUM(revenue) AS revenue_sum
 FROM tf_sales
-GROUP BY data#>>'{customer,segment}';
+GROUP BY dimensions#>>'{customer,segment}';
 ```
 
 ---
@@ -370,12 +370,12 @@ query {
 
 ```sql
 SELECT
-    data->>'region' AS region,
+    dimensions->>'region' AS region,
     SUM(revenue) AS revenue_sum,
     SUM(quantity) AS quantity_sum
 FROM tf_sales
 WHERE occurred_at >= $1 AND occurred_at < $2
-GROUP BY data->>'region';
+GROUP BY dimensions->>'region';
 -- Parameters: ["2024-01-01", "2024-04-01"]
 ```
 
@@ -390,7 +390,7 @@ GROUP BY data->>'region';
 ❌ **SLOW** (JSONB filter):
 
 ```sql
-WHERE data->>'customer_id' = 'uuid-123'
+WHERE dimensions->>'customer_id' = 'uuid-123'
 -- ~5-10ms (even with GIN index)
 ```
 
@@ -405,22 +405,22 @@ WHERE customer_id = 'uuid-123'
 
 ### Pre-Compute Common Aggregates
 
-Create aggregate tables for frequently-used rollups:
+Create pre-aggregated fact tables for frequently-used rollups:
 
 ```sql
--- Create aggregate table (daily rollup)
-CREATE TABLE ta_sales_by_day (
+-- Create pre-aggregated fact table (daily granularity)
+CREATE TABLE tf_sales_daily (
     id BIGSERIAL PRIMARY KEY,
     day DATE NOT NULL UNIQUE,
     revenue DECIMAL(10,2) NOT NULL,
     quantity INT NOT NULL,
     transaction_count INT NOT NULL,
-    data JSONB NOT NULL,
+    dimensions JSONB NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Populate via scheduled job (ETL)
-INSERT INTO ta_sales_by_day (day, revenue, quantity, transaction_count, data)
+INSERT INTO tf_sales_daily (day, revenue, quantity, transaction_count, data)
 SELECT
     DATE_TRUNC('day', occurred_at)::DATE AS day,
     SUM(revenue) AS revenue,
@@ -435,7 +435,7 @@ ON CONFLICT (day) DO UPDATE SET
     transaction_count = EXCLUDED.transaction_count;
 ```
 
-**Query Speed**: ~0.1ms (reading from aggregate table vs ~10ms from raw fact table)
+**Query Speed**: ~0.1ms (reading from pre-aggregated table vs ~10ms from raw fact table)
 
 ### Leverage Arrow Plane for BI Tools
 
@@ -457,12 +457,12 @@ FraiseQL's Arrow plane automatically optimizes columnar data transfer for pre-ag
 
 ```sql
 SELECT
-    data->>'category' AS category,
+    dimensions->>'category' AS category,
     SUM(revenue) AS revenue_sum,
     STDDEV(revenue) AS revenue_stddev
 FROM tf_sales
-WHERE data @> '{"region": "North America"}'
-GROUP BY data->>'category';
+WHERE dimensions @> '{"region": "North America"}'
+GROUP BY dimensions->>'category';
 ```
 
 ### MySQL

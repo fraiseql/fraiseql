@@ -102,10 +102,6 @@ test-sqlserver = ["sqlserver"]
 
 
 [[bench]]
-name = "database_baseline"
-harness = false
-
-[[bench]]
 name = "adapter_comparison"
 harness = false
 required-features = ["postgres"]

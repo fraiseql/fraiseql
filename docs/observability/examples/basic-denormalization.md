@@ -34,7 +34,7 @@ This example demonstrates a **complete end-to-end workflow** for denormalizing a
 ┌─────────────────────────────────────────┐
 │  PostgreSQL Database                     │
 │  - tf_sales table (1.5M rows)           │
-│  - dimensions JSONB column              │
+│  - dimensions JSONB column                    │
 └─────────────────────────────────────────┘
 ```
 

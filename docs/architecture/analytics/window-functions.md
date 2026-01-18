@@ -1,9 +1,9 @@
 # Window Functions Architecture
 
 **Version:** 1.0
-**Status:** Planned (Phase 5)
+**Status:** Implemented
 **Audience:** Compiler developers, runtime engineers, SDK users
-**Date:** January 12, 2026
+**Date:** January 18, 2026
 
 ---
 
@@ -11,7 +11,7 @@
 
 Window functions (analytical functions) perform calculations across rows related to the current row, using an OVER clause to define the window. Unlike aggregate functions with GROUP BY, window functions return a value for EVERY row.
 
-**Status**: Phase 5 (planned but not yet implemented in v1 or v2)
+**Status**: Implemented in FraiseQL v2
 
 ---
 
@@ -421,7 +421,7 @@ ORDER BY occurred_at::DATE;
 **PARTITION BY Columns**:
 ```sql
 -- Index columns used in PARTITION BY
-CREATE INDEX idx_sales_category ON tf_sales ((data->>'category'));
+CREATE INDEX idx_sales_category ON tf_sales ((dimensions->>'category'));
 ```
 
 **ORDER BY Columns**:
@@ -434,7 +434,7 @@ CREATE INDEX idx_sales_occurred ON tf_sales(occurred_at);
 ```sql
 -- Composite index for common window pattern
 CREATE INDEX idx_sales_category_occurred
-    ON tf_sales ((data->>'category'), occurred_at);
+    ON tf_sales ((dimensions->>'category'), occurred_at);
 ```
 
 ### Window Function Evaluation

@@ -507,7 +507,8 @@ FraiseQL federation is NOT runtime GraphQL-to-GraphQL calls. Instead:
 - Conflicting rules are compile-time errors
 
 **Related specs:**
-- `docs/architecture/integration/federation.md` — Federation architecture (TODO)
+- `docs/architecture/integration/federation.md` — Federation architecture
+- `docs/adrs/ADR-009-federation-architecture.md` — Federation design decisions
 - `docs/prd/PRD.md` Section 6.1 — Federation model
 
 **See also:** CompiledSchema, Entity Resolution

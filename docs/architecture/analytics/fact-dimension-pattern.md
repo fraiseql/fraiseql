@@ -51,7 +51,7 @@ CREATE TABLE tf_sales (
     cost DECIMAL(10,2) NOT NULL,
 
     -- Dimensions (JSONB for flexible grouping)
-    data JSONB NOT NULL,
+    dimensions JSONB NOT NULL,
     -- Example data content:
     -- {
     --   "category": "Electronics",
@@ -109,7 +109,7 @@ SELECT SUM(revenue) FROM tf_sales WHERE customer_id = $1;
 -- Execution: 0.3ms (1M rows with index)
 
 -- ❌ SLOW: Aggregation on JSONB field (don't do this!)
-SELECT SUM((data->>'revenue')::numeric) FROM tf_sales WHERE customer_id = $1;
+SELECT SUM((dimensions->>'revenue')::numeric) FROM tf_sales WHERE customer_id = $1;
 -- Execution: 52ms (1M rows)
 -- 173x slower!
 ```
@@ -123,9 +123,9 @@ SELECT SUM((data->>'revenue')::numeric) FROM tf_sales WHERE customer_id = $1;
 **Performance**: Slower than SQL columns, but flexible (no ALTER TABLE needed)
 
 **Examples**:
-- `data->>'category'` - Product category
-- `data->>'region'` - Geographic region
-- `data->>'product_type'` - Product classification
+- `dimensions->>'category'` - Product category
+- `dimensions->>'region'` - Geographic region
+- `dimensions->>'product_type'` - Product classification
 - `data#>>'{customer,segment}'` - Nested path for customer segment
 
 **Why JSONB?**:
@@ -137,11 +137,11 @@ SELECT SUM((data->>'revenue')::numeric) FROM tf_sales WHERE customer_id = $1;
 **Query Pattern**:
 ```sql
 SELECT
-    data->>'category' AS category,
-    data->>'region' AS region,
+    dimensions->>'category' AS category,
+    dimensions->>'region' AS region,
     SUM(revenue) AS total_revenue
 FROM tf_sales
-GROUP BY data->>'category', data->>'region';
+GROUP BY dimensions->>'category', dimensions->>'region';
 ```
 
 ### Denormalized Filters (Indexed SQL Columns)
@@ -167,7 +167,7 @@ WHERE customer_id = 'uuid-123' AND occurred_at >= '2024-01-01';
 
 -- ❌ SLOW: JSONB filter (don't do this for high-selectivity filters!)
 SELECT * FROM tf_sales
-WHERE data->>'customer_id' = 'uuid-123';
+WHERE dimensions->>'customer_id' = 'uuid-123';
 -- GIN index is slower for exact matches, execution: 2-5ms
 ```
 
@@ -200,8 +200,8 @@ JOIN td_customers c ON s.customer_id = c.id;
 -- ✅ CORRECT: Denormalized dimensions in JSONB (done at ETL time)
 SELECT
     revenue,
-    data->>'product_category' AS category,
-    data->>'customer_segment' AS segment
+    dimensions->>'product_category' AS category,
+    dimensions->>'customer_segment' AS segment
 FROM tf_sales;
 -- Category and segment already denormalized by ETL process
 ```
@@ -296,12 +296,12 @@ When executing an aggregation query:
 2. **Generate SELECT Statement**:
    ```sql
    SELECT
-       data->>'category' AS category,
-       data->>'region' AS region,
+       dimensions->>'category' AS category,
+       dimensions->>'region' AS region,
        SUM(revenue) AS revenue_sum,
        COUNT(*) AS count
    FROM tf_sales
-   GROUP BY data->>'category', data->>'region';
+   GROUP BY dimensions->>'category', dimensions->>'region';
    ```
 
 3. **Execute and Return Results**
@@ -323,12 +323,12 @@ When executing an aggregation query:
 ```sql
 -- Advanced JSONB queries
 SELECT
-    data->>'category' AS category,
+    dimensions->>'category' AS category,
     SUM(revenue) FILTER (WHERE data @> '{"region": "North America"}') AS na_revenue,
     SUM(revenue) FILTER (WHERE data @> '{"region": "Europe"}') AS eu_revenue
 FROM tf_sales
 WHERE data ? 'category'  -- Has 'category' key
-GROUP BY data->>'category';
+GROUP BY dimensions->>'category';
 ```
 
 ### MySQL
@@ -399,15 +399,15 @@ GROUP BY JSON_VALUE(data, '$.category');
 
 ---
 
-## Aggregate Tables = Fact Tables with Different Granularity
+## Pre-Aggregated Fact Tables = Same Structure, Different Granularity
 
-**Key Insight**: Aggregate tables follow the SAME pattern as fact tables, just with coarser granularity.
+**Key Insight**: Pre-aggregated tables follow the SAME pattern as fact tables, just with coarser granularity. Use `tf_` prefix with descriptive suffix.
 
 ### Example: Daily Aggregates
 
 ```sql
--- Aggregate table: same structure as tf_sales, daily granularity
-CREATE TABLE ta_sales_by_day (
+-- Pre-aggregated fact table: same structure as tf_sales, daily granularity
+CREATE TABLE tf_sales_daily (
     id BIGSERIAL PRIMARY KEY,
     day DATE NOT NULL,  -- Granularity dimension
 
@@ -417,21 +417,21 @@ CREATE TABLE ta_sales_by_day (
     transaction_count INT NOT NULL,      -- COUNT(*) from tf_sales
 
     -- Dimensions (same JSONB pattern!)
-    data JSONB NOT NULL,
+    dimensions JSONB NOT NULL,
     -- Can still group by category, region, etc. from data column
 
     -- Timestamps
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE UNIQUE INDEX idx_sales_by_day ON ta_sales_by_day(day);
-CREATE INDEX idx_sales_by_day_data_gin ON ta_sales_by_day USING GIN(data);
+CREATE UNIQUE INDEX idx_sales_daily_day ON tf_sales_daily(day);
+CREATE INDEX idx_sales_daily_data_gin ON tf_sales_daily USING GIN(data);
 ```
 
 **Populated via ETL** (managed by DBA/data team):
 
 ```sql
-INSERT INTO ta_sales_by_day (day, revenue, quantity, transaction_count, data)
+INSERT INTO tf_sales_daily (day, revenue, quantity, transaction_count, data)
 SELECT
     DATE_TRUNC('day', occurred_at)::DATE AS day,
     SUM(revenue) AS revenue,
@@ -450,7 +450,7 @@ ON CONFLICT (day) DO UPDATE SET
 
 ```graphql
 query {
-  sales_by_day_aggregate(
+  sales_daily_aggregate(
     where: { day: { _gte: "2024-01-01" } }
   ) {
     day
@@ -468,7 +468,7 @@ query {
 
 ✅ **Use for**:
 - High-volume transactional data (sales, events, logs)
-- Finest granularity (one row per transaction/event)
+- Any granularity (raw transactions or pre-aggregated rollups)
 - Real-time or near-real-time data ingestion
 - Data requiring full history retention
 
@@ -477,7 +477,7 @@ query {
 - Frequently updated records (facts are immutable)
 - Data requiring joins (FraiseQL doesn't support joins)
 
-### When to Use Aggregate Tables (ta_*)
+### When to Use Pre-Aggregated Fact Tables (tf_*_daily, tf_*_monthly, etc.)
 
 ✅ **Use for**:
 - Pre-computed aggregates for common queries
@@ -520,7 +520,7 @@ CREATE INDEX idx_sales_data_gin ON tf_sales USING GIN(data);
 
 -- Specific path index for frequently-queried dimension
 CREATE INDEX idx_sales_category
-    ON tf_sales ((data->>'category'));
+    ON tf_sales ((dimensions->>'category'));
 ```
 
 **Don't Over-Index**:

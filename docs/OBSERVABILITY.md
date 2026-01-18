@@ -138,7 +138,7 @@ curl http://localhost:8000/metrics/json
 - `/metrics` - Prometheus text format (for scraping)
 - `/metrics/json` - JSON format (for dashboards)
 
-**See Also**: [PROMETHEUS_METRICS.md](./PROMETHEUS_METRICS.md) (detailed reference)
+**See Also**: [Metrics Collection Guide](./observability/metrics-collection.md) (detailed reference)
 
 ### 2. Structured JSON Logging
 
@@ -541,7 +541,7 @@ Service Level Objectives for FraiseQL v2:
 
 ## Additional Resources
 
-- [Prometheus Metrics Reference](./PROMETHEUS_METRICS.md)
+- [Metrics Collection Guide](./observability/metrics-collection.md)
 - [Structured Logging Guide](./STRUCTURED_LOGGING.md)
 - [Distributed Tracing Guide](./DISTRIBUTED_TRACING.md)
 - [Performance Monitoring Guide](./PERFORMANCE_MONITORING.md)

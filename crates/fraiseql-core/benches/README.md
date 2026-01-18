@@ -21,9 +21,18 @@ Compares performance between two database adapter implementations:
 - 🔍 WHERE clause performance
 - 📄 Pagination efficiency
 
-### 2. `database_baseline` - Historical Baseline
+### 2. `full_pipeline_comparison` - Complete GraphQL Pipeline
 
-Legacy benchmark for baseline performance tracking (placeholders).
+Benchmarks the complete FraiseQL execution pipeline:
+1. Database query execution
+2. Field projection (selecting only requested fields)
+3. Field name transformation (snake_case → camelCase)
+4. `__typename` addition
+5. GraphQL data envelope wrapping
+
+```bash
+cargo bench --bench full_pipeline_comparison --features postgres
+```
 
 ## Quick Start
 

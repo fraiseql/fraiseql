@@ -144,7 +144,7 @@ pub enum SqlType {
 /// Dimension column (JSONB)
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DimensionColumn {
-    /// Column name (default: "dimensions")
+    /// Column name (default: "dimensions" for fact tables)
     pub name: String,
     /// Detected dimension paths (optional, extracted from sample data)
     pub paths: Vec<DimensionPath>,

@@ -2,7 +2,7 @@
 
 **Version:** 1.0
 **Date:** January 11, 2026
-**Status:** Complete
+**Status:** Planned (Specification Complete, Implementation Not Started)
 **Audience:** Analytics Engineers, Data Platform Architects, Performance-Sensitive Developers
 
 ---
@@ -921,11 +921,11 @@ WHERE deleted_at IS NULL;
 
 ### 5.5.2 Pre-Aggregated Views for BI Tools
 
-Aggregate tables (`ta_*`) provide pre-computed rollups optimized for Arrow export:
+Pre-aggregated fact tables (e.g., `tf_sales_daily`) provide pre-computed rollups optimized for Arrow export:
 
 ```sql
 -- Arrow view for daily aggregates
-CREATE VIEW av_sales_by_day AS
+CREATE VIEW av_sales_daily AS
 SELECT
     day,
     revenue,              -- Pre-aggregated SUM(revenue)
@@ -933,10 +933,10 @@ SELECT
     transaction_count,    -- Pre-aggregated COUNT(*)
     data->>'category' AS category,
     data->>'region' AS region
-FROM ta_sales_by_day;
+FROM tf_sales_daily;
 ```
 
-**Use case**: BI tools (Tableau, PowerBI, Metabase) query `av_sales_by_day` via Arrow for 10-100x faster data transfer compared to JSON.
+**Use case**: BI tools (Tableau, PowerBI, Metabase) query `av_sales_daily` via Arrow for 10-100x faster data transfer compared to JSON.
 
 ### 5.5.3 Columnar Aggregation Optimization
 
@@ -1919,4 +1919,6 @@ duckdb.execute(f"""
 
 ---
 
-**Status: Complete** — Arrow plane architecture, implementation phases, and examples defined. Ready for Phase 1 prototype development.
+**Specification Status: Complete** — Arrow plane architecture, implementation phases, and examples defined. Ready for Phase 1 prototype development.
+
+**Implementation Status: Not Started** — No Rust code or Arrow dependencies added yet. Planned for post-v2.0 release.
