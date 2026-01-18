@@ -61,15 +61,40 @@ The TODO for "full query planning logic" is an artifact from a traditional Graph
 
 ## Remaining Items
 
-### Priority 1: By Design (Optional)
+### Priority 1: Kafka Adapter ✅ COMPLETED
 
-#### 1.3 Kafka Adapter (Stub Implementation)
+#### 1.3 Kafka Adapter
 
-**Location**: `crates/fraiseql-core/src/runtime/subscription.rs`
+**Status**: **COMPLETED** - January 18, 2026
 
-**Status**: **By Design** - Full implementation requires `rdkafka` crate with `kafka` feature flag. Stub provides API compatibility for testing.
+Implemented full Kafka support with conditional compilation:
 
-**Action**: Keep as-is unless Kafka support is explicitly needed.
+**Feature Flag**: `kafka` (optional, requires `rdkafka` native dependencies)
+
+**Without `kafka` feature** (default):
+- Stub implementation that logs events
+- API-compatible for development/testing
+- No native dependencies required
+
+**With `kafka` feature**:
+- Full `rdkafka` producer integration
+- Async message delivery with partition/offset tracking
+- Health check via metadata fetch
+- Configurable compression, acks, timeouts
+
+**Usage**:
+```rust
+// Enable with: cargo build --features kafka
+use fraiseql_core::runtime::subscription::{KafkaAdapter, KafkaConfig};
+
+let config = KafkaConfig::new("localhost:9092", "fraiseql-events")
+    .with_client_id("my-service")
+    .with_compression("lz4")
+    .with_acks("all");
+
+let adapter = KafkaAdapter::new(config)?;
+adapter.deliver(&event, "orderCreated").await?;
+```
 
 ---
 
@@ -230,7 +255,7 @@ let adapter = CachedDatabaseAdapter::with_fact_table_config(
 
 | Priority | Item | Location | Effort | Status |
 |----------|------|----------|--------|--------|
-| P1 | Kafka adapter | fraiseql-core | 8-12h | By Design (optional) |
+| P1 | Kafka adapter | fraiseql-core | 8-12h | ✅ Complete |
 | P3 | Introspect facts | fraiseql-cli | 4-6h | ✅ Complete |
 | P3 | Validate facts | fraiseql-cli | 4-6h | ✅ Complete |
 | P4 | Aggregation caching | fraiseql-core | 3-4h | ✅ Complete |
@@ -241,7 +266,7 @@ let adapter = CachedDatabaseAdapter::with_fact_table_config(
 | P6 | DB benchmarks | fraiseql-core | 4-6h | Pending |
 | P6 | TLS tests | fraiseql-wire | 4-6h | Pending |
 
-**Total Remaining Effort**: ~20-35 hours (mostly optional/polish)
+**Total Remaining Effort**: ~15-25 hours (testing & polish only)
 
 ---
 

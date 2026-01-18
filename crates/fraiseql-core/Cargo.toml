@@ -41,6 +41,9 @@ bb8-tiberius = { version = "0.15", optional = true }
 # fraiseql-wire backend (optional)
 fraiseql-wire = { workspace = true, optional = true }
 
+# Kafka (optional)
+rdkafka = { workspace = true, optional = true }
+
 # GraphQL
 graphql-parser = { workspace = true }
 
@@ -78,6 +81,7 @@ mysql = ["sqlx/mysql"]
 sqlite = ["sqlx/sqlite"]
 sqlserver = ["tiberius", "bb8", "bb8-tiberius"]
 wire-backend = ["fraiseql-wire"]
+kafka = ["rdkafka"]
 
 # Test features - enable database integration tests
 # Run with: cargo test --features test-postgres -- --test-threads=1

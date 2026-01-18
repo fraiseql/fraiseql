@@ -116,6 +116,15 @@ pub enum SubscriptionError {
     /// Failed to parse notification payload.
     #[error("Failed to parse notification: {0}")]
     InvalidNotification(String),
+
+    /// Failed to deliver event to transport.
+    #[error("Failed to deliver to {transport}: {reason}")]
+    DeliveryFailed {
+        /// Transport that failed.
+        transport: String,
+        /// Reason for failure.
+        reason: String,
+    },
 }
 
 // =============================================================================
@@ -2068,15 +2077,20 @@ impl KafkaMessage {
     }
 }
 
+// =============================================================================
+// Kafka Adapter - Full Implementation (with `kafka` feature)
+// =============================================================================
+
 /// Kafka transport adapter for event streaming.
 ///
 /// Delivers subscription events to Apache Kafka topics.
 /// Uses the entity_id as the message key for consistent partitioning.
 ///
-/// # Note
+/// # Feature Flag
 ///
-/// This is a stub implementation. Full Kafka support requires the `rdkafka` crate
-/// which has native dependencies. Enable with the `kafka` feature flag.
+/// This adapter has two implementations:
+/// - **With `kafka` feature**: Full rdkafka-based producer with actual Kafka delivery
+/// - **Without `kafka` feature**: Stub that logs events (for development/testing)
 ///
 /// # Example
 ///
@@ -2087,40 +2101,199 @@ impl KafkaMessage {
 ///     .with_client_id("my-service")
 ///     .with_compression("lz4");
 ///
-/// let adapter = KafkaAdapter::new(config).await?;
+/// let adapter = KafkaAdapter::new(config)?;
 /// adapter.deliver(&event, "orderCreated").await?;
 /// ```
-#[derive(Debug)]
+#[cfg(feature = "kafka")]
 pub struct KafkaAdapter {
     config: KafkaConfig,
-    // In a full implementation, this would hold the rdkafka Producer
-    // producer: FutureProducer,
+    producer: rdkafka::producer::FutureProducer,
 }
 
+#[cfg(feature = "kafka")]
+impl std::fmt::Debug for KafkaAdapter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("KafkaAdapter")
+            .field("brokers", &self.config.brokers)
+            .field("default_topic", &self.config.default_topic)
+            .field("client_id", &self.config.client_id)
+            .finish_non_exhaustive()
+    }
+}
+
+#[cfg(feature = "kafka")]
 impl KafkaAdapter {
-    /// Create a new Kafka adapter.
+    /// Create a new Kafka adapter with a producer connection.
     ///
-    /// # Note
+    /// # Errors
     ///
-    /// This is a stub implementation. Returns the adapter for API compatibility,
-    /// but actual Kafka delivery requires the `kafka` feature flag.
-    #[must_use]
-    pub fn new(config: KafkaConfig) -> Self {
-        tracing::warn!(
+    /// Returns error if the Kafka producer cannot be created (e.g., invalid config).
+    pub fn new(config: KafkaConfig) -> Result<Self, SubscriptionError> {
+        use rdkafka::config::ClientConfig;
+        use rdkafka::producer::FutureProducer;
+
+        let mut client_config = ClientConfig::new();
+        client_config
+            .set("bootstrap.servers", &config.brokers)
+            .set("client.id", &config.client_id)
+            .set("acks", &config.acks)
+            .set("message.timeout.ms", config.timeout_ms.to_string());
+
+        if let Some(ref compression) = config.compression {
+            client_config.set("compression.type", compression);
+        }
+
+        let producer: FutureProducer = client_config
+            .create()
+            .map_err(|e| SubscriptionError::Internal(format!("Failed to create Kafka producer: {e}")))?;
+
+        tracing::info!(
             brokers = %config.brokers,
             topic = %config.default_topic,
-            "KafkaAdapter created (stub implementation - enable 'kafka' feature for full support)"
+            client_id = %config.client_id,
+            "KafkaAdapter created with rdkafka producer"
         );
-        Self { config }
+
+        Ok(Self { config, producer })
     }
 
     /// Get the topic for a subscription (uses default if not specified).
     fn get_topic(&self, _subscription_name: &str) -> &str {
-        // In a full implementation, this could look up per-subscription topics
+        // Could be extended to support per-subscription topic mapping
+        &self.config.default_topic
+    }
+
+    /// Get reference to the underlying producer for direct Kafka operations.
+    #[must_use = "the producer reference should be used for Kafka operations"]
+    pub fn producer(&self) -> &rdkafka::producer::FutureProducer {
+        &self.producer
+    }
+}
+
+#[cfg(feature = "kafka")]
+#[async_trait::async_trait]
+impl TransportAdapter for KafkaAdapter {
+    async fn deliver(
+        &self,
+        event: &SubscriptionEvent,
+        subscription_name: &str,
+    ) -> Result<(), SubscriptionError> {
+        use rdkafka::producer::FutureRecord;
+        use std::time::Duration;
+
+        let message = KafkaMessage::from_event(event, subscription_name);
+        let topic = self.get_topic(subscription_name);
+
+        let payload = serde_json::to_string(&message)
+            .map_err(|e| SubscriptionError::Internal(format!("Failed to serialize message: {e}")))?;
+
+        let record = FutureRecord::to(topic)
+            .key(message.key())
+            .payload(&payload);
+
+        let timeout = Duration::from_millis(self.config.timeout_ms);
+
+        match self.producer.send(record, timeout).await {
+            Ok((partition, offset)) => {
+                tracing::debug!(
+                    topic = topic,
+                    partition = partition,
+                    offset = offset,
+                    key = message.key(),
+                    event_id = %event.event_id,
+                    "Kafka message delivered successfully"
+                );
+                Ok(())
+            }
+            Err((kafka_error, _)) => {
+                tracing::error!(
+                    topic = topic,
+                    key = message.key(),
+                    event_id = %event.event_id,
+                    error = %kafka_error,
+                    "Failed to deliver Kafka message"
+                );
+                Err(SubscriptionError::DeliveryFailed {
+                    transport: "kafka".to_string(),
+                    reason: kafka_error.to_string(),
+                })
+            }
+        }
+    }
+
+    fn name(&self) -> &'static str {
+        "kafka"
+    }
+
+    async fn health_check(&self) -> bool {
+        // Check if we can fetch cluster metadata as a health check
+        use rdkafka::producer::Producer;
+        use std::time::Duration;
+
+        match self.producer.client().fetch_metadata(
+            None, // All topics
+            Duration::from_secs(5),
+        ) {
+            Ok(metadata) => {
+                tracing::debug!(
+                    broker_count = metadata.brokers().len(),
+                    topic_count = metadata.topics().len(),
+                    "Kafka health check passed"
+                );
+                true
+            }
+            Err(e) => {
+                tracing::warn!(
+                    error = %e,
+                    "Kafka health check failed"
+                );
+                false
+            }
+        }
+    }
+}
+
+// =============================================================================
+// Kafka Adapter - Stub Implementation (without `kafka` feature)
+// =============================================================================
+
+/// Kafka transport adapter stub (without `kafka` feature).
+///
+/// This is a stub implementation for development and testing.
+/// Enable the `kafka` feature for actual Kafka delivery.
+#[cfg(not(feature = "kafka"))]
+#[derive(Debug)]
+pub struct KafkaAdapter {
+    config: KafkaConfig,
+}
+
+#[cfg(not(feature = "kafka"))]
+impl KafkaAdapter {
+    /// Create a new Kafka adapter stub.
+    ///
+    /// # Note
+    ///
+    /// This is a stub implementation. Enable the `kafka` feature for actual delivery.
+    ///
+    /// # Errors
+    ///
+    /// This stub implementation never fails, but returns `Result` for API compatibility.
+    pub fn new(config: KafkaConfig) -> Result<Self, SubscriptionError> {
+        tracing::warn!(
+            brokers = %config.brokers,
+            topic = %config.default_topic,
+            "KafkaAdapter created (STUB - enable 'kafka' feature for real Kafka support)"
+        );
+        Ok(Self { config })
+    }
+
+    /// Get the topic for a subscription (uses default if not specified).
+    fn get_topic(&self, _subscription_name: &str) -> &str {
         &self.config.default_topic
     }
 }
 
+#[cfg(not(feature = "kafka"))]
 #[async_trait::async_trait]
 impl TransportAdapter for KafkaAdapter {
     async fn deliver(
@@ -2139,14 +2312,8 @@ impl TransportAdapter for KafkaAdapter {
             topic = topic,
             key = message.key(),
             event_id = %event.event_id,
-            "Kafka delivery (stub) - enable 'kafka' feature for actual delivery"
+            "Kafka delivery (STUB) - enable 'kafka' feature for actual delivery"
         );
-
-        // In a full implementation with rdkafka:
-        // let record = FutureRecord::to(topic)
-        //     .key(message.key())
-        //     .payload(&payload);
-        // self.producer.send(record, Duration::from_millis(self.config.timeout_ms)).await?;
 
         Ok(())
     }
@@ -2156,9 +2323,8 @@ impl TransportAdapter for KafkaAdapter {
     }
 
     async fn health_check(&self) -> bool {
-        // Stub implementation - always returns true
-        // In a full implementation, this would check broker connectivity
-        tracing::debug!("Kafka health check (stub) - always returns true");
+        // Stub always returns true
+        tracing::debug!("Kafka health check (STUB) - always returns true");
         true
     }
 }
@@ -2887,7 +3053,7 @@ mod tests {
     #[test]
     fn test_kafka_adapter_name() {
         let config = KafkaConfig::new("localhost:9092", "events");
-        let adapter = KafkaAdapter::new(config);
+        let adapter = KafkaAdapter::new(config).unwrap();
 
         assert_eq!(adapter.name(), "kafka");
     }
