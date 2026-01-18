@@ -5,6 +5,8 @@
  * enabling compile-time schema generation without runtime overhead.
  */
 
+import { isScalarType } from "./scalars";
+
 /**
  * Convert TypeScript type to GraphQL type string.
  *
@@ -53,6 +55,12 @@ export function typeToGraphQL(type: unknown): [graphqlType: string, nullable: bo
     if (type.endsWith("[]")) {
       const elementType = type.slice(0, -2);
       return [`[${elementType}!]`, false];
+    }
+
+    // Recognize scalar types (ID, DateTime, Email, etc.)
+    // These pass through directly to schema.json
+    if (isScalarType(type)) {
+      return [type, false];
     }
 
     return [type, false];

@@ -89,3 +89,81 @@ export {
   registerTypeFieldsManual,
 } from "./analytics";
 export type { FactTableDecoratorConfig, AggregateQueryDecoratorConfig } from "./analytics";
+
+// Export scalar types for schema authoring
+export {
+  // Core scalars
+  SCALAR_NAMES,
+  isScalarType,
+} from "./scalars";
+export type {
+  // Core scalars
+  ID,
+  UUID,
+  Json,
+  Decimal,
+  Vector,
+  // Date/Time scalars
+  DateTime,
+  Date,
+  Time,
+  DateRange,
+  Duration,
+  // Contact/Communication scalars
+  Email,
+  PhoneNumber,
+  URL,
+  DomainName,
+  Hostname,
+  // Location/Address scalars
+  PostalCode,
+  Latitude,
+  Longitude,
+  Coordinates,
+  Timezone,
+  LocaleCode,
+  LanguageCode,
+  CountryCode,
+  // Financial scalars
+  IBAN,
+  CUSIP,
+  ISIN,
+  SEDOL,
+  LEI,
+  MIC,
+  CurrencyCode,
+  Money,
+  ExchangeCode,
+  ExchangeRate,
+  StockSymbol,
+  Percentage,
+  // Identifier scalars
+  Slug,
+  SemanticVersion,
+  HashSHA256,
+  APIKey,
+  LicensePlate,
+  VIN,
+  TrackingNumber,
+  ContainerNumber,
+  // Networking scalars
+  IPAddress,
+  IPv4,
+  IPv6,
+  MACAddress,
+  CIDR,
+  Port,
+  // Transportation scalars
+  AirportCode,
+  PortCode,
+  FlightNumber,
+  // Content scalars
+  Markdown,
+  HTML,
+  MimeType,
+  Color,
+  Image,
+  File,
+  // Database scalars
+  LTree,
+} from "./scalars";
