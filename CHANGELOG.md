@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.12] - 2026-01-18
+
+**LTREE Filter Support - User Type Annotation Discovery**
+
+### Fixed
+
+- **LTree scalar type now properly exported from fraiseql package** (GitHub #248)
+  - Users can now import and use `LTree` type annotation: `from fraiseql import LTree`
+  - Fixed `LTreeField.__repr__()` bug that was returning "UUID" instead of "LTree"
+  - Using `LTree` type annotation generates `LTreeFilter` in GraphQL schema with `descendantOf`, `ancestorOf`, and 20+ ltree operators
+  - Previously users had no documented way to enable ltree filtering on string fields mapped to ltree columns
+  - Resolves UX issue where ltree column filtering generated `StringFilter` instead of `LTreeFilter`
+
+**Before (v1.9.11)**:
+```python
+@fraiseql.type(sql_source="tv_allocation")
+class Allocation:
+    location_path: str | None = None  # ❌ Generates StringFilter - no ltree operators
+```
+
+**After (v1.9.12)**:
+```python
+from fraiseql import LTree  # ✅ Now available
+
+@fraiseql.type(sql_source="tv_allocation")
+class Allocation:
+    location_path: LTree | None = None  # ✅ Generates LTreeFilter with descendantOf, ancestorOf, etc.
+```
+
+**Technical Details**:
+- Export added: `LTreeField as LTree` in `src/fraiseql/__init__.py`
+- Updated `__all__` to include `LTree` in public API
+- Fixed copy-paste bug in `LTreeField.__repr__()` method
+- All 24 LTREE integration tests pass
+- All 68 LTREE unit tests pass
+- Zero breaking changes - backward compatible
+
 ## [1.9.11] - 2026-01-10
 
 **GraphQL Spec Compliance - __typename Preservation**
