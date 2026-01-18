@@ -14,7 +14,7 @@
 | #248 | LTree Filter Support | ✅ Complete (12/12) | None |
 | #247 | GraphQL Subscriptions | ✅ Mostly Complete | Optional: gRPC adapter |
 | #226 | v2.0 Rust-First Architecture | ✅ Complete | This IS v2 |
-| #225 | Security Testing & Enforcement | ✅ JWT Complete | Optional: RBAC, Field filtering |
+| #225 | Security Testing & Enforcement | ✅ JWT + Field Filtering Complete | Optional: RBAC |
 
 ---
 
@@ -173,25 +173,32 @@ The current codebase IS the Rust-first architecture described in #226:
 - Backward compatible with structure-only validation for testing
 - 15 new tests for signature verification
 
+### Field Selection Filtering (January 18, 2026)
+
+- Created `field_filter.rs` module with scope-based access control
+- `FieldFilter` validates field access based on JWT scopes
+- Integrated with `RuntimeConfig` and `Executor::execute_with_scopes()`
+- Scope format: `{action}:{Type}.{field}` (e.g., `read:User.salary`)
+- 25 unit tests covering all scenarios
+
 ### Remaining (Optional, Consider v2.1)
 
 | Feature | Status | Effort |
 |---------|--------|--------|
 | RBAC/Permission enforcement | ❌ Not implemented | 12-16h |
-| Field selection filtering | ❌ Not implemented | 6-8h |
 
 ---
 
-## Phase D Completion Summary
+## Phase D + E Completion Summary
 
-**All P1 items complete!**
+**All P1 + P2 (security) items complete!**
 
 | Priority | Issue | Status |
 |----------|-------|--------|
 | P1 | #250 Indexed filter columns | ✅ Complete |
 | P1 | #248 LTree operators | ✅ Complete (12/12) |
 | P1 | #225 JWT signature verification | ✅ Complete |
-| P2 | #225 Field selection filtering | ❌ Optional |
+| P2 | #225 Field selection filtering | ✅ Complete |
 | P2 | #247 gRPC subscription adapter | ❌ Optional |
 | P3 | #225 RBAC enforcement | ❌ Consider v2.1 |
 
@@ -211,8 +218,11 @@ The current codebase IS the Rust-first architecture described in #226:
 - `crates/fraiseql-wire/src/operators/sql_gen.rs`
 
 ### Security (#225)
-- `crates/fraiseql-core/src/security/auth_middleware.rs`
-- `crates/fraiseql-core/src/security/mod.rs`
+- `crates/fraiseql-core/src/security/auth_middleware.rs` - JWT signature verification
+- `crates/fraiseql-core/src/security/field_filter.rs` - Field selection filtering
+- `crates/fraiseql-core/src/security/mod.rs` - Module exports
+- `crates/fraiseql-core/src/runtime/mod.rs` - RuntimeConfig with field_filter
+- `crates/fraiseql-core/src/runtime/executor.rs` - execute_with_scopes()
 
 ### Subscriptions (#247)
 - `crates/fraiseql-core/src/runtime/subscription.rs`

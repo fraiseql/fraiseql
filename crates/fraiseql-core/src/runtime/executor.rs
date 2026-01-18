@@ -4,6 +4,7 @@ use crate::db::traits::DatabaseAdapter;
 use crate::error::{FraiseQLError, Result};
 use crate::graphql::parse_query;
 use crate::schema::{CompiledSchema, IntrospectionResponses};
+use crate::security::FieldAccessError;
 use super::{QueryMatcher, QueryPlanner, ResultProjector, RuntimeConfig};
 use std::sync::Arc;
 
@@ -151,6 +152,120 @@ impl<A: DatabaseAdapter> Executor<A> {
                 // Return pre-built __type response (zero-cost at runtime)
                 Ok(self.introspection.get_type_response(&type_name))
             }
+        }
+    }
+
+    /// Execute a GraphQL query with user context for field-level access control.
+    ///
+    /// This method validates that the user has permission to access all requested
+    /// fields before executing the query. If field filtering is enabled in the
+    /// `RuntimeConfig` and the user lacks required scopes, this returns an error.
+    ///
+    /// # Arguments
+    ///
+    /// * `query` - GraphQL query string
+    /// * `variables` - Query variables (optional)
+    /// * `user_scopes` - User's scopes from JWT token (pass empty slice if unauthenticated)
+    ///
+    /// # Returns
+    ///
+    /// GraphQL response as JSON string, or error if access denied
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let query = r#"query { users { id name salary } }"#;
+    /// let user_scopes = user.scopes.iter().map(|s| s.as_str()).collect::<Vec<_>>();
+    /// let result = executor.execute_with_scopes(query, None, &user_scopes).await?;
+    /// ```
+    pub async fn execute_with_scopes(
+        &self,
+        query: &str,
+        variables: Option<&serde_json::Value>,
+        user_scopes: &[String],
+    ) -> Result<String> {
+        // 1. Classify query type
+        let query_type = self.classify_query(query)?;
+
+        // 2. Validate field access if filter is configured
+        if let Some(ref filter) = self.config.field_filter {
+            // Only validate for regular queries (not introspection)
+            if matches!(query_type, QueryType::Regular) {
+                self.validate_field_access(query, variables, user_scopes, filter)?;
+            }
+        }
+
+        // 3. Route to appropriate handler (same as execute)
+        match query_type {
+            QueryType::Regular => self.execute_regular_query(query, variables).await,
+            QueryType::Aggregate(query_name) => {
+                self.execute_aggregate_dispatch(&query_name, variables).await
+            }
+            QueryType::Window(query_name) => {
+                self.execute_window_dispatch(&query_name, variables).await
+            }
+            QueryType::IntrospectionSchema => Ok(self.introspection.schema_response.clone()),
+            QueryType::IntrospectionType(type_name) => {
+                Ok(self.introspection.get_type_response(&type_name))
+            }
+        }
+    }
+
+    /// Validate that user has access to all requested fields.
+    fn validate_field_access(
+        &self,
+        query: &str,
+        variables: Option<&serde_json::Value>,
+        user_scopes: &[String],
+        filter: &crate::security::FieldFilter,
+    ) -> Result<()> {
+        // Parse query to get field selections
+        let query_match = self.matcher.match_query(query, variables)?;
+
+        // Get the return type name from the query definition
+        let type_name = &query_match.query_def.return_type;
+
+        // Validate each requested field
+        let field_refs: Vec<&str> = query_match.fields.iter().map(String::as_str).collect();
+        let errors = filter.validate_fields(type_name, &field_refs, user_scopes);
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            // Return the first error (could aggregate all errors if desired)
+            let first_error = &errors[0];
+            Err(FraiseQLError::Authorization {
+                message: first_error.message.clone(),
+                action: Some("read".to_string()),
+                resource: Some(format!("{}.{}", first_error.type_name, first_error.field_name)),
+            })
+        }
+    }
+
+    /// Check if a specific field can be accessed with given scopes.
+    ///
+    /// This is a convenience method for checking field access without executing a query.
+    ///
+    /// # Arguments
+    ///
+    /// * `type_name` - The GraphQL type name
+    /// * `field_name` - The field name
+    /// * `user_scopes` - User's scopes from JWT token
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` if access is allowed, `Err(FieldAccessError)` if denied
+    pub fn check_field_access(
+        &self,
+        type_name: &str,
+        field_name: &str,
+        user_scopes: &[String],
+    ) -> std::result::Result<(), FieldAccessError> {
+        if let Some(ref filter) = self.config.field_filter {
+            filter.can_access(type_name, field_name, user_scopes)
+        } else {
+            // No filter configured, allow all access
+            Ok(())
         }
     }
 
@@ -643,6 +758,7 @@ mod tests {
             max_query_depth: 5,
             max_query_complexity: 500,
             enable_tracing: true,
+            field_filter: None,
         };
 
         let executor = Executor::with_config(schema, adapter, config);

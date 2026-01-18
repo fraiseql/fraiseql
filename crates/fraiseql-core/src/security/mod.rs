@@ -4,6 +4,7 @@
 //! - Security profiles (STANDARD, REGULATED)
 //! - Security headers configuration
 //! - Sensitive field masking for PII/regulated data
+//! - Field selection filtering for access control
 //! - Security error types
 //! - Authentication middleware (JWT, Auth0, Clerk)
 //! - OIDC/JWKS support for any OIDC-compliant provider
@@ -17,6 +18,7 @@ pub mod audit;
 pub mod auth_middleware;
 pub mod error_formatter;
 pub mod errors;
+pub mod field_filter;
 pub mod field_masking;
 pub mod headers;
 pub mod introspection_enforcer;
@@ -30,6 +32,7 @@ pub use audit::{AuditEntry, AuditLevel, AuditLogger, AuditStats};
 pub use auth_middleware::{AuthConfig, AuthMiddleware, AuthRequest, AuthenticatedUser, SigningKey};
 pub use error_formatter::{DetailLevel, ErrorFormatter};
 pub use errors::{Result, SecurityError};
+pub use field_filter::{FieldAccessError, FieldFilter, FieldFilterBuilder, FieldFilterConfig};
 pub use field_masking::{FieldMasker, FieldSensitivity};
 pub use headers::SecurityHeaders;
 pub use introspection_enforcer::{IntrospectionEnforcer, IntrospectionPolicy};

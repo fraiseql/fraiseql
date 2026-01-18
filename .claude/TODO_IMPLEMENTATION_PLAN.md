@@ -1,7 +1,7 @@
 # FraiseQL - TODO Implementation Plan
 
 **Date**: January 18, 2026
-**Status**: ~97% Complete - Phase D complete (all P1 GitHub issues done)
+**Status**: ~98% Complete - Phase D complete + Field Selection Filtering (P2)
 
 ---
 
@@ -212,14 +212,46 @@ let generator = PostgresWhereGenerator::with_indexed_columns(Arc::new(indexed_co
 
 #### 7.3 Field Selection Filtering
 
-**Issue**: Field masking exists (hides data) but not field selection filtering (restrict access).
+**Status**: ✅ **Complete** (January 18, 2026)
 
-**Required**:
-- Create `crates/fraiseql-core/src/security/field_filter.rs`
-- Validate requested fields against allowed fields per user/role
-- Return proper GraphQL errors for unauthorized access
+**Implementation**:
+- Created `crates/fraiseql-core/src/security/field_filter.rs` module
+- `FieldFilter` validates field access based on JWT scopes
+- `FieldFilterConfig` defines protected fields and scope requirements
+- Integrated with `RuntimeConfig` and `Executor`
+- Added `execute_with_scopes()` method to validate fields before query execution
 
-**Effort**: 6-8 hours
+**Scope Format**:
+```
+{action}:{Type}.{field}    # e.g., read:User.salary
+{action}:{Type}.*          # e.g., read:User.*
+{action}:*                 # e.g., read:*
+admin                      # bypass all checks
+```
+
+**Files Created/Modified**:
+- `crates/fraiseql-core/src/security/field_filter.rs` - New module (25 tests)
+- `crates/fraiseql-core/src/security/mod.rs` - Exported new types
+- `crates/fraiseql-core/src/runtime/mod.rs` - Added `field_filter` to `RuntimeConfig`
+- `crates/fraiseql-core/src/runtime/executor.rs` - Added `execute_with_scopes()`, `check_field_access()`
+
+**Usage**:
+```rust
+use fraiseql_core::runtime::RuntimeConfig;
+use fraiseql_core::security::FieldFilterConfig;
+
+// Configure protected fields
+let config = RuntimeConfig::default()
+    .with_field_filter(
+        FieldFilterConfig::new()
+            .protect_field("User", "salary")
+            .protect_field("User", "ssn")
+    );
+
+// Execute with user scopes
+let user_scopes = vec!["read:User.salary".to_string()];
+let result = executor.execute_with_scopes(query, None, &user_scopes).await?;
+```
 
 ---
 
@@ -297,7 +329,7 @@ let generator = PostgresWhereGenerator::with_indexed_columns(Arc::new(indexed_co
 | P1 | #250 Indexed filter columns (runtime introspection) | fraiseql-core | 6-8h | ✅ Complete |
 | P1 | #248 Complete LTree operators | fraiseql-core | 4-6h | ✅ Complete (12/12) |
 | P1 | #225 JWT signature verification | fraiseql-core | 4-6h | ✅ Complete (HS256/RS256) |
-| P2 | #225 Field selection filtering | fraiseql-core | 6-8h | ❌ Missing |
+| P2 | #225 Field selection filtering | fraiseql-core | 6-8h | ✅ Complete |
 | P2 | #247 gRPC subscription adapter | fraiseql-core | 4-6h | ❌ Optional |
 | P3 | #225 RBAC/Permission enforcement | fraiseql-core | 12-16h | ❌ Consider v2.1 |
 | **Original Items** |
@@ -337,11 +369,12 @@ let generator = PostgresWhereGenerator::with_indexed_columns(Arc::new(indexed_co
    - Optional: `--database` flag for compile-time validation
    - 9 new tests
 
-### Phase E: Security Completion - 10-16 hours
+### Phase E: Security Completion - 4-6 hours
 
-4. **Field selection filtering** (#225) - 6-8h
-   - New security module
-   - Query integration
+4. **Field selection filtering** (#225) - ✅ Complete
+   - Created `field_filter.rs` module with 25 tests
+   - Integrated with `RuntimeConfig` and `Executor`
+   - Scope-based access control (`read:Type.field` pattern)
 
 5. **gRPC subscription adapter** (#247) - 4-6h (optional)
    - Add tonic dependency

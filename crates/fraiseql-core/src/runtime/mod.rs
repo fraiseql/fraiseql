@@ -67,6 +67,8 @@ pub use window::{WindowSql, WindowSqlGenerator};
 pub use window_parser::WindowQueryParser;
 pub use window_projector::WindowProjector;
 
+use crate::security::{FieldFilter, FieldFilterConfig};
+
 /// Runtime configuration.
 #[derive(Debug, Clone)]
 pub struct RuntimeConfig {
@@ -81,6 +83,10 @@ pub struct RuntimeConfig {
 
     /// Enable performance tracing.
     pub enable_tracing: bool,
+
+    /// Optional field filter for access control.
+    /// When set, validates that users have required scopes to access fields.
+    pub field_filter: Option<FieldFilter>,
 }
 
 impl Default for RuntimeConfig {
@@ -90,7 +96,31 @@ impl Default for RuntimeConfig {
             max_query_depth: 10,
             max_query_complexity: 1000,
             enable_tracing: false,
+            field_filter: None,
         }
+    }
+}
+
+impl RuntimeConfig {
+    /// Create a new runtime config with a field filter.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use fraiseql_core::runtime::RuntimeConfig;
+    /// use fraiseql_core::security::FieldFilterConfig;
+    ///
+    /// let config = RuntimeConfig::default()
+    ///     .with_field_filter(
+    ///         FieldFilterConfig::new()
+    ///             .protect_field("User", "salary")
+    ///             .protect_field("User", "ssn")
+    ///     );
+    /// ```
+    #[must_use]
+    pub fn with_field_filter(mut self, config: FieldFilterConfig) -> Self {
+        self.field_filter = Some(FieldFilter::new(config));
+        self
     }
 }
 
