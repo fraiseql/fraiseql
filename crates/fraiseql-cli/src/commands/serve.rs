@@ -47,7 +47,7 @@ pub async fn run(schema: &str, port: u16) -> Result<()> {
             error!("Initial compilation failed: {e}");
             println!("   ❌ Compilation failed: {e}\n");
             println!("   Fix errors and save to retry...\n");
-        }
+        },
     }
 
     // Set up file watcher
@@ -84,18 +84,18 @@ pub async fn run(schema: &str, port: u16) -> Result<()> {
                         Ok(()) => {
                             info!("Recompilation successful");
                             println!("   ✓ Recompiled successfully\n");
-                        }
+                        },
                         Err(e) => {
                             error!("Recompilation failed: {e}");
                             println!("   ❌ Compilation failed: {e}\n");
-                        }
+                        },
                     }
                 }
-            }
+            },
             Err(e) => {
                 error!("Watch error: {e}");
                 anyhow::bail!("File watch error: {e}");
-            }
+            },
         }
     }
 }

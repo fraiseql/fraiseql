@@ -9,7 +9,9 @@
 
 use anyhow::Result;
 use deadpool_postgres::{Config, ManagerConfig, RecyclingMethod, Runtime};
-use fraiseql_core::compiler::fact_table::{DatabaseIntrospector, FactTableDetector, FactTableMetadata};
+use fraiseql_core::compiler::fact_table::{
+    DatabaseIntrospector, FactTableDetector, FactTableMetadata,
+};
 use fraiseql_core::db::PostgresIntrospector;
 use serde_json::json;
 use tokio_postgres::NoTls;
@@ -48,7 +50,9 @@ async fn create_introspector(database_url: &str) -> Result<PostgresIntrospector>
         .map_err(|e| anyhow::anyhow!("Failed to create database pool: {e}"))?;
 
     // Test connection
-    let _client = pool.get().await
+    let _client = pool
+        .get()
+        .await
         .map_err(|e| anyhow::anyhow!("Failed to connect to database: {e}"))?;
 
     Ok(PostgresIntrospector::new(pool))
@@ -78,7 +82,9 @@ pub async fn run(database_url: &str, format: OutputFormat) -> Result<()> {
     let introspector = create_introspector(database_url).await?;
 
     // List all fact tables
-    let fact_tables = introspector.list_fact_tables().await
+    let fact_tables = introspector
+        .list_fact_tables()
+        .await
         .map_err(|e| anyhow::anyhow!("Failed to list fact tables: {e}"))?;
 
     if fact_tables.is_empty() {
@@ -101,10 +107,10 @@ pub async fn run(database_url: &str, format: OutputFormat) -> Result<()> {
         match FactTableDetector::introspect(&introspector, table_name).await {
             Ok(metadata) => {
                 metadata_list.push(metadata);
-            }
+            },
             Err(e) => {
                 errors.push((table_name.clone(), e.to_string()));
-            }
+            },
         }
     }
 
@@ -131,7 +137,7 @@ pub async fn run(database_url: &str, format: OutputFormat) -> Result<()> {
                 println!("{}", format_as_python(metadata));
                 println!();
             }
-        }
+        },
         OutputFormat::Json => {
             let output: serde_json::Value = metadata_list
                 .iter()
@@ -187,7 +193,7 @@ pub async fn run(database_url: &str, format: OutputFormat) -> Result<()> {
                 .into();
 
             println!("{}", serde_json::to_string_pretty(&output)?);
-        }
+        },
     }
 
     eprintln!("\n✅ Introspection complete");
@@ -204,18 +210,11 @@ fn format_as_python(metadata: &FactTableMetadata) -> String {
     let mut output = String::new();
 
     // Extract measure names
-    let measures: Vec<String> = metadata
-        .measures
-        .iter()
-        .map(|m| format!("'{}'", m.name))
-        .collect();
+    let measures: Vec<String> = metadata.measures.iter().map(|m| format!("'{}'", m.name)).collect();
 
     // Extract filter names
-    let filters: Vec<String> = metadata
-        .denormalized_filters
-        .iter()
-        .map(|f| format!("'{}'", f.name))
-        .collect();
+    let filters: Vec<String> =
+        metadata.denormalized_filters.iter().map(|f| format!("'{}'", f.name)).collect();
 
     // Extract class name from table name (tf_sales -> Sales)
     let class_name = metadata
@@ -249,10 +248,7 @@ fn format_as_python(metadata: &FactTableMetadata) -> String {
             .iter()
             .map(|c| format!("'{}'", c.source_column))
             .collect();
-        output.push_str(&format!(
-            "    calendar_columns=[{}],\n",
-            calendar_cols.join(", ")
-        ));
+        output.push_str(&format!("    calendar_columns=[{}],\n", calendar_cols.join(", ")));
     }
 
     output.push_str(")\n");
@@ -274,14 +270,8 @@ mod tests {
 
     #[test]
     fn test_output_format_from_str() {
-        assert!(matches!(
-            OutputFormat::from_str("python"),
-            Ok(OutputFormat::Python)
-        ));
-        assert!(matches!(
-            OutputFormat::from_str("json"),
-            Ok(OutputFormat::Json)
-        ));
+        assert!(matches!(OutputFormat::from_str("python"), Ok(OutputFormat::Python)));
+        assert!(matches!(OutputFormat::from_str("json"), Ok(OutputFormat::Json)));
         assert!(OutputFormat::from_str("invalid").is_err());
     }
 

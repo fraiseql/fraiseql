@@ -54,7 +54,12 @@ enum Commands {
         input: String,
 
         /// Output schema.compiled.json file path
-        #[arg(short, long, value_name = "OUTPUT", default_value = "schema.compiled.json")]
+        #[arg(
+            short,
+            long,
+            value_name = "OUTPUT",
+            default_value = "schema.compiled.json"
+        )]
         output: String,
 
         /// Validate only, don't write output
@@ -143,23 +148,21 @@ async fn main() {
         Commands::Validate { command, input } => match command {
             Some(ValidateCommands::Facts { schema, database }) => {
                 commands::validate_facts::run(std::path::Path::new(&schema), &database).await
-            }
+            },
             None => match input {
                 Some(input) => commands::validate::run(&input).await,
                 None => Err(anyhow::anyhow!("INPUT required when no subcommand provided")),
             },
         },
 
-        Commands::Introspect { command } => {
-            match command {
-                IntrospectCommands::Facts { database, format } => {
-                    match commands::introspect_facts::OutputFormat::from_str(&format) {
-                        Ok(fmt) => commands::introspect_facts::run(&database, fmt).await,
-                        Err(e) => Err(anyhow::anyhow!(e)),
-                    }
+        Commands::Introspect { command } => match command {
+            IntrospectCommands::Facts { database, format } => {
+                match commands::introspect_facts::OutputFormat::from_str(&format) {
+                    Ok(fmt) => commands::introspect_facts::run(&database, fmt).await,
+                    Err(e) => Err(anyhow::anyhow!(e)),
                 }
-            }
-        }
+            },
+        },
 
         Commands::Serve { schema, port } => commands::serve::run(&schema, port).await,
     };
@@ -187,8 +190,7 @@ fn init_logging(verbose: bool, debug: bool) {
 
     tracing_subscriber::registry()
         .with(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| filter.into()),
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| filter.into()),
         )
         .with(tracing_subscriber::fmt::layer())
         .init();

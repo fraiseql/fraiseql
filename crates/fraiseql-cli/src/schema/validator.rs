@@ -113,10 +113,7 @@ impl SchemaValidator {
             // Warning for queries without SQL source
             if query.sql_source.is_none() && query.returns_list {
                 report.errors.push(ValidationError {
-                    message: format!(
-                        "Query '{}' returns a list but has no sql_source",
-                        query.name
-                    ),
+                    message: format!("Query '{}' returns a list but has no sql_source", query.name),
                     path: format!("queries[{idx}]"),
                     severity: ErrorSeverity::Warning,
                     suggestion: Some("Add sql_source for SQL-backed queries".to_string()),
@@ -219,25 +216,17 @@ impl ValidationReport {
 
     /// Check if there are any errors
     pub fn has_errors(&self) -> bool {
-        self.errors
-            .iter()
-            .any(|e| e.severity == ErrorSeverity::Error)
+        self.errors.iter().any(|e| e.severity == ErrorSeverity::Error)
     }
 
     /// Count errors
     pub fn error_count(&self) -> usize {
-        self.errors
-            .iter()
-            .filter(|e| e.severity == ErrorSeverity::Error)
-            .count()
+        self.errors.iter().filter(|e| e.severity == ErrorSeverity::Error).count()
     }
 
     /// Count warnings
     pub fn warning_count(&self) -> usize {
-        self.errors
-            .iter()
-            .filter(|e| e.severity == ErrorSeverity::Warning)
-            .count()
+        self.errors.iter().filter(|e| e.severity == ErrorSeverity::Warning).count()
     }
 
     /// Print formatted report
@@ -248,17 +237,11 @@ impl ValidationReport {
 
         println!("\n📋 Validation Report:");
 
-        let errors: Vec<_> = self
-            .errors
-            .iter()
-            .filter(|e| e.severity == ErrorSeverity::Error)
-            .collect();
+        let errors: Vec<_> =
+            self.errors.iter().filter(|e| e.severity == ErrorSeverity::Error).collect();
 
-        let warnings: Vec<_> = self
-            .errors
-            .iter()
-            .filter(|e| e.severity == ErrorSeverity::Warning)
-            .collect();
+        let warnings: Vec<_> =
+            self.errors.iter().filter(|e| e.severity == ErrorSeverity::Warning).collect();
 
         if !errors.is_empty() {
             println!("\n  ❌ Errors ({}):", errors.len());
@@ -289,10 +272,7 @@ impl ValidationReport {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::schema::intermediate::{
-        IntermediateQuery,
-        IntermediateType,
-    };
+    use crate::schema::intermediate::{IntermediateQuery, IntermediateType};
 
     #[test]
     fn test_validate_empty_schema() {

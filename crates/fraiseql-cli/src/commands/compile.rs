@@ -35,8 +35,7 @@ pub async fn run(input: &str, output: &str, check: bool, database: Option<&str>)
         anyhow::bail!("Input file not found: {input}");
     }
 
-    let schema_json =
-        fs::read_to_string(input_path).context("Failed to read input schema.json")?;
+    let schema_json = fs::read_to_string(input_path).context("Failed to read input schema.json")?;
 
     // 2. Parse JSON into IntermediateSchema (language-agnostic format)
     info!("Parsing intermediate schema...");
@@ -45,8 +44,8 @@ pub async fn run(input: &str, output: &str, check: bool, database: Option<&str>)
 
     // 3. Validate intermediate schema
     info!("Validating schema structure...");
-    let validation_report = SchemaValidator::validate(&intermediate)
-        .context("Failed to validate schema")?;
+    let validation_report =
+        SchemaValidator::validate(&intermediate).context("Failed to validate schema")?;
 
     if !validation_report.is_valid() {
         validation_report.print();
@@ -65,8 +64,8 @@ pub async fn run(input: &str, output: &str, check: bool, database: Option<&str>)
 
     // 5. Optimize schema and generate SQL hints
     info!("Analyzing schema for optimization opportunities...");
-    let optimization_report = SchemaOptimizer::optimize(&mut schema)
-        .context("Failed to optimize schema")?;
+    let optimization_report =
+        SchemaOptimizer::optimize(&mut schema).context("Failed to optimize schema")?;
 
     // 5b. Optional: Validate indexed columns against database
     if let Some(db_url) = database {
@@ -89,8 +88,8 @@ pub async fn run(input: &str, output: &str, check: bool, database: Option<&str>)
 
     // 7. Write compiled schema
     info!("Writing compiled schema to: {output}");
-    let output_json = serde_json::to_string_pretty(&schema)
-        .context("Failed to serialize compiled schema")?;
+    let output_json =
+        serde_json::to_string_pretty(&schema).context("Failed to serialize compiled schema")?;
 
     fs::write(output, output_json).context("Failed to write compiled schema")?;
 
@@ -161,13 +160,13 @@ async fn validate_indexed_columns(schema: &CompiledSchema, db_url: &str) -> Resu
                         );
                         total_indexed += indexed_cols.len();
                     }
-                }
+                },
                 Err(e) => {
                     warn!(
                         "Could not introspect view '{}': {}. Skipping indexed column check.",
                         view_name, e
                     );
-                }
+                },
             }
         }
     }
@@ -181,10 +180,10 @@ async fn validate_indexed_columns(schema: &CompiledSchema, db_url: &str) -> Resu
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
     use fraiseql_core::schema::{
         AutoParams, CompiledSchema, FieldDefinition, FieldType, QueryDefinition, TypeDefinition,
     };
+    use std::collections::HashMap;
 
     #[test]
     fn test_validate_schema_success() {

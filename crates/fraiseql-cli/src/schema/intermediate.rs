@@ -848,7 +848,7 @@ mod tests {
                 assert_eq!(def.alias, Some("writer".to_string()));
                 assert!(def.fields.is_some());
                 assert_eq!(def.fields.as_ref().unwrap().len(), 2);
-            }
+            },
             IntermediateFragmentField::Simple(_) => panic!("Expected complex field"),
         }
     }
@@ -948,7 +948,7 @@ mod tests {
             IntermediateFragmentField::Complex(def) => {
                 assert_eq!(def.name, "author");
                 assert_eq!(def.spread, Some("UserFields".to_string()));
-            }
+            },
             IntermediateFragmentField::Simple(_) => panic!("Expected complex field"),
         }
     }
@@ -1212,16 +1212,10 @@ mod tests {
 
         // salary - requires specific scope
         assert_eq!(employee.fields[2].name, "salary");
-        assert_eq!(
-            employee.fields[2].requires_scope,
-            Some("read:Employee.salary".to_string())
-        );
+        assert_eq!(employee.fields[2].requires_scope, Some("read:Employee.salary".to_string()));
 
         // ssn - requires admin scope
         assert_eq!(employee.fields[3].name, "ssn");
-        assert_eq!(
-            employee.fields[3].requires_scope,
-            Some("admin".to_string())
-        );
+        assert_eq!(employee.fields[3].requires_scope, Some("admin".to_string()));
     }
 }

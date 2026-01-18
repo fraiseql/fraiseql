@@ -3,10 +3,10 @@
 //! Converts `IntermediateSchema` (language-agnostic) to `CompiledSchema` (Rust-specific)
 
 use super::intermediate::{
-    IntermediateSchema, IntermediateType, IntermediateField, IntermediateQuery,
-    IntermediateMutation, IntermediateSubscription, IntermediateArgument, IntermediateAutoParams,
-    IntermediateEnum, IntermediateEnumValue, IntermediateInputObject, IntermediateInputField,
-    IntermediateInterface, IntermediateUnion, IntermediateDirective,
+    IntermediateArgument, IntermediateAutoParams, IntermediateDirective, IntermediateEnum,
+    IntermediateEnumValue, IntermediateField, IntermediateInputField, IntermediateInputObject,
+    IntermediateInterface, IntermediateMutation, IntermediateQuery, IntermediateSchema,
+    IntermediateSubscription, IntermediateType, IntermediateUnion,
 };
 use anyhow::{Context, Result};
 use fraiseql_core::schema::{
@@ -57,11 +57,7 @@ impl SchemaConverter {
             .context("Failed to convert mutations")?;
 
         // Convert enums
-        let enums = intermediate
-            .enums
-            .into_iter()
-            .map(Self::convert_enum)
-            .collect::<Vec<_>>();
+        let enums = intermediate.enums.into_iter().map(Self::convert_enum).collect::<Vec<_>>();
 
         // Convert input types
         let input_types = intermediate
@@ -79,11 +75,7 @@ impl SchemaConverter {
             .context("Failed to convert interfaces")?;
 
         // Convert unions
-        let unions = intermediate
-            .unions
-            .into_iter()
-            .map(Self::convert_union)
-            .collect::<Vec<_>>();
+        let unions = intermediate.unions.into_iter().map(Self::convert_union).collect::<Vec<_>>();
 
         // Convert subscriptions
         let subscriptions = intermediate
@@ -103,12 +95,13 @@ impl SchemaConverter {
             .context("Failed to convert directives")?;
 
         // Convert fact tables from Vec to HashMap<String, serde_json::Value>
-        let fact_tables = intermediate.fact_tables
+        let fact_tables = intermediate
+            .fact_tables
             .unwrap_or_default()
             .into_iter()
             .map(|ft| {
-                let metadata = serde_json::to_value(&ft)
-                    .expect("Failed to serialize fact table metadata");
+                let metadata =
+                    serde_json::to_value(&ft).expect("Failed to serialize fact table metadata");
                 (ft.table_name, metadata)
             })
             .collect();
@@ -155,11 +148,7 @@ impl SchemaConverter {
 
     /// Convert `IntermediateEnum` to `EnumDefinition`
     fn convert_enum(intermediate: IntermediateEnum) -> EnumDefinition {
-        let values = intermediate
-            .values
-            .into_iter()
-            .map(Self::convert_enum_value)
-            .collect();
+        let values = intermediate.values.into_iter().map(Self::convert_enum_value).collect();
 
         EnumDefinition {
             name: intermediate.name,
@@ -170,9 +159,9 @@ impl SchemaConverter {
 
     /// Convert `IntermediateEnumValue` to `EnumValueDefinition`
     fn convert_enum_value(intermediate: IntermediateEnumValue) -> EnumValueDefinition {
-        let deprecation = intermediate.deprecated.map(|d| {
-            fraiseql_core::schema::DeprecationInfo { reason: d.reason }
-        });
+        let deprecation = intermediate
+            .deprecated
+            .map(|d| fraiseql_core::schema::DeprecationInfo { reason: d.reason });
 
         EnumValueDefinition {
             name: intermediate.name,
@@ -183,11 +172,7 @@ impl SchemaConverter {
 
     /// Convert `IntermediateInputObject` to `InputObjectDefinition`
     fn convert_input_object(intermediate: IntermediateInputObject) -> InputObjectDefinition {
-        let fields = intermediate
-            .fields
-            .into_iter()
-            .map(Self::convert_input_field)
-            .collect();
+        let fields = intermediate.fields.into_iter().map(Self::convert_input_field).collect();
 
         InputObjectDefinition {
             name: intermediate.name,
@@ -198,9 +183,9 @@ impl SchemaConverter {
 
     /// Convert `IntermediateInputField` to `InputFieldDefinition`
     fn convert_input_field(intermediate: IntermediateInputField) -> InputFieldDefinition {
-        let deprecation = intermediate.deprecated.map(|d| {
-            fraiseql_core::schema::DeprecationInfo { reason: d.reason }
-        });
+        let deprecation = intermediate
+            .deprecated
+            .map(|d| fraiseql_core::schema::DeprecationInfo { reason: d.reason });
 
         // Convert default value to JSON string if present
         let default_value = intermediate.default.map(|v| v.to_string());
@@ -232,8 +217,8 @@ impl SchemaConverter {
 
     /// Convert `IntermediateUnion` to `UnionDefinition`
     fn convert_union(intermediate: IntermediateUnion) -> UnionDefinition {
-        let mut union_def = UnionDefinition::new(&intermediate.name)
-            .with_members(intermediate.member_types);
+        let mut union_def =
+            UnionDefinition::new(&intermediate.name).with_members(intermediate.member_types);
         if let Some(desc) = intermediate.description {
             union_def = union_def.with_description(&desc);
         }
@@ -249,9 +234,10 @@ impl SchemaConverter {
         // Extract deprecation info from @deprecated directive if present
         let deprecation = intermediate.directives.as_ref().and_then(|directives| {
             directives.iter().find(|d| d.name == "deprecated").map(|d| {
-                let reason = d.arguments.as_ref().and_then(|args| {
-                    args.get("reason").and_then(|v| v.as_str()).map(String::from)
-                });
+                let reason = d
+                    .arguments
+                    .as_ref()
+                    .and_then(|args| args.get("reason").and_then(|v| v.as_str()).map(String::from));
                 fraiseql_core::schema::DeprecationInfo { reason }
             })
         });
@@ -300,14 +286,12 @@ impl SchemaConverter {
             .collect::<Result<Vec<_>>>()
             .context(format!("Failed to convert query '{}'", intermediate.name))?;
 
-        let auto_params = intermediate
-            .auto_params
-            .map(Self::convert_auto_params)
-            .unwrap_or_default();
+        let auto_params =
+            intermediate.auto_params.map(Self::convert_auto_params).unwrap_or_default();
 
-        let deprecation = intermediate.deprecated.map(|d| {
-            fraiseql_core::schema::DeprecationInfo { reason: d.reason }
-        });
+        let deprecation = intermediate
+            .deprecated
+            .map(|d| fraiseql_core::schema::DeprecationInfo { reason: d.reason });
 
         Ok(QueryDefinition {
             name: intermediate.name,
@@ -329,19 +313,16 @@ impl SchemaConverter {
             .into_iter()
             .map(Self::convert_argument)
             .collect::<Result<Vec<_>>>()
-            .context(format!(
-                "Failed to convert mutation '{}'",
-                intermediate.name
-            ))?;
+            .context(format!("Failed to convert mutation '{}'", intermediate.name))?;
 
         let operation = Self::parse_mutation_operation(
             intermediate.operation.as_deref(),
             intermediate.sql_source.as_deref(),
         )?;
 
-        let deprecation = intermediate.deprecated.map(|d| {
-            fraiseql_core::schema::DeprecationInfo { reason: d.reason }
-        });
+        let deprecation = intermediate
+            .deprecated
+            .map(|d| fraiseql_core::schema::DeprecationInfo { reason: d.reason });
 
         Ok(MutationDefinition {
             name: intermediate.name,
@@ -363,33 +344,25 @@ impl SchemaConverter {
         match operation {
             Some("CREATE" | "INSERT") => {
                 // Extract table name from sql_source or use empty for Custom
-                let table = sql_source
-                    .map(std::string::ToString::to_string)
-                    .unwrap_or_default();
+                let table = sql_source.map(std::string::ToString::to_string).unwrap_or_default();
                 Ok(MutationOperation::Insert { table })
-            }
+            },
             Some("UPDATE") => {
-                let table = sql_source
-                    .map(std::string::ToString::to_string)
-                    .unwrap_or_default();
+                let table = sql_source.map(std::string::ToString::to_string).unwrap_or_default();
                 Ok(MutationOperation::Update { table })
-            }
+            },
             Some("DELETE") => {
-                let table = sql_source
-                    .map(std::string::ToString::to_string)
-                    .unwrap_or_default();
+                let table = sql_source.map(std::string::ToString::to_string).unwrap_or_default();
                 Ok(MutationOperation::Delete { table })
-            }
+            },
             Some("FUNCTION") => {
-                let name = sql_source
-                    .map(std::string::ToString::to_string)
-                    .unwrap_or_default();
+                let name = sql_source.map(std::string::ToString::to_string).unwrap_or_default();
                 Ok(MutationOperation::Function { name })
-            }
+            },
             Some("CUSTOM") | None => Ok(MutationOperation::Custom),
             Some(op) => {
                 anyhow::bail!("Unknown mutation operation: {op}")
-            }
+            },
         }
     }
 
@@ -397,9 +370,9 @@ impl SchemaConverter {
     fn convert_argument(intermediate: IntermediateArgument) -> Result<ArgumentDefinition> {
         let arg_type = Self::parse_field_type(&intermediate.arg_type)?;
 
-        let deprecation = intermediate.deprecated.map(|d| {
-            fraiseql_core::schema::DeprecationInfo { reason: d.reason }
-        });
+        let deprecation = intermediate
+            .deprecated
+            .map(|d| fraiseql_core::schema::DeprecationInfo { reason: d.reason });
 
         Ok(ArgumentDefinition {
             name: intermediate.name,
@@ -422,24 +395,19 @@ impl SchemaConverter {
     }
 
     /// Convert `IntermediateSubscription` to `SubscriptionDefinition`
-    fn convert_subscription(intermediate: IntermediateSubscription) -> Result<SubscriptionDefinition> {
+    fn convert_subscription(
+        intermediate: IntermediateSubscription,
+    ) -> Result<SubscriptionDefinition> {
         let arguments = intermediate
             .arguments
             .into_iter()
             .map(Self::convert_argument)
             .collect::<Result<Vec<_>>>()
-            .context(format!(
-                "Failed to convert subscription '{}'",
-                intermediate.name
-            ))?;
+            .context(format!("Failed to convert subscription '{}'", intermediate.name))?;
 
         // Convert filter conditions to SubscriptionFilter
         let filter = intermediate.filter.map(|f| {
-            let argument_paths = f
-                .conditions
-                .into_iter()
-                .map(|c| (c.argument, c.path))
-                .collect();
+            let argument_paths = f.conditions.into_iter().map(|c| (c.argument, c.path)).collect();
             SubscriptionFilter {
                 argument_paths,
                 static_filters: Vec::new(),
@@ -447,9 +415,9 @@ impl SchemaConverter {
         });
 
         // Convert deprecation
-        let deprecation = intermediate.deprecated.map(|d| {
-            fraiseql_core::schema::DeprecationInfo { reason: d.reason }
-        });
+        let deprecation = intermediate
+            .deprecated
+            .map(|d| fraiseql_core::schema::DeprecationInfo { reason: d.reason });
 
         Ok(SubscriptionDefinition {
             name: intermediate.name,
@@ -470,10 +438,7 @@ impl SchemaConverter {
             .into_iter()
             .map(Self::convert_argument)
             .collect::<Result<Vec<_>>>()
-            .context(format!(
-                "Failed to convert directive '{}'",
-                intermediate.name
-            ))?;
+            .context(format!("Failed to convert directive '{}'", intermediate.name))?;
 
         // Parse directive locations
         let locations = intermediate
@@ -518,7 +483,7 @@ impl SchemaConverter {
             _ => {
                 warn!("Unknown directive location: {}", location);
                 None
-            }
+            },
         }
     }
 
@@ -555,10 +520,7 @@ impl SchemaConverter {
         // Validate queries
         for query in &schema.queries {
             if !type_names.contains(&query.return_type) {
-                warn!(
-                    "Query '{}' references unknown type: {}",
-                    query.name, query.return_type
-                );
+                warn!("Query '{}' references unknown type: {}", query.name, query.return_type);
                 anyhow::bail!(
                     "Query '{}' references unknown type '{}'",
                     query.name,
@@ -773,10 +735,7 @@ mod tests {
 
         let result = SchemaConverter::convert(intermediate);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("unknown type 'UnknownType'"));
+        assert!(result.unwrap_err().to_string().contains("unknown type 'UnknownType'"));
     }
 
     #[test]
@@ -883,10 +842,7 @@ mod tests {
         let old_id_field = &compiled.types[0].fields[0];
         assert_eq!(old_id_field.name, "oldId");
         assert!(old_id_field.is_deprecated());
-        assert_eq!(
-            old_id_field.deprecation_reason(),
-            Some("Use 'id' instead")
-        );
+        assert_eq!(old_id_field.deprecation_reason(), Some("Use 'id' instead"));
 
         // Check non-deprecated field
         let id_field = &compiled.types[0].fields[1];
@@ -897,7 +853,9 @@ mod tests {
 
     #[test]
     fn test_convert_enum() {
-        use crate::schema::intermediate::{IntermediateEnum, IntermediateEnumValue, IntermediateDeprecation};
+        use crate::schema::intermediate::{
+            IntermediateDeprecation, IntermediateEnum, IntermediateEnumValue,
+        };
 
         let intermediate = IntermediateSchema {
             version: "2.0.0".to_string(),
@@ -951,7 +909,10 @@ mod tests {
 
         // Check PROCESSING value with description
         assert_eq!(status_enum.values[1].name, "PROCESSING");
-        assert_eq!(status_enum.values[1].description, Some("Currently being processed".to_string()));
+        assert_eq!(
+            status_enum.values[1].description,
+            Some("Currently being processed".to_string())
+        );
 
         // Check CANCELLED deprecated value
         assert_eq!(status_enum.values[2].name, "CANCELLED");
@@ -960,7 +921,9 @@ mod tests {
 
     #[test]
     fn test_convert_input_object() {
-        use crate::schema::intermediate::{IntermediateInputObject, IntermediateInputField, IntermediateDeprecation};
+        use crate::schema::intermediate::{
+            IntermediateDeprecation, IntermediateInputField, IntermediateInputObject,
+        };
 
         let intermediate = IntermediateSchema {
             version: "2.0.0".to_string(),
@@ -1035,7 +998,7 @@ mod tests {
 
     #[test]
     fn test_convert_interface() {
-        use crate::schema::intermediate::{IntermediateInterface, IntermediateField};
+        use crate::schema::intermediate::{IntermediateField, IntermediateInterface};
 
         let intermediate = IntermediateSchema {
             version: "2.0.0".to_string(),
@@ -1077,7 +1040,9 @@ mod tests {
 
     #[test]
     fn test_convert_type_implements_interface() {
-        use crate::schema::intermediate::{IntermediateInterface, IntermediateType, IntermediateField};
+        use crate::schema::intermediate::{
+            IntermediateField, IntermediateInterface, IntermediateType,
+        };
 
         let intermediate = IntermediateSchema {
             version: "2.0.0".to_string(),
@@ -1141,7 +1106,7 @@ mod tests {
 
     #[test]
     fn test_validate_unknown_interface() {
-        use crate::schema::intermediate::{IntermediateType, IntermediateField};
+        use crate::schema::intermediate::{IntermediateField, IntermediateType};
 
         let intermediate = IntermediateSchema {
             version: "2.0.0".to_string(),
@@ -1178,7 +1143,9 @@ mod tests {
 
     #[test]
     fn test_validate_missing_interface_field() {
-        use crate::schema::intermediate::{IntermediateInterface, IntermediateType, IntermediateField};
+        use crate::schema::intermediate::{
+            IntermediateField, IntermediateInterface, IntermediateType,
+        };
 
         let intermediate = IntermediateSchema {
             version: "2.0.0".to_string(),
@@ -1229,7 +1196,7 @@ mod tests {
 
     #[test]
     fn test_convert_union() {
-        use crate::schema::intermediate::{IntermediateUnion, IntermediateType, IntermediateField};
+        use crate::schema::intermediate::{IntermediateField, IntermediateType, IntermediateUnion};
 
         let intermediate = IntermediateSchema {
             version: "2.0.0".to_string(),
@@ -1290,7 +1257,7 @@ mod tests {
 
     #[test]
     fn test_convert_field_requires_scope() {
-        use crate::schema::intermediate::{IntermediateType, IntermediateField};
+        use crate::schema::intermediate::{IntermediateField, IntermediateType};
 
         let intermediate = IntermediateSchema {
             version: "2.0.0".to_string(),
@@ -1370,9 +1337,6 @@ mod tests {
 
         // ssn field - requires admin scope
         assert_eq!(employee_type.fields[3].name, "ssn");
-        assert_eq!(
-            employee_type.fields[3].requires_scope,
-            Some("admin".to_string())
-        );
+        assert_eq!(employee_type.fields[3].requires_scope, Some("admin".to_string()));
     }
 }

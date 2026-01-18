@@ -34,10 +34,7 @@ impl SchemaOptimizer {
         // Detect and apply SQL projection hints to types that would benefit
         Self::apply_sql_projection_hints(schema, &mut report);
 
-        info!(
-            "Schema optimization complete: {} hints generated",
-            report.total_hints()
-        );
+        info!("Schema optimization complete: {} hints generated", report.total_hints());
 
         Ok(report)
     }
@@ -51,11 +48,7 @@ impl SchemaOptimizer {
             report.index_hints.push(IndexHint {
                 query_name: query.name.clone(),
                 reason: "List query with arguments benefits from index".to_string(),
-                suggested_columns: query
-                    .arguments
-                    .iter()
-                    .map(|arg| arg.name.clone())
-                    .collect(),
+                suggested_columns: query.arguments.iter().map(|arg| arg.name.clone()).collect(),
             });
         }
 
@@ -228,9 +221,7 @@ impl SchemaOptimizer {
                 .fields
                 .iter()
                 .take(20)
-                .map(|f| {
-                    format!("'{}', data->>'{}' ", f.name, f.name)
-                })
+                .map(|f| format!("'{}', data->>'{}' ", f.name, f.name))
                 .collect();
 
             format!("jsonb_build_object({})", field_list.join(","))
@@ -274,10 +265,7 @@ impl OptimizationReport {
             println!("\n  Indexes:");
             for hint in &self.index_hints {
                 println!("  • Query '{}': {}", hint.query_name, hint.reason);
-                println!(
-                    "    Columns: {}",
-                    hint.suggested_columns.join(", ")
-                );
+                println!("    Columns: {}", hint.suggested_columns.join(", "));
             }
         }
 
@@ -327,11 +315,10 @@ pub struct ProjectionHint {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashMap;
     use fraiseql_core::schema::{
-        ArgumentDefinition, AutoParams, FieldDefinition, FieldType,
-        TypeDefinition,
+        ArgumentDefinition, AutoParams, FieldDefinition, FieldType, TypeDefinition,
     };
+    use std::collections::HashMap;
 
     #[test]
     fn test_optimize_empty_schema() {
@@ -460,10 +447,7 @@ mod tests {
         };
 
         let report = SchemaOptimizer::optimize(&mut schema).unwrap();
-        assert!(report
-            .optimization_notes
-            .iter()
-            .any(|note| note.contains("25 fields")));
+        assert!(report.optimization_notes.iter().any(|note| note.contains("25 fields")));
     }
 
     #[test]

@@ -112,10 +112,7 @@ pub async fn run(schema_path: &Path, database_url: &str) -> Result<()> {
 
     let declared_tables: HashSet<String> = ir.fact_tables.keys().cloned().collect();
 
-    eprintln!(
-        "📋 Found {} declared fact table(s) in schema",
-        declared_tables.len()
-    );
+    eprintln!("📋 Found {} declared fact table(s) in schema", declared_tables.len());
 
     if declared_tables.is_empty() {
         eprintln!("   No fact tables declared - nothing to validate");
@@ -139,10 +136,7 @@ pub async fn run(schema_path: &Path, database_url: &str) -> Result<()> {
         .into_iter()
         .collect();
 
-    eprintln!(
-        "📊 Found {} fact table(s) in database",
-        actual_tables.len()
-    );
+    eprintln!("📊 Found {} fact table(s) in database", actual_tables.len());
     eprintln!();
 
     // 3. Validate each declared table
@@ -172,13 +166,13 @@ pub async fn run(schema_path: &Path, database_url: &str) -> Result<()> {
                     issues.extend(comparison_issues);
                 }
                 validated_count += 1;
-            }
+            },
             Err(e) => {
                 issues.push(ValidationIssue::error(
                     table_name.clone(),
                     format!("Failed to introspect: {e}"),
                 ));
-            }
+            },
         }
     }
 
@@ -194,14 +188,10 @@ pub async fn run(schema_path: &Path, database_url: &str) -> Result<()> {
 
     // 5. Report results
     eprintln!();
-    let errors: Vec<&ValidationIssue> = issues
-        .iter()
-        .filter(|i| i.severity == IssueSeverity::Error)
-        .collect();
-    let warnings: Vec<&ValidationIssue> = issues
-        .iter()
-        .filter(|i| i.severity == IssueSeverity::Warning)
-        .collect();
+    let errors: Vec<&ValidationIssue> =
+        issues.iter().filter(|i| i.severity == IssueSeverity::Error).collect();
+    let warnings: Vec<&ValidationIssue> =
+        issues.iter().filter(|i| i.severity == IssueSeverity::Warning).collect();
 
     if !errors.is_empty() {
         eprintln!("❌ Errors ({}):", errors.len());
@@ -221,18 +211,13 @@ pub async fn run(schema_path: &Path, database_url: &str) -> Result<()> {
 
     if errors.is_empty() {
         eprintln!("✅ Validation passed");
-        eprintln!(
-            "   {validated_count} table(s) validated successfully"
-        );
+        eprintln!("   {validated_count} table(s) validated successfully");
         if !warnings.is_empty() {
             eprintln!("   {} warning(s)", warnings.len());
         }
         Ok(())
     } else {
-        Err(anyhow::anyhow!(
-            "Validation failed with {} error(s)",
-            errors.len()
-        ))
+        Err(anyhow::anyhow!("Validation failed with {} error(s)", errors.len()))
     }
 }
 
@@ -270,9 +255,7 @@ fn compare_metadata(
             if !declared_measure_names.contains(name) {
                 issues.push(ValidationIssue::warning(
                     table_name.to_string(),
-                    format!(
-                        "Database has measure '{name}' not declared in schema"
-                    ),
+                    format!("Database has measure '{name}' not declared in schema"),
                 ));
             }
         }
@@ -322,11 +305,8 @@ fn compare_metadata(
             .map(String::from)
             .collect();
 
-        let actual_filter_names: HashSet<String> = actual
-            .denormalized_filters
-            .iter()
-            .map(|f| f.name.clone())
-            .collect();
+        let actual_filter_names: HashSet<String> =
+            actual.denormalized_filters.iter().map(|f| f.name.clone()).collect();
 
         for name in &declared_filter_names {
             if !actual_filter_names.contains(name) {
@@ -355,14 +335,8 @@ fn types_compatible(declared: &str, actual: &str) -> bool {
     let aliases: &[(&[&str], &[&str])] = &[
         (&["int", "integer", "int4"], &["int", "integer", "int4"]),
         (&["bigint", "int8"], &["bigint", "int8"]),
-        (
-            &["decimal", "numeric", "money"],
-            &["decimal", "numeric", "money"],
-        ),
-        (
-            &["float", "double", "real", "float8"],
-            &["float", "double", "real", "float8"],
-        ),
+        (&["decimal", "numeric", "money"], &["decimal", "numeric", "money"]),
+        (&["float", "double", "real", "float8"], &["float", "double", "real", "float8"]),
         (&["text", "varchar", "string"], &["text", "varchar", "string"]),
         (&["uuid"], &["uuid"]),
         (
@@ -390,9 +364,7 @@ pub fn validate_metadata_match(
     declared: &serde_json::Value,
     _actual_metadata: &serde_json::Value,
 ) -> std::result::Result<(), String> {
-    let obj = declared
-        .as_object()
-        .ok_or_else(|| "Metadata must be an object".to_string())?;
+    let obj = declared.as_object().ok_or_else(|| "Metadata must be an object".to_string())?;
 
     // Check required fields exist
     if !obj.contains_key("measures") {
@@ -409,7 +381,9 @@ pub fn validate_metadata_match(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use fraiseql_core::compiler::fact_table::{DimensionColumn, FilterColumn, MeasureColumn, SqlType};
+    use fraiseql_core::compiler::fact_table::{
+        DimensionColumn, FilterColumn, MeasureColumn, SqlType,
+    };
 
     #[test]
     fn test_validation_issue_error() {
@@ -511,10 +485,7 @@ mod tests {
         let issues = compare_metadata("tf_sales", &declared, &actual);
 
         // No errors expected for matching metadata
-        let errors: Vec<_> = issues
-            .iter()
-            .filter(|i| i.severity == IssueSeverity::Error)
-            .collect();
+        let errors: Vec<_> = issues.iter().filter(|i| i.severity == IssueSeverity::Error).collect();
         assert!(errors.is_empty(), "Unexpected errors: {:?}", errors);
     }
 
@@ -546,10 +517,7 @@ mod tests {
         let issues = compare_metadata("tf_sales", &declared, &actual);
 
         // Should have error for missing 'profit' measure
-        let errors: Vec<_> = issues
-            .iter()
-            .filter(|i| i.severity == IssueSeverity::Error)
-            .collect();
+        let errors: Vec<_> = issues.iter().filter(|i| i.severity == IssueSeverity::Error).collect();
         assert_eq!(errors.len(), 1);
         assert!(errors[0].message.contains("profit"));
     }
