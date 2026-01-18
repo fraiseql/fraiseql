@@ -7,6 +7,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.14] - TBD
+
+**Denormalized Column Optimization for Nested Field Filters**
+
+### Added
+
+- **Automatic denormalized column detection and routing** (GitHub #250)
+  - FraiseQL now automatically detects and uses denormalized columns when filtering on nested fields
+  - Enables orders of magnitude faster hierarchical queries (GIST index on ltree vs JSONB traversal)
+  - Zero application code changes required - database teams can add optimizations independently
+  - Hierarchical naming convention: `{entity}__{sub_entity}__{field_name}`
+  - Graceful fallback to JSONB traversal if denormalized column is missing
+  - Hash suffix strategy for deep nesting exceeding PostgreSQL's 63-byte column name limit
+
+**Before (v1.9.13)**:
+```sql
+-- Even with indexed columns, FraiseQL used JSONB traversal
+SELECT ... WHERE data -> 'location' ->> 'ltreePath' <@ '1.2.3'::ltree  -- ~500ms
+```
+
+**After (v1.9.14)**:
+```sql
+-- FraiseQL automatically detects and uses denormalized column
+SELECT ... WHERE location__ltree_path <@ '1.2.3'::ltree  -- ~5ms (100x faster!)
+```
+
+**Implementation Details**:
+- New utility module: `fraiseql_utils.py` with column name generation functions
+- `generate_denormalized_column_name()`: Converts nested paths to column names
+- `_resolve_column_for_nested_filter()`: Detects if denormalized column exists
+- Comprehensive test coverage: 56 tests (38 utils + 18 integration)
+- Full documentation: `docs/denormalized-columns.md`
+
+**Key Features**:
+- ✅ Automatic detection (no application code changes)
+- ✅ Graceful fallback (no errors if column missing)
+- ✅ Deterministic naming (same path always generates same column name)
+- ✅ Collision-safe hash suffix for long paths
+- ✅ Works with any column type (ltree, dates, text, etc.)
+- ✅ Zero breaking changes - backward compatible
+- ✅ Enables database-driven performance optimization
+
+**Example Usage**:
+```python
+# Application code - unchanged
+@fraiseql.type(sql_source="tv_allocation")
+class Allocation:
+    location: Location | None = None
+
+# GraphQL query - unchanged
+query { allocations(where: { location: { ltreePath: { descendantOf: "1.2.3" } } }) { id } }
+
+# DBA adds optimization (one-time setup)
+ALTER TABLE tv_allocation ADD COLUMN location__ltree_path ltree;
+CREATE INDEX idx_location_path ON tv_allocation USING GIST (location__ltree_path);
+
+# FraiseQL automatically detects and uses the column - no code changes!
+```
+
 ## [1.9.13] - 2026-01-18
 
 **LTREE Filter Support - User Type Annotation Discovery**

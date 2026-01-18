@@ -9,9 +9,54 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from fraiseql.fraiseql_utils import generate_denormalized_column_name
 from fraiseql.where_clause import VECTOR_OPERATORS, FieldCondition, WhereClause
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_column_for_nested_filter(
+    filter_path: list[str],
+    table_columns: set[str] | None,
+) -> str | None:
+    """Check if denormalized column exists for nested filter path.
+
+    When filtering on nested fields (e.g., location.ltreePath), this function
+    checks if a denormalized column exists that can optimize the query. If found,
+    the query can use indexed columns instead of JSONB traversal.
+
+    Args:
+        filter_path: Parsed filter path like ["location", "ltreePath"]
+        table_columns: Set of actual columns available on the table
+
+    Returns:
+        Column name if denormalized column exists, None otherwise (fallback to JSONB)
+
+    Examples:
+        >>> _resolve_column_for_nested_filter(
+        ...     ["location", "ltreePath"],
+        ...     {"id", "location__ltree_path", "data"}
+        ... )
+        'location__ltree_path'
+
+        >>> _resolve_column_for_nested_filter(
+        ...     ["location", "ltreePath"],
+        ...     {"id", "data"}  # No denormalized column
+        ... )
+        None
+    """
+    if not table_columns or not filter_path:
+        return None
+
+    # Build expected denormalized column name from filter path
+    entity_path = ".".join(filter_path)
+    denorm_column = generate_denormalized_column_name(entity_path)
+
+    # Check if it exists in table_columns
+    if denorm_column in table_columns:
+        return denorm_column
+
+    return None
 
 
 def normalize_dict_where(
