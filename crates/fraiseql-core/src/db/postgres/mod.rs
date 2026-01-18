@@ -8,4 +8,4 @@ mod where_generator;
 
 pub use adapter::PostgresAdapter;
 pub use introspector::PostgresIntrospector;
-pub use where_generator::PostgresWhereGenerator;
+pub use where_generator::{IndexedColumnsCache, PostgresWhereGenerator};

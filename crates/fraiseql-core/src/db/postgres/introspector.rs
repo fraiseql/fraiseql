@@ -186,8 +186,206 @@ impl DatabaseIntrospector for PostgresIntrospector {
     }
 }
 
+impl PostgresIntrospector {
+    /// Get indexed columns for a view/table that match the nested path naming convention.
+    ///
+    /// This method introspects the database to find columns that follow the FraiseQL
+    /// indexed column naming conventions:
+    /// - Human-readable: `items__product__category__code` (double underscore separated)
+    /// - Entity ID format: `f{entity_id}__{field_name}` (e.g., `f200100__code`)
+    ///
+    /// These columns are created by DBAs to optimize filtering on nested GraphQL paths
+    /// by avoiding JSONB extraction at runtime.
+    ///
+    /// # Arguments
+    ///
+    /// * `view_name` - Name of the view or table to introspect
+    ///
+    /// # Returns
+    ///
+    /// Set of column names that match the indexed column naming conventions.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let introspector = PostgresIntrospector::new(pool);
+    /// let indexed_cols = introspector.get_indexed_nested_columns("v_order_items").await?;
+    /// // Returns: {"items__product__category__code", "f200100__code", ...}
+    /// ```
+    pub async fn get_indexed_nested_columns(
+        &self,
+        view_name: &str,
+    ) -> Result<std::collections::HashSet<String>> {
+        let client = self.pool.get().await.map_err(|e| {
+            FraiseQLError::ConnectionPool {
+                message: format!("Failed to acquire connection: {e}"),
+            }
+        })?;
+
+        // Query information_schema for columns matching __ pattern
+        // This works for both views and tables
+        let query = r"
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_name = $1
+              AND table_schema = 'public'
+              AND column_name LIKE '%__%'
+            ORDER BY column_name
+        ";
+
+        let rows: Vec<Row> = client.query(query, &[&view_name]).await.map_err(|e| {
+            FraiseQLError::Database {
+                message: format!("Failed to query view columns: {e}"),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            }
+        })?;
+
+        let indexed_columns: std::collections::HashSet<String> = rows
+            .into_iter()
+            .map(|row| {
+                let name: String = row.get(0);
+                name
+            })
+            .filter(|name| {
+                // Filter to only columns that match our naming conventions:
+                // 1. Human-readable: path__to__field (at least one __ separator)
+                // 2. Entity ID: f{digits}__field_name
+                Self::is_indexed_column_name(name)
+            })
+            .collect();
+
+        Ok(indexed_columns)
+    }
+
+    /// Check if a column name matches the indexed column naming convention.
+    ///
+    /// Valid patterns:
+    /// - `items__product__category__code` (human-readable nested path)
+    /// - `f200100__code` (entity ID format)
+    fn is_indexed_column_name(name: &str) -> bool {
+        // Must contain at least one double underscore
+        if !name.contains("__") {
+            return false;
+        }
+
+        // Check for entity ID format: f{digits}__field
+        if let Some(rest) = name.strip_prefix('f') {
+            if let Some(underscore_pos) = rest.find("__") {
+                let digits = &rest[..underscore_pos];
+                if digits.chars().all(|c| c.is_ascii_digit()) && !digits.is_empty() {
+                    // Verify the field part is valid
+                    let field_part = &rest[underscore_pos + 2..];
+                    if !field_part.is_empty()
+                        && field_part.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+                        && !field_part.starts_with(|c: char| c.is_ascii_digit())
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        // Human-readable format: split by __ and check each segment is valid identifier
+        // Must have at least 2 segments, and first segment must NOT be just 'f'
+        let segments: Vec<&str> = name.split("__").collect();
+        if segments.len() < 2 {
+            return false;
+        }
+
+        // Reject if first segment is just 'f' (reserved for entity ID format)
+        if segments[0] == "f" {
+            return false;
+        }
+
+        // Each segment should be a valid identifier (alphanumeric + underscore, not starting with digit)
+        segments.iter().all(|s| {
+            !s.is_empty()
+                && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+                && !s.starts_with(|c: char| c.is_ascii_digit())
+        })
+    }
+
+    /// Get all column names for a view/table.
+    ///
+    /// # Arguments
+    ///
+    /// * `view_name` - Name of the view or table to introspect
+    ///
+    /// # Returns
+    ///
+    /// List of all column names in the view/table.
+    pub async fn get_view_columns(&self, view_name: &str) -> Result<Vec<String>> {
+        let client = self.pool.get().await.map_err(|e| {
+            FraiseQLError::ConnectionPool {
+                message: format!("Failed to acquire connection: {e}"),
+            }
+        })?;
+
+        let query = r"
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_name = $1
+              AND table_schema = 'public'
+            ORDER BY ordinal_position
+        ";
+
+        let rows: Vec<Row> = client.query(query, &[&view_name]).await.map_err(|e| {
+            FraiseQLError::Database {
+                message: format!("Failed to query view columns: {e}"),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            }
+        })?;
+
+        let columns = rows
+            .into_iter()
+            .map(|row| {
+                let name: String = row.get(0);
+                name
+            })
+            .collect();
+
+        Ok(columns)
+    }
+}
+
+/// Unit tests that don't require a PostgreSQL connection.
+#[cfg(test)]
+mod unit_tests {
+    use super::*;
+
+    #[test]
+    fn test_is_indexed_column_name_human_readable() {
+        // Valid human-readable patterns
+        assert!(PostgresIntrospector::is_indexed_column_name("items__product"));
+        assert!(PostgresIntrospector::is_indexed_column_name("items__product__category"));
+        assert!(PostgresIntrospector::is_indexed_column_name("items__product__category__code"));
+        assert!(PostgresIntrospector::is_indexed_column_name("order_items__product_name"));
+
+        // Invalid patterns
+        assert!(!PostgresIntrospector::is_indexed_column_name("items"));
+        assert!(!PostgresIntrospector::is_indexed_column_name("items_product")); // single underscore
+        assert!(!PostgresIntrospector::is_indexed_column_name("__items")); // empty first segment
+        assert!(!PostgresIntrospector::is_indexed_column_name("items__")); // empty last segment
+    }
+
+    #[test]
+    fn test_is_indexed_column_name_entity_id() {
+        // Valid entity ID patterns
+        assert!(PostgresIntrospector::is_indexed_column_name("f200100__code"));
+        assert!(PostgresIntrospector::is_indexed_column_name("f1__name"));
+        assert!(PostgresIntrospector::is_indexed_column_name("f123456789__field"));
+
+        // Invalid entity ID patterns (that also aren't valid human-readable)
+        assert!(!PostgresIntrospector::is_indexed_column_name("f__code")); // no digits after 'f', and 'f' alone is reserved
+
+        // Note: fx123__code IS valid as a human-readable pattern (fx123 is a valid identifier)
+        assert!(PostgresIntrospector::is_indexed_column_name("fx123__code")); // valid as human-readable
+    }
+}
+
+/// Integration tests that require a PostgreSQL connection.
 #[cfg(all(test, feature = "test-postgres"))]
-mod tests {
+mod integration_tests {
     use super::*;
     use crate::db::postgres::PostgresAdapter;
     use deadpool_postgres::{Config, ManagerConfig, RecyclingMethod, Runtime};

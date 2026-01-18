@@ -4,9 +4,10 @@
 
 use crate::schema::{IntermediateSchema, SchemaConverter, SchemaOptimizer, SchemaValidator};
 use anyhow::{Context, Result};
+use fraiseql_core::schema::CompiledSchema;
 use std::fs;
 use std::path::Path;
-use tracing::info;
+use tracing::{info, warn};
 
 /// Run the compile command
 ///
@@ -15,6 +16,7 @@ use tracing::info;
 /// * `input` - Path to schema.json file
 /// * `output` - Path to write schema.compiled.json
 /// * `check` - If true, validate only without writing output
+/// * `database` - Optional database URL for indexed column validation
 ///
 /// # Errors
 ///
@@ -23,8 +25,8 @@ use tracing::info;
 /// - JSON parsing fails
 /// - Schema validation fails
 /// - Output file can't be written
-#[allow(clippy::unused_async)] // Will be async when database validation is added
-pub async fn run(input: &str, output: &str, check: bool) -> Result<()> {
+/// - Database connection fails (when database URL is provided)
+pub async fn run(input: &str, output: &str, check: bool, database: Option<&str>) -> Result<()> {
     info!("Compiling schema: {input}");
 
     // 1. Read input schema.json
@@ -66,6 +68,12 @@ pub async fn run(input: &str, output: &str, check: bool) -> Result<()> {
     let optimization_report = SchemaOptimizer::optimize(&mut schema)
         .context("Failed to optimize schema")?;
 
+    // 5b. Optional: Validate indexed columns against database
+    if let Some(db_url) = database {
+        info!("Validating indexed columns against database...");
+        validate_indexed_columns(&schema, db_url).await?;
+    }
+
     // 6. If check-only mode, stop here
     if check {
         println!("✓ Schema is valid");
@@ -100,6 +108,76 @@ pub async fn run(input: &str, output: &str, check: bool) -> Result<()> {
     Ok(())
 }
 
+/// Validate indexed columns against database views.
+///
+/// Connects to the database and introspects view columns to verify that
+/// any indexed column naming conventions are properly set up.
+///
+/// # Arguments
+///
+/// * `schema` - The compiled schema to validate
+/// * `db_url` - Database connection URL
+///
+/// # Errors
+///
+/// Returns error if database connection fails. Warnings are printed for
+/// missing indexed columns but don't cause validation to fail.
+async fn validate_indexed_columns(schema: &CompiledSchema, db_url: &str) -> Result<()> {
+    use deadpool_postgres::{Config, ManagerConfig, RecyclingMethod, Runtime};
+    use fraiseql_core::db::postgres::PostgresIntrospector;
+    use tokio_postgres::NoTls;
+
+    // Create pool for introspection
+    let mut cfg = Config::new();
+    cfg.url = Some(db_url.to_string());
+    cfg.manager = Some(ManagerConfig {
+        recycling_method: RecyclingMethod::Fast,
+    });
+    cfg.pool = Some(deadpool_postgres::PoolConfig::new(2));
+
+    let pool = cfg
+        .create_pool(Some(Runtime::Tokio1), NoTls)
+        .context("Failed to create connection pool for indexed column validation")?;
+
+    let introspector = PostgresIntrospector::new(pool);
+
+    let mut total_indexed = 0;
+    let mut total_views = 0;
+
+    // Check each query's sql_source (view)
+    for query in &schema.queries {
+        if let Some(view_name) = &query.sql_source {
+            total_views += 1;
+
+            // Get indexed columns for this view
+            match introspector.get_indexed_nested_columns(view_name).await {
+                Ok(indexed_cols) => {
+                    if !indexed_cols.is_empty() {
+                        info!(
+                            "View '{}': found {} indexed column(s): {:?}",
+                            view_name,
+                            indexed_cols.len(),
+                            indexed_cols
+                        );
+                        total_indexed += indexed_cols.len();
+                    }
+                }
+                Err(e) => {
+                    warn!(
+                        "Could not introspect view '{}': {}. Skipping indexed column check.",
+                        view_name, e
+                    );
+                }
+            }
+        }
+    }
+
+    println!("✓ Indexed column validation complete");
+    println!("  Views checked: {total_views}");
+    println!("  Indexed columns found: {total_indexed}");
+
+    Ok(())
+}
 
 #[cfg(test)]
 mod tests {

@@ -2,10 +2,52 @@
 
 use crate::error::{FraiseQLError, Result};
 use crate::db::where_clause::{WhereClause, WhereOperator};
+use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
+
+/// Cache of indexed columns for views.
+///
+/// This cache stores column names that follow the FraiseQL indexed column naming conventions:
+/// - Human-readable: `items__product__category__code` (double underscore separated path)
+/// - Entity ID format: `f{entity_id}__{field_name}` (e.g., `f200100__code`)
+///
+/// When a WHERE clause references a nested path that has a corresponding indexed column,
+/// the generator will use the indexed column directly instead of JSONB extraction,
+/// enabling the database to use indexes for the query.
+///
+/// # Example
+///
+/// ```rust
+/// use fraiseql_core::db::postgres::IndexedColumnsCache;
+/// use std::collections::{HashMap, HashSet};
+/// use std::sync::Arc;
+///
+/// let mut cache = IndexedColumnsCache::new();
+///
+/// // Register indexed columns for a view
+/// let mut columns = HashSet::new();
+/// columns.insert("items__product__category__code".to_string());
+/// columns.insert("f200100__code".to_string());
+/// cache.insert("v_order_items".to_string(), columns);
+///
+/// // Later, the generator uses this to optimize WHERE clauses
+/// let arc_cache = Arc::new(cache);
+/// ```
+pub type IndexedColumnsCache = HashMap<String, HashSet<String>>;
 
 /// PostgreSQL WHERE clause generator.
 ///
 /// Converts `WhereClause` AST to PostgreSQL SQL with parameterized queries.
+///
+/// # Indexed Column Optimization
+///
+/// When an `IndexedColumnsCache` is provided, the generator checks if nested paths
+/// have corresponding indexed columns. If found, it uses the indexed column directly
+/// instead of JSONB extraction, enabling index usage.
+///
+/// For example, with `items__product__category__code` indexed:
+/// - Without cache: `data->'items'->'product'->'category'->>'code' = $1`
+/// - With cache: `items__product__category__code = $1`
 ///
 /// # Example
 ///
@@ -28,6 +70,10 @@ use crate::db::where_clause::{WhereClause, WhereOperator};
 /// ```
 pub struct PostgresWhereGenerator {
     param_counter: std::cell::Cell<usize>,
+    /// Optional indexed columns cache for the current view.
+    /// When set, the generator will use indexed columns instead of JSONB extraction
+    /// for nested paths that have corresponding indexed columns.
+    indexed_columns: Option<Arc<HashSet<String>>>,
 }
 
 impl PostgresWhereGenerator {
@@ -36,6 +82,35 @@ impl PostgresWhereGenerator {
     pub fn new() -> Self {
         Self {
             param_counter: std::cell::Cell::new(0),
+            indexed_columns: None,
+        }
+    }
+
+    /// Create new PostgreSQL WHERE generator with indexed columns for a view.
+    ///
+    /// When indexed columns are provided, the generator will use them instead of
+    /// JSONB extraction for nested paths that have corresponding indexed columns.
+    ///
+    /// # Arguments
+    ///
+    /// * `indexed_columns` - Set of indexed column names for the current view
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use fraiseql_core::db::postgres::PostgresWhereGenerator;
+    /// use std::collections::HashSet;
+    /// use std::sync::Arc;
+    ///
+    /// let mut columns = HashSet::new();
+    /// columns.insert("items__product__category__code".to_string());
+    /// let generator = PostgresWhereGenerator::with_indexed_columns(Arc::new(columns));
+    /// ```
+    #[must_use]
+    pub fn with_indexed_columns(indexed_columns: Arc<HashSet<String>>) -> Self {
+        Self {
+            param_counter: std::cell::Cell::new(0),
+            indexed_columns: Some(indexed_columns),
         }
     }
 
@@ -206,6 +281,13 @@ impl PostgresWhereGenerator {
     }
 
     fn build_jsonb_path(&self, path: &[String]) -> String {
+        // Check if an indexed column exists for this path
+        if let Some(indexed_col) = self.find_indexed_column(path) {
+            // Use the indexed column directly instead of JSONB extraction
+            return format!("\"{indexed_col}\"");
+        }
+
+        // Fall back to JSONB extraction
         if path.len() == 1 {
             format!("data->>'{}'{}", path[0], "")
         } else {
@@ -219,6 +301,33 @@ impl PostgresWhereGenerator {
             }
             result
         }
+    }
+
+    /// Find an indexed column for the given path.
+    ///
+    /// Checks the indexed columns cache for columns matching the path using both
+    /// naming conventions:
+    /// 1. Human-readable: `items__product__category__code`
+    /// 2. Entity ID format: `f{entity_id}__field_name` (not checked here as it requires entity ID)
+    ///
+    /// Returns the column name if found, None otherwise.
+    fn find_indexed_column(&self, path: &[String]) -> Option<String> {
+        let indexed_columns = self.indexed_columns.as_ref()?;
+
+        // Build human-readable column name: join with __
+        let human_readable = path.join("__");
+
+        // Check if this column exists in the cache
+        if indexed_columns.contains(&human_readable) {
+            return Some(human_readable);
+        }
+
+        // Note: Entity ID format (f{entity_id}__field) would require entity ID mapping
+        // which is not available at this level. The DBA can use human-readable names
+        // for most cases. Entity ID format is primarily useful for very long paths
+        // that exceed PostgreSQL's 63-character identifier limit.
+
+        None
     }
 
     fn next_param(&self) -> String {
@@ -475,6 +584,8 @@ impl Default for PostgresWhereGenerator {
 mod tests {
     use super::*;
     use serde_json::json;
+    use std::collections::HashSet;
+    use std::sync::Arc;
 
     #[test]
     fn test_simple_equality() {
@@ -729,5 +840,142 @@ mod tests {
         let (sql, params) = gen.generate(&clause).unwrap();
         assert_eq!(sql, "data->>'path'::ltree = lca(ARRAY[$1::ltree, $2::ltree])");
         assert_eq!(params, vec![json!("Org.Engineering.Backend"), json!("Org.Engineering.Frontend")]);
+    }
+
+    // ============ Indexed Column Optimization Tests ============
+
+    #[test]
+    fn test_indexed_column_simple_path() {
+        // When an indexed column exists for a simple path, use it directly
+        let mut indexed = HashSet::new();
+        indexed.insert("category__code".to_string());
+        let gen = PostgresWhereGenerator::with_indexed_columns(Arc::new(indexed));
+
+        let clause = WhereClause::Field {
+            path: vec!["category".to_string(), "code".to_string()],
+            operator: WhereOperator::Eq,
+            value: json!("ELEC"),
+        };
+
+        let (sql, params) = gen.generate(&clause).unwrap();
+        // Uses indexed column instead of JSONB extraction
+        assert_eq!(sql, "\"category__code\" = $1");
+        assert_eq!(params, vec![json!("ELEC")]);
+    }
+
+    #[test]
+    fn test_indexed_column_nested_path() {
+        // Deep nested path with indexed column
+        let mut indexed = HashSet::new();
+        indexed.insert("items__product__category__code".to_string());
+        let gen = PostgresWhereGenerator::with_indexed_columns(Arc::new(indexed));
+
+        let clause = WhereClause::Field {
+            path: vec![
+                "items".to_string(),
+                "product".to_string(),
+                "category".to_string(),
+                "code".to_string(),
+            ],
+            operator: WhereOperator::Eq,
+            value: json!("ELEC"),
+        };
+
+        let (sql, params) = gen.generate(&clause).unwrap();
+        // Uses indexed column instead of deep JSONB extraction
+        assert_eq!(sql, "\"items__product__category__code\" = $1");
+        assert_eq!(params, vec![json!("ELEC")]);
+    }
+
+    #[test]
+    fn test_indexed_column_fallback_to_jsonb() {
+        // Path without indexed column falls back to JSONB
+        let mut indexed = HashSet::new();
+        indexed.insert("items__product__category__code".to_string());
+        let gen = PostgresWhereGenerator::with_indexed_columns(Arc::new(indexed));
+
+        let clause = WhereClause::Field {
+            path: vec!["items".to_string(), "product".to_string(), "name".to_string()],
+            operator: WhereOperator::Eq,
+            value: json!("Widget"),
+        };
+
+        let (sql, params) = gen.generate(&clause).unwrap();
+        // Falls back to JSONB extraction since no indexed column exists
+        assert_eq!(sql, "data->'items'->'product'->>'name' = $1");
+        assert_eq!(params, vec![json!("Widget")]);
+    }
+
+    #[test]
+    fn test_indexed_column_with_like_operator() {
+        // Indexed columns work with all operators
+        let mut indexed = HashSet::new();
+        indexed.insert("category__name".to_string());
+        let gen = PostgresWhereGenerator::with_indexed_columns(Arc::new(indexed));
+
+        let clause = WhereClause::Field {
+            path: vec!["category".to_string(), "name".to_string()],
+            operator: WhereOperator::Icontains,
+            value: json!("electronics"),
+        };
+
+        let (sql, params) = gen.generate(&clause).unwrap();
+        // Uses indexed column with ILIKE operator
+        assert_eq!(sql, "\"category__name\" ILIKE '%' || $1 || '%'");
+        assert_eq!(params, vec![json!("electronics")]);
+    }
+
+    #[test]
+    fn test_indexed_column_with_numeric_comparison() {
+        // Indexed columns with numeric values
+        let mut indexed = HashSet::new();
+        indexed.insert("order__total".to_string());
+        let gen = PostgresWhereGenerator::with_indexed_columns(Arc::new(indexed));
+
+        let clause = WhereClause::Field {
+            path: vec!["order".to_string(), "total".to_string()],
+            operator: WhereOperator::Gt,
+            value: json!(100),
+        };
+
+        let (sql, params) = gen.generate(&clause).unwrap();
+        // Uses indexed column with numeric cast
+        assert_eq!(sql, "(\"order__total\")::numeric > ($1::text)::numeric");
+        assert_eq!(params, vec![json!(100)]);
+    }
+
+    #[test]
+    fn test_indexed_column_empty_cache() {
+        // Empty cache falls back to JSONB
+        let indexed = HashSet::new();
+        let gen = PostgresWhereGenerator::with_indexed_columns(Arc::new(indexed));
+
+        let clause = WhereClause::Field {
+            path: vec!["category".to_string(), "code".to_string()],
+            operator: WhereOperator::Eq,
+            value: json!("ELEC"),
+        };
+
+        let (sql, params) = gen.generate(&clause).unwrap();
+        // Falls back to JSONB extraction
+        assert_eq!(sql, "data->'category'->>'code' = $1");
+        assert_eq!(params, vec![json!("ELEC")]);
+    }
+
+    #[test]
+    fn test_no_indexed_columns_cache() {
+        // No cache provided uses JSONB (default behavior)
+        let gen = PostgresWhereGenerator::new();
+
+        let clause = WhereClause::Field {
+            path: vec!["category".to_string(), "code".to_string()],
+            operator: WhereOperator::Eq,
+            value: json!("ELEC"),
+        };
+
+        let (sql, params) = gen.generate(&clause).unwrap();
+        // Uses JSONB extraction
+        assert_eq!(sql, "data->'category'->>'code' = $1");
+        assert_eq!(params, vec![json!("ELEC")]);
     }
 }

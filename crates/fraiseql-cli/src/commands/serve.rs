@@ -104,7 +104,7 @@ pub async fn run(schema: &str, port: u16) -> Result<()> {
 async fn compile_schema(input: &str) -> Result<()> {
     let output = input.replace(".json", ".compiled.json");
 
-    // Use the compile command logic
-    super::compile::run(input, &output, false).await
+    // Use the compile command logic (no database validation for dev server)
+    super::compile::run(input, &output, false, None).await
 }
 

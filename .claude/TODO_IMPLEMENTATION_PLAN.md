@@ -1,7 +1,7 @@
 # FraiseQL - TODO Implementation Plan
 
 **Date**: January 18, 2026
-**Status**: ~95% Complete - GitHub issue feature parity items remaining
+**Status**: ~97% Complete - Phase D complete (all P1 GitHub issues done)
 
 ---
 
@@ -9,7 +9,10 @@
 
 This document catalogs all TODO comments, stub implementations, and incomplete features across the FraiseQL codebase. Items are organized by priority and effort level.
 
-**Last Review**: January 18, 2026 - GitHub issues feature parity assessment completed.
+**Last Review**: January 18, 2026 - Phase D complete. All P1 GitHub issues implemented:
+- ✅ #250 Indexed filter columns
+- ✅ #248 LTree operators (12/12)
+- ✅ #225 JWT signature verification
 
 ---
 
@@ -43,15 +46,29 @@ These items ensure v2 addresses all open issues from v1 development.
 
 ### Issue #250: Indexed Filter Columns for Nested Paths
 
-**Status**: ⚠️ **Design finalized, implementation pending**
+**Status**: ✅ **Complete**
 
 **Problem**: Filtering on nested GraphQL paths (e.g., `items.product.categoryId`) currently uses JSONB extraction, which bypasses indexed columns.
 
 **Solution**: Runtime view introspection with optional compile-time validation. DBA can optimize by adding indexed columns to views without code deployment.
 
-#### Design Philosophy
+**Implementation** (January 18, 2026):
+- Added `get_indexed_nested_columns()` to `PostgresIntrospector` for view column introspection
+- Added `is_indexed_column_name()` helper to validate naming conventions
+- Added `IndexedColumnsCache` type and `with_indexed_columns()` constructor to `PostgresWhereGenerator`
+- Modified `build_jsonb_path()` to check for indexed columns before JSONB extraction
+- Added `--database` flag to `fraiseql compile` command for optional validation
+- Added `pool()` method to `PostgresAdapter` for pool sharing
 
-**Database is the source of truth for optimization.** The DBA adds indexed columns to views, FraiseQL discovers and uses them automatically.
+**Files Modified**:
+- `crates/fraiseql-core/src/db/postgres/introspector.rs` - View column introspection
+- `crates/fraiseql-core/src/db/postgres/where_generator.rs` - Indexed column optimization
+- `crates/fraiseql-core/src/db/postgres/adapter.rs` - Added `pool()` method
+- `crates/fraiseql-core/src/db/postgres/mod.rs` - Exported `IndexedColumnsCache`
+- `crates/fraiseql-cli/src/commands/compile.rs` - Database validation
+- `crates/fraiseql-cli/src/main.rs` - `--database` CLI flag
+
+**Tests Added**: 9 unit tests (7 in where_generator, 2 in introspector)
 
 #### Column Naming Conventions (both supported)
 
@@ -66,54 +83,17 @@ f{entity_id}__{field_name}
 -- Example: f200100__code (Category entity = 200100)
 ```
 
-#### Runtime Flow
-
-```
-1. Server startup:
-   - For each type with sql_source, introspect view columns
-   - Cache columns matching __ patterns
-   - ~1-5ms per view, negligible startup cost
-
-2. Query execution:
-   - Filter on items.product.category.code
-   - Check cache: does items__product__category__code exist?
-   - Or check: does f{category_entity_id}__code exist?
-   - If yes → use indexed column
-   - If no → fall back to JSONB extraction
-
-3. Zero-deploy optimization:
-   - DBA adds column + index to view
-   - Restart server (or refresh cache)
-   - Done - no code changes needed
-```
-
-#### Optional Compile-Time Validation
+#### Usage
 
 ```bash
+# Compile with optional database validation
 fraiseql compile schema.json --database postgresql://... -o schema.compiled.json
 ```
 
-- Validates indexed columns exist
-- Warns about missing optimization opportunities
-- CI can catch schema/view mismatches
-
-#### Why This Design
-
-- **Zero-deploy optimization** - DBA improves performance without code changes
-- **Environment flexibility** - Dev/staging/prod can have different indexed columns
-- **Simple toolchain** - Compile stays pure JSON→JSON by default
-- **Two conventions** - Human-readable for short paths, entity ID for long paths
-- **Negligible cost** - One introspection query per view at startup
-
-#### Implementation
-
-**Files to Modify**:
-1. `crates/fraiseql-core/src/db/postgres/introspector.rs` - Add view column introspection
-2. `crates/fraiseql-core/src/runtime/executor.rs` - Cache indexed columns on startup
-3. `crates/fraiseql-core/src/db/postgres/where_generator.rs` - Check column cache before JSONB
-4. `crates/fraiseql-cli/src/commands/compile.rs` - Optional `--database` flag for validation
-
-**Effort**: 6-8 hours
+At runtime, pass indexed columns to the where generator:
+```rust
+let generator = PostgresWhereGenerator::with_indexed_columns(Arc::new(indexed_columns));
+```
 
 ---
 
@@ -314,7 +294,7 @@ fraiseql compile schema.json --database postgresql://... -o schema.compiled.json
 | Priority | Item | Location | Effort | Status |
 |----------|------|----------|--------|--------|
 | **GitHub Issues - Feature Parity** |
-| P1 | #250 Indexed filter columns (runtime introspection) | fraiseql-core | 6-8h | ⚠️ Design finalized |
+| P1 | #250 Indexed filter columns (runtime introspection) | fraiseql-core | 6-8h | ✅ Complete |
 | P1 | #248 Complete LTree operators | fraiseql-core | 4-6h | ✅ Complete (12/12) |
 | P1 | #225 JWT signature verification | fraiseql-core | 4-6h | ✅ Complete (HS256/RS256) |
 | P2 | #225 Field selection filtering | fraiseql-core | 6-8h | ❌ Missing |
@@ -350,11 +330,12 @@ fraiseql compile schema.json --database postgresql://... -o schema.compiled.json
    - Builder pattern for configuration
    - 15 new tests for signature verification
 
-3. **Indexed filter columns** (#250) - 6-8h
+3. **Indexed filter columns** (#250) - ✅ Complete
    - Runtime: Introspect view columns on startup, cache `__` pattern matches
    - Where generator: Check column cache before JSONB extraction
    - Two conventions: `path__to__field` (human-readable) or `f{entity_id}__field` (long paths)
    - Optional: `--database` flag for compile-time validation
+   - 9 new tests
 
 ### Phase E: Security Completion - 10-16 hours
 

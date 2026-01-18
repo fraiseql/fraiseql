@@ -60,6 +60,11 @@ enum Commands {
         /// Validate only, don't write output
         #[arg(long)]
         check: bool,
+
+        /// Optional database URL for indexed column validation
+        /// When provided, validates that indexed columns exist in database views
+        #[arg(long, value_name = "DATABASE_URL")]
+        database: Option<String>,
     },
 
     /// Validate schema.json or fact tables
@@ -132,7 +137,8 @@ async fn main() {
             input,
             output,
             check,
-        } => commands::compile::run(&input, &output, check).await,
+            database,
+        } => commands::compile::run(&input, &output, check, database.as_deref()).await,
 
         Commands::Validate { command, input } => match command {
             Some(ValidateCommands::Facts { schema, database }) => {

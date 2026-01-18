@@ -137,6 +137,14 @@ impl PostgresAdapter {
         Ok(Self { pool })
     }
 
+    /// Get a reference to the internal connection pool.
+    ///
+    /// This allows sharing the pool with other components like `PostgresIntrospector`.
+    #[must_use]
+    pub fn pool(&self) -> &Pool {
+        &self.pool
+    }
+
     /// Execute raw SQL query and return JSONB rows.
     ///
     /// # Errors

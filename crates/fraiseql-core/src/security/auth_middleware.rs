@@ -1196,6 +1196,7 @@ mod tests {
     // ============================================================================
 
     /// Helper to create a properly signed HS256 JWT token
+    #[allow(clippy::items_after_statements)]
     fn create_signed_hs256_token(
         sub: &str,
         exp_offset_secs: i64,
@@ -1287,12 +1288,8 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::items_after_statements)]
     fn test_hs256_with_issuer_validation() {
-        let secret = "test-secret";
-        let config = AuthConfig::with_hs256(secret).with_issuer("https://auth.example.com");
-        let middleware = AuthMiddleware::from_config(config);
-
-        // Create token with matching issuer
         use jsonwebtoken::{encode, EncodingKey, Header};
 
         #[derive(serde::Serialize)]
@@ -1302,6 +1299,11 @@ mod tests {
             iss: String,
         }
 
+        let secret = "test-secret";
+        let config = AuthConfig::with_hs256(secret).with_issuer("https://auth.example.com");
+        let middleware = AuthMiddleware::from_config(config);
+
+        // Create token with matching issuer
         let now = chrono::Utc::now().timestamp();
         let claims = ClaimsWithIss {
             sub: "user123".to_string(),
@@ -1322,12 +1324,8 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::items_after_statements)]
     fn test_hs256_with_wrong_issuer_rejected() {
-        let secret = "test-secret";
-        let config = AuthConfig::with_hs256(secret).with_issuer("https://auth.example.com");
-        let middleware = AuthMiddleware::from_config(config);
-
-        // Create token with wrong issuer
         use jsonwebtoken::{encode, EncodingKey, Header};
 
         #[derive(serde::Serialize)]
@@ -1337,6 +1335,11 @@ mod tests {
             iss: String,
         }
 
+        let secret = "test-secret";
+        let config = AuthConfig::with_hs256(secret).with_issuer("https://auth.example.com");
+        let middleware = AuthMiddleware::from_config(config);
+
+        // Create token with wrong issuer
         let now = chrono::Utc::now().timestamp();
         let claims = ClaimsWithIss {
             sub: "user123".to_string(),
@@ -1361,12 +1364,8 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::items_after_statements)]
     fn test_hs256_with_audience_validation() {
-        let secret = "test-secret";
-        let config = AuthConfig::with_hs256(secret).with_audience("my-api");
-        let middleware = AuthMiddleware::from_config(config);
-
-        // Create token with matching audience
         use jsonwebtoken::{encode, EncodingKey, Header};
 
         #[derive(serde::Serialize)]
@@ -1376,6 +1375,11 @@ mod tests {
             aud: String,
         }
 
+        let secret = "test-secret";
+        let config = AuthConfig::with_hs256(secret).with_audience("my-api");
+        let middleware = AuthMiddleware::from_config(config);
+
+        // Create token with matching audience
         let now = chrono::Utc::now().timestamp();
         let claims = ClaimsWithAud {
             sub: "user123".to_string(),
