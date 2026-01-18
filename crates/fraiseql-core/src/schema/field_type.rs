@@ -513,7 +513,7 @@ impl FieldDefinition {
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub enum FieldType {
-    // ===== Scalar Types =====
+    // ===== Core Scalar Types (GraphQL built-ins) =====
     /// GraphQL String type.
     #[default]
     String,
@@ -527,7 +527,7 @@ pub enum FieldType {
     /// GraphQL Boolean type.
     Boolean,
 
-    /// GraphQL ID type (serialized as string).
+    /// GraphQL ID type (serialized as string, UUID v4 in FraiseQL).
     #[serde(rename = "ID")]
     Id,
 
@@ -557,6 +557,17 @@ pub enum FieldType {
     /// Serialized as `[Float!]!` in GraphQL, stored as `vector(N)` in `PostgreSQL`.
     Vector,
 
+    // ===== Rich/Custom Scalar Types =====
+    /// Named scalar type (rich scalars like Email, URL, IBAN, or custom user-defined).
+    ///
+    /// This variant handles:
+    /// - Built-in rich scalars: Email, URL, PhoneNumber, IBAN, etc.
+    /// - User-defined custom scalars
+    ///
+    /// The string contains the scalar name exactly as defined (e.g., "Email", "IBAN").
+    /// Validation rules are applied at runtime based on the scalar name.
+    Scalar(String),
+
     // ===== Container Types =====
     /// List of another type.
     List(Box<FieldType>),
@@ -578,7 +589,7 @@ pub enum FieldType {
 }
 
 impl FieldType {
-    /// Check if this is a scalar type.
+    /// Check if this is a scalar type (including rich/custom scalars).
     #[must_use]
     pub const fn is_scalar(&self) -> bool {
         matches!(
@@ -595,6 +606,7 @@ impl FieldType {
                 | Self::Uuid
                 | Self::Decimal
                 | Self::Vector
+                | Self::Scalar(_)
         )
     }
 
@@ -654,6 +666,7 @@ impl FieldType {
             Self::Uuid => "UUID".to_string(),
             Self::Decimal => "Decimal".to_string(),
             Self::Vector => "[Float!]!".to_string(), // Vectors are arrays of floats
+            Self::Scalar(name) => name.clone(),      // Rich/custom scalars use their name
             Self::List(inner) => format!("[{}]", inner.to_graphql_string()),
             Self::Object(name)
             | Self::Enum(name)
@@ -683,6 +696,8 @@ impl FieldType {
                     "vector".to_string()
                 }
             }
+            // Rich scalars are stored as TEXT (validated at application level)
+            Self::Scalar(_) => "TEXT".to_string(),
             // Lists and complex types stored as JSONB
             Self::Json
             | Self::List(_)
@@ -694,6 +709,73 @@ impl FieldType {
         }
     }
 }
+
+/// Known rich scalar types.
+///
+/// These are scalar types with validation rules beyond the basic GraphQL scalars.
+/// They are stored as TEXT in PostgreSQL and validated at the application level.
+pub const RICH_SCALARS: &[&str] = &[
+    // Contact/Communication
+    "Email",
+    "PhoneNumber",
+    "URL",
+    "DomainName",
+    "Hostname",
+    // Location/Address
+    "PostalCode",
+    "Latitude",
+    "Longitude",
+    "Coordinates",
+    "Timezone",
+    "LocaleCode",
+    "LanguageCode",
+    "CountryCode",
+    // Financial
+    "IBAN",
+    "CUSIP",
+    "ISIN",
+    "SEDOL",
+    "LEI",
+    "MIC",
+    "CurrencyCode",
+    "Money",
+    "ExchangeCode",
+    "ExchangeRate",
+    "StockSymbol",
+    // Identifiers
+    "Slug",
+    "SemanticVersion",
+    "HashSHA256",
+    "APIKey",
+    "LicensePlate",
+    "VIN",
+    "TrackingNumber",
+    "ContainerNumber",
+    // Networking
+    "IPAddress",
+    "IPv4",
+    "IPv6",
+    "MACAddress",
+    "CIDR",
+    "Port",
+    // Transportation
+    "AirportCode",
+    "PortCode",
+    "FlightNumber",
+    // Content
+    "Markdown",
+    "HTML",
+    "MimeType",
+    "Color",
+    "Image",
+    "File",
+    // Database/PostgreSQL specific
+    "LTree",
+    // Ranges
+    "DateRange",
+    "Duration",
+    "Percentage",
+];
 
 impl std::fmt::Display for FieldType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -746,7 +828,7 @@ impl FieldType {
             return Self::List(Box::new(inner_type));
         }
 
-        // Handle scalar types (case-insensitive matching)
+        // Handle core scalar types (case-insensitive matching)
         match s.to_lowercase().as_str() {
             "string" => Self::String,
             "int" | "integer" => Self::Int,
@@ -761,14 +843,35 @@ impl FieldType {
             "decimal" | "numeric" | "bigdecimal" => Self::Decimal,
             "vector" => Self::Vector,
             _ => {
-                // Check if it's a known object type
-                if known_types.contains(s) {
-                    Self::Object(s.to_string())
-                } else {
-                    // Default to Object for unknown types (likely a custom type)
-                    Self::Object(s.to_string())
+                // Check if it's a known rich scalar (case-insensitive)
+                let lower = s.to_lowercase();
+                for &rich_scalar in RICH_SCALARS {
+                    if lower == rich_scalar.to_lowercase() {
+                        return Self::Scalar(rich_scalar.to_string());
+                    }
                 }
+
+                // Unknown type - default to Object for backwards compatibility
+                // Custom scalars must be explicitly defined in RICH_SCALARS or
+                // handled at a higher level (e.g., schema validation)
+                Self::Object(s.to_string())
             }
+        }
+    }
+
+    /// Parse a type string, treating unknown types as custom scalars.
+    ///
+    /// Unlike `parse()`, this method treats any unknown type as a `Scalar`
+    /// rather than an `Object`. Use this when parsing user-defined scalar types.
+    #[must_use]
+    pub fn parse_as_scalar_if_unknown(
+        type_str: &str,
+        known_types: &std::collections::HashSet<String>,
+    ) -> Self {
+        let result = Self::parse(type_str, known_types);
+        match result {
+            Self::Object(name) if !known_types.contains(&name) => Self::Scalar(name),
+            other => other,
         }
     }
 }

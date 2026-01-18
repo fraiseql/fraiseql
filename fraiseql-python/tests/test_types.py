@@ -57,6 +57,48 @@ def test_python_type_to_graphql_list_of_scalars() -> None:
     assert nullable is False
 
 
+def test_python_type_to_graphql_rich_scalars() -> None:
+    """Test rich FraiseQL scalar types."""
+    from fraiseql.scalars import Email, IBAN, IPAddress, LTree, Money, PhoneNumber, URL
+
+    # Contact scalars
+    assert python_type_to_graphql(Email) == ("Email", False)
+    assert python_type_to_graphql(PhoneNumber) == ("PhoneNumber", False)
+    assert python_type_to_graphql(URL) == ("URL", False)
+
+    # Financial scalars
+    assert python_type_to_graphql(IBAN) == ("IBAN", False)
+    assert python_type_to_graphql(Money) == ("Money", False)
+
+    # Networking scalars
+    assert python_type_to_graphql(IPAddress) == ("IPAddress", False)
+
+    # Database scalars
+    assert python_type_to_graphql(LTree) == ("LTree", False)
+
+    # Nullable rich scalars
+    graphql_type, nullable = python_type_to_graphql(Email | None)
+    assert graphql_type == "Email"
+    assert nullable is True
+
+
+def test_python_type_to_graphql_custom_scalar() -> None:
+    """Test user-defined custom scalar types."""
+    from typing import NewType
+
+    # User can define their own custom scalars
+    MyCustomScalar = NewType("MyCustomScalar", str)
+    CompanyId = NewType("CompanyId", str)
+
+    assert python_type_to_graphql(MyCustomScalar) == ("MyCustomScalar", False)
+    assert python_type_to_graphql(CompanyId) == ("CompanyId", False)
+
+    # Nullable custom scalar
+    graphql_type, nullable = python_type_to_graphql(MyCustomScalar | None)
+    assert graphql_type == "MyCustomScalar"
+    assert nullable is True
+
+
 def test_python_type_to_graphql_nullable() -> None:
     """Test nullable type conversion."""
     # Using | None syntax

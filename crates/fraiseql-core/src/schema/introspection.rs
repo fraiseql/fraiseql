@@ -689,6 +689,7 @@ impl IntrospectionBuilder {
             FieldType::Input(name) => Self::type_ref(name),
             FieldType::Interface(name) => Self::type_ref(name),
             FieldType::Union(name) => Self::type_ref(name),
+            FieldType::Scalar(name) => Self::type_ref(name), // Rich/custom scalars
             FieldType::List(inner) => IntrospectionType {
                 kind: TypeKind::List,
                 name: None,

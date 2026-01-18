@@ -4,37 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Annotated, Any, Union, get_args, get_origin
 
-# Import FraiseQL scalars for type mapping
-from fraiseql.scalars import (
-    ID,
-    UUID,
-    Date,
-    DateTime,
-    Decimal,
-    Json,
-    Time,
-    Vector,
-)
-
 if TYPE_CHECKING:
     from fraiseql.decorators import FieldConfig
-
-
-# Mapping from FraiseQL scalar NewTypes to GraphQL type strings
-# NewType creates a callable, so we need to map by __name__
-_SCALAR_NAMES: dict[str, str] = {
-    "ID": "ID",
-    "UUID": "UUID",
-    "DateTime": "DateTime",
-    "Date": "Date",
-    "Time": "Time",
-    "Json": "Json",
-    "Decimal": "Decimal",
-    "Vector": "Vector",
-}
-
-# Keep references to prevent unused import warnings
-_SCALARS = (ID, UUID, DateTime, Date, Time, Json, Decimal, Vector)
 
 
 def python_type_to_graphql(py_type: Any) -> tuple[str, bool]:
@@ -93,12 +64,14 @@ def python_type_to_graphql(py_type: Any) -> tuple[str, bool]:
             return (f"[{element_type}]", False)
         return (f"[{element_type}!]", False)
 
-    # Handle NewType scalars (ID, DateTime, etc.)
+    # Handle NewType scalars (ID, DateTime, Email, custom scalars, etc.)
     # NewType creates a callable with __name__ and __supertype__ attributes
+    # We use the __name__ directly as the GraphQL type name, allowing any
+    # user-defined NewType to become a custom scalar
     if callable(py_type) and hasattr(py_type, "__supertype__"):
         type_name = getattr(py_type, "__name__", None)
-        if type_name and type_name in _SCALAR_NAMES:
-            return (_SCALAR_NAMES[type_name], False)
+        if type_name:
+            return (type_name, False)
 
     # Handle basic Python types
     type_map = {

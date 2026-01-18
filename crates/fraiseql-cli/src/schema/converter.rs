@@ -656,6 +656,7 @@ impl SchemaConverter {
             FieldType::Uuid => "UUID".to_string(),
             FieldType::Decimal => "Decimal".to_string(),
             FieldType::Vector => "Vector".to_string(),
+            FieldType::Scalar(name) => name.clone(),
             FieldType::Object(name) => name.clone(),
             FieldType::Enum(name) => name.clone(),
             FieldType::Input(name) => name.clone(),
