@@ -426,12 +426,45 @@ impl AggregateQueryParser {
             });
         }
 
-        // Handle COUNT_DISTINCT
+        // Handle COUNT_DISTINCT: supports both "count_distinct" (defaults to first dimension)
+        // and "field_count_distinct" pattern (e.g., "product_id_count_distinct")
         if agg_name == "count_distinct" {
-            // TODO: Parse which field to count distinct
+            // Default to first dimension path, or "id" if none available
+            let default_field = Self::extract_dimension_paths(metadata)
+                .first()
+                .cloned()
+                .unwrap_or_else(|| "id".to_string());
             return Ok(AggregateSelection::CountDistinct {
-                field: "id".to_string(),
+                field: default_field,
                 alias: "count_distinct".to_string(),
+            });
+        }
+
+        // Handle field_count_distinct pattern (e.g., "customer_id_count_distinct")
+        if let Some(stripped) = agg_name.strip_suffix("_count_distinct") {
+            // Check if the stripped part matches a dimension path
+            let dimension_paths = Self::extract_dimension_paths(metadata);
+            if dimension_paths.iter().any(|p| p == stripped) {
+                return Ok(AggregateSelection::CountDistinct {
+                    field: stripped.to_string(),
+                    alias: agg_name.to_string(),
+                });
+            }
+            // Also allow count distinct on measures
+            if metadata.measures.iter().any(|m| m.name == stripped) {
+                return Ok(AggregateSelection::CountDistinct {
+                    field: stripped.to_string(),
+                    alias: agg_name.to_string(),
+                });
+            }
+            // If no match found, return error with helpful message
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "COUNT DISTINCT field '{}' not found in dimensions or measures. Available: {:?}",
+                    stripped,
+                    dimension_paths
+                ),
+                path: None,
             });
         }
 
@@ -833,5 +866,116 @@ mod tests {
         assert_eq!(request.having.len(), 2);
         assert_eq!(request.order_by.len(), 2);
         assert_eq!(request.limit, Some(20));
+    }
+
+    #[test]
+    fn test_parse_count_distinct_default() {
+        let metadata = create_test_metadata();
+        let query = json!({
+            "table": "tf_sales",
+            "aggregates": [
+                {"count_distinct": {}}
+            ]
+        });
+
+        let request = AggregateQueryParser::parse(&query, &metadata).unwrap();
+
+        assert_eq!(request.aggregates.len(), 1);
+        match &request.aggregates[0] {
+            AggregateSelection::CountDistinct { field, alias } => {
+                // Defaults to first dimension: "category"
+                assert_eq!(field, "category");
+                assert_eq!(alias, "count_distinct");
+            }
+            _ => panic!("Expected CountDistinct selection"),
+        }
+    }
+
+    #[test]
+    fn test_parse_count_distinct_with_field() {
+        let metadata = create_test_metadata();
+        let query = json!({
+            "table": "tf_sales",
+            "aggregates": [
+                {"product_count_distinct": {}}
+            ]
+        });
+
+        let request = AggregateQueryParser::parse(&query, &metadata).unwrap();
+
+        assert_eq!(request.aggregates.len(), 1);
+        match &request.aggregates[0] {
+            AggregateSelection::CountDistinct { field, alias } => {
+                assert_eq!(field, "product");
+                assert_eq!(alias, "product_count_distinct");
+            }
+            _ => panic!("Expected CountDistinct selection"),
+        }
+    }
+
+    #[test]
+    fn test_parse_count_distinct_on_measure() {
+        let metadata = create_test_metadata();
+        let query = json!({
+            "table": "tf_sales",
+            "aggregates": [
+                {"revenue_count_distinct": {}}
+            ]
+        });
+
+        let request = AggregateQueryParser::parse(&query, &metadata).unwrap();
+
+        assert_eq!(request.aggregates.len(), 1);
+        match &request.aggregates[0] {
+            AggregateSelection::CountDistinct { field, alias } => {
+                assert_eq!(field, "revenue");
+                assert_eq!(alias, "revenue_count_distinct");
+            }
+            _ => panic!("Expected CountDistinct selection"),
+        }
+    }
+
+    #[test]
+    fn test_parse_count_distinct_invalid_field() {
+        let metadata = create_test_metadata();
+        let query = json!({
+            "table": "tf_sales",
+            "aggregates": [
+                {"nonexistent_count_distinct": {}}
+            ]
+        });
+
+        let result = AggregateQueryParser::parse(&query, &metadata);
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        match err {
+            FraiseQLError::Validation { message, .. } => {
+                assert!(message.contains("COUNT DISTINCT field 'nonexistent' not found"));
+            }
+            _ => panic!("Expected Validation error"),
+        }
+    }
+
+    #[test]
+    fn test_parse_multiple_count_distinct() {
+        let metadata = create_test_metadata();
+        let query = json!({
+            "table": "tf_sales",
+            "aggregates": [
+                {"count": {}},
+                {"category_count_distinct": {}},
+                {"product_count_distinct": {}},
+                {"revenue_sum": {}}
+            ]
+        });
+
+        let request = AggregateQueryParser::parse(&query, &metadata).unwrap();
+
+        assert_eq!(request.aggregates.len(), 4);
+        assert_eq!(request.aggregates[0].alias(), "count");
+        assert_eq!(request.aggregates[1].alias(), "category_count_distinct");
+        assert_eq!(request.aggregates[2].alias(), "product_count_distinct");
+        assert_eq!(request.aggregates[3].alias(), "revenue_sum");
     }
 }

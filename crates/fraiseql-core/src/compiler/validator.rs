@@ -12,6 +12,28 @@
 use crate::error::{FraiseQLError, Result};
 use super::ir::AuthoringIR;
 
+/// Extract the base type name from a GraphQL type string.
+///
+/// Removes list brackets, non-null markers, and whitespace.
+/// Examples:
+/// - "String!" -> "String"
+/// - "[User]" -> "User"
+/// - "[User!]!" -> "User"
+/// - "Int" -> "Int"
+fn extract_base_type(type_str: &str) -> &str {
+    let s = type_str.trim();
+
+    // Remove list brackets and non-null markers
+    let s = s.trim_start_matches('[').trim_end_matches(']');
+    let s = s.trim_end_matches('!').trim_start_matches('!');
+
+    // Handle nested cases like "[User!]!"
+    let s = s.trim_start_matches('[').trim_end_matches(']');
+    let s = s.trim_end_matches('!');
+
+    s.trim()
+}
+
 /// Validation error.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ValidationError {
@@ -64,18 +86,149 @@ impl SchemaValidator {
     }
 
     /// Validate type definitions.
-    fn validate_types(&self, _ir: &AuthoringIR) -> Result<()> {
-        // TODO: Implement type validation
-        // - Type references are valid
-        // - No circular dependencies
+    fn validate_types(&self, ir: &AuthoringIR) -> Result<()> {
+        // Collect all defined type names
+        let defined_types: std::collections::HashSet<&str> = ir
+            .types
+            .iter()
+            .map(|t| t.name.as_str())
+            .collect();
+
+        // Built-in scalar types
+        let scalar_types: std::collections::HashSet<&str> = [
+            "ID", "String", "Int", "Float", "Boolean", "DateTime", "Date", "Time",
+            "JSON", "UUID", "Decimal", "BigInt", "Timestamp", "Void",
+        ].into_iter().collect();
+
+        // Validate each type
+        for ir_type in &ir.types {
+            // Validate type name is not empty
+            if ir_type.name.is_empty() {
+                return Err(FraiseQLError::Validation {
+                    message: "Type name cannot be empty".to_string(),
+                    path: Some("types".to_string()),
+                });
+            }
+
+            // Validate field types reference valid types
+            for field in &ir_type.fields {
+                let base_type = extract_base_type(&field.field_type);
+
+                // Skip validation for scalar types and list markers
+                if scalar_types.contains(base_type) || base_type.is_empty() {
+                    continue;
+                }
+
+                // Check if the referenced type exists
+                if !defined_types.contains(base_type) && !scalar_types.contains(base_type) {
+                    return Err(FraiseQLError::Validation {
+                        message: format!(
+                            "Type '{}' field '{}' references unknown type '{}'",
+                            ir_type.name, field.name, base_type
+                        ),
+                        path: Some(format!("types.{}.fields.{}", ir_type.name, field.name)),
+                    });
+                }
+            }
+        }
+
         Ok(())
     }
 
     /// Validate query definitions.
-    fn validate_queries(&self, _ir: &AuthoringIR) -> Result<()> {
-        // TODO: Implement query validation
-        // - Return types exist
-        // - SQL sources are valid
+    fn validate_queries(&self, ir: &AuthoringIR) -> Result<()> {
+        // Collect all defined type names
+        let defined_types: std::collections::HashSet<&str> = ir
+            .types
+            .iter()
+            .map(|t| t.name.as_str())
+            .collect();
+
+        // Built-in scalar types
+        let scalar_types: std::collections::HashSet<&str> = [
+            "ID", "String", "Int", "Float", "Boolean", "DateTime", "Date", "Time",
+            "JSON", "UUID", "Decimal", "BigInt", "Timestamp", "Void",
+        ].into_iter().collect();
+
+        // Validate each query
+        for query in &ir.queries {
+            // Validate query name is not empty
+            if query.name.is_empty() {
+                return Err(FraiseQLError::Validation {
+                    message: "Query name cannot be empty".to_string(),
+                    path: Some("queries".to_string()),
+                });
+            }
+
+            // Validate return type exists
+            let base_type = extract_base_type(&query.return_type);
+            if !defined_types.contains(base_type) && !scalar_types.contains(base_type) {
+                return Err(FraiseQLError::Validation {
+                    message: format!(
+                        "Query '{}' returns unknown type '{}'",
+                        query.name, query.return_type
+                    ),
+                    path: Some(format!("queries.{}.return_type", query.name)),
+                });
+            }
+
+            // Validate argument types
+            for arg in &query.arguments {
+                let base_type = extract_base_type(&arg.arg_type);
+                if !defined_types.contains(base_type) && !scalar_types.contains(base_type) {
+                    return Err(FraiseQLError::Validation {
+                        message: format!(
+                            "Query '{}' argument '{}' has unknown type '{}'",
+                            query.name, arg.name, arg.arg_type
+                        ),
+                        path: Some(format!("queries.{}.arguments.{}", query.name, arg.name)),
+                    });
+                }
+            }
+        }
+
+        // Validate mutations
+        for mutation in &ir.mutations {
+            if mutation.name.is_empty() {
+                return Err(FraiseQLError::Validation {
+                    message: "Mutation name cannot be empty".to_string(),
+                    path: Some("mutations".to_string()),
+                });
+            }
+
+            let base_type = extract_base_type(&mutation.return_type);
+            if !defined_types.contains(base_type) && !scalar_types.contains(base_type) {
+                return Err(FraiseQLError::Validation {
+                    message: format!(
+                        "Mutation '{}' returns unknown type '{}'",
+                        mutation.name, mutation.return_type
+                    ),
+                    path: Some(format!("mutations.{}.return_type", mutation.name)),
+                });
+            }
+        }
+
+        // Validate subscriptions
+        for subscription in &ir.subscriptions {
+            if subscription.name.is_empty() {
+                return Err(FraiseQLError::Validation {
+                    message: "Subscription name cannot be empty".to_string(),
+                    path: Some("subscriptions".to_string()),
+                });
+            }
+
+            let base_type = extract_base_type(&subscription.return_type);
+            if !defined_types.contains(base_type) && !scalar_types.contains(base_type) {
+                return Err(FraiseQLError::Validation {
+                    message: format!(
+                        "Subscription '{}' returns unknown type '{}'",
+                        subscription.name, subscription.return_type
+                    ),
+                    path: Some(format!("subscriptions.{}.return_type", subscription.name)),
+                });
+            }
+        }
+
         Ok(())
     }
 
@@ -649,6 +802,275 @@ mod tests {
                     description: None,
                     sql_column: None,
                 }
+            ],
+            sql_source: None,
+            description: None,
+        });
+
+        let result = validator.validate(ir);
+        assert!(result.is_ok());
+    }
+
+    // =========================================================================
+    // Type and Query Validation Tests
+    // =========================================================================
+
+    #[test]
+    fn test_extract_base_type() {
+        assert_eq!(extract_base_type("String"), "String");
+        assert_eq!(extract_base_type("String!"), "String");
+        assert_eq!(extract_base_type("[String]"), "String");
+        assert_eq!(extract_base_type("[String!]"), "String");
+        assert_eq!(extract_base_type("[String!]!"), "String");
+        assert_eq!(extract_base_type("  User  "), "User");
+    }
+
+    #[test]
+    fn test_validate_type_with_valid_references() {
+        let validator = SchemaValidator::new();
+        let mut ir = AuthoringIR::new();
+
+        // Define User type
+        ir.types.push(IRType {
+            name: "User".to_string(),
+            fields: vec![
+                IRField {
+                    name: "id".to_string(),
+                    field_type: "ID!".to_string(),
+                    nullable: false,
+                    description: None,
+                    sql_column: None,
+                },
+                IRField {
+                    name: "name".to_string(),
+                    field_type: "String!".to_string(),
+                    nullable: false,
+                    description: None,
+                    sql_column: None,
+                },
+            ],
+            sql_source: Some("v_user".to_string()),
+            description: None,
+        });
+
+        // Define Post type that references User
+        ir.types.push(IRType {
+            name: "Post".to_string(),
+            fields: vec![
+                IRField {
+                    name: "id".to_string(),
+                    field_type: "ID!".to_string(),
+                    nullable: false,
+                    description: None,
+                    sql_column: None,
+                },
+                IRField {
+                    name: "author".to_string(),
+                    field_type: "User".to_string(),
+                    nullable: true,
+                    description: None,
+                    sql_column: None,
+                },
+            ],
+            sql_source: Some("v_post".to_string()),
+            description: None,
+        });
+
+        let result = validator.validate(ir);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_type_with_invalid_reference() {
+        let validator = SchemaValidator::new();
+        let mut ir = AuthoringIR::new();
+
+        ir.types.push(IRType {
+            name: "Post".to_string(),
+            fields: vec![
+                IRField {
+                    name: "author".to_string(),
+                    field_type: "NonExistentType".to_string(),
+                    nullable: true,
+                    description: None,
+                    sql_column: None,
+                },
+            ],
+            sql_source: None,
+            description: None,
+        });
+
+        let result = validator.validate(ir);
+        assert!(result.is_err());
+        if let Err(FraiseQLError::Validation { message, .. }) = result {
+            assert!(message.contains("references unknown type"));
+            assert!(message.contains("NonExistentType"));
+        }
+    }
+
+    #[test]
+    fn test_validate_type_empty_name() {
+        let validator = SchemaValidator::new();
+        let mut ir = AuthoringIR::new();
+
+        ir.types.push(IRType {
+            name: String::new(),
+            fields: vec![],
+            sql_source: None,
+            description: None,
+        });
+
+        let result = validator.validate(ir);
+        assert!(result.is_err());
+        if let Err(FraiseQLError::Validation { message, .. }) = result {
+            assert!(message.contains("name cannot be empty"));
+        }
+    }
+
+    #[test]
+    fn test_validate_query_with_valid_return_type() {
+        use super::super::ir::{IRQuery, IRArgument, AutoParams};
+
+        let validator = SchemaValidator::new();
+        let mut ir = AuthoringIR::new();
+
+        // Define User type
+        ir.types.push(IRType {
+            name: "User".to_string(),
+            fields: vec![
+                IRField {
+                    name: "id".to_string(),
+                    field_type: "ID!".to_string(),
+                    nullable: false,
+                    description: None,
+                    sql_column: None,
+                },
+            ],
+            sql_source: Some("v_user".to_string()),
+            description: None,
+        });
+
+        // Define query that returns User
+        ir.queries.push(IRQuery {
+            name: "user".to_string(),
+            return_type: "User".to_string(),
+            returns_list: false,
+            nullable: true,
+            arguments: vec![
+                IRArgument {
+                    name: "id".to_string(),
+                    arg_type: "ID!".to_string(),
+                    nullable: false,
+                    default_value: None,
+                    description: None,
+                },
+            ],
+            sql_source: Some("v_user".to_string()),
+            description: None,
+            auto_params: AutoParams::default(),
+        });
+
+        let result = validator.validate(ir);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_query_with_invalid_return_type() {
+        use super::super::ir::{IRQuery, AutoParams};
+
+        let validator = SchemaValidator::new();
+        let mut ir = AuthoringIR::new();
+
+        ir.queries.push(IRQuery {
+            name: "unknownQuery".to_string(),
+            return_type: "NonExistentType".to_string(),
+            returns_list: false,
+            nullable: true,
+            arguments: vec![],
+            sql_source: None,
+            description: None,
+            auto_params: AutoParams::default(),
+        });
+
+        let result = validator.validate(ir);
+        assert!(result.is_err());
+        if let Err(FraiseQLError::Validation { message, .. }) = result {
+            assert!(message.contains("returns unknown type"));
+            assert!(message.contains("NonExistentType"));
+        }
+    }
+
+    #[test]
+    fn test_validate_query_with_scalar_return_type() {
+        use super::super::ir::{IRQuery, AutoParams};
+
+        let validator = SchemaValidator::new();
+        let mut ir = AuthoringIR::new();
+
+        // Query returning scalar type (no custom type needed)
+        ir.queries.push(IRQuery {
+            name: "serverTime".to_string(),
+            return_type: "DateTime".to_string(),
+            returns_list: false,
+            nullable: false,
+            arguments: vec![],
+            sql_source: None,
+            description: None,
+            auto_params: AutoParams::default(),
+        });
+
+        let result = validator.validate(ir);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_query_empty_name() {
+        use super::super::ir::{IRQuery, AutoParams};
+
+        let validator = SchemaValidator::new();
+        let mut ir = AuthoringIR::new();
+
+        ir.queries.push(IRQuery {
+            name: String::new(),
+            return_type: "String".to_string(),
+            returns_list: false,
+            nullable: true,
+            arguments: vec![],
+            sql_source: None,
+            description: None,
+            auto_params: AutoParams::default(),
+        });
+
+        let result = validator.validate(ir);
+        assert!(result.is_err());
+        if let Err(FraiseQLError::Validation { message, .. }) = result {
+            assert!(message.contains("Query name cannot be empty"));
+        }
+    }
+
+    #[test]
+    fn test_validate_list_type_references() {
+        let validator = SchemaValidator::new();
+        let mut ir = AuthoringIR::new();
+
+        // Define User type
+        ir.types.push(IRType {
+            name: "User".to_string(),
+            fields: vec![
+                IRField {
+                    name: "id".to_string(),
+                    field_type: "ID!".to_string(),
+                    nullable: false,
+                    description: None,
+                    sql_column: None,
+                },
+                IRField {
+                    name: "friends".to_string(),
+                    field_type: "[User!]".to_string(),  // List of Users
+                    nullable: true,
+                    description: None,
+                    sql_column: None,
+                },
             ],
             sql_source: None,
             description: None,

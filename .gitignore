@@ -105,3 +105,6 @@ temp/
 
 # CI/CD
 .gitlab-ci-local/
+
+# Analysis work-in-progress
+TODO_*/

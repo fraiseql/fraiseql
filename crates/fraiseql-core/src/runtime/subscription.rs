@@ -584,8 +584,46 @@ impl SubscriptionManager {
             }
         }
 
-        // TODO: Evaluate compiled WHERE filters against event.data and user_context
-        // For now, we match on entity type and topic only
+        // Evaluate compiled WHERE filters against event.data and subscription variables
+        if let Some(ref filter) = subscription.definition.filter {
+            // Check argument-based filters (variable values must match event data)
+            for (arg_name, path) in &filter.argument_paths {
+                // Get the variable value provided by the client
+                if let Some(expected_value) = subscription.variables.get(arg_name) {
+                    // Get the actual value from event data using JSON pointer
+                    let actual_value = get_json_pointer_value(&event.data, path);
+
+                    // Compare values
+                    if actual_value != Some(expected_value) {
+                        tracing::trace!(
+                            subscription_id = %subscription.id,
+                            arg_name = arg_name,
+                            expected = ?expected_value,
+                            actual = ?actual_value,
+                            "Filter mismatch on argument"
+                        );
+                        return false;
+                    }
+                }
+            }
+
+            // Check static filter conditions
+            for condition in &filter.static_filters {
+                let actual_value = get_json_pointer_value(&event.data, &condition.path);
+
+                if !evaluate_filter_condition(actual_value, condition.operator, &condition.value) {
+                    tracing::trace!(
+                        subscription_id = %subscription.id,
+                        path = condition.path,
+                        operator = ?condition.operator,
+                        expected = ?condition.value,
+                        actual = ?actual_value,
+                        "Filter mismatch on static condition"
+                    );
+                    return false;
+                }
+            }
+        }
 
         true
     }
@@ -594,11 +632,119 @@ impl SubscriptionManager {
     fn project_event_data(
         &self,
         event: &SubscriptionEvent,
-        _subscription: &ActiveSubscription,
+        subscription: &ActiveSubscription,
     ) -> serde_json::Value {
-        // TODO: Project only requested fields from subscription definition
-        // For now, return full event data
-        event.data.clone()
+        // If no fields specified, return full event data
+        if subscription.definition.fields.is_empty() {
+            return event.data.clone();
+        }
+
+        // Project only requested fields
+        let mut projected = serde_json::Map::new();
+
+        for field in &subscription.definition.fields {
+            // Support both simple field names and JSON pointer paths
+            let value = if field.starts_with('/') {
+                get_json_pointer_value(&event.data, field).cloned()
+            } else {
+                event.data.get(field).cloned()
+            };
+
+            if let Some(v) = value {
+                // Use the field name (without leading slash) as the key
+                let key = field.trim_start_matches('/').to_string();
+                projected.insert(key, v);
+            }
+        }
+
+        serde_json::Value::Object(projected)
+    }
+}
+
+/// Get a value from JSON using JSON pointer syntax (e.g., "/user/name" or "user/name").
+fn get_json_pointer_value<'a>(data: &'a serde_json::Value, path: &str) -> Option<&'a serde_json::Value> {
+    // Normalize path to JSON pointer format
+    let normalized = if path.starts_with('/') {
+        path.to_string()
+    } else {
+        format!("/{}", path.replace('.', "/"))
+    };
+
+    data.pointer(&normalized)
+}
+
+/// Evaluate a filter condition against an actual value.
+fn evaluate_filter_condition(
+    actual: Option<&serde_json::Value>,
+    operator: crate::schema::FilterOperator,
+    expected: &serde_json::Value,
+) -> bool {
+    use crate::schema::FilterOperator;
+
+    match actual {
+        None => {
+            // Null/missing values only match specific conditions
+            matches!(operator, FilterOperator::Eq) && expected.is_null()
+        }
+        Some(actual_value) => match operator {
+            FilterOperator::Eq => actual_value == expected,
+            FilterOperator::Ne => actual_value != expected,
+            FilterOperator::Gt => compare_values(actual_value, expected) == Some(std::cmp::Ordering::Greater),
+            FilterOperator::Gte => {
+                matches!(
+                    compare_values(actual_value, expected),
+                    Some(std::cmp::Ordering::Greater | std::cmp::Ordering::Equal)
+                )
+            }
+            FilterOperator::Lt => compare_values(actual_value, expected) == Some(std::cmp::Ordering::Less),
+            FilterOperator::Lte => {
+                matches!(
+                    compare_values(actual_value, expected),
+                    Some(std::cmp::Ordering::Less | std::cmp::Ordering::Equal)
+                )
+            }
+            FilterOperator::Contains => {
+                match (actual_value, expected) {
+                    // Array contains value
+                    (serde_json::Value::Array(arr), val) => arr.contains(val),
+                    // String contains substring
+                    (serde_json::Value::String(s), serde_json::Value::String(sub)) => s.contains(sub.as_str()),
+                    _ => false,
+                }
+            }
+            FilterOperator::StartsWith => {
+                match (actual_value, expected) {
+                    (serde_json::Value::String(s), serde_json::Value::String(prefix)) => s.starts_with(prefix.as_str()),
+                    _ => false,
+                }
+            }
+            FilterOperator::EndsWith => {
+                match (actual_value, expected) {
+                    (serde_json::Value::String(s), serde_json::Value::String(suffix)) => s.ends_with(suffix.as_str()),
+                    _ => false,
+                }
+            }
+        },
+    }
+}
+
+/// Compare two JSON values for ordering (numeric and string comparisons).
+fn compare_values(a: &serde_json::Value, b: &serde_json::Value) -> Option<std::cmp::Ordering> {
+    match (a, b) {
+        // Numeric comparisons
+        (serde_json::Value::Number(a), serde_json::Value::Number(b)) => {
+            let a_f64 = a.as_f64()?;
+            let b_f64 = b.as_f64()?;
+            a_f64.partial_cmp(&b_f64)
+        }
+        // String comparisons
+        (serde_json::Value::String(a), serde_json::Value::String(b)) => Some(a.cmp(b)),
+        // Bool comparisons (false < true)
+        (serde_json::Value::Bool(a), serde_json::Value::Bool(b)) => Some(a.cmp(b)),
+        // Null comparisons
+        (serde_json::Value::Null, serde_json::Value::Null) => Some(std::cmp::Ordering::Equal),
+        // Incompatible types
+        _ => None,
     }
 }
 
@@ -2812,5 +2958,294 @@ mod tests {
 
         assert!(!result.all_succeeded());
         assert!(!result.any_succeeded());
+    }
+
+    // =========================================================================
+    // Filter Evaluation Tests
+    // =========================================================================
+
+    #[test]
+    fn test_get_json_pointer_value_simple() {
+        let data = serde_json::json!({"id": "123", "name": "Test"});
+
+        assert_eq!(get_json_pointer_value(&data, "/id"), Some(&serde_json::json!("123")));
+        assert_eq!(get_json_pointer_value(&data, "/name"), Some(&serde_json::json!("Test")));
+        assert_eq!(get_json_pointer_value(&data, "/missing"), None);
+    }
+
+    #[test]
+    fn test_get_json_pointer_value_nested() {
+        let data = serde_json::json!({
+            "user": {
+                "profile": {
+                    "name": "Alice"
+                }
+            }
+        });
+
+        assert_eq!(
+            get_json_pointer_value(&data, "/user/profile/name"),
+            Some(&serde_json::json!("Alice"))
+        );
+    }
+
+    #[test]
+    fn test_get_json_pointer_value_dot_notation() {
+        let data = serde_json::json!({"user": {"name": "Bob"}});
+
+        // Dot notation should be converted to JSON pointer
+        assert_eq!(
+            get_json_pointer_value(&data, "user.name"),
+            Some(&serde_json::json!("Bob"))
+        );
+    }
+
+    #[test]
+    fn test_filter_condition_eq() {
+        use crate::schema::FilterOperator;
+
+        assert!(evaluate_filter_condition(
+            Some(&serde_json::json!("active")),
+            FilterOperator::Eq,
+            &serde_json::json!("active")
+        ));
+
+        assert!(!evaluate_filter_condition(
+            Some(&serde_json::json!("active")),
+            FilterOperator::Eq,
+            &serde_json::json!("inactive")
+        ));
+    }
+
+    #[test]
+    fn test_filter_condition_ne() {
+        use crate::schema::FilterOperator;
+
+        assert!(evaluate_filter_condition(
+            Some(&serde_json::json!("active")),
+            FilterOperator::Ne,
+            &serde_json::json!("inactive")
+        ));
+
+        assert!(!evaluate_filter_condition(
+            Some(&serde_json::json!("active")),
+            FilterOperator::Ne,
+            &serde_json::json!("active")
+        ));
+    }
+
+    #[test]
+    fn test_filter_condition_numeric_comparisons() {
+        use crate::schema::FilterOperator;
+
+        // Greater than
+        assert!(evaluate_filter_condition(
+            Some(&serde_json::json!(100)),
+            FilterOperator::Gt,
+            &serde_json::json!(50)
+        ));
+        assert!(!evaluate_filter_condition(
+            Some(&serde_json::json!(50)),
+            FilterOperator::Gt,
+            &serde_json::json!(100)
+        ));
+
+        // Greater than or equal
+        assert!(evaluate_filter_condition(
+            Some(&serde_json::json!(100)),
+            FilterOperator::Gte,
+            &serde_json::json!(100)
+        ));
+
+        // Less than
+        assert!(evaluate_filter_condition(
+            Some(&serde_json::json!(50)),
+            FilterOperator::Lt,
+            &serde_json::json!(100)
+        ));
+
+        // Less than or equal
+        assert!(evaluate_filter_condition(
+            Some(&serde_json::json!(100)),
+            FilterOperator::Lte,
+            &serde_json::json!(100)
+        ));
+    }
+
+    #[test]
+    fn test_filter_condition_string_comparisons() {
+        use crate::schema::FilterOperator;
+
+        // Contains
+        assert!(evaluate_filter_condition(
+            Some(&serde_json::json!("hello world")),
+            FilterOperator::Contains,
+            &serde_json::json!("world")
+        ));
+
+        // StartsWith
+        assert!(evaluate_filter_condition(
+            Some(&serde_json::json!("hello world")),
+            FilterOperator::StartsWith,
+            &serde_json::json!("hello")
+        ));
+
+        // EndsWith
+        assert!(evaluate_filter_condition(
+            Some(&serde_json::json!("hello world")),
+            FilterOperator::EndsWith,
+            &serde_json::json!("world")
+        ));
+    }
+
+    #[test]
+    fn test_filter_condition_array_contains() {
+        use crate::schema::FilterOperator;
+
+        assert!(evaluate_filter_condition(
+            Some(&serde_json::json!(["a", "b", "c"])),
+            FilterOperator::Contains,
+            &serde_json::json!("b")
+        ));
+
+        assert!(!evaluate_filter_condition(
+            Some(&serde_json::json!(["a", "b", "c"])),
+            FilterOperator::Contains,
+            &serde_json::json!("d")
+        ));
+    }
+
+    #[test]
+    fn test_filter_condition_null_handling() {
+        use crate::schema::FilterOperator;
+
+        // Missing value equals null
+        assert!(evaluate_filter_condition(
+            None,
+            FilterOperator::Eq,
+            &serde_json::Value::Null
+        ));
+
+        // Missing value does not equal non-null
+        assert!(!evaluate_filter_condition(
+            None,
+            FilterOperator::Eq,
+            &serde_json::json!("value")
+        ));
+    }
+
+    #[test]
+    fn test_subscription_filter_matching() {
+        use crate::schema::{SubscriptionFilter, FilterOperator, StaticFilterCondition};
+        use std::collections::HashMap;
+
+        let mut argument_paths = HashMap::new();
+        argument_paths.insert("orderId".to_string(), "/id".to_string());
+
+        let filter = SubscriptionFilter {
+            argument_paths,
+            static_filters: vec![
+                StaticFilterCondition {
+                    path: "/status".to_string(),
+                    operator: FilterOperator::Eq,
+                    value: serde_json::json!("active"),
+                },
+            ],
+        };
+
+        let schema = Arc::new(CompiledSchema {
+            subscriptions: vec![
+                SubscriptionDefinition::new("OrderUpdated", "Order")
+                    .with_topic("order_updated")
+                    .with_filter(filter),
+            ],
+            ..Default::default()
+        });
+
+        let manager = SubscriptionManager::new(schema);
+
+        // Subscribe with a specific orderId
+        manager
+            .subscribe(
+                "OrderUpdated",
+                serde_json::json!({}),
+                serde_json::json!({"orderId": "ord_123"}),
+                "conn_1",
+            )
+            .unwrap();
+
+        // Event matching the filter
+        let matching_event = SubscriptionEvent::new(
+            "Order",
+            "ord_123",
+            SubscriptionOperation::Update,
+            serde_json::json!({"id": "ord_123", "status": "active"}),
+        );
+        assert_eq!(manager.publish_event(matching_event), 1);
+
+        // Event with wrong orderId
+        let wrong_id_event = SubscriptionEvent::new(
+            "Order",
+            "ord_456",
+            SubscriptionOperation::Update,
+            serde_json::json!({"id": "ord_456", "status": "active"}),
+        );
+        assert_eq!(manager.publish_event(wrong_id_event), 0);
+
+        // Event with wrong status
+        let wrong_status_event = SubscriptionEvent::new(
+            "Order",
+            "ord_123",
+            SubscriptionOperation::Update,
+            serde_json::json!({"id": "ord_123", "status": "inactive"}),
+        );
+        assert_eq!(manager.publish_event(wrong_status_event), 0);
+    }
+
+    #[test]
+    fn test_subscription_field_projection() {
+        let schema = Arc::new(CompiledSchema {
+            subscriptions: vec![
+                SubscriptionDefinition::new("OrderCreated", "Order")
+                    .with_topic("order_created")
+                    .with_fields(vec!["id".to_string(), "total".to_string()]),
+            ],
+            ..Default::default()
+        });
+
+        let manager = SubscriptionManager::new(schema);
+
+        manager
+            .subscribe(
+                "OrderCreated",
+                serde_json::json!({}),
+                serde_json::json!({}),
+                "conn_1",
+            )
+            .unwrap();
+
+        let mut receiver = manager.receiver();
+
+        let event = SubscriptionEvent::new(
+            "Order",
+            "ord_123",
+            SubscriptionOperation::Create,
+            serde_json::json!({
+                "id": "ord_123",
+                "total": 99.99,
+                "secret_field": "should_not_appear",
+                "customer": "John"
+            }),
+        );
+
+        manager.publish_event(event);
+
+        if let Ok(payload) = receiver.try_recv() {
+            // Only projected fields should be present
+            assert_eq!(payload.data.get("id"), Some(&serde_json::json!("ord_123")));
+            assert_eq!(payload.data.get("total"), Some(&serde_json::json!(99.99)));
+            assert!(payload.data.get("secret_field").is_none());
+            assert!(payload.data.get("customer").is_none());
+        }
     }
 }

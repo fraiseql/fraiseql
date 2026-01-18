@@ -10,7 +10,6 @@ mod config_integration {
 
     /// Test that statement_timeout is applied to connection parameters
     #[tokio::test]
-    #[ignore] // Requires Postgres
     async fn test_config_statement_timeout_applied() {
         let config = ConnectionConfig::builder("postgres", "postgres")
             .statement_timeout(Duration::from_secs(30))
@@ -29,7 +28,6 @@ mod config_integration {
 
     /// Test that application_name is applied to connection parameters
     #[tokio::test]
-    #[ignore] // Requires Postgres
     async fn test_config_application_name_applied() {
         let app_name = "test_app";
         let config = ConnectionConfig::builder("postgres", "postgres")
@@ -45,7 +43,6 @@ mod config_integration {
 
     /// Test that keepalive_idle is stored in config
     #[tokio::test]
-    #[ignore] // Requires Postgres
     async fn test_config_keepalive_idle_applied() {
         let config = ConnectionConfig::builder("postgres", "postgres")
             .keepalive_idle(Duration::from_secs(300))
@@ -60,7 +57,6 @@ mod config_integration {
 
     /// Test that extra_float_digits is applied to connection parameters
     #[tokio::test]
-    #[ignore] // Requires Postgres
     async fn test_config_extra_float_digits_applied() {
         let config = ConnectionConfig::builder("postgres", "postgres")
             .extra_float_digits(2)
@@ -75,7 +71,6 @@ mod config_integration {
 
     /// Test multiple configuration options together
     #[tokio::test]
-    #[ignore] // Requires Postgres
     async fn test_config_multiple_options() {
         let config = ConnectionConfig::builder("mydb", "myuser")
             .password("secret")
@@ -96,7 +91,6 @@ mod config_integration {
 
     /// Test that configuration preserves user parameters
     #[tokio::test]
-    #[ignore] // Requires Postgres
     async fn test_config_preserves_user_params() {
         let config = ConnectionConfig::builder("mydb", "myuser")
             .param("custom_param", "custom_value")
@@ -113,7 +107,6 @@ mod config_integration {
 
     /// Test that defaults are None for new optional fields
     #[tokio::test]
-    #[ignore] // Requires Postgres
     async fn test_config_defaults_are_none() {
         let config = ConnectionConfig::new("mydb", "myuser");
 
@@ -126,7 +119,6 @@ mod config_integration {
 
     /// Test that timeout values are properly formatted in builder
     #[tokio::test]
-    #[ignore] // Requires Postgres
     async fn test_config_timeout_formatting() {
         // Test millisecond conversion which happens in startup
         let timeout = Duration::from_secs(10);

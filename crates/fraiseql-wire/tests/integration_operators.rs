@@ -6,7 +6,6 @@
 mod common;
 
 use common::connect_test_client;
-use fraiseql_wire::FraiseClient;
 use futures::StreamExt;
 use serde_json::Value;
 

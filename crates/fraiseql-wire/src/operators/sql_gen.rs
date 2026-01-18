@@ -273,12 +273,28 @@ pub fn generate_where_operator_sql(
             Ok(format!("{} LIKE ${}", field_sql, param_num))
         }
 
+        WhereOperator::Istartswith(field, prefix) => {
+            let field_sql = field.to_sql();
+            let param_num = *param_index + 1;
+            *param_index += 1;
+            params.insert(param_num, Value::String(format!("{}%", prefix)));
+            Ok(format!("{} ILIKE ${}", field_sql, param_num))
+        }
+
         WhereOperator::Endswith(field, suffix) => {
             let field_sql = field.to_sql();
             let param_num = *param_index + 1;
             *param_index += 1;
             params.insert(param_num, Value::String(format!("%{}", suffix)));
             Ok(format!("{} LIKE ${}", field_sql, param_num))
+        }
+
+        WhereOperator::Iendswith(field, suffix) => {
+            let field_sql = field.to_sql();
+            let param_num = *param_index + 1;
+            *param_index += 1;
+            params.insert(param_num, Value::String(format!("%{}", suffix)));
+            Ok(format!("{} ILIKE ${}", field_sql, param_num))
         }
 
         WhereOperator::Like(field, pattern) => {
@@ -349,6 +365,36 @@ pub fn generate_where_operator_sql(
             params.insert(param_num, Value::FloatArray(vector.clone()));
             Ok(format!(
                 "inner_product({}::vector, ${}::vector) > {}",
+                field_sql, param_num, threshold
+            ))
+        }
+
+        WhereOperator::L1Distance {
+            field,
+            vector,
+            threshold,
+        } => {
+            let field_sql = field.to_sql();
+            let param_num = *param_index + 1;
+            *param_index += 1;
+            params.insert(param_num, Value::FloatArray(vector.clone()));
+            Ok(format!(
+                "l1_distance({}::vector, ${}::vector) < {}",
+                field_sql, param_num, threshold
+            ))
+        }
+
+        WhereOperator::HammingDistance {
+            field,
+            vector,
+            threshold,
+        } => {
+            let field_sql = field.to_sql();
+            let param_num = *param_index + 1;
+            *param_index += 1;
+            params.insert(param_num, Value::FloatArray(vector.clone()));
+            Ok(format!(
+                "hamming_distance({}::bit, ${}::bit) < {}",
                 field_sql, param_num, threshold
             ))
         }
@@ -449,6 +495,15 @@ pub fn generate_where_operator_sql(
             ))
         }
 
+        WhereOperator::IsPublic(field) => {
+            let field_sql = field.to_sql();
+            // NOT private (opposite of IsPrivate)
+            Ok(format!(
+                "NOT ({}::inet << '10.0.0.0/8'::inet OR {}::inet << '172.16.0.0/12'::inet OR {}::inet << '192.168.0.0/16'::inet OR {}::inet << '169.254.0.0/16'::inet)",
+                field_sql, field_sql, field_sql, field_sql
+            ))
+        }
+
         WhereOperator::IsLoopback(field) => {
             let field_sql = field.to_sql();
             Ok(format!(
@@ -487,6 +542,40 @@ pub fn generate_where_operator_sql(
             *param_index += 1;
             params.insert(param_num, Value::String(range.clone()));
             Ok(format!("{}::inet && ${}::inet", field_sql, param_num))
+        }
+
+        // ============ JSONB Operators ============
+        WhereOperator::StrictlyContains(field, value) => {
+            let field_sql = field.to_sql();
+            let param_num = *param_index + 1;
+            *param_index += 1;
+            params.insert(param_num, value.clone());
+            Ok(format!("{}::jsonb @> ${}::jsonb", field_sql, param_num))
+        }
+
+        // ============ LTree Operators ============
+        WhereOperator::AncestorOf { field, path } => {
+            let field_sql = field.to_sql();
+            let param_num = *param_index + 1;
+            *param_index += 1;
+            params.insert(param_num, Value::String(path.clone()));
+            Ok(format!("{}::ltree @> ${}::ltree", field_sql, param_num))
+        }
+
+        WhereOperator::DescendantOf { field, path } => {
+            let field_sql = field.to_sql();
+            let param_num = *param_index + 1;
+            *param_index += 1;
+            params.insert(param_num, Value::String(path.clone()));
+            Ok(format!("{}::ltree <@ ${}::ltree", field_sql, param_num))
+        }
+
+        WhereOperator::MatchesLquery { field, pattern } => {
+            let field_sql = field.to_sql();
+            let param_num = *param_index + 1;
+            *param_index += 1;
+            params.insert(param_num, Value::String(pattern.clone()));
+            Ok(format!("{}::ltree ~ ${}::lquery", field_sql, param_num))
         }
     }
 }

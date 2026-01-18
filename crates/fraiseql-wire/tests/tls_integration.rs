@@ -3,6 +3,16 @@
 //! These tests verify that TLS encryption works end-to-end with PostgreSQL.
 //! Tests validate TLS connection establishment, certificate verification, and error handling.
 //!
+//! ## Unit Tests (run automatically)
+//!
+//! The following tests do NOT require a PostgreSQL instance and run automatically:
+//! - `test_tls_config_builder` - Tests TLS config builder API
+//! - `test_tls_config_cloneable` - Tests TLS config cloning
+//! - `test_tls_hostname_verification_setting` - Tests hostname verification settings
+//!
+//! ## Integration Tests (require TLS-enabled PostgreSQL)
+//!
+//! The following tests require a PostgreSQL instance with TLS enabled.
 //! To run these tests locally, you can either:
 //!
 //! 1. With self-signed certificates (development):
@@ -13,7 +23,6 @@
 //!
 //! # Set environment for TLS testing
 //! export TLS_TEST_DB_URL="postgres://localhost:5432/fraiseql_test"
-//! export TLS_TEST_CERT_PATH="/path/to/ca.crt"  # Optional: custom CA cert
 //! export TLS_TEST_INSECURE="true"  # Allow self-signed for dev/test
 //!
 //! cargo test --test tls_integration -- --ignored --nocapture
@@ -21,20 +30,78 @@
 //!
 //! 2. In CI (with GitHub Actions setup - see ci.yml)
 
+use fraiseql_wire::connection::TlsConfig;
+
+/// Install a crypto provider for rustls tests.
+/// This is needed because multiple crypto providers (ring and aws-lc-rs)
+/// may be enabled via transitive dependencies, requiring explicit selection.
+fn install_crypto_provider() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+}
+
+/// Test that TLS configuration can be built with custom options
+#[test]
+fn test_tls_config_builder() {
+    install_crypto_provider();
+
+    // This test verifies that the TLS builder API works correctly
+    let config = TlsConfig::builder().verify_hostname(true).build();
+
+    assert!(
+        config.is_ok(),
+        "TLS config builder should create valid config"
+    );
+    println!("✓ TLS config builder works correctly");
+}
+
+/// Test TLS configuration cloning for connection pool scenarios
+#[test]
+fn test_tls_config_cloneable() {
+    install_crypto_provider();
+
+    let config = TlsConfig::builder()
+        .verify_hostname(true)
+        .build()
+        .expect("Failed to build TLS config");
+
+    // Should be able to clone for reuse in connection pooling
+    let cloned = config.clone();
+
+    // Both should be valid for use
+    drop(config);
+    drop(cloned);
+
+    println!("✓ TLS config is cloneable for pooling");
+}
+
+/// Test that TLS hostname verification setting is respected
+#[test]
+fn test_tls_hostname_verification_setting() {
+    install_crypto_provider();
+
+    // Strict verification (production)
+    let strict_config = TlsConfig::builder().verify_hostname(true).build();
+    assert!(strict_config.is_ok(), "Strict TLS config should be valid");
+
+    // Lenient for self-signed certs (development)
+    let dev_config = TlsConfig::builder().verify_hostname(false).build();
+    assert!(dev_config.is_ok(), "Dev TLS config should be valid");
+
+    println!("✓ TLS hostname verification settings work");
+}
+
+// ============================================================================
+// Integration tests below require TLS-enabled PostgreSQL
+// Run with: cargo test --test tls_integration -- --ignored
+// ============================================================================
+
 #[cfg(test)]
 mod tls_integration {
-    use fraiseql_wire::connection::TlsConfig;
+    use super::*;
     use fraiseql_wire::FraiseClient;
     use futures::StreamExt;
     use serde_json::Value;
     use std::env;
-
-    /// Install a crypto provider for rustls tests.
-    /// This is needed because multiple crypto providers (ring and aws-lc-rs)
-    /// may be enabled via transitive dependencies, requiring explicit selection.
-    fn install_crypto_provider() {
-        let _ = rustls::crypto::ring::default_provider().install_default();
-    }
 
     /// Helper to get TLS test configuration from environment
     fn get_tls_test_config() -> Option<(String, bool)> {
@@ -50,6 +117,8 @@ mod tls_integration {
     #[tokio::test]
     #[ignore] // Requires PostgreSQL with TLS enabled
     async fn test_tls_connection_succeeds() {
+        install_crypto_provider();
+
         let (db_url, insecure) = match get_tls_test_config() {
             Some(cfg) => cfg,
             None => {
@@ -59,10 +128,7 @@ mod tls_integration {
         };
 
         // Create TLS configuration
-        let tls_config = match TlsConfig::builder()
-            .verify_hostname(!insecure)
-            .build()
-        {
+        let tls_config = match TlsConfig::builder().verify_hostname(!insecure).build() {
             Ok(cfg) => cfg,
             Err(e) => {
                 eprintln!("Failed to build TLS config: {}", e);
@@ -95,6 +161,8 @@ mod tls_integration {
     #[tokio::test]
     #[ignore] // Requires PostgreSQL with TLS enabled
     async fn test_tls_with_password_auth() {
+        install_crypto_provider();
+
         let (db_url, insecure) = match get_tls_test_config() {
             Some(cfg) => cfg,
             None => {
@@ -104,10 +172,7 @@ mod tls_integration {
         };
 
         // Create TLS config that allows self-signed certs (for testing)
-        let tls_config = match TlsConfig::builder()
-            .verify_hostname(!insecure)
-            .build()
-        {
+        let tls_config = match TlsConfig::builder().verify_hostname(!insecure).build() {
             Ok(cfg) => cfg,
             Err(e) => {
                 eprintln!("Failed to build TLS config: {}", e);
@@ -134,23 +199,12 @@ mod tls_integration {
         }
     }
 
-    /// Test that TLS configuration can be built with custom options
-    #[tokio::test]
-    #[ignore] // Requires PostgreSQL with TLS enabled
-    async fn test_tls_config_builder() {
-        // This test verifies that the TLS builder API works correctly
-        let config = TlsConfig::builder()
-            .verify_hostname(true)
-            .build();
-
-        assert!(config.is_ok(), "TLS config builder should create valid config");
-        println!("✓ TLS config builder works correctly");
-    }
-
     /// Test that multiple TLS connections can be created
     #[tokio::test]
     #[ignore] // Requires PostgreSQL with TLS enabled
     async fn test_multiple_tls_connections() {
+        install_crypto_provider();
+
         let (db_url, insecure) = match get_tls_test_config() {
             Some(cfg) => cfg,
             None => {
@@ -159,10 +213,7 @@ mod tls_integration {
             }
         };
 
-        let tls_config = match TlsConfig::builder()
-            .verify_hostname(!insecure)
-            .build()
-        {
+        let tls_config = match TlsConfig::builder().verify_hostname(!insecure).build() {
             Ok(cfg) => cfg,
             Err(e) => {
                 eprintln!("Failed to build TLS config: {}", e);
@@ -210,6 +261,8 @@ mod tls_integration {
     #[tokio::test]
     #[ignore] // Requires PostgreSQL with TLS enabled
     async fn test_tls_streaming() {
+        install_crypto_provider();
+
         let (db_url, insecure) = match get_tls_test_config() {
             Some(cfg) => cfg,
             None => {
@@ -218,10 +271,7 @@ mod tls_integration {
             }
         };
 
-        let tls_config = match TlsConfig::builder()
-            .verify_hostname(!insecure)
-            .build()
-        {
+        let tls_config = match TlsConfig::builder().verify_hostname(!insecure).build() {
             Ok(cfg) => cfg,
             Err(e) => {
                 eprintln!("Failed to build TLS config: {}", e);
@@ -254,45 +304,5 @@ mod tls_integration {
                 eprintln!("Failed to stream results over TLS: {}", e);
             }
         }
-    }
-
-    /// Test TLS configuration cloning for connection pool scenarios
-    #[test]
-    fn test_tls_config_cloneable() {
-        install_crypto_provider();
-
-        let config = TlsConfig::builder()
-            .verify_hostname(true)
-            .build()
-            .expect("Failed to build TLS config");
-
-        // Should be able to clone for reuse in connection pooling
-        let cloned = config.clone();
-
-        // Both should be valid for use
-        drop(config);
-        drop(cloned);
-
-        println!("✓ TLS config is cloneable for pooling");
-    }
-
-    /// Test that TLS hostname verification setting is respected
-    #[test]
-    fn test_tls_hostname_verification_setting() {
-        install_crypto_provider();
-
-        // Strict verification (production)
-        let strict_config = TlsConfig::builder()
-            .verify_hostname(true)
-            .build();
-        assert!(strict_config.is_ok(), "Strict TLS config should be valid");
-
-        // Lenient for self-signed certs (development)
-        let dev_config = TlsConfig::builder()
-            .verify_hostname(false)
-            .build();
-        assert!(dev_config.is_ok(), "Dev TLS config should be valid");
-
-        println!("✓ TLS hostname verification settings work");
     }
 }

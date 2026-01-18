@@ -16,6 +16,8 @@ use tokio::sync::{mpsc, Mutex, Notify};
 // Used for fast state tracking without full Mutex overhead
 const STATE_RUNNING: u8 = 0;
 const STATE_PAUSED: u8 = 1;
+const STATE_COMPLETED: u8 = 2;
+const STATE_FAILED: u8 = 3;
 
 /// Stream state machine
 ///
@@ -145,10 +147,25 @@ impl JsonStream {
     ///
     /// Returns the current state of the stream (Running, Paused, Completed, or Failed).
     /// This is a synchronous getter that doesn't require awaiting.
+    ///
+    /// Note: This is a best-effort snapshot that may return slightly stale state
+    /// due to the non-blocking nature of atomic reads.
     pub fn state_snapshot(&self) -> StreamState {
-        // This is a best-effort snapshot that may return slightly stale state
-        // For guaranteed accurate state, use `state()` method
-        StreamState::Running // Will be updated when state machine is fully integrated
+        // Read from lightweight atomic state (fast path, no locks)
+        match self.state_atomic.load(Ordering::Acquire) {
+            STATE_RUNNING => StreamState::Running,
+            STATE_PAUSED => StreamState::Paused,
+            STATE_COMPLETED => StreamState::Completed,
+            STATE_FAILED => StreamState::Failed,
+            _ => {
+                // Unknown state - fall back to checking if channel is closed
+                if self.receiver.is_closed() {
+                    StreamState::Completed
+                } else {
+                    StreamState::Running
+                }
+            }
+        }
     }
 
     /// Get buffered rows when paused
@@ -366,6 +383,16 @@ impl JsonStream {
         self.state_atomic.store(STATE_PAUSED, Ordering::Release);
     }
 
+    /// Set state to completed using atomic
+    pub(crate) fn state_atomic_set_completed(&self) {
+        self.state_atomic.store(STATE_COMPLETED, Ordering::Release);
+    }
+
+    /// Set state to failed using atomic
+    pub(crate) fn state_atomic_set_failed(&self) {
+        self.state_atomic.store(STATE_FAILED, Ordering::Release);
+    }
+
     /// Get current stream statistics
     ///
     /// Returns a snapshot of stream state without consuming any items.
@@ -441,6 +468,7 @@ impl Stream for JsonStream {
                 if estimated_memory > threshold_bytes {
                     // Record metric for memory limit exceeded
                     crate::metrics::counters::memory_limit_exceeded(&self.entity);
+                    self.state_atomic_set_failed();
                     return Poll::Ready(Some(Err(Error::MemoryLimitExceeded {
                         limit,
                         estimated_memory,
@@ -449,6 +477,7 @@ impl Stream for JsonStream {
             } else if estimated_memory > limit {
                 // Hard limit (no soft limits configured)
                 crate::metrics::counters::memory_limit_exceeded(&self.entity);
+                self.state_atomic_set_failed();
                 return Poll::Ready(Some(Err(Error::MemoryLimitExceeded {
                     limit,
                     estimated_memory,
@@ -459,7 +488,20 @@ impl Stream for JsonStream {
             // This is for application-level monitoring, not a hard error
         }
 
-        self.receiver.poll_recv(cx)
+        match self.receiver.poll_recv(cx) {
+            Poll::Ready(Some(Ok(value))) => Poll::Ready(Some(Ok(value))),
+            Poll::Ready(Some(Err(e))) => {
+                // Stream encountered an error
+                self.state_atomic_set_failed();
+                Poll::Ready(Some(Err(e)))
+            }
+            Poll::Ready(None) => {
+                // Stream completed normally
+                self.state_atomic_set_completed();
+                Poll::Ready(None)
+            }
+            Poll::Pending => Poll::Pending,
+        }
     }
 }
 
@@ -558,5 +600,25 @@ mod tests {
         assert_eq!(cloned.estimated_memory, stats.estimated_memory);
         assert_eq!(cloned.total_rows_yielded, stats.total_rows_yielded);
         assert_eq!(cloned.total_rows_filtered, stats.total_rows_filtered);
+    }
+
+    #[test]
+    fn test_stream_state_constants() {
+        // Verify state constants are distinct
+        assert_ne!(STATE_RUNNING, STATE_PAUSED);
+        assert_ne!(STATE_RUNNING, STATE_COMPLETED);
+        assert_ne!(STATE_RUNNING, STATE_FAILED);
+        assert_ne!(STATE_PAUSED, STATE_COMPLETED);
+        assert_ne!(STATE_PAUSED, STATE_FAILED);
+        assert_ne!(STATE_COMPLETED, STATE_FAILED);
+    }
+
+    #[test]
+    fn test_stream_state_enum_equality() {
+        assert_eq!(StreamState::Running, StreamState::Running);
+        assert_eq!(StreamState::Paused, StreamState::Paused);
+        assert_eq!(StreamState::Completed, StreamState::Completed);
+        assert_eq!(StreamState::Failed, StreamState::Failed);
+        assert_ne!(StreamState::Running, StreamState::Paused);
     }
 }

@@ -153,7 +153,9 @@ impl WhereSqlGenerator {
             WhereOperator::L2Distance
             | WhereOperator::CosineDistance
             | WhereOperator::L1Distance
-            | WhereOperator::HammingDistance => {
+            | WhereOperator::HammingDistance
+            | WhereOperator::InnerProduct
+            | WhereOperator::JaccardDistance => {
                 return Err(FraiseQLError::Internal {
                     message: format!(
                         "Vector operations not supported in fraiseql-wire: {operator:?}"
@@ -180,7 +182,10 @@ impl WhereSqlGenerator {
             | WhereOperator::IsIPv6
             | WhereOperator::IsPrivate
             | WhereOperator::IsPublic
+            | WhereOperator::IsLoopback
             | WhereOperator::InSubnet
+            | WhereOperator::ContainsSubnet
+            | WhereOperator::ContainsIP
             | WhereOperator::Overlaps
             | WhereOperator::StrictlyContains
             | WhereOperator::AncestorOf

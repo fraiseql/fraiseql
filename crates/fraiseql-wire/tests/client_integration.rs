@@ -1,33 +1,27 @@
 //! Client API integration tests
-//!
-//! These tests require a running Postgres instance.
 
-use fraiseql_wire::FraiseClient;
+mod common;
+
+use common::connect_test_client;
 use futures::StreamExt;
 
 #[tokio::test]
-#[ignore] // Requires Postgres running
 async fn test_client_connect() {
-    let _client = FraiseClient::connect("postgres://postgres:postgres@localhost:5433/postgres")
-        .await
-        .expect("connect");
+    let _client = connect_test_client().await.expect("connect");
 
     // Note: FraiseClient consumes itself when building a query
     // To test connection, we just verify it connects successfully
 }
 
 #[tokio::test]
-#[ignore] // Requires Postgres running
 async fn test_client_query_streaming() {
-    let client = FraiseClient::connect("postgres://postgres:postgres@localhost:5433/postgres")
-        .await
-        .expect("connect");
+    let client = connect_test_client().await.expect("connect");
 
     // Build query (consumes client)
     let mut stream = client
-        .query::<serde_json::Value>("test")
+        .query::<serde_json::Value>("test.v_project")
         .where_sql("1 = 1")
-        .order_by("data->>'id' ASC")
+        .order_by("data->>'name' ASC")
         .chunk_size(128)
         .execute()
         .await
@@ -43,4 +37,6 @@ async fn test_client_query_streaming() {
             break;
         }
     }
+
+    assert!(count > 0, "Should have streamed at least some results");
 }

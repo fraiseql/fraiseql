@@ -15,11 +15,13 @@ use super::field::{Field, Value};
 /// - **Comparison**: Eq, Neq, Gt, Gte, Lt, Lte
 /// - **Array**: In, Nin, Contains, ArrayContains, ArrayContainedBy, ArrayOverlaps
 /// - **Array Length**: LenEq, LenGt, LenGte, LenLt, LenLte
-/// - **String**: Icontains, Startswith, Endswith, Like, Ilike
+/// - **String**: Icontains, Startswith, Istartswith, Endswith, Iendswith, Like, Ilike
 /// - **Null**: IsNull
-/// - **Vector Distance**: L2Distance, CosineDistance, InnerProduct, JaccardDistance
+/// - **Vector Distance**: L2Distance, CosineDistance, InnerProduct, L1Distance, HammingDistance, JaccardDistance
 /// - **Full-Text Search**: Matches, PlainQuery, PhraseQuery, WebsearchQuery
-/// - **Network**: IsIPv4, IsIPv6, IsPrivate, IsLoopback, InSubnet, ContainsSubnet, ContainsIP, IPRangeOverlap
+/// - **Network**: IsIPv4, IsIPv6, IsPrivate, IsPublic, IsLoopback, InSubnet, ContainsSubnet, ContainsIP, IPRangeOverlap
+/// - **JSONB**: StrictlyContains
+/// - **LTree**: AncestorOf, DescendantOf, MatchesLquery
 #[derive(Debug, Clone)]
 pub enum WhereOperator {
     // ============ Comparison Operators ============
@@ -86,8 +88,14 @@ pub enum WhereOperator {
     /// Starts with: `field LIKE 'prefix%'`
     Startswith(Field, String),
 
+    /// Starts with (case-insensitive): `field ILIKE 'prefix%'`
+    Istartswith(Field, String),
+
     /// Ends with: `field LIKE '%suffix'`
     Endswith(Field, String),
+
+    /// Ends with (case-insensitive): `field ILIKE '%suffix'`
+    Iendswith(Field, String),
 
     /// LIKE pattern matching: `field LIKE pattern`
     Like(Field, String),
@@ -131,6 +139,30 @@ pub enum WhereOperator {
     ///
     /// Requires pgvector extension.
     InnerProduct {
+        /// The vector field to compare against
+        field: Field,
+        /// The embedding vector for distance calculation
+        vector: Vec<f32>,
+        /// Distance threshold for comparison
+        threshold: f32,
+    },
+
+    /// L1 (Manhattan) distance: `l1_distance(field, vector) < threshold`
+    ///
+    /// Requires pgvector extension.
+    L1Distance {
+        /// The vector field to compare against
+        field: Field,
+        /// The embedding vector for distance calculation
+        vector: Vec<f32>,
+        /// Distance threshold for comparison
+        threshold: f32,
+    },
+
+    /// Hamming distance: `hamming_distance(field, vector) < threshold`
+    ///
+    /// Requires pgvector extension. Works with bit vectors.
+    HammingDistance {
         /// The vector field to compare against
         field: Field,
         /// The embedding vector for distance calculation
@@ -208,6 +240,9 @@ pub enum WhereOperator {
     /// Check if IP is private (RFC1918): matches private ranges
     IsPrivate(Field),
 
+    /// Check if IP is public (not private): opposite of IsPrivate
+    IsPublic(Field),
+
     /// Check if IP is loopback: IPv4 127.0.0.0/8 or IPv6 ::1/128
     IsLoopback(Field),
 
@@ -250,6 +285,43 @@ pub enum WhereOperator {
         /// The IP range to check for overlap
         range: String,
     },
+
+    // ============ JSONB Operators ============
+    /// JSONB strictly contains: `field @> value`
+    ///
+    /// Checks if the JSONB field strictly contains the given value
+    StrictlyContains(Field, Value),
+
+    // ============ LTree Operators (Hierarchical) ============
+    /// Ancestor of: `field @> path`
+    ///
+    /// Checks if the ltree field is an ancestor of the given path
+    AncestorOf {
+        /// The ltree field to check
+        field: Field,
+        /// The path to check ancestry against
+        path: String,
+    },
+
+    /// Descendant of: `field <@ path`
+    ///
+    /// Checks if the ltree field is a descendant of the given path
+    DescendantOf {
+        /// The ltree field to check
+        field: Field,
+        /// The path to check descendancy against
+        path: String,
+    },
+
+    /// Matches lquery: `field ~ lquery`
+    ///
+    /// Checks if the ltree field matches the given lquery pattern
+    MatchesLquery {
+        /// The ltree field to check
+        field: Field,
+        /// The lquery pattern to match against
+        pattern: String,
+    },
 }
 
 impl WhereOperator {
@@ -275,13 +347,17 @@ impl WhereOperator {
             WhereOperator::LenLte(_, _) => "LenLte",
             WhereOperator::Icontains(_, _) => "Icontains",
             WhereOperator::Startswith(_, _) => "Startswith",
+            WhereOperator::Istartswith(_, _) => "Istartswith",
             WhereOperator::Endswith(_, _) => "Endswith",
+            WhereOperator::Iendswith(_, _) => "Iendswith",
             WhereOperator::Like(_, _) => "Like",
             WhereOperator::Ilike(_, _) => "Ilike",
             WhereOperator::IsNull(_, _) => "IsNull",
             WhereOperator::L2Distance { .. } => "L2Distance",
             WhereOperator::CosineDistance { .. } => "CosineDistance",
             WhereOperator::InnerProduct { .. } => "InnerProduct",
+            WhereOperator::L1Distance { .. } => "L1Distance",
+            WhereOperator::HammingDistance { .. } => "HammingDistance",
             WhereOperator::JaccardDistance { .. } => "JaccardDistance",
             WhereOperator::Matches { .. } => "Matches",
             WhereOperator::PlainQuery { .. } => "PlainQuery",
@@ -290,11 +366,16 @@ impl WhereOperator {
             WhereOperator::IsIPv4(_) => "IsIPv4",
             WhereOperator::IsIPv6(_) => "IsIPv6",
             WhereOperator::IsPrivate(_) => "IsPrivate",
+            WhereOperator::IsPublic(_) => "IsPublic",
             WhereOperator::IsLoopback(_) => "IsLoopback",
             WhereOperator::InSubnet { .. } => "InSubnet",
             WhereOperator::ContainsSubnet { .. } => "ContainsSubnet",
             WhereOperator::ContainsIP { .. } => "ContainsIP",
             WhereOperator::IPRangeOverlap { .. } => "IPRangeOverlap",
+            WhereOperator::StrictlyContains(_, _) => "StrictlyContains",
+            WhereOperator::AncestorOf { .. } => "AncestorOf",
+            WhereOperator::DescendantOf { .. } => "DescendantOf",
+            WhereOperator::MatchesLquery { .. } => "MatchesLquery",
         }
     }
 
@@ -320,14 +401,19 @@ impl WhereOperator {
             | WhereOperator::LenLte(f, _)
             | WhereOperator::Icontains(f, _)
             | WhereOperator::Startswith(f, _)
+            | WhereOperator::Istartswith(f, _)
             | WhereOperator::Endswith(f, _)
+            | WhereOperator::Iendswith(f, _)
             | WhereOperator::Like(f, _)
             | WhereOperator::Ilike(f, _)
-            | WhereOperator::IsNull(f, _) => f.validate(),
+            | WhereOperator::IsNull(f, _)
+            | WhereOperator::StrictlyContains(f, _) => f.validate(),
 
             WhereOperator::L2Distance { field, .. }
             | WhereOperator::CosineDistance { field, .. }
             | WhereOperator::InnerProduct { field, .. }
+            | WhereOperator::L1Distance { field, .. }
+            | WhereOperator::HammingDistance { field, .. }
             | WhereOperator::JaccardDistance { field, .. }
             | WhereOperator::Matches { field, .. }
             | WhereOperator::PlainQuery { field, .. }
@@ -336,11 +422,15 @@ impl WhereOperator {
             | WhereOperator::IsIPv4(field)
             | WhereOperator::IsIPv6(field)
             | WhereOperator::IsPrivate(field)
+            | WhereOperator::IsPublic(field)
             | WhereOperator::IsLoopback(field)
             | WhereOperator::InSubnet { field, .. }
             | WhereOperator::ContainsSubnet { field, .. }
             | WhereOperator::ContainsIP { field, .. }
-            | WhereOperator::IPRangeOverlap { field, .. } => field.validate(),
+            | WhereOperator::IPRangeOverlap { field, .. }
+            | WhereOperator::AncestorOf { field, .. }
+            | WhereOperator::DescendantOf { field, .. }
+            | WhereOperator::MatchesLquery { field, .. } => field.validate(),
         }
     }
 }

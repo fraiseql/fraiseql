@@ -6,7 +6,6 @@
 mod common;
 
 use common::connect_test_client;
-use fraiseql_wire::client::FraiseClient;
 use futures::stream::StreamExt;
 use std::time::Instant;
 

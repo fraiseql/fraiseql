@@ -31,6 +31,7 @@ pub struct TestContainer {
 
 impl TestContainer {
     /// Get the connection string for this container.
+    #[allow(dead_code)]
     pub fn connection_string(&self) -> String {
         format!(
             "postgres://{}:{}@127.0.0.1:{}/{}",
@@ -113,6 +114,7 @@ async fn start_postgres_container() -> TestContainer {
 }
 
 /// Helper to connect a FraiseClient to the test container.
+#[allow(dead_code)]
 pub async fn connect_test_client() -> fraiseql_wire::error::Result<fraiseql_wire::FraiseClient> {
     let container = get_test_container().await;
     let conn_string = container.connection_string();

@@ -1,20 +1,24 @@
 //! Integration tests for JSON streaming
-//!
-//! These tests require a running Postgres instance.
 
+mod common;
+
+use common::get_test_container;
 use fraiseql_wire::connection::{Connection, ConnectionConfig, Transport};
 use futures::StreamExt;
 
 #[tokio::test]
-#[ignore] // Requires Postgres running
 async fn test_streaming_query() {
-    let transport = Transport::connect_tcp("localhost", 5432)
+    let container = get_test_container().await;
+
+    let transport = Transport::connect_tcp("127.0.0.1", container.port)
         .await
         .expect("connect");
 
     let mut conn = Connection::new(transport);
 
-    let config = ConnectionConfig::new("postgres", "postgres");
+    let config = ConnectionConfig::builder(&container.database, &container.user)
+        .password(&container.password)
+        .build();
     conn.startup(&config).await.expect("startup");
 
     // Test with a simple JSON value

@@ -154,6 +154,8 @@ impl PostgresWhereGenerator {
             WhereOperator::L2Distance => self.generate_vector_distance(&field_path, "<->", value, params),
             WhereOperator::L1Distance => self.generate_vector_distance(&field_path, "<+>", value, params),
             WhereOperator::HammingDistance => self.generate_vector_distance(&field_path, "<~>", value, params),
+            WhereOperator::InnerProduct => self.generate_vector_distance(&field_path, "<#>", value, params),
+            WhereOperator::JaccardDistance => self.generate_jaccard_distance(&field_path, value, params),
 
             // Full-text search
             WhereOperator::Matches => self.generate_fts(&field_path, "@@", value, params),
@@ -162,20 +164,27 @@ impl PostgresWhereGenerator {
             WhereOperator::WebsearchQuery => self.generate_fts_func(&field_path, "websearch_to_tsquery", value, params),
 
             // Network operators
-            WhereOperator::IsIPv4 => Ok(format!("family({field_path}) = 4")),
-            WhereOperator::IsIPv6 => Ok(format!("family({field_path}) = 6")),
+            WhereOperator::IsIPv4 => Ok(format!("family({field_path}::inet) = 4")),
+            WhereOperator::IsIPv6 => Ok(format!("family({field_path}::inet) = 6")),
             WhereOperator::IsPrivate => {
                 Ok(format!(
-                    "({field_path} << '10.0.0.0/8'::inet OR {field_path} << '172.16.0.0/12'::inet OR {field_path} << '192.168.0.0/16'::inet)"
+                    "({field_path}::inet << '10.0.0.0/8'::inet OR {field_path}::inet << '172.16.0.0/12'::inet OR {field_path}::inet << '192.168.0.0/16'::inet OR {field_path}::inet << '169.254.0.0/16'::inet)"
                 ))
             }
             WhereOperator::IsPublic => {
                 Ok(format!(
-                    "NOT ({field_path} << '10.0.0.0/8'::inet OR {field_path} << '172.16.0.0/12'::inet OR {field_path} << '192.168.0.0/16'::inet)"
+                    "NOT ({field_path}::inet << '10.0.0.0/8'::inet OR {field_path}::inet << '172.16.0.0/12'::inet OR {field_path}::inet << '192.168.0.0/16'::inet OR {field_path}::inet << '169.254.0.0/16'::inet)"
                 ))
             }
-            WhereOperator::InSubnet => self.generate_comparison(&field_path, "<<", value, params),
-            WhereOperator::Overlaps => self.generate_comparison(&field_path, "&&", value, params),
+            WhereOperator::IsLoopback => {
+                Ok(format!(
+                    "(family({field_path}::inet) = 4 AND {field_path}::inet << '127.0.0.0/8'::inet) OR (family({field_path}::inet) = 6 AND {field_path}::inet << '::1/128'::inet)"
+                ))
+            }
+            WhereOperator::InSubnet => self.generate_inet_op(&field_path, "<<", value, params),
+            WhereOperator::ContainsSubnet => self.generate_inet_op(&field_path, ">>", value, params),
+            WhereOperator::ContainsIP => self.generate_inet_op(&field_path, ">>", value, params),
+            WhereOperator::Overlaps => self.generate_inet_op(&field_path, "&&", value, params),
 
             // JSONB operators
             WhereOperator::StrictlyContains => self.generate_jsonb_op(&field_path, "@>", value, params),
@@ -343,6 +352,30 @@ impl PostgresWhereGenerator {
         let param = self.next_param();
         params.push(value.clone());
         Ok(format!("to_tsvector({field_path}) @@ {func}({param})"))
+    }
+
+    fn generate_jaccard_distance(
+        &self,
+        field_path: &str,
+        value: &serde_json::Value,
+        params: &mut Vec<serde_json::Value>,
+    ) -> Result<String> {
+        let param = self.next_param();
+        params.push(value.clone());
+        // Jaccard distance uses text arrays
+        Ok(format!("({field_path})::text[] <%> ({param})::text[]"))
+    }
+
+    fn generate_inet_op(
+        &self,
+        field_path: &str,
+        op: &str,
+        value: &serde_json::Value,
+        params: &mut Vec<serde_json::Value>,
+    ) -> Result<String> {
+        let param = self.next_param();
+        params.push(value.clone());
+        Ok(format!("{field_path}::inet {op} {param}::inet"))
     }
 }
 

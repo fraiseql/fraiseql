@@ -1,29 +1,25 @@
 //! Comprehensive integration tests
 //!
-//! Run with: cargo test --test integration_full -- --ignored --nocapture
+//! Run with: cargo test --test integration_full -- --nocapture
 
-use fraiseql_wire::FraiseClient;
+mod common;
+
+use common::connect_test_client;
 use futures::StreamExt;
 
 #[tokio::test]
-#[ignore] // Requires Postgres running
 async fn test_basic_connection() {
-    let _client = FraiseClient::connect("postgres://postgres:postgres@localhost:5433/postgres")
-        .await
-        .expect("connect");
+    let _client = connect_test_client().await.expect("connect");
 
     // Note: FraiseClient consumes self on use, so we just verify connection succeeds
 }
 
 #[tokio::test]
-#[ignore] // Requires Postgres running
 async fn test_simple_query() {
-    let client = FraiseClient::connect("postgres://postgres:postgres@localhost:5433/postgres")
-        .await
-        .expect("connect");
+    let client = connect_test_client().await.expect("connect");
 
     let mut stream = client
-        .query::<serde_json::Value>("test")
+        .query::<serde_json::Value>("test.v_project")
         .execute()
         .await
         .expect("query");
@@ -34,81 +30,82 @@ async fn test_simple_query() {
         count += 1;
     }
 
-    // Don't assert count > 0 as test view may not exist
+    assert!(count > 0, "Should have at least one project from seed data");
     println!("Received {} rows", count);
 }
 
 #[tokio::test]
-#[ignore] // Requires Postgres running
 async fn test_sql_predicate() {
-    let client = FraiseClient::connect("postgres://postgres:postgres@localhost:5433/postgres")
-        .await
-        .expect("connect");
+    let client = connect_test_client().await.expect("connect");
 
     let mut stream = client
-        .query::<serde_json::Value>("test")
+        .query::<serde_json::Value>("test.v_project")
         .where_sql("1 = 1")
         .execute()
         .await
         .expect("query");
 
+    let mut count = 0;
     while let Some(item) = stream.next().await {
         item.expect("item");
+        count += 1;
     }
+
+    assert!(count > 0, "Should have at least one project");
 }
 
 #[tokio::test]
-#[ignore] // Requires Postgres running
 async fn test_rust_predicate() {
-    let client = FraiseClient::connect("postgres://postgres:postgres@localhost:5433/postgres")
-        .await
-        .expect("connect");
+    let client = connect_test_client().await.expect("connect");
 
     let mut stream = client
-        .query::<serde_json::Value>("test")
+        .query::<serde_json::Value>("test.v_project")
         .where_rust(|json| json.is_object())
         .execute()
         .await
         .expect("query");
 
+    let mut count = 0;
     while let Some(item) = stream.next().await {
         let value = item.expect("item");
         assert!(value.is_object(), "Rust predicate should filter to objects");
+        count += 1;
     }
+
+    assert!(count > 0, "Should have at least one project");
 }
 
 #[tokio::test]
-#[ignore] // Requires Postgres running
 async fn test_order_by() {
-    let client = FraiseClient::connect("postgres://postgres:postgres@localhost:5433/postgres")
-        .await
-        .expect("connect");
+    let client = connect_test_client().await.expect("connect");
 
     let mut stream = client
-        .query::<serde_json::Value>("test")
-        .order_by("data->>'id' ASC")
+        .query::<serde_json::Value>("test.v_project")
+        .order_by("data->>'name' ASC")
         .execute()
         .await
         .expect("query");
 
-    let mut prev_id = i64::MIN;
+    let mut prev_name = String::new();
     while let Some(item) = stream.next().await {
         let value = item.expect("item");
-        let id = value["id"].as_i64().unwrap_or(0);
-        assert!(id >= prev_id, "Results should be ordered ascending by id");
-        prev_id = id;
+        let name = value["name"].as_str().unwrap_or("").to_string();
+        assert!(
+            name >= prev_name,
+            "Results should be ordered ascending by name: {} >= {}",
+            name,
+            prev_name
+        );
+        prev_name = name;
     }
 }
 
 #[tokio::test]
-#[ignore] // Requires Postgres running
 async fn test_chunk_size() {
-    let client = FraiseClient::connect("postgres://postgres:postgres@localhost:5433/postgres")
-        .await
-        .expect("connect");
+    let client = connect_test_client().await.expect("connect");
 
     let mut stream = client
-        .query::<serde_json::Value>("test")
+        .query::<serde_json::Value>("test.v_project")
         .chunk_size(10)
         .execute()
         .await
@@ -121,17 +118,15 @@ async fn test_chunk_size() {
     }
 
     println!("Received {} rows with chunk_size=10", count);
+    assert!(count > 0, "Should have at least one project");
 }
 
 #[tokio::test]
-#[ignore] // Requires Postgres running
 async fn test_multiple_predicates() {
-    let client = FraiseClient::connect("postgres://postgres:postgres@localhost:5433/postgres")
-        .await
-        .expect("connect");
+    let client = connect_test_client().await.expect("connect");
 
     let mut stream = client
-        .query::<serde_json::Value>("test")
+        .query::<serde_json::Value>("test.v_project")
         .where_sql("1 = 1")
         .where_sql("1 = 1")
         .where_rust(|v| v.is_object())
@@ -139,37 +134,25 @@ async fn test_multiple_predicates() {
         .await
         .expect("query");
 
+    let mut count = 0;
     while let Some(item) = stream.next().await {
         let value = item.expect("item");
         assert!(value.is_object());
+        count += 1;
     }
+
+    assert!(count > 0, "Should have at least one project");
 }
 
 #[tokio::test]
-#[ignore] // Requires Postgres running
 async fn test_connection_string_tcp() {
-    // Test TCP connection
-    let _client = FraiseClient::connect("postgres://postgres:postgres@localhost:5433/postgres")
-        .await
-        .expect("connect");
+    // Test TCP connection via the shared container
+    let _client = connect_test_client().await.expect("connect");
 }
 
 #[tokio::test]
-#[ignore] // Requires Postgres running
-async fn test_connection_string_defaults() {
-    // Test with minimal connection string (uses whoami for defaults)
-    // This test may fail if local user exists in Postgres, which is expected
-    let result = FraiseClient::connect("postgres://localhost/postgres").await;
-    // Don't assert success - just verify it returns a Result
-    println!("Connection result: {:?}", result.is_ok());
-}
-
-#[tokio::test]
-#[ignore] // Requires Postgres running
 async fn test_error_handling_invalid_view() {
-    let client = FraiseClient::connect("postgres://postgres:postgres@localhost:5433/postgres")
-        .await
-        .expect("connect");
+    let client = connect_test_client().await.expect("connect");
 
     let result = client
         .query::<serde_json::Value>("nonexistent_view")
@@ -177,18 +160,16 @@ async fn test_error_handling_invalid_view() {
         .await;
 
     // Query execution fails against invalid view
-    println!("Invalid view result: {}", result.is_err());
+    assert!(result.is_err(), "Query against non-existent view should fail");
+    println!("Invalid view result: error as expected");
 }
 
 #[tokio::test]
-#[ignore] // Requires Postgres running
 async fn test_empty_result_set() {
-    let client = FraiseClient::connect("postgres://postgres:postgres@localhost:5433/postgres")
-        .await
-        .expect("connect");
+    let client = connect_test_client().await.expect("connect");
 
     let mut stream = client
-        .query::<serde_json::Value>("test")
+        .query::<serde_json::Value>("test.v_project")
         .where_sql("FALSE") // Filter all rows
         .execute()
         .await
@@ -200,5 +181,6 @@ async fn test_empty_result_set() {
         count += 1;
     }
 
+    assert_eq!(count, 0, "Empty result set should have 0 rows");
     println!("Empty result set test: {} rows", count);
 }

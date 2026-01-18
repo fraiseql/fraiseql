@@ -175,7 +175,9 @@ impl MySqlWhereGenerator {
             WhereOperator::CosineDistance
             | WhereOperator::L2Distance
             | WhereOperator::L1Distance
-            | WhereOperator::HammingDistance => Err(FraiseQLError::validation(
+            | WhereOperator::HammingDistance
+            | WhereOperator::InnerProduct
+            | WhereOperator::JaccardDistance => Err(FraiseQLError::validation(
                 "Vector distance operators not supported in MySQL".to_string(),
             )),
 
@@ -191,7 +193,10 @@ impl MySqlWhereGenerator {
             | WhereOperator::IsIPv6
             | WhereOperator::IsPrivate
             | WhereOperator::IsPublic
+            | WhereOperator::IsLoopback
             | WhereOperator::InSubnet
+            | WhereOperator::ContainsSubnet
+            | WhereOperator::ContainsIP
             | WhereOperator::Overlaps => Err(FraiseQLError::validation(
                 "Network operators not supported in MySQL".to_string(),
             )),

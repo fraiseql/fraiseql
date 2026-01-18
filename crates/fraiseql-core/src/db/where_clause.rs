@@ -149,14 +149,18 @@ pub enum WhereOperator {
     // ========================================================================
     // Vector Operators (pgvector)
     // ========================================================================
-    /// Cosine distance.
+    /// Cosine distance (<=>).
     CosineDistance,
-    /// L2 distance.
+    /// L2 (Euclidean) distance (<->).
     L2Distance,
-    /// L1 distance.
+    /// L1 (Manhattan) distance (<+>).
     L1Distance,
-    /// Hamming distance.
+    /// Hamming distance (<~>).
     HammingDistance,
+    /// Inner product (<#>). Higher values = more similar.
+    InnerProduct,
+    /// Jaccard distance for set similarity.
+    JaccardDistance,
 
     // ========================================================================
     // Full-Text Search
@@ -177,13 +181,19 @@ pub enum WhereOperator {
     IsIPv4,
     /// Is IPv6.
     IsIPv6,
-    /// Is private IP.
+    /// Is private IP (RFC1918 ranges).
     IsPrivate,
-    /// Is public IP.
+    /// Is public IP (not private).
     IsPublic,
-    /// In subnet (<<).
+    /// Is loopback address (127.0.0.0/8 or ::1).
+    IsLoopback,
+    /// In subnet (<<) - IP is contained within subnet.
     InSubnet,
-    /// Overlaps (&&).
+    /// Contains subnet (>>) - subnet contains another subnet.
+    ContainsSubnet,
+    /// Contains IP (>>) - subnet contains an IP address.
+    ContainsIP,
+    /// Overlaps (&&) - subnets overlap.
     Overlaps,
 
     // ========================================================================
@@ -241,6 +251,8 @@ impl WhereOperator {
             "l2_distance" => Ok(Self::L2Distance),
             "l1_distance" => Ok(Self::L1Distance),
             "hamming_distance" => Ok(Self::HammingDistance),
+            "inner_product" => Ok(Self::InnerProduct),
+            "jaccard_distance" => Ok(Self::JaccardDistance),
             "matches" => Ok(Self::Matches),
             "plain_query" => Ok(Self::PlainQuery),
             "phrase_query" => Ok(Self::PhraseQuery),
@@ -249,7 +261,10 @@ impl WhereOperator {
             "is_ipv6" => Ok(Self::IsIPv6),
             "is_private" => Ok(Self::IsPrivate),
             "is_public" => Ok(Self::IsPublic),
+            "is_loopback" => Ok(Self::IsLoopback),
             "in_subnet" => Ok(Self::InSubnet),
+            "contains_subnet" => Ok(Self::ContainsSubnet),
+            "contains_ip" => Ok(Self::ContainsIP),
             "overlaps" => Ok(Self::Overlaps),
             "strictly_contains" => Ok(Self::StrictlyContains),
             "ancestor_of" => Ok(Self::AncestorOf),

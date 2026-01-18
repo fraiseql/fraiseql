@@ -1,42 +1,51 @@
 //! Integration tests for Rust predicates
-//!
-//! These tests require a running Postgres instance with a test view.
 
-use fraiseql_wire::FraiseClient;
+mod common;
+
+use common::connect_test_client;
 use futures::StreamExt;
 
 #[tokio::test]
-#[ignore] // Requires Postgres running
 async fn test_hybrid_filtering() {
-    let client = FraiseClient::connect("postgres://postgres:postgres@localhost:5433/postgres")
-        .await
-        .expect("connect");
+    let client = connect_test_client().await.expect("connect");
 
-    // This test assumes v_test view exists with JSON data like:
-    // SELECT json_build_object('id', i, 'value', i * 10) AS data
-    // FROM generate_series(1, 100) i
+    // This test uses the v_user view with JSON data that has notification settings
+    // We filter for users with notifications enabled using both SQL and Rust predicates
 
     let mut stream = client
-        .query::<serde_json::Value>("test")
-        .where_sql("(data->>'id')::int > 50") // SQL: filter to id > 50
+        .query::<serde_json::Value>("test.v_user")
+        .where_sql("1 = 1") // Get all users
         .where_rust(|json| {
-            // Rust: filter to even ids
-            json["id"].as_i64().unwrap_or(0) % 2 == 0
+            // Rust: filter to only users with notifications enabled
+            json["settings"]["notifications"]
+                .as_bool()
+                .unwrap_or(false)
         })
         .execute()
         .await
         .expect("query");
 
-    let mut ids = Vec::new();
+    let mut filtered_users = Vec::new();
     while let Some(item) = stream.next().await {
         let json = item.expect("item");
-        ids.push(json["id"].as_i64().unwrap());
+        filtered_users.push(json);
     }
 
-    // Should get: 52, 54, 56, ..., 100 (25 values)
-    assert!(!ids.is_empty(), "should have results from hybrid filtering");
-    assert!(ids[0] > 50, "all ids should be > 50");
-    for id in &ids {
-        assert_eq!(id % 2, 0, "all ids should be even");
+    // Should get users with notifications=true (Alice and Carol based on seed data)
+    assert!(
+        !filtered_users.is_empty(),
+        "should have results from hybrid filtering"
+    );
+    for user in &filtered_users {
+        assert_eq!(
+            user["settings"]["notifications"].as_bool(),
+            Some(true),
+            "all filtered users should have notifications enabled"
+        );
     }
+
+    println!(
+        "Filtered {} users with notifications enabled",
+        filtered_users.len()
+    );
 }

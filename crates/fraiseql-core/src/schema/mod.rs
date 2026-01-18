@@ -44,9 +44,9 @@ mod introspection;
 
 pub use compiled::{
     ArgumentDefinition, AutoParams, CompiledSchema, DirectiveDefinition, DirectiveLocationKind,
-    EnumDefinition, EnumValueDefinition, InputFieldDefinition, InputObjectDefinition,
+    EnumDefinition, EnumValueDefinition, FilterOperator, InputFieldDefinition, InputObjectDefinition,
     InterfaceDefinition, MutationDefinition, MutationOperation, QueryDefinition, SqlProjectionHint,
-    SubscriptionDefinition, TypeDefinition, UnionDefinition,
+    StaticFilterCondition, SubscriptionDefinition, SubscriptionFilter, TypeDefinition, UnionDefinition,
 };
 pub use field_type::{DeprecationInfo, DistanceMetric, FieldDefinition, FieldType, VectorConfig, VectorIndexType};
 pub use introspection::{

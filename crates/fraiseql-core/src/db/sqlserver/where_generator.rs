@@ -184,7 +184,9 @@ impl SqlServerWhereGenerator {
             WhereOperator::CosineDistance
             | WhereOperator::L2Distance
             | WhereOperator::L1Distance
-            | WhereOperator::HammingDistance => Err(FraiseQLError::validation(
+            | WhereOperator::HammingDistance
+            | WhereOperator::InnerProduct
+            | WhereOperator::JaccardDistance => Err(FraiseQLError::validation(
                 "Vector distance operators not supported in SQL Server".to_string(),
             )),
 
@@ -204,7 +206,10 @@ impl SqlServerWhereGenerator {
             | WhereOperator::IsIPv6
             | WhereOperator::IsPrivate
             | WhereOperator::IsPublic
+            | WhereOperator::IsLoopback
             | WhereOperator::InSubnet
+            | WhereOperator::ContainsSubnet
+            | WhereOperator::ContainsIP
             | WhereOperator::Overlaps => Err(FraiseQLError::validation(
                 "Network operators not natively supported in SQL Server".to_string(),
             )),
