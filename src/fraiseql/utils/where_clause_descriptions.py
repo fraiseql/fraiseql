@@ -83,6 +83,7 @@ OPERATOR_DESCRIPTIONS = {
     "concat": "Concatenate paths - join two hierarchical paths together",
     "lca": "Lowest common ancestor - find the most specific common ancestor of multiple paths",
     # Note: 'isdescendant' is an alias for 'descendant_of' handled by LTree operator strategy
+    # Note: 'in_array' and 'array_contains' are documented above in array operations section
 }
 
 

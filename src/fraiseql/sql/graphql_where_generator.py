@@ -343,7 +343,7 @@ class LTreeFilter:
     """Filter for LTree hierarchical paths with comprehensive operator support.
 
     Provides complete set of PostgreSQL ltree operators for path filtering, analysis,
-    and manipulation. Organized into five categories:
+    and manipulation. Organized into six categories:
 
     **Path Comparison Operators** (Lexicographic Ordering):
     - eq, neq: Path equality/inequality
@@ -375,8 +375,11 @@ class LTreeFilter:
     **Path Manipulation Operators**:
     - concat(path): Concatenate with another path
     - lca(paths): Lowest common ancestor of multiple paths
-    - in_array(paths): Path in array of paths
-    - array_contains(path): Array field contains path
+
+    **Array Operations**:
+    - in_array(paths): Path is in array of allowed paths
+    - array_contains(path): Array field contains target path
+    - matches_any_lquery(patterns): Path matches any of multiple lquery patterns
     """
 
     # Basic comparison operators
@@ -422,6 +425,10 @@ class LTreeFilter:
     index_gte: int | None = None  # index(path, item) >= value
     lca: list[str] | None = None  # Lowest Common Ancestor of paths
     concat: str | None = None  # path || value - concatenation
+
+    # Array operations
+    in_array: list[str] | None = None  # <@ - Path is in array of paths
+    array_contains: tuple[list[str], str] | None = None  # @> - Array contains path
 
 
 @fraise_input

@@ -878,3 +878,158 @@ class TestLTreeIndexOperatorsGraphQL:
         index_operators = ["index", "index_eq", "index_gte"]
         for op in index_operators:
             assert self.strategy.supports_operator(op, LTree), f"Operator {op} not supported"
+
+
+# ============================================================================
+# PHASE B: PATTERN MATCHING AND ARRAY OPERATORS FOR GRAPHQL SCHEMA
+# ============================================================================
+
+
+class TestLTreePatternMatchingGraphQL:
+    """Test pattern matching operators integrated with GraphQL schema."""
+
+    def setup_method(self) -> None:
+        """Set up test fixtures."""
+        self.strategy = LTreeOperatorStrategy()
+        self.path_sql = SQL("data->>'path'")
+
+    def test_matches_any_lquery_single_pattern(self) -> None:
+        """Test matches_any_lquery with single pattern."""
+        patterns = ["science.*"]
+        result = self.strategy.build_sql("matches_any_lquery", patterns, self.path_sql, LTree)
+        sql_str = result.as_string(None)
+        assert "?" in sql_str  # LQuery matching operator
+        assert "ARRAY" in sql_str
+        assert "::ltree" in sql_str
+
+    def test_matches_any_lquery_multiple_patterns(self) -> None:
+        """Test matches_any_lquery with multiple patterns."""
+        patterns = ["science.*", "technology.*", "*.public"]
+        result = self.strategy.build_sql("matches_any_lquery", patterns, self.path_sql, LTree)
+        sql_str = result.as_string(None)
+        assert "?" in sql_str
+        assert "ARRAY" in sql_str
+        assert sql_str.count("'") >= 6  # At least 3 patterns with ltree casting
+
+    def test_matches_any_lquery_complex_patterns(self) -> None:
+        """Test matches_any_lquery with complex lquery patterns."""
+        patterns = [
+            "science.{2}.*",  # Exactly 2 levels then anything
+            "*.astronomy.*",  # Anything then astronomy then anything
+            "technology.*.public",  # Technology, any level, then public
+        ]
+        result = self.strategy.build_sql("matches_any_lquery", patterns, self.path_sql, LTree)
+        sql_str = result.as_string(None)
+        assert "?" in sql_str
+        assert "ARRAY" in sql_str
+
+    def test_matches_any_lquery_is_recognized(self) -> None:
+        """Test that matches_any_lquery operator is recognized."""
+        assert self.strategy.supports_operator("matches_any_lquery", LTree)
+
+
+class TestLTreeArrayOperatorsGraphQL:
+    """Test array operators integrated with GraphQL schema."""
+
+    def setup_method(self) -> None:
+        """Set up test fixtures."""
+        self.strategy = LTreeOperatorStrategy()
+        self.path_sql = SQL("data->>'path'")
+
+    def test_in_array_single_path(self) -> None:
+        """Test in_array with single path."""
+        paths = ["science.astronomy"]
+        result = self.strategy.build_sql("in_array", paths, self.path_sql, LTree)
+        sql_str = result.as_string(None)
+        assert "<@" in sql_str  # Path containment operator
+        assert "ARRAY" in sql_str
+        assert "::ltree" in sql_str
+
+    def test_in_array_multiple_paths(self) -> None:
+        """Test in_array with multiple allowed paths."""
+        paths = ["science.astronomy", "science.biology", "science.physics"]
+        result = self.strategy.build_sql("in_array", paths, self.path_sql, LTree)
+        sql_str = result.as_string(None)
+        assert "<@" in sql_str
+        assert "ARRAY" in sql_str
+        assert sql_str.count("::ltree") >= 3
+
+    def test_in_array_complex_paths(self) -> None:
+        """Test in_array with deeply nested paths."""
+        paths = [
+            "org.dept.team.project.task",
+            "org.admin.finance",
+            "org.it.infrastructure.network",
+        ]
+        result = self.strategy.build_sql("in_array", paths, self.path_sql, LTree)
+        sql_str = result.as_string(None)
+        assert "<@" in sql_str
+        assert "ARRAY" in sql_str
+
+    def test_in_array_is_recognized(self) -> None:
+        """Test that in_array operator is recognized."""
+        assert self.strategy.supports_operator("in_array", LTree)
+
+    def test_array_contains_operator(self) -> None:
+        """Test array_contains operator (array field contains path)."""
+        # Format: (array, target_path)
+        array_val = ["public.documents", "shared.reports", "approved.archives"]
+        target_path = "approved.archives"
+        result = self.strategy.build_sql(
+            "array_contains", (array_val, self.path_sql, target_path), LTree
+        )
+        sql_str = result.as_string(None)
+        assert "@>" in sql_str  # Array containment operator
+        assert "ARRAY" in sql_str
+        assert "::ltree" in sql_str
+
+    def test_array_contains_with_single_item_array(self) -> None:
+        """Test array_contains with single item array."""
+        array_val = ["public.documents"]
+        target_path = "public.documents"
+        result = self.strategy.build_sql(
+            "array_contains", (array_val, self.path_sql, target_path), LTree
+        )
+        sql_str = result.as_string(None)
+        assert "@>" in sql_str
+        assert "ARRAY" in sql_str
+
+    def test_array_contains_is_recognized(self) -> None:
+        """Test that array_contains operator is recognized."""
+        assert self.strategy.supports_operator("array_contains", LTree)
+
+
+class TestLTreePhaseBAliasesAndEdgeCases:
+    """Test Phase B operator aliases and edge cases."""
+
+    def setup_method(self) -> None:
+        """Set up test fixtures."""
+        self.strategy = LTreeOperatorStrategy()
+        self.path_sql = SQL("data->>'path'")
+
+    def test_matches_any_lquery_requires_list(self) -> None:
+        """Test that matches_any_lquery requires a list."""
+        with pytest.raises(TypeError):
+            self.strategy.build_sql("matches_any_lquery", "single-pattern", self.path_sql, LTree)
+
+    def test_matches_any_lquery_rejects_empty_list(self) -> None:
+        """Test that matches_any_lquery rejects empty pattern list."""
+        with pytest.raises(ValueError):
+            self.strategy.build_sql("matches_any_lquery", [], self.path_sql, LTree)
+
+    def test_in_array_requires_list(self) -> None:
+        """Test that in_array requires a list."""
+        with pytest.raises(TypeError):
+            self.strategy.build_sql("in_array", "single-path", self.path_sql, LTree)
+
+    def test_array_contains_requires_tuple(self) -> None:
+        """Test that array_contains requires tuple (array, target)."""
+        with pytest.raises(TypeError):
+            self.strategy.build_sql("array_contains", "not-a-tuple", self.path_sql, LTree)
+
+    def test_array_contains_with_wrong_array_type(self) -> None:
+        """Test that array_contains validates array is a list."""
+        with pytest.raises(TypeError):
+            self.strategy.build_sql(
+                "array_contains", ("not-a-list", self.path_sql, "target"), LTree
+            )
