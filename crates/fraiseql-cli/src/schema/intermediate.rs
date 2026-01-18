@@ -108,6 +108,24 @@ pub struct IntermediateField {
     /// Applied directives (e.g., @deprecated)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub directives: Option<Vec<IntermediateAppliedDirective>>,
+
+    /// Scope required to access this field (field-level access control)
+    ///
+    /// When set, users must have this scope in their JWT to query this field.
+    /// Supports patterns like "read:Type.field" or custom scopes like "hr:view_pii".
+    ///
+    /// # Example
+    ///
+    /// ```json
+    /// {
+    ///   "name": "salary",
+    ///   "type": "Int",
+    ///   "nullable": false,
+    ///   "requires_scope": "read:Employee.salary"
+    /// }
+    /// ```
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub requires_scope: Option<String>,
 }
 
 // =============================================================================

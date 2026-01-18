@@ -229,6 +229,7 @@ impl DistanceMetric {
 ///     vector_config: None,
 ///     alias: None,
 ///     deprecation: None,
+///     requires_scope: None,
 /// };
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -266,6 +267,31 @@ pub struct FieldDefinition {
     /// When set, the field is marked as deprecated in the schema.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub deprecation: Option<DeprecationInfo>,
+
+    /// Scope required to access this field (field-level access control).
+    ///
+    /// When set, users must have this scope in their JWT to query this field.
+    /// The runtime `FieldFilter` validates these requirements.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use fraiseql_core::schema::{FieldDefinition, FieldType};
+    ///
+    /// let field = FieldDefinition {
+    ///     name: "salary".to_string(),
+    ///     field_type: FieldType::Int,
+    ///     nullable: false,
+    ///     description: None,
+    ///     default_value: None,
+    ///     vector_config: None,
+    ///     alias: None,
+    ///     deprecation: None,
+    ///     requires_scope: Some("read:Employee.salary".to_string()),
+    /// };
+    /// ```
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub requires_scope: Option<String>,
 }
 
 /// Deprecation information for a field or type.
@@ -302,6 +328,7 @@ impl FieldDefinition {
             vector_config: None,
             alias: None,
             deprecation: None,
+            requires_scope: None,
         }
     }
 
@@ -317,6 +344,7 @@ impl FieldDefinition {
             vector_config: None,
             alias: None,
             deprecation: None,
+            requires_scope: None,
         }
     }
 
@@ -340,7 +368,24 @@ impl FieldDefinition {
             vector_config: Some(config),
             alias: None,
             deprecation: None,
+            requires_scope: None,
         }
+    }
+
+    /// Add a scope requirement to the field (field-level access control).
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use fraiseql_core::schema::{FieldDefinition, FieldType};
+    ///
+    /// let salary = FieldDefinition::new("salary", FieldType::Int)
+    ///     .with_requires_scope("read:Employee.salary");
+    /// ```
+    #[must_use]
+    pub fn with_requires_scope(mut self, scope: impl Into<String>) -> Self {
+        self.requires_scope = Some(scope.into());
+        self
     }
 
     /// Add description to field.

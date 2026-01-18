@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from enum import Enum as PythonEnum
 from types import FunctionType
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 from fraiseql.registry import SchemaRegistry
 from fraiseql.types import extract_field_info, extract_function_signature
@@ -15,6 +16,94 @@ if TYPE_CHECKING:
 T = TypeVar("T")
 F = TypeVar("F", bound=FunctionType)
 E = TypeVar("E", bound=PythonEnum)
+
+
+@dataclass
+class FieldConfig(Generic[T]):
+    """Configuration for a GraphQL field with access control.
+
+    This is used as a type annotation wrapper to add metadata to fields,
+    particularly for field-level access control.
+
+    Examples:
+        >>> @fraiseql.type
+        ... class User:
+        ...     id: int
+        ...     name: str
+        ...     # Protected field - requires scope to access
+        ...     salary: Annotated[int, fraiseql.field(requires_scope="read:User.salary")]
+        ...     ssn: Annotated[str, fraiseql.field(requires_scope="hr:view_pii")]
+
+    Attributes:
+        requires_scope: Scope required to access this field (e.g., "read:User.salary")
+        deprecated: Deprecation reason if field is deprecated
+        description: Field description for GraphQL schema
+    """
+
+    requires_scope: str | None = None
+    deprecated: str | None = None
+    description: str | None = None
+
+
+def field(
+    *,
+    requires_scope: str | None = None,
+    deprecated: str | None = None,
+    description: str | None = None,
+) -> FieldConfig[Any]:
+    """Create a field configuration for use with Annotated type hints.
+
+    This function is used to add metadata to GraphQL fields, particularly
+    for field-level access control via JWT scopes.
+
+    Args:
+        requires_scope: Scope required to access this field.
+            If set, users must have this scope in their JWT to query this field.
+            Supports patterns like "read:Type.field" or custom scopes like "hr:view_pii".
+        deprecated: Deprecation reason if field is deprecated.
+        description: Field description for GraphQL schema documentation.
+
+    Returns:
+        FieldConfig instance for use with Annotated[T, field(...)]
+
+    Examples:
+        >>> from typing import Annotated
+        >>> import fraiseql
+
+        >>> @fraiseql.type
+        ... class User:
+        ...     id: int
+        ...     name: str
+        ...     # Requires specific scope to access
+        ...     salary: Annotated[int, fraiseql.field(requires_scope="read:User.salary")]
+        ...     # Custom scope for PII
+        ...     ssn: Annotated[str, fraiseql.field(requires_scope="hr:view_pii")]
+        ...     # Deprecated field
+        ...     old_email: Annotated[str, fraiseql.field(deprecated="Use email instead")]
+
+        This generates JSON:
+        {
+            "name": "User",
+            "fields": [
+                {"name": "id", "type": "Int", "nullable": false},
+                {"name": "name", "type": "String", "nullable": false},
+                {"name": "salary", "type": "Int", "nullable": false, "requires_scope": "read:User.salary"},
+                {"name": "ssn", "type": "String", "nullable": false, "requires_scope": "hr:view_pii"},
+                {"name": "old_email", "type": "String", "nullable": false, "deprecated": {"reason": "Use email instead"}}
+            ]
+        }
+
+    Notes:
+        - Use with typing.Annotated for type safety
+        - Multiple FieldConfig annotations on a field are merged
+        - Scope format should match your JWT token structure
+        - The runtime will reject queries for protected fields without proper scopes
+    """
+    return FieldConfig(
+        requires_scope=requires_scope,
+        deprecated=deprecated,
+        description=description,
+    )
 
 
 def type(

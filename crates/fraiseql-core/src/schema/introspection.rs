@@ -1297,6 +1297,7 @@ mod tests {
                     deprecation: Some(DeprecationInfo {
                         reason: Some("Use 'sku' instead".to_string()),
                     }),
+                    requires_scope: None,
                 },
                 FieldDefinition::new("sku", FieldType::String),
             ],

@@ -201,6 +201,7 @@ mod tests {
                         vector_config: None,
                         alias: None,
                         deprecation: None,
+                        requires_scope: None,
                     },
                     FieldDefinition {
                         name: "name".to_string(),
@@ -211,6 +212,7 @@ mod tests {
                         vector_config: None,
                         alias: None,
                         deprecation: None,
+                        requires_scope: None,
                     },
                 ],
                 description: Some("User type".to_string()),

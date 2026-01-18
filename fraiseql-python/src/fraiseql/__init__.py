@@ -10,6 +10,7 @@ Example:
     ```python
     import fraiseql
     from enum import Enum
+    from typing import Annotated
 
     @fraiseql.enum
     class OrderStatus(Enum):
@@ -21,6 +22,8 @@ Example:
         id: int
         name: str
         email: str
+        # Protected field - requires scope to access
+        salary: Annotated[int, fraiseql.field(requires_scope="read:User.salary")]
 
     @fraiseql.input
     class CreateUserInput:
@@ -37,7 +40,9 @@ Example:
 """
 
 from fraiseql.analytics import aggregate_query, fact_table
+from fraiseql.decorators import FieldConfig
 from fraiseql.decorators import enum as enum_decorator
+from fraiseql.decorators import field
 from fraiseql.decorators import input as input_decorator
 from fraiseql.decorators import interface as interface_decorator
 from fraiseql.decorators import mutation, query, subscription
@@ -56,6 +61,8 @@ __all__ = [
     "query",
     "mutation",
     "subscription",
+    "field",
+    "FieldConfig",
     "config",
     "export_schema",
     "fact_table",

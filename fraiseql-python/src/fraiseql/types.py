@@ -1,6 +1,11 @@
 """Type mapping and introspection for GraphQL schema generation."""
 
-from typing import Any, get_args, get_origin
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Annotated, Any, get_args, get_origin
+
+if TYPE_CHECKING:
+    from fraiseql.decorators import FieldConfig
 
 
 def python_type_to_graphql(py_type: Any) -> tuple[str, bool]:
@@ -22,6 +27,12 @@ def python_type_to_graphql(py_type: Any) -> tuple[str, bool]:
     """
     origin = get_origin(py_type)
     args = get_args(py_type)
+
+    # Handle Annotated types - extract the base type
+    if origin is Annotated:
+        # First arg is the actual type, rest are metadata
+        base_type = args[0]
+        return python_type_to_graphql(base_type)
 
     # Handle Union types (including | None for nullable)
     if origin is type(...) or (hasattr(origin, "__name__") and origin.__name__ == "UnionType"):
@@ -61,6 +72,31 @@ def python_type_to_graphql(py_type: Any) -> tuple[str, bool]:
     raise ValueError(f"Unsupported type: {py_type}")
 
 
+def extract_field_config(field_type: Any) -> FieldConfig | None:
+    """Extract FieldConfig from an Annotated type hint.
+
+    Args:
+        field_type: Python type annotation, possibly Annotated[T, FieldConfig(...)]
+
+    Returns:
+        FieldConfig if found in annotations, None otherwise
+    """
+    # Import here to avoid circular import
+    from fraiseql.decorators import FieldConfig
+
+    origin = get_origin(field_type)
+    if origin is not Annotated:
+        return None
+
+    args = get_args(field_type)
+    # args[0] is the type, args[1:] are metadata
+    for arg in args[1:]:
+        if isinstance(arg, FieldConfig):
+            return arg
+
+    return None
+
+
 def extract_field_info(cls: type) -> dict[str, dict[str, Any]]:
     """Extract field information from a class with type annotations.
 
@@ -68,7 +104,7 @@ def extract_field_info(cls: type) -> dict[str, dict[str, Any]]:
         cls: Python class with type annotations
 
     Returns:
-        Dictionary of field_name -> {"type": graphql_type, "nullable": bool}
+        Dictionary of field_name -> {"type": graphql_type, "nullable": bool, ...}
 
     Examples:
         >>> @fraiseql.type
@@ -82,6 +118,17 @@ def extract_field_info(cls: type) -> dict[str, dict[str, Any]]:
             "name": {"type": "String", "nullable": False},
             "email": {"type": "String", "nullable": True}
         }
+
+        >>> from typing import Annotated
+        >>> @fraiseql.type
+        ... class Employee:
+        ...     id: int
+        ...     salary: Annotated[int, fraiseql.field(requires_scope="hr:compensation")]
+        >>> extract_field_info(Employee)
+        {
+            "id": {"type": "Int", "nullable": False},
+            "salary": {"type": "Int", "nullable": False, "requires_scope": "hr:compensation"}
+        }
     """
     if not hasattr(cls, "__annotations__"):
         return {}
@@ -89,10 +136,22 @@ def extract_field_info(cls: type) -> dict[str, dict[str, Any]]:
     fields = {}
     for field_name, field_type in cls.__annotations__.items():
         graphql_type, nullable = python_type_to_graphql(field_type)
-        fields[field_name] = {
+        field_info: dict[str, Any] = {
             "type": graphql_type,
             "nullable": nullable,
         }
+
+        # Check for FieldConfig metadata in Annotated types
+        config = extract_field_config(field_type)
+        if config is not None:
+            if config.requires_scope:
+                field_info["requires_scope"] = config.requires_scope
+            if config.deprecated:
+                field_info["deprecated"] = {"reason": config.deprecated}
+            if config.description:
+                field_info["description"] = config.description
+
+        fields[field_name] = field_info
 
     return fields
 

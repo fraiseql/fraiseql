@@ -441,6 +441,7 @@ mod tests {
                         vector_config: None,
                         alias: None,
                         deprecation: None,
+                        requires_scope: None,
                     })
                     .collect(),
                 description: None,
@@ -482,6 +483,7 @@ mod tests {
                         vector_config: None,
                         alias: None,
                         deprecation: None,
+                        requires_scope: None,
                     })
                     .collect(),
                 description: None,
@@ -530,6 +532,7 @@ mod tests {
                         vector_config: None,
                         alias: None,
                         deprecation: None,
+                        requires_scope: None,
                     })
                     .collect(),
                 description: None,

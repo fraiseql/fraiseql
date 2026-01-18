@@ -140,6 +140,7 @@ impl CodeGenerator {
                 vector_config: None, // Would be set if field_type is Vector
                 alias: None, // Aliases come from query, not schema
                 deprecation: None, // Note: IR fields don't have deprecation yet
+                requires_scope: None, // Note: IR fields don't have scope requirements yet
             }
         }).collect()
     }
