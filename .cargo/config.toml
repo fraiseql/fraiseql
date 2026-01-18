@@ -1,28 +1,6 @@
 # Cargo configuration for FraiseQL v2
 # https://doc.rust-lang.org/cargo/reference/config.html
 
-[build]
-# Use all CPU cores for compilation
-jobs = -1
-
-[term]
-# Colored output
-color = "always"
-verbose = false
-
-# Use mold linker on Linux (faster linking - 3-5x speedup)
-# CI installs mold via apt-get, local dev should install: sudo pacman -S mold (Arch) or apt install mold
-[target.x86_64-unknown-linux-gnu]
-linker = "clang"
-rustflags = ["-C", "link-arg=-fuse-ld=mold"]
-
-# macOS linker settings are optional for local dev (not in repo to avoid CI issues)
-# To use zld locally, add to ~/.cargo/config.toml:
-# [target.x86_64-apple-darwin]
-# rustflags = ["-C", "link-arg=-fuse-ld=/usr/local/bin/zld"]
-# [target.aarch64-apple-darwin]
-# rustflags = ["-C", "link-arg=-fuse-ld=/opt/homebrew/bin/zld"]
-
 # Alias commands
 [alias]
 audit-fix = "audit fix"
@@ -46,14 +24,29 @@ tree = "tree --depth 3"
 watch-check = "watch -x 'check --all-features'"
 watch-test = "watch -x 'test --all-features'"
 
-[registries.crates-io]
-protocol = "sparse"
+[build]
+# Use all CPU cores for compilation
+jobs = -1
+
+[profile.dev.build-override]
+# Optimize build scripts
+opt-level = 2
 
 # Profile optimizations
 [profile.dev.package."*"]
 # Optimize dependencies in dev builds for faster testing
 opt-level = 2
 
-[profile.dev.build-override]
-# Optimize build scripts
-opt-level = 2
+[registries.crates-io]
+protocol = "sparse"
+
+# Use mold linker on Linux (faster linking - 3-5x speedup)
+# CI installs mold via apt-get, local dev should install: sudo pacman -S mold (Arch) or apt install mold
+[target.x86_64-unknown-linux-gnu]
+linker = "clang"
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+
+[term]
+# Colored output
+color = "always"
+verbose = false
