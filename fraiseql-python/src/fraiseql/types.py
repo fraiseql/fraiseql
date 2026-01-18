@@ -2,17 +2,46 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated, Any, get_args, get_origin
+from typing import TYPE_CHECKING, Annotated, Any, Union, get_args, get_origin
+
+# Import FraiseQL scalars for type mapping
+from fraiseql.scalars import (
+    ID,
+    UUID,
+    Date,
+    DateTime,
+    Decimal,
+    Json,
+    Time,
+    Vector,
+)
 
 if TYPE_CHECKING:
     from fraiseql.decorators import FieldConfig
+
+
+# Mapping from FraiseQL scalar NewTypes to GraphQL type strings
+# NewType creates a callable, so we need to map by __name__
+_SCALAR_NAMES: dict[str, str] = {
+    "ID": "ID",
+    "UUID": "UUID",
+    "DateTime": "DateTime",
+    "Date": "Date",
+    "Time": "Time",
+    "Json": "Json",
+    "Decimal": "Decimal",
+    "Vector": "Vector",
+}
+
+# Keep references to prevent unused import warnings
+_SCALARS = (ID, UUID, DateTime, Date, Time, Json, Decimal, Vector)
 
 
 def python_type_to_graphql(py_type: Any) -> tuple[str, bool]:
     """Convert Python type hint to GraphQL type string.
 
     Args:
-        py_type: Python type annotation (int, str, list[User], User | None, etc.)
+        py_type: Python type annotation (int, str, list[User], ID, DateTime, etc.)
 
     Returns:
         Tuple of (graphql_type, is_nullable)
@@ -24,6 +53,11 @@ def python_type_to_graphql(py_type: Any) -> tuple[str, bool]:
         ('String', True)
         >>> python_type_to_graphql(list[int])
         ('[Int]', False)
+        >>> from fraiseql.scalars import ID, DateTime
+        >>> python_type_to_graphql(ID)
+        ('ID', False)
+        >>> python_type_to_graphql(DateTime)
+        ('DateTime', False)
     """
     origin = get_origin(py_type)
     args = get_args(py_type)
@@ -35,7 +69,12 @@ def python_type_to_graphql(py_type: Any) -> tuple[str, bool]:
         return python_type_to_graphql(base_type)
 
     # Handle Union types (including | None for nullable)
-    if origin is type(...) or (hasattr(origin, "__name__") and origin.__name__ == "UnionType"):
+    # This handles both typing.Union and the | operator (UnionType in Python 3.10+)
+    is_union = (
+        origin is Union
+        or (hasattr(origin, "__name__") and origin.__name__ == "UnionType")
+    )
+    if is_union:
         # Check if it's a nullable type (T | None)
         if len(args) == 2 and type(None) in args:
             # Get the non-None type
@@ -54,7 +93,14 @@ def python_type_to_graphql(py_type: Any) -> tuple[str, bool]:
             return (f"[{element_type}]", False)
         return (f"[{element_type}!]", False)
 
-    # Handle basic types
+    # Handle NewType scalars (ID, DateTime, etc.)
+    # NewType creates a callable with __name__ and __supertype__ attributes
+    if callable(py_type) and hasattr(py_type, "__supertype__"):
+        type_name = getattr(py_type, "__name__", None)
+        if type_name and type_name in _SCALAR_NAMES:
+            return (_SCALAR_NAMES[type_name], False)
+
+    # Handle basic Python types
     type_map = {
         int: "Int",
         float: "Float",

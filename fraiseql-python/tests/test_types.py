@@ -2,6 +2,7 @@
 
 import pytest
 
+from fraiseql.scalars import ID, UUID, Date, DateTime, Decimal, Json, Time, Vector
 from fraiseql.types import extract_field_info, extract_function_signature, python_type_to_graphql
 
 
@@ -11,6 +12,49 @@ def test_python_type_to_graphql_basic() -> None:
     assert python_type_to_graphql(float) == ("Float", False)
     assert python_type_to_graphql(str) == ("String", False)
     assert python_type_to_graphql(bool) == ("Boolean", False)
+
+
+def test_python_type_to_graphql_scalars() -> None:
+    """Test FraiseQL scalar types to GraphQL type conversion."""
+    # Core scalar
+    assert python_type_to_graphql(ID) == ("ID", False)
+
+    # Date/time scalars
+    assert python_type_to_graphql(DateTime) == ("DateTime", False)
+    assert python_type_to_graphql(Date) == ("Date", False)
+    assert python_type_to_graphql(Time) == ("Time", False)
+
+    # Complex scalars
+    assert python_type_to_graphql(UUID) == ("UUID", False)
+    assert python_type_to_graphql(Json) == ("Json", False)
+    assert python_type_to_graphql(Decimal) == ("Decimal", False)
+    assert python_type_to_graphql(Vector) == ("Vector", False)
+
+
+def test_python_type_to_graphql_nullable_scalars() -> None:
+    """Test nullable FraiseQL scalar types."""
+    graphql_type, nullable = python_type_to_graphql(ID | None)
+    assert graphql_type == "ID"
+    assert nullable is True
+
+    graphql_type, nullable = python_type_to_graphql(DateTime | None)
+    assert graphql_type == "DateTime"
+    assert nullable is True
+
+    graphql_type, nullable = python_type_to_graphql(Json | None)
+    assert graphql_type == "Json"
+    assert nullable is True
+
+
+def test_python_type_to_graphql_list_of_scalars() -> None:
+    """Test list of FraiseQL scalar types."""
+    graphql_type, nullable = python_type_to_graphql(list[ID])
+    assert graphql_type == "[ID!]"
+    assert nullable is False
+
+    graphql_type, nullable = python_type_to_graphql(list[DateTime])
+    assert graphql_type == "[DateTime!]"
+    assert nullable is False
 
 
 def test_python_type_to_graphql_nullable() -> None:

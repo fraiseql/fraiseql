@@ -9,6 +9,7 @@ Architecture:
 Example:
     ```python
     import fraiseql
+    from fraiseql.scalars import ID, DateTime
     from enum import Enum
     from typing import Annotated
 
@@ -19,11 +20,12 @@ Example:
 
     @fraiseql.type
     class User:
-        id: int
+        id: ID  # UUID v4 - FraiseQL convention
         name: str
         email: str
+        created_at: DateTime
         # Protected field - requires scope to access
-        salary: Annotated[int, fraiseql.field(requires_scope="read:User.salary")]
+        salary: Annotated[float, fraiseql.field(requires_scope="read:User.salary")]
 
     @fraiseql.input
     class CreateUserInput:
@@ -48,11 +50,13 @@ from fraiseql.decorators import interface as interface_decorator
 from fraiseql.decorators import mutation, query, subscription
 from fraiseql.decorators import type as type_decorator
 from fraiseql.decorators import union as union_decorator
+from fraiseql.scalars import ID, UUID, Date, DateTime, Decimal, Json, Time, Vector
 from fraiseql.schema import config, export_schema
 
 __version__ = "2.0.0-alpha.1"
 
 __all__ = [
+    # Decorators
     "type_decorator",
     "enum_decorator",
     "input_decorator",
@@ -63,10 +67,22 @@ __all__ = [
     "subscription",
     "field",
     "FieldConfig",
+    # Scalar types
+    "ID",
+    "UUID",
+    "DateTime",
+    "Date",
+    "Time",
+    "Json",
+    "Decimal",
+    "Vector",
+    # Schema utilities
     "config",
     "export_schema",
+    # Analytics
     "fact_table",
     "aggregate_query",
+    # Metadata
     "__version__",
 ]
 
