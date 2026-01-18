@@ -58,8 +58,9 @@ impl QueryPlanner {
     /// assert!(!plan.sql.is_empty());
     /// ```
     pub fn plan(&self, query_match: &QueryMatch) -> Result<ExecutionPlan> {
-        // TODO: Implement full query planning logic
-        // For now, generate basic SQL from query definition
+        // Note: FraiseQL uses compiled SQL templates, so "query planning" means
+        // extracting the pre-compiled SQL from the matched query definition.
+        // No dynamic query optimization is needed - templates are pre-optimized.
 
         let sql = self.generate_sql(query_match);
         let parameters = self.extract_parameters(query_match);
