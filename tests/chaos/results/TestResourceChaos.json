@@ -1,10 +1,10 @@
 {
   "test_class": "TestResourceChaos",
-  "timestamp": 1768731273.8910828,
+  "timestamp": 1768740229.0905704,
   "metrics": {
-    "duration_ms": 917.2487258911133,
+    "duration_ms": 916.72682762146,
     "query_count": 12,
-    "avg_query_time_ms": 15.730619430541992,
+    "avg_query_time_ms": 15.671928723653158,
     "p95_query_time_ms": null,
     "error_count": 0,
     "retry_count": 0,
