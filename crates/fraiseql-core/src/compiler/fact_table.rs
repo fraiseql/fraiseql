@@ -1349,7 +1349,7 @@ mod tests {
         assert_eq!(FactTableDetector::infer_json_type(&serde_json::json!(null)), "string");
         assert_eq!(FactTableDetector::infer_json_type(&serde_json::json!(true)), "boolean");
         assert_eq!(FactTableDetector::infer_json_type(&serde_json::json!(42)), "integer");
-        assert_eq!(FactTableDetector::infer_json_type(&serde_json::json!(3.14)), "float");
+        assert_eq!(FactTableDetector::infer_json_type(&serde_json::json!(1.5)), "float");
         assert_eq!(FactTableDetector::infer_json_type(&serde_json::json!("hello")), "string");
         assert_eq!(FactTableDetector::infer_json_type(&serde_json::json!([1, 2, 3])), "array");
         assert_eq!(FactTableDetector::infer_json_type(&serde_json::json!({"a": 1})), "object");

@@ -54,12 +54,17 @@
 
 use async_trait::async_trait;
 use serde_json::json;
+use sha2::{Digest, Sha256};
 use std::sync::Arc;
 
 use crate::db::{DatabaseAdapter, DatabaseType, PoolMetrics, WhereClause};
 use crate::db::types::JsonbValue;
 use crate::error::Result;
 
+use super::fact_table_version::{
+    generate_version_key_component, FactTableCacheConfig, FactTableVersionProvider,
+    FactTableVersionStrategy,
+};
 use super::key::generate_cache_key;
 use super::result::QueryResultCache;
 
@@ -118,6 +123,12 @@ pub struct CachedDatabaseAdapter<A: DatabaseAdapter> {
     /// When schema version changes (e.g., after deployment), all cache entries
     /// with old version become invalid automatically.
     schema_version: String,
+
+    /// Configuration for fact table aggregation caching.
+    fact_table_config: FactTableCacheConfig,
+
+    /// Version provider for fact tables (caches version lookups).
+    version_provider: Arc<FactTableVersionProvider>,
 }
 
 impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
@@ -152,6 +163,60 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
             adapter,
             cache: Arc::new(cache),
             schema_version,
+            fact_table_config: FactTableCacheConfig::default(),
+            version_provider: Arc::new(FactTableVersionProvider::default()),
+        }
+    }
+
+    /// Create new cached database adapter with fact table caching configuration.
+    ///
+    /// # Arguments
+    ///
+    /// * `adapter` - Underlying database adapter to wrap
+    /// * `cache` - Query result cache instance
+    /// * `schema_version` - Current schema version (e.g., git hash, semver)
+    /// * `fact_table_config` - Configuration for fact table aggregation caching
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// use fraiseql_core::cache::{
+    ///     CachedDatabaseAdapter, QueryResultCache, CacheConfig,
+    ///     FactTableCacheConfig, FactTableVersionStrategy,
+    /// };
+    /// use fraiseql_core::db::postgres::PostgresAdapter;
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let db = PostgresAdapter::new("postgresql://localhost/db").await?;
+    /// let cache = QueryResultCache::new(CacheConfig::default());
+    ///
+    /// // Configure fact table caching strategies
+    /// let mut ft_config = FactTableCacheConfig::default();
+    /// ft_config.set_strategy("tf_sales", FactTableVersionStrategy::VersionTable);
+    /// ft_config.set_strategy("tf_events", FactTableVersionStrategy::time_based(300));
+    ///
+    /// let adapter = CachedDatabaseAdapter::with_fact_table_config(
+    ///     db,
+    ///     cache,
+    ///     "1.0.0".to_string(),
+    ///     ft_config,
+    /// );
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[must_use]
+    pub fn with_fact_table_config(
+        adapter: A,
+        cache: QueryResultCache,
+        schema_version: String,
+        fact_table_config: FactTableCacheConfig,
+    ) -> Self {
+        Self {
+            adapter,
+            cache: Arc::new(cache),
+            schema_version,
+            fact_table_config,
+            version_provider: Arc::new(FactTableVersionProvider::default()),
         }
     }
 
@@ -321,6 +386,197 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
     pub fn schema_version(&self) -> &str {
         &self.schema_version
     }
+
+    /// Get fact table cache configuration.
+    #[must_use]
+    pub fn fact_table_config(&self) -> &FactTableCacheConfig {
+        &self.fact_table_config
+    }
+
+    /// Get the version provider for fact tables.
+    #[must_use]
+    pub fn version_provider(&self) -> &FactTableVersionProvider {
+        &self.version_provider
+    }
+
+    /// Extract fact table name from SQL query.
+    ///
+    /// Looks for `FROM tf_<name>` pattern in the SQL.
+    fn extract_fact_table_from_sql(sql: &str) -> Option<String> {
+        // Look for FROM tf_xxx pattern (case insensitive)
+        let sql_lower = sql.to_lowercase();
+        let from_idx = sql_lower.find("from ")?;
+        let after_from = &sql_lower[from_idx + 5..];
+
+        // Skip whitespace
+        let trimmed = after_from.trim_start();
+
+        // Check if it starts with tf_
+        if !trimmed.starts_with("tf_") {
+            return None;
+        }
+
+        // Extract table name (until whitespace, comma, or end)
+        let end_idx = trimmed
+            .find(|c: char| c.is_whitespace() || c == ',' || c == ')')
+            .unwrap_or(trimmed.len());
+
+        Some(trimmed[..end_idx].to_string())
+    }
+
+    /// Generate cache key for aggregation query.
+    ///
+    /// Includes SQL, schema version, and version component based on strategy.
+    fn generate_aggregation_cache_key(
+        sql: &str,
+        schema_version: &str,
+        version_component: Option<&str>,
+    ) -> String {
+        let mut hasher = Sha256::new();
+        hasher.update(sql.as_bytes());
+        hasher.update(schema_version.as_bytes());
+        if let Some(vc) = version_component {
+            hasher.update(vc.as_bytes());
+        }
+        let result = hasher.finalize();
+        format!("agg:{:x}", result)
+    }
+
+    /// Fetch version from tf_versions table.
+    ///
+    /// Returns cached version if fresh, otherwise queries database.
+    async fn fetch_table_version(&self, table_name: &str) -> Option<i64> {
+        // Check cached version first
+        if let Some(version) = self.version_provider.get_cached_version(table_name) {
+            return Some(version);
+        }
+
+        // Query tf_versions table
+        let sql = format!(
+            "SELECT version FROM tf_versions WHERE table_name = '{}'",
+            table_name.replace('\'', "''")  // Escape single quotes
+        );
+
+        match self.adapter.execute_raw_query(&sql).await {
+            Ok(rows) if !rows.is_empty() => {
+                if let Some(serde_json::Value::Number(n)) = rows[0].get("version") {
+                    if let Some(v) = n.as_i64() {
+                        self.version_provider.set_cached_version(table_name, v);
+                        return Some(v);
+                    }
+                }
+                None
+            }
+            _ => None,
+        }
+    }
+
+    /// Execute aggregation query with caching based on fact table versioning strategy.
+    ///
+    /// This method provides transparent caching for aggregation queries on fact tables.
+    /// The caching behavior depends on the configured strategy for the fact table.
+    ///
+    /// # Arguments
+    ///
+    /// * `sql` - The aggregation SQL query
+    ///
+    /// # Returns
+    ///
+    /// Query results (from cache or database)
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use fraiseql_core::cache::{CachedDatabaseAdapter, QueryResultCache, CacheConfig};
+    /// # use fraiseql_core::db::postgres::PostgresAdapter;
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let db = PostgresAdapter::new("postgresql://localhost/db").await?;
+    /// # let cache = QueryResultCache::new(CacheConfig::default());
+    /// # let adapter = CachedDatabaseAdapter::new(db, cache, "1.0.0".to_string());
+    /// // This query will be cached according to tf_sales strategy
+    /// let results = adapter.execute_aggregation_query(
+    ///     "SELECT SUM(revenue) FROM tf_sales WHERE year = 2024"
+    /// ).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn execute_aggregation_query(
+        &self,
+        sql: &str,
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        // Extract fact table from SQL
+        let Some(table_name) = Self::extract_fact_table_from_sql(sql) else {
+            // Not a fact table query - execute without caching
+            return self.adapter.execute_raw_query(sql).await;
+        };
+
+        // Get strategy for this table
+        let strategy = self.fact_table_config.get_strategy(&table_name);
+
+        // Check if caching is enabled
+        if !strategy.is_caching_enabled() {
+            return self.adapter.execute_raw_query(sql).await;
+        }
+
+        // Get version component based on strategy
+        let table_version = if matches!(strategy, FactTableVersionStrategy::VersionTable) {
+            self.fetch_table_version(&table_name).await
+        } else {
+            None
+        };
+
+        let version_component = generate_version_key_component(
+            &table_name,
+            strategy,
+            table_version,
+            &self.schema_version,
+        );
+
+        // If version table strategy but no version found, skip caching
+        let Some(version_component) = version_component else {
+            // VersionTable strategy but no version in tf_versions - skip cache
+            return self.adapter.execute_raw_query(sql).await;
+        };
+
+        // Generate cache key
+        let cache_key = Self::generate_aggregation_cache_key(
+            sql,
+            &self.schema_version,
+            Some(&version_component),
+        );
+
+        // Try cache first
+        if let Some(cached_result) = self.cache.get(&cache_key)? {
+            // Cache hit - convert JsonbValue back to HashMap
+            let results: Vec<std::collections::HashMap<String, serde_json::Value>> =
+                cached_result
+                    .iter()
+                    .filter_map(|jv| {
+                        serde_json::from_value(jv.as_value().clone()).ok()
+                    })
+                    .collect();
+            return Ok(results);
+        }
+
+        // Cache miss - execute query
+        let result = self.adapter.execute_raw_query(sql).await?;
+
+        // Store in cache (convert HashMap to JsonbValue)
+        let cached_values: Vec<JsonbValue> = result
+            .iter()
+            .filter_map(|row| {
+                serde_json::to_value(row).ok().map(JsonbValue::new)
+            })
+            .collect();
+
+        self.cache.put(
+            cache_key,
+            cached_values,
+            vec![table_name],  // Track which fact table this query reads
+        )?;
+
+        Ok(result)
+    }
 }
 
 #[async_trait]
@@ -387,9 +643,8 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         &self,
         sql: &str,
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-        // For now, don't cache raw queries (aggregations)
-        // TODO: Add caching support for aggregation queries in future phase
-        self.adapter.execute_raw_query(sql).await
+        // Use the aggregation caching method which handles fact table versioning
+        self.execute_aggregation_query(sql).await
     }
 }
 
@@ -403,17 +658,22 @@ mod tests {
     struct MockAdapter {
         /// Number of times execute_where_query was called.
         call_count: std::sync::atomic::AtomicU32,
+        /// Number of times execute_raw_query was called.
+        raw_call_count: std::sync::atomic::AtomicU32,
     }
 
     impl MockAdapter {
         fn new() -> Self {
             Self {
                 call_count: std::sync::atomic::AtomicU32::new(0),
+                raw_call_count: std::sync::atomic::AtomicU32::new(0),
             }
         }
 
         fn call_count(&self) -> u32 {
+            // Return sum of both call counts for backward compatibility
             self.call_count.load(std::sync::atomic::Ordering::SeqCst)
+                + self.raw_call_count.load(std::sync::atomic::Ordering::SeqCst)
         }
     }
 
@@ -456,7 +716,11 @@ mod tests {
             &self,
             _sql: &str,
         ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-            Ok(vec![])
+            self.raw_call_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            // Return mock aggregation data
+            let mut row = std::collections::HashMap::new();
+            row.insert("count".to_string(), json!(42));
+            Ok(vec![row])
         }
     }
 
@@ -593,6 +857,7 @@ mod tests {
     #[tokio::test]
     async fn test_schema_version_change_invalidates_cache() {
         let cache = Arc::new(QueryResultCache::new(CacheConfig::default()));
+        let version_provider = Arc::new(FactTableVersionProvider::default());
 
         // Adapter with version 1.0.0
         let mock1 = MockAdapter::new();
@@ -600,6 +865,8 @@ mod tests {
             adapter: mock1,
             cache: Arc::clone(&cache),
             schema_version: "1.0.0".to_string(),
+            fact_table_config: FactTableCacheConfig::default(),
+            version_provider: Arc::clone(&version_provider),
         };
 
         // Query with v1
@@ -614,6 +881,8 @@ mod tests {
             adapter: mock2,
             cache: Arc::clone(&cache),
             schema_version: "2.0.0".to_string(),
+            fact_table_config: FactTableCacheConfig::default(),
+            version_provider: Arc::clone(&version_provider),
         };
 
         // Query with v2 - should miss cache (different schema version)
@@ -1056,5 +1325,260 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(adapter.inner().call_count(), 1);  // Cache hit
+    }
+
+    // ===== Aggregation Caching Tests =====
+
+    #[test]
+    fn test_extract_fact_table_from_sql() {
+        // Basic case
+        assert_eq!(
+            CachedDatabaseAdapter::<MockAdapter>::extract_fact_table_from_sql(
+                "SELECT SUM(revenue) FROM tf_sales WHERE year = 2024"
+            ),
+            Some("tf_sales".to_string())
+        );
+
+        // With schema
+        assert_eq!(
+            CachedDatabaseAdapter::<MockAdapter>::extract_fact_table_from_sql(
+                "SELECT COUNT(*) FROM   tf_page_views"
+            ),
+            Some("tf_page_views".to_string())
+        );
+
+        // Case insensitive
+        assert_eq!(
+            CachedDatabaseAdapter::<MockAdapter>::extract_fact_table_from_sql(
+                "select sum(x) FROM TF_EVENTS"
+            ),
+            Some("tf_events".to_string())
+        );
+
+        // Not a fact table
+        assert_eq!(
+            CachedDatabaseAdapter::<MockAdapter>::extract_fact_table_from_sql(
+                "SELECT * FROM users WHERE id = 1"
+            ),
+            None
+        );
+
+        // No FROM clause
+        assert_eq!(
+            CachedDatabaseAdapter::<MockAdapter>::extract_fact_table_from_sql(
+                "SELECT 1 + 1"
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn test_generate_aggregation_cache_key() {
+        let key1 = CachedDatabaseAdapter::<MockAdapter>::generate_aggregation_cache_key(
+            "SELECT SUM(x) FROM tf_sales",
+            "1.0.0",
+            Some("tv:42"),
+        );
+
+        let key2 = CachedDatabaseAdapter::<MockAdapter>::generate_aggregation_cache_key(
+            "SELECT SUM(x) FROM tf_sales",
+            "1.0.0",
+            Some("tv:43"),  // Different version
+        );
+
+        let key3 = CachedDatabaseAdapter::<MockAdapter>::generate_aggregation_cache_key(
+            "SELECT SUM(x) FROM tf_sales",
+            "2.0.0",  // Different schema
+            Some("tv:42"),
+        );
+
+        // Keys should start with "agg:" prefix
+        assert!(key1.starts_with("agg:"));
+        assert!(key2.starts_with("agg:"));
+        assert!(key3.starts_with("agg:"));
+
+        // Different versions/schema produce different keys
+        assert_ne!(key1, key2);
+        assert_ne!(key1, key3);
+        assert_ne!(key2, key3);
+    }
+
+    #[tokio::test]
+    async fn test_aggregation_caching_time_based() {
+        let mock = MockAdapter::new();
+        let cache = QueryResultCache::new(CacheConfig::default());
+
+        // Configure time-based caching for tf_sales
+        let mut ft_config = FactTableCacheConfig::default();
+        ft_config.set_strategy(
+            "tf_sales",
+            FactTableVersionStrategy::TimeBased { ttl_seconds: 300 },
+        );
+
+        let adapter = CachedDatabaseAdapter::with_fact_table_config(
+            mock,
+            cache,
+            "1.0.0".to_string(),
+            ft_config,
+        );
+
+        // First query - cache miss
+        let _ = adapter
+            .execute_aggregation_query("SELECT SUM(revenue) FROM tf_sales")
+            .await
+            .unwrap();
+        assert_eq!(adapter.inner().call_count(), 1);
+
+        // Second query - cache hit (same time bucket)
+        let _ = adapter
+            .execute_aggregation_query("SELECT SUM(revenue) FROM tf_sales")
+            .await
+            .unwrap();
+        assert_eq!(adapter.inner().call_count(), 1);  // Still 1 - cache hit!
+    }
+
+    #[tokio::test]
+    async fn test_aggregation_caching_schema_version() {
+        let mock = MockAdapter::new();
+        let cache = QueryResultCache::new(CacheConfig::default());
+
+        // Configure schema version caching for tf_historical_rates
+        let mut ft_config = FactTableCacheConfig::default();
+        ft_config.set_strategy("tf_historical_rates", FactTableVersionStrategy::SchemaVersion);
+
+        let adapter = CachedDatabaseAdapter::with_fact_table_config(
+            mock,
+            cache,
+            "1.0.0".to_string(),
+            ft_config,
+        );
+
+        // First query - cache miss
+        let _ = adapter
+            .execute_aggregation_query("SELECT AVG(rate) FROM tf_historical_rates")
+            .await
+            .unwrap();
+        assert_eq!(adapter.inner().call_count(), 1);
+
+        // Second query - cache hit
+        let _ = adapter
+            .execute_aggregation_query("SELECT AVG(rate) FROM tf_historical_rates")
+            .await
+            .unwrap();
+        assert_eq!(adapter.inner().call_count(), 1);  // Cache hit!
+    }
+
+    #[tokio::test]
+    async fn test_aggregation_caching_disabled_by_default() {
+        let mock = MockAdapter::new();
+        let cache = QueryResultCache::new(CacheConfig::default());
+
+        // Default config has Disabled strategy
+        let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
+
+        // First query - no caching
+        let _ = adapter
+            .execute_aggregation_query("SELECT SUM(revenue) FROM tf_sales")
+            .await
+            .unwrap();
+        assert_eq!(adapter.inner().call_count(), 1);
+
+        // Second query - still no caching (disabled)
+        let _ = adapter
+            .execute_aggregation_query("SELECT SUM(revenue) FROM tf_sales")
+            .await
+            .unwrap();
+        assert_eq!(adapter.inner().call_count(), 2);  // No cache - hits DB again
+    }
+
+    #[tokio::test]
+    async fn test_aggregation_caching_non_fact_table() {
+        let mock = MockAdapter::new();
+        let cache = QueryResultCache::new(CacheConfig::default());
+
+        // Even with caching configured, non-fact tables bypass cache
+        let ft_config = FactTableCacheConfig::with_default(FactTableVersionStrategy::SchemaVersion);
+        let adapter = CachedDatabaseAdapter::with_fact_table_config(
+            mock,
+            cache,
+            "1.0.0".to_string(),
+            ft_config,
+        );
+
+        // Query on regular table - never cached
+        let _ = adapter
+            .execute_aggregation_query("SELECT COUNT(*) FROM users")
+            .await
+            .unwrap();
+        assert_eq!(adapter.inner().call_count(), 1);
+
+        let _ = adapter
+            .execute_aggregation_query("SELECT COUNT(*) FROM users")
+            .await
+            .unwrap();
+        assert_eq!(adapter.inner().call_count(), 2);  // No cache
+    }
+
+    #[tokio::test]
+    async fn test_aggregation_caching_different_queries() {
+        let mock = MockAdapter::new();
+        let cache = QueryResultCache::new(CacheConfig::default());
+
+        let mut ft_config = FactTableCacheConfig::default();
+        ft_config.set_strategy("tf_sales", FactTableVersionStrategy::SchemaVersion);
+
+        let adapter = CachedDatabaseAdapter::with_fact_table_config(
+            mock,
+            cache,
+            "1.0.0".to_string(),
+            ft_config,
+        );
+
+        // Query 1
+        let _ = adapter
+            .execute_aggregation_query("SELECT SUM(revenue) FROM tf_sales WHERE year = 2024")
+            .await
+            .unwrap();
+        assert_eq!(adapter.inner().call_count(), 1);
+
+        // Query 2 - different query, different cache key
+        let _ = adapter
+            .execute_aggregation_query("SELECT SUM(revenue) FROM tf_sales WHERE year = 2023")
+            .await
+            .unwrap();
+        assert_eq!(adapter.inner().call_count(), 2);  // Cache miss - different query
+
+        // Query 1 again - cache hit
+        let _ = adapter
+            .execute_aggregation_query("SELECT SUM(revenue) FROM tf_sales WHERE year = 2024")
+            .await
+            .unwrap();
+        assert_eq!(adapter.inner().call_count(), 2);  // Cache hit
+    }
+
+    #[tokio::test]
+    async fn test_fact_table_config_accessor() {
+        let mock = MockAdapter::new();
+        let cache = QueryResultCache::new(CacheConfig::default());
+
+        let mut ft_config = FactTableCacheConfig::default();
+        ft_config.set_strategy("tf_sales", FactTableVersionStrategy::VersionTable);
+
+        let adapter = CachedDatabaseAdapter::with_fact_table_config(
+            mock,
+            cache,
+            "1.0.0".to_string(),
+            ft_config,
+        );
+
+        // Verify config is accessible
+        assert_eq!(
+            adapter.fact_table_config().get_strategy("tf_sales"),
+            &FactTableVersionStrategy::VersionTable
+        );
+        assert_eq!(
+            adapter.fact_table_config().get_strategy("tf_other"),
+            &FactTableVersionStrategy::Disabled
+        );
     }
 }

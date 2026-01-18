@@ -101,21 +101,36 @@ Implemented full schema validation:
 
 ---
 
-### Priority 4: Cache & Runtime
+### Priority 4: Cache & Runtime ✅ COMPLETED
 
-#### 4.2 Aggregation Query Caching
+#### 4.2 Aggregation Query Caching ✅
 
-**Location**: `crates/fraiseql-core/src/cache/adapter.rs:391`
+**Status**: **COMPLETED** - January 18, 2026
 
+Implemented multi-strategy fact table caching:
+
+**Strategies** (`FactTableVersionStrategy` enum):
+- `Disabled` - No caching (default, for real-time accuracy)
+- `VersionTable` - Read version from `tf_versions` table (for ETL/batch loads)
+- `TimeBased` - TTL-based caching (for dashboards with acceptable lag)
+- `SchemaVersion` - Only invalidate on deployment (for immutable/append-only facts)
+
+**Components**:
+- `FactTableCacheConfig` - Per-table strategy configuration
+- `FactTableVersionProvider` - Cached version lookups from tf_versions
+- `CachedDatabaseAdapter.execute_aggregation_query()` - Cached aggregation queries
+- `VERSION_TABLE_SCHEMA` - SQL to create tf_versions table with bump_tf_version() function
+
+**Usage**:
 ```rust
-// TODO: Add caching support for aggregation queries in future phase
+let mut ft_config = FactTableCacheConfig::default();
+ft_config.set_strategy("tf_sales", FactTableVersionStrategy::VersionTable);
+ft_config.set_strategy("tf_events", FactTableVersionStrategy::time_based(300));
+
+let adapter = CachedDatabaseAdapter::with_fact_table_config(
+    db_adapter, cache, "1.0.0".to_string(), ft_config
+);
 ```
-
-**Issue**: Aggregation queries are not cached.
-
-**Impact**: Repeated aggregation queries always hit the database.
-
-**Effort**: 3-4 hours
 
 ---
 
@@ -218,7 +233,7 @@ Implemented full schema validation:
 | P1 | Kafka adapter | fraiseql-core | 8-12h | By Design (optional) |
 | P3 | Introspect facts | fraiseql-cli | 4-6h | ✅ Complete |
 | P3 | Validate facts | fraiseql-cli | 4-6h | ✅ Complete |
-| P4 | Aggregation caching | fraiseql-core | 3-4h | Pending |
+| P4 | Aggregation caching | fraiseql-core | 3-4h | ✅ Complete |
 | P5 | TypeScript metadata | fraiseql-ts | - | By Design |
 | P5 | PHP GraphQLType | fraiseql-php | 1-2h | Low priority |
 | P5 | Fraisier status | fraisier | 2-4h | Pending |
@@ -226,16 +241,16 @@ Implemented full schema validation:
 | P6 | DB benchmarks | fraiseql-core | 4-6h | Pending |
 | P6 | TLS tests | fraiseql-wire | 4-6h | Pending |
 
-**Total Remaining Effort**: ~25-40 hours (mostly optional/polish)
+**Total Remaining Effort**: ~20-35 hours (mostly optional/polish)
 
 ---
 
 ## Recommended Implementation Order
 
-### Phase C: Cache & CLI ✅ PARTIAL
+### Phase C: Cache & CLI ✅ COMPLETE
 1. ~~Introspect facts implementation (P3) - 4h~~ ✅ DONE
 2. ~~Validate facts implementation (P3) - 4h~~ ✅ DONE
-3. Aggregation query caching (P4) - 4h - **PENDING**
+3. ~~Aggregation query caching (P4) - 4h~~ ✅ DONE
 
 ### Phase D: Testing (12-18 hours)
 1. Server integration tests (P6) - 6h

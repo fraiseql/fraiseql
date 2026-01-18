@@ -885,7 +885,7 @@ mod tests {
         assert_eq!(generator.value_to_sql(&serde_json::json!(true)), "TRUE");
         assert_eq!(generator.value_to_sql(&serde_json::json!(false)), "FALSE");
         assert_eq!(generator.value_to_sql(&serde_json::json!(42)), "42");
-        assert_eq!(generator.value_to_sql(&serde_json::json!(3.14)), "3.14");
+        assert_eq!(generator.value_to_sql(&serde_json::json!(1.5)), "1.5");
         assert_eq!(generator.value_to_sql(&serde_json::json!("hello")), "'hello'");
         assert_eq!(generator.value_to_sql(&serde_json::json!("it's")), "'it''s'"); // SQL escaping
     }
