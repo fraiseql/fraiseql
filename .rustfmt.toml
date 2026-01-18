@@ -9,9 +9,9 @@ control_brace_style = "AlwaysSameLine"
 # Edition
 edition = "2021"
 enum_discrim_align_threshold = 20
+fn_call_width = 80
 # Functions
 fn_params_layout = "Tall"
-fn_call_width = 80
 group_imports = "StdExternalCrate"
 hard_tabs = false
 # Imports
@@ -31,8 +31,8 @@ reorder_imports = true
 reorder_modules = true
 # Structs and enums
 struct_field_align_threshold = 20
+style_edition = "2024"
 tab_spaces = 4
 use_small_heuristics = "Default"
-style_edition = "2024"
 # Comments
 wrap_comments = true
