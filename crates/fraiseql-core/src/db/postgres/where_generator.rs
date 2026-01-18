@@ -190,9 +190,18 @@ impl PostgresWhereGenerator {
             WhereOperator::StrictlyContains => self.generate_jsonb_op(&field_path, "@>", value, params),
 
             // LTree operators
-            WhereOperator::AncestorOf => self.generate_comparison(&field_path, "@>", value, params),
-            WhereOperator::DescendantOf => self.generate_comparison(&field_path, "<@", value, params),
-            WhereOperator::MatchesLquery => self.generate_comparison(&field_path, "~", value, params),
+            WhereOperator::AncestorOf => self.generate_ltree_op(&field_path, "@>", "ltree", value, params),
+            WhereOperator::DescendantOf => self.generate_ltree_op(&field_path, "<@", "ltree", value, params),
+            WhereOperator::MatchesLquery => self.generate_ltree_op(&field_path, "~", "lquery", value, params),
+            WhereOperator::MatchesLtxtquery => self.generate_ltree_op(&field_path, "@", "ltxtquery", value, params),
+            WhereOperator::MatchesAnyLquery => self.generate_ltree_array_op(&field_path, value, params),
+            WhereOperator::DepthEq => self.generate_ltree_depth(&field_path, "=", value, params),
+            WhereOperator::DepthNeq => self.generate_ltree_depth(&field_path, "!=", value, params),
+            WhereOperator::DepthGt => self.generate_ltree_depth(&field_path, ">", value, params),
+            WhereOperator::DepthGte => self.generate_ltree_depth(&field_path, ">=", value, params),
+            WhereOperator::DepthLt => self.generate_ltree_depth(&field_path, "<", value, params),
+            WhereOperator::DepthLte => self.generate_ltree_depth(&field_path, "<=", value, params),
+            WhereOperator::Lca => self.generate_ltree_lca(&field_path, value, params),
         }
     }
 
@@ -377,6 +386,83 @@ impl PostgresWhereGenerator {
         params.push(value.clone());
         Ok(format!("{field_path}::inet {op} {param}::inet"))
     }
+
+    fn generate_ltree_op(
+        &self,
+        field_path: &str,
+        op: &str,
+        value_type: &str,
+        value: &serde_json::Value,
+        params: &mut Vec<serde_json::Value>,
+    ) -> Result<String> {
+        let param = self.next_param();
+        params.push(value.clone());
+        Ok(format!("{field_path}::ltree {op} {param}::{value_type}"))
+    }
+
+    fn generate_ltree_array_op(
+        &self,
+        field_path: &str,
+        value: &serde_json::Value,
+        params: &mut Vec<serde_json::Value>,
+    ) -> Result<String> {
+        let array = value.as_array().ok_or_else(|| {
+            FraiseQLError::validation("matches_any_lquery operator requires array value".to_string())
+        })?;
+
+        if array.is_empty() {
+            return Ok("FALSE".to_string());
+        }
+
+        let placeholders: Vec<String> = array
+            .iter()
+            .map(|v| {
+                let param = self.next_param();
+                params.push(v.clone());
+                format!("{param}::lquery")
+            })
+            .collect();
+
+        Ok(format!("{field_path}::ltree ? ARRAY[{}]", placeholders.join(", ")))
+    }
+
+    fn generate_ltree_depth(
+        &self,
+        field_path: &str,
+        op: &str,
+        value: &serde_json::Value,
+        params: &mut Vec<serde_json::Value>,
+    ) -> Result<String> {
+        let param = self.next_param();
+        params.push(value.clone());
+        Ok(format!("nlevel({field_path}::ltree) {op} {param}"))
+    }
+
+    fn generate_ltree_lca(
+        &self,
+        field_path: &str,
+        value: &serde_json::Value,
+        params: &mut Vec<serde_json::Value>,
+    ) -> Result<String> {
+        let array = value.as_array().ok_or_else(|| {
+            FraiseQLError::validation("lca operator requires array value".to_string())
+        })?;
+
+        if array.is_empty() {
+            return Err(FraiseQLError::validation("lca operator requires at least one path".to_string()));
+        }
+
+        let placeholders: Vec<String> = array
+            .iter()
+            .map(|v| {
+                let param = self.next_param();
+                params.push(v.clone());
+                format!("{param}::ltree")
+            })
+            .collect();
+
+        Ok(format!("{field_path}::ltree = lca(ARRAY[{}])", placeholders.join(", ")))
+    }
 }
 
 impl Default for PostgresWhereGenerator {
@@ -529,5 +615,119 @@ mod tests {
         let (sql, params) = gen.generate(&clause).unwrap();
         assert_eq!(sql, "data->>'tags'::jsonb @> $1::jsonb");
         assert_eq!(params, vec![json!(["rust"])]);
+    }
+
+    // ============ LTree Operator Tests ============
+
+    #[test]
+    fn test_ltree_ancestor_of() {
+        let gen = PostgresWhereGenerator::new();
+        let clause = WhereClause::Field {
+            path: vec!["path".to_string()],
+            operator: WhereOperator::AncestorOf,
+            value: json!("Top.Sciences.Astronomy"),
+        };
+
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert_eq!(sql, "data->>'path'::ltree @> $1::ltree");
+        assert_eq!(params, vec![json!("Top.Sciences.Astronomy")]);
+    }
+
+    #[test]
+    fn test_ltree_descendant_of() {
+        let gen = PostgresWhereGenerator::new();
+        let clause = WhereClause::Field {
+            path: vec!["path".to_string()],
+            operator: WhereOperator::DescendantOf,
+            value: json!("Top.Sciences"),
+        };
+
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert_eq!(sql, "data->>'path'::ltree <@ $1::ltree");
+        assert_eq!(params, vec![json!("Top.Sciences")]);
+    }
+
+    #[test]
+    fn test_ltree_matches_lquery() {
+        let gen = PostgresWhereGenerator::new();
+        let clause = WhereClause::Field {
+            path: vec!["path".to_string()],
+            operator: WhereOperator::MatchesLquery,
+            value: json!("Top.*.Ast*"),
+        };
+
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert_eq!(sql, "data->>'path'::ltree ~ $1::lquery");
+        assert_eq!(params, vec![json!("Top.*.Ast*")]);
+    }
+
+    #[test]
+    fn test_ltree_matches_ltxtquery() {
+        let gen = PostgresWhereGenerator::new();
+        let clause = WhereClause::Field {
+            path: vec!["path".to_string()],
+            operator: WhereOperator::MatchesLtxtquery,
+            value: json!("Science & !Deprecated"),
+        };
+
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert_eq!(sql, "data->>'path'::ltree @ $1::ltxtquery");
+        assert_eq!(params, vec![json!("Science & !Deprecated")]);
+    }
+
+    #[test]
+    fn test_ltree_matches_any_lquery() {
+        let gen = PostgresWhereGenerator::new();
+        let clause = WhereClause::Field {
+            path: vec!["path".to_string()],
+            operator: WhereOperator::MatchesAnyLquery,
+            value: json!(["Top.*", "Other.*"]),
+        };
+
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert_eq!(sql, "data->>'path'::ltree ? ARRAY[$1::lquery, $2::lquery]");
+        assert_eq!(params, vec![json!("Top.*"), json!("Other.*")]);
+    }
+
+    #[test]
+    fn test_ltree_depth_eq() {
+        let gen = PostgresWhereGenerator::new();
+        let clause = WhereClause::Field {
+            path: vec!["path".to_string()],
+            operator: WhereOperator::DepthEq,
+            value: json!(3),
+        };
+
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert_eq!(sql, "nlevel(data->>'path'::ltree) = $1");
+        assert_eq!(params, vec![json!(3)]);
+    }
+
+    #[test]
+    fn test_ltree_depth_gt() {
+        let gen = PostgresWhereGenerator::new();
+        let clause = WhereClause::Field {
+            path: vec!["path".to_string()],
+            operator: WhereOperator::DepthGt,
+            value: json!(2),
+        };
+
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert_eq!(sql, "nlevel(data->>'path'::ltree) > $1");
+        assert_eq!(params, vec![json!(2)]);
+    }
+
+    #[test]
+    fn test_ltree_lca() {
+        let gen = PostgresWhereGenerator::new();
+        let clause = WhereClause::Field {
+            path: vec!["path".to_string()],
+            operator: WhereOperator::Lca,
+            value: json!(["Org.Engineering.Backend", "Org.Engineering.Frontend"]),
+        };
+
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert_eq!(sql, "data->>'path'::ltree = lca(ARRAY[$1::ltree, $2::ltree])");
+        assert_eq!(params, vec![json!("Org.Engineering.Backend"), json!("Org.Engineering.Frontend")]);
     }
 }

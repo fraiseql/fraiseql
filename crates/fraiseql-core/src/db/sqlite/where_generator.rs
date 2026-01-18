@@ -205,8 +205,19 @@ impl SqliteWhereGenerator {
             // JSONB operators
             WhereOperator::StrictlyContains => self.generate_json_contains(&field_path, path, value, params),
 
-            // LTree operators - not supported in SQLite
-            WhereOperator::AncestorOf | WhereOperator::DescendantOf | WhereOperator::MatchesLquery => {
+            // LTree operators - not supported in SQLite (PostgreSQL-specific)
+            WhereOperator::AncestorOf
+            | WhereOperator::DescendantOf
+            | WhereOperator::MatchesLquery
+            | WhereOperator::MatchesLtxtquery
+            | WhereOperator::MatchesAnyLquery
+            | WhereOperator::DepthEq
+            | WhereOperator::DepthNeq
+            | WhereOperator::DepthGt
+            | WhereOperator::DepthGte
+            | WhereOperator::DepthLt
+            | WhereOperator::DepthLte
+            | WhereOperator::Lca => {
                 Err(FraiseQLError::validation(
                     "LTree operators not supported in SQLite".to_string(),
                 ))

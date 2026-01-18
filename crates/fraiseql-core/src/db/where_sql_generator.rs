@@ -190,7 +190,16 @@ impl WhereSqlGenerator {
             | WhereOperator::StrictlyContains
             | WhereOperator::AncestorOf
             | WhereOperator::DescendantOf
-            | WhereOperator::MatchesLquery => {
+            | WhereOperator::MatchesLquery
+            | WhereOperator::MatchesLtxtquery
+            | WhereOperator::MatchesAnyLquery
+            | WhereOperator::DepthEq
+            | WhereOperator::DepthNeq
+            | WhereOperator::DepthGt
+            | WhereOperator::DepthGte
+            | WhereOperator::DepthLt
+            | WhereOperator::DepthLte
+            | WhereOperator::Lca => {
                 return Err(FraiseQLError::Internal {
                     message: format!(
                         "Advanced operators not yet supported in fraiseql-wire: {operator:?}"

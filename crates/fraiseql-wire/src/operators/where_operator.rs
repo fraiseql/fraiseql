@@ -21,7 +21,8 @@ use super::field::{Field, Value};
 /// - **Full-Text Search**: Matches, PlainQuery, PhraseQuery, WebsearchQuery
 /// - **Network**: IsIPv4, IsIPv6, IsPrivate, IsPublic, IsLoopback, InSubnet, ContainsSubnet, ContainsIP, IPRangeOverlap
 /// - **JSONB**: StrictlyContains
-/// - **LTree**: AncestorOf, DescendantOf, MatchesLquery
+/// - **LTree**: AncestorOf, DescendantOf, MatchesLquery, MatchesLtxtquery, MatchesAnyLquery,
+///   DepthEq, DepthNeq, DepthGt, DepthGte, DepthLt, DepthLte, Lca
 #[derive(Debug, Clone)]
 pub enum WhereOperator {
     // ============ Comparison Operators ============
@@ -322,6 +323,84 @@ pub enum WhereOperator {
         /// The lquery pattern to match against
         pattern: String,
     },
+
+    /// Matches ltxtquery: `field @ ltxtquery`
+    ///
+    /// Checks if the ltree field matches the given ltxtquery pattern (Boolean query syntax)
+    MatchesLtxtquery {
+        /// The ltree field to check
+        field: Field,
+        /// The ltxtquery pattern to match against (e.g., "Science & !Deprecated")
+        query: String,
+    },
+
+    /// Matches any lquery: `field ? array[lqueries]`
+    ///
+    /// Checks if the ltree field matches any of the given lquery patterns
+    MatchesAnyLquery {
+        /// The ltree field to check
+        field: Field,
+        /// Array of lquery patterns to match against
+        patterns: Vec<String>,
+    },
+
+    /// LTree depth equals: `nlevel(field) = depth`
+    DepthEq {
+        /// The ltree field to check
+        field: Field,
+        /// The depth value to compare
+        depth: usize,
+    },
+
+    /// LTree depth not equals: `nlevel(field) != depth`
+    DepthNeq {
+        /// The ltree field to check
+        field: Field,
+        /// The depth value to compare
+        depth: usize,
+    },
+
+    /// LTree depth greater than: `nlevel(field) > depth`
+    DepthGt {
+        /// The ltree field to check
+        field: Field,
+        /// The depth value to compare
+        depth: usize,
+    },
+
+    /// LTree depth greater than or equal: `nlevel(field) >= depth`
+    DepthGte {
+        /// The ltree field to check
+        field: Field,
+        /// The depth value to compare
+        depth: usize,
+    },
+
+    /// LTree depth less than: `nlevel(field) < depth`
+    DepthLt {
+        /// The ltree field to check
+        field: Field,
+        /// The depth value to compare
+        depth: usize,
+    },
+
+    /// LTree depth less than or equal: `nlevel(field) <= depth`
+    DepthLte {
+        /// The ltree field to check
+        field: Field,
+        /// The depth value to compare
+        depth: usize,
+    },
+
+    /// Lowest common ancestor: `lca(field, paths)`
+    ///
+    /// Checks if the ltree field equals the lowest common ancestor of the given paths
+    Lca {
+        /// The ltree field to check
+        field: Field,
+        /// The paths to find LCA of
+        paths: Vec<String>,
+    },
 }
 
 impl WhereOperator {
@@ -376,6 +455,15 @@ impl WhereOperator {
             WhereOperator::AncestorOf { .. } => "AncestorOf",
             WhereOperator::DescendantOf { .. } => "DescendantOf",
             WhereOperator::MatchesLquery { .. } => "MatchesLquery",
+            WhereOperator::MatchesLtxtquery { .. } => "MatchesLtxtquery",
+            WhereOperator::MatchesAnyLquery { .. } => "MatchesAnyLquery",
+            WhereOperator::DepthEq { .. } => "DepthEq",
+            WhereOperator::DepthNeq { .. } => "DepthNeq",
+            WhereOperator::DepthGt { .. } => "DepthGt",
+            WhereOperator::DepthGte { .. } => "DepthGte",
+            WhereOperator::DepthLt { .. } => "DepthLt",
+            WhereOperator::DepthLte { .. } => "DepthLte",
+            WhereOperator::Lca { .. } => "Lca",
         }
     }
 
@@ -430,7 +518,16 @@ impl WhereOperator {
             | WhereOperator::IPRangeOverlap { field, .. }
             | WhereOperator::AncestorOf { field, .. }
             | WhereOperator::DescendantOf { field, .. }
-            | WhereOperator::MatchesLquery { field, .. } => field.validate(),
+            | WhereOperator::MatchesLquery { field, .. }
+            | WhereOperator::MatchesLtxtquery { field, .. }
+            | WhereOperator::MatchesAnyLquery { field, .. }
+            | WhereOperator::DepthEq { field, .. }
+            | WhereOperator::DepthNeq { field, .. }
+            | WhereOperator::DepthGt { field, .. }
+            | WhereOperator::DepthGte { field, .. }
+            | WhereOperator::DepthLt { field, .. }
+            | WhereOperator::DepthLte { field, .. }
+            | WhereOperator::Lca { field, .. } => field.validate(),
         }
     }
 }

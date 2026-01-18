@@ -211,6 +211,24 @@ pub enum WhereOperator {
     DescendantOf,
     /// Matches lquery (~).
     MatchesLquery,
+    /// Matches ltxtquery (@) - Boolean query syntax.
+    MatchesLtxtquery,
+    /// Matches any lquery (?).
+    MatchesAnyLquery,
+    /// Depth equal (nlevel() =).
+    DepthEq,
+    /// Depth not equal (nlevel() !=).
+    DepthNeq,
+    /// Depth greater than (nlevel() >).
+    DepthGt,
+    /// Depth greater than or equal (nlevel() >=).
+    DepthGte,
+    /// Depth less than (nlevel() <).
+    DepthLt,
+    /// Depth less than or equal (nlevel() <=).
+    DepthLte,
+    /// Lowest common ancestor (lca()).
+    Lca,
 }
 
 impl WhereOperator {
@@ -270,6 +288,15 @@ impl WhereOperator {
             "ancestor_of" => Ok(Self::AncestorOf),
             "descendant_of" => Ok(Self::DescendantOf),
             "matches_lquery" => Ok(Self::MatchesLquery),
+            "matches_ltxtquery" => Ok(Self::MatchesLtxtquery),
+            "matches_any_lquery" => Ok(Self::MatchesAnyLquery),
+            "depth_eq" => Ok(Self::DepthEq),
+            "depth_neq" => Ok(Self::DepthNeq),
+            "depth_gt" => Ok(Self::DepthGt),
+            "depth_gte" => Ok(Self::DepthGte),
+            "depth_lt" => Ok(Self::DepthLt),
+            "depth_lte" => Ok(Self::DepthLte),
+            "lca" => Ok(Self::Lca),
             _ => Err(FraiseQLError::validation(format!("Unknown WHERE operator: {s}"))),
         }
     }

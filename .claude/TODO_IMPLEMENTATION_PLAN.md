@@ -1,7 +1,7 @@
 # FraiseQL - TODO Implementation Plan
 
 **Date**: January 18, 2026
-**Status**: ~99% Complete - Most items done, remaining are polish/optional
+**Status**: ~95% Complete - GitHub issue feature parity items remaining
 
 ---
 
@@ -9,11 +9,11 @@
 
 This document catalogs all TODO comments, stub implementations, and incomplete features across the FraiseQL codebase. Items are organized by priority and effort level.
 
-**Last Review**: January 18, 2026 - Architecture assessment completed.
+**Last Review**: January 18, 2026 - GitHub issues feature parity assessment completed.
 
 ---
 
-## Completed Items (Phase A + B)
+## Completed Items (Phase A + B + C)
 
 The following items have been fully implemented:
 
@@ -21,143 +21,226 @@ The following items have been fully implemented:
 |------|----------|--------|
 | 1.1 `state_snapshot()` | fraiseql-wire | ✅ Implemented with atomic state tracking |
 | 1.2 Subscription filtering | fraiseql-core | ✅ Event filtering and field projection done |
+| 1.3 Kafka adapter | fraiseql-core | ✅ Full rdkafka + conditional compilation |
 | 2.1 Codegen mappings | fraiseql-core | ✅ Full IR-to-CompiledSchema mapping |
 | 2.2 Validator | fraiseql-core | ✅ Type, query, mutation, subscription validation |
 | 2.3 Aggregate types | fraiseql-core | ✅ Dimension fields and temporal buckets |
 | 2.4 SQL lowering | fraiseql-core | ✅ Multi-database SQL template generation |
 | 2.5 Fact table paths | fraiseql-core | ✅ JSONB path extraction implemented |
+| 3.1 Introspect facts | fraiseql-cli | ✅ Database introspection complete |
+| 3.2 Validate facts | fraiseql-cli | ✅ Schema validation complete |
 | 3.3 Converter TODOs | fraiseql-cli | ✅ Subscriptions, directives, deprecation |
 | 4.1 Cache key views | fraiseql-core | N/A - Architecture mismatch (no JOINs) |
+| 4.2 Aggregation caching | fraiseql-core | ✅ Multi-strategy fact table caching |
 | 4.3 Query planner | fraiseql-core | N/A - Uses compiled templates, not planning |
 | 4.4 Aggregate parser | fraiseql-core | ✅ COUNT DISTINCT implemented |
 
 ---
 
-## Architecture Mismatches (Removed)
+## GitHub Issues - Feature Parity (NEW)
 
-### Cache Key View Extraction (4.1)
+These items ensure v2 addresses all open issues from v1 development.
 
-**Status**: **N/A - Removed**
+### Issue #250: Indexed Filter Columns for Nested Paths
 
-FraiseQL uses single-table compiled SQL templates (no JOINs or resolver chains). The `sql_source` field is the complete set of accessed views for cache invalidation. No changes needed.
+**Status**: ⚠️ **Design finalized, implementation pending**
 
-### Query Planner (4.3)
+**Problem**: Filtering on nested GraphQL paths (e.g., `items.product.categoryId`) currently uses JSONB extraction, which bypasses indexed columns.
 
-**Status**: **N/A - Removed**
+**Solution**: Runtime view introspection with optional compile-time validation. DBA can optimize by adding indexed columns to views without code deployment.
 
-FraiseQL is a **compiled execution engine**:
-- Queries are matched to pre-compiled templates
-- SQL comes from `sql_source` (not dynamically planned)
-- No runtime query optimization needed
+#### Design Philosophy
 
-The current planner implementation is complete for FraiseQL's architecture:
-- Generates ExecutionPlan from QueryMatch
-- Extracts projection fields
-- Provides cost estimates
+**Database is the source of truth for optimization.** The DBA adds indexed columns to views, FraiseQL discovers and uses them automatically.
 
-The TODO for "full query planning logic" is an artifact from a traditional GraphQL architecture that doesn't apply.
+#### Column Naming Conventions (both supported)
 
----
-
-## Remaining Items
-
-### Priority 1: Kafka Adapter ✅ COMPLETED
-
-#### 1.3 Kafka Adapter
-
-**Status**: **COMPLETED** - January 18, 2026
-
-Implemented full Kafka support with conditional compilation:
-
-**Feature Flag**: `kafka` (optional, requires `rdkafka` native dependencies)
-
-**Without `kafka` feature** (default):
-- Stub implementation that logs events
-- API-compatible for development/testing
-- No native dependencies required
-
-**With `kafka` feature**:
-- Full `rdkafka` producer integration
-- Async message delivery with partition/offset tracking
-- Health check via metadata fetch
-- Configurable compression, acks, timeouts
-
-**Usage**:
-```rust
-// Enable with: cargo build --features kafka
-use fraiseql_core::runtime::subscription::{KafkaAdapter, KafkaConfig};
-
-let config = KafkaConfig::new("localhost:9092", "fraiseql-events")
-    .with_client_id("my-service")
-    .with_compression("lz4")
-    .with_acks("all");
-
-let adapter = KafkaAdapter::new(config)?;
-adapter.deliver(&event, "orderCreated").await?;
+**1. Human-readable (when path fits in 63 chars)**:
+```sql
+items__product__category__code
 ```
 
----
-
-### Priority 3: CLI Completeness ✅ COMPLETED
-
-#### 3.1 Introspect Facts ✅
-
-**Status**: **COMPLETED** - January 18, 2026
-
-Implemented full database introspection:
-- Lists tf_* tables from database
-- Introspects measures, dimensions, filters, calendar columns
-- Outputs Python decorator suggestions
-- Outputs JSON metadata
-- Extracts JSONB dimension paths from sample data
-
----
-
-#### 3.2 Validate Facts ✅
-
-**Status**: **COMPLETED** - January 18, 2026
-
-Implemented full schema validation:
-- Compares declared vs actual fact tables
-- Validates measures, dimensions, denormalized filters
-- Type compatibility checking with SQL aliases
-- Reports errors and warnings
-- Suitable for CI/CD pipelines
-
----
-
-### Priority 4: Cache & Runtime ✅ COMPLETED
-
-#### 4.2 Aggregation Query Caching ✅
-
-**Status**: **COMPLETED** - January 18, 2026
-
-Implemented multi-strategy fact table caching:
-
-**Strategies** (`FactTableVersionStrategy` enum):
-- `Disabled` - No caching (default, for real-time accuracy)
-- `VersionTable` - Read version from `tf_versions` table (for ETL/batch loads)
-- `TimeBased` - TTL-based caching (for dashboards with acceptable lag)
-- `SchemaVersion` - Only invalidate on deployment (for immutable/append-only facts)
-
-**Components**:
-- `FactTableCacheConfig` - Per-table strategy configuration
-- `FactTableVersionProvider` - Cached version lookups from tf_versions
-- `CachedDatabaseAdapter.execute_aggregation_query()` - Cached aggregation queries
-- `VERSION_TABLE_SCHEMA` - SQL to create tf_versions table with bump_tf_version() function
-
-**Usage**:
-```rust
-let mut ft_config = FactTableCacheConfig::default();
-ft_config.set_strategy("tf_sales", FactTableVersionStrategy::VersionTable);
-ft_config.set_strategy("tf_events", FactTableVersionStrategy::time_based(300));
-
-let adapter = CachedDatabaseAdapter::with_fact_table_config(
-    db_adapter, cache, "1.0.0".to_string(), ft_config
-);
+**2. Entity ID (for long paths)**:
+```sql
+f{entity_id}__{field_name}
+-- Example: f200100__code (Category entity = 200100)
 ```
 
+#### Runtime Flow
+
+```
+1. Server startup:
+   - For each type with sql_source, introspect view columns
+   - Cache columns matching __ patterns
+   - ~1-5ms per view, negligible startup cost
+
+2. Query execution:
+   - Filter on items.product.category.code
+   - Check cache: does items__product__category__code exist?
+   - Or check: does f{category_entity_id}__code exist?
+   - If yes → use indexed column
+   - If no → fall back to JSONB extraction
+
+3. Zero-deploy optimization:
+   - DBA adds column + index to view
+   - Restart server (or refresh cache)
+   - Done - no code changes needed
+```
+
+#### Optional Compile-Time Validation
+
+```bash
+fraiseql compile schema.json --database postgresql://... -o schema.compiled.json
+```
+
+- Validates indexed columns exist
+- Warns about missing optimization opportunities
+- CI can catch schema/view mismatches
+
+#### Why This Design
+
+- **Zero-deploy optimization** - DBA improves performance without code changes
+- **Environment flexibility** - Dev/staging/prod can have different indexed columns
+- **Simple toolchain** - Compile stays pure JSON→JSON by default
+- **Two conventions** - Human-readable for short paths, entity ID for long paths
+- **Negligible cost** - One introspection query per view at startup
+
+#### Implementation
+
+**Files to Modify**:
+1. `crates/fraiseql-core/src/db/postgres/introspector.rs` - Add view column introspection
+2. `crates/fraiseql-core/src/runtime/executor.rs` - Cache indexed columns on startup
+3. `crates/fraiseql-core/src/db/postgres/where_generator.rs` - Check column cache before JSONB
+4. `crates/fraiseql-cli/src/commands/compile.rs` - Optional `--database` flag for validation
+
+**Effort**: 6-8 hours
+
 ---
+
+### Issue #248: Complete LTree Filter Support
+
+**Status**: ✅ **Complete (12/12 operators)**
+
+| Operator | SQL | Status |
+|----------|-----|--------|
+| `ancestor_of` | `@>` | ✅ Implemented |
+| `descendant_of` | `<@` | ✅ Implemented |
+| `matches_lquery` | `~` | ✅ Implemented |
+| `matches_ltxtquery` | `@` | ✅ Implemented |
+| `matches_any_lquery` | `?` | ✅ Implemented |
+| `depth_eq` | `nlevel() =` | ✅ Implemented |
+| `depth_neq` | `nlevel() !=` | ✅ Implemented |
+| `depth_gt` | `nlevel() >` | ✅ Implemented |
+| `depth_gte` | `nlevel() >=` | ✅ Implemented |
+| `depth_lt` | `nlevel() <` | ✅ Implemented |
+| `depth_lte` | `nlevel() <=` | ✅ Implemented |
+| `lca` | `lca()` | ✅ Implemented |
+
+**Files Modified** (January 18, 2026):
+- `crates/fraiseql-wire/src/operators/where_operator.rs` - Added 9 new enum variants
+- `crates/fraiseql-wire/src/operators/sql_gen.rs` - Added SQL generation with tests
+- `crates/fraiseql-core/src/db/where_clause.rs` - Added enum variants and from_str()
+- `crates/fraiseql-core/src/db/postgres/where_generator.rs` - Added SQL generation with helper functions
+- `crates/fraiseql-core/src/db/mysql/where_generator.rs` - Added error handling (unsupported)
+- `crates/fraiseql-core/src/db/sqlite/where_generator.rs` - Added error handling (unsupported)
+- `crates/fraiseql-core/src/db/sqlserver/where_generator.rs` - Added error handling (unsupported)
+- `crates/fraiseql-core/src/db/where_sql_generator.rs` - Added error handling
+
+**Tests Added**: 17 unit tests (8 in fraiseql-core, 9 in fraiseql-wire)
+
+---
+
+### Issue #247: GraphQL Subscriptions Completion
+
+**Status**: ✅ **Mostly Complete**
+
+| Component | Status |
+|-----------|--------|
+| PostgreSQL LISTEN/NOTIFY | ✅ Complete |
+| SubscriptionManager | ✅ Complete |
+| graphql-ws protocol | ✅ Complete |
+| WebSocket handler | ✅ Complete |
+| `@fraiseql.subscription` decorator | ✅ Complete |
+| Webhook adapter | ✅ Complete |
+| Kafka adapter | ✅ Complete |
+| gRPC adapter | ❌ Not implemented |
+| `tb_entity_change_log` migration | ⏳ Future |
+
+**Remaining**:
+- gRPC streaming adapter (optional)
+
+**Effort**: 4-6 hours (gRPC only)
+
+---
+
+### Issue #225: Security Enforcement Gaps
+
+**Status**: ⚠️ **Partial (10/13 features)**
+
+**Fully Implemented** (10):
+- ✅ JWT token validation (structure + expiry)
+- ✅ Security profiles (STANDARD/REGULATED)
+- ✅ Field masking (40+ patterns, 4 sensitivity levels)
+- ✅ Audit logging (PostgreSQL backend)
+- ✅ Rate limiting (profile-based)
+- ✅ TLS enforcement
+- ✅ Query validation (depth, complexity, size)
+- ✅ Introspection control
+- ✅ OIDC/JWKS support
+- ✅ Error formatting
+
+**Critical Gaps** (3):
+
+#### 7.1 JWT Signature Verification
+
+**Location**: `crates/fraiseql-core/src/security/auth_middleware.rs:255-257`
+
+```rust
+// In a real implementation, this would validate the signature here.
+// For now, we just check basic structure.
+```
+
+**Issue**: Only validates JWT structure, not cryptographic signature.
+
+**Required**:
+- Use `jsonwebtoken` crate (already in workspace)
+- Implement HS256/RS256 signature verification
+- Integrate JWKS key rotation
+
+**Effort**: 4-6 hours
+
+---
+
+#### 7.2 RBAC/Permission Enforcement
+
+**Location**: Documented in `docs/enterprise/rbac.md` (845 lines) but NOT in Rust
+
+**Issue**: RBAC design exists but no runtime enforcement in `fraiseql-core`.
+
+**Required**:
+- Create `crates/fraiseql-core/src/security/permissions.rs`
+- Implement permission resolver with caching
+- Add field-level permission enforcement
+- Integrate with query execution
+
+**Effort**: 12-16 hours
+
+---
+
+#### 7.3 Field Selection Filtering
+
+**Issue**: Field masking exists (hides data) but not field selection filtering (restrict access).
+
+**Required**:
+- Create `crates/fraiseql-core/src/security/field_filter.rs`
+- Validate requested fields against allowed fields per user/role
+- Return proper GraphQL errors for unauthorized access
+
+**Effort**: 6-8 hours
+
+---
+
+## Remaining Items (Original)
 
 ### Priority 5: SDK Polish (Optional)
 
@@ -165,7 +248,7 @@ let adapter = CachedDatabaseAdapter::with_fact_table_config(
 
 **Location**: `fraiseql-typescript/src/decorators.ts`
 
-**Status**: **By Design** - TypeScript runtime type erasure limitation. Workaround exists via manual `registerTypeFields()` calls.
+**Status**: **By Design** - TypeScript runtime type erasure limitation.
 
 **Action**: Document the limitation and workaround.
 
@@ -185,14 +268,7 @@ let adapter = CachedDatabaseAdapter::with_fact_table_config(
 
 **Location**: `fraisier/fraisier/cli.py:200-226`
 
-```python
-# TODO: Add actual version/health checking once deployers are complete
-# TODO: Implement actual status checking
-```
-
 **Issue**: `status` and `status_all` commands show placeholder values.
-
-**Impact**: Can't monitor deployed fraises.
 
 **Effort**: 2-4 hours
 
@@ -204,13 +280,7 @@ let adapter = CachedDatabaseAdapter::with_fact_table_config(
 
 **Location**: `crates/fraiseql-server/src/server.rs:218`
 
-```rust
-// TODO: Add server tests
-```
-
 **Issue**: Server module lacks integration tests.
-
-**Impact**: Server functionality not tested end-to-end.
 
 **Effort**: 4-6 hours
 
@@ -220,15 +290,7 @@ let adapter = CachedDatabaseAdapter::with_fact_table_config(
 
 **Location**: `crates/fraiseql-core/benches/database_baseline.rs:55-147`
 
-```rust
-// TODO: Implement actual query once PostgresAdapter is available
-// TODO: Implement actual query
-// TODO: Implement streaming query and measure time to first result
-```
-
 **Issue**: Benchmarks are placeholders without actual database queries.
-
-**Impact**: Cannot measure real database performance.
 
 **Effort**: 4-6 hours
 
@@ -238,16 +300,9 @@ let adapter = CachedDatabaseAdapter::with_fact_table_config(
 
 **Location**: `crates/fraiseql-wire/tests/tls_integration.rs`
 
-4 tests remain ignored, requiring TLS-enabled PostgreSQL.
+**Issue**: 4 tests remain ignored, requiring TLS-enabled PostgreSQL.
 
-**Issue**: Cannot test TLS connections with testcontainers (requires SSL certificates).
-
-**Options**:
-1. Create testcontainer with self-signed SSL certificates
-2. Set up CI with TLS-enabled PostgreSQL
-3. Keep as manual tests with documentation
-
-**Effort**: 4-6 hours (for testcontainer SSL setup)
+**Effort**: 4-6 hours
 
 ---
 
@@ -255,10 +310,14 @@ let adapter = CachedDatabaseAdapter::with_fact_table_config(
 
 | Priority | Item | Location | Effort | Status |
 |----------|------|----------|--------|--------|
-| P1 | Kafka adapter | fraiseql-core | 8-12h | ✅ Complete |
-| P3 | Introspect facts | fraiseql-cli | 4-6h | ✅ Complete |
-| P3 | Validate facts | fraiseql-cli | 4-6h | ✅ Complete |
-| P4 | Aggregation caching | fraiseql-core | 3-4h | ✅ Complete |
+| **GitHub Issues - Feature Parity** |
+| P1 | #250 Indexed filter columns (runtime introspection) | fraiseql-core | 6-8h | ⚠️ Design finalized |
+| P1 | #248 Complete LTree operators | fraiseql-core | 4-6h | ✅ Complete (12/12) |
+| P1 | #225 JWT signature verification | fraiseql-core | 4-6h | ⚠️ Structure only |
+| P2 | #225 Field selection filtering | fraiseql-core | 6-8h | ❌ Missing |
+| P2 | #247 gRPC subscription adapter | fraiseql-core | 4-6h | ❌ Optional |
+| P3 | #225 RBAC/Permission enforcement | fraiseql-core | 12-16h | ❌ Consider v2.1 |
+| **Original Items** |
 | P5 | TypeScript metadata | fraiseql-ts | - | By Design |
 | P5 | PHP GraphQLType | fraiseql-php | 1-2h | Low priority |
 | P5 | Fraisier status | fraisier | 2-4h | Pending |
@@ -266,32 +325,74 @@ let adapter = CachedDatabaseAdapter::with_fact_table_config(
 | P6 | DB benchmarks | fraiseql-core | 4-6h | Pending |
 | P6 | TLS tests | fraiseql-wire | 4-6h | Pending |
 
-**Total Remaining Effort**: ~15-25 hours (testing & polish only)
+**GitHub Issues Total**: 35-48 hours
+**Original Items Total**: 15-25 hours
+**Grand Total**: 50-73 hours
 
 ---
 
 ## Recommended Implementation Order
 
-### Phase C: Cache & CLI ✅ COMPLETE
-1. ~~Introspect facts implementation (P3) - 4h~~ ✅ DONE
-2. ~~Validate facts implementation (P3) - 4h~~ ✅ DONE
-3. ~~Aggregation query caching (P4) - 4h~~ ✅ DONE
+### Phase D: GitHub Issue Feature Parity (Quick Wins) - 13-18 hours
 
-### Phase D: Testing (12-18 hours)
-1. Server integration tests (P6) - 6h
-2. Database benchmarks (P6) - 6h
-3. TLS test infrastructure (P6) - 6h
+1. **Complete LTree operators** (#248) - ✅ Complete
+   - Added 9 new enum variants (total 12 LTree operators)
+   - Wire up SQL generation in PostgreSQL where_generator.rs
+   - Added proper error handling for MySQL, SQLite, SQL Server
+   - Added 17 unit tests
 
-### Phase E: SDK Polish (Optional, 4-8 hours)
-1. Fraisier status commands (P5) - 4h
-2. PHP GraphQLType (P5) - 2h
+2. **JWT signature verification** (#225) - 4-6h
+   - Use `jsonwebtoken` crate
+   - Implement actual HS256/RS256 verification
+   - Critical security fix
+
+3. **Indexed filter columns** (#250) - 6-8h
+   - Runtime: Introspect view columns on startup, cache `__` pattern matches
+   - Where generator: Check column cache before JSONB extraction
+   - Two conventions: `path__to__field` (human-readable) or `f{entity_id}__field` (long paths)
+   - Optional: `--database` flag for compile-time validation
+
+### Phase E: Security Completion - 10-16 hours
+
+4. **Field selection filtering** (#225) - 6-8h
+   - New security module
+   - Query integration
+
+5. **gRPC subscription adapter** (#247) - 4-6h (optional)
+   - Add tonic dependency
+   - Implement streaming adapter
+
+### Phase F: RBAC (Consider v2.1) - 12-16 hours
+
+6. **RBAC/Permission enforcement** (#225) - 12-16h
+   - Most complex feature
+   - Port design from docs to Rust
+   - May defer to v2.1 release
+
+### Phase G: Testing & Polish - 15-25 hours
+
+7. Server integration tests (P6) - 6h
+8. Database benchmarks (P6) - 6h
+9. TLS test infrastructure (P6) - 6h
+10. Fraisier status commands (P5) - 4h
+11. PHP GraphQLType (P5) - 2h
 
 ---
 
 ## Notes
 
-1. **Kafka adapter** is intentionally a stub - full implementation requires the `kafka` feature flag.
-2. **TypeScript metadata** is a design limitation of TypeScript runtime, not a bug.
-3. **Query planner** and **cache view extraction** were removed as they don't match FraiseQL's compiled template architecture.
-4. Most remaining items are polish/optional rather than critical functionality.
-5. The core engine is feature-complete for the compiled GraphQL execution model.
+1. **Kafka adapter** ✅ Complete with conditional compilation (`--features kafka`)
+2. **TypeScript metadata** is a design limitation of TypeScript runtime, not a bug
+3. **Query planner** and **cache view extraction** removed (architecture mismatch)
+4. **RBAC** is the most complex remaining item - consider deferring to v2.1
+5. **Denormalized columns** - the convention exists in docs, just needs Rust implementation
+6. **LTree** - ✅ Complete (12/12 operators) - January 18, 2026
+
+---
+
+## References
+
+- GitHub Issues: https://github.com/fraiseql/fraiseql/issues
+- Feature Parity Analysis: `.claude/GITHUB_ISSUES_FEATURE_PARITY.md`
+- Schema Conventions: `docs/specs/schema-conventions.md`
+- Security Docs: `docs/enterprise/rbac.md`

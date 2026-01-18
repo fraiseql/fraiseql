@@ -577,6 +577,82 @@ pub fn generate_where_operator_sql(
             params.insert(param_num, Value::String(pattern.clone()));
             Ok(format!("{}::ltree ~ ${}::lquery", field_sql, param_num))
         }
+
+        WhereOperator::MatchesLtxtquery { field, query } => {
+            let field_sql = field.to_sql();
+            let param_num = *param_index + 1;
+            *param_index += 1;
+            params.insert(param_num, Value::String(query.clone()));
+            Ok(format!("{}::ltree @ ${}::ltxtquery", field_sql, param_num))
+        }
+
+        WhereOperator::MatchesAnyLquery { field, patterns } => {
+            let field_sql = field.to_sql();
+            let placeholders: Vec<String> = patterns
+                .iter()
+                .map(|p| {
+                    let param_num = *param_index + 1;
+                    *param_index += 1;
+                    params.insert(param_num, Value::String(p.clone()));
+                    format!("${}::lquery", param_num)
+                })
+                .collect();
+            Ok(format!(
+                "{}::ltree ? ARRAY[{}]",
+                field_sql,
+                placeholders.join(", ")
+            ))
+        }
+
+        // ============ LTree Depth Operators ============
+        WhereOperator::DepthEq { field, depth } => {
+            let field_sql = field.to_sql();
+            Ok(format!("nlevel({}::ltree) = {}", field_sql, depth))
+        }
+
+        WhereOperator::DepthNeq { field, depth } => {
+            let field_sql = field.to_sql();
+            Ok(format!("nlevel({}::ltree) != {}", field_sql, depth))
+        }
+
+        WhereOperator::DepthGt { field, depth } => {
+            let field_sql = field.to_sql();
+            Ok(format!("nlevel({}::ltree) > {}", field_sql, depth))
+        }
+
+        WhereOperator::DepthGte { field, depth } => {
+            let field_sql = field.to_sql();
+            Ok(format!("nlevel({}::ltree) >= {}", field_sql, depth))
+        }
+
+        WhereOperator::DepthLt { field, depth } => {
+            let field_sql = field.to_sql();
+            Ok(format!("nlevel({}::ltree) < {}", field_sql, depth))
+        }
+
+        WhereOperator::DepthLte { field, depth } => {
+            let field_sql = field.to_sql();
+            Ok(format!("nlevel({}::ltree) <= {}", field_sql, depth))
+        }
+
+        // ============ LTree LCA Operator ============
+        WhereOperator::Lca { field, paths } => {
+            let field_sql = field.to_sql();
+            let placeholders: Vec<String> = paths
+                .iter()
+                .map(|p| {
+                    let param_num = *param_index + 1;
+                    *param_index += 1;
+                    params.insert(param_num, Value::String(p.clone()));
+                    format!("${}::ltree", param_num)
+                })
+                .collect();
+            Ok(format!(
+                "{}::ltree = lca(ARRAY[{}])",
+                field_sql,
+                placeholders.join(", ")
+            ))
+        }
     }
 }
 
@@ -661,6 +737,128 @@ mod tests {
         );
         let sql = generate_where_operator_sql(&op, &mut param_index, &mut params).unwrap();
         assert_eq!(sql, "(data->'status') IN ($1, $2)");
+        assert_eq!(param_index, 2);
+    }
+
+    // ============ LTree Operator Tests ============
+
+    #[test]
+    fn test_ltree_ancestor_of() {
+        let mut param_index = 0;
+        let mut params = HashMap::new();
+        let op = WhereOperator::AncestorOf {
+            field: Field::DirectColumn("path".to_string()),
+            path: "Top.Sciences.Astronomy".to_string(),
+        };
+        let sql = generate_where_operator_sql(&op, &mut param_index, &mut params).unwrap();
+        assert_eq!(sql, "path::ltree @> $1::ltree");
+        assert_eq!(param_index, 1);
+    }
+
+    #[test]
+    fn test_ltree_descendant_of() {
+        let mut param_index = 0;
+        let mut params = HashMap::new();
+        let op = WhereOperator::DescendantOf {
+            field: Field::DirectColumn("path".to_string()),
+            path: "Top.Sciences".to_string(),
+        };
+        let sql = generate_where_operator_sql(&op, &mut param_index, &mut params).unwrap();
+        assert_eq!(sql, "path::ltree <@ $1::ltree");
+        assert_eq!(param_index, 1);
+    }
+
+    #[test]
+    fn test_ltree_matches_lquery() {
+        let mut param_index = 0;
+        let mut params = HashMap::new();
+        let op = WhereOperator::MatchesLquery {
+            field: Field::DirectColumn("path".to_string()),
+            pattern: "Top.*.Ast*".to_string(),
+        };
+        let sql = generate_where_operator_sql(&op, &mut param_index, &mut params).unwrap();
+        assert_eq!(sql, "path::ltree ~ $1::lquery");
+        assert_eq!(param_index, 1);
+    }
+
+    #[test]
+    fn test_ltree_matches_ltxtquery() {
+        let mut param_index = 0;
+        let mut params = HashMap::new();
+        let op = WhereOperator::MatchesLtxtquery {
+            field: Field::DirectColumn("path".to_string()),
+            query: "Science & !Deprecated".to_string(),
+        };
+        let sql = generate_where_operator_sql(&op, &mut param_index, &mut params).unwrap();
+        assert_eq!(sql, "path::ltree @ $1::ltxtquery");
+        assert_eq!(param_index, 1);
+    }
+
+    #[test]
+    fn test_ltree_matches_any_lquery() {
+        let mut param_index = 0;
+        let mut params = HashMap::new();
+        let op = WhereOperator::MatchesAnyLquery {
+            field: Field::DirectColumn("path".to_string()),
+            patterns: vec!["Top.*".to_string(), "Other.*".to_string()],
+        };
+        let sql = generate_where_operator_sql(&op, &mut param_index, &mut params).unwrap();
+        assert_eq!(sql, "path::ltree ? ARRAY[$1::lquery, $2::lquery]");
+        assert_eq!(param_index, 2);
+    }
+
+    #[test]
+    fn test_ltree_depth_eq() {
+        let mut param_index = 0;
+        let mut params = HashMap::new();
+        let op = WhereOperator::DepthEq {
+            field: Field::DirectColumn("path".to_string()),
+            depth: 3,
+        };
+        let sql = generate_where_operator_sql(&op, &mut param_index, &mut params).unwrap();
+        assert_eq!(sql, "nlevel(path::ltree) = 3");
+        assert_eq!(param_index, 0); // Depth is inlined, not parameterized
+    }
+
+    #[test]
+    fn test_ltree_depth_gt() {
+        let mut param_index = 0;
+        let mut params = HashMap::new();
+        let op = WhereOperator::DepthGt {
+            field: Field::DirectColumn("path".to_string()),
+            depth: 2,
+        };
+        let sql = generate_where_operator_sql(&op, &mut param_index, &mut params).unwrap();
+        assert_eq!(sql, "nlevel(path::ltree) > 2");
+        assert_eq!(param_index, 0);
+    }
+
+    #[test]
+    fn test_ltree_depth_lte() {
+        let mut param_index = 0;
+        let mut params = HashMap::new();
+        let op = WhereOperator::DepthLte {
+            field: Field::DirectColumn("path".to_string()),
+            depth: 5,
+        };
+        let sql = generate_where_operator_sql(&op, &mut param_index, &mut params).unwrap();
+        assert_eq!(sql, "nlevel(path::ltree) <= 5");
+        assert_eq!(param_index, 0);
+    }
+
+    #[test]
+    fn test_ltree_lca() {
+        let mut param_index = 0;
+        let mut params = HashMap::new();
+        let op = WhereOperator::Lca {
+            field: Field::DirectColumn("path".to_string()),
+            paths: vec![
+                "Org.Engineering.Backend".to_string(),
+                "Org.Engineering.Frontend".to_string(),
+            ],
+        };
+        let sql = generate_where_operator_sql(&op, &mut param_index, &mut params).unwrap();
+        assert_eq!(sql, "path::ltree = lca(ARRAY[$1::ltree, $2::ltree])");
         assert_eq!(param_index, 2);
     }
 }
