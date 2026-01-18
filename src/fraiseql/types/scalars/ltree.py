@@ -81,5 +81,5 @@ class LTreeField(str, ScalarMarker):
     __slots__ = ()
 
     def __repr__(self) -> str:
-        """Missing docstring."""
-        return "UUID"
+        """Return a user-friendly type name for introspection and debugging."""
+        return "LTree"
