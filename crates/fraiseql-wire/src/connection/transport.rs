@@ -79,13 +79,52 @@ impl Transport {
         Ok(Transport::Tcp(TcpVariant::Plain(stream)))
     }
 
-    /// Connect via TLS-encrypted TCP
+    /// Connect via TLS-encrypted TCP using PostgreSQL SSL negotiation protocol.
+    ///
+    /// PostgreSQL requires a specific SSL upgrade sequence:
+    /// 1. Send SSLRequest message (8 bytes)
+    /// 2. Server responds with 'S' (accept) or 'N' (reject)
+    /// 3. If accepted, perform TLS handshake
     pub async fn connect_tcp_tls(
         host: &str,
         port: u16,
         tls_config: &crate::connection::TlsConfig,
     ) -> Result<Self> {
-        let tcp_stream = TcpStream::connect((host, port)).await?;
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+        let mut tcp_stream = TcpStream::connect((host, port)).await?;
+
+        // PostgreSQL SSLRequest message:
+        // - Length: 8 (4 bytes, big-endian)
+        // - Request code: 80877103 (4 bytes, big-endian) = (1234 << 16) | 5679
+        let ssl_request: [u8; 8] = [
+            0x00, 0x00, 0x00, 0x08, // Length = 8
+            0x04, 0xd2, 0x16, 0x2f, // Request code = 80877103
+        ];
+
+        tcp_stream.write_all(&ssl_request).await?;
+        tcp_stream.flush().await?;
+
+        // Read server response (single byte: 'S' = accept, 'N' = reject)
+        let mut response = [0u8; 1];
+        tcp_stream.read_exact(&mut response).await?;
+
+        match response[0] {
+            b'S' => {
+                // Server accepted SSL - proceed with TLS handshake
+            }
+            b'N' => {
+                return Err(crate::Error::Config(
+                    "Server does not support SSL connections".to_string(),
+                ));
+            }
+            other => {
+                return Err(crate::Error::Config(format!(
+                    "Unexpected SSL response from server: {:02x}",
+                    other
+                )));
+            }
+        }
 
         // Parse server name for TLS handshake (SNI)
         let server_name = crate::connection::parse_server_name(host)?;

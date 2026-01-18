@@ -4,9 +4,12 @@
 //! TLS is recommended for all non-local connections to prevent credential interception.
 
 use crate::{Error, Result};
-use rustls::ClientConfig;
+use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
+use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
+use rustls::{ClientConfig, DigitallySignedStruct, SignatureScheme};
 use rustls::RootCertStore;
 use rustls_pemfile::Item;
+use std::fmt::Debug;
 use std::fs;
 use std::sync::Arc;
 
@@ -223,35 +226,46 @@ impl TlsConfigBuilder {
     ///     .build()?;
     /// ```
     pub fn build(self) -> Result<TlsConfig> {
-        // Load root certificates
-        let root_store = if let Some(ca_path) = &self.ca_cert_path {
-            // Load custom CA certificate from file
-            self.load_custom_ca(ca_path)?
+        let client_config = if self.danger_accept_invalid_certs {
+            // Create a client config that accepts any certificate (development only)
+            let verifier = Arc::new(NoVerifier);
+            Arc::new(
+                ClientConfig::builder()
+                    .dangerous()
+                    .with_custom_certificate_verifier(verifier)
+                    .with_no_client_auth(),
+            )
         } else {
-            // Use system root certificates via rustls-native-certs
-            let result = rustls_native_certs::load_native_certs();
+            // Load root certificates
+            let root_store = if let Some(ca_path) = &self.ca_cert_path {
+                // Load custom CA certificate from file
+                self.load_custom_ca(ca_path)?
+            } else {
+                // Use system root certificates via rustls-native-certs
+                let result = rustls_native_certs::load_native_certs();
 
-            let mut store = RootCertStore::empty();
-            for cert in result.certs {
-                let _ = store.add_parsable_certificates(std::iter::once(cert));
-            }
+                let mut store = RootCertStore::empty();
+                for cert in result.certs {
+                    let _ = store.add_parsable_certificates(std::iter::once(cert));
+                }
 
-            // Log warnings if there were errors, but don't fail
-            if !result.errors.is_empty() && store.is_empty() {
-                return Err(Error::Config(
-                    "Failed to load any system root certificates".to_string(),
-                ));
-            }
+                // Log warnings if there were errors, but don't fail
+                if !result.errors.is_empty() && store.is_empty() {
+                    return Err(Error::Config(
+                        "Failed to load any system root certificates".to_string(),
+                    ));
+                }
 
-            store
+                store
+            };
+
+            // Create ClientConfig using the correct API for rustls 0.23
+            Arc::new(
+                ClientConfig::builder()
+                    .with_root_certificates(root_store)
+                    .with_no_client_auth(),
+            )
         };
-
-        // Create ClientConfig using the correct API for rustls 0.23
-        let client_config = Arc::new(
-            ClientConfig::builder()
-                .with_root_certificates(root_store)
-                .with_no_client_auth(),
-        );
 
         Ok(TlsConfig {
             ca_cert_path: self.ca_cert_path,
@@ -427,5 +441,60 @@ mod tests {
         let debug_str = format!("{:?}", tls);
         assert!(debug_str.contains("TlsConfig"));
         assert!(debug_str.contains("verify_hostname"));
+    }
+}
+
+/// A certificate verifier that accepts any certificate.
+///
+/// ⚠️ **DANGER**: This should ONLY be used for development/testing with self-signed certificates.
+/// Using this in production is a serious security vulnerability.
+#[derive(Debug)]
+struct NoVerifier;
+
+impl ServerCertVerifier for NoVerifier {
+    fn verify_server_cert(
+        &self,
+        _end_entity: &CertificateDer<'_>,
+        _intermediates: &[CertificateDer<'_>],
+        _server_name: &ServerName<'_>,
+        _ocsp_response: &[u8],
+        _now: UnixTime,
+    ) -> std::result::Result<ServerCertVerified, rustls::Error> {
+        // Accept any certificate
+        Ok(ServerCertVerified::assertion())
+    }
+
+    fn verify_tls12_signature(
+        &self,
+        _message: &[u8],
+        _cert: &CertificateDer<'_>,
+        _dss: &DigitallySignedStruct,
+    ) -> std::result::Result<HandshakeSignatureValid, rustls::Error> {
+        Ok(HandshakeSignatureValid::assertion())
+    }
+
+    fn verify_tls13_signature(
+        &self,
+        _message: &[u8],
+        _cert: &CertificateDer<'_>,
+        _dss: &DigitallySignedStruct,
+    ) -> std::result::Result<HandshakeSignatureValid, rustls::Error> {
+        Ok(HandshakeSignatureValid::assertion())
+    }
+
+    fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
+        // Support all common signature schemes
+        vec![
+            SignatureScheme::RSA_PKCS1_SHA256,
+            SignatureScheme::RSA_PKCS1_SHA384,
+            SignatureScheme::RSA_PKCS1_SHA512,
+            SignatureScheme::ECDSA_NISTP256_SHA256,
+            SignatureScheme::ECDSA_NISTP384_SHA384,
+            SignatureScheme::ECDSA_NISTP521_SHA512,
+            SignatureScheme::RSA_PSS_SHA256,
+            SignatureScheme::RSA_PSS_SHA384,
+            SignatureScheme::RSA_PSS_SHA512,
+            SignatureScheme::ED25519,
+        ]
     }
 }

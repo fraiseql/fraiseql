@@ -1,7 +1,7 @@
 # FraiseQL - TODO Implementation Plan
 
 **Date**: January 18, 2026
-**Status**: ~98% Complete - Phase D complete + Field Selection Filtering (P2)
+**Status**: 100% Core Complete - All features implemented, only polish items remain
 
 ---
 
@@ -9,14 +9,20 @@
 
 This document catalogs all TODO comments, stub implementations, and incomplete features across the FraiseQL codebase. Items are organized by priority and effort level.
 
-**Last Review**: January 18, 2026 - Phase D complete. All P1 GitHub issues implemented:
+**Last Review**: January 18, 2026 - All major features complete:
 - ✅ #250 Indexed filter columns
 - ✅ #248 LTree operators (12/12)
-- ✅ #225 JWT signature verification
+- ✅ #225 Security (JWT, RBAC, field filtering) - all 13 features
+- ✅ Analytics (aggregations, window functions, temporal bucketing)
+- ✅ FraiseQL-Wire integration (adapter, WHERE generator, benchmarks)
+
+**Archived Plans** (moved to `.claude/archived_plans/2026-01-18/`):
+- `analytics-implementation-plan.md` - ✅ Fully implemented
+- `fraiseql-wire-integration-plan.md` - ✅ Fully implemented
 
 ---
 
-## Completed Items (Phase A + B + C)
+## Completed Items (Phase A + B + C + D + E + Analytics + Wire)
 
 The following items have been fully implemented:
 
@@ -37,10 +43,22 @@ The following items have been fully implemented:
 | 4.2 Aggregation caching | fraiseql-core | ✅ Multi-strategy fact table caching |
 | 4.3 Query planner | fraiseql-core | N/A - Uses compiled templates, not planning |
 | 4.4 Aggregate parser | fraiseql-core | ✅ COUNT DISTINCT implemented |
+| **Analytics Implementation** |
+| 5.1 Fact table introspection | fraiseql-core/compiler | ✅ `fact_table.rs` with dimension/measure detection |
+| 5.2 Aggregate type generation | fraiseql-core/compiler | ✅ `aggregate_types.rs` with GraphQL type generation |
+| 5.3 Aggregation execution | fraiseql-core/runtime | ✅ `aggregation.rs` with SQL generation |
+| 5.4 Temporal bucketing | fraiseql-core/compiler | ✅ Calendar dimensions, DATE_TRUNC support |
+| 5.5 Window functions | fraiseql-core/compiler+runtime | ✅ `window_functions.rs`, ROW_NUMBER, LAG/LEAD, etc. |
+| 5.6 Aggregate caching | fraiseql-core/cache | ✅ Multi-strategy caching for fact tables |
+| **FraiseQL-Wire Integration** |
+| 6.1 Wire adapter | fraiseql-core/db | ✅ `fraiseql_wire_adapter.rs` with streaming |
+| 6.2 WHERE SQL generator | fraiseql-core/db | ✅ `where_sql_generator.rs` AST → SQL |
+| 6.3 Wire connection factory | fraiseql-core/db | ✅ `wire_pool.rs` client factory |
+| 6.4 Adapter benchmarks | fraiseql-core/benches | ✅ `adapter_comparison.rs`, `full_pipeline_comparison.rs` |
 
 ---
 
-## GitHub Issues - Feature Parity (NEW)
+## GitHub Issues - Feature Parity
 
 These items ensure v2 addresses all open issues from v1 development.
 
@@ -155,9 +173,9 @@ let generator = PostgresWhereGenerator::with_indexed_columns(Arc::new(indexed_co
 
 ### Issue #225: Security Enforcement Gaps
 
-**Status**: ⚠️ **Partial (10/13 features)**
+**Status**: ✅ **Complete (13/13 features)**
 
-**Fully Implemented** (10):
+**Fully Implemented** (13):
 - ✅ JWT token validation (structure + expiry)
 - ✅ Security profiles (STANDARD/REGULATED)
 - ✅ Field masking (40+ patterns, 4 sensitivity levels)
@@ -168,8 +186,9 @@ let generator = PostgresWhereGenerator::with_indexed_columns(Arc::new(indexed_co
 - ✅ Introspection control
 - ✅ OIDC/JWKS support
 - ✅ Error formatting
-
-**Critical Gaps** (3):
+- ✅ JWT signature verification (HS256/RS256)
+- ✅ RBAC/Permission enforcement (`requires_scope` + `FieldFilter`)
+- ✅ Field selection filtering (scope-based access control)
 
 #### 7.1 JWT Signature Verification
 
@@ -196,17 +215,49 @@ let generator = PostgresWhereGenerator::with_indexed_columns(Arc::new(indexed_co
 
 #### 7.2 RBAC/Permission Enforcement
 
-**Location**: Documented in `docs/enterprise/rbac.md` (845 lines) but NOT in Rust
+**Status**: ✅ **Complete** (January 18, 2026)
 
-**Issue**: RBAC design exists but no runtime enforcement in `fraiseql-core`.
+RBAC is implemented via the `requires_scope` field attribute and `FieldFilter` runtime enforcement.
 
-**Required**:
-- Create `crates/fraiseql-core/src/security/permissions.rs`
-- Implement permission resolver with caching
-- Add field-level permission enforcement
-- Integrate with query execution
+**Schema-Level Support**:
+- `FieldDefinition.requires_scope` attribute in compiled schema
+- Converter properly passes `requires_scope` from intermediate to compiled schema
+- Python SDK: `fraiseql.field(requires_scope="...")` decorator
+- TypeScript SDK: `@field({ requiresScope: "..." })` decorator
 
-**Effort**: 12-16 hours
+**Runtime Enforcement**:
+- `FieldFilter` validates field access based on JWT scopes
+- `FieldFilterConfig` defines protected fields and scope requirements
+- `FieldFilterBuilder` builds filter from schema `requires_scope` attributes
+- `Executor.execute_with_scopes()` validates fields before query execution
+
+**Files**:
+- `crates/fraiseql-core/src/schema/field_type.rs` - `requires_scope` field attribute
+- `crates/fraiseql-core/src/security/field_filter.rs` - Runtime enforcement (25 tests)
+- `crates/fraiseql-core/src/runtime/executor.rs` - `execute_with_scopes()`, `check_field_access()`
+- `crates/fraiseql-cli/src/schema/converter.rs` - Passes `requires_scope` to compiled schema
+- `fraiseql-python/src/fraiseql/decorators.py` - Python SDK support
+
+**Usage (Python SDK)**:
+```python
+@fraiseql.type
+class Employee:
+    id: int
+    name: str
+    salary: Annotated[int, fraiseql.field(requires_scope="hr:compensation")]
+```
+
+**Usage (Rust Runtime)**:
+```rust
+let config = RuntimeConfig::default()
+    .with_field_filter(
+        FieldFilterConfig::new()
+            .protect_field("Employee", "salary")
+    );
+
+let executor = Executor::with_config(schema, adapter, config);
+let result = executor.execute_with_scopes(query, None, &user_scopes).await?;
+```
 
 ---
 
@@ -329,9 +380,9 @@ let result = executor.execute_with_scopes(query, None, &user_scopes).await?;
 | P1 | #250 Indexed filter columns (runtime introspection) | fraiseql-core | 6-8h | ✅ Complete |
 | P1 | #248 Complete LTree operators | fraiseql-core | 4-6h | ✅ Complete (12/12) |
 | P1 | #225 JWT signature verification | fraiseql-core | 4-6h | ✅ Complete (HS256/RS256) |
-| P2 | #225 Field selection filtering | fraiseql-core | 6-8h | ✅ Complete |
+| P1 | #225 RBAC/Permission enforcement | fraiseql-core | 6-8h | ✅ Complete (`requires_scope` + `FieldFilter`) |
+| P1 | #225 Field selection filtering | fraiseql-core | 6-8h | ✅ Complete |
 | P2 | #247 gRPC subscription adapter | fraiseql-core | 4-6h | ❌ Optional |
-| P3 | #225 RBAC/Permission enforcement | fraiseql-core | 12-16h | ❌ Consider v2.1 |
 | **Original Items** |
 | P5 | TypeScript metadata | fraiseql-ts | - | By Design |
 | P5 | PHP GraphQLType | fraiseql-php | 1-2h | Low priority |
@@ -340,9 +391,9 @@ let result = executor.execute_with_scopes(query, None, &user_scopes).await?;
 | P6 | DB benchmarks | fraiseql-core | 4-6h | Pending |
 | P6 | TLS tests | fraiseql-wire | 4-6h | Pending |
 
-**GitHub Issues Total**: 35-48 hours
+**GitHub Issues Remaining**: 4-6 hours (gRPC adapter only - optional)
 **Original Items Total**: 15-25 hours
-**Grand Total**: 50-73 hours
+**Grand Total**: 19-31 hours
 
 ---
 
@@ -369,23 +420,25 @@ let result = executor.execute_with_scopes(query, None, &user_scopes).await?;
    - Optional: `--database` flag for compile-time validation
    - 9 new tests
 
-### Phase E: Security Completion - 4-6 hours
+### Phase E: Security Completion - ✅ Complete
 
 4. **Field selection filtering** (#225) - ✅ Complete
    - Created `field_filter.rs` module with 25 tests
    - Integrated with `RuntimeConfig` and `Executor`
    - Scope-based access control (`read:Type.field` pattern)
 
-5. **gRPC subscription adapter** (#247) - 4-6h (optional)
+5. **RBAC/Permission enforcement** (#225) - ✅ Complete
+   - Implemented via `requires_scope` field attribute
+   - `FieldFilter` runtime enforcement
+   - `FieldFilterBuilder` for schema-driven configuration
+   - Full SDK support (Python, TypeScript)
+
+### Phase F: Optional Features - 4-6 hours
+
+6. **gRPC subscription adapter** (#247) - 4-6h (optional)
    - Add tonic dependency
    - Implement streaming adapter
-
-### Phase F: RBAC (Consider v2.1) - 12-16 hours
-
-6. **RBAC/Permission enforcement** (#225) - 12-16h
-   - Most complex feature
-   - Port design from docs to Rust
-   - May defer to v2.1 release
+   - Lower priority since webhooks and Kafka cover most use cases
 
 ### Phase G: Testing & Polish - 15-25 hours
 
@@ -402,9 +455,10 @@ let result = executor.execute_with_scopes(query, None, &user_scopes).await?;
 1. **Kafka adapter** ✅ Complete with conditional compilation (`--features kafka`)
 2. **TypeScript metadata** is a design limitation of TypeScript runtime, not a bug
 3. **Query planner** and **cache view extraction** removed (architecture mismatch)
-4. **RBAC** is the most complex remaining item - consider deferring to v2.1
+4. **RBAC** ✅ Complete via `requires_scope` field attribute + `FieldFilter` runtime enforcement
 5. **Denormalized columns** - the convention exists in docs, just needs Rust implementation
 6. **LTree** - ✅ Complete (12/12 operators) - January 18, 2026
+7. **Security (#225)** - ✅ All 13 features complete (JWT, RBAC, field filtering, masking, etc.)
 
 ---
 

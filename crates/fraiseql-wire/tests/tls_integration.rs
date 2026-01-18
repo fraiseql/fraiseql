@@ -104,13 +104,22 @@ mod tls_integration {
     use std::env;
 
     /// Helper to get TLS test configuration from environment
-    fn get_tls_test_config() -> Option<(String, bool)> {
+    fn get_tls_test_config() -> Option<(String, Option<String>)> {
         let db_url = env::var("TLS_TEST_DB_URL").ok()?;
-        let insecure = env::var("TLS_TEST_INSECURE")
-            .ok()
-            .map(|v| v.to_lowercase() == "true")
-            .unwrap_or(false);
-        Some((db_url, insecure))
+        // CA cert path for proper certificate validation with self-signed certs
+        let ca_cert_path = env::var("TLS_TEST_CA_CERT").ok();
+        Some((db_url, ca_cert_path))
+    }
+
+    /// Build TLS config with proper CA certificate validation
+    fn build_tls_config(ca_cert_path: Option<&str>) -> Result<TlsConfig, Box<dyn std::error::Error>> {
+        let mut builder = TlsConfig::builder();
+        if let Some(path) = ca_cert_path {
+            // Use our CA certificate for proper validation
+            builder = builder.ca_cert_path(path);
+        }
+        // If no CA cert provided, use system roots (for real certs like Let's Encrypt)
+        Ok(builder.build()?)
     }
 
     /// Test that TLS connection succeeds with valid configuration
@@ -119,7 +128,7 @@ mod tls_integration {
     async fn test_tls_connection_succeeds() {
         install_crypto_provider();
 
-        let (db_url, insecure) = match get_tls_test_config() {
+        let (db_url, ca_cert_path) = match get_tls_test_config() {
             Some(cfg) => cfg,
             None => {
                 eprintln!("Skipping test: TLS_TEST_DB_URL not set");
@@ -127,8 +136,8 @@ mod tls_integration {
             }
         };
 
-        // Create TLS configuration
-        let tls_config = match TlsConfig::builder().verify_hostname(!insecure).build() {
+        // Create TLS configuration with proper CA validation
+        let tls_config = match build_tls_config(ca_cert_path.as_deref()) {
             Ok(cfg) => cfg,
             Err(e) => {
                 eprintln!("Failed to build TLS config: {}", e);
@@ -144,8 +153,8 @@ mod tls_integration {
             }
         };
 
-        // Verify we can execute a simple query
-        let mut stream = match client.query::<Value>("pg_tables").execute().await {
+        // Verify we can execute a simple query using our test view
+        let mut stream = match client.query::<Value>("v_test_entity").execute().await {
             Ok(s) => s,
             Err(e) => {
                 panic!("Failed to execute query with TLS connection: {}", e);
@@ -153,7 +162,8 @@ mod tls_integration {
         };
 
         // Should be able to read at least one result
-        let _result = stream.next().await;
+        let result = stream.next().await;
+        assert!(result.is_some(), "Should receive at least one row");
         println!("✓ TLS connection succeeded");
     }
 
@@ -163,7 +173,7 @@ mod tls_integration {
     async fn test_tls_with_password_auth() {
         install_crypto_provider();
 
-        let (db_url, insecure) = match get_tls_test_config() {
+        let (db_url, ca_cert_path) = match get_tls_test_config() {
             Some(cfg) => cfg,
             None => {
                 eprintln!("Skipping test: TLS_TEST_DB_URL not set");
@@ -171,8 +181,8 @@ mod tls_integration {
             }
         };
 
-        // Create TLS config that allows self-signed certs (for testing)
-        let tls_config = match TlsConfig::builder().verify_hostname(!insecure).build() {
+        // Create TLS config with proper CA validation
+        let tls_config = match build_tls_config(ca_cert_path.as_deref()) {
             Ok(cfg) => cfg,
             Err(e) => {
                 eprintln!("Failed to build TLS config: {}", e);
@@ -185,8 +195,8 @@ mod tls_integration {
 
         match result {
             Ok(client) => {
-                // Verify connection is functional
-                let stream = client.query::<Value>("pg_version").execute().await;
+                // Verify connection is functional using our test view
+                let stream = client.query::<Value>("v_test_entity").execute().await;
                 assert!(stream.is_ok(), "Query execution failed after TLS auth");
                 println!("✓ TLS with password authentication succeeded");
             }
@@ -205,7 +215,7 @@ mod tls_integration {
     async fn test_multiple_tls_connections() {
         install_crypto_provider();
 
-        let (db_url, insecure) = match get_tls_test_config() {
+        let (db_url, ca_cert_path) = match get_tls_test_config() {
             Some(cfg) => cfg,
             None => {
                 eprintln!("Skipping test: TLS_TEST_DB_URL not set");
@@ -213,7 +223,7 @@ mod tls_integration {
             }
         };
 
-        let tls_config = match TlsConfig::builder().verify_hostname(!insecure).build() {
+        let tls_config = match build_tls_config(ca_cert_path.as_deref()) {
             Ok(cfg) => cfg,
             Err(e) => {
                 eprintln!("Failed to build TLS config: {}", e);
@@ -245,7 +255,7 @@ mod tls_integration {
 
         // Try to use each connection (consumes the clients since query() takes self)
         for (i, client) in connections.into_iter().enumerate() {
-            match client.query::<Value>("pg_version").execute().await {
+            match client.query::<Value>("v_test_entity").execute().await {
                 Ok(mut stream) => {
                     let _result = stream.next().await;
                     println!("✓ TLS connection {} is usable", i + 1);
@@ -263,7 +273,7 @@ mod tls_integration {
     async fn test_tls_streaming() {
         install_crypto_provider();
 
-        let (db_url, insecure) = match get_tls_test_config() {
+        let (db_url, ca_cert_path) = match get_tls_test_config() {
             Some(cfg) => cfg,
             None => {
                 eprintln!("Skipping test: TLS_TEST_DB_URL not set");
@@ -271,7 +281,7 @@ mod tls_integration {
             }
         };
 
-        let tls_config = match TlsConfig::builder().verify_hostname(!insecure).build() {
+        let tls_config = match build_tls_config(ca_cert_path.as_deref()) {
             Ok(cfg) => cfg,
             Err(e) => {
                 eprintln!("Failed to build TLS config: {}", e);
@@ -287,17 +297,20 @@ mod tls_integration {
             }
         };
 
-        // Execute a query and stream results
-        match client.query::<Value>("pg_tables").execute().await {
+        // Execute a query and stream results using our test view with 100 rows
+        match client.query::<Value>("v_test_entity").execute().await {
             Ok(mut stream) => {
                 let mut count = 0;
-                while let Some(_result) = stream.next().await {
-                    count += 1;
+                while let Some(result) = stream.next().await {
+                    if result.is_ok() {
+                        count += 1;
+                    }
                     // Just verify streaming works, don't need to check values
-                    if count >= 5 {
+                    if count >= 10 {
                         break; // Stop after a few rows
                     }
                 }
+                assert!(count >= 10, "Should receive at least 10 rows");
                 println!("✓ TLS streaming works (received {} rows)", count);
             }
             Err(e) => {
