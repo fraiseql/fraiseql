@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.9.15] - 2026-01-18
+## [1.9.14] - 2026-01-18
 
 **Denormalized Column Optimization for Nested Field Filters**
 
