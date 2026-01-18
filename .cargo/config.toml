@@ -1,63 +1,64 @@
 # Cargo configuration for FraiseQL v2
 # https://doc.rust-lang.org/cargo/reference/config.html
 
-# Alias commands
-[alias]
-audit-fix = "audit fix"
-# Quick commands
-b = "build"
-bench-quick = "bench --no-fail-fast -- --quick"
-bloat = "bloat --release --crates"
-# Advanced commands
-br = "build --release"
-c = "check"
-check-all = "check --all-targets --all-features"
-clippy-all = "clippy --all-targets --all-features -- -D warnings"
-cov = "llvm-cov --all-features --workspace --lcov --output-path lcov.info"
-doc-open = "doc --all-features --no-deps --open"
-expand = "expand"
-f = "fmt"
-nextest = "nextest run --all-features"
-outdated-all = "outdated --root-deps-only"
-r = "run"
-t = "test"
-tr = "test --release"
-tree = "tree --depth 3"
-watch-check = "watch -x 'check --all-features'"
-watch-test = "watch -x 'test --all-features'"
-
 [build]
 # Use all CPU cores for compilation
 jobs = -1
 
-[profile.dev.build-override]
-# Optimize build scripts
-opt-level = 2
+[term]
+# Colored output
+color = "always"
+verbose = false
 
-# Profile optimizations
-[profile.dev.package."*"]
-# Optimize dependencies in dev builds for faster testing
-opt-level = 2
-
-[registries.crates-io]
-protocol = "sparse"
-
-[target.aarch64-apple-darwin]
-# Use zld linker on macOS Apple Silicon
-rustflags = ["-C", "link-arg=-fuse-ld=/usr/local/bin/zld"]
+# Use mold linker on Linux (faster linking - 3-5x speedup)
+# CI installs mold via apt-get, local dev should install: sudo pacman -S mold (Arch) or apt install mold
+[target.x86_64-unknown-linux-gnu]
+linker = "clang"
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]
 
 [target.x86_64-apple-darwin]
 # Use zld linker on macOS (faster linking)
 # Install: brew install michaeleisel/zld/zld
 rustflags = ["-C", "link-arg=-fuse-ld=/usr/local/bin/zld"]
 
-# Use mold linker on Linux (faster linking - 3-5x speedup)
-# Installed: mold is available
-[target.x86_64-unknown-linux-gnu]
-linker = "clang"
-rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+[target.aarch64-apple-darwin]
+# Use zld linker on macOS Apple Silicon
+rustflags = ["-C", "link-arg=-fuse-ld=/usr/local/bin/zld"]
 
-[term]
-# Colored output
-color = "always"
-verbose = false
+# Alias commands
+[alias]
+# Quick commands
+b = "build"
+c = "check"
+t = "test"
+r = "run"
+f = "fmt"
+
+# Advanced commands
+br = "build --release"
+tr = "test --release"
+cov = "llvm-cov --all-features --workspace --lcov --output-path lcov.info"
+bench-quick = "bench --no-fail-fast -- --quick"
+check-all = "check --all-targets --all-features"
+clippy-all = "clippy --all-targets --all-features -- -D warnings"
+doc-open = "doc --all-features --no-deps --open"
+audit-fix = "audit fix"
+outdated-all = "outdated --root-deps-only"
+tree = "tree --depth 3"
+bloat = "bloat --release --crates"
+expand = "expand"
+watch-test = "watch -x 'test --all-features'"
+watch-check = "watch -x 'check --all-features'"
+nextest = "nextest run --all-features"
+
+[registries.crates-io]
+protocol = "sparse"
+
+# Profile optimizations
+[profile.dev.package."*"]
+# Optimize dependencies in dev builds for faster testing
+opt-level = 2
+
+[profile.dev.build-override]
+# Optimize build scripts
+opt-level = 2

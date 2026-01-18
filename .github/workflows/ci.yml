@@ -33,6 +33,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install mold linker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mold
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -69,6 +74,12 @@ jobs:
         rust: [stable, "1.75"]  # MSRV
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install mold linker (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mold
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
@@ -115,6 +126,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install mold linker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mold
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -179,6 +195,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install mold linker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mold
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
@@ -208,6 +229,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install mold linker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mold
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -250,6 +276,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install mold linker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mold
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
@@ -290,6 +321,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install mold linker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mold
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -346,6 +382,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install mold linker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mold
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
@@ -373,6 +414,11 @@ jobs:
     if: github.ref == 'refs/heads/v2-development'
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install mold linker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mold
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
