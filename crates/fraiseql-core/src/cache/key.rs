@@ -219,13 +219,11 @@ pub fn extract_accessed_views(query_def: &QueryDefinition) -> Vec<String> {
     let mut views = Vec::new();
 
     // Add primary SQL source
+    // Note: FraiseQL uses single-table compiled templates (no JOINs or resolver chains),
+    // so the sql_source is the complete set of accessed views for cache invalidation.
     if let Some(sql_source) = &query_def.sql_source {
         views.push(sql_source.clone());
     }
-
-    // TODO (Phase 4): Extract views from JOIN clauses in compiled SQL
-    // TODO (Phase 5): Extract views from resolver chains
-    // TODO (Phase 5): Add support for custom resolver view tracking
 
     views
 }

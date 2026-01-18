@@ -270,21 +270,16 @@ deprecation: None, // TODO: Parse deprecation from intermediate format
 
 ## Priority 4: Cache & Runtime
 
-### 4.1 Cache Key View Extraction
+### 4.1 ~~Cache Key View Extraction~~ (N/A - Architecture Mismatch)
 
 **Location**: `crates/fraiseql-core/src/cache/key.rs:226-228`
 
-```rust
-// TODO (Phase 4): Extract views from JOIN clauses in compiled SQL
-// TODO (Phase 5): Extract views from resolver chains
-// TODO (Phase 5): Add support for custom resolver view tracking
-```
+**Status**: **Removed** - These TODOs were placeholders for features that don't match FraiseQL's architecture:
+- FraiseQL uses single-table compiled SQL templates (no JOINs)
+- FraiseQL is a compiled execution engine (no resolver chains)
+- The current implementation correctly extracts the single `sql_source` per query
 
-**Issue**: Cache keys don't track views referenced in JOINs or resolver chains.
-
-**Impact**: Cache invalidation may not work correctly for complex queries.
-
-**Effort**: 4-6 hours
+No changes needed - current implementation is complete.
 
 ---
 
