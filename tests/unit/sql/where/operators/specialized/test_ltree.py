@@ -662,6 +662,87 @@ class TestLTreeEdgeCases:
         assert result.as_string(None) == expected
 
 
+# ============================================================================
+# PATH COMPARISON OPERATORS: lt, gt, lte, gte
+# ============================================================================
+
+
+class TestLTreePathComparisonOperators:
+    """Test LTree path comparison operators (lexicographic ordering)."""
+
+    def setup_method(self) -> None:
+        """Set up test fixtures."""
+        self.strategy = LTreeOperatorStrategy()
+        self.path_sql = SQL("data->>'path'")
+
+    def test_path_lt_operator(self) -> None:
+        """Test less than path comparison (lexicographic)."""
+        result = self.strategy.build_sql("lt", "top.science", self.path_sql, LTree)
+        expected = "(data->>'path')::ltree < 'top.science'::ltree"
+        assert result.as_string(None) == expected
+
+    def test_path_gt_operator(self) -> None:
+        """Test greater than path comparison (lexicographic)."""
+        result = self.strategy.build_sql("gt", "top.science", self.path_sql, LTree)
+        expected = "(data->>'path')::ltree > 'top.science'::ltree"
+        assert result.as_string(None) == expected
+
+    def test_path_lte_operator(self) -> None:
+        """Test less than or equal path comparison (lexicographic)."""
+        result = self.strategy.build_sql("lte", "top.technology", self.path_sql, LTree)
+        expected = "(data->>'path')::ltree <= 'top.technology'::ltree"
+        assert result.as_string(None) == expected
+
+    def test_path_gte_operator(self) -> None:
+        """Test greater than or equal path comparison (lexicographic)."""
+        result = self.strategy.build_sql("gte", "top.arts", self.path_sql, LTree)
+        expected = "(data->>'path')::ltree >= 'top.arts'::ltree"
+        assert result.as_string(None) == expected
+
+    def test_path_comparison_with_deep_paths(self) -> None:
+        """Test path comparison operators with deeply nested paths."""
+        deep_path = "top.science.physics.quantum"
+
+        # Less than
+        result_lt = self.strategy.build_sql("lt", deep_path, self.path_sql, LTree)
+        expected_lt = f"(data->>'path')::ltree < '{deep_path}'::ltree"
+        assert result_lt.as_string(None) == expected_lt
+
+        # Greater than
+        result_gt = self.strategy.build_sql("gt", deep_path, self.path_sql, LTree)
+        expected_gt = f"(data->>'path')::ltree > '{deep_path}'::ltree"
+        assert result_gt.as_string(None) == expected_gt
+
+        # Less than or equal
+        result_lte = self.strategy.build_sql("lte", deep_path, self.path_sql, LTree)
+        expected_lte = f"(data->>'path')::ltree <= '{deep_path}'::ltree"
+        assert result_lte.as_string(None) == expected_lte
+
+        # Greater than or equal
+        result_gte = self.strategy.build_sql("gte", deep_path, self.path_sql, LTree)
+        expected_gte = f"(data->>'path')::ltree >= '{deep_path}'::ltree"
+        assert result_gte.as_string(None) == expected_gte
+
+    def test_path_comparison_single_labels(self) -> None:
+        """Test path comparison with single-label paths."""
+        # Single label comparison
+        result_lt = self.strategy.build_sql("lt", "animals", self.path_sql, LTree)
+        expected_lt = "(data->>'path')::ltree < 'animals'::ltree"
+        assert result_lt.as_string(None) == expected_lt
+
+        result_gte = self.strategy.build_sql("gte", "plants", self.path_sql, LTree)
+        expected_gte = "(data->>'path')::ltree >= 'plants'::ltree"
+        assert result_gte.as_string(None) == expected_gte
+
+    def test_path_comparison_are_operator_aliases(self) -> None:
+        """Test that path comparisons work with ltree type."""
+        # These operators should be recognized as valid for LTree type
+        assert self.strategy.supports_operator("lt", LTree)
+        assert self.strategy.supports_operator("gt", LTree)
+        assert self.strategy.supports_operator("lte", LTree)
+        assert self.strategy.supports_operator("gte", LTree)
+
+
 class TestLTreeValidation:
     """Test LTree validation and error handling."""
 

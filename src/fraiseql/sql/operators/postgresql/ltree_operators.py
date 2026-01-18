@@ -12,6 +12,7 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
 
     Supports hierarchical path operators:
         - eq, neq: Equality/inequality
+        - lt, lte, gt, gte: Path comparison operators
         - in, nin: List membership
         - ancestor_of: Is ancestor of path
         - descendant_of: Is descendant of path
@@ -23,6 +24,10 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
     SUPPORTED_OPERATORS = {
         "eq",
         "neq",
+        "lt",  # Path less than
+        "gt",  # Path greater than
+        "lte",  # Path less than or equal
+        "gte",  # Path greater than or equal
         "in",
         "nin",
         "notin",  # Alias for nin
@@ -125,6 +130,26 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
             # Always cast to ltree (handles both JSONB and regular columns)
             casted_path = SQL("({})::ltree").format(path_sql)
             return SQL("{} != {}::ltree").format(casted_path, Literal(str(value)))
+
+        if operator == "lt":
+            # Path less than operator
+            casted_path = SQL("({})::ltree").format(path_sql)
+            return SQL("{} < {}::ltree").format(casted_path, Literal(str(value)))
+
+        if operator == "gt":
+            # Path greater than operator
+            casted_path = SQL("({})::ltree").format(path_sql)
+            return SQL("{} > {}::ltree").format(casted_path, Literal(str(value)))
+
+        if operator == "lte":
+            # Path less than or equal operator
+            casted_path = SQL("({})::ltree").format(path_sql)
+            return SQL("{} <= {}::ltree").format(casted_path, Literal(str(value)))
+
+        if operator == "gte":
+            # Path greater than or equal operator
+            casted_path = SQL("({})::ltree").format(path_sql)
+            return SQL("{} >= {}::ltree").format(casted_path, Literal(str(value)))
 
         # Always cast to ltree for all ltree-specific operators
         casted_path = SQL("({})::ltree").format(path_sql)

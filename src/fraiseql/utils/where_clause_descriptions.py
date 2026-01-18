@@ -50,25 +50,39 @@ OPERATOR_DESCRIPTIONS = {
     "OR": "Logical OR - at least one condition in the list must be true",
     "NOT": "Logical NOT - negates the given condition",
     # LTREE hierarchical path operations
+    # Path comparison (lexicographic ordering)
     "ancestor_of": "Hierarchical ancestor - path is an ancestor of the specified path",
     "descendant_of": "Hierarchical descendant - path is a descendant of the specified path",
+    # Pattern matching
     "matches_lquery": "Pattern match - path matches the lquery pattern (wildcards supported)",
     "matches_ltxtquery": "Text search - path matches the ltxtquery text pattern (AND/OR/NOT)",
     "matches_any_lquery": "Match any pattern - path matches any of the provided lquery patterns",
+    # Array operations
     "in_array": "Path in array - path is contained in the specified array of paths",
     "array_contains": "Array contains path - the specified array contains the target path",
+    # Depth/level operators
     "nlevel": "Path depth - returns the number of labels in the path",
     "nlevel_eq": "Exact depth - path has exactly N levels (e.g., nlevel_eq: 3 for 3-level paths)",
     "nlevel_gt": "Depth greater than - path has more than N levels",
     "nlevel_gte": "Depth greater than or equal - path has N or more levels",
     "nlevel_lt": "Depth less than - path has fewer than N levels",
     "nlevel_lte": "Depth less than or equal - path has N or fewer levels",
+    "nlevel_neq": "Depth not equal - path does not have exactly N levels",
+    "depth_eq": "Exact depth - path has exactly N levels (alias for nlevel_eq)",
+    "depth_gt": "Depth greater than - path has more than N levels (alias for nlevel_gt)",
+    "depth_gte": "Depth greater than or equal - path has N or more levels (alias for nlevel_gte)",
+    "depth_lt": "Depth less than - path has fewer than N levels (alias for nlevel_lt)",
+    "depth_lte": "Depth less than or equal - path has N or fewer levels (alias for nlevel_lte)",
+    "depth_neq": "Depth not equal - path does not have exactly N levels (alias for nlevel_neq)",
+    # Path analysis
     "subpath": "Extract subpath - extract a portion of the path (offset, length)",
     "index": "Find sublabel position - returns position of sublabel in path (-1 if not found)",
     "index_eq": "Exact position - sublabel appears at the specified position in path",
     "index_gte": "Minimum position - sublabel appears at or after the specified position",
+    # Path manipulation
     "concat": "Concatenate paths - join two hierarchical paths together",
     "lca": "Lowest common ancestor - find the most specific common ancestor of multiple paths",
+    # Note: 'isdescendant' is an alias for 'descendant_of' handled by LTree operator strategy
 }
 
 

@@ -345,7 +345,11 @@ class LTreeFilter:
     Provides both basic comparison operators and PostgreSQL ltree-specific
     hierarchical operators for path ancestry, descendancy, and pattern matching.
 
-    PostgreSQL ltree operators:
+    PostgreSQL ltree path comparison operators:
+    - eq, neq: Path equality/inequality
+    - lt, lte, gt, gte: Lexicographic path comparison
+
+    PostgreSQL ltree hierarchy operators:
     - @> (ancestor_of): path @> 'a.b' - Is ancestor of path
     - <@ (descendant_of): path <@ 'a.b' - Is descendant of path
     - ~ (matches_lquery): path ~ '*.b.*' - Matches lquery pattern
@@ -363,6 +367,10 @@ class LTreeFilter:
     # Basic comparison operators
     eq: str | None = None
     neq: str | None = None
+    lt: str | None = None  # Path less than (lexicographic)
+    lte: str | None = None  # Path less than or equal (lexicographic)
+    gt: str | None = None  # Path greater than (lexicographic)
+    gte: str | None = None  # Path greater than or equal (lexicographic)
     in_: list[str] | None = fraise_field(default=None, graphql_name="in")
     nin: list[str] | None = None
     isnull: bool | None = None
