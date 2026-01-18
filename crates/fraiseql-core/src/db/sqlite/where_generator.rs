@@ -1,7 +1,9 @@
 //! SQLite WHERE clause SQL generation.
 
-use crate::db::where_clause::{WhereClause, WhereOperator};
-use crate::error::{FraiseQLError, Result};
+use crate::{
+    db::where_clause::{WhereClause, WhereOperator},
+    error::{FraiseQLError, Result},
+};
 
 /// SQLite WHERE clause generator.
 ///
@@ -70,26 +72,22 @@ impl SqliteWhereGenerator {
                 if clauses.is_empty() {
                     return Ok("1=1".to_string()); // SQLite TRUE equivalent
                 }
-                let parts: Result<Vec<String>> = clauses
-                    .iter()
-                    .map(|c| self.generate_clause(c, params))
-                    .collect();
+                let parts: Result<Vec<String>> =
+                    clauses.iter().map(|c| self.generate_clause(c, params)).collect();
                 Ok(format!("({})", parts?.join(" AND ")))
-            }
+            },
             WhereClause::Or(clauses) => {
                 if clauses.is_empty() {
                     return Ok("1=0".to_string()); // SQLite FALSE equivalent
                 }
-                let parts: Result<Vec<String>> = clauses
-                    .iter()
-                    .map(|c| self.generate_clause(c, params))
-                    .collect();
+                let parts: Result<Vec<String>> =
+                    clauses.iter().map(|c| self.generate_clause(c, params)).collect();
                 Ok(format!("({})", parts?.join(" OR ")))
-            }
+            },
             WhereClause::Not(clause) => {
                 let inner = self.generate_clause(clause, params)?;
                 Ok(format!("NOT ({inner})"))
-            }
+            },
         }
     }
 
@@ -118,32 +116,32 @@ impl SqliteWhereGenerator {
             WhereOperator::Nin => {
                 let in_clause = self.generate_in(&field_path, value, params)?;
                 Ok(format!("NOT ({in_clause})"))
-            }
+            },
 
             // String operators - SQLite uses LIKE and GLOB
             WhereOperator::Contains => {
                 self.generate_like(&field_path, false, value, params, true, true)
-            }
+            },
             WhereOperator::Icontains => {
                 self.generate_like(&field_path, true, value, params, true, true)
-            }
+            },
             WhereOperator::Startswith => {
                 self.generate_like(&field_path, false, value, params, false, true)
-            }
+            },
             WhereOperator::Istartswith => {
                 self.generate_like(&field_path, true, value, params, false, true)
-            }
+            },
             WhereOperator::Endswith => {
                 self.generate_like(&field_path, false, value, params, true, false)
-            }
+            },
             WhereOperator::Iendswith => {
                 self.generate_like(&field_path, true, value, params, true, false)
-            }
+            },
             WhereOperator::Like => self.generate_comparison(&field_path, "LIKE", value, params),
             WhereOperator::Ilike => {
                 // SQLite LIKE is case-insensitive for ASCII by default
                 self.generate_comparison(&field_path, "LIKE", value, params)
-            }
+            },
 
             // Null checks
             WhereOperator::IsNull => {
@@ -153,15 +151,18 @@ impl SqliteWhereGenerator {
                     "IS NOT NULL"
                 };
                 Ok(format!("{field_path} {is_null}"))
-            }
+            },
 
             // Array operators - SQLite has limited JSON array support
-            WhereOperator::ArrayContains => self.generate_json_contains(&field_path, path, value, params),
+            WhereOperator::ArrayContains => {
+                self.generate_json_contains(&field_path, path, value, params)
+            },
             WhereOperator::ArrayContainedBy | WhereOperator::ArrayOverlaps => {
                 Err(FraiseQLError::validation(
-                    "ArrayContainedBy and ArrayOverlaps operators not supported in SQLite".to_string(),
+                    "ArrayContainedBy and ArrayOverlaps operators not supported in SQLite"
+                        .to_string(),
                 ))
-            }
+            },
 
             // Array length operators
             WhereOperator::LenEq => self.generate_array_length(&field_path, "=", value, params),
@@ -203,7 +204,9 @@ impl SqliteWhereGenerator {
             )),
 
             // JSONB operators
-            WhereOperator::StrictlyContains => self.generate_json_contains(&field_path, path, value, params),
+            WhereOperator::StrictlyContains => {
+                self.generate_json_contains(&field_path, path, value, params)
+            },
 
             // LTree operators - not supported in SQLite (PostgreSQL-specific)
             WhereOperator::AncestorOf
@@ -217,11 +220,9 @@ impl SqliteWhereGenerator {
             | WhereOperator::DepthGte
             | WhereOperator::DepthLt
             | WhereOperator::DepthLte
-            | WhereOperator::Lca => {
-                Err(FraiseQLError::validation(
-                    "LTree operators not supported in SQLite".to_string(),
-                ))
-            }
+            | WhereOperator::Lca => Err(FraiseQLError::validation(
+                "LTree operators not supported in SQLite".to_string(),
+            )),
         }
     }
 
@@ -242,7 +243,9 @@ impl SqliteWhereGenerator {
         params.push(value.clone());
 
         // For numeric comparisons, cast to appropriate type
-        if value.is_number() && (op == ">" || op == ">=" || op == "<" || op == "<=" || op == "=" || op == "!=") {
+        if value.is_number()
+            && (op == ">" || op == ">=" || op == "<" || op == "<=" || op == "=" || op == "!=")
+        {
             Ok(format!("CAST({field_path} AS REAL) {op} ?"))
         } else {
             Ok(format!("{field_path} {op} ?"))
@@ -342,16 +345,17 @@ impl Default for SqliteWhereGenerator {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serde_json::json;
+
+    use super::*;
 
     #[test]
     fn test_simple_equality() {
         let gen = SqliteWhereGenerator::new();
         let clause = WhereClause::Field {
-            path: vec!["email".to_string()],
+            path:     vec!["email".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("test@example.com"),
+            value:    json!("test@example.com"),
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
@@ -363,16 +367,13 @@ mod tests {
     fn test_icontains() {
         let gen = SqliteWhereGenerator::new();
         let clause = WhereClause::Field {
-            path: vec!["email".to_string()],
+            path:     vec!["email".to_string()],
             operator: WhereOperator::Icontains,
-            value: json!("example.com"),
+            value:    json!("example.com"),
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
-        assert_eq!(
-            sql,
-            "LOWER(json_extract(data, '$.email')) LIKE LOWER('%' || ? || '%')"
-        );
+        assert_eq!(sql, "LOWER(json_extract(data, '$.email')) LIKE LOWER('%' || ? || '%')");
         assert_eq!(params, vec![json!("example.com")]);
     }
 
@@ -380,9 +381,9 @@ mod tests {
     fn test_nested_path() {
         let gen = SqliteWhereGenerator::new();
         let clause = WhereClause::Field {
-            path: vec!["address".to_string(), "city".to_string()],
+            path:     vec!["address".to_string(), "city".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("Paris"),
+            value:    json!("Paris"),
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
@@ -395,14 +396,14 @@ mod tests {
         let gen = SqliteWhereGenerator::new();
         let clause = WhereClause::And(vec![
             WhereClause::Field {
-                path: vec!["age".to_string()],
+                path:     vec!["age".to_string()],
                 operator: WhereOperator::Gte,
-                value: json!(18),
+                value:    json!(18),
             },
             WhereClause::Field {
-                path: vec!["active".to_string()],
+                path:     vec!["active".to_string()],
                 operator: WhereOperator::Eq,
-                value: json!(true),
+                value:    json!(true),
             },
         ]);
 
@@ -418,9 +419,9 @@ mod tests {
     fn test_in_operator() {
         let gen = SqliteWhereGenerator::new();
         let clause = WhereClause::Field {
-            path: vec!["status".to_string()],
+            path:     vec!["status".to_string()],
             operator: WhereOperator::In,
-            value: json!(["active", "pending"]),
+            value:    json!(["active", "pending"]),
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
@@ -432,9 +433,9 @@ mod tests {
     fn test_is_null() {
         let gen = SqliteWhereGenerator::new();
         let clause = WhereClause::Field {
-            path: vec!["deleted_at".to_string()],
+            path:     vec!["deleted_at".to_string()],
             operator: WhereOperator::IsNull,
-            value: json!(true),
+            value:    json!(true),
         };
 
         let (sql, _params) = gen.generate(&clause).unwrap();
@@ -445,9 +446,9 @@ mod tests {
     fn test_array_length() {
         let gen = SqliteWhereGenerator::new();
         let clause = WhereClause::Field {
-            path: vec!["tags".to_string()],
+            path:     vec!["tags".to_string()],
             operator: WhereOperator::LenGt,
-            value: json!(0),
+            value:    json!(0),
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();

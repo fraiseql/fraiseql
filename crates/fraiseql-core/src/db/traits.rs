@@ -2,9 +2,11 @@
 
 use async_trait::async_trait;
 
+use super::{
+    types::{DatabaseType, JsonbValue, PoolMetrics},
+    where_clause::WhereClause,
+};
 use crate::error::Result;
-use super::types::{DatabaseType, JsonbValue, PoolMetrics};
-use super::where_clause::WhereClause;
 
 /// Database adapter for executing queries against views.
 ///
@@ -172,28 +174,28 @@ impl DatabaseCapabilities {
     pub const fn from_database_type(db_type: DatabaseType) -> Self {
         match db_type {
             DatabaseType::PostgreSQL => Self {
-                database_type: db_type,
+                database_type:             db_type,
                 supports_locale_collation: true,
                 requires_custom_collation: false,
-                recommended_collation: Some("icu"),
+                recommended_collation:     Some("icu"),
             },
             DatabaseType::MySQL => Self {
-                database_type: db_type,
+                database_type:             db_type,
                 supports_locale_collation: false,
                 requires_custom_collation: false,
-                recommended_collation: Some("utf8mb4_unicode_ci"),
+                recommended_collation:     Some("utf8mb4_unicode_ci"),
             },
             DatabaseType::SQLite => Self {
-                database_type: db_type,
+                database_type:             db_type,
                 supports_locale_collation: false,
                 requires_custom_collation: true,
-                recommended_collation: Some("NOCASE"),
+                recommended_collation:     Some("NOCASE"),
             },
             DatabaseType::SQLServer => Self {
-                database_type: db_type,
+                database_type:             db_type,
                 supports_locale_collation: true,
                 requires_custom_collation: false,
-                recommended_collation: Some("Latin1_General_100_CI_AI_SC_UTF8"),
+                recommended_collation:     Some("Latin1_General_100_CI_AI_SC_UTF8"),
             },
         }
     }

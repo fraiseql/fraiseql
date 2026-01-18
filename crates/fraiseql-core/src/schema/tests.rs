@@ -1,7 +1,8 @@
 //! Tests for compiled schema types.
 
-use super::*;
 use field_type::{DistanceMetric, VectorConfig, VectorIndexType};
+
+use super::*;
 
 #[test]
 fn test_empty_schema_creation() {
@@ -87,10 +88,7 @@ fn test_schema_from_json_full() {
     assert_eq!(user_type.name, "User");
     assert_eq!(user_type.sql_source, "v_user");
     assert_eq!(user_type.fields.len(), 3);
-    assert_eq!(
-        user_type.description,
-        Some("A user in the system".to_string())
-    );
+    assert_eq!(user_type.description, Some("A user in the system".to_string()));
 
     // Check queries
     assert_eq!(schema.queries.len(), 2);
@@ -121,18 +119,20 @@ fn test_schema_from_json_full() {
 #[test]
 fn test_schema_to_json_roundtrip() {
     let schema = CompiledSchema {
-        types: vec![TypeDefinition::new("User", "v_user")
-            .with_field(FieldDefinition::new("id", FieldType::Id))
-            .with_field(FieldDefinition::new("email", FieldType::String))],
-        enums: vec![],
-        input_types: vec![],
-        interfaces: vec![],
-        unions: vec![],
-        queries: vec![QueryDefinition::new("users", "User").returning_list()],
-        mutations: vec![],
+        types:         vec![
+            TypeDefinition::new("User", "v_user")
+                .with_field(FieldDefinition::new("id", FieldType::Id))
+                .with_field(FieldDefinition::new("email", FieldType::String)),
+        ],
+        enums:         vec![],
+        input_types:   vec![],
+        interfaces:    vec![],
+        unions:        vec![],
+        queries:       vec![QueryDefinition::new("users", "User").returning_list()],
+        mutations:     vec![],
         subscriptions: vec![],
-        directives: vec![],
-        fact_tables: std::collections::HashMap::new(),
+        directives:    vec![],
+        fact_tables:   std::collections::HashMap::new(),
     };
 
     let json = schema.to_json().unwrap();
@@ -154,9 +154,7 @@ fn test_schema_validation_duplicate_types() {
     let result = schema.validate();
     assert!(result.is_err());
     let errors = result.unwrap_err();
-    assert!(errors
-        .iter()
-        .any(|e| e.contains("Duplicate type name: User")));
+    assert!(errors.iter().any(|e| e.contains("Duplicate type name: User")));
 }
 
 #[test]
@@ -236,20 +234,14 @@ fn test_field_type_to_graphql_string() {
     assert_eq!(FieldType::Int.to_graphql_string(), "Int");
     assert_eq!(FieldType::Id.to_graphql_string(), "ID");
 
-    assert_eq!(
-        FieldType::List(Box::new(FieldType::String)).to_graphql_string(),
-        "[String]"
-    );
+    assert_eq!(FieldType::List(Box::new(FieldType::String)).to_graphql_string(), "[String]");
 
     assert_eq!(
         FieldType::List(Box::new(FieldType::List(Box::new(FieldType::Int)))).to_graphql_string(),
         "[[Int]]"
     );
 
-    assert_eq!(
-        FieldType::Object("User".to_string()).to_graphql_string(),
-        "User"
-    );
+    assert_eq!(FieldType::Object("User".to_string()).to_graphql_string(), "User");
 }
 
 #[test]
@@ -319,19 +311,19 @@ fn test_argument_definition() {
 #[test]
 fn test_operation_count() {
     let schema = CompiledSchema {
-        types: vec![TypeDefinition::new("User", "v_user")],
-        enums: vec![],
-        input_types: vec![],
-        interfaces: vec![],
-        unions: vec![],
-        queries: vec![
+        types:         vec![TypeDefinition::new("User", "v_user")],
+        enums:         vec![],
+        input_types:   vec![],
+        interfaces:    vec![],
+        unions:        vec![],
+        queries:       vec![
             QueryDefinition::new("users", "User"),
             QueryDefinition::new("user", "User"),
         ],
-        mutations: vec![MutationDefinition::new("createUser", "User")],
+        mutations:     vec![MutationDefinition::new("createUser", "User")],
         subscriptions: vec![SubscriptionDefinition::new("userCreated", "User")],
-        directives: vec![],
-        fact_tables: std::collections::HashMap::new(),
+        directives:    vec![],
+        fact_tables:   std::collections::HashMap::new(),
     };
 
     assert_eq!(schema.operation_count(), 4); // 2 queries + 1 mutation + 1 subscription
@@ -428,10 +420,7 @@ fn test_python_generated_json_compat() {
     assert_eq!(user_type.sql_source, "v_user");
     assert_eq!(user_type.jsonb_column, "data");
     assert_eq!(user_type.fields.len(), 3);
-    assert_eq!(
-        user_type.description,
-        Some("A user in the system.".to_string())
-    );
+    assert_eq!(user_type.description, Some("A user in the system.".to_string()));
 
     // Verify fields
     let id_field = user_type.find_field("id").expect("id field");
@@ -457,9 +446,7 @@ fn test_python_generated_json_compat() {
 
     // Verify mutations
     assert_eq!(schema.mutations.len(), 1);
-    let create_user = schema
-        .find_mutation("create_user")
-        .expect("create_user mutation");
+    let create_user = schema.find_mutation("create_user").expect("create_user mutation");
     assert_eq!(create_user.return_type, "User");
     assert_eq!(create_user.arguments.len(), 2);
     assert!(matches!(create_user.operation, MutationOperation::Custom));
@@ -521,10 +508,7 @@ fn test_distance_metric_operators() {
 fn test_distance_metric_ops_classes() {
     assert_eq!(DistanceMetric::Cosine.hnsw_ops_class(), "vector_cosine_ops");
     assert_eq!(DistanceMetric::L2.hnsw_ops_class(), "vector_l2_ops");
-    assert_eq!(
-        DistanceMetric::InnerProduct.hnsw_ops_class(),
-        "vector_ip_ops"
-    );
+    assert_eq!(DistanceMetric::InnerProduct.hnsw_ops_class(), "vector_ip_ops");
 }
 
 #[test]
@@ -581,8 +565,8 @@ fn test_field_type_vector_sql_type() {
 #[test]
 fn test_vector_config_serialization() {
     let config = VectorConfig {
-        dimensions: 1536,
-        index_type: VectorIndexType::Hnsw,
+        dimensions:      1536,
+        index_type:      VectorIndexType::Hnsw,
         distance_metric: DistanceMetric::Cosine,
     };
 
@@ -680,10 +664,7 @@ fn test_schema_with_vector_field_json() {
     assert!(embedding_field.is_vector());
     assert!(matches!(embedding_field.field_type, FieldType::Vector));
 
-    let config = embedding_field
-        .vector_config
-        .as_ref()
-        .expect("should have vector config");
+    let config = embedding_field.vector_config.as_ref().expect("should have vector config");
     assert_eq!(config.dimensions, 1536);
     assert_eq!(config.index_type, VectorIndexType::Hnsw);
     assert_eq!(config.distance_metric, DistanceMetric::Cosine);
@@ -692,21 +673,23 @@ fn test_schema_with_vector_field_json() {
 #[test]
 fn test_vector_field_roundtrip() {
     let schema = CompiledSchema {
-        types: vec![TypeDefinition::new("Document", "documents")
-            .with_field(FieldDefinition::new("id", FieldType::Id))
-            .with_field(
-                FieldDefinition::vector("embedding", VectorConfig::openai())
-                    .with_description("OpenAI embedding"),
-            )],
-        enums: vec![],
-        input_types: vec![],
-        interfaces: vec![],
-        unions: vec![],
-        queries: vec![],
-        mutations: vec![],
+        types:         vec![
+            TypeDefinition::new("Document", "documents")
+                .with_field(FieldDefinition::new("id", FieldType::Id))
+                .with_field(
+                    FieldDefinition::vector("embedding", VectorConfig::openai())
+                        .with_description("OpenAI embedding"),
+                ),
+        ],
+        enums:         vec![],
+        input_types:   vec![],
+        interfaces:    vec![],
+        unions:        vec![],
+        queries:       vec![],
+        mutations:     vec![],
         subscriptions: vec![],
-        directives: vec![],
-        fact_tables: std::collections::HashMap::new(),
+        directives:    vec![],
+        fact_tables:   std::collections::HashMap::new(),
     };
 
     let json = schema.to_json().unwrap();

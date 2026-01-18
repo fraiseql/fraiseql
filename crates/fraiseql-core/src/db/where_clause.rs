@@ -40,11 +40,11 @@ pub enum WhereClause {
     /// Single field condition.
     Field {
         /// JSONB path (e.g., ["email"] or ["posts", "title"]).
-        path: Vec<String>,
+        path:     Vec<String>,
         /// Comparison operator.
         operator: WhereOperator,
         /// Value to compare against.
-        value: serde_json::Value,
+        value:    serde_json::Value,
     },
 
     /// Logical AND of multiple conditions.
@@ -310,10 +310,7 @@ impl WhereOperator {
     /// Check if operator is case-insensitive.
     #[must_use]
     pub const fn is_case_insensitive(&self) -> bool {
-        matches!(
-            self,
-            Self::Icontains | Self::Istartswith | Self::Iendswith | Self::Ilike
-        )
+        matches!(self, Self::Icontains | Self::Istartswith | Self::Iendswith | Self::Ilike)
     }
 
     /// Check if operator works with strings.
@@ -371,9 +368,9 @@ pub enum HavingClause {
         /// Aggregate name: "count" or "field_function" (e.g., "revenue_sum").
         aggregate: String,
         /// Comparison operator.
-        operator: WhereOperator,
+        operator:  WhereOperator,
         /// Value to compare against.
-        value: serde_json::Value,
+        value:     serde_json::Value,
     },
 
     /// Logical AND of multiple conditions.
@@ -399,8 +396,9 @@ impl HavingClause {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serde_json::json;
+
+    use super::*;
 
     #[test]
     fn test_where_operator_from_str() {
@@ -427,9 +425,9 @@ mod tests {
     #[test]
     fn test_where_clause_simple() {
         let clause = WhereClause::Field {
-            path: vec!["email".to_string()],
+            path:     vec!["email".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("test@example.com"),
+            value:    json!("test@example.com"),
         };
 
         assert!(!clause.is_empty());
@@ -439,14 +437,14 @@ mod tests {
     fn test_where_clause_and() {
         let clause = WhereClause::And(vec![
             WhereClause::Field {
-                path: vec!["published".to_string()],
+                path:     vec!["published".to_string()],
                 operator: WhereOperator::Eq,
-                value: json!(true),
+                value:    json!(true),
             },
             WhereClause::Field {
-                path: vec!["views".to_string()],
+                path:     vec!["views".to_string()],
                 operator: WhereOperator::Gte,
-                value: json!(100),
+                value:    json!(100),
             },
         ]);
 

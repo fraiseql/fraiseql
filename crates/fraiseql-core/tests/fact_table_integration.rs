@@ -5,14 +5,17 @@
 //! To run:
 //!   1. Start test database: docker compose -f docker-compose.test.yml up -d
 //!   2. Wait for DB: docker compose -f docker-compose.test.yml exec postgres-test pg_isready
-//!   3. Run tests: cargo test -p fraiseql-core --features test-postgres --test fact_table_integration
+//!   3. Run tests: cargo test -p fraiseql-core --features test-postgres --test
+//!      fact_table_integration
 //!   4. Stop database: docker compose -f docker-compose.test.yml down
 
 #![cfg(feature = "test-postgres")]
 
 use deadpool_postgres::{Config, ManagerConfig, RecyclingMethod, Runtime};
-use fraiseql_core::compiler::fact_table::{DatabaseIntrospector, FactTableDetector, SqlType};
-use fraiseql_core::db::postgres::PostgresIntrospector;
+use fraiseql_core::{
+    compiler::fact_table::{DatabaseIntrospector, FactTableDetector, SqlType},
+    db::postgres::PostgresIntrospector,
+};
 use tokio_postgres::NoTls;
 
 const TEST_DB_URL: &str =
@@ -27,9 +30,7 @@ async fn create_test_introspector() -> PostgresIntrospector {
     });
     cfg.pool = Some(deadpool_postgres::PoolConfig::new(10));
 
-    let pool = cfg
-        .create_pool(Some(Runtime::Tokio1), NoTls)
-        .expect("Failed to create pool");
+    let pool = cfg.create_pool(Some(Runtime::Tokio1), NoTls).expect("Failed to create pool");
 
     PostgresIntrospector::new(pool)
 }
@@ -61,15 +62,9 @@ async fn test_detect_tf_sales() {
     assert_eq!(metadata.dimensions.name, "data");
 
     // Verify denormalized filters (customer_id, product_id, occurred_at, created_at)
-    assert!(
-        metadata.denormalized_filters.len() >= 3,
-        "Expected at least 3 filters"
-    );
-    let filter_names: Vec<String> = metadata
-        .denormalized_filters
-        .iter()
-        .map(|f| f.name.clone())
-        .collect();
+    assert!(metadata.denormalized_filters.len() >= 3, "Expected at least 3 filters");
+    let filter_names: Vec<String> =
+        metadata.denormalized_filters.iter().map(|f| f.name.clone()).collect();
     assert!(filter_names.contains(&"customer_id".to_string()));
     assert!(filter_names.contains(&"product_id".to_string()));
     assert!(filter_names.contains(&"occurred_at".to_string()));
@@ -116,11 +111,8 @@ async fn test_detect_tf_events() {
     assert_eq!(metadata.dimensions.name, "data");
 
     // Verify denormalized filters
-    let filter_names: Vec<String> = metadata
-        .denormalized_filters
-        .iter()
-        .map(|f| f.name.clone())
-        .collect();
+    let filter_names: Vec<String> =
+        metadata.denormalized_filters.iter().map(|f| f.name.clone()).collect();
     assert!(filter_names.contains(&"endpoint".to_string()));
     assert!(filter_names.contains(&"occurred_at".to_string()));
 }
@@ -217,18 +209,10 @@ async fn test_index_detection() {
         .expect("Failed to introspect tf_sales");
 
     // Count indexed filters
-    let indexed_count = metadata
-        .denormalized_filters
-        .iter()
-        .filter(|f| f.indexed)
-        .count();
+    let indexed_count = metadata.denormalized_filters.iter().filter(|f| f.indexed).count();
 
     // Should have at least 3 indexed columns (customer_id, product_id, occurred_at)
-    assert!(
-        indexed_count >= 3,
-        "Expected at least 3 indexed columns, got {}",
-        indexed_count
-    );
+    assert!(indexed_count >= 3, "Expected at least 3 indexed columns, got {}", indexed_count);
 }
 
 // ============================================================================
@@ -278,17 +262,11 @@ async fn test_sql_type_detection() {
 async fn test_get_columns_tf_sales() {
     let introspector = create_test_introspector().await;
 
-    let columns = introspector
-        .get_columns("tf_sales")
-        .await
-        .expect("Failed to get columns");
+    let columns = introspector.get_columns("tf_sales").await.expect("Failed to get columns");
 
-    // Should have: id, revenue, quantity, cost, discount, data, customer_id, product_id, occurred_at, created_at
-    assert!(
-        columns.len() >= 10,
-        "Expected at least 10 columns, got {}",
-        columns.len()
-    );
+    // Should have: id, revenue, quantity, cost, discount, data, customer_id, product_id,
+    // occurred_at, created_at
+    assert!(columns.len() >= 10, "Expected at least 10 columns, got {}", columns.len());
 
     // Check for key columns
     let column_names: Vec<String> = columns.iter().map(|(name, _, _)| name.clone()).collect();
@@ -308,11 +286,7 @@ async fn test_get_indexed_columns_tf_sales() {
         .expect("Failed to get indexed columns");
 
     // Should have indexes on: id (PK), customer_id, product_id, occurred_at, data (GIN)
-    assert!(
-        indexed.len() >= 4,
-        "Expected at least 4 indexed columns, got {}",
-        indexed.len()
-    );
+    assert!(indexed.len() >= 4, "Expected at least 4 indexed columns, got {}", indexed.len());
 
     assert!(indexed.contains(&"customer_id".to_string()));
     assert!(indexed.contains(&"product_id".to_string()));

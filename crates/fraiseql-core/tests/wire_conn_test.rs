@@ -10,10 +10,10 @@ async fn test_wire_connection() {
         Ok(client) => {
             println!("✅ Connection successful!");
             drop(client);
-        }
+        },
         Err(e) => {
             eprintln!("❌ Connection failed: {}", e);
             panic!("Connection failed: {}", e);
-        }
+        },
     }
 }

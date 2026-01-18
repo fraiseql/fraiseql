@@ -39,8 +39,9 @@
 //! };
 //! ```
 
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+
+use serde::{Deserialize, Serialize};
 
 /// Authoring Intermediate Representation.
 ///
@@ -88,15 +89,15 @@ impl AuthoringIR {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            types: Vec::new(),
-            enums: Vec::new(),
-            interfaces: Vec::new(),
-            unions: Vec::new(),
-            input_types: Vec::new(),
-            queries: Vec::new(),
-            mutations: Vec::new(),
+            types:         Vec::new(),
+            enums:         Vec::new(),
+            interfaces:    Vec::new(),
+            unions:        Vec::new(),
+            input_types:   Vec::new(),
+            queries:       Vec::new(),
+            mutations:     Vec::new(),
             subscriptions: Vec::new(),
-            fact_tables: HashMap::new(),
+            fact_tables:   HashMap::new(),
         }
     }
 }
@@ -363,17 +364,15 @@ mod tests {
     #[test]
     fn test_ir_type() {
         let ir_type = IRType {
-            name: "User".to_string(),
-            fields: vec![
-                IRField {
-                    name: "id".to_string(),
-                    field_type: "Int!".to_string(),
-                    nullable: false,
-                    description: None,
-                    sql_column: Some("id".to_string()),
-                }
-            ],
-            sql_source: Some("v_user".to_string()),
+            name:        "User".to_string(),
+            fields:      vec![IRField {
+                name:        "id".to_string(),
+                field_type:  "Int!".to_string(),
+                nullable:    false,
+                description: None,
+                sql_column:  Some("id".to_string()),
+            }],
+            sql_source:  Some("v_user".to_string()),
             description: Some("User type".to_string()),
         };
 
@@ -385,14 +384,14 @@ mod tests {
     #[test]
     fn test_ir_query() {
         let query = IRQuery {
-            name: "users".to_string(),
-            return_type: "User".to_string(),
+            name:         "users".to_string(),
+            return_type:  "User".to_string(),
             returns_list: true,
-            nullable: false,
-            arguments: vec![],
-            sql_source: Some("v_user".to_string()),
-            description: None,
-            auto_params: AutoParams {
+            nullable:     false,
+            arguments:    vec![],
+            sql_source:   Some("v_user".to_string()),
+            description:  None,
+            auto_params:  AutoParams {
                 has_where: true,
                 has_limit: true,
                 ..Default::default()
@@ -408,20 +407,18 @@ mod tests {
     #[test]
     fn test_ir_mutation() {
         let mutation = IRMutation {
-            name: "createUser".to_string(),
+            name:        "createUser".to_string(),
             return_type: "User".to_string(),
-            nullable: false,
-            arguments: vec![
-                IRArgument {
-                    name: "input".to_string(),
-                    arg_type: "CreateUserInput!".to_string(),
-                    nullable: false,
-                    default_value: None,
-                    description: None,
-                }
-            ],
+            nullable:    false,
+            arguments:   vec![IRArgument {
+                name:          "input".to_string(),
+                arg_type:      "CreateUserInput!".to_string(),
+                nullable:      false,
+                default_value: None,
+                description:   None,
+            }],
             description: None,
-            operation: MutationOperation::Create,
+            operation:   MutationOperation::Create,
         };
 
         assert_eq!(mutation.name, "createUser");

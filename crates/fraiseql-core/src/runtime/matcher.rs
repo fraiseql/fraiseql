@@ -1,11 +1,12 @@
 //! Query pattern matching - matches incoming GraphQL queries to compiled templates.
 
-use crate::error::{FraiseQLError, Result};
-use crate::graphql::{
-    parse_query, DirectiveEvaluator, FieldSelection, FragmentResolver, ParsedQuery,
-};
-use crate::schema::{CompiledSchema, QueryDefinition};
 use std::collections::HashMap;
+
+use crate::{
+    error::{FraiseQLError, Result},
+    graphql::{DirectiveEvaluator, FieldSelection, FragmentResolver, ParsedQuery, parse_query},
+    schema::{CompiledSchema, QueryDefinition},
+};
 
 /// A matched query with extracted information.
 #[derive(Debug, Clone)]
@@ -79,7 +80,7 @@ impl QueryMatcher {
     ) -> Result<QueryMatch> {
         // 1. Parse GraphQL query using proper parser
         let parsed = parse_query(query).map_err(|e| FraiseQLError::Parse {
-            message: e.to_string(),
+            message:  e.to_string(),
             location: "query".to_string(),
         })?;
 
@@ -88,19 +89,21 @@ impl QueryMatcher {
 
         // 3. Resolve fragment spreads
         let resolver = FragmentResolver::new(&parsed.fragments);
-        let resolved_selections = resolver
-            .resolve_spreads(&parsed.selections)
-            .map_err(|e| FraiseQLError::Validation {
+        let resolved_selections = resolver.resolve_spreads(&parsed.selections).map_err(|e| {
+            FraiseQLError::Validation {
                 message: e.to_string(),
-                path: Some("fragments".to_string()),
-            })?;
+                path:    Some("fragments".to_string()),
+            }
+        })?;
 
         // 4. Evaluate directives (@skip, @include) and filter selections
-        let final_selections = DirectiveEvaluator::filter_selections(&resolved_selections, &variables_map)
-            .map_err(|e| FraiseQLError::Validation {
-                message: e.to_string(),
-                path: Some("directives".to_string()),
-            })?;
+        let final_selections =
+            DirectiveEvaluator::filter_selections(&resolved_selections, &variables_map).map_err(
+                |e| FraiseQLError::Validation {
+                    message: e.to_string(),
+                    path:    Some("directives".to_string()),
+                },
+            )?;
 
         // 5. Find matching query definition using root field
         let query_def = self
@@ -108,7 +111,7 @@ impl QueryMatcher {
             .find_query(&parsed.root_field)
             .ok_or_else(|| FraiseQLError::Validation {
                 message: format!("Query '{}' not found in schema", parsed.root_field),
-                path: None,
+                path:    None,
             })?
             .clone();
 
@@ -134,9 +137,7 @@ impl QueryMatcher {
         variables: Option<&serde_json::Value>,
     ) -> HashMap<String, serde_json::Value> {
         if let Some(serde_json::Value::Object(map)) = variables {
-            map.iter()
-                .map(|(k, v)| (k.clone(), v.clone()))
-                .collect()
+            map.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
         } else {
             HashMap::new()
         }
@@ -153,9 +154,7 @@ impl QueryMatcher {
         variables: Option<&serde_json::Value>,
     ) -> HashMap<String, serde_json::Value> {
         if let Some(serde_json::Value::Object(map)) = variables {
-            map.iter()
-                .map(|(k, v)| (k.clone(), v.clone()))
-                .collect()
+            map.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
         } else {
             HashMap::new()
         }
@@ -176,15 +175,15 @@ mod tests {
     fn test_schema() -> CompiledSchema {
         let mut schema = CompiledSchema::new();
         schema.queries.push(QueryDefinition {
-            name: "users".to_string(),
-            return_type: "User".to_string(),
+            name:         "users".to_string(),
+            return_type:  "User".to_string(),
             returns_list: true,
-            nullable: false,
-            arguments: Vec::new(),
-            sql_source: Some("v_user".to_string()),
-            description: None,
-            auto_params: crate::schema::AutoParams::default(),
-            deprecation: None,
+            nullable:     false,
+            arguments:    Vec::new(),
+            sql_source:   Some("v_user".to_string()),
+            description:  None,
+            auto_params:  crate::schema::AutoParams::default(),
+            deprecation:  None,
         });
         schema
     }
@@ -262,7 +261,8 @@ mod tests {
         let schema = test_schema();
         let matcher = QueryMatcher::new(schema);
 
-        let query = r"query($includeEmail: Boolean!) { users { id email @include(if: $includeEmail) } }";
+        let query =
+            r"query($includeEmail: Boolean!) { users { id email @include(if: $includeEmail) } }";
         let variables = serde_json::json!({ "includeEmail": false });
         let result = matcher.match_query(query, Some(&variables)).unwrap();
 

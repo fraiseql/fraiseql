@@ -24,24 +24,19 @@
 //! ```
 
 // Database adapters (conditionally compiled based on features)
-#[cfg(feature = "mysql")]
-use fraiseql_core::db::mysql::MySqlAdapter;
-
-#[cfg(feature = "sqlite")]
-use fraiseql_core::db::sqlite::SqliteAdapter;
-
-#[cfg(feature = "sqlserver")]
-use fraiseql_core::db::sqlserver::SqlServerAdapter;
-
 #[cfg(any(feature = "mysql", feature = "sqlite", feature = "sqlserver"))]
 use std::sync::Arc;
 
+#[cfg(feature = "mysql")]
+use fraiseql_core::db::mysql::MySqlAdapter;
+#[cfg(feature = "sqlite")]
+use fraiseql_core::db::sqlite::SqliteAdapter;
+#[cfg(feature = "sqlserver")]
+use fraiseql_core::db::sqlserver::SqlServerAdapter;
 #[cfg(any(feature = "mysql", feature = "sqlite", feature = "sqlserver"))]
 use fraiseql_core::db::traits::DatabaseAdapter;
-
 #[cfg(any(feature = "mysql", feature = "sqlite", feature = "sqlserver"))]
 use fraiseql_core::db::types::DatabaseType;
-
 // Note: WhereClause and WhereOperator available for future WHERE tests
 #[cfg(any(feature = "mysql", feature = "sqlite", feature = "sqlserver"))]
 #[allow(unused_imports)]
@@ -55,13 +50,12 @@ use fraiseql_core::db::where_clause::{WhereClause, WhereOperator};
 mod mysql_tests {
     use super::*;
 
-    const MYSQL_URL: &str = "mysql://fraiseql_test:fraiseql_test_password@localhost:3307/test_fraiseql";
+    const MYSQL_URL: &str =
+        "mysql://fraiseql_test:fraiseql_test_password@localhost:3307/test_fraiseql";
 
     #[tokio::test]
     async fn test_mysql_adapter_creation() {
-        let adapter = MySqlAdapter::new(MYSQL_URL)
-            .await
-            .expect("Failed to create MySQL adapter");
+        let adapter = MySqlAdapter::new(MYSQL_URL).await.expect("Failed to create MySQL adapter");
 
         assert_eq!(adapter.database_type(), DatabaseType::MySQL);
 
@@ -71,21 +65,14 @@ mod mysql_tests {
 
     #[tokio::test]
     async fn test_mysql_health_check() {
-        let adapter = MySqlAdapter::new(MYSQL_URL)
-            .await
-            .expect("Failed to create MySQL adapter");
+        let adapter = MySqlAdapter::new(MYSQL_URL).await.expect("Failed to create MySQL adapter");
 
-        adapter
-            .health_check()
-            .await
-            .expect("Health check should pass");
+        adapter.health_check().await.expect("Health check should pass");
     }
 
     #[tokio::test]
     async fn test_mysql_execute_raw_query() {
-        let adapter = MySqlAdapter::new(MYSQL_URL)
-            .await
-            .expect("Failed to create MySQL adapter");
+        let adapter = MySqlAdapter::new(MYSQL_URL).await.expect("Failed to create MySQL adapter");
 
         let results = adapter
             .execute_raw_query("SELECT 1 as value")
@@ -98,19 +85,14 @@ mod mysql_tests {
 
     #[tokio::test]
     async fn test_mysql_query_v_user_view() {
-        let adapter = MySqlAdapter::new(MYSQL_URL)
-            .await
-            .expect("Failed to create MySQL adapter");
+        let adapter = MySqlAdapter::new(MYSQL_URL).await.expect("Failed to create MySQL adapter");
 
         let results = adapter
             .execute_where_query("v_user", None, Some(10), None)
             .await
             .expect("Query should succeed");
 
-        assert!(
-            !results.is_empty(),
-            "v_user view should have test data"
-        );
+        assert!(!results.is_empty(), "v_user view should have test data");
 
         // Verify JSON structure
         let first = results[0].as_value();
@@ -121,26 +103,19 @@ mod mysql_tests {
 
     #[tokio::test]
     async fn test_mysql_query_with_limit() {
-        let adapter = MySqlAdapter::new(MYSQL_URL)
-            .await
-            .expect("Failed to create MySQL adapter");
+        let adapter = MySqlAdapter::new(MYSQL_URL).await.expect("Failed to create MySQL adapter");
 
         let results = adapter
             .execute_where_query("v_user", None, Some(2), None)
             .await
             .expect("Query should succeed");
 
-        assert!(
-            results.len() <= 2,
-            "Should respect LIMIT clause"
-        );
+        assert!(results.len() <= 2, "Should respect LIMIT clause");
     }
 
     #[tokio::test]
     async fn test_mysql_query_with_offset() {
-        let adapter = MySqlAdapter::new(MYSQL_URL)
-            .await
-            .expect("Failed to create MySQL adapter");
+        let adapter = MySqlAdapter::new(MYSQL_URL).await.expect("Failed to create MySQL adapter");
 
         // Get all users first
         let all_results = adapter
@@ -155,38 +130,26 @@ mod mysql_tests {
             .expect("Query should succeed");
 
         if all_results.len() > 1 {
-            assert_eq!(
-                offset_results.len(),
-                all_results.len() - 1,
-                "Offset should skip first row"
-            );
+            assert_eq!(offset_results.len(), all_results.len() - 1, "Offset should skip first row");
         }
     }
 
     #[tokio::test]
     async fn test_mysql_query_v_post_with_nested_author() {
-        let adapter = MySqlAdapter::new(MYSQL_URL)
-            .await
-            .expect("Failed to create MySQL adapter");
+        let adapter = MySqlAdapter::new(MYSQL_URL).await.expect("Failed to create MySQL adapter");
 
         let results = adapter
             .execute_where_query("v_post", None, Some(5), None)
             .await
             .expect("Query should succeed");
 
-        assert!(
-            !results.is_empty(),
-            "v_post view should have test data"
-        );
+        assert!(!results.is_empty(), "v_post view should have test data");
 
         // Verify nested author object
         let first = results[0].as_value();
         assert!(first.get("id").is_some(), "Should have id field");
         assert!(first.get("title").is_some(), "Should have title field");
-        assert!(
-            first.get("author").is_some(),
-            "Should have nested author object"
-        );
+        assert!(first.get("author").is_some(), "Should have nested author object");
 
         let author = first.get("author").unwrap();
         assert!(author.get("id").is_some(), "Author should have id");
@@ -195,16 +158,11 @@ mod mysql_tests {
 
     #[tokio::test]
     async fn test_mysql_pool_metrics() {
-        let adapter = MySqlAdapter::new(MYSQL_URL)
-            .await
-            .expect("Failed to create MySQL adapter");
+        let adapter = MySqlAdapter::new(MYSQL_URL).await.expect("Failed to create MySQL adapter");
 
         let metrics = adapter.pool_metrics();
 
-        assert!(
-            metrics.total_connections > 0,
-            "Should have total connections"
-        );
+        assert!(metrics.total_connections > 0, "Should have total connections");
         assert!(
             metrics.idle_connections <= metrics.total_connections,
             "Idle should not exceed total"
@@ -213,38 +171,24 @@ mod mysql_tests {
 
     #[tokio::test]
     async fn test_mysql_concurrent_queries() {
-        let adapter = Arc::new(
-            MySqlAdapter::new(MYSQL_URL)
-                .await
-                .expect("Failed to create MySQL adapter"),
-        );
+        let adapter =
+            Arc::new(MySqlAdapter::new(MYSQL_URL).await.expect("Failed to create MySQL adapter"));
 
         let mut handles = Vec::new();
 
         for _ in 0..10 {
             let adapter_clone = Arc::clone(&adapter);
             let handle = tokio::spawn(async move {
-                adapter_clone
-                    .execute_where_query("v_user", None, Some(5), None)
-                    .await
+                adapter_clone.execute_where_query("v_user", None, Some(5), None).await
             });
             handles.push(handle);
         }
 
-        let results: Vec<_> = futures::future::join_all(handles)
-            .await
-            .into_iter()
-            .collect();
+        let results: Vec<_> = futures::future::join_all(handles).await.into_iter().collect();
 
         for result in results {
-            assert!(
-                result.is_ok(),
-                "Task should complete"
-            );
-            assert!(
-                result.unwrap().is_ok(),
-                "Query should succeed"
-            );
+            assert!(result.is_ok(), "Task should complete");
+            assert!(result.unwrap().is_ok(), "Query should succeed");
         }
     }
 }
@@ -259,9 +203,7 @@ mod sqlite_tests {
 
     #[tokio::test]
     async fn test_sqlite_in_memory_adapter_creation() {
-        let adapter = SqliteAdapter::in_memory()
-            .await
-            .expect("Failed to create SQLite adapter");
+        let adapter = SqliteAdapter::in_memory().await.expect("Failed to create SQLite adapter");
 
         assert_eq!(adapter.database_type(), DatabaseType::SQLite);
 
@@ -271,21 +213,14 @@ mod sqlite_tests {
 
     #[tokio::test]
     async fn test_sqlite_health_check() {
-        let adapter = SqliteAdapter::in_memory()
-            .await
-            .expect("Failed to create SQLite adapter");
+        let adapter = SqliteAdapter::in_memory().await.expect("Failed to create SQLite adapter");
 
-        adapter
-            .health_check()
-            .await
-            .expect("Health check should pass");
+        adapter.health_check().await.expect("Health check should pass");
     }
 
     #[tokio::test]
     async fn test_sqlite_execute_raw_query() {
-        let adapter = SqliteAdapter::in_memory()
-            .await
-            .expect("Failed to create SQLite adapter");
+        let adapter = SqliteAdapter::in_memory().await.expect("Failed to create SQLite adapter");
 
         let results = adapter
             .execute_raw_query("SELECT 1 as value")
@@ -298,21 +233,19 @@ mod sqlite_tests {
 
     #[tokio::test]
     async fn test_sqlite_create_and_query_view() {
-        let adapter = SqliteAdapter::in_memory()
-            .await
-            .expect("Failed to create SQLite adapter");
+        let adapter = SqliteAdapter::in_memory().await.expect("Failed to create SQLite adapter");
 
         // Create test table
         adapter
-            .execute_raw_query(
-                "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, email TEXT)",
-            )
+            .execute_raw_query("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, email TEXT)")
             .await
             .expect("Create table should succeed");
 
         // Insert test data
         adapter
-            .execute_raw_query("INSERT INTO users (name, email) VALUES ('Alice', 'alice@example.com')")
+            .execute_raw_query(
+                "INSERT INTO users (name, email) VALUES ('Alice', 'alice@example.com')",
+            )
             .await
             .expect("Insert should succeed");
 
@@ -347,15 +280,11 @@ mod sqlite_tests {
 
     #[tokio::test]
     async fn test_sqlite_query_with_limit() {
-        let adapter = SqliteAdapter::in_memory()
-            .await
-            .expect("Failed to create SQLite adapter");
+        let adapter = SqliteAdapter::in_memory().await.expect("Failed to create SQLite adapter");
 
         // Setup test data
         adapter
-            .execute_raw_query(
-                "CREATE TABLE items (id INTEGER PRIMARY KEY, data TEXT)",
-            )
+            .execute_raw_query("CREATE TABLE items (id INTEGER PRIMARY KEY, data TEXT)")
             .await
             .expect("Create table should succeed");
 
@@ -370,9 +299,7 @@ mod sqlite_tests {
         }
 
         adapter
-            .execute_raw_query(
-                "CREATE VIEW v_items AS SELECT id, data FROM items",
-            )
+            .execute_raw_query("CREATE VIEW v_items AS SELECT id, data FROM items")
             .await
             .expect("Create view should succeed");
 
@@ -387,15 +314,11 @@ mod sqlite_tests {
 
     #[tokio::test]
     async fn test_sqlite_query_with_offset() {
-        let adapter = SqliteAdapter::in_memory()
-            .await
-            .expect("Failed to create SQLite adapter");
+        let adapter = SqliteAdapter::in_memory().await.expect("Failed to create SQLite adapter");
 
         // Setup test data
         adapter
-            .execute_raw_query(
-                "CREATE TABLE items (id INTEGER PRIMARY KEY, data TEXT)",
-            )
+            .execute_raw_query("CREATE TABLE items (id INTEGER PRIMARY KEY, data TEXT)")
             .await
             .expect("Create table should succeed");
 
@@ -410,9 +333,7 @@ mod sqlite_tests {
         }
 
         adapter
-            .execute_raw_query(
-                "CREATE VIEW v_items AS SELECT id, data FROM items",
-            )
+            .execute_raw_query("CREATE VIEW v_items AS SELECT id, data FROM items")
             .await
             .expect("Create view should succeed");
 
@@ -427,16 +348,11 @@ mod sqlite_tests {
 
     #[tokio::test]
     async fn test_sqlite_pool_metrics() {
-        let adapter = SqliteAdapter::in_memory()
-            .await
-            .expect("Failed to create SQLite adapter");
+        let adapter = SqliteAdapter::in_memory().await.expect("Failed to create SQLite adapter");
 
         let metrics = adapter.pool_metrics();
 
-        assert!(
-            metrics.total_connections > 0,
-            "Should have total connections"
-        );
+        assert!(metrics.total_connections > 0, "Should have total connections");
         assert!(
             metrics.idle_connections <= metrics.total_connections,
             "Idle should not exceed total"
@@ -445,15 +361,11 @@ mod sqlite_tests {
 
     #[tokio::test]
     async fn test_sqlite_nested_json_view() {
-        let adapter = SqliteAdapter::in_memory()
-            .await
-            .expect("Failed to create SQLite adapter");
+        let adapter = SqliteAdapter::in_memory().await.expect("Failed to create SQLite adapter");
 
         // Create tables
         adapter
-            .execute_raw_query(
-                "CREATE TABLE authors (id INTEGER PRIMARY KEY, name TEXT)",
-            )
+            .execute_raw_query("CREATE TABLE authors (id INTEGER PRIMARY KEY, name TEXT)")
             .await
             .expect("Create authors table should succeed");
 
@@ -511,11 +423,8 @@ mod sqlite_tests {
 
     #[tokio::test]
     async fn test_sqlite_concurrent_queries() {
-        let adapter = Arc::new(
-            SqliteAdapter::in_memory()
-                .await
-                .expect("Failed to create SQLite adapter"),
-        );
+        let adapter =
+            Arc::new(SqliteAdapter::in_memory().await.expect("Failed to create SQLite adapter"));
 
         // Setup test data
         adapter
@@ -542,17 +451,12 @@ mod sqlite_tests {
         for _ in 0..10 {
             let adapter_clone = Arc::clone(&adapter);
             let handle = tokio::spawn(async move {
-                adapter_clone
-                    .execute_where_query("v_test", None, Some(5), None)
-                    .await
+                adapter_clone.execute_where_query("v_test", None, Some(5), None).await
             });
             handles.push(handle);
         }
 
-        let results: Vec<_> = futures::future::join_all(handles)
-            .await
-            .into_iter()
-            .collect();
+        let results: Vec<_> = futures::future::join_all(handles).await.into_iter().collect();
 
         for result in results {
             assert!(result.is_ok(), "Task should complete");
@@ -590,10 +494,7 @@ mod sqlserver_tests {
             .await
             .expect("Failed to create SQL Server adapter");
 
-        adapter
-            .health_check()
-            .await
-            .expect("Health check should pass");
+        adapter.health_check().await.expect("Health check should pass");
     }
 
     #[tokio::test]
@@ -616,9 +517,11 @@ mod sqlserver_tests {
         let adapter = match SqlServerAdapter::new(SQLSERVER_TEST_DB_URL).await {
             Ok(adapter) => adapter,
             Err(e) => {
-                eprintln!("Skipping test_sqlserver_query_v_user_view: test_fraiseql database not available: {e}");
+                eprintln!(
+                    "Skipping test_sqlserver_query_v_user_view: test_fraiseql database not available: {e}"
+                );
                 return;
-            }
+            },
         };
 
         let results = adapter
@@ -626,10 +529,7 @@ mod sqlserver_tests {
             .await
             .expect("Query should succeed");
 
-        assert!(
-            !results.is_empty(),
-            "v_user view should have test data"
-        );
+        assert!(!results.is_empty(), "v_user view should have test data");
 
         // Verify JSON structure
         let first = results[0].as_value();
@@ -646,10 +546,7 @@ mod sqlserver_tests {
 
         let metrics = adapter.pool_metrics();
 
-        assert!(
-            metrics.total_connections > 0,
-            "Should have total connections"
-        );
+        assert!(metrics.total_connections > 0, "Should have total connections");
         assert!(
             metrics.idle_connections <= metrics.total_connections,
             "Idle should not exceed total"
@@ -668,18 +565,14 @@ mod sqlserver_tests {
 
         for _ in 0..5 {
             let adapter_clone = Arc::clone(&adapter);
-            let handle = tokio::spawn(async move {
-                adapter_clone
-                    .execute_raw_query("SELECT 1 as value")
-                    .await
-            });
+            let handle =
+                tokio::spawn(
+                    async move { adapter_clone.execute_raw_query("SELECT 1 as value").await },
+                );
             handles.push(handle);
         }
 
-        let results: Vec<_> = futures::future::join_all(handles)
-            .await
-            .into_iter()
-            .collect();
+        let results: Vec<_> = futures::future::join_all(handles).await.into_iter().collect();
 
         for result in results {
             assert!(result.is_ok(), "Task should complete");
@@ -714,9 +607,7 @@ async fn verify_view_returns_json<A: DatabaseAdapter>(
     view_name: &str,
     expected_fields: &[&str],
 ) -> bool {
-    let results = adapter
-        .execute_where_query(view_name, None, Some(1), None)
-        .await;
+    let results = adapter.execute_where_query(view_name, None, Some(1), None).await;
 
     if let Ok(rows) = results {
         if rows.is_empty() {
@@ -724,9 +615,7 @@ async fn verify_view_returns_json<A: DatabaseAdapter>(
         }
 
         let value = rows[0].as_value();
-        expected_fields
-            .iter()
-            .all(|field| value.get(*field).is_some())
+        expected_fields.iter().all(|field| value.get(*field).is_some())
     } else {
         false
     }

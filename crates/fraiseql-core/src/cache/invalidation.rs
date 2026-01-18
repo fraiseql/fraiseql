@@ -72,9 +72,12 @@ impl InvalidationReason {
         match self {
             Self::Mutation { mutation_name } => format!("mutation:{mutation_name}"),
             Self::Manual { reason } => format!("manual:{reason}"),
-            Self::SchemaChange { old_version, new_version } => {
+            Self::SchemaChange {
+                old_version,
+                new_version,
+            } => {
                 format!("schema_change:{old_version}->{new_version}")
-            }
+            },
         }
     }
 }
@@ -218,7 +221,7 @@ impl InvalidationContext {
     ) -> Self {
         Self {
             modified_views: affected_views,
-            reason: InvalidationReason::SchemaChange {
+            reason:         InvalidationReason::SchemaChange {
                 old_version: old_version.to_string(),
                 new_version: new_version.to_string(),
             },
@@ -302,10 +305,7 @@ mod tests {
 
     #[test]
     fn test_for_mutation() {
-        let ctx = InvalidationContext::for_mutation(
-            "createUser",
-            vec!["v_user".to_string()],
-        );
+        let ctx = InvalidationContext::for_mutation("createUser", vec!["v_user".to_string()]);
 
         assert_eq!(ctx.modified_views, vec!["v_user"]);
         assert!(matches!(ctx.reason, InvalidationReason::Mutation { .. }));
@@ -324,11 +324,7 @@ mod tests {
 
     #[test]
     fn test_schema_change() {
-        let ctx = InvalidationContext::schema_change(
-            vec!["v_user".to_string()],
-            "1.0.0",
-            "1.1.0",
-        );
+        let ctx = InvalidationContext::schema_change(vec!["v_user".to_string()], "1.0.0", "1.1.0");
 
         assert_eq!(ctx.modified_views, vec!["v_user"]);
         assert!(matches!(ctx.reason, InvalidationReason::SchemaChange { .. }));
@@ -336,42 +332,23 @@ mod tests {
 
     #[test]
     fn test_mutation_log_string() {
-        let ctx = InvalidationContext::for_mutation(
-            "createUser",
-            vec!["v_user".to_string()],
-        );
+        let ctx = InvalidationContext::for_mutation("createUser", vec!["v_user".to_string()]);
 
-        assert_eq!(
-            ctx.to_log_string(),
-            "mutation:createUser affecting 1 view(s)"
-        );
+        assert_eq!(ctx.to_log_string(), "mutation:createUser affecting 1 view(s)");
     }
 
     #[test]
     fn test_manual_log_string() {
-        let ctx = InvalidationContext::manual(
-            vec!["v_user".to_string()],
-            "data import",
-        );
+        let ctx = InvalidationContext::manual(vec!["v_user".to_string()], "data import");
 
-        assert_eq!(
-            ctx.to_log_string(),
-            "manual:data import affecting 1 view(s)"
-        );
+        assert_eq!(ctx.to_log_string(), "manual:data import affecting 1 view(s)");
     }
 
     #[test]
     fn test_schema_change_log_string() {
-        let ctx = InvalidationContext::schema_change(
-            vec!["v_user".to_string()],
-            "1.0.0",
-            "1.1.0",
-        );
+        let ctx = InvalidationContext::schema_change(vec!["v_user".to_string()], "1.0.0", "1.1.0");
 
-        assert_eq!(
-            ctx.to_log_string(),
-            "schema_change:1.0.0->1.1.0 affecting 1 view(s)"
-        );
+        assert_eq!(ctx.to_log_string(), "schema_change:1.0.0->1.1.0 affecting 1 view(s)");
     }
 
     #[test]
@@ -398,10 +375,7 @@ mod tests {
 
     #[test]
     fn test_empty_views() {
-        let ctx = InvalidationContext::manual(
-            vec![],
-            "testing empty invalidation",
-        );
+        let ctx = InvalidationContext::manual(vec![], "testing empty invalidation");
 
         assert_eq!(ctx.view_count(), 0);
         assert!(!ctx.affects_view("v_user"));

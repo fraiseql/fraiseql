@@ -52,21 +52,24 @@
 //! # }
 //! ```
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use serde_json::json;
 use sha2::{Digest, Sha256};
-use std::sync::Arc;
 
-use crate::db::{DatabaseAdapter, DatabaseType, PoolMetrics, WhereClause};
-use crate::db::types::JsonbValue;
-use crate::error::Result;
-
-use super::fact_table_version::{
-    generate_version_key_component, FactTableCacheConfig, FactTableVersionProvider,
-    FactTableVersionStrategy,
+use super::{
+    fact_table_version::{
+        FactTableCacheConfig, FactTableVersionProvider, FactTableVersionStrategy,
+        generate_version_key_component,
+    },
+    key::generate_cache_key,
+    result::QueryResultCache,
 };
-use super::key::generate_cache_key;
-use super::result::QueryResultCache;
+use crate::{
+    db::{DatabaseAdapter, DatabaseType, PoolMetrics, WhereClause, types::JsonbValue},
+    error::Result,
+};
 
 /// Cached database adapter wrapper.
 ///
@@ -454,7 +457,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         // Query tf_versions table
         let sql = format!(
             "SELECT version FROM tf_versions WHERE table_name = '{}'",
-            table_name.replace('\'', "''")  // Escape single quotes
+            table_name.replace('\'', "''") // Escape single quotes
         );
 
         match self.adapter.execute_raw_query(&sql).await {
@@ -466,7 +469,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
                     }
                 }
                 None
-            }
+            },
             _ => None,
         }
     }
@@ -548,13 +551,10 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         // Try cache first
         if let Some(cached_result) = self.cache.get(&cache_key)? {
             // Cache hit - convert JsonbValue back to HashMap
-            let results: Vec<std::collections::HashMap<String, serde_json::Value>> =
-                cached_result
-                    .iter()
-                    .filter_map(|jv| {
-                        serde_json::from_value(jv.as_value().clone()).ok()
-                    })
-                    .collect();
+            let results: Vec<std::collections::HashMap<String, serde_json::Value>> = cached_result
+                .iter()
+                .filter_map(|jv| serde_json::from_value(jv.as_value().clone()).ok())
+                .collect();
             return Ok(results);
         }
 
@@ -564,15 +564,13 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         // Store in cache (convert HashMap to JsonbValue)
         let cached_values: Vec<JsonbValue> = result
             .iter()
-            .filter_map(|row| {
-                serde_json::to_value(row).ok().map(JsonbValue::new)
-            })
+            .filter_map(|row| serde_json::to_value(row).ok().map(JsonbValue::new))
             .collect();
 
         self.cache.put(
             cache_key,
             cached_values,
-            vec![table_name],  // Track which fact table this query reads
+            vec![table_name], // Track which fact table this query reads
         )?;
 
         Ok(result)
@@ -597,12 +595,8 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
             "offset": offset,
         });
 
-        let cache_key = generate_cache_key(
-            &query_string,
-            &variables,
-            where_clause,
-            &self.schema_version,
-        );
+        let cache_key =
+            generate_cache_key(&query_string, &variables, where_clause, &self.schema_version);
 
         // Try cache first
         if let Some(cached_result) = self.cache.get(&cache_key)? {
@@ -611,9 +605,7 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         }
 
         // Cache miss - execute query
-        let result = self.adapter
-            .execute_where_query(view, where_clause, limit, offset)
-            .await?;
+        let result = self.adapter.execute_where_query(view, where_clause, limit, offset).await?;
 
         // Store in cache
         // Phase 2: Simple view tracking (single view name)
@@ -621,7 +613,7 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         self.cache.put(
             cache_key,
             result.clone(),
-            vec![view.to_string()],  // accessed views
+            vec![view.to_string()], // accessed views
         )?;
 
         Ok(result)
@@ -651,13 +643,12 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cache::CacheConfig;
-    use crate::db::WhereOperator;
+    use crate::{cache::CacheConfig, db::WhereOperator};
 
     /// Mock database adapter for testing.
     struct MockAdapter {
         /// Number of times execute_where_query was called.
-        call_count: std::sync::atomic::AtomicU32,
+        call_count:     std::sync::atomic::AtomicU32,
         /// Number of times execute_raw_query was called.
         raw_call_count: std::sync::atomic::AtomicU32,
     }
@@ -665,7 +656,7 @@ mod tests {
     impl MockAdapter {
         fn new() -> Self {
             Self {
-                call_count: std::sync::atomic::AtomicU32::new(0),
+                call_count:     std::sync::atomic::AtomicU32::new(0),
                 raw_call_count: std::sync::atomic::AtomicU32::new(0),
             }
         }
@@ -705,10 +696,10 @@ mod tests {
 
         fn pool_metrics(&self) -> PoolMetrics {
             PoolMetrics {
-                total_connections: 10,
-                idle_connections: 5,
+                total_connections:  10,
+                idle_connections:   5,
                 active_connections: 3,
-                waiting_requests: 0,
+                waiting_requests:   0,
             }
         }
 
@@ -731,20 +722,14 @@ mod tests {
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
         // First query - cache miss
-        let result1 = adapter
-            .execute_where_query("v_user", None, None, None)
-            .await
-            .unwrap();
+        let result1 = adapter.execute_where_query("v_user", None, None, None).await.unwrap();
         assert_eq!(result1.len(), 2);
         assert_eq!(adapter.inner().call_count(), 1);
 
         // Second query - cache hit
-        let result2 = adapter
-            .execute_where_query("v_user", None, None, None)
-            .await
-            .unwrap();
+        let result2 = adapter.execute_where_query("v_user", None, None, None).await.unwrap();
         assert_eq!(result2.len(), 2);
-        assert_eq!(adapter.inner().call_count(), 1);  // Still 1 - cache hit!
+        assert_eq!(adapter.inner().call_count(), 1); // Still 1 - cache hit!
     }
 
     #[tokio::test]
@@ -754,29 +739,23 @@ mod tests {
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
         let where1 = WhereClause::Field {
-            path: vec!["id".to_string()],
+            path:     vec!["id".to_string()],
             operator: WhereOperator::Eq,
-            value: json!(1),
+            value:    json!(1),
         };
 
         let where2 = WhereClause::Field {
-            path: vec!["id".to_string()],
+            path:     vec!["id".to_string()],
             operator: WhereOperator::Eq,
-            value: json!(2),
+            value:    json!(2),
         };
 
         // Query 1
-        adapter
-            .execute_where_query("v_user", Some(&where1), None, None)
-            .await
-            .unwrap();
+        adapter.execute_where_query("v_user", Some(&where1), None, None).await.unwrap();
         assert_eq!(adapter.inner().call_count(), 1);
 
         // Query 2 - different WHERE - should miss cache
-        adapter
-            .execute_where_query("v_user", Some(&where2), None, None)
-            .await
-            .unwrap();
+        adapter.execute_where_query("v_user", Some(&where2), None, None).await.unwrap();
         assert_eq!(adapter.inner().call_count(), 2);
     }
 
@@ -787,17 +766,11 @@ mod tests {
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
         // Query 1 - cache miss
-        adapter
-            .execute_where_query("v_user", None, None, None)
-            .await
-            .unwrap();
+        adapter.execute_where_query("v_user", None, None, None).await.unwrap();
         assert_eq!(adapter.inner().call_count(), 1);
 
         // Query 2 - cache hit
-        adapter
-            .execute_where_query("v_user", None, None, None)
-            .await
-            .unwrap();
+        adapter.execute_where_query("v_user", None, None, None).await.unwrap();
         assert_eq!(adapter.inner().call_count(), 1);
 
         // Invalidate
@@ -805,10 +778,7 @@ mod tests {
         assert_eq!(invalidated, 1);
 
         // Query 3 - cache miss again (was invalidated)
-        adapter
-            .execute_where_query("v_user", None, None, None)
-            .await
-            .unwrap();
+        adapter.execute_where_query("v_user", None, None, None).await.unwrap();
         assert_eq!(adapter.inner().call_count(), 2);
     }
 
@@ -819,17 +789,11 @@ mod tests {
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
         // Query with limit 10
-        adapter
-            .execute_where_query("v_user", None, Some(10), None)
-            .await
-            .unwrap();
+        adapter.execute_where_query("v_user", None, Some(10), None).await.unwrap();
         assert_eq!(adapter.inner().call_count(), 1);
 
         // Query with limit 20 - should miss cache
-        adapter
-            .execute_where_query("v_user", None, Some(20), None)
-            .await
-            .unwrap();
+        adapter.execute_where_query("v_user", None, Some(20), None).await.unwrap();
         assert_eq!(adapter.inner().call_count(), 2);
     }
 
@@ -840,17 +804,11 @@ mod tests {
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
         // First query
-        adapter
-            .execute_where_query("v_user", None, None, None)
-            .await
-            .unwrap();
+        adapter.execute_where_query("v_user", None, None, None).await.unwrap();
         assert_eq!(adapter.inner().call_count(), 1);
 
         // Second query - should NOT hit cache (cache disabled)
-        adapter
-            .execute_where_query("v_user", None, None, None)
-            .await
-            .unwrap();
+        adapter.execute_where_query("v_user", None, None, None).await.unwrap();
         assert_eq!(adapter.inner().call_count(), 2);
     }
 
@@ -862,35 +820,29 @@ mod tests {
         // Adapter with version 1.0.0
         let mock1 = MockAdapter::new();
         let adapter_v1 = CachedDatabaseAdapter {
-            adapter: mock1,
-            cache: Arc::clone(&cache),
-            schema_version: "1.0.0".to_string(),
+            adapter:           mock1,
+            cache:             Arc::clone(&cache),
+            schema_version:    "1.0.0".to_string(),
             fact_table_config: FactTableCacheConfig::default(),
-            version_provider: Arc::clone(&version_provider),
+            version_provider:  Arc::clone(&version_provider),
         };
 
         // Query with v1
-        adapter_v1
-            .execute_where_query("v_user", None, None, None)
-            .await
-            .unwrap();
+        adapter_v1.execute_where_query("v_user", None, None, None).await.unwrap();
 
         // Create new adapter with version 2.0.0 (same cache!)
         let mock2 = MockAdapter::new();
         let adapter_v2 = CachedDatabaseAdapter {
-            adapter: mock2,
-            cache: Arc::clone(&cache),
-            schema_version: "2.0.0".to_string(),
+            adapter:           mock2,
+            cache:             Arc::clone(&cache),
+            schema_version:    "2.0.0".to_string(),
             fact_table_config: FactTableCacheConfig::default(),
-            version_provider: Arc::clone(&version_provider),
+            version_provider:  Arc::clone(&version_provider),
         };
 
         // Query with v2 - should miss cache (different schema version)
-        adapter_v2
-            .execute_where_query("v_user", None, None, None)
-            .await
-            .unwrap();
-        assert_eq!(adapter_v2.inner().call_count(), 1);  // Cache miss
+        adapter_v2.execute_where_query("v_user", None, None, None).await.unwrap();
+        assert_eq!(adapter_v2.inner().call_count(), 1); // Cache miss
     }
 
     #[tokio::test]
@@ -950,17 +902,11 @@ mod tests {
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
         // Pre-populate cache with query reading from v_user
-        adapter
-            .execute_where_query("v_user", None, None, None)
-            .await
-            .unwrap();
+        adapter.execute_where_query("v_user", None, None, None).await.unwrap();
         assert_eq!(adapter.inner().call_count(), 1);
 
         // Cache hit on second query
-        adapter
-            .execute_where_query("v_user", None, None, None)
-            .await
-            .unwrap();
+        adapter.execute_where_query("v_user", None, None, None).await.unwrap();
         assert_eq!(adapter.inner().call_count(), 1);
 
         // Parse cascade response with single User entity
@@ -979,18 +925,13 @@ mod tests {
         });
 
         let parser = CascadeResponseParser::new();
-        let invalidated = adapter
-            .invalidate_cascade_entities(&cascade_response, &parser)
-            .unwrap();
+        let invalidated = adapter.invalidate_cascade_entities(&cascade_response, &parser).unwrap();
 
         // Should invalidate 1 view (v_user)
         assert_eq!(invalidated, 1);
 
         // Next query should be a cache miss (was invalidated)
-        adapter
-            .execute_where_query("v_user", None, None, None)
-            .await
-            .unwrap();
+        adapter.execute_where_query("v_user", None, None, None).await.unwrap();
         assert_eq!(adapter.inner().call_count(), 2);
     }
 
@@ -1001,18 +942,9 @@ mod tests {
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
         // Pre-populate cache with multiple views
-        adapter
-            .execute_where_query("v_user", None, None, None)
-            .await
-            .unwrap();
-        adapter
-            .execute_where_query("v_post", None, None, None)
-            .await
-            .unwrap();
-        adapter
-            .execute_where_query("v_comment", None, None, None)
-            .await
-            .unwrap();
+        adapter.execute_where_query("v_user", None, None, None).await.unwrap();
+        adapter.execute_where_query("v_post", None, None, None).await.unwrap();
+        adapter.execute_where_query("v_comment", None, None, None).await.unwrap();
         assert_eq!(adapter.inner().call_count(), 3);
 
         // Cascade with multiple entity types
@@ -1030,26 +962,15 @@ mod tests {
         });
 
         let parser = CascadeResponseParser::new();
-        let invalidated = adapter
-            .invalidate_cascade_entities(&cascade_response, &parser)
-            .unwrap();
+        let invalidated = adapter.invalidate_cascade_entities(&cascade_response, &parser).unwrap();
 
         // Should invalidate 3 views
         assert_eq!(invalidated, 3);
 
         // All queries should now be cache misses
-        adapter
-            .execute_where_query("v_user", None, None, None)
-            .await
-            .unwrap();
-        adapter
-            .execute_where_query("v_post", None, None, None)
-            .await
-            .unwrap();
-        adapter
-            .execute_where_query("v_comment", None, None, None)
-            .await
-            .unwrap();
+        adapter.execute_where_query("v_user", None, None, None).await.unwrap();
+        adapter.execute_where_query("v_post", None, None, None).await.unwrap();
+        adapter.execute_where_query("v_comment", None, None, None).await.unwrap();
         // Should have 6 total calls (3 initial + 3 after invalidation)
         assert_eq!(adapter.inner().call_count(), 6);
     }
@@ -1061,14 +982,8 @@ mod tests {
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
         // Pre-populate cache with both views that will be invalidated
-        adapter
-            .execute_where_query("v_post", None, None, None)
-            .await
-            .unwrap();
-        adapter
-            .execute_where_query("v_comment", None, None, None)
-            .await
-            .unwrap();
+        adapter.execute_where_query("v_post", None, None, None).await.unwrap();
+        adapter.execute_where_query("v_comment", None, None, None).await.unwrap();
         assert_eq!(adapter.inner().call_count(), 2);
 
         // Cascade with deleted entities
@@ -1085,22 +1000,14 @@ mod tests {
         });
 
         let parser = CascadeResponseParser::new();
-        let invalidated = adapter
-            .invalidate_cascade_entities(&cascade_response, &parser)
-            .unwrap();
+        let invalidated = adapter.invalidate_cascade_entities(&cascade_response, &parser).unwrap();
 
         // Should invalidate 2 views (v_post and v_comment)
         assert_eq!(invalidated, 2);
 
         // Both queries should now be cache misses
-        adapter
-            .execute_where_query("v_post", None, None, None)
-            .await
-            .unwrap();
-        adapter
-            .execute_where_query("v_comment", None, None, None)
-            .await
-            .unwrap();
+        adapter.execute_where_query("v_post", None, None, None).await.unwrap();
+        adapter.execute_where_query("v_comment", None, None, None).await.unwrap();
         assert_eq!(adapter.inner().call_count(), 4);
     }
 
@@ -1111,10 +1018,7 @@ mod tests {
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
         // Pre-populate cache
-        adapter
-            .execute_where_query("v_user", None, None, None)
-            .await
-            .unwrap();
+        adapter.execute_where_query("v_user", None, None, None).await.unwrap();
         assert_eq!(adapter.inner().call_count(), 1);
 
         // Response without cascade field (mutation with no side effects)
@@ -1128,19 +1032,14 @@ mod tests {
         });
 
         let parser = CascadeResponseParser::new();
-        let invalidated = adapter
-            .invalidate_cascade_entities(&cascade_response, &parser)
-            .unwrap();
+        let invalidated = adapter.invalidate_cascade_entities(&cascade_response, &parser).unwrap();
 
         // Should invalidate 0 views (no cascade data)
         assert_eq!(invalidated, 0);
 
         // Cache should still be valid - should be a cache hit
-        adapter
-            .execute_where_query("v_user", None, None, None)
-            .await
-            .unwrap();
-        assert_eq!(adapter.inner().call_count(), 1);  // Still 1 - cache hit!
+        adapter.execute_where_query("v_user", None, None, None).await.unwrap();
+        assert_eq!(adapter.inner().call_count(), 1); // Still 1 - cache hit!
     }
 
     #[tokio::test]
@@ -1150,14 +1049,8 @@ mod tests {
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
         // Pre-populate cache
-        adapter
-            .execute_where_query("v_user", None, None, None)
-            .await
-            .unwrap();
-        adapter
-            .execute_where_query("v_post", None, None, None)
-            .await
-            .unwrap();
+        adapter.execute_where_query("v_user", None, None, None).await.unwrap();
+        adapter.execute_where_query("v_post", None, None, None).await.unwrap();
         assert_eq!(adapter.inner().call_count(), 2);
 
         // Cascade with both updated and deleted entities
@@ -1175,22 +1068,14 @@ mod tests {
         });
 
         let parser = CascadeResponseParser::new();
-        let invalidated = adapter
-            .invalidate_cascade_entities(&cascade_response, &parser)
-            .unwrap();
+        let invalidated = adapter.invalidate_cascade_entities(&cascade_response, &parser).unwrap();
 
         // Should invalidate 2 views (v_user and v_post)
         assert_eq!(invalidated, 2);
 
         // Both queries should now be cache misses
-        adapter
-            .execute_where_query("v_user", None, None, None)
-            .await
-            .unwrap();
-        adapter
-            .execute_where_query("v_post", None, None, None)
-            .await
-            .unwrap();
+        adapter.execute_where_query("v_user", None, None, None).await.unwrap();
+        adapter.execute_where_query("v_post", None, None, None).await.unwrap();
         assert_eq!(adapter.inner().call_count(), 4);
     }
 
@@ -1201,10 +1086,7 @@ mod tests {
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
         // Pre-populate cache
-        adapter
-            .execute_where_query("v_user", None, None, None)
-            .await
-            .unwrap();
+        adapter.execute_where_query("v_user", None, None, None).await.unwrap();
         assert_eq!(adapter.inner().call_count(), 1);
 
         // Cascade with multiple instances of the same entity type
@@ -1223,9 +1105,7 @@ mod tests {
         });
 
         let parser = CascadeResponseParser::new();
-        let invalidated = adapter
-            .invalidate_cascade_entities(&cascade_response, &parser)
-            .unwrap();
+        let invalidated = adapter.invalidate_cascade_entities(&cascade_response, &parser).unwrap();
 
         // Should invalidate only 1 view (v_user), not 3
         // (deduplicates by entity type)
@@ -1239,14 +1119,8 @@ mod tests {
         let cache1 = QueryResultCache::new(CacheConfig::default());
         let adapter1 = CachedDatabaseAdapter::new(mock1, cache1, "1.0.0".to_string());
 
-        adapter1
-            .execute_where_query("v_user", None, None, None)
-            .await
-            .unwrap();
-        adapter1
-            .execute_where_query("v_post", None, None, None)
-            .await
-            .unwrap();
+        adapter1.execute_where_query("v_user", None, None, None).await.unwrap();
+        adapter1.execute_where_query("v_post", None, None, None).await.unwrap();
 
         let cascade_response = json!({
             "mutation": {
@@ -1261,23 +1135,16 @@ mod tests {
         });
 
         let parser = CascadeResponseParser::new();
-        let invalidated_cascade = adapter1
-            .invalidate_cascade_entities(&cascade_response, &parser)
-            .unwrap();
+        let invalidated_cascade =
+            adapter1.invalidate_cascade_entities(&cascade_response, &parser).unwrap();
 
         // Test 2: View-level invalidation (old approach)
         let mock2 = MockAdapter::new();
         let cache2 = QueryResultCache::new(CacheConfig::default());
         let adapter2 = CachedDatabaseAdapter::new(mock2, cache2, "1.0.0".to_string());
 
-        adapter2
-            .execute_where_query("v_user", None, None, None)
-            .await
-            .unwrap();
-        adapter2
-            .execute_where_query("v_post", None, None, None)
-            .await
-            .unwrap();
+        adapter2.execute_where_query("v_user", None, None, None).await.unwrap();
+        adapter2.execute_where_query("v_post", None, None, None).await.unwrap();
 
         let invalidated_views = adapter2
             .invalidate_views(&["v_user".to_string(), "v_post".to_string()])
@@ -1295,10 +1162,7 @@ mod tests {
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
         // Pre-populate cache
-        adapter
-            .execute_where_query("v_user", None, None, None)
-            .await
-            .unwrap();
+        adapter.execute_where_query("v_user", None, None, None).await.unwrap();
         assert_eq!(adapter.inner().call_count(), 1);
 
         // Empty cascade (no entities affected)
@@ -1312,19 +1176,14 @@ mod tests {
         });
 
         let parser = CascadeResponseParser::new();
-        let invalidated = adapter
-            .invalidate_cascade_entities(&cascade_response, &parser)
-            .unwrap();
+        let invalidated = adapter.invalidate_cascade_entities(&cascade_response, &parser).unwrap();
 
         // Should invalidate 0 views
         assert_eq!(invalidated, 0);
 
         // Cache should still be valid
-        adapter
-            .execute_where_query("v_user", None, None, None)
-            .await
-            .unwrap();
-        assert_eq!(adapter.inner().call_count(), 1);  // Cache hit
+        adapter.execute_where_query("v_user", None, None, None).await.unwrap();
+        assert_eq!(adapter.inner().call_count(), 1); // Cache hit
     }
 
     // ===== Aggregation Caching Tests =====
@@ -1365,9 +1224,7 @@ mod tests {
 
         // No FROM clause
         assert_eq!(
-            CachedDatabaseAdapter::<MockAdapter>::extract_fact_table_from_sql(
-                "SELECT 1 + 1"
-            ),
+            CachedDatabaseAdapter::<MockAdapter>::extract_fact_table_from_sql("SELECT 1 + 1"),
             None
         );
     }
@@ -1383,12 +1240,12 @@ mod tests {
         let key2 = CachedDatabaseAdapter::<MockAdapter>::generate_aggregation_cache_key(
             "SELECT SUM(x) FROM tf_sales",
             "1.0.0",
-            Some("tv:43"),  // Different version
+            Some("tv:43"), // Different version
         );
 
         let key3 = CachedDatabaseAdapter::<MockAdapter>::generate_aggregation_cache_key(
             "SELECT SUM(x) FROM tf_sales",
-            "2.0.0",  // Different schema
+            "2.0.0", // Different schema
             Some("tv:42"),
         );
 
@@ -1410,10 +1267,8 @@ mod tests {
 
         // Configure time-based caching for tf_sales
         let mut ft_config = FactTableCacheConfig::default();
-        ft_config.set_strategy(
-            "tf_sales",
-            FactTableVersionStrategy::TimeBased { ttl_seconds: 300 },
-        );
+        ft_config
+            .set_strategy("tf_sales", FactTableVersionStrategy::TimeBased { ttl_seconds: 300 });
 
         let adapter = CachedDatabaseAdapter::with_fact_table_config(
             mock,
@@ -1434,7 +1289,7 @@ mod tests {
             .execute_aggregation_query("SELECT SUM(revenue) FROM tf_sales")
             .await
             .unwrap();
-        assert_eq!(adapter.inner().call_count(), 1);  // Still 1 - cache hit!
+        assert_eq!(adapter.inner().call_count(), 1); // Still 1 - cache hit!
     }
 
     #[tokio::test]
@@ -1465,7 +1320,7 @@ mod tests {
             .execute_aggregation_query("SELECT AVG(rate) FROM tf_historical_rates")
             .await
             .unwrap();
-        assert_eq!(adapter.inner().call_count(), 1);  // Cache hit!
+        assert_eq!(adapter.inner().call_count(), 1); // Cache hit!
     }
 
     #[tokio::test]
@@ -1488,7 +1343,7 @@ mod tests {
             .execute_aggregation_query("SELECT SUM(revenue) FROM tf_sales")
             .await
             .unwrap();
-        assert_eq!(adapter.inner().call_count(), 2);  // No cache - hits DB again
+        assert_eq!(adapter.inner().call_count(), 2); // No cache - hits DB again
     }
 
     #[tokio::test]
@@ -1506,17 +1361,11 @@ mod tests {
         );
 
         // Query on regular table - never cached
-        let _ = adapter
-            .execute_aggregation_query("SELECT COUNT(*) FROM users")
-            .await
-            .unwrap();
+        let _ = adapter.execute_aggregation_query("SELECT COUNT(*) FROM users").await.unwrap();
         assert_eq!(adapter.inner().call_count(), 1);
 
-        let _ = adapter
-            .execute_aggregation_query("SELECT COUNT(*) FROM users")
-            .await
-            .unwrap();
-        assert_eq!(adapter.inner().call_count(), 2);  // No cache
+        let _ = adapter.execute_aggregation_query("SELECT COUNT(*) FROM users").await.unwrap();
+        assert_eq!(adapter.inner().call_count(), 2); // No cache
     }
 
     #[tokio::test]
@@ -1546,14 +1395,14 @@ mod tests {
             .execute_aggregation_query("SELECT SUM(revenue) FROM tf_sales WHERE year = 2023")
             .await
             .unwrap();
-        assert_eq!(adapter.inner().call_count(), 2);  // Cache miss - different query
+        assert_eq!(adapter.inner().call_count(), 2); // Cache miss - different query
 
         // Query 1 again - cache hit
         let _ = adapter
             .execute_aggregation_query("SELECT SUM(revenue) FROM tf_sales WHERE year = 2024")
             .await
             .unwrap();
-        assert_eq!(adapter.inner().call_count(), 2);  // Cache hit
+        assert_eq!(adapter.inner().call_count(), 2); // Cache hit
     }
 
     #[tokio::test]

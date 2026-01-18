@@ -7,15 +7,19 @@
 //! - GraphQL response envelope generation
 //! - Error handling and edge cases
 
-use fraiseql_core::db::types::JsonbValue;
-use fraiseql_core::db::traits::DatabaseAdapter;
-use fraiseql_core::db::types::{DatabaseType, PoolMetrics};
-use fraiseql_core::db::where_clause::WhereClause;
-use fraiseql_core::runtime::ResultProjector;
-use fraiseql_core::error::{FraiseQLError, Result};
-use async_trait::async_trait;
-use serde_json::json;
 use std::collections::HashMap;
+
+use async_trait::async_trait;
+use fraiseql_core::{
+    db::{
+        traits::DatabaseAdapter,
+        types::{DatabaseType, JsonbValue, PoolMetrics},
+        where_clause::WhereClause,
+    },
+    error::{FraiseQLError, Result},
+    runtime::ResultProjector,
+};
+use serde_json::json;
 
 /// Mock database adapter with sample seed data
 struct MockDatabaseAdapter {
@@ -105,10 +109,7 @@ impl MockDatabaseAdapter {
 
     /// Get data from a table
     fn get_table(&self, table_name: &str) -> Vec<JsonbValue> {
-        self.tables
-            .get(table_name)
-            .cloned()
-            .unwrap_or_default()
+        self.tables.get(table_name).cloned().unwrap_or_default()
     }
 }
 
@@ -140,10 +141,10 @@ impl DatabaseAdapter for MockDatabaseAdapter {
 
     fn pool_metrics(&self) -> PoolMetrics {
         PoolMetrics {
-            total_connections: 5,
+            total_connections:  5,
             active_connections: 1,
-            idle_connections: 4,
-            waiting_requests: 0,
+            idle_connections:   4,
+            waiting_requests:   0,
         }
     }
 
@@ -162,10 +163,7 @@ impl DatabaseAdapter for MockDatabaseAdapter {
 #[tokio::test]
 async fn test_seed_data_users_available() {
     let adapter = MockDatabaseAdapter::with_sample_data();
-    let results = adapter
-        .execute_where_query("users", None, None, None)
-        .await
-        .unwrap();
+    let results = adapter.execute_where_query("users", None, None, None).await.unwrap();
 
     assert_eq!(results.len(), 3);
 }
@@ -173,10 +171,7 @@ async fn test_seed_data_users_available() {
 #[tokio::test]
 async fn test_seed_data_products_available() {
     let adapter = MockDatabaseAdapter::with_sample_data();
-    let results = adapter
-        .execute_where_query("products", None, None, None)
-        .await
-        .unwrap();
+    let results = adapter.execute_where_query("products", None, None, None).await.unwrap();
 
     assert_eq!(results.len(), 3);
 }
@@ -184,10 +179,7 @@ async fn test_seed_data_products_available() {
 #[tokio::test]
 async fn test_seed_data_contains_correct_fields() {
     let adapter = MockDatabaseAdapter::with_sample_data();
-    let users = adapter
-        .execute_where_query("users", None, None, None)
-        .await
-        .unwrap();
+    let users = adapter.execute_where_query("users", None, None, None).await.unwrap();
 
     let user = &users[0];
     let user_obj = user.as_value();
@@ -203,10 +195,7 @@ async fn test_seed_data_contains_correct_fields() {
 #[tokio::test]
 async fn test_query_execution_all_users() {
     let adapter = MockDatabaseAdapter::with_sample_data();
-    let results = adapter
-        .execute_where_query("users", None, None, None)
-        .await
-        .unwrap();
+    let results = adapter.execute_where_query("users", None, None, None).await.unwrap();
 
     assert_eq!(results.len(), 3);
 }
@@ -214,10 +203,7 @@ async fn test_query_execution_all_users() {
 #[tokio::test]
 async fn test_query_execution_with_limit() {
     let adapter = MockDatabaseAdapter::with_sample_data();
-    let results = adapter
-        .execute_where_query("users", None, Some(2), None)
-        .await
-        .unwrap();
+    let results = adapter.execute_where_query("users", None, Some(2), None).await.unwrap();
 
     assert_eq!(results.len(), 2);
 }
@@ -225,10 +211,7 @@ async fn test_query_execution_with_limit() {
 #[tokio::test]
 async fn test_query_execution_products() {
     let adapter = MockDatabaseAdapter::with_sample_data();
-    let results = adapter
-        .execute_where_query("products", None, None, None)
-        .await
-        .unwrap();
+    let results = adapter.execute_where_query("products", None, None, None).await.unwrap();
 
     assert_eq!(results.len(), 3);
 }
@@ -240,16 +223,11 @@ async fn test_query_execution_products() {
 #[tokio::test]
 async fn test_result_projection_single_field() {
     let adapter = MockDatabaseAdapter::with_sample_data();
-    let results = adapter
-        .execute_where_query("users", None, None, None)
-        .await
-        .unwrap();
+    let results = adapter.execute_where_query("users", None, None, None).await.unwrap();
 
     // Project only id and name
     let projector = ResultProjector::new(vec!["id".to_string(), "name".to_string()]);
-    let projected = projector
-        .project_results(&results, true)
-        .unwrap();
+    let projected = projector.project_results(&results, true).unwrap();
 
     let arr = projected.as_array().unwrap();
     assert_eq!(arr.len(), 3);
@@ -265,18 +243,12 @@ async fn test_result_projection_single_field() {
 #[tokio::test]
 async fn test_result_projection_multiple_fields() {
     let adapter = MockDatabaseAdapter::with_sample_data();
-    let results = adapter
-        .execute_where_query("users", None, Some(1), None)
-        .await
-        .unwrap();
+    let results = adapter.execute_where_query("users", None, Some(1), None).await.unwrap();
 
     // Project id, name, and email
-    let projector = ResultProjector::new(
-        vec!["id".to_string(), "name".to_string(), "email".to_string()]
-    );
-    let projected = projector
-        .project_results(&results, false)
-        .unwrap();
+    let projector =
+        ResultProjector::new(vec!["id".to_string(), "name".to_string(), "email".to_string()]);
+    let projected = projector.project_results(&results, false).unwrap();
 
     assert!(projected.get("id").is_some());
     assert!(projected.get("name").is_some());
@@ -287,16 +259,11 @@ async fn test_result_projection_multiple_fields() {
 #[tokio::test]
 async fn test_result_projection_products() {
     let adapter = MockDatabaseAdapter::with_sample_data();
-    let results = adapter
-        .execute_where_query("products", None, None, None)
-        .await
-        .unwrap();
+    let results = adapter.execute_where_query("products", None, None, None).await.unwrap();
 
     // Project only name and price
     let projector = ResultProjector::new(vec!["name".to_string(), "price".to_string()]);
-    let projected = projector
-        .project_results(&results, true)
-        .unwrap();
+    let projected = projector.project_results(&results, true).unwrap();
 
     let arr = projected.as_array().unwrap();
     assert_eq!(arr.len(), 3);
@@ -317,15 +284,10 @@ async fn test_result_projection_products() {
 #[tokio::test]
 async fn test_graphql_response_data_envelope() {
     let adapter = MockDatabaseAdapter::with_sample_data();
-    let results = adapter
-        .execute_where_query("users", None, Some(1), None)
-        .await
-        .unwrap();
+    let results = adapter.execute_where_query("users", None, Some(1), None).await.unwrap();
 
     let projector = ResultProjector::new(vec!["id".to_string(), "name".to_string()]);
-    let projected = projector
-        .project_results(&results, false)
-        .unwrap();
+    let projected = projector.project_results(&results, false).unwrap();
 
     // Wrap in GraphQL envelope
     let response = ResultProjector::wrap_in_data_envelope(projected, "user");
@@ -338,20 +300,13 @@ async fn test_graphql_response_data_envelope() {
 #[tokio::test]
 async fn test_graphql_response_with_typename() {
     let adapter = MockDatabaseAdapter::with_sample_data();
-    let results = adapter
-        .execute_where_query("users", None, Some(1), None)
-        .await
-        .unwrap();
+    let results = adapter.execute_where_query("users", None, Some(1), None).await.unwrap();
 
     let projector = ResultProjector::new(vec!["id".to_string(), "name".to_string()]);
-    let _projected = projector
-        .project_results(&results, false)
-        .unwrap();
+    let _projected = projector.project_results(&results, false).unwrap();
 
     // Add __typename
-    let with_typename = projector
-        .add_typename_only(&results[0], "User")
-        .unwrap();
+    let with_typename = projector.add_typename_only(&results[0], "User").unwrap();
 
     assert_eq!(with_typename.get("__typename"), Some(&json!("User")));
 }
@@ -359,17 +314,12 @@ async fn test_graphql_response_with_typename() {
 #[tokio::test]
 async fn test_graphql_response_list_with_typename() {
     let adapter = MockDatabaseAdapter::with_sample_data();
-    let results = adapter
-        .execute_where_query("users", None, None, None)
-        .await
-        .unwrap();
+    let results = adapter.execute_where_query("users", None, None, None).await.unwrap();
 
     let projector = ResultProjector::new(vec!["id".to_string()]);
 
     // Add __typename to all results
-    let with_typename = projector
-        .add_typename_only(&results[0], "User")
-        .unwrap();
+    let with_typename = projector.add_typename_only(&results[0], "User").unwrap();
 
     assert_eq!(with_typename.get("__typename"), Some(&json!("User")));
 }
@@ -378,7 +328,7 @@ async fn test_graphql_response_list_with_typename() {
 async fn test_graphql_error_response() {
     let error = FraiseQLError::Validation {
         message: "Invalid query field".to_string(),
-        path: Some("query.user.invalidField".to_string()),
+        path:    Some("query.user.invalidField".to_string()),
     };
 
     let response = ResultProjector::wrap_error(&error);
@@ -399,22 +349,14 @@ async fn test_graphql_error_response() {
 async fn test_complete_e2e_pipeline_single_user() {
     // Step 1: Query database
     let adapter = MockDatabaseAdapter::with_sample_data();
-    let db_results = adapter
-        .execute_where_query("users", None, Some(1), None)
-        .await
-        .unwrap();
+    let db_results = adapter.execute_where_query("users", None, Some(1), None).await.unwrap();
 
     assert_eq!(db_results.len(), 1);
 
     // Step 2: Project fields
-    let projector = ResultProjector::new(vec![
-        "id".to_string(),
-        "name".to_string(),
-        "email".to_string(),
-    ]);
-    let projected = projector
-        .project_results(&db_results, false)
-        .unwrap();
+    let projector =
+        ResultProjector::new(vec!["id".to_string(), "name".to_string(), "email".to_string()]);
+    let projected = projector.project_results(&db_results, false).unwrap();
 
     // Verify projection worked
     assert!(projected.get("id").is_some());
@@ -423,9 +365,7 @@ async fn test_complete_e2e_pipeline_single_user() {
     assert_eq!(projected.get("status"), None);
 
     // Step 3: Add __typename
-    let with_typename = projector
-        .add_typename_only(&db_results[0], "User")
-        .unwrap();
+    let with_typename = projector.add_typename_only(&db_results[0], "User").unwrap();
 
     // Step 4: Wrap in GraphQL envelope
     let response = ResultProjector::wrap_in_data_envelope(with_typename, "user");
@@ -441,18 +381,13 @@ async fn test_complete_e2e_pipeline_single_user() {
 async fn test_complete_e2e_pipeline_user_list() {
     // Step 1: Query database
     let adapter = MockDatabaseAdapter::with_sample_data();
-    let db_results = adapter
-        .execute_where_query("users", None, None, None)
-        .await
-        .unwrap();
+    let db_results = adapter.execute_where_query("users", None, None, None).await.unwrap();
 
     assert_eq!(db_results.len(), 3);
 
     // Step 2: Project fields
     let projector = ResultProjector::new(vec!["id".to_string(), "name".to_string()]);
-    let projected = projector
-        .project_results(&db_results, true)
-        .unwrap();
+    let projected = projector.project_results(&db_results, true).unwrap();
 
     // Verify projection
     let arr = projected.as_array().unwrap();
@@ -472,20 +407,12 @@ async fn test_complete_e2e_pipeline_user_list() {
 async fn test_complete_e2e_pipeline_products() {
     // Step 1: Query database
     let adapter = MockDatabaseAdapter::with_sample_data();
-    let db_results = adapter
-        .execute_where_query("products", None, None, None)
-        .await
-        .unwrap();
+    let db_results = adapter.execute_where_query("products", None, None, None).await.unwrap();
 
     // Step 2: Project fields
-    let projector = ResultProjector::new(vec![
-        "id".to_string(),
-        "name".to_string(),
-        "price".to_string(),
-    ]);
-    let projected = projector
-        .project_results(&db_results, true)
-        .unwrap();
+    let projector =
+        ResultProjector::new(vec!["id".to_string(), "name".to_string(), "price".to_string()]);
+    let projected = projector.project_results(&db_results, true).unwrap();
 
     let arr = projected.as_array().unwrap();
     for item in arr {
@@ -509,15 +436,10 @@ async fn test_complete_e2e_pipeline_products() {
 #[tokio::test]
 async fn test_empty_projection_fields() {
     let adapter = MockDatabaseAdapter::with_sample_data();
-    let results = adapter
-        .execute_where_query("users", None, Some(1), None)
-        .await
-        .unwrap();
+    let results = adapter.execute_where_query("users", None, Some(1), None).await.unwrap();
 
     let projector = ResultProjector::new(vec![]);
-    let _projected = projector
-        .project_results(&results, false)
-        .unwrap();
+    let _projected = projector.project_results(&results, false).unwrap();
 
     // With empty projection fields, should still return the data object
     assert!(_projected.is_object());
@@ -526,18 +448,13 @@ async fn test_empty_projection_fields() {
 #[tokio::test]
 async fn test_projection_nonexistent_fields() {
     let adapter = MockDatabaseAdapter::with_sample_data();
-    let results = adapter
-        .execute_where_query("users", None, Some(1), None)
-        .await
-        .unwrap();
+    let results = adapter.execute_where_query("users", None, Some(1), None).await.unwrap();
 
     let projector = ResultProjector::new(vec![
         "nonexistent_field".to_string(),
         "another_missing".to_string(),
     ]);
-    let projected = projector
-        .project_results(&results, false)
-        .unwrap();
+    let projected = projector.project_results(&results, false).unwrap();
 
     // Should return empty object for nonexistent fields
     assert!(projected.is_object());
@@ -547,10 +464,7 @@ async fn test_projection_nonexistent_fields() {
 #[tokio::test]
 async fn test_query_with_zero_limit() {
     let adapter = MockDatabaseAdapter::with_sample_data();
-    let results = adapter
-        .execute_where_query("users", None, Some(0), None)
-        .await
-        .unwrap();
+    let results = adapter.execute_where_query("users", None, Some(0), None).await.unwrap();
 
     assert_eq!(results.len(), 0);
 }
@@ -558,10 +472,7 @@ async fn test_query_with_zero_limit() {
 #[tokio::test]
 async fn test_large_limit() {
     let adapter = MockDatabaseAdapter::with_sample_data();
-    let results = adapter
-        .execute_where_query("users", None, Some(1000), None)
-        .await
-        .unwrap();
+    let results = adapter.execute_where_query("users", None, Some(1000), None).await.unwrap();
 
     // Should return all 3 users even though we requested 1000
     assert_eq!(results.len(), 3);
@@ -576,14 +487,8 @@ async fn test_seed_data_not_mutated() {
     let adapter = MockDatabaseAdapter::with_sample_data();
 
     // Query multiple times
-    let results1 = adapter
-        .execute_where_query("users", None, None, None)
-        .await
-        .unwrap();
-    let results2 = adapter
-        .execute_where_query("users", None, None, None)
-        .await
-        .unwrap();
+    let results1 = adapter.execute_where_query("users", None, None, None).await.unwrap();
+    let results2 = adapter.execute_where_query("users", None, None, None).await.unwrap();
 
     // Should return same data
     assert_eq!(results1.len(), results2.len());
@@ -596,14 +501,8 @@ async fn test_seed_data_not_mutated() {
 async fn test_different_tables_independent() {
     let adapter = MockDatabaseAdapter::with_sample_data();
 
-    let users = adapter
-        .execute_where_query("users", None, None, None)
-        .await
-        .unwrap();
-    let products = adapter
-        .execute_where_query("products", None, None, None)
-        .await
-        .unwrap();
+    let users = adapter.execute_where_query("users", None, None, None).await.unwrap();
+    let products = adapter.execute_where_query("products", None, None, None).await.unwrap();
 
     assert_eq!(users.len(), 3);
     assert_eq!(products.len(), 3);

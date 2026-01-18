@@ -13,7 +13,7 @@ pub struct PlaygroundState {
     /// GraphQL endpoint URL (relative to server root).
     pub graphql_endpoint: String,
     /// Which playground tool to use.
-    pub tool: PlaygroundTool,
+    pub tool:             PlaygroundTool,
 }
 
 impl PlaygroundState {

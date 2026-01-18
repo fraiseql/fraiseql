@@ -231,10 +231,7 @@ mod tests {
         let hash = hash_query("");
         assert_eq!(hash.len(), 64);
         // Empty string has a well-known SHA-256 hash
-        assert_eq!(
-            hash,
-            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        );
+        assert_eq!(hash, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
     }
 
     #[test]
@@ -294,10 +291,7 @@ mod tests {
         let hash1 = hash_query_with_variables(query, &vars1);
         let hash2 = hash_query_with_variables(query, &vars2);
 
-        assert_ne!(
-            hash1, hash2,
-            "Different parameter names must produce different hashes"
-        );
+        assert_ne!(hash1, hash2, "Different parameter names must produce different hashes");
     }
 
     #[test]
@@ -310,10 +304,7 @@ mod tests {
         let hash_with_empty = hash_query_with_variables(query, &empty_vars);
         let hash_query_only = hash_query(query);
 
-        assert_eq!(
-            hash_with_empty, hash_query_only,
-            "Empty variables should use query hash only"
-        );
+        assert_eq!(hash_with_empty, hash_query_only, "Empty variables should use query hash only");
     }
 
     #[test]
@@ -326,10 +317,7 @@ mod tests {
         let hash_with_null = hash_query_with_variables(query, &null_vars);
         let hash_query_only = hash_query(query);
 
-        assert_eq!(
-            hash_with_null, hash_query_only,
-            "Null variables should use query hash only"
-        );
+        assert_eq!(hash_with_null, hash_query_only, "Null variables should use query hash only");
     }
 
     #[test]
@@ -384,10 +372,7 @@ mod tests {
         let hash1 = hash_query_with_variables(query, &vars1);
         let hash2 = hash_query_with_variables(query, &vars2);
 
-        assert_eq!(
-            hash1, hash2,
-            "Variable key order must not affect hash (JSON normalized)"
-        );
+        assert_eq!(hash1, hash2, "Variable key order must not affect hash (JSON normalized)");
     }
 
     #[test]
@@ -435,16 +420,12 @@ mod tests {
         let vars = json!({"x": 42});
 
         // Run the hash multiple times
-        let hashes: Vec<String> = (0..10)
-            .map(|_| hash_query_with_variables(query, &vars))
-            .collect();
+        let hashes: Vec<String> =
+            (0..10).map(|_| hash_query_with_variables(query, &vars)).collect();
 
         // All hashes should be identical
         for i in 1..10 {
-            assert_eq!(
-                hashes[0], hashes[i],
-                "Hash must be deterministic across multiple runs"
-            );
+            assert_eq!(hashes[0], hashes[i], "Hash must be deterministic across multiple runs");
         }
     }
 
@@ -458,11 +439,7 @@ mod tests {
         let hash = hash_query_with_variables(query, &vars);
 
         // SHA-256 hex is 64 characters
-        assert_eq!(
-            hash.len(),
-            64,
-            "Combined hash must be SHA-256 length (64 hex chars)"
-        );
+        assert_eq!(hash.len(), 64, "Combined hash must be SHA-256 length (64 hex chars)");
     }
 
     #[test]

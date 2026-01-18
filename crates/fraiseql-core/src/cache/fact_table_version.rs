@@ -76,9 +76,12 @@
 //! config.set_strategy("tf_historical_rates", FactTableVersionStrategy::SchemaVersion);
 //! ```
 
+use std::{
+    collections::HashMap,
+    time::{Duration, Instant},
+};
+
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::time::{Duration, Instant};
 
 /// Versioning strategy for fact table aggregation caching.
 ///
@@ -190,16 +193,13 @@ impl FactTableCacheConfig {
 
     /// Set strategy for a specific table.
     pub fn set_strategy(&mut self, table_name: &str, strategy: FactTableVersionStrategy) {
-        self.table_strategies
-            .insert(table_name.to_string(), strategy);
+        self.table_strategies.insert(table_name.to_string(), strategy);
     }
 
     /// Get strategy for a table (falls back to default).
     #[must_use]
     pub fn get_strategy(&self, table_name: &str) -> &FactTableVersionStrategy {
-        self.table_strategies
-            .get(table_name)
-            .unwrap_or(&self.default_strategy)
+        self.table_strategies.get(table_name).unwrap_or(&self.default_strategy)
     }
 
     /// Check if caching is enabled for a table.
@@ -213,7 +213,7 @@ impl FactTableCacheConfig {
 #[derive(Debug, Clone)]
 pub struct CachedVersion {
     /// The version number.
-    pub version: i64,
+    pub version:    i64,
     /// When the version was fetched.
     pub fetched_at: Instant,
 }
@@ -244,7 +244,7 @@ impl CachedVersion {
 #[derive(Debug)]
 pub struct FactTableVersionProvider {
     /// Cached versions (table_name -> version).
-    versions: std::sync::RwLock<HashMap<String, CachedVersion>>,
+    versions:          std::sync::RwLock<HashMap<String, CachedVersion>>,
     /// How long to cache version lookups.
     version_cache_ttl: Duration,
 }
@@ -324,7 +324,7 @@ pub fn generate_version_key_component(
         FactTableVersionStrategy::VersionTable => {
             // Require a version from tf_versions table
             table_version.map(|v| format!("tv:{v}"))
-        }
+        },
 
         FactTableVersionStrategy::TimeBased { ttl_seconds } => {
             // Use time bucket as version (floor to TTL boundary)
@@ -334,12 +334,12 @@ pub fn generate_version_key_component(
                 .as_secs();
             let bucket = now / ttl_seconds;
             Some(format!("tb:{bucket}"))
-        }
+        },
 
         FactTableVersionStrategy::SchemaVersion => {
             // Use schema version only
             Some(format!("sv:{schema_version}"))
-        }
+        },
     }
 }
 
@@ -427,10 +427,7 @@ mod tests {
     #[test]
     fn test_config_default_strategy() {
         let config = FactTableCacheConfig::default();
-        assert_eq!(
-            config.get_strategy("tf_sales"),
-            &FactTableVersionStrategy::Disabled
-        );
+        assert_eq!(config.get_strategy("tf_sales"), &FactTableVersionStrategy::Disabled);
     }
 
     #[test]
@@ -442,29 +439,19 @@ mod tests {
             FactTableVersionStrategy::TimeBased { ttl_seconds: 300 },
         );
 
-        assert_eq!(
-            config.get_strategy("tf_sales"),
-            &FactTableVersionStrategy::VersionTable
-        );
+        assert_eq!(config.get_strategy("tf_sales"), &FactTableVersionStrategy::VersionTable);
         assert_eq!(
             config.get_strategy("tf_page_views"),
             &FactTableVersionStrategy::TimeBased { ttl_seconds: 300 }
         );
         // Unconfigured table uses default
-        assert_eq!(
-            config.get_strategy("tf_other"),
-            &FactTableVersionStrategy::Disabled
-        );
+        assert_eq!(config.get_strategy("tf_other"), &FactTableVersionStrategy::Disabled);
     }
 
     #[test]
     fn test_config_with_default() {
-        let config =
-            FactTableCacheConfig::with_default(FactTableVersionStrategy::SchemaVersion);
-        assert_eq!(
-            config.get_strategy("tf_any"),
-            &FactTableVersionStrategy::SchemaVersion
-        );
+        let config = FactTableCacheConfig::with_default(FactTableVersionStrategy::SchemaVersion);
+        assert_eq!(config.get_strategy("tf_any"), &FactTableVersionStrategy::SchemaVersion);
     }
 
     #[test]
@@ -579,23 +566,15 @@ mod tests {
 
     #[test]
     fn test_config_serialization() {
-        let mut config = FactTableCacheConfig::with_default(FactTableVersionStrategy::SchemaVersion);
+        let mut config =
+            FactTableCacheConfig::with_default(FactTableVersionStrategy::SchemaVersion);
         config.set_strategy("tf_sales", FactTableVersionStrategy::VersionTable);
-        config.set_strategy(
-            "tf_events",
-            FactTableVersionStrategy::TimeBased { ttl_seconds: 60 },
-        );
+        config.set_strategy("tf_events", FactTableVersionStrategy::TimeBased { ttl_seconds: 60 });
 
         let json = serde_json::to_string_pretty(&config).unwrap();
         let deserialized: FactTableCacheConfig = serde_json::from_str(&json).unwrap();
 
-        assert_eq!(
-            deserialized.default_strategy,
-            FactTableVersionStrategy::SchemaVersion
-        );
-        assert_eq!(
-            deserialized.get_strategy("tf_sales"),
-            &FactTableVersionStrategy::VersionTable
-        );
+        assert_eq!(deserialized.default_strategy, FactTableVersionStrategy::SchemaVersion);
+        assert_eq!(deserialized.get_strategy("tf_sales"), &FactTableVersionStrategy::VersionTable);
     }
 }

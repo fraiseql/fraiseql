@@ -35,8 +35,9 @@
 //! assert!(regulated.is_regulated());
 //! ```
 
-use serde::{Deserialize, Serialize};
 use std::fmt;
+
+use serde::{Deserialize, Serialize};
 
 /// Security profile configuration
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -174,7 +175,7 @@ impl SecurityProfile {
             Self::Standard => "Basic security with rate limiting and audit logging",
             Self::Regulated => {
                 "Full compliance with field masking, error redaction, and strict limits"
-            }
+            },
         }
     }
 
@@ -483,14 +484,8 @@ mod tests {
         let standard = SecurityProfile::standard();
         let regulated = SecurityProfile::regulated();
 
-        assert_eq!(
-            standard.rate_limit_enabled(),
-            regulated.rate_limit_enabled()
-        );
-        assert_eq!(
-            standard.audit_logging_enabled(),
-            regulated.audit_logging_enabled()
-        );
+        assert_eq!(standard.rate_limit_enabled(), regulated.rate_limit_enabled());
+        assert_eq!(standard.audit_logging_enabled(), regulated.audit_logging_enabled());
         // But REGULATED should have additional features
         assert!(regulated.audit_field_access() || !standard.audit_field_access());
     }

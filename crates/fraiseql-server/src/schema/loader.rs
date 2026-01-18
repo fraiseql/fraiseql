@@ -1,7 +1,8 @@
 //! Schema loader for compiled GraphQL schemas.
 
-use fraiseql_core::schema::CompiledSchema;
 use std::path::{Path, PathBuf};
+
+use fraiseql_core::schema::CompiledSchema;
 use tracing::{debug, info};
 
 /// Error loading schema.
@@ -81,9 +82,8 @@ impl CompiledSchemaLoader {
         }
 
         // Read file asynchronously
-        let contents = tokio::fs::read_to_string(&self.path)
-            .await
-            .map_err(SchemaLoadError::IoError)?;
+        let contents =
+            tokio::fs::read_to_string(&self.path).await.map_err(SchemaLoadError::IoError)?;
 
         debug!(
             path = %self.path.display(),
@@ -112,9 +112,11 @@ impl CompiledSchemaLoader {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::io::Write;
+
     use tempfile::NamedTempFile;
+
+    use super::*;
 
     #[tokio::test]
     async fn test_loader_not_found() {

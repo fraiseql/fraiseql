@@ -11,9 +11,9 @@
 //! - Severity levels (trace, debug, info, warn, error)
 //! - Automatic timestamp and source location
 
+use std::{fmt, sync::Arc};
+
 use serde::{Deserialize, Serialize};
-use std::fmt;
-use std::sync::Arc;
 use uuid::Uuid;
 
 /// Unique identifier for request context.
@@ -70,10 +70,10 @@ impl RequestContext {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            request_id: RequestId::new(),
-            operation: None,
-            user_id: None,
-            client_ip: None,
+            request_id:  RequestId::new(),
+            operation:   None,
+            user_id:     None,
+            client_ip:   None,
             api_version: None,
         }
     }
@@ -241,7 +241,10 @@ impl StructuredLogEntry {
     #[must_use]
     pub fn to_json_string(&self) -> String {
         serde_json::to_string(self).unwrap_or_else(|_| {
-            format!(r#"{{"level":"{}","message":"{}","error":"serialization failed"}}"#, self.level, self.message)
+            format!(
+                r#"{{"level":"{}","message":"{}","error":"serialization failed"}}"#,
+                self.level, self.message
+            )
         })
     }
 }
@@ -275,11 +278,11 @@ impl LogMetrics {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            duration_ms: None,
-            complexity: None,
+            duration_ms:     None,
+            complexity:      None,
             items_processed: None,
-            cache_hit: None,
-            db_queries: None,
+            cache_hit:       None,
+            db_queries:      None,
         }
     }
 
@@ -481,8 +484,7 @@ mod tests {
 
     #[test]
     fn test_log_entry_with_context() {
-        let context = RequestContext::new()
-            .with_operation("Query".to_string());
+        let context = RequestContext::new().with_operation("Query".to_string());
 
         let entry = StructuredLogEntry::new(LogLevel::Info, "operation executed".to_string())
             .with_request_context(context.clone());
@@ -509,11 +511,9 @@ mod tests {
 
     #[test]
     fn test_error_details_builder() {
-        let error = ErrorDetails::new(
-            "DatabaseError".to_string(),
-            "Connection timeout".to_string(),
-        )
-        .with_code("DB_TIMEOUT".to_string());
+        let error =
+            ErrorDetails::new("DatabaseError".to_string(), "Connection timeout".to_string())
+                .with_code("DB_TIMEOUT".to_string());
 
         assert_eq!(error.error_type, "DatabaseError");
         assert_eq!(error.message, "Connection timeout");
@@ -532,8 +532,7 @@ mod tests {
 
     #[test]
     fn test_request_logger_creation() {
-        let context = RequestContext::new()
-            .with_operation("Query".to_string());
+        let context = RequestContext::new().with_operation("Query".to_string());
         let logger = RequestLogger::new(context);
 
         assert_eq!(logger.context().operation, Some("Query".to_string()));
@@ -568,10 +567,8 @@ mod tests {
             .with_db_queries(2)
             .with_cache_hit(true);
 
-        let error = ErrorDetails::new(
-            "ValidationError".to_string(),
-            "Invalid query parameter".to_string(),
-        );
+        let error =
+            ErrorDetails::new("ValidationError".to_string(), "Invalid query parameter".to_string());
 
         let source = SourceLocation::new(
             "routes/graphql.rs".to_string(),

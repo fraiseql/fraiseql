@@ -28,10 +28,7 @@ pub fn cors_layer() -> CorsLayer {
 /// * `allowed_origins` - List of allowed origin URLs
 #[must_use]
 pub fn cors_layer_restricted(allowed_origins: Vec<String>) -> CorsLayer {
-    let origins: Vec<_> = allowed_origins
-        .iter()
-        .filter_map(|origin| origin.parse().ok())
-        .collect();
+    let origins: Vec<_> = allowed_origins.iter().filter_map(|origin| origin.parse().ok()).collect();
 
     CorsLayer::new()
         .allow_origin(origins)

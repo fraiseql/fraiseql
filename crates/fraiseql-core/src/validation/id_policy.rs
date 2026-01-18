@@ -66,9 +66,9 @@ impl std::fmt::Display for IDPolicy {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IDValidationError {
     /// The invalid ID value
-    pub value: String,
+    pub value:   String,
     /// The policy that was violated
-    pub policy: IDPolicy,
+    pub policy:  IDPolicy,
     /// Error message
     pub message: String,
 }
@@ -138,8 +138,8 @@ fn validate_uuid_format(id: &str) -> Result<(), IDValidationError> {
     // UUID must be 36 characters: 8-4-4-4-12
     if id.len() != 36 {
         return Err(IDValidationError {
-            value: id.to_string(),
-            policy: IDPolicy::UUID,
+            value:   id.to_string(),
+            policy:  IDPolicy::UUID,
             message: format!(
                 "ID must be a valid UUID (36 characters), got {} characters",
                 id.len()
@@ -151,8 +151,8 @@ fn validate_uuid_format(id: &str) -> Result<(), IDValidationError> {
     let parts: Vec<&str> = id.split('-').collect();
     if parts.len() != 5 {
         return Err(IDValidationError {
-            value: id.to_string(),
-            policy: IDPolicy::UUID,
+            value:   id.to_string(),
+            policy:  IDPolicy::UUID,
             message: "ID must be a valid UUID with format XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
                 .to_string(),
         });
@@ -163,8 +163,8 @@ fn validate_uuid_format(id: &str) -> Result<(), IDValidationError> {
     for (i, (part, &expected_len)) in parts.iter().zip(&expected_lengths).enumerate() {
         if part.len() != expected_len {
             return Err(IDValidationError {
-                value: id.to_string(),
-                policy: IDPolicy::UUID,
+                value:   id.to_string(),
+                policy:  IDPolicy::UUID,
                 message: format!(
                     "UUID segment {} has invalid length: expected {}, got {}",
                     i,
@@ -179,8 +179,8 @@ fn validate_uuid_format(id: &str) -> Result<(), IDValidationError> {
     for (i, part) in parts.iter().enumerate() {
         if !part.chars().all(|c| c.is_ascii_hexdigit()) {
             return Err(IDValidationError {
-                value: id.to_string(),
-                policy: IDPolicy::UUID,
+                value:   id.to_string(),
+                policy:  IDPolicy::UUID,
                 message: format!("UUID segment {i} contains non-hexadecimal characters: '{part}'"),
             });
         }

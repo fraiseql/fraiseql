@@ -21,8 +21,9 @@
 
 mod test_helpers;
 
-use reqwest::StatusCode;
 use std::env;
+
+use reqwest::StatusCode;
 use test_helpers::*;
 
 /// Get the base URL for testing. Defaults to localhost:8000, but can be
@@ -49,11 +50,11 @@ async fn test_health_endpoint_responds() {
             if let Ok(json) = body {
                 assert_health_response(&json);
             }
-        }
+        },
         Err(e) => {
             // Server not running - this is expected in CI
             eprintln!("Warning: Could not connect to server: {}", e);
-        }
+        },
     }
 }
 
@@ -83,10 +84,10 @@ async fn test_metrics_endpoint_responds() {
                 // Should be Prometheus text format
                 assert!(text.contains("fraiseql_graphql_queries_total"));
             }
-        }
+        },
         Err(e) => {
             eprintln!("Warning: Could not connect to server: {}", e);
-        }
+        },
     }
 }
 
@@ -113,10 +114,10 @@ async fn test_metrics_json_endpoint_responds() {
             if let Ok(json) = body {
                 assert_metrics_response(&json);
             }
-        }
+        },
         Err(e) => {
             eprintln!("Warning: Could not connect to server: {}", e);
-        }
+        },
     }
 }
 
@@ -128,18 +129,15 @@ async fn test_metrics_endpoint_requires_auth() {
     let base_url = get_test_base_url();
 
     // Request without Authorization header
-    let response = client
-        .get(format!("{}/metrics", base_url))
-        .send()
-        .await;
+    let response = client.get(format!("{}/metrics", base_url)).send().await;
 
     match response {
         Ok(resp) => {
             assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
-        }
+        },
         Err(e) => {
             eprintln!("Warning: Could not connect to server: {}", e);
-        }
+        },
     }
 }
 
@@ -159,10 +157,10 @@ async fn test_metrics_endpoint_rejects_invalid_token() {
     match response {
         Ok(resp) => {
             assert_eq!(resp.status(), StatusCode::FORBIDDEN);
-        }
+        },
         Err(e) => {
             eprintln!("Warning: Could not connect to server: {}", e);
-        }
+        },
     }
 }
 
@@ -173,18 +171,15 @@ async fn test_invalid_path_returns_404() {
     let client = create_test_client();
     let base_url = get_test_base_url();
 
-    let response = client
-        .get(format!("{}/invalid/path", base_url))
-        .send()
-        .await;
+    let response = client.get(format!("{}/invalid/path", base_url)).send().await;
 
     match response {
         Ok(resp) => {
             assert_eq!(resp.status(), StatusCode::NOT_FOUND);
-        }
+        },
         Err(e) => {
             eprintln!("Warning: Could not connect to server: {}", e);
-        }
+        },
     }
 }
 
@@ -198,11 +193,7 @@ async fn test_graphql_endpoint_accepts_post() {
     // Use a real query from our schema (users list query)
     let request = create_graphql_request("{ users { id name } }", None, None);
 
-    let response = client
-        .post(format!("{}/graphql", base_url))
-        .json(&request)
-        .send()
-        .await;
+    let response = client.post(format!("{}/graphql", base_url)).json(&request).send().await;
 
     match response {
         Ok(resp) => {
@@ -212,10 +203,10 @@ async fn test_graphql_endpoint_accepts_post() {
             if let Ok(json) = body {
                 assert_graphql_response(&json);
             }
-        }
+        },
         Err(e) => {
             eprintln!("Warning: Could not connect to server: {}", e);
-        }
+        },
     }
 }
 
@@ -226,19 +217,16 @@ async fn test_graphql_endpoint_rejects_get() {
     let client = create_test_client();
     let base_url = get_test_base_url();
 
-    let response = client
-        .get(format!("{}/graphql", base_url))
-        .send()
-        .await;
+    let response = client.get(format!("{}/graphql", base_url)).send().await;
 
     match response {
         Ok(resp) => {
             // Should reject GET with 405 or similar
             assert_ne!(resp.status(), StatusCode::OK);
-        }
+        },
         Err(e) => {
             eprintln!("Warning: Could not connect to server: {}", e);
-        }
+        },
     }
 }
 
@@ -252,11 +240,7 @@ async fn test_response_headers_correct() {
     // Use a real query from our schema
     let request = create_graphql_request("{ users { id name } }", None, None);
 
-    let response = client
-        .post(format!("{}/graphql", base_url))
-        .json(&request)
-        .send()
-        .await;
+    let response = client.post(format!("{}/graphql", base_url)).json(&request).send().await;
 
     match response {
         Ok(resp) => {
@@ -268,10 +252,10 @@ async fn test_response_headers_correct() {
                 let ct_str = ct.to_str().unwrap_or("");
                 assert!(ct_str.contains("application/json"));
             }
-        }
+        },
         Err(e) => {
             eprintln!("Warning: Could not connect to server: {}", e);
-        }
+        },
     }
 }
 
@@ -284,11 +268,7 @@ async fn test_empty_query_returns_error() {
 
     let request = create_graphql_request("", None, None);
 
-    let response = client
-        .post(format!("{}/graphql", base_url))
-        .json(&request)
-        .send()
-        .await;
+    let response = client.post(format!("{}/graphql", base_url)).json(&request).send().await;
 
     match response {
         Ok(resp) => {
@@ -308,10 +288,10 @@ async fn test_empty_query_returns_error() {
                     assert!(json.get("errors").is_some());
                 }
             }
-        }
+        },
         Err(e) => {
             eprintln!("Warning: Could not connect to server: {}", e);
-        }
+        },
     }
 }
 
@@ -333,10 +313,10 @@ async fn test_malformed_json_returns_error() {
         Ok(resp) => {
             // Should return 400 or 422
             assert!(resp.status().is_client_error());
-        }
+        },
         Err(e) => {
             eprintln!("Warning: Could not connect to server: {}", e);
-        }
+        },
     }
 }
 
@@ -347,19 +327,16 @@ async fn test_introspection_endpoint_responds() {
     let client = create_test_client();
     let base_url = get_test_base_url();
 
-    let response = client
-        .post(format!("{}/introspection", base_url))
-        .send()
-        .await;
+    let response = client.post(format!("{}/introspection", base_url)).send().await;
 
     match response {
         Ok(resp) => {
             // Should return 200 or 400 (for missing schema)
             assert!(resp.status().is_success() || resp.status().is_client_error());
-        }
+        },
         Err(e) => {
             eprintln!("Warning: Could not connect to server: {}", e);
-        }
+        },
     }
 }
 
@@ -399,11 +376,7 @@ async fn test_content_type_consistency() {
 
     // Test GraphQL endpoint with a real query
     let request = create_graphql_request("{ users { id name } }", None, None);
-    let response = client
-        .post(format!("{}/graphql", base_url))
-        .json(&request)
-        .send()
-        .await;
+    let response = client.post(format!("{}/graphql", base_url)).json(&request).send().await;
 
     match response {
         Ok(resp) => {
@@ -412,10 +385,10 @@ async fn test_content_type_consistency() {
                 let ct_str = ct.to_str().unwrap_or("");
                 assert!(ct_str.contains("application/json"));
             }
-        }
+        },
         Err(e) => {
             eprintln!("Warning: Could not connect to server: {}", e);
-        }
+        },
     }
 }
 

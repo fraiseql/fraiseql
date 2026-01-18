@@ -77,8 +77,8 @@ pub mod fragments;
 // ============================================================================
 
 pub use directive_evaluator::{
-    CustomDirectiveEvaluator, DirectiveError, DirectiveEvaluator, DirectiveHandler, DirectiveResult,
-    EvaluationContext, OperationType,
+    CustomDirectiveEvaluator, DirectiveError, DirectiveEvaluator, DirectiveHandler,
+    DirectiveResult, EvaluationContext, OperationType,
 };
 pub use fragment_resolver::{FragmentError, FragmentResolver};
 pub use fragments::FragmentGraph;

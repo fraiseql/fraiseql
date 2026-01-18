@@ -65,17 +65,19 @@ pub mod parser;
 pub mod validator;
 pub mod window_functions;
 
-pub use aggregate_types::{AggregateTypeGenerator, AggregateType, GroupByInput, HavingInput};
-pub use aggregation::{AggregationPlanner, AggregationPlan, AggregationRequest};
+pub use aggregate_types::{AggregateType, AggregateTypeGenerator, GroupByInput, HavingInput};
+pub use aggregation::{AggregationPlan, AggregationPlanner, AggregationRequest};
 pub use codegen::CodeGenerator;
-pub use ir::{AuthoringIR, IRType, IRField, IRQuery, IRMutation, IRSubscription, IRArgument, AutoParams, MutationOperation};
-pub use lowering::{SqlTemplateGenerator, DatabaseTarget};
+pub use ir::{
+    AuthoringIR, AutoParams, IRArgument, IRField, IRMutation, IRQuery, IRSubscription, IRType,
+    MutationOperation,
+};
+pub use lowering::{DatabaseTarget, SqlTemplateGenerator};
 pub use parser::SchemaParser;
 pub use validator::{SchemaValidator, ValidationError};
-pub use window_functions::{WindowFunctionPlanner, WindowExecutionPlan, WindowFunction};
+pub use window_functions::{WindowExecutionPlan, WindowFunction, WindowFunctionPlanner};
 
-use crate::error::Result;
-use crate::schema::CompiledSchema;
+use crate::{error::Result, schema::CompiledSchema};
 
 /// Compiler configuration.
 #[derive(Debug, Clone)]
@@ -101,10 +103,10 @@ impl Default for CompilerConfig {
     fn default() -> Self {
         Self {
             database_target: DatabaseTarget::PostgreSQL,
-            optimize_sql: true,
-            strict_mode: false,
-            debug: false,
-            database_url: None,
+            optimize_sql:    true,
+            strict_mode:     false,
+            debug:           false,
+            database_url:    None,
         }
     }
 }
@@ -132,11 +134,11 @@ impl Default for CompilerConfig {
 /// # }
 /// ```
 pub struct Compiler {
-    config: CompilerConfig,
-    parser: SchemaParser,
+    config:    CompilerConfig,
+    parser:    SchemaParser,
     validator: SchemaValidator,
-    lowering: SqlTemplateGenerator,
-    codegen: CodeGenerator,
+    lowering:  SqlTemplateGenerator,
+    codegen:   CodeGenerator,
 }
 
 impl Compiler {
@@ -250,10 +252,10 @@ mod tests {
     fn test_compiler_with_config() {
         let config = CompilerConfig {
             database_target: DatabaseTarget::MySQL,
-            optimize_sql: false,
-            strict_mode: true,
-            debug: true,
-            database_url: None,
+            optimize_sql:    false,
+            strict_mode:     true,
+            debug:           true,
+            database_url:    None,
         };
 
         let compiler = Compiler::with_config(config);

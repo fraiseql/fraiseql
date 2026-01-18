@@ -2,15 +2,9 @@
 //!
 //! Tracks HTTP request counts and response status codes.
 
-use axum::{
-    body::Body,
-    extract::State,
-    http::Request,
-    middleware::Next,
-    response::Response,
-};
-use std::sync::atomic::Ordering;
-use std::sync::Arc;
+use std::sync::{Arc, atomic::Ordering};
+
+use axum::{body::Body, extract::State, http::Request, middleware::Next, response::Response};
 
 use crate::metrics::MetricsCollector;
 
@@ -49,16 +43,16 @@ pub async fn metrics_middleware(
     match status.as_u16() {
         200..=299 => {
             metrics.http_responses_2xx.fetch_add(1, Ordering::Relaxed);
-        }
+        },
         400..=499 => {
             metrics.http_responses_4xx.fetch_add(1, Ordering::Relaxed);
-        }
+        },
         500..=599 => {
             metrics.http_responses_5xx.fetch_add(1, Ordering::Relaxed);
-        }
+        },
         _ => {
             // Other status codes (1xx, 3xx) - not tracked separately
-        }
+        },
     }
 
     response
@@ -66,15 +60,16 @@ pub async fn metrics_middleware(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use axum::{
+        Router,
         body::Body,
         http::{Request, StatusCode},
         middleware,
         routing::get,
-        Router,
     };
     use tower::ServiceExt;
+
+    use super::*;
 
     async fn ok_handler() -> StatusCode {
         StatusCode::OK
@@ -94,15 +89,9 @@ mod tests {
 
         let app = Router::new()
             .route("/ok", get(ok_handler))
-            .layer(middleware::from_fn_with_state(
-                metrics.clone(),
-                metrics_middleware,
-            ));
+            .layer(middleware::from_fn_with_state(metrics.clone(), metrics_middleware));
 
-        let request = Request::builder()
-            .uri("/ok")
-            .body(Body::empty())
-            .unwrap();
+        let request = Request::builder().uri("/ok").body(Body::empty()).unwrap();
 
         let _response = app.oneshot(request).await.unwrap();
 
@@ -116,15 +105,9 @@ mod tests {
 
         let app = Router::new()
             .route("/bad", get(bad_request_handler))
-            .layer(middleware::from_fn_with_state(
-                metrics.clone(),
-                metrics_middleware,
-            ));
+            .layer(middleware::from_fn_with_state(metrics.clone(), metrics_middleware));
 
-        let request = Request::builder()
-            .uri("/bad")
-            .body(Body::empty())
-            .unwrap();
+        let request = Request::builder().uri("/bad").body(Body::empty()).unwrap();
 
         let _response = app.oneshot(request).await.unwrap();
 
@@ -139,15 +122,9 @@ mod tests {
 
         let app = Router::new()
             .route("/error", get(internal_error_handler))
-            .layer(middleware::from_fn_with_state(
-                metrics.clone(),
-                metrics_middleware,
-            ));
+            .layer(middleware::from_fn_with_state(metrics.clone(), metrics_middleware));
 
-        let request = Request::builder()
-            .uri("/error")
-            .body(Body::empty())
-            .unwrap();
+        let request = Request::builder().uri("/error").body(Body::empty()).unwrap();
 
         let _response = app.oneshot(request).await.unwrap();
 

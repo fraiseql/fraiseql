@@ -17,9 +17,7 @@
 //! - Response formatting and structure
 
 use fraiseql_server::{
-    error::GraphQLError,
-    routes::graphql::GraphQLRequest,
-    validation::RequestValidator,
+    error::GraphQLError, routes::graphql::GraphQLRequest, validation::RequestValidator,
 };
 use serde_json::json;
 
@@ -27,8 +25,8 @@ use serde_json::json;
 #[test]
 fn test_simple_query_structure() {
     let request = GraphQLRequest {
-        query: "{ user { id } }".to_string(),
-        variables: None,
+        query:          "{ user { id } }".to_string(),
+        variables:      None,
         operation_name: None,
     };
 
@@ -56,7 +54,10 @@ fn test_query_with_variables() {
     assert_eq!(request.operation_name, Some("GetUserPosts".to_string()));
 
     let vars = request.variables.unwrap();
-    assert_eq!(vars.get("userId").and_then(|v| v.as_str()), Some("123e4567-e89b-12d3-a456-426614174000"));
+    assert_eq!(
+        vars.get("userId").and_then(|v| v.as_str()),
+        Some("123e4567-e89b-12d3-a456-426614174000")
+    );
     assert_eq!(vars.get("limit").and_then(|v| v.as_i64()), Some(10));
 }
 
@@ -73,11 +74,7 @@ fn test_simple_query_validation() {
     ];
 
     for query in simple_queries {
-        assert!(
-            validator.validate_query(query).is_ok(),
-            "Failed to validate query: {}",
-            query
-        );
+        assert!(validator.validate_query(query).is_ok(), "Failed to validate query: {}", query);
     }
 }
 
@@ -214,9 +211,9 @@ fn test_malformed_query_rejection() {
     let validator = RequestValidator::new();
 
     let malformed = vec![
-        "{ user id }",      // Missing braces
-        "{ user { id",      // Unclosed braces
-        "user { id }",      // Missing opening brace
+        "{ user id }",       // Missing braces
+        "{ user { id",       // Unclosed braces
+        "user { id }",       // Missing opening brace
         "{ { user { id } }", // Extra braces
     ];
 
@@ -270,10 +267,7 @@ fn test_graphql_response_with_errors() {
     assert!(response_data.get("errors").is_some());
     let errors = response_data.get("errors").unwrap().as_array().unwrap();
     assert_eq!(errors.len(), 1);
-    assert_eq!(
-        errors[0].get("message").and_then(|v| v.as_str()),
-        Some("Field not found")
-    );
+    assert_eq!(errors[0].get("message").and_then(|v| v.as_str()), Some("Field not found"));
 }
 
 /// Test query execution request structure
@@ -318,10 +312,7 @@ fn test_complete_graphql_request() {
     let request: GraphQLRequest = serde_json::from_str(json_request).unwrap();
 
     assert_eq!(request.operation_name, Some("GetUser".to_string()));
-    assert_eq!(
-        request.variables.unwrap().get("id").and_then(|v| v.as_str()),
-        Some("123")
-    );
+    assert_eq!(request.variables.unwrap().get("id").and_then(|v| v.as_str()), Some("123"));
 }
 
 /// Test request validation pipeline
@@ -331,8 +322,8 @@ fn test_validation_pipeline() {
 
     // Step 1: Parse request
     let request = GraphQLRequest {
-        query: "{ users { id name } }".to_string(),
-        variables: Some(json!({"limit": 10})),
+        query:          "{ users { id name } }".to_string(),
+        variables:      Some(json!({"limit": 10})),
         operation_name: None,
     };
 
@@ -356,11 +347,7 @@ fn test_batch_query_validation() {
     ];
 
     for query in queries {
-        assert!(
-            validator.validate_query(query).is_ok(),
-            "Failed validation for: {}",
-            query
-        );
+        assert!(validator.validate_query(query).is_ok(), "Failed validation for: {}", query);
     }
 }
 
@@ -371,9 +358,9 @@ fn test_query_field_selection() {
 
     // Verify these are correctly parsed for depth measurement
     let test_queries = vec![
-        ("{ id }", 1),                              // 1 level
-        ("{ user { id } }", 2),                     // 2 levels
-        ("{ user { profile { name } } }", 3),      // 3 levels
+        ("{ id }", 1),                                   // 1 level
+        ("{ user { id } }", 2),                          // 2 levels
+        ("{ user { profile { name } } }", 3),            // 3 levels
         ("{ posts { author { posts { title } } } }", 4), // 4 levels
     ];
 

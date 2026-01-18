@@ -1,7 +1,9 @@
 //! SQL Server WHERE clause SQL generation.
 
-use crate::db::where_clause::{WhereClause, WhereOperator};
-use crate::error::{FraiseQLError, Result};
+use crate::{
+    db::where_clause::{WhereClause, WhereOperator},
+    error::{FraiseQLError, Result},
+};
 
 /// SQL Server WHERE clause generator.
 ///
@@ -75,26 +77,22 @@ impl SqlServerWhereGenerator {
                 if clauses.is_empty() {
                     return Ok("1=1".to_string());
                 }
-                let parts: Result<Vec<String>> = clauses
-                    .iter()
-                    .map(|c| self.generate_clause(c, params))
-                    .collect();
+                let parts: Result<Vec<String>> =
+                    clauses.iter().map(|c| self.generate_clause(c, params)).collect();
                 Ok(format!("({})", parts?.join(" AND ")))
-            }
+            },
             WhereClause::Or(clauses) => {
                 if clauses.is_empty() {
                     return Ok("1=0".to_string());
                 }
-                let parts: Result<Vec<String>> = clauses
-                    .iter()
-                    .map(|c| self.generate_clause(c, params))
-                    .collect();
+                let parts: Result<Vec<String>> =
+                    clauses.iter().map(|c| self.generate_clause(c, params)).collect();
                 Ok(format!("({})", parts?.join(" OR ")))
-            }
+            },
             WhereClause::Not(clause) => {
                 let inner = self.generate_clause(clause, params)?;
                 Ok(format!("NOT ({inner})"))
-            }
+            },
         }
     }
 
@@ -261,7 +259,9 @@ impl SqlServerWhereGenerator {
         params.push(value.clone());
 
         // For numeric comparisons, cast to appropriate type
-        if value.is_number() && (op == ">" || op == ">=" || op == "<" || op == "<=" || op == "=" || op == "<>") {
+        if value.is_number()
+            && (op == ">" || op == ">=" || op == "<" || op == "<=" || op == "=" || op == "<>")
+        {
             Ok(format!("CAST({field_path} AS FLOAT) {op} {param}"))
         } else {
             Ok(format!("{field_path} {op} {param}"))
@@ -319,14 +319,10 @@ impl SqlServerWhereGenerator {
 
         if case_insensitive {
             // Use case-insensitive collation
-            Ok(format!(
-                "{field_path} COLLATE Latin1_General_CI_AI LIKE {pattern}"
-            ))
+            Ok(format!("{field_path} COLLATE Latin1_General_CI_AI LIKE {pattern}"))
         } else {
             // Use case-sensitive collation
-            Ok(format!(
-                "{field_path} COLLATE Latin1_General_CS_AS LIKE {pattern}"
-            ))
+            Ok(format!("{field_path} COLLATE Latin1_General_CS_AS LIKE {pattern}"))
         }
     }
 
@@ -360,9 +356,7 @@ impl SqlServerWhereGenerator {
         let param = self.next_param();
         params.push(value.clone());
 
-        Ok(format!(
-            "(SELECT COUNT(*) FROM OPENJSON(data, '$.{json_path}')) {op} {param}"
-        ))
+        Ok(format!("(SELECT COUNT(*) FROM OPENJSON(data, '$.{json_path}')) {op} {param}"))
     }
 
     fn generate_fts(
@@ -387,16 +381,17 @@ impl Default for SqlServerWhereGenerator {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serde_json::json;
+
+    use super::*;
 
     #[test]
     fn test_simple_equality() {
         let gen = SqlServerWhereGenerator::new();
         let clause = WhereClause::Field {
-            path: vec!["email".to_string()],
+            path:     vec!["email".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("test@example.com"),
+            value:    json!("test@example.com"),
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
@@ -408,9 +403,9 @@ mod tests {
     fn test_icontains() {
         let gen = SqlServerWhereGenerator::new();
         let clause = WhereClause::Field {
-            path: vec!["email".to_string()],
+            path:     vec!["email".to_string()],
             operator: WhereOperator::Icontains,
-            value: json!("example.com"),
+            value:    json!("example.com"),
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
@@ -425,9 +420,9 @@ mod tests {
     fn test_nested_path() {
         let gen = SqlServerWhereGenerator::new();
         let clause = WhereClause::Field {
-            path: vec!["address".to_string(), "city".to_string()],
+            path:     vec!["address".to_string(), "city".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("Paris"),
+            value:    json!("Paris"),
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
@@ -440,14 +435,14 @@ mod tests {
         let gen = SqlServerWhereGenerator::new();
         let clause = WhereClause::And(vec![
             WhereClause::Field {
-                path: vec!["age".to_string()],
+                path:     vec!["age".to_string()],
                 operator: WhereOperator::Gte,
-                value: json!(18),
+                value:    json!(18),
             },
             WhereClause::Field {
-                path: vec!["active".to_string()],
+                path:     vec!["active".to_string()],
                 operator: WhereOperator::Eq,
-                value: json!(true),
+                value:    json!(true),
             },
         ]);
 
@@ -463,9 +458,9 @@ mod tests {
     fn test_in_operator() {
         let gen = SqlServerWhereGenerator::new();
         let clause = WhereClause::Field {
-            path: vec!["status".to_string()],
+            path:     vec!["status".to_string()],
             operator: WhereOperator::In,
-            value: json!(["active", "pending"]),
+            value:    json!(["active", "pending"]),
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
@@ -477,9 +472,9 @@ mod tests {
     fn test_is_null() {
         let gen = SqlServerWhereGenerator::new();
         let clause = WhereClause::Field {
-            path: vec!["deleted_at".to_string()],
+            path:     vec!["deleted_at".to_string()],
             operator: WhereOperator::IsNull,
-            value: json!(true),
+            value:    json!(true),
         };
 
         let (sql, _params) = gen.generate(&clause).unwrap();
@@ -490,9 +485,9 @@ mod tests {
     fn test_not_equal() {
         let gen = SqlServerWhereGenerator::new();
         let clause = WhereClause::Field {
-            path: vec!["status".to_string()],
+            path:     vec!["status".to_string()],
             operator: WhereOperator::Neq,
-            value: json!("deleted"),
+            value:    json!("deleted"),
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();

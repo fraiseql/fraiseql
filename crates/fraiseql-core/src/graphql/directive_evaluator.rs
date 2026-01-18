@@ -51,11 +51,12 @@
 //!     .build();
 //! ```
 
-use crate::graphql::types::{Directive, FieldSelection};
+use std::{collections::HashMap, sync::Arc};
+
 use serde_json::Value as JsonValue;
-use std::collections::HashMap;
-use std::sync::Arc;
 use thiserror::Error;
+
+use crate::graphql::types::{Directive, FieldSelection};
 
 /// Errors that can occur during directive evaluation.
 #[derive(Debug, Error)]
@@ -325,18 +326,18 @@ impl DirectiveEvaluator {
                     if Self::evaluate_skip(directive, variables)? {
                         return Ok(false); // Skip this field
                     }
-                }
+                },
                 "include" => {
                     // @include(if: condition) - include if true
                     if !Self::evaluate_include(directive, variables)? {
                         return Ok(false); // Skip if include is false
                     }
-                }
+                },
                 _ => {
                     // Unknown directive - for now, pass through with warning
                     // In the future, could support custom directives via hooks
                     tracing::warn!("Unknown directive @{}", directive.name);
-                }
+                },
             }
         }
 
@@ -399,7 +400,7 @@ impl DirectiveEvaluator {
                     JsonValue::Bool(b) => Ok(*b),
                     _ => Err(DirectiveError::VariableTypeMismatch(var_name.to_string())),
                 }
-            }
+            },
             Ok(_) => Err(DirectiveError::InvalidDirectiveArgument),
             Err(_) => {
                 // Try parsing as plain string for variable reference
@@ -415,7 +416,7 @@ impl DirectiveEvaluator {
                 } else {
                     Err(DirectiveError::InvalidDirectiveArgument)
                 }
-            }
+            },
         }
     }
 
@@ -479,7 +480,7 @@ impl DirectiveEvaluator {
                     .get(var_name)
                     .cloned()
                     .ok_or_else(|| DirectiveError::UndefinedVariable(var_name.to_string()))
-            }
+            },
             Ok(value) => Ok(value),
             Err(_) => {
                 // Try parsing as plain string for variable reference
@@ -492,7 +493,7 @@ impl DirectiveEvaluator {
                     // Return as string if not JSON
                     Ok(JsonValue::String(value_json.to_string()))
                 }
-            }
+            },
         }
     }
 }
@@ -559,7 +560,7 @@ impl CustomDirectiveEvaluator {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            handlers: HashMap::new(),
+            handlers:    HashMap::new(),
             strict_mode: false,
         }
     }
@@ -626,7 +627,7 @@ impl CustomDirectiveEvaluator {
             let result = self.evaluate_single_directive(directive, context)?;
 
             match result {
-                DirectiveResult::Include => {}
+                DirectiveResult::Include => {},
                 DirectiveResult::Skip => return Ok(DirectiveResult::Skip),
                 DirectiveResult::Transform(_) | DirectiveResult::Error(_) => return Ok(result),
             }
@@ -649,23 +650,24 @@ impl CustomDirectiveEvaluator {
                 } else {
                     Ok(DirectiveResult::Include)
                 }
-            }
+            },
             "include" => {
                 if DirectiveEvaluator::evaluate_include(directive, &context.variables)? {
                     Ok(DirectiveResult::Include)
                 } else {
                     Ok(DirectiveResult::Skip)
                 }
-            }
+            },
             "deprecated" => {
                 // @deprecated is a schema directive, not a query directive
                 // If it appears in a query, we just pass through
                 Ok(DirectiveResult::Include)
-            }
+            },
             // Custom directives
             name => {
                 if let Some(handler) = self.handlers.get(name) {
-                    let args = DirectiveEvaluator::parse_directive_args(directive, &context.variables)?;
+                    let args =
+                        DirectiveEvaluator::parse_directive_args(directive, &context.variables)?;
                     handler.evaluate(&args, context)
                 } else if self.strict_mode {
                     Err(DirectiveError::UnknownDirective(name.to_string()))
@@ -673,7 +675,7 @@ impl CustomDirectiveEvaluator {
                     tracing::warn!("Unknown directive @{}, passing through", name);
                     Ok(DirectiveResult::Include)
                 }
-            }
+            },
         }
     }
 
@@ -697,20 +699,18 @@ impl CustomDirectiveEvaluator {
 
                     // Recursively filter nested fields
                     if !field.nested_fields.is_empty() {
-                        field.nested_fields = self.filter_selections_with_context(
-                            &field.nested_fields,
-                            context,
-                        )?;
+                        field.nested_fields =
+                            self.filter_selections_with_context(&field.nested_fields, context)?;
                     }
 
                     result.push(field);
-                }
+                },
                 DirectiveResult::Skip => {
                     // Don't include this field
-                }
+                },
                 DirectiveResult::Error(msg) => {
                     return Err(DirectiveError::CustomDirectiveError(msg));
-                }
+                },
             }
         }
 
@@ -744,9 +744,9 @@ mod tests {
 
     fn make_directive(name: &str, if_value: &str) -> Directive {
         Directive {
-            name: name.to_string(),
+            name:      name.to_string(),
             arguments: vec![GraphQLArgument {
-                name: "if".to_string(),
+                name:       "if".to_string(),
                 value_type: "boolean".to_string(),
                 value_json: if_value.to_string(),
             }],
@@ -810,10 +810,7 @@ mod tests {
 
     #[test]
     fn test_include_with_variable() {
-        let field = make_field(
-            "email",
-            vec![make_directive("include", "\"$includeEmail\"")],
-        );
+        let field = make_field("email", vec![make_directive("include", "\"$includeEmail\"")]);
         let mut variables = HashMap::new();
         variables.insert("includeEmail".to_string(), JsonValue::Bool(false));
 
@@ -848,16 +845,10 @@ mod tests {
     fn test_variable_type_mismatch() {
         let field = make_field("email", vec![make_directive("skip", "\"$notABool\"")]);
         let mut variables = HashMap::new();
-        variables.insert(
-            "notABool".to_string(),
-            JsonValue::String("hello".to_string()),
-        );
+        variables.insert("notABool".to_string(), JsonValue::String("hello".to_string()));
 
         let result = DirectiveEvaluator::evaluate_directives(&field, &variables);
-        assert!(matches!(
-            result,
-            Err(DirectiveError::VariableTypeMismatch(_))
-        ));
+        assert!(matches!(result, Err(DirectiveError::VariableTypeMismatch(_))));
     }
 
     #[test]
@@ -879,14 +870,14 @@ mod tests {
     #[test]
     fn test_filter_nested_selections() {
         let selections = vec![FieldSelection {
-            name: "user".to_string(),
-            alias: None,
-            arguments: vec![],
+            name:          "user".to_string(),
+            alias:         None,
+            arguments:     vec![],
             nested_fields: vec![
                 make_field("id", vec![]),
                 make_field("secret", vec![make_directive("skip", "true")]),
             ],
-            directives: vec![],
+            directives:    vec![],
         }];
 
         let variables = HashMap::new();
@@ -918,10 +909,7 @@ mod tests {
             context: &EvaluationContext,
         ) -> Result<DirectiveResult, DirectiveError> {
             // Check if role is specified in directive args
-            let required = args
-                .get("role")
-                .and_then(|v| v.as_str())
-                .unwrap_or(&self.required_role);
+            let required = args.get("role").and_then(|v| v.as_str()).unwrap_or(&self.required_role);
 
             if context.has_role(required) {
                 Ok(DirectiveResult::Include)
@@ -994,19 +982,21 @@ mod tests {
         let evaluator = CustomDirectiveEvaluator::new().with_handler(auth);
 
         // Create a context with admin role
-        let context = EvaluationContext::new(HashMap::new())
-            .with_user_context("roles", JsonValue::Array(vec![JsonValue::String("admin".to_string())]));
+        let context = EvaluationContext::new(HashMap::new()).with_user_context(
+            "roles",
+            JsonValue::Array(vec![JsonValue::String("admin".to_string())]),
+        );
 
         // Create a field with @auth directive
         let field = FieldSelection {
-            name: "sensitiveData".to_string(),
-            alias: None,
-            arguments: vec![],
+            name:          "sensitiveData".to_string(),
+            alias:         None,
+            arguments:     vec![],
             nested_fields: vec![],
-            directives: vec![Directive {
-                name: "auth".to_string(),
+            directives:    vec![Directive {
+                name:      "auth".to_string(),
                 arguments: vec![GraphQLArgument {
-                    name: "role".to_string(),
+                    name:       "role".to_string(),
                     value_type: "String".to_string(),
                     value_json: "\"admin\"".to_string(),
                 }],
@@ -1025,19 +1015,21 @@ mod tests {
         let evaluator = CustomDirectiveEvaluator::new().with_handler(auth);
 
         // Create a context without admin role
-        let context = EvaluationContext::new(HashMap::new())
-            .with_user_context("roles", JsonValue::Array(vec![JsonValue::String("user".to_string())]));
+        let context = EvaluationContext::new(HashMap::new()).with_user_context(
+            "roles",
+            JsonValue::Array(vec![JsonValue::String("user".to_string())]),
+        );
 
         // Create a field with @auth directive
         let field = FieldSelection {
-            name: "sensitiveData".to_string(),
-            alias: None,
-            arguments: vec![],
+            name:          "sensitiveData".to_string(),
+            alias:         None,
+            arguments:     vec![],
             nested_fields: vec![],
-            directives: vec![Directive {
-                name: "auth".to_string(),
+            directives:    vec![Directive {
+                name:      "auth".to_string(),
                 arguments: vec![GraphQLArgument {
-                    name: "role".to_string(),
+                    name:       "role".to_string(),
                     value_type: "String".to_string(),
                     value_json: "\"admin\"".to_string(),
                 }],
@@ -1053,10 +1045,13 @@ mod tests {
         let evaluator = CustomDirectiveEvaluator::new().strict();
 
         let context = EvaluationContext::new(HashMap::new());
-        let field = make_field("email", vec![Directive {
-            name: "unknown".to_string(),
-            arguments: vec![],
-        }]);
+        let field = make_field(
+            "email",
+            vec![Directive {
+                name:      "unknown".to_string(),
+                arguments: vec![],
+            }],
+        );
 
         let result = evaluator.evaluate_directives_with_context(&field, &context);
         assert!(matches!(result, Err(DirectiveError::UnknownDirective(_))));
@@ -1067,10 +1062,13 @@ mod tests {
         let evaluator = CustomDirectiveEvaluator::new();
 
         let context = EvaluationContext::new(HashMap::new());
-        let field = make_field("email", vec![Directive {
-            name: "unknown".to_string(),
-            arguments: vec![],
-        }]);
+        let field = make_field(
+            "email",
+            vec![Directive {
+                name:      "unknown".to_string(),
+                arguments: vec![],
+            }],
+        );
 
         // In lenient mode, unknown directives pass through
         let result = evaluator.evaluate_directives_with_context(&field, &context).unwrap();
@@ -1104,10 +1102,13 @@ mod tests {
 
         let selections = vec![
             make_field("id", vec![]),
-            make_field("secret", vec![Directive {
-                name: "alwaysSkip".to_string(),
-                arguments: vec![],
-            }]),
+            make_field(
+                "secret",
+                vec![Directive {
+                    name:      "alwaysSkip".to_string(),
+                    arguments: vec![],
+                }],
+            ),
             make_field("name", vec![]),
         ];
 
@@ -1126,10 +1127,13 @@ mod tests {
 
         let selections = vec![
             make_field("id", vec![]),
-            make_field("broken", vec![Directive {
-                name: "error".to_string(),
-                arguments: vec![],
-            }]),
+            make_field(
+                "broken",
+                vec![Directive {
+                    name:      "error".to_string(),
+                    arguments: vec![],
+                }],
+            ),
         ];
 
         let context = EvaluationContext::new(HashMap::new());
@@ -1140,11 +1144,13 @@ mod tests {
 
     #[test]
     fn test_evaluation_context_has_role() {
-        let context = EvaluationContext::new(HashMap::new())
-            .with_user_context("roles", JsonValue::Array(vec![
+        let context = EvaluationContext::new(HashMap::new()).with_user_context(
+            "roles",
+            JsonValue::Array(vec![
                 JsonValue::String("admin".to_string()),
                 JsonValue::String("editor".to_string()),
-            ]));
+            ]),
+        );
 
         assert!(context.has_role("admin"));
         assert!(context.has_role("editor"));
@@ -1161,16 +1167,15 @@ mod tests {
 
     #[test]
     fn test_evaluation_context_field_path() {
-        let context = EvaluationContext::new(HashMap::new())
-            .with_field_path("Query.users.email");
+        let context = EvaluationContext::new(HashMap::new()).with_field_path("Query.users.email");
 
         assert_eq!(context.field_path.as_deref(), Some("Query.users.email"));
     }
 
     #[test]
     fn test_evaluation_context_operation_type() {
-        let context = EvaluationContext::new(HashMap::new())
-            .with_operation_type(OperationType::Mutation);
+        let context =
+            EvaluationContext::new(HashMap::new()).with_operation_type(OperationType::Mutation);
 
         assert_eq!(context.operation_type, Some(OperationType::Mutation));
     }
@@ -1183,15 +1188,15 @@ mod tests {
     #[test]
     fn test_parse_directive_args() {
         let directive = Directive {
-            name: "test".to_string(),
+            name:      "test".to_string(),
             arguments: vec![
                 GraphQLArgument {
-                    name: "limit".to_string(),
+                    name:       "limit".to_string(),
                     value_type: "Int".to_string(),
                     value_json: "10".to_string(),
                 },
                 GraphQLArgument {
-                    name: "name".to_string(),
+                    name:       "name".to_string(),
                     value_type: "String".to_string(),
                     value_json: "\"hello\"".to_string(),
                 },
@@ -1208,9 +1213,9 @@ mod tests {
     #[test]
     fn test_parse_directive_args_with_variable() {
         let directive = Directive {
-            name: "test".to_string(),
+            name:      "test".to_string(),
             arguments: vec![GraphQLArgument {
-                name: "limit".to_string(),
+                name:       "limit".to_string(),
                 value_type: "Int".to_string(),
                 value_json: "\"$myLimit\"".to_string(),
             }],
@@ -1230,8 +1235,7 @@ mod tests {
         });
         let skip = Arc::new(AlwaysSkipDirective);
 
-        let evaluator = CustomDirectiveEvaluator::new()
-            .with_handlers(vec![auth, skip]);
+        let evaluator = CustomDirectiveEvaluator::new().with_handlers(vec![auth, skip]);
 
         assert!(evaluator.has_handler("auth"));
         assert!(evaluator.has_handler("alwaysSkip"));

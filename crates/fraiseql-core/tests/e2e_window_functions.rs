@@ -5,9 +5,10 @@
 mod common;
 
 use common::{assert_sql_contains, create_sales_metadata};
-use fraiseql_core::compiler::window_functions::WindowFunctionPlanner;
-use fraiseql_core::db::types::DatabaseType;
-use fraiseql_core::runtime::WindowSqlGenerator;
+use fraiseql_core::{
+    compiler::window_functions::WindowFunctionPlanner, db::types::DatabaseType,
+    runtime::WindowSqlGenerator,
+};
 use serde_json::json;
 
 // =============================================================================
@@ -47,16 +48,19 @@ fn test_row_number_simple() {
 
     let sql = plan_and_generate_pg(&query);
 
-    assert_sql_contains(&sql, &[
-        "SELECT",
-        "revenue",
-        "ROW_NUMBER()",
-        "OVER",
-        "PARTITION BY data->>'category'",
-        "ORDER BY revenue DESC",
-        "AS rank",
-        "FROM tf_sales",
-    ]);
+    assert_sql_contains(
+        &sql,
+        &[
+            "SELECT",
+            "revenue",
+            "ROW_NUMBER()",
+            "OVER",
+            "PARTITION BY data->>'category'",
+            "ORDER BY revenue DESC",
+            "AS rank",
+            "FROM tf_sales",
+        ],
+    );
 }
 
 #[test]
@@ -74,12 +78,7 @@ fn test_rank_with_gaps() {
 
     let sql = plan_and_generate_pg(&query);
 
-    assert_sql_contains(&sql, &[
-        "RANK()",
-        "OVER",
-        "ORDER BY revenue DESC",
-        "AS revenue_rank",
-    ]);
+    assert_sql_contains(&sql, &["RANK()", "OVER", "ORDER BY revenue DESC", "AS revenue_rank"]);
 }
 
 #[test]
@@ -97,11 +96,7 @@ fn test_dense_rank_no_gaps() {
 
     let sql = plan_and_generate_pg(&query);
 
-    assert_sql_contains(&sql, &[
-        "DENSE_RANK()",
-        "OVER",
-        "ORDER BY revenue DESC",
-    ]);
+    assert_sql_contains(&sql, &["DENSE_RANK()", "OVER", "ORDER BY revenue DESC"]);
 }
 
 #[test]
@@ -119,12 +114,7 @@ fn test_ntile_quartiles() {
 
     let sql = plan_and_generate_pg(&query);
 
-    assert_sql_contains(&sql, &[
-        "NTILE(4)",
-        "OVER",
-        "ORDER BY revenue ASC",
-        "AS quartile",
-    ]);
+    assert_sql_contains(&sql, &["NTILE(4)", "OVER", "ORDER BY revenue ASC", "AS quartile"]);
 }
 
 #[test]
@@ -142,12 +132,15 @@ fn test_percent_rank() {
 
     let sql = plan_and_generate_pg(&query);
 
-    assert_sql_contains(&sql, &[
-        "PERCENT_RANK()",
-        "OVER",
-        "PARTITION BY data->>'category'",
-        "ORDER BY revenue DESC",
-    ]);
+    assert_sql_contains(
+        &sql,
+        &[
+            "PERCENT_RANK()",
+            "OVER",
+            "PARTITION BY data->>'category'",
+            "ORDER BY revenue DESC",
+        ],
+    );
 }
 
 #[test]
@@ -165,11 +158,7 @@ fn test_cume_dist() {
 
     let sql = plan_and_generate_pg(&query);
 
-    assert_sql_contains(&sql, &[
-        "CUME_DIST()",
-        "OVER",
-        "ORDER BY revenue ASC",
-    ]);
+    assert_sql_contains(&sql, &["CUME_DIST()", "OVER", "ORDER BY revenue ASC"]);
 }
 
 // =============================================================================
@@ -197,12 +186,15 @@ fn test_lag_previous_value() {
 
     let sql = plan_and_generate_pg(&query);
 
-    assert_sql_contains(&sql, &[
-        "LAG(revenue, 1, 0)",
-        "OVER",
-        "ORDER BY occurred_at ASC",
-        "AS prev_revenue",
-    ]);
+    assert_sql_contains(
+        &sql,
+        &[
+            "LAG(revenue, 1, 0)",
+            "OVER",
+            "ORDER BY occurred_at ASC",
+            "AS prev_revenue",
+        ],
+    );
 }
 
 #[test]
@@ -226,12 +218,15 @@ fn test_lead_next_value() {
 
     let sql = plan_and_generate_pg(&query);
 
-    assert_sql_contains(&sql, &[
-        "LEAD(revenue, 1, 0)",
-        "OVER",
-        "ORDER BY occurred_at ASC",
-        "AS next_revenue",
-    ]);
+    assert_sql_contains(
+        &sql,
+        &[
+            "LEAD(revenue, 1, 0)",
+            "OVER",
+            "ORDER BY occurred_at ASC",
+            "AS next_revenue",
+        ],
+    );
 }
 
 #[test]
@@ -253,12 +248,15 @@ fn test_first_value() {
 
     let sql = plan_and_generate_pg(&query);
 
-    assert_sql_contains(&sql, &[
-        "FIRST_VALUE(revenue)",
-        "OVER",
-        "PARTITION BY data->>'category'",
-        "ORDER BY occurred_at ASC",
-    ]);
+    assert_sql_contains(
+        &sql,
+        &[
+            "FIRST_VALUE(revenue)",
+            "OVER",
+            "PARTITION BY data->>'category'",
+            "ORDER BY occurred_at ASC",
+        ],
+    );
 }
 
 #[test]
@@ -285,13 +283,16 @@ fn test_last_value() {
 
     let sql = plan_and_generate_pg(&query);
 
-    assert_sql_contains(&sql, &[
-        "LAST_VALUE(revenue)",
-        "OVER",
-        "PARTITION BY data->>'category'",
-        "ORDER BY occurred_at ASC",
-        "ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING",
-    ]);
+    assert_sql_contains(
+        &sql,
+        &[
+            "LAST_VALUE(revenue)",
+            "OVER",
+            "PARTITION BY data->>'category'",
+            "ORDER BY occurred_at ASC",
+            "ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING",
+        ],
+    );
 }
 
 #[test]
@@ -314,12 +315,15 @@ fn test_nth_value() {
 
     let sql = plan_and_generate_pg(&query);
 
-    assert_sql_contains(&sql, &[
-        "NTH_VALUE(revenue, 3)",
-        "OVER",
-        "PARTITION BY data->>'category'",
-        "ORDER BY occurred_at ASC",
-    ]);
+    assert_sql_contains(
+        &sql,
+        &[
+            "NTH_VALUE(revenue, 3)",
+            "OVER",
+            "PARTITION BY data->>'category'",
+            "ORDER BY occurred_at ASC",
+        ],
+    );
 }
 
 // =============================================================================
@@ -350,13 +354,16 @@ fn test_running_total_sum() {
 
     let sql = plan_and_generate_pg(&query);
 
-    assert_sql_contains(&sql, &[
-        "SUM(revenue)",
-        "OVER",
-        "ORDER BY occurred_at ASC",
-        "ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW",
-        "AS running_total",
-    ]);
+    assert_sql_contains(
+        &sql,
+        &[
+            "SUM(revenue)",
+            "OVER",
+            "ORDER BY occurred_at ASC",
+            "ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW",
+            "AS running_total",
+        ],
+    );
 }
 
 #[test]
@@ -383,13 +390,16 @@ fn test_moving_average() {
 
     let sql = plan_and_generate_pg(&query);
 
-    assert_sql_contains(&sql, &[
-        "AVG(revenue)",
-        "OVER",
-        "ORDER BY occurred_at ASC",
-        "ROWS BETWEEN 2 PRECEDING AND CURRENT ROW",
-        "AS moving_avg_3",
-    ]);
+    assert_sql_contains(
+        &sql,
+        &[
+            "AVG(revenue)",
+            "OVER",
+            "ORDER BY occurred_at ASC",
+            "ROWS BETWEEN 2 PRECEDING AND CURRENT ROW",
+            "AS moving_avg_3",
+        ],
+    );
 }
 
 #[test]
@@ -414,12 +424,15 @@ fn test_running_count() {
 
     let sql = plan_and_generate_pg(&query);
 
-    assert_sql_contains(&sql, &[
-        "COUNT(*)",
-        "OVER",
-        "ORDER BY occurred_at ASC",
-        "ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW",
-    ]);
+    assert_sql_contains(
+        &sql,
+        &[
+            "COUNT(*)",
+            "OVER",
+            "ORDER BY occurred_at ASC",
+            "ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW",
+        ],
+    );
 }
 
 #[test]
@@ -455,13 +468,16 @@ fn test_running_min_max() {
 
     let sql = plan_and_generate_pg(&query);
 
-    assert_sql_contains(&sql, &[
-        "MIN(revenue)",
-        "MAX(revenue)",
-        "OVER",
-        "ORDER BY occurred_at ASC",
-        "ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW",
-    ]);
+    assert_sql_contains(
+        &sql,
+        &[
+            "MIN(revenue)",
+            "MAX(revenue)",
+            "OVER",
+            "ORDER BY occurred_at ASC",
+            "ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW",
+        ],
+    );
 }
 
 // =============================================================================
@@ -488,11 +504,14 @@ fn test_frame_rows_preceding_following() {
 
     let sql = plan_and_generate_pg(&query);
 
-    assert_sql_contains(&sql, &[
-        "AVG(revenue)",
-        "OVER",
-        "ROWS BETWEEN 3 PRECEDING AND 3 FOLLOWING",
-    ]);
+    assert_sql_contains(
+        &sql,
+        &[
+            "AVG(revenue)",
+            "OVER",
+            "ROWS BETWEEN 3 PRECEDING AND 3 FOLLOWING",
+        ],
+    );
 }
 
 #[test]
@@ -515,11 +534,14 @@ fn test_frame_range() {
 
     let sql = plan_and_generate_pg(&query);
 
-    assert_sql_contains(&sql, &[
-        "SUM(revenue)",
-        "OVER",
-        "RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW",
-    ]);
+    assert_sql_contains(
+        &sql,
+        &[
+            "SUM(revenue)",
+            "OVER",
+            "RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW",
+        ],
+    );
 }
 
 #[test]
@@ -542,11 +564,14 @@ fn test_frame_groups_postgres_only() {
 
     let sql = plan_and_generate_pg(&query);
 
-    assert_sql_contains(&sql, &[
-        "SUM(revenue)",
-        "OVER",
-        "GROUPS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW",
-    ]);
+    assert_sql_contains(
+        &sql,
+        &[
+            "SUM(revenue)",
+            "OVER",
+            "GROUPS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW",
+        ],
+    );
 }
 
 #[test]
@@ -570,12 +595,15 @@ fn test_frame_exclusion_postgres() {
 
     let sql = plan_and_generate_pg(&query);
 
-    assert_sql_contains(&sql, &[
-        "AVG(revenue)",
-        "OVER",
-        "ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING",
-        "EXCLUDE CURRENT ROW",
-    ]);
+    assert_sql_contains(
+        &sql,
+        &[
+            "AVG(revenue)",
+            "OVER",
+            "ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING",
+            "EXCLUDE CURRENT ROW",
+        ],
+    );
 }
 
 // =============================================================================
@@ -693,15 +721,18 @@ fn test_multiple_window_functions() {
 
     let sql = plan_and_generate_pg(&query);
 
-    assert_sql_contains(&sql, &[
-        "ROW_NUMBER()",
-        "SUM(revenue)",
-        "LAG(revenue, 1, 0)",
-        "PARTITION BY data->>'category'",
-        "AS row_num",
-        "AS running_total",
-        "AS prev_revenue",
-    ]);
+    assert_sql_contains(
+        &sql,
+        &[
+            "ROW_NUMBER()",
+            "SUM(revenue)",
+            "LAG(revenue, 1, 0)",
+            "PARTITION BY data->>'category'",
+            "AS row_num",
+            "AS running_total",
+            "AS prev_revenue",
+        ],
+    );
 }
 
 #[test]
@@ -721,13 +752,16 @@ fn test_window_with_limit_offset() {
 
     let sql = plan_and_generate_pg(&query);
 
-    assert_sql_contains(&sql, &[
-        "ROW_NUMBER()",
-        "OVER",
-        "ORDER BY revenue DESC",
-        "LIMIT 10",
-        "OFFSET 5",
-    ]);
+    assert_sql_contains(
+        &sql,
+        &[
+            "ROW_NUMBER()",
+            "OVER",
+            "ORDER BY revenue DESC",
+            "LIMIT 10",
+            "OFFSET 5",
+        ],
+    );
 }
 
 #[test]

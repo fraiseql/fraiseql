@@ -15,8 +15,11 @@
 
 use serde_json::Value;
 
+use super::ir::{
+    AuthoringIR, AutoParams, IRArgument, IRField, IRMutation, IRQuery, IRSubscription, IRType,
+    MutationOperation,
+};
 use crate::error::{FraiseQLError, Result};
-use super::ir::{AuthoringIR, IRType, IRQuery, IRMutation, IRSubscription, IRField, IRArgument, AutoParams, MutationOperation};
 
 /// Schema parser.
 ///
@@ -58,17 +61,15 @@ impl SchemaParser {
     /// ```
     pub fn parse(&self, schema_json: &str) -> Result<AuthoringIR> {
         // Parse JSON
-        let value: Value = serde_json::from_str(schema_json)
-            .map_err(|e| FraiseQLError::Parse {
-                message: format!("Failed to parse schema JSON: {e}"),
-                location: "root".to_string(),
-            })?;
+        let value: Value = serde_json::from_str(schema_json).map_err(|e| FraiseQLError::Parse {
+            message:  format!("Failed to parse schema JSON: {e}"),
+            location: "root".to_string(),
+        })?;
 
-        let obj = value.as_object()
-            .ok_or_else(|| FraiseQLError::Parse {
-                message: "Schema must be a JSON object".to_string(),
-                location: "root".to_string(),
-            })?;
+        let obj = value.as_object().ok_or_else(|| FraiseQLError::Parse {
+            message:  "Schema must be a JSON object".to_string(),
+            location: "root".to_string(),
+        })?;
 
         // Parse types
         let types = if let Some(types_val) = obj.get("types") {
@@ -100,9 +101,7 @@ impl SchemaParser {
 
         let fact_tables = if let Some(fact_tables_val) = obj.get("fact_tables") {
             if let Some(obj) = fact_tables_val.as_object() {
-                obj.iter()
-                    .map(|(k, v)| (k.clone(), v.clone()))
-                    .collect()
+                obj.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
             } else {
                 std::collections::HashMap::new()
             }
@@ -112,9 +111,9 @@ impl SchemaParser {
 
         Ok(AuthoringIR {
             types,
-            enums: Vec::new(), // TODO: Parse enums from JSON
-            interfaces: Vec::new(), // TODO: Parse interfaces from JSON
-            unions: Vec::new(), // TODO: Parse unions from JSON
+            enums: Vec::new(),       // TODO: Parse enums from JSON
+            interfaces: Vec::new(),  // TODO: Parse interfaces from JSON
+            unions: Vec::new(),      // TODO: Parse unions from JSON
             input_types: Vec::new(), // TODO: Parse input types from JSON
             queries,
             mutations,
@@ -124,28 +123,29 @@ impl SchemaParser {
     }
 
     fn parse_types(&self, value: &Value) -> Result<Vec<IRType>> {
-        let array = value.as_array()
-            .ok_or_else(|| FraiseQLError::Parse {
-                message: "types must be an array".to_string(),
-                location: "types".to_string(),
-            })?;
+        let array = value.as_array().ok_or_else(|| FraiseQLError::Parse {
+            message:  "types must be an array".to_string(),
+            location: "types".to_string(),
+        })?;
 
-        array.iter().enumerate().map(|(i, type_val)| {
-            self.parse_type(type_val, i)
-        }).collect()
+        array
+            .iter()
+            .enumerate()
+            .map(|(i, type_val)| self.parse_type(type_val, i))
+            .collect()
     }
 
     fn parse_type(&self, value: &Value, index: usize) -> Result<IRType> {
-        let obj = value.as_object()
-            .ok_or_else(|| FraiseQLError::Parse {
-                message: format!("Type at index {index} must be an object"),
-                location: format!("types[{index}]"),
-            })?;
+        let obj = value.as_object().ok_or_else(|| FraiseQLError::Parse {
+            message:  format!("Type at index {index} must be an object"),
+            location: format!("types[{index}]"),
+        })?;
 
-        let name = obj.get("name")
+        let name = obj
+            .get("name")
             .and_then(|v| v.as_str())
             .ok_or_else(|| FraiseQLError::Parse {
-                message: format!("Type at index {index} missing 'name' field"),
+                message:  format!("Type at index {index} missing 'name' field"),
                 location: format!("types[{index}].name"),
             })?
             .to_string();
@@ -165,43 +165,43 @@ impl SchemaParser {
     }
 
     fn parse_fields(&self, value: &Value, type_name: &str) -> Result<Vec<IRField>> {
-        let array = value.as_array()
-            .ok_or_else(|| FraiseQLError::Parse {
-                message: format!("fields for type {type_name} must be an array"),
-                location: format!("{type_name}.fields"),
-            })?;
+        let array = value.as_array().ok_or_else(|| FraiseQLError::Parse {
+            message:  format!("fields for type {type_name} must be an array"),
+            location: format!("{type_name}.fields"),
+        })?;
 
-        array.iter().enumerate().map(|(i, field_val)| {
-            self.parse_field(field_val, type_name, i)
-        }).collect()
+        array
+            .iter()
+            .enumerate()
+            .map(|(i, field_val)| self.parse_field(field_val, type_name, i))
+            .collect()
     }
 
     fn parse_field(&self, value: &Value, type_name: &str, index: usize) -> Result<IRField> {
-        let obj = value.as_object()
-            .ok_or_else(|| FraiseQLError::Parse {
-                message: format!("Field at index {index} in type {type_name} must be an object"),
-                location: format!("{type_name}.fields[{index}]"),
-            })?;
+        let obj = value.as_object().ok_or_else(|| FraiseQLError::Parse {
+            message:  format!("Field at index {index} in type {type_name} must be an object"),
+            location: format!("{type_name}.fields[{index}]"),
+        })?;
 
-        let name = obj.get("name")
+        let name = obj
+            .get("name")
             .and_then(|v| v.as_str())
             .ok_or_else(|| FraiseQLError::Parse {
-                message: format!("Field at index {index} in type {type_name} missing 'name'"),
+                message:  format!("Field at index {index} in type {type_name} missing 'name'"),
                 location: format!("{type_name}.fields[{index}].name"),
             })?
             .to_string();
 
-        let field_type = obj.get("type")
+        let field_type = obj
+            .get("type")
             .and_then(|v| v.as_str())
             .ok_or_else(|| FraiseQLError::Parse {
-                message: format!("Field '{name}' in type {type_name} missing 'type'"),
+                message:  format!("Field '{name}' in type {type_name} missing 'type'"),
                 location: format!("{type_name}.fields.{name}.type"),
             })?
             .to_string();
 
-        let nullable = obj.get("nullable")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(true);
+        let nullable = obj.get("nullable").and_then(|v| v.as_bool()).unwrap_or(true);
 
         Ok(IRField {
             name,
@@ -213,47 +213,45 @@ impl SchemaParser {
     }
 
     fn parse_queries(&self, value: &Value) -> Result<Vec<IRQuery>> {
-        let array = value.as_array()
-            .ok_or_else(|| FraiseQLError::Parse {
-                message: "queries must be an array".to_string(),
-                location: "queries".to_string(),
-            })?;
+        let array = value.as_array().ok_or_else(|| FraiseQLError::Parse {
+            message:  "queries must be an array".to_string(),
+            location: "queries".to_string(),
+        })?;
 
-        array.iter().enumerate().map(|(i, query_val)| {
-            self.parse_query(query_val, i)
-        }).collect()
+        array
+            .iter()
+            .enumerate()
+            .map(|(i, query_val)| self.parse_query(query_val, i))
+            .collect()
     }
 
     fn parse_query(&self, value: &Value, index: usize) -> Result<IRQuery> {
-        let obj = value.as_object()
-            .ok_or_else(|| FraiseQLError::Parse {
-                message: format!("Query at index {index} must be an object"),
-                location: format!("queries[{index}]"),
-            })?;
+        let obj = value.as_object().ok_or_else(|| FraiseQLError::Parse {
+            message:  format!("Query at index {index} must be an object"),
+            location: format!("queries[{index}]"),
+        })?;
 
-        let name = obj.get("name")
+        let name = obj
+            .get("name")
             .and_then(|v| v.as_str())
             .ok_or_else(|| FraiseQLError::Parse {
-                message: format!("Query at index {index} missing 'name'"),
+                message:  format!("Query at index {index} missing 'name'"),
                 location: format!("queries[{index}].name"),
             })?
             .to_string();
 
-        let return_type = obj.get("return_type")
+        let return_type = obj
+            .get("return_type")
             .and_then(|v| v.as_str())
             .ok_or_else(|| FraiseQLError::Parse {
-                message: format!("Query '{name}' missing 'return_type'"),
+                message:  format!("Query '{name}' missing 'return_type'"),
                 location: format!("queries.{name}.return_type"),
             })?
             .to_string();
 
-        let returns_list = obj.get("returns_list")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
+        let returns_list = obj.get("returns_list").and_then(|v| v.as_bool()).unwrap_or(false);
 
-        let nullable = obj.get("nullable")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
+        let nullable = obj.get("nullable").and_then(|v| v.as_bool()).unwrap_or(false);
 
         let arguments = if let Some(args_val) = obj.get("arguments") {
             self.parse_arguments(args_val, &name)?
@@ -280,43 +278,43 @@ impl SchemaParser {
     }
 
     fn parse_mutations(&self, value: &Value) -> Result<Vec<IRMutation>> {
-        let array = value.as_array()
-            .ok_or_else(|| FraiseQLError::Parse {
-                message: "mutations must be an array".to_string(),
-                location: "mutations".to_string(),
-            })?;
+        let array = value.as_array().ok_or_else(|| FraiseQLError::Parse {
+            message:  "mutations must be an array".to_string(),
+            location: "mutations".to_string(),
+        })?;
 
-        array.iter().enumerate().map(|(i, mutation_val)| {
-            self.parse_mutation(mutation_val, i)
-        }).collect()
+        array
+            .iter()
+            .enumerate()
+            .map(|(i, mutation_val)| self.parse_mutation(mutation_val, i))
+            .collect()
     }
 
     fn parse_mutation(&self, value: &Value, index: usize) -> Result<IRMutation> {
-        let obj = value.as_object()
-            .ok_or_else(|| FraiseQLError::Parse {
-                message: format!("Mutation at index {index} must be an object"),
-                location: format!("mutations[{index}]"),
-            })?;
+        let obj = value.as_object().ok_or_else(|| FraiseQLError::Parse {
+            message:  format!("Mutation at index {index} must be an object"),
+            location: format!("mutations[{index}]"),
+        })?;
 
-        let name = obj.get("name")
+        let name = obj
+            .get("name")
             .and_then(|v| v.as_str())
             .ok_or_else(|| FraiseQLError::Parse {
-                message: format!("Mutation at index {index} missing 'name'"),
+                message:  format!("Mutation at index {index} missing 'name'"),
                 location: format!("mutations[{index}].name"),
             })?
             .to_string();
 
-        let return_type = obj.get("return_type")
+        let return_type = obj
+            .get("return_type")
             .and_then(|v| v.as_str())
             .ok_or_else(|| FraiseQLError::Parse {
-                message: format!("Mutation '{name}' missing 'return_type'"),
+                message:  format!("Mutation '{name}' missing 'return_type'"),
                 location: format!("mutations.{name}.return_type"),
             })?
             .to_string();
 
-        let nullable = obj.get("nullable")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
+        let nullable = obj.get("nullable").and_then(|v| v.as_bool()).unwrap_or(false);
 
         let arguments = if let Some(args_val) = obj.get("arguments") {
             self.parse_arguments(args_val, &name)?
@@ -324,7 +322,8 @@ impl SchemaParser {
             Vec::new()
         };
 
-        let operation = obj.get("operation")
+        let operation = obj
+            .get("operation")
             .and_then(|v| v.as_str())
             .map(|s| match s {
                 "create" => MutationOperation::Create,
@@ -345,36 +344,38 @@ impl SchemaParser {
     }
 
     fn parse_subscriptions(&self, value: &Value) -> Result<Vec<IRSubscription>> {
-        let array = value.as_array()
-            .ok_or_else(|| FraiseQLError::Parse {
-                message: "subscriptions must be an array".to_string(),
-                location: "subscriptions".to_string(),
-            })?;
+        let array = value.as_array().ok_or_else(|| FraiseQLError::Parse {
+            message:  "subscriptions must be an array".to_string(),
+            location: "subscriptions".to_string(),
+        })?;
 
-        array.iter().enumerate().map(|(i, sub_val)| {
-            self.parse_subscription(sub_val, i)
-        }).collect()
+        array
+            .iter()
+            .enumerate()
+            .map(|(i, sub_val)| self.parse_subscription(sub_val, i))
+            .collect()
     }
 
     fn parse_subscription(&self, value: &Value, index: usize) -> Result<IRSubscription> {
-        let obj = value.as_object()
-            .ok_or_else(|| FraiseQLError::Parse {
-                message: format!("Subscription at index {index} must be an object"),
-                location: format!("subscriptions[{index}]"),
-            })?;
+        let obj = value.as_object().ok_or_else(|| FraiseQLError::Parse {
+            message:  format!("Subscription at index {index} must be an object"),
+            location: format!("subscriptions[{index}]"),
+        })?;
 
-        let name = obj.get("name")
+        let name = obj
+            .get("name")
             .and_then(|v| v.as_str())
             .ok_or_else(|| FraiseQLError::Parse {
-                message: format!("Subscription at index {index} missing 'name'"),
+                message:  format!("Subscription at index {index} missing 'name'"),
                 location: format!("subscriptions[{index}].name"),
             })?
             .to_string();
 
-        let return_type = obj.get("return_type")
+        let return_type = obj
+            .get("return_type")
             .and_then(|v| v.as_str())
             .ok_or_else(|| FraiseQLError::Parse {
-                message: format!("Subscription '{name}' missing 'return_type'"),
+                message:  format!("Subscription '{name}' missing 'return_type'"),
                 location: format!("subscriptions.{name}.return_type"),
             })?
             .to_string();
@@ -394,43 +395,43 @@ impl SchemaParser {
     }
 
     fn parse_arguments(&self, value: &Value, parent_name: &str) -> Result<Vec<IRArgument>> {
-        let array = value.as_array()
-            .ok_or_else(|| FraiseQLError::Parse {
-                message: format!("arguments for '{parent_name}' must be an array"),
-                location: format!("{parent_name}.arguments"),
-            })?;
+        let array = value.as_array().ok_or_else(|| FraiseQLError::Parse {
+            message:  format!("arguments for '{parent_name}' must be an array"),
+            location: format!("{parent_name}.arguments"),
+        })?;
 
-        array.iter().enumerate().map(|(i, arg_val)| {
-            self.parse_argument(arg_val, parent_name, i)
-        }).collect()
+        array
+            .iter()
+            .enumerate()
+            .map(|(i, arg_val)| self.parse_argument(arg_val, parent_name, i))
+            .collect()
     }
 
     fn parse_argument(&self, value: &Value, parent_name: &str, index: usize) -> Result<IRArgument> {
-        let obj = value.as_object()
-            .ok_or_else(|| FraiseQLError::Parse {
-                message: format!("Argument at index {index} for '{parent_name}' must be an object"),
-                location: format!("{parent_name}.arguments[{index}]"),
-            })?;
+        let obj = value.as_object().ok_or_else(|| FraiseQLError::Parse {
+            message:  format!("Argument at index {index} for '{parent_name}' must be an object"),
+            location: format!("{parent_name}.arguments[{index}]"),
+        })?;
 
-        let name = obj.get("name")
+        let name = obj
+            .get("name")
             .and_then(|v| v.as_str())
             .ok_or_else(|| FraiseQLError::Parse {
-                message: format!("Argument at index {index} for '{parent_name}' missing 'name'"),
+                message:  format!("Argument at index {index} for '{parent_name}' missing 'name'"),
                 location: format!("{parent_name}.arguments[{index}].name"),
             })?
             .to_string();
 
-        let arg_type = obj.get("type")
+        let arg_type = obj
+            .get("type")
             .and_then(|v| v.as_str())
             .ok_or_else(|| FraiseQLError::Parse {
-                message: format!("Argument '{name}' for '{parent_name}' missing 'type'"),
+                message:  format!("Argument '{name}' for '{parent_name}' missing 'type'"),
                 location: format!("{parent_name}.arguments.{name}.type"),
             })?
             .to_string();
 
-        let nullable = obj.get("nullable")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(true);
+        let nullable = obj.get("nullable").and_then(|v| v.as_bool()).unwrap_or(true);
 
         Ok(IRArgument {
             name,
@@ -442,17 +443,16 @@ impl SchemaParser {
     }
 
     fn parse_auto_params(&self, value: &Value) -> Result<AutoParams> {
-        let obj = value.as_object()
-            .ok_or_else(|| FraiseQLError::Parse {
-                message: "auto_params must be an object".to_string(),
-                location: "auto_params".to_string(),
-            })?;
+        let obj = value.as_object().ok_or_else(|| FraiseQLError::Parse {
+            message:  "auto_params must be an object".to_string(),
+            location: "auto_params".to_string(),
+        })?;
 
         Ok(AutoParams {
-            has_where: obj.get("has_where").and_then(|v| v.as_bool()).unwrap_or(false),
+            has_where:    obj.get("has_where").and_then(|v| v.as_bool()).unwrap_or(false),
             has_order_by: obj.get("has_order_by").and_then(|v| v.as_bool()).unwrap_or(false),
-            has_limit: obj.get("has_limit").and_then(|v| v.as_bool()).unwrap_or(false),
-            has_offset: obj.get("has_offset").and_then(|v| v.as_bool()).unwrap_or(false),
+            has_limit:    obj.get("has_limit").and_then(|v| v.as_bool()).unwrap_or(false),
+            has_offset:   obj.get("has_offset").and_then(|v| v.as_bool()).unwrap_or(false),
         })
     }
 }

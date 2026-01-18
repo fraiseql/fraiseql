@@ -96,10 +96,7 @@ impl PostgresProjectionGenerator {
             .collect();
 
         // Format: jsonb_build_object('field1', data->>'field1', 'field2', data->>'field2', ...)
-        Ok(format!(
-            "jsonb_build_object({})",
-            field_pairs.join(",")
-        ))
+        Ok(format!("jsonb_build_object({})", field_pairs.join(",")))
     }
 
     /// Generate complete SELECT clause with projection for a table.
@@ -217,7 +214,10 @@ impl MySqlProjectionGenerator {
             .iter()
             .map(|field| {
                 let safe_field = Self::escape_identifier(field);
-                format!("'{}', JSON_EXTRACT(`{}`, '$.{}')", safe_field, self.json_column, safe_field)
+                format!(
+                    "'{}', JSON_EXTRACT(`{}`, '$.{}')",
+                    safe_field, self.json_column, safe_field
+                )
             })
             .collect();
 
@@ -304,7 +304,10 @@ impl SqliteProjectionGenerator {
             .iter()
             .map(|field| {
                 let safe_field = Self::escape_identifier(field);
-                format!("'{}', json_extract(\"{}\", '$.{}')", safe_field, self.json_column, safe_field)
+                format!(
+                    "'{}', json_extract(\"{}\", '$.{}')",
+                    safe_field, self.json_column, safe_field
+                )
             })
             .collect();
 
@@ -356,11 +359,7 @@ mod tests {
     #[test]
     fn test_postgres_projection_multiple_fields() {
         let generator = PostgresProjectionGenerator::new();
-        let fields = vec![
-            "id".to_string(),
-            "name".to_string(),
-            "email".to_string(),
-        ];
+        let fields = vec!["id".to_string(), "name".to_string(), "email".to_string()];
 
         let sql = generator.generate_projection_sql(&fields).unwrap();
         assert!(sql.contains("jsonb_build_object("));
@@ -423,11 +422,7 @@ mod tests {
     #[test]
     fn test_mysql_projection_multiple_fields() {
         let generator = MySqlProjectionGenerator::new();
-        let fields = vec![
-            "id".to_string(),
-            "name".to_string(),
-            "email".to_string(),
-        ];
+        let fields = vec!["id".to_string(), "name".to_string(), "email".to_string()];
 
         let sql = generator.generate_projection_sql(&fields).unwrap();
         assert!(sql.contains("JSON_OBJECT("));
@@ -467,11 +462,7 @@ mod tests {
     #[test]
     fn test_sqlite_projection_multiple_fields() {
         let generator = SqliteProjectionGenerator::new();
-        let fields = vec![
-            "id".to_string(),
-            "name".to_string(),
-            "email".to_string(),
-        ];
+        let fields = vec!["id".to_string(), "name".to_string(), "email".to_string()];
 
         let sql = generator.generate_projection_sql(&fields).unwrap();
         assert!(sql.contains("json_object("));

@@ -2,14 +2,15 @@
 //!
 //! Provides bearer token authentication for protected endpoints.
 
+use std::sync::Arc;
+
 use axum::{
     body::Body,
     extract::State,
-    http::{header, Request, StatusCode},
+    http::{Request, StatusCode, header},
     middleware::Next,
     response::{IntoResponse, Response},
 };
-use std::sync::Arc;
 
 /// Shared state for bearer token authentication.
 #[derive(Clone)]
@@ -68,7 +69,7 @@ pub async fn bearer_auth_middleware(
                 "Missing Authorization header",
             )
                 .into_response();
-        }
+        },
         Some(header_value) => {
             // Check for "Bearer " prefix
             if !header_value.starts_with("Bearer ") {
@@ -87,7 +88,7 @@ pub async fn bearer_auth_middleware(
             if !constant_time_compare(token, &auth_state.token) {
                 return (StatusCode::FORBIDDEN, "Invalid token").into_response();
             }
-        }
+        },
     }
 
     // Token is valid, proceed with request
@@ -112,15 +113,16 @@ fn constant_time_compare(a: &str, b: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use axum::{
+        Router,
         body::Body,
         http::{Request, StatusCode},
         middleware,
         routing::get,
-        Router,
     };
     use tower::ServiceExt;
+
+    use super::*;
 
     async fn protected_handler() -> &'static str {
         "secret data"
@@ -131,10 +133,7 @@ mod tests {
 
         Router::new()
             .route("/protected", get(protected_handler))
-            .layer(middleware::from_fn_with_state(
-                auth_state,
-                bearer_auth_middleware,
-            ))
+            .layer(middleware::from_fn_with_state(auth_state, bearer_auth_middleware))
     }
 
     #[tokio::test]
@@ -156,10 +155,7 @@ mod tests {
     async fn test_missing_auth_header_returns_401() {
         let app = create_test_app("secret-token-12345");
 
-        let request = Request::builder()
-            .uri("/protected")
-            .body(Body::empty())
-            .unwrap();
+        let request = Request::builder().uri("/protected").body(Body::empty()).unwrap();
 
         let response = app.oneshot(request).await.unwrap();
 

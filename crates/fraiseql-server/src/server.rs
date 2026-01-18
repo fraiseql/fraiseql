@@ -1,38 +1,31 @@
 //! HTTP server implementation.
 
-use axum::{
-    middleware,
-    routing::get,
-    Router,
-};
-use fraiseql_core::{
-    db::traits::DatabaseAdapter,
-    runtime::Executor,
-    schema::CompiledSchema,
-    security::OidcValidator,
-};
 use std::sync::Arc;
+
+use axum::{Router, middleware, routing::get};
+use fraiseql_core::{
+    db::traits::DatabaseAdapter, runtime::Executor, schema::CompiledSchema, security::OidcValidator,
+};
 use tokio::net::TcpListener;
 use tracing::{info, warn};
 
 use crate::{
+    Result, ServerError,
     config::ServerConfig,
     middleware::{
-        bearer_auth_middleware, cors_layer, metrics_middleware, oidc_auth_middleware,
-        trace_layer, BearerAuthState, OidcAuthState,
+        BearerAuthState, OidcAuthState, bearer_auth_middleware, cors_layer, metrics_middleware,
+        oidc_auth_middleware, trace_layer,
     },
     routes::{
-        graphql::AppState, graphql_get_handler, graphql_handler, health_handler,
+        PlaygroundState, graphql::AppState, graphql_get_handler, graphql_handler, health_handler,
         introspection_handler, metrics_handler, metrics_json_handler, playground_handler,
-        PlaygroundState,
     },
-    Result, ServerError,
 };
 
 /// FraiseQL HTTP Server.
 pub struct Server<A: DatabaseAdapter> {
-    config: ServerConfig,
-    executor: Arc<Executor<A>>,
+    config:         ServerConfig,
+    executor:       Arc<Executor<A>>,
     oidc_validator: Option<Arc<OidcValidator>>,
 }
 
@@ -60,7 +53,11 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// let server = Server::new(config, schema, adapter).await?;
     /// server.serve().await?;
     /// ```
-    pub async fn new(config: ServerConfig, schema: CompiledSchema, adapter: Arc<A>) -> Result<Self> {
+    pub async fn new(
+        config: ServerConfig,
+        schema: CompiledSchema,
+        adapter: Arc<A>,
+    ) -> Result<Self> {
         let executor = Arc::new(Executor::new(schema, adapter));
 
         // Initialize OIDC validator if auth is configured
@@ -102,10 +99,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     &self.config.graphql_path,
                     get(graphql_get_handler::<A>).post(graphql_handler::<A>),
                 )
-                .route_layer(middleware::from_fn_with_state(
-                    auth_state,
-                    oidc_auth_middleware,
-                ))
+                .route_layer(middleware::from_fn_with_state(auth_state, oidc_auth_middleware))
                 .with_state(state.clone())
         } else {
             Router::new()
@@ -119,19 +113,14 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // Build base routes (always available without auth)
         let mut app = Router::new()
             .route(&self.config.health_path, get(health_handler::<A>))
-            .route(
-                &self.config.introspection_path,
-                get(introspection_handler::<A>),
-            )
+            .route(&self.config.introspection_path, get(introspection_handler::<A>))
             .with_state(state.clone())
             .merge(graphql_router);
 
         // Conditionally add playground route
         if self.config.playground_enabled {
-            let playground_state = PlaygroundState::new(
-                self.config.graphql_path.clone(),
-                self.config.playground_tool,
-            );
+            let playground_state =
+                PlaygroundState::new(self.config.graphql_path.clone(), self.config.playground_tool);
             info!(
                 playground_path = %self.config.playground_path,
                 playground_tool = ?self.config.playground_tool,
@@ -164,7 +153,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
                 app = app.merge(metrics_router);
             } else {
-                warn!("metrics_enabled is true but metrics_token is not set - metrics endpoints disabled");
+                warn!(
+                    "metrics_enabled is true but metrics_token is not set - metrics endpoints disabled"
+                );
             }
         }
 
@@ -202,10 +193,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             .await
             .map_err(|e| ServerError::BindError(e.to_string()))?;
 
-        info!(
-            "Server listening on http://{}",
-            self.config.bind_addr
-        );
+        info!("Server listening on http://{}", self.config.bind_addr);
 
         axum::serve(listener, app)
             .await

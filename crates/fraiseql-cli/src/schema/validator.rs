@@ -2,20 +2,22 @@
 //!
 //! Provides detailed validation error reporting with line numbers and context.
 
-use super::intermediate::IntermediateSchema;
-use anyhow::Result;
 use std::collections::HashSet;
+
+use anyhow::Result;
 use tracing::{debug, info};
+
+use super::intermediate::IntermediateSchema;
 
 /// Detailed validation error
 #[derive(Debug, Clone)]
 pub struct ValidationError {
     /// Error message
-    pub message: String,
+    pub message:    String,
     /// JSON path to the error (e.g., "queries[0].`return_type`")
-    pub path: String,
+    pub path:       String,
     /// Severity level
-    pub severity: ErrorSeverity,
+    pub severity:   ErrorSeverity,
     /// Suggested fix
     pub suggestion: Option<String>,
 }
@@ -44,9 +46,9 @@ impl SchemaValidator {
         for type_def in &schema.types {
             if type_names.contains(&type_def.name) {
                 report.errors.push(ValidationError {
-                    message: format!("Duplicate type name: '{}'", type_def.name),
-                    path: format!("types[{}].name", type_names.len()),
-                    severity: ErrorSeverity::Error,
+                    message:    format!("Duplicate type name: '{}'", type_def.name),
+                    path:       format!("types[{}].name", type_names.len()),
+                    severity:   ErrorSeverity::Error,
                     suggestion: Some("Type names must be unique".to_string()),
                 });
             }
@@ -68,9 +70,9 @@ impl SchemaValidator {
             // Check for duplicate query names
             if query_names.contains(&query.name) {
                 report.errors.push(ValidationError {
-                    message: format!("Duplicate query name: '{}'", query.name),
-                    path: format!("queries[{idx}].name"),
-                    severity: ErrorSeverity::Error,
+                    message:    format!("Duplicate query name: '{}'", query.name),
+                    path:       format!("queries[{idx}].name"),
+                    severity:   ErrorSeverity::Error,
                     suggestion: Some("Query names must be unique".to_string()),
                 });
             }
@@ -79,12 +81,12 @@ impl SchemaValidator {
             // Validate return type exists
             if !type_names.contains(&query.return_type) {
                 report.errors.push(ValidationError {
-                    message: format!(
+                    message:    format!(
                         "Query '{}' references unknown type '{}'",
                         query.name, query.return_type
                     ),
-                    path: format!("queries[{idx}].return_type"),
-                    severity: ErrorSeverity::Error,
+                    path:       format!("queries[{idx}].return_type"),
+                    severity:   ErrorSeverity::Error,
                     suggestion: Some(format!(
                         "Available types: {}",
                         Self::suggest_similar_type(&query.return_type, &type_names)
@@ -96,12 +98,12 @@ impl SchemaValidator {
             for (arg_idx, arg) in query.arguments.iter().enumerate() {
                 if !type_names.contains(&arg.arg_type) {
                     report.errors.push(ValidationError {
-                        message: format!(
+                        message:    format!(
                             "Query '{}' argument '{}' references unknown type '{}'",
                             query.name, arg.name, arg.arg_type
                         ),
-                        path: format!("queries[{idx}].arguments[{arg_idx}].type"),
-                        severity: ErrorSeverity::Error,
+                        path:       format!("queries[{idx}].arguments[{arg_idx}].type"),
+                        severity:   ErrorSeverity::Error,
                         suggestion: Some(format!(
                             "Available types: {}",
                             Self::suggest_similar_type(&arg.arg_type, &type_names)
@@ -113,9 +115,12 @@ impl SchemaValidator {
             // Warning for queries without SQL source
             if query.sql_source.is_none() && query.returns_list {
                 report.errors.push(ValidationError {
-                    message: format!("Query '{}' returns a list but has no sql_source", query.name),
-                    path: format!("queries[{idx}]"),
-                    severity: ErrorSeverity::Warning,
+                    message:    format!(
+                        "Query '{}' returns a list but has no sql_source",
+                        query.name
+                    ),
+                    path:       format!("queries[{idx}]"),
+                    severity:   ErrorSeverity::Warning,
                     suggestion: Some("Add sql_source for SQL-backed queries".to_string()),
                 });
             }
@@ -129,9 +134,9 @@ impl SchemaValidator {
             // Check for duplicate mutation names
             if mutation_names.contains(&mutation.name) {
                 report.errors.push(ValidationError {
-                    message: format!("Duplicate mutation name: '{}'", mutation.name),
-                    path: format!("mutations[{idx}].name"),
-                    severity: ErrorSeverity::Error,
+                    message:    format!("Duplicate mutation name: '{}'", mutation.name),
+                    path:       format!("mutations[{idx}].name"),
+                    severity:   ErrorSeverity::Error,
                     suggestion: Some("Mutation names must be unique".to_string()),
                 });
             }
@@ -140,12 +145,12 @@ impl SchemaValidator {
             // Validate return type exists
             if !type_names.contains(&mutation.return_type) {
                 report.errors.push(ValidationError {
-                    message: format!(
+                    message:    format!(
                         "Mutation '{}' references unknown type '{}'",
                         mutation.name, mutation.return_type
                     ),
-                    path: format!("mutations[{idx}].return_type"),
-                    severity: ErrorSeverity::Error,
+                    path:       format!("mutations[{idx}].return_type"),
+                    severity:   ErrorSeverity::Error,
                     suggestion: Some(format!(
                         "Available types: {}",
                         Self::suggest_similar_type(&mutation.return_type, &type_names)
@@ -157,12 +162,12 @@ impl SchemaValidator {
             for (arg_idx, arg) in mutation.arguments.iter().enumerate() {
                 if !type_names.contains(&arg.arg_type) {
                     report.errors.push(ValidationError {
-                        message: format!(
+                        message:    format!(
                             "Mutation '{}' argument '{}' references unknown type '{}'",
                             mutation.name, arg.name, arg.arg_type
                         ),
-                        path: format!("mutations[{idx}].arguments[{arg_idx}].type"),
-                        severity: ErrorSeverity::Error,
+                        path:       format!("mutations[{idx}].arguments[{arg_idx}].type"),
+                        severity:   ErrorSeverity::Error,
                         suggestion: Some(format!(
                             "Available types: {}",
                             Self::suggest_similar_type(&arg.arg_type, &type_names)
@@ -277,18 +282,18 @@ mod tests {
     #[test]
     fn test_validate_empty_schema() {
         let schema = IntermediateSchema {
-            version: "2.0.0".to_string(),
-            types: vec![],
-            enums: vec![],
-            input_types: vec![],
-            interfaces: vec![],
-            unions: vec![],
-            queries: vec![],
-            mutations: vec![],
-            subscriptions: vec![],
-            fragments: None,
-            directives: None,
-            fact_tables: None,
+            version:           "2.0.0".to_string(),
+            types:             vec![],
+            enums:             vec![],
+            input_types:       vec![],
+            interfaces:        vec![],
+            unions:            vec![],
+            queries:           vec![],
+            mutations:         vec![],
+            subscriptions:     vec![],
+            fragments:         None,
+            directives:        None,
+            fact_tables:       None,
             aggregate_queries: None,
         };
 
@@ -299,28 +304,28 @@ mod tests {
     #[test]
     fn test_detect_unknown_return_type() {
         let schema = IntermediateSchema {
-            version: "2.0.0".to_string(),
-            types: vec![],
-            enums: vec![],
-            input_types: vec![],
-            interfaces: vec![],
-            unions: vec![],
-            queries: vec![IntermediateQuery {
-                name: "users".to_string(),
-                return_type: "UnknownType".to_string(),
+            version:           "2.0.0".to_string(),
+            types:             vec![],
+            enums:             vec![],
+            input_types:       vec![],
+            interfaces:        vec![],
+            unions:            vec![],
+            queries:           vec![IntermediateQuery {
+                name:         "users".to_string(),
+                return_type:  "UnknownType".to_string(),
                 returns_list: true,
-                nullable: false,
-                arguments: vec![],
-                description: None,
-                sql_source: Some("users".to_string()),
-                auto_params: None,
-                deprecated: None,
+                nullable:     false,
+                arguments:    vec![],
+                description:  None,
+                sql_source:   Some("users".to_string()),
+                auto_params:  None,
+                deprecated:   None,
             }],
-            mutations: vec![],
-            subscriptions: vec![],
-            fragments: None,
-            directives: None,
-            fact_tables: None,
+            mutations:         vec![],
+            subscriptions:     vec![],
+            fragments:         None,
+            directives:        None,
+            fact_tables:       None,
             aggregate_queries: None,
         };
 
@@ -333,46 +338,46 @@ mod tests {
     #[test]
     fn test_detect_duplicate_query_names() {
         let schema = IntermediateSchema {
-            version: "2.0.0".to_string(),
-            types: vec![IntermediateType {
-                name: "User".to_string(),
-                fields: vec![],
+            version:           "2.0.0".to_string(),
+            types:             vec![IntermediateType {
+                name:        "User".to_string(),
+                fields:      vec![],
                 description: None,
-                implements: vec![],
+                implements:  vec![],
             }],
-            enums: vec![],
-            input_types: vec![],
-            interfaces: vec![],
-            unions: vec![],
-            queries: vec![
+            enums:             vec![],
+            input_types:       vec![],
+            interfaces:        vec![],
+            unions:            vec![],
+            queries:           vec![
                 IntermediateQuery {
-                    name: "users".to_string(),
-                    return_type: "User".to_string(),
+                    name:         "users".to_string(),
+                    return_type:  "User".to_string(),
                     returns_list: true,
-                    nullable: false,
-                    arguments: vec![],
-                    description: None,
-                    sql_source: Some("users".to_string()),
-                    auto_params: None,
-                    deprecated: None,
+                    nullable:     false,
+                    arguments:    vec![],
+                    description:  None,
+                    sql_source:   Some("users".to_string()),
+                    auto_params:  None,
+                    deprecated:   None,
                 },
                 IntermediateQuery {
-                    name: "users".to_string(), // Duplicate!
-                    return_type: "User".to_string(),
+                    name:         "users".to_string(), // Duplicate!
+                    return_type:  "User".to_string(),
                     returns_list: true,
-                    nullable: false,
-                    arguments: vec![],
-                    description: None,
-                    sql_source: Some("users".to_string()),
-                    auto_params: None,
-                    deprecated: None,
+                    nullable:     false,
+                    arguments:    vec![],
+                    description:  None,
+                    sql_source:   Some("users".to_string()),
+                    auto_params:  None,
+                    deprecated:   None,
                 },
             ],
-            mutations: vec![],
-            subscriptions: vec![],
-            fragments: None,
-            directives: None,
-            fact_tables: None,
+            mutations:         vec![],
+            subscriptions:     vec![],
+            fragments:         None,
+            directives:        None,
+            fact_tables:       None,
             aggregate_queries: None,
         };
 
@@ -384,33 +389,33 @@ mod tests {
     #[test]
     fn test_warning_for_query_without_sql_source() {
         let schema = IntermediateSchema {
-            version: "2.0.0".to_string(),
-            types: vec![IntermediateType {
-                name: "User".to_string(),
-                fields: vec![],
+            version:           "2.0.0".to_string(),
+            types:             vec![IntermediateType {
+                name:        "User".to_string(),
+                fields:      vec![],
                 description: None,
-                implements: vec![],
+                implements:  vec![],
             }],
-            enums: vec![],
-            input_types: vec![],
-            interfaces: vec![],
-            unions: vec![],
-            queries: vec![IntermediateQuery {
-                name: "users".to_string(),
-                return_type: "User".to_string(),
+            enums:             vec![],
+            input_types:       vec![],
+            interfaces:        vec![],
+            unions:            vec![],
+            queries:           vec![IntermediateQuery {
+                name:         "users".to_string(),
+                return_type:  "User".to_string(),
                 returns_list: true,
-                nullable: false,
-                arguments: vec![],
-                description: None,
-                sql_source: None, // Missing SQL source
-                auto_params: None,
-                deprecated: None,
+                nullable:     false,
+                arguments:    vec![],
+                description:  None,
+                sql_source:   None, // Missing SQL source
+                auto_params:  None,
+                deprecated:   None,
             }],
-            mutations: vec![],
-            subscriptions: vec![],
-            fragments: None,
-            directives: None,
-            fact_tables: None,
+            mutations:         vec![],
+            subscriptions:     vec![],
+            fragments:         None,
+            directives:        None,
+            fact_tables:       None,
             aggregate_queries: None,
         };
 

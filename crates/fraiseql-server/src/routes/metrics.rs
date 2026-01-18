@@ -11,27 +11,26 @@
 //! - HTTP responses (2xx, 4xx, 5xx)
 //! - Cache hit ratio
 
-use axum::{extract::State, response::IntoResponse, Json};
+use axum::{Json, extract::State, response::IntoResponse};
 use fraiseql_core::db::traits::DatabaseAdapter;
 use serde::Serialize;
 use tracing::debug;
 
-use crate::metrics::PrometheusMetrics;
-use crate::routes::graphql::AppState;
+use crate::{metrics::PrometheusMetrics, routes::graphql::AppState};
 
 /// Metrics response containing summary statistics.
 #[derive(Debug, Serialize)]
 pub struct MetricsResponse {
     /// Total GraphQL queries
-    pub queries_total: u64,
+    pub queries_total:         u64,
     /// Successfully executed queries
-    pub queries_success: u64,
+    pub queries_success:       u64,
     /// Failed queries
-    pub queries_error: u64,
+    pub queries_error:         u64,
     /// Average query duration (ms)
     pub avg_query_duration_ms: f64,
     /// Cache hit ratio (0-1)
-    pub cache_hit_ratio: f64,
+    pub cache_hit_ratio:       f64,
 }
 
 /// Metrics handler - returns Prometheus format metrics.
@@ -79,11 +78,11 @@ pub async fn metrics_json_handler<A: DatabaseAdapter + Clone + Send + Sync + 'st
     let prometheus_metrics = PrometheusMetrics::from(state.metrics.as_ref());
 
     let response = MetricsResponse {
-        queries_total: prometheus_metrics.queries_total,
-        queries_success: prometheus_metrics.queries_success,
-        queries_error: prometheus_metrics.queries_error,
+        queries_total:         prometheus_metrics.queries_total,
+        queries_success:       prometheus_metrics.queries_success,
+        queries_error:         prometheus_metrics.queries_error,
         avg_query_duration_ms: prometheus_metrics.queries_avg_duration_ms,
-        cache_hit_ratio: prometheus_metrics.cache_hit_ratio,
+        cache_hit_ratio:       prometheus_metrics.cache_hit_ratio,
     };
 
     Json(response)
@@ -96,11 +95,11 @@ mod tests {
     #[test]
     fn test_metrics_response_structure() {
         let response = MetricsResponse {
-            queries_total: 1000,
-            queries_success: 950,
-            queries_error: 50,
+            queries_total:         1000,
+            queries_success:       950,
+            queries_error:         50,
             avg_query_duration_ms: 12.5,
-            cache_hit_ratio: 0.75,
+            cache_hit_ratio:       0.75,
         };
 
         assert_eq!(response.queries_total, 1000);
@@ -113,11 +112,11 @@ mod tests {
     #[test]
     fn test_metrics_response_serialization() {
         let response = MetricsResponse {
-            queries_total: 100,
-            queries_success: 95,
-            queries_error: 5,
+            queries_total:         100,
+            queries_success:       95,
+            queries_error:         5,
             avg_query_duration_ms: 5.0,
-            cache_hit_ratio: 0.85,
+            cache_hit_ratio:       0.85,
         };
 
         let json = serde_json::to_string(&response).unwrap();

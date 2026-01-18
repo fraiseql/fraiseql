@@ -2,11 +2,11 @@
 //!
 //! Uses `PostgreSQL` `deadpool` for database operations
 
+use std::{sync::Arc, time::SystemTime};
+
 use chrono::{DateTime, Utc};
 use deadpool_postgres::Pool;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
-use std::time::SystemTime;
 
 /// Audit log levels
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -45,27 +45,27 @@ impl AuditLevel {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuditEntry {
     /// Entry ID (None for new entries)
-    pub id: Option<i64>,
+    pub id:          Option<i64>,
     /// Timestamp
-    pub timestamp: DateTime<Utc>,
+    pub timestamp:   DateTime<Utc>,
     /// Log level
-    pub level: AuditLevel,
+    pub level:       AuditLevel,
     /// User ID
-    pub user_id: i64,
+    pub user_id:     i64,
     /// Tenant ID
-    pub tenant_id: i64,
+    pub tenant_id:   i64,
     /// Operation type (query, mutation)
-    pub operation: String,
+    pub operation:   String,
     /// GraphQL query string
-    pub query: String,
+    pub query:       String,
     /// Query variables (JSONB)
-    pub variables: serde_json::Value,
+    pub variables:   serde_json::Value,
     /// Client IP address
-    pub ip_address: String,
+    pub ip_address:  String,
     /// Client user agent
-    pub user_agent: String,
+    pub user_agent:  String,
     /// Error message (if any)
-    pub error: Option<String>,
+    pub error:       Option<String>,
     /// Query duration in milliseconds (optional)
     pub duration_ms: Option<i32>,
 }
@@ -74,7 +74,7 @@ pub struct AuditEntry {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AuditStats {
     /// Total number of audit events recorded
-    pub total_events: u64,
+    pub total_events:  u64,
     /// Number of recent events (last 24 hours or recent window)
     pub recent_events: u64,
 }
@@ -168,9 +168,7 @@ impl AuditLogger {
                 ORDER BY timestamp DESC
                 LIMIT $3
             ";
-            client
-                .query(sql, &[&tenant_id, &lvl.as_str(), &limit])
-                .await?
+            client.query(sql, &[&tenant_id, &lvl.as_str(), &limit]).await?
         } else {
             let sql = r"
                 SELECT id, timestamp, level, user_id, tenant_id, operation,

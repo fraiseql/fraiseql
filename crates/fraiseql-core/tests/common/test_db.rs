@@ -3,13 +3,14 @@
 //! These helpers are shared across multiple test files, so not all may be used by every test.
 #![allow(dead_code)]
 
-use fraiseql_core::compiler::fact_table::{
-    FactTableMetadata, MeasureColumn, DimensionColumn, FilterColumn, SqlType, DimensionPath,
-};
-use fraiseql_core::db::postgres::PostgresAdapter;
-use fraiseql_core::db::traits::DatabaseAdapter;
-use fraiseql_core::db::types::DatabaseType;
 use std::sync::Arc;
+
+use fraiseql_core::{
+    compiler::fact_table::{
+        DimensionColumn, DimensionPath, FactTableMetadata, FilterColumn, MeasureColumn, SqlType,
+    },
+    db::{postgres::PostgresAdapter, traits::DatabaseAdapter, types::DatabaseType},
+};
 
 /// Test database connection URL
 pub const TEST_DB_URL: &str = "postgresql://fraiseql:fraiseql_password@localhost:5432/fraiseql";
@@ -31,7 +32,10 @@ impl TestDatabase {
     }
 
     /// Setup fact table schema
-    pub async fn setup_fact_table(&self, table_name: &str) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn setup_fact_table(
+        &self,
+        table_name: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let sql = format!(
             r#"
             DROP TABLE IF EXISTS {table_name} CASCADE;
@@ -69,14 +73,17 @@ impl TestDatabase {
                 table_name = table_name
             );
 
-            let _params = [serde_json::json!(row.revenue),
+            let _params = [
+                serde_json::json!(row.revenue),
                 serde_json::json!(row.quantity),
                 row.data.clone(),
                 serde_json::json!(row.customer_id),
-                serde_json::json!(row.occurred_at)];
+                serde_json::json!(row.occurred_at),
+            ];
 
-            // Note: execute_raw_query doesn't support parameters, would need execute_parameterized for real use
-            let sql_with_values = sql.clone();  // For now, simple implementation
+            // Note: execute_raw_query doesn't support parameters, would need execute_parameterized
+            // for real use
+            let sql_with_values = sql.clone(); // For now, simple implementation
             self.adapter.execute_raw_query(&sql_with_values).await?;
         }
 
@@ -97,9 +104,9 @@ impl TestDatabase {
 /// Test data row
 #[derive(Debug, Clone)]
 pub struct TestRow {
-    pub revenue: f64,
-    pub quantity: i32,
-    pub data: serde_json::Value,
+    pub revenue:     f64,
+    pub quantity:    i32,
+    pub data:        serde_json::Value,
     pub customer_id: String,
     pub occurred_at: String,
 }
@@ -151,29 +158,29 @@ pub fn generate_test_data(count: usize) -> Vec<TestRow> {
 /// Create standard sales metadata for testing
 pub fn create_sales_metadata() -> FactTableMetadata {
     FactTableMetadata {
-        table_name: "tf_sales".to_string(),
-        measures: vec![
+        table_name:           "tf_sales".to_string(),
+        measures:             vec![
             MeasureColumn {
-                name: "revenue".to_string(),
+                name:     "revenue".to_string(),
                 sql_type: SqlType::Decimal,
                 nullable: false,
             },
             MeasureColumn {
-                name: "quantity".to_string(),
+                name:     "quantity".to_string(),
                 sql_type: SqlType::Int,
                 nullable: false,
             },
         ],
-        dimensions: DimensionColumn {
-            name: "data".to_string(),
+        dimensions:           DimensionColumn {
+            name:  "data".to_string(),
             paths: vec![
                 DimensionPath {
-                    name: "category".to_string(),
+                    name:      "category".to_string(),
                     json_path: "data->>'category'".to_string(),
                     data_type: "text".to_string(),
                 },
                 DimensionPath {
-                    name: "region".to_string(),
+                    name:      "region".to_string(),
                     json_path: "data->>'region'".to_string(),
                     data_type: "text".to_string(),
                 },
@@ -181,16 +188,16 @@ pub fn create_sales_metadata() -> FactTableMetadata {
         },
         denormalized_filters: vec![
             FilterColumn {
-                name: "customer_id".to_string(),
+                name:     "customer_id".to_string(),
                 sql_type: SqlType::Text,
-                indexed: true,
+                indexed:  true,
             },
             FilterColumn {
-                name: "occurred_at".to_string(),
+                name:     "occurred_at".to_string(),
                 sql_type: SqlType::Timestamp,
-                indexed: true,
+                indexed:  true,
             },
         ],
-        calendar_dimensions: vec![],
+        calendar_dimensions:  vec![],
     }
 }

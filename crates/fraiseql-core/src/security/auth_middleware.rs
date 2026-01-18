@@ -52,11 +52,13 @@
 //! println!("Expires: {}", user.expires_at);
 //! ```
 
-use crate::security::errors::{Result, SecurityError};
-use chrono::{DateTime, Utc};
-use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
-use serde::{Deserialize, Serialize};
 use std::fmt;
+
+use chrono::{DateTime, Utc};
+use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode};
+use serde::{Deserialize, Serialize};
+
+use crate::security::errors::{Result, SecurityError};
 
 // ============================================================================
 // Signing Key Configuration
@@ -150,17 +152,15 @@ impl SigningKey {
         match self {
             Self::Hs256(secret) | Self::Hs384(secret) | Self::Hs512(secret) => {
                 Ok(DecodingKey::from_secret(secret))
-            }
+            },
             Self::Rs256Pem(pem) | Self::Rs384Pem(pem) | Self::Rs512Pem(pem) => {
                 DecodingKey::from_rsa_pem(pem.as_bytes()).map_err(|e| {
                     SecurityError::SecurityConfigError(format!("Invalid RSA PEM key: {e}"))
                 })
-            }
-            Self::Rs256Components { n, e } => {
-                DecodingKey::from_rsa_components(n, e).map_err(|e| {
-                    SecurityError::SecurityConfigError(format!("Invalid RSA components: {e}"))
-                })
-            }
+            },
+            Self::Rs256Components { n, e } => DecodingKey::from_rsa_components(n, e).map_err(|e| {
+                SecurityError::SecurityConfigError(format!("Invalid RSA components: {e}"))
+            }),
         }
     }
 }
@@ -220,12 +220,12 @@ impl AuthConfig {
     #[must_use]
     pub fn permissive() -> Self {
         Self {
-            required: false,
+            required:          false,
             token_expiry_secs: 3600,
-            signing_key: None,
-            issuer: None,
-            audience: None,
-            clock_skew_secs: default_clock_skew(),
+            signing_key:       None,
+            issuer:            None,
+            audience:          None,
+            clock_skew_secs:   default_clock_skew(),
         }
     }
 
@@ -237,12 +237,12 @@ impl AuthConfig {
     #[must_use]
     pub fn standard() -> Self {
         Self {
-            required: true,
+            required:          true,
             token_expiry_secs: 3600,
-            signing_key: None,
-            issuer: None,
-            audience: None,
-            clock_skew_secs: default_clock_skew(),
+            signing_key:       None,
+            issuer:            None,
+            audience:          None,
+            clock_skew_secs:   default_clock_skew(),
         }
     }
 
@@ -254,12 +254,12 @@ impl AuthConfig {
     #[must_use]
     pub fn strict() -> Self {
         Self {
-            required: true,
+            required:          true,
             token_expiry_secs: 1800,
-            signing_key: None,
-            issuer: None,
-            audience: None,
-            clock_skew_secs: default_clock_skew(),
+            signing_key:       None,
+            issuer:            None,
+            audience:          None,
+            clock_skew_secs:   default_clock_skew(),
         }
     }
 
@@ -270,12 +270,12 @@ impl AuthConfig {
     #[must_use]
     pub fn with_hs256(secret: &str) -> Self {
         Self {
-            required: true,
+            required:          true,
             token_expiry_secs: 3600,
-            signing_key: Some(SigningKey::hs256(secret)),
-            issuer: None,
-            audience: None,
-            clock_skew_secs: default_clock_skew(),
+            signing_key:       Some(SigningKey::hs256(secret)),
+            issuer:            None,
+            audience:          None,
+            clock_skew_secs:   default_clock_skew(),
         }
     }
 
@@ -286,12 +286,12 @@ impl AuthConfig {
     #[must_use]
     pub fn with_rs256_pem(pem: &str) -> Self {
         Self {
-            required: true,
+            required:          true,
             token_expiry_secs: 3600,
-            signing_key: Some(SigningKey::rs256_pem(pem)),
-            issuer: None,
-            audience: None,
-            clock_skew_secs: default_clock_skew(),
+            signing_key:       Some(SigningKey::rs256_pem(pem)),
+            issuer:            None,
+            audience:          None,
+            clock_skew_secs:   default_clock_skew(),
         }
     }
 
@@ -387,10 +387,7 @@ impl AuthRequest {
     ///
     /// Returns Ok(token) if valid format, Err otherwise
     pub fn extract_bearer_token(&self) -> Result<String> {
-        let header = self
-            .authorization_header
-            .as_ref()
-            .ok_or(SecurityError::AuthRequired)?;
+        let header = self.authorization_header.as_ref().ok_or(SecurityError::AuthRequired)?;
 
         if !header.starts_with("Bearer ") {
             return Err(SecurityError::AuthRequired);
@@ -565,7 +562,7 @@ impl AuthMiddleware {
                     SecurityError::TokenExpired {
                         expired_at: Utc::now(), // Approximate - actual time is not accessible
                     }
-                }
+                },
                 jsonwebtoken::errors::ErrorKind::InvalidSignature => SecurityError::InvalidToken,
                 jsonwebtoken::errors::ErrorKind::InvalidIssuer => SecurityError::InvalidToken,
                 jsonwebtoken::errors::ErrorKind::InvalidAudience => SecurityError::InvalidToken,
@@ -573,12 +570,12 @@ impl AuthMiddleware {
                     SecurityError::InvalidTokenAlgorithm {
                         algorithm: format!("{:?}", signing_key.algorithm()),
                     }
-                }
+                },
                 jsonwebtoken::errors::ErrorKind::MissingRequiredClaim(claim) => {
                     SecurityError::TokenMissingClaim {
                         claim: claim.clone(),
                     }
-                }
+                },
                 _ => SecurityError::InvalidToken,
             }
         })?;
@@ -746,11 +743,9 @@ impl AuthMiddleware {
         let sub = json["sub"].as_str().map(String::from);
         let exp = json["exp"].as_i64();
         let scope = json["scope"].as_str().map(String::from);
-        let aud = json["aud"].as_array().map(|arr| {
-            arr.iter()
-                .filter_map(|v| v.as_str().map(String::from))
-                .collect()
-        });
+        let aud = json["aud"]
+            .as_array()
+            .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect());
         let iss = json["iss"].as_str().map(String::from);
 
         TokenClaims {
@@ -1070,8 +1065,8 @@ mod tests {
     #[test]
     fn test_user_has_scope() {
         let user = AuthenticatedUser {
-            user_id: "user123".to_string(),
-            scopes: vec!["read".to_string(), "write".to_string()],
+            user_id:    "user123".to_string(),
+            scopes:     vec!["read".to_string(), "write".to_string()],
             expires_at: Utc::now() + chrono::Duration::hours(1),
         };
 
@@ -1083,8 +1078,8 @@ mod tests {
     #[test]
     fn test_user_is_not_expired() {
         let user = AuthenticatedUser {
-            user_id: "user123".to_string(),
-            scopes: vec![],
+            user_id:    "user123".to_string(),
+            scopes:     vec![],
             expires_at: Utc::now() + chrono::Duration::hours(1),
         };
 
@@ -1094,8 +1089,8 @@ mod tests {
     #[test]
     fn test_user_is_expired() {
         let user = AuthenticatedUser {
-            user_id: "user123".to_string(),
-            scopes: vec![],
+            user_id:    "user123".to_string(),
+            scopes:     vec![],
             expires_at: Utc::now() - chrono::Duration::hours(1),
         };
 
@@ -1120,8 +1115,8 @@ mod tests {
     #[test]
     fn test_user_display() {
         let user = AuthenticatedUser {
-            user_id: "user123".to_string(),
-            scopes: vec![],
+            user_id:    "user123".to_string(),
+            scopes:     vec![],
             expires_at: Utc::now() + chrono::Duration::hours(1),
         };
 
@@ -1203,16 +1198,16 @@ mod tests {
         scope: Option<&str>,
         secret: &str,
     ) -> String {
-        use jsonwebtoken::{encode, EncodingKey, Header};
+        use jsonwebtoken::{EncodingKey, Header, encode};
 
         let now = chrono::Utc::now().timestamp();
         let exp = now + exp_offset_secs;
 
         #[derive(serde::Serialize)]
         struct Claims {
-            sub: String,
-            exp: i64,
-            iat: i64,
+            sub:   String,
+            exp:   i64,
+            iat:   i64,
             #[serde(skip_serializing_if = "Option::is_none")]
             scope: Option<String>,
         }
@@ -1290,7 +1285,7 @@ mod tests {
     #[test]
     #[allow(clippy::items_after_statements)]
     fn test_hs256_with_issuer_validation() {
-        use jsonwebtoken::{encode, EncodingKey, Header};
+        use jsonwebtoken::{EncodingKey, Header, encode};
 
         #[derive(serde::Serialize)]
         struct ClaimsWithIss {
@@ -1311,12 +1306,9 @@ mod tests {
             iss: "https://auth.example.com".to_string(),
         };
 
-        let token = encode(
-            &Header::default(),
-            &claims,
-            &EncodingKey::from_secret(secret.as_bytes()),
-        )
-        .unwrap();
+        let token =
+            encode(&Header::default(), &claims, &EncodingKey::from_secret(secret.as_bytes()))
+                .unwrap();
 
         let req = AuthRequest::new(Some(format!("Bearer {token}")));
         let result = middleware.validate_request(&req);
@@ -1326,7 +1318,7 @@ mod tests {
     #[test]
     #[allow(clippy::items_after_statements)]
     fn test_hs256_with_wrong_issuer_rejected() {
-        use jsonwebtoken::{encode, EncodingKey, Header};
+        use jsonwebtoken::{EncodingKey, Header, encode};
 
         #[derive(serde::Serialize)]
         struct ClaimsWithIss {
@@ -1347,12 +1339,9 @@ mod tests {
             iss: "https://wrong-issuer.com".to_string(),
         };
 
-        let token = encode(
-            &Header::default(),
-            &claims,
-            &EncodingKey::from_secret(secret.as_bytes()),
-        )
-        .unwrap();
+        let token =
+            encode(&Header::default(), &claims, &EncodingKey::from_secret(secret.as_bytes()))
+                .unwrap();
 
         let req = AuthRequest::new(Some(format!("Bearer {token}")));
         let result = middleware.validate_request(&req);
@@ -1366,7 +1355,7 @@ mod tests {
     #[test]
     #[allow(clippy::items_after_statements)]
     fn test_hs256_with_audience_validation() {
-        use jsonwebtoken::{encode, EncodingKey, Header};
+        use jsonwebtoken::{EncodingKey, Header, encode};
 
         #[derive(serde::Serialize)]
         struct ClaimsWithAud {
@@ -1387,12 +1376,9 @@ mod tests {
             aud: "my-api".to_string(),
         };
 
-        let token = encode(
-            &Header::default(),
-            &claims,
-            &EncodingKey::from_secret(secret.as_bytes()),
-        )
-        .unwrap();
+        let token =
+            encode(&Header::default(), &claims, &EncodingKey::from_secret(secret.as_bytes()))
+                .unwrap();
 
         let req = AuthRequest::new(Some(format!("Bearer {token}")));
         let result = middleware.validate_request(&req);

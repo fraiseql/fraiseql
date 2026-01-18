@@ -3,15 +3,16 @@
 //! Provides JWT authentication for GraphQL endpoints using OIDC discovery.
 //! Supports Auth0, Keycloak, Okta, Cognito, Azure AD, and any OIDC-compliant provider.
 
+use std::sync::Arc;
+
 use axum::{
     body::Body,
     extract::State,
-    http::{header, Request, StatusCode},
+    http::{Request, StatusCode, header},
     middleware::Next,
     response::{IntoResponse, Response},
 };
 use fraiseql_core::security::{AuthenticatedUser, OidcValidator};
-use std::sync::Arc;
 
 /// State for OIDC authentication middleware.
 #[derive(Clone)]
@@ -74,14 +75,17 @@ pub async fn oidc_auth_middleware(
                 tracing::debug!("Authentication required but no Authorization header");
                 return (
                     StatusCode::UNAUTHORIZED,
-                    [(header::WWW_AUTHENTICATE, format!("Bearer realm=\"{}\"", auth_state.validator.issuer()))],
+                    [(
+                        header::WWW_AUTHENTICATE,
+                        format!("Bearer realm=\"{}\"", auth_state.validator.issuer()),
+                    )],
                     "Authentication required",
                 )
                     .into_response();
             }
             // Auth is optional, continue without user context
             next.run(request).await
-        }
+        },
         Some(header_value) => {
             // Extract bearer token
             if !header_value.starts_with("Bearer ") {
@@ -107,16 +111,16 @@ pub async fn oidc_auth_middleware(
                     // Add authenticated user to request extensions
                     request.extensions_mut().insert(AuthUser(user));
                     next.run(request).await
-                }
+                },
                 Err(e) => {
                     tracing::debug!(error = %e, "Token validation failed");
                     let error_description = match &e {
                         fraiseql_core::security::SecurityError::TokenExpired { .. } => {
                             "Bearer error=\"invalid_token\", error_description=\"Token has expired\""
-                        }
+                        },
                         fraiseql_core::security::SecurityError::InvalidToken => {
                             "Bearer error=\"invalid_token\", error_description=\"Token is invalid\""
-                        }
+                        },
                         _ => "Bearer error=\"invalid_token\"",
                     };
                     (
@@ -125,9 +129,9 @@ pub async fn oidc_auth_middleware(
                         "Invalid or expired token",
                     )
                         .into_response()
-                }
+                },
             }
-        }
+        },
     }
 }
 
@@ -140,8 +144,8 @@ mod tests {
         use chrono::Utc;
 
         let user = AuthenticatedUser {
-            user_id: "user123".to_string(),
-            scopes: vec!["read".to_string()],
+            user_id:    "user123".to_string(),
+            scopes:     vec!["read".to_string()],
             expires_at: Utc::now(),
         };
 

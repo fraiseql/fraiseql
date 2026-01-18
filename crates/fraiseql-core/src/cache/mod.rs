@@ -190,16 +190,14 @@ pub use adapter::CachedDatabaseAdapter;
 pub use cascade_metadata::CascadeMetadata;
 pub use cascade_response_parser::CascadeResponseParser;
 pub use config::CacheConfig;
+// Export dependency tracker (used in doctests and advanced use cases)
+pub use dependency_tracker::DependencyTracker;
 pub use entity_key::EntityKey;
 pub use fact_table_version::{
-    FactTableCacheConfig, FactTableVersionProvider, FactTableVersionStrategy,
-    VERSION_TABLE_SCHEMA,
+    FactTableCacheConfig, FactTableVersionProvider, FactTableVersionStrategy, VERSION_TABLE_SCHEMA,
 };
 pub use invalidation::{InvalidationContext, InvalidationReason};
 pub use key::{extract_accessed_views, generate_cache_key};
 pub use query_analyzer::{QueryAnalyzer, QueryCardinality, QueryEntityProfile};
 pub use result::{CacheMetrics, CachedResult, QueryResultCache};
 pub use uuid_extractor::UUIDExtractor;
-
-// Export dependency tracker (used in doctests and advanced use cases)
-pub use dependency_tracker::DependencyTracker;

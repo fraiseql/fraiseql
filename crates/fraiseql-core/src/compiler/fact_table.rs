@@ -6,7 +6,8 @@
 //! # Fact Table Pattern
 //!
 //! - **Table naming**: `tf_*` prefix (table fact)
-//! - **Measures**: SQL columns with numeric types (INT, BIGINT, DECIMAL, FLOAT) - for fast aggregation
+//! - **Measures**: SQL columns with numeric types (INT, BIGINT, DECIMAL, FLOAT) - for fast
+//!   aggregation
 //! - **Dimensions**: JSONB `data` column - for flexible GROUP BY
 //! - **Denormalized filters**: Indexed SQL columns (customer_id, occurred_at) - for fast WHERE
 //!
@@ -34,9 +35,10 @@
 //! );
 //! ```
 
-use crate::error::{FraiseQLError, Result};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+
+use crate::error::{FraiseQLError, Result};
 
 /// Database introspection trait for querying table metadata
 #[async_trait]
@@ -65,7 +67,11 @@ pub trait DatabaseIntrospector: Send + Sync {
     ///
     /// Default implementation returns None. Implementations should override
     /// to query the database for actual sample data.
-    async fn get_sample_jsonb(&self, _table_name: &str, _column_name: &str) -> Result<Option<serde_json::Value>> {
+    async fn get_sample_jsonb(
+        &self,
+        _table_name: &str,
+        _column_name: &str,
+    ) -> Result<Option<serde_json::Value>> {
         Ok(None)
     }
 }
@@ -90,22 +96,22 @@ pub struct FactTableDetector;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FactTableMetadata {
     /// Table name (e.g., "tf_sales")
-    pub table_name: String,
+    pub table_name:           String,
     /// Measures (aggregatable numeric columns)
-    pub measures: Vec<MeasureColumn>,
+    pub measures:             Vec<MeasureColumn>,
     /// Dimension column (JSONB)
-    pub dimensions: DimensionColumn,
+    pub dimensions:           DimensionColumn,
     /// Denormalized filter columns
     pub denormalized_filters: Vec<FilterColumn>,
     /// Calendar dimensions for optimized temporal aggregations
-    pub calendar_dimensions: Vec<CalendarDimension>,
+    pub calendar_dimensions:  Vec<CalendarDimension>,
 }
 
 /// A measure column (aggregatable numeric type)
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MeasureColumn {
     /// Column name (e.g., "revenue")
-    pub name: String,
+    pub name:     String,
     /// SQL data type
     pub sql_type: SqlType,
     /// Is nullable
@@ -145,7 +151,7 @@ pub enum SqlType {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DimensionColumn {
     /// Column name (default: "dimensions" for fact tables)
-    pub name: String,
+    pub name:  String,
     /// Detected dimension paths (optional, extracted from sample data)
     pub paths: Vec<DimensionPath>,
 }
@@ -154,7 +160,7 @@ pub struct DimensionColumn {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DimensionPath {
     /// Path name (e.g., "category")
-    pub name: String,
+    pub name:      String,
     /// JSON path (e.g., "dimensions->>'category'" for PostgreSQL)
     pub json_path: String,
     /// Data type hint
@@ -169,8 +175,10 @@ pub struct DimensionPath {
 ///
 /// # Multi-Column Pattern
 ///
-/// - 7 JSONB columns: date_info, week_info, month_info, quarter_info, semester_info, year_info, decade_info
-/// - Each contains hierarchical temporal buckets (e.g., date_info has: date, week, month, quarter, year)
+/// - 7 JSONB columns: date_info, week_info, month_info, quarter_info, semester_info, year_info,
+///   decade_info
+/// - Each contains hierarchical temporal buckets (e.g., date_info has: date, week, month, quarter,
+///   year)
 /// - Pre-populated by user's ETL (FraiseQL reads, doesn't populate)
 ///
 /// # Example
@@ -221,11 +229,11 @@ pub struct CalendarBucket {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FilterColumn {
     /// Column name (e.g., "customer_id")
-    pub name: String,
+    pub name:     String,
     /// SQL data type
     pub sql_type: SqlType,
     /// Is indexed (for performance)
-    pub indexed: bool,
+    pub indexed:  bool,
 }
 
 impl FactTableDetector {
@@ -286,7 +294,7 @@ impl FactTableDetector {
                     "Table '{}' is not a fact table (must start with 'tf_')",
                     table_name
                 ),
-                path: None,
+                path:    None,
             });
         }
 
@@ -295,14 +303,13 @@ impl FactTableDetector {
         if columns.is_empty() {
             return Err(FraiseQLError::Validation {
                 message: format!("Table '{}' not found or has no columns", table_name),
-                path: None,
+                path:    None,
             });
         }
 
         // Query indexed columns
         let indexed_columns = introspector.get_indexed_columns(table_name).await?;
-        let indexed_set: std::collections::HashSet<String> =
-            indexed_columns.into_iter().collect();
+        let indexed_set: std::collections::HashSet<String> = indexed_columns.into_iter().collect();
 
         // Parse SQL types based on database
         let db_type = introspector.database_type();
@@ -317,7 +324,9 @@ impl FactTableDetector {
             match sql_type {
                 SqlType::Jsonb | SqlType::Json => {
                     // This is the dimension column - try to extract paths from sample data
-                    let paths = if let Ok(Some(sample)) = introspector.get_sample_jsonb(table_name, name).await {
+                    let paths = if let Ok(Some(sample)) =
+                        introspector.get_sample_jsonb(table_name, name).await
+                    {
                         Self::extract_dimension_paths(&sample, name, db_type)
                     } else {
                         Vec::new()
@@ -326,12 +335,12 @@ impl FactTableDetector {
                         name: name.clone(),
                         paths,
                     });
-                }
+                },
                 SqlType::Int | SqlType::BigInt | SqlType::Decimal | SqlType::Float => {
                     // Skip common non-measure columns
                     if name != "id" && !name.ends_with("_id") {
                         measures.push(MeasureColumn {
-                            name: name.clone(),
+                            name:     name.clone(),
                             sql_type: sql_type.clone(),
                             nullable: *is_nullable,
                         });
@@ -340,12 +349,12 @@ impl FactTableDetector {
                     // Check if it's a denormalized filter
                     if name.ends_with("_id") && indexed_set.contains(name.as_str()) {
                         filters.push(FilterColumn {
-                            name: name.clone(),
+                            name:     name.clone(),
                             sql_type: sql_type.clone(),
-                            indexed: true,
+                            indexed:  true,
                         });
                     }
-                }
+                },
                 _ => {
                     // Other types might be denormalized filters
                     if name != "id"
@@ -368,7 +377,7 @@ impl FactTableDetector {
                             indexed: true,
                         });
                     }
-                }
+                },
             }
         }
 
@@ -379,7 +388,7 @@ impl FactTableDetector {
             table_name: table_name.to_string(),
             measures,
             dimensions: dimension_column.unwrap_or(DimensionColumn {
-                name: "dimensions".to_string(),
+                name:  "dimensions".to_string(),
                 paths: Vec::new(),
             }),
             denormalized_filters: filters,
@@ -416,7 +425,7 @@ impl FactTableDetector {
                     "Fact table '{}' must have at least one measure column",
                     metadata.table_name
                 ),
-                path: None,
+                path:    None,
             });
         }
 
@@ -428,7 +437,7 @@ impl FactTableDetector {
                         "Measure column '{}' must be numeric type, found {:?}",
                         measure.name, measure.sql_type
                     ),
-                    path: None,
+                    path:    None,
                 });
             }
         }
@@ -440,7 +449,7 @@ impl FactTableDetector {
                     "Fact table '{}' must have a dimension column (JSONB)",
                     metadata.table_name
                 ),
-                path: None,
+                path:    None,
             });
         }
 
@@ -449,10 +458,7 @@ impl FactTableDetector {
 
     /// Check if SQL type is numeric (suitable for aggregation)
     fn is_numeric_type(sql_type: &SqlType) -> bool {
-        matches!(
-            sql_type,
-            SqlType::Int | SqlType::BigInt | SqlType::Decimal | SqlType::Float
-        )
+        matches!(sql_type, SqlType::Int | SqlType::BigInt | SqlType::Decimal | SqlType::Float)
     }
 
     /// Extract dimension paths from a sample JSON value
@@ -508,14 +514,22 @@ impl FactTableDetector {
                 let json_path = Self::generate_json_path(column_name, &full_path, db_type);
 
                 paths.push(DimensionPath {
-                    name: full_path.replace('.', "_"), // Convert dots to underscores for field names
+                    name: full_path.replace('.', "_"), /* Convert dots to underscores for field
+                                                        * names */
                     json_path,
                     data_type,
                 });
 
                 // Recurse into nested objects
                 if val.is_object() {
-                    Self::extract_paths_recursive(val, column_name, &full_path, paths, db_type, depth + 1);
+                    Self::extract_paths_recursive(
+                        val,
+                        column_name,
+                        &full_path,
+                        paths,
+                        db_type,
+                        depth + 1,
+                    );
                 }
             }
         }
@@ -532,7 +546,7 @@ impl FactTableDetector {
                 } else {
                     "float".to_string()
                 }
-            }
+            },
             serde_json::Value::String(_) => "string".to_string(),
             serde_json::Value::Array(_) => "array".to_string(),
             serde_json::Value::Object(_) => "object".to_string(),
@@ -553,24 +567,24 @@ impl FactTableDetector {
                     let rest = &parts[..parts.len() - 1];
                     let nav = rest.iter().fold(String::new(), |mut acc, p| {
                         use std::fmt::Write;
-                        let _ = write!(acc, "->'{}'" , p);
+                        let _ = write!(acc, "->'{}'", p);
                         acc
                     });
                     format!("{}{}->>'{}'", column_name, nav, last)
                 }
-            }
+            },
             DatabaseType::MySQL => {
                 // MySQL: JSON_EXTRACT(column, '$.path.to.key')
                 format!("JSON_UNQUOTE(JSON_EXTRACT({}, '$.{}')", column_name, path)
-            }
+            },
             DatabaseType::SQLite => {
                 // SQLite: json_extract(column, '$.path.to.key')
                 format!("json_extract({}, '$.{}')", column_name, path)
-            }
+            },
             DatabaseType::SQLServer => {
                 // SQL Server: JSON_VALUE(column, '$.path.to.key')
                 format!("JSON_VALUE({}, '$.{}')", column_name, path)
-            }
+            },
         }
     }
 
@@ -645,98 +659,98 @@ impl FactTableDetector {
         match column_name {
             "date_info" => vec![
                 CalendarBucket {
-                    json_key: "date".to_string(),
+                    json_key:    "date".to_string(),
                     bucket_type: TemporalBucket::Day,
-                    data_type: "date".to_string(),
+                    data_type:   "date".to_string(),
                 },
                 CalendarBucket {
-                    json_key: "week".to_string(),
+                    json_key:    "week".to_string(),
                     bucket_type: TemporalBucket::Week,
-                    data_type: "integer".to_string(),
+                    data_type:   "integer".to_string(),
                 },
                 CalendarBucket {
-                    json_key: "month".to_string(),
+                    json_key:    "month".to_string(),
                     bucket_type: TemporalBucket::Month,
-                    data_type: "integer".to_string(),
+                    data_type:   "integer".to_string(),
                 },
                 CalendarBucket {
-                    json_key: "quarter".to_string(),
+                    json_key:    "quarter".to_string(),
                     bucket_type: TemporalBucket::Quarter,
-                    data_type: "integer".to_string(),
+                    data_type:   "integer".to_string(),
                 },
                 CalendarBucket {
-                    json_key: "year".to_string(),
+                    json_key:    "year".to_string(),
                     bucket_type: TemporalBucket::Year,
-                    data_type: "integer".to_string(),
+                    data_type:   "integer".to_string(),
                 },
             ],
             "week_info" => vec![
                 CalendarBucket {
-                    json_key: "week".to_string(),
+                    json_key:    "week".to_string(),
                     bucket_type: TemporalBucket::Week,
-                    data_type: "integer".to_string(),
+                    data_type:   "integer".to_string(),
                 },
                 CalendarBucket {
-                    json_key: "month".to_string(),
+                    json_key:    "month".to_string(),
                     bucket_type: TemporalBucket::Month,
-                    data_type: "integer".to_string(),
+                    data_type:   "integer".to_string(),
                 },
                 CalendarBucket {
-                    json_key: "quarter".to_string(),
+                    json_key:    "quarter".to_string(),
                     bucket_type: TemporalBucket::Quarter,
-                    data_type: "integer".to_string(),
+                    data_type:   "integer".to_string(),
                 },
                 CalendarBucket {
-                    json_key: "year".to_string(),
+                    json_key:    "year".to_string(),
                     bucket_type: TemporalBucket::Year,
-                    data_type: "integer".to_string(),
+                    data_type:   "integer".to_string(),
                 },
             ],
             "month_info" => vec![
                 CalendarBucket {
-                    json_key: "month".to_string(),
+                    json_key:    "month".to_string(),
                     bucket_type: TemporalBucket::Month,
-                    data_type: "integer".to_string(),
+                    data_type:   "integer".to_string(),
                 },
                 CalendarBucket {
-                    json_key: "quarter".to_string(),
+                    json_key:    "quarter".to_string(),
                     bucket_type: TemporalBucket::Quarter,
-                    data_type: "integer".to_string(),
+                    data_type:   "integer".to_string(),
                 },
                 CalendarBucket {
-                    json_key: "year".to_string(),
+                    json_key:    "year".to_string(),
                     bucket_type: TemporalBucket::Year,
-                    data_type: "integer".to_string(),
+                    data_type:   "integer".to_string(),
                 },
             ],
             "quarter_info" => vec![
                 CalendarBucket {
-                    json_key: "quarter".to_string(),
+                    json_key:    "quarter".to_string(),
                     bucket_type: TemporalBucket::Quarter,
-                    data_type: "integer".to_string(),
+                    data_type:   "integer".to_string(),
                 },
                 CalendarBucket {
-                    json_key: "year".to_string(),
+                    json_key:    "year".to_string(),
                     bucket_type: TemporalBucket::Year,
-                    data_type: "integer".to_string(),
+                    data_type:   "integer".to_string(),
                 },
             ],
             "semester_info" => vec![
                 CalendarBucket {
-                    json_key: "semester".to_string(),
+                    json_key:    "semester".to_string(),
                     bucket_type: TemporalBucket::Quarter, // Map to Quarter for now
-                    data_type: "integer".to_string(),
+                    data_type:   "integer".to_string(),
                 },
                 CalendarBucket {
-                    json_key: "year".to_string(),
+                    json_key:    "year".to_string(),
                     bucket_type: TemporalBucket::Year,
-                    data_type: "integer".to_string(),
+                    data_type:   "integer".to_string(),
                 },
             ],
             "year_info" => vec![CalendarBucket {
-                json_key: "year".to_string(),
+                json_key:    "year".to_string(),
                 bucket_type: TemporalBucket::Year,
-                data_type: "integer".to_string(),
+                data_type:   "integer".to_string(),
             }],
             _ => Vec::new(),
         }
@@ -756,10 +770,10 @@ impl FactTableDetector {
                 SqlType::Jsonb | SqlType::Json => {
                     // This is the dimension column
                     dimension_column = Some(DimensionColumn {
-                        name: name.to_string(),
+                        name:  name.to_string(),
                         paths: Vec::new(),
                     });
-                }
+                },
                 SqlType::Int | SqlType::BigInt | SqlType::Decimal | SqlType::Float => {
                     // Skip id column
                     if name != "id" && !name.ends_with("_id") {
@@ -777,7 +791,7 @@ impl FactTableDetector {
                             indexed: false,
                         });
                     }
-                }
+                },
                 _ => {
                     // This might be a filter column (if not id/created_at/updated_at)
                     if name != "id" && name != "created_at" && name != "updated_at" {
@@ -787,7 +801,7 @@ impl FactTableDetector {
                             indexed: false, // Would need to query indexes to determine
                         });
                     }
-                }
+                },
             }
         }
 
@@ -795,7 +809,7 @@ impl FactTableDetector {
             table_name,
             measures,
             dimensions: dimension_column.unwrap_or(DimensionColumn {
-                name: "dimensions".to_string(),
+                name:  "dimensions".to_string(),
                 paths: Vec::new(),
             }),
             denormalized_filters: filters,
@@ -819,7 +833,9 @@ impl SqlType {
             "json" => Self::Json,
             "text" | "varchar" | "character varying" | "char" | "character" => Self::Text,
             "uuid" => Self::Uuid,
-            "timestamp" | "timestamptz" | "timestamp with time zone"
+            "timestamp"
+            | "timestamptz"
+            | "timestamp with time zone"
             | "timestamp without time zone" => Self::Timestamp,
             "date" => Self::Date,
             "boolean" | "bool" => Self::Boolean,
@@ -890,18 +906,18 @@ mod tests {
     #[test]
     fn test_validate_valid_fact_table() {
         let metadata = FactTableMetadata {
-            table_name: "tf_sales".to_string(),
-            measures: vec![MeasureColumn {
-                name: "revenue".to_string(),
+            table_name:           "tf_sales".to_string(),
+            measures:             vec![MeasureColumn {
+                name:     "revenue".to_string(),
                 sql_type: SqlType::Decimal,
                 nullable: false,
             }],
-            dimensions: DimensionColumn {
-                name: "dimensions".to_string(),
+            dimensions:           DimensionColumn {
+                name:  "dimensions".to_string(),
                 paths: vec![],
             },
             denormalized_filters: vec![],
-            calendar_dimensions: vec![],
+            calendar_dimensions:  vec![],
         };
 
         assert!(FactTableDetector::validate(&metadata).is_ok());
@@ -910,39 +926,36 @@ mod tests {
     #[test]
     fn test_validate_missing_measures() {
         let metadata = FactTableMetadata {
-            table_name: "tf_sales".to_string(),
-            measures: vec![],
-            dimensions: DimensionColumn {
-                name: "dimensions".to_string(),
+            table_name:           "tf_sales".to_string(),
+            measures:             vec![],
+            dimensions:           DimensionColumn {
+                name:  "dimensions".to_string(),
                 paths: vec![],
             },
             denormalized_filters: vec![],
-            calendar_dimensions: vec![],
+            calendar_dimensions:  vec![],
         };
 
         let result = FactTableDetector::validate(&metadata);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("at least one measure"));
+        assert!(result.unwrap_err().to_string().contains("at least one measure"));
     }
 
     #[test]
     fn test_validate_non_numeric_measure() {
         let metadata = FactTableMetadata {
-            table_name: "tf_sales".to_string(),
-            measures: vec![MeasureColumn {
-                name: "category".to_string(),
+            table_name:           "tf_sales".to_string(),
+            measures:             vec![MeasureColumn {
+                name:     "category".to_string(),
                 sql_type: SqlType::Text, // Wrong type for measure!
                 nullable: false,
             }],
-            dimensions: DimensionColumn {
-                name: "dimensions".to_string(),
+            dimensions:           DimensionColumn {
+                name:  "dimensions".to_string(),
                 paths: vec![],
             },
             denormalized_filters: vec![],
-            calendar_dimensions: vec![],
+            calendar_dimensions:  vec![],
         };
 
         let result = FactTableDetector::validate(&metadata);
@@ -961,8 +974,7 @@ mod tests {
             ("occurred_at", SqlType::Timestamp, false),
         ];
 
-        let metadata =
-            FactTableDetector::from_columns("tf_sales".to_string(), columns).unwrap();
+        let metadata = FactTableDetector::from_columns("tf_sales".to_string(), columns).unwrap();
 
         assert_eq!(metadata.measures.len(), 2);
         assert_eq!(metadata.measures[0].name, "revenue");
@@ -982,10 +994,7 @@ mod tests {
         assert_eq!(SqlType::from_str_postgres("jsonb"), SqlType::Jsonb);
         assert_eq!(SqlType::from_str_postgres("text"), SqlType::Text);
         assert_eq!(SqlType::from_str_postgres("uuid"), SqlType::Uuid);
-        assert_eq!(
-            SqlType::from_str_postgres("timestamptz"),
-            SqlType::Timestamp
-        );
+        assert_eq!(SqlType::from_str_postgres("timestamptz"), SqlType::Timestamp);
     }
 
     #[test]
@@ -1012,10 +1021,7 @@ mod tests {
         assert_eq!(SqlType::from_str_sqlserver("decimal"), SqlType::Decimal);
         assert_eq!(SqlType::from_str_sqlserver("float"), SqlType::Float);
         assert_eq!(SqlType::from_str_sqlserver("NVARCHAR"), SqlType::Text);
-        assert_eq!(
-            SqlType::from_str_sqlserver("uniqueidentifier"),
-            SqlType::Uuid
-        );
+        assert_eq!(SqlType::from_str_sqlserver("uniqueidentifier"), SqlType::Uuid);
     }
 
     #[test]
@@ -1075,22 +1081,13 @@ mod tests {
         assert_eq!(buckets.len(), 5);
 
         assert_eq!(buckets[0].json_key, "date");
-        assert_eq!(
-            buckets[0].bucket_type,
-            crate::compiler::aggregate_types::TemporalBucket::Day
-        );
+        assert_eq!(buckets[0].bucket_type, crate::compiler::aggregate_types::TemporalBucket::Day);
 
         assert_eq!(buckets[1].json_key, "week");
-        assert_eq!(
-            buckets[1].bucket_type,
-            crate::compiler::aggregate_types::TemporalBucket::Week
-        );
+        assert_eq!(buckets[1].bucket_type, crate::compiler::aggregate_types::TemporalBucket::Week);
 
         assert_eq!(buckets[2].json_key, "month");
-        assert_eq!(
-            buckets[2].bucket_type,
-            crate::compiler::aggregate_types::TemporalBucket::Month
-        );
+        assert_eq!(buckets[2].bucket_type, crate::compiler::aggregate_types::TemporalBucket::Month);
 
         assert_eq!(buckets[3].json_key, "quarter");
         assert_eq!(
@@ -1099,10 +1096,7 @@ mod tests {
         );
 
         assert_eq!(buckets[4].json_key, "year");
-        assert_eq!(
-            buckets[4].bucket_type,
-            crate::compiler::aggregate_types::TemporalBucket::Year
-        );
+        assert_eq!(buckets[4].bucket_type, crate::compiler::aggregate_types::TemporalBucket::Year);
     }
 
     #[test]
@@ -1121,10 +1115,7 @@ mod tests {
         assert_eq!(buckets.len(), 1);
 
         assert_eq!(buckets[0].json_key, "year");
-        assert_eq!(
-            buckets[0].bucket_type,
-            crate::compiler::aggregate_types::TemporalBucket::Year
-        );
+        assert_eq!(buckets[0].bucket_type, crate::compiler::aggregate_types::TemporalBucket::Year);
     }
 
     #[test]
@@ -1208,7 +1199,11 @@ mod tests {
             "priority": 1
         });
 
-        let paths = FactTableDetector::extract_dimension_paths(&sample, "dimensions", DatabaseType::PostgreSQL);
+        let paths = FactTableDetector::extract_dimension_paths(
+            &sample,
+            "dimensions",
+            DatabaseType::PostgreSQL,
+        );
 
         assert_eq!(paths.len(), 3);
 
@@ -1238,7 +1233,8 @@ mod tests {
             "product": "laptop"
         });
 
-        let paths = FactTableDetector::extract_dimension_paths(&sample, "data", DatabaseType::PostgreSQL);
+        let paths =
+            FactTableDetector::extract_dimension_paths(&sample, "data", DatabaseType::PostgreSQL);
 
         // Should have: customer (object), customer_region, customer_tier, product
         assert!(paths.iter().any(|p| p.name == "customer"));
@@ -1262,7 +1258,11 @@ mod tests {
             "metadata": {}
         });
 
-        let paths = FactTableDetector::extract_dimension_paths(&sample, "dimensions", DatabaseType::PostgreSQL);
+        let paths = FactTableDetector::extract_dimension_paths(
+            &sample,
+            "dimensions",
+            DatabaseType::PostgreSQL,
+        );
 
         // Check type inference
         let name = paths.iter().find(|p| p.name == "name").unwrap();
@@ -1288,13 +1288,21 @@ mod tests {
     fn test_generate_json_path_postgres() {
         // Top-level
         assert_eq!(
-            FactTableDetector::generate_json_path("dimensions", "category", DatabaseType::PostgreSQL),
+            FactTableDetector::generate_json_path(
+                "dimensions",
+                "category",
+                DatabaseType::PostgreSQL
+            ),
             "dimensions->>'category'"
         );
 
         // Nested
         assert_eq!(
-            FactTableDetector::generate_json_path("data", "customer.region", DatabaseType::PostgreSQL),
+            FactTableDetector::generate_json_path(
+                "data",
+                "customer.region",
+                DatabaseType::PostgreSQL
+            ),
             "data->'customer'->>'region'"
         );
 
@@ -1334,12 +1342,20 @@ mod tests {
     #[test]
     fn test_generate_json_path_sqlserver() {
         assert_eq!(
-            FactTableDetector::generate_json_path("dimensions", "category", DatabaseType::SQLServer),
+            FactTableDetector::generate_json_path(
+                "dimensions",
+                "category",
+                DatabaseType::SQLServer
+            ),
             "JSON_VALUE(dimensions, '$.category')"
         );
 
         assert_eq!(
-            FactTableDetector::generate_json_path("data", "customer.region", DatabaseType::SQLServer),
+            FactTableDetector::generate_json_path(
+                "data",
+                "customer.region",
+                DatabaseType::SQLServer
+            ),
             "JSON_VALUE(data, '$.customer.region')"
         );
     }
@@ -1370,7 +1386,8 @@ mod tests {
             }
         });
 
-        let paths = FactTableDetector::extract_dimension_paths(&sample, "data", DatabaseType::PostgreSQL);
+        let paths =
+            FactTableDetector::extract_dimension_paths(&sample, "data", DatabaseType::PostgreSQL);
 
         // Should stop at depth 3 (level1, level2, level3, level4 but not level5)
         assert!(paths.iter().any(|p| p.name == "level1"));
@@ -1384,7 +1401,11 @@ mod tests {
     #[test]
     fn test_extract_paths_empty_object() {
         let sample = serde_json::json!({});
-        let paths = FactTableDetector::extract_dimension_paths(&sample, "dimensions", DatabaseType::PostgreSQL);
+        let paths = FactTableDetector::extract_dimension_paths(
+            &sample,
+            "dimensions",
+            DatabaseType::PostgreSQL,
+        );
         assert!(paths.is_empty());
     }
 
@@ -1392,12 +1413,20 @@ mod tests {
     fn test_extract_paths_non_object() {
         // Array at root level
         let sample = serde_json::json!([1, 2, 3]);
-        let paths = FactTableDetector::extract_dimension_paths(&sample, "dimensions", DatabaseType::PostgreSQL);
+        let paths = FactTableDetector::extract_dimension_paths(
+            &sample,
+            "dimensions",
+            DatabaseType::PostgreSQL,
+        );
         assert!(paths.is_empty());
 
         // Scalar at root level
         let sample = serde_json::json!("just a string");
-        let paths = FactTableDetector::extract_dimension_paths(&sample, "dimensions", DatabaseType::PostgreSQL);
+        let paths = FactTableDetector::extract_dimension_paths(
+            &sample,
+            "dimensions",
+            DatabaseType::PostgreSQL,
+        );
         assert!(paths.is_empty());
     }
 }

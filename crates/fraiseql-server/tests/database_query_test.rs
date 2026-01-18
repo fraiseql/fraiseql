@@ -10,8 +10,9 @@
 //! These tests require PostgreSQL database.
 //! Set DATABASE_URL environment variable to enable.
 
-use sqlx::postgres::PgPool;
 use std::time::Instant;
+
+use sqlx::postgres::PgPool;
 
 /// Helper to get database URL from environment
 fn get_database_url() -> Option<String> {
@@ -26,14 +27,10 @@ async fn test_database_connection() {
         return;
     };
 
-    let pool = PgPool::connect(&database_url)
-        .await
-        .expect("Failed to connect to database");
+    let pool = PgPool::connect(&database_url).await.expect("Failed to connect to database");
 
     // Verify connection works
-    let result = sqlx::query_scalar::<_, i32>("SELECT 1")
-        .fetch_one(&pool)
-        .await;
+    let result = sqlx::query_scalar::<_, i32>("SELECT 1").fetch_one(&pool).await;
 
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 1);
@@ -50,9 +47,7 @@ async fn test_connection_pool_config() {
     };
 
     // Create pool with custom settings
-    let pool = PgPool::connect(&database_url)
-        .await
-        .expect("Failed to create pool");
+    let pool = PgPool::connect(&database_url).await.expect("Failed to create pool");
 
     // Verify pool is usable (num_idle returns usize, so just verify we can read it)
     let _num_idle = pool.num_idle();
@@ -68,20 +63,13 @@ async fn test_concurrent_database_queries() {
         return;
     };
 
-    let pool = PgPool::connect(&database_url)
-        .await
-        .expect("Failed to connect");
+    let pool = PgPool::connect(&database_url).await.expect("Failed to connect");
 
     // Fire 10 concurrent queries
     let futures: Vec<_> = (0..10)
         .map(|i| {
             let pool = pool.clone();
-            async move {
-                sqlx::query_scalar::<_, i32>("SELECT $1")
-                    .bind(i)
-                    .fetch_one(&pool)
-                    .await
-            }
+            async move { sqlx::query_scalar::<_, i32>("SELECT $1").bind(i).fetch_one(&pool).await }
         })
         .collect();
 
@@ -107,18 +95,13 @@ async fn test_query_performance() {
         return;
     };
 
-    let pool = PgPool::connect(&database_url)
-        .await
-        .expect("Failed to connect");
+    let pool = PgPool::connect(&database_url).await.expect("Failed to connect");
 
     let start = Instant::now();
 
     // Execute 100 simple queries
     for i in 0..100 {
-        let _result = sqlx::query_scalar::<_, i32>("SELECT $1")
-            .bind(i)
-            .fetch_one(&pool)
-            .await;
+        let _result = sqlx::query_scalar::<_, i32>("SELECT $1").bind(i).fetch_one(&pool).await;
     }
 
     let duration = start.elapsed();
@@ -140,9 +123,7 @@ async fn test_connection_pool_stress() {
         return;
     };
 
-    let pool = PgPool::connect(&database_url)
-        .await
-        .expect("Failed to connect");
+    let pool = PgPool::connect(&database_url).await.expect("Failed to connect");
 
     // Fire 50 concurrent connections
     let futures: Vec<_> = (0..50)
@@ -179,17 +160,13 @@ async fn test_transaction_handling() {
         return;
     };
 
-    let pool = PgPool::connect(&database_url)
-        .await
-        .expect("Failed to connect");
+    let pool = PgPool::connect(&database_url).await.expect("Failed to connect");
 
     // Start transaction
     let mut tx = pool.begin().await.expect("Failed to begin transaction");
 
     // Execute query within transaction
-    let result = sqlx::query_scalar::<_, i32>("SELECT 42")
-        .fetch_one(&mut *tx)
-        .await;
+    let result = sqlx::query_scalar::<_, i32>("SELECT 42").fetch_one(&mut *tx).await;
 
     assert!(result.is_ok());
 
@@ -207,9 +184,7 @@ async fn test_database_error_handling() {
         return;
     };
 
-    let pool = PgPool::connect(&database_url)
-        .await
-        .expect("Failed to connect");
+    let pool = PgPool::connect(&database_url).await.expect("Failed to connect");
 
     // Try to query non-existent table
     let result = sqlx::query_scalar::<_, i32>("SELECT * FROM nonexistent_table")
@@ -228,11 +203,8 @@ async fn test_connection_timeout() {
     // Try to connect to invalid host with short timeout
     let invalid_url = "postgresql://invalid.host.example.com/db";
 
-    let result = tokio::time::timeout(
-        std::time::Duration::from_secs(1),
-        PgPool::connect(invalid_url),
-    )
-    .await;
+    let result =
+        tokio::time::timeout(std::time::Duration::from_secs(1), PgPool::connect(invalid_url)).await;
 
     // Should timeout or fail
     assert!(result.is_err() || result.unwrap().is_err());
@@ -246,18 +218,13 @@ async fn test_prepared_statement_caching() {
         return;
     };
 
-    let pool = PgPool::connect(&database_url)
-        .await
-        .expect("Failed to connect");
+    let pool = PgPool::connect(&database_url).await.expect("Failed to connect");
 
     let start = Instant::now();
 
     // Execute same query multiple times
     for i in 0..50 {
-        let _result = sqlx::query_scalar::<_, i32>("SELECT $1")
-            .bind(i)
-            .fetch_one(&pool)
-            .await;
+        let _result = sqlx::query_scalar::<_, i32>("SELECT $1").bind(i).fetch_one(&pool).await;
     }
 
     let duration = start.elapsed();
@@ -278,9 +245,7 @@ async fn test_concurrent_transactions() {
         return;
     };
 
-    let pool = PgPool::connect(&database_url)
-        .await
-        .expect("Failed to connect");
+    let pool = PgPool::connect(&database_url).await.expect("Failed to connect");
 
     // Fire 10 concurrent transactions
     let futures: Vec<_> = (0..10)
@@ -288,10 +253,8 @@ async fn test_concurrent_transactions() {
             let pool = pool.clone();
             async move {
                 let mut tx = pool.begin().await.ok()?;
-                let result = sqlx::query_scalar::<_, i32>("SELECT $1")
-                    .bind(i)
-                    .fetch_one(&mut *tx)
-                    .await;
+                let result =
+                    sqlx::query_scalar::<_, i32>("SELECT $1").bind(i).fetch_one(&mut *tx).await;
                 if result.is_ok() {
                     tx.commit().await.ok()?;
                 } else {
@@ -322,9 +285,7 @@ async fn test_pool_size_limits() {
         return;
     };
 
-    let pool = PgPool::connect(&database_url)
-        .await
-        .expect("Failed to connect");
+    let pool = PgPool::connect(&database_url).await.expect("Failed to connect");
 
     // Check pool configuration
     let num_idle = pool.num_idle();

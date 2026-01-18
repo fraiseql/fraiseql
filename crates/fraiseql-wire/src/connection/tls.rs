@@ -6,8 +6,8 @@
 use crate::{Error, Result};
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
 use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
-use rustls::{ClientConfig, DigitallySignedStruct, SignatureScheme};
 use rustls::RootCertStore;
+use rustls::{ClientConfig, DigitallySignedStruct, SignatureScheme};
 use rustls_pemfile::Item;
 use std::fmt::Debug;
 use std::fs;

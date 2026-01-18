@@ -1,9 +1,9 @@
 //! Server configuration.
 
+use std::{net::SocketAddr, path::PathBuf};
+
 use fraiseql_core::security::OidcConfig;
 use serde::{Deserialize, Serialize};
-use std::net::SocketAddr;
-use std::path::PathBuf;
 
 /// GraphQL IDE/playground tool to use.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -147,29 +147,29 @@ pub struct ServerConfig {
 impl Default for ServerConfig {
     fn default() -> Self {
         Self {
-            schema_path: default_schema_path(),
-            database_url: default_database_url(),
-            bind_addr: default_bind_addr(),
-            cors_enabled: true,
-            cors_origins: Vec::new(),
+            schema_path:         default_schema_path(),
+            database_url:        default_database_url(),
+            bind_addr:           default_bind_addr(),
+            cors_enabled:        true,
+            cors_origins:        Vec::new(),
             compression_enabled: true,
-            tracing_enabled: true,
-            apq_enabled: true,
-            cache_enabled: true,
-            graphql_path: default_graphql_path(),
-            health_path: default_health_path(),
-            introspection_path: default_introspection_path(),
-            metrics_path: default_metrics_path(),
-            metrics_json_path: default_metrics_json_path(),
-            playground_path: default_playground_path(),
-            playground_enabled: true,
-            playground_tool: PlaygroundTool::default(),
-            metrics_enabled: false, // Disabled by default for security
-            metrics_token: None,
-            pool_min_size: default_pool_min_size(),
-            pool_max_size: default_pool_max_size(),
-            pool_timeout_secs: default_pool_timeout(),
-            auth: None, // No auth by default
+            tracing_enabled:     true,
+            apq_enabled:         true,
+            cache_enabled:       true,
+            graphql_path:        default_graphql_path(),
+            health_path:         default_health_path(),
+            introspection_path:  default_introspection_path(),
+            metrics_path:        default_metrics_path(),
+            metrics_json_path:   default_metrics_json_path(),
+            playground_path:     default_playground_path(),
+            playground_enabled:  true,
+            playground_tool:     PlaygroundTool::default(),
+            metrics_enabled:     false, // Disabled by default for security
+            metrics_token:       None,
+            pool_min_size:       default_pool_min_size(),
+            pool_max_size:       default_pool_max_size(),
+            pool_timeout_secs:   default_pool_timeout(),
+            auth:                None, // No auth by default
         }
     }
 }
@@ -187,19 +187,16 @@ impl ServerConfig {
         if self.metrics_enabled {
             match &self.metrics_token {
                 None => {
-                    return Err(
-                        "metrics_enabled is true but metrics_token is not set. \
+                    return Err("metrics_enabled is true but metrics_token is not set. \
                          Set FRAISEQL_METRICS_TOKEN or metrics_token in config."
-                            .to_string(),
-                    );
-                }
+                        .to_string());
+                },
                 Some(token) if token.len() < 16 => {
                     return Err(
-                        "metrics_token must be at least 16 characters for security."
-                            .to_string(),
+                        "metrics_token must be at least 16 characters for security.".to_string()
                     );
-                }
-                Some(_) => {}
+                },
+                Some(_) => {},
             }
         }
 

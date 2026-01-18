@@ -3,8 +3,9 @@
 //! This module implements GraphQL fragment cycle detection using DFS-based
 //! cycle detection with backtracking to identify circular fragment dependencies.
 
-use crate::graphql::types::{FragmentDefinition, ParsedQuery};
 use std::collections::{HashMap, HashSet};
+
+use crate::graphql::types::{FragmentDefinition, ParsedQuery};
 
 /// Fragment dependency graph and cycle detection
 #[derive(Debug)]
@@ -53,8 +54,9 @@ impl FragmentGraph {
         all_fragments: &[FragmentDefinition],
         deps: &mut HashSet<String>,
     ) {
-        // Fragment spreads are already collected during parsing in FragmentDefinition.fragment_spreads
-        // No additional processing needed here for selection-level dependencies
+        // Fragment spreads are already collected during parsing in
+        // FragmentDefinition.fragment_spreads No additional processing needed here for
+        // selection-level dependencies
 
         // Recursively check nested selections
         for nested in &selection.nested_fields {

@@ -4,12 +4,16 @@ use async_trait::async_trait;
 use deadpool_postgres::{Config, ManagerConfig, Pool, RecyclingMethod, Runtime};
 use tokio_postgres::{NoTls, Row};
 
-use crate::error::{FraiseQLError, Result};
-use crate::db::traits::DatabaseAdapter;
-use crate::db::types::{DatabaseType, JsonbValue, PoolMetrics, QueryParam};
-use crate::db::where_clause::WhereClause;
-use crate::schema::SqlProjectionHint;
 use super::where_generator::PostgresWhereGenerator;
+use crate::{
+    db::{
+        traits::DatabaseAdapter,
+        types::{DatabaseType, JsonbValue, PoolMetrics, QueryParam},
+        where_clause::WhereClause,
+    },
+    error::{FraiseQLError, Result},
+    schema::SqlProjectionHint,
+};
 
 /// PostgreSQL database adapter with connection pooling.
 ///
@@ -112,26 +116,20 @@ impl PostgresAdapter {
         });
         cfg.pool = Some(deadpool_postgres::PoolConfig::new(max_size));
 
-        let pool = cfg
-            .create_pool(Some(Runtime::Tokio1), NoTls)
-            .map_err(|e| {
-                FraiseQLError::ConnectionPool {
-                    message: format!("Failed to create connection pool: {e}"),
-                }
-            })?;
-
-        // Test connection
-        let client = pool.get().await.map_err(|e| {
+        let pool = cfg.create_pool(Some(Runtime::Tokio1), NoTls).map_err(|e| {
             FraiseQLError::ConnectionPool {
-                message: format!("Failed to acquire connection: {e}"),
+                message: format!("Failed to create connection pool: {e}"),
             }
         })?;
 
-        client.query("SELECT 1", &[]).await.map_err(|e| {
-            FraiseQLError::Database {
-                message: format!("Failed to connect to database: {e}"),
-                sql_state: e.code().map(|c| c.code().to_string()),
-            }
+        // Test connection
+        let client = pool.get().await.map_err(|e| FraiseQLError::ConnectionPool {
+            message: format!("Failed to acquire connection: {e}"),
+        })?;
+
+        client.query("SELECT 1", &[]).await.map_err(|e| FraiseQLError::Database {
+            message:   format!("Failed to connect to database: {e}"),
+            sql_state: e.code().map(|c| c.code().to_string()),
         })?;
 
         Ok(Self { pool })
@@ -150,19 +148,20 @@ impl PostgresAdapter {
     /// # Errors
     ///
     /// Returns `FraiseQLError::Database` on query execution failure.
-    async fn execute_raw(&self, sql: &str, params: &[&(dyn tokio_postgres::types::ToSql + Sync)]) -> Result<Vec<JsonbValue>> {
-        let client = self.pool.get().await.map_err(|e| {
-            FraiseQLError::ConnectionPool {
-                message: format!("Failed to acquire connection: {e}"),
-            }
+    async fn execute_raw(
+        &self,
+        sql: &str,
+        params: &[&(dyn tokio_postgres::types::ToSql + Sync)],
+    ) -> Result<Vec<JsonbValue>> {
+        let client = self.pool.get().await.map_err(|e| FraiseQLError::ConnectionPool {
+            message: format!("Failed to acquire connection: {e}"),
         })?;
 
-        let rows: Vec<Row> = client.query(sql, params).await.map_err(|e| {
-            FraiseQLError::Database {
-                message: format!("Query execution failed: {e}"),
+        let rows: Vec<Row> =
+            client.query(sql, params).await.map_err(|e| FraiseQLError::Database {
+                message:   format!("Query execution failed: {e}"),
                 sql_state: e.code().map(|c| c.code().to_string()),
-            }
-        })?;
+            })?;
 
         let results = rows
             .into_iter()
@@ -241,10 +240,8 @@ impl PostgresAdapter {
             }
 
             // Convert JSON values to QueryParam (preserves types)
-            let typed_params: Vec<QueryParam> = where_params
-                .into_iter()
-                .map(QueryParam::from)
-                .collect();
+            let typed_params: Vec<QueryParam> =
+                where_params.into_iter().map(QueryParam::from).collect();
 
             eprintln!("DEBUG: SQL with projection = {}", sql);
             eprintln!("DEBUG: typed_params = {:?}", typed_params);
@@ -297,10 +294,8 @@ impl DatabaseAdapter for PostgresAdapter {
             }
 
             // Convert JSON values to QueryParam (preserves types)
-            let typed_params: Vec<QueryParam> = where_params
-                .into_iter()
-                .map(QueryParam::from)
-                .collect();
+            let typed_params: Vec<QueryParam> =
+                where_params.into_iter().map(QueryParam::from).collect();
 
             eprintln!("DEBUG: SQL = {}", sql);
             eprintln!("DEBUG: typed_params = {:?}", typed_params);
@@ -333,17 +328,13 @@ impl DatabaseAdapter for PostgresAdapter {
     }
 
     async fn health_check(&self) -> Result<()> {
-        let client = self.pool.get().await.map_err(|e| {
-            FraiseQLError::ConnectionPool {
-                message: format!("Failed to acquire connection: {e}"),
-            }
+        let client = self.pool.get().await.map_err(|e| FraiseQLError::ConnectionPool {
+            message: format!("Failed to acquire connection: {e}"),
         })?;
 
-        client.query("SELECT 1", &[]).await.map_err(|e| {
-            FraiseQLError::Database {
-                message: format!("Health check failed: {e}"),
-                sql_state: e.code().map(|c| c.code().to_string()),
-            }
+        client.query("SELECT 1", &[]).await.map_err(|e| FraiseQLError::Database {
+            message:   format!("Health check failed: {e}"),
+            sql_state: e.code().map(|c| c.code().to_string()),
         })?;
 
         Ok(())
@@ -353,10 +344,10 @@ impl DatabaseAdapter for PostgresAdapter {
         let status = self.pool.status();
 
         PoolMetrics {
-            total_connections: status.size as u32,
-            idle_connections: status.available as u32,
+            total_connections:  status.size as u32,
+            idle_connections:   status.available as u32,
             active_connections: (status.size - status.available) as u32,
-            waiting_requests: status.waiting as u32,
+            waiting_requests:   status.waiting as u32,
         }
     }
 
@@ -364,17 +355,13 @@ impl DatabaseAdapter for PostgresAdapter {
         &self,
         sql: &str,
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-        let client = self.pool.get().await.map_err(|e| {
-            FraiseQLError::ConnectionPool {
-                message: format!("Failed to acquire connection: {e}"),
-            }
+        let client = self.pool.get().await.map_err(|e| FraiseQLError::ConnectionPool {
+            message: format!("Failed to acquire connection: {e}"),
         })?;
 
-        let rows: Vec<Row> = client.query(sql, &[]).await.map_err(|e| {
-            FraiseQLError::Database {
-                message: format!("Query execution failed: {e}"),
-                sql_state: e.code().map(|c| c.code().to_string()),
-            }
+        let rows: Vec<Row> = client.query(sql, &[]).await.map_err(|e| FraiseQLError::Database {
+            message:   format!("Query execution failed: {e}"),
+            sql_state: e.code().map(|c| c.code().to_string()),
         })?;
 
         // Convert each row to HashMap<String, Value>
@@ -437,11 +424,13 @@ impl DatabaseAdapter for PostgresAdapter {
 /// ```
 #[cfg(all(test, feature = "test-postgres"))]
 mod tests {
-    use super::*;
-    use crate::db::{WhereClause, WhereOperator};
     use serde_json::json;
 
-    const TEST_DB_URL: &str = "postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql";
+    use super::*;
+    use crate::db::{WhereClause, WhereOperator};
+
+    const TEST_DB_URL: &str =
+        "postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql";
 
     // Helper to create test adapter
     async fn create_test_adapter() -> PostgresAdapter {
@@ -541,9 +530,9 @@ mod tests {
         let adapter = create_test_adapter().await;
 
         let where_clause = WhereClause::Field {
-            path: vec!["email".to_string()],
+            path:     vec!["email".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("alice@example.com"),
+            value:    json!("alice@example.com"),
         };
 
         let results = adapter
@@ -560,9 +549,9 @@ mod tests {
         let adapter = create_test_adapter().await;
 
         let where_clause = WhereClause::Field {
-            path: vec!["role".to_string()],
+            path:     vec!["role".to_string()],
             operator: WhereOperator::Neq,
-            value: json!("user"),
+            value:    json!("user"),
         };
 
         let results = adapter
@@ -582,9 +571,9 @@ mod tests {
         let adapter = create_test_adapter().await;
 
         let where_clause = WhereClause::Field {
-            path: vec!["age".to_string()],
+            path:     vec!["age".to_string()],
             operator: WhereOperator::Gt,
-            value: json!(30),
+            value:    json!(30),
         };
 
         let results = adapter
@@ -606,9 +595,9 @@ mod tests {
         let adapter = create_test_adapter().await;
 
         let where_clause = WhereClause::Field {
-            path: vec!["age".to_string()],
+            path:     vec!["age".to_string()],
             operator: WhereOperator::Gte,
-            value: json!(30),
+            value:    json!(30),
         };
 
         let results = adapter
@@ -631,9 +620,9 @@ mod tests {
         let adapter = create_test_adapter().await;
 
         let where_clause = WhereClause::Field {
-            path: vec!["email".to_string()],
+            path:     vec!["email".to_string()],
             operator: WhereOperator::Icontains,
-            value: json!("example.com"),
+            value:    json!("example.com"),
         };
 
         let results = adapter
@@ -653,9 +642,9 @@ mod tests {
         let adapter = create_test_adapter().await;
 
         let where_clause = WhereClause::Field {
-            path: vec!["name".to_string()],
+            path:     vec!["name".to_string()],
             operator: WhereOperator::Startswith,
-            value: json!("Alice"),
+            value:    json!("Alice"),
         };
 
         let results = adapter
@@ -664,10 +653,7 @@ mod tests {
             .expect("Failed to execute query");
 
         assert_eq!(results.len(), 1);
-        assert!(results[0].as_value()["name"]
-            .as_str()
-            .unwrap()
-            .starts_with("Alice"));
+        assert!(results[0].as_value()["name"].as_str().unwrap().starts_with("Alice"));
     }
 
     // ========================================================================
@@ -680,14 +666,14 @@ mod tests {
 
         let where_clause = WhereClause::And(vec![
             WhereClause::Field {
-                path: vec!["active".to_string()],
+                path:     vec!["active".to_string()],
                 operator: WhereOperator::Eq,
-                value: json!(true),
+                value:    json!(true),
             },
             WhereClause::Field {
-                path: vec!["age".to_string()],
+                path:     vec!["age".to_string()],
                 operator: WhereOperator::Gte,
-                value: json!(25),
+                value:    json!(25),
             },
         ]);
 
@@ -709,14 +695,14 @@ mod tests {
 
         let where_clause = WhereClause::Or(vec![
             WhereClause::Field {
-                path: vec!["role".to_string()],
+                path:     vec!["role".to_string()],
                 operator: WhereOperator::Eq,
-                value: json!("admin"),
+                value:    json!("admin"),
             },
             WhereClause::Field {
-                path: vec!["role".to_string()],
+                path:     vec!["role".to_string()],
                 operator: WhereOperator::Eq,
-                value: json!("moderator"),
+                value:    json!("moderator"),
             },
         ]);
 
@@ -737,9 +723,9 @@ mod tests {
         let adapter = create_test_adapter().await;
 
         let where_clause = WhereClause::Not(Box::new(WhereClause::Field {
-            path: vec!["active".to_string()],
+            path:     vec!["active".to_string()],
             operator: WhereOperator::Eq,
-            value: json!(true),
+            value:    json!(true),
         }));
 
         let results = adapter
@@ -761,9 +747,9 @@ mod tests {
         let adapter = create_test_adapter().await;
 
         let where_clause = WhereClause::Field {
-            path: vec!["role".to_string()],
+            path:     vec!["role".to_string()],
             operator: WhereOperator::In,
-            value: json!(["admin", "moderator"]),
+            value:    json!(["admin", "moderator"]),
         };
 
         let results = adapter
@@ -832,9 +818,9 @@ mod tests {
         let adapter = create_test_adapter().await;
 
         let where_clause = WhereClause::Field {
-            path: vec!["metadata".to_string(), "city".to_string()],
+            path:     vec!["metadata".to_string(), "city".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("Paris"),
+            value:    json!("Paris"),
         };
 
         let results = adapter
@@ -859,20 +845,20 @@ mod tests {
         // (active = true) AND ((role = 'admin') OR (age >= 30))
         let where_clause = WhereClause::And(vec![
             WhereClause::Field {
-                path: vec!["active".to_string()],
+                path:     vec!["active".to_string()],
                 operator: WhereOperator::Eq,
-                value: json!(true),
+                value:    json!(true),
             },
             WhereClause::Or(vec![
                 WhereClause::Field {
-                    path: vec!["role".to_string()],
+                    path:     vec!["role".to_string()],
                     operator: WhereOperator::Eq,
-                    value: json!("admin"),
+                    value:    json!("admin"),
                 },
                 WhereClause::Field {
-                    path: vec!["age".to_string()],
+                    path:     vec!["age".to_string()],
                     operator: WhereOperator::Gte,
-                    value: json!(30),
+                    value:    json!(30),
                 },
             ]),
         ]);
@@ -898,9 +884,7 @@ mod tests {
     async fn test_invalid_view_name() {
         let adapter = create_test_adapter().await;
 
-        let result = adapter
-            .execute_where_query("v_nonexistent", None, None, None)
-            .await;
+        let result = adapter.execute_where_query("v_nonexistent", None, None, None).await;
 
         assert!(result.is_err());
         match result {
@@ -911,7 +895,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_invalid_connection_string() {
-        let result = PostgresAdapter::new("postgresql://invalid:invalid@localhost:9999/nonexistent").await;
+        let result =
+            PostgresAdapter::new("postgresql://invalid:invalid@localhost:9999/nonexistent").await;
 
         assert!(result.is_err());
         match result {

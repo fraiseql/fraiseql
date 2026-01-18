@@ -49,35 +49,41 @@
 //! LIMIT 10
 //! ```
 
-use crate::compiler::aggregation::{
-    AggregateExpression, AggregationPlan, GroupByExpression, OrderByClause, OrderDirection,
-    ValidatedHavingCondition,
+use crate::{
+    compiler::{
+        aggregate_types::{AggregateFunction, TemporalBucket},
+        aggregation::{
+            AggregateExpression, AggregationPlan, GroupByExpression, OrderByClause, OrderDirection,
+            ValidatedHavingCondition,
+        },
+        fact_table::FactTableMetadata,
+    },
+    db::{
+        types::DatabaseType,
+        where_clause::{WhereClause, WhereOperator},
+    },
+    error::{FraiseQLError, Result},
 };
-use crate::compiler::aggregate_types::{AggregateFunction, TemporalBucket};
-use crate::compiler::fact_table::FactTableMetadata;
-use crate::db::types::DatabaseType;
-use crate::db::where_clause::{WhereClause, WhereOperator};
-use crate::error::{FraiseQLError, Result};
 
 /// SQL query components
 #[derive(Debug, Clone)]
 pub struct AggregationSql {
     /// SELECT clause
-    pub select: String,
+    pub select:       String,
     /// FROM clause
-    pub from: String,
+    pub from:         String,
     /// WHERE clause (if present)
     pub where_clause: Option<String>,
     /// GROUP BY clause (if present)
-    pub group_by: Option<String>,
+    pub group_by:     Option<String>,
     /// HAVING clause (if present)
-    pub having: Option<String>,
+    pub having:       Option<String>,
     /// ORDER BY clause (if present)
-    pub order_by: Option<String>,
+    pub order_by:     Option<String>,
     /// LIMIT clause (if present)
-    pub limit: Option<u32>,
+    pub limit:        Option<u32>,
     /// OFFSET clause (if present)
-    pub offset: Option<u32>,
+    pub offset:       Option<u32>,
     /// Complete SQL query
     pub complete_sql: String,
 }
@@ -101,7 +107,8 @@ impl AggregationSqlGenerator {
     /// Returns error if SQL generation fails
     pub fn generate(&self, plan: &AggregationPlan) -> Result<AggregationSql> {
         // Build SELECT clause
-        let select = self.build_select_clause(&plan.group_by_expressions, &plan.aggregate_expressions)?;
+        let select =
+            self.build_select_clause(&plan.group_by_expressions, &plan.aggregate_expressions)?;
 
         // Build FROM clause
         let from = format!("FROM {}", plan.request.table_name);
@@ -197,16 +204,20 @@ impl AggregationSqlGenerator {
     /// Convert GROUP BY expression to SQL
     fn group_by_expression_to_sql(&self, expr: &GroupByExpression) -> Result<String> {
         match expr {
-            GroupByExpression::JsonbPath { jsonb_column, path, .. } => {
-                Ok(self.jsonb_extract_sql(jsonb_column, path))
-            }
+            GroupByExpression::JsonbPath {
+                jsonb_column, path, ..
+            } => Ok(self.jsonb_extract_sql(jsonb_column, path)),
             GroupByExpression::TemporalBucket { column, bucket, .. } => {
                 Ok(self.temporal_bucket_sql(column, *bucket))
-            }
-            GroupByExpression::CalendarPath { calendar_column, json_key, .. } => {
+            },
+            GroupByExpression::CalendarPath {
+                calendar_column,
+                json_key,
+                ..
+            } => {
                 // Calendar dimension: reuse JSONB extraction for all 4 databases
                 Ok(self.jsonb_extract_sql(calendar_column, json_key))
-            }
+            },
         }
     }
 
@@ -215,16 +226,16 @@ impl AggregationSqlGenerator {
         match self.database_type {
             DatabaseType::PostgreSQL => {
                 format!("{}->>'{}' ", jsonb_column, path)
-            }
+            },
             DatabaseType::MySQL => {
                 format!("JSON_UNQUOTE(JSON_EXTRACT({}, '$.{}'))", jsonb_column, path)
-            }
+            },
             DatabaseType::SQLite => {
                 format!("json_extract({}, '$.{}')", jsonb_column, path)
-            }
+            },
             DatabaseType::SQLServer => {
                 format!("JSON_VALUE({}, '$.{}')", jsonb_column, path)
-            }
+            },
         }
     }
 
@@ -233,7 +244,7 @@ impl AggregationSqlGenerator {
         match self.database_type {
             DatabaseType::PostgreSQL => {
                 format!("DATE_TRUNC('{}', {})", bucket.postgres_arg(), column)
-            }
+            },
             DatabaseType::MySQL => {
                 let format = match bucket {
                     TemporalBucket::Second => "%Y-%m-%d %H:%i:%s",
@@ -246,7 +257,7 @@ impl AggregationSqlGenerator {
                     TemporalBucket::Year => "%Y",
                 };
                 format!("DATE_FORMAT({}, '{}')", column, format)
-            }
+            },
             DatabaseType::SQLite => {
                 let format = match bucket {
                     TemporalBucket::Second => "%Y-%m-%d %H:%M:%S",
@@ -259,7 +270,7 @@ impl AggregationSqlGenerator {
                     TemporalBucket::Year => "%Y",
                 };
                 format!("strftime('{}', {})", format, column)
-            }
+            },
             DatabaseType::SQLServer => {
                 let datepart = match bucket {
                     TemporalBucket::Second => "second",
@@ -276,13 +287,13 @@ impl AggregationSqlGenerator {
                     TemporalBucket::Day => format!("CAST({} AS DATE)", column),
                     TemporalBucket::Month => {
                         format!("DATEADD(month, DATEDIFF(month, 0, {}), 0)", column)
-                    }
+                    },
                     TemporalBucket::Year => {
                         format!("DATEADD(year, DATEDIFF(year, 0, {}), 0)", column)
-                    }
+                    },
                     _ => format!("DATEPART({}, {})", datepart, column),
                 }
-            }
+            },
         }
     }
 
@@ -292,8 +303,10 @@ impl AggregationSqlGenerator {
             AggregateExpression::Count { .. } => Ok("COUNT(*)".to_string()),
             AggregateExpression::CountDistinct { column, .. } => {
                 Ok(format!("COUNT(DISTINCT {})", column))
-            }
-            AggregateExpression::MeasureAggregate { column, function, .. } => {
+            },
+            AggregateExpression::MeasureAggregate {
+                column, function, ..
+            } => {
                 // Handle statistical functions with database-specific SQL
                 use AggregateFunction::*;
                 match function {
@@ -301,13 +314,22 @@ impl AggregationSqlGenerator {
                     Variance => Ok(self.generate_variance_sql(column)),
                     _ => Ok(format!("{}({})", function.sql_name(), column)),
                 }
-            }
-            AggregateExpression::AdvancedAggregate { column, function, delimiter, order_by, .. } => {
-                self.advanced_aggregate_to_sql(column, *function, delimiter.as_deref(), order_by.as_ref())
-            }
-            AggregateExpression::BoolAggregate { column, function, .. } => {
-                Ok(self.generate_bool_agg_sql(column, *function))
-            }
+            },
+            AggregateExpression::AdvancedAggregate {
+                column,
+                function,
+                delimiter,
+                order_by,
+                ..
+            } => self.advanced_aggregate_to_sql(
+                column,
+                *function,
+                delimiter.as_deref(),
+                order_by.as_ref(),
+            ),
+            AggregateExpression::BoolAggregate {
+                column, function, ..
+            } => Ok(self.generate_bool_agg_sql(column, *function)),
         }
     }
 
@@ -325,13 +347,19 @@ impl AggregationSqlGenerator {
             ArrayAgg => Ok(self.generate_array_agg_sql(column, order_by)),
             JsonAgg => Ok(self.generate_json_agg_sql(column, order_by)),
             JsonbAgg => Ok(self.generate_jsonb_agg_sql(column, order_by)),
-            StringAgg => Ok(self.generate_string_agg_sql(column, delimiter.unwrap_or(","), order_by)),
+            StringAgg => {
+                Ok(self.generate_string_agg_sql(column, delimiter.unwrap_or(","), order_by))
+            },
             _ => Ok(format!("{}({})", function.sql_name(), column)),
         }
     }
 
     /// Generate ARRAY_AGG SQL
-    fn generate_array_agg_sql(&self, column: &str, order_by: Option<&Vec<OrderByClause>>) -> String {
+    fn generate_array_agg_sql(
+        &self,
+        column: &str,
+        order_by: Option<&Vec<OrderByClause>>,
+    ) -> String {
         match self.database_type {
             DatabaseType::PostgreSQL => {
                 if let Some(order) = order_by {
@@ -339,19 +367,22 @@ impl AggregationSqlGenerator {
                 } else {
                     format!("ARRAY_AGG({})", column)
                 }
-            }
+            },
             DatabaseType::MySQL => {
                 // MySQL doesn't have ARRAY_AGG, use JSON_ARRAYAGG
                 format!("JSON_ARRAYAGG({})", column)
-            }
+            },
             DatabaseType::SQLite => {
                 // SQLite: emulate with GROUP_CONCAT, wrap in JSON array syntax
                 format!("'[' || GROUP_CONCAT('\"' || {} || '\"', ',') || ']'", column)
-            }
+            },
             DatabaseType::SQLServer => {
                 // SQL Server: use STRING_AGG and wrap in JSON array
-                format!("'[' + STRING_AGG('\"' + CAST({} AS NVARCHAR(MAX)) + '\"', ',') + ']'", column)
-            }
+                format!(
+                    "'[' + STRING_AGG('\"' + CAST({} AS NVARCHAR(MAX)) + '\"', ',') + ']'",
+                    column
+                )
+            },
         }
     }
 
@@ -364,24 +395,28 @@ impl AggregationSqlGenerator {
                 } else {
                     format!("JSON_AGG({})", column)
                 }
-            }
+            },
             DatabaseType::MySQL => {
                 // MySQL: JSON_ARRAYAGG for arrays
                 format!("JSON_ARRAYAGG({})", column)
-            }
+            },
             DatabaseType::SQLite => {
                 // SQLite: limited JSON support
                 format!("JSON_ARRAY({})", column)
-            }
+            },
             DatabaseType::SQLServer => {
                 // SQL Server: FOR JSON PATH
                 format!("(SELECT {} FOR JSON PATH)", column)
-            }
+            },
         }
     }
 
     /// Generate JSONB_AGG SQL (PostgreSQL-specific)
-    fn generate_jsonb_agg_sql(&self, column: &str, order_by: Option<&Vec<OrderByClause>>) -> String {
+    fn generate_jsonb_agg_sql(
+        &self,
+        column: &str,
+        order_by: Option<&Vec<OrderByClause>>,
+    ) -> String {
         match self.database_type {
             DatabaseType::PostgreSQL => {
                 if let Some(order) = order_by {
@@ -389,7 +424,7 @@ impl AggregationSqlGenerator {
                 } else {
                     format!("JSONB_AGG({})", column)
                 }
-            }
+            },
             // Fall back to JSON_AGG for other databases
             _ => self.generate_json_agg_sql(column, order_by),
         }
@@ -405,30 +440,39 @@ impl AggregationSqlGenerator {
         match self.database_type {
             DatabaseType::PostgreSQL => {
                 if let Some(order) = order_by {
-                    format!("STRING_AGG({}, '{}' ORDER BY {})", column, delimiter, self.order_by_to_sql(order))
+                    format!(
+                        "STRING_AGG({}, '{}' ORDER BY {})",
+                        column,
+                        delimiter,
+                        self.order_by_to_sql(order)
+                    )
                 } else {
                     format!("STRING_AGG({}, '{}')", column, delimiter)
                 }
-            }
+            },
             DatabaseType::MySQL => {
-                let mut sql = format!("GROUP_CONCAT({}",  column);
+                let mut sql = format!("GROUP_CONCAT({}", column);
                 if let Some(order) = order_by {
                     sql.push_str(&format!(" ORDER BY {}", self.order_by_to_sql(order)));
                 }
                 sql.push_str(&format!(" SEPARATOR '{}')", delimiter));
                 sql
-            }
+            },
             DatabaseType::SQLite => {
                 // SQLite GROUP_CONCAT doesn't support ORDER BY in older versions
                 format!("GROUP_CONCAT({}, '{}')", column, delimiter)
-            }
+            },
             DatabaseType::SQLServer => {
-                let mut sql = format!("STRING_AGG(CAST({} AS NVARCHAR(MAX)), '{}')", column, delimiter);
+                let mut sql =
+                    format!("STRING_AGG(CAST({} AS NVARCHAR(MAX)), '{}')", column, delimiter);
                 if let Some(order) = order_by {
-                    sql.push_str(&format!(" WITHIN GROUP (ORDER BY {})", self.order_by_to_sql(order)));
+                    sql.push_str(&format!(
+                        " WITHIN GROUP (ORDER BY {})",
+                        self.order_by_to_sql(order)
+                    ));
                 }
                 sql
-            }
+            },
         }
     }
 
@@ -462,7 +506,7 @@ impl AggregationSqlGenerator {
                 // SQLite doesn't have built-in STDDEV
                 // Return NULL to indicate unavailable
                 format!("NULL /* STDDEV not supported in SQLite */")
-            }
+            },
             DatabaseType::SQLServer => format!("STDEV({})", column),
         }
     }
@@ -482,7 +526,7 @@ impl AggregationSqlGenerator {
                 // SQLite doesn't have built-in VARIANCE
                 // Return NULL to indicate unavailable
                 format!("NULL /* VARIANCE not supported in SQLite */")
-            }
+            },
             DatabaseType::SQLServer => format!("VAR({})", column),
         }
     }
@@ -499,21 +543,21 @@ impl AggregationSqlGenerator {
             DatabaseType::PostgreSQL => {
                 // PostgreSQL has native BOOL_AND/BOOL_OR
                 format!("{}({})", function.sql_name(), column)
-            }
+            },
             DatabaseType::MySQL | DatabaseType::SQLite => {
                 // MySQL/SQLite: emulate with MIN/MAX on boolean as integer (0/1)
                 match function {
                     BoolAggregateFunction::And => format!("MIN({}) = 1", column),
                     BoolAggregateFunction::Or => format!("MAX({}) = 1", column),
                 }
-            }
+            },
             DatabaseType::SQLServer => {
                 // SQL Server: emulate with MIN/MAX on CAST to BIT
                 match function {
                     BoolAggregateFunction::And => format!("MIN(CAST({} AS BIT)) = 1", column),
                     BoolAggregateFunction::Or => format!("MAX(CAST({} AS BIT)) = 1", column),
                 }
-            }
+            },
         }
     }
 
@@ -522,7 +566,11 @@ impl AggregationSqlGenerator {
     /// Handles two types of filterable fields:
     /// 1. Denormalized filters (direct columns): WHERE customer_id = $1
     /// 2. Dimensions (JSONB paths): WHERE data->>'category' = $1
-    pub fn build_where_clause(&self, where_clause: &WhereClause, metadata: &FactTableMetadata) -> Result<String> {
+    pub fn build_where_clause(
+        &self,
+        where_clause: &WhereClause,
+        metadata: &FactTableMetadata,
+    ) -> Result<String> {
         if where_clause.is_empty() {
             return Ok(String::new());
         }
@@ -532,15 +580,22 @@ impl AggregationSqlGenerator {
     }
 
     /// Convert WhereClause AST to SQL
-    fn where_clause_to_sql(&self, clause: &WhereClause, metadata: &FactTableMetadata) -> Result<String> {
+    fn where_clause_to_sql(
+        &self,
+        clause: &WhereClause,
+        metadata: &FactTableMetadata,
+    ) -> Result<String> {
         match clause {
-            WhereClause::Field { path, operator, value } => {
+            WhereClause::Field {
+                path,
+                operator,
+                value,
+            } => {
                 let field_name = &path[0];
 
                 // Check if field is a denormalized filter (direct column)
-                let is_denormalized = metadata.denormalized_filters
-                    .iter()
-                    .any(|f| f.name == *field_name);
+                let is_denormalized =
+                    metadata.denormalized_filters.iter().any(|f| f.name == *field_name);
 
                 if is_denormalized {
                     // Direct column: WHERE customer_id = $1
@@ -550,25 +605,25 @@ impl AggregationSqlGenerator {
                     let jsonb_column = &metadata.dimensions.name; // "data"
                     self.generate_jsonb_where(jsonb_column, path, operator, value)
                 }
-            }
+            },
             WhereClause::And(clauses) => {
                 let conditions: Vec<String> = clauses
                     .iter()
                     .map(|c| self.where_clause_to_sql(c, metadata))
                     .collect::<Result<Vec<_>>>()?;
                 Ok(format!("({})", conditions.join(" AND ")))
-            }
+            },
             WhereClause::Or(clauses) => {
                 let conditions: Vec<String> = clauses
                     .iter()
                     .map(|c| self.where_clause_to_sql(c, metadata))
                     .collect::<Result<Vec<_>>>()?;
                 Ok(format!("({})", conditions.join(" OR ")))
-            }
+            },
             WhereClause::Not(clause) => {
                 let inner = self.where_clause_to_sql(clause, metadata)?;
                 Ok(format!("NOT ({})", inner))
-            }
+            },
         }
     }
 
@@ -626,8 +681,12 @@ impl AggregationSqlGenerator {
         }
 
         // Handle LIKE pattern operators (Contains, Startswith, Endswith)
-        if matches!(operator, WhereOperator::Contains | WhereOperator::Startswith | WhereOperator::Endswith) {
-            let value_str = value.as_str()
+        if matches!(
+            operator,
+            WhereOperator::Contains | WhereOperator::Startswith | WhereOperator::Endswith
+        ) {
+            let value_str = value
+                .as_str()
                 .ok_or_else(|| FraiseQLError::validation("LIKE operators require string values"))?;
             let pattern = self.format_like_pattern(operator, value_str);
             return Ok(format!("{} {} {}", jsonb_extract, op_sql, pattern));
@@ -655,21 +714,17 @@ impl AggregationSqlGenerator {
                     DatabaseType::PostgreSQL => "ILIKE",
                     _ => "LIKE", // Other databases use LIKE with UPPER/LOWER
                 }
-            }
+            },
             WhereOperator::Startswith => "LIKE",
-            WhereOperator::Istartswith => {
-                match self.database_type {
-                    DatabaseType::PostgreSQL => "ILIKE",
-                    _ => "LIKE",
-                }
-            }
+            WhereOperator::Istartswith => match self.database_type {
+                DatabaseType::PostgreSQL => "ILIKE",
+                _ => "LIKE",
+            },
             WhereOperator::Endswith => "LIKE",
-            WhereOperator::Iendswith => {
-                match self.database_type {
-                    DatabaseType::PostgreSQL => "ILIKE",
-                    _ => "LIKE",
-                }
-            }
+            WhereOperator::Iendswith => match self.database_type {
+                DatabaseType::PostgreSQL => "ILIKE",
+                _ => "LIKE",
+            },
             _ => "=", // Safe default for other operators
         }
     }
@@ -681,8 +736,9 @@ impl AggregationSqlGenerator {
         operator: &WhereOperator,
         value: &serde_json::Value,
     ) -> Result<String> {
-        let value_str = value.as_str()
-            .ok_or_else(|| FraiseQLError::validation("Case-insensitive operators require string values"))?;
+        let value_str = value.as_str().ok_or_else(|| {
+            FraiseQLError::validation("Case-insensitive operators require string values")
+        })?;
 
         match self.database_type {
             DatabaseType::PostgreSQL => {
@@ -690,13 +746,13 @@ impl AggregationSqlGenerator {
                 let op = self.operator_to_sql(operator);
                 let pattern = self.format_like_pattern(operator, value_str);
                 Ok(format!("{} {} {}", column, op, pattern))
-            }
+            },
             _ => {
                 // Other databases: use UPPER() for case-insensitive comparison
                 let op = "LIKE";
                 let pattern = self.format_like_pattern(operator, &value_str.to_uppercase());
                 Ok(format!("UPPER({}) {} {}", column, op, pattern))
-            }
+            },
         }
     }
 
@@ -705,26 +761,24 @@ impl AggregationSqlGenerator {
         match operator {
             WhereOperator::Contains | WhereOperator::Icontains => {
                 format!("'%{}%'", value.replace('\'', "''"))
-            }
+            },
             WhereOperator::Startswith | WhereOperator::Istartswith => {
                 format!("'{}%'", value.replace('\'', "''"))
-            }
+            },
             WhereOperator::Endswith | WhereOperator::Iendswith => {
                 format!("'%{}'", value.replace('\'', "''"))
-            }
+            },
             _ => format!("'{}'", value.replace('\'', "''")),
         }
     }
 
     /// Format array values for IN/NOT IN clauses
     fn format_array_values(&self, value: &serde_json::Value) -> Result<String> {
-        let array = value.as_array()
+        let array = value
+            .as_array()
             .ok_or_else(|| FraiseQLError::validation("IN/NOT IN operators require array values"))?;
 
-        let formatted: Vec<String> = array
-            .iter()
-            .map(|v| self.format_sql_value(v))
-            .collect();
+        let formatted: Vec<String> = array.iter().map(|v| self.format_sql_value(v)).collect();
 
         Ok(formatted.join(", "))
     }
@@ -753,7 +807,10 @@ impl AggregationSqlGenerator {
     }
 
     /// Build HAVING clause
-    fn build_having_clause(&self, having_conditions: &[ValidatedHavingCondition]) -> Result<String> {
+    fn build_having_clause(
+        &self,
+        having_conditions: &[ValidatedHavingCondition],
+    ) -> Result<String> {
         let mut conditions = Vec::new();
 
         for condition in having_conditions {
@@ -765,10 +822,12 @@ impl AggregationSqlGenerator {
                 serde_json::Value::Number(n) => n.to_string(),
                 serde_json::Value::String(s) => format!("'{}'", s),
                 serde_json::Value::Bool(b) => b.to_string(),
-                _ => return Err(FraiseQLError::Validation {
-                    message: "Invalid HAVING value type".to_string(),
-                    path: None,
-                }),
+                _ => {
+                    return Err(FraiseQLError::Validation {
+                        message: "Invalid HAVING value type".to_string(),
+                        path:    None,
+                    });
+                },
             };
 
             conditions.push(format!("{} {} {}", aggregate_sql, operator_sql, value_sql));
@@ -848,58 +907,60 @@ impl AggregationSqlGenerator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::compiler::aggregation::{AggregateSelection, AggregationRequest, GroupBySelection};
-    use crate::compiler::aggregate_types::HavingOperator;
-    use crate::compiler::fact_table::{DimensionColumn, FilterColumn, FactTableMetadata, MeasureColumn, SqlType};
+    use crate::compiler::{
+        aggregate_types::HavingOperator,
+        aggregation::{AggregateSelection, AggregationRequest, GroupBySelection},
+        fact_table::{DimensionColumn, FactTableMetadata, FilterColumn, MeasureColumn, SqlType},
+    };
 
     fn create_test_plan() -> AggregationPlan {
         let metadata = FactTableMetadata {
-            table_name: "tf_sales".to_string(),
-            measures: vec![MeasureColumn {
-                name: "revenue".to_string(),
+            table_name:           "tf_sales".to_string(),
+            measures:             vec![MeasureColumn {
+                name:     "revenue".to_string(),
                 sql_type: SqlType::Decimal,
                 nullable: false,
             }],
-            dimensions: DimensionColumn {
-                name: "dimensions".to_string(),
+            dimensions:           DimensionColumn {
+                name:  "dimensions".to_string(),
                 paths: vec![],
             },
             denormalized_filters: vec![FilterColumn {
-                name: "occurred_at".to_string(),
+                name:     "occurred_at".to_string(),
                 sql_type: SqlType::Timestamp,
-                indexed: true,
+                indexed:  true,
             }],
-            calendar_dimensions: vec![],
+            calendar_dimensions:  vec![],
         };
 
         let request = AggregationRequest {
-            table_name: "tf_sales".to_string(),
+            table_name:   "tf_sales".to_string(),
             where_clause: None,
-            group_by: vec![
+            group_by:     vec![
                 GroupBySelection::Dimension {
-                    path: "category".to_string(),
+                    path:  "category".to_string(),
                     alias: "category".to_string(),
                 },
                 GroupBySelection::TemporalBucket {
                     column: "occurred_at".to_string(),
                     bucket: TemporalBucket::Day,
-                    alias: "day".to_string(),
+                    alias:  "day".to_string(),
                 },
             ],
-            aggregates: vec![
+            aggregates:   vec![
                 AggregateSelection::Count {
                     alias: "count".to_string(),
                 },
                 AggregateSelection::MeasureAggregate {
-                    measure: "revenue".to_string(),
+                    measure:  "revenue".to_string(),
                     function: AggregateFunction::Sum,
-                    alias: "revenue_sum".to_string(),
+                    alias:    "revenue_sum".to_string(),
                 },
             ],
-            having: vec![],
-            order_by: vec![],
-            limit: Some(10),
-            offset: None,
+            having:       vec![],
+            order_by:     vec![],
+            limit:        Some(10),
+            offset:       None,
         };
 
         crate::compiler::aggregation::AggregationPlanner::plan(request, metadata).unwrap()
@@ -925,7 +986,10 @@ mod tests {
         let generator = AggregationSqlGenerator::new(DatabaseType::MySQL);
         let sql = generator.generate(&plan).unwrap();
 
-        assert!(sql.complete_sql.contains("JSON_UNQUOTE(JSON_EXTRACT(dimensions, '$.category'))"));
+        assert!(
+            sql.complete_sql
+                .contains("JSON_UNQUOTE(JSON_EXTRACT(dimensions, '$.category'))")
+        );
         assert!(sql.complete_sql.contains("DATE_FORMAT(occurred_at"));
         assert!(sql.complete_sql.contains("COUNT(*)"));
         assert!(sql.complete_sql.contains("SUM(revenue)"));
@@ -960,12 +1024,12 @@ mod tests {
         let mut plan = create_test_plan();
         plan.having_conditions = vec![ValidatedHavingCondition {
             aggregate: AggregateExpression::MeasureAggregate {
-                column: "revenue".to_string(),
+                column:   "revenue".to_string(),
                 function: AggregateFunction::Sum,
-                alias: "revenue_sum".to_string(),
+                alias:    "revenue_sum".to_string(),
             },
-            operator: HavingOperator::Gt,
-            value: serde_json::json!(1000),
+            operator:  HavingOperator::Gt,
+            value:     serde_json::json!(1000),
         }];
 
         let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
@@ -981,7 +1045,7 @@ mod tests {
 
         let mut plan = create_test_plan();
         plan.request.order_by = vec![OrderByClause {
-            field: "revenue_sum".to_string(),
+            field:     "revenue_sum".to_string(),
             direction: OrderDirection::Desc,
         }];
 
@@ -1006,7 +1070,7 @@ mod tests {
 
         // Test with ORDER BY
         let order_by = vec![OrderByClause {
-            field: "revenue".to_string(),
+            field:     "revenue".to_string(),
             direction: OrderDirection::Desc,
         }];
         let sql = generator.generate_array_agg_sql("product_id", Some(&order_by));
@@ -1039,7 +1103,7 @@ mod tests {
 
         // Test with ORDER BY
         let order_by = vec![OrderByClause {
-            field: "revenue".to_string(),
+            field:     "revenue".to_string(),
             direction: OrderDirection::Desc,
         }];
         let sql = generator.generate_string_agg_sql("product_name", ", ", Some(&order_by));
@@ -1051,7 +1115,7 @@ mod tests {
         let generator = AggregationSqlGenerator::new(DatabaseType::MySQL);
 
         let order_by = vec![OrderByClause {
-            field: "revenue".to_string(),
+            field:     "revenue".to_string(),
             direction: OrderDirection::Desc,
         }];
         let sql = generator.generate_string_agg_sql("product_name", ", ", Some(&order_by));
@@ -1063,7 +1127,7 @@ mod tests {
         let generator = AggregationSqlGenerator::new(DatabaseType::SQLServer);
 
         let order_by = vec![OrderByClause {
-            field: "revenue".to_string(),
+            field:     "revenue".to_string(),
             direction: OrderDirection::Desc,
         }];
         let sql = generator.generate_string_agg_sql("product_name", ", ", Some(&order_by));
@@ -1078,7 +1142,7 @@ mod tests {
         assert_eq!(sql, "JSON_AGG(data)");
 
         let order_by = vec![OrderByClause {
-            field: "created_at".to_string(),
+            field:     "created_at".to_string(),
             direction: OrderDirection::Asc,
         }];
         let sql = generator.generate_json_agg_sql("data", Some(&order_by));
@@ -1135,23 +1199,23 @@ mod tests {
 
         // Add an ARRAY_AGG aggregate
         plan.aggregate_expressions.push(AggregateExpression::AdvancedAggregate {
-            column: "product_id".to_string(),
-            function: AggregateFunction::ArrayAgg,
-            alias: "products".to_string(),
+            column:    "product_id".to_string(),
+            function:  AggregateFunction::ArrayAgg,
+            alias:     "products".to_string(),
             delimiter: None,
-            order_by: Some(vec![OrderByClause {
-                field: "revenue".to_string(),
+            order_by:  Some(vec![OrderByClause {
+                field:     "revenue".to_string(),
                 direction: OrderDirection::Desc,
             }]),
         });
 
         // Add a STRING_AGG aggregate
         plan.aggregate_expressions.push(AggregateExpression::AdvancedAggregate {
-            column: "product_name".to_string(),
-            function: AggregateFunction::StringAgg,
-            alias: "product_names".to_string(),
+            column:    "product_name".to_string(),
+            function:  AggregateFunction::StringAgg,
+            alias:     "product_names".to_string(),
             delimiter: Some(", ".to_string()),
-            order_by: None,
+            order_by:  None,
         });
 
         let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);

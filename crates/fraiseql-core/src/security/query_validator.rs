@@ -41,9 +41,11 @@
 //! println!("Query complexity: {}", metrics.complexity);
 //! ```
 
-use crate::security::errors::{Result, SecurityError};
-use serde::{Deserialize, Serialize};
 use std::fmt;
+
+use serde::{Deserialize, Serialize};
+
+use crate::security::errors::{Result, SecurityError};
 
 /// Query validation configuration
 ///
@@ -69,7 +71,7 @@ impl QueryValidatorConfig {
     #[must_use]
     pub fn permissive() -> Self {
         Self {
-            max_depth: 20,
+            max_depth:      20,
             max_complexity: 5000,
             max_size_bytes: 1_000_000, // 1 MB
         }
@@ -83,7 +85,7 @@ impl QueryValidatorConfig {
     #[must_use]
     pub fn standard() -> Self {
         Self {
-            max_depth: 10,
+            max_depth:      10,
             max_complexity: 1000,
             max_size_bytes: 256_000, // 256 KB
         }
@@ -97,7 +99,7 @@ impl QueryValidatorConfig {
     #[must_use]
     pub fn strict() -> Self {
         Self {
-            max_depth: 5,
+            max_depth:      5,
             max_complexity: 500,
             max_size_bytes: 64_000, // 64 KB
         }
@@ -180,7 +182,7 @@ impl QueryValidator {
         let size_bytes = query.len();
         if size_bytes > self.config.max_size_bytes {
             return Err(SecurityError::QueryTooLarge {
-                size: size_bytes,
+                size:     size_bytes,
                 max_size: self.config.max_size_bytes,
             });
         }
@@ -191,7 +193,7 @@ impl QueryValidator {
         // Check 3: Check query depth
         if metrics.depth > self.config.max_depth {
             return Err(SecurityError::QueryTooDeep {
-                depth: metrics.depth,
+                depth:     metrics.depth,
                 max_depth: self.config.max_depth,
             });
         }
@@ -199,7 +201,7 @@ impl QueryValidator {
         // Check 4: Check query complexity
         if metrics.complexity > self.config.max_complexity {
             return Err(SecurityError::QueryTooComplex {
-                complexity: metrics.complexity,
+                complexity:     metrics.complexity,
                 max_complexity: self.config.max_complexity,
             });
         }
@@ -246,17 +248,17 @@ impl QueryValidator {
                     if current_depth > max_depth {
                         max_depth = current_depth;
                     }
-                }
+                },
                 '}' if !in_string => {
                     if current_depth > 0 {
                         current_depth -= 1;
                     }
-                }
+                },
                 _ if !in_string && (c.is_alphabetic() || c == '_') => {
                     // Count alphanumeric field names (simplified)
                     field_count += 1;
-                }
-                _ => {}
+                },
+                _ => {},
             }
         }
 
@@ -393,7 +395,7 @@ mod tests {
     #[test]
     fn test_very_deep_query_rejected() {
         let validator = QueryValidator::strict(); // max_depth = 5
-                                                  // Create artificially deep query
+        // Create artificially deep query
         let deep = "{ a { b { c { d { e { f { g } } } } } } }";
 
         let result = validator.validate(deep);
@@ -473,9 +475,9 @@ mod tests {
     #[test]
     fn test_query_metrics_display() {
         let metrics = QueryMetrics {
-            depth: 3,
-            complexity: 100,
-            size_bytes: 256,
+            depth:       3,
+            complexity:  100,
+            size_bytes:  256,
             field_count: 5,
         };
 
@@ -489,15 +491,15 @@ mod tests {
     #[test]
     fn test_query_metrics_equality() {
         let m1 = QueryMetrics {
-            depth: 3,
-            complexity: 100,
-            size_bytes: 256,
+            depth:       3,
+            complexity:  100,
+            size_bytes:  256,
             field_count: 5,
         };
         let m2 = QueryMetrics {
-            depth: 3,
-            complexity: 100,
-            size_bytes: 256,
+            depth:       3,
+            complexity:  100,
+            size_bytes:  256,
             field_count: 5,
         };
 

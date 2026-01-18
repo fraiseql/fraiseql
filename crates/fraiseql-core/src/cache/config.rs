@@ -127,9 +127,9 @@ impl Default for CacheConfig {
     /// - List queries cached
     fn default() -> Self {
         Self {
-            enabled: true,
-            max_entries: 10_000,
-            ttl_seconds: 86_400,  // 24 hours
+            enabled:            true,
+            max_entries:        10_000,
+            ttl_seconds:        86_400, // 24 hours
             cache_list_queries: true,
         }
     }
@@ -206,9 +206,9 @@ impl CacheConfig {
     #[must_use]
     pub const fn disabled() -> Self {
         Self {
-            enabled: false,
-            max_entries: 10_000,
-            ttl_seconds: 86_400,
+            enabled:            false,
+            max_entries:        10_000,
+            ttl_seconds:        86_400,
             cache_list_queries: true,
         }
     }

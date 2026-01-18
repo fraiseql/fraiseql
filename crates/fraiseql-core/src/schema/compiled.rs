@@ -14,8 +14,9 @@
 //! This enables the Axum server to handle requests without any
 //! interaction with Python/TypeScript runtimes.
 
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+
+use serde::{Deserialize, Serialize};
 
 use super::field_type::{FieldDefinition, FieldType};
 
@@ -407,13 +408,13 @@ impl TypeDefinition {
     #[must_use]
     pub fn new(name: impl Into<String>, sql_source: impl Into<String>) -> Self {
         Self {
-            name: name.into(),
-            sql_source: sql_source.into(),
-            jsonb_column: "data".to_string(),
-            fields: Vec::new(),
-            description: None,
+            name:                name.into(),
+            sql_source:          sql_source.into(),
+            jsonb_column:        "data".to_string(),
+            fields:              Vec::new(),
+            description:         None,
             sql_projection_hint: None,
-            implements: Vec::new(),
+            implements:          Vec::new(),
         }
     }
 
@@ -520,8 +521,8 @@ impl EnumDefinition {
     #[must_use]
     pub fn new(name: impl Into<String>) -> Self {
         Self {
-            name: name.into(),
-            values: Vec::new(),
+            name:        name.into(),
+            values:      Vec::new(),
             description: None,
         }
     }
@@ -589,7 +590,7 @@ impl EnumValueDefinition {
     #[must_use]
     pub fn new(name: impl Into<String>) -> Self {
         Self {
-            name: name.into(),
+            name:        name.into(),
             description: None,
             deprecation: None,
         }
@@ -659,8 +660,8 @@ impl InputObjectDefinition {
     #[must_use]
     pub fn new(name: impl Into<String>) -> Self {
         Self {
-            name: name.into(),
-            fields: Vec::new(),
+            name:        name.into(),
+            fields:      Vec::new(),
             description: None,
         }
     }
@@ -730,11 +731,11 @@ impl InputFieldDefinition {
     #[must_use]
     pub fn new(name: impl Into<String>, field_type: impl Into<String>) -> Self {
         Self {
-            name: name.into(),
-            field_type: field_type.into(),
-            description: None,
+            name:          name.into(),
+            field_type:    field_type.into(),
+            description:   None,
             default_value: None,
-            deprecation: None,
+            deprecation:   None,
         }
     }
 
@@ -814,8 +815,8 @@ impl InterfaceDefinition {
     #[must_use]
     pub fn new(name: impl Into<String>) -> Self {
         Self {
-            name: name.into(),
-            fields: Vec::new(),
+            name:        name.into(),
+            fields:      Vec::new(),
             description: None,
         }
     }
@@ -888,9 +889,9 @@ impl UnionDefinition {
     #[must_use]
     pub fn new(name: impl Into<String>) -> Self {
         Self {
-            name: name.into(),
+            name:         name.into(),
             member_types: Vec::new(),
-            description: None,
+            description:  None,
         }
     }
 
@@ -987,15 +988,15 @@ impl QueryDefinition {
     #[must_use]
     pub fn new(name: impl Into<String>, return_type: impl Into<String>) -> Self {
         Self {
-            name: name.into(),
-            return_type: return_type.into(),
+            name:         name.into(),
+            return_type:  return_type.into(),
             returns_list: false,
-            nullable: false,
-            arguments: Vec::new(),
-            sql_source: None,
-            description: None,
-            auto_params: AutoParams::default(),
-            deprecation: None,
+            nullable:     false,
+            arguments:    Vec::new(),
+            sql_source:   None,
+            description:  None,
+            auto_params:  AutoParams::default(),
+            deprecation:  None,
         }
     }
 
@@ -1093,11 +1094,11 @@ impl MutationDefinition {
     #[must_use]
     pub fn new(name: impl Into<String>, return_type: impl Into<String>) -> Self {
         Self {
-            name: name.into(),
+            name:        name.into(),
             return_type: return_type.into(),
-            arguments: Vec::new(),
+            arguments:   Vec::new(),
             description: None,
-            operation: MutationOperation::default(),
+            operation:   MutationOperation::default(),
             deprecation: None,
         }
     }
@@ -1225,11 +1226,11 @@ pub struct SubscriptionFilter {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StaticFilterCondition {
     /// JSONB path in event data.
-    pub path: String,
+    pub path:     String,
     /// Comparison operator.
     pub operator: FilterOperator,
     /// Value to compare against.
-    pub value: serde_json::Value,
+    pub value:    serde_json::Value,
 }
 
 /// Filter comparison operators.
@@ -1261,13 +1262,13 @@ impl SubscriptionDefinition {
     #[must_use]
     pub fn new(name: impl Into<String>, return_type: impl Into<String>) -> Self {
         Self {
-            name: name.into(),
+            name:        name.into(),
             return_type: return_type.into(),
-            arguments: Vec::new(),
+            arguments:   Vec::new(),
             description: None,
-            topic: None,
-            filter: None,
-            fields: Vec::new(),
+            topic:       None,
+            filter:      None,
+            fields:      Vec::new(),
             deprecation: None,
         }
     }
@@ -1468,10 +1469,10 @@ impl AutoParams {
     #[must_use]
     pub fn all() -> Self {
         Self {
-            has_where: true,
+            has_where:    true,
             has_order_by: true,
-            has_limit: true,
-            has_offset: true,
+            has_limit:    true,
+            has_offset:   true,
         }
     }
 

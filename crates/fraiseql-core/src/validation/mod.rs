@@ -5,5 +5,5 @@
 mod id_policy;
 mod input_processor;
 
-pub use id_policy::{validate_id, IDPolicy, IDValidationError};
-pub use input_processor::{process_variables, InputProcessingConfig, ProcessingError};
+pub use id_policy::{IDPolicy, IDValidationError, validate_id};
+pub use input_processor::{InputProcessingConfig, ProcessingError, process_variables};

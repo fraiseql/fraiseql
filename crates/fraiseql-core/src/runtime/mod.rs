@@ -38,9 +38,9 @@
 //! # }
 //! ```
 
-pub mod aggregation;
 mod aggregate_parser;
 mod aggregate_projector;
+pub mod aggregation;
 mod executor;
 mod matcher;
 mod planner;
@@ -58,10 +58,10 @@ pub use matcher::{QueryMatch, QueryMatcher};
 pub use planner::{ExecutionPlan, QueryPlanner};
 pub use projection::{FieldMapping, ProjectionMapper, ResultProjector};
 pub use subscription::{
-    protocol, ActiveSubscription, DeliveryResult, KafkaAdapter, KafkaConfig, KafkaMessage,
-    ListenerConfig, ListenerHandle, PostgresListener, SubscriptionError, SubscriptionEvent,
-    SubscriptionId, SubscriptionManager, SubscriptionOperation, SubscriptionPayload,
-    TransportAdapter, TransportManager, WebhookAdapter, WebhookConfig, WebhookPayload,
+    ActiveSubscription, DeliveryResult, KafkaAdapter, KafkaConfig, KafkaMessage, ListenerConfig,
+    ListenerHandle, PostgresListener, SubscriptionError, SubscriptionEvent, SubscriptionId,
+    SubscriptionManager, SubscriptionOperation, SubscriptionPayload, TransportAdapter,
+    TransportManager, WebhookAdapter, WebhookConfig, WebhookPayload, protocol,
 };
 pub use window::{WindowSql, WindowSqlGenerator};
 pub use window_parser::WindowQueryParser;
@@ -92,11 +92,11 @@ pub struct RuntimeConfig {
 impl Default for RuntimeConfig {
     fn default() -> Self {
         Self {
-            cache_query_plans: true,
-            max_query_depth: 10,
+            cache_query_plans:    true,
+            max_query_depth:      10,
             max_query_complexity: 1000,
-            enable_tracing: false,
-            field_filter: None,
+            enable_tracing:       false,
+            field_filter:         None,
         }
     }
 }

@@ -3,9 +3,11 @@
 //! Maps user locales to database-specific collation strings, adapting to each
 //! database's collation capabilities.
 
-use crate::config::CollationConfig;
-use crate::db::types::DatabaseType;
-use crate::error::{FraiseQLError, Result};
+use crate::{
+    config::CollationConfig,
+    db::types::DatabaseType,
+    error::{FraiseQLError, Result},
+};
 
 /// Maps user locales to database-specific collation strings.
 ///
@@ -29,7 +31,7 @@ use crate::error::{FraiseQLError, Result};
 /// assert_eq!(mapper.map_locale("fr-FR").unwrap(), Some("utf8mb4_unicode_ci".to_string()));
 /// ```
 pub struct CollationMapper {
-    config: CollationConfig,
+    config:        CollationConfig,
     database_type: DatabaseType,
 }
 
@@ -184,7 +186,7 @@ impl CollationMapper {
             InvalidLocaleStrategy::DatabaseDefault => Ok(None),
             InvalidLocaleStrategy::Error => Err(FraiseQLError::Validation {
                 message: "Invalid locale: not in allowed list".to_string(),
-                path: None,
+                path:    None,
             }),
         }
     }
@@ -216,10 +218,7 @@ impl CollationCapabilities {
     /// - SQL Server: ✅ Language-specific collations
     #[must_use]
     pub const fn supports_locale_collation(db_type: DatabaseType) -> bool {
-        matches!(
-            db_type,
-            DatabaseType::PostgreSQL | DatabaseType::SQLServer
-        )
+        matches!(db_type, DatabaseType::PostgreSQL | DatabaseType::SQLServer)
     }
 
     /// Check if database requires custom collation registration.
@@ -264,10 +263,10 @@ mod tests {
 
     fn test_config() -> CollationConfig {
         CollationConfig {
-            enabled: true,
-            fallback_locale: "en-US".to_string(),
-            allowed_locales: vec!["en-US".into(), "fr-FR".into(), "ja-JP".into()],
-            on_invalid_locale: InvalidLocaleStrategy::Fallback,
+            enabled:            true,
+            fallback_locale:    "en-US".to_string(),
+            allowed_locales:    vec!["en-US".into(), "fr-FR".into(), "ja-JP".into()],
+            on_invalid_locale:  InvalidLocaleStrategy::Fallback,
             database_overrides: None,
         }
     }
@@ -277,39 +276,27 @@ mod tests {
         let config = test_config();
         let mapper = CollationMapper::new(config, DatabaseType::PostgreSQL);
 
-        assert_eq!(
-            mapper.map_locale("fr-FR").unwrap(),
-            Some("fr-FR-x-icu".to_string())
-        );
-        assert_eq!(
-            mapper.map_locale("ja-JP").unwrap(),
-            Some("ja-JP-x-icu".to_string())
-        );
+        assert_eq!(mapper.map_locale("fr-FR").unwrap(), Some("fr-FR-x-icu".to_string()));
+        assert_eq!(mapper.map_locale("ja-JP").unwrap(), Some("ja-JP-x-icu".to_string()));
     }
 
     #[test]
     fn test_postgres_libc_collation() {
         let mut config = test_config();
         config.database_overrides = Some(DatabaseCollationOverrides {
-            postgres: Some(PostgresCollationConfig {
-                use_icu: false,
+            postgres:  Some(PostgresCollationConfig {
+                use_icu:  false,
                 provider: "libc".to_string(),
             }),
-            mysql: None,
-            sqlite: None,
+            mysql:     None,
+            sqlite:    None,
             sqlserver: None,
         });
 
         let mapper = CollationMapper::new(config, DatabaseType::PostgreSQL);
 
-        assert_eq!(
-            mapper.map_locale("fr-FR").unwrap(),
-            Some("fr_FR.UTF-8".to_string())
-        );
-        assert_eq!(
-            mapper.map_locale("en-US").unwrap(),
-            Some("en_US.UTF-8".to_string())
-        );
+        assert_eq!(mapper.map_locale("fr-FR").unwrap(), Some("fr_FR.UTF-8".to_string()));
+        assert_eq!(mapper.map_locale("en-US").unwrap(), Some("en_US.UTF-8".to_string()));
     }
 
     #[test]
@@ -318,35 +305,26 @@ mod tests {
         let mapper = CollationMapper::new(config, DatabaseType::MySQL);
 
         // All locales map to same charset-based collation
-        assert_eq!(
-            mapper.map_locale("fr-FR").unwrap(),
-            Some("utf8mb4_unicode_ci".to_string())
-        );
-        assert_eq!(
-            mapper.map_locale("ja-JP").unwrap(),
-            Some("utf8mb4_unicode_ci".to_string())
-        );
+        assert_eq!(mapper.map_locale("fr-FR").unwrap(), Some("utf8mb4_unicode_ci".to_string()));
+        assert_eq!(mapper.map_locale("ja-JP").unwrap(), Some("utf8mb4_unicode_ci".to_string()));
     }
 
     #[test]
     fn test_mysql_custom_collation() {
         let mut config = test_config();
         config.database_overrides = Some(DatabaseCollationOverrides {
-            postgres: None,
-            mysql: Some(MySqlCollationConfig {
+            postgres:  None,
+            mysql:     Some(MySqlCollationConfig {
                 charset: "utf8mb4".to_string(),
-                suffix: "_0900_ai_ci".to_string(),
+                suffix:  "_0900_ai_ci".to_string(),
             }),
-            sqlite: None,
+            sqlite:    None,
             sqlserver: None,
         });
 
         let mapper = CollationMapper::new(config, DatabaseType::MySQL);
 
-        assert_eq!(
-            mapper.map_locale("fr-FR").unwrap(),
-            Some("utf8mb4_0900_ai_ci".to_string())
-        );
+        assert_eq!(mapper.map_locale("fr-FR").unwrap(), Some("utf8mb4_0900_ai_ci".to_string()));
     }
 
     #[test]
@@ -354,19 +332,16 @@ mod tests {
         let config = test_config();
         let mapper = CollationMapper::new(config, DatabaseType::SQLite);
 
-        assert_eq!(
-            mapper.map_locale("fr-FR").unwrap(),
-            Some("NOCASE".to_string())
-        );
+        assert_eq!(mapper.map_locale("fr-FR").unwrap(), Some("NOCASE".to_string()));
     }
 
     #[test]
     fn test_sqlite_disabled_nocase() {
         let mut config = test_config();
         config.database_overrides = Some(DatabaseCollationOverrides {
-            postgres: None,
-            mysql: None,
-            sqlite: Some(SqliteCollationConfig { use_nocase: false }),
+            postgres:  None,
+            mysql:     None,
+            sqlite:    Some(SqliteCollationConfig { use_nocase: false }),
             sqlserver: None,
         });
 
@@ -380,10 +355,7 @@ mod tests {
         let config = test_config();
         let mapper = CollationMapper::new(config, DatabaseType::SQLServer);
 
-        assert_eq!(
-            mapper.map_locale("fr-FR").unwrap(),
-            Some("French_100_CI_AI".to_string())
-        );
+        assert_eq!(mapper.map_locale("fr-FR").unwrap(), Some("French_100_CI_AI".to_string()));
         assert_eq!(
             mapper.map_locale("ja-JP").unwrap(),
             Some("Japanese_XJIS_100_CI_AI".to_string())
@@ -435,34 +407,18 @@ mod tests {
 
     #[test]
     fn test_capabilities_locale_support() {
-        assert!(CollationCapabilities::supports_locale_collation(
-            DatabaseType::PostgreSQL
-        ));
-        assert!(CollationCapabilities::supports_locale_collation(
-            DatabaseType::SQLServer
-        ));
-        assert!(!CollationCapabilities::supports_locale_collation(
-            DatabaseType::MySQL
-        ));
-        assert!(!CollationCapabilities::supports_locale_collation(
-            DatabaseType::SQLite
-        ));
+        assert!(CollationCapabilities::supports_locale_collation(DatabaseType::PostgreSQL));
+        assert!(CollationCapabilities::supports_locale_collation(DatabaseType::SQLServer));
+        assert!(!CollationCapabilities::supports_locale_collation(DatabaseType::MySQL));
+        assert!(!CollationCapabilities::supports_locale_collation(DatabaseType::SQLite));
     }
 
     #[test]
     fn test_capabilities_custom_collation() {
-        assert!(CollationCapabilities::requires_custom_collation(
-            DatabaseType::SQLite
-        ));
-        assert!(!CollationCapabilities::requires_custom_collation(
-            DatabaseType::PostgreSQL
-        ));
-        assert!(!CollationCapabilities::requires_custom_collation(
-            DatabaseType::MySQL
-        ));
-        assert!(!CollationCapabilities::requires_custom_collation(
-            DatabaseType::SQLServer
-        ));
+        assert!(CollationCapabilities::requires_custom_collation(DatabaseType::SQLite));
+        assert!(!CollationCapabilities::requires_custom_collation(DatabaseType::PostgreSQL));
+        assert!(!CollationCapabilities::requires_custom_collation(DatabaseType::MySQL));
+        assert!(!CollationCapabilities::requires_custom_collation(DatabaseType::SQLServer));
     }
 
     #[test]
@@ -475,10 +431,7 @@ mod tests {
             CollationCapabilities::strategy(DatabaseType::MySQL),
             "UTF8MB4 collations (general)"
         );
-        assert_eq!(
-            CollationCapabilities::strategy(DatabaseType::SQLite),
-            "NOCASE (limited)"
-        );
+        assert_eq!(CollationCapabilities::strategy(DatabaseType::SQLite), "NOCASE (limited)");
         assert_eq!(
             CollationCapabilities::strategy(DatabaseType::SQLServer),
             "Language-specific collations"

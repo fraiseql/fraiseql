@@ -3,16 +3,19 @@
 //! This adapter integrates fraiseql-wire as an alternative database backend,
 //! providing streaming JSON queries with low memory overhead.
 
-use async_trait::async_trait;
-use futures::stream::StreamExt;
 use std::collections::HashMap;
 
+use async_trait::async_trait;
+use futures::stream::StreamExt;
+
+use super::{
+    traits::DatabaseAdapter,
+    types::{DatabaseType, JsonbValue, PoolMetrics},
+    where_clause::WhereClause,
+    where_sql_generator::WhereSqlGenerator,
+    wire_pool::WireClientFactory,
+};
 use crate::error::{FraiseQLError, Result};
-use super::traits::DatabaseAdapter;
-use super::types::{DatabaseType, JsonbValue, PoolMetrics};
-use super::where_clause::WhereClause;
-use super::where_sql_generator::WhereSqlGenerator;
-use super::wire_pool::WireClientFactory;
 
 /// FraiseQL-Wire database adapter.
 ///
@@ -53,7 +56,7 @@ use super::wire_pool::WireClientFactory;
 /// ```
 #[derive(Debug, Clone)]
 pub struct FraiseWireAdapter {
-    factory: WireClientFactory,
+    factory:    WireClientFactory,
     chunk_size: usize,
 }
 
@@ -74,7 +77,7 @@ impl FraiseWireAdapter {
     #[must_use]
     pub fn new(connection_string: impl Into<String>) -> Self {
         Self {
-            factory: WireClientFactory::new(connection_string),
+            factory:    WireClientFactory::new(connection_string),
             chunk_size: 1024, // Default chunk size
         }
     }
@@ -153,22 +156,19 @@ impl FraiseWireAdapter {
         // This requires accessing the conn field which is private
         // As a workaround, we'll collect all results and slice them in memory
 
-        // Pass view name directly - fraiseql-wire now uses entity names as-is (fixed in commit 6c78e30)
-        let mut builder = client.query::<serde_json::Value>(view)
-            .chunk_size(self.chunk_size);
+        // Pass view name directly - fraiseql-wire now uses entity names as-is (fixed in commit
+        // 6c78e30)
+        let mut builder = client.query::<serde_json::Value>(view).chunk_size(self.chunk_size);
 
         if let Some(clause) = where_clause {
             let where_sql = WhereSqlGenerator::to_sql(clause)?;
             builder = builder.where_sql(where_sql);
         }
 
-        let mut stream = builder
-            .execute()
-            .await
-            .map_err(|e| FraiseQLError::Database {
-                message: format!("fraiseql-wire query failed: {e}"),
-                sql_state: None,
-            })?;
+        let mut stream = builder.execute().await.map_err(|e| FraiseQLError::Database {
+            message:   format!("fraiseql-wire query failed: {e}"),
+            sql_state: None,
+        })?;
 
         // Collect all results
         let mut results = Vec::new();
@@ -178,7 +178,7 @@ impl FraiseWireAdapter {
         let mut count = 0;
         while let Some(item) = stream.next().await {
             let json = item.map_err(|e| FraiseQLError::Database {
-                message: format!("Stream error: {e}"),
+                message:   format!("Stream error: {e}"),
                 sql_state: None,
             })?;
 
@@ -216,8 +216,7 @@ impl DatabaseAdapter for FraiseWireAdapter {
         let client = self.factory.create_client().await?;
 
         // Start building query
-        let mut builder = client.query::<serde_json::Value>(entity)
-            .chunk_size(self.chunk_size);
+        let mut builder = client.query::<serde_json::Value>(entity).chunk_size(self.chunk_size);
 
         // Add WHERE clause if provided
         if let Some(clause) = where_clause {
@@ -235,19 +234,16 @@ impl DatabaseAdapter for FraiseWireAdapter {
         }
 
         // Execute streaming query
-        let mut stream = builder
-            .execute()
-            .await
-            .map_err(|e| FraiseQLError::Database {
-                message: format!("fraiseql-wire query failed: {e}"),
-                sql_state: None,
-            })?;
+        let mut stream = builder.execute().await.map_err(|e| FraiseQLError::Database {
+            message:   format!("fraiseql-wire query failed: {e}"),
+            sql_state: None,
+        })?;
 
         // Collect results
         let mut results = Vec::new();
         while let Some(item) = stream.next().await {
             let json = item.map_err(|e| FraiseQLError::Database {
-                message: format!("Stream error: {e}"),
+                message:   format!("Stream error: {e}"),
                 sql_state: None,
             })?;
             results.push(JsonbValue::new(json));
@@ -267,7 +263,7 @@ impl DatabaseAdapter for FraiseWireAdapter {
         // Actual connectivity is verified when queries are executed.
         if self.factory.connection_string().is_empty() {
             return Err(FraiseQLError::Database {
-                message: "Connection string is empty".to_string(),
+                message:   "Connection string is empty".to_string(),
                 sql_state: None,
             });
         }
@@ -277,10 +273,10 @@ impl DatabaseAdapter for FraiseWireAdapter {
     fn pool_metrics(&self) -> PoolMetrics {
         // fraiseql-wire doesn't pool connections, so metrics are not applicable
         PoolMetrics {
-            total_connections: 0,
-            idle_connections: 0,
+            total_connections:  0,
+            idle_connections:   0,
             active_connections: 0,
-            waiting_requests: 0,
+            waiting_requests:   0,
         }
     }
 
@@ -311,8 +307,7 @@ mod tests {
 
     #[test]
     fn test_adapter_with_chunk_size() {
-        let adapter = FraiseWireAdapter::new("postgres://localhost/test")
-            .with_chunk_size(512);
+        let adapter = FraiseWireAdapter::new("postgres://localhost/test").with_chunk_size(512);
         assert_eq!(adapter.chunk_size, 512);
     }
 

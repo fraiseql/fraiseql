@@ -15,7 +15,7 @@ pub enum ValidationError {
     #[error("Query exceeds maximum depth of {max_depth}: depth = {actual_depth}")]
     QueryTooDeep {
         /// Maximum allowed depth
-        max_depth: usize,
+        max_depth:    usize,
         /// Actual query depth
         actual_depth: usize,
     },
@@ -24,7 +24,7 @@ pub enum ValidationError {
     #[error("Query exceeds maximum complexity of {max_complexity}: score = {actual_complexity}")]
     QueryTooComplex {
         /// Maximum allowed complexity
-        max_complexity: usize,
+        max_complexity:    usize,
         /// Actual query complexity
         actual_complexity: usize,
     },
@@ -42,11 +42,11 @@ pub enum ValidationError {
 #[derive(Debug, Clone)]
 pub struct RequestValidator {
     /// Maximum query depth allowed.
-    max_depth: usize,
+    max_depth:           usize,
     /// Maximum query complexity score allowed.
-    max_complexity: usize,
+    max_complexity:      usize,
     /// Enable query depth validation.
-    validate_depth: bool,
+    validate_depth:      bool,
     /// Enable query complexity validation.
     validate_complexity: bool,
 }
@@ -102,7 +102,7 @@ impl RequestValidator {
             let depth = self.calculate_depth(query);
             if depth > self.max_depth {
                 return Err(ValidationError::QueryTooDeep {
-                    max_depth: self.max_depth,
+                    max_depth:    self.max_depth,
                     actual_depth: depth,
                 });
             }
@@ -113,7 +113,7 @@ impl RequestValidator {
             let complexity = self.calculate_complexity(query);
             if complexity > self.max_complexity {
                 return Err(ValidationError::QueryTooComplex {
-                    max_complexity: self.max_complexity,
+                    max_complexity:    self.max_complexity,
                     actual_complexity: complexity,
                 });
             }
@@ -127,10 +127,7 @@ impl RequestValidator {
     /// # Errors
     ///
     /// Returns `ValidationError` if variables are invalid.
-    pub fn validate_variables(
-        &self,
-        variables: Option<&JsonValue>,
-    ) -> Result<(), ValidationError> {
+    pub fn validate_variables(&self, variables: Option<&JsonValue>) -> Result<(), ValidationError> {
         if let Some(vars) = variables {
             // Validate that variables is an object
             if !vars.is_object() {
@@ -177,11 +174,11 @@ impl RequestValidator {
                 '{' => {
                     current_depth += 1;
                     max_depth = max_depth.max(current_depth);
-                }
+                },
                 '}' => {
                     current_depth = current_depth.saturating_sub(1);
-                }
-                _ => {}
+                },
+                _ => {},
             }
         }
 
@@ -218,7 +215,7 @@ impl RequestValidator {
                 '{' => complexity += 1,
                 '[' => complexity += 2, // Array selections cost more
                 '(' => complexity += 1, // Arguments
-                _ => {}
+                _ => {},
             }
         }
 
@@ -229,9 +226,9 @@ impl RequestValidator {
 impl Default for RequestValidator {
     fn default() -> Self {
         Self {
-            max_depth: 10,
-            max_complexity: 100,
-            validate_depth: true,
+            max_depth:           10,
+            max_complexity:      100,
+            validate_depth:      true,
             validate_complexity: true,
         }
     }

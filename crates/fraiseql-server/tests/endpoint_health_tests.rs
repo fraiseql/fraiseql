@@ -4,8 +4,10 @@
 //! - Health check (/health): Database connectivity and metrics
 //! - Introspection (/introspection): Schema metadata
 
-use fraiseql_server::routes::health::{DatabaseStatus, HealthResponse};
-use fraiseql_server::routes::introspection::{IntrospectionResponse, TypeInfo, QueryInfo, MutationInfo};
+use fraiseql_server::routes::{
+    health::{DatabaseStatus, HealthResponse},
+    introspection::{IntrospectionResponse, MutationInfo, QueryInfo, TypeInfo},
+};
 
 // ============================================================================
 // HEALTH CHECK ENDPOINT TESTS
@@ -15,14 +17,14 @@ use fraiseql_server::routes::introspection::{IntrospectionResponse, TypeInfo, Qu
 #[test]
 fn test_health_response_structure() {
     let response = HealthResponse {
-        status: "healthy".to_string(),
+        status:   "healthy".to_string(),
         database: DatabaseStatus {
-            connected: true,
-            database_type: "PostgreSQL".to_string(),
+            connected:          true,
+            database_type:      "PostgreSQL".to_string(),
             active_connections: Some(5),
-            idle_connections: Some(15),
+            idle_connections:   Some(15),
         },
-        version: "2.0.0-alpha.1".to_string(),
+        version:  "2.0.0-alpha.1".to_string(),
     };
 
     assert_eq!(response.status, "healthy");
@@ -36,14 +38,14 @@ fn test_health_response_structure() {
 #[test]
 fn test_health_response_unhealthy() {
     let response = HealthResponse {
-        status: "unhealthy".to_string(),
+        status:   "unhealthy".to_string(),
         database: DatabaseStatus {
-            connected: false,
-            database_type: "PostgreSQL".to_string(),
+            connected:          false,
+            database_type:      "PostgreSQL".to_string(),
             active_connections: Some(0),
-            idle_connections: Some(0),
+            idle_connections:   Some(0),
         },
-        version: "2.0.0-alpha.1".to_string(),
+        version:  "2.0.0-alpha.1".to_string(),
     };
 
     assert_eq!(response.status, "unhealthy");
@@ -54,14 +56,14 @@ fn test_health_response_unhealthy() {
 #[test]
 fn test_health_response_serialization() {
     let response = HealthResponse {
-        status: "healthy".to_string(),
+        status:   "healthy".to_string(),
         database: DatabaseStatus {
-            connected: true,
-            database_type: "MySQL".to_string(),
+            connected:          true,
+            database_type:      "MySQL".to_string(),
             active_connections: Some(3),
-            idle_connections: Some(7),
+            idle_connections:   Some(7),
         },
-        version: "2.0.0-alpha.1".to_string(),
+        version:  "2.0.0-alpha.1".to_string(),
     };
 
     let json = serde_json::to_string(&response).unwrap();
@@ -76,14 +78,14 @@ fn test_health_response_serialization() {
 #[test]
 fn test_health_response_json_format() {
     let response = HealthResponse {
-        status: "healthy".to_string(),
+        status:   "healthy".to_string(),
         database: DatabaseStatus {
-            connected: true,
-            database_type: "PostgreSQL".to_string(),
+            connected:          true,
+            database_type:      "PostgreSQL".to_string(),
             active_connections: Some(2),
-            idle_connections: Some(8),
+            idle_connections:   Some(8),
         },
-        version: "2.0.0-alpha.1".to_string(),
+        version:  "2.0.0-alpha.1".to_string(),
     };
 
     let json = serde_json::to_string(&response).unwrap();
@@ -97,23 +99,18 @@ fn test_health_response_json_format() {
 /// Test health with different database types
 #[test]
 fn test_health_different_databases() {
-    let databases = vec![
-        "PostgreSQL",
-        "MySQL",
-        "SQLite",
-        "SQLServer",
-    ];
+    let databases = vec!["PostgreSQL", "MySQL", "SQLite", "SQLServer"];
 
     for db_type in databases {
         let response = HealthResponse {
-            status: "healthy".to_string(),
+            status:   "healthy".to_string(),
             database: DatabaseStatus {
-                connected: true,
-                database_type: db_type.to_string(),
+                connected:          true,
+                database_type:      db_type.to_string(),
                 active_connections: Some(5),
-                idle_connections: Some(10),
+                idle_connections:   Some(10),
             },
-            version: "2.0.0-alpha.1".to_string(),
+            version:  "2.0.0-alpha.1".to_string(),
         };
 
         assert_eq!(response.database.database_type, db_type);
@@ -125,14 +122,14 @@ fn test_health_different_databases() {
 fn test_health_optional_metrics() {
     // Without connection metrics
     let response = HealthResponse {
-        status: "healthy".to_string(),
+        status:   "healthy".to_string(),
         database: DatabaseStatus {
-            connected: true,
-            database_type: "PostgreSQL".to_string(),
+            connected:          true,
+            database_type:      "PostgreSQL".to_string(),
             active_connections: None,
-            idle_connections: None,
+            idle_connections:   None,
         },
-        version: "2.0.0-alpha.1".to_string(),
+        version:  "2.0.0-alpha.1".to_string(),
     };
 
     let json = serde_json::to_string(&response).unwrap();
@@ -150,23 +147,18 @@ fn test_health_optional_metrics() {
 /// Test health version field
 #[test]
 fn test_health_version_field() {
-    let versions = vec![
-        "1.0.0",
-        "2.0.0-alpha.1",
-        "2.0.0-beta.2",
-        "2.0.0",
-    ];
+    let versions = vec!["1.0.0", "2.0.0-alpha.1", "2.0.0-beta.2", "2.0.0"];
 
     for version in versions {
         let response = HealthResponse {
-            status: "healthy".to_string(),
+            status:   "healthy".to_string(),
             database: DatabaseStatus {
-                connected: true,
-                database_type: "PostgreSQL".to_string(),
+                connected:          true,
+                database_type:      "PostgreSQL".to_string(),
                 active_connections: Some(5),
-                idle_connections: Some(10),
+                idle_connections:   Some(10),
             },
-            version: version.to_string(),
+            version:  version.to_string(),
         };
 
         assert_eq!(response.version, version);
@@ -181,7 +173,7 @@ fn test_health_version_field() {
 #[test]
 fn test_type_info_structure() {
     let type_info = TypeInfo {
-        name: "User".to_string(),
+        name:        "User".to_string(),
         description: Some("A user in the system".to_string()),
         field_count: 5,
     };
@@ -195,7 +187,7 @@ fn test_type_info_structure() {
 #[test]
 fn test_type_info_no_description() {
     let type_info = TypeInfo {
-        name: "Post".to_string(),
+        name:        "Post".to_string(),
         description: None,
         field_count: 3,
     };
@@ -209,7 +201,7 @@ fn test_type_info_no_description() {
 #[test]
 fn test_type_info_serialization() {
     let type_info = TypeInfo {
-        name: "Comment".to_string(),
+        name:        "Comment".to_string(),
         description: Some("A comment on a post".to_string()),
         field_count: 4,
     };
@@ -225,10 +217,10 @@ fn test_type_info_serialization() {
 #[test]
 fn test_query_info_structure() {
     let query_info = QueryInfo {
-        name: "user".to_string(),
-        return_type: "User".to_string(),
+        name:         "user".to_string(),
+        return_type:  "User".to_string(),
         returns_list: false,
-        description: Some("Get a single user".to_string()),
+        description:  Some("Get a single user".to_string()),
     };
 
     assert_eq!(query_info.name, "user");
@@ -240,10 +232,10 @@ fn test_query_info_structure() {
 #[test]
 fn test_query_info_returns_list() {
     let query_info = QueryInfo {
-        name: "users".to_string(),
-        return_type: "User".to_string(),
+        name:         "users".to_string(),
+        return_type:  "User".to_string(),
         returns_list: true,
-        description: Some("Get all users".to_string()),
+        description:  Some("Get all users".to_string()),
     };
 
     assert!(query_info.returns_list);
@@ -253,7 +245,7 @@ fn test_query_info_returns_list() {
 #[test]
 fn test_mutation_info_structure() {
     let mutation_info = MutationInfo {
-        name: "createUser".to_string(),
+        name:        "createUser".to_string(),
         return_type: "User".to_string(),
         description: Some("Create a new user".to_string()),
     };
@@ -266,39 +258,37 @@ fn test_mutation_info_structure() {
 #[test]
 fn test_introspection_response_structure() {
     let response = IntrospectionResponse {
-        types: vec![
+        types:     vec![
             TypeInfo {
-                name: "User".to_string(),
+                name:        "User".to_string(),
                 description: None,
                 field_count: 5,
             },
             TypeInfo {
-                name: "Post".to_string(),
+                name:        "Post".to_string(),
                 description: None,
                 field_count: 4,
             },
         ],
-        queries: vec![
+        queries:   vec![
             QueryInfo {
-                name: "user".to_string(),
-                return_type: "User".to_string(),
+                name:         "user".to_string(),
+                return_type:  "User".to_string(),
                 returns_list: false,
-                description: None,
+                description:  None,
             },
             QueryInfo {
-                name: "users".to_string(),
-                return_type: "User".to_string(),
+                name:         "users".to_string(),
+                return_type:  "User".to_string(),
                 returns_list: true,
-                description: None,
+                description:  None,
             },
         ],
-        mutations: vec![
-            MutationInfo {
-                name: "createUser".to_string(),
-                return_type: "User".to_string(),
-                description: None,
-            },
-        ],
+        mutations: vec![MutationInfo {
+            name:        "createUser".to_string(),
+            return_type: "User".to_string(),
+            description: None,
+        }],
     };
 
     assert_eq!(response.types.len(), 2);
@@ -310,21 +300,17 @@ fn test_introspection_response_structure() {
 #[test]
 fn test_introspection_response_serialization() {
     let response = IntrospectionResponse {
-        types: vec![
-            TypeInfo {
-                name: "User".to_string(),
-                description: Some("User type".to_string()),
-                field_count: 5,
-            },
-        ],
-        queries: vec![
-            QueryInfo {
-                name: "user".to_string(),
-                return_type: "User".to_string(),
-                returns_list: false,
-                description: Some("Get a single user".to_string()),
-            },
-        ],
+        types:     vec![TypeInfo {
+            name:        "User".to_string(),
+            description: Some("User type".to_string()),
+            field_count: 5,
+        }],
+        queries:   vec![QueryInfo {
+            name:         "user".to_string(),
+            return_type:  "User".to_string(),
+            returns_list: false,
+            description:  Some("Get a single user".to_string()),
+        }],
         mutations: vec![],
     };
 
@@ -340,12 +326,24 @@ fn test_introspection_response_serialization() {
 #[test]
 fn test_introspection_multiple_types() {
     let response = IntrospectionResponse {
-        types: vec![
-            TypeInfo { name: "User".to_string(), description: None, field_count: 3 },
-            TypeInfo { name: "Post".to_string(), description: None, field_count: 4 },
-            TypeInfo { name: "Comment".to_string(), description: None, field_count: 2 },
+        types:     vec![
+            TypeInfo {
+                name:        "User".to_string(),
+                description: None,
+                field_count: 3,
+            },
+            TypeInfo {
+                name:        "Post".to_string(),
+                description: None,
+                field_count: 4,
+            },
+            TypeInfo {
+                name:        "Comment".to_string(),
+                description: None,
+                field_count: 2,
+            },
         ],
-        queries: vec![],
+        queries:   vec![],
         mutations: vec![],
     };
 
@@ -359,15 +357,38 @@ fn test_introspection_multiple_types() {
 #[test]
 fn test_introspection_operations() {
     let response = IntrospectionResponse {
-        types: vec![],
-        queries: vec![
-            QueryInfo { name: "user".to_string(), return_type: "User".to_string(), returns_list: false, description: None },
-            QueryInfo { name: "users".to_string(), return_type: "User".to_string(), returns_list: true, description: None },
-            QueryInfo { name: "post".to_string(), return_type: "Post".to_string(), returns_list: false, description: None },
+        types:     vec![],
+        queries:   vec![
+            QueryInfo {
+                name:         "user".to_string(),
+                return_type:  "User".to_string(),
+                returns_list: false,
+                description:  None,
+            },
+            QueryInfo {
+                name:         "users".to_string(),
+                return_type:  "User".to_string(),
+                returns_list: true,
+                description:  None,
+            },
+            QueryInfo {
+                name:         "post".to_string(),
+                return_type:  "Post".to_string(),
+                returns_list: false,
+                description:  None,
+            },
         ],
         mutations: vec![
-            MutationInfo { name: "createUser".to_string(), return_type: "User".to_string(), description: None },
-            MutationInfo { name: "deleteUser".to_string(), return_type: "User".to_string(), description: None },
+            MutationInfo {
+                name:        "createUser".to_string(),
+                return_type: "User".to_string(),
+                description: None,
+            },
+            MutationInfo {
+                name:        "deleteUser".to_string(),
+                return_type: "User".to_string(),
+                description: None,
+            },
         ],
     };
 
@@ -379,8 +400,8 @@ fn test_introspection_operations() {
 #[test]
 fn test_introspection_empty_schema() {
     let response = IntrospectionResponse {
-        types: vec![],
-        queries: vec![],
+        types:     vec![],
+        queries:   vec![],
         mutations: vec![],
     };
 
@@ -396,28 +417,22 @@ fn test_introspection_empty_schema() {
 #[test]
 fn test_introspection_with_descriptions() {
     let response = IntrospectionResponse {
-        types: vec![
-            TypeInfo {
-                name: "User".to_string(),
-                description: Some("Represents a user account".to_string()),
-                field_count: 5,
-            },
-        ],
-        queries: vec![
-            QueryInfo {
-                name: "user".to_string(),
-                return_type: "User".to_string(),
-                returns_list: false,
-                description: Some("Fetch a user by ID".to_string()),
-            },
-        ],
-        mutations: vec![
-            MutationInfo {
-                name: "createUser".to_string(),
-                return_type: "User".to_string(),
-                description: Some("Create a new user account".to_string()),
-            },
-        ],
+        types:     vec![TypeInfo {
+            name:        "User".to_string(),
+            description: Some("Represents a user account".to_string()),
+            field_count: 5,
+        }],
+        queries:   vec![QueryInfo {
+            name:         "user".to_string(),
+            return_type:  "User".to_string(),
+            returns_list: false,
+            description:  Some("Fetch a user by ID".to_string()),
+        }],
+        mutations: vec![MutationInfo {
+            name:        "createUser".to_string(),
+            return_type: "User".to_string(),
+            description: Some("Create a new user account".to_string()),
+        }],
     };
 
     let json = serde_json::to_string(&response).unwrap();

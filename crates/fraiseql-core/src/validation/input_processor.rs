@@ -6,9 +6,11 @@
 //! **SECURITY CRITICAL**: Input validation is a critical security layer that
 //! prevents invalid data from propagating through the GraphQL pipeline.
 
-use super::id_policy::{validate_id, IDPolicy};
-use serde_json::{Map, Value};
 use std::collections::HashSet;
+
+use serde_json::{Map, Value};
+
+use super::id_policy::{IDPolicy, validate_id};
 
 /// Configuration for input processing
 #[derive(Debug, Clone)]
@@ -27,8 +29,8 @@ pub struct InputProcessingConfig {
 impl Default for InputProcessingConfig {
     fn default() -> Self {
         Self {
-            id_policy: IDPolicy::default(),
-            validate_ids: true,
+            id_policy:      IDPolicy::default(),
+            validate_ids:   true,
             id_field_names: Self::default_id_field_names(),
         }
     }
@@ -68,8 +70,8 @@ impl InputProcessingConfig {
     #[must_use]
     pub fn strict_uuid() -> Self {
         Self {
-            id_policy: IDPolicy::UUID,
-            validate_ids: true,
+            id_policy:      IDPolicy::UUID,
+            validate_ids:   true,
             id_field_names: Self::default_id_field_names(),
         }
     }
@@ -78,8 +80,8 @@ impl InputProcessingConfig {
     #[must_use]
     pub fn opaque() -> Self {
         Self {
-            id_policy: IDPolicy::OPAQUE,
-            validate_ids: false, // No validation needed for opaque
+            id_policy:      IDPolicy::OPAQUE,
+            validate_ids:   false, // No validation needed for opaque
             id_field_names: Self::default_id_field_names(),
         }
     }
@@ -136,7 +138,7 @@ pub fn process_variables(
             }
 
             Ok(Value::Object(result))
-        }
+        },
         Value::Null => Ok(Value::Null),
         other => Ok(other.clone()),
     }
@@ -159,10 +161,10 @@ fn process_value(
         {
             validate_id(s, config.id_policy).map_err(|e| ProcessingError {
                 field_path: field_name.to_string(),
-                reason: format!("Invalid ID value: {e}"),
+                reason:     format!("Invalid ID value: {e}"),
             })?;
             Ok(Value::String(s.clone()))
-        }
+        },
 
         // Recursively process nested objects
         Value::Object(obj) => {
@@ -174,7 +176,7 @@ fn process_value(
             }
 
             Ok(Value::Object(result))
-        }
+        },
 
         // Process array items
         Value::Array(arr) => {
@@ -188,7 +190,7 @@ fn process_value(
                 .collect();
 
             Ok(Value::Array(processed_items?))
-        }
+        },
 
         // Pass through other values unchanged
         other => Ok(other.clone()),
@@ -201,7 +203,7 @@ pub struct ProcessingError {
     /// The field path where the error occurred
     pub field_path: String,
     /// The reason for the error
-    pub reason: String,
+    pub reason:     String,
 }
 
 impl std::fmt::Display for ProcessingError {
@@ -214,8 +216,9 @@ impl std::error::Error for ProcessingError {}
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serde_json::json;
+
+    use super::*;
 
     #[test]
     fn test_process_valid_uuid_id() {

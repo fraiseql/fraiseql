@@ -29,8 +29,8 @@
 //! }
 //! ```
 
-use crate::error::Result;
 use super::ir::{AuthoringIR, IRArgument, IRMutation, IRQuery, MutationOperation};
+use crate::error::Result;
 
 /// Database target for SQL generation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -87,7 +87,7 @@ impl DatabaseTarget {
                     parts.push(format!("OFFSET {off}"));
                 }
                 parts.join(" ")
-            }
+            },
             Self::SQLServer => {
                 // SQL Server uses OFFSET...FETCH
                 let mut parts = Vec::new();
@@ -101,7 +101,7 @@ impl DatabaseTarget {
                     parts.push(format!("TOP {lim}"));
                 }
                 parts.join(" ")
-            }
+            },
         }
     }
 }
@@ -125,17 +125,17 @@ pub enum TemplateKind {
 #[derive(Debug, Clone)]
 pub struct SqlTemplate {
     /// Template name (query/mutation name).
-    pub name: String,
+    pub name:                String,
     /// Template kind (query, insert, update, delete).
-    pub kind: TemplateKind,
+    pub kind:                TemplateKind,
     /// SQL template with placeholders.
-    pub template: String,
+    pub template:            String,
     /// Parameter names in order of appearance.
-    pub parameters: Vec<String>,
+    pub parameters:          Vec<String>,
     /// Whether this template supports dynamic WHERE clauses.
-    pub supports_where: bool,
+    pub supports_where:      bool,
     /// Whether this template supports dynamic ORDER BY.
-    pub supports_order_by: bool,
+    pub supports_order_by:   bool,
     /// Whether this template supports LIMIT/OFFSET.
     pub supports_pagination: bool,
 }
@@ -270,17 +270,16 @@ impl SqlTemplateGenerator {
         let (template, kind) = match mutation.operation {
             MutationOperation::Create => {
                 self.generate_insert_template(&quoted_table, &mutation.arguments)
-            }
+            },
             MutationOperation::Update => {
                 self.generate_update_template(&quoted_table, &mutation.arguments)
-            }
+            },
             MutationOperation::Delete => {
                 self.generate_delete_template(&quoted_table, &mutation.arguments)
-            }
-            MutationOperation::Custom => (
-                format!("-- Custom mutation: {}", mutation.name),
-                TemplateKind::Custom,
-            ),
+            },
+            MutationOperation::Custom => {
+                (format!("-- Custom mutation: {}", mutation.name), TemplateKind::Custom)
+            },
         };
 
         SqlTemplate {
@@ -319,9 +318,8 @@ impl SqlTemplateGenerator {
         } else {
             // Build column list from arguments
             let columns: Vec<&str> = arguments.iter().map(|a| a.name.as_str()).collect();
-            let placeholders: Vec<String> = (1..=columns.len())
-                .map(|i| self.target.placeholder(i))
-                .collect();
+            let placeholders: Vec<String> =
+                (1..=columns.len()).map(|i| self.target.placeholder(i)).collect();
 
             (
                 format!(
@@ -360,12 +358,15 @@ impl SqlTemplateGenerator {
                 let set_clauses: Vec<String> = arguments
                     .iter()
                     .filter(|a| a.name != "id" && a.name != "where")
-                    .map(|a| format!("data = jsonb_set(data, '{{{{{}}}}}', {{{}}})", a.name, a.name))
+                    .map(|a| {
+                        format!("data = jsonb_set(data, '{{{{{}}}}}', {{{}}})", a.name, a.name)
+                    })
                     .collect();
 
                 if set_clauses.is_empty() {
                     (
-                        format!("UPDATE {quoted_table} SET data = {{data}} WHERE {} = {{{}}} RETURNING data",
+                        format!(
+                            "UPDATE {quoted_table} SET data = {{data}} WHERE {} = {{{}}} RETURNING data",
                             self.target.jsonb_extract("data", "id"),
                             id.name
                         ),
@@ -382,9 +383,11 @@ impl SqlTemplateGenerator {
                         TemplateKind::Update,
                     )
                 }
-            }
+            },
             _ => (
-                format!("UPDATE {quoted_table} SET data = {{data}} WHERE {{where_clause}} RETURNING data"),
+                format!(
+                    "UPDATE {quoted_table} SET data = {{data}} WHERE {{where_clause}} RETURNING data"
+                ),
                 TemplateKind::Update,
             ),
         }
@@ -455,17 +458,13 @@ impl SqlTemplateGenerator {
 
         // Replace WHERE clause placeholder
         if template.supports_where {
-            let where_sql = where_clause
-                .map(|w| format!("WHERE {w}"))
-                .unwrap_or_default();
+            let where_sql = where_clause.map(|w| format!("WHERE {w}")).unwrap_or_default();
             sql = sql.replace("{{where_clause}}", &where_sql);
         }
 
         // Replace ORDER BY placeholder
         if template.supports_order_by {
-            let order_sql = order_by
-                .map(|o| format!("ORDER BY {o}"))
-                .unwrap_or_default();
+            let order_sql = order_by.map(|o| format!("ORDER BY {o}")).unwrap_or_default();
             sql = sql.replace("{{order_by}}", &order_sql);
         }
 
@@ -473,10 +472,8 @@ impl SqlTemplateGenerator {
         if template.supports_pagination {
             let limit_str = limit.map(|l| l.to_string());
             let offset_str = offset.map(|o| o.to_string());
-            let pagination_sql = self.target.limit_offset(
-                limit_str.as_deref(),
-                offset_str.as_deref(),
-            );
+            let pagination_sql =
+                self.target.limit_offset(limit_str.as_deref(), offset_str.as_deref());
             sql = sql.replace("{{pagination}}", &pagination_sql);
         }
 
@@ -498,15 +495,17 @@ impl SqlTemplateGenerator {
             serde_json::Value::String(s) => format!("'{}'", s.replace('\'', "''")),
             serde_json::Value::Array(_) | serde_json::Value::Object(_) => {
                 format!("'{}'", value.to_string().replace('\'', "''"))
-            }
+            },
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use super::super::ir::{AutoParams, IRArgument};
+    use super::{
+        super::ir::{AutoParams, IRArgument},
+        *,
+    };
 
     #[test]
     fn test_sql_template_generator_new() {
@@ -539,10 +538,7 @@ mod tests {
 
     #[test]
     fn test_database_target_jsonb_extract() {
-        assert_eq!(
-            DatabaseTarget::PostgreSQL.jsonb_extract("data", "name"),
-            "data->'name'"
-        );
+        assert_eq!(DatabaseTarget::PostgreSQL.jsonb_extract("data", "name"), "data->'name'");
         assert_eq!(
             DatabaseTarget::MySQL.jsonb_extract("data", "name"),
             "JSON_EXTRACT(data, '$.name')"
@@ -560,24 +556,15 @@ mod tests {
     #[test]
     fn test_database_target_limit_offset() {
         // PostgreSQL/MySQL/SQLite
-        assert_eq!(
-            DatabaseTarget::PostgreSQL.limit_offset(Some("10"), None),
-            "LIMIT 10"
-        );
+        assert_eq!(DatabaseTarget::PostgreSQL.limit_offset(Some("10"), None), "LIMIT 10");
         assert_eq!(
             DatabaseTarget::PostgreSQL.limit_offset(Some("10"), Some("5")),
             "LIMIT 10 OFFSET 5"
         );
-        assert_eq!(
-            DatabaseTarget::PostgreSQL.limit_offset(None, Some("5")),
-            "OFFSET 5"
-        );
+        assert_eq!(DatabaseTarget::PostgreSQL.limit_offset(None, Some("5")), "OFFSET 5");
 
         // SQL Server
-        assert_eq!(
-            DatabaseTarget::SQLServer.limit_offset(Some("10"), None),
-            "TOP 10"
-        );
+        assert_eq!(DatabaseTarget::SQLServer.limit_offset(Some("10"), None), "TOP 10");
         assert_eq!(
             DatabaseTarget::SQLServer.limit_offset(Some("10"), Some("5")),
             "OFFSET 5 ROWS FETCH NEXT 10 ROWS ONLY"
@@ -589,14 +576,14 @@ mod tests {
         let generator = SqlTemplateGenerator::new(DatabaseTarget::PostgreSQL);
 
         let query = IRQuery {
-            name: "users".to_string(),
-            return_type: "User".to_string(),
+            name:         "users".to_string(),
+            return_type:  "User".to_string(),
             returns_list: true,
-            nullable: false,
-            arguments: vec![],
-            sql_source: Some("v_user".to_string()),
-            description: None,
-            auto_params: AutoParams::default(),
+            nullable:     false,
+            arguments:    vec![],
+            sql_source:   Some("v_user".to_string()),
+            description:  None,
+            auto_params:  AutoParams::default(),
         };
 
         let template = generator.generate_query_template(&query);
@@ -614,18 +601,18 @@ mod tests {
         let generator = SqlTemplateGenerator::new(DatabaseTarget::PostgreSQL);
 
         let query = IRQuery {
-            name: "users".to_string(),
-            return_type: "User".to_string(),
+            name:         "users".to_string(),
+            return_type:  "User".to_string(),
             returns_list: true,
-            nullable: false,
-            arguments: vec![],
-            sql_source: Some("v_user".to_string()),
-            description: None,
-            auto_params: AutoParams {
-                has_where: true,
+            nullable:     false,
+            arguments:    vec![],
+            sql_source:   Some("v_user".to_string()),
+            description:  None,
+            auto_params:  AutoParams {
+                has_where:    true,
                 has_order_by: true,
-                has_limit: true,
-                has_offset: true,
+                has_limit:    true,
+                has_offset:   true,
             },
         };
 
@@ -644,22 +631,20 @@ mod tests {
         let generator = SqlTemplateGenerator::new(DatabaseTarget::PostgreSQL);
 
         let query = IRQuery {
-            name: "user".to_string(),
-            return_type: "User".to_string(),
+            name:         "user".to_string(),
+            return_type:  "User".to_string(),
             returns_list: false,
-            nullable: true,
-            arguments: vec![
-                IRArgument {
-                    name: "id".to_string(),
-                    arg_type: "ID!".to_string(),
-                    nullable: false,
-                    default_value: None,
-                    description: None,
-                },
-            ],
-            sql_source: Some("v_user".to_string()),
-            description: None,
-            auto_params: AutoParams::default(),
+            nullable:     true,
+            arguments:    vec![IRArgument {
+                name:          "id".to_string(),
+                arg_type:      "ID!".to_string(),
+                nullable:      false,
+                default_value: None,
+                description:   None,
+            }],
+            sql_source:   Some("v_user".to_string()),
+            description:  None,
+            auto_params:  AutoParams::default(),
         };
 
         let template = generator.generate_query_template(&query);
@@ -673,20 +658,18 @@ mod tests {
         let generator = SqlTemplateGenerator::new(DatabaseTarget::PostgreSQL);
 
         let mutation = IRMutation {
-            name: "createUser".to_string(),
+            name:        "createUser".to_string(),
             return_type: "User".to_string(),
-            nullable: false,
-            arguments: vec![
-                IRArgument {
-                    name: "input".to_string(),
-                    arg_type: "CreateUserInput!".to_string(),
-                    nullable: false,
-                    default_value: None,
-                    description: None,
-                },
-            ],
+            nullable:    false,
+            arguments:   vec![IRArgument {
+                name:          "input".to_string(),
+                arg_type:      "CreateUserInput!".to_string(),
+                nullable:      false,
+                default_value: None,
+                description:   None,
+            }],
             description: None,
-            operation: MutationOperation::Create,
+            operation:   MutationOperation::Create,
         };
 
         let template = generator.generate_mutation_template(&mutation);
@@ -703,27 +686,27 @@ mod tests {
         let generator = SqlTemplateGenerator::new(DatabaseTarget::PostgreSQL);
 
         let mutation = IRMutation {
-            name: "updateUser".to_string(),
+            name:        "updateUser".to_string(),
             return_type: "User".to_string(),
-            nullable: false,
-            arguments: vec![
+            nullable:    false,
+            arguments:   vec![
                 IRArgument {
-                    name: "id".to_string(),
-                    arg_type: "ID!".to_string(),
-                    nullable: false,
+                    name:          "id".to_string(),
+                    arg_type:      "ID!".to_string(),
+                    nullable:      false,
                     default_value: None,
-                    description: None,
+                    description:   None,
                 },
                 IRArgument {
-                    name: "input".to_string(),
-                    arg_type: "UpdateUserInput!".to_string(),
-                    nullable: false,
+                    name:          "input".to_string(),
+                    arg_type:      "UpdateUserInput!".to_string(),
+                    nullable:      false,
                     default_value: None,
-                    description: None,
+                    description:   None,
                 },
             ],
             description: None,
-            operation: MutationOperation::Update,
+            operation:   MutationOperation::Update,
         };
 
         let template = generator.generate_mutation_template(&mutation);
@@ -740,20 +723,18 @@ mod tests {
         let generator = SqlTemplateGenerator::new(DatabaseTarget::PostgreSQL);
 
         let mutation = IRMutation {
-            name: "deleteUser".to_string(),
+            name:        "deleteUser".to_string(),
             return_type: "User".to_string(),
-            nullable: false,
-            arguments: vec![
-                IRArgument {
-                    name: "id".to_string(),
-                    arg_type: "ID!".to_string(),
-                    nullable: false,
-                    default_value: None,
-                    description: None,
-                },
-            ],
+            nullable:    false,
+            arguments:   vec![IRArgument {
+                name:          "id".to_string(),
+                arg_type:      "ID!".to_string(),
+                nullable:      false,
+                default_value: None,
+                description:   None,
+            }],
             description: None,
-            operation: MutationOperation::Delete,
+            operation:   MutationOperation::Delete,
         };
 
         let template = generator.generate_mutation_template(&mutation);
@@ -770,23 +751,23 @@ mod tests {
         let mut ir = AuthoringIR::new();
 
         ir.queries.push(IRQuery {
-            name: "users".to_string(),
-            return_type: "User".to_string(),
+            name:         "users".to_string(),
+            return_type:  "User".to_string(),
             returns_list: true,
-            nullable: false,
-            arguments: vec![],
-            sql_source: Some("v_user".to_string()),
-            description: None,
-            auto_params: AutoParams::default(),
+            nullable:     false,
+            arguments:    vec![],
+            sql_source:   Some("v_user".to_string()),
+            description:  None,
+            auto_params:  AutoParams::default(),
         });
 
         ir.mutations.push(IRMutation {
-            name: "createUser".to_string(),
+            name:        "createUser".to_string(),
             return_type: "User".to_string(),
-            nullable: false,
-            arguments: vec![],
+            nullable:    false,
+            arguments:   vec![],
             description: None,
-            operation: MutationOperation::Create,
+            operation:   MutationOperation::Create,
         });
 
         let templates = generator.generate(&ir).unwrap();
@@ -895,14 +876,14 @@ mod tests {
         let generator = SqlTemplateGenerator::new(DatabaseTarget::MySQL);
 
         let query = IRQuery {
-            name: "users".to_string(),
-            return_type: "User".to_string(),
+            name:         "users".to_string(),
+            return_type:  "User".to_string(),
             returns_list: true,
-            nullable: false,
-            arguments: vec![],
-            sql_source: Some("v_user".to_string()),
-            description: None,
-            auto_params: AutoParams::default(),
+            nullable:     false,
+            arguments:    vec![],
+            sql_source:   Some("v_user".to_string()),
+            description:  None,
+            auto_params:  AutoParams::default(),
         };
 
         let template = generator.generate_query_template(&query);
@@ -916,14 +897,14 @@ mod tests {
         let generator = SqlTemplateGenerator::new(DatabaseTarget::SQLServer);
 
         let query = IRQuery {
-            name: "users".to_string(),
-            return_type: "User".to_string(),
+            name:         "users".to_string(),
+            return_type:  "User".to_string(),
             returns_list: true,
-            nullable: false,
-            arguments: vec![],
-            sql_source: Some("v_user".to_string()),
-            description: None,
-            auto_params: AutoParams::default(),
+            nullable:     false,
+            arguments:    vec![],
+            sql_source:   Some("v_user".to_string()),
+            description:  None,
+            auto_params:  AutoParams::default(),
         };
 
         let template = generator.generate_query_template(&query);

@@ -54,8 +54,8 @@ impl VectorConfig {
     #[must_use]
     pub fn openai() -> Self {
         Self {
-            dimensions: 1536,
-            index_type: VectorIndexType::Hnsw,
+            dimensions:      1536,
+            index_type:      VectorIndexType::Hnsw,
             distance_metric: DistanceMetric::Cosine,
         }
     }
@@ -64,8 +64,8 @@ impl VectorConfig {
     #[must_use]
     pub fn openai_small() -> Self {
         Self {
-            dimensions: 512,
-            index_type: VectorIndexType::Hnsw,
+            dimensions:      512,
+            index_type:      VectorIndexType::Hnsw,
             distance_metric: DistanceMetric::Cosine,
         }
     }
@@ -127,16 +127,12 @@ impl VectorIndexType {
         match self {
             Self::Hnsw => {
                 let ops = distance_metric.hnsw_ops_class();
-                Some(format!(
-                    "CREATE INDEX ON {table} USING hnsw ({column} {ops})"
-                ))
-            }
+                Some(format!("CREATE INDEX ON {table} USING hnsw ({column} {ops})"))
+            },
             Self::IvfFlat => {
                 let ops = distance_metric.ivfflat_ops_class();
-                Some(format!(
-                    "CREATE INDEX ON {table} USING ivfflat ({column} {ops})"
-                ))
-            }
+                Some(format!("CREATE INDEX ON {table} USING ivfflat ({column} {ops})"))
+            },
             Self::None => None,
         }
     }
@@ -360,14 +356,14 @@ impl FieldDefinition {
     #[must_use]
     pub fn vector(name: impl Into<String>, config: VectorConfig) -> Self {
         Self {
-            name: name.into(),
-            field_type: FieldType::Vector,
-            nullable: false,
-            description: None,
-            default_value: None,
-            vector_config: Some(config),
-            alias: None,
-            deprecation: None,
+            name:           name.into(),
+            field_type:     FieldType::Vector,
+            nullable:       false,
+            description:    None,
+            default_value:  None,
+            vector_config:  Some(config),
+            alias:          None,
+            deprecation:    None,
             requires_scope: None,
         }
     }
@@ -695,7 +691,7 @@ impl FieldType {
                 } else {
                     "vector".to_string()
                 }
-            }
+            },
             // Rich scalars are stored as TEXT (validated at application level)
             Self::Scalar(_) => "TEXT".to_string(),
             // Lists and complex types stored as JSONB
@@ -855,7 +851,7 @@ impl FieldType {
                 // Custom scalars must be explicitly defined in RICH_SCALARS or
                 // handled at a higher level (e.g., schema validation)
                 Self::Object(s.to_string())
-            }
+            },
         }
     }
 

@@ -32,7 +32,8 @@ pub fn to_snake_case(s: &str) -> String {
         if c.is_uppercase() {
             // Add underscore before uppercase if:
             // 1. Not the first character
-            // 2. Previous was lowercase OR next is lowercase (handles "HTTPResponse" → "http_response")
+            // 2. Previous was lowercase OR next is lowercase (handles "HTTPResponse" →
+            //    "http_response")
             if i > 0 {
                 let next_is_lower = s.chars().nth(i + 1).is_some_and(char::is_lowercase);
                 if prev_was_lower || (prev_was_upper && next_is_lower) {
@@ -108,10 +109,7 @@ pub fn normalize_field_path(path: &str) -> String {
         return to_snake_case(path);
     }
 
-    path.split('.')
-        .map(to_snake_case)
-        .collect::<Vec<_>>()
-        .join(".")
+    path.split('.').map(to_snake_case).collect::<Vec<_>>().join(".")
 }
 
 #[cfg(test)]

@@ -32,10 +32,7 @@ async fn test_auth_correct_credentials() {
     let container = postgres_container_with_scram().await;
     let port = container.get_host_port_ipv4(5432).await.unwrap();
 
-    let conn_string = format!(
-        "postgres://testuser:testpassword@127.0.0.1:{}/testdb",
-        port
-    );
+    let conn_string = format!("postgres://testuser:testpassword@127.0.0.1:{}/testdb", port);
 
     let result = FraiseClient::connect(&conn_string).await;
 
@@ -114,10 +111,7 @@ async fn test_auth_multiple_connections() {
     let container = postgres_container_with_scram().await;
     let port = container.get_host_port_ipv4(5432).await.unwrap();
 
-    let conn_string = format!(
-        "postgres://testuser:testpassword@127.0.0.1:{}/testdb",
-        port
-    );
+    let conn_string = format!("postgres://testuser:testpassword@127.0.0.1:{}/testdb", port);
 
     // Connect multiple times sequentially
     for i in 0..5 {
@@ -148,10 +142,7 @@ async fn test_auth_success_after_failure() {
     assert!(result1.is_err(), "wrong password should fail");
 
     // Second attempt with correct password
-    let correct_conn = format!(
-        "postgres://testuser:testpassword@127.0.0.1:{}/testdb",
-        port
-    );
+    let correct_conn = format!("postgres://testuser:testpassword@127.0.0.1:{}/testdb", port);
     let result2 = FraiseClient::connect(&correct_conn).await;
     assert!(
         result2.is_ok(),

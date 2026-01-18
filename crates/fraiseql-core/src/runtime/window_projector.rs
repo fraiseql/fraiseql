@@ -31,10 +31,11 @@
 //! }
 //! ```
 
-use crate::compiler::window_functions::WindowExecutionPlan;
-use crate::error::Result;
-use serde_json::Value;
 use std::collections::HashMap;
+
+use serde_json::Value;
+
+use crate::{compiler::window_functions::WindowExecutionPlan, error::Result};
 
 /// Window function result projector.
 ///
@@ -124,36 +125,37 @@ impl WindowProjector {
 
 #[cfg(test)]
 mod tests {
+    use serde_json::json;
+
     use super::*;
     use crate::compiler::window_functions::{
         SelectColumn, WindowExecutionPlan, WindowFunction, WindowFunctionType,
     };
-    use serde_json::json;
 
     fn create_test_plan() -> WindowExecutionPlan {
         WindowExecutionPlan {
-            table: "tf_sales".to_string(),
-            select: vec![
+            table:        "tf_sales".to_string(),
+            select:       vec![
                 SelectColumn {
                     expression: "revenue".to_string(),
-                    alias: "revenue".to_string(),
+                    alias:      "revenue".to_string(),
                 },
                 SelectColumn {
                     expression: "category".to_string(),
-                    alias: "category".to_string(),
+                    alias:      "category".to_string(),
                 },
             ],
-            windows: vec![WindowFunction {
-                function: WindowFunctionType::RowNumber,
-                alias: "rank".to_string(),
+            windows:      vec![WindowFunction {
+                function:     WindowFunctionType::RowNumber,
+                alias:        "rank".to_string(),
                 partition_by: vec!["category".to_string()],
-                order_by: vec![],
-                frame: None,
+                order_by:     vec![],
+                frame:        None,
             }],
             where_clause: None,
-            order_by: vec![],
-            limit: None,
-            offset: None,
+            order_by:     vec![],
+            limit:        None,
+            offset:       None,
         }
     }
 

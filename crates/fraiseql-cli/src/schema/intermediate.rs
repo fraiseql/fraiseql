@@ -438,13 +438,13 @@ pub struct IntermediateUnion {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntermediateAutoParams {
     #[serde(default)]
-    pub limit: bool,
+    pub limit:        bool,
     #[serde(default)]
-    pub offset: bool,
+    pub offset:       bool,
     #[serde(rename = "where", default)]
     pub where_clause: bool,
     #[serde(default)]
-    pub order_by: bool,
+    pub order_by:     bool,
 }
 
 // =============================================================================
@@ -657,16 +657,16 @@ pub struct IntermediateAppliedDirective {
 /// Fact table definition in intermediate format (Analytics)
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntermediateFactTable {
-    pub table_name: String,
-    pub measures: Vec<IntermediateMeasure>,
-    pub dimensions: IntermediateDimensions,
+    pub table_name:           String,
+    pub measures:             Vec<IntermediateMeasure>,
+    pub dimensions:           IntermediateDimensions,
     pub denormalized_filters: Vec<IntermediateFilter>,
 }
 
 /// Measure column definition
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntermediateMeasure {
-    pub name: String,
+    pub name:     String,
     pub sql_type: String,
     pub nullable: bool,
 }
@@ -674,14 +674,14 @@ pub struct IntermediateMeasure {
 /// Dimensions metadata
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntermediateDimensions {
-    pub name: String,
+    pub name:  String,
     pub paths: Vec<IntermediateDimensionPath>,
 }
 
 /// Dimension path within JSONB
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntermediateDimensionPath {
-    pub name: String,
+    pub name:      String,
     /// JSON path (accepts both "`json_path`" and "path" for cross-language compat)
     #[serde(alias = "path")]
     pub json_path: String,
@@ -693,20 +693,20 @@ pub struct IntermediateDimensionPath {
 /// Denormalized filter column
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntermediateFilter {
-    pub name: String,
+    pub name:     String,
     pub sql_type: String,
-    pub indexed: bool,
+    pub indexed:  bool,
 }
 
 /// Aggregate query definition (Analytics)
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntermediateAggregateQuery {
-    pub name: String,
-    pub fact_table: String,
-    pub auto_group_by: bool,
+    pub name:            String,
+    pub fact_table:      String,
+    pub auto_group_by:   bool,
     pub auto_aggregates: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
+    pub description:     Option<String>,
 }
 
 #[cfg(test)]

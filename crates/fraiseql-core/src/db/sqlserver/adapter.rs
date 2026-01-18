@@ -6,10 +6,14 @@ use bb8_tiberius::ConnectionManager;
 use tiberius::Config;
 
 use super::where_generator::SqlServerWhereGenerator;
-use crate::db::traits::DatabaseAdapter;
-use crate::db::types::{DatabaseType, JsonbValue, PoolMetrics};
-use crate::db::where_clause::WhereClause;
-use crate::error::{FraiseQLError, Result};
+use crate::{
+    db::{
+        traits::DatabaseAdapter,
+        types::{DatabaseType, JsonbValue, PoolMetrics},
+        where_clause::WhereClause,
+    },
+    error::{FraiseQLError, Result},
+};
 
 /// SQL Server database adapter with connection pooling.
 ///
@@ -106,13 +110,11 @@ impl SqlServerAdapter {
 
         let manager = ConnectionManager::new(config);
 
-        let pool = Pool::builder()
-            .max_size(max_size)
-            .build(manager)
-            .await
-            .map_err(|e| FraiseQLError::ConnectionPool {
+        let pool = Pool::builder().max_size(max_size).build(manager).await.map_err(|e| {
+            FraiseQLError::ConnectionPool {
                 message: format!("Failed to create SQL Server connection pool: {e}"),
-            })?;
+            }
+        })?;
 
         // Test connection
         {
@@ -120,12 +122,10 @@ impl SqlServerAdapter {
                 message: format!("Failed to acquire connection: {e}"),
             })?;
 
-            conn.simple_query("SELECT 1")
-                .await
-                .map_err(|e| FraiseQLError::Database {
-                    message: format!("Failed to connect to SQL Server database: {e}"),
-                    sql_state: None,
-                })?;
+            conn.simple_query("SELECT 1").await.map_err(|e| FraiseQLError::Database {
+                message:   format!("Failed to connect to SQL Server database: {e}"),
+                sql_state: None,
+            })?;
         }
 
         Ok(Self { pool })
@@ -137,27 +137,21 @@ impl SqlServerAdapter {
         sql: &str,
         params: Vec<serde_json::Value>,
     ) -> Result<Vec<JsonbValue>> {
-        let mut conn = self.pool.get().await.map_err(|e| {
-            FraiseQLError::ConnectionPool {
-                message: format!("Failed to acquire connection: {e}"),
-            }
+        let mut conn = self.pool.get().await.map_err(|e| FraiseQLError::ConnectionPool {
+            message: format!("Failed to acquire connection: {e}"),
         })?;
 
         // Build and execute query
         // Note: tiberius doesn't support dynamic parameter binding like sqlx
         // We need to use simple_query for dynamic SQL or build the query differently
         let rows = if params.is_empty() {
-            let result = conn.simple_query(sql).await.map_err(|e| {
-                FraiseQLError::Database {
-                    message: format!("SQL Server query execution failed: {e}"),
-                    sql_state: None,
-                }
+            let result = conn.simple_query(sql).await.map_err(|e| FraiseQLError::Database {
+                message:   format!("SQL Server query execution failed: {e}"),
+                sql_state: None,
             })?;
-            result.into_first_result().await.map_err(|e| {
-                FraiseQLError::Database {
-                    message: format!("Failed to get result set: {e}"),
-                    sql_state: None,
-                }
+            result.into_first_result().await.map_err(|e| FraiseQLError::Database {
+                message:   format!("Failed to get result set: {e}"),
+                sql_state: None,
             })?
         } else {
             // For parameterized queries, we need to use Query with bind
@@ -189,27 +183,23 @@ impl SqlServerAdapter {
                         } else if let Some(f) = n.as_f64() {
                             query.bind(f);
                         }
-                    }
+                    },
                     serde_json::Value::Bool(b) => query.bind(*b),
                     serde_json::Value::Null => query.bind(Option::<String>::None),
                     _ => {
                         query.bind(string_params[string_idx].as_str());
                         string_idx += 1;
-                    }
+                    },
                 }
             }
 
-            let result = query.query(&mut *conn).await.map_err(|e| {
-                FraiseQLError::Database {
-                    message: format!("SQL Server query execution failed: {e}"),
-                    sql_state: None,
-                }
+            let result = query.query(&mut *conn).await.map_err(|e| FraiseQLError::Database {
+                message:   format!("SQL Server query execution failed: {e}"),
+                sql_state: None,
             })?;
-            result.into_first_result().await.map_err(|e| {
-                FraiseQLError::Database {
-                    message: format!("Failed to get result set: {e}"),
-                    sql_state: None,
-                }
+            result.into_first_result().await.map_err(|e| FraiseQLError::Database {
+                message:   format!("Failed to get result set: {e}"),
+                sql_state: None,
             })?
         };
 
@@ -293,12 +283,10 @@ impl DatabaseAdapter for SqlServerAdapter {
             message: format!("Failed to acquire connection: {e}"),
         })?;
 
-        conn.simple_query("SELECT 1")
-            .await
-            .map_err(|e| FraiseQLError::Database {
-                message: format!("SQL Server health check failed: {e}"),
-                sql_state: None,
-            })?;
+        conn.simple_query("SELECT 1").await.map_err(|e| FraiseQLError::Database {
+            message:   format!("SQL Server health check failed: {e}"),
+            sql_state: None,
+        })?;
 
         Ok(())
     }
@@ -307,10 +295,10 @@ impl DatabaseAdapter for SqlServerAdapter {
         let state = self.pool.state();
 
         PoolMetrics {
-            total_connections: state.connections,
-            idle_connections: state.idle_connections,
+            total_connections:  state.connections,
+            idle_connections:   state.idle_connections,
             active_connections: state.connections - state.idle_connections,
-            waiting_requests: 0, // bb8 doesn't expose waiting count directly
+            waiting_requests:   0, // bb8 doesn't expose waiting count directly
         }
     }
 
@@ -322,18 +310,14 @@ impl DatabaseAdapter for SqlServerAdapter {
             message: format!("Failed to acquire connection: {e}"),
         })?;
 
-        let result = conn.simple_query(sql).await.map_err(|e| {
-            FraiseQLError::Database {
-                message: format!("SQL Server query execution failed: {e}"),
-                sql_state: None,
-            }
+        let result = conn.simple_query(sql).await.map_err(|e| FraiseQLError::Database {
+            message:   format!("SQL Server query execution failed: {e}"),
+            sql_state: None,
         })?;
 
-        let rows = result.into_first_result().await.map_err(|e| {
-            FraiseQLError::Database {
-                message: format!("Failed to get result set: {e}"),
-                sql_state: None,
-            }
+        let rows = result.into_first_result().await.map_err(|e| FraiseQLError::Database {
+            message:   format!("Failed to get result set: {e}"),
+            sql_state: None,
         })?;
 
         // Convert each row to HashMap<String, Value>
@@ -386,8 +370,7 @@ mod tests {
     // Note: These tests require a running SQL Server instance with test data.
     // Run with: cargo test --features test-sqlserver -p fraiseql-core db::sqlserver::adapter
 
-    const TEST_DB_URL: &str =
-        "server=localhost,1434;database=master;user=sa;password=FraiseQL_Test1234;TrustServerCertificate=true";
+    const TEST_DB_URL: &str = "server=localhost,1434;database=master;user=sa;password=FraiseQL_Test1234;TrustServerCertificate=true";
 
     #[tokio::test]
     async fn test_adapter_creation() {

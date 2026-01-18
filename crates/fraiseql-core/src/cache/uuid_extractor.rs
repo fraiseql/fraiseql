@@ -42,19 +42,20 @@
 //! assert_eq!(uuid, Some("550e8400-e29b-41d4-a716-446655440000".to_string()));
 //! ```
 
-use crate::error::Result;
+use std::sync::OnceLock;
+
 use regex::Regex;
 use serde_json::Value;
-use std::sync::OnceLock;
+
+use crate::error::Result;
 
 /// UUID v4 format regex (RFC 4122).
 /// Matches: 550e8400-e29b-41d4-a716-446655440000
 fn uuid_regex() -> &'static Regex {
     static REGEX: OnceLock<Regex> = OnceLock::new();
     REGEX.get_or_init(|| {
-        Regex::new(
-            r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-        ).expect("UUID regex is valid")
+        Regex::new(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+            .expect("UUID regex is valid")
     })
 }
 
@@ -91,10 +92,7 @@ impl UUIDExtractor {
     /// let uuid = UUIDExtractor::extract_entity_uuid(&response, "User").unwrap();
     /// assert_eq!(uuid, Some("550e8400-e29b-41d4-a716-446655440000".to_string()));
     /// ```
-    pub fn extract_entity_uuid(
-        response: &Value,
-        _entity_type: &str,
-    ) -> Result<Option<String>> {
+    pub fn extract_entity_uuid(response: &Value, _entity_type: &str) -> Result<Option<String>> {
         match response {
             Value::Null => Ok(None),
             Value::Object(obj) => {
@@ -114,7 +112,7 @@ impl UUIDExtractor {
                 }
 
                 Ok(None)
-            }
+            },
             _ => Ok(None),
         }
     }
@@ -144,10 +142,7 @@ impl UUIDExtractor {
     /// let uuids = UUIDExtractor::extract_batch_uuids(&response, "User").unwrap();
     /// assert_eq!(uuids.len(), 3);
     /// ```
-    pub fn extract_batch_uuids(
-        response: &Value,
-        _entity_type: &str,
-    ) -> Result<Vec<String>> {
+    pub fn extract_batch_uuids(response: &Value, _entity_type: &str) -> Result<Vec<String>> {
         match response {
             Value::Array(arr) => {
                 let mut uuids = Vec::new();
@@ -157,14 +152,14 @@ impl UUIDExtractor {
                     }
                 }
                 Ok(uuids)
-            }
+            },
             Value::Object(_) => {
                 // Single object - try to extract single UUID
                 match Self::extract_entity_uuid(response, "")? {
                     Some(uuid) => Ok(vec![uuid]),
                     None => Ok(vec![]),
                 }
-            }
+            },
             Value::Null => Ok(vec![]),
             _ => Ok(vec![]),
         }
@@ -205,22 +200,23 @@ fn extract_uuid_from_value(value: &Value) -> Result<Option<String>> {
                 // (e.g., response mutation returns string ID that isn't UUID format)
                 Ok(None)
             }
-        }
+        },
         Value::Object(obj) => {
             // Try to recursively find id in nested object
             if let Some(id_val) = obj.get("id") {
                 return extract_uuid_from_value(id_val);
             }
             Ok(None)
-        }
+        },
         _ => Ok(None),
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serde_json::json;
+
+    use super::*;
 
     #[test]
     fn test_extract_single_uuid_from_response() {
@@ -230,10 +226,7 @@ mod tests {
         });
 
         let uuid = UUIDExtractor::extract_entity_uuid(&response, "User").unwrap();
-        assert_eq!(
-            uuid,
-            Some("550e8400-e29b-41d4-a716-446655440000".to_string())
-        );
+        assert_eq!(uuid, Some("550e8400-e29b-41d4-a716-446655440000".to_string()));
     }
 
     #[test]
@@ -246,10 +239,7 @@ mod tests {
         });
 
         let uuid = UUIDExtractor::extract_entity_uuid(&response, "User").unwrap();
-        assert_eq!(
-            uuid,
-            Some("550e8400-e29b-41d4-a716-446655440000".to_string())
-        );
+        assert_eq!(uuid, Some("550e8400-e29b-41d4-a716-446655440000".to_string()));
     }
 
     #[test]
@@ -275,12 +265,8 @@ mod tests {
 
     #[test]
     fn test_is_valid_uuid() {
-        assert!(UUIDExtractor::is_valid_uuid(
-            "550e8400-e29b-41d4-a716-446655440000"
-        ));
-        assert!(UUIDExtractor::is_valid_uuid(
-            "550E8400-E29B-41D4-A716-446655440000"
-        ));
+        assert!(UUIDExtractor::is_valid_uuid("550e8400-e29b-41d4-a716-446655440000"));
+        assert!(UUIDExtractor::is_valid_uuid("550E8400-E29B-41D4-A716-446655440000"));
         assert!(!UUIDExtractor::is_valid_uuid("not-a-uuid"));
         assert!(!UUIDExtractor::is_valid_uuid("550e8400"));
     }

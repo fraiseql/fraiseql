@@ -303,10 +303,7 @@ mod tests {
     fn test_cache_accesses_multiple_views() {
         let mut tracker = DependencyTracker::new();
 
-        tracker.record_access(
-            "key1".to_string(),
-            vec!["v_user".to_string(), "v_post".to_string()]
-        );
+        tracker.record_access("key1".to_string(), vec!["v_user".to_string(), "v_post".to_string()]);
 
         // Should appear in both view mappings
         let user_caches = tracker.get_dependent_caches("v_user");
@@ -331,10 +328,7 @@ mod tests {
     fn test_remove_cache_with_multiple_views() {
         let mut tracker = DependencyTracker::new();
 
-        tracker.record_access(
-            "key1".to_string(),
-            vec!["v_user".to_string(), "v_post".to_string()]
-        );
+        tracker.record_access("key1".to_string(), vec!["v_user".to_string(), "v_post".to_string()]);
 
         tracker.remove_cache("key1");
 
@@ -399,7 +393,7 @@ mod tests {
         assert_eq!(tracker.view_count(), 1);
 
         tracker.record_access("key2".to_string(), vec!["v_user".to_string(), "v_post".to_string()]);
-        assert_eq!(tracker.view_count(), 2);  // v_user and v_post
+        assert_eq!(tracker.view_count(), 2); // v_user and v_post
     }
 
     #[test]

@@ -9,8 +9,8 @@
 //! - Analytics fact table metadata is valid
 //! - Aggregate types follow required structure
 
-use crate::error::{FraiseQLError, Result};
 use super::ir::AuthoringIR;
+use crate::error::{FraiseQLError, Result};
 
 /// Extract the base type name from a GraphQL type string.
 ///
@@ -38,7 +38,7 @@ fn extract_base_type(type_str: &str) -> &str {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ValidationError {
     /// Error message.
-    pub message: String,
+    pub message:  String,
     /// Location in schema.
     pub location: String,
 }
@@ -88,17 +88,28 @@ impl SchemaValidator {
     /// Validate type definitions.
     fn validate_types(&self, ir: &AuthoringIR) -> Result<()> {
         // Collect all defined type names
-        let defined_types: std::collections::HashSet<&str> = ir
-            .types
-            .iter()
-            .map(|t| t.name.as_str())
-            .collect();
+        let defined_types: std::collections::HashSet<&str> =
+            ir.types.iter().map(|t| t.name.as_str()).collect();
 
         // Built-in scalar types
         let scalar_types: std::collections::HashSet<&str> = [
-            "ID", "String", "Int", "Float", "Boolean", "DateTime", "Date", "Time",
-            "JSON", "UUID", "Decimal", "BigInt", "Timestamp", "Void",
-        ].into_iter().collect();
+            "ID",
+            "String",
+            "Int",
+            "Float",
+            "Boolean",
+            "DateTime",
+            "Date",
+            "Time",
+            "JSON",
+            "UUID",
+            "Decimal",
+            "BigInt",
+            "Timestamp",
+            "Void",
+        ]
+        .into_iter()
+        .collect();
 
         // Validate each type
         for ir_type in &ir.types {
@@ -106,7 +117,7 @@ impl SchemaValidator {
             if ir_type.name.is_empty() {
                 return Err(FraiseQLError::Validation {
                     message: "Type name cannot be empty".to_string(),
-                    path: Some("types".to_string()),
+                    path:    Some("types".to_string()),
                 });
             }
 
@@ -126,7 +137,7 @@ impl SchemaValidator {
                             "Type '{}' field '{}' references unknown type '{}'",
                             ir_type.name, field.name, base_type
                         ),
-                        path: Some(format!("types.{}.fields.{}", ir_type.name, field.name)),
+                        path:    Some(format!("types.{}.fields.{}", ir_type.name, field.name)),
                     });
                 }
             }
@@ -138,17 +149,28 @@ impl SchemaValidator {
     /// Validate query definitions.
     fn validate_queries(&self, ir: &AuthoringIR) -> Result<()> {
         // Collect all defined type names
-        let defined_types: std::collections::HashSet<&str> = ir
-            .types
-            .iter()
-            .map(|t| t.name.as_str())
-            .collect();
+        let defined_types: std::collections::HashSet<&str> =
+            ir.types.iter().map(|t| t.name.as_str()).collect();
 
         // Built-in scalar types
         let scalar_types: std::collections::HashSet<&str> = [
-            "ID", "String", "Int", "Float", "Boolean", "DateTime", "Date", "Time",
-            "JSON", "UUID", "Decimal", "BigInt", "Timestamp", "Void",
-        ].into_iter().collect();
+            "ID",
+            "String",
+            "Int",
+            "Float",
+            "Boolean",
+            "DateTime",
+            "Date",
+            "Time",
+            "JSON",
+            "UUID",
+            "Decimal",
+            "BigInt",
+            "Timestamp",
+            "Void",
+        ]
+        .into_iter()
+        .collect();
 
         // Validate each query
         for query in &ir.queries {
@@ -156,7 +178,7 @@ impl SchemaValidator {
             if query.name.is_empty() {
                 return Err(FraiseQLError::Validation {
                     message: "Query name cannot be empty".to_string(),
-                    path: Some("queries".to_string()),
+                    path:    Some("queries".to_string()),
                 });
             }
 
@@ -168,7 +190,7 @@ impl SchemaValidator {
                         "Query '{}' returns unknown type '{}'",
                         query.name, query.return_type
                     ),
-                    path: Some(format!("queries.{}.return_type", query.name)),
+                    path:    Some(format!("queries.{}.return_type", query.name)),
                 });
             }
 
@@ -181,7 +203,7 @@ impl SchemaValidator {
                             "Query '{}' argument '{}' has unknown type '{}'",
                             query.name, arg.name, arg.arg_type
                         ),
-                        path: Some(format!("queries.{}.arguments.{}", query.name, arg.name)),
+                        path:    Some(format!("queries.{}.arguments.{}", query.name, arg.name)),
                     });
                 }
             }
@@ -192,7 +214,7 @@ impl SchemaValidator {
             if mutation.name.is_empty() {
                 return Err(FraiseQLError::Validation {
                     message: "Mutation name cannot be empty".to_string(),
-                    path: Some("mutations".to_string()),
+                    path:    Some("mutations".to_string()),
                 });
             }
 
@@ -203,7 +225,7 @@ impl SchemaValidator {
                         "Mutation '{}' returns unknown type '{}'",
                         mutation.name, mutation.return_type
                     ),
-                    path: Some(format!("mutations.{}.return_type", mutation.name)),
+                    path:    Some(format!("mutations.{}.return_type", mutation.name)),
                 });
             }
         }
@@ -213,7 +235,7 @@ impl SchemaValidator {
             if subscription.name.is_empty() {
                 return Err(FraiseQLError::Validation {
                     message: "Subscription name cannot be empty".to_string(),
-                    path: Some("subscriptions".to_string()),
+                    path:    Some("subscriptions".to_string()),
                 });
             }
 
@@ -224,7 +246,7 @@ impl SchemaValidator {
                         "Subscription '{}' returns unknown type '{}'",
                         subscription.name, subscription.return_type
                     ),
-                    path: Some(format!("subscriptions.{}.return_type", subscription.name)),
+                    path:    Some(format!("subscriptions.{}.return_type", subscription.name)),
                 });
             }
         }
@@ -244,54 +266,43 @@ impl SchemaValidator {
             // Validate table name follows tf_* pattern
             if !table_name.starts_with("tf_") {
                 return Err(FraiseQLError::Validation {
-                    message: format!(
-                        "Fact table '{}' must start with 'tf_' prefix",
-                        table_name
-                    ),
-                    path: Some(format!("fact_tables.{}", table_name)),
+                    message: format!("Fact table '{}' must start with 'tf_' prefix", table_name),
+                    path:    Some(format!("fact_tables.{}", table_name)),
                 });
             }
 
             // Validate metadata is an object
             let obj = metadata.as_object().ok_or_else(|| FraiseQLError::Validation {
                 message: format!("Fact table '{}' metadata must be an object", table_name),
-                path: Some(format!("fact_tables.{}", table_name)),
+                path:    Some(format!("fact_tables.{}", table_name)),
             })?;
 
             // Validate measures exist and is an array
             let measures = obj.get("measures").ok_or_else(|| FraiseQLError::Validation {
                 message: format!("Fact table '{}' missing 'measures' field", table_name),
-                path: Some(format!("fact_tables.{}.measures", table_name)),
+                path:    Some(format!("fact_tables.{}.measures", table_name)),
             })?;
 
             let measures_arr = measures.as_array().ok_or_else(|| FraiseQLError::Validation {
-                message: format!(
-                    "Fact table '{}' measures must be an array",
-                    table_name
-                ),
-                path: Some(format!("fact_tables.{}.measures", table_name)),
+                message: format!("Fact table '{}' measures must be an array", table_name),
+                path:    Some(format!("fact_tables.{}.measures", table_name)),
             })?;
 
             if measures_arr.is_empty() {
                 return Err(FraiseQLError::Validation {
-                    message: format!(
-                        "Fact table '{}' must have at least one measure",
-                        table_name
-                    ),
-                    path: Some(format!("fact_tables.{}.measures", table_name)),
+                    message: format!("Fact table '{}' must have at least one measure", table_name),
+                    path:    Some(format!("fact_tables.{}.measures", table_name)),
                 });
             }
 
             // Validate each measure has required fields
             for (idx, measure) in measures_arr.iter().enumerate() {
-                let measure_obj = measure.as_object().ok_or_else(|| {
-                    FraiseQLError::Validation {
-                        message: format!(
-                            "Fact table '{}' measure {} must be an object",
-                            table_name, idx
-                        ),
-                        path: Some(format!("fact_tables.{}.measures[{}]", table_name, idx)),
-                    }
+                let measure_obj = measure.as_object().ok_or_else(|| FraiseQLError::Validation {
+                    message: format!(
+                        "Fact table '{}' measure {} must be an object",
+                        table_name, idx
+                    ),
+                    path:    Some(format!("fact_tables.{}.measures[{}]", table_name, idx)),
                 })?;
 
                 // Validate measure has name field
@@ -301,7 +312,7 @@ impl SchemaValidator {
                             "Fact table '{}' measure {} missing 'name' field",
                             table_name, idx
                         ),
-                        path: Some(format!("fact_tables.{}.measures[{}]", table_name, idx)),
+                        path:    Some(format!("fact_tables.{}.measures[{}]", table_name, idx)),
                     });
                 }
 
@@ -312,37 +323,28 @@ impl SchemaValidator {
                             "Fact table '{}' measure {} missing 'sql_type' field",
                             table_name, idx
                         ),
-                        path: Some(format!("fact_tables.{}.measures[{}]", table_name, idx)),
+                        path:    Some(format!("fact_tables.{}.measures[{}]", table_name, idx)),
                     });
                 }
             }
 
             // Validate dimensions exist
-            let dimensions = obj.get("dimensions").ok_or_else(|| {
-                FraiseQLError::Validation {
-                    message: format!("Fact table '{}' missing 'dimensions' field", table_name),
-                    path: Some(format!("fact_tables.{}.dimensions", table_name)),
-                }
+            let dimensions = obj.get("dimensions").ok_or_else(|| FraiseQLError::Validation {
+                message: format!("Fact table '{}' missing 'dimensions' field", table_name),
+                path:    Some(format!("fact_tables.{}.dimensions", table_name)),
             })?;
 
-            let dimensions_obj = dimensions.as_object().ok_or_else(|| {
-                FraiseQLError::Validation {
-                    message: format!(
-                        "Fact table '{}' dimensions must be an object",
-                        table_name
-                    ),
-                    path: Some(format!("fact_tables.{}.dimensions", table_name)),
-                }
-            })?;
+            let dimensions_obj =
+                dimensions.as_object().ok_or_else(|| FraiseQLError::Validation {
+                    message: format!("Fact table '{}' dimensions must be an object", table_name),
+                    path:    Some(format!("fact_tables.{}.dimensions", table_name)),
+                })?;
 
             // Validate dimension has name field
             if !dimensions_obj.contains_key("name") {
                 return Err(FraiseQLError::Validation {
-                    message: format!(
-                        "Fact table '{}' dimensions missing 'name' field",
-                        table_name
-                    ),
-                    path: Some(format!("fact_tables.{}.dimensions", table_name)),
+                    message: format!("Fact table '{}' dimensions missing 'name' field", table_name),
+                    path:    Some(format!("fact_tables.{}.dimensions", table_name)),
                 });
             }
 
@@ -354,10 +356,7 @@ impl SchemaValidator {
                             "Fact table '{}' denormalized_filters must be an array",
                             table_name
                         ),
-                        path: Some(format!(
-                            "fact_tables.{}.denormalized_filters",
-                            table_name
-                        )),
+                        path:    Some(format!("fact_tables.{}.denormalized_filters", table_name)),
                     });
                 }
             }
@@ -385,7 +384,7 @@ impl SchemaValidator {
                             "Aggregate type '{}' must have a 'count' field",
                             ir_type.name
                         ),
-                        path: Some(format!("types.{}.fields", ir_type.name)),
+                        path:    Some(format!("types.{}.fields", ir_type.name)),
                     });
                 }
             }
@@ -400,7 +399,7 @@ impl SchemaValidator {
                                 "GroupByInput type '{}' field '{}' must be Boolean, got '{}'",
                                 ir_type.name, field.name, field.field_type
                             ),
-                            path: Some(format!("types.{}.fields.{}", ir_type.name, field.name)),
+                            path:    Some(format!("types.{}.fields.{}", ir_type.name, field.name)),
                         });
                     }
                 }
@@ -419,7 +418,7 @@ impl SchemaValidator {
                                 "HavingInput type '{}' field '{}' must have operator suffix (_eq, _neq, _gt, _gte, _lt, _lte)",
                                 ir_type.name, field.name
                             ),
-                            path: Some(format!("types.{}.fields.{}", ir_type.name, field.name)),
+                            path:    Some(format!("types.{}.fields.{}", ir_type.name, field.name)),
                         });
                     }
                 }
@@ -438,9 +437,12 @@ impl Default for SchemaValidator {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use super::super::ir::{IRType, IRField};
     use serde_json::json;
+
+    use super::{
+        super::ir::{IRField, IRType},
+        *,
+    };
 
     #[test]
     fn test_validator_new() {
@@ -650,17 +652,15 @@ mod tests {
         let mut ir = AuthoringIR::new();
 
         ir.types.push(IRType {
-            name: "SalesAggregate".to_string(),
-            fields: vec![
-                IRField {
-                    name: "revenue_sum".to_string(),
-                    field_type: "Float".to_string(),
-                    nullable: true,
-                    description: None,
-                    sql_column: None,
-                }
-            ],
-            sql_source: None,
+            name:        "SalesAggregate".to_string(),
+            fields:      vec![IRField {
+                name:        "revenue_sum".to_string(),
+                field_type:  "Float".to_string(),
+                nullable:    true,
+                description: None,
+                sql_column:  None,
+            }],
+            sql_source:  None,
             description: None,
         });
 
@@ -677,24 +677,24 @@ mod tests {
         let mut ir = AuthoringIR::new();
 
         ir.types.push(IRType {
-            name: "SalesAggregate".to_string(),
-            fields: vec![
+            name:        "SalesAggregate".to_string(),
+            fields:      vec![
                 IRField {
-                    name: "count".to_string(),
-                    field_type: "Int!".to_string(),
-                    nullable: false,
+                    name:        "count".to_string(),
+                    field_type:  "Int!".to_string(),
+                    nullable:    false,
                     description: None,
-                    sql_column: None,
+                    sql_column:  None,
                 },
                 IRField {
-                    name: "revenue_sum".to_string(),
-                    field_type: "Float".to_string(),
-                    nullable: true,
+                    name:        "revenue_sum".to_string(),
+                    field_type:  "Float".to_string(),
+                    nullable:    true,
                     description: None,
-                    sql_column: None,
-                }
+                    sql_column:  None,
+                },
             ],
-            sql_source: None,
+            sql_source:  None,
             description: None,
         });
 
@@ -708,17 +708,15 @@ mod tests {
         let mut ir = AuthoringIR::new();
 
         ir.types.push(IRType {
-            name: "SalesGroupByInput".to_string(),
-            fields: vec![
-                IRField {
-                    name: "category".to_string(),
-                    field_type: "String".to_string(), // Should be Boolean
-                    nullable: true,
-                    description: None,
-                    sql_column: None,
-                }
-            ],
-            sql_source: None,
+            name:        "SalesGroupByInput".to_string(),
+            fields:      vec![IRField {
+                name:        "category".to_string(),
+                field_type:  "String".to_string(), // Should be Boolean
+                nullable:    true,
+                description: None,
+                sql_column:  None,
+            }],
+            sql_source:  None,
             description: None,
         });
 
@@ -735,17 +733,15 @@ mod tests {
         let mut ir = AuthoringIR::new();
 
         ir.types.push(IRType {
-            name: "SalesGroupByInput".to_string(),
-            fields: vec![
-                IRField {
-                    name: "category".to_string(),
-                    field_type: "Boolean".to_string(),
-                    nullable: true,
-                    description: None,
-                    sql_column: None,
-                }
-            ],
-            sql_source: None,
+            name:        "SalesGroupByInput".to_string(),
+            fields:      vec![IRField {
+                name:        "category".to_string(),
+                field_type:  "Boolean".to_string(),
+                nullable:    true,
+                description: None,
+                sql_column:  None,
+            }],
+            sql_source:  None,
             description: None,
         });
 
@@ -759,17 +755,15 @@ mod tests {
         let mut ir = AuthoringIR::new();
 
         ir.types.push(IRType {
-            name: "SalesHavingInput".to_string(),
-            fields: vec![
-                IRField {
-                    name: "count".to_string(), // Missing operator suffix
-                    field_type: "Int".to_string(),
-                    nullable: true,
-                    description: None,
-                    sql_column: None,
-                }
-            ],
-            sql_source: None,
+            name:        "SalesHavingInput".to_string(),
+            fields:      vec![IRField {
+                name:        "count".to_string(), // Missing operator suffix
+                field_type:  "Int".to_string(),
+                nullable:    true,
+                description: None,
+                sql_column:  None,
+            }],
+            sql_source:  None,
             description: None,
         });
 
@@ -786,24 +780,24 @@ mod tests {
         let mut ir = AuthoringIR::new();
 
         ir.types.push(IRType {
-            name: "SalesHavingInput".to_string(),
-            fields: vec![
+            name:        "SalesHavingInput".to_string(),
+            fields:      vec![
                 IRField {
-                    name: "count_gt".to_string(),
-                    field_type: "Int".to_string(),
-                    nullable: true,
+                    name:        "count_gt".to_string(),
+                    field_type:  "Int".to_string(),
+                    nullable:    true,
                     description: None,
-                    sql_column: None,
+                    sql_column:  None,
                 },
                 IRField {
-                    name: "revenue_sum_gte".to_string(),
-                    field_type: "Float".to_string(),
-                    nullable: true,
+                    name:        "revenue_sum_gte".to_string(),
+                    field_type:  "Float".to_string(),
+                    nullable:    true,
                     description: None,
-                    sql_column: None,
-                }
+                    sql_column:  None,
+                },
             ],
-            sql_source: None,
+            sql_source:  None,
             description: None,
         });
 
@@ -832,47 +826,47 @@ mod tests {
 
         // Define User type
         ir.types.push(IRType {
-            name: "User".to_string(),
-            fields: vec![
+            name:        "User".to_string(),
+            fields:      vec![
                 IRField {
-                    name: "id".to_string(),
-                    field_type: "ID!".to_string(),
-                    nullable: false,
+                    name:        "id".to_string(),
+                    field_type:  "ID!".to_string(),
+                    nullable:    false,
                     description: None,
-                    sql_column: None,
+                    sql_column:  None,
                 },
                 IRField {
-                    name: "name".to_string(),
-                    field_type: "String!".to_string(),
-                    nullable: false,
+                    name:        "name".to_string(),
+                    field_type:  "String!".to_string(),
+                    nullable:    false,
                     description: None,
-                    sql_column: None,
+                    sql_column:  None,
                 },
             ],
-            sql_source: Some("v_user".to_string()),
+            sql_source:  Some("v_user".to_string()),
             description: None,
         });
 
         // Define Post type that references User
         ir.types.push(IRType {
-            name: "Post".to_string(),
-            fields: vec![
+            name:        "Post".to_string(),
+            fields:      vec![
                 IRField {
-                    name: "id".to_string(),
-                    field_type: "ID!".to_string(),
-                    nullable: false,
+                    name:        "id".to_string(),
+                    field_type:  "ID!".to_string(),
+                    nullable:    false,
                     description: None,
-                    sql_column: None,
+                    sql_column:  None,
                 },
                 IRField {
-                    name: "author".to_string(),
-                    field_type: "User".to_string(),
-                    nullable: true,
+                    name:        "author".to_string(),
+                    field_type:  "User".to_string(),
+                    nullable:    true,
                     description: None,
-                    sql_column: None,
+                    sql_column:  None,
                 },
             ],
-            sql_source: Some("v_post".to_string()),
+            sql_source:  Some("v_post".to_string()),
             description: None,
         });
 
@@ -886,17 +880,15 @@ mod tests {
         let mut ir = AuthoringIR::new();
 
         ir.types.push(IRType {
-            name: "Post".to_string(),
-            fields: vec![
-                IRField {
-                    name: "author".to_string(),
-                    field_type: "NonExistentType".to_string(),
-                    nullable: true,
-                    description: None,
-                    sql_column: None,
-                },
-            ],
-            sql_source: None,
+            name:        "Post".to_string(),
+            fields:      vec![IRField {
+                name:        "author".to_string(),
+                field_type:  "NonExistentType".to_string(),
+                nullable:    true,
+                description: None,
+                sql_column:  None,
+            }],
+            sql_source:  None,
             description: None,
         });
 
@@ -914,9 +906,9 @@ mod tests {
         let mut ir = AuthoringIR::new();
 
         ir.types.push(IRType {
-            name: String::new(),
-            fields: vec![],
-            sql_source: None,
+            name:        String::new(),
+            fields:      vec![],
+            sql_source:  None,
             description: None,
         });
 
@@ -929,45 +921,41 @@ mod tests {
 
     #[test]
     fn test_validate_query_with_valid_return_type() {
-        use super::super::ir::{IRQuery, IRArgument, AutoParams};
+        use super::super::ir::{AutoParams, IRArgument, IRQuery};
 
         let validator = SchemaValidator::new();
         let mut ir = AuthoringIR::new();
 
         // Define User type
         ir.types.push(IRType {
-            name: "User".to_string(),
-            fields: vec![
-                IRField {
-                    name: "id".to_string(),
-                    field_type: "ID!".to_string(),
-                    nullable: false,
-                    description: None,
-                    sql_column: None,
-                },
-            ],
-            sql_source: Some("v_user".to_string()),
+            name:        "User".to_string(),
+            fields:      vec![IRField {
+                name:        "id".to_string(),
+                field_type:  "ID!".to_string(),
+                nullable:    false,
+                description: None,
+                sql_column:  None,
+            }],
+            sql_source:  Some("v_user".to_string()),
             description: None,
         });
 
         // Define query that returns User
         ir.queries.push(IRQuery {
-            name: "user".to_string(),
-            return_type: "User".to_string(),
+            name:         "user".to_string(),
+            return_type:  "User".to_string(),
             returns_list: false,
-            nullable: true,
-            arguments: vec![
-                IRArgument {
-                    name: "id".to_string(),
-                    arg_type: "ID!".to_string(),
-                    nullable: false,
-                    default_value: None,
-                    description: None,
-                },
-            ],
-            sql_source: Some("v_user".to_string()),
-            description: None,
-            auto_params: AutoParams::default(),
+            nullable:     true,
+            arguments:    vec![IRArgument {
+                name:          "id".to_string(),
+                arg_type:      "ID!".to_string(),
+                nullable:      false,
+                default_value: None,
+                description:   None,
+            }],
+            sql_source:   Some("v_user".to_string()),
+            description:  None,
+            auto_params:  AutoParams::default(),
         });
 
         let result = validator.validate(ir);
@@ -976,20 +964,20 @@ mod tests {
 
     #[test]
     fn test_validate_query_with_invalid_return_type() {
-        use super::super::ir::{IRQuery, AutoParams};
+        use super::super::ir::{AutoParams, IRQuery};
 
         let validator = SchemaValidator::new();
         let mut ir = AuthoringIR::new();
 
         ir.queries.push(IRQuery {
-            name: "unknownQuery".to_string(),
-            return_type: "NonExistentType".to_string(),
+            name:         "unknownQuery".to_string(),
+            return_type:  "NonExistentType".to_string(),
             returns_list: false,
-            nullable: true,
-            arguments: vec![],
-            sql_source: None,
-            description: None,
-            auto_params: AutoParams::default(),
+            nullable:     true,
+            arguments:    vec![],
+            sql_source:   None,
+            description:  None,
+            auto_params:  AutoParams::default(),
         });
 
         let result = validator.validate(ir);
@@ -1002,21 +990,21 @@ mod tests {
 
     #[test]
     fn test_validate_query_with_scalar_return_type() {
-        use super::super::ir::{IRQuery, AutoParams};
+        use super::super::ir::{AutoParams, IRQuery};
 
         let validator = SchemaValidator::new();
         let mut ir = AuthoringIR::new();
 
         // Query returning scalar type (no custom type needed)
         ir.queries.push(IRQuery {
-            name: "serverTime".to_string(),
-            return_type: "DateTime".to_string(),
+            name:         "serverTime".to_string(),
+            return_type:  "DateTime".to_string(),
             returns_list: false,
-            nullable: false,
-            arguments: vec![],
-            sql_source: None,
-            description: None,
-            auto_params: AutoParams::default(),
+            nullable:     false,
+            arguments:    vec![],
+            sql_source:   None,
+            description:  None,
+            auto_params:  AutoParams::default(),
         });
 
         let result = validator.validate(ir);
@@ -1025,20 +1013,20 @@ mod tests {
 
     #[test]
     fn test_validate_query_empty_name() {
-        use super::super::ir::{IRQuery, AutoParams};
+        use super::super::ir::{AutoParams, IRQuery};
 
         let validator = SchemaValidator::new();
         let mut ir = AuthoringIR::new();
 
         ir.queries.push(IRQuery {
-            name: String::new(),
-            return_type: "String".to_string(),
+            name:         String::new(),
+            return_type:  "String".to_string(),
             returns_list: false,
-            nullable: true,
-            arguments: vec![],
-            sql_source: None,
-            description: None,
-            auto_params: AutoParams::default(),
+            nullable:     true,
+            arguments:    vec![],
+            sql_source:   None,
+            description:  None,
+            auto_params:  AutoParams::default(),
         });
 
         let result = validator.validate(ir);
@@ -1055,24 +1043,24 @@ mod tests {
 
         // Define User type
         ir.types.push(IRType {
-            name: "User".to_string(),
-            fields: vec![
+            name:        "User".to_string(),
+            fields:      vec![
                 IRField {
-                    name: "id".to_string(),
-                    field_type: "ID!".to_string(),
-                    nullable: false,
+                    name:        "id".to_string(),
+                    field_type:  "ID!".to_string(),
+                    nullable:    false,
                     description: None,
-                    sql_column: None,
+                    sql_column:  None,
                 },
                 IRField {
-                    name: "friends".to_string(),
-                    field_type: "[User!]".to_string(),  // List of Users
-                    nullable: true,
+                    name:        "friends".to_string(),
+                    field_type:  "[User!]".to_string(), // List of Users
+                    nullable:    true,
                     description: None,
-                    sql_column: None,
+                    sql_column:  None,
                 },
             ],
-            sql_source: None,
+            sql_source:  None,
             description: None,
         });
 

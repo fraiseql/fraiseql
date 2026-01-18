@@ -32,9 +32,11 @@
 //! println!("{}", formatted); // Shows only: "Internal server error"
 //! ```
 
-use crate::security::errors::SecurityError;
-use serde::{Deserialize, Serialize};
 use std::fmt;
+
+use serde::{Deserialize, Serialize};
+
+use crate::security::errors::SecurityError;
 
 /// Detail level for error responses
 ///
@@ -94,11 +96,11 @@ impl SanitizationConfig {
     pub fn permissive() -> Self {
         Self {
             hide_database_urls: false,
-            hide_sql: false,
-            hide_paths: false,
-            hide_ips: false,
-            hide_emails: false,
-            hide_credentials: false,
+            hide_sql:           false,
+            hide_paths:         false,
+            hide_ips:           false,
+            hide_emails:        false,
+            hide_credentials:   false,
         }
     }
 
@@ -109,11 +111,11 @@ impl SanitizationConfig {
     pub fn standard() -> Self {
         Self {
             hide_database_urls: true,
-            hide_sql: true,
-            hide_paths: false,
-            hide_ips: true,
-            hide_emails: true,
-            hide_credentials: true,
+            hide_sql:           true,
+            hide_paths:         false,
+            hide_ips:           true,
+            hide_emails:        true,
+            hide_credentials:   true,
         }
     }
 
@@ -124,11 +126,11 @@ impl SanitizationConfig {
     pub fn strict() -> Self {
         Self {
             hide_database_urls: true,
-            hide_sql: true,
-            hide_paths: true,
-            hide_ips: true,
-            hide_emails: true,
-            hide_credentials: true,
+            hide_sql:           true,
+            hide_paths:         true,
+            hide_ips:           true,
+            hide_emails:        true,
+            hide_credentials:   true,
         }
     }
 }
@@ -140,7 +142,7 @@ impl SanitizationConfig {
 #[derive(Debug, Clone)]
 pub struct ErrorFormatter {
     detail_level: DetailLevel,
-    config: SanitizationConfig,
+    config:       SanitizationConfig,
 }
 
 impl ErrorFormatter {
@@ -203,11 +205,11 @@ impl ErrorFormatter {
             DetailLevel::Development => {
                 // Development: return full error
                 error_msg.to_string()
-            }
+            },
             DetailLevel::Staging => {
                 // Staging: sanitize but keep error type
                 self.sanitize_error(error_msg)
-            }
+            },
             DetailLevel::Production => {
                 // Production: return generic error
                 if Self::is_security_related(error_msg) {
@@ -215,7 +217,7 @@ impl ErrorFormatter {
                 } else {
                     "An error occurred while processing your request".to_string()
                 }
-            }
+            },
         }
     }
 
@@ -228,11 +230,11 @@ impl ErrorFormatter {
             DetailLevel::Development => {
                 // Development: full error message
                 error_msg
-            }
+            },
             DetailLevel::Staging => {
                 // Staging: keep the error type but sanitize details
                 self.extract_error_type_and_sanitize(&error_msg)
-            }
+            },
             DetailLevel::Production => {
                 // Production: generic message with error category
                 match error {
@@ -242,22 +244,22 @@ impl ErrorFormatter {
                     | SecurityError::TokenMissingClaim { .. }
                     | SecurityError::InvalidTokenAlgorithm { .. } => {
                         "Invalid authentication".to_string()
-                    }
+                    },
                     SecurityError::TlsRequired { .. }
                     | SecurityError::TlsVersionTooOld { .. }
                     | SecurityError::MtlsRequired { .. }
                     | SecurityError::InvalidClientCert { .. } => {
                         "Connection security validation failed".to_string()
-                    }
+                    },
                     SecurityError::QueryTooDeep { .. }
                     | SecurityError::QueryTooComplex { .. }
                     | SecurityError::QueryTooLarge { .. } => "Query validation failed".to_string(),
                     SecurityError::IntrospectionDisabled { .. } => {
                         "Schema introspection is not available".to_string()
-                    }
+                    },
                     _ => "An error occurred while processing your request".to_string(),
                 }
-            }
+            },
         }
     }
 
@@ -572,7 +574,7 @@ mod tests {
     fn test_query_too_deep_error_production() {
         let formatter = ErrorFormatter::production();
         let error = SecurityError::QueryTooDeep {
-            depth: 20,
+            depth:     20,
             max_depth: 10,
         };
         let formatted = formatter.format_security_error(&error);
@@ -666,11 +668,11 @@ mod tests {
     fn test_custom_sanitization_config() {
         let config = SanitizationConfig {
             hide_database_urls: false,
-            hide_sql: false,
-            hide_paths: true,
-            hide_ips: false,
-            hide_emails: false,
-            hide_credentials: false,
+            hide_sql:           false,
+            hide_paths:         true,
+            hide_ips:           false,
+            hide_emails:        false,
+            hide_credentials:   false,
         };
 
         let formatter = ErrorFormatter::with_config(DetailLevel::Staging, config);

@@ -1,15 +1,17 @@
 //! Query executor - main runtime execution engine.
 
-use crate::db::traits::DatabaseAdapter;
-use crate::error::{FraiseQLError, Result};
-use crate::graphql::parse_query;
-use crate::schema::{CompiledSchema, IntrospectionResponses};
-use crate::security::FieldAccessError;
-use super::{QueryMatcher, QueryPlanner, ResultProjector, RuntimeConfig};
 use std::sync::Arc;
 
+use super::{QueryMatcher, QueryPlanner, ResultProjector, RuntimeConfig};
 #[cfg(test)]
 use crate::db::types::{DatabaseType, PoolMetrics};
+use crate::{
+    db::traits::DatabaseAdapter,
+    error::{FraiseQLError, Result},
+    graphql::parse_query,
+    schema::{CompiledSchema, IntrospectionResponses},
+    security::FieldAccessError,
+};
 
 /// Query type classification for routing.
 #[derive(Debug, Clone, PartialEq)]
@@ -140,18 +142,18 @@ impl<A: DatabaseAdapter> Executor<A> {
             QueryType::Regular => self.execute_regular_query(query, variables).await,
             QueryType::Aggregate(query_name) => {
                 self.execute_aggregate_dispatch(&query_name, variables).await
-            }
+            },
             QueryType::Window(query_name) => {
                 self.execute_window_dispatch(&query_name, variables).await
-            }
+            },
             QueryType::IntrospectionSchema => {
                 // Return pre-built __schema response (zero-cost at runtime)
                 Ok(self.introspection.schema_response.clone())
-            }
+            },
             QueryType::IntrospectionType(type_name) => {
                 // Return pre-built __type response (zero-cost at runtime)
                 Ok(self.introspection.get_type_response(&type_name))
-            }
+            },
         }
     }
 
@@ -200,14 +202,14 @@ impl<A: DatabaseAdapter> Executor<A> {
             QueryType::Regular => self.execute_regular_query(query, variables).await,
             QueryType::Aggregate(query_name) => {
                 self.execute_aggregate_dispatch(&query_name, variables).await
-            }
+            },
             QueryType::Window(query_name) => {
                 self.execute_window_dispatch(&query_name, variables).await
-            }
+            },
             QueryType::IntrospectionSchema => Ok(self.introspection.schema_response.clone()),
             QueryType::IntrospectionType(type_name) => {
                 Ok(self.introspection.get_type_response(&type_name))
-            }
+            },
         }
     }
 
@@ -235,8 +237,8 @@ impl<A: DatabaseAdapter> Executor<A> {
             // Return the first error (could aggregate all errors if desired)
             let first_error = &errors[0];
             Err(FraiseQLError::Authorization {
-                message: first_error.message.clone(),
-                action: Some("read".to_string()),
+                message:  first_error.message.clone(),
+                action:   Some("read".to_string()),
                 resource: Some(format!("{}.{}", first_error.type_name, first_error.field_name)),
             })
         }
@@ -282,29 +284,22 @@ impl<A: DatabaseAdapter> Executor<A> {
         let plan = self.planner.plan(&query_match)?;
 
         // 3. Execute SQL query
-        let sql_source = query_match
-            .query_def
-            .sql_source
-            .as_ref()
-            .ok_or_else(|| crate::error::FraiseQLError::Validation {
+        let sql_source = query_match.query_def.sql_source.as_ref().ok_or_else(|| {
+            crate::error::FraiseQLError::Validation {
                 message: "Query has no SQL source".to_string(),
-                path: None,
-            })?;
+                path:    None,
+            }
+        })?;
 
-        let results = self
-            .adapter
-            .execute_where_query(sql_source, None, None, None)
-            .await?;
+        let results = self.adapter.execute_where_query(sql_source, None, None, None).await?;
 
         // 4. Project results
         let projector = ResultProjector::new(plan.projection_fields);
         let projected = projector.project_results(&results, query_match.query_def.returns_list)?;
 
         // 5. Wrap in GraphQL data envelope
-        let response = ResultProjector::wrap_in_data_envelope(
-            projected,
-            &query_match.query_def.name,
-        );
+        let response =
+            ResultProjector::wrap_in_data_envelope(projected, &query_match.query_def.name);
 
         // 6. Serialize to JSON string
         Ok(serde_json::to_string(&response)?)
@@ -319,7 +314,7 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         // Parse the query to extract the root field name
         let parsed = parse_query(query).map_err(|e| FraiseQLError::Parse {
-            message: e.to_string(),
+            message:  e.to_string(),
             location: "query".to_string(),
         })?;
 
@@ -403,23 +398,21 @@ impl<A: DatabaseAdapter> Executor<A> {
         variables: Option<&serde_json::Value>,
     ) -> Result<String> {
         // Extract table name from query name (e.g., "sales_aggregate" -> "tf_sales")
-        let table_name = query_name
-            .strip_suffix("_aggregate")
-            .ok_or_else(|| FraiseQLError::Validation {
+        let table_name =
+            query_name.strip_suffix("_aggregate").ok_or_else(|| FraiseQLError::Validation {
                 message: format!("Invalid aggregate query name: {}", query_name),
-                path: None,
+                path:    None,
             })?;
 
         let fact_table_name = format!("tf_{}", table_name);
 
         // Get fact table metadata from schema
-        let metadata_json = self
-            .schema
-            .get_fact_table(&fact_table_name)
-            .ok_or_else(|| FraiseQLError::Validation {
+        let metadata_json = self.schema.get_fact_table(&fact_table_name).ok_or_else(|| {
+            FraiseQLError::Validation {
                 message: format!("Fact table '{}' not found in schema", fact_table_name),
-                path: Some(format!("fact_tables.{}", fact_table_name)),
-            })?;
+                path:    Some(format!("fact_tables.{}", fact_table_name)),
+            }
+        })?;
 
         // Parse metadata into FactTableMetadata
         let metadata: crate::compiler::fact_table::FactTableMetadata =
@@ -430,8 +423,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         let query_json = variables.unwrap_or(&empty_json);
 
         // Execute aggregate query
-        self.execute_aggregate_query(query_json, query_name, &metadata)
-            .await
+        self.execute_aggregate_query(query_json, query_name, &metadata).await
     }
 
     /// Execute a window query dispatch.
@@ -441,23 +433,21 @@ impl<A: DatabaseAdapter> Executor<A> {
         variables: Option<&serde_json::Value>,
     ) -> Result<String> {
         // Extract table name from query name (e.g., "sales_window" -> "tf_sales")
-        let table_name = query_name
-            .strip_suffix("_window")
-            .ok_or_else(|| FraiseQLError::Validation {
+        let table_name =
+            query_name.strip_suffix("_window").ok_or_else(|| FraiseQLError::Validation {
                 message: format!("Invalid window query name: {}", query_name),
-                path: None,
+                path:    None,
             })?;
 
         let fact_table_name = format!("tf_{}", table_name);
 
         // Get fact table metadata from schema
-        let metadata_json = self
-            .schema
-            .get_fact_table(&fact_table_name)
-            .ok_or_else(|| FraiseQLError::Validation {
+        let metadata_json = self.schema.get_fact_table(&fact_table_name).ok_or_else(|| {
+            FraiseQLError::Validation {
                 message: format!("Fact table '{}' not found in schema", fact_table_name),
-                path: Some(format!("fact_tables.{}", fact_table_name)),
-            })?;
+                path:    Some(format!("fact_tables.{}", fact_table_name)),
+            }
+        })?;
 
         // Parse metadata into FactTableMetadata
         let metadata: crate::compiler::fact_table::FactTableMetadata =
@@ -468,8 +458,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         let query_json = variables.unwrap_or(&empty_json);
 
         // Execute window query
-        self.execute_window_query(query_json, query_name, &metadata)
-            .await
+        self.execute_window_query(query_json, query_name, &metadata).await
     }
 
     /// Execute a window query.
@@ -520,7 +509,8 @@ impl<A: DatabaseAdapter> Executor<A> {
         let request = super::WindowQueryParser::parse(query_json, metadata)?;
 
         // 2. Generate execution plan (validates semantic names against metadata)
-        let plan = crate::compiler::window_functions::WindowPlanner::plan(request, metadata.clone())?;
+        let plan =
+            crate::compiler::window_functions::WindowPlanner::plan(request, metadata.clone())?;
 
         // 3. Generate SQL
         let sql_generator = super::WindowSqlGenerator::new(self.adapter.database_type());
@@ -594,7 +584,8 @@ impl<A: DatabaseAdapter> Executor<A> {
         let request = super::AggregateQueryParser::parse(query_json, metadata)?;
 
         // 2. Generate execution plan
-        let plan = crate::compiler::aggregation::AggregationPlanner::plan(request, metadata.clone())?;
+        let plan =
+            crate::compiler::aggregation::AggregationPlanner::plan(request, metadata.clone())?;
 
         // 3. Generate SQL
         let sql_generator = super::AggregationSqlGenerator::new(self.adapter.database_type());
@@ -634,11 +625,13 @@ impl<A: DatabaseAdapter> Executor<A> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::db::types::JsonbValue;
-    use crate::db::where_clause::WhereClause;
-    use crate::schema::{CompiledSchema, QueryDefinition, AutoParams};
     use async_trait::async_trait;
+
+    use super::*;
+    use crate::{
+        db::{types::JsonbValue, where_clause::WhereClause},
+        schema::{AutoParams, CompiledSchema, QueryDefinition},
+    };
 
     /// Mock database adapter for testing.
     struct MockAdapter {
@@ -673,10 +666,10 @@ mod tests {
 
         fn pool_metrics(&self) -> PoolMetrics {
             PoolMetrics {
-                total_connections: 1,
+                total_connections:  1,
                 active_connections: 0,
-                idle_connections: 1,
-                waiting_requests: 0,
+                idle_connections:   1,
+                waiting_requests:   0,
             }
         }
 
@@ -692,15 +685,15 @@ mod tests {
     fn test_schema() -> CompiledSchema {
         let mut schema = CompiledSchema::new();
         schema.queries.push(QueryDefinition {
-            name: "users".to_string(),
-            return_type: "User".to_string(),
+            name:         "users".to_string(),
+            return_type:  "User".to_string(),
             returns_list: true,
-            nullable: false,
-            arguments: Vec::new(),
-            sql_source: Some("v_user".to_string()),
-            description: None,
-            auto_params: AutoParams::default(),
-            deprecation: None,
+            nullable:     false,
+            arguments:    Vec::new(),
+            sql_source:   Some("v_user".to_string()),
+            description:  None,
+            auto_params:  AutoParams::default(),
+            deprecation:  None,
         });
         schema
     }
@@ -754,11 +747,11 @@ mod tests {
         let schema = test_schema();
         let adapter = Arc::new(MockAdapter::new(vec![]));
         let config = RuntimeConfig {
-            cache_query_plans: false,
-            max_query_depth: 5,
+            cache_query_plans:    false,
+            max_query_depth:      5,
             max_query_complexity: 500,
-            enable_tracing: true,
-            field_filter: None,
+            enable_tracing:       true,
+            field_filter:         None,
         };
 
         let executor = Executor::with_config(schema, adapter, config);

@@ -41,8 +41,7 @@
 //! assert_eq!(profile.cardinality, QueryCardinality::Single);
 //! ```
 
-use crate::compiler::ir::IRQuery;
-use crate::error::Result;
+use crate::{compiler::ir::IRQuery, error::Result};
 
 /// Query cardinality classification.
 ///
@@ -273,9 +272,8 @@ mod tests {
     #[test]
     fn test_multiple_where_conditions() {
         let analyzer = QueryAnalyzer::new();
-        let cardinality = analyzer.classify_cardinality(
-            "SELECT * FROM users WHERE email = ? OR username = ? LIMIT 1",
-        );
+        let cardinality = analyzer
+            .classify_cardinality("SELECT * FROM users WHERE email = ? OR username = ? LIMIT 1");
         assert_eq!(cardinality, QueryCardinality::List);
     }
 

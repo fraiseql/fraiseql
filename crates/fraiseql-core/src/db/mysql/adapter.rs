@@ -1,14 +1,20 @@
 //! MySQL database adapter implementation.
 
 use async_trait::async_trait;
-use sqlx::mysql::{MySqlPool, MySqlPoolOptions, MySqlRow};
-use sqlx::{Column, Row};
+use sqlx::{
+    Column, Row,
+    mysql::{MySqlPool, MySqlPoolOptions, MySqlRow},
+};
 
 use super::where_generator::MySqlWhereGenerator;
-use crate::db::traits::DatabaseAdapter;
-use crate::db::types::{DatabaseType, JsonbValue, PoolMetrics};
-use crate::db::where_clause::WhereClause;
-use crate::error::{FraiseQLError, Result};
+use crate::{
+    db::{
+        traits::DatabaseAdapter,
+        types::{DatabaseType, JsonbValue, PoolMetrics},
+        where_clause::WhereClause,
+    },
+    error::{FraiseQLError, Result},
+};
 
 /// MySQL database adapter with connection pooling.
 ///
@@ -111,7 +117,7 @@ impl MySqlAdapter {
             .fetch_one(&pool)
             .await
             .map_err(|e| FraiseQLError::Database {
-                message: format!("Failed to connect to MySQL database: {e}"),
+                message:   format!("Failed to connect to MySQL database: {e}"),
                 sql_state: None,
             })?;
 
@@ -119,7 +125,11 @@ impl MySqlAdapter {
     }
 
     /// Execute raw SQL query and return JSONB rows.
-    async fn execute_raw(&self, sql: &str, params: Vec<serde_json::Value>) -> Result<Vec<JsonbValue>> {
+    async fn execute_raw(
+        &self,
+        sql: &str,
+        params: Vec<serde_json::Value>,
+    ) -> Result<Vec<JsonbValue>> {
         // Build the query with dynamic parameters
         let mut query = sqlx::query(sql);
 
@@ -134,27 +144,27 @@ impl MySqlAdapter {
                     } else {
                         query.bind(n.to_string())
                     }
-                }
+                },
                 serde_json::Value::Bool(b) => query.bind(*b),
                 serde_json::Value::Null => query.bind(Option::<String>::None),
                 serde_json::Value::Array(_) | serde_json::Value::Object(_) => {
                     query.bind(param.to_string())
-                }
+                },
             };
         }
 
-        let rows: Vec<MySqlRow> = query.fetch_all(&self.pool).await.map_err(|e| {
-            FraiseQLError::Database {
-                message: format!("MySQL query execution failed: {e}"),
+        let rows: Vec<MySqlRow> =
+            query.fetch_all(&self.pool).await.map_err(|e| FraiseQLError::Database {
+                message:   format!("MySQL query execution failed: {e}"),
                 sql_state: None,
-            }
-        })?;
+            })?;
 
         let results = rows
             .into_iter()
             .map(|row| {
                 // MySQL stores JSON in a column, get it directly
-                let data: serde_json::Value = row.try_get("data").unwrap_or(serde_json::Value::Null);
+                let data: serde_json::Value =
+                    row.try_get("data").unwrap_or(serde_json::Value::Null);
                 JsonbValue::new(data)
             })
             .collect();
@@ -212,13 +222,12 @@ impl DatabaseAdapter for MySqlAdapter {
     }
 
     async fn health_check(&self) -> Result<()> {
-        sqlx::query("SELECT 1")
-            .fetch_one(&self.pool)
-            .await
-            .map_err(|e| FraiseQLError::Database {
-                message: format!("MySQL health check failed: {e}"),
+        sqlx::query("SELECT 1").fetch_one(&self.pool).await.map_err(|e| {
+            FraiseQLError::Database {
+                message:   format!("MySQL health check failed: {e}"),
                 sql_state: None,
-            })?;
+            }
+        })?;
 
         Ok(())
     }
@@ -228,10 +237,10 @@ impl DatabaseAdapter for MySqlAdapter {
         let idle = self.pool.num_idle();
 
         PoolMetrics {
-            total_connections: size,
-            idle_connections: idle as u32,
+            total_connections:  size,
+            idle_connections:   idle as u32,
             active_connections: size - idle as u32,
-            waiting_requests: 0, // sqlx doesn't expose waiting count
+            waiting_requests:   0, // sqlx doesn't expose waiting count
         }
     }
 
@@ -239,13 +248,14 @@ impl DatabaseAdapter for MySqlAdapter {
         &self,
         sql: &str,
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-        let rows: Vec<MySqlRow> = sqlx::query(sql)
-            .fetch_all(&self.pool)
-            .await
-            .map_err(|e| FraiseQLError::Database {
-                message: format!("MySQL query execution failed: {e}"),
-                sql_state: None,
-            })?;
+        let rows: Vec<MySqlRow> =
+            sqlx::query(sql)
+                .fetch_all(&self.pool)
+                .await
+                .map_err(|e| FraiseQLError::Database {
+                    message:   format!("MySQL query execution failed: {e}"),
+                    sql_state: None,
+                })?;
 
         // Convert each row to HashMap<String, Value>
         let results: Vec<std::collections::HashMap<String, serde_json::Value>> = rows
@@ -258,25 +268,25 @@ impl DatabaseAdapter for MySqlAdapter {
                     let column_name = column.name().to_string();
 
                     // Try to extract value based on MySQL type
-                    let value: serde_json::Value =
-                        if let Ok(v) = row.try_get::<i32, _>(column_name.as_str()) {
-                            serde_json::json!(v)
-                        } else if let Ok(v) = row.try_get::<i64, _>(column_name.as_str()) {
-                            serde_json::json!(v)
-                        } else if let Ok(v) = row.try_get::<f64, _>(column_name.as_str()) {
-                            serde_json::json!(v)
-                        } else if let Ok(v) = row.try_get::<String, _>(column_name.as_str()) {
-                            serde_json::json!(v)
-                        } else if let Ok(v) = row.try_get::<bool, _>(column_name.as_str()) {
-                            serde_json::json!(v)
-                        } else if let Ok(v) =
-                            row.try_get::<serde_json::Value, _>(column_name.as_str())
-                        {
-                            v
-                        } else {
-                            // Fallback: NULL
-                            serde_json::Value::Null
-                        };
+                    let value: serde_json::Value = if let Ok(v) =
+                        row.try_get::<i32, _>(column_name.as_str())
+                    {
+                        serde_json::json!(v)
+                    } else if let Ok(v) = row.try_get::<i64, _>(column_name.as_str()) {
+                        serde_json::json!(v)
+                    } else if let Ok(v) = row.try_get::<f64, _>(column_name.as_str()) {
+                        serde_json::json!(v)
+                    } else if let Ok(v) = row.try_get::<String, _>(column_name.as_str()) {
+                        serde_json::json!(v)
+                    } else if let Ok(v) = row.try_get::<bool, _>(column_name.as_str()) {
+                        serde_json::json!(v)
+                    } else if let Ok(v) = row.try_get::<serde_json::Value, _>(column_name.as_str())
+                    {
+                        v
+                    } else {
+                        // Fallback: NULL
+                        serde_json::Value::Null
+                    };
 
                     map.insert(column_name, value);
                 }
@@ -296,13 +306,12 @@ mod tests {
     // Note: These tests require a running MySQL instance with test data.
     // Run with: cargo test --features test-mysql -p fraiseql-core db::mysql::adapter
 
-    const TEST_DB_URL: &str = "mysql://fraiseql_test:fraiseql_test_password@localhost:3307/test_fraiseql";
+    const TEST_DB_URL: &str =
+        "mysql://fraiseql_test:fraiseql_test_password@localhost:3307/test_fraiseql";
 
     #[tokio::test]
     async fn test_adapter_creation() {
-        let adapter = MySqlAdapter::new(TEST_DB_URL)
-            .await
-            .expect("Failed to create MySQL adapter");
+        let adapter = MySqlAdapter::new(TEST_DB_URL).await.expect("Failed to create MySQL adapter");
 
         let metrics = adapter.pool_metrics();
         assert!(metrics.total_connections > 0);
@@ -311,9 +320,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_health_check() {
-        let adapter = MySqlAdapter::new(TEST_DB_URL)
-            .await
-            .expect("Failed to create MySQL adapter");
+        let adapter = MySqlAdapter::new(TEST_DB_URL).await.expect("Failed to create MySQL adapter");
 
         adapter.health_check().await.expect("Health check failed");
     }

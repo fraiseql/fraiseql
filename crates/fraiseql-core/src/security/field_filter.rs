@@ -54,18 +54,20 @@
 //! }
 //! ```
 
-use std::collections::{HashMap, HashSet};
-use std::fmt;
+use std::{
+    collections::{HashMap, HashSet},
+    fmt,
+};
 
 /// Error returned when field access is denied
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FieldAccessError {
     /// The GraphQL type containing the field
-    pub type_name: String,
+    pub type_name:  String,
     /// The field that was denied
     pub field_name: String,
     /// Human-readable message
-    pub message: String,
+    pub message:    String,
 }
 
 impl fmt::Display for FieldAccessError {
@@ -100,9 +102,9 @@ impl FieldAccessError {
         message: impl Into<String>,
     ) -> Self {
         Self {
-            type_name: type_name.into(),
+            type_name:  type_name.into(),
             field_name: field_name.into(),
-            message: message.into(),
+            message:    message.into(),
         }
     }
 }
@@ -134,9 +136,9 @@ impl FieldFilterConfig {
     pub fn new() -> Self {
         Self {
             protected_fields: HashMap::new(),
-            explicit_scopes: HashMap::new(),
-            admin_scopes: HashSet::from(["admin".to_string()]),
-            default_action: "read".to_string(),
+            explicit_scopes:  HashMap::new(),
+            admin_scopes:     HashSet::from(["admin".to_string()]),
+            default_action:   "read".to_string(),
         }
     }
 
@@ -156,10 +158,7 @@ impl FieldFilterConfig {
     /// Mark multiple fields on a type as protected
     #[must_use]
     pub fn protect_fields(mut self, type_name: &str, field_names: &[&str]) -> Self {
-        let fields = self
-            .protected_fields
-            .entry(type_name.to_string())
-            .or_default();
+        let fields = self.protected_fields.entry(type_name.to_string()).or_default();
         for field_name in field_names {
             fields.insert((*field_name).to_string());
         }
@@ -527,9 +526,11 @@ mod tests {
 
     #[test]
     fn test_explicit_scope_requirement() {
-        let config = FieldFilterConfig::new()
-            .protect_field("User", "salary")
-            .require_scope("User", "salary", "hr:view_compensation");
+        let config = FieldFilterConfig::new().protect_field("User", "salary").require_scope(
+            "User",
+            "salary",
+            "hr:view_compensation",
+        );
         let filter = FieldFilter::new(config);
 
         // Default pattern doesn't work
@@ -543,9 +544,11 @@ mod tests {
 
     #[test]
     fn test_admin_still_bypasses_explicit() {
-        let config = FieldFilterConfig::new()
-            .protect_field("User", "salary")
-            .require_scope("User", "salary", "hr:view_compensation");
+        let config = FieldFilterConfig::new().protect_field("User", "salary").require_scope(
+            "User",
+            "salary",
+            "hr:view_compensation",
+        );
         let filter = FieldFilter::new(config);
 
         let admin_scope = vec!["admin".to_string()];
@@ -672,9 +675,8 @@ mod tests {
 
     #[test]
     fn test_is_protected() {
-        let config = FieldFilterConfig::new()
-            .protect_field("User", "salary")
-            .protect_type("Secret");
+        let config =
+            FieldFilterConfig::new().protect_field("User", "salary").protect_type("Secret");
 
         assert!(config.is_protected("User", "salary"));
         assert!(!config.is_protected("User", "name"));
@@ -740,12 +742,11 @@ mod tests {
 
     #[test]
     fn test_special_characters_in_names() {
-        let config = FieldFilterConfig::new().protect_field("UserProfile", "social_security_number");
+        let config =
+            FieldFilterConfig::new().protect_field("UserProfile", "social_security_number");
         let filter = FieldFilter::new(config);
 
         let scopes = vec!["read:UserProfile.social_security_number".to_string()];
-        assert!(filter
-            .can_access("UserProfile", "social_security_number", &scopes)
-            .is_ok());
+        assert!(filter.can_access("UserProfile", "social_security_number", &scopes).is_ok());
     }
 }

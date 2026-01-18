@@ -1,10 +1,9 @@
 //! FraiseQL Server binary.
 
+use std::{env, path::Path, sync::Arc};
+
 use fraiseql_core::db::postgres::PostgresAdapter;
 use fraiseql_server::{CompiledSchemaLoader, Server, ServerConfig};
-use std::env;
-use std::path::Path;
-use std::sync::Arc;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 /// Load configuration from file or use defaults.
@@ -15,11 +14,11 @@ fn load_config(config_path: Option<&str>) -> anyhow::Result<ServerConfig> {
             let contents = std::fs::read_to_string(path)?;
             let config: ServerConfig = toml::from_str(&contents)?;
             Ok(config)
-        }
+        },
         None => {
             tracing::info!("Using default server configuration");
             Ok(ServerConfig::default())
-        }
+        },
     }
 }
 
@@ -119,10 +118,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Create and start server
     let server = Server::new(config, schema, adapter).await?;
-    tracing::info!(
-        "FraiseQL Server {} starting",
-        env!("CARGO_PKG_VERSION")
-    );
+    tracing::info!("FraiseQL Server {} starting", env!("CARGO_PKG_VERSION"));
 
     server.serve().await?;
 

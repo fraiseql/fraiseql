@@ -2,12 +2,8 @@
 //!
 //! Converts `IntermediateSchema` (language-agnostic) to `CompiledSchema` (Rust-specific)
 
-use super::intermediate::{
-    IntermediateArgument, IntermediateAutoParams, IntermediateDirective, IntermediateEnum,
-    IntermediateEnumValue, IntermediateField, IntermediateInputField, IntermediateInputObject,
-    IntermediateInterface, IntermediateMutation, IntermediateQuery, IntermediateSchema,
-    IntermediateSubscription, IntermediateType, IntermediateUnion,
-};
+use std::collections::HashSet;
+
 use anyhow::{Context, Result};
 use fraiseql_core::schema::{
     ArgumentDefinition, AutoParams, CompiledSchema, DirectiveDefinition, DirectiveLocationKind,
@@ -15,8 +11,14 @@ use fraiseql_core::schema::{
     InputObjectDefinition, InterfaceDefinition, MutationDefinition, MutationOperation,
     QueryDefinition, SubscriptionDefinition, SubscriptionFilter, TypeDefinition, UnionDefinition,
 };
-use std::collections::HashSet;
 use tracing::{info, warn};
+
+use super::intermediate::{
+    IntermediateArgument, IntermediateAutoParams, IntermediateDirective, IntermediateEnum,
+    IntermediateEnumValue, IntermediateField, IntermediateInputField, IntermediateInputObject,
+    IntermediateInterface, IntermediateMutation, IntermediateQuery, IntermediateSchema,
+    IntermediateSubscription, IntermediateType, IntermediateUnion,
+};
 
 /// Converts intermediate format to compiled format
 pub struct SchemaConverter;
@@ -387,9 +389,9 @@ impl SchemaConverter {
     /// Convert `IntermediateAutoParams` to `AutoParams`
     const fn convert_auto_params(intermediate: IntermediateAutoParams) -> AutoParams {
         AutoParams {
-            has_limit: intermediate.limit,
-            has_offset: intermediate.offset,
-            has_where: intermediate.where_clause,
+            has_limit:    intermediate.limit,
+            has_offset:   intermediate.offset,
+            has_where:    intermediate.where_clause,
             has_order_by: intermediate.order_by,
         }
     }
@@ -636,18 +638,18 @@ mod tests {
     #[test]
     fn test_convert_minimal_schema() {
         let intermediate = IntermediateSchema {
-            version: "2.0.0".to_string(),
-            types: vec![],
-            enums: vec![],
-            input_types: vec![],
-            interfaces: vec![],
-            unions: vec![],
-            queries: vec![],
-            mutations: vec![],
-            subscriptions: vec![],
-            fragments: None,
-            directives: None,
-            fact_tables: None,
+            version:           "2.0.0".to_string(),
+            types:             vec![],
+            enums:             vec![],
+            input_types:       vec![],
+            interfaces:        vec![],
+            unions:            vec![],
+            queries:           vec![],
+            mutations:         vec![],
+            subscriptions:     vec![],
+            fragments:         None,
+            directives:        None,
+            fact_tables:       None,
             aggregate_queries: None,
         };
 
@@ -660,40 +662,40 @@ mod tests {
     #[test]
     fn test_convert_type_with_fields() {
         let intermediate = IntermediateSchema {
-            version: "2.0.0".to_string(),
-            types: vec![IntermediateType {
-                name: "User".to_string(),
-                fields: vec![
+            version:           "2.0.0".to_string(),
+            types:             vec![IntermediateType {
+                name:        "User".to_string(),
+                fields:      vec![
                     IntermediateField {
-                        name: "id".to_string(),
-                        field_type: "Int".to_string(),
-                        nullable: false,
-                        description: None,
-                        directives: None,
+                        name:           "id".to_string(),
+                        field_type:     "Int".to_string(),
+                        nullable:       false,
+                        description:    None,
+                        directives:     None,
                         requires_scope: None,
                     },
                     IntermediateField {
-                        name: "name".to_string(),
-                        field_type: "String".to_string(),
-                        nullable: false,
-                        description: None,
-                        directives: None,
+                        name:           "name".to_string(),
+                        field_type:     "String".to_string(),
+                        nullable:       false,
+                        description:    None,
+                        directives:     None,
                         requires_scope: None,
                     },
                 ],
                 description: Some("User type".to_string()),
-                implements: vec![],
+                implements:  vec![],
             }],
-            enums: vec![],
-            input_types: vec![],
-            interfaces: vec![],
-            unions: vec![],
-            queries: vec![],
-            mutations: vec![],
-            subscriptions: vec![],
-            fragments: None,
-            directives: None,
-            fact_tables: None,
+            enums:             vec![],
+            input_types:       vec![],
+            interfaces:        vec![],
+            unions:            vec![],
+            queries:           vec![],
+            mutations:         vec![],
+            subscriptions:     vec![],
+            fragments:         None,
+            directives:        None,
+            fact_tables:       None,
             aggregate_queries: None,
         };
 
@@ -708,28 +710,28 @@ mod tests {
     #[test]
     fn test_validate_unknown_type_reference() {
         let intermediate = IntermediateSchema {
-            version: "2.0.0".to_string(),
-            types: vec![],
-            enums: vec![],
-            input_types: vec![],
-            interfaces: vec![],
-            unions: vec![],
-            queries: vec![IntermediateQuery {
-                name: "users".to_string(),
-                return_type: "UnknownType".to_string(),
+            version:           "2.0.0".to_string(),
+            types:             vec![],
+            enums:             vec![],
+            input_types:       vec![],
+            interfaces:        vec![],
+            unions:            vec![],
+            queries:           vec![IntermediateQuery {
+                name:         "users".to_string(),
+                return_type:  "UnknownType".to_string(),
                 returns_list: true,
-                nullable: false,
-                arguments: vec![],
-                description: None,
-                sql_source: Some("v_user".to_string()),
-                auto_params: None,
-                deprecated: None,
+                nullable:     false,
+                arguments:    vec![],
+                description:  None,
+                sql_source:   Some("v_user".to_string()),
+                auto_params:  None,
+                deprecated:   None,
             }],
-            mutations: vec![],
-            subscriptions: vec![],
-            fragments: None,
-            directives: None,
-            fact_tables: None,
+            mutations:         vec![],
+            subscriptions:     vec![],
+            fragments:         None,
+            directives:        None,
+            fact_tables:       None,
             aggregate_queries: None,
         };
 
@@ -741,44 +743,44 @@ mod tests {
     #[test]
     fn test_convert_query_with_arguments() {
         let intermediate = IntermediateSchema {
-            version: "2.0.0".to_string(),
-            types: vec![IntermediateType {
-                name: "User".to_string(),
-                fields: vec![],
+            version:           "2.0.0".to_string(),
+            types:             vec![IntermediateType {
+                name:        "User".to_string(),
+                fields:      vec![],
                 description: None,
-                implements: vec![],
+                implements:  vec![],
             }],
-            enums: vec![],
-            input_types: vec![],
-            interfaces: vec![],
-            unions: vec![],
-            queries: vec![IntermediateQuery {
-                name: "users".to_string(),
-                return_type: "User".to_string(),
+            enums:             vec![],
+            input_types:       vec![],
+            interfaces:        vec![],
+            unions:            vec![],
+            queries:           vec![IntermediateQuery {
+                name:         "users".to_string(),
+                return_type:  "User".to_string(),
                 returns_list: true,
-                nullable: false,
-                arguments: vec![IntermediateArgument {
-                    name: "limit".to_string(),
-                    arg_type: "Int".to_string(),
-                    nullable: false,
-                    default: Some(serde_json::json!(10)),
+                nullable:     false,
+                arguments:    vec![IntermediateArgument {
+                    name:       "limit".to_string(),
+                    arg_type:   "Int".to_string(),
+                    nullable:   false,
+                    default:    Some(serde_json::json!(10)),
                     deprecated: None,
                 }],
-                description: Some("Get users".to_string()),
-                sql_source: Some("v_user".to_string()),
-                auto_params: Some(IntermediateAutoParams {
-                    limit: true,
-                    offset: true,
+                description:  Some("Get users".to_string()),
+                sql_source:   Some("v_user".to_string()),
+                auto_params:  Some(IntermediateAutoParams {
+                    limit:        true,
+                    offset:       true,
                     where_clause: false,
-                    order_by: false,
+                    order_by:     false,
                 }),
-                deprecated: None,
+                deprecated:   None,
             }],
-            mutations: vec![],
-            subscriptions: vec![],
-            fragments: None,
-            directives: None,
-            fact_tables: None,
+            mutations:         vec![],
+            subscriptions:     vec![],
+            fragments:         None,
+            directives:        None,
+            fact_tables:       None,
             aggregate_queries: None,
         };
 
@@ -794,43 +796,43 @@ mod tests {
         use crate::schema::intermediate::IntermediateAppliedDirective;
 
         let intermediate = IntermediateSchema {
-            version: "2.0.0".to_string(),
-            types: vec![IntermediateType {
-                name: "User".to_string(),
-                fields: vec![
+            version:           "2.0.0".to_string(),
+            types:             vec![IntermediateType {
+                name:        "User".to_string(),
+                fields:      vec![
                     IntermediateField {
-                        name: "oldId".to_string(),
-                        field_type: "Int".to_string(),
-                        nullable: false,
-                        description: None,
-                        directives: Some(vec![IntermediateAppliedDirective {
-                            name: "deprecated".to_string(),
+                        name:           "oldId".to_string(),
+                        field_type:     "Int".to_string(),
+                        nullable:       false,
+                        description:    None,
+                        directives:     Some(vec![IntermediateAppliedDirective {
+                            name:      "deprecated".to_string(),
                             arguments: Some(serde_json::json!({"reason": "Use 'id' instead"})),
                         }]),
                         requires_scope: None,
                     },
                     IntermediateField {
-                        name: "id".to_string(),
-                        field_type: "Int".to_string(),
-                        nullable: false,
-                        description: None,
-                        directives: None,
+                        name:           "id".to_string(),
+                        field_type:     "Int".to_string(),
+                        nullable:       false,
+                        description:    None,
+                        directives:     None,
                         requires_scope: None,
                     },
                 ],
                 description: None,
-                implements: vec![],
+                implements:  vec![],
             }],
-            enums: vec![],
-            input_types: vec![],
-            interfaces: vec![],
-            unions: vec![],
-            queries: vec![],
-            mutations: vec![],
-            subscriptions: vec![],
-            fragments: None,
-            directives: None,
-            fact_tables: None,
+            enums:             vec![],
+            input_types:       vec![],
+            interfaces:        vec![],
+            unions:            vec![],
+            queries:           vec![],
+            mutations:         vec![],
+            subscriptions:     vec![],
+            fragments:         None,
+            directives:        None,
+            fact_tables:       None,
             aggregate_queries: None,
         };
 
@@ -858,40 +860,40 @@ mod tests {
         };
 
         let intermediate = IntermediateSchema {
-            version: "2.0.0".to_string(),
-            types: vec![],
-            enums: vec![IntermediateEnum {
-                name: "OrderStatus".to_string(),
-                values: vec![
+            version:           "2.0.0".to_string(),
+            types:             vec![],
+            enums:             vec![IntermediateEnum {
+                name:        "OrderStatus".to_string(),
+                values:      vec![
                     IntermediateEnumValue {
-                        name: "PENDING".to_string(),
+                        name:        "PENDING".to_string(),
                         description: None,
-                        deprecated: None,
+                        deprecated:  None,
                     },
                     IntermediateEnumValue {
-                        name: "PROCESSING".to_string(),
+                        name:        "PROCESSING".to_string(),
                         description: Some("Currently being processed".to_string()),
-                        deprecated: None,
+                        deprecated:  None,
                     },
                     IntermediateEnumValue {
-                        name: "CANCELLED".to_string(),
+                        name:        "CANCELLED".to_string(),
                         description: None,
-                        deprecated: Some(IntermediateDeprecation {
+                        deprecated:  Some(IntermediateDeprecation {
                             reason: Some("Use VOIDED instead".to_string()),
                         }),
                     },
                 ],
                 description: Some("Order status enum".to_string()),
             }],
-            input_types: vec![],
-            interfaces: vec![],
-            unions: vec![],
-            queries: vec![],
-            mutations: vec![],
-            subscriptions: vec![],
-            fragments: None,
-            directives: None,
-            fact_tables: None,
+            input_types:       vec![],
+            interfaces:        vec![],
+            unions:            vec![],
+            queries:           vec![],
+            mutations:         vec![],
+            subscriptions:     vec![],
+            fragments:         None,
+            directives:        None,
+            fact_tables:       None,
             aggregate_queries: None,
         };
 
@@ -926,49 +928,49 @@ mod tests {
         };
 
         let intermediate = IntermediateSchema {
-            version: "2.0.0".to_string(),
-            types: vec![],
-            enums: vec![],
-            input_types: vec![IntermediateInputObject {
-                name: "UserFilter".to_string(),
-                fields: vec![
+            version:           "2.0.0".to_string(),
+            types:             vec![],
+            enums:             vec![],
+            input_types:       vec![IntermediateInputObject {
+                name:        "UserFilter".to_string(),
+                fields:      vec![
                     IntermediateInputField {
-                        name: "name".to_string(),
-                        field_type: "String".to_string(),
-                        nullable: true,
+                        name:        "name".to_string(),
+                        field_type:  "String".to_string(),
+                        nullable:    true,
                         description: None,
-                        default: None,
-                        deprecated: None,
+                        default:     None,
+                        deprecated:  None,
                     },
                     IntermediateInputField {
-                        name: "active".to_string(),
-                        field_type: "Boolean".to_string(),
-                        nullable: true,
+                        name:        "active".to_string(),
+                        field_type:  "Boolean".to_string(),
+                        nullable:    true,
                         description: Some("Filter by active status".to_string()),
-                        default: Some(serde_json::json!(true)),
-                        deprecated: None,
+                        default:     Some(serde_json::json!(true)),
+                        deprecated:  None,
                     },
                     IntermediateInputField {
-                        name: "oldField".to_string(),
-                        field_type: "String".to_string(),
-                        nullable: true,
+                        name:        "oldField".to_string(),
+                        field_type:  "String".to_string(),
+                        nullable:    true,
                         description: None,
-                        default: None,
-                        deprecated: Some(IntermediateDeprecation {
+                        default:     None,
+                        deprecated:  Some(IntermediateDeprecation {
                             reason: Some("Use newField instead".to_string()),
                         }),
                     },
                 ],
                 description: Some("User filter input".to_string()),
             }],
-            interfaces: vec![],
-            unions: vec![],
-            queries: vec![],
-            mutations: vec![],
-            subscriptions: vec![],
-            fragments: None,
-            directives: None,
-            fact_tables: None,
+            interfaces:        vec![],
+            unions:            vec![],
+            queries:           vec![],
+            mutations:         vec![],
+            subscriptions:     vec![],
+            fragments:         None,
+            directives:        None,
+            fact_tables:       None,
             aggregate_queries: None,
         };
 
@@ -1001,29 +1003,29 @@ mod tests {
         use crate::schema::intermediate::{IntermediateField, IntermediateInterface};
 
         let intermediate = IntermediateSchema {
-            version: "2.0.0".to_string(),
-            types: vec![],
-            enums: vec![],
-            input_types: vec![],
-            interfaces: vec![IntermediateInterface {
-                name: "Node".to_string(),
-                fields: vec![IntermediateField {
-                    name: "id".to_string(),
-                    field_type: "ID".to_string(),
-                    nullable: false,
-                    description: None,
-                    directives: None,
+            version:           "2.0.0".to_string(),
+            types:             vec![],
+            enums:             vec![],
+            input_types:       vec![],
+            interfaces:        vec![IntermediateInterface {
+                name:        "Node".to_string(),
+                fields:      vec![IntermediateField {
+                    name:           "id".to_string(),
+                    field_type:     "ID".to_string(),
+                    nullable:       false,
+                    description:    None,
+                    directives:     None,
                     requires_scope: None,
                 }],
                 description: Some("An object with a globally unique ID".to_string()),
             }],
-            unions: vec![],
-            queries: vec![],
-            mutations: vec![],
-            subscriptions: vec![],
-            fragments: None,
-            directives: None,
-            fact_tables: None,
+            unions:            vec![],
+            queries:           vec![],
+            mutations:         vec![],
+            subscriptions:     vec![],
+            fragments:         None,
+            directives:        None,
+            fact_tables:       None,
             aggregate_queries: None,
         };
 
@@ -1045,51 +1047,51 @@ mod tests {
         };
 
         let intermediate = IntermediateSchema {
-            version: "2.0.0".to_string(),
-            types: vec![IntermediateType {
-                name: "User".to_string(),
-                fields: vec![
+            version:           "2.0.0".to_string(),
+            types:             vec![IntermediateType {
+                name:        "User".to_string(),
+                fields:      vec![
                     IntermediateField {
-                        name: "id".to_string(),
-                        field_type: "ID".to_string(),
-                        nullable: false,
-                        description: None,
-                        directives: None,
+                        name:           "id".to_string(),
+                        field_type:     "ID".to_string(),
+                        nullable:       false,
+                        description:    None,
+                        directives:     None,
                         requires_scope: None,
                     },
                     IntermediateField {
-                        name: "name".to_string(),
-                        field_type: "String".to_string(),
-                        nullable: false,
-                        description: None,
-                        directives: None,
+                        name:           "name".to_string(),
+                        field_type:     "String".to_string(),
+                        nullable:       false,
+                        description:    None,
+                        directives:     None,
                         requires_scope: None,
                     },
                 ],
                 description: None,
-                implements: vec!["Node".to_string()],
+                implements:  vec!["Node".to_string()],
             }],
-            enums: vec![],
-            input_types: vec![],
-            interfaces: vec![IntermediateInterface {
-                name: "Node".to_string(),
-                fields: vec![IntermediateField {
-                    name: "id".to_string(),
-                    field_type: "ID".to_string(),
-                    nullable: false,
-                    description: None,
-                    directives: None,
+            enums:             vec![],
+            input_types:       vec![],
+            interfaces:        vec![IntermediateInterface {
+                name:        "Node".to_string(),
+                fields:      vec![IntermediateField {
+                    name:           "id".to_string(),
+                    field_type:     "ID".to_string(),
+                    nullable:       false,
+                    description:    None,
+                    directives:     None,
                     requires_scope: None,
                 }],
                 description: None,
             }],
-            unions: vec![],
-            queries: vec![],
-            mutations: vec![],
-            subscriptions: vec![],
-            fragments: None,
-            directives: None,
-            fact_tables: None,
+            unions:            vec![],
+            queries:           vec![],
+            mutations:         vec![],
+            subscriptions:     vec![],
+            fragments:         None,
+            directives:        None,
+            fact_tables:       None,
             aggregate_queries: None,
         };
 
@@ -1109,30 +1111,30 @@ mod tests {
         use crate::schema::intermediate::{IntermediateField, IntermediateType};
 
         let intermediate = IntermediateSchema {
-            version: "2.0.0".to_string(),
-            types: vec![IntermediateType {
-                name: "User".to_string(),
-                fields: vec![IntermediateField {
-                    name: "id".to_string(),
-                    field_type: "ID".to_string(),
-                    nullable: false,
-                    description: None,
-                    directives: None,
+            version:           "2.0.0".to_string(),
+            types:             vec![IntermediateType {
+                name:        "User".to_string(),
+                fields:      vec![IntermediateField {
+                    name:           "id".to_string(),
+                    field_type:     "ID".to_string(),
+                    nullable:       false,
+                    description:    None,
+                    directives:     None,
                     requires_scope: None,
                 }],
                 description: None,
-                implements: vec!["UnknownInterface".to_string()],
+                implements:  vec!["UnknownInterface".to_string()],
             }],
-            enums: vec![],
-            input_types: vec![],
-            interfaces: vec![], // No interface defined!
-            unions: vec![],
-            queries: vec![],
-            mutations: vec![],
-            subscriptions: vec![],
-            fragments: None,
-            directives: None,
-            fact_tables: None,
+            enums:             vec![],
+            input_types:       vec![],
+            interfaces:        vec![], // No interface defined!
+            unions:            vec![],
+            queries:           vec![],
+            mutations:         vec![],
+            subscriptions:     vec![],
+            fragments:         None,
+            directives:        None,
+            fact_tables:       None,
             aggregate_queries: None,
         };
 
@@ -1148,44 +1150,44 @@ mod tests {
         };
 
         let intermediate = IntermediateSchema {
-            version: "2.0.0".to_string(),
-            types: vec![IntermediateType {
-                name: "User".to_string(),
-                fields: vec![
+            version:           "2.0.0".to_string(),
+            types:             vec![IntermediateType {
+                name:        "User".to_string(),
+                fields:      vec![
                     // Missing the required 'id' field from Node interface!
                     IntermediateField {
-                        name: "name".to_string(),
-                        field_type: "String".to_string(),
-                        nullable: false,
-                        description: None,
-                        directives: None,
+                        name:           "name".to_string(),
+                        field_type:     "String".to_string(),
+                        nullable:       false,
+                        description:    None,
+                        directives:     None,
                         requires_scope: None,
                     },
                 ],
                 description: None,
-                implements: vec!["Node".to_string()],
+                implements:  vec!["Node".to_string()],
             }],
-            enums: vec![],
-            input_types: vec![],
-            interfaces: vec![IntermediateInterface {
-                name: "Node".to_string(),
-                fields: vec![IntermediateField {
-                    name: "id".to_string(),
-                    field_type: "ID".to_string(),
-                    nullable: false,
-                    description: None,
-                    directives: None,
+            enums:             vec![],
+            input_types:       vec![],
+            interfaces:        vec![IntermediateInterface {
+                name:        "Node".to_string(),
+                fields:      vec![IntermediateField {
+                    name:           "id".to_string(),
+                    field_type:     "ID".to_string(),
+                    nullable:       false,
+                    description:    None,
+                    directives:     None,
                     requires_scope: None,
                 }],
                 description: None,
             }],
-            unions: vec![],
-            queries: vec![],
-            mutations: vec![],
-            subscriptions: vec![],
-            fragments: None,
-            directives: None,
-            fact_tables: None,
+            unions:            vec![],
+            queries:           vec![],
+            mutations:         vec![],
+            subscriptions:     vec![],
+            fragments:         None,
+            directives:        None,
+            fact_tables:       None,
             aggregate_queries: None,
         };
 
@@ -1199,49 +1201,49 @@ mod tests {
         use crate::schema::intermediate::{IntermediateField, IntermediateType, IntermediateUnion};
 
         let intermediate = IntermediateSchema {
-            version: "2.0.0".to_string(),
-            types: vec![
+            version:           "2.0.0".to_string(),
+            types:             vec![
                 IntermediateType {
-                    name: "User".to_string(),
-                    fields: vec![IntermediateField {
-                        name: "id".to_string(),
-                        field_type: "ID".to_string(),
-                        nullable: false,
-                        description: None,
-                        directives: None,
+                    name:        "User".to_string(),
+                    fields:      vec![IntermediateField {
+                        name:           "id".to_string(),
+                        field_type:     "ID".to_string(),
+                        nullable:       false,
+                        description:    None,
+                        directives:     None,
                         requires_scope: None,
                     }],
                     description: None,
-                    implements: vec![],
+                    implements:  vec![],
                 },
                 IntermediateType {
-                    name: "Post".to_string(),
-                    fields: vec![IntermediateField {
-                        name: "id".to_string(),
-                        field_type: "ID".to_string(),
-                        nullable: false,
-                        description: None,
-                        directives: None,
+                    name:        "Post".to_string(),
+                    fields:      vec![IntermediateField {
+                        name:           "id".to_string(),
+                        field_type:     "ID".to_string(),
+                        nullable:       false,
+                        description:    None,
+                        directives:     None,
                         requires_scope: None,
                     }],
                     description: None,
-                    implements: vec![],
+                    implements:  vec![],
                 },
             ],
-            enums: vec![],
-            input_types: vec![],
-            interfaces: vec![],
-            unions: vec![IntermediateUnion {
-                name: "SearchResult".to_string(),
+            enums:             vec![],
+            input_types:       vec![],
+            interfaces:        vec![],
+            unions:            vec![IntermediateUnion {
+                name:         "SearchResult".to_string(),
                 member_types: vec!["User".to_string(), "Post".to_string()],
-                description: Some("Result from a search query".to_string()),
+                description:  Some("Result from a search query".to_string()),
             }],
-            queries: vec![],
-            mutations: vec![],
-            subscriptions: vec![],
-            fragments: None,
-            directives: None,
-            fact_tables: None,
+            queries:           vec![],
+            mutations:         vec![],
+            subscriptions:     vec![],
+            fragments:         None,
+            directives:        None,
+            fact_tables:       None,
             aggregate_queries: None,
         };
 
@@ -1260,56 +1262,58 @@ mod tests {
         use crate::schema::intermediate::{IntermediateField, IntermediateType};
 
         let intermediate = IntermediateSchema {
-            version: "2.0.0".to_string(),
-            types: vec![IntermediateType {
-                name: "Employee".to_string(),
-                fields: vec![
+            version:           "2.0.0".to_string(),
+            types:             vec![IntermediateType {
+                name:        "Employee".to_string(),
+                fields:      vec![
                     IntermediateField {
-                        name: "id".to_string(),
-                        field_type: "ID".to_string(),
-                        nullable: false,
-                        description: None,
-                        directives: None,
+                        name:           "id".to_string(),
+                        field_type:     "ID".to_string(),
+                        nullable:       false,
+                        description:    None,
+                        directives:     None,
                         requires_scope: None,
                     },
                     IntermediateField {
-                        name: "name".to_string(),
-                        field_type: "String".to_string(),
-                        nullable: false,
-                        description: None,
-                        directives: None,
+                        name:           "name".to_string(),
+                        field_type:     "String".to_string(),
+                        nullable:       false,
+                        description:    None,
+                        directives:     None,
                         requires_scope: None,
                     },
                     IntermediateField {
-                        name: "salary".to_string(),
-                        field_type: "Float".to_string(),
-                        nullable: false,
-                        description: Some("Employee salary - protected field".to_string()),
-                        directives: None,
+                        name:           "salary".to_string(),
+                        field_type:     "Float".to_string(),
+                        nullable:       false,
+                        description:    Some("Employee salary - protected field".to_string()),
+                        directives:     None,
                         requires_scope: Some("read:Employee.salary".to_string()),
                     },
                     IntermediateField {
-                        name: "ssn".to_string(),
-                        field_type: "String".to_string(),
-                        nullable: true,
-                        description: Some("Social Security Number - highly protected".to_string()),
-                        directives: None,
+                        name:           "ssn".to_string(),
+                        field_type:     "String".to_string(),
+                        nullable:       true,
+                        description:    Some(
+                            "Social Security Number - highly protected".to_string(),
+                        ),
+                        directives:     None,
                         requires_scope: Some("admin".to_string()),
                     },
                 ],
                 description: None,
-                implements: vec![],
+                implements:  vec![],
             }],
-            enums: vec![],
-            input_types: vec![],
-            interfaces: vec![],
-            unions: vec![],
-            queries: vec![],
-            mutations: vec![],
-            subscriptions: vec![],
-            fragments: None,
-            directives: None,
-            fact_tables: None,
+            enums:             vec![],
+            input_types:       vec![],
+            interfaces:        vec![],
+            unions:            vec![],
+            queries:           vec![],
+            mutations:         vec![],
+            subscriptions:     vec![],
+            fragments:         None,
+            directives:        None,
+            fact_tables:       None,
             aggregate_queries: None,
         };
 

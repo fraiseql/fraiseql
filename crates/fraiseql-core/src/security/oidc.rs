@@ -42,14 +42,20 @@
 //! let user = validator.validate_token("eyJhbG...").await?;
 //! ```
 
-use crate::security::errors::{Result, SecurityError};
-use crate::security::auth_middleware::AuthenticatedUser;
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
+
 use chrono::{DateTime, Utc};
-use jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, Validation};
+use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
-use std::time::{Duration, Instant};
+
+use crate::security::{
+    auth_middleware::AuthenticatedUser,
+    errors::{Result, SecurityError},
+};
 
 // ============================================================================
 // OIDC Configuration
@@ -147,15 +153,15 @@ fn default_scope_claim() -> String {
 impl Default for OidcConfig {
     fn default() -> Self {
         Self {
-            issuer: String::new(),
-            audience: None,
+            issuer:               String::new(),
+            audience:             None,
             additional_audiences: Vec::new(),
-            jwks_cache_ttl_secs: default_jwks_cache_ttl(),
-            allowed_algorithms: default_algorithms(),
-            clock_skew_secs: default_clock_skew(),
-            jwks_uri: None,
-            required: default_required(),
-            scope_claim: default_scope_claim(),
+            jwks_cache_ttl_secs:  default_jwks_cache_ttl(),
+            allowed_algorithms:   default_algorithms(),
+            clock_skew_secs:      default_clock_skew(),
+            jwks_uri:             None,
+            required:             default_required(),
+            scope_claim:          default_scope_claim(),
         }
     }
 }
@@ -346,9 +352,9 @@ pub struct Jwk {
 /// Cached JWKS with expiration.
 #[derive(Debug)]
 struct CachedJwks {
-    jwks: Jwks,
+    jwks:       Jwks,
     fetched_at: Instant,
-    ttl: Duration,
+    ttl:        Duration,
 }
 
 impl CachedJwks {
@@ -444,10 +450,10 @@ impl Audience {
 /// Validates JWT tokens against an OIDC provider's public keys.
 /// Automatically fetches and caches the JWKS for efficiency.
 pub struct OidcValidator {
-    config: OidcConfig,
+    config:      OidcConfig,
     http_client: reqwest::Client,
-    jwks_cache: Arc<RwLock<Option<CachedJwks>>>,
-    jwks_uri: String,
+    jwks_cache:  Arc<RwLock<Option<CachedJwks>>>,
+    jwks_uri:    String,
 }
 
 impl OidcValidator {
@@ -475,20 +481,14 @@ impl OidcValidator {
             uri.clone()
         } else {
             // Perform OIDC discovery
-            let discovery_url = format!(
-                "{}/.well-known/openid-configuration",
-                config.issuer.trim_end_matches('/')
-            );
+            let discovery_url =
+                format!("{}/.well-known/openid-configuration", config.issuer.trim_end_matches('/'));
 
             tracing::debug!(url = %discovery_url, "Performing OIDC discovery");
 
-            let response = http_client
-                .get(&discovery_url)
-                .send()
-                .await
-                .map_err(|e| {
-                    SecurityError::SecurityConfigError(format!("OIDC discovery failed: {e}"))
-                })?;
+            let response = http_client.get(&discovery_url).send().await.map_err(|e| {
+                SecurityError::SecurityConfigError(format!("OIDC discovery failed: {e}"))
+            })?;
 
             if !response.status().is_success() {
                 return Err(SecurityError::SecurityConfigError(format!(
@@ -609,7 +609,8 @@ impl OidcValidator {
             claim: "exp".to_string(),
         })?;
 
-        let expires_at = DateTime::<Utc>::from_timestamp(exp, 0).ok_or(SecurityError::InvalidToken)?;
+        let expires_at =
+            DateTime::<Utc>::from_timestamp(exp, 0).ok_or(SecurityError::InvalidToken)?;
 
         tracing::debug!(
             user_id = %user_id,
@@ -643,11 +644,8 @@ impl OidcValidator {
         let jwks = self.fetch_jwks().await?;
 
         // Find the key index first, then we can clone the key
-        let key_index = jwks
-            .keys
-            .iter()
-            .position(|k| k.kid.as_deref() == Some(kid))
-            .ok_or_else(|| {
+        let key_index =
+            jwks.keys.iter().position(|k| k.kid.as_deref() == Some(kid)).ok_or_else(|| {
                 tracing::debug!(kid = %kid, "Key not found in JWKS");
                 SecurityError::InvalidToken
             })?;
@@ -672,15 +670,10 @@ impl OidcValidator {
     async fn fetch_jwks(&self) -> Result<Jwks> {
         tracing::debug!(uri = %self.jwks_uri, "Fetching JWKS");
 
-        let response = self
-            .http_client
-            .get(&self.jwks_uri)
-            .send()
-            .await
-            .map_err(|e| {
-                tracing::error!(error = %e, "Failed to fetch JWKS");
-                SecurityError::SecurityConfigError(format!("Failed to fetch JWKS: {e}"))
-            })?;
+        let response = self.http_client.get(&self.jwks_uri).send().await.map_err(|e| {
+            tracing::error!(error = %e, "Failed to fetch JWKS");
+            SecurityError::SecurityConfigError(format!("Failed to fetch JWKS: {e}"))
+        })?;
 
         if !response.status().is_success() {
             return Err(SecurityError::SecurityConfigError(format!(
@@ -714,13 +707,13 @@ impl OidcValidator {
                     tracing::debug!(error = %e, "Failed to create RSA decoding key");
                     SecurityError::InvalidToken
                 })
-            }
+            },
             other => {
                 tracing::debug!(key_type = %other, "Unsupported key type");
                 Err(SecurityError::InvalidTokenAlgorithm {
                     algorithm: other.to_string(),
                 })
-            }
+            },
         }
     }
 
@@ -818,10 +811,7 @@ mod tests {
     #[test]
     fn test_oidc_config_keycloak() {
         let config = OidcConfig::keycloak("https://keycloak.example.com", "myrealm", "myclient");
-        assert_eq!(
-            config.issuer,
-            "https://keycloak.example.com/realms/myrealm"
-        );
+        assert_eq!(config.issuer, "https://keycloak.example.com/realms/myrealm");
         assert_eq!(config.audience, Some("myclient".to_string()));
     }
 
@@ -835,20 +825,14 @@ mod tests {
     #[test]
     fn test_oidc_config_cognito() {
         let config = OidcConfig::cognito("us-east-1", "us-east-1_abc123", "client123");
-        assert_eq!(
-            config.issuer,
-            "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_abc123"
-        );
+        assert_eq!(config.issuer, "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_abc123");
         assert_eq!(config.audience, Some("client123".to_string()));
     }
 
     #[test]
     fn test_oidc_config_azure_ad() {
         let config = OidcConfig::azure_ad("tenant-id-123", "client-id-456");
-        assert_eq!(
-            config.issuer,
-            "https://login.microsoftonline.com/tenant-id-123/v2.0"
-        );
+        assert_eq!(config.issuer, "https://login.microsoftonline.com/tenant-id-123/v2.0");
         assert_eq!(config.audience, Some("client-id-456".to_string()));
     }
 
@@ -856,10 +840,7 @@ mod tests {
     fn test_oidc_config_google() {
         let config = OidcConfig::google("123456.apps.googleusercontent.com");
         assert_eq!(config.issuer, "https://accounts.google.com");
-        assert_eq!(
-            config.audience,
-            Some("123456.apps.googleusercontent.com".to_string())
-        );
+        assert_eq!(config.audience, Some("123456.apps.googleusercontent.com".to_string()));
     }
 
     #[test]
@@ -867,10 +848,7 @@ mod tests {
         let config = OidcConfig::default();
         let result = config.validate();
         assert!(result.is_err());
-        assert!(matches!(
-            result,
-            Err(SecurityError::SecurityConfigError(_))
-        ));
+        assert!(matches!(result, Err(SecurityError::SecurityConfigError(_))));
     }
 
     #[test]
@@ -1016,10 +994,7 @@ mod tests {
 
         let doc: OidcDiscoveryDocument = serde_json::from_str(doc_json).unwrap();
         assert_eq!(doc.issuer, "https://issuer.example.com");
-        assert_eq!(
-            doc.jwks_uri,
-            "https://issuer.example.com/.well-known/jwks.json"
-        );
+        assert_eq!(doc.jwks_uri, "https://issuer.example.com/.well-known/jwks.json");
         assert_eq!(doc.id_token_signing_alg_values_supported.len(), 3);
     }
 }

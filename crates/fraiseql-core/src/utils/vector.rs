@@ -28,8 +28,9 @@
 //! assert!(sql.contains("documents"));
 //! ```
 
-use crate::schema::{DistanceMetric, VectorConfig};
 use serde::{Deserialize, Serialize};
+
+use crate::schema::{DistanceMetric, VectorConfig};
 
 /// A SQL parameter value for vector queries.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -52,7 +53,7 @@ impl VectorParam {
             VectorParam::Vector(v) => {
                 let values: Vec<String> = v.iter().map(std::string::ToString::to_string).collect();
                 format!("'[{}]'::vector", values.join(","))
-            }
+            },
             VectorParam::Int(i) => i.to_string(),
             VectorParam::String(s) => format!("'{}'", s.replace('\'', "''")),
             VectorParam::Json(j) => format!("'{j}'::jsonb"),
@@ -64,37 +65,37 @@ impl VectorParam {
 #[derive(Debug, Clone)]
 pub struct VectorSearchQuery {
     /// Table or view to query.
-    pub table: String,
+    pub table:            String,
     /// Column containing the vector embedding.
     pub embedding_column: String,
     /// Columns to select (empty = all).
-    pub select_columns: Vec<String>,
+    pub select_columns:   Vec<String>,
     /// Distance metric to use.
-    pub distance_metric: DistanceMetric,
+    pub distance_metric:  DistanceMetric,
     /// Maximum number of results.
-    pub limit: u32,
+    pub limit:            u32,
     /// Optional WHERE clause (without "WHERE" keyword).
-    pub where_clause: Option<String>,
+    pub where_clause:     Option<String>,
     /// Optional additional ORDER BY clause (applied after distance ordering).
-    pub order_by: Option<String>,
+    pub order_by:         Option<String>,
     /// Whether to include the distance score in results.
     pub include_distance: bool,
     /// Optional offset for pagination.
-    pub offset: Option<u32>,
+    pub offset:           Option<u32>,
 }
 
 impl Default for VectorSearchQuery {
     fn default() -> Self {
         Self {
-            table: String::new(),
+            table:            String::new(),
             embedding_column: "embedding".to_string(),
-            select_columns: Vec::new(),
-            distance_metric: DistanceMetric::Cosine,
-            limit: 10,
-            where_clause: None,
-            order_by: None,
+            select_columns:   Vec::new(),
+            distance_metric:  DistanceMetric::Cosine,
+            limit:            10,
+            where_clause:     None,
+            order_by:         None,
             include_distance: false,
-            offset: None,
+            offset:           None,
         }
     }
 }
@@ -162,31 +163,31 @@ impl VectorSearchQuery {
 #[derive(Debug, Clone)]
 pub struct VectorInsertQuery {
     /// Table to insert into.
-    pub table: String,
+    pub table:            String,
     /// Columns to insert (in order).
-    pub columns: Vec<String>,
+    pub columns:          Vec<String>,
     /// Name of the vector column.
-    pub vector_column: String,
+    pub vector_column:    String,
     /// Whether to upsert (ON CONFLICT DO UPDATE).
-    pub upsert: bool,
+    pub upsert:           bool,
     /// Conflict column(s) for upsert.
     pub conflict_columns: Vec<String>,
     /// Columns to update on conflict (empty = all non-conflict columns).
-    pub update_columns: Vec<String>,
+    pub update_columns:   Vec<String>,
     /// Whether to return inserted IDs.
-    pub returning: Option<String>,
+    pub returning:        Option<String>,
 }
 
 impl Default for VectorInsertQuery {
     fn default() -> Self {
         Self {
-            table: String::new(),
-            columns: Vec::new(),
-            vector_column: "embedding".to_string(),
-            upsert: false,
+            table:            String::new(),
+            columns:          Vec::new(),
+            vector_column:    "embedding".to_string(),
+            upsert:           false,
             conflict_columns: vec!["id".to_string()],
-            update_columns: Vec::new(),
-            returning: Some("id".to_string()),
+            update_columns:   Vec::new(),
+            returning:        Some("id".to_string()),
         }
     }
 }
@@ -413,11 +414,7 @@ impl VectorQueryBuilder {
             // Determine which columns to update
             let update_cols: Vec<&String> = if query.update_columns.is_empty() {
                 // Update all non-conflict columns
-                query
-                    .columns
-                    .iter()
-                    .filter(|c| !query.conflict_columns.contains(c))
-                    .collect()
+                query.columns.iter().filter(|c| !query.conflict_columns.contains(c)).collect()
             } else {
                 query.update_columns.iter().collect()
             };
@@ -513,9 +510,7 @@ impl VectorQueryBuilder {
     /// ```
     #[must_use]
     pub fn create_index(&self, config: &VectorConfig, table: &str, column: &str) -> Option<String> {
-        config
-            .index_type
-            .index_sql(table, column, config.distance_metric)
+        config.index_type.index_sql(table, column, config.distance_metric)
     }
 }
 
@@ -574,9 +569,7 @@ mod tests {
     #[test]
     fn test_similarity_search_with_offset() {
         let builder = VectorQueryBuilder::new();
-        let query = VectorSearchQuery::new("documents")
-            .with_limit(10)
-            .with_offset(20);
+        let query = VectorSearchQuery::new("documents").with_limit(10).with_offset(20);
 
         let embedding = vec![0.1, 0.2];
         let (sql, params) = builder.similarity_search(&query, &embedding);
@@ -716,10 +709,7 @@ mod tests {
 
         let sql = builder.create_index(&config, "docs", "vec");
 
-        assert_eq!(
-            sql,
-            Some("CREATE INDEX ON docs USING ivfflat (vec vector_l2_ops)".to_string())
-        );
+        assert_eq!(sql, Some("CREATE INDEX ON docs USING ivfflat (vec vector_l2_ops)".to_string()));
     }
 
     #[test]

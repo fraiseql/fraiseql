@@ -20,26 +20,22 @@
 //!     .with_state(state);
 //! ```
 
+use std::{collections::HashMap, sync::Arc, time::Duration};
+
 use axum::{
     extract::{
-        ws::{Message, WebSocket, WebSocketUpgrade},
         State,
+        ws::{Message, WebSocket, WebSocketUpgrade},
     },
     response::IntoResponse,
 };
 use fraiseql_core::runtime::{
-    protocol::{
-        ClientMessage, ClientMessageType, CloseCode, GraphQLError, ServerMessage,
-        SubscribePayload,
-    },
     SubscriptionId, SubscriptionManager, SubscriptionPayload,
+    protocol::{
+        ClientMessage, ClientMessageType, CloseCode, GraphQLError, ServerMessage, SubscribePayload,
+    },
 };
 use futures::{SinkExt, StreamExt};
-use std::{
-    collections::HashMap,
-    sync::Arc,
-    time::Duration,
-};
 use tokio::sync::broadcast;
 use tracing::{debug, error, info, warn};
 
@@ -92,13 +88,13 @@ async fn handle_subscription_connection(socket: WebSocket, state: SubscriptionSt
                             return Some(client_msg);
                         }
                     }
-                }
+                },
                 Ok(Message::Close(_)) => return None,
                 Err(e) => {
                     error!(error = %e, "WebSocket error during init");
                     return None;
-                }
-                _ => {}
+                },
+                _ => {},
             }
         }
         None
@@ -118,22 +114,22 @@ async fn handle_subscription_connection(socket: WebSocket, state: SubscriptionSt
             }
             info!(connection_id = %connection_id, "Connection initialized");
             msg.payload
-        }
+        },
         Ok(None) => {
             warn!(connection_id = %connection_id, "Connection closed during init");
             return;
-        }
+        },
         Err(_) => {
             warn!(connection_id = %connection_id, "Connection init timeout");
             // Send close frame with timeout code
             let _ = sender
                 .send(Message::Close(Some(axum::extract::ws::CloseFrame {
-                    code: CloseCode::ConnectionInitTimeout.code(),
+                    code:   CloseCode::ConnectionInitTimeout.code(),
                     reason: CloseCode::ConnectionInitTimeout.reason().into(),
                 })))
                 .await;
             return;
-        }
+        },
     };
 
     // Track active operations (operation_id -> subscription_id)
@@ -258,12 +254,12 @@ async fn handle_client_message(
             if let Ok(json) = pong.to_json() {
                 let _ = sender.send(Message::Text(json.into())).await;
             }
-        }
+        },
 
         Some(ClientMessageType::Pong) => {
             // Client responded to our ping, connection is alive
             debug!(connection_id = %connection_id, "Received pong");
-        }
+        },
 
         Some(ClientMessageType::Subscribe) => {
             // Parse subscription payload first (borrows client_msg)
@@ -301,8 +297,12 @@ async fn handle_client_message(
 
             // Subscribe
             let variables = serde_json::to_value(&payload.variables).unwrap_or_default();
-            match manager.subscribe(&subscription_name, serde_json::json!({}), variables, connection_id)
-            {
+            match manager.subscribe(
+                &subscription_name,
+                serde_json::json!({}),
+                variables,
+                connection_id,
+            ) {
                 Ok(sub_id) => {
                     active_operations.insert(op_id.clone(), sub_id);
                     info!(
@@ -311,7 +311,7 @@ async fn handle_client_message(
                         subscription = %subscription_name,
                         "Subscription started"
                     );
-                }
+                },
                 Err(e) => {
                     let error = ServerMessage::error(
                         &op_id,
@@ -320,9 +320,9 @@ async fn handle_client_message(
                     if let Ok(json) = error.to_json() {
                         let _ = sender.send(Message::Text(json.into())).await;
                     }
-                }
+                },
             }
-        }
+        },
 
         Some(ClientMessageType::Complete) => {
             let op_id = client_msg.id.ok_or_else(|| {
@@ -339,18 +339,18 @@ async fn handle_client_message(
                     "Subscription completed"
                 );
             }
-        }
+        },
 
         Some(ClientMessageType::ConnectionInit) => {
             // Already initialized - too many init requests
             warn!(connection_id = %connection_id, "Duplicate connection_init");
             return Err(CloseCode::TooManyInitRequests);
-        }
+        },
 
         None => {
             warn!(message_type = %client_msg.message_type, "Unknown message type");
             // Unknown message types are ignored per spec
-        }
+        },
     }
 
     Ok(())
@@ -400,28 +400,19 @@ mod tests {
     #[test]
     fn test_extract_subscription_name_simple() {
         let query = "subscription { orderCreated { id } }";
-        assert_eq!(
-            extract_subscription_name(query),
-            Some("orderCreated".to_string())
-        );
+        assert_eq!(extract_subscription_name(query), Some("orderCreated".to_string()));
     }
 
     #[test]
     fn test_extract_subscription_name_with_operation() {
         let query = "subscription OnOrderCreated { orderCreated { id amount } }";
-        assert_eq!(
-            extract_subscription_name(query),
-            Some("orderCreated".to_string())
-        );
+        assert_eq!(extract_subscription_name(query), Some("orderCreated".to_string()));
     }
 
     #[test]
     fn test_extract_subscription_name_with_variables() {
         let query = "subscription ($userId: ID!) { userUpdated(userId: $userId) { id name } }";
-        assert_eq!(
-            extract_subscription_name(query),
-            Some("userUpdated".to_string())
-        );
+        assert_eq!(extract_subscription_name(query), Some("userUpdated".to_string()));
     }
 
     #[test]
@@ -433,10 +424,7 @@ mod tests {
                 }
             }
         ";
-        assert_eq!(
-            extract_subscription_name(query),
-            Some("orderCreated".to_string())
-        );
+        assert_eq!(extract_subscription_name(query), Some("orderCreated".to_string()));
     }
 
     #[test]

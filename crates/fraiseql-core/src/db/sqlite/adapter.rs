@@ -1,14 +1,20 @@
 //! SQLite database adapter implementation.
 
 use async_trait::async_trait;
-use sqlx::sqlite::{SqlitePool, SqlitePoolOptions, SqliteRow};
-use sqlx::{Column, Row};
+use sqlx::{
+    Column, Row,
+    sqlite::{SqlitePool, SqlitePoolOptions, SqliteRow},
+};
 
 use super::where_generator::SqliteWhereGenerator;
-use crate::db::traits::DatabaseAdapter;
-use crate::db::types::{DatabaseType, JsonbValue, PoolMetrics};
-use crate::db::where_clause::WhereClause;
-use crate::error::{FraiseQLError, Result};
+use crate::{
+    db::{
+        traits::DatabaseAdapter,
+        types::{DatabaseType, JsonbValue, PoolMetrics},
+        where_clause::WhereClause,
+    },
+    error::{FraiseQLError, Result},
+};
 
 /// SQLite database adapter with connection pooling.
 ///
@@ -54,7 +60,8 @@ impl SqliteAdapter {
     ///
     /// # Arguments
     ///
-    /// * `connection_string` - SQLite connection string (e.g., "sqlite:./mydb.db" or "sqlite::memory:")
+    /// * `connection_string` - SQLite connection string (e.g., "sqlite:./mydb.db" or
+    ///   "sqlite::memory:")
     ///
     /// # Errors
     ///
@@ -115,7 +122,7 @@ impl SqliteAdapter {
             .fetch_one(&pool)
             .await
             .map_err(|e| FraiseQLError::Database {
-                message: format!("Failed to connect to SQLite database: {e}"),
+                message:   format!("Failed to connect to SQLite database: {e}"),
                 sql_state: None,
             })?;
 
@@ -132,7 +139,11 @@ impl SqliteAdapter {
     }
 
     /// Execute raw SQL query and return JSONB rows.
-    async fn execute_raw(&self, sql: &str, params: Vec<serde_json::Value>) -> Result<Vec<JsonbValue>> {
+    async fn execute_raw(
+        &self,
+        sql: &str,
+        params: Vec<serde_json::Value>,
+    ) -> Result<Vec<JsonbValue>> {
         // Build the query with dynamic parameters
         let mut query = sqlx::query(sql);
 
@@ -147,21 +158,20 @@ impl SqliteAdapter {
                     } else {
                         query.bind(n.to_string())
                     }
-                }
+                },
                 serde_json::Value::Bool(b) => query.bind(*b),
                 serde_json::Value::Null => query.bind(Option::<String>::None),
                 serde_json::Value::Array(_) | serde_json::Value::Object(_) => {
                     query.bind(param.to_string())
-                }
+                },
             };
         }
 
-        let rows: Vec<SqliteRow> = query.fetch_all(&self.pool).await.map_err(|e| {
-            FraiseQLError::Database {
-                message: format!("SQLite query execution failed: {e}"),
+        let rows: Vec<SqliteRow> =
+            query.fetch_all(&self.pool).await.map_err(|e| FraiseQLError::Database {
+                message:   format!("SQLite query execution failed: {e}"),
                 sql_state: None,
-            }
-        })?;
+            })?;
 
         let results = rows
             .into_iter()
@@ -227,13 +237,12 @@ impl DatabaseAdapter for SqliteAdapter {
     }
 
     async fn health_check(&self) -> Result<()> {
-        sqlx::query("SELECT 1")
-            .fetch_one(&self.pool)
-            .await
-            .map_err(|e| FraiseQLError::Database {
-                message: format!("SQLite health check failed: {e}"),
+        sqlx::query("SELECT 1").fetch_one(&self.pool).await.map_err(|e| {
+            FraiseQLError::Database {
+                message:   format!("SQLite health check failed: {e}"),
                 sql_state: None,
-            })?;
+            }
+        })?;
 
         Ok(())
     }
@@ -243,10 +252,10 @@ impl DatabaseAdapter for SqliteAdapter {
         let idle = self.pool.num_idle();
 
         PoolMetrics {
-            total_connections: size,
-            idle_connections: idle as u32,
+            total_connections:  size,
+            idle_connections:   idle as u32,
             active_connections: size - idle as u32,
-            waiting_requests: 0, // sqlx doesn't expose waiting count
+            waiting_requests:   0, // sqlx doesn't expose waiting count
         }
     }
 
@@ -254,13 +263,14 @@ impl DatabaseAdapter for SqliteAdapter {
         &self,
         sql: &str,
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-        let rows: Vec<SqliteRow> = sqlx::query(sql)
-            .fetch_all(&self.pool)
-            .await
-            .map_err(|e| FraiseQLError::Database {
-                message: format!("SQLite query execution failed: {e}"),
-                sql_state: None,
-            })?;
+        let rows: Vec<SqliteRow> =
+            sqlx::query(sql)
+                .fetch_all(&self.pool)
+                .await
+                .map_err(|e| FraiseQLError::Database {
+                    message:   format!("SQLite query execution failed: {e}"),
+                    sql_state: None,
+                })?;
 
         // Convert each row to HashMap<String, Value>
         let results: Vec<std::collections::HashMap<String, serde_json::Value>> = rows
@@ -311,9 +321,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_in_memory_adapter_creation() {
-        let adapter = SqliteAdapter::in_memory()
-            .await
-            .expect("Failed to create SQLite adapter");
+        let adapter = SqliteAdapter::in_memory().await.expect("Failed to create SQLite adapter");
 
         let metrics = adapter.pool_metrics();
         assert!(metrics.total_connections > 0);
@@ -322,18 +330,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_health_check() {
-        let adapter = SqliteAdapter::in_memory()
-            .await
-            .expect("Failed to create SQLite adapter");
+        let adapter = SqliteAdapter::in_memory().await.expect("Failed to create SQLite adapter");
 
         adapter.health_check().await.expect("Health check failed");
     }
 
     #[tokio::test]
     async fn test_raw_query() {
-        let adapter = SqliteAdapter::in_memory()
-            .await
-            .expect("Failed to create SQLite adapter");
+        let adapter = SqliteAdapter::in_memory().await.expect("Failed to create SQLite adapter");
 
         // Create a test table
         sqlx::query("CREATE TABLE test_table (id INTEGER PRIMARY KEY, data TEXT)")

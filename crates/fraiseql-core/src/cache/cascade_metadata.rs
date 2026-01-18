@@ -63,7 +63,7 @@ impl CascadeMetadata {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            mutation_entity_map: HashMap::new(),
+            mutation_entity_map:  HashMap::new(),
             entity_mutations_map: HashMap::new(),
         }
     }
@@ -78,8 +78,7 @@ impl CascadeMetadata {
         let mutation_name = mutation_name.to_string();
         let entity_type = entity_type.to_string();
 
-        self.mutation_entity_map
-            .insert(mutation_name.clone(), entity_type.clone());
+        self.mutation_entity_map.insert(mutation_name.clone(), entity_type.clone());
 
         self.entity_mutations_map
             .entry(entity_type)
@@ -106,9 +105,7 @@ impl CascadeMetadata {
     /// ```
     #[must_use]
     pub fn get_entity_type(&self, mutation_name: &str) -> Option<&str> {
-        self.mutation_entity_map
-            .get(mutation_name)
-            .map(|s| s.as_str())
+        self.mutation_entity_map.get(mutation_name).map(|s| s.as_str())
     }
 
     /// Get all mutations affecting a specific entity type.
@@ -124,10 +121,7 @@ impl CascadeMetadata {
     /// List of mutation names affecting this entity, or empty list if none
     #[must_use]
     pub fn get_mutations_for_entity(&self, entity_type: &str) -> Vec<String> {
-        self.entity_mutations_map
-            .get(entity_type)
-            .cloned()
-            .unwrap_or_default()
+        self.entity_mutations_map.get(entity_type).cloned().unwrap_or_default()
     }
 
     /// Get total number of mutation-entity mappings.

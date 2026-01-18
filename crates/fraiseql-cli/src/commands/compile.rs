@@ -2,12 +2,13 @@
 //!
 //! Compiles schema.json (from Python/TypeScript/etc.) into optimized schema.compiled.json
 
-use crate::schema::{IntermediateSchema, SchemaConverter, SchemaOptimizer, SchemaValidator};
+use std::{fs, path::Path};
+
 use anyhow::{Context, Result};
 use fraiseql_core::schema::CompiledSchema;
-use std::fs;
-use std::path::Path;
 use tracing::{info, warn};
+
+use crate::schema::{IntermediateSchema, SchemaConverter, SchemaOptimizer, SchemaValidator};
 
 /// Run the compile command
 ///
@@ -180,65 +181,66 @@ async fn validate_indexed_columns(schema: &CompiledSchema, db_url: &str) -> Resu
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use fraiseql_core::schema::{
         AutoParams, CompiledSchema, FieldDefinition, FieldType, QueryDefinition, TypeDefinition,
     };
-    use std::collections::HashMap;
 
     #[test]
     fn test_validate_schema_success() {
         let schema = CompiledSchema {
-            types: vec![TypeDefinition {
-                name: "User".to_string(),
-                fields: vec![
+            types:         vec![TypeDefinition {
+                name:                "User".to_string(),
+                fields:              vec![
                     FieldDefinition {
-                        name: "id".to_string(),
-                        field_type: FieldType::Int,
-                        nullable: false,
-                        default_value: None,
-                        description: None,
-                        vector_config: None,
-                        alias: None,
-                        deprecation: None,
+                        name:           "id".to_string(),
+                        field_type:     FieldType::Int,
+                        nullable:       false,
+                        default_value:  None,
+                        description:    None,
+                        vector_config:  None,
+                        alias:          None,
+                        deprecation:    None,
                         requires_scope: None,
                     },
                     FieldDefinition {
-                        name: "name".to_string(),
-                        field_type: FieldType::String,
-                        nullable: false,
-                        default_value: None,
-                        description: None,
-                        vector_config: None,
-                        alias: None,
-                        deprecation: None,
+                        name:           "name".to_string(),
+                        field_type:     FieldType::String,
+                        nullable:       false,
+                        default_value:  None,
+                        description:    None,
+                        vector_config:  None,
+                        alias:          None,
+                        deprecation:    None,
                         requires_scope: None,
                     },
                 ],
-                description: Some("User type".to_string()),
-                sql_source: String::new(),
-                jsonb_column: String::new(),
+                description:         Some("User type".to_string()),
+                sql_source:          String::new(),
+                jsonb_column:        String::new(),
                 sql_projection_hint: None,
-                implements: vec![],
+                implements:          vec![],
             }],
-            queries: vec![QueryDefinition {
-                name: "users".to_string(),
-                return_type: "User".to_string(),
+            queries:       vec![QueryDefinition {
+                name:         "users".to_string(),
+                return_type:  "User".to_string(),
                 returns_list: true,
-                nullable: false,
-                arguments: vec![],
-                sql_source: Some("v_user".to_string()),
-                description: Some("Get users".to_string()),
-                auto_params: AutoParams::default(),
-                deprecation: None,
+                nullable:     false,
+                arguments:    vec![],
+                sql_source:   Some("v_user".to_string()),
+                description:  Some("Get users".to_string()),
+                auto_params:  AutoParams::default(),
+                deprecation:  None,
             }],
-            enums: vec![],
-            input_types: vec![],
-            interfaces: vec![],
-            unions: vec![],
-            mutations: vec![],
+            enums:         vec![],
+            input_types:   vec![],
+            interfaces:    vec![],
+            unions:        vec![],
+            mutations:     vec![],
             subscriptions: vec![],
-            directives: vec![],
-            fact_tables: HashMap::default(),
+            directives:    vec![],
+            fact_tables:   HashMap::default(),
         };
 
         // Validation is done inside SchemaConverter::convert, not exposed separately
@@ -250,26 +252,26 @@ mod tests {
     #[test]
     fn test_validate_schema_unknown_type() {
         let schema = CompiledSchema {
-            types: vec![],
-            enums: vec![],
-            input_types: vec![],
-            interfaces: vec![],
-            unions: vec![],
-            queries: vec![QueryDefinition {
-                name: "users".to_string(),
-                return_type: "UnknownType".to_string(),
+            types:         vec![],
+            enums:         vec![],
+            input_types:   vec![],
+            interfaces:    vec![],
+            unions:        vec![],
+            queries:       vec![QueryDefinition {
+                name:         "users".to_string(),
+                return_type:  "UnknownType".to_string(),
                 returns_list: true,
-                nullable: false,
-                arguments: vec![],
-                sql_source: Some("v_user".to_string()),
-                description: Some("Get users".to_string()),
-                auto_params: AutoParams::default(),
-                deprecation: None,
+                nullable:     false,
+                arguments:    vec![],
+                sql_source:   Some("v_user".to_string()),
+                description:  Some("Get users".to_string()),
+                auto_params:  AutoParams::default(),
+                deprecation:  None,
             }],
-            mutations: vec![],
+            mutations:     vec![],
             subscriptions: vec![],
-            directives: vec![],
-            fact_tables: HashMap::default(),
+            directives:    vec![],
+            fact_tables:   HashMap::default(),
         };
 
         // Note: Validation is private to SchemaConverter

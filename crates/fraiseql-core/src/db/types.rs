@@ -1,8 +1,8 @@
 //! Database types and data structures.
 
-use serde::{Deserialize, Serialize};
-use tokio_postgres::types::{ToSql, Type, IsNull};
 use bytes::BytesMut;
+use serde::{Deserialize, Serialize};
+use tokio_postgres::types::{IsNull, ToSql, Type};
 
 /// Database types supported by FraiseQL.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -99,7 +99,7 @@ impl From<serde_json::Value> for QueryParam {
                 // we send numbers as text to avoid wire protocol issues.
                 // PostgreSQL can't directly convert f64 to NUMERIC in the binary protocol.
                 Self::Text(n.to_string())
-            }
+            },
             serde_json::Value::String(s) => Self::Text(s),
             serde_json::Value::Array(_) | serde_json::Value::Object(_) => Self::Json(value),
         }
@@ -107,7 +107,13 @@ impl From<serde_json::Value> for QueryParam {
 }
 
 impl ToSql for QueryParam {
-    fn to_sql(&self, ty: &Type, out: &mut BytesMut) -> Result<IsNull, Box<dyn std::error::Error + Sync + Send>> {
+    tokio_postgres::types::to_sql_checked!();
+
+    fn to_sql(
+        &self,
+        ty: &Type,
+        out: &mut BytesMut,
+    ) -> Result<IsNull, Box<dyn std::error::Error + Sync + Send>> {
         match self {
             Self::Null => Ok(IsNull::Yes),
             Self::Bool(b) => b.to_sql(ty, out),
@@ -123,8 +129,6 @@ impl ToSql for QueryParam {
     fn accepts(_ty: &Type) -> bool {
         true
     }
-
-    tokio_postgres::types::to_sql_checked!();
 }
 
 /// Convert QueryParam to boxed ToSql trait object, preserving native types.
@@ -156,13 +160,13 @@ pub fn to_sql_param(param: &QueryParam) -> Box<dyn ToSql + Sync + Send> {
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct PoolMetrics {
     /// Total number of connections in the pool.
-    pub total_connections: u32,
+    pub total_connections:  u32,
     /// Number of idle (available) connections.
-    pub idle_connections: u32,
+    pub idle_connections:   u32,
     /// Number of active (in-use) connections.
     pub active_connections: u32,
     /// Number of requests waiting for a connection.
-    pub waiting_requests: u32,
+    pub waiting_requests:   u32,
 }
 
 impl PoolMetrics {
@@ -211,10 +215,10 @@ mod tests {
     #[test]
     fn test_pool_metrics_utilization() {
         let metrics = PoolMetrics {
-            total_connections: 10,
-            idle_connections: 5,
+            total_connections:  10,
+            idle_connections:   5,
             active_connections: 5,
-            waiting_requests: 0,
+            waiting_requests:   0,
         };
 
         assert!((metrics.utilization() - 0.5).abs() < f64::EPSILON);
@@ -224,10 +228,10 @@ mod tests {
     #[test]
     fn test_pool_metrics_exhausted() {
         let metrics = PoolMetrics {
-            total_connections: 10,
-            idle_connections: 0,
+            total_connections:  10,
+            idle_connections:   0,
             active_connections: 10,
-            waiting_requests: 5,
+            waiting_requests:   5,
         };
 
         assert!((metrics.utilization() - 1.0).abs() < f64::EPSILON);

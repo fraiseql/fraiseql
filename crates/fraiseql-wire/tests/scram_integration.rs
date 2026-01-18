@@ -13,7 +13,9 @@ use serde_json::Value;
 /// Test that SCRAM authentication succeeds with correct credentials
 #[tokio::test]
 async fn test_scram_auth_success() {
-    let _client = connect_test_client().await.expect("SCRAM authentication should succeed");
+    let _client = connect_test_client()
+        .await
+        .expect("SCRAM authentication should succeed");
     println!("✓ SCRAM authentication succeeded");
 }
 

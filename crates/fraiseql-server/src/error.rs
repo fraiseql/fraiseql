@@ -5,9 +5,11 @@
 //! - Location tracking in queries
 //! - Extensions for custom error data
 
-use axum::http::StatusCode;
-use axum::response::{IntoResponse, Response};
-use axum::Json;
+use axum::{
+    Json,
+    http::StatusCode,
+    response::{IntoResponse, Response},
+};
 use serde::Serialize;
 
 /// GraphQL error code enumeration.
@@ -43,7 +45,9 @@ impl ErrorCode {
     #[must_use]
     pub fn status_code(self) -> StatusCode {
         match self {
-            Self::ValidationError | Self::ParseError | Self::RequestError => StatusCode::BAD_REQUEST,
+            Self::ValidationError | Self::ParseError | Self::RequestError => {
+                StatusCode::BAD_REQUEST
+            },
             Self::Unauthenticated => StatusCode::UNAUTHORIZED,
             Self::Forbidden => StatusCode::FORBIDDEN,
             Self::NotFound => StatusCode::NOT_FOUND,
@@ -59,7 +63,7 @@ impl ErrorCode {
 #[derive(Debug, Clone, Serialize)]
 pub struct ErrorLocation {
     /// Line number (1-indexed).
-    pub line: usize,
+    pub line:   usize,
     /// Column number (1-indexed).
     pub column: usize,
 }
@@ -254,29 +258,17 @@ mod tests {
 
     #[test]
     fn test_error_code_status_codes() {
-        assert_eq!(
-            ErrorCode::ValidationError.status_code(),
-            StatusCode::BAD_REQUEST
-        );
-        assert_eq!(
-            ErrorCode::Unauthenticated.status_code(),
-            StatusCode::UNAUTHORIZED
-        );
-        assert_eq!(
-            ErrorCode::Forbidden.status_code(),
-            StatusCode::FORBIDDEN
-        );
-        assert_eq!(
-            ErrorCode::DatabaseError.status_code(),
-            StatusCode::INTERNAL_SERVER_ERROR
-        );
+        assert_eq!(ErrorCode::ValidationError.status_code(), StatusCode::BAD_REQUEST);
+        assert_eq!(ErrorCode::Unauthenticated.status_code(), StatusCode::UNAUTHORIZED);
+        assert_eq!(ErrorCode::Forbidden.status_code(), StatusCode::FORBIDDEN);
+        assert_eq!(ErrorCode::DatabaseError.status_code(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 
     #[test]
     fn test_error_extensions() {
         let extensions = ErrorExtensions {
-            category: Some("VALIDATION".to_string()),
-            status: Some(400),
+            category:   Some("VALIDATION".to_string()),
+            status:     Some(400),
             request_id: Some("req-123".to_string()),
         };
 

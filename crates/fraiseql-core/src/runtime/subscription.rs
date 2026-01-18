@@ -51,16 +51,20 @@
 //! manager.unsubscribe(subscription_id).await?;
 //! ```
 
-use crate::schema::{CompiledSchema, SubscriptionDefinition};
+use std::sync::{
+    Arc,
+    atomic::{AtomicU64, Ordering},
+};
+
 use dashmap::DashMap;
+use futures::future::poll_fn;
 use serde::{Deserialize, Serialize};
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::broadcast;
-use futures::future::poll_fn;
 use tokio_postgres::{AsyncMessage, NoTls};
 use uuid::Uuid;
+
+use crate::schema::{CompiledSchema, SubscriptionDefinition};
 
 // =============================================================================
 // Error Types
@@ -123,7 +127,7 @@ pub enum SubscriptionError {
         /// Transport that failed.
         transport: String,
         /// Reason for failure.
-        reason: String,
+        reason:    String,
     },
 }
 
@@ -443,10 +447,7 @@ impl SubscriptionManager {
             .ok_or_else(|| SubscriptionError::NotActive(id.to_string()))?;
 
         // Remove from connection index
-        if let Some(mut subs) = self
-            .subscriptions_by_connection
-            .get_mut(&removed.1.connection_id)
-        {
+        if let Some(mut subs) = self.subscriptions_by_connection.get_mut(&removed.1.connection_id) {
             subs.retain(|s| *s != id);
         }
 
@@ -463,8 +464,7 @@ impl SubscriptionManager {
     ///
     /// Called when a client disconnects.
     pub fn unsubscribe_connection(&self, connection_id: &str) {
-        if let Some((_, subscription_ids)) =
-            self.subscriptions_by_connection.remove(connection_id)
+        if let Some((_, subscription_ids)) = self.subscriptions_by_connection.remove(connection_id)
         {
             for id in subscription_ids {
                 self.subscriptions.remove(&id);
@@ -576,13 +576,13 @@ impl SubscriptionManager {
             let expected_op = match topic.to_lowercase().as_str() {
                 t if t.contains("created") || t.contains("insert") => {
                     Some(SubscriptionOperation::Create)
-                }
+                },
                 t if t.contains("updated") || t.contains("update") => {
                     Some(SubscriptionOperation::Update)
-                }
+                },
                 t if t.contains("deleted") || t.contains("delete") => {
                     Some(SubscriptionOperation::Delete)
-                }
+                },
                 _ => None,
             };
 
@@ -671,7 +671,10 @@ impl SubscriptionManager {
 }
 
 /// Get a value from JSON using JSON pointer syntax (e.g., "/user/name" or "user/name").
-fn get_json_pointer_value<'a>(data: &'a serde_json::Value, path: &str) -> Option<&'a serde_json::Value> {
+fn get_json_pointer_value<'a>(
+    data: &'a serde_json::Value,
+    path: &str,
+) -> Option<&'a serde_json::Value> {
     // Normalize path to JSON pointer format
     let normalized = if path.starts_with('/') {
         path.to_string()
@@ -694,45 +697,51 @@ fn evaluate_filter_condition(
         None => {
             // Null/missing values only match specific conditions
             matches!(operator, FilterOperator::Eq) && expected.is_null()
-        }
+        },
         Some(actual_value) => match operator {
             FilterOperator::Eq => actual_value == expected,
             FilterOperator::Ne => actual_value != expected,
-            FilterOperator::Gt => compare_values(actual_value, expected) == Some(std::cmp::Ordering::Greater),
+            FilterOperator::Gt => {
+                compare_values(actual_value, expected) == Some(std::cmp::Ordering::Greater)
+            },
             FilterOperator::Gte => {
                 matches!(
                     compare_values(actual_value, expected),
                     Some(std::cmp::Ordering::Greater | std::cmp::Ordering::Equal)
                 )
-            }
-            FilterOperator::Lt => compare_values(actual_value, expected) == Some(std::cmp::Ordering::Less),
+            },
+            FilterOperator::Lt => {
+                compare_values(actual_value, expected) == Some(std::cmp::Ordering::Less)
+            },
             FilterOperator::Lte => {
                 matches!(
                     compare_values(actual_value, expected),
                     Some(std::cmp::Ordering::Less | std::cmp::Ordering::Equal)
                 )
-            }
+            },
             FilterOperator::Contains => {
                 match (actual_value, expected) {
                     // Array contains value
                     (serde_json::Value::Array(arr), val) => arr.contains(val),
                     // String contains substring
-                    (serde_json::Value::String(s), serde_json::Value::String(sub)) => s.contains(sub.as_str()),
+                    (serde_json::Value::String(s), serde_json::Value::String(sub)) => {
+                        s.contains(sub.as_str())
+                    },
                     _ => false,
                 }
-            }
-            FilterOperator::StartsWith => {
-                match (actual_value, expected) {
-                    (serde_json::Value::String(s), serde_json::Value::String(prefix)) => s.starts_with(prefix.as_str()),
-                    _ => false,
-                }
-            }
-            FilterOperator::EndsWith => {
-                match (actual_value, expected) {
-                    (serde_json::Value::String(s), serde_json::Value::String(suffix)) => s.ends_with(suffix.as_str()),
-                    _ => false,
-                }
-            }
+            },
+            FilterOperator::StartsWith => match (actual_value, expected) {
+                (serde_json::Value::String(s), serde_json::Value::String(prefix)) => {
+                    s.starts_with(prefix.as_str())
+                },
+                _ => false,
+            },
+            FilterOperator::EndsWith => match (actual_value, expected) {
+                (serde_json::Value::String(s), serde_json::Value::String(suffix)) => {
+                    s.ends_with(suffix.as_str())
+                },
+                _ => false,
+            },
         },
     }
 }
@@ -745,7 +754,7 @@ fn compare_values(a: &serde_json::Value, b: &serde_json::Value) -> Option<std::c
             let a_f64 = a.as_f64()?;
             let b_f64 = b.as_f64()?;
             a_f64.partial_cmp(&b_f64)
-        }
+        },
         // String comparisons
         (serde_json::Value::String(a), serde_json::Value::String(b)) => Some(a.cmp(b)),
         // Bool comparisons (false < true)
@@ -794,10 +803,10 @@ impl ListenerConfig {
     #[must_use]
     pub fn new(connection_string: impl Into<String>) -> Self {
         Self {
-            connection_string: connection_string.into(),
-            channel_name: "fraiseql_events".to_string(),
-            auto_reconnect: true,
-            reconnect_delay_ms: 1000,
+            connection_string:      connection_string.into(),
+            channel_name:           "fraiseql_events".to_string(),
+            auto_reconnect:         true,
+            reconnect_delay_ms:     1000,
             max_reconnect_attempts: 0,
         }
     }
@@ -947,7 +956,7 @@ impl PostgresListener {
                 Ok(()) => {
                     // Clean exit (shutdown requested)
                     break;
-                }
+                },
                 Err(e) => {
                     tracing::error!(error = %e, "Listener connection error");
 
@@ -983,7 +992,7 @@ impl PostgresListener {
                             }
                         }
                     }
-                }
+                },
             }
         }
 
@@ -998,10 +1007,9 @@ impl PostgresListener {
         shutdown_rx: &mut tokio::sync::watch::Receiver<bool>,
     ) -> Result<(), SubscriptionError> {
         // Connect to PostgreSQL
-        let (client, mut connection) =
-            tokio_postgres::connect(&config.connection_string, NoTls)
-                .await
-                .map_err(|e| SubscriptionError::DatabaseConnection(e.to_string()))?;
+        let (client, mut connection) = tokio_postgres::connect(&config.connection_string, NoTls)
+            .await
+            .map_err(|e| SubscriptionError::DatabaseConnection(e.to_string()))?;
 
         tracing::info!(
             channel = config.channel_name,
@@ -1019,11 +1027,11 @@ impl PostgresListener {
                         if tx.send(msg).is_err() {
                             break;
                         }
-                    }
+                    },
                     Some(Err(e)) => {
                         tracing::error!(error = %e, "Connection error");
                         break;
-                    }
+                    },
                     None => break,
                 }
             }
@@ -1112,7 +1120,7 @@ impl PostgresListener {
                 return Err(SubscriptionError::InvalidNotification(format!(
                     "Unknown operation: {op}"
                 )));
-            }
+            },
         };
 
         let mut event = SubscriptionEvent::new(
@@ -1157,18 +1165,13 @@ impl ListenerHandle {
         let _ = self.shutdown_tx.send(true);
 
         // Wait for task to complete (with timeout)
-        match tokio::time::timeout(
-            std::time::Duration::from_secs(5),
-            self.task_handle,
-        )
-        .await
-        {
+        match tokio::time::timeout(std::time::Duration::from_secs(5), self.task_handle).await {
             Ok(Ok(())) => tracing::info!("Listener stopped gracefully"),
             Ok(Err(e)) => tracing::error!(error = %e, "Listener task panicked"),
             Err(_) => {
                 tracing::warn!("Listener stop timed out, aborting task");
                 // Task will be aborted when handle is dropped
-            }
+            },
         }
     }
 
@@ -1211,8 +1214,9 @@ struct NotificationPayload {
 /// This is the modern "graphql-transport-ws" protocol, not the legacy
 /// "subscriptions-transport-ws" protocol.
 pub mod protocol {
-    use serde::{Deserialize, Serialize};
     use std::collections::HashMap;
+
+    use serde::{Deserialize, Serialize};
 
     /// Client-to-server message types.
     #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1320,9 +1324,7 @@ pub mod protocol {
         /// Extract subscription query from subscribe payload.
         #[must_use]
         pub fn subscription_payload(&self) -> Option<SubscribePayload> {
-            self.payload
-                .as_ref()
-                .and_then(|p| serde_json::from_value(p.clone()).ok())
+            self.payload.as_ref().and_then(|p| serde_json::from_value(p.clone()).ok())
         }
     }
 
@@ -1398,8 +1400,8 @@ pub mod protocol {
         pub fn next(id: impl Into<String>, data: serde_json::Value) -> Self {
             Self {
                 message_type: ServerMessageType::Next.as_str().to_string(),
-                id: Some(id.into()),
-                payload: Some(serde_json::json!({ "data": data })),
+                id:           Some(id.into()),
+                payload:      Some(serde_json::json!({ "data": data })),
             }
         }
 
@@ -1408,8 +1410,8 @@ pub mod protocol {
         pub fn error(id: impl Into<String>, errors: Vec<GraphQLError>) -> Self {
             Self {
                 message_type: ServerMessageType::Error.as_str().to_string(),
-                id: Some(id.into()),
-                payload: Some(serde_json::to_value(errors).unwrap_or_default()),
+                id:           Some(id.into()),
+                payload:      Some(serde_json::to_value(errors).unwrap_or_default()),
             }
         }
 
@@ -1418,8 +1420,8 @@ pub mod protocol {
         pub fn complete(id: impl Into<String>) -> Self {
             Self {
                 message_type: ServerMessageType::Complete.as_str().to_string(),
-                id: Some(id.into()),
-                payload: None,
+                id:           Some(id.into()),
+                payload:      None,
             }
         }
 
@@ -1457,9 +1459,9 @@ pub mod protocol {
         #[must_use]
         pub fn new(message: impl Into<String>) -> Self {
             Self {
-                message: message.into(),
-                locations: None,
-                path: None,
+                message:    message.into(),
+                locations:  None,
+                path:       None,
                 extensions: None,
             }
         }
@@ -1471,9 +1473,9 @@ pub mod protocol {
             extensions.insert("code".to_string(), serde_json::json!(code.into()));
 
             Self {
-                message: message.into(),
-                locations: None,
-                path: None,
+                message:    message.into(),
+                locations:  None,
+                path:       None,
                 extensions: Some(extensions),
             }
         }
@@ -1483,7 +1485,7 @@ pub mod protocol {
     #[derive(Debug, Clone, Serialize, Deserialize)]
     pub struct ErrorLocation {
         /// Line number (1-indexed).
-        pub line: u32,
+        pub line:   u32,
         /// Column number (1-indexed).
         pub column: u32,
     }
@@ -1492,19 +1494,19 @@ pub mod protocol {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum CloseCode {
         /// Normal closure.
-        Normal = 1000,
+        Normal               = 1000,
         /// Client violated protocol.
-        ProtocolError = 1002,
+        ProtocolError        = 1002,
         /// Internal server error.
-        InternalError = 1011,
+        InternalError        = 1011,
         /// Connection initialization timeout.
         ConnectionInitTimeout = 4408,
         /// Too many initialization requests.
-        TooManyInitRequests = 4429,
+        TooManyInitRequests  = 4429,
         /// Subscriber already exists (duplicate ID).
         SubscriberAlreadyExists = 4409,
         /// Unauthorized.
-        Unauthorized = 4401,
+        Unauthorized         = 4401,
         /// Subscription not found (invalid ID on complete).
         SubscriptionNotFound = 4404,
     }
@@ -1657,8 +1659,11 @@ pub trait TransportAdapter: Send + Sync {
     /// # Returns
     ///
     /// `Ok(())` on successful delivery, `Err` on failure.
-    async fn deliver(&self, event: &SubscriptionEvent, subscription_name: &str)
-        -> Result<(), SubscriptionError>;
+    async fn deliver(
+        &self,
+        event: &SubscriptionEvent,
+        subscription_name: &str,
+    ) -> Result<(), SubscriptionError>;
 
     /// Get the adapter name for logging/metrics.
     fn name(&self) -> &'static str;
@@ -1694,12 +1699,12 @@ impl WebhookConfig {
     #[must_use]
     pub fn new(url: impl Into<String>) -> Self {
         Self {
-            url: url.into(),
-            secret: None,
-            timeout_ms: 30_000,
-            max_retries: 3,
+            url:            url.into(),
+            secret:         None,
+            timeout_ms:     30_000,
+            max_retries:    3,
             retry_delay_ms: 1000,
-            headers: std::collections::HashMap::new(),
+            headers:        std::collections::HashMap::new(),
         }
     }
 
@@ -1776,15 +1781,15 @@ impl WebhookPayload {
     #[must_use]
     pub fn from_event(event: &SubscriptionEvent, subscription_name: &str) -> Self {
         Self {
-            event_id: event.event_id.clone(),
+            event_id:          event.event_id.clone(),
             subscription_name: subscription_name.to_string(),
-            entity_type: event.entity_type.clone(),
-            entity_id: event.entity_id.clone(),
-            operation: format!("{:?}", event.operation),
-            data: event.data.clone(),
-            old_data: event.old_data.clone(),
-            timestamp: event.timestamp.to_rfc3339(),
-            sequence_number: event.sequence_number,
+            entity_type:       event.entity_type.clone(),
+            entity_id:         event.entity_id.clone(),
+            operation:         format!("{:?}", event.operation),
+            data:              event.data.clone(),
+            old_data:          event.old_data.clone(),
+            timestamp:         event.timestamp.to_rfc3339(),
+            sequence_number:   event.sequence_number,
         }
     }
 }
@@ -1853,8 +1858,9 @@ impl TransportAdapter for WebhookAdapter {
         subscription_name: &str,
     ) -> Result<(), SubscriptionError> {
         let payload = WebhookPayload::from_event(event, subscription_name);
-        let payload_json = serde_json::to_string(&payload)
-            .map_err(|e| SubscriptionError::Internal(format!("Failed to serialize payload: {e}")))?;
+        let payload_json = serde_json::to_string(&payload).map_err(|e| {
+            SubscriptionError::Internal(format!("Failed to serialize payload: {e}"))
+        })?;
 
         let mut attempt = 0;
         let mut delay = self.config.retry_delay_ms;
@@ -1890,7 +1896,7 @@ impl TransportAdapter for WebhookAdapter {
                         "Webhook delivered successfully"
                     );
                     return Ok(());
-                }
+                },
                 Ok(response) => {
                     let status = response.status();
                     tracing::warn!(
@@ -1907,7 +1913,7 @@ impl TransportAdapter for WebhookAdapter {
                             "Webhook delivery failed: {status}"
                         )));
                     }
-                }
+                },
                 Err(e) => {
                     tracing::warn!(
                         url = %self.config.url,
@@ -1916,7 +1922,7 @@ impl TransportAdapter for WebhookAdapter {
                         attempt = attempt,
                         "Webhook delivery error"
                     );
-                }
+                },
             }
 
             // Check if we should retry
@@ -1983,12 +1989,12 @@ impl KafkaConfig {
     #[must_use]
     pub fn new(brokers: impl Into<String>, default_topic: impl Into<String>) -> Self {
         Self {
-            brokers: brokers.into(),
+            brokers:       brokers.into(),
             default_topic: default_topic.into(),
-            client_id: "fraiseql".to_string(),
-            acks: "all".to_string(),
-            timeout_ms: 30_000,
-            compression: None,
+            client_id:     "fraiseql".to_string(),
+            acks:          "all".to_string(),
+            timeout_ms:    30_000,
+            compression:   None,
         }
     }
 
@@ -2058,15 +2064,15 @@ impl KafkaMessage {
     #[must_use]
     pub fn from_event(event: &SubscriptionEvent, subscription_name: &str) -> Self {
         Self {
-            event_id: event.event_id.clone(),
+            event_id:          event.event_id.clone(),
             subscription_name: subscription_name.to_string(),
-            entity_type: event.entity_type.clone(),
-            entity_id: event.entity_id.clone(),
-            operation: format!("{:?}", event.operation),
-            data: event.data.clone(),
-            old_data: event.old_data.clone(),
-            timestamp: event.timestamp.to_rfc3339(),
-            sequence_number: event.sequence_number,
+            entity_type:       event.entity_type.clone(),
+            entity_id:         event.entity_id.clone(),
+            operation:         format!("{:?}", event.operation),
+            data:              event.data.clone(),
+            old_data:          event.old_data.clone(),
+            timestamp:         event.timestamp.to_rfc3339(),
+            sequence_number:   event.sequence_number,
         }
     }
 
@@ -2106,7 +2112,7 @@ impl KafkaMessage {
 /// ```
 #[cfg(feature = "kafka")]
 pub struct KafkaAdapter {
-    config: KafkaConfig,
+    config:   KafkaConfig,
     producer: rdkafka::producer::FutureProducer,
 }
 
@@ -2129,8 +2135,7 @@ impl KafkaAdapter {
     ///
     /// Returns error if the Kafka producer cannot be created (e.g., invalid config).
     pub fn new(config: KafkaConfig) -> Result<Self, SubscriptionError> {
-        use rdkafka::config::ClientConfig;
-        use rdkafka::producer::FutureProducer;
+        use rdkafka::{config::ClientConfig, producer::FutureProducer};
 
         let mut client_config = ClientConfig::new();
         client_config
@@ -2143,9 +2148,9 @@ impl KafkaAdapter {
             client_config.set("compression.type", compression);
         }
 
-        let producer: FutureProducer = client_config
-            .create()
-            .map_err(|e| SubscriptionError::Internal(format!("Failed to create Kafka producer: {e}")))?;
+        let producer: FutureProducer = client_config.create().map_err(|e| {
+            SubscriptionError::Internal(format!("Failed to create Kafka producer: {e}"))
+        })?;
 
         tracing::info!(
             brokers = %config.brokers,
@@ -2178,18 +2183,18 @@ impl TransportAdapter for KafkaAdapter {
         event: &SubscriptionEvent,
         subscription_name: &str,
     ) -> Result<(), SubscriptionError> {
-        use rdkafka::producer::FutureRecord;
         use std::time::Duration;
+
+        use rdkafka::producer::FutureRecord;
 
         let message = KafkaMessage::from_event(event, subscription_name);
         let topic = self.get_topic(subscription_name);
 
-        let payload = serde_json::to_string(&message)
-            .map_err(|e| SubscriptionError::Internal(format!("Failed to serialize message: {e}")))?;
+        let payload = serde_json::to_string(&message).map_err(|e| {
+            SubscriptionError::Internal(format!("Failed to serialize message: {e}"))
+        })?;
 
-        let record = FutureRecord::to(topic)
-            .key(message.key())
-            .payload(&payload);
+        let record = FutureRecord::to(topic).key(message.key()).payload(&payload);
 
         let timeout = Duration::from_millis(self.config.timeout_ms);
 
@@ -2204,7 +2209,7 @@ impl TransportAdapter for KafkaAdapter {
                     "Kafka message delivered successfully"
                 );
                 Ok(())
-            }
+            },
             Err((kafka_error, _)) => {
                 tracing::error!(
                     topic = topic,
@@ -2215,9 +2220,9 @@ impl TransportAdapter for KafkaAdapter {
                 );
                 Err(SubscriptionError::DeliveryFailed {
                     transport: "kafka".to_string(),
-                    reason: kafka_error.to_string(),
+                    reason:    kafka_error.to_string(),
                 })
-            }
+            },
         }
     }
 
@@ -2227,8 +2232,9 @@ impl TransportAdapter for KafkaAdapter {
 
     async fn health_check(&self) -> bool {
         // Check if we can fetch cluster metadata as a health check
-        use rdkafka::producer::Producer;
         use std::time::Duration;
+
+        use rdkafka::producer::Producer;
 
         match self.producer.client().fetch_metadata(
             None, // All topics
@@ -2241,14 +2247,14 @@ impl TransportAdapter for KafkaAdapter {
                     "Kafka health check passed"
                 );
                 true
-            }
+            },
             Err(e) => {
                 tracing::warn!(
                     error = %e,
                     "Kafka health check failed"
                 );
                 false
-            }
+            },
         }
     }
 }
@@ -2304,8 +2310,9 @@ impl TransportAdapter for KafkaAdapter {
         let message = KafkaMessage::from_event(event, subscription_name);
         let topic = self.get_topic(subscription_name);
 
-        let _payload = serde_json::to_string(&message)
-            .map_err(|e| SubscriptionError::Internal(format!("Failed to serialize message: {e}")))?;
+        let _payload = serde_json::to_string(&message).map_err(|e| {
+            SubscriptionError::Internal(format!("Failed to serialize message: {e}"))
+        })?;
 
         // Stub implementation - log the event
         tracing::info!(
@@ -2393,8 +2400,8 @@ impl TransportManager {
         if self.adapters.is_empty() {
             return Ok(DeliveryResult {
                 successful: 0,
-                failed: 0,
-                errors: Vec::new(),
+                failed:     0,
+                errors:     Vec::new(),
             });
         }
 
@@ -2422,7 +2429,7 @@ impl TransportManager {
                 Err(e) => {
                     failed += 1;
                     errors.push((name, e.to_string()));
-                }
+                },
             }
         }
 
@@ -2471,9 +2478,9 @@ pub struct DeliveryResult {
     /// Number of successful deliveries.
     pub successful: usize,
     /// Number of failed deliveries.
-    pub failed: usize,
+    pub failed:     usize,
     /// Errors from failed deliveries (adapter name, error message).
-    pub errors: Vec<(String, String)>,
+    pub errors:     Vec<(String, String)>,
 }
 
 impl DeliveryResult {
@@ -2502,12 +2509,9 @@ mod tests {
     fn create_test_schema() -> CompiledSchema {
         CompiledSchema {
             subscriptions: vec![
-                SubscriptionDefinition::new("OrderCreated", "Order")
-                    .with_topic("order_created"),
-                SubscriptionDefinition::new("OrderUpdated", "Order")
-                    .with_topic("order_updated"),
-                SubscriptionDefinition::new("UserDeleted", "User")
-                    .with_topic("user_deleted"),
+                SubscriptionDefinition::new("OrderCreated", "Order").with_topic("order_created"),
+                SubscriptionDefinition::new("OrderUpdated", "Order").with_topic("order_updated"),
+                SubscriptionDefinition::new("UserDeleted", "User").with_topic("user_deleted"),
             ],
             ..Default::default()
         }
@@ -2573,10 +2577,7 @@ mod tests {
             "conn_1",
         );
 
-        assert!(matches!(
-            result,
-            Err(SubscriptionError::SubscriptionNotFound(_))
-        ));
+        assert!(matches!(result, Err(SubscriptionError::SubscriptionNotFound(_))));
     }
 
     #[test]
@@ -2585,12 +2586,7 @@ mod tests {
         let manager = SubscriptionManager::new(schema);
 
         let id = manager
-            .subscribe(
-                "OrderCreated",
-                serde_json::json!({}),
-                serde_json::json!({}),
-                "conn_1",
-            )
+            .subscribe("OrderCreated", serde_json::json!({}), serde_json::json!({}), "conn_1")
             .unwrap();
 
         assert_eq!(manager.subscription_count(), 1);
@@ -2607,21 +2603,11 @@ mod tests {
 
         // Create multiple subscriptions for same connection
         manager
-            .subscribe(
-                "OrderCreated",
-                serde_json::json!({}),
-                serde_json::json!({}),
-                "conn_1",
-            )
+            .subscribe("OrderCreated", serde_json::json!({}), serde_json::json!({}), "conn_1")
             .unwrap();
 
         manager
-            .subscribe(
-                "OrderUpdated",
-                serde_json::json!({}),
-                serde_json::json!({}),
-                "conn_1",
-            )
+            .subscribe("OrderUpdated", serde_json::json!({}), serde_json::json!({}), "conn_1")
             .unwrap();
 
         assert_eq!(manager.subscription_count(), 2);
@@ -2639,12 +2625,7 @@ mod tests {
 
         // Subscribe to OrderCreated
         manager
-            .subscribe(
-                "OrderCreated",
-                serde_json::json!({}),
-                serde_json::json!({}),
-                "conn_1",
-            )
+            .subscribe("OrderCreated", serde_json::json!({}), serde_json::json!({}), "conn_1")
             .unwrap();
 
         // Create event should match
@@ -2677,12 +2658,7 @@ mod tests {
 
         // Subscribe to OrderCreated
         manager
-            .subscribe(
-                "OrderCreated",
-                serde_json::json!({}),
-                serde_json::json!({}),
-                "conn_1",
-            )
+            .subscribe("OrderCreated", serde_json::json!({}), serde_json::json!({}), "conn_1")
             .unwrap();
 
         // User event should not match (wrong entity)
@@ -2703,12 +2679,7 @@ mod tests {
         let manager = SubscriptionManager::new(schema);
 
         manager
-            .subscribe(
-                "OrderCreated",
-                serde_json::json!({}),
-                serde_json::json!({}),
-                "conn_1",
-            )
+            .subscribe("OrderCreated", serde_json::json!({}), serde_json::json!({}), "conn_1")
             .unwrap();
 
         let mut receiver = manager.receiver();
@@ -2773,12 +2744,7 @@ mod tests {
         let manager = SubscriptionManager::new(schema);
 
         manager
-            .subscribe(
-                "OrderCreated",
-                serde_json::json!({}),
-                serde_json::json!({}),
-                "conn_1",
-            )
+            .subscribe("OrderCreated", serde_json::json!({}), serde_json::json!({}), "conn_1")
             .unwrap();
 
         let payload = r#"{
@@ -2798,12 +2764,7 @@ mod tests {
         let manager = SubscriptionManager::new(schema);
 
         manager
-            .subscribe(
-                "OrderUpdated",
-                serde_json::json!({}),
-                serde_json::json!({}),
-                "conn_1",
-            )
+            .subscribe("OrderUpdated", serde_json::json!({}), serde_json::json!({}), "conn_1")
             .unwrap();
 
         let payload = r#"{
@@ -2824,12 +2785,7 @@ mod tests {
         let manager = SubscriptionManager::new(schema);
 
         manager
-            .subscribe(
-                "OrderCreated",
-                serde_json::json!({}),
-                serde_json::json!({}),
-                "conn_1",
-            )
+            .subscribe("OrderCreated", serde_json::json!({}), serde_json::json!({}), "conn_1")
             .unwrap();
 
         // "INSERT" should be treated as CREATE
@@ -2850,10 +2806,7 @@ mod tests {
         let manager = SubscriptionManager::new(schema);
 
         let result = PostgresListener::process_notification("not valid json", &manager);
-        assert!(matches!(
-            result,
-            Err(SubscriptionError::InvalidNotification(_))
-        ));
+        assert!(matches!(result, Err(SubscriptionError::InvalidNotification(_))));
     }
 
     #[test]
@@ -2869,10 +2822,7 @@ mod tests {
         }"#;
 
         let result = PostgresListener::process_notification(payload, &manager);
-        assert!(matches!(
-            result,
-            Err(SubscriptionError::InvalidNotification(_))
-        ));
+        assert!(matches!(result, Err(SubscriptionError::InvalidNotification(_))));
     }
 
     #[test]
@@ -2881,12 +2831,7 @@ mod tests {
         let manager = SubscriptionManager::new(schema);
 
         manager
-            .subscribe(
-                "UserDeleted",
-                serde_json::json!({}),
-                serde_json::json!({}),
-                "conn_1",
-            )
+            .subscribe("UserDeleted", serde_json::json!({}), serde_json::json!({}), "conn_1")
             .unwrap();
 
         let payload = r#"{
@@ -2936,13 +2881,13 @@ mod tests {
     #[test]
     fn test_webhook_payload_from_event() {
         let event = SubscriptionEvent {
-            event_id: "evt_123".to_string(),
-            entity_type: "Order".to_string(),
-            entity_id: "ord_456".to_string(),
-            operation: SubscriptionOperation::Create,
-            data: serde_json::json!({"id": "ord_456", "total": 99.99}),
-            old_data: None,
-            timestamp: chrono::Utc::now(),
+            event_id:        "evt_123".to_string(),
+            entity_type:     "Order".to_string(),
+            entity_id:       "ord_456".to_string(),
+            operation:       SubscriptionOperation::Create,
+            data:            serde_json::json!({"id": "ord_456", "total": 99.99}),
+            old_data:        None,
+            timestamp:       chrono::Utc::now(),
             sequence_number: 42,
         };
 
@@ -2960,8 +2905,8 @@ mod tests {
 
     #[test]
     fn test_webhook_adapter_debug() {
-        let config = WebhookConfig::new("https://api.example.com/webhooks")
-            .with_secret("secret-key");
+        let config =
+            WebhookConfig::new("https://api.example.com/webhooks").with_secret("secret-key");
         let adapter = WebhookAdapter::new(config);
 
         let debug = format!("{:?}", adapter);
@@ -3001,21 +2946,21 @@ mod tests {
         assert_eq!(config.brokers, "localhost:9092");
         assert_eq!(config.default_topic, "events");
         assert_eq!(config.client_id, "fraiseql");
-        assert_eq!(config.acks, "all");  // Default: wait for all replicas
-        assert_eq!(config.timeout_ms, 30_000);  // 30 seconds default
+        assert_eq!(config.acks, "all"); // Default: wait for all replicas
+        assert_eq!(config.timeout_ms, 30_000); // 30 seconds default
         assert!(config.compression.is_none());
     }
 
     #[test]
     fn test_kafka_message_from_event() {
         let event = SubscriptionEvent {
-            event_id: "evt_789".to_string(),
-            entity_type: "User".to_string(),
-            entity_id: "usr_123".to_string(),
-            operation: SubscriptionOperation::Update,
-            data: serde_json::json!({"id": "usr_123", "name": "John"}),
-            old_data: Some(serde_json::json!({"id": "usr_123", "name": "Jane"})),
-            timestamp: chrono::Utc::now(),
+            event_id:        "evt_789".to_string(),
+            entity_type:     "User".to_string(),
+            entity_id:       "usr_123".to_string(),
+            operation:       SubscriptionOperation::Update,
+            data:            serde_json::json!({"id": "usr_123", "name": "John"}),
+            old_data:        Some(serde_json::json!({"id": "usr_123", "name": "Jane"})),
+            timestamp:       chrono::Utc::now(),
             sequence_number: 100,
         };
 
@@ -3034,13 +2979,13 @@ mod tests {
     #[test]
     fn test_kafka_message_key() {
         let event = SubscriptionEvent {
-            event_id: "evt_1".to_string(),
-            entity_type: "Order".to_string(),
-            entity_id: "ord_partition_key".to_string(),
-            operation: SubscriptionOperation::Create,
-            data: serde_json::json!({}),
-            old_data: None,
-            timestamp: chrono::Utc::now(),
+            event_id:        "evt_1".to_string(),
+            entity_type:     "Order".to_string(),
+            entity_id:       "ord_partition_key".to_string(),
+            operation:       SubscriptionOperation::Create,
+            data:            serde_json::json!({}),
+            old_data:        None,
+            timestamp:       chrono::Utc::now(),
             sequence_number: 1,
         };
 
@@ -3091,8 +3036,8 @@ mod tests {
     fn test_delivery_result_all_succeeded() {
         let result = DeliveryResult {
             successful: 3,
-            failed: 0,
-            errors: vec![],
+            failed:     0,
+            errors:     vec![],
         };
 
         assert!(result.all_succeeded());
@@ -3103,8 +3048,8 @@ mod tests {
     fn test_delivery_result_partial_failure() {
         let result = DeliveryResult {
             successful: 2,
-            failed: 1,
-            errors: vec![("webhook".to_string(), "Connection refused".to_string())],
+            failed:     1,
+            errors:     vec![("webhook".to_string(), "Connection refused".to_string())],
         };
 
         assert!(!result.all_succeeded());
@@ -3115,8 +3060,8 @@ mod tests {
     fn test_delivery_result_all_failed() {
         let result = DeliveryResult {
             successful: 0,
-            failed: 2,
-            errors: vec![
+            failed:     2,
+            errors:     vec![
                 ("webhook".to_string(), "Connection refused".to_string()),
                 ("kafka".to_string(), "Broker unavailable".to_string()),
             ],
@@ -3160,10 +3105,7 @@ mod tests {
         let data = serde_json::json!({"user": {"name": "Bob"}});
 
         // Dot notation should be converted to JSON pointer
-        assert_eq!(
-            get_json_pointer_value(&data, "user.name"),
-            Some(&serde_json::json!("Bob"))
-        );
+        assert_eq!(get_json_pointer_value(&data, "user.name"), Some(&serde_json::json!("Bob")));
     }
 
     #[test]
@@ -3286,11 +3228,7 @@ mod tests {
         use crate::schema::FilterOperator;
 
         // Missing value equals null
-        assert!(evaluate_filter_condition(
-            None,
-            FilterOperator::Eq,
-            &serde_json::Value::Null
-        ));
+        assert!(evaluate_filter_condition(None, FilterOperator::Eq, &serde_json::Value::Null));
 
         // Missing value does not equal non-null
         assert!(!evaluate_filter_condition(
@@ -3302,21 +3240,20 @@ mod tests {
 
     #[test]
     fn test_subscription_filter_matching() {
-        use crate::schema::{SubscriptionFilter, FilterOperator, StaticFilterCondition};
         use std::collections::HashMap;
+
+        use crate::schema::{FilterOperator, StaticFilterCondition, SubscriptionFilter};
 
         let mut argument_paths = HashMap::new();
         argument_paths.insert("orderId".to_string(), "/id".to_string());
 
         let filter = SubscriptionFilter {
             argument_paths,
-            static_filters: vec![
-                StaticFilterCondition {
-                    path: "/status".to_string(),
-                    operator: FilterOperator::Eq,
-                    value: serde_json::json!("active"),
-                },
-            ],
+            static_filters: vec![StaticFilterCondition {
+                path:     "/status".to_string(),
+                operator: FilterOperator::Eq,
+                value:    serde_json::json!("active"),
+            }],
         };
 
         let schema = Arc::new(CompiledSchema {
@@ -3382,12 +3319,7 @@ mod tests {
         let manager = SubscriptionManager::new(schema);
 
         manager
-            .subscribe(
-                "OrderCreated",
-                serde_json::json!({}),
-                serde_json::json!({}),
-                "conn_1",
-            )
+            .subscribe("OrderCreated", serde_json::json!({}), serde_json::json!({}), "conn_1")
             .unwrap();
 
         let mut receiver = manager.receiver();

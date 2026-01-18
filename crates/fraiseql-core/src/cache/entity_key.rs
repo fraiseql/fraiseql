@@ -26,9 +26,12 @@
 //! assert_eq!(key.to_cache_key(), "User:550e8400-e29b-41d4-a716-446655440000");
 //! ```
 
+use std::{
+    fmt,
+    hash::{Hash, Hasher},
+};
+
 use crate::error::{FraiseQLError, Result};
-use std::fmt;
-use std::hash::{Hash, Hasher};
 
 /// Type-safe entity key for cache invalidation.
 ///
@@ -68,20 +71,20 @@ impl EntityKey {
         if entity_type.is_empty() {
             return Err(FraiseQLError::Validation {
                 message: "entity_type cannot be empty".to_string(),
-                path: None,
+                path:    None,
             });
         }
 
         if entity_id.is_empty() {
             return Err(FraiseQLError::Validation {
                 message: "entity_id cannot be empty".to_string(),
-                path: None,
+                path:    None,
             });
         }
 
         Ok(Self {
             entity_type: entity_type.to_string(),
-            entity_id: entity_id.to_string(),
+            entity_id:   entity_id.to_string(),
         })
     }
 
@@ -125,7 +128,7 @@ impl EntityKey {
         if parts.len() != 2 {
             return Err(FraiseQLError::Validation {
                 message: format!("Invalid entity key format: {}. Expected 'Type:id'", cache_key),
-                path: None,
+                path:    None,
             });
         }
 

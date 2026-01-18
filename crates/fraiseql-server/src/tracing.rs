@@ -3,10 +3,11 @@
 //! Provides request trace context tracking, span management, and integration
 //! with distributed tracing systems like Jaeger, Zipkin, and Datadog.
 
-use crate::logging::RequestId;
+use std::{collections::HashMap, fmt};
+
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::fmt;
+
+use crate::logging::RequestId;
 
 /// Trace context for distributed tracing across service boundaries.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -35,12 +36,12 @@ impl TraceContext {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            trace_id: generate_trace_id(),
-            span_id: generate_span_id(),
+            trace_id:       generate_trace_id(),
+            span_id:        generate_span_id(),
             parent_span_id: None,
-            sampled: 1,
-            trace_flags: 0x01,
-            baggage: HashMap::new(),
+            sampled:        1,
+            trace_flags:    0x01,
+            baggage:        HashMap::new(),
         }
     }
 
@@ -48,27 +49,26 @@ impl TraceContext {
     #[must_use]
     pub fn from_request_id(request_id: RequestId) -> Self {
         Self {
-            trace_id: request_id.to_string(),
-            span_id: generate_span_id(),
+            trace_id:       request_id.to_string(),
+            span_id:        generate_span_id(),
             parent_span_id: None,
-            sampled: 1,
-            trace_flags: 0x01,
-            baggage: HashMap::new(),
+            sampled:        1,
+            trace_flags:    0x01,
+            baggage:        HashMap::new(),
         }
     }
 
     /// Create child span from parent context.
     #[must_use]
     pub fn child_span(&self) -> Self {
-
         // Don't modify baggage in child
         Self {
-            trace_id: self.trace_id.clone(),
-            span_id: generate_span_id(),
+            trace_id:       self.trace_id.clone(),
+            span_id:        generate_span_id(),
             parent_span_id: Some(self.span_id.clone()),
-            sampled: self.sampled,
-            trace_flags: self.trace_flags,
-            baggage: self.baggage.clone(),
+            sampled:        self.sampled,
+            trace_flags:    self.trace_flags,
+            baggage:        self.baggage.clone(),
         }
     }
 
@@ -95,10 +95,7 @@ impl TraceContext {
     pub fn to_w3c_traceparent(&self) -> String {
         // Format: version-traceid-spanid-traceflags
         // version: 00, traceid: 32 hex chars, spanid: 16 hex chars, traceflags: 2 hex chars
-        format!(
-            "00-{}-{}-{:02x}",
-            self.trace_id, self.span_id, self.trace_flags
-        )
+        format!("00-{}-{}-{:02x}", self.trace_id, self.span_id, self.trace_flags)
     }
 
     /// Parse W3C Trace Context header.
@@ -120,8 +117,8 @@ impl TraceContext {
             return Err(TraceParseError::InvalidSpanId);
         }
 
-        let trace_flags = u8::from_str_radix(parts[3], 16)
-            .map_err(|_| TraceParseError::InvalidTraceFlags)?;
+        let trace_flags =
+            u8::from_str_radix(parts[3], 16).map_err(|_| TraceParseError::InvalidTraceFlags)?;
 
         Ok(Self {
             trace_id: parts[1].to_string(),
@@ -346,10 +343,7 @@ impl std::error::Error for TraceParseError {}
 fn generate_trace_id() -> String {
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
+    let nanos = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
 
     format!("{:032x}", nanos ^ u128::from(std::process::id()))
 }
@@ -358,10 +352,7 @@ fn generate_trace_id() -> String {
 fn generate_span_id() -> String {
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
+    let nanos = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
 
     // Use process ID as thread ID is unstable
     let process_id = u128::from(std::process::id());
@@ -429,8 +420,8 @@ mod tests {
         let original = TraceContext::new();
         let header = original.to_w3c_traceparent();
 
-        let parsed = TraceContext::from_w3c_traceparent(&header)
-            .expect("Failed to parse traceparent");
+        let parsed =
+            TraceContext::from_w3c_traceparent(&header).expect("Failed to parse traceparent");
 
         assert_eq!(parsed.trace_id, original.trace_id);
         assert_eq!(parsed.parent_span_id, Some(original.span_id));

@@ -17,9 +17,7 @@ async fn test_hybrid_filtering() {
         .where_sql("1 = 1") // Get all users
         .where_rust(|json| {
             // Rust: filter to only users with notifications enabled
-            json["settings"]["notifications"]
-                .as_bool()
-                .unwrap_or(false)
+            json["settings"]["notifications"].as_bool().unwrap_or(false)
         })
         .execute()
         .await

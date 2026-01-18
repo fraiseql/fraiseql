@@ -1,7 +1,9 @@
 //! MySQL WHERE clause SQL generation.
 
-use crate::db::where_clause::{WhereClause, WhereOperator};
-use crate::error::{FraiseQLError, Result};
+use crate::{
+    db::where_clause::{WhereClause, WhereOperator},
+    error::{FraiseQLError, Result},
+};
 
 /// MySQL WHERE clause generator.
 ///
@@ -70,26 +72,22 @@ impl MySqlWhereGenerator {
                 if clauses.is_empty() {
                     return Ok("TRUE".to_string());
                 }
-                let parts: Result<Vec<String>> = clauses
-                    .iter()
-                    .map(|c| self.generate_clause(c, params))
-                    .collect();
+                let parts: Result<Vec<String>> =
+                    clauses.iter().map(|c| self.generate_clause(c, params)).collect();
                 Ok(format!("({})", parts?.join(" AND ")))
-            }
+            },
             WhereClause::Or(clauses) => {
                 if clauses.is_empty() {
                     return Ok("FALSE".to_string());
                 }
-                let parts: Result<Vec<String>> = clauses
-                    .iter()
-                    .map(|c| self.generate_clause(c, params))
-                    .collect();
+                let parts: Result<Vec<String>> =
+                    clauses.iter().map(|c| self.generate_clause(c, params)).collect();
                 Ok(format!("({})", parts?.join(" OR ")))
-            }
+            },
             WhereClause::Not(clause) => {
                 let inner = self.generate_clause(clause, params)?;
                 Ok(format!("NOT ({inner})"))
-            }
+            },
         }
     }
 
@@ -118,32 +116,33 @@ impl MySqlWhereGenerator {
             WhereOperator::Nin => {
                 let in_clause = self.generate_in(&field_path, value, params)?;
                 Ok(format!("NOT ({in_clause})"))
-            }
+            },
 
-            // String operators - MySQL uses LIKE (case-sensitive) or LOWER()+LIKE for case-insensitive
+            // String operators - MySQL uses LIKE (case-sensitive) or LOWER()+LIKE for
+            // case-insensitive
             WhereOperator::Contains => {
                 self.generate_like(&field_path, false, value, params, true, true)
-            }
+            },
             WhereOperator::Icontains => {
                 self.generate_like(&field_path, true, value, params, true, true)
-            }
+            },
             WhereOperator::Startswith => {
                 self.generate_like(&field_path, false, value, params, false, true)
-            }
+            },
             WhereOperator::Istartswith => {
                 self.generate_like(&field_path, true, value, params, false, true)
-            }
+            },
             WhereOperator::Endswith => {
                 self.generate_like(&field_path, false, value, params, true, false)
-            }
+            },
             WhereOperator::Iendswith => {
                 self.generate_like(&field_path, true, value, params, true, false)
-            }
+            },
             WhereOperator::Like => self.generate_comparison(&field_path, "LIKE", value, params),
             WhereOperator::Ilike => {
                 // MySQL LIKE is case-insensitive by default with utf8mb4_unicode_ci
                 self.generate_comparison(&field_path, "LIKE", value, params)
-            }
+            },
 
             // Null checks
             WhereOperator::IsNull => {
@@ -153,14 +152,14 @@ impl MySqlWhereGenerator {
                     "IS NOT NULL"
                 };
                 Ok(format!("{field_path} {is_null}"))
-            }
+            },
 
             // Array operators - MySQL uses JSON_CONTAINS
             WhereOperator::ArrayContains => self.generate_json_contains(&field_path, value, params),
             WhereOperator::ArrayContainedBy => {
                 // Reverse containment: check if array is contained by value
                 self.generate_json_contained_by(&field_path, value, params)
-            }
+            },
             WhereOperator::ArrayOverlaps => self.generate_json_overlaps(&field_path, value, params),
 
             // Array length operators
@@ -183,10 +182,12 @@ impl MySqlWhereGenerator {
 
             // Full-text search - MySQL uses MATCH ... AGAINST
             WhereOperator::Matches => self.generate_fts(&field_path, value, params),
-            WhereOperator::PlainQuery | WhereOperator::PhraseQuery | WhereOperator::WebsearchQuery => {
+            WhereOperator::PlainQuery
+            | WhereOperator::PhraseQuery
+            | WhereOperator::WebsearchQuery => {
                 // MySQL FTS uses different syntax
                 self.generate_fts(&field_path, value, params)
-            }
+            },
 
             // Network operators - not natively supported in MySQL
             WhereOperator::IsIPv4
@@ -202,7 +203,9 @@ impl MySqlWhereGenerator {
             )),
 
             // JSONB operators
-            WhereOperator::StrictlyContains => self.generate_json_contains(&field_path, value, params),
+            WhereOperator::StrictlyContains => {
+                self.generate_json_contains(&field_path, value, params)
+            },
 
             // LTree operators - not supported in MySQL (PostgreSQL-specific)
             WhereOperator::AncestorOf
@@ -217,10 +220,8 @@ impl MySqlWhereGenerator {
             | WhereOperator::DepthLt
             | WhereOperator::DepthLte
             | WhereOperator::Lca => {
-                Err(FraiseQLError::validation(
-                    "LTree operators not supported in MySQL".to_string(),
-                ))
-            }
+                Err(FraiseQLError::validation("LTree operators not supported in MySQL".to_string()))
+            },
         }
     }
 
@@ -234,7 +235,7 @@ impl MySqlWhereGenerator {
 
     /// Build raw JSON path for JSON functions (without UNQUOTE).
     /// Used for JSON array/object operations where unquoting is not desired.
-    #[allow(dead_code)]  // Reserved for future JSON array/object operations
+    #[allow(dead_code)] // Reserved for future JSON array/object operations
     fn build_raw_json_path(&self, path: &[String]) -> String {
         let json_path = path.join(".");
         format!("JSON_EXTRACT(data, '$.{json_path}')")
@@ -250,7 +251,9 @@ impl MySqlWhereGenerator {
         params.push(value.clone());
 
         // For numeric comparisons, cast to appropriate type
-        if value.is_number() && (op == ">" || op == ">=" || op == "<" || op == "<=" || op == "=" || op == "!=") {
+        if value.is_number()
+            && (op == ">" || op == ">=" || op == "<" || op == "<=" || op == "=" || op == "!=")
+        {
             Ok(format!("CAST({field_path} AS DECIMAL) {op} ?"))
         } else {
             // Boolean and other comparisons use direct comparison
@@ -393,16 +396,17 @@ impl Default for MySqlWhereGenerator {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serde_json::json;
+
+    use super::*;
 
     #[test]
     fn test_simple_equality() {
         let gen = MySqlWhereGenerator::new();
         let clause = WhereClause::Field {
-            path: vec!["email".to_string()],
+            path:     vec!["email".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("test@example.com"),
+            value:    json!("test@example.com"),
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
@@ -414,9 +418,9 @@ mod tests {
     fn test_icontains() {
         let gen = MySqlWhereGenerator::new();
         let clause = WhereClause::Field {
-            path: vec!["email".to_string()],
+            path:     vec!["email".to_string()],
             operator: WhereOperator::Icontains,
-            value: json!("example.com"),
+            value:    json!("example.com"),
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
@@ -431,16 +435,13 @@ mod tests {
     fn test_nested_path() {
         let gen = MySqlWhereGenerator::new();
         let clause = WhereClause::Field {
-            path: vec!["address".to_string(), "city".to_string()],
+            path:     vec!["address".to_string(), "city".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("Paris"),
+            value:    json!("Paris"),
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
-        assert_eq!(
-            sql,
-            "JSON_UNQUOTE(JSON_EXTRACT(data, '$.address.city')) = ?"
-        );
+        assert_eq!(sql, "JSON_UNQUOTE(JSON_EXTRACT(data, '$.address.city')) = ?");
         assert_eq!(params, vec![json!("Paris")]);
     }
 
@@ -449,14 +450,14 @@ mod tests {
         let gen = MySqlWhereGenerator::new();
         let clause = WhereClause::And(vec![
             WhereClause::Field {
-                path: vec!["age".to_string()],
+                path:     vec!["age".to_string()],
                 operator: WhereOperator::Gte,
-                value: json!(18),
+                value:    json!(18),
             },
             WhereClause::Field {
-                path: vec!["active".to_string()],
+                path:     vec!["active".to_string()],
                 operator: WhereOperator::Eq,
-                value: json!(true),
+                value:    json!(true),
             },
         ]);
 
@@ -472,16 +473,13 @@ mod tests {
     fn test_in_operator() {
         let gen = MySqlWhereGenerator::new();
         let clause = WhereClause::Field {
-            path: vec!["status".to_string()],
+            path:     vec!["status".to_string()],
             operator: WhereOperator::In,
-            value: json!(["active", "pending"]),
+            value:    json!(["active", "pending"]),
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
-        assert_eq!(
-            sql,
-            "JSON_UNQUOTE(JSON_EXTRACT(data, '$.status')) IN (?, ?)"
-        );
+        assert_eq!(sql, "JSON_UNQUOTE(JSON_EXTRACT(data, '$.status')) IN (?, ?)");
         assert_eq!(params, vec![json!("active"), json!("pending")]);
     }
 
@@ -489,25 +487,22 @@ mod tests {
     fn test_is_null() {
         let gen = MySqlWhereGenerator::new();
         let clause = WhereClause::Field {
-            path: vec!["deleted_at".to_string()],
+            path:     vec!["deleted_at".to_string()],
             operator: WhereOperator::IsNull,
-            value: json!(true),
+            value:    json!(true),
         };
 
         let (sql, _params) = gen.generate(&clause).unwrap();
-        assert_eq!(
-            sql,
-            "JSON_UNQUOTE(JSON_EXTRACT(data, '$.deleted_at')) IS NULL"
-        );
+        assert_eq!(sql, "JSON_UNQUOTE(JSON_EXTRACT(data, '$.deleted_at')) IS NULL");
     }
 
     #[test]
     fn test_array_contains() {
         let gen = MySqlWhereGenerator::new();
         let clause = WhereClause::Field {
-            path: vec!["tags".to_string()],
+            path:     vec!["tags".to_string()],
             operator: WhereOperator::ArrayContains,
-            value: json!(["rust"]),
+            value:    json!(["rust"]),
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();

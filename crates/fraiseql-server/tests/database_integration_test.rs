@@ -7,34 +7,30 @@
 //! - Configuration loading and defaults
 //! - Error handling for missing databases
 
+use std::{path::PathBuf, sync::Arc};
+
 use fraiseql_core::db::postgres::PostgresAdapter;
 use fraiseql_server::{CompiledSchemaLoader, ServerConfig};
-use std::path::PathBuf;
-use std::sync::Arc;
 
 /// Test PostgreSQL adapter initialization with default configuration.
 #[tokio::test]
 async fn test_postgres_adapter_initialization() {
     // Get DATABASE_URL from environment or use test database
-    let db_url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql:///fraiseql_test".to_string());
+    let db_url =
+        std::env::var("DATABASE_URL").unwrap_or_else(|_| "postgresql:///fraiseql_test".to_string());
 
     // Initialize adapter with default pool size
     let adapter = PostgresAdapter::new(&db_url).await;
 
     // Check that adapter was created successfully
-    assert!(
-        adapter.is_ok(),
-        "Failed to initialize PostgresAdapter: {:?}",
-        adapter.err()
-    );
+    assert!(adapter.is_ok(), "Failed to initialize PostgresAdapter: {:?}", adapter.err());
 }
 
 /// Test PostgreSQL adapter with custom pool configuration.
 #[tokio::test]
 async fn test_postgres_adapter_with_pool_config() {
-    let db_url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql:///fraiseql_test".to_string());
+    let db_url =
+        std::env::var("DATABASE_URL").unwrap_or_else(|_| "postgresql:///fraiseql_test".to_string());
 
     let min_size = 5;
     let max_size = 20;
@@ -101,12 +97,10 @@ fn test_server_config_database_url_override() {
 /// Test adapter cloning for Arc wrapper compatibility
 #[tokio::test]
 async fn test_postgres_adapter_arc_compatibility() {
-    let db_url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql:///fraiseql_test".to_string());
+    let db_url =
+        std::env::var("DATABASE_URL").unwrap_or_else(|_| "postgresql:///fraiseql_test".to_string());
 
-    let adapter = PostgresAdapter::new(&db_url)
-        .await
-        .expect("Failed to create adapter");
+    let adapter = PostgresAdapter::new(&db_url).await.expect("Failed to create adapter");
 
     // Should be able to wrap in Arc for Server usage
     let adapter_arc: Arc<PostgresAdapter> = Arc::new(adapter);
@@ -189,10 +183,7 @@ async fn test_postgres_adapter_invalid_url() {
     let result = PostgresAdapter::new(invalid_url).await;
 
     // Should fail gracefully with connection error
-    assert!(
-        result.is_err(),
-        "Should fail to connect with invalid URL"
-    );
+    assert!(result.is_err(), "Should fail to connect with invalid URL");
 }
 
 /// Test adapter initialization with missing database
@@ -203,10 +194,7 @@ async fn test_postgres_adapter_missing_database() {
     let result = PostgresAdapter::new(missing_db_url).await;
 
     // Should fail gracefully when database doesn't exist
-    assert!(
-        result.is_err(),
-        "Should fail when database doesn't exist"
-    );
+    assert!(result.is_err(), "Should fail when database doesn't exist");
 }
 
 /// Test CORS configuration variants

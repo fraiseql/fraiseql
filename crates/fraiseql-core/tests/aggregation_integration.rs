@@ -11,69 +11,72 @@
 //!
 //! For database integration tests:
 //!   1. Start test database: docker compose -f docker-compose.test.yml up -d
-//!   2. Run tests: cargo test -p fraiseql-core --features test-postgres --test aggregation_integration
+//!   2. Run tests: cargo test -p fraiseql-core --features test-postgres --test
+//!      aggregation_integration
 
-use fraiseql_core::compiler::aggregate_types::{AggregateFunction, TemporalBucket};
-use fraiseql_core::compiler::aggregation::{
-    AggregateSelection, AggregationRequest, GroupBySelection,
+use fraiseql_core::{
+    compiler::{
+        aggregate_types::{AggregateFunction, TemporalBucket},
+        aggregation::{AggregateSelection, AggregationRequest, GroupBySelection},
+        fact_table::{
+            CalendarBucket, CalendarDimension, CalendarGranularity, DimensionColumn, DimensionPath,
+            FactTableMetadata, FilterColumn, MeasureColumn, SqlType,
+        },
+    },
+    runtime::{AggregateQueryParser, AggregationProjector, AggregationSqlGenerator},
 };
-use fraiseql_core::compiler::fact_table::{
-    CalendarBucket, CalendarDimension, CalendarGranularity, DimensionColumn, DimensionPath,
-    FactTableMetadata, FilterColumn, MeasureColumn, SqlType,
-};
-use fraiseql_core::runtime::{AggregateQueryParser, AggregationProjector, AggregationSqlGenerator};
 use serde_json::json;
 
 /// Helper to create test fact table metadata for tf_sales
 fn create_test_metadata() -> FactTableMetadata {
     FactTableMetadata {
-        table_name: "tf_sales".to_string(),
-        measures: vec![
+        table_name:           "tf_sales".to_string(),
+        measures:             vec![
             MeasureColumn {
-                name: "revenue".to_string(),
+                name:     "revenue".to_string(),
                 sql_type: SqlType::Decimal,
                 nullable: false,
             },
             MeasureColumn {
-                name: "quantity".to_string(),
+                name:     "quantity".to_string(),
                 sql_type: SqlType::Int,
                 nullable: false,
             },
         ],
-        dimensions: DimensionColumn {
-            name: "data".to_string(),
+        dimensions:           DimensionColumn {
+            name:  "data".to_string(),
             paths: vec![
                 DimensionPath {
-                    name: "category".to_string(),
+                    name:      "category".to_string(),
                     json_path: "data->>'category'".to_string(),
                     data_type: "text".to_string(),
                 },
                 DimensionPath {
-                    name: "product".to_string(),
+                    name:      "product".to_string(),
                     json_path: "data->>'product'".to_string(),
                     data_type: "text".to_string(),
                 },
             ],
         },
         denormalized_filters: vec![FilterColumn {
-            name: "occurred_at".to_string(),
+            name:     "occurred_at".to_string(),
             sql_type: SqlType::Timestamp,
-            indexed: true,
+            indexed:  true,
         }],
-        calendar_dimensions: vec![CalendarDimension {
+        calendar_dimensions:  vec![CalendarDimension {
             source_column: "occurred_at".to_string(),
             granularities: vec![CalendarGranularity {
                 column_name: "date_info".to_string(),
-                buckets: vec![
+                buckets:     vec![
                     CalendarBucket {
-                        json_key: "day".to_string(),
+                        json_key:    "day".to_string(),
                         bucket_type: TemporalBucket::Day,
-                        data_type: "date".to_string(),
+                        data_type:   "date".to_string(),
                     },
                     CalendarBucket {
-                        json_key: "month".to_string(),
+                        json_key:    "month".to_string(),
                         bucket_type: TemporalBucket::Month,
-                        data_type: "integer".to_string(),
+                        data_type:   "integer".to_string(),
                     },
                 ],
             }],
@@ -128,7 +131,7 @@ fn test_parse_group_by_with_aggregates() {
         GroupBySelection::Dimension { path, alias } => {
             assert_eq!(path, "category");
             assert_eq!(alias, "category");
-        }
+        },
         _ => panic!("Expected Dimension selection"),
     }
 
@@ -146,7 +149,7 @@ fn test_parse_group_by_with_aggregates() {
             assert_eq!(json_key, "day");
             assert_eq!(*bucket, TemporalBucket::Day);
             assert_eq!(alias, "occurred_at_day");
-        }
+        },
         GroupBySelection::TemporalBucket {
             column,
             bucket,
@@ -156,7 +159,7 @@ fn test_parse_group_by_with_aggregates() {
             assert_eq!(column, "occurred_at");
             assert_eq!(*bucket, TemporalBucket::Day);
             assert_eq!(alias, "occurred_at_day");
-        }
+        },
         _ => panic!("Expected CalendarDimension or TemporalBucket selection"),
     }
 }
@@ -167,31 +170,30 @@ fn test_parse_group_by_with_aggregates() {
 
 #[test]
 fn test_sql_generation_postgres() {
-    use fraiseql_core::compiler::aggregation::AggregationPlanner;
-    use fraiseql_core::db::types::DatabaseType;
+    use fraiseql_core::{compiler::aggregation::AggregationPlanner, db::types::DatabaseType};
 
     let metadata = create_test_metadata();
     let request = AggregationRequest {
-        table_name: "tf_sales".to_string(),
+        table_name:   "tf_sales".to_string(),
         where_clause: None,
-        group_by: vec![GroupBySelection::Dimension {
-            path: "category".to_string(),
+        group_by:     vec![GroupBySelection::Dimension {
+            path:  "category".to_string(),
             alias: "category".to_string(),
         }],
-        aggregates: vec![
+        aggregates:   vec![
             AggregateSelection::Count {
                 alias: "count".to_string(),
             },
             AggregateSelection::MeasureAggregate {
-                measure: "revenue".to_string(),
+                measure:  "revenue".to_string(),
                 function: AggregateFunction::Sum,
-                alias: "revenue_sum".to_string(),
+                alias:    "revenue_sum".to_string(),
             },
         ],
-        having: vec![],
-        order_by: vec![],
-        limit: None,
-        offset: None,
+        having:       vec![],
+        order_by:     vec![],
+        limit:        None,
+        offset:       None,
     };
 
     // Generate execution plan
@@ -211,25 +213,24 @@ fn test_sql_generation_postgres() {
 
 #[test]
 fn test_temporal_bucket_sql_generation() {
-    use fraiseql_core::compiler::aggregation::AggregationPlanner;
-    use fraiseql_core::db::types::DatabaseType;
+    use fraiseql_core::{compiler::aggregation::AggregationPlanner, db::types::DatabaseType};
 
     let metadata = create_test_metadata();
     let request = AggregationRequest {
-        table_name: "tf_sales".to_string(),
+        table_name:   "tf_sales".to_string(),
         where_clause: None,
-        group_by: vec![GroupBySelection::TemporalBucket {
+        group_by:     vec![GroupBySelection::TemporalBucket {
             column: "occurred_at".to_string(),
             bucket: TemporalBucket::Day,
-            alias: "day".to_string(),
+            alias:  "day".to_string(),
         }],
-        aggregates: vec![AggregateSelection::Count {
+        aggregates:   vec![AggregateSelection::Count {
             alias: "count".to_string(),
         }],
-        having: vec![],
-        order_by: vec![],
-        limit: None,
-        offset: None,
+        having:       vec![],
+        order_by:     vec![],
+        limit:        None,
+        offset:       None,
     };
 
     let plan = AggregationPlanner::plan(request, metadata).unwrap();
@@ -261,24 +262,27 @@ fn test_temporal_bucket_sql_generation() {
 
 #[test]
 fn test_result_projection() {
-    use fraiseql_core::compiler::aggregation::{AggregateExpression, AggregationPlan, GroupByExpression};
     use std::collections::HashMap;
+
+    use fraiseql_core::compiler::aggregation::{
+        AggregateExpression, AggregationPlan, GroupByExpression,
+    };
 
     let metadata = create_test_metadata();
     let request = AggregationRequest {
-        table_name: "tf_sales".to_string(),
+        table_name:   "tf_sales".to_string(),
         where_clause: None,
-        group_by: vec![GroupBySelection::Dimension {
-            path: "category".to_string(),
+        group_by:     vec![GroupBySelection::Dimension {
+            path:  "category".to_string(),
             alias: "category".to_string(),
         }],
-        aggregates: vec![AggregateSelection::Count {
+        aggregates:   vec![AggregateSelection::Count {
             alias: "count".to_string(),
         }],
-        having: vec![],
-        order_by: vec![],
-        limit: None,
-        offset: None,
+        having:       vec![],
+        order_by:     vec![],
+        limit:        None,
+        offset:       None,
     };
 
     let plan = AggregationPlan {
@@ -286,8 +290,8 @@ fn test_result_projection() {
         request,
         group_by_expressions: vec![GroupByExpression::JsonbPath {
             jsonb_column: "data".to_string(),
-            path: "category".to_string(),
-            alias: "category".to_string(),
+            path:         "category".to_string(),
+            alias:        "category".to_string(),
         }],
         aggregate_expressions: vec![AggregateExpression::Count {
             alias: "count".to_string(),
@@ -334,10 +338,7 @@ fn test_wrap_in_graphql_envelope() {
 
     assert!(response.get("data").is_some());
     assert!(response["data"].get("sales_aggregate").is_some());
-    assert_eq!(
-        response["data"]["sales_aggregate"][0]["category"],
-        "Electronics"
-    );
+    assert_eq!(response["data"]["sales_aggregate"][0]["category"], "Electronics");
 }
 
 // ============================================================================
@@ -347,10 +348,9 @@ fn test_wrap_in_graphql_envelope() {
 #[cfg(feature = "test-postgres")]
 #[tokio::test]
 async fn test_end_to_end_aggregate_query() {
-    use fraiseql_core::db::postgres::PostgresAdapter;
-    use fraiseql_core::runtime::Executor;
-    use fraiseql_core::schema::CompiledSchema;
     use std::sync::Arc;
+
+    use fraiseql_core::{db::postgres::PostgresAdapter, runtime::Executor, schema::CompiledSchema};
 
     const TEST_DB_URL: &str =
         "postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql";
@@ -396,8 +396,5 @@ async fn test_end_to_end_aggregate_query() {
     assert!(response["data"].get("sales_aggregate").is_some());
     assert!(response["data"]["sales_aggregate"].is_array());
 
-    println!(
-        "Aggregate query result: {}",
-        serde_json::to_string_pretty(&response).unwrap()
-    );
+    println!("Aggregate query result: {}", serde_json::to_string_pretty(&response).unwrap());
 }

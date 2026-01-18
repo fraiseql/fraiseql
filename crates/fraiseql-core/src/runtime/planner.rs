@@ -1,8 +1,7 @@
 //! Query plan selection - chooses optimal execution strategy.
 
-use crate::error::Result;
-use crate::graphql::FieldSelection;
 use super::matcher::QueryMatch;
+use crate::{error::Result, graphql::FieldSelection};
 
 /// Execution plan for a query.
 #[derive(Debug, Clone)]
@@ -97,11 +96,7 @@ impl QueryPlanner {
     /// Generate SQL from query match.
     fn generate_sql(&self, query_match: &QueryMatch) -> String {
         // Get SQL source from query definition
-        let table = query_match
-            .query_def
-            .sql_source
-            .as_ref()
-            .map_or("unknown", String::as_str);
+        let table = query_match.query_def.sql_source.as_ref().map_or("unknown", String::as_str);
 
         // Build basic SELECT query
         let fields_sql = if query_match.fields.is_empty() {
@@ -116,11 +111,7 @@ impl QueryPlanner {
 
     /// Extract parameters from query match.
     fn extract_parameters(&self, query_match: &QueryMatch) -> Vec<(String, serde_json::Value)> {
-        query_match
-            .arguments
-            .iter()
-            .map(|(k, v)| (k.clone(), v.clone()))
-            .collect()
+        query_match.arguments.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
     }
 
     /// Estimate query cost (for optimization).
@@ -142,57 +133,60 @@ impl QueryPlanner {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::graphql::{FieldSelection, ParsedQuery};
-    use crate::schema::{QueryDefinition, AutoParams};
     use std::collections::HashMap;
+
+    use super::*;
+    use crate::{
+        graphql::{FieldSelection, ParsedQuery},
+        schema::{AutoParams, QueryDefinition},
+    };
 
     fn test_query_match() -> QueryMatch {
         QueryMatch {
-            query_def: QueryDefinition {
-                name: "users".to_string(),
-                return_type: "User".to_string(),
+            query_def:      QueryDefinition {
+                name:         "users".to_string(),
+                return_type:  "User".to_string(),
                 returns_list: true,
-                nullable: false,
-                arguments: Vec::new(),
-                sql_source: Some("v_user".to_string()),
-                description: None,
-                auto_params: AutoParams::default(),
-                deprecation: None,
+                nullable:     false,
+                arguments:    Vec::new(),
+                sql_source:   Some("v_user".to_string()),
+                description:  None,
+                auto_params:  AutoParams::default(),
+                deprecation:  None,
             },
-            fields: vec!["id".to_string(), "name".to_string()],
-            selections: vec![FieldSelection {
-                name: "users".to_string(),
-                alias: None,
-                arguments: vec![],
+            fields:         vec!["id".to_string(), "name".to_string()],
+            selections:     vec![FieldSelection {
+                name:          "users".to_string(),
+                alias:         None,
+                arguments:     vec![],
                 nested_fields: vec![
                     FieldSelection {
-                        name: "id".to_string(),
-                        alias: None,
-                        arguments: vec![],
+                        name:          "id".to_string(),
+                        alias:         None,
+                        arguments:     vec![],
                         nested_fields: vec![],
-                        directives: vec![],
+                        directives:    vec![],
                     },
                     FieldSelection {
-                        name: "name".to_string(),
-                        alias: None,
-                        arguments: vec![],
+                        name:          "name".to_string(),
+                        alias:         None,
+                        arguments:     vec![],
                         nested_fields: vec![],
-                        directives: vec![],
+                        directives:    vec![],
                     },
                 ],
-                directives: vec![],
+                directives:    vec![],
             }],
-            arguments: HashMap::new(),
+            arguments:      HashMap::new(),
             operation_name: Some("users".to_string()),
-            parsed_query: ParsedQuery {
+            parsed_query:   ParsedQuery {
                 operation_type: "query".to_string(),
                 operation_name: Some("users".to_string()),
-                root_field: "users".to_string(),
-                selections: vec![],
-                variables: vec![],
-                fragments: vec![],
-                source: "{ users { id name } }".to_string(),
+                root_field:     "users".to_string(),
+                selections:     vec![],
+                variables:      vec![],
+                fragments:      vec![],
+                source:         "{ users { id name } }".to_string(),
             },
         }
     }

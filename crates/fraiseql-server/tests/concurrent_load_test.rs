@@ -9,9 +9,14 @@
 
 mod test_helpers;
 
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
-use std::time::Instant;
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::Instant,
+};
+
 use test_helpers::*;
 
 /// Test 10 concurrent requests to health endpoint
@@ -33,10 +38,10 @@ async fn test_10_concurrent_health_requests() {
                         if resp.status().is_success() {
                             success.fetch_add(1, Ordering::Relaxed);
                         }
-                    }
+                    },
                     Err(_) => {
                         // Server not running
-                    }
+                    },
                 }
             }
         })
@@ -79,10 +84,10 @@ async fn test_50_concurrent_graphql_queries() {
                         } else {
                             errors.fetch_add(1, Ordering::Relaxed);
                         }
-                    }
+                    },
                     Err(_) => {
                         errors.fetch_add(1, Ordering::Relaxed);
-                    }
+                    },
                 }
             }
         })
@@ -120,19 +125,16 @@ async fn test_100_concurrent_mixed_endpoints() {
                     0 => {
                         // Health endpoint
                         client.get(format!("{}/health", base_url)).send().await
-                    }
+                    },
                     1 => {
                         // Metrics endpoint
                         client.get(format!("{}/metrics", base_url)).send().await
-                    }
+                    },
                     _ => {
                         // GraphQL endpoint
                         let request = create_graphql_request("{ __typename }", None, None);
-                        client.post(format!("{}/graphql", base_url))
-                            .json(&request)
-                            .send()
-                            .await
-                    }
+                        client.post(format!("{}/graphql", base_url)).json(&request).send().await
+                    },
                 };
 
                 if let Ok(resp) = result {
@@ -232,7 +234,8 @@ async fn test_sustained_load() {
                 // Keep making requests for test duration
                 while start.elapsed().as_secs() < 2 {
                     let request = create_graphql_request("{ __typename }", None, None);
-                    if client.post(format!("{}/graphql", base_url))
+                    if client
+                        .post(format!("{}/graphql", base_url))
                         .json(&request)
                         .send()
                         .await
@@ -252,7 +255,10 @@ async fn test_sustained_load() {
 
     if total_requests > 0 {
         let throughput = total_requests as f64 / duration_secs;
-        println!("Sustained load - Total: {}, Throughput: {:.1} req/s", total_requests, throughput);
+        println!(
+            "Sustained load - Total: {}, Throughput: {:.1} req/s",
+            total_requests, throughput
+        );
         assert!(total_requests > 0);
     }
 }
@@ -280,21 +286,17 @@ async fn test_error_handling_under_load() {
                     create_graphql_request("{ a { b { c { d { e { f { g } } } } } } }", None, None)
                 };
 
-                match client.post(format!("{}/graphql", base_url))
-                    .json(&request)
-                    .send()
-                    .await
-                {
+                match client.post(format!("{}/graphql", base_url)).json(&request).send().await {
                     Ok(resp) => {
                         if resp.status().is_success() {
                             success.fetch_add(1, Ordering::Relaxed);
                         } else {
                             errors.fetch_add(1, Ordering::Relaxed);
                         }
-                    }
+                    },
                     Err(_) => {
                         errors.fetch_add(1, Ordering::Relaxed);
-                    }
+                    },
                 }
             }
         })
@@ -350,12 +352,20 @@ async fn test_connection_pool_stability() {
 
     if total > 0 {
         let slow_percentage = (slow as f64 / total as f64) * 100.0;
-        println!("Request latency - Fast (<{}ms): {:.1}%, Slow: {:.1}%", slow_threshold_ms, 100.0 - slow_percentage, slow_percentage);
+        println!(
+            "Request latency - Fast (<{}ms): {:.1}%, Slow: {:.1}%",
+            slow_threshold_ms,
+            100.0 - slow_percentage,
+            slow_percentage
+        );
 
         // Most requests should be fast - only assert if this looks like a FraiseQL server
         // (other services on port 8000 may have different latency characteristics)
         if fast > 0 {
-            assert!(fast > slow, "Connection pool stability test expects most requests to be fast (<100ms)");
+            assert!(
+                fast > slow,
+                "Connection pool stability test expects most requests to be fast (<100ms)"
+            );
         }
     }
 }

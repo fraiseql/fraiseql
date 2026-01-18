@@ -115,7 +115,7 @@ impl ApqMetrics {
 impl Default for ApqMetrics {
     fn default() -> Self {
         Self {
-            hits: AtomicU64::new(0),
+            hits:   AtomicU64::new(0),
             misses: AtomicU64::new(0),
             stored: AtomicU64::new(0),
             errors: AtomicU64::new(0),

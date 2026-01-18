@@ -7,20 +7,25 @@
 //! - ResultProjector with `__typename` handling
 //! - Complete query execution with projections
 
-use fraiseql_core::schema::SqlProjectionHint;
-use fraiseql_core::db::projection_generator::{
-    PostgresProjectionGenerator, MySqlProjectionGenerator, SqliteProjectionGenerator,
+use fraiseql_core::{
+    db::{
+        projection_generator::{
+            MySqlProjectionGenerator, PostgresProjectionGenerator, SqliteProjectionGenerator,
+        },
+        types::JsonbValue,
+    },
+    runtime::ResultProjector,
+    schema::SqlProjectionHint,
 };
-use fraiseql_core::db::types::JsonbValue;
-use fraiseql_core::runtime::ResultProjector;
 use serde_json::json;
 
 /// Test that projection hints can be created and used
 #[test]
 fn test_sql_projection_hint_creation() {
     let hint = SqlProjectionHint {
-        database: "postgresql".to_string(),
-        projection_template: "jsonb_build_object('id', \"data\"->>'id', 'name', \"data\"->>'name')".to_string(),
+        database:                    "postgresql".to_string(),
+        projection_template:
+            "jsonb_build_object('id', \"data\"->>'id', 'name', \"data\"->>'name')".to_string(),
         estimated_reduction_percent: 65,
     };
 
@@ -33,11 +38,7 @@ fn test_sql_projection_hint_creation() {
 #[test]
 fn test_postgres_projection_complete_flow() {
     let generator = PostgresProjectionGenerator::new();
-    let fields = vec![
-        "id".to_string(),
-        "name".to_string(),
-        "email".to_string(),
-    ];
+    let fields = vec!["id".to_string(), "name".to_string(), "email".to_string()];
 
     let sql = generator.generate_projection_sql(&fields).unwrap();
 
@@ -58,10 +59,7 @@ fn test_postgres_projection_complete_flow() {
 #[test]
 fn test_mysql_projection_complete_flow() {
     let generator = MySqlProjectionGenerator::new();
-    let fields = vec![
-        "id".to_string(),
-        "email".to_string(),
-    ];
+    let fields = vec!["id".to_string(), "email".to_string()];
 
     let sql = generator.generate_projection_sql(&fields).unwrap();
 
@@ -77,10 +75,7 @@ fn test_mysql_projection_complete_flow() {
 #[test]
 fn test_sqlite_projection_complete_flow() {
     let generator = SqliteProjectionGenerator::new();
-    let fields = vec![
-        "id".to_string(),
-        "active".to_string(),
-    ];
+    let fields = vec!["id".to_string(), "active".to_string()];
 
     let sql = generator.generate_projection_sql(&fields).unwrap();
 
@@ -159,10 +154,7 @@ fn test_result_projector_projects_single_field() {
 /// Test that ResultProjector projects multiple fields correctly
 #[test]
 fn test_result_projector_projects_multiple_fields() {
-    let projector = ResultProjector::new(vec![
-        "id".to_string(),
-        "email".to_string(),
-    ]);
+    let projector = ResultProjector::new(vec!["id".to_string(), "email".to_string()]);
 
     let data = json!({
         "id": "123",
@@ -224,7 +216,11 @@ fn test_projection_empty_fields_passthrough() {
 fn test_identifier_handling() {
     // Test that valid identifiers work correctly in projection SQL
     let pg = PostgresProjectionGenerator::new();
-    let fields = vec!["id".to_string(), "user_id".to_string(), "field123".to_string()];
+    let fields = vec![
+        "id".to_string(),
+        "user_id".to_string(),
+        "field123".to_string(),
+    ];
 
     let sql = pg.generate_projection_sql(&fields).unwrap();
     assert!(sql.contains("'id'"));
@@ -286,7 +282,7 @@ fn test_result_projector_error_envelope() {
 
     let error = FraiseQLError::Validation {
         message: "Invalid field selection".to_string(),
-        path: Some("query.users".to_string()),
+        path:    Some("query.users".to_string()),
     };
 
     let wrapped = ResultProjector::wrap_error(&error);
@@ -333,12 +329,14 @@ fn test_projection_with_nested_structure() {
 fn test_complete_projection_pipeline() {
     // Step 1: Create projection hint
     let _hint = SqlProjectionHint {
-        database: "postgresql".to_string(),
-        projection_template: "jsonb_build_object('id', \"data\"->>'id', 'name', \"data\"->>'name')".to_string(),
+        database:                    "postgresql".to_string(),
+        projection_template:
+            "jsonb_build_object('id', \"data\"->>'id', 'name', \"data\"->>'name')".to_string(),
         estimated_reduction_percent: 87,
     };
 
-    // Step 2: Generate SQL using hint template (note: in real scenario, projection_template would be used)
+    // Step 2: Generate SQL using hint template (note: in real scenario, projection_template would
+    // be used)
     let fields = vec!["id".to_string(), "name".to_string()];
     let generator = PostgresProjectionGenerator::new();
     let sql = generator.generate_projection_sql(&fields).unwrap();
@@ -373,9 +371,7 @@ fn test_projection_with_many_fields() {
     let generator = PostgresProjectionGenerator::new();
 
     // Create 50 fields
-    let fields: Vec<String> = (0..50)
-        .map(|i| format!("field_{}", i))
-        .collect();
+    let fields: Vec<String> = (0..50).map(|i| format!("field_{}", i)).collect();
 
     let sql = generator.generate_projection_sql(&fields).unwrap();
 
@@ -391,15 +387,9 @@ fn test_projection_with_many_fields() {
 fn test_database_specific_syntax() {
     let fields = vec!["id".to_string(), "status".to_string()];
 
-    let pg_sql = PostgresProjectionGenerator::new()
-        .generate_projection_sql(&fields)
-        .unwrap();
-    let mysql_sql = MySqlProjectionGenerator::new()
-        .generate_projection_sql(&fields)
-        .unwrap();
-    let sqlite_sql = SqliteProjectionGenerator::new()
-        .generate_projection_sql(&fields)
-        .unwrap();
+    let pg_sql = PostgresProjectionGenerator::new().generate_projection_sql(&fields).unwrap();
+    let mysql_sql = MySqlProjectionGenerator::new().generate_projection_sql(&fields).unwrap();
+    let sqlite_sql = SqliteProjectionGenerator::new().generate_projection_sql(&fields).unwrap();
 
     // PostgreSQL uses ->> operator
     assert!(pg_sql.contains("->>'"));

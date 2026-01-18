@@ -310,7 +310,10 @@ async fn test_deserialization_error_includes_type_info() {
     }
 
     // We expect deserialization errors since age field doesn't exist
-    assert!(error_count > 0, "should have encountered deserialization errors");
+    assert!(
+        error_count > 0,
+        "should have encountered deserialization errors"
+    );
 }
 
 #[tokio::test]

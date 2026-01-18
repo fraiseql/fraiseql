@@ -20,8 +20,9 @@
 #![allow(clippy::struct_excessive_bools)] // IntermediateAutoParams uses bools for flags
 #![allow(clippy::derive_partial_eq_without_eq)] // Some structs shouldn't implement Eq
 
-use clap::{Parser, Subcommand};
 use std::process;
+
+use clap::{Parser, Subcommand};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod commands;

@@ -4,6 +4,7 @@
 //! so we implement a simple connection factory pattern instead of traditional pooling.
 
 use std::sync::Arc;
+
 use crate::error::{FraiseQLError, Result};
 
 /// Connection factory for fraiseql-wire clients.

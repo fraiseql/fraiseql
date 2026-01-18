@@ -30,8 +30,9 @@
 //! assert_eq!(masked, "u***");
 //! ```
 
-use crate::security::SecurityProfile;
 use std::fmt;
+
+use crate::security::SecurityProfile;
 
 /// Field sensitivity classification
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -170,42 +171,27 @@ mod tests {
 
     #[test]
     fn test_id_is_public() {
-        assert_eq!(
-            FieldMasker::detect_sensitivity("id"),
-            FieldSensitivity::Public
-        );
+        assert_eq!(FieldMasker::detect_sensitivity("id"), FieldSensitivity::Public);
     }
 
     #[test]
     fn test_name_is_public() {
-        assert_eq!(
-            FieldMasker::detect_sensitivity("name"),
-            FieldSensitivity::Public
-        );
+        assert_eq!(FieldMasker::detect_sensitivity("name"), FieldSensitivity::Public);
     }
 
     #[test]
     fn test_title_is_public() {
-        assert_eq!(
-            FieldMasker::detect_sensitivity("title"),
-            FieldSensitivity::Public
-        );
+        assert_eq!(FieldMasker::detect_sensitivity("title"), FieldSensitivity::Public);
     }
 
     #[test]
     fn test_description_is_public() {
-        assert_eq!(
-            FieldMasker::detect_sensitivity("description"),
-            FieldSensitivity::Public
-        );
+        assert_eq!(FieldMasker::detect_sensitivity("description"), FieldSensitivity::Public);
     }
 
     #[test]
     fn test_created_at_is_public() {
-        assert_eq!(
-            FieldMasker::detect_sensitivity("created_at"),
-            FieldSensitivity::Public
-        );
+        assert_eq!(FieldMasker::detect_sensitivity("created_at"), FieldSensitivity::Public);
     }
 
     // ========================================================================
@@ -214,74 +200,47 @@ mod tests {
 
     #[test]
     fn test_email_is_sensitive() {
-        assert_eq!(
-            FieldMasker::detect_sensitivity("email"),
-            FieldSensitivity::Sensitive
-        );
+        assert_eq!(FieldMasker::detect_sensitivity("email"), FieldSensitivity::Sensitive);
     }
 
     #[test]
     fn test_email_address_is_sensitive() {
-        assert_eq!(
-            FieldMasker::detect_sensitivity("email_address"),
-            FieldSensitivity::Sensitive
-        );
+        assert_eq!(FieldMasker::detect_sensitivity("email_address"), FieldSensitivity::Sensitive);
     }
 
     #[test]
     fn test_user_email_is_sensitive() {
-        assert_eq!(
-            FieldMasker::detect_sensitivity("user_email"),
-            FieldSensitivity::Sensitive
-        );
+        assert_eq!(FieldMasker::detect_sensitivity("user_email"), FieldSensitivity::Sensitive);
     }
 
     #[test]
     fn test_phone_is_sensitive() {
-        assert_eq!(
-            FieldMasker::detect_sensitivity("phone"),
-            FieldSensitivity::Sensitive
-        );
+        assert_eq!(FieldMasker::detect_sensitivity("phone"), FieldSensitivity::Sensitive);
     }
 
     #[test]
     fn test_phone_number_is_sensitive() {
-        assert_eq!(
-            FieldMasker::detect_sensitivity("phone_number"),
-            FieldSensitivity::Sensitive
-        );
+        assert_eq!(FieldMasker::detect_sensitivity("phone_number"), FieldSensitivity::Sensitive);
     }
 
     #[test]
     fn test_mobile_is_sensitive() {
-        assert_eq!(
-            FieldMasker::detect_sensitivity("mobile"),
-            FieldSensitivity::Sensitive
-        );
+        assert_eq!(FieldMasker::detect_sensitivity("mobile"), FieldSensitivity::Sensitive);
     }
 
     #[test]
     fn test_mobile_phone_is_sensitive() {
-        assert_eq!(
-            FieldMasker::detect_sensitivity("mobile_phone"),
-            FieldSensitivity::Sensitive
-        );
+        assert_eq!(FieldMasker::detect_sensitivity("mobile_phone"), FieldSensitivity::Sensitive);
     }
 
     #[test]
     fn test_ip_address_is_sensitive() {
-        assert_eq!(
-            FieldMasker::detect_sensitivity("ip_address"),
-            FieldSensitivity::Sensitive
-        );
+        assert_eq!(FieldMasker::detect_sensitivity("ip_address"), FieldSensitivity::Sensitive);
     }
 
     #[test]
     fn test_mac_address_is_sensitive() {
-        assert_eq!(
-            FieldMasker::detect_sensitivity("mac_address"),
-            FieldSensitivity::Sensitive
-        );
+        assert_eq!(FieldMasker::detect_sensitivity("mac_address"), FieldSensitivity::Sensitive);
     }
 
     // ========================================================================
@@ -290,10 +249,7 @@ mod tests {
 
     #[test]
     fn test_ssn_is_pii() {
-        assert_eq!(
-            FieldMasker::detect_sensitivity("ssn"),
-            FieldSensitivity::PII
-        );
+        assert_eq!(FieldMasker::detect_sensitivity("ssn"), FieldSensitivity::PII);
     }
 
     #[test]
@@ -306,66 +262,42 @@ mod tests {
 
     #[test]
     fn test_credit_card_is_pii() {
-        assert_eq!(
-            FieldMasker::detect_sensitivity("credit_card"),
-            FieldSensitivity::PII
-        );
+        assert_eq!(FieldMasker::detect_sensitivity("credit_card"), FieldSensitivity::PII);
     }
 
     #[test]
     fn test_card_number_is_pii() {
-        assert_eq!(
-            FieldMasker::detect_sensitivity("card_number"),
-            FieldSensitivity::PII
-        );
+        assert_eq!(FieldMasker::detect_sensitivity("card_number"), FieldSensitivity::PII);
     }
 
     #[test]
     fn test_cvv_is_pii() {
-        assert_eq!(
-            FieldMasker::detect_sensitivity("cvv"),
-            FieldSensitivity::PII
-        );
+        assert_eq!(FieldMasker::detect_sensitivity("cvv"), FieldSensitivity::PII);
     }
 
     #[test]
     fn test_cvc_is_pii() {
-        assert_eq!(
-            FieldMasker::detect_sensitivity("cvc"),
-            FieldSensitivity::PII
-        );
+        assert_eq!(FieldMasker::detect_sensitivity("cvc"), FieldSensitivity::PII);
     }
 
     #[test]
     fn test_bank_account_is_pii() {
-        assert_eq!(
-            FieldMasker::detect_sensitivity("bank_account"),
-            FieldSensitivity::PII
-        );
+        assert_eq!(FieldMasker::detect_sensitivity("bank_account"), FieldSensitivity::PII);
     }
 
     #[test]
     fn test_pin_is_pii() {
-        assert_eq!(
-            FieldMasker::detect_sensitivity("pin"),
-            FieldSensitivity::PII
-        );
+        assert_eq!(FieldMasker::detect_sensitivity("pin"), FieldSensitivity::PII);
     }
 
     #[test]
     fn test_driver_license_is_pii() {
-        assert_eq!(
-            FieldMasker::detect_sensitivity("driver_license"),
-            FieldSensitivity::PII
-        );
+        assert_eq!(FieldMasker::detect_sensitivity("driver_license"), FieldSensitivity::PII);
     }
 
     #[test]
     fn test_passport_is_pii() {
-        assert_eq!(
-            FieldMasker::detect_sensitivity("passport"),
-            FieldSensitivity::PII
-        );
+        assert_eq!(FieldMasker::detect_sensitivity("passport"), FieldSensitivity::PII);
     }
 
     // ========================================================================
@@ -374,82 +306,52 @@ mod tests {
 
     #[test]
     fn test_password_is_secret() {
-        assert_eq!(
-            FieldMasker::detect_sensitivity("password"),
-            FieldSensitivity::Secret
-        );
+        assert_eq!(FieldMasker::detect_sensitivity("password"), FieldSensitivity::Secret);
     }
 
     #[test]
     fn test_password_hash_is_secret() {
-        assert_eq!(
-            FieldMasker::detect_sensitivity("password_hash"),
-            FieldSensitivity::Secret
-        );
+        assert_eq!(FieldMasker::detect_sensitivity("password_hash"), FieldSensitivity::Secret);
     }
 
     #[test]
     fn test_secret_is_secret() {
-        assert_eq!(
-            FieldMasker::detect_sensitivity("secret"),
-            FieldSensitivity::Secret
-        );
+        assert_eq!(FieldMasker::detect_sensitivity("secret"), FieldSensitivity::Secret);
     }
 
     #[test]
     fn test_secret_key_is_secret() {
-        assert_eq!(
-            FieldMasker::detect_sensitivity("secret_key"),
-            FieldSensitivity::Secret
-        );
+        assert_eq!(FieldMasker::detect_sensitivity("secret_key"), FieldSensitivity::Secret);
     }
 
     #[test]
     fn test_token_is_secret() {
-        assert_eq!(
-            FieldMasker::detect_sensitivity("token"),
-            FieldSensitivity::Secret
-        );
+        assert_eq!(FieldMasker::detect_sensitivity("token"), FieldSensitivity::Secret);
     }
 
     #[test]
     fn test_refresh_token_is_secret() {
-        assert_eq!(
-            FieldMasker::detect_sensitivity("refresh_token"),
-            FieldSensitivity::Secret
-        );
+        assert_eq!(FieldMasker::detect_sensitivity("refresh_token"), FieldSensitivity::Secret);
     }
 
     #[test]
     fn test_api_key_is_secret() {
-        assert_eq!(
-            FieldMasker::detect_sensitivity("api_key"),
-            FieldSensitivity::Secret
-        );
+        assert_eq!(FieldMasker::detect_sensitivity("api_key"), FieldSensitivity::Secret);
     }
 
     #[test]
     fn test_auth_token_is_secret() {
-        assert_eq!(
-            FieldMasker::detect_sensitivity("auth_token"),
-            FieldSensitivity::Secret
-        );
+        assert_eq!(FieldMasker::detect_sensitivity("auth_token"), FieldSensitivity::Secret);
     }
 
     #[test]
     fn test_hash_is_secret() {
-        assert_eq!(
-            FieldMasker::detect_sensitivity("hash"),
-            FieldSensitivity::Secret
-        );
+        assert_eq!(FieldMasker::detect_sensitivity("hash"), FieldSensitivity::Secret);
     }
 
     #[test]
     fn test_signature_is_secret() {
-        assert_eq!(
-            FieldMasker::detect_sensitivity("signature"),
-            FieldSensitivity::Secret
-        );
+        assert_eq!(FieldMasker::detect_sensitivity("signature"), FieldSensitivity::Secret);
     }
 
     // ========================================================================
@@ -458,26 +360,17 @@ mod tests {
 
     #[test]
     fn test_case_insensitive_email() {
-        assert_eq!(
-            FieldMasker::detect_sensitivity("EMAIL"),
-            FieldSensitivity::Sensitive
-        );
+        assert_eq!(FieldMasker::detect_sensitivity("EMAIL"), FieldSensitivity::Sensitive);
     }
 
     #[test]
     fn test_case_insensitive_password() {
-        assert_eq!(
-            FieldMasker::detect_sensitivity("PASSWORD"),
-            FieldSensitivity::Secret
-        );
+        assert_eq!(FieldMasker::detect_sensitivity("PASSWORD"), FieldSensitivity::Secret);
     }
 
     #[test]
     fn test_mixed_case_ssn() {
-        assert_eq!(
-            FieldMasker::detect_sensitivity("SSN"),
-            FieldSensitivity::PII
-        );
+        assert_eq!(FieldMasker::detect_sensitivity("SSN"), FieldSensitivity::PII);
     }
 
     // ========================================================================
@@ -581,37 +474,22 @@ mod tests {
     #[test]
     fn test_standard_profile_no_masking() {
         let standard = SecurityProfile::standard();
-        assert!(!FieldMasker::should_mask(
-            FieldSensitivity::Public,
-            &standard
-        ));
-        assert!(!FieldMasker::should_mask(
-            FieldSensitivity::Sensitive,
-            &standard
-        ));
+        assert!(!FieldMasker::should_mask(FieldSensitivity::Public, &standard));
+        assert!(!FieldMasker::should_mask(FieldSensitivity::Sensitive, &standard));
         assert!(!FieldMasker::should_mask(FieldSensitivity::PII, &standard));
-        assert!(!FieldMasker::should_mask(
-            FieldSensitivity::Secret,
-            &standard
-        ));
+        assert!(!FieldMasker::should_mask(FieldSensitivity::Secret, &standard));
     }
 
     #[test]
     fn test_regulated_profile_public_no_masking() {
         let regulated = SecurityProfile::regulated();
-        assert!(!FieldMasker::should_mask(
-            FieldSensitivity::Public,
-            &regulated
-        ));
+        assert!(!FieldMasker::should_mask(FieldSensitivity::Public, &regulated));
     }
 
     #[test]
     fn test_regulated_profile_sensitive_masked() {
         let regulated = SecurityProfile::regulated();
-        assert!(FieldMasker::should_mask(
-            FieldSensitivity::Sensitive,
-            &regulated
-        ));
+        assert!(FieldMasker::should_mask(FieldSensitivity::Sensitive, &regulated));
     }
 
     #[test]
@@ -623,10 +501,7 @@ mod tests {
     #[test]
     fn test_regulated_profile_secret_masked() {
         let regulated = SecurityProfile::regulated();
-        assert!(FieldMasker::should_mask(
-            FieldSensitivity::Secret,
-            &regulated
-        ));
+        assert!(FieldMasker::should_mask(FieldSensitivity::Secret, &regulated));
     }
 
     // ========================================================================

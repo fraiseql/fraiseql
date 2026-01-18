@@ -3,15 +3,20 @@
 //! This module provides thread-safe in-memory caching for GraphQL query results
 //! with automatic least-recently-used (LRU) eviction and time-to-live (TTL) expiry.
 
+use std::{
+    num::NonZeroUsize,
+    sync::{Arc, Mutex},
+    time::{SystemTime, UNIX_EPOCH},
+};
+
 use lru::LruCache;
 use serde::{Deserialize, Serialize};
-use std::num::NonZeroUsize;
-use std::sync::{Arc, Mutex};
-use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::db::types::JsonbValue;
-use crate::error::{FraiseQLError, Result};
 use super::config::CacheConfig;
+use crate::{
+    db::types::JsonbValue,
+    error::{FraiseQLError, Result},
+};
 
 /// Cached query result with metadata.
 ///
@@ -52,10 +57,10 @@ pub struct CachedResult {
 ///
 /// # Memory Safety
 ///
-/// - **Hard LRU limit**: Configured via `max_entries`, automatically evicts
-///   least-recently-used entries when limit is reached
-/// - **TTL expiry**: Entries older than `ttl_seconds` are considered expired
-///   and removed on next access
+/// - **Hard LRU limit**: Configured via `max_entries`, automatically evicts least-recently-used
+///   entries when limit is reached
+/// - **TTL expiry**: Entries older than `ttl_seconds` are considered expired and removed on next
+///   access
 /// - **Memory tracking**: Metrics include estimated memory usage
 ///
 /// # Example
@@ -136,19 +141,18 @@ impl QueryResultCache {
     /// ```
     #[must_use]
     pub fn new(config: CacheConfig) -> Self {
-        let max = NonZeroUsize::new(config.max_entries)
-            .expect("max_entries must be > 0");
+        let max = NonZeroUsize::new(config.max_entries).expect("max_entries must be > 0");
 
         Self {
             cache: Arc::new(Mutex::new(LruCache::new(max))),
             config,
             metrics: Arc::new(Mutex::new(CacheMetrics {
-                hits: 0,
-                misses: 0,
-                total_cached: 0,
+                hits:          0,
+                misses:        0,
+                total_cached:  0,
                 invalidations: 0,
-                size: 0,
-                memory_bytes: 0,
+                size:          0,
+                memory_bytes:  0,
             })),
         }
     }
@@ -185,11 +189,10 @@ impl QueryResultCache {
             return Ok(None);
         }
 
-        let mut cache = self.cache.lock()
-            .map_err(|e| FraiseQLError::Internal {
-                message: format!("Cache lock poisoned: {e}"),
-                source: None,
-            })?;
+        let mut cache = self.cache.lock().map_err(|e| FraiseQLError::Internal {
+            message: format!("Cache lock poisoned: {e}"),
+            source:  None,
+        })?;
 
         if let Some(cached) = cache.get_mut(cache_key) {
             // Check TTL
@@ -265,20 +268,18 @@ impl QueryResultCache {
         // Estimate memory usage (rough approximation)
         let memory_size = std::mem::size_of::<CachedResult>() + cache_key.len() * 2;
 
-        let mut cache = self.cache.lock()
-            .map_err(|e| FraiseQLError::Internal {
-                message: format!("Cache lock poisoned: {e}"),
-                source: None,
-            })?;
+        let mut cache = self.cache.lock().map_err(|e| FraiseQLError::Internal {
+            message: format!("Cache lock poisoned: {e}"),
+            source:  None,
+        })?;
 
         cache.put(cache_key, cached);
 
         // Update metrics
-        let mut metrics = self.metrics.lock()
-            .map_err(|e| FraiseQLError::Internal {
-                message: format!("Metrics lock poisoned: {e}"),
-                source: None,
-            })?;
+        let mut metrics = self.metrics.lock().map_err(|e| FraiseQLError::Internal {
+            message: format!("Metrics lock poisoned: {e}"),
+            source:  None,
+        })?;
         metrics.total_cached += 1;
         metrics.size = cache.len();
         metrics.memory_bytes += memory_size;
@@ -327,11 +328,10 @@ impl QueryResultCache {
     pub fn invalidate_views(&self, views: &[String]) -> Result<u64> {
         let mut invalidated_count = 0u64;
 
-        let mut cache = self.cache.lock()
-            .map_err(|e| FraiseQLError::Internal {
-                message: format!("Cache lock poisoned: {e}"),
-                source: None,
-            })?;
+        let mut cache = self.cache.lock().map_err(|e| FraiseQLError::Internal {
+            message: format!("Cache lock poisoned: {e}"),
+            source:  None,
+        })?;
 
         // Collect keys to remove (can't modify during iteration)
         let keys_to_remove: Vec<String> = cache
@@ -350,11 +350,10 @@ impl QueryResultCache {
         }
 
         // Update metrics
-        let mut metrics = self.metrics.lock()
-            .map_err(|e| FraiseQLError::Internal {
-                message: format!("Metrics lock poisoned: {e}"),
-                source: None,
-            })?;
+        let mut metrics = self.metrics.lock().map_err(|e| FraiseQLError::Internal {
+            message: format!("Metrics lock poisoned: {e}"),
+            source:  None,
+        })?;
         metrics.invalidations += invalidated_count;
         metrics.size = cache.len();
 
@@ -382,10 +381,11 @@ impl QueryResultCache {
     /// # Ok::<(), fraiseql_core::error::FraiseQLError>(())
     /// ```
     pub fn metrics(&self) -> Result<CacheMetrics> {
-        self.metrics.lock()
+        self.metrics
+            .lock()
             .map_err(|e| FraiseQLError::Internal {
                 message: format!("Metrics lock poisoned: {e}"),
-                source: None,
+                source:  None,
             })
             .map(|m| m.clone())
     }
@@ -408,18 +408,18 @@ impl QueryResultCache {
     /// # Ok::<(), fraiseql_core::error::FraiseQLError>(())
     /// ```
     pub fn clear(&self) -> Result<()> {
-        self.cache.lock()
+        self.cache
+            .lock()
             .map_err(|e| FraiseQLError::Internal {
                 message: format!("Cache lock poisoned: {e}"),
-                source: None,
+                source:  None,
             })?
             .clear();
 
-        let mut metrics = self.metrics.lock()
-            .map_err(|e| FraiseQLError::Internal {
-                message: format!("Metrics lock poisoned: {e}"),
-                source: None,
-            })?;
+        let mut metrics = self.metrics.lock().map_err(|e| FraiseQLError::Internal {
+            message: format!("Metrics lock poisoned: {e}"),
+            source:  None,
+        })?;
         metrics.size = 0;
         metrics.memory_bytes = 0;
 
@@ -429,21 +429,19 @@ impl QueryResultCache {
     // Private helpers
 
     fn record_hit(&self) -> Result<()> {
-        let mut metrics = self.metrics.lock()
-            .map_err(|e| FraiseQLError::Internal {
-                message: format!("Metrics lock poisoned: {e}"),
-                source: None,
-            })?;
+        let mut metrics = self.metrics.lock().map_err(|e| FraiseQLError::Internal {
+            message: format!("Metrics lock poisoned: {e}"),
+            source:  None,
+        })?;
         metrics.hits += 1;
         Ok(())
     }
 
     fn record_miss(&self) -> Result<()> {
-        let mut metrics = self.metrics.lock()
-            .map_err(|e| FraiseQLError::Internal {
-                message: format!("Metrics lock poisoned: {e}"),
-                source: None,
-            })?;
+        let mut metrics = self.metrics.lock().map_err(|e| FraiseQLError::Internal {
+            message: format!("Metrics lock poisoned: {e}"),
+            source:  None,
+        })?;
         metrics.misses += 1;
         Ok(())
     }
@@ -513,16 +511,14 @@ impl CacheMetrics {
 
 /// Get current Unix timestamp in seconds.
 fn current_timestamp() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs()
+    SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs()
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serde_json::json;
+
+    use super::*;
 
     // Helper to create test result
     fn test_result() -> Vec<JsonbValue> {
@@ -551,7 +547,9 @@ mod tests {
         let result = test_result();
 
         // Put
-        cache.put("key1".to_string(), result.clone(), vec!["v_user".to_string()]).unwrap();
+        cache
+            .put("key1".to_string(), result.clone(), vec!["v_user".to_string()])
+            .unwrap();
 
         // Get
         let cached = cache.get("key1").unwrap();
@@ -568,7 +566,9 @@ mod tests {
     fn test_cache_hit_updates_hit_count() {
         let cache = QueryResultCache::new(CacheConfig::default());
 
-        cache.put("key1".to_string(), test_result(), vec!["v_user".to_string()]).unwrap();
+        cache
+            .put("key1".to_string(), test_result(), vec!["v_user".to_string()])
+            .unwrap();
 
         // First hit
         cache.get("key1").unwrap();
@@ -586,13 +586,15 @@ mod tests {
     #[test]
     fn test_ttl_expiry() {
         let config = CacheConfig {
-            ttl_seconds: 1,  // 1 second TTL
+            ttl_seconds: 1, // 1 second TTL
             ..Default::default()
         };
 
         let cache = QueryResultCache::new(config);
 
-        cache.put("key1".to_string(), test_result(), vec!["v_user".to_string()]).unwrap();
+        cache
+            .put("key1".to_string(), test_result(), vec!["v_user".to_string()])
+            .unwrap();
 
         // Wait for expiry
         std::thread::sleep(std::time::Duration::from_secs(2));
@@ -602,19 +604,21 @@ mod tests {
         assert!(result.is_none(), "Entry should be expired");
 
         let metrics = cache.metrics().unwrap();
-        assert_eq!(metrics.misses, 1);  // Expired counts as miss
+        assert_eq!(metrics.misses, 1); // Expired counts as miss
     }
 
     #[test]
     fn test_ttl_not_expired() {
         let config = CacheConfig {
-            ttl_seconds: 3600,  // 1 hour TTL
+            ttl_seconds: 3600, // 1 hour TTL
             ..Default::default()
         };
 
         let cache = QueryResultCache::new(config);
 
-        cache.put("key1".to_string(), test_result(), vec!["v_user".to_string()]).unwrap();
+        cache
+            .put("key1".to_string(), test_result(), vec!["v_user".to_string()])
+            .unwrap();
 
         // Should still be valid
         let result = cache.get("key1").unwrap();
@@ -628,16 +632,22 @@ mod tests {
     #[test]
     fn test_lru_eviction() {
         let config = CacheConfig {
-            max_entries: 2,  // Only 2 entries
+            max_entries: 2, // Only 2 entries
             ..Default::default()
         };
 
         let cache = QueryResultCache::new(config);
 
         // Add 3 entries (max is 2)
-        cache.put("key1".to_string(), test_result(), vec!["v_user".to_string()]).unwrap();
-        cache.put("key2".to_string(), test_result(), vec!["v_user".to_string()]).unwrap();
-        cache.put("key3".to_string(), test_result(), vec!["v_user".to_string()]).unwrap();
+        cache
+            .put("key1".to_string(), test_result(), vec!["v_user".to_string()])
+            .unwrap();
+        cache
+            .put("key2".to_string(), test_result(), vec!["v_user".to_string()])
+            .unwrap();
+        cache
+            .put("key3".to_string(), test_result(), vec!["v_user".to_string()])
+            .unwrap();
 
         // key1 should be evicted (LRU)
         assert!(cache.get("key1").unwrap().is_none(), "Oldest entry should be evicted");
@@ -657,14 +667,20 @@ mod tests {
 
         let cache = QueryResultCache::new(config);
 
-        cache.put("key1".to_string(), test_result(), vec!["v_user".to_string()]).unwrap();
-        cache.put("key2".to_string(), test_result(), vec!["v_user".to_string()]).unwrap();
+        cache
+            .put("key1".to_string(), test_result(), vec!["v_user".to_string()])
+            .unwrap();
+        cache
+            .put("key2".to_string(), test_result(), vec!["v_user".to_string()])
+            .unwrap();
 
         // Access key1 (makes it recently used)
         cache.get("key1").unwrap();
 
         // Add key3 (should evict key2, not key1)
-        cache.put("key3".to_string(), test_result(), vec!["v_user".to_string()]).unwrap();
+        cache
+            .put("key3".to_string(), test_result(), vec!["v_user".to_string()])
+            .unwrap();
 
         assert!(cache.get("key1").unwrap().is_some(), "key1 should remain (recently used)");
         assert!(cache.get("key2").unwrap().is_none(), "key2 should be evicted (LRU)");
@@ -681,7 +697,9 @@ mod tests {
         let cache = QueryResultCache::new(config);
 
         // Put should be no-op
-        cache.put("key1".to_string(), test_result(), vec!["v_user".to_string()]).unwrap();
+        cache
+            .put("key1".to_string(), test_result(), vec!["v_user".to_string()])
+            .unwrap();
 
         // Get should return None
         assert!(cache.get("key1").unwrap().is_none(), "Cache disabled should always miss");
@@ -698,8 +716,12 @@ mod tests {
     fn test_invalidate_single_view() {
         let cache = QueryResultCache::new(CacheConfig::default());
 
-        cache.put("key1".to_string(), test_result(), vec!["v_user".to_string()]).unwrap();
-        cache.put("key2".to_string(), test_result(), vec!["v_post".to_string()]).unwrap();
+        cache
+            .put("key1".to_string(), test_result(), vec!["v_user".to_string()])
+            .unwrap();
+        cache
+            .put("key2".to_string(), test_result(), vec!["v_post".to_string()])
+            .unwrap();
 
         // Invalidate v_user
         let invalidated = cache.invalidate_views(&["v_user".to_string()]).unwrap();
@@ -714,15 +736,19 @@ mod tests {
     fn test_invalidate_multiple_views() {
         let cache = QueryResultCache::new(CacheConfig::default());
 
-        cache.put("key1".to_string(), test_result(), vec!["v_user".to_string()]).unwrap();
-        cache.put("key2".to_string(), test_result(), vec!["v_post".to_string()]).unwrap();
-        cache.put("key3".to_string(), test_result(), vec!["v_product".to_string()]).unwrap();
+        cache
+            .put("key1".to_string(), test_result(), vec!["v_user".to_string()])
+            .unwrap();
+        cache
+            .put("key2".to_string(), test_result(), vec!["v_post".to_string()])
+            .unwrap();
+        cache
+            .put("key3".to_string(), test_result(), vec!["v_product".to_string()])
+            .unwrap();
 
         // Invalidate v_user and v_post
-        let invalidated = cache.invalidate_views(&[
-            "v_user".to_string(),
-            "v_post".to_string(),
-        ]).unwrap();
+        let invalidated =
+            cache.invalidate_views(&["v_user".to_string(), "v_post".to_string()]).unwrap();
         assert_eq!(invalidated, 2);
 
         assert!(cache.get("key1").unwrap().is_none());
@@ -735,11 +761,13 @@ mod tests {
         let cache = QueryResultCache::new(CacheConfig::default());
 
         // Entry accesses both v_user and v_post
-        cache.put(
-            "key1".to_string(),
-            test_result(),
-            vec!["v_user".to_string(), "v_post".to_string()]
-        ).unwrap();
+        cache
+            .put(
+                "key1".to_string(),
+                test_result(),
+                vec!["v_user".to_string(), "v_post".to_string()],
+            )
+            .unwrap();
 
         // Invalidating either view should remove the entry
         let invalidated = cache.invalidate_views(&["v_user".to_string()]).unwrap();
@@ -752,7 +780,9 @@ mod tests {
     fn test_invalidate_nonexistent_view() {
         let cache = QueryResultCache::new(CacheConfig::default());
 
-        cache.put("key1".to_string(), test_result(), vec!["v_user".to_string()]).unwrap();
+        cache
+            .put("key1".to_string(), test_result(), vec!["v_user".to_string()])
+            .unwrap();
 
         // Invalidate view that doesn't exist
         let invalidated = cache.invalidate_views(&["v_nonexistent".to_string()]).unwrap();
@@ -770,8 +800,12 @@ mod tests {
     fn test_clear() {
         let cache = QueryResultCache::new(CacheConfig::default());
 
-        cache.put("key1".to_string(), test_result(), vec!["v_user".to_string()]).unwrap();
-        cache.put("key2".to_string(), test_result(), vec!["v_post".to_string()]).unwrap();
+        cache
+            .put("key1".to_string(), test_result(), vec!["v_user".to_string()])
+            .unwrap();
+        cache
+            .put("key2".to_string(), test_result(), vec!["v_post".to_string()])
+            .unwrap();
 
         cache.clear().unwrap();
 
@@ -794,7 +828,9 @@ mod tests {
         cache.get("NotThere").unwrap();
 
         // Put
-        cache.put("key1".to_string(), test_result(), vec!["v_user".to_string()]).unwrap();
+        cache
+            .put("key1".to_string(), test_result(), vec!["v_user".to_string()])
+            .unwrap();
 
         // Hit
         cache.get("key1").unwrap();
@@ -809,12 +845,12 @@ mod tests {
     #[test]
     fn test_metrics_hit_rate() {
         let metrics = CacheMetrics {
-            hits: 80,
-            misses: 20,
-            total_cached: 100,
+            hits:          80,
+            misses:        20,
+            total_cached:  100,
             invalidations: 5,
-            size: 95,
-            memory_bytes: 1_000_000,
+            size:          95,
+            memory_bytes:  1_000_000,
         };
 
         assert!((metrics.hit_rate() - 0.8).abs() < f64::EPSILON);
@@ -824,12 +860,12 @@ mod tests {
     #[test]
     fn test_metrics_hit_rate_zero_requests() {
         let metrics = CacheMetrics {
-            hits: 0,
-            misses: 0,
-            total_cached: 0,
+            hits:          0,
+            misses:        0,
+            total_cached:  0,
             invalidations: 0,
-            size: 0,
-            memory_bytes: 0,
+            size:          0,
+            memory_bytes:  0,
         };
 
         assert!((metrics.hit_rate() - 0.0).abs() < f64::EPSILON);
@@ -839,24 +875,24 @@ mod tests {
     #[test]
     fn test_metrics_is_healthy() {
         let good = CacheMetrics {
-            hits: 70,
-            misses: 30,
-            total_cached: 100,
+            hits:          70,
+            misses:        30,
+            total_cached:  100,
             invalidations: 5,
-            size: 95,
-            memory_bytes: 1_000_000,
+            size:          95,
+            memory_bytes:  1_000_000,
         };
-        assert!(good.is_healthy());  // 70% > 60%
+        assert!(good.is_healthy()); // 70% > 60%
 
         let bad = CacheMetrics {
-            hits: 50,
-            misses: 50,
-            total_cached: 100,
+            hits:          50,
+            misses:        50,
+            total_cached:  100,
             invalidations: 5,
-            size: 95,
-            memory_bytes: 1_000_000,
+            size:          95,
+            memory_bytes:  1_000_000,
         };
-        assert!(!bad.is_healthy());  // 50% < 60%
+        assert!(!bad.is_healthy()); // 50% < 60%
     }
 
     // ========================================================================
@@ -865,8 +901,7 @@ mod tests {
 
     #[test]
     fn test_concurrent_access() {
-        use std::sync::Arc;
-        use std::thread;
+        use std::{sync::Arc, thread};
 
         let cache = Arc::new(QueryResultCache::new(CacheConfig::default()));
 
@@ -876,7 +911,9 @@ mod tests {
                 let cache_clone = cache.clone();
                 thread::spawn(move || {
                     let key = format!("key{}", i);
-                    cache_clone.put(key.clone(), test_result(), vec!["v_user".to_string()]).unwrap();
+                    cache_clone
+                        .put(key.clone(), test_result(), vec!["v_user".to_string()])
+                        .unwrap();
                     cache_clone.get(&key).unwrap();
                 })
             })

@@ -2,11 +2,10 @@
 //!
 //! Watches schema.json for changes and auto-recompiles
 
+use std::{path::Path, sync::mpsc::channel, time::Duration};
+
 use anyhow::{Context, Result};
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
-use std::path::Path;
-use std::sync::mpsc::channel;
-use std::time::Duration;
 use tracing::{error, info};
 
 /// Run the serve command (development server with hot-reload)

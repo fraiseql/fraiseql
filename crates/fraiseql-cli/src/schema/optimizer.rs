@@ -46,8 +46,8 @@ impl SchemaOptimizer {
         // Check if query would benefit from indexes
         if query.returns_list && !query.arguments.is_empty() {
             report.index_hints.push(IndexHint {
-                query_name: query.name.clone(),
-                reason: "List query with arguments benefits from index".to_string(),
+                query_name:        query.name.clone(),
+                reason:            "List query with arguments benefits from index".to_string(),
                 suggested_columns: query.arguments.iter().map(|arg| arg.name.clone()).collect(),
             });
         }
@@ -91,7 +91,8 @@ impl SchemaOptimizer {
         }
     }
 
-    /// Detect and apply SQL projection hints to types that would benefit from SQL-level field projection.
+    /// Detect and apply SQL projection hints to types that would benefit from SQL-level field
+    /// projection.
     ///
     /// SQL projection optimization works by filtering JSONB fields at the database level,
     /// reducing network payload and JSON deserialization overhead.
@@ -114,8 +115,8 @@ impl SchemaOptimizer {
 
                 type_def.sql_projection_hint = Some(hint);
                 report.projection_hints.push(ProjectionHint {
-                    type_name: type_def.name.clone(),
-                    field_count: type_def.fields.len(),
+                    type_name:                   type_def.name.clone(),
+                    field_count:                 type_def.fields.len(),
                     estimated_reduction_percent: type_def
                         .sql_projection_hint
                         .as_ref()
@@ -169,8 +170,8 @@ impl SchemaOptimizer {
         let estimated_reduction = Self::estimate_reduction_percent(type_def.fields.len());
 
         SqlProjectionHint {
-            database: "postgresql".to_string(),
-            projection_template: Self::generate_postgresql_projection_template(type_def),
+            database:                    "postgresql".to_string(),
+            projection_template:         Self::generate_postgresql_projection_template(type_def),
             estimated_reduction_percent: estimated_reduction,
         }
     }
@@ -233,9 +234,9 @@ impl SchemaOptimizer {
 #[derive(Debug, Default)]
 pub struct OptimizationReport {
     /// Index suggestions for query performance
-    pub index_hints: Vec<IndexHint>,
+    pub index_hints:        Vec<IndexHint>,
     /// SQL projection hints for types that would benefit from JSONB field filtering
-    pub projection_hints: Vec<ProjectionHint>,
+    pub projection_hints:   Vec<ProjectionHint>,
     /// General optimization notes
     pub optimization_notes: Vec<String>,
 }
@@ -294,9 +295,9 @@ impl OptimizationReport {
 #[derive(Debug, Clone)]
 pub struct IndexHint {
     /// Query name that would benefit from index
-    pub query_name: String,
+    pub query_name:        String,
     /// Reason for the suggestion
-    pub reason: String,
+    pub reason:            String,
     /// Suggested columns to index
     pub suggested_columns: Vec<String>,
 }
@@ -305,34 +306,36 @@ pub struct IndexHint {
 #[derive(Debug, Clone)]
 pub struct ProjectionHint {
     /// Type name that would benefit from SQL projection
-    pub type_name: String,
+    pub type_name:                   String,
     /// Number of fields in the type
-    pub field_count: usize,
+    pub field_count:                 usize,
     /// Estimated payload reduction percentage (0-100)
     pub estimated_reduction_percent: u32,
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::collections::HashMap;
+
     use fraiseql_core::schema::{
         ArgumentDefinition, AutoParams, FieldDefinition, FieldType, TypeDefinition,
     };
-    use std::collections::HashMap;
+
+    use super::*;
 
     #[test]
     fn test_optimize_empty_schema() {
         let mut schema = CompiledSchema {
-            types: vec![],
-            enums: vec![],
-            input_types: vec![],
-            interfaces: vec![],
-            unions: vec![],
-            queries: vec![],
-            mutations: vec![],
+            types:         vec![],
+            enums:         vec![],
+            input_types:   vec![],
+            interfaces:    vec![],
+            unions:        vec![],
+            queries:       vec![],
+            mutations:     vec![],
             subscriptions: vec![],
-            directives: vec![],
-            fact_tables: HashMap::default(),
+            directives:    vec![],
+            fact_tables:   HashMap::default(),
         };
 
         let report = SchemaOptimizer::optimize(&mut schema).unwrap();
@@ -342,33 +345,33 @@ mod tests {
     #[test]
     fn test_index_hint_for_list_query() {
         let mut schema = CompiledSchema {
-            types: vec![],
-            enums: vec![],
-            input_types: vec![],
-            interfaces: vec![],
-            unions: vec![],
-            queries: vec![QueryDefinition {
-                name: "users".to_string(),
-                return_type: "User".to_string(),
+            types:         vec![],
+            enums:         vec![],
+            input_types:   vec![],
+            interfaces:    vec![],
+            unions:        vec![],
+            queries:       vec![QueryDefinition {
+                name:         "users".to_string(),
+                return_type:  "User".to_string(),
                 returns_list: true,
-                nullable: false,
-                arguments: vec![ArgumentDefinition {
-                    name: "status".to_string(),
-                    arg_type: FieldType::String,
-                    nullable: false,
+                nullable:     false,
+                arguments:    vec![ArgumentDefinition {
+                    name:          "status".to_string(),
+                    arg_type:      FieldType::String,
+                    nullable:      false,
                     default_value: None,
-                    description: None,
-                    deprecation: None,
+                    description:   None,
+                    deprecation:   None,
                 }],
-                sql_source: Some("users".to_string()),
-                description: None,
-                auto_params: AutoParams::default(),
-                deprecation: None,
+                sql_source:   Some("users".to_string()),
+                description:  None,
+                auto_params:  AutoParams::default(),
+                deprecation:  None,
             }],
-            mutations: vec![],
+            mutations:     vec![],
             subscriptions: vec![],
-            directives: vec![],
-            fact_tables: HashMap::default(),
+            directives:    vec![],
+            fact_tables:   HashMap::default(),
         };
 
         let report = SchemaOptimizer::optimize(&mut schema).unwrap();
@@ -380,31 +383,31 @@ mod tests {
     #[test]
     fn test_pagination_note() {
         let mut schema = CompiledSchema {
-            types: vec![],
-            enums: vec![],
-            input_types: vec![],
-            interfaces: vec![],
-            unions: vec![],
-            queries: vec![QueryDefinition {
-                name: "products".to_string(),
-                return_type: "Product".to_string(),
+            types:         vec![],
+            enums:         vec![],
+            input_types:   vec![],
+            interfaces:    vec![],
+            unions:        vec![],
+            queries:       vec![QueryDefinition {
+                name:         "products".to_string(),
+                return_type:  "Product".to_string(),
                 returns_list: true,
-                nullable: false,
-                arguments: vec![],
-                sql_source: Some("products".to_string()),
-                description: None,
-                auto_params: AutoParams {
-                    has_where: false,
+                nullable:     false,
+                arguments:    vec![],
+                sql_source:   Some("products".to_string()),
+                description:  None,
+                auto_params:  AutoParams {
+                    has_where:    false,
                     has_order_by: false,
-                    has_limit: true,
-                    has_offset: true,
+                    has_limit:    true,
+                    has_offset:   true,
                 },
-                deprecation: None,
+                deprecation:  None,
             }],
-            mutations: vec![],
+            mutations:     vec![],
             subscriptions: vec![],
-            directives: vec![],
-            fact_tables: HashMap::default(),
+            directives:    vec![],
+            fact_tables:   HashMap::default(),
         };
 
         let report = SchemaOptimizer::optimize(&mut schema).unwrap();
@@ -414,36 +417,36 @@ mod tests {
     #[test]
     fn test_large_type_warning() {
         let mut schema = CompiledSchema {
-            types: vec![TypeDefinition {
-                name: "BigType".to_string(),
-                sql_source: String::new(),
-                jsonb_column: String::new(),
-                fields: (0..25)
+            types:         vec![TypeDefinition {
+                name:                "BigType".to_string(),
+                sql_source:          String::new(),
+                jsonb_column:        String::new(),
+                fields:              (0..25)
                     .map(|i| FieldDefinition {
-                        name: format!("field{i}"),
-                        field_type: FieldType::String,
-                        nullable: false,
-                        default_value: None,
-                        description: None,
-                        vector_config: None,
-                        alias: None,
-                        deprecation: None,
+                        name:           format!("field{i}"),
+                        field_type:     FieldType::String,
+                        nullable:       false,
+                        default_value:  None,
+                        description:    None,
+                        vector_config:  None,
+                        alias:          None,
+                        deprecation:    None,
                         requires_scope: None,
                     })
                     .collect(),
-                description: None,
+                description:         None,
                 sql_projection_hint: None,
-                implements: vec![],
+                implements:          vec![],
             }],
-            enums: vec![],
-            input_types: vec![],
-            interfaces: vec![],
-            unions: vec![],
-            queries: vec![],
-            mutations: vec![],
+            enums:         vec![],
+            input_types:   vec![],
+            interfaces:    vec![],
+            unions:        vec![],
+            queries:       vec![],
+            mutations:     vec![],
             subscriptions: vec![],
-            directives: vec![],
-            fact_tables: HashMap::default(),
+            directives:    vec![],
+            fact_tables:   HashMap::default(),
         };
 
         let report = SchemaOptimizer::optimize(&mut schema).unwrap();
@@ -453,36 +456,36 @@ mod tests {
     #[test]
     fn test_projection_hint_for_large_type() {
         let mut schema = CompiledSchema {
-            types: vec![TypeDefinition {
-                name: "User".to_string(),
-                sql_source: "users".to_string(),
-                jsonb_column: "data".to_string(),
-                fields: (0..15)
+            types:         vec![TypeDefinition {
+                name:                "User".to_string(),
+                sql_source:          "users".to_string(),
+                jsonb_column:        "data".to_string(),
+                fields:              (0..15)
                     .map(|i| FieldDefinition {
-                        name: format!("field{i}"),
-                        field_type: FieldType::String,
-                        nullable: false,
-                        default_value: None,
-                        description: None,
-                        vector_config: None,
-                        alias: None,
-                        deprecation: None,
+                        name:           format!("field{i}"),
+                        field_type:     FieldType::String,
+                        nullable:       false,
+                        default_value:  None,
+                        description:    None,
+                        vector_config:  None,
+                        alias:          None,
+                        deprecation:    None,
                         requires_scope: None,
                     })
                     .collect(),
-                description: None,
+                description:         None,
                 sql_projection_hint: None,
-                implements: vec![],
+                implements:          vec![],
             }],
-            enums: vec![],
-            input_types: vec![],
-            interfaces: vec![],
-            unions: vec![],
-            queries: vec![],
-            mutations: vec![],
+            enums:         vec![],
+            input_types:   vec![],
+            interfaces:    vec![],
+            unions:        vec![],
+            queries:       vec![],
+            mutations:     vec![],
             subscriptions: vec![],
-            directives: vec![],
-            fact_tables: HashMap::default(),
+            directives:    vec![],
+            fact_tables:   HashMap::default(),
         };
 
         let report = SchemaOptimizer::optimize(&mut schema).unwrap();
@@ -502,36 +505,36 @@ mod tests {
     #[test]
     fn test_projection_not_applied_without_jsonb() {
         let mut schema = CompiledSchema {
-            types: vec![TypeDefinition {
-                name: "SmallType".to_string(),
-                sql_source: "small_table".to_string(),
-                jsonb_column: String::new(), // No JSONB column
-                fields: (0..15)
+            types:         vec![TypeDefinition {
+                name:                "SmallType".to_string(),
+                sql_source:          "small_table".to_string(),
+                jsonb_column:        String::new(), // No JSONB column
+                fields:              (0..15)
                     .map(|i| FieldDefinition {
-                        name: format!("field{i}"),
-                        field_type: FieldType::String,
-                        nullable: false,
-                        default_value: None,
-                        description: None,
-                        vector_config: None,
-                        alias: None,
-                        deprecation: None,
+                        name:           format!("field{i}"),
+                        field_type:     FieldType::String,
+                        nullable:       false,
+                        default_value:  None,
+                        description:    None,
+                        vector_config:  None,
+                        alias:          None,
+                        deprecation:    None,
                         requires_scope: None,
                     })
                     .collect(),
-                description: None,
+                description:         None,
                 sql_projection_hint: None,
-                implements: vec![],
+                implements:          vec![],
             }],
-            enums: vec![],
-            input_types: vec![],
-            interfaces: vec![],
-            unions: vec![],
-            queries: vec![],
-            mutations: vec![],
+            enums:         vec![],
+            input_types:   vec![],
+            interfaces:    vec![],
+            unions:        vec![],
+            queries:       vec![],
+            mutations:     vec![],
             subscriptions: vec![],
-            directives: vec![],
-            fact_tables: HashMap::default(),
+            directives:    vec![],
+            fact_tables:   HashMap::default(),
         };
 
         let report = SchemaOptimizer::optimize(&mut schema).unwrap();

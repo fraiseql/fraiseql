@@ -11,20 +11,16 @@
 //! performance difference between PostgresAdapter (tokio-postgres) and
 //! FraiseWireAdapter (fraiseql-wire) in production scenarios.
 
-use criterion::{
-    black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput,
-};
 use std::time::Instant;
-use tokio::runtime::Runtime;
 
-#[cfg(feature = "postgres")]
-use fraiseql_core::db::{DatabaseAdapter, JsonbValue, PostgresAdapter};
-
+use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
 #[cfg(feature = "wire-backend")]
 use fraiseql_core::db::FraiseWireAdapter;
-
+#[cfg(feature = "postgres")]
+use fraiseql_core::db::{DatabaseAdapter, JsonbValue, PostgresAdapter};
 use fraiseql_core::utils::casing::to_camel_case;
 use serde_json::{Map, Value};
+use tokio::runtime::Runtime;
 
 /// Get database connection string from environment
 fn get_connection_string() -> Option<String> {
@@ -41,7 +37,7 @@ async fn verify_benchmark_data(conn_str: &str) -> bool {
                     Ok(results) => !results.is_empty(),
                     Err(_) => false,
                 }
-            }
+            },
             Err(_) => false,
         }
     }
@@ -59,11 +55,7 @@ async fn verify_benchmark_data(conn_str: &str) -> bool {
 /// 1. Project fields (select only requested fields)
 /// 2. Transform snake_case keys to camelCase
 /// 3. Add __typename field
-fn transform_single_row(
-    result_value: Value,
-    requested_fields: &[&str],
-    type_name: &str,
-) -> Value {
+fn transform_single_row(result_value: Value, requested_fields: &[&str], type_name: &str) -> Value {
     let mut projected = Map::new();
 
     if let Value::Object(obj) = result_value {

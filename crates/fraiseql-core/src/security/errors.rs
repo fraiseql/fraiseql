@@ -23,7 +23,7 @@ pub enum SecurityError {
         /// Seconds to wait before retrying
         retry_after: u64,
         /// Maximum allowed requests
-        limit: usize,
+        limit:       usize,
         /// Time window in seconds
         window_secs: u64,
     },
@@ -34,7 +34,7 @@ pub enum SecurityError {
     /// excessive database queries or resource consumption.
     QueryTooDeep {
         /// Actual query depth
-        depth: usize,
+        depth:     usize,
         /// Maximum allowed depth
         max_depth: usize,
     },
@@ -45,7 +45,7 @@ pub enum SecurityError {
     /// accounting for pagination and nested selections.
     QueryTooComplex {
         /// Actual query complexity score
-        complexity: usize,
+        complexity:     usize,
         /// Maximum allowed complexity
         max_complexity: usize,
     },
@@ -55,7 +55,7 @@ pub enum SecurityError {
     /// Very large queries can consume memory or cause DoS.
     QueryTooLarge {
         /// Actual query size in bytes
-        size: usize,
+        size:     usize,
         /// Maximum allowed size in bytes
         max_size: usize,
     },
@@ -101,7 +101,7 @@ pub enum SecurityError {
     /// if TLS 1.3 is required but the connection uses TLS 1.2.
     TlsVersionTooOld {
         /// The TLS version actually used
-        current: crate::security::TlsVersion,
+        current:  crate::security::TlsVersion,
         /// The minimum TLS version required
         required: crate::security::TlsVersion,
     },
@@ -191,70 +191,70 @@ impl fmt::Display for SecurityError {
                     f,
                     "Rate limit exceeded. Limit: {limit} per {window_secs} seconds. Retry after: {retry_after} seconds"
                 )
-            }
+            },
             Self::QueryTooDeep { depth, max_depth } => {
                 write!(f, "Query too deep: {depth} levels (max: {max_depth})")
-            }
+            },
             Self::QueryTooComplex {
                 complexity,
                 max_complexity,
             } => {
                 write!(f, "Query too complex: {complexity} (max: {max_complexity})")
-            }
+            },
             Self::QueryTooLarge { size, max_size } => {
                 write!(f, "Query too large: {size} bytes (max: {max_size})")
-            }
+            },
             Self::OriginNotAllowed(origin) => {
                 write!(f, "CORS origin not allowed: {origin}")
-            }
+            },
             Self::MethodNotAllowed(method) => {
                 write!(f, "CORS method not allowed: {method}")
-            }
+            },
             Self::HeaderNotAllowed(header) => {
                 write!(f, "CORS header not allowed: {header}")
-            }
+            },
             Self::InvalidCSRFToken(reason) => {
                 write!(f, "Invalid CSRF token: {reason}")
-            }
+            },
             Self::CSRFSessionMismatch => {
                 write!(f, "CSRF token session mismatch")
-            }
+            },
             Self::AuditLogFailure(reason) => {
                 write!(f, "Audit logging failed: {reason}")
-            }
+            },
             Self::SecurityConfigError(reason) => {
                 write!(f, "Security configuration error: {reason}")
-            }
+            },
             Self::TlsRequired { detail } => {
                 write!(f, "TLS/HTTPS required: {detail}")
-            }
+            },
             Self::TlsVersionTooOld { current, required } => {
                 write!(f, "TLS version too old: {current} (required: {required})")
-            }
+            },
             Self::MtlsRequired { detail } => {
                 write!(f, "Mutual TLS required: {detail}")
-            }
+            },
             Self::InvalidClientCert { detail } => {
                 write!(f, "Invalid client certificate: {detail}")
-            }
+            },
             Self::AuthRequired => {
                 write!(f, "Authentication required")
-            }
+            },
             Self::InvalidToken => {
                 write!(f, "Invalid authentication token")
-            }
+            },
             Self::TokenExpired { expired_at } => {
                 write!(f, "Token expired at {expired_at}")
-            }
+            },
             Self::TokenMissingClaim { claim } => {
                 write!(f, "Token missing required claim: {claim}")
-            }
+            },
             Self::InvalidTokenAlgorithm { algorithm } => {
                 write!(f, "Invalid token algorithm: {algorithm}")
-            }
+            },
             Self::IntrospectionDisabled { detail } => {
                 write!(f, "Introspection disabled: {detail}")
-            }
+            },
         }
     }
 }
@@ -327,15 +327,15 @@ impl PartialEq for SecurityError {
             (Self::MtlsRequired { detail: d1 }, Self::MtlsRequired { detail: d2 }) => d1 == d2,
             (Self::InvalidClientCert { detail: d1 }, Self::InvalidClientCert { detail: d2 }) => {
                 d1 == d2
-            }
+            },
             (Self::AuthRequired, Self::AuthRequired) => true,
             (Self::InvalidToken, Self::InvalidToken) => true,
             (Self::TokenExpired { expired_at: e1 }, Self::TokenExpired { expired_at: e2 }) => {
                 e1 == e2
-            }
+            },
             (Self::TokenMissingClaim { claim: c1 }, Self::TokenMissingClaim { claim: c2 }) => {
                 c1 == c2
-            }
+            },
             (
                 Self::InvalidTokenAlgorithm { algorithm: a1 },
                 Self::InvalidTokenAlgorithm { algorithm: a2 },
@@ -359,7 +359,7 @@ mod tests {
     fn test_rate_limit_error_display() {
         let err = SecurityError::RateLimitExceeded {
             retry_after: 60,
-            limit: 100,
+            limit:       100,
             window_secs: 60,
         };
 
@@ -371,7 +371,7 @@ mod tests {
     #[test]
     fn test_query_too_deep_display() {
         let err = SecurityError::QueryTooDeep {
-            depth: 20,
+            depth:     20,
             max_depth: 10,
         };
 
@@ -383,7 +383,7 @@ mod tests {
     #[test]
     fn test_query_too_complex_display() {
         let err = SecurityError::QueryTooComplex {
-            complexity: 500,
+            complexity:     500,
             max_complexity: 100,
         };
 
@@ -395,7 +395,7 @@ mod tests {
     #[test]
     fn test_query_too_large_display() {
         let err = SecurityError::QueryTooLarge {
-            size: 100_000,
+            size:     100_000,
             max_size: 10_000,
         };
 
@@ -440,17 +440,17 @@ mod tests {
     #[test]
     fn test_error_equality() {
         let err1 = SecurityError::QueryTooDeep {
-            depth: 20,
+            depth:     20,
             max_depth: 10,
         };
         let err2 = SecurityError::QueryTooDeep {
-            depth: 20,
+            depth:     20,
             max_depth: 10,
         };
         assert_eq!(err1, err2);
 
         let err3 = SecurityError::QueryTooDeep {
-            depth: 30,
+            depth:     30,
             max_depth: 10,
         };
         assert_ne!(err1, err3);
@@ -460,12 +460,12 @@ mod tests {
     fn test_rate_limit_equality() {
         let err1 = SecurityError::RateLimitExceeded {
             retry_after: 60,
-            limit: 100,
+            limit:       100,
             window_secs: 60,
         };
         let err2 = SecurityError::RateLimitExceeded {
             retry_after: 60,
-            limit: 100,
+            limit:       100,
             window_secs: 60,
         };
         assert_eq!(err1, err2);
@@ -490,7 +490,7 @@ mod tests {
         use crate::security::tls_enforcer::TlsVersion;
 
         let err = SecurityError::TlsVersionTooOld {
-            current: TlsVersion::V1_2,
+            current:  TlsVersion::V1_2,
             required: TlsVersion::V1_3,
         };
 
@@ -596,17 +596,17 @@ mod tests {
         use crate::security::tls_enforcer::TlsVersion;
 
         let err1 = SecurityError::TlsVersionTooOld {
-            current: TlsVersion::V1_2,
+            current:  TlsVersion::V1_2,
             required: TlsVersion::V1_3,
         };
         let err2 = SecurityError::TlsVersionTooOld {
-            current: TlsVersion::V1_2,
+            current:  TlsVersion::V1_2,
             required: TlsVersion::V1_3,
         };
         assert_eq!(err1, err2);
 
         let err3 = SecurityError::TlsVersionTooOld {
-            current: TlsVersion::V1_1,
+            current:  TlsVersion::V1_1,
             required: TlsVersion::V1_3,
         };
         assert_ne!(err1, err3);

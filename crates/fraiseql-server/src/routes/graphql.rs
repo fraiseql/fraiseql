@@ -4,21 +4,25 @@
 //! - POST: JSON body with `query`, `variables`, `operationName`
 //! - GET: Query parameters `query`, `variables` (JSON-encoded), `operationName`
 
+use std::{
+    sync::{Arc, atomic::Ordering},
+    time::Instant,
+};
+
 use axum::{
+    Json,
     extract::{Query, State},
     response::{IntoResponse, Response},
-    Json,
 };
 use fraiseql_core::{db::traits::DatabaseAdapter, runtime::Executor};
 use serde::{Deserialize, Serialize};
-use std::sync::atomic::Ordering;
-use std::sync::Arc;
-use std::time::Instant;
 use tracing::{debug, error, info, warn};
 
-use crate::error::{ErrorResponse, GraphQLError};
-use crate::metrics::MetricsCollector;
-use crate::validation::RequestValidator;
+use crate::{
+    error::{ErrorResponse, GraphQLError},
+    metrics::MetricsCollector,
+    validation::RequestValidator,
+};
 
 /// GraphQL request payload (for POST requests).
 #[derive(Debug, Deserialize)]
@@ -77,7 +81,7 @@ pub struct AppState<A: DatabaseAdapter> {
     /// Query executor.
     pub executor: Arc<Executor<A>>,
     /// Metrics collector.
-    pub metrics: Arc<MetricsCollector>,
+    pub metrics:  Arc<MetricsCollector>,
 }
 
 impl<A: DatabaseAdapter> AppState<A> {
@@ -157,7 +161,7 @@ pub async fn graphql_get_handler<A: DatabaseAdapter + Clone + Send + Sync + 'sta
                 return Err(ErrorResponse::from_error(GraphQLError::request(format!(
                     "Invalid variables JSON: {e}"
                 ))));
-            }
+            },
         }
     } else {
         None
@@ -226,10 +230,8 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
             crate::validation::ValidationError::MalformedQuery(msg) => {
                 metrics.parse_errors_total.fetch_add(1, Ordering::Relaxed);
                 GraphQLError::parse(msg)
-            }
-            crate::validation::ValidationError::InvalidVariables(msg) => {
-                GraphQLError::request(msg)
-            }
+            },
+            crate::validation::ValidationError::InvalidVariables(msg) => GraphQLError::request(msg),
         };
         return Err(ErrorResponse::from_error(graphql_error));
     }
@@ -262,7 +264,9 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
             metrics.queries_error.fetch_add(1, Ordering::Relaxed);
             metrics.execution_errors_total.fetch_add(1, Ordering::Relaxed);
             // Record duration even for failed queries
-            metrics.queries_duration_us.fetch_add(elapsed.as_micros() as u64, Ordering::Relaxed);
+            metrics
+                .queries_duration_us
+                .fetch_add(elapsed.as_micros() as u64, Ordering::Relaxed);
             ErrorResponse::from_error(GraphQLError::execution(&e.to_string()))
         })?;
 
@@ -270,9 +274,13 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
 
     // Record successful query metrics
     metrics.queries_success.fetch_add(1, Ordering::Relaxed);
-    metrics.queries_duration_us.fetch_add(elapsed.as_micros() as u64, Ordering::Relaxed);
+    metrics
+        .queries_duration_us
+        .fetch_add(elapsed.as_micros() as u64, Ordering::Relaxed);
     metrics.db_queries_total.fetch_add(1, Ordering::Relaxed);
-    metrics.db_queries_duration_us.fetch_add(elapsed.as_micros() as u64, Ordering::Relaxed);
+    metrics
+        .db_queries_duration_us
+        .fetch_add(elapsed.as_micros() as u64, Ordering::Relaxed);
 
     debug!(
         response_length = result.len(),
@@ -282,23 +290,21 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     );
 
     // Parse result as JSON
-    let response_json: serde_json::Value = serde_json::from_str(&result)
-        .map_err(|e| {
-            error!(
-                error = %e,
-                response_length = result.len(),
-                "Failed to deserialize executor response"
-            );
-            ErrorResponse::from_error(GraphQLError::internal(format!(
-                "Failed to process response: {e}"
-            )))
-        })?;
+    let response_json: serde_json::Value = serde_json::from_str(&result).map_err(|e| {
+        error!(
+            error = %e,
+            response_length = result.len(),
+            "Failed to deserialize executor response"
+        );
+        ErrorResponse::from_error(GraphQLError::internal(format!(
+            "Failed to process response: {e}"
+        )))
+    })?;
 
     Ok(GraphQLResponse {
         body: response_json,
     })
 }
-
 
 #[cfg(test)]
 mod tests {

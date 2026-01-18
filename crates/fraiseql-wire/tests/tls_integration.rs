@@ -112,7 +112,9 @@ mod tls_integration {
     }
 
     /// Build TLS config with proper CA certificate validation
-    fn build_tls_config(ca_cert_path: Option<&str>) -> Result<TlsConfig, Box<dyn std::error::Error>> {
+    fn build_tls_config(
+        ca_cert_path: Option<&str>,
+    ) -> Result<TlsConfig, Box<dyn std::error::Error>> {
         let mut builder = TlsConfig::builder();
         if let Some(path) = ca_cert_path {
             // Use our CA certificate for proper validation

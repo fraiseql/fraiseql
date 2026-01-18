@@ -35,12 +35,16 @@
 //! | Complete pipeline (100K rows) | ~5ms | 37% faster than non-projected |
 //! | Payload size (100K rows) | ~450B | 95% smaller |
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
-use fraiseql_core::db::projection_generator::{
-    PostgresProjectionGenerator, MySqlProjectionGenerator, SqliteProjectionGenerator,
+use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
+use fraiseql_core::{
+    db::{
+        projection_generator::{
+            MySqlProjectionGenerator, PostgresProjectionGenerator, SqliteProjectionGenerator,
+        },
+        types::JsonbValue,
+    },
+    runtime::ResultProjector,
 };
-use fraiseql_core::db::types::JsonbValue;
-use fraiseql_core::runtime::ResultProjector;
 use serde_json::json;
 
 /// Generate sample JSONB data with varying field counts
@@ -73,9 +77,7 @@ fn generate_sample_data(field_count: usize, row_count: usize) -> Vec<JsonbValue>
 
 /// Generate field list for projection
 fn generate_field_list(count: usize) -> Vec<String> {
-    (0..count)
-        .map(|i| format!("field_{}", i))
-        .collect()
+    (0..count).map(|i| format!("field_{}", i)).collect()
 }
 
 // ============================================================================
@@ -93,9 +95,7 @@ fn postgres_projection_generation(c: &mut Criterion) {
                 let generator = PostgresProjectionGenerator::new();
                 let fields = generate_field_list(field_count);
 
-                b.iter(|| {
-                    generator.generate_projection_sql(black_box(&fields)).unwrap()
-                });
+                b.iter(|| generator.generate_projection_sql(black_box(&fields)).unwrap());
             },
         );
     }
@@ -114,9 +114,7 @@ fn mysql_projection_generation(c: &mut Criterion) {
                 let generator = MySqlProjectionGenerator::new();
                 let fields = generate_field_list(field_count);
 
-                b.iter(|| {
-                    generator.generate_projection_sql(black_box(&fields)).unwrap()
-                });
+                b.iter(|| generator.generate_projection_sql(black_box(&fields)).unwrap());
             },
         );
     }
@@ -135,9 +133,7 @@ fn sqlite_projection_generation(c: &mut Criterion) {
                 let generator = SqliteProjectionGenerator::new();
                 let fields = generate_field_list(field_count);
 
-                b.iter(|| {
-                    generator.generate_projection_sql(black_box(&fields)).unwrap()
-                });
+                b.iter(|| generator.generate_projection_sql(black_box(&fields)).unwrap());
             },
         );
     }
@@ -164,9 +160,7 @@ fn result_projection_field_filtering(c: &mut Criterion) {
             |b, _| {
                 let projector = ResultProjector::new(fields.clone());
 
-                b.iter(|| {
-                    projector.project_results(black_box(&data), true).unwrap()
-                });
+                b.iter(|| projector.project_results(black_box(&data), true).unwrap());
             },
         );
     }
@@ -189,9 +183,7 @@ fn result_projection_large_fieldset(c: &mut Criterion) {
             |b, _| {
                 let projector = ResultProjector::new(fields.clone());
 
-                b.iter(|| {
-                    projector.project_results(black_box(&data), true).unwrap()
-                });
+                b.iter(|| projector.project_results(black_box(&data), true).unwrap());
             },
         );
     }
@@ -215,9 +207,7 @@ fn add_typename_single_object(c: &mut Criterion) {
                 let data = generate_sample_data(field_count, 1);
                 let projector = ResultProjector::new(fields);
 
-                b.iter(|| {
-                    projector.add_typename_only(black_box(&data[0]), "User").unwrap()
-                });
+                b.iter(|| projector.add_typename_only(black_box(&data[0]), "User").unwrap());
             },
         );
     }
@@ -235,7 +225,7 @@ fn add_typename_array(c: &mut Criterion) {
 
         // Combine array results into a single JSONB array
         let array_data = JsonbValue::new(serde_json::Value::Array(
-            data.iter().map(|v| v.as_value().clone()).collect()
+            data.iter().map(|v| v.as_value().clone()).collect(),
         ));
 
         group.bench_with_input(
@@ -244,9 +234,7 @@ fn add_typename_array(c: &mut Criterion) {
             |b, _| {
                 let projector = ResultProjector::new(fields.clone());
 
-                b.iter(|| {
-                    projector.add_typename_only(black_box(&array_data), "User").unwrap()
-                });
+                b.iter(|| projector.add_typename_only(black_box(&array_data), "User").unwrap());
             },
         );
     }
@@ -275,7 +263,8 @@ fn complete_pipeline_single_row(c: &mut Criterion) {
                     let _projected = projector.project_results(black_box(&data), false).unwrap();
 
                     // Step 2: Add __typename
-                    let with_typename = projector.add_typename_only(black_box(&data[0]), "User").unwrap();
+                    let with_typename =
+                        projector.add_typename_only(black_box(&data[0]), "User").unwrap();
 
                     // Step 3: Wrap in GraphQL envelope
                     let _response = ResultProjector::wrap_in_data_envelope(with_typename, "user");
@@ -336,7 +325,7 @@ fn payload_size_comparison(c: &mut Criterion) {
                     // Measure size of unfiltered response
                     let response = ResultProjector::wrap_in_data_envelope(
                         serde_json::json!(data.iter().map(|v| v.as_value()).collect::<Vec<_>>()),
-                        "users"
+                        "users",
                     );
                     let size = serde_json::to_string(&response).unwrap().len();
                     black_box(size)

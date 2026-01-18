@@ -17,10 +17,15 @@
 
 mod test_helpers;
 
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::Instant,
+};
+
 use serde_json::json;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
-use std::time::Instant;
 
 /// Test wire protocol message format validation
 #[test]
@@ -48,10 +53,12 @@ fn test_wire_protocol_streaming_response_format() {
     // Wire protocol streaming responses use newline-delimited JSON
     // Each line is a separate message: {"type": "data", "items": [...]}
 
-    let response_lines = [json!({"type": "start", "id": "msg-001", "fields": ["id", "name"]}),
+    let response_lines = [
+        json!({"type": "start", "id": "msg-001", "fields": ["id", "name"]}),
         json!({"type": "data", "id": "msg-001", "items": [{"id": 1, "name": "Alice"}]}),
         json!({"type": "data", "id": "msg-001", "items": [{"id": 2, "name": "Bob"}]}),
-        json!({"type": "complete", "id": "msg-001"})];
+        json!({"type": "complete", "id": "msg-001"}),
+    ];
 
     assert_eq!(response_lines[0]["type"], "start");
     assert_eq!(response_lines[1]["type"], "data");
@@ -289,10 +296,7 @@ async fn test_wire_protocol_latency_distribution() {
         let max = lats.iter().max().copied().unwrap_or(0);
         let avg = lats.iter().sum::<u64>() / lats.len() as u64;
 
-        println!(
-            "Wire protocol latency - Min: {}μs, Max: {}μs, Avg: {}μs",
-            min, max, avg
-        );
+        println!("Wire protocol latency - Min: {}μs, Max: {}μs, Avg: {}μs", min, max, avg);
 
         // Latency should be reasonable (< 10ms)
         assert!(max < 10000);

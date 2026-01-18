@@ -126,10 +126,7 @@ async fn test_resume_continues() {
     }
 
     // We should be able to continue after resume (may get 0-3 depending on data)
-    println!(
-        "Collected {} items after resume",
-        count_after_resume
-    );
+    println!("Collected {} items after resume", count_after_resume);
 }
 
 // Note: test_pause_on_completed_fails is disabled because the current implementation

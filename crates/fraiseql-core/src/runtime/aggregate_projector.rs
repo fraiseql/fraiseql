@@ -36,10 +36,11 @@
 //! }
 //! ```
 
-use crate::compiler::aggregation::AggregationPlan;
-use crate::error::Result;
-use serde_json::{json, Value};
 use std::collections::HashMap;
+
+use serde_json::{Value, json};
+
+use crate::{compiler::aggregation::AggregationPlan, error::Result};
 
 /// Aggregation result projector
 pub struct AggregationProjector;
@@ -70,10 +71,7 @@ impl AggregationProjector {
     /// let result = AggregationProjector::project(rows, &plan)?;
     /// // result: [{"category": "Electronics", "count": 42, "revenue_sum": 5280.50}]
     /// ```
-    pub fn project(
-        rows: Vec<HashMap<String, Value>>,
-        _plan: &AggregationPlan,
-    ) -> Result<Value> {
+    pub fn project(rows: Vec<HashMap<String, Value>>, _plan: &AggregationPlan) -> Result<Value> {
         // For Phase 5, simple projection: just convert rows to JSON array
         // In future phases, this could include:
         // - Type coercion (ensure numbers are numbers, not strings)
@@ -133,10 +131,7 @@ impl AggregationProjector {
     /// let result = AggregationProjector::project_single(row, &plan)?;
     /// // result: {"count": 100, "revenue_sum": 5000.0}
     /// ```
-    pub fn project_single(
-        row: HashMap<String, Value>,
-        _plan: &AggregationPlan,
-    ) -> Result<Value> {
+    pub fn project_single(row: HashMap<String, Value>, _plan: &AggregationPlan) -> Result<Value> {
         // Convert HashMap to JSON object
         let mut obj = serde_json::Map::new();
         for (key, value) in row {
@@ -149,62 +144,62 @@ impl AggregationProjector {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::compiler::aggregate_types::AggregateFunction;
-    use crate::compiler::aggregation::{
-        AggregateExpression, AggregateSelection, AggregationRequest, GroupByExpression,
-        GroupBySelection,
+    use crate::compiler::{
+        aggregate_types::AggregateFunction,
+        aggregation::{
+            AggregateExpression, AggregateSelection, AggregationRequest, GroupByExpression,
+            GroupBySelection,
+        },
+        fact_table::{DimensionColumn, FactTableMetadata, FilterColumn, MeasureColumn, SqlType},
     };
-    use crate::compiler::fact_table::{DimensionColumn, FilterColumn, FactTableMetadata, MeasureColumn, SqlType};
 
     fn create_test_plan() -> AggregationPlan {
         use crate::compiler::fact_table::DimensionPath;
 
         let metadata = FactTableMetadata {
-            table_name: "tf_sales".to_string(),
-            measures: vec![MeasureColumn {
-                name: "revenue".to_string(),
+            table_name:           "tf_sales".to_string(),
+            measures:             vec![MeasureColumn {
+                name:     "revenue".to_string(),
                 sql_type: SqlType::Decimal,
                 nullable: false,
             }],
-            dimensions: DimensionColumn {
-                name: "dimensions".to_string(),
+            dimensions:           DimensionColumn {
+                name:  "dimensions".to_string(),
                 paths: vec![DimensionPath {
-                    name: "category".to_string(),
+                    name:      "category".to_string(),
                     json_path: "data->>'category'".to_string(),
                     data_type: "text".to_string(),
                 }],
             },
             denormalized_filters: vec![FilterColumn {
-                name: "occurred_at".to_string(),
+                name:     "occurred_at".to_string(),
                 sql_type: SqlType::Timestamp,
-                indexed: true,
+                indexed:  true,
             }],
-            calendar_dimensions: vec![],
+            calendar_dimensions:  vec![],
         };
 
         let request = AggregationRequest {
-            table_name: "tf_sales".to_string(),
+            table_name:   "tf_sales".to_string(),
             where_clause: None,
-            group_by: vec![
-                GroupBySelection::Dimension {
-                    path: "category".to_string(),
-                    alias: "category".to_string(),
-                },
-            ],
-            aggregates: vec![
+            group_by:     vec![GroupBySelection::Dimension {
+                path:  "category".to_string(),
+                alias: "category".to_string(),
+            }],
+            aggregates:   vec![
                 AggregateSelection::Count {
                     alias: "count".to_string(),
                 },
                 AggregateSelection::MeasureAggregate {
-                    measure: "revenue".to_string(),
+                    measure:  "revenue".to_string(),
                     function: AggregateFunction::Sum,
-                    alias: "revenue_sum".to_string(),
+                    alias:    "revenue_sum".to_string(),
                 },
             ],
-            having: vec![],
-            order_by: vec![],
-            limit: None,
-            offset: None,
+            having:       vec![],
+            order_by:     vec![],
+            limit:        None,
+            offset:       None,
         };
 
         AggregationPlan {
@@ -212,17 +207,17 @@ mod tests {
             request,
             group_by_expressions: vec![GroupByExpression::JsonbPath {
                 jsonb_column: "data".to_string(),
-                path: "category".to_string(),
-                alias: "category".to_string(),
+                path:         "category".to_string(),
+                alias:        "category".to_string(),
             }],
             aggregate_expressions: vec![
                 AggregateExpression::Count {
                     alias: "count".to_string(),
                 },
                 AggregateExpression::MeasureAggregate {
-                    column: "revenue".to_string(),
+                    column:   "revenue".to_string(),
                     function: AggregateFunction::Sum,
-                    alias: "revenue_sum".to_string(),
+                    alias:    "revenue_sum".to_string(),
                 },
             ],
             having_conditions: vec![],

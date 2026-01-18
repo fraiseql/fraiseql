@@ -1,7 +1,8 @@
 //! Parser for GraphQL Cascade responses to extract entity invalidation data.
 //!
 //! This module parses GraphQL mutation responses following the GraphQL Cascade specification,
-//! extracting all affected entities (updated and deleted) to enable entity-level cache invalidation.
+//! extracting all affected entities (updated and deleted) to enable entity-level cache
+//! invalidation.
 //!
 //! # Architecture
 //!
@@ -58,9 +59,10 @@
 //! assert_eq!(entities.updated[0].entity_type, "User");
 //! ```
 
+use serde_json::Value;
+
 use super::entity_key::EntityKey;
 use crate::error::{FraiseQLError, Result};
-use serde_json::Value;
 
 /// Cascade entities extracted from a GraphQL mutation response.
 ///
@@ -212,9 +214,9 @@ impl CascadeResponseParser {
                             _ => "unknown",
                         }
                     ),
-                    path: Some(format!("cascade.{}", field_name)),
-                })
-            }
+                    path:    Some(format!("cascade.{}", field_name)),
+                });
+            },
         };
 
         let mut entities = Vec::new();
@@ -233,25 +235,22 @@ impl CascadeResponseParser {
     fn parse_cascade_entity(&self, entity_obj: &Value) -> Result<EntityKey> {
         let obj = entity_obj.as_object().ok_or_else(|| FraiseQLError::Validation {
             message: "Cascade entity should be object".to_string(),
-            path: Some("cascade.updated[*]".to_string()),
+            path:    Some("cascade.updated[*]".to_string()),
         })?;
 
         // Extract __typename
-        let type_name = obj
-            .get("__typename")
-            .and_then(Value::as_str)
-            .ok_or_else(|| FraiseQLError::Validation {
+        let type_name = obj.get("__typename").and_then(Value::as_str).ok_or_else(|| {
+            FraiseQLError::Validation {
                 message: "Cascade entity missing __typename field".to_string(),
-                path: Some("cascade.updated[*].__typename".to_string()),
-            })?;
+                path:    Some("cascade.updated[*].__typename".to_string()),
+            }
+        })?;
 
         // Extract id
-        let entity_id = obj
-            .get("id")
-            .and_then(Value::as_str)
-            .ok_or_else(|| FraiseQLError::Validation {
+        let entity_id =
+            obj.get("id").and_then(Value::as_str).ok_or_else(|| FraiseQLError::Validation {
                 message: "Cascade entity missing id field".to_string(),
-                path: Some("cascade.updated[*].id".to_string()),
+                path:    Some("cascade.updated[*].id".to_string()),
             })?;
 
         EntityKey::new(type_name, entity_id)
@@ -266,8 +265,9 @@ impl Default for CascadeResponseParser {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serde_json::json;
+
+    use super::*;
 
     #[test]
     fn test_parse_simple_cascade_response() {
@@ -289,10 +289,7 @@ mod tests {
         let entities = parser.parse_cascade_response(&response).unwrap();
         assert_eq!(entities.updated.len(), 1);
         assert_eq!(entities.updated[0].entity_type, "User");
-        assert_eq!(
-            entities.updated[0].entity_id,
-            "550e8400-e29b-41d4-a716-446655440000"
-        );
+        assert_eq!(entities.updated[0].entity_id, "550e8400-e29b-41d4-a716-446655440000");
         assert_eq!(entities.deleted.len(), 0);
     }
 
@@ -440,8 +437,7 @@ mod tests {
             EntityKey::new("User", "u-1").unwrap(),
             EntityKey::new("User", "u-2").unwrap(),
         ];
-        let deleted =
-            vec![EntityKey::new("Post", "p-1").unwrap()];
+        let deleted = vec![EntityKey::new("Post", "p-1").unwrap()];
 
         let cascade = CascadeEntities::new(updated, deleted);
         let all = cascade.all_affected();

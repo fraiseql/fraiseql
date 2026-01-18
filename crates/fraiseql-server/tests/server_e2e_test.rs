@@ -109,22 +109,10 @@ fn test_error_serialization() {
 /// Test different error code HTTP status mappings
 #[test]
 fn test_error_code_status_mapping() {
-    assert_eq!(
-        ErrorCode::ValidationError.status_code(),
-        axum::http::StatusCode::BAD_REQUEST
-    );
-    assert_eq!(
-        ErrorCode::Unauthenticated.status_code(),
-        axum::http::StatusCode::UNAUTHORIZED
-    );
-    assert_eq!(
-        ErrorCode::Forbidden.status_code(),
-        axum::http::StatusCode::FORBIDDEN
-    );
-    assert_eq!(
-        ErrorCode::NotFound.status_code(),
-        axum::http::StatusCode::NOT_FOUND
-    );
+    assert_eq!(ErrorCode::ValidationError.status_code(), axum::http::StatusCode::BAD_REQUEST);
+    assert_eq!(ErrorCode::Unauthenticated.status_code(), axum::http::StatusCode::UNAUTHORIZED);
+    assert_eq!(ErrorCode::Forbidden.status_code(), axum::http::StatusCode::FORBIDDEN);
+    assert_eq!(ErrorCode::NotFound.status_code(), axum::http::StatusCode::NOT_FOUND);
     assert_eq!(
         ErrorCode::DatabaseError.status_code(),
         axum::http::StatusCode::INTERNAL_SERVER_ERROR
@@ -153,10 +141,7 @@ fn test_graphql_request_with_variables_deserialization() {
         r#"{"query": "query($id: ID!) { user(id: $id) { name } }", "variables": {"id": "123"}}"#;
     let request: GraphQLRequest = serde_json::from_str(json).unwrap();
 
-    assert_eq!(
-        request.query,
-        "query($id: ID!) { user(id: $id) { name } }"
-    );
+    assert_eq!(request.query, "query($id: ID!) { user(id: $id) { name } }");
     assert!(request.variables.is_some());
     assert_eq!(request.variables.unwrap(), json!({"id": "123"}));
 }
@@ -180,20 +165,18 @@ fn test_request_validation_integration() {
 
     // Test with valid request
     let valid_request = GraphQLRequest {
-        query: "{ user { id } }".to_string(),
-        variables: None,
+        query:          "{ user { id } }".to_string(),
+        variables:      None,
         operation_name: None,
     };
 
     assert!(validator.validate_query(&valid_request.query).is_ok());
-    assert!(validator
-        .validate_variables(valid_request.variables.as_ref())
-        .is_ok());
+    assert!(validator.validate_variables(valid_request.variables.as_ref()).is_ok());
 
     // Test with invalid depth
     let deep_request = GraphQLRequest {
-        query: "{ a { b { c { d { e { f } } } } } }".to_string(),
-        variables: None,
+        query:          "{ a { b { c { d { e { f } } } } } }".to_string(),
+        variables:      None,
         operation_name: None,
     };
 
@@ -220,8 +203,8 @@ fn test_multiple_errors_response() {
 #[test]
 fn test_error_extensions() {
     let extensions = ErrorExtensions {
-        category: Some("VALIDATION".to_string()),
-        status: Some(400),
+        category:   Some("VALIDATION".to_string()),
+        status:     Some(400),
         request_id: Some("req-12345".to_string()),
     };
 
@@ -314,7 +297,7 @@ fn test_minimal_validator() {
 #[test]
 fn test_validation_error_conversion() {
     let error = fraiseql_server::ValidationError::QueryTooDeep {
-        max_depth: 10,
+        max_depth:    10,
         actual_depth: 15,
     };
 

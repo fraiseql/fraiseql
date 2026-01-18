@@ -1,21 +1,24 @@
 //! Result projection - transforms JSONB database results to GraphQL responses.
 
-use crate::db::types::JsonbValue;
-use crate::error::{FraiseQLError, Result};
 use serde_json::{Map, Value as JsonValue};
+
+use crate::{
+    db::types::JsonbValue,
+    error::{FraiseQLError, Result},
+};
 
 /// Field mapping for projection with alias support.
 #[derive(Debug, Clone)]
 pub struct FieldMapping {
     /// JSONB key name (source).
-    pub source: String,
+    pub source:          String,
     /// Output key name (alias if different from source).
-    pub output: String,
+    pub output:          String,
     /// For nested object fields, the typename to add.
     /// This enables `__typename` to be added recursively to nested objects.
     pub nested_typename: Option<String>,
     /// Nested field mappings (for related objects).
-    pub nested_fields: Option<Vec<FieldMapping>>,
+    pub nested_fields:   Option<Vec<FieldMapping>>,
 }
 
 impl FieldMapping {
@@ -24,10 +27,10 @@ impl FieldMapping {
     pub fn simple(name: impl Into<String>) -> Self {
         let name = name.into();
         Self {
-            source: name.clone(),
-            output: name,
+            source:          name.clone(),
+            output:          name,
             nested_typename: None,
-            nested_fields: None,
+            nested_fields:   None,
         }
     }
 
@@ -35,10 +38,10 @@ impl FieldMapping {
     #[must_use]
     pub fn aliased(source: impl Into<String>, alias: impl Into<String>) -> Self {
         Self {
-            source: source.into(),
-            output: alias.into(),
+            source:          source.into(),
+            output:          alias.into(),
             nested_typename: None,
-            nested_fields: None,
+            nested_fields:   None,
         }
     }
 
@@ -61,10 +64,10 @@ impl FieldMapping {
     ) -> Self {
         let name = name.into();
         Self {
-            source: name.clone(),
-            output: name,
+            source:          name.clone(),
+            output:          name,
             nested_typename: Some(typename.into()),
-            nested_fields: Some(fields),
+            nested_fields:   Some(fields),
         }
     }
 
@@ -77,10 +80,10 @@ impl FieldMapping {
         fields: Vec<FieldMapping>,
     ) -> Self {
         Self {
-            source: source.into(),
-            output: alias.into(),
+            source:          source.into(),
+            output:          alias.into(),
             nested_typename: Some(typename.into()),
-            nested_fields: Some(fields),
+            nested_fields:   Some(fields),
         }
     }
 
@@ -103,7 +106,7 @@ impl FieldMapping {
 #[derive(Debug, Clone)]
 pub struct ProjectionMapper {
     /// Fields to project (with optional aliases).
-    pub fields: Vec<FieldMapping>,
+    pub fields:   Vec<FieldMapping>,
     /// Optional `__typename` value to add to each object.
     pub typename: Option<String>,
 }
@@ -113,7 +116,7 @@ impl ProjectionMapper {
     #[must_use]
     pub fn new(fields: Vec<String>) -> Self {
         Self {
-            fields: fields.into_iter().map(FieldMapping::simple).collect(),
+            fields:   fields.into_iter().map(FieldMapping::simple).collect(),
             typename: None,
         }
     }
@@ -193,7 +196,8 @@ impl ProjectionMapper {
                     if let Some(ref nested_fields) = field.nested_fields {
                         for nested_field in nested_fields {
                             if let Some(nested_value) = obj.get(&nested_field.source) {
-                                let projected = self.project_nested_value(nested_value, nested_field)?;
+                                let projected =
+                                    self.project_nested_value(nested_value, nested_field)?;
                                 result.insert(nested_field.output.clone(), projected);
                             }
                         }
@@ -208,19 +212,17 @@ impl ProjectionMapper {
                     // No typename for this nested object - return as-is
                     Ok(value.clone())
                 }
-            }
+            },
             JsonValue::Array(arr) => {
                 // For arrays of objects, add typename to each element
                 if field.nested_typename.is_some() {
-                    let projected: Result<Vec<JsonValue>> = arr
-                        .iter()
-                        .map(|item| self.project_nested_value(item, field))
-                        .collect();
+                    let projected: Result<Vec<JsonValue>> =
+                        arr.iter().map(|item| self.project_nested_value(item, field)).collect();
                     Ok(JsonValue::Array(projected?))
                 } else {
                     Ok(value.clone())
                 }
-            }
+            },
             _ => Ok(value.clone()),
         }
     }
@@ -288,17 +290,11 @@ impl ResultProjector {
     /// # Errors
     ///
     /// Returns error if projection fails.
-    pub fn project_results(
-        &self,
-        results: &[JsonbValue],
-        is_list: bool,
-    ) -> Result<JsonValue> {
+    pub fn project_results(&self, results: &[JsonbValue], is_list: bool) -> Result<JsonValue> {
         if is_list {
             // Project array of results
-            let projected: Result<Vec<JsonValue>> = results
-                .iter()
-                .map(|r| self.mapper.project(r))
-                .collect();
+            let projected: Result<Vec<JsonValue>> =
+                results.iter().map(|r| self.mapper.project(r)).collect();
 
             Ok(JsonValue::Array(projected?))
         } else {
@@ -370,14 +366,17 @@ impl ResultProjector {
                 let mut result = map.clone();
                 result.insert("__typename".to_string(), JsonValue::String(typename.to_string()));
                 Ok(JsonValue::Object(result))
-            }
+            },
             JsonValue::Array(arr) => {
                 let updated: Result<Vec<JsonValue>> = arr
                     .iter()
                     .map(|item| {
                         if let JsonValue::Object(obj) = item {
                             let mut result = obj.clone();
-                            result.insert("__typename".to_string(), JsonValue::String(typename.to_string()));
+                            result.insert(
+                                "__typename".to_string(),
+                                JsonValue::String(typename.to_string()),
+                            );
                             Ok(JsonValue::Object(result))
                         } else {
                             Ok(item.clone())
@@ -385,7 +384,7 @@ impl ResultProjector {
                     })
                     .collect();
                 Ok(JsonValue::Array(updated?))
-            }
+            },
             v => Ok(v.clone()),
         }
     }
@@ -413,8 +412,9 @@ impl ResultProjector {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serde_json::json;
+
+    use super::*;
 
     #[test]
     fn test_projection_mapper_new() {
@@ -487,7 +487,7 @@ mod tests {
     fn test_wrap_error() {
         let error = FraiseQLError::Validation {
             message: "Invalid query".to_string(),
-            path: None,
+            path:    None,
         };
 
         let wrapped = ResultProjector::wrap_error(&error);
@@ -504,10 +504,7 @@ mod tests {
         let jsonb = JsonbValue::new(data);
         let result = projector.add_typename_only(&jsonb, "User").unwrap();
 
-        assert_eq!(
-            result,
-            json!({ "id": "123", "name": "Alice", "__typename": "User" })
-        );
+        assert_eq!(result, json!({ "id": "123", "name": "Alice", "__typename": "User" }));
     }
 
     #[test]
@@ -587,8 +584,8 @@ mod tests {
 
     #[test]
     fn test_project_with_typename() {
-        let mapper = ProjectionMapper::new(vec!["id".to_string(), "name".to_string()])
-            .with_typename("User");
+        let mapper =
+            ProjectionMapper::new(vec!["id".to_string(), "name".to_string()]).with_typename("User");
 
         let data = json!({
             "id": "123",
@@ -638,8 +635,8 @@ mod tests {
 
     #[test]
     fn test_result_projector_with_typename() {
-        let projector = ResultProjector::new(vec!["id".to_string(), "name".to_string()])
-            .with_typename("User");
+        let projector =
+            ResultProjector::new(vec!["id".to_string(), "name".to_string()]).with_typename("User");
 
         let data = json!({ "id": "1", "name": "Alice", "email": "alice@example.com" });
         let results = vec![JsonbValue::new(data)];
@@ -657,8 +654,7 @@ mod tests {
 
     #[test]
     fn test_result_projector_list_with_typename() {
-        let projector = ResultProjector::new(vec!["id".to_string()])
-            .with_typename("User");
+        let projector = ResultProjector::new(vec!["id".to_string()]).with_typename("User");
 
         let results = vec![
             JsonbValue::new(json!({ "id": "1", "name": "Alice" })),
@@ -705,10 +701,11 @@ mod tests {
         let mapper = ProjectionMapper::with_mappings(vec![
             FieldMapping::simple("id"),
             FieldMapping::simple("title"),
-            FieldMapping::nested_object("author", "User", vec![
-                FieldMapping::simple("id"),
-                FieldMapping::simple("name"),
-            ]),
+            FieldMapping::nested_object(
+                "author",
+                "User",
+                vec![FieldMapping::simple("id"), FieldMapping::simple("name")],
+            ),
         ])
         .with_typename("Post");
 
@@ -745,10 +742,11 @@ mod tests {
         let mapper = ProjectionMapper::with_mappings(vec![
             FieldMapping::simple("id"),
             FieldMapping::simple("name"),
-            FieldMapping::nested_object("posts", "Post", vec![
-                FieldMapping::simple("id"),
-                FieldMapping::simple("title"),
-            ]),
+            FieldMapping::nested_object(
+                "posts",
+                "Post",
+                vec![FieldMapping::simple("id"), FieldMapping::simple("title")],
+            ),
         ])
         .with_typename("User");
 
@@ -783,12 +781,18 @@ mod tests {
         // Post -> author (User) -> company (Company)
         let mapper = ProjectionMapper::with_mappings(vec![
             FieldMapping::simple("id"),
-            FieldMapping::nested_object("author", "User", vec![
-                FieldMapping::simple("name"),
-                FieldMapping::nested_object("company", "Company", vec![
+            FieldMapping::nested_object(
+                "author",
+                "User",
+                vec![
                     FieldMapping::simple("name"),
-                ]),
-            ]),
+                    FieldMapping::nested_object(
+                        "company",
+                        "Company",
+                        vec![FieldMapping::simple("name")],
+                    ),
+                ],
+            ),
         ])
         .with_typename("Post");
 
@@ -827,10 +831,12 @@ mod tests {
     fn test_nested_object_with_alias_and_typename() {
         let mapper = ProjectionMapper::with_mappings(vec![
             FieldMapping::simple("id"),
-            FieldMapping::nested_object_aliased("author", "writer", "User", vec![
-                FieldMapping::simple("id"),
-                FieldMapping::simple("name"),
-            ]),
+            FieldMapping::nested_object_aliased(
+                "author",
+                "writer",
+                "User",
+                vec![FieldMapping::simple("id"), FieldMapping::simple("name")],
+            ),
         ])
         .with_typename("Post");
 

@@ -9,10 +9,10 @@
 
 use anyhow::Result;
 use deadpool_postgres::{Config, ManagerConfig, RecyclingMethod, Runtime};
-use fraiseql_core::compiler::fact_table::{
-    DatabaseIntrospector, FactTableDetector, FactTableMetadata,
+use fraiseql_core::{
+    compiler::fact_table::{DatabaseIntrospector, FactTableDetector, FactTableMetadata},
+    db::PostgresIntrospector,
 };
-use fraiseql_core::db::PostgresIntrospector;
 use serde_json::json;
 use tokio_postgres::NoTls;
 
@@ -282,29 +282,29 @@ mod tests {
         };
 
         let metadata = FactTableMetadata {
-            table_name: "tf_sales".to_string(),
-            measures: vec![
+            table_name:           "tf_sales".to_string(),
+            measures:             vec![
                 MeasureColumn {
-                    name: "revenue".to_string(),
+                    name:     "revenue".to_string(),
                     sql_type: SqlType::Decimal,
                     nullable: false,
                 },
                 MeasureColumn {
-                    name: "quantity".to_string(),
+                    name:     "quantity".to_string(),
                     sql_type: SqlType::Int,
                     nullable: false,
                 },
             ],
-            dimensions: DimensionColumn {
-                name: "data".to_string(),
+            dimensions:           DimensionColumn {
+                name:  "data".to_string(),
                 paths: vec![],
             },
             denormalized_filters: vec![FilterColumn {
-                name: "customer_id".to_string(),
+                name:     "customer_id".to_string(),
                 sql_type: SqlType::Uuid,
-                indexed: true,
+                indexed:  true,
             }],
-            calendar_dimensions: vec![],
+            calendar_dimensions:  vec![],
         };
 
         let output = format_as_python(&metadata);

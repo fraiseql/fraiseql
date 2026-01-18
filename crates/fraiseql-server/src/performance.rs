@@ -5,8 +5,10 @@
 
 #[allow(unused_imports)]
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::Instant;
+use std::{
+    sync::atomic::{AtomicU64, Ordering},
+    time::Instant,
+};
 
 /// Query performance data.
 #[derive(Debug, Clone)]
@@ -191,17 +193,36 @@ impl PerformanceMonitor {
         self.queries_tracked.fetch_add(1, Ordering::Relaxed);
 
         // Track duration
-        self.total_duration_us
-            .fetch_add(performance.duration_us, Ordering::Relaxed);
+        self.total_duration_us.fetch_add(performance.duration_us, Ordering::Relaxed);
 
         // Track min/max
         let mut min = self.min_duration_us.load(Ordering::Relaxed);
-        while performance.duration_us < min && self.min_duration_us.compare_exchange(min, performance.duration_us, Ordering::Relaxed, Ordering::Relaxed).is_err() {
+        while performance.duration_us < min
+            && self
+                .min_duration_us
+                .compare_exchange(
+                    min,
+                    performance.duration_us,
+                    Ordering::Relaxed,
+                    Ordering::Relaxed,
+                )
+                .is_err()
+        {
             min = self.min_duration_us.load(Ordering::Relaxed);
         }
 
         let mut max = self.max_duration_us.load(Ordering::Relaxed);
-        while performance.duration_us > max && self.max_duration_us.compare_exchange(max, performance.duration_us, Ordering::Relaxed, Ordering::Relaxed).is_err() {
+        while performance.duration_us > max
+            && self
+                .max_duration_us
+                .compare_exchange(
+                    max,
+                    performance.duration_us,
+                    Ordering::Relaxed,
+                    Ordering::Relaxed,
+                )
+                .is_err()
+        {
             max = self.max_duration_us.load(Ordering::Relaxed);
         }
 
@@ -499,13 +520,13 @@ mod tests {
     #[test]
     fn test_performance_stats_calculations() {
         let stats = PerformanceStats {
-            queries_tracked: 100,
-            slow_queries: 10,
-            cached_queries: 30,
-            db_queries_total: 200,
+            queries_tracked:   100,
+            slow_queries:      10,
+            cached_queries:    30,
+            db_queries_total:  200,
             total_duration_us: 500_000,
-            min_duration_us: 1000,
-            max_duration_us: 50_000,
+            min_duration_us:   1000,
+            max_duration_us:   50_000,
         };
 
         assert!((stats.avg_duration_ms() - 5.0).abs() < f64::EPSILON);
@@ -516,14 +537,14 @@ mod tests {
     #[test]
     fn test_operation_profile_creation() {
         let profile = OperationProfile {
-            operation: "GetUser".to_string(),
-            count: 100,
+            operation:         "GetUser".to_string(),
+            count:             100,
             total_duration_us: 500_000,
-            min_duration_us: 1000,
-            max_duration_us: 50_000,
-            total_db_queries: 200,
-            avg_complexity: 5.5,
-            cache_hit_rate: 0.75,
+            min_duration_us:   1000,
+            max_duration_us:   50_000,
+            total_db_queries:  200,
+            avg_complexity:    5.5,
+            cache_hit_rate:    0.75,
         };
 
         assert!((profile.avg_duration_ms() - 5.0).abs() < f64::EPSILON);

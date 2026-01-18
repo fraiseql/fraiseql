@@ -108,9 +108,9 @@
 #![allow(clippy::suspicious_doc_comments)] // /// vs //! style is intentional
 
 // Core modules
+pub mod config;
 pub mod error;
 pub mod schema;
-pub mod config;
 
 // Compilation (Phase 4)
 pub mod compiler;
@@ -122,17 +122,17 @@ pub mod runtime;
 pub mod graphql;
 
 // Infrastructure
-pub mod db;
-pub mod cache;
-pub mod security;
-pub mod validation;
 pub mod apq;
+pub mod cache;
+pub mod db;
+pub mod security;
 pub mod utils;
+pub mod validation;
 
 // Re-exports for convenience
+pub use config::FraiseQLConfig;
 pub use error::{FraiseQLError, Result};
 pub use schema::CompiledSchema;
-pub use config::FraiseQLConfig;
 
 /// Version of the FraiseQL core library
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

@@ -1,6 +1,6 @@
 //! Health check endpoint.
 
-use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
+use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
 use fraiseql_core::db::traits::DatabaseAdapter;
 use serde::Serialize;
 use tracing::{debug, error};
@@ -61,18 +61,18 @@ pub async fn health_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
 
     let database = if db_healthy {
         DatabaseStatus {
-            connected: true,
-            database_type: format!("{db_type:?}"),
+            connected:          true,
+            database_type:      format!("{db_type:?}"),
             active_connections: Some(metrics.active_connections as usize),
-            idle_connections: Some(metrics.idle_connections as usize),
+            idle_connections:   Some(metrics.idle_connections as usize),
         }
     } else {
         error!("Database health check failed: {:?}", health_result.err());
         DatabaseStatus {
-            connected: false,
-            database_type: format!("{db_type:?}"),
+            connected:          false,
+            database_type:      format!("{db_type:?}"),
             active_connections: Some(metrics.active_connections as usize),
-            idle_connections: Some(metrics.idle_connections as usize),
+            idle_connections:   Some(metrics.idle_connections as usize),
         }
     };
 
@@ -100,14 +100,14 @@ mod tests {
     #[test]
     fn test_health_response_serialization() {
         let response = HealthResponse {
-            status: "healthy".to_string(),
+            status:   "healthy".to_string(),
             database: DatabaseStatus {
-                connected: true,
-                database_type: "PostgreSQL".to_string(),
+                connected:          true,
+                database_type:      "PostgreSQL".to_string(),
                 active_connections: Some(2),
-                idle_connections: Some(8),
+                idle_connections:   Some(8),
             },
-            version: "2.0.0-alpha.1".to_string(),
+            version:  "2.0.0-alpha.1".to_string(),
         };
 
         let json = serde_json::to_string(&response).unwrap();

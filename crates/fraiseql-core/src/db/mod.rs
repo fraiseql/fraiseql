@@ -68,23 +68,18 @@ pub mod fraiseql_wire_adapter;
 
 // Re-export commonly used types
 pub use collation::{CollationCapabilities, CollationMapper};
+#[cfg(feature = "wire-backend")]
+pub use fraiseql_wire_adapter::FraiseWireAdapter;
+#[cfg(feature = "mysql")]
+pub use mysql::MySqlAdapter;
+#[cfg(feature = "postgres")]
+pub use postgres::{PostgresAdapter, PostgresIntrospector};
 pub use projection_generator::PostgresProjectionGenerator;
+#[cfg(feature = "sqlite")]
+pub use sqlite::SqliteAdapter;
+#[cfg(feature = "sqlserver")]
+pub use sqlserver::SqlServerAdapter;
 pub use traits::{DatabaseAdapter, DatabaseCapabilities};
 pub use types::{DatabaseType, JsonbValue, PoolMetrics};
 pub use where_clause::{HavingClause, WhereClause, WhereOperator};
 pub use where_sql_generator::WhereSqlGenerator;
-
-#[cfg(feature = "postgres")]
-pub use postgres::{PostgresAdapter, PostgresIntrospector};
-
-#[cfg(feature = "mysql")]
-pub use mysql::MySqlAdapter;
-
-#[cfg(feature = "sqlite")]
-pub use sqlite::SqliteAdapter;
-
-#[cfg(feature = "sqlserver")]
-pub use sqlserver::SqlServerAdapter;
-
-#[cfg(feature = "wire-backend")]
-pub use fraiseql_wire_adapter::FraiseWireAdapter;

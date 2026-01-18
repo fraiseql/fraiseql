@@ -4,8 +4,9 @@
 //! supported by `FraiseQL`, including comparison, string, array, vector,
 //! and full-text search operators.
 
-use lazy_static::lazy_static;
 use std::collections::HashMap;
+
+use lazy_static::lazy_static;
 
 /// Category of operator (affects SQL generation strategy)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -40,11 +41,11 @@ pub enum OperatorCategory {
 #[derive(Debug, Clone)]
 pub struct OperatorInfo {
     /// GraphQL operator name (e.g., "eq", "contains")
-    pub name: &'static str,
+    pub name:           &'static str,
     /// SQL operator or function (e.g., "=", "LIKE", "@>")
-    pub sql_op: &'static str,
+    pub sql_op:         &'static str,
     /// Category of operator
-    pub category: OperatorCategory,
+    pub category:       OperatorCategory,
     /// Whether this operator expects an array value
     pub requires_array: bool,
     /// Whether this operator needs special JSONB handling
@@ -715,10 +716,7 @@ pub fn is_operator(name: &str) -> bool {
 /// ```
 #[must_use]
 pub fn get_operators_by_category(category: OperatorCategory) -> Vec<&'static OperatorInfo> {
-    OPERATOR_REGISTRY
-        .values()
-        .filter(|op| op.category == category)
-        .collect()
+    OPERATOR_REGISTRY.values().filter(|op| op.category == category).collect()
 }
 
 #[cfg(test)]

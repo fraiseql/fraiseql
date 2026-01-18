@@ -160,7 +160,10 @@ async fn test_error_handling_invalid_view() {
         .await;
 
     // Query execution fails against invalid view
-    assert!(result.is_err(), "Query against non-existent view should fail");
+    assert!(
+        result.is_err(),
+        "Query against non-existent view should fail"
+    );
     println!("Invalid view result: error as expected");
 }
 

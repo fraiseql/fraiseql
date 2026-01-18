@@ -55,8 +55,8 @@ pub mod validation;
 
 pub use config::ServerConfig;
 pub use logging::{
-    ErrorDetails, LogLevel, LogMetrics, RequestContext, RequestId, RequestLogger,
-    SourceLocation, StructuredLogEntry,
+    ErrorDetails, LogLevel, LogMetrics, RequestContext, RequestId, RequestLogger, SourceLocation,
+    StructuredLogEntry,
 };
 pub use metrics::{MetricsCollector, PrometheusMetrics};
 pub use performance::{

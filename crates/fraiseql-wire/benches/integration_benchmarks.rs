@@ -31,7 +31,10 @@ async fn setup_test_database() -> Result<String, Box<dyn std::error::Error>> {
 }
 
 #[allow(dead_code)]
-async fn count_rows_in_view(_conn_str: &str, _view: &str) -> Result<i64, Box<dyn std::error::Error>> {
+async fn count_rows_in_view(
+    _conn_str: &str,
+    _view: &str,
+) -> Result<i64, Box<dyn std::error::Error>> {
     // This would execute a real query in production
     // For benchmarking purposes with real DB, this is implemented
     Ok(0)

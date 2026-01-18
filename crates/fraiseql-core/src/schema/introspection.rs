@@ -14,8 +14,9 @@
 //! - `__type(name: String!)` - Returns a specific type's introspection
 //! - `__typename` - Handled at projection level, not here
 
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+
+use serde::{Deserialize, Serialize};
 
 use super::{
     CompiledSchema, DirectiveDefinition, DirectiveLocationKind, EnumDefinition, FieldDefinition,
@@ -112,13 +113,7 @@ impl IntrospectionType {
 
         if !include_deprecated {
             if let Some(ref fields) = result.fields {
-                result.fields = Some(
-                    fields
-                        .iter()
-                        .filter(|f| !f.is_deprecated)
-                        .cloned()
-                        .collect(),
-                );
+                result.fields = Some(fields.iter().filter(|f| !f.is_deprecated).cloned().collect());
             }
         }
 
@@ -135,13 +130,8 @@ impl IntrospectionType {
 
         if !include_deprecated {
             if let Some(ref values) = result.enum_values {
-                result.enum_values = Some(
-                    values
-                        .iter()
-                        .filter(|v| !v.is_deprecated)
-                        .cloned()
-                        .collect(),
-                );
+                result.enum_values =
+                    Some(values.iter().filter(|v| !v.is_deprecated).cloned().collect());
             }
         }
 
@@ -492,28 +482,28 @@ impl IntrospectionBuilder {
     }
 
     /// Create a scalar type introspection with optional `specifiedByURL`.
-    fn scalar_type_with_url(name: &str, description: &str, specified_by_url: Option<&str>) -> IntrospectionType {
+    fn scalar_type_with_url(
+        name: &str,
+        description: &str,
+        specified_by_url: Option<&str>,
+    ) -> IntrospectionType {
         IntrospectionType {
-            kind: TypeKind::Scalar,
-            name: Some(name.to_string()),
-            description: Some(description.to_string()),
-            fields: None,
-            interfaces: None,
-            possible_types: None,
-            enum_values: None,
-            input_fields: None,
-            of_type: None,
+            kind:               TypeKind::Scalar,
+            name:               Some(name.to_string()),
+            description:        Some(description.to_string()),
+            fields:             None,
+            interfaces:         None,
+            possible_types:     None,
+            enum_values:        None,
+            input_fields:       None,
+            of_type:            None,
             specified_by_u_r_l: specified_by_url.map(ToString::to_string),
         }
     }
 
     /// Build object type from TypeDefinition.
     fn build_object_type(type_def: &TypeDefinition) -> IntrospectionType {
-        let fields = type_def
-            .fields
-            .iter()
-            .map(|f| Self::build_field(f))
-            .collect();
+        let fields = type_def.fields.iter().map(|f| Self::build_field(f)).collect();
 
         // Build interfaces that this type implements
         let interfaces: Vec<IntrospectionTypeRef> = type_def
@@ -523,15 +513,15 @@ impl IntrospectionBuilder {
             .collect();
 
         IntrospectionType {
-            kind: TypeKind::Object,
-            name: Some(type_def.name.clone()),
-            description: type_def.description.clone(),
-            fields: Some(fields),
-            interfaces: Some(interfaces),
-            possible_types: None,
-            enum_values: None,
-            input_fields: None,
-            of_type: None,
+            kind:               TypeKind::Object,
+            name:               Some(type_def.name.clone()),
+            description:        type_def.description.clone(),
+            fields:             Some(fields),
+            interfaces:         Some(interfaces),
+            possible_types:     None,
+            enum_values:        None,
+            input_fields:       None,
+            of_type:            None,
             specified_by_u_r_l: None,
         }
     }
@@ -542,23 +532,23 @@ impl IntrospectionBuilder {
             .values
             .iter()
             .map(|v| IntrospectionEnumValue {
-                name: v.name.clone(),
-                description: v.description.clone(),
-                is_deprecated: v.deprecation.is_some(),
+                name:               v.name.clone(),
+                description:        v.description.clone(),
+                is_deprecated:      v.deprecation.is_some(),
                 deprecation_reason: v.deprecation.as_ref().and_then(|d| d.reason.clone()),
             })
             .collect();
 
         IntrospectionType {
-            kind: TypeKind::Enum,
-            name: Some(enum_def.name.clone()),
-            description: enum_def.description.clone(),
-            fields: None,
-            interfaces: None,
-            possible_types: None,
-            enum_values: Some(enum_values),
-            input_fields: None,
-            of_type: None,
+            kind:               TypeKind::Enum,
+            name:               Some(enum_def.name.clone()),
+            description:        enum_def.description.clone(),
+            fields:             None,
+            interfaces:         None,
+            possible_types:     None,
+            enum_values:        Some(enum_values),
+            input_fields:       None,
+            of_type:            None,
             specified_by_u_r_l: None,
         }
     }
@@ -569,25 +559,25 @@ impl IntrospectionBuilder {
             .fields
             .iter()
             .map(|f| IntrospectionInputValue {
-                name: f.name.clone(),
-                description: f.description.clone(),
-                input_type: Self::type_ref(&f.field_type),
-                default_value: f.default_value.clone(),
-                is_deprecated: f.is_deprecated(),
+                name:               f.name.clone(),
+                description:        f.description.clone(),
+                input_type:         Self::type_ref(&f.field_type),
+                default_value:      f.default_value.clone(),
+                is_deprecated:      f.is_deprecated(),
                 deprecation_reason: f.deprecation.as_ref().and_then(|d| d.reason.clone()),
             })
             .collect();
 
         IntrospectionType {
-            kind: TypeKind::InputObject,
-            name: Some(input_def.name.clone()),
-            description: input_def.description.clone(),
-            fields: None,
-            interfaces: None,
-            possible_types: None,
-            enum_values: None,
-            input_fields: Some(input_fields),
-            of_type: None,
+            kind:               TypeKind::InputObject,
+            name:               Some(input_def.name.clone()),
+            description:        input_def.description.clone(),
+            fields:             None,
+            interfaces:         None,
+            possible_types:     None,
+            enum_values:        None,
+            input_fields:       Some(input_fields),
+            of_type:            None,
             specified_by_u_r_l: None,
         }
     }
@@ -598,11 +588,7 @@ impl IntrospectionBuilder {
         schema: &CompiledSchema,
     ) -> IntrospectionType {
         // Build fields for the interface
-        let fields = interface_def
-            .fields
-            .iter()
-            .map(|f| Self::build_field(f))
-            .collect();
+        let fields = interface_def.fields.iter().map(|f| Self::build_field(f)).collect();
 
         // Find all types that implement this interface
         let possible_types: Vec<IntrospectionTypeRef> = schema
@@ -614,19 +600,19 @@ impl IntrospectionBuilder {
             .collect();
 
         IntrospectionType {
-            kind: TypeKind::Interface,
-            name: Some(interface_def.name.clone()),
-            description: interface_def.description.clone(),
-            fields: Some(fields),
-            interfaces: None,
-            possible_types: if possible_types.is_empty() {
+            kind:               TypeKind::Interface,
+            name:               Some(interface_def.name.clone()),
+            description:        interface_def.description.clone(),
+            fields:             Some(fields),
+            interfaces:         None,
+            possible_types:     if possible_types.is_empty() {
                 None
             } else {
                 Some(possible_types)
             },
-            enum_values: None,
-            input_fields: None,
-            of_type: None,
+            enum_values:        None,
+            input_fields:       None,
+            of_type:            None,
             specified_by_u_r_l: None,
         }
     }
@@ -641,19 +627,19 @@ impl IntrospectionBuilder {
             .collect();
 
         IntrospectionType {
-            kind: TypeKind::Union,
-            name: Some(union_def.name.clone()),
-            description: union_def.description.clone(),
-            fields: None, // Unions don't have fields
-            interfaces: None,
-            possible_types: if possible_types.is_empty() {
+            kind:               TypeKind::Union,
+            name:               Some(union_def.name.clone()),
+            description:        union_def.description.clone(),
+            fields:             None, // Unions don't have fields
+            interfaces:         None,
+            possible_types:     if possible_types.is_empty() {
                 None
             } else {
                 Some(possible_types)
             },
-            enum_values: None,
-            input_fields: None,
-            of_type: None,
+            enum_values:        None,
+            input_fields:       None,
+            of_type:            None,
             specified_by_u_r_l: None,
         }
     }
@@ -661,11 +647,14 @@ impl IntrospectionBuilder {
     /// Build field introspection from FieldDefinition.
     fn build_field(field: &FieldDefinition) -> IntrospectionField {
         IntrospectionField {
-            name: field.output_name().to_string(),
-            description: field.description.clone(),
-            args: vec![], // Regular fields don't have args
-            field_type: Self::field_type_to_introspection(&field.field_type, field.nullable),
-            is_deprecated: field.is_deprecated(),
+            name:               field.output_name().to_string(),
+            description:        field.description.clone(),
+            args:               vec![], // Regular fields don't have args
+            field_type:         Self::field_type_to_introspection(
+                &field.field_type,
+                field.nullable,
+            ),
+            is_deprecated:      field.is_deprecated(),
             deprecation_reason: field.deprecation_reason().map(ToString::to_string),
         }
     }
@@ -691,15 +680,15 @@ impl IntrospectionBuilder {
             FieldType::Union(name) => Self::type_ref(name),
             FieldType::Scalar(name) => Self::type_ref(name), // Rich/custom scalars
             FieldType::List(inner) => IntrospectionType {
-                kind: TypeKind::List,
-                name: None,
-                description: None,
-                fields: None,
-                interfaces: None,
-                possible_types: None,
-                enum_values: None,
-                input_fields: None,
-                of_type: Some(Box::new(Self::field_type_to_introspection(inner, true))),
+                kind:               TypeKind::List,
+                name:               None,
+                description:        None,
+                fields:             None,
+                interfaces:         None,
+                possible_types:     None,
+                enum_values:        None,
+                input_fields:       None,
+                of_type:            Some(Box::new(Self::field_type_to_introspection(inner, true))),
                 specified_by_u_r_l: None,
             },
             FieldType::Vector => Self::type_ref("JSON"), // Vectors are exposed as JSON
@@ -710,15 +699,15 @@ impl IntrospectionBuilder {
         } else {
             // Wrap in NON_NULL
             IntrospectionType {
-                kind: TypeKind::NonNull,
-                name: None,
-                description: None,
-                fields: None,
-                interfaces: None,
-                possible_types: None,
-                enum_values: None,
-                input_fields: None,
-                of_type: Some(Box::new(inner)),
+                kind:               TypeKind::NonNull,
+                name:               None,
+                description:        None,
+                fields:             None,
+                interfaces:         None,
+                possible_types:     None,
+                enum_values:        None,
+                input_fields:       None,
+                of_type:            Some(Box::new(inner)),
                 specified_by_u_r_l: None,
             }
         }
@@ -727,81 +716,72 @@ impl IntrospectionBuilder {
     /// Create a type reference.
     fn type_ref(name: &str) -> IntrospectionType {
         IntrospectionType {
-            kind: TypeKind::Scalar, // Will be overwritten if it's an object
-            name: Some(name.to_string()),
-            description: None,
-            fields: None,
-            interfaces: None,
-            possible_types: None,
-            enum_values: None,
-            input_fields: None,
-            of_type: None,
+            kind:               TypeKind::Scalar, // Will be overwritten if it's an object
+            name:               Some(name.to_string()),
+            description:        None,
+            fields:             None,
+            interfaces:         None,
+            possible_types:     None,
+            enum_values:        None,
+            input_fields:       None,
+            of_type:            None,
             specified_by_u_r_l: None,
         }
     }
 
     /// Build Query root type.
     fn build_query_type(schema: &CompiledSchema) -> IntrospectionType {
-        let fields: Vec<IntrospectionField> = schema
-            .queries
-            .iter()
-            .map(|q| Self::build_query_field(q))
-            .collect();
+        let fields: Vec<IntrospectionField> =
+            schema.queries.iter().map(|q| Self::build_query_field(q)).collect();
 
         IntrospectionType {
-            kind: TypeKind::Object,
-            name: Some("Query".to_string()),
-            description: Some("Root query type".to_string()),
-            fields: Some(fields),
-            interfaces: Some(vec![]),
-            possible_types: None,
-            enum_values: None,
-            input_fields: None,
-            of_type: None,
+            kind:               TypeKind::Object,
+            name:               Some("Query".to_string()),
+            description:        Some("Root query type".to_string()),
+            fields:             Some(fields),
+            interfaces:         Some(vec![]),
+            possible_types:     None,
+            enum_values:        None,
+            input_fields:       None,
+            of_type:            None,
             specified_by_u_r_l: None,
         }
     }
 
     /// Build Mutation root type.
     fn build_mutation_type(schema: &CompiledSchema) -> IntrospectionType {
-        let fields: Vec<IntrospectionField> = schema
-            .mutations
-            .iter()
-            .map(|m| Self::build_mutation_field(m))
-            .collect();
+        let fields: Vec<IntrospectionField> =
+            schema.mutations.iter().map(|m| Self::build_mutation_field(m)).collect();
 
         IntrospectionType {
-            kind: TypeKind::Object,
-            name: Some("Mutation".to_string()),
-            description: Some("Root mutation type".to_string()),
-            fields: Some(fields),
-            interfaces: Some(vec![]),
-            possible_types: None,
-            enum_values: None,
-            input_fields: None,
-            of_type: None,
+            kind:               TypeKind::Object,
+            name:               Some("Mutation".to_string()),
+            description:        Some("Root mutation type".to_string()),
+            fields:             Some(fields),
+            interfaces:         Some(vec![]),
+            possible_types:     None,
+            enum_values:        None,
+            input_fields:       None,
+            of_type:            None,
             specified_by_u_r_l: None,
         }
     }
 
     /// Build Subscription root type.
     fn build_subscription_type(schema: &CompiledSchema) -> IntrospectionType {
-        let fields: Vec<IntrospectionField> = schema
-            .subscriptions
-            .iter()
-            .map(|s| Self::build_subscription_field(s))
-            .collect();
+        let fields: Vec<IntrospectionField> =
+            schema.subscriptions.iter().map(|s| Self::build_subscription_field(s)).collect();
 
         IntrospectionType {
-            kind: TypeKind::Object,
-            name: Some("Subscription".to_string()),
-            description: Some("Root subscription type".to_string()),
-            fields: Some(fields),
-            interfaces: Some(vec![]),
-            possible_types: None,
-            enum_values: None,
-            input_fields: None,
-            of_type: None,
+            kind:               TypeKind::Object,
+            name:               Some("Subscription".to_string()),
+            description:        Some("Root subscription type".to_string()),
+            fields:             Some(fields),
+            interfaces:         Some(vec![]),
+            possible_types:     None,
+            enum_values:        None,
+            input_fields:       None,
+            of_type:            None,
             specified_by_u_r_l: None,
         }
     }
@@ -811,15 +791,15 @@ impl IntrospectionBuilder {
         let return_type = Self::type_ref(&query.return_type);
         let return_type = if query.returns_list {
             IntrospectionType {
-                kind: TypeKind::List,
-                name: None,
-                description: None,
-                fields: None,
-                interfaces: None,
-                possible_types: None,
-                enum_values: None,
-                input_fields: None,
-                of_type: Some(Box::new(return_type)),
+                kind:               TypeKind::List,
+                name:               None,
+                description:        None,
+                fields:             None,
+                interfaces:         None,
+                possible_types:     None,
+                enum_values:        None,
+                input_fields:       None,
+                of_type:            Some(Box::new(return_type)),
                 specified_by_u_r_l: None,
             }
         } else {
@@ -830,15 +810,15 @@ impl IntrospectionBuilder {
             return_type
         } else {
             IntrospectionType {
-                kind: TypeKind::NonNull,
-                name: None,
-                description: None,
-                fields: None,
-                interfaces: None,
-                possible_types: None,
-                enum_values: None,
-                input_fields: None,
-                of_type: Some(Box::new(return_type)),
+                kind:               TypeKind::NonNull,
+                name:               None,
+                description:        None,
+                fields:             None,
+                interfaces:         None,
+                possible_types:     None,
+                enum_values:        None,
+                input_fields:       None,
+                of_type:            Some(Box::new(return_type)),
                 specified_by_u_r_l: None,
             }
         };
@@ -848,11 +828,11 @@ impl IntrospectionBuilder {
             .arguments
             .iter()
             .map(|arg| IntrospectionInputValue {
-                name: arg.name.clone(),
-                description: arg.description.clone(),
-                input_type: Self::field_type_to_introspection(&arg.arg_type, arg.nullable),
-                default_value: arg.default_value.as_ref().map(|v| v.to_string()),
-                is_deprecated: arg.is_deprecated(),
+                name:               arg.name.clone(),
+                description:        arg.description.clone(),
+                input_type:         Self::field_type_to_introspection(&arg.arg_type, arg.nullable),
+                default_value:      arg.default_value.as_ref().map(|v| v.to_string()),
+                is_deprecated:      arg.is_deprecated(),
                 deprecation_reason: arg.deprecation_reason().map(ToString::to_string),
             })
             .collect();
@@ -877,11 +857,11 @@ impl IntrospectionBuilder {
             .arguments
             .iter()
             .map(|arg| IntrospectionInputValue {
-                name: arg.name.clone(),
-                description: arg.description.clone(),
-                input_type: Self::field_type_to_introspection(&arg.arg_type, arg.nullable),
-                default_value: arg.default_value.as_ref().map(|v| v.to_string()),
-                is_deprecated: arg.is_deprecated(),
+                name:               arg.name.clone(),
+                description:        arg.description.clone(),
+                input_type:         Self::field_type_to_introspection(&arg.arg_type, arg.nullable),
+                default_value:      arg.default_value.as_ref().map(|v| v.to_string()),
+                is_deprecated:      arg.is_deprecated(),
                 deprecation_reason: arg.deprecation_reason().map(ToString::to_string),
             })
             .collect();
@@ -897,7 +877,9 @@ impl IntrospectionBuilder {
     }
 
     /// Build subscription field introspection.
-    fn build_subscription_field(subscription: &super::SubscriptionDefinition) -> IntrospectionField {
+    fn build_subscription_field(
+        subscription: &super::SubscriptionDefinition,
+    ) -> IntrospectionField {
         // Subscriptions typically return a single item per event
         let return_type = Self::type_ref(&subscription.return_type);
 
@@ -906,11 +888,11 @@ impl IntrospectionBuilder {
             .arguments
             .iter()
             .map(|arg| IntrospectionInputValue {
-                name: arg.name.clone(),
-                description: arg.description.clone(),
-                input_type: Self::field_type_to_introspection(&arg.arg_type, arg.nullable),
-                default_value: arg.default_value.as_ref().map(|v| v.to_string()),
-                is_deprecated: arg.is_deprecated(),
+                name:               arg.name.clone(),
+                description:        arg.description.clone(),
+                input_type:         Self::field_type_to_introspection(&arg.arg_type, arg.nullable),
+                default_value:      arg.default_value.as_ref().map(|v| v.to_string()),
+                is_deprecated:      arg.is_deprecated(),
                 deprecation_reason: arg.deprecation_reason().map(ToString::to_string),
             })
             .collect();
@@ -1020,29 +1002,23 @@ impl IntrospectionBuilder {
 
     /// Build introspection directives from custom directive definitions.
     fn build_custom_directives(directives: &[DirectiveDefinition]) -> Vec<IntrospectionDirective> {
-        directives
-            .iter()
-            .map(|d| Self::build_custom_directive(d))
-            .collect()
+        directives.iter().map(|d| Self::build_custom_directive(d)).collect()
     }
 
     /// Build a single introspection directive from a custom directive definition.
     fn build_custom_directive(directive: &DirectiveDefinition) -> IntrospectionDirective {
-        let locations: Vec<DirectiveLocation> = directive
-            .locations
-            .iter()
-            .map(|loc| DirectiveLocation::from(*loc))
-            .collect();
+        let locations: Vec<DirectiveLocation> =
+            directive.locations.iter().map(|loc| DirectiveLocation::from(*loc)).collect();
 
         let args: Vec<IntrospectionInputValue> = directive
             .arguments
             .iter()
             .map(|arg| IntrospectionInputValue {
-                name: arg.name.clone(),
-                description: arg.description.clone(),
-                input_type: Self::field_type_to_introspection(&arg.arg_type, arg.nullable),
-                default_value: arg.default_value.as_ref().map(|v| v.to_string()),
-                is_deprecated: arg.is_deprecated(),
+                name:               arg.name.clone(),
+                description:        arg.description.clone(),
+                input_type:         Self::field_type_to_introspection(&arg.arg_type, arg.nullable),
+                default_value:      arg.default_value.as_ref().map(|v| v.to_string()),
+                is_deprecated:      arg.is_deprecated(),
                 deprecation_reason: arg.deprecation_reason().map(ToString::to_string),
             })
             .collect();
@@ -1067,7 +1043,7 @@ pub struct IntrospectionResponses {
     /// Full `__schema` response JSON.
     pub schema_response: String,
     /// Map of type name -> `__type` response JSON.
-    pub type_responses: HashMap<String, String>,
+    pub type_responses:  HashMap<String, String>,
 }
 
 impl IntrospectionResponses {
@@ -1108,17 +1084,14 @@ impl IntrospectionResponses {
     /// Get response for `__type(name: "...")` query.
     #[must_use]
     pub fn get_type_response(&self, type_name: &str) -> String {
-        self.type_responses
-            .get(type_name)
-            .cloned()
-            .unwrap_or_else(|| {
-                serde_json::json!({
-                    "data": {
-                        "__type": null
-                    }
-                })
-                .to_string()
+        self.type_responses.get(type_name).cloned().unwrap_or_else(|| {
+            serde_json::json!({
+                "data": {
+                    "__type": null
+                }
             })
+            .to_string()
+        })
     }
 }
 
@@ -1131,43 +1104,45 @@ mod tests {
         let mut schema = CompiledSchema::new();
 
         // Add a User type
-        schema.types.push(TypeDefinition::new("User", "v_user")
-            .with_field(FieldDefinition::new("id", FieldType::Id))
-            .with_field(FieldDefinition::new("name", FieldType::String))
-            .with_field(FieldDefinition::nullable("email", FieldType::String))
-            .with_description("A user in the system"));
+        schema.types.push(
+            TypeDefinition::new("User", "v_user")
+                .with_field(FieldDefinition::new("id", FieldType::Id))
+                .with_field(FieldDefinition::new("name", FieldType::String))
+                .with_field(FieldDefinition::nullable("email", FieldType::String))
+                .with_description("A user in the system"),
+        );
 
         // Add a users query
         schema.queries.push(QueryDefinition {
-            name: "users".to_string(),
-            return_type: "User".to_string(),
+            name:         "users".to_string(),
+            return_type:  "User".to_string(),
             returns_list: true,
-            nullable: false,
-            arguments: vec![],
-            sql_source: Some("v_user".to_string()),
-            description: Some("Get all users".to_string()),
-            auto_params: AutoParams::default(),
-            deprecation: None,
+            nullable:     false,
+            arguments:    vec![],
+            sql_source:   Some("v_user".to_string()),
+            description:  Some("Get all users".to_string()),
+            auto_params:  AutoParams::default(),
+            deprecation:  None,
         });
 
         // Add a user query with argument
         schema.queries.push(QueryDefinition {
-            name: "user".to_string(),
-            return_type: "User".to_string(),
+            name:         "user".to_string(),
+            return_type:  "User".to_string(),
             returns_list: false,
-            nullable: true,
-            arguments: vec![crate::schema::ArgumentDefinition {
-                name: "id".to_string(),
-                arg_type: FieldType::Id,
-                nullable: false, // required
+            nullable:     true,
+            arguments:    vec![crate::schema::ArgumentDefinition {
+                name:          "id".to_string(),
+                arg_type:      FieldType::Id,
+                nullable:      false, // required
                 default_value: None,
-                description: Some("User ID".to_string()),
-                deprecation: None,
+                description:   Some("User ID".to_string()),
+                deprecation:   None,
             }],
-            sql_source: Some("v_user".to_string()),
-            description: Some("Get user by ID".to_string()),
-            auto_params: AutoParams::default(),
-            deprecation: None,
+            sql_source:   Some("v_user".to_string()),
+            description:  Some("Get user by ID".to_string()),
+            auto_params:  AutoParams::default(),
+            deprecation:  None,
         });
 
         schema
@@ -1279,23 +1254,23 @@ mod tests {
         // Create a schema with a deprecated field
         let mut schema = CompiledSchema::new();
         schema.types.push(TypeDefinition {
-            name: "Product".to_string(),
-            sql_source: "products".to_string(),
-            jsonb_column: "data".to_string(),
-            description: None,
+            name:                "Product".to_string(),
+            sql_source:          "products".to_string(),
+            jsonb_column:        "data".to_string(),
+            description:         None,
             sql_projection_hint: None,
-            implements: vec![],
-            fields: vec![
+            implements:          vec![],
+            fields:              vec![
                 FieldDefinition::new("id", FieldType::Id),
                 FieldDefinition {
-                    name: "oldSku".to_string(),
-                    field_type: FieldType::String,
-                    nullable: false,
-                    description: Some("Legacy SKU field".to_string()),
-                    default_value: None,
-                    vector_config: None,
-                    alias: None,
-                    deprecation: Some(DeprecationInfo {
+                    name:           "oldSku".to_string(),
+                    field_type:     FieldType::String,
+                    nullable:       false,
+                    description:    Some("Legacy SKU field".to_string()),
+                    default_value:  None,
+                    vector_config:  None,
+                    alias:          None,
+                    deprecation:    Some(DeprecationInfo {
                         reason: Some("Use 'sku' instead".to_string()),
                     }),
                     requires_scope: None,
@@ -1318,10 +1293,7 @@ mod tests {
         // 'oldSku' should be deprecated
         let old_sku_field = fields.iter().find(|f| f.name == "oldSku").unwrap();
         assert!(old_sku_field.is_deprecated);
-        assert_eq!(
-            old_sku_field.deprecation_reason,
-            Some("Use 'sku' instead".to_string())
-        );
+        assert_eq!(old_sku_field.deprecation_reason, Some("Use 'sku' instead".to_string()));
 
         // 'sku' should NOT be deprecated
         let sku_field = fields.iter().find(|f| f.name == "sku").unwrap();
@@ -1342,26 +1314,26 @@ mod tests {
 
         // Add an enum type with some values, one deprecated
         schema.enums.push(EnumDefinition {
-            name: "OrderStatus".to_string(),
+            name:        "OrderStatus".to_string(),
             description: Some("Status of an order".to_string()),
-            values: vec![
+            values:      vec![
                 EnumValueDefinition {
-                    name: "PENDING".to_string(),
+                    name:        "PENDING".to_string(),
                     description: Some("Order is pending".to_string()),
                     deprecation: None,
                 },
                 EnumValueDefinition {
-                    name: "PROCESSING".to_string(),
+                    name:        "PROCESSING".to_string(),
                     description: None,
                     deprecation: None,
                 },
                 EnumValueDefinition {
-                    name: "SHIPPED".to_string(),
+                    name:        "SHIPPED".to_string(),
                     description: None,
                     deprecation: None,
                 },
                 EnumValueDefinition {
-                    name: "CANCELLED".to_string(),
+                    name:        "CANCELLED".to_string(),
                     description: Some("Order was cancelled".to_string()),
                     deprecation: Some(crate::schema::DeprecationInfo {
                         reason: Some("Use REFUNDED instead".to_string()),
@@ -1380,10 +1352,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(order_status.kind, TypeKind::Enum);
-        assert_eq!(
-            order_status.description,
-            Some("Status of an order".to_string())
-        );
+        assert_eq!(order_status.description, Some("Status of an order".to_string()));
 
         // Should have enum_values
         let enum_values = order_status.enum_values.as_ref().unwrap();
@@ -1398,10 +1367,7 @@ mod tests {
         // Check CANCELLED value (deprecated)
         let cancelled = enum_values.iter().find(|v| v.name == "CANCELLED").unwrap();
         assert!(cancelled.is_deprecated);
-        assert_eq!(
-            cancelled.deprecation_reason,
-            Some("Use REFUNDED instead".to_string())
-        );
+        assert_eq!(cancelled.deprecation_reason, Some("Use REFUNDED instead".to_string()));
 
         // Enum should not have fields
         assert!(order_status.fields.is_none());
@@ -1415,29 +1381,29 @@ mod tests {
 
         // Add an input object type
         schema.input_types.push(InputObjectDefinition {
-            name: "UserFilter".to_string(),
+            name:        "UserFilter".to_string(),
             description: Some("Filter for user queries".to_string()),
-            fields: vec![
+            fields:      vec![
                 InputFieldDefinition {
-                    name: "name".to_string(),
-                    field_type: "String".to_string(),
-                    description: Some("Filter by name".to_string()),
+                    name:          "name".to_string(),
+                    field_type:    "String".to_string(),
+                    description:   Some("Filter by name".to_string()),
                     default_value: None,
-                    deprecation: None,
+                    deprecation:   None,
                 },
                 InputFieldDefinition {
-                    name: "email".to_string(),
-                    field_type: "String".to_string(),
-                    description: None,
+                    name:          "email".to_string(),
+                    field_type:    "String".to_string(),
+                    description:   None,
                     default_value: None,
-                    deprecation: None,
+                    deprecation:   None,
                 },
                 InputFieldDefinition {
-                    name: "limit".to_string(),
-                    field_type: "Int".to_string(),
-                    description: Some("Max results".to_string()),
+                    name:          "limit".to_string(),
+                    field_type:    "Int".to_string(),
+                    description:   Some("Max results".to_string()),
                     default_value: Some("10".to_string()),
-                    deprecation: None,
+                    deprecation:   None,
                 },
             ],
         });
@@ -1452,10 +1418,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(user_filter.kind, TypeKind::InputObject);
-        assert_eq!(
-            user_filter.description,
-            Some("Filter for user queries".to_string())
-        );
+        assert_eq!(user_filter.description, Some("Filter for user queries".to_string()));
 
         // Should have input_fields
         let input_fields = user_filter.input_fields.as_ref().unwrap();
@@ -1481,9 +1444,9 @@ mod tests {
 
         let mut schema = CompiledSchema::new();
         schema.enums.push(EnumDefinition {
-            name: "Status".to_string(),
+            name:        "Status".to_string(),
             description: None,
-            values: vec![],
+            values:      vec![],
         });
 
         let introspection = IntrospectionBuilder::build(&schema);
@@ -1501,9 +1464,9 @@ mod tests {
 
         let mut schema = CompiledSchema::new();
         schema.input_types.push(InputObjectDefinition {
-            name: "CreateUserInput".to_string(),
+            name:        "CreateUserInput".to_string(),
             description: None,
-            fields: vec![],
+            fields:      vec![],
         });
 
         let introspection = IntrospectionBuilder::build(&schema);
@@ -1523,33 +1486,33 @@ mod tests {
 
         // Add a Node interface
         schema.interfaces.push(InterfaceDefinition {
-            name: "Node".to_string(),
+            name:        "Node".to_string(),
             description: Some("An object with a globally unique ID".to_string()),
-            fields: vec![FieldDefinition::new("id", FieldType::Id)],
+            fields:      vec![FieldDefinition::new("id", FieldType::Id)],
         });
 
         // Add types that implement the interface
         schema.types.push(TypeDefinition {
-            name: "User".to_string(),
-            sql_source: "users".to_string(),
-            jsonb_column: "data".to_string(),
-            description: Some("A user".to_string()),
+            name:                "User".to_string(),
+            sql_source:          "users".to_string(),
+            jsonb_column:        "data".to_string(),
+            description:         Some("A user".to_string()),
             sql_projection_hint: None,
-            implements: vec!["Node".to_string()],
-            fields: vec![
+            implements:          vec!["Node".to_string()],
+            fields:              vec![
                 FieldDefinition::new("id", FieldType::Id),
                 FieldDefinition::new("name", FieldType::String),
             ],
         });
 
         schema.types.push(TypeDefinition {
-            name: "Post".to_string(),
-            sql_source: "posts".to_string(),
-            jsonb_column: "data".to_string(),
-            description: Some("A blog post".to_string()),
+            name:                "Post".to_string(),
+            sql_source:          "posts".to_string(),
+            jsonb_column:        "data".to_string(),
+            description:         Some("A blog post".to_string()),
             sql_projection_hint: None,
-            implements: vec!["Node".to_string()],
-            fields: vec![
+            implements:          vec!["Node".to_string()],
+            fields:              vec![
                 FieldDefinition::new("id", FieldType::Id),
                 FieldDefinition::new("title", FieldType::String),
             ],
@@ -1565,10 +1528,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(node.kind, TypeKind::Interface);
-        assert_eq!(
-            node.description,
-            Some("An object with a globally unique ID".to_string())
-        );
+        assert_eq!(node.description, Some("An object with a globally unique ID".to_string()));
 
         // Interface should have fields
         let fields = node.fields.as_ref().unwrap();
@@ -1594,26 +1554,26 @@ mod tests {
 
         // Add interfaces
         schema.interfaces.push(InterfaceDefinition {
-            name: "Node".to_string(),
+            name:        "Node".to_string(),
             description: None,
-            fields: vec![FieldDefinition::new("id", FieldType::Id)],
+            fields:      vec![FieldDefinition::new("id", FieldType::Id)],
         });
 
         schema.interfaces.push(InterfaceDefinition {
-            name: "Timestamped".to_string(),
+            name:        "Timestamped".to_string(),
             description: None,
-            fields: vec![FieldDefinition::new("createdAt", FieldType::DateTime)],
+            fields:      vec![FieldDefinition::new("createdAt", FieldType::DateTime)],
         });
 
         // Add a type that implements both interfaces
         schema.types.push(TypeDefinition {
-            name: "Comment".to_string(),
-            sql_source: "comments".to_string(),
-            jsonb_column: "data".to_string(),
-            description: None,
+            name:                "Comment".to_string(),
+            sql_source:          "comments".to_string(),
+            jsonb_column:        "data".to_string(),
+            description:         None,
             sql_projection_hint: None,
-            implements: vec!["Node".to_string(), "Timestamped".to_string()],
-            fields: vec![
+            implements:          vec!["Node".to_string(), "Timestamped".to_string()],
+            fields:              vec![
                 FieldDefinition::new("id", FieldType::Id),
                 FieldDefinition::new("createdAt", FieldType::DateTime),
                 FieldDefinition::new("text", FieldType::String),
@@ -1644,9 +1604,9 @@ mod tests {
 
         let mut schema = CompiledSchema::new();
         schema.interfaces.push(InterfaceDefinition {
-            name: "Searchable".to_string(),
+            name:        "Searchable".to_string(),
             description: None,
-            fields: vec![],
+            fields:      vec![],
         });
 
         let introspection = IntrospectionBuilder::build(&schema);
@@ -1662,40 +1622,40 @@ mod tests {
     fn test_filter_deprecated_fields() {
         // Create a type with some deprecated fields
         let introspection_type = IntrospectionType {
-            kind: TypeKind::Object,
-            name: Some("TestType".to_string()),
-            description: None,
-            fields: Some(vec![
+            kind:               TypeKind::Object,
+            name:               Some("TestType".to_string()),
+            description:        None,
+            fields:             Some(vec![
                 IntrospectionField {
-                    name: "id".to_string(),
-                    description: None,
-                    args: vec![],
-                    field_type: IntrospectionBuilder::type_ref("ID"),
-                    is_deprecated: false,
+                    name:               "id".to_string(),
+                    description:        None,
+                    args:               vec![],
+                    field_type:         IntrospectionBuilder::type_ref("ID"),
+                    is_deprecated:      false,
                     deprecation_reason: None,
                 },
                 IntrospectionField {
-                    name: "oldField".to_string(),
-                    description: None,
-                    args: vec![],
-                    field_type: IntrospectionBuilder::type_ref("String"),
-                    is_deprecated: true,
+                    name:               "oldField".to_string(),
+                    description:        None,
+                    args:               vec![],
+                    field_type:         IntrospectionBuilder::type_ref("String"),
+                    is_deprecated:      true,
                     deprecation_reason: Some("Use newField instead".to_string()),
                 },
                 IntrospectionField {
-                    name: "newField".to_string(),
-                    description: None,
-                    args: vec![],
-                    field_type: IntrospectionBuilder::type_ref("String"),
-                    is_deprecated: false,
+                    name:               "newField".to_string(),
+                    description:        None,
+                    args:               vec![],
+                    field_type:         IntrospectionBuilder::type_ref("String"),
+                    is_deprecated:      false,
                     deprecation_reason: None,
                 },
             ]),
-            interfaces: None,
-            possible_types: None,
-            enum_values: None,
-            input_fields: None,
-            of_type: None,
+            interfaces:         None,
+            possible_types:     None,
+            enum_values:        None,
+            input_fields:       None,
+            of_type:            None,
             specified_by_u_r_l: None,
         };
 
@@ -1717,34 +1677,34 @@ mod tests {
     fn test_filter_deprecated_enum_values() {
         // Create an enum type with some deprecated values
         let introspection_type = IntrospectionType {
-            kind: TypeKind::Enum,
-            name: Some("Status".to_string()),
-            description: None,
-            fields: None,
-            interfaces: None,
-            possible_types: None,
-            enum_values: Some(vec![
+            kind:               TypeKind::Enum,
+            name:               Some("Status".to_string()),
+            description:        None,
+            fields:             None,
+            interfaces:         None,
+            possible_types:     None,
+            enum_values:        Some(vec![
                 IntrospectionEnumValue {
-                    name: "ACTIVE".to_string(),
-                    description: None,
-                    is_deprecated: false,
+                    name:               "ACTIVE".to_string(),
+                    description:        None,
+                    is_deprecated:      false,
                     deprecation_reason: None,
                 },
                 IntrospectionEnumValue {
-                    name: "INACTIVE".to_string(),
-                    description: None,
-                    is_deprecated: true,
+                    name:               "INACTIVE".to_string(),
+                    description:        None,
+                    is_deprecated:      true,
                     deprecation_reason: Some("Use DISABLED instead".to_string()),
                 },
                 IntrospectionEnumValue {
-                    name: "DISABLED".to_string(),
-                    description: None,
-                    is_deprecated: false,
+                    name:               "DISABLED".to_string(),
+                    description:        None,
+                    is_deprecated:      false,
                     deprecation_reason: None,
                 },
             ]),
-            input_fields: None,
-            of_type: None,
+            input_fields:       None,
+            of_type:            None,
             specified_by_u_r_l: None,
         };
 
@@ -1776,11 +1736,7 @@ mod tests {
 
         assert_eq!(datetime.kind, TypeKind::Scalar);
         assert!(datetime.specified_by_u_r_l.is_some());
-        assert!(datetime
-            .specified_by_u_r_l
-            .as_ref()
-            .unwrap()
-            .contains("date-time"));
+        assert!(datetime.specified_by_u_r_l.as_ref().unwrap().contains("date-time"));
 
         // Find UUID scalar
         let uuid = introspection
@@ -1806,55 +1762,55 @@ mod tests {
 
     #[test]
     fn test_deprecated_query_introspection() {
-        use crate::schema::{DeprecationInfo, AutoParams, ArgumentDefinition};
+        use crate::schema::{ArgumentDefinition, AutoParams, DeprecationInfo};
 
         let mut schema = CompiledSchema::new();
 
         // Add a deprecated query
         schema.queries.push(QueryDefinition {
-            name: "oldUsers".to_string(),
-            return_type: "User".to_string(),
+            name:         "oldUsers".to_string(),
+            return_type:  "User".to_string(),
             returns_list: true,
-            nullable: false,
-            arguments: vec![],
-            sql_source: Some("v_user".to_string()),
-            description: Some("Old way to get users".to_string()),
-            auto_params: AutoParams::default(),
-            deprecation: Some(DeprecationInfo {
+            nullable:     false,
+            arguments:    vec![],
+            sql_source:   Some("v_user".to_string()),
+            description:  Some("Old way to get users".to_string()),
+            auto_params:  AutoParams::default(),
+            deprecation:  Some(DeprecationInfo {
                 reason: Some("Use 'users' instead".to_string()),
             }),
         });
 
         // Add a non-deprecated query with a deprecated argument
         schema.queries.push(QueryDefinition {
-            name: "users".to_string(),
-            return_type: "User".to_string(),
+            name:         "users".to_string(),
+            return_type:  "User".to_string(),
             returns_list: true,
-            nullable: false,
-            arguments: vec![
+            nullable:     false,
+            arguments:    vec![
                 ArgumentDefinition {
-                    name: "first".to_string(),
-                    arg_type: FieldType::Int,
-                    nullable: true,
+                    name:          "first".to_string(),
+                    arg_type:      FieldType::Int,
+                    nullable:      true,
                     default_value: None,
-                    description: Some("Number of results to return".to_string()),
-                    deprecation: None,
+                    description:   Some("Number of results to return".to_string()),
+                    deprecation:   None,
                 },
                 ArgumentDefinition {
-                    name: "limit".to_string(),
-                    arg_type: FieldType::Int,
-                    nullable: true,
+                    name:          "limit".to_string(),
+                    arg_type:      FieldType::Int,
+                    nullable:      true,
                     default_value: None,
-                    description: Some("Old parameter for limiting results".to_string()),
-                    deprecation: Some(DeprecationInfo {
+                    description:   Some("Old parameter for limiting results".to_string()),
+                    deprecation:   Some(DeprecationInfo {
                         reason: Some("Use 'first' instead".to_string()),
                     }),
                 },
             ],
-            sql_source: Some("v_user".to_string()),
-            description: Some("Get users with pagination".to_string()),
-            auto_params: AutoParams::default(),
-            deprecation: None,
+            sql_source:   Some("v_user".to_string()),
+            description:  Some("Get users with pagination".to_string()),
+            auto_params:  AutoParams::default(),
+            deprecation:  None,
         });
 
         let introspection = IntrospectionBuilder::build(&schema);
@@ -1871,10 +1827,7 @@ mod tests {
         // 'oldUsers' should be deprecated
         let old_users = fields.iter().find(|f| f.name == "oldUsers").unwrap();
         assert!(old_users.is_deprecated);
-        assert_eq!(
-            old_users.deprecation_reason,
-            Some("Use 'users' instead".to_string())
-        );
+        assert_eq!(old_users.deprecation_reason, Some("Use 'users' instead".to_string()));
 
         // 'users' should NOT be deprecated
         let users = fields.iter().find(|f| f.name == "users").unwrap();
@@ -1892,36 +1845,33 @@ mod tests {
         // 'limit' argument should be deprecated
         let limit_arg = users.args.iter().find(|a| a.name == "limit").unwrap();
         assert!(limit_arg.is_deprecated);
-        assert_eq!(
-            limit_arg.deprecation_reason,
-            Some("Use 'first' instead".to_string())
-        );
+        assert_eq!(limit_arg.deprecation_reason, Some("Use 'first' instead".to_string()));
     }
 
     #[test]
     fn test_deprecated_input_field_introspection() {
-        use crate::schema::{InputObjectDefinition, InputFieldDefinition, DeprecationInfo};
+        use crate::schema::{DeprecationInfo, InputFieldDefinition, InputObjectDefinition};
 
         let mut schema = CompiledSchema::new();
 
         // Add an input type with a deprecated field
         schema.input_types.push(InputObjectDefinition {
-            name: "CreateUserInput".to_string(),
+            name:        "CreateUserInput".to_string(),
             description: Some("Input for creating a user".to_string()),
-            fields: vec![
+            fields:      vec![
                 InputFieldDefinition {
-                    name: "name".to_string(),
-                    field_type: "String!".to_string(),
+                    name:          "name".to_string(),
+                    field_type:    "String!".to_string(),
                     default_value: None,
-                    description: Some("User name".to_string()),
-                    deprecation: None,
+                    description:   Some("User name".to_string()),
+                    deprecation:   None,
                 },
                 InputFieldDefinition {
-                    name: "oldEmail".to_string(),
-                    field_type: "String".to_string(),
+                    name:          "oldEmail".to_string(),
+                    field_type:    "String".to_string(),
                     default_value: None,
-                    description: Some("Legacy email field".to_string()),
-                    deprecation: Some(DeprecationInfo {
+                    description:   Some("Legacy email field".to_string()),
+                    deprecation:   Some(DeprecationInfo {
                         reason: Some("Use 'email' instead".to_string()),
                     }),
                 },
@@ -1947,9 +1897,6 @@ mod tests {
         // 'oldEmail' should be deprecated
         let old_email = input_fields.iter().find(|f| f.name == "oldEmail").unwrap();
         assert!(old_email.is_deprecated);
-        assert_eq!(
-            old_email.deprecation_reason,
-            Some("Use 'email' instead".to_string())
-        );
+        assert_eq!(old_email.deprecation_reason, Some("Use 'email' instead".to_string()));
     }
 }

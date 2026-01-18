@@ -7,27 +7,26 @@
 //! - Common assertions
 
 #![allow(dead_code)] // Test helper utilities may not be used in all test files
-use tokio::net::TcpListener;
-use tokio::task::JoinHandle;
+use tokio::{net::TcpListener, task::JoinHandle};
 
 /// Test server configuration
 pub struct TestServerConfig {
     /// Bind address
-    pub bind_addr: String,
+    pub bind_addr:    String,
     /// Database URL
     pub database_url: String,
     /// Schema path
-    pub schema_path: String,
+    pub schema_path:  String,
 }
 
 impl TestServerConfig {
     /// Create with defaults
     pub fn new() -> Self {
         Self {
-            bind_addr: "127.0.0.1:0".to_string(), // Random port
+            bind_addr:    "127.0.0.1:0".to_string(), // Random port
             database_url: std::env::var("DATABASE_URL")
                 .unwrap_or_else(|_| "postgresql:///fraiseql_test".to_string()),
-            schema_path: "schema.compiled.json".to_string(),
+            schema_path:  "schema.compiled.json".to_string(),
         }
     }
 
@@ -53,11 +52,11 @@ impl Default for TestServerConfig {
 /// Test server handle
 pub struct TestServer {
     /// Server port
-    pub port: u16,
+    pub port:     u16,
     /// Base URL
     pub base_url: String,
     /// Server task handle
-    _handle: Option<JoinHandle<()>>,
+    _handle:      Option<JoinHandle<()>>,
 }
 
 impl TestServer {
@@ -84,14 +83,9 @@ impl TestServer {
 
 /// Find available port
 pub async fn find_available_port() -> u16 {
-    let listener = TcpListener::bind("127.0.0.1:0")
-        .await
-        .expect("Failed to find available port");
+    let listener = TcpListener::bind("127.0.0.1:0").await.expect("Failed to find available port");
 
-    listener
-        .local_addr()
-        .expect("Failed to get local address")
-        .port()
+    listener.local_addr().expect("Failed to get local address").port()
 }
 
 /// Get test HTTP client
@@ -135,7 +129,8 @@ pub fn create_graphql_request(
 pub fn assert_health_response(response: &serde_json::Value) {
     assert!(response.get("status").is_some(), "Missing status field");
     assert!(
-        response["status"].as_str() == Some("healthy") || response["status"].as_str() == Some("unhealthy"),
+        response["status"].as_str() == Some("healthy")
+            || response["status"].as_str() == Some("unhealthy"),
         "Invalid status value: expected 'healthy' or 'unhealthy', got {:?}",
         response["status"]
     );
@@ -163,15 +158,9 @@ pub fn assert_no_graphql_errors(response: &serde_json::Value) {
 /// Assert metrics response structure
 pub fn assert_metrics_response(response: &serde_json::Value) {
     assert!(response.get("queries_total").is_some(), "Missing queries_total");
-    assert!(
-        response.get("queries_success").is_some(),
-        "Missing queries_success"
-    );
+    assert!(response.get("queries_success").is_some(), "Missing queries_success");
     assert!(response.get("queries_error").is_some(), "Missing queries_error");
-    assert!(
-        response.get("avg_query_duration_ms").is_some(),
-        "Missing avg_query_duration_ms"
-    );
+    assert!(response.get("avg_query_duration_ms").is_some(), "Missing avg_query_duration_ms");
 }
 
 #[cfg(test)]
@@ -219,14 +208,19 @@ mod tests {
     #[test]
     fn test_create_graphql_request_with_variables() {
         let vars = serde_json::json!({"id": "123"});
-        let request = create_graphql_request("query($id: ID!) { user(id: $id) { id } }", Some(vars.clone()), None);
+        let request = create_graphql_request(
+            "query($id: ID!) { user(id: $id) { id } }",
+            Some(vars.clone()),
+            None,
+        );
 
         assert_eq!(request["variables"], vars);
     }
 
     #[test]
     fn test_create_graphql_request_with_operation() {
-        let request = create_graphql_request("query GetUser { user { id } }", None, Some("GetUser"));
+        let request =
+            create_graphql_request("query GetUser { user { id } }", None, Some("GetUser"));
         assert_eq!(request["operationName"], "GetUser");
     }
 

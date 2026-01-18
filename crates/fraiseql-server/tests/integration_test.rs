@@ -7,10 +7,10 @@
 //! - Request/response handling
 //! - Error handling and status codes
 
+use std::{io::Write, path::PathBuf};
+
 use fraiseql_server::{CompiledSchemaLoader, ServerConfig};
-use std::path::PathBuf;
 use tempfile::NamedTempFile;
-use std::io::Write;
 
 /// Test default configuration
 #[test]

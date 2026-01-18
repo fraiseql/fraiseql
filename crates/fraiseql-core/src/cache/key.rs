@@ -39,12 +39,12 @@
 //! assert_ne!(key1, key2);
 //! ```
 
-use sha2::{Digest, Sha256};
 use serde_json::Value as JsonValue;
+use sha2::{Digest, Sha256};
 
-use crate::apq::hasher::hash_query_with_variables;
-use crate::db::where_clause::WhereClause;
-use crate::schema::QueryDefinition;
+use crate::{
+    apq::hasher::hash_query_with_variables, db::where_clause::WhereClause, schema::QueryDefinition,
+};
 
 /// Generate cache key for query result.
 ///
@@ -146,9 +146,7 @@ pub fn generate_cache_key(
     // Step 2: Add WHERE clause structure if present
     // Different WHERE clauses must produce different keys for correctness
     // Using Debug format captures full structure including operators and values
-    let where_structure = where_clause
-        .map(|w| format!("{:?}", w))
-        .unwrap_or_default();
+    let where_structure = where_clause.map(|w| format!("{:?}", w)).unwrap_or_default();
 
     // Step 3: Combine with schema version
     // Schema changes invalidate all cached queries automatically
@@ -265,9 +263,10 @@ pub fn verify_deterministic(query: &str, variables: &JsonValue, schema_version: 
 
 #[cfg(test)]
 mod tests {
+    use serde_json::json;
+
     use super::*;
     use crate::db::WhereOperator;
-    use serde_json::json;
 
     // ========================================================================
     // Security Tests (CRITICAL)
@@ -361,24 +360,21 @@ mod tests {
         let query = "query { users { id } }";
 
         let where1 = WhereClause::Field {
-            path: vec!["email".to_string()],
+            path:     vec!["email".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("alice@example.com"),
+            value:    json!("alice@example.com"),
         };
 
         let where2 = WhereClause::Field {
-            path: vec!["email".to_string()],
+            path:     vec!["email".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("bob@example.com"),
+            value:    json!("bob@example.com"),
         };
 
         let key1 = generate_cache_key(query, &json!({}), Some(&where1), "v1");
         let key2 = generate_cache_key(query, &json!({}), Some(&where2), "v1");
 
-        assert_ne!(
-            key1, key2,
-            "Different WHERE clauses must produce different keys"
-        );
+        assert_ne!(key1, key2, "Different WHERE clauses must produce different keys");
     }
 
     #[test]
@@ -386,24 +382,21 @@ mod tests {
         let query = "query { users { id } }";
 
         let where_eq = WhereClause::Field {
-            path: vec!["age".to_string()],
+            path:     vec!["age".to_string()],
             operator: WhereOperator::Eq,
-            value: json!(30),
+            value:    json!(30),
         };
 
         let where_gt = WhereClause::Field {
-            path: vec!["age".to_string()],
+            path:     vec!["age".to_string()],
             operator: WhereOperator::Gt,
-            value: json!(30),
+            value:    json!(30),
         };
 
         let key_eq = generate_cache_key(query, &json!({}), Some(&where_eq), "v1");
         let key_gt = generate_cache_key(query, &json!({}), Some(&where_gt), "v1");
 
-        assert_ne!(
-            key_eq, key_gt,
-            "Different operators must produce different keys"
-        );
+        assert_ne!(key_eq, key_gt, "Different operators must produce different keys");
     }
 
     #[test]
@@ -411,18 +404,15 @@ mod tests {
         let query = "query { users { id } }";
 
         let where_clause = WhereClause::Field {
-            path: vec!["active".to_string()],
+            path:     vec!["active".to_string()],
             operator: WhereOperator::Eq,
-            value: json!(true),
+            value:    json!(true),
         };
 
         let key_without = generate_cache_key(query, &json!({}), None, "v1");
         let key_with = generate_cache_key(query, &json!({}), Some(&where_clause), "v1");
 
-        assert_ne!(
-            key_without, key_with,
-            "Presence of WHERE clause must change key"
-        );
+        assert_ne!(key_without, key_with, "Presence of WHERE clause must change key");
     }
 
     #[test]
@@ -431,14 +421,14 @@ mod tests {
 
         let where_clause = WhereClause::And(vec![
             WhereClause::Field {
-                path: vec!["age".to_string()],
+                path:     vec!["age".to_string()],
                 operator: WhereOperator::Gte,
-                value: json!(18),
+                value:    json!(18),
             },
             WhereClause::Field {
-                path: vec!["active".to_string()],
+                path:     vec!["active".to_string()],
                 operator: WhereOperator::Eq,
-                value: json!(true),
+                value:    json!(true),
             },
         ]);
 
@@ -458,10 +448,7 @@ mod tests {
         let key_v1 = generate_cache_key(query, &json!({}), None, "v1");
         let key_v2 = generate_cache_key(query, &json!({}), None, "v2");
 
-        assert_ne!(
-            key_v1, key_v2,
-            "Different schema versions must produce different keys"
-        );
+        assert_ne!(key_v1, key_v2, "Different schema versions must produce different keys");
     }
 
     #[test]
@@ -475,10 +462,7 @@ mod tests {
         let key_old = generate_cache_key(query, &json!({}), None, old_schema);
         let key_new = generate_cache_key(query, &json!({}), None, new_schema);
 
-        assert_ne!(
-            key_old, key_new,
-            "Schema changes should invalidate cache"
-        );
+        assert_ne!(key_old, key_new, "Schema changes should invalidate cache");
     }
 
     // ========================================================================
@@ -496,10 +480,7 @@ mod tests {
         let key = generate_cache_key("query { users }", &json!({}), None, "v1");
 
         // Verify it's valid hexadecimal
-        assert!(
-            key.chars().all(|c| c.is_ascii_hexdigit()),
-            "Cache key should be hexadecimal"
-        );
+        assert!(key.chars().all(|c| c.is_ascii_hexdigit()), "Cache key should be hexadecimal");
     }
 
     // ========================================================================
@@ -511,20 +492,20 @@ mod tests {
         use crate::schema::AutoParams;
 
         let query_def = QueryDefinition {
-            name: "users".to_string(),
-            return_type: "User".to_string(),
+            name:         "users".to_string(),
+            return_type:  "User".to_string(),
             returns_list: true,
-            nullable: false,
-            arguments: vec![],
-            sql_source: Some("v_user".to_string()),
-            description: None,
-            auto_params: AutoParams {
-                has_where: true,
+            nullable:     false,
+            arguments:    vec![],
+            sql_source:   Some("v_user".to_string()),
+            description:  None,
+            auto_params:  AutoParams {
+                has_where:    true,
                 has_order_by: false,
-                has_limit: true,
-                has_offset: false,
+                has_limit:    true,
+                has_offset:   false,
             },
-            deprecation: None,
+            deprecation:  None,
         };
 
         let views = extract_accessed_views(&query_def);
@@ -536,20 +517,20 @@ mod tests {
         use crate::schema::AutoParams;
 
         let query_def = QueryDefinition {
-            name: "customQuery".to_string(),
-            return_type: "Custom".to_string(),
+            name:         "customQuery".to_string(),
+            return_type:  "Custom".to_string(),
             returns_list: false,
-            nullable: false,
-            arguments: vec![],
-            sql_source: None,  // No SQL source (custom resolver)
-            description: None,
-            auto_params: AutoParams {
-                has_where: false,
+            nullable:     false,
+            arguments:    vec![],
+            sql_source:   None, // No SQL source (custom resolver)
+            description:  None,
+            auto_params:  AutoParams {
+                has_where:    false,
                 has_order_by: false,
-                has_limit: false,
-                has_offset: false,
+                has_limit:    false,
+                has_offset:   false,
             },
-            deprecation: None,
+            deprecation:  None,
         };
 
         let views = extract_accessed_views(&query_def);

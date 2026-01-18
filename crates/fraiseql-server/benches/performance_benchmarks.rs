@@ -7,33 +7,31 @@
 //! 4. Query parsing performance
 //! 5. Performance under concurrent load
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
+use std::sync::{Arc, atomic::Ordering};
+
+use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use fraiseql_server::{
-    RequestValidator, MetricsCollector, StructuredLogEntry, LogLevel, LogMetrics,
-    RequestContext, PerformanceMonitor, QueryPerformance, TraceContext,
+    LogLevel, LogMetrics, MetricsCollector, PerformanceMonitor, QueryPerformance, RequestContext,
+    RequestValidator, StructuredLogEntry, TraceContext,
 };
-use std::sync::Arc;
-use std::sync::atomic::Ordering;
 
 /// Benchmark query validation performance
 fn bench_query_validation(c: &mut Criterion) {
     let validator = RequestValidator::new();
 
-    let queries = ["{ user { id } }",
+    let queries = [
+        "{ user { id } }",
         "{ users { id name email } }",
         "query { post { title body } }",
-        "{ user { profile { settings { theme } } } }"];
+        "{ user { profile { settings { theme } } } }",
+    ];
 
     c.bench_function("query_validation_simple", |b| {
-        b.iter(|| {
-            validator.validate_query(black_box(queries[0]))
-        })
+        b.iter(|| validator.validate_query(black_box(queries[0])))
     });
 
     c.bench_function("query_validation_complex", |b| {
-        b.iter(|| {
-            validator.validate_query(black_box(queries[3]))
-        })
+        b.iter(|| validator.validate_query(black_box(queries[3])))
     });
 }
 
@@ -72,10 +70,7 @@ fn bench_structured_logging(c: &mut Criterion) {
         .with_operation("GetUser".to_string())
         .with_user_id("user123".to_string());
 
-    let metrics = LogMetrics::new()
-        .with_duration_ms(25.5)
-        .with_db_queries(2)
-        .with_cache_hit(true);
+    let metrics = LogMetrics::new().with_duration_ms(25.5).with_db_queries(2).with_cache_hit(true);
 
     c.bench_function("log_entry_creation", |b| {
         b.iter(|| {
@@ -105,9 +100,7 @@ fn bench_structured_logging(c: &mut Criterion) {
             .with_request_context(context.clone())
             .with_metrics(metrics.clone());
 
-        b.iter(|| {
-            entry.to_json_string()
-        })
+        b.iter(|| entry.to_json_string())
     });
 }
 
@@ -152,24 +145,16 @@ fn bench_performance_monitoring(c: &mut Criterion) {
 
 /// Benchmark distributed tracing
 fn bench_distributed_tracing(c: &mut Criterion) {
-    c.bench_function("trace_context_creation", |b| {
-        b.iter(|| {
-            TraceContext::new()
-        })
-    });
+    c.bench_function("trace_context_creation", |b| b.iter(|| TraceContext::new()));
 
     c.bench_function("trace_context_child_span", |b| {
         let ctx = TraceContext::new();
-        b.iter(|| {
-            ctx.child_span()
-        })
+        b.iter(|| ctx.child_span())
     });
 
     c.bench_function("trace_context_w3c_header", |b| {
         let ctx = TraceContext::new();
-        b.iter(|| {
-            ctx.to_w3c_traceparent()
-        })
+        b.iter(|| ctx.to_w3c_traceparent())
     });
 
     c.bench_function("trace_context_baggage", |b| {
@@ -183,11 +168,7 @@ fn bench_distributed_tracing(c: &mut Criterion) {
 
 /// Benchmark request context creation
 fn bench_request_context(c: &mut Criterion) {
-    c.bench_function("request_context_new", |b| {
-        b.iter(|| {
-            RequestContext::new()
-        })
-    });
+    c.bench_function("request_context_new", |b| b.iter(|| RequestContext::new()));
 
     c.bench_function("request_context_builder", |b| {
         b.iter(|| {
@@ -210,26 +191,23 @@ fn bench_concurrent_metrics(c: &mut Criterion) {
             |b, &num_threads| {
                 let collector = Arc::new(MetricsCollector::new());
 
-                b.to_async(tokio::runtime::Runtime::new().unwrap())
-                    .iter(|| async {
-                        let mut handles = vec![];
+                b.to_async(tokio::runtime::Runtime::new().unwrap()).iter(|| async {
+                    let mut handles = vec![];
 
-                        for _ in 0..num_threads {
-                            let collector = collector.clone();
-                            let handle = tokio::spawn(async move {
-                                for _ in 0..100 {
-                                    collector
-                                        .queries_total
-                                        .fetch_add(1, Ordering::Relaxed);
-                                }
-                            });
-                            handles.push(handle);
-                        }
+                    for _ in 0..num_threads {
+                        let collector = collector.clone();
+                        let handle = tokio::spawn(async move {
+                            for _ in 0..100 {
+                                collector.queries_total.fetch_add(1, Ordering::Relaxed);
+                            }
+                        });
+                        handles.push(handle);
+                    }
 
-                        for handle in handles {
-                            let _ = handle.await;
-                        }
-                    })
+                    for handle in handles {
+                        let _ = handle.await;
+                    }
+                })
             },
         );
     }

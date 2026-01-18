@@ -7,28 +7,29 @@
 //!
 //! **Purpose**: CI/CD validation step to catch schema drift.
 
+use std::{collections::HashSet, fs, path::Path};
+
 use anyhow::Result;
 use deadpool_postgres::{Config, ManagerConfig, RecyclingMethod, Runtime};
-use fraiseql_core::compiler::fact_table::{
-    DatabaseIntrospector, FactTableDetector, FactTableMetadata,
+use fraiseql_core::{
+    compiler::{
+        fact_table::{DatabaseIntrospector, FactTableDetector, FactTableMetadata},
+        ir::AuthoringIR,
+        parser::SchemaParser,
+    },
+    db::PostgresIntrospector,
 };
-use fraiseql_core::compiler::ir::AuthoringIR;
-use fraiseql_core::compiler::parser::SchemaParser;
-use fraiseql_core::db::PostgresIntrospector;
-use std::collections::HashSet;
-use std::fs;
-use std::path::Path;
 use tokio_postgres::NoTls;
 
 /// Validation error type.
 #[derive(Debug)]
 pub struct ValidationIssue {
     /// Issue type (error or warning)
-    pub severity: IssueSeverity,
+    pub severity:   IssueSeverity,
     /// Fact table name
     pub table_name: String,
     /// Issue description
-    pub message: String,
+    pub message:    String,
 }
 
 /// Issue severity level.
@@ -380,10 +381,11 @@ pub fn validate_metadata_match(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use fraiseql_core::compiler::fact_table::{
         DimensionColumn, FilterColumn, MeasureColumn, SqlType,
     };
+
+    use super::*;
 
     #[test]
     fn test_validation_issue_error() {
@@ -457,29 +459,29 @@ mod tests {
         });
 
         let actual = FactTableMetadata {
-            table_name: "tf_sales".to_string(),
-            measures: vec![
+            table_name:           "tf_sales".to_string(),
+            measures:             vec![
                 MeasureColumn {
-                    name: "revenue".to_string(),
+                    name:     "revenue".to_string(),
                     sql_type: SqlType::Decimal,
                     nullable: false,
                 },
                 MeasureColumn {
-                    name: "quantity".to_string(),
+                    name:     "quantity".to_string(),
                     sql_type: SqlType::Int,
                     nullable: false,
                 },
             ],
-            dimensions: DimensionColumn {
-                name: "data".to_string(),
+            dimensions:           DimensionColumn {
+                name:  "data".to_string(),
                 paths: vec![],
             },
             denormalized_filters: vec![FilterColumn {
-                name: "customer_id".to_string(),
+                name:     "customer_id".to_string(),
                 sql_type: SqlType::Uuid,
-                indexed: true,
+                indexed:  true,
             }],
-            calendar_dimensions: vec![],
+            calendar_dimensions:  vec![],
         };
 
         let issues = compare_metadata("tf_sales", &declared, &actual);
@@ -500,18 +502,18 @@ mod tests {
         });
 
         let actual = FactTableMetadata {
-            table_name: "tf_sales".to_string(),
-            measures: vec![MeasureColumn {
-                name: "revenue".to_string(),
+            table_name:           "tf_sales".to_string(),
+            measures:             vec![MeasureColumn {
+                name:     "revenue".to_string(),
                 sql_type: SqlType::Decimal,
                 nullable: false,
             }],
-            dimensions: DimensionColumn {
-                name: "data".to_string(),
+            dimensions:           DimensionColumn {
+                name:  "data".to_string(),
                 paths: vec![],
             },
             denormalized_filters: vec![],
-            calendar_dimensions: vec![],
+            calendar_dimensions:  vec![],
         };
 
         let issues = compare_metadata("tf_sales", &declared, &actual);

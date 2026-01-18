@@ -4,10 +4,11 @@
 
 mod common;
 
-use common::{create_sales_metadata, assert_sql_contains};
-use fraiseql_core::runtime::AggregateQueryParser;
-use fraiseql_core::runtime::AggregationSqlGenerator;
-use fraiseql_core::db::types::DatabaseType;
+use common::{assert_sql_contains, create_sales_metadata};
+use fraiseql_core::{
+    db::types::DatabaseType,
+    runtime::{AggregateQueryParser, AggregationSqlGenerator},
+};
 use serde_json::json;
 
 // =============================================================================
@@ -21,11 +22,15 @@ fn parse_plan_generate(query: &serde_json::Value) -> String {
     // Add table field if not present
     let mut query_with_table = query.clone();
     if query_with_table.as_object_mut().unwrap().get("table").is_none() {
-        query_with_table.as_object_mut().unwrap().insert("table".to_string(), json!("tf_sales"));
+        query_with_table
+            .as_object_mut()
+            .unwrap()
+            .insert("table".to_string(), json!("tf_sales"));
     }
 
     let parsed = AggregateQueryParser::parse(&query_with_table, &metadata).unwrap();
-    let plan = fraiseql_core::compiler::aggregation::AggregationPlanner::plan(parsed, metadata).unwrap();
+    let plan =
+        fraiseql_core::compiler::aggregation::AggregationPlanner::plan(parsed, metadata).unwrap();
     let sql_parts = generator.generate(&plan).unwrap();
 
     // Build complete SQL from parts
@@ -74,11 +79,7 @@ fn test_simple_count_all() {
 
     let sql = parse_plan_generate(&query);
 
-    assert_sql_contains(&sql, &[
-        "SELECT",
-        "COUNT(*)",
-        "FROM tf_sales"
-    ]);
+    assert_sql_contains(&sql, &["SELECT", "COUNT(*)", "FROM tf_sales"]);
 }
 
 #[test]
@@ -92,11 +93,7 @@ fn test_count_with_sum() {
 
     let sql = parse_plan_generate(&query);
 
-    assert_sql_contains(&sql, &[
-        "COUNT(*)",
-        "SUM(revenue)",
-        "FROM tf_sales"
-    ]);
+    assert_sql_contains(&sql, &["COUNT(*)", "SUM(revenue)", "FROM tf_sales"]);
 }
 
 #[test]
@@ -115,15 +112,18 @@ fn test_all_aggregate_functions() {
 
     let sql = parse_plan_generate(&query);
 
-    assert_sql_contains(&sql, &[
-        "COUNT(*)",
-        "SUM(revenue)",
-        "AVG(revenue)",
-        "MIN(revenue)",
-        "MAX(revenue)",
-        "SUM(quantity)",
-        "AVG(quantity)"
-    ]);
+    assert_sql_contains(
+        &sql,
+        &[
+            "COUNT(*)",
+            "SUM(revenue)",
+            "AVG(revenue)",
+            "MIN(revenue)",
+            "MAX(revenue)",
+            "SUM(quantity)",
+            "AVG(quantity)",
+        ],
+    );
 }
 
 // =============================================================================
@@ -142,12 +142,7 @@ fn test_group_by_single_dimension() {
 
     let sql = parse_plan_generate(&query);
 
-    assert_sql_contains(&sql, &[
-        "data->>'category'",
-        "GROUP BY",
-        "COUNT(*)",
-        "SUM(revenue)"
-    ]);
+    assert_sql_contains(&sql, &["data->>'category'", "GROUP BY", "COUNT(*)", "SUM(revenue)"]);
 }
 
 #[test]
@@ -165,11 +160,7 @@ fn test_group_by_multiple_dimensions() {
 
     let sql = parse_plan_generate(&query);
 
-    assert_sql_contains(&sql, &[
-        "data->>'category'",
-        "data->>'region'",
-        "GROUP BY"
-    ]);
+    assert_sql_contains(&sql, &["data->>'category'", "data->>'region'", "GROUP BY"]);
 }
 
 // =============================================================================
@@ -187,11 +178,7 @@ fn test_where_denormalized_filter() {
 
     let sql = parse_plan_generate(&query);
 
-    assert_sql_contains(&sql, &[
-        "WHERE",
-        "customer_id",
-        "cust-001"
-    ]);
+    assert_sql_contains(&sql, &["WHERE", "customer_id", "cust-001"]);
 }
 
 #[test]
@@ -205,11 +192,7 @@ fn test_where_jsonb_dimension() {
 
     let sql = parse_plan_generate(&query);
 
-    assert_sql_contains(&sql, &[
-        "WHERE",
-        "data->>'category'",
-        "Electronics"
-    ]);
+    assert_sql_contains(&sql, &["WHERE", "data->>'category'", "Electronics"]);
 }
 
 #[test]
@@ -224,13 +207,7 @@ fn test_where_with_comparison_operators() {
 
     let sql = parse_plan_generate(&query);
 
-    assert_sql_contains(&sql, &[
-        "WHERE",
-        "revenue",
-        ">",
-        "quantity",
-        "<="
-    ]);
+    assert_sql_contains(&sql, &["WHERE", "revenue", ">", "quantity", "<="]);
 }
 
 #[test]
@@ -244,12 +221,7 @@ fn test_where_with_like_operator() {
 
     let sql = parse_plan_generate(&query);
 
-    assert_sql_contains(&sql, &[
-        "WHERE",
-        "data->>'category'",
-        "LIKE",
-        "%electr%"
-    ]);
+    assert_sql_contains(&sql, &["WHERE", "data->>'category'", "LIKE", "%electr%"]);
 }
 
 // =============================================================================
@@ -271,10 +243,7 @@ fn test_order_by_aggregate_desc() {
 
     let sql = parse_plan_generate(&query);
 
-    assert_sql_contains(&sql, &[
-        "ORDER BY",
-        "DESC"
-    ]);
+    assert_sql_contains(&sql, &["ORDER BY", "DESC"]);
 }
 
 #[test]
@@ -289,10 +258,7 @@ fn test_order_by_dimension_asc() {
 
     let sql = parse_plan_generate(&query);
 
-    assert_sql_contains(&sql, &[
-        "ORDER BY",
-        "ASC"
-    ]);
+    assert_sql_contains(&sql, &["ORDER BY", "ASC"]);
 }
 
 #[test]
@@ -319,10 +285,7 @@ fn test_limit_and_offset() {
 
     let sql = parse_plan_generate(&query);
 
-    assert_sql_contains(&sql, &[
-        "LIMIT 5",
-        "OFFSET 10"
-    ]);
+    assert_sql_contains(&sql, &["LIMIT 5", "OFFSET 10"]);
 }
 
 // =============================================================================
@@ -353,23 +316,20 @@ fn test_complex_query_all_clauses() {
     let sql = parse_plan_generate(&query);
 
     // Verify all clauses present
-    assert_sql_contains(&sql, &[
-        "SELECT",
-        "WHERE",
-        "GROUP BY",
-        "ORDER BY",
-        "LIMIT"
-    ]);
+    assert_sql_contains(&sql, &["SELECT", "WHERE", "GROUP BY", "ORDER BY", "LIMIT"]);
 
     // Verify specific content
-    assert_sql_contains(&sql, &[
-        "data->>'region'",
-        "data->>'category'",
-        "COUNT(*)",
-        "SUM(revenue)",
-        "AVG(revenue)",
-        "DESC"
-    ]);
+    assert_sql_contains(
+        &sql,
+        &[
+            "data->>'region'",
+            "data->>'category'",
+            "COUNT(*)",
+            "SUM(revenue)",
+            "AVG(revenue)",
+            "DESC",
+        ],
+    );
 }
 
 #[test]
@@ -385,13 +345,16 @@ fn test_multiple_where_conditions() {
 
     let sql = parse_plan_generate(&query);
 
-    assert_sql_contains(&sql, &[
-        "WHERE",
-        "customer_id",
-        "data->>'category'",
-        "revenue",
-        "AND" // Multiple conditions should be AND-ed
-    ]);
+    assert_sql_contains(
+        &sql,
+        &[
+            "WHERE",
+            "customer_id",
+            "data->>'category'",
+            "revenue",
+            "AND", // Multiple conditions should be AND-ed
+        ],
+    );
 }
 
 #[test]
@@ -414,21 +377,20 @@ fn test_group_by_with_multiple_aggregates() {
     let sql = parse_plan_generate(&query);
 
     // Verify GROUP BY with both dimensions
-    assert_sql_contains(&sql, &[
-        "data->>'category'",
-        "data->>'region'",
-        "GROUP BY"
-    ]);
+    assert_sql_contains(&sql, &["data->>'category'", "data->>'region'", "GROUP BY"]);
 
     // Verify all aggregates
-    assert_sql_contains(&sql, &[
-        "COUNT(*)",
-        "SUM(revenue)",
-        "AVG(revenue)",
-        "MIN(revenue)",
-        "MAX(revenue)",
-        "SUM(quantity)"
-    ]);
+    assert_sql_contains(
+        &sql,
+        &[
+            "COUNT(*)",
+            "SUM(revenue)",
+            "AVG(revenue)",
+            "MIN(revenue)",
+            "MAX(revenue)",
+            "SUM(quantity)",
+        ],
+    );
 }
 
 // =============================================================================
@@ -488,11 +450,7 @@ fn test_having_simple_count() {
 
     let sql = parse_plan_generate(&query);
 
-    assert_sql_contains(&sql, &[
-        "GROUP BY",
-        "HAVING",
-        "COUNT(*) > 5"
-    ]);
+    assert_sql_contains(&sql, &["GROUP BY", "HAVING", "COUNT(*) > 5"]);
 }
 
 #[test]
@@ -510,11 +468,7 @@ fn test_having_aggregate_sum() {
 
     let sql = parse_plan_generate(&query);
 
-    assert_sql_contains(&sql, &[
-        "GROUP BY",
-        "HAVING",
-        "SUM(revenue) >= 1000"
-    ]);
+    assert_sql_contains(&sql, &["GROUP BY", "HAVING", "SUM(revenue) >= 1000"]);
 }
 
 #[test]
@@ -534,12 +488,15 @@ fn test_having_multiple_conditions() {
 
     let sql = parse_plan_generate(&query);
 
-    assert_sql_contains(&sql, &[
-        "HAVING",
-        "COUNT(*) > 10",
-        "AVG(revenue) >= 50",
-        "AND"  // Multiple conditions are AND-ed
-    ]);
+    assert_sql_contains(
+        &sql,
+        &[
+            "HAVING",
+            "COUNT(*) > 10",
+            "AVG(revenue) >= 50",
+            "AND", // Multiple conditions are AND-ed
+        ],
+    );
 }
 
 #[test]
@@ -567,11 +524,7 @@ fn test_having_with_where() {
     assert!(where_pos < group_pos, "WHERE should come before GROUP BY");
     assert!(group_pos < having_pos, "GROUP BY should come before HAVING");
 
-    assert_sql_contains(&sql, &[
-        "data->>'region'",
-        "= 'North'",
-        "SUM(revenue) > 5000"
-    ]);
+    assert_sql_contains(&sql, &["data->>'region'", "= 'North'", "SUM(revenue) > 5000"]);
 }
 
 #[test]
@@ -628,14 +581,17 @@ fn test_having_different_operators() {
 
     let sql = parse_plan_generate(&query);
 
-    assert_sql_contains(&sql, &[
-        "HAVING",
-        "COUNT(*) > 10",
-        "SUM(revenue) >= 1000",
-        "AVG(revenue) < 200",
-        "MIN(revenue) <= 50",
-        "MAX(revenue) = 500"
-    ]);
+    assert_sql_contains(
+        &sql,
+        &[
+            "HAVING",
+            "COUNT(*) > 10",
+            "SUM(revenue) >= 1000",
+            "AVG(revenue) < 200",
+            "MIN(revenue) <= 50",
+            "MAX(revenue) = 500",
+        ],
+    );
 }
 
 // =============================================================================
@@ -656,10 +612,13 @@ fn test_temporal_bucket_day() {
 
     let sql = parse_plan_generate(&query);
 
-    assert_sql_contains(&sql, &[
-        "DATE_TRUNC('day', occurred_at)",  // PostgreSQL
-        "GROUP BY"
-    ]);
+    assert_sql_contains(
+        &sql,
+        &[
+            "DATE_TRUNC('day', occurred_at)", // PostgreSQL
+            "GROUP BY",
+        ],
+    );
 }
 
 #[test]
@@ -673,10 +632,7 @@ fn test_temporal_bucket_month() {
 
     let sql = parse_plan_generate(&query);
 
-    assert_sql_contains(&sql, &[
-        "DATE_TRUNC('month', occurred_at)",
-        "GROUP BY"
-    ]);
+    assert_sql_contains(&sql, &["DATE_TRUNC('month', occurred_at)", "GROUP BY"]);
 }
 
 #[test]
@@ -692,16 +648,21 @@ fn test_temporal_bucket_with_dimension() {
 
     let sql = parse_plan_generate(&query);
 
-    assert_sql_contains(&sql, &[
-        "data->>'category'",
-        "DATE_TRUNC('day', occurred_at)",
-        "GROUP BY"
-    ]);
+    assert_sql_contains(
+        &sql,
+        &[
+            "data->>'category'",
+            "DATE_TRUNC('day', occurred_at)",
+            "GROUP BY",
+        ],
+    );
 }
 
 #[test]
 fn test_temporal_bucket_all_types() {
-    for bucket in &["second", "minute", "hour", "day", "week", "month", "quarter", "year"] {
+    for bucket in &[
+        "second", "minute", "hour", "day", "week", "month", "quarter", "year",
+    ] {
         let query = json!({
             "groupBy": {
                 "occurred_at": bucket
@@ -719,10 +680,11 @@ fn test_temporal_bucket_all_types() {
 
 #[test]
 fn test_temporal_bucket_multi_database() {
-    use fraiseql_core::db::DatabaseType;
-    use fraiseql_core::runtime::AggregationSqlGenerator;
-    use fraiseql_core::runtime::AggregateQueryParser;
-    use fraiseql_core::compiler::aggregation::AggregationPlanner;
+    use fraiseql_core::{
+        compiler::aggregation::AggregationPlanner,
+        db::DatabaseType,
+        runtime::{AggregateQueryParser, AggregationSqlGenerator},
+    };
 
     let query = json!({
         "table": "tf_sales",
@@ -781,17 +743,20 @@ fn test_temporal_bucket_with_where_having() {
     let sql = parse_plan_generate(&query);
 
     // Verify all clauses present with temporal bucketing
-    assert_sql_contains(&sql, &[
-        "WHERE",
-        "customer_id = 'cust-001'",
-        "DATE_TRUNC('month', occurred_at)",
-        "GROUP BY",
-        "HAVING",
-        "SUM(revenue) > 1000",
-        "ORDER BY",
-        "DESC",
-        "LIMIT 5"
-    ]);
+    assert_sql_contains(
+        &sql,
+        &[
+            "WHERE",
+            "customer_id = 'cust-001'",
+            "DATE_TRUNC('month', occurred_at)",
+            "GROUP BY",
+            "HAVING",
+            "SUM(revenue) > 1000",
+            "ORDER BY",
+            "DESC",
+            "LIMIT 5",
+        ],
+    );
 }
 
 #[test]
@@ -832,10 +797,7 @@ fn test_string_agg_simple() {
     let sql = parse_plan_generate(&query);
 
     // PostgreSQL uses STRING_AGG
-    assert_sql_contains(&sql, &[
-        "GROUP BY",
-        "STRING_AGG(customer_id"
-    ]);
+    assert_sql_contains(&sql, &["GROUP BY", "STRING_AGG(customer_id"]);
 }
 
 #[test]
@@ -851,18 +813,16 @@ fn test_array_agg_simple() {
     let sql = parse_plan_generate(&query);
 
     // PostgreSQL uses ARRAY_AGG
-    assert_sql_contains(&sql, &[
-        "GROUP BY",
-        "ARRAY_AGG(customer_id"
-    ]);
+    assert_sql_contains(&sql, &["GROUP BY", "ARRAY_AGG(customer_id"]);
 }
 
 #[test]
 fn test_advanced_aggregates_multi_database() {
-    use fraiseql_core::db::DatabaseType;
-    use fraiseql_core::runtime::AggregationSqlGenerator;
-    use fraiseql_core::runtime::AggregateQueryParser;
-    use fraiseql_core::compiler::aggregation::AggregationPlanner;
+    use fraiseql_core::{
+        compiler::aggregation::AggregationPlanner,
+        db::DatabaseType,
+        runtime::{AggregateQueryParser, AggregationSqlGenerator},
+    };
 
     let query = json!({
         "table": "tf_sales",
@@ -909,10 +869,11 @@ fn test_advanced_aggregates_multi_database() {
 
 #[test]
 fn test_stddev_postgres_mysql() {
-    use fraiseql_core::db::DatabaseType;
-    use fraiseql_core::runtime::AggregationSqlGenerator;
-    use fraiseql_core::runtime::AggregateQueryParser;
-    use fraiseql_core::compiler::aggregation::AggregationPlanner;
+    use fraiseql_core::{
+        compiler::aggregation::AggregationPlanner,
+        db::DatabaseType,
+        runtime::{AggregateQueryParser, AggregationSqlGenerator},
+    };
 
     let query = json!({
         "table": "tf_sales",
@@ -949,10 +910,11 @@ fn test_stddev_postgres_mysql() {
 
 #[test]
 fn test_variance_postgres_mysql() {
-    use fraiseql_core::db::DatabaseType;
-    use fraiseql_core::runtime::AggregationSqlGenerator;
-    use fraiseql_core::runtime::AggregateQueryParser;
-    use fraiseql_core::compiler::aggregation::AggregationPlanner;
+    use fraiseql_core::{
+        compiler::aggregation::AggregationPlanner,
+        db::DatabaseType,
+        runtime::{AggregateQueryParser, AggregationSqlGenerator},
+    };
 
     let query = json!({
         "table": "tf_sales",
@@ -989,10 +951,11 @@ fn test_variance_postgres_mysql() {
 
 #[test]
 fn test_statistical_functions_sqlite_unsupported() {
-    use fraiseql_core::db::DatabaseType;
-    use fraiseql_core::runtime::AggregationSqlGenerator;
-    use fraiseql_core::runtime::AggregateQueryParser;
-    use fraiseql_core::compiler::aggregation::AggregationPlanner;
+    use fraiseql_core::{
+        compiler::aggregation::AggregationPlanner,
+        db::DatabaseType,
+        runtime::{AggregateQueryParser, AggregationSqlGenerator},
+    };
 
     let query = json!({
         "table": "tf_sales",

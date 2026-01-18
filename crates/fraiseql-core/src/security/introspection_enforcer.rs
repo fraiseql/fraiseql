@@ -33,9 +33,11 @@
 //! }
 //! ```
 
-use crate::security::errors::{Result, SecurityError};
-use serde::{Deserialize, Serialize};
 use std::fmt;
+
+use serde::{Deserialize, Serialize};
+
+use crate::security::errors::{Result, SecurityError};
 
 /// Introspection policy for controlling schema access
 ///
@@ -85,9 +87,9 @@ impl IntrospectionConfig {
     #[must_use]
     pub fn all() -> Self {
         Self {
-            detect_schema: true,
-            detect_type: true,
-            detect_typename: true,
+            detect_schema:    true,
+            detect_type:      true,
+            detect_typename:  true,
             detect_directive: true,
         }
     }
@@ -96,9 +98,9 @@ impl IntrospectionConfig {
     #[must_use]
     pub fn strict() -> Self {
         Self {
-            detect_schema: true,
-            detect_type: true,
-            detect_typename: false,
+            detect_schema:    true,
+            detect_type:      true,
+            detect_typename:  false,
             detect_directive: true,
         }
     }
@@ -174,13 +176,13 @@ impl IntrospectionEnforcer {
             IntrospectionPolicy::Allowed => {
                 // Introspection allowed for all
                 Ok(())
-            }
+            },
             IntrospectionPolicy::Disabled => {
                 // Introspection disabled for everyone
                 Err(SecurityError::IntrospectionDisabled {
                     detail: "Introspection queries are disabled in this environment".to_string(),
                 })
-            }
+            },
             IntrospectionPolicy::InternalOnly => {
                 // Introspection allowed only for authenticated users
                 if authenticated_user_id.is_some() {
@@ -190,7 +192,7 @@ impl IntrospectionEnforcer {
                         detail: "Introspection queries require authentication".to_string(),
                     })
                 }
-            }
+            },
         }
     }
 
@@ -319,10 +321,7 @@ mod tests {
     fn test_internal_only_rejects_anonymous_user() {
         let enforcer = IntrospectionEnforcer::internal_only();
         let result = enforcer.validate_query(introspection_schema_query(), None);
-        assert!(matches!(
-            result,
-            Err(SecurityError::IntrospectionDisabled { .. })
-        ));
+        assert!(matches!(result, Err(SecurityError::IntrospectionDisabled { .. })));
     }
 
     // ============================================================================
@@ -347,20 +346,14 @@ mod tests {
     fn test_disabled_policy_blocks_introspection() {
         let enforcer = IntrospectionEnforcer::disabled();
         let result = enforcer.validate_query(introspection_schema_query(), None);
-        assert!(matches!(
-            result,
-            Err(SecurityError::IntrospectionDisabled { .. })
-        ));
+        assert!(matches!(result, Err(SecurityError::IntrospectionDisabled { .. })));
     }
 
     #[test]
     fn test_disabled_policy_blocks_authenticated_introspection() {
         let enforcer = IntrospectionEnforcer::disabled();
         let result = enforcer.validate_query(introspection_schema_query(), Some("user123"));
-        assert!(matches!(
-            result,
-            Err(SecurityError::IntrospectionDisabled { .. })
-        ));
+        assert!(matches!(result, Err(SecurityError::IntrospectionDisabled { .. })));
     }
 
     #[test]
@@ -396,10 +389,7 @@ mod tests {
     fn test_policy_display() {
         assert_eq!(IntrospectionPolicy::Allowed.to_string(), "Allowed");
         assert_eq!(IntrospectionPolicy::Disabled.to_string(), "Disabled");
-        assert_eq!(
-            IntrospectionPolicy::InternalOnly.to_string(),
-            "InternalOnly"
-        );
+        assert_eq!(IntrospectionPolicy::InternalOnly.to_string(), "InternalOnly");
     }
 
     #[test]
@@ -421,9 +411,9 @@ mod tests {
     #[test]
     fn test_custom_config_with_selective_detection() {
         let config = IntrospectionConfig {
-            detect_schema: true,
-            detect_type: false,
-            detect_typename: false,
+            detect_schema:    true,
+            detect_type:      false,
+            detect_typename:  false,
             detect_directive: false,
         };
 

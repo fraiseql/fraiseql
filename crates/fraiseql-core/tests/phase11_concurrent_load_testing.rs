@@ -8,18 +8,22 @@
 //! - Resource utilization tracking
 //! - Query result correctness under load
 
-use fraiseql_core::db::types::JsonbValue;
-use fraiseql_core::runtime::ResultProjector;
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
+    time::Instant,
+};
+
+use fraiseql_core::{db::types::JsonbValue, runtime::ResultProjector};
 use serde_json::json;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
-use std::time::Instant;
 use tokio::task::JoinSet;
 
 /// Mock database adapter for concurrent testing
 struct ConcurrentMockDatabase {
-    query_count: Arc<AtomicUsize>,
-    users_data: Vec<JsonbValue>,
+    query_count:   Arc<AtomicUsize>,
+    users_data:    Vec<JsonbValue>,
     products_data: Vec<JsonbValue>,
 }
 
@@ -136,7 +140,11 @@ async fn test_concurrent_queries_with_projection() {
     for _ in 0..20 {
         let db = Arc::clone(&db);
         join_set.spawn(async move {
-            let projector = ResultProjector::new(vec!["id".to_string(), "name".to_string(), "email".to_string()]);
+            let projector = ResultProjector::new(vec![
+                "id".to_string(),
+                "name".to_string(),
+                "email".to_string(),
+            ]);
             for _ in 0..5 {
                 let results = db.query_users(Some(20)).await;
                 let _projected = projector.project_results(&results, true).ok();
@@ -331,7 +339,12 @@ async fn test_result_correctness_under_load() {
                 let results = db.query_users(Some(5)).await;
 
                 // Verify results are not empty
-                assert!(!results.is_empty(), "Task {} iteration {} returned empty results", task_id, i);
+                assert!(
+                    !results.is_empty(),
+                    "Task {} iteration {} returned empty results",
+                    task_id,
+                    i
+                );
 
                 // Verify all results can be projected
                 let projector = ResultProjector::new(vec!["id".to_string(), "name".to_string()]);
@@ -364,7 +377,7 @@ async fn test_concurrent_error_handling() {
             for i in 0..5 {
                 let error = FraiseQLError::Validation {
                     message: format!("Test error from task {} iteration {}", task_id, i),
-                    path: Some(format!("query.field{}", i)),
+                    path:    Some(format!("query.field{}", i)),
                 };
 
                 let wrapped = ResultProjector::wrap_error(&error);
@@ -386,10 +399,17 @@ async fn test_concurrent_varying_projections() {
     let mut join_set = JoinSet::new();
 
     // Different field counts per task
-    let field_configs = [vec!["id".to_string()],
+    let field_configs = [
+        vec!["id".to_string()],
         vec!["id".to_string(), "name".to_string()],
         vec!["id".to_string(), "name".to_string(), "email".to_string()],
-        vec!["id".to_string(), "name".to_string(), "email".to_string(), "status".to_string()]];
+        vec![
+            "id".to_string(),
+            "name".to_string(),
+            "email".to_string(),
+            "status".to_string(),
+        ],
+    ];
 
     for (task_id, fields) in field_configs.iter().enumerate() {
         for repeat in 0..5 {
@@ -401,7 +421,12 @@ async fn test_concurrent_varying_projections() {
                 let results = db.query_users(Some(20)).await;
 
                 let projected = projector.project_results(&results, true);
-                assert!(projected.is_ok(), "Projection failed for task {} repeat {}", task_id, repeat);
+                assert!(
+                    projected.is_ok(),
+                    "Projection failed for task {} repeat {}",
+                    task_id,
+                    repeat
+                );
             });
         }
     }

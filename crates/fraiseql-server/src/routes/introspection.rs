@@ -1,6 +1,6 @@
 //! Schema introspection endpoint.
 
-use axum::{extract::State, response::IntoResponse, Json};
+use axum::{Json, extract::State, response::IntoResponse};
 use fraiseql_core::db::traits::DatabaseAdapter;
 use serde::Serialize;
 use tracing::debug;
@@ -83,7 +83,7 @@ pub async fn introspection_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
         .types
         .iter()
         .map(|t| TypeInfo {
-            name: t.name.clone(),
+            name:        t.name.clone(),
             description: t.description.clone(),
             field_count: t.fields.len(),
         })
@@ -93,10 +93,10 @@ pub async fn introspection_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
         .queries
         .iter()
         .map(|q| QueryInfo {
-            name: q.name.clone(),
-            return_type: q.return_type.clone(),
+            name:         q.name.clone(),
+            return_type:  q.return_type.clone(),
             returns_list: q.returns_list,
-            description: q.description.clone(),
+            description:  q.description.clone(),
         })
         .collect();
 
@@ -104,7 +104,7 @@ pub async fn introspection_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
         .mutations
         .iter()
         .map(|m| MutationInfo {
-            name: m.name.clone(),
+            name:        m.name.clone(),
             return_type: m.return_type.clone(),
             description: m.description.clone(),
         })
@@ -124,7 +124,7 @@ mod tests {
     #[test]
     fn test_type_info_serialization() {
         let type_info = TypeInfo {
-            name: "User".to_string(),
+            name:        "User".to_string(),
             description: Some("A user in the system".to_string()),
             field_count: 3,
         };
