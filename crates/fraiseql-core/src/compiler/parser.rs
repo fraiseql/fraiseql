@@ -17,8 +17,8 @@ use serde_json::Value;
 
 use super::enum_validator::EnumValidator;
 use super::ir::{
-    AuthoringIR, AutoParams, IRArgument, IRField, IRMutation, IRQuery, IRSubscription, IRType,
-    MutationOperation,
+    AuthoringIR, AutoParams, IRArgument, IRField, IRInputField, IRInputType, IRInterface,
+    IRMutation, IRQuery, IRSubscription, IRType, IRUnion, MutationOperation,
 };
 use crate::error::{FraiseQLError, Result};
 
@@ -117,17 +117,28 @@ impl SchemaParser {
             Vec::new()
         };
 
-        // Validate that unimplemented features are not present in schema
-        // This prevents silent data loss - users will be alerted if they use these features
-        if obj.contains_key("interfaces") {
-            eprintln!("Warning: 'interfaces' feature in schema is not yet supported and will be ignored");
-        }
-        if obj.contains_key("unions") {
-            eprintln!("Warning: 'unions' feature in schema is not yet supported and will be ignored");
-        }
-        if obj.contains_key("input_types") {
-            eprintln!("Warning: 'input_types' feature in schema is not yet supported and will be ignored");
-        }
+        // Parse interfaces if present
+        let interfaces = if let Some(interfaces_val) = obj.get("interfaces") {
+            self.parse_interfaces(interfaces_val)?
+        } else {
+            Vec::new()
+        };
+
+        // Parse unions if present
+        let unions = if let Some(unions_val) = obj.get("unions") {
+            self.parse_unions(unions_val)?
+        } else {
+            Vec::new()
+        };
+
+        // Parse input types if present
+        let input_types = if let Some(input_types_val) = obj.get("input_types") {
+            self.parse_input_types(input_types_val)?
+        } else {
+            Vec::new()
+        };
+
+        // Warn about unsupported fragments feature
         if obj.contains_key("fragments") {
             eprintln!("Warning: 'fragments' feature in schema is not yet supported and will be ignored");
         }
@@ -135,9 +146,9 @@ impl SchemaParser {
         Ok(AuthoringIR {
             types,
             enums,
-            interfaces: Vec::new(),  // TODO: Parse interfaces from JSON
-            unions: Vec::new(),      // TODO: Parse unions from JSON
-            input_types: Vec::new(), // TODO: Parse input types from JSON
+            interfaces,
+            unions,
+            input_types,
             queries,
             mutations,
             subscriptions,
@@ -478,6 +489,194 @@ impl SchemaParser {
             has_offset:   obj.get("has_offset").and_then(|v| v.as_bool()).unwrap_or(false),
         })
     }
+
+    fn parse_interfaces(&self, value: &Value) -> Result<Vec<IRInterface>> {
+        let array = value.as_array().ok_or_else(|| FraiseQLError::Parse {
+            message:  "interfaces must be an array".to_string(),
+            location: "interfaces".to_string(),
+        })?;
+
+        array
+            .iter()
+            .enumerate()
+            .map(|(i, interface_val)| self.parse_interface(interface_val, i))
+            .collect()
+    }
+
+    fn parse_interface(&self, value: &Value, index: usize) -> Result<IRInterface> {
+        let obj = value.as_object().ok_or_else(|| FraiseQLError::Parse {
+            message:  format!("Interface at index {index} must be an object"),
+            location: format!("interfaces[{index}]"),
+        })?;
+
+        let name = obj
+            .get("name")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| FraiseQLError::Parse {
+                message:  format!("Interface at index {index} missing 'name' field"),
+                location: format!("interfaces[{index}].name"),
+            })?
+            .to_string();
+
+        let fields = if let Some(fields_val) = obj.get("fields") {
+            self.parse_fields(fields_val, &name)?
+        } else {
+            Vec::new()
+        };
+
+        Ok(IRInterface {
+            name,
+            fields,
+            description: obj.get("description").and_then(|v| v.as_str()).map(String::from),
+        })
+    }
+
+    fn parse_unions(&self, value: &Value) -> Result<Vec<IRUnion>> {
+        let array = value.as_array().ok_or_else(|| FraiseQLError::Parse {
+            message:  "unions must be an array".to_string(),
+            location: "unions".to_string(),
+        })?;
+
+        array
+            .iter()
+            .enumerate()
+            .map(|(i, union_val)| self.parse_union(union_val, i))
+            .collect()
+    }
+
+    fn parse_union(&self, value: &Value, index: usize) -> Result<IRUnion> {
+        let obj = value.as_object().ok_or_else(|| FraiseQLError::Parse {
+            message:  format!("Union at index {index} must be an object"),
+            location: format!("unions[{index}]"),
+        })?;
+
+        let name = obj
+            .get("name")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| FraiseQLError::Parse {
+                message:  format!("Union at index {index} missing 'name' field"),
+                location: format!("unions[{index}].name"),
+            })?
+            .to_string();
+
+        let types = if let Some(types_val) = obj.get("types") {
+            let array = types_val.as_array().ok_or_else(|| FraiseQLError::Parse {
+                message:  format!("'types' for union {name} must be an array"),
+                location: format!("unions.{name}.types"),
+            })?;
+
+            array
+                .iter()
+                .enumerate()
+                .map(|(i, type_val)| {
+                    type_val.as_str().ok_or_else(|| FraiseQLError::Parse {
+                        message:  format!("Type at index {i} in union {name} must be a string"),
+                        location: format!("unions.{name}.types[{i}]"),
+                    })
+                })
+                .collect::<Result<Vec<_>>>()?
+                .iter()
+                .map(|s| s.to_string())
+                .collect()
+        } else {
+            Vec::new()
+        };
+
+        Ok(IRUnion {
+            name,
+            types,
+            description: obj.get("description").and_then(|v| v.as_str()).map(String::from),
+        })
+    }
+
+    fn parse_input_types(&self, value: &Value) -> Result<Vec<IRInputType>> {
+        let array = value.as_array().ok_or_else(|| FraiseQLError::Parse {
+            message:  "input_types must be an array".to_string(),
+            location: "input_types".to_string(),
+        })?;
+
+        array
+            .iter()
+            .enumerate()
+            .map(|(i, input_type_val)| self.parse_input_type(input_type_val, i))
+            .collect()
+    }
+
+    fn parse_input_type(&self, value: &Value, index: usize) -> Result<IRInputType> {
+        let obj = value.as_object().ok_or_else(|| FraiseQLError::Parse {
+            message:  format!("Input type at index {index} must be an object"),
+            location: format!("input_types[{index}]"),
+        })?;
+
+        let name = obj
+            .get("name")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| FraiseQLError::Parse {
+                message:  format!("Input type at index {index} missing 'name' field"),
+                location: format!("input_types[{index}].name"),
+            })?
+            .to_string();
+
+        let fields = if let Some(fields_val) = obj.get("fields") {
+            self.parse_input_fields(fields_val, &name)?
+        } else {
+            Vec::new()
+        };
+
+        Ok(IRInputType {
+            name,
+            fields,
+            description: obj.get("description").and_then(|v| v.as_str()).map(String::from),
+        })
+    }
+
+    fn parse_input_fields(&self, value: &Value, type_name: &str) -> Result<Vec<IRInputField>> {
+        let array = value.as_array().ok_or_else(|| FraiseQLError::Parse {
+            message:  format!("fields for input type {type_name} must be an array"),
+            location: format!("{type_name}.fields"),
+        })?;
+
+        array
+            .iter()
+            .enumerate()
+            .map(|(i, field_val)| self.parse_input_field(field_val, type_name, i))
+            .collect()
+    }
+
+    fn parse_input_field(&self, value: &Value, type_name: &str, index: usize) -> Result<IRInputField> {
+        let obj = value.as_object().ok_or_else(|| FraiseQLError::Parse {
+            message:  format!("Input field at index {index} in type {type_name} must be an object"),
+            location: format!("{type_name}.fields[{index}]"),
+        })?;
+
+        let name = obj
+            .get("name")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| FraiseQLError::Parse {
+                message:  format!("Input field at index {index} in type {type_name} missing 'name'"),
+                location: format!("{type_name}.fields[{index}].name"),
+            })?
+            .to_string();
+
+        let field_type = obj
+            .get("type")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| FraiseQLError::Parse {
+                message:  format!("Input field '{name}' in type {type_name} missing 'type'"),
+                location: format!("{type_name}.fields.{name}.type"),
+            })?
+            .to_string();
+
+        let nullable = obj.get("nullable").and_then(|v| v.as_bool()).unwrap_or(true);
+
+        Ok(IRInputField {
+            name,
+            field_type,
+            nullable,
+            default_value: obj.get("default_value").cloned(),
+            description: obj.get("description").and_then(|v| v.as_str()).map(String::from),
+        })
+    }
 }
 
 impl Default for SchemaParser {
@@ -598,5 +797,293 @@ mod tests {
         }"#;
         let result = parser.parse(json);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_interface_basic() {
+        let parser = SchemaParser::new();
+        let json = r#"{
+            "interfaces": [{
+                "name": "Node",
+                "fields": [
+                    {"name": "id", "type": "ID!", "nullable": false}
+                ]
+            }]
+        }"#;
+
+        let ir = parser.parse(json).unwrap();
+        assert_eq!(ir.interfaces.len(), 1);
+        assert_eq!(ir.interfaces[0].name, "Node");
+        assert_eq!(ir.interfaces[0].fields.len(), 1);
+        assert_eq!(ir.interfaces[0].fields[0].name, "id");
+    }
+
+    #[test]
+    fn test_parse_interface_with_multiple_fields() {
+        let parser = SchemaParser::new();
+        let json = r#"{
+            "interfaces": [{
+                "name": "Timestamped",
+                "fields": [
+                    {"name": "createdAt", "type": "String!", "nullable": false},
+                    {"name": "updatedAt", "type": "String!", "nullable": false}
+                ],
+                "description": "Records creation and update times"
+            }]
+        }"#;
+
+        let ir = parser.parse(json).unwrap();
+        assert_eq!(ir.interfaces[0].fields.len(), 2);
+        assert_eq!(ir.interfaces[0].description, Some("Records creation and update times".to_string()));
+    }
+
+    #[test]
+    fn test_parse_interface_with_empty_fields() {
+        let parser = SchemaParser::new();
+        let json = r#"{
+            "interfaces": [{
+                "name": "Empty",
+                "fields": []
+            }]
+        }"#;
+
+        let ir = parser.parse(json).unwrap();
+        assert_eq!(ir.interfaces.len(), 1);
+        assert_eq!(ir.interfaces[0].fields.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_multiple_interfaces() {
+        let parser = SchemaParser::new();
+        let json = r#"{
+            "interfaces": [
+                {"name": "Node", "fields": []},
+                {"name": "Auditable", "fields": []},
+                {"name": "Publishable", "fields": []}
+            ]
+        }"#;
+
+        let ir = parser.parse(json).unwrap();
+        assert_eq!(ir.interfaces.len(), 3);
+        assert_eq!(ir.interfaces[0].name, "Node");
+        assert_eq!(ir.interfaces[1].name, "Auditable");
+        assert_eq!(ir.interfaces[2].name, "Publishable");
+    }
+
+    #[test]
+    fn test_parse_interface_missing_name() {
+        let parser = SchemaParser::new();
+        let json = r#"{"interfaces": [{"fields": []}]}"#;
+        let result = parser.parse(json);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_union_basic() {
+        let parser = SchemaParser::new();
+        let json = r#"{
+            "unions": [{
+                "name": "SearchResult",
+                "types": ["User", "Post"]
+            }]
+        }"#;
+
+        let ir = parser.parse(json).unwrap();
+        assert_eq!(ir.unions.len(), 1);
+        assert_eq!(ir.unions[0].name, "SearchResult");
+        assert_eq!(ir.unions[0].types.len(), 2);
+        assert_eq!(ir.unions[0].types[0], "User");
+        assert_eq!(ir.unions[0].types[1], "Post");
+    }
+
+    #[test]
+    fn test_parse_union_single_type() {
+        let parser = SchemaParser::new();
+        let json = r#"{
+            "unions": [{
+                "name": "Result",
+                "types": ["Error"]
+            }]
+        }"#;
+
+        let ir = parser.parse(json).unwrap();
+        assert_eq!(ir.unions[0].types.len(), 1);
+        assert_eq!(ir.unions[0].types[0], "Error");
+    }
+
+    #[test]
+    fn test_parse_union_with_description() {
+        let parser = SchemaParser::new();
+        let json = r#"{
+            "unions": [{
+                "name": "SearchResult",
+                "types": ["User", "Post", "Comment"],
+                "description": "Results from search"
+            }]
+        }"#;
+
+        let ir = parser.parse(json).unwrap();
+        assert_eq!(ir.unions[0].description, Some("Results from search".to_string()));
+        assert_eq!(ir.unions[0].types.len(), 3);
+    }
+
+    #[test]
+    fn test_parse_multiple_unions() {
+        let parser = SchemaParser::new();
+        let json = r#"{
+            "unions": [
+                {"name": "SearchResult", "types": ["User", "Post"]},
+                {"name": "Error", "types": ["ValidationError", "NotFoundError"]},
+                {"name": "Response", "types": ["Success", "Error"]}
+            ]
+        }"#;
+
+        let ir = parser.parse(json).unwrap();
+        assert_eq!(ir.unions.len(), 3);
+        assert_eq!(ir.unions[0].name, "SearchResult");
+        assert_eq!(ir.unions[1].name, "Error");
+        assert_eq!(ir.unions[2].name, "Response");
+    }
+
+    #[test]
+    fn test_parse_union_missing_name() {
+        let parser = SchemaParser::new();
+        let json = r#"{"unions": [{"types": []}]}"#;
+        let result = parser.parse(json);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_union_empty_types() {
+        let parser = SchemaParser::new();
+        let json = r#"{
+            "unions": [{
+                "name": "Empty",
+                "types": []
+            }]
+        }"#;
+
+        let ir = parser.parse(json).unwrap();
+        assert_eq!(ir.unions[0].types.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_input_type_basic() {
+        let parser = SchemaParser::new();
+        let json = r#"{
+            "input_types": [{
+                "name": "UserInput",
+                "fields": [
+                    {"name": "name", "type": "String!", "nullable": false}
+                ]
+            }]
+        }"#;
+
+        let ir = parser.parse(json).unwrap();
+        assert_eq!(ir.input_types.len(), 1);
+        assert_eq!(ir.input_types[0].name, "UserInput");
+        assert_eq!(ir.input_types[0].fields.len(), 1);
+        assert_eq!(ir.input_types[0].fields[0].name, "name");
+    }
+
+    #[test]
+    fn test_parse_input_type_with_multiple_fields() {
+        let parser = SchemaParser::new();
+        let json = r#"{
+            "input_types": [{
+                "name": "CreateUserInput",
+                "fields": [
+                    {"name": "name", "type": "String!", "nullable": false},
+                    {"name": "email", "type": "String!", "nullable": false},
+                    {"name": "age", "type": "Int", "nullable": true}
+                ],
+                "description": "Input for creating users"
+            }]
+        }"#;
+
+        let ir = parser.parse(json).unwrap();
+        assert_eq!(ir.input_types[0].fields.len(), 3);
+        assert!(!ir.input_types[0].fields[0].nullable);
+        assert!(ir.input_types[0].fields[2].nullable);
+        assert_eq!(ir.input_types[0].description, Some("Input for creating users".to_string()));
+    }
+
+    #[test]
+    fn test_parse_input_field_with_default_value() {
+        let parser = SchemaParser::new();
+        let json = r#"{
+            "input_types": [{
+                "name": "QueryInput",
+                "fields": [
+                    {"name": "limit", "type": "Int", "nullable": true, "default_value": 10},
+                    {"name": "active", "type": "Boolean", "nullable": true, "default_value": true}
+                ]
+            }]
+        }"#;
+
+        let ir = parser.parse(json).unwrap();
+        assert_eq!(ir.input_types[0].fields[0].default_value, Some(serde_json::json!(10)));
+        assert_eq!(ir.input_types[0].fields[1].default_value, Some(serde_json::json!(true)));
+    }
+
+    #[test]
+    fn test_parse_input_type_with_empty_fields() {
+        let parser = SchemaParser::new();
+        let json = r#"{
+            "input_types": [{
+                "name": "EmptyInput",
+                "fields": []
+            }]
+        }"#;
+
+        let ir = parser.parse(json).unwrap();
+        assert_eq!(ir.input_types[0].fields.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_multiple_input_types() {
+        let parser = SchemaParser::new();
+        let json = r#"{
+            "input_types": [
+                {"name": "UserInput", "fields": []},
+                {"name": "PostInput", "fields": []},
+                {"name": "FilterInput", "fields": []}
+            ]
+        }"#;
+
+        let ir = parser.parse(json).unwrap();
+        assert_eq!(ir.input_types.len(), 3);
+        assert_eq!(ir.input_types[0].name, "UserInput");
+        assert_eq!(ir.input_types[1].name, "PostInput");
+        assert_eq!(ir.input_types[2].name, "FilterInput");
+    }
+
+    #[test]
+    fn test_parse_input_type_missing_name() {
+        let parser = SchemaParser::new();
+        let json = r#"{"input_types": [{"fields": []}]}"#;
+        let result = parser.parse(json);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_complete_schema_with_all_features() {
+        let parser = SchemaParser::new();
+        let json = r#"{
+            "types": [{"name": "User", "fields": []}],
+            "interfaces": [{"name": "Node", "fields": []}],
+            "unions": [{"name": "SearchResult", "types": ["User"]}],
+            "input_types": [{"name": "UserInput", "fields": []}],
+            "queries": [{"name": "users", "return_type": "User", "returns_list": true}],
+            "mutations": [{"name": "createUser", "return_type": "User", "operation": "create"}]
+        }"#;
+
+        let ir = parser.parse(json).unwrap();
+        assert_eq!(ir.types.len(), 1);
+        assert_eq!(ir.interfaces.len(), 1);
+        assert_eq!(ir.unions.len(), 1);
+        assert_eq!(ir.input_types.len(), 1);
+        assert_eq!(ir.queries.len(), 1);
+        assert_eq!(ir.mutations.len(), 1);
     }
 }
