@@ -5,32 +5,84 @@
 //! The compiler transforms GraphQL schema definitions (from Python/TypeScript decorators)
 //! into optimized, executable `CompiledSchema` with pre-generated SQL templates.
 //!
-//! # Compilation Pipeline
+//! ## Compilation Pipeline
 //!
 //! ```text
 //! JSON Schema (from decorators)
 //!         ↓
 //!    Parser (parse.rs)
-//!         ↓
+//!         ↓ [Syntax validation]
+//!
 //! Authoring IR (ir.rs)
 //!         ↓
 //!   Validator (validator.rs)
-//!         ↓
-//!    Lowering (lowering.rs)
-//!         ↓
+//!         ↓ [Type checking, name validation]
+//!
+//! Lowering (lowering.rs)
+//!         ↓ [Build optimized IR for code generation]
+//!
 //!   SQL Templates
-//!         ↓
+//!         ↓ [Database-specific artifact]
+//!
 //!    Codegen (codegen.rs)
-//!         ↓
+//!         ↓ [Generate runtime schema metadata]
+//!
 //! CompiledSchema JSON
+//!         ↓
+//! Ready for Runtime Execution
 //! ```
+//!
+//! ## Design Principles
+//!
+//! ### 1. Separation of Concerns
+//!
+//! Schema definition (what queries exist?) is kept separate from execution
+//! artifacts (how to execute them?). This allows:
+//! - Different SQL generation strategies (optimize for OLTP vs OLAP)
+//! - Database-specific optimizations without changing schema
+//! - Reuse of schemas across backends
+//! - Testing schema independently from SQL generation
+//!
+//! ### 2. Staged Compilation
+//!
+//! Each phase has a specific responsibility:
+//! - **Parsing**: Convert JSON → AST, syntax validation
+//! - **Validation**: Type checking, semantic validation, circular reference detection
+//! - **Lowering**: Optimize IR, prepare for code generation
+//! - **Codegen**: Generate runtime metadata and schema introspection data
+//!
+//! This separation makes the compiler maintainable, testable, and allows reuse of
+//! phases for different purposes.
+//!
+//! ### 3. Immutable Intermediate State
+//!
+//! Each phase produces immutable data structures (AuthoringIR, CompiledSchema, etc.)
+//! This ensures:
+//! - Reproducible builds (same input = same output)
+//! - Thread-safe processing
+//! - Clear data flow and dependencies
+//! - Easy debugging and verification
 //!
 //! # Phases
 //!
-//! 1. **Parse**: JSON schema → Authoring IR
-//! 2. **Validate**: Type checking, binding validation, auth rules
-//! 3. **Lower**: IR → SQL templates (database-specific)
-//! 4. **Codegen**: SQL templates → CompiledSchema JSON
+//! 1. **Parse** (`parser.rs`): JSON schema → Authoring IR
+//!    - Syntax validation
+//!    - AST construction
+//!
+//! 2. **Validate** (`validator.rs`): Type checking and semantic validation
+//!    - Field type binding
+//!    - Circular reference detection
+//!    - Auth rule validation
+//!
+//! 3. **Lower** (`lowering.rs`): IR optimization for execution
+//!    - Fact table extraction
+//!    - Query optimization
+//!    - Template preparation
+//!
+//! 4. **Codegen** (`codegen.rs`): Generate CompiledSchema
+//!    - Runtime metadata
+//!    - Schema introspection data
+//!    - Field mappings
 //!
 //! # Example
 //!

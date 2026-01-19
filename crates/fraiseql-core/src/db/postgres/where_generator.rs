@@ -44,6 +44,31 @@ pub type IndexedColumnsCache = HashMap<String, HashSet<String>>;
 ///
 /// Converts `WhereClause` AST to PostgreSQL SQL with parameterized queries.
 ///
+/// # Interior Mutability Pattern
+///
+/// This struct uses `Cell<usize>` for the parameter counter. This is safe because:
+///
+/// 1. **Single-threaded usage**: Each WHERE generator is created for a single
+///    query execution and isn't shared across async tasks.
+///
+/// 2. **Reset per call**: The counter is reset at the start of `generate()`,
+///    ensuring no state leakage between calls.
+///
+/// 3. **Performance**: Avoids mutex overhead for a simple counter that needs frequent updates.
+///
+/// # If Shared Across Tasks
+///
+/// If this generator were Arc-shared across multiple async tasks, replace
+/// `Cell<usize>` with `AtomicUsize` to prevent data races:
+///
+/// ```rust,ignore
+/// // Instead of: Cell<usize>
+/// // Use: AtomicUsize
+///
+/// param_counter: std::sync::atomic::AtomicUsize::new(0),
+/// // Then use compare_and_swap or fetch_add operations
+/// ```
+///
 /// # Indexed Column Optimization
 ///
 /// When an `IndexedColumnsCache` is provided, the generator checks if nested paths
@@ -74,6 +99,14 @@ pub type IndexedColumnsCache = HashMap<String, HashSet<String>>;
 /// // params: ["example.com"]
 /// ```
 pub struct PostgresWhereGenerator {
+    /// Parameter counter for generating placeholder names ($1, $2, etc.)
+    ///
+    /// Uses `Cell<usize>` for interior mutability. Safe because:
+    /// - Single-threaded context (not shared across async tasks)
+    /// - Reset at start of each `generate()` call
+    /// - No concurrent access possible within query execution
+    ///
+    /// See struct documentation for why this is safe and how to fix if shared.
     param_counter:   std::cell::Cell<usize>,
     /// Optional indexed columns cache for the current view.
     /// When set, the generator will use indexed columns instead of JSONB extraction

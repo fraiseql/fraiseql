@@ -80,6 +80,42 @@ FraiseQL v2 is a **compiled GraphQL execution engine** designed for deterministi
 
 ---
 
+## Design & Security
+
+### Architecture
+
+FraiseQL separates schema definition from execution to enable optimization and reuse:
+
+- **Schema**: GraphQL type definitions (compile-time)
+- **SQL Templates**: Parameterized SQL generation (compile-time)
+- **Runtime**: Query execution using pre-compiled artifacts
+
+This design enables:
+- Database-specific optimizations without changing schema
+- Schema caching and reuse across backends
+- Simplified testing and maintenance
+- Strong security guarantees via parameterized queries
+
+See [ARCHITECTURE.md](.claude/ARCHITECTURE.md) for detailed component documentation and design rationale.
+
+### Security
+
+All user input is parameterized to prevent SQL injection:
+
+- **Database values**: Query parameters (never interpolated)
+- **Column names**: Compile-time only (never user input)
+- **Query limits**: Type-safe u32 values (can't contain SQL code)
+- **Identifiers**: Validated against regex at parse time
+
+Thread-safe patterns throughout:
+- Single-threaded contexts use `Cell<T>` for interior mutability
+- Shared state protected with `Arc<T>` and atomic operations
+- Rust type system prevents data races at compile time
+
+See [SECURITY_PATTERNS.md](crates/fraiseql-core/docs/SECURITY_PATTERNS.md) for detailed security analysis and best practices.
+
+---
+
 ## Language Generators
 
 FraiseQL v2 supports **schema authoring in 5 programming languages**, all producing compatible JSON schemas that compile to the same optimized execution engine.
