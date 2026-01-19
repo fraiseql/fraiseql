@@ -544,9 +544,4 @@ mod tests {
         assert!(!schema.types[0].has_sql_projection());
     }
 
-    #[test]
-    #[ignore = "TODO: Schema optimizer behavior changed - needs update (Phase 4+)"]
-    fn test_projection_not_applied_to_small_type() {
-        // TODO: Schema optimizer behavior changed - needs update (Phase 4+)
-    }
 }
