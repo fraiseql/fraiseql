@@ -236,6 +236,91 @@ pub struct FilterColumn {
     pub indexed:  bool,
 }
 
+/// Aggregation strategy for fact tables
+///
+/// Determines how fact table data is updated and structured.
+///
+/// # Strategies
+///
+/// - **Incremental**: New records added (e.g., transaction logs)
+/// - **AccumulatingSnapshot**: Records updated with new events (e.g., order milestones)
+/// - **PeriodicSnapshot**: Complete snapshot at regular intervals (e.g., daily inventory)
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AggregationStrategy {
+    /// New records are appended (e.g., transaction logs, event streams)
+    #[serde(rename = "incremental")]
+    Incremental,
+
+    /// Records are updated with new events (e.g., order status changes)
+    #[serde(rename = "accumulating_snapshot")]
+    AccumulatingSnapshot,
+
+    /// Complete snapshots at regular intervals (e.g., daily inventory levels)
+    #[serde(rename = "periodic_snapshot")]
+    PeriodicSnapshot,
+}
+
+impl Default for AggregationStrategy {
+    fn default() -> Self {
+        Self::Incremental
+    }
+}
+
+/// Explicit fact table schema declaration
+///
+/// Allows users to explicitly declare fact table metadata instead of relying on
+/// auto-detection. Explicit declarations take precedence over auto-detected metadata.
+///
+/// # Example
+///
+/// ```json
+/// {
+///   "name": "tf_sales",
+///   "measures": ["amount", "quantity", "discount"],
+///   "dimensions": ["product_id", "region_id", "date_id"],
+///   "primary_key": "id",
+///   "metadata": {
+///     "aggregation_strategy": "incremental",
+///     "grain": ["date", "product", "region"]
+///   }
+/// }
+/// ```
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FactTableDeclaration {
+    /// Fact table name (e.g., "tf_sales")
+    pub name: String,
+
+    /// Measure column names (aggregatable numeric fields)
+    pub measures: Vec<String>,
+
+    /// Dimension column names or paths within JSONB
+    pub dimensions: Vec<String>,
+
+    /// Primary key column name
+    pub primary_key: String,
+
+    /// Optional metadata about the fact table
+    pub metadata: Option<FactTableDeclarationMetadata>,
+}
+
+/// Metadata for explicitly declared fact tables
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FactTableDeclarationMetadata {
+    /// Aggregation strategy (how data is updated)
+    #[serde(default)]
+    pub aggregation_strategy: AggregationStrategy,
+
+    /// Grain of the fact table (combination of dimensions that makes a unique record)
+    pub grain: Vec<String>,
+
+    /// Column containing snapshot date (for periodic snapshots)
+    pub snapshot_date_column: Option<String>,
+
+    /// Whether this is a slowly changing dimension
+    #[serde(default)]
+    pub is_slowly_changing_dimension: bool,
+}
+
 impl FactTableDetector {
     /// Detect if a table name follows the fact table pattern.
     ///
@@ -1471,5 +1556,224 @@ mod tests {
             DatabaseType::PostgreSQL,
         );
         assert!(paths.is_empty());
+    }
+
+    // ==================== Explicit Fact Table Declaration Tests ====================
+
+    #[test]
+    fn test_aggregation_strategy_serialization() {
+        // Test incremental
+        let incremental_json = serde_json::json!("incremental");
+        let strategy: AggregationStrategy = serde_json::from_value(incremental_json).unwrap();
+        assert_eq!(strategy, AggregationStrategy::Incremental);
+
+        // Test accumulating_snapshot
+        let accum_json = serde_json::json!("accumulating_snapshot");
+        let strategy: AggregationStrategy = serde_json::from_value(accum_json).unwrap();
+        assert_eq!(strategy, AggregationStrategy::AccumulatingSnapshot);
+
+        // Test periodic_snapshot
+        let periodic_json = serde_json::json!("periodic_snapshot");
+        let strategy: AggregationStrategy = serde_json::from_value(periodic_json).unwrap();
+        assert_eq!(strategy, AggregationStrategy::PeriodicSnapshot);
+    }
+
+    #[test]
+    fn test_aggregation_strategy_default() {
+        let strategy = AggregationStrategy::default();
+        assert_eq!(strategy, AggregationStrategy::Incremental);
+    }
+
+    #[test]
+    fn test_aggregation_strategy_equality() {
+        assert_eq!(AggregationStrategy::Incremental, AggregationStrategy::Incremental);
+        assert_ne!(AggregationStrategy::Incremental, AggregationStrategy::AccumulatingSnapshot);
+    }
+
+    #[test]
+    fn test_fact_table_declaration_basic() {
+        let decl = FactTableDeclaration {
+            name: "tf_sales".to_string(),
+            measures: vec!["amount".to_string(), "quantity".to_string()],
+            dimensions: vec!["product_id".to_string(), "region_id".to_string()],
+            primary_key: "id".to_string(),
+            metadata: None,
+        };
+
+        assert_eq!(decl.name, "tf_sales");
+        assert_eq!(decl.measures.len(), 2);
+        assert_eq!(decl.dimensions.len(), 2);
+        assert_eq!(decl.primary_key, "id");
+        assert!(decl.metadata.is_none());
+    }
+
+    #[test]
+    fn test_fact_table_declaration_with_metadata() {
+        let metadata = FactTableDeclarationMetadata {
+            aggregation_strategy: AggregationStrategy::Incremental,
+            grain: vec!["date".to_string(), "product".to_string()],
+            snapshot_date_column: None,
+            is_slowly_changing_dimension: false,
+        };
+
+        let decl = FactTableDeclaration {
+            name: "tf_events".to_string(),
+            measures: vec!["count".to_string()],
+            dimensions: vec!["user_id".to_string(), "event_type".to_string()],
+            primary_key: "id".to_string(),
+            metadata: Some(metadata.clone()),
+        };
+
+        assert!(decl.metadata.is_some());
+        let meta = decl.metadata.unwrap();
+        assert_eq!(meta.aggregation_strategy, AggregationStrategy::Incremental);
+        assert_eq!(meta.grain.len(), 2);
+    }
+
+    #[test]
+    fn test_fact_table_declaration_periodic_snapshot() {
+        let metadata = FactTableDeclarationMetadata {
+            aggregation_strategy: AggregationStrategy::PeriodicSnapshot,
+            grain: vec!["date".to_string()],
+            snapshot_date_column: Some("snapshot_date".to_string()),
+            is_slowly_changing_dimension: false,
+        };
+
+        let decl = FactTableDeclaration {
+            name: "tf_inventory".to_string(),
+            measures: vec!["quantity_on_hand".to_string()],
+            dimensions: vec!["warehouse_id".to_string()],
+            primary_key: "id".to_string(),
+            metadata: Some(metadata.clone()),
+        };
+
+        assert_eq!(decl.name, "tf_inventory");
+        let meta = decl.metadata.unwrap();
+        assert_eq!(meta.aggregation_strategy, AggregationStrategy::PeriodicSnapshot);
+        assert_eq!(meta.snapshot_date_column, Some("snapshot_date".to_string()));
+    }
+
+    #[test]
+    fn test_fact_table_declaration_json_serialization() {
+        let json_str = r#"{
+            "name": "tf_sales",
+            "measures": ["amount", "quantity"],
+            "dimensions": ["product_id"],
+            "primary_key": "id",
+            "metadata": {
+                "aggregation_strategy": "incremental",
+                "grain": ["date", "product"],
+                "is_slowly_changing_dimension": false
+            }
+        }"#;
+
+        let decl: FactTableDeclaration = serde_json::from_str(json_str).unwrap();
+
+        assert_eq!(decl.name, "tf_sales");
+        assert_eq!(decl.measures.len(), 2);
+        assert!(decl.metadata.is_some());
+
+        let meta = decl.metadata.unwrap();
+        assert_eq!(meta.aggregation_strategy, AggregationStrategy::Incremental);
+    }
+
+    #[test]
+    fn test_fact_table_declaration_json_roundtrip() {
+        let original = FactTableDeclaration {
+            name: "tf_orders".to_string(),
+            measures: vec!["amount".to_string()],
+            dimensions: vec!["customer_id".to_string()],
+            primary_key: "id".to_string(),
+            metadata: Some(FactTableDeclarationMetadata {
+                aggregation_strategy: AggregationStrategy::AccumulatingSnapshot,
+                grain: vec!["order_id".to_string()],
+                snapshot_date_column: None,
+                is_slowly_changing_dimension: false,
+            }),
+        };
+
+        // Serialize
+        let json = serde_json::to_string(&original).unwrap();
+
+        // Deserialize
+        let deserialized: FactTableDeclaration = serde_json::from_str(&json).unwrap();
+
+        // Verify roundtrip
+        assert_eq!(original, deserialized);
+    }
+
+    #[test]
+    fn test_fact_table_declaration_metadata_default_strategy() {
+        let json_str = r#"{
+            "name": "tf_events",
+            "measures": ["count"],
+            "dimensions": ["event_type"],
+            "primary_key": "id",
+            "metadata": {
+                "grain": ["date"]
+            }
+        }"#;
+
+        let decl: FactTableDeclaration = serde_json::from_str(json_str).unwrap();
+        let meta = decl.metadata.unwrap();
+
+        // Should default to Incremental
+        assert_eq!(meta.aggregation_strategy, AggregationStrategy::default());
+    }
+
+    #[test]
+    fn test_multiple_fact_table_declarations() {
+        let declarations = vec![
+            FactTableDeclaration {
+                name: "tf_sales".to_string(),
+                measures: vec!["amount".to_string()],
+                dimensions: vec!["product_id".to_string()],
+                primary_key: "id".to_string(),
+                metadata: None,
+            },
+            FactTableDeclaration {
+                name: "tf_events".to_string(),
+                measures: vec!["count".to_string()],
+                dimensions: vec!["user_id".to_string()],
+                primary_key: "id".to_string(),
+                metadata: None,
+            },
+        ];
+
+        assert_eq!(declarations.len(), 2);
+        assert_eq!(declarations[0].name, "tf_sales");
+        assert_eq!(declarations[1].name, "tf_events");
+    }
+
+    #[test]
+    fn test_fact_table_declaration_large_grain() {
+        let metadata = FactTableDeclarationMetadata {
+            aggregation_strategy: AggregationStrategy::Incremental,
+            grain: vec![
+                "date".to_string(),
+                "product".to_string(),
+                "region".to_string(),
+                "customer".to_string(),
+            ],
+            snapshot_date_column: None,
+            is_slowly_changing_dimension: false,
+        };
+
+        let decl = FactTableDeclaration {
+            name: "tf_sales_detailed".to_string(),
+            measures: vec!["amount".to_string(), "quantity".to_string()],
+            dimensions: vec![
+                "date_id".to_string(),
+                "product_id".to_string(),
+                "region_id".to_string(),
+                "customer_id".to_string(),
+            ],
+            primary_key: "id".to_string(),
+            metadata: Some(metadata),
+        };
+
+        let meta = decl.metadata.unwrap();
+        assert_eq!(meta.grain.len(), 4);
+        assert_eq!(decl.dimensions.len(), 4);
     }
 }
