@@ -360,6 +360,118 @@ impl IdValidator for OpaqueIdValidator {
     }
 }
 
+/// ID validation profile for different use cases
+///
+/// Profiles provide preset ID validation configurations for common scenarios.
+/// Each profile includes a name and a validator instance.
+///
+/// # Built-in Profiles
+///
+/// - **UUID**: Strict UUID format validation (FraiseQL default)
+/// - **Numeric**: Integer-based IDs (suitable for sequential IDs)
+/// - **ULID**: Sortable unique identifiers (recommended for distributed systems)
+/// - **Opaque**: Any string accepted (GraphQL spec compliant)
+#[derive(Debug, Clone)]
+pub struct IDValidationProfile {
+    /// Profile name (e.g., "uuid", "ulid", "numeric")
+    pub name: String,
+
+    /// Validator instance for this profile
+    pub validator: ValidationProfileType,
+}
+
+/// Type of validation profile
+#[derive(Debug, Clone)]
+pub enum ValidationProfileType {
+    /// UUID format validation
+    Uuid(UuidIdValidator),
+
+    /// Numeric (integer) validation
+    Numeric(NumericIdValidator),
+
+    /// ULID format validation
+    Ulid(UlidIdValidator),
+
+    /// Opaque (any string) validation
+    Opaque(OpaqueIdValidator),
+}
+
+impl ValidationProfileType {
+    /// Get the validator as a trait object
+    pub fn as_validator(&self) -> &dyn IdValidator {
+        match self {
+            Self::Uuid(v) => v,
+            Self::Numeric(v) => v,
+            Self::Ulid(v) => v,
+            Self::Opaque(v) => v,
+        }
+    }
+}
+
+impl IDValidationProfile {
+    /// Create a UUID validation profile (FraiseQL default)
+    #[must_use]
+    pub fn uuid() -> Self {
+        Self {
+            name: "uuid".to_string(),
+            validator: ValidationProfileType::Uuid(UuidIdValidator),
+        }
+    }
+
+    /// Create a numeric (integer) validation profile
+    #[must_use]
+    pub fn numeric() -> Self {
+        Self {
+            name: "numeric".to_string(),
+            validator: ValidationProfileType::Numeric(NumericIdValidator),
+        }
+    }
+
+    /// Create a ULID validation profile
+    #[must_use]
+    pub fn ulid() -> Self {
+        Self {
+            name: "ulid".to_string(),
+            validator: ValidationProfileType::Ulid(UlidIdValidator),
+        }
+    }
+
+    /// Create an opaque (any string) validation profile
+    #[must_use]
+    pub fn opaque() -> Self {
+        Self {
+            name: "opaque".to_string(),
+            validator: ValidationProfileType::Opaque(OpaqueIdValidator),
+        }
+    }
+
+    /// Get profile by name
+    ///
+    /// Returns a profile matching the given name, or None if not found.
+    ///
+    /// # Built-in Profile Names
+    ///
+    /// - "uuid" - UUID validation
+    /// - "numeric" - Integer validation
+    /// - "ulid" - ULID validation
+    /// - "opaque" - Any string validation
+    #[must_use]
+    pub fn by_name(name: &str) -> Option<Self> {
+        match name.to_lowercase().as_str() {
+            "uuid" => Some(Self::uuid()),
+            "numeric" | "integer" => Some(Self::numeric()),
+            "ulid" => Some(Self::ulid()),
+            "opaque" | "string" => Some(Self::opaque()),
+            _ => None,
+        }
+    }
+
+    /// Validate an ID using this profile
+    pub fn validate(&self, value: &str) -> Result<(), IDValidationError> {
+        self.validator.as_validator().validate(value)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -819,5 +931,138 @@ mod tests {
         assert!(uuid_validator.validate(numeric).is_err());
         assert!(numeric_validator.validate(uuid).is_err());
         assert!(ulid_validator.validate(numeric).is_err());
+    }
+
+    // ==================== ID Validation Profile Tests ====================
+
+    #[test]
+    fn test_id_validation_profile_uuid() {
+        let profile = IDValidationProfile::uuid();
+        assert_eq!(profile.name, "uuid");
+        assert!(profile.validate("550e8400-e29b-41d4-a716-446655440000").is_ok());
+        assert!(profile.validate("not-a-uuid").is_err());
+    }
+
+    #[test]
+    fn test_id_validation_profile_numeric() {
+        let profile = IDValidationProfile::numeric();
+        assert_eq!(profile.name, "numeric");
+        assert!(profile.validate("12345").is_ok());
+        assert!(profile.validate("not-a-number").is_err());
+    }
+
+    #[test]
+    fn test_id_validation_profile_ulid() {
+        let profile = IDValidationProfile::ulid();
+        assert_eq!(profile.name, "ulid");
+        assert!(profile.validate("01ARZ3NDEKTSV4RRFFQ69G5FAV").is_ok());
+        assert!(profile.validate("not-a-ulid").is_err());
+    }
+
+    #[test]
+    fn test_id_validation_profile_opaque() {
+        let profile = IDValidationProfile::opaque();
+        assert_eq!(profile.name, "opaque");
+        assert!(profile.validate("anything").is_ok());
+        assert!(profile.validate("12345").is_ok());
+        assert!(profile.validate("special@chars!#$%").is_ok());
+    }
+
+    #[test]
+    fn test_id_validation_profile_by_name() {
+        // Test exact matches
+        assert!(IDValidationProfile::by_name("uuid").is_some());
+        assert!(IDValidationProfile::by_name("numeric").is_some());
+        assert!(IDValidationProfile::by_name("ulid").is_some());
+        assert!(IDValidationProfile::by_name("opaque").is_some());
+
+        // Test case insensitivity
+        assert!(IDValidationProfile::by_name("UUID").is_some());
+        assert!(IDValidationProfile::by_name("NUMERIC").is_some());
+        assert!(IDValidationProfile::by_name("ULID").is_some());
+
+        // Test aliases
+        assert!(IDValidationProfile::by_name("integer").is_some());
+        assert!(IDValidationProfile::by_name("string").is_some());
+
+        // Test invalid
+        assert!(IDValidationProfile::by_name("invalid").is_none());
+    }
+
+    #[test]
+    fn test_id_validation_profile_by_name_uuid_validation() {
+        let profile = IDValidationProfile::by_name("uuid").unwrap();
+        assert_eq!(profile.name, "uuid");
+        assert!(profile.validate("550e8400-e29b-41d4-a716-446655440000").is_ok());
+    }
+
+    #[test]
+    fn test_id_validation_profile_by_name_numeric_validation() {
+        let profile = IDValidationProfile::by_name("numeric").unwrap();
+        assert_eq!(profile.name, "numeric");
+        assert!(profile.validate("12345").is_ok());
+    }
+
+    #[test]
+    fn test_id_validation_profile_by_name_integer_alias() {
+        let profile_numeric = IDValidationProfile::by_name("numeric").unwrap();
+        let profile_integer = IDValidationProfile::by_name("integer").unwrap();
+
+        // Both should validate the same way
+        assert!(profile_numeric.validate("12345").is_ok());
+        assert!(profile_integer.validate("12345").is_ok());
+        assert!(profile_numeric.validate("not-a-number").is_err());
+        assert!(profile_integer.validate("not-a-number").is_err());
+    }
+
+    #[test]
+    fn test_id_validation_profile_by_name_string_alias() {
+        let profile_opaque = IDValidationProfile::by_name("opaque").unwrap();
+        let profile_string = IDValidationProfile::by_name("string").unwrap();
+
+        // Both should validate the same way
+        assert!(profile_opaque.validate("anything").is_ok());
+        assert!(profile_string.validate("anything").is_ok());
+    }
+
+    #[test]
+    fn test_validation_profile_type_as_validator() {
+        let uuid_type = ValidationProfileType::Uuid(UuidIdValidator);
+        assert!(uuid_type.as_validator().validate("550e8400-e29b-41d4-a716-446655440000").is_ok());
+
+        let numeric_type = ValidationProfileType::Numeric(NumericIdValidator);
+        assert!(numeric_type.as_validator().validate("12345").is_ok());
+
+        let ulid_type = ValidationProfileType::Ulid(UlidIdValidator);
+        assert!(ulid_type.as_validator().validate("01ARZ3NDEKTSV4RRFFQ69G5FAV").is_ok());
+
+        let opaque_type = ValidationProfileType::Opaque(OpaqueIdValidator);
+        assert!(opaque_type.as_validator().validate("any_value").is_ok());
+    }
+
+    #[test]
+    fn test_id_validation_profile_clone() {
+        let profile1 = IDValidationProfile::uuid();
+        let profile2 = profile1.clone();
+
+        assert_eq!(profile1.name, profile2.name);
+        assert!(profile1.validate("550e8400-e29b-41d4-a716-446655440000").is_ok());
+        assert!(profile2.validate("550e8400-e29b-41d4-a716-446655440000").is_ok());
+    }
+
+    #[test]
+    fn test_all_profiles_available() {
+        let profiles = [
+            IDValidationProfile::uuid(),
+            IDValidationProfile::numeric(),
+            IDValidationProfile::ulid(),
+            IDValidationProfile::opaque(),
+        ];
+
+        assert_eq!(profiles.len(), 4);
+        assert_eq!(profiles[0].name, "uuid");
+        assert_eq!(profiles[1].name, "numeric");
+        assert_eq!(profiles[2].name, "ulid");
+        assert_eq!(profiles[3].name, "opaque");
     }
 }
