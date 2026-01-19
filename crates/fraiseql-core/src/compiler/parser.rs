@@ -15,6 +15,7 @@
 
 use serde_json::Value;
 
+use super::enum_validator::EnumValidator;
 use super::ir::{
     AuthoringIR, AutoParams, IRArgument, IRField, IRMutation, IRQuery, IRSubscription, IRType,
     MutationOperation,
@@ -109,11 +110,15 @@ impl SchemaParser {
             std::collections::HashMap::new()
         };
 
+        // Parse enums if present
+        let enums = if let Some(enums_val) = obj.get("enums") {
+            EnumValidator::parse_enums(enums_val)?
+        } else {
+            Vec::new()
+        };
+
         // Validate that unimplemented features are not present in schema
         // This prevents silent data loss - users will be alerted if they use these features
-        if obj.contains_key("enums") {
-            eprintln!("Warning: 'enums' feature in schema is not yet supported and will be ignored");
-        }
         if obj.contains_key("interfaces") {
             eprintln!("Warning: 'interfaces' feature in schema is not yet supported and will be ignored");
         }
@@ -129,7 +134,7 @@ impl SchemaParser {
 
         Ok(AuthoringIR {
             types,
-            enums: Vec::new(),       // TODO: Parse enums from JSON
+            enums,
             interfaces: Vec::new(),  // TODO: Parse interfaces from JSON
             unions: Vec::new(),      // TODO: Parse unions from JSON
             input_types: Vec::new(), // TODO: Parse input types from JSON

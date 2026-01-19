@@ -59,6 +59,7 @@ pub mod aggregate_types;
 pub mod aggregation;
 pub mod compilation_cache;
 mod codegen;
+pub mod enum_validator;
 pub mod fact_table;
 pub mod ir;
 mod lowering;
@@ -72,6 +73,7 @@ pub use codegen::CodeGenerator;
 pub use compilation_cache::{
     CompilationCache, CompilationCacheConfig, CompilationCacheMetrics,
 };
+pub use enum_validator::EnumValidator;
 pub use ir::{
     AuthoringIR, AutoParams, IRArgument, IRField, IRMutation, IRQuery, IRSubscription, IRType,
     MutationOperation,
