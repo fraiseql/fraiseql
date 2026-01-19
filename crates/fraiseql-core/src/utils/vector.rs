@@ -1,4 +1,4 @@
-//! Vector query builder for pgvector similarity search (Phase 11.2).
+//! Vector query builder for pgvector similarity search.
 //!
 //! This module provides SQL query generation for pgvector operations including:
 //! - Similarity search with configurable distance metrics

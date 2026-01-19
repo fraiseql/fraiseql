@@ -11,7 +11,7 @@
 //! # Supported Databases
 //!
 //! - PostgreSQL: Uses `jsonb_build_object()` for efficient field selection
-//! - MySQL, SQLite, SQL Server: Support added in Phase 10+
+//! - MySQL, SQLite, SQL Server: Multi-database support
 //!
 //! # Example
 //!
@@ -153,7 +153,7 @@ impl Default for PostgresProjectionGenerator {
     }
 }
 
-/// MySQL SQL projection generator (Phase 10).
+/// MySQL SQL projection generator.
 ///
 /// MySQL uses `JSON_OBJECT()` for field projection, similar to PostgreSQL's `jsonb_build_object()`.
 /// Generates efficient SQL that projects only requested JSON fields.
@@ -244,7 +244,7 @@ impl Default for MySqlProjectionGenerator {
     }
 }
 
-/// SQLite SQL projection generator (Phase 10).
+/// SQLite SQL projection generator.
 ///
 /// SQLite's JSON support is more limited than PostgreSQL and MySQL.
 /// Uses `json_object()` with `json_extract()` to project fields.
@@ -334,7 +334,7 @@ impl Default for SqliteProjectionGenerator {
     }
 }
 
-/// SQL Server SQL projection generator (Phase 10).
+/// SQL Server SQL projection generator.
 ///
 /// SQL Server uses `JSON_QUERY()` and `JSON_MODIFY()` for JSON manipulation.
 /// Placeholder for future implementation.

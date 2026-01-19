@@ -1,4 +1,4 @@
-//! Authentication Middleware (Phase 6.2)
+//! Authentication Middleware
 //!
 //! This module provides authentication validation for GraphQL requests.
 //! It validates:

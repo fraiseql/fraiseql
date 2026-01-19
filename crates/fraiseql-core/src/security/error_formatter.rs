@@ -1,4 +1,4 @@
-//! Error Formatter (Phase 6.5)
+//! Error Formatter
 //!
 //! This module provides error sanitization and formatting for different environments.
 //! It controls what error details are exposed to clients based on deployment context.

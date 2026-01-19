@@ -1057,7 +1057,7 @@ mod tests {
     }
 
     // ========================================
-    // Phase 6: Advanced Aggregates Tests
+    // Advanced Aggregates Tests
     // ========================================
 
     #[test]

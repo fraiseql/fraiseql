@@ -1,4 +1,4 @@
-//! Introspection Enforcer (Phase 6.4)
+//! Introspection Enforcer
 //!
 //! This module provides control over GraphQL introspection queries.
 //! It enforces policies that control whether clients can query the schema.

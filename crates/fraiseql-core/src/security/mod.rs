@@ -1,4 +1,4 @@
-//! Security features (Phase 3 - Security Infrastructure)
+//! Security features
 //!
 //! This module provides core security infrastructure:
 //! - Security profiles (STANDARD, REGULATED)

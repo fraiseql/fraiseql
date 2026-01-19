@@ -338,7 +338,7 @@ mod tests {
     }
 
     // ========================================
-    // Phase 6: Advanced Aggregates Projection Tests
+    // Advanced Aggregates Projection Tests
     // ========================================
 
     #[test]

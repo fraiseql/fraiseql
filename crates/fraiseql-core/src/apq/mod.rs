@@ -1,4 +1,4 @@
-//! Automatic Persisted Queries (APQ) infrastructure (Phase 5.4 + Phase 6.4).
+//! Automatic Persisted Queries (APQ) infrastructure.
 //!
 //! APQ is a GraphQL optimization technique that allows clients to:
 //! 1. Hash queries and send only the hash on subsequent requests
@@ -12,11 +12,11 @@
 //!
 //! # Module Contents
 //!
-//! - **hasher**: Query hashing with SHA-256 (Phase 6.4 - pure Rust, no PyO3)
+//! - **hasher**: Query hashing with SHA-256 (pure Rust implementation)
 //! - **storage**: APQ result storage and retrieval
 //! - **metrics**: APQ performance metrics and monitoring
 
-pub mod hasher; // Phase 6.4: Pure Rust query hasher
+pub mod hasher; // Pure Rust query hasher
 pub mod metrics;
 pub mod storage;
 

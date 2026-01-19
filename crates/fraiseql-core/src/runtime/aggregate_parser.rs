@@ -462,7 +462,7 @@ impl AggregateQueryParser {
             });
         }
 
-        // Phase 6: Handle boolean aggregates (BOOL_AND, BOOL_OR)
+        // Handle boolean aggregates (BOOL_AND, BOOL_OR)
         // e.g., "is_active_bool_and", "has_discount_bool_or"
         for dimension_path in Self::extract_dimension_paths(metadata) {
             if let Some(stripped) = agg_name.strip_suffix("_bool_and") {
@@ -494,7 +494,7 @@ impl AggregateQueryParser {
                 ("_max", AggregateFunction::Max),
                 ("_stddev", AggregateFunction::Stddev),
                 ("_variance", AggregateFunction::Variance),
-                // Phase 6: Advanced aggregates
+                // Advanced aggregates
                 ("_array_agg", AggregateFunction::ArrayAgg),
                 ("_json_agg", AggregateFunction::JsonAgg),
                 ("_jsonb_agg", AggregateFunction::JsonbAgg),
@@ -511,7 +511,7 @@ impl AggregateQueryParser {
             }
         }
 
-        // Phase 6: Check for dimension-level advanced aggregates
+        // Check for dimension-level advanced aggregates
         // e.g., "product_id_array_agg", "product_name_string_agg"
         for dimension_path in Self::extract_dimension_paths(metadata) {
             for func in &[

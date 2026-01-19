@@ -258,9 +258,9 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
 
     /// Invalidate cache entries based on GraphQL Cascade response entities.
     ///
-    /// This is the entity-aware invalidation method for Phase 7+.
-    /// Instead of invalidating all caches reading from a view, only caches
-    /// that depend on the affected entities are invalidated.
+    /// This is the entity-aware invalidation method that provides more
+    /// precise invalidation. Instead of invalidating all caches reading from
+    /// a view, only caches that depend on the affected entities are invalidated.
     ///
     /// # Arguments
     ///
@@ -317,12 +317,10 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
             return Ok(0);
         }
 
-        // For Phase 7.4, we'll invalidate based on entity types and IDs
-        // This is a placeholder for the actual entity-level invalidation logic
-        // In future iterations, we'd look up which specific caches depend on each entity
-
-        // For now: Convert entities back to view-level invalidation
+        // Invalidate based on entity types and IDs
+        // Currently converts entities to view-level invalidation
         // This ensures correctness while maintaining backward compatibility
+        // Future: Track which specific caches depend on each entity for more precise invalidation
         let mut views_to_invalidate = std::collections::HashSet::new();
         for entity in cascade_entities.all_affected() {
             // Extract view name from entity type (e.g., "User" → "v_user")
@@ -587,8 +585,8 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         offset: Option<u32>,
     ) -> Result<Vec<JsonbValue>> {
         // Generate cache key
-        // Note: For Phase 2, we use a simple query string that includes view + limit + offset.
-        // In Phase 4+, this will use the compiled query string.
+        // Uses a simple query string that includes view + limit + offset
+        // Future: Use the compiled query string for more precise cache keys
         let query_string = format!("query {{ {view} }}");
         let variables = json!({
             "limit": limit,
@@ -608,8 +606,8 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         let result = self.adapter.execute_where_query(view, where_clause, limit, offset).await?;
 
         // Store in cache
-        // Phase 2: Simple view tracking (single view name)
-        // Phase 7+: Extract all views from compiled SQL (including JOINs)
+        // Simple view tracking (single view name)
+        // Future: Extract all views from compiled SQL (including JOINs)
         self.cache.put(
             cache_key,
             result.clone(),
@@ -891,7 +889,7 @@ mod tests {
         assert_eq!(adapter.schema_version(), "1.0.0");
     }
 
-    // ===== Phase 7.5 E2E Tests: Entity-Level Cascade Invalidation =====
+    // ===== E2E Tests: Entity-Level Cascade Invalidation =====
 
     use super::super::cascade_response_parser::CascadeResponseParser;
 

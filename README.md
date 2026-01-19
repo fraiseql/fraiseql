@@ -100,11 +100,12 @@ See [ARCHITECTURE.md](.claude/ARCHITECTURE.md) for detailed component documentat
 
 ### Security
 
-All user input is parameterized to prevent SQL injection:
+**Strong security via parameterized queries and escaping** — All user input is protected against SQL injection:
 
-- **Database values**: Query parameters (never interpolated)
-- **Column names**: Compile-time only (never user input)
-- **Query limits**: Type-safe u32 values (can't contain SQL code)
+- **Query values**: Fully parameterized with bind variables (never interpolated)
+- **LIMIT/OFFSET**: Parameterized with database-specific placeholders (u32 type-safe)
+- **Column names**: Compile-time only from schema definitions (never user input)
+- **JSON paths**: Escaped before inclusion in SQL operators (database-specific escaping)
 - **Identifiers**: Validated against regex at parse time
 
 Thread-safe patterns throughout:

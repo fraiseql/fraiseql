@@ -248,27 +248,27 @@ impl Compiler {
     /// # }
     /// ```
     pub fn compile(&self, schema_json: &str) -> Result<CompiledSchema> {
-        // Phase 1: Parse JSON → Authoring IR
+        // Parse JSON → Authoring IR
         if self.config.debug {
-            eprintln!("[compiler] Phase 1: Parsing schema...");
+            eprintln!("[compiler] Parsing schema...");
         }
         let ir = self.parser.parse(schema_json)?;
 
-        // Phase 2: Validate IR
+        // Validate IR
         if self.config.debug {
-            eprintln!("[compiler] Phase 2: Validating schema...");
+            eprintln!("[compiler] Validating schema...");
         }
         let validated_ir = self.validator.validate(ir)?;
 
-        // Phase 3: Lower IR → SQL templates
+        // Lower IR → SQL templates
         if self.config.debug {
-            eprintln!("[compiler] Phase 3: Generating SQL templates...");
+            eprintln!("[compiler] Generating SQL templates...");
         }
         let sql_templates = self.lowering.generate(&validated_ir)?;
 
-        // Phase 4: Codegen SQL templates → CompiledSchema
+        // Codegen SQL templates → CompiledSchema
         if self.config.debug {
-            eprintln!("[compiler] Phase 4: Generating CompiledSchema...");
+            eprintln!("[compiler] Generating CompiledSchema...");
         }
         let compiled = self.codegen.generate(&validated_ir, &sql_templates)?;
 

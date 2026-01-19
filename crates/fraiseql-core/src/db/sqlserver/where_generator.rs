@@ -238,8 +238,8 @@ impl SqlServerWhereGenerator {
     /// Build SQL Server JSON path expression.
     /// SQL Server uses JSON_VALUE(data, '$.field') for scalar values
     fn build_json_path(&self, path: &[String]) -> String {
-        let json_path = path.join(".");
-        format!("JSON_VALUE(data, '$.{json_path}')")
+        let escaped_path = crate::db::path_escape::escape_sqlserver_json_path(path);
+        format!("JSON_VALUE(data, '{}')", escaped_path)
     }
 
     fn next_param(&self) -> String {

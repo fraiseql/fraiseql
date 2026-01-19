@@ -371,19 +371,21 @@ impl PostgresWhereGenerator {
             return format!("\"{indexed_col}\"");
         }
 
-        // Fall back to JSONB extraction
+        // Fall back to JSONB extraction with proper escaping
         if path.len() == 1 {
-            format!("data->>'{}'{}", path[0], "")
+            let escaped = crate::db::path_escape::escape_postgres_jsonb_segment(&path[0]);
+            format!("data->>'{}'", escaped)
         } else {
+            let escaped_path = crate::db::path_escape::escape_postgres_jsonb_path(path);
             let mut result = "data".to_string();
-            for (i, segment) in path.iter().enumerate() {
-                if i < path.len() - 1 {
-                    result.push_str(&format!("->'{segment}'"));
+            for (i, segment) in escaped_path.iter().enumerate() {
+                if i < escaped_path.len() - 1 {
+                    result.push_str(&format!("->'{}'", segment));
                 } else {
-                    result.push_str(&format!("->>'{segment}'"));
+                    result.push_str(&format!("->>'{}' ", segment));
                 }
             }
-            result
+            result.trim_end().to_string()
         }
     }
 

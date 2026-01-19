@@ -1,4 +1,4 @@
-//! Query Validator (Phase 6.3)
+//! Query Validator
 //!
 //! This module provides query validation for GraphQL queries.
 //! It validates:

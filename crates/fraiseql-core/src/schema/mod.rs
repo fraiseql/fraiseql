@@ -1,4 +1,4 @@
-//! Compiled Schema Types (Phase 10.1)
+//! Compiled Schema Types
 //!
 //! This module defines the Rust-owned schema representation that is compiled
 //! from Python/TypeScript decorators at startup time.

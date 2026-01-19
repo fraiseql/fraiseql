@@ -6,7 +6,7 @@
 //! invalidation. Cache entries are automatically invalidated when mutations modify
 //! the underlying data.
 //!
-//! # Phase 2 Scope
+//! # Scope
 //!
 //! - **LRU-based result caching** with TTL expiry
 //! - **View-based invalidation** (not entity-level)
@@ -136,7 +136,7 @@
 //!
 //! # View-Based Invalidation
 //!
-//! In Phase 2, invalidation operates at the **view/table level**:
+//! Invalidation operates at the **view/table level**:
 //!
 //! - **Mutation modifies `v_user`** → Invalidate ALL caches reading from `v_user`
 //! - **Expected hit rate**: 60-70% (some over-invalidation)
@@ -152,7 +152,7 @@
 //! → Entry 3 remains cached
 //! ```
 //!
-//! # Future Enhancements (Phase 7+)
+//! # Future Enhancements
 //!
 //! - **Entity-level tracking**: Track by `User:123`, not just `v_user`
 //! - **Cascade integration**: Parse mutation metadata for precise invalidation
@@ -175,10 +175,10 @@ mod invalidation;
 mod key;
 mod result;
 
-// Phase 3+: Cascading invalidation with transitive dependencies
+// Cascading invalidation with transitive dependencies
 pub mod cascade_invalidator;
 
-// Phase 7: Entity-level caching modules
+// Entity-level caching modules
 pub mod cascade_metadata;
 pub mod cascade_response_parser;
 pub mod entity_key;

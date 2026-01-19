@@ -1,4 +1,4 @@
-//! Query hashing for APQ (Automatic Persisted Queries) - Phase 6.4
+//! Query hashing for APQ (Automatic Persisted Queries)
 //!
 //! Provides SHA-256 hashing for GraphQL queries to create persisted query IDs.
 //!

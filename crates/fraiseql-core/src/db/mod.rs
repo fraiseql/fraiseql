@@ -42,6 +42,7 @@
 //! ```
 
 pub mod collation;
+pub mod path_escape;
 pub mod projection_generator;
 pub mod traits;
 pub mod types;

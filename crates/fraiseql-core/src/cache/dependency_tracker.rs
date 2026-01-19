@@ -3,13 +3,13 @@
 //! Tracks which cache entries depend on which database views/tables to enable
 //! efficient view-based invalidation when mutations occur.
 //!
-//! # Phase 2 Scope
+//! # Current Scope
 //!
 //! - View-based tracking (not entity-level)
 //! - Bidirectional mapping (cache ↔ views)
 //! - Simple dependency management
 //!
-//! # Future Enhancements (Phase 4+)
+//! # Future Enhancements
 //!
 //! - Entity-level tracking (`User:123` not just `v_user`)
 //! - Cascade integration (parse mutation metadata)

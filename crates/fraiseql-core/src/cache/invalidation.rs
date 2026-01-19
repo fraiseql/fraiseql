@@ -5,13 +5,13 @@
 //! - Manual/administrative invalidation
 //! - Schema change invalidation
 //!
-//! # Phase 2 Scope
+//! # Current Scope
 //!
 //! - View-based invalidation (not entity-level)
 //! - Simple context types
 //! - Structured logging support
 //!
-//! # Future Enhancements (Phase 7+)
+//! # Future Enhancements
 //!
 //! - Entity-level invalidation with cascade metadata
 //! - Selective invalidation (by ID)

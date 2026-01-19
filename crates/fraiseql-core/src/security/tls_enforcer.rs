@@ -1,4 +1,4 @@
-//! TLS Security Enforcement (Phase 6.1)
+//! TLS Security Enforcement
 //!
 //! This module provides TLS/SSL security enforcement for GraphQL connections.
 //! It validates:

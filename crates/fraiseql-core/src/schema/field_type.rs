@@ -6,7 +6,7 @@
 use serde::{Deserialize, Serialize};
 
 // ============================================================================
-// Vector Types (Phase 11.1 - pgvector support)
+// Vector Types - pgvector support
 // ============================================================================
 
 /// Configuration for a vector field (pgvector).

@@ -228,9 +228,9 @@ impl MySqlWhereGenerator {
     /// Build MySQL JSON path expression.
     /// MySQL uses JSON_EXTRACT(data, '$.field') or data->>'$.field' (MySQL 8.0+)
     fn build_json_path(&self, path: &[String]) -> String {
-        let json_path = path.join(".");
+        let escaped_path = crate::db::path_escape::escape_mysql_json_path(path);
         // Use JSON_UNQUOTE(JSON_EXTRACT(...)) to get text value
-        format!("JSON_UNQUOTE(JSON_EXTRACT(data, '$.{json_path}'))")
+        format!("JSON_UNQUOTE(JSON_EXTRACT(data, '{}'))", escaped_path)
     }
 
     /// Build raw JSON path for JSON functions (without UNQUOTE).

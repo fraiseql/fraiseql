@@ -291,12 +291,12 @@ impl QueryResultCache {
     ///
     /// Called after mutations to invalidate affected cache entries.
     ///
-    /// # Phase 2 Behavior
+    /// # Behavior
     ///
     /// - Simple view-based invalidation
     /// - Removes all entries that read from any specified view
     ///
-    /// # Future Enhancements (Phase 4+)
+    /// # Future Enhancements
     ///
     /// - Entity-level invalidation (only invalidate specific IDs)
     /// - Cascade-driven invalidation (from mutation metadata)

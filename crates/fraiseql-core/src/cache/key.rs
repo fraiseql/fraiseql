@@ -161,19 +161,19 @@ pub fn generate_cache_key(
 
 /// Extract accessed views from query definition.
 ///
-/// In Phase 2, we track which database views/tables a query accesses for
-/// view-based cache invalidation. When a mutation modifies a view, we can
-/// invalidate all cached queries that read from that view.
+/// We track which database views/tables a query accesses for view-based
+/// cache invalidation. When a mutation modifies a view, we can invalidate
+/// all cached queries that read from that view.
 ///
-/// # Phase 2 Scope
+/// # Current Scope
 ///
 /// Currently extracts only the primary SQL source from the query definition.
 /// Does not analyze:
-/// - JOIN clauses (requires compiled SQL - Phase 4)
-/// - Resolver chains (requires runtime context - Phase 5)
-/// - Nested queries (requires query analyzer - Phase 4)
+/// - JOIN clauses (requires compiled SQL)
+/// - Resolver chains (requires runtime context)
+/// - Nested queries (requires query analyzer)
 ///
-/// # Future Enhancements (Phase 4+)
+/// # Future Enhancements
 ///
 /// - Extract views from JOIN clauses in compiled SQL
 /// - Extract views from resolver chains

@@ -118,7 +118,7 @@ impl SchemaConverter {
             mutations,
             subscriptions,
             directives,
-            fact_tables, // Phase 8A: Analytics metadata
+            fact_tables, // Analytics metadata
         };
 
         // Validate the compiled schema

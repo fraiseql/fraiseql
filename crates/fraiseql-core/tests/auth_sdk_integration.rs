@@ -391,7 +391,7 @@ fn mock_user_results() -> Vec<JsonbValue> {
 }
 
 // =============================================================================
-// Phase 8C: WHERE Clause Integration Tests
+// WHERE Clause Integration Tests
 // =============================================================================
 
 /// Create test fact table metadata for WHERE clause tests

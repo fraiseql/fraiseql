@@ -1,4 +1,4 @@
-//! Security-specific error types for comprehensive error handling (Phase 6.3).
+//! Security-specific error types for comprehensive error handling.
 //!
 //! This module defines all security-related error types used throughout
 //! the framework. No PyO3 decorators - all types are pure Rust.
@@ -472,7 +472,7 @@ mod tests {
     }
 
     // ============================================================================
-    // TLS Error Tests (Phase 6.1)
+    // TLS Error Tests
     // ============================================================================
 
     #[test]

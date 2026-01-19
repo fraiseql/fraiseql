@@ -45,18 +45,51 @@ never receives a string to parse.
 
 ##### JSON Path Extraction
 
-JSONB paths are escaped before inclusion:
+JSON path segments are escaped before inclusion in SQL operators.
+
+Each database handles JSON paths differently:
+
+**PostgreSQL**: Single quotes in path segments are escaped by doubling (`'` → `''`)
+within JSONB operators (`->`, `->>`, `->`):
 
 ```rust
-// Example: Extract nested object path
-
-// Unsafe (if done):
-// SELECT data->'{path}' FROM users
-
-// Safe (current implementation):
-// SELECT data->%s FROM users
-// (using parameterized extraction functions)
+// Example: path = ["user'name", "email"]
+// Escaped: ["user''name", "email"]
+// Generated SQL: data->'user''name'->>'email'
 ```
+
+**MySQL**: Path segments are escaped within `JSON_EXTRACT` and `JSON_UNQUOTE`
+function parameters using backslash escaping (`'` → `\'`):
+
+```rust
+// Example: path = ["user'name", "email"]
+// Escaped: "$.user\'name.email"
+// Generated SQL: JSON_UNQUOTE(JSON_EXTRACT(data, '$.user\'name.email'))
+```
+
+**SQLite**: Path segments are escaped within `json_extract` function parameters
+using backslash escaping (`'` → `\'`):
+
+```rust
+// Example: path = ["user'name", "email"]
+// Escaped: "$.user\'name.email"
+// Generated SQL: json_extract(data, '$.user\'name.email')
+```
+
+**SQL Server**: Path segments are escaped within `JSON_VALUE` function parameters
+by doubling single quotes (`'` → `''`):
+
+```rust
+// Example: path = ["user'name", "email"]
+// Escaped: "$.user''name.email"
+// Generated SQL: JSON_VALUE(data, '$.user''name.email')
+```
+
+**Implementation**: Escaping is applied in the `path_escape` module and consistently
+applied across all WHERE clause generators before SQL string interpolation.
+
+**Tested**: Comprehensive injection test suite verifies all common SQL injection
+patterns are neutralized by path escaping.
 
 ### Rust Type System Protection
 

@@ -229,8 +229,8 @@ impl SqliteWhereGenerator {
     /// Build SQLite JSON path expression.
     /// SQLite uses json_extract(data, '$.field')
     fn build_json_path(&self, path: &[String]) -> String {
-        let json_path = path.join(".");
-        format!("json_extract(data, '$.{json_path}')")
+        let escaped_path = crate::db::path_escape::escape_sqlite_json_path(path);
+        format!("json_extract(data, '{}')", escaped_path)
     }
 
     fn generate_comparison(
