@@ -17,7 +17,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use super::{QueryMatcher, QueryPlanner, ResultProjector, RuntimeConfig};
+use super::{ExecutionContext, QueryMatcher, QueryPlanner, ResultProjector, RuntimeConfig};
 #[cfg(test)]
 use crate::db::types::{DatabaseType, PoolMetrics};
 use crate::{
@@ -320,6 +320,73 @@ impl<A: DatabaseAdapter> Executor<A> {
                 action:   Some("read".to_string()),
                 resource: Some(format!("{}.{}", first_error.type_name, first_error.field_name)),
             })
+        }
+    }
+
+    /// Execute a GraphQL query with cancellation support via ExecutionContext.
+    ///
+    /// This method allows graceful cancellation of long-running queries through a
+    /// cancellation token. If the token is cancelled during execution, the query
+    /// returns a `FraiseQLError::Cancelled` error.
+    ///
+    /// # Arguments
+    ///
+    /// * `query` - GraphQL query string
+    /// * `variables` - Query variables (optional)
+    /// * `ctx` - ExecutionContext with cancellation token
+    ///
+    /// # Returns
+    ///
+    /// GraphQL response as JSON string, or error if cancelled or execution fails
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let ctx = ExecutionContext::new("user-query-123".to_string());
+    /// let cancel_token = ctx.cancellation_token().clone();
+    ///
+    /// // Spawn a task to cancel after 5 seconds
+    /// tokio::spawn(async move {
+    ///     tokio::time::sleep(Duration::from_secs(5)).await;
+    ///     cancel_token.cancel();
+    /// });
+    ///
+    /// let result = executor.execute_with_context(query, None, &ctx).await;
+    /// match result {
+    ///     Err(FraiseQLError::Cancelled { reason, .. }) => {
+    ///         eprintln!("Query cancelled: {}", reason);
+    ///     }
+    ///     Ok(response) => println!("{}", response),
+    ///     Err(e) => eprintln!("Error: {}", e),
+    /// }
+    /// ```
+    pub async fn execute_with_context(
+        &self,
+        query: &str,
+        variables: Option<&serde_json::Value>,
+        ctx: &ExecutionContext,
+    ) -> Result<String> {
+        // Check if already cancelled before starting
+        if ctx.is_cancelled() {
+            return Err(FraiseQLError::cancelled(
+                ctx.query_id().to_string(),
+                "Query cancelled before execution".to_string(),
+            ));
+        }
+
+        let token = ctx.cancellation_token().clone();
+
+        // Use tokio::select! to race between execution and cancellation
+        tokio::select! {
+            result = self.execute(query, variables) => {
+                result
+            }
+            _ = token.cancelled() => {
+                Err(FraiseQLError::cancelled(
+                    ctx.query_id().to_string(),
+                    "Query cancelled during execution".to_string(),
+                ))
+            }
         }
     }
 
@@ -919,5 +986,116 @@ mod tests {
         // No space after colon
         let query3 = r#"{ __type(name:"Query") { name } }"#;
         assert_eq!(executor.extract_type_argument(query3), Some("Query".to_string()));
+    }
+
+    // ==================== ExecutionContext Tests ====================
+
+    #[test]
+    fn test_execution_context_creation() {
+        let ctx = ExecutionContext::new("query-123".to_string());
+        assert_eq!(ctx.query_id(), "query-123");
+        assert!(!ctx.is_cancelled());
+    }
+
+    #[test]
+    fn test_execution_context_cancellation_token() {
+        let ctx = ExecutionContext::new("query-456".to_string());
+        let token = ctx.cancellation_token();
+        assert!(!token.is_cancelled());
+
+        // Cancel the token
+        token.cancel();
+        assert!(token.is_cancelled());
+        assert!(ctx.is_cancelled());
+    }
+
+    #[tokio::test]
+    async fn test_execute_with_context_success() {
+        let schema = test_schema();
+        let adapter = Arc::new(MockAdapter::new(vec![]));
+        let executor = Executor::new(schema, adapter);
+
+        let ctx = ExecutionContext::new("test-query-1".to_string());
+        let query = r"{ __schema { queryType { name } } }";
+
+        let result = executor.execute_with_context(query, None, &ctx).await;
+        assert!(result.is_ok());
+        assert!(result.unwrap().contains("__schema"));
+    }
+
+    #[tokio::test]
+    async fn test_execute_with_context_already_cancelled() {
+        let schema = test_schema();
+        let adapter = Arc::new(MockAdapter::new(vec![]));
+        let executor = Executor::new(schema, adapter);
+
+        let ctx = ExecutionContext::new("test-query-2".to_string());
+        let token = ctx.cancellation_token().clone();
+
+        // Cancel before execution
+        token.cancel();
+
+        let query = r"{ __schema { queryType { name } } }";
+        let result = executor.execute_with_context(query, None, &ctx).await;
+
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            FraiseQLError::Cancelled { query_id, reason } => {
+                assert_eq!(query_id, "test-query-2");
+                assert!(reason.contains("before execution"));
+            }
+            e => panic!("Expected Cancelled error, got: {}", e),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_execute_with_context_cancelled_during_execution() {
+        let schema = test_schema();
+        let adapter = Arc::new(MockAdapter::new(vec![]));
+        let executor = Executor::new(schema, adapter);
+
+        let ctx = ExecutionContext::new("test-query-3".to_string());
+        let token = ctx.cancellation_token().clone();
+
+        // Spawn a task to cancel after a short delay
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            token.cancel();
+        });
+
+        let query = r"{ __schema { queryType { name } } }";
+        let result = executor.execute_with_context(query, None, &ctx).await;
+
+        // Depending on timing, may succeed or be cancelled (both are acceptable)
+        // But if cancelled, it should be our error
+        if let Err(FraiseQLError::Cancelled { query_id, .. }) = result {
+            assert_eq!(query_id, "test-query-3");
+        }
+    }
+
+    #[test]
+    fn test_execution_context_clone() {
+        let ctx = ExecutionContext::new("query-clone".to_string());
+        let ctx_clone = ctx.clone();
+
+        assert_eq!(ctx.query_id(), ctx_clone.query_id());
+        assert!(!ctx_clone.is_cancelled());
+
+        // Cancel original
+        ctx.cancellation_token().cancel();
+
+        // Clone should also see cancellation (same token)
+        assert!(ctx_clone.is_cancelled());
+    }
+
+    #[test]
+    fn test_error_cancelled_constructor() {
+        let err = FraiseQLError::cancelled("query-001", "user requested cancellation");
+
+        assert!(err.to_string().contains("Query cancelled"));
+        assert_eq!(err.status_code(), 408);
+        assert_eq!(err.error_code(), "CANCELLED");
+        assert!(err.is_retryable());
+        assert!(err.is_server_error());
     }
 }

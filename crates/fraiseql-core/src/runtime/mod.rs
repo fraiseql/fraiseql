@@ -128,6 +128,87 @@ impl RuntimeConfig {
     }
 }
 
+/// Execution context for query cancellation support.
+///
+/// This struct provides a mechanism for gracefully cancelling long-running queries
+/// via cancellation tokens, enabling proper cleanup and error reporting when:
+/// - A client connection closes
+/// - A user explicitly cancels a query
+/// - A system shutdown is initiated
+///
+/// # Example
+///
+/// ```ignore
+/// use fraiseql_core::runtime::ExecutionContext;
+/// use tokio_util::sync::CancellationToken;
+///
+/// let token = CancellationToken::new();
+/// let ctx = ExecutionContext::new("query-123".to_string(), token);
+///
+/// // Spawn a task that cancels after 5 seconds
+/// let cancel_token = ctx.cancellation_token().clone();
+/// tokio::spawn(async move {
+///     tokio::time::sleep(Duration::from_secs(5)).await;
+///     cancel_token.cancel();
+/// });
+///
+/// // Execute query with cancellation support
+/// let result = executor.execute_with_context(query, Some(&ctx)).await;
+/// ```
+#[derive(Debug, Clone)]
+pub struct ExecutionContext {
+    /// Unique identifier for tracking the query execution
+    query_id: String,
+
+    /// Cancellation token for gracefully stopping the query
+    /// When cancelled, ongoing query execution should stop and return a Cancelled error
+    token: tokio_util::sync::CancellationToken,
+}
+
+impl ExecutionContext {
+    /// Create a new execution context with a cancellation token.
+    ///
+    /// # Arguments
+    ///
+    /// * `query_id` - Unique identifier for this query execution
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let ctx = ExecutionContext::new("user-query-001".to_string());
+    /// ```
+    #[must_use]
+    pub fn new(query_id: String) -> Self {
+        Self {
+            query_id,
+            token: tokio_util::sync::CancellationToken::new(),
+        }
+    }
+
+    /// Get the query ID.
+    #[must_use]
+    pub fn query_id(&self) -> &str {
+        &self.query_id
+    }
+
+    /// Get a reference to the cancellation token.
+    ///
+    /// The returned token can be used to:
+    /// - Clone and pass to background tasks
+    /// - Check if cancellation was requested
+    /// - Propagate cancellation through the call stack
+    #[must_use]
+    pub fn cancellation_token(&self) -> &tokio_util::sync::CancellationToken {
+        &self.token
+    }
+
+    /// Check if cancellation has been requested.
+    #[must_use]
+    pub fn is_cancelled(&self) -> bool {
+        self.token.is_cancelled()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

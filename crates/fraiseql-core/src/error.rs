@@ -108,6 +108,18 @@ pub enum FraiseQLError {
         query:      Option<String>,
     },
 
+    /// Query cancellation error.
+    ///
+    /// Returned when a query execution is cancelled via a cancellation token
+    /// or similar mechanism (e.g., client disconnection, explicit user request).
+    #[error("Query cancelled: {reason}")]
+    Cancelled {
+        /// Query identifier for tracking/logging.
+        query_id: String,
+        /// Reason for cancellation (e.g., "user cancelled", "connection closed").
+        reason:   String,
+    },
+
     // ========================================================================
     // Authorization Errors
     // ========================================================================
@@ -270,6 +282,15 @@ impl FraiseQLError {
         }
     }
 
+    /// Create a cancellation error.
+    #[must_use]
+    pub fn cancelled(query_id: impl Into<String>, reason: impl Into<String>) -> Self {
+        Self::Cancelled {
+            query_id: query_id.into(),
+            reason:   reason.into(),
+        }
+    }
+
     // ========================================================================
     // Error classification
     // ========================================================================
@@ -298,6 +319,7 @@ impl FraiseQLError {
             Self::Database { .. }
                 | Self::ConnectionPool { .. }
                 | Self::Timeout { .. }
+                | Self::Cancelled { .. }
                 | Self::Configuration { .. }
                 | Self::Internal { .. }
         )
@@ -306,7 +328,12 @@ impl FraiseQLError {
     /// Check if this error is retryable.
     #[must_use]
     pub const fn is_retryable(&self) -> bool {
-        matches!(self, Self::ConnectionPool { .. } | Self::Timeout { .. })
+        matches!(
+            self,
+            Self::ConnectionPool { .. }
+                | Self::Timeout { .. }
+                | Self::Cancelled { .. }
+        )
     }
 
     /// Get HTTP status code equivalent.
@@ -321,7 +348,7 @@ impl FraiseQLError {
             Self::Authorization { .. } => 403,
             Self::NotFound { .. } => 404,
             Self::Conflict { .. } => 409,
-            Self::Timeout { .. } => 504,
+            Self::Timeout { .. } | Self::Cancelled { .. } => 408,
             Self::Database { .. }
             | Self::ConnectionPool { .. }
             | Self::Configuration { .. }
@@ -340,6 +367,7 @@ impl FraiseQLError {
             Self::Database { .. } => "DATABASE_ERROR",
             Self::ConnectionPool { .. } => "CONNECTION_POOL_ERROR",
             Self::Timeout { .. } => "TIMEOUT",
+            Self::Cancelled { .. } => "CANCELLED",
             Self::Authorization { .. } => "FORBIDDEN",
             Self::Authentication { .. } => "UNAUTHENTICATED",
             Self::NotFound { .. } => "NOT_FOUND",
