@@ -17,6 +17,7 @@
 ## What We Found
 
 Out of 7 "critical vulnerabilities" reported:
+
 - 6 were false positives (safe by design)
 - 1 is a best-practice improvement (parameterize LIMIT/OFFSET)
 
@@ -31,12 +32,14 @@ Out of 7 "critical vulnerabilities" reported:
 **What**: Convert LIMIT/OFFSET from string formatting to parameterized queries
 
 **Why**:
+
 - Industry best practice
 - Consistent with WHERE clause handling
 - Enables query plan caching
 - Signals security awareness
 
 **Where**:
+
 - `db/postgres/adapter.rs` (1.5 hours)
 - `db/mysql/adapter.rs` (1.5 hours)
 - `db/sqlite/adapter.rs` (1.5 hours)
@@ -44,6 +47,7 @@ Out of 7 "critical vulnerabilities" reported:
 - Integration tests (1 hour)
 
 **Example Change**:
+
 ```rust
 // Before
 sql.push_str(&format!(" LIMIT {lim}"));
@@ -64,6 +68,7 @@ params.push(Value::I32(lim as i32));
 **What**: Add clear documentation about security and architecture
 
 **Files**:
+
 - `compiler/codegen.rs` - Enhanced doc comments (30 min)
 - `SECURITY_PATTERNS.md` - New security documentation (45 min)
 - `ARCHITECTURE.md` - Architecture overview (30 min)
@@ -78,6 +83,7 @@ params.push(Value::I32(lim as i32));
 ### Step 1: Understand Current Code (30 min)
 
 Read these files:
+
 - `crates/fraiseql-core/src/db/postgres/adapter.rs` (lines 287-294)
 - `crates/fraiseql-core/src/db/mysql/adapter.rs` (lines 196-203)
 - `crates/fraiseql-core/src/db/sqlite/adapter.rs` (lines 211-218)
@@ -119,12 +125,15 @@ See `PHASE_2_DOCUMENTATION.md` for specific documentation tasks.
 ## Reference Documents
 
 **For Implementation Details**:
+
 - `PHASE_1_DETAILED_SPEC.md` - Task-by-task breakdown with code examples
 
 **For Documentation Tasks**:
+
 - `PHASE_2_DOCUMENTATION.md` - Specific documentation improvements
 
 **For Overview**:
+
 - `VERIFIED_REMEDIATION_PLAN.md` - Complete remediation plan
 - `ANALYSIS_VERIFICATION_SUMMARY.md` - Detailed verification results
 
@@ -146,6 +155,7 @@ See `PHASE_2_DOCUMENTATION.md` for specific documentation tasks.
 ## Testing Strategy
 
 ### Unit Tests
+
 ```bash
 cargo test --lib db::postgres::adapter
 cargo test --lib db::mysql::adapter
@@ -154,12 +164,14 @@ cargo test --lib db::sqlserver::adapter
 ```
 
 ### Integration Tests
+
 ```bash
 cargo nextest run --all -- --include-ignored
 # Tests actual database queries with parameterized LIMIT/OFFSET
 ```
 
 ### Full Verification
+
 ```bash
 cargo test --all --all-features
 cargo clippy --all-targets --all-features
@@ -174,6 +186,7 @@ cargo doc --no-deps --open
 ### Phase 1 Commits
 
 **Commit 1**: PostgreSQL adapter
+
 ```
 feat(db): Parameterize LIMIT/OFFSET in PostgreSQL adapter
 
@@ -186,6 +199,7 @@ Refs: #ISSUE_NUMBER
 ```
 
 **Commit 2**: MySQL adapter
+
 ```
 feat(db): Parameterize LIMIT/OFFSET in MySQL adapter
 
@@ -195,6 +209,7 @@ feat(db): Parameterize LIMIT/OFFSET in MySQL adapter
 ```
 
 **Commit 3**: SQLite & SQL Server
+
 ```
 feat(db): Parameterize LIMIT/OFFSET across all adapters
 
@@ -206,6 +221,7 @@ feat(db): Parameterize LIMIT/OFFSET across all adapters
 ### Phase 2 Commits
 
 **Commit 1**: Documentation
+
 ```
 docs: Enhance security and architecture documentation
 
@@ -293,6 +309,7 @@ Sequential execution: 10 hours total
 ## Contact & Questions
 
 All documentation files are in `.claude/` directory:
+
 - Technical details: `PHASE_1_DETAILED_SPEC.md`
 - Architecture questions: `ANALYSIS_VERIFICATION_SUMMARY.md`
 - Security questions: `PHASE_2_DOCUMENTATION.md` → `SECURITY_PATTERNS.md`
@@ -302,4 +319,3 @@ All documentation files are in `.claude/` directory:
 **Status**: ✅ Ready to Implementation
 **Recommendation**: Begin Phase 1 immediately
 **Timeline**: 1-2 weeks to GA release
-

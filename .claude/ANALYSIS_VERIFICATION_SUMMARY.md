@@ -22,14 +22,17 @@ The earlier critical vulnerability reports were **overly critical**. After deep 
 ## Detailed Verification Results
 
 ### Finding 1: Column Name SQL Injection
+
 **Status**: ✅ **FALSE POSITIVE** - NOT VULNERABLE
 
 **Why It's Safe**:
+
 - Column names come from schema definitions (compile-time only)
 - User input only provides VALUES, never column names
 - Template-based SQL generation prevents any runtime injection
 
 **Code Evidence**:
+
 ```rust
 let columns: Vec<&str> = arguments.iter().map(|a| a.name.as_str()).collect();
 let placeholders: Vec<String> =
@@ -46,14 +49,17 @@ The column names are fixed at schema compile time, not user input.
 ---
 
 ### Finding 2: LIMIT/OFFSET SQL Injection
+
 **Status**: ⚠️ **SAFE BUT IMPROVABLE** - Not a vulnerability, best-practice improvement available
 
 **Why It's Currently Safe**:
+
 - Values are `u32` type (not strings)
 - Rust type system prevents any string injection
 - Direct formatting of numeric types is safe
 
 **Current Code**:
+
 ```rust
 if let Some(lim) = limit {
     sql.push_str(&format!(" LIMIT {lim}"));  // lim is u32, not String
@@ -64,6 +70,7 @@ if let Some(lim) = limit {
 Convert to parameterized queries for consistency with WHERE clause handling and industry standards.
 
 **Recommended Change**:
+
 ```rust
 // PostgreSQL
 sql.push_str(&format!(" LIMIT ${next_param}"));
@@ -79,15 +86,18 @@ params.push(Value::I32(lim as i32));
 ---
 
 ### Finding 3: Thread-Safety Cell<> Issue
+
 **Status**: ✅ **FALSE POSITIVE** - NOT A VULNERABILITY
 
 **Why It's Safe**:
+
 - `Cell<usize>` is intentionally used for single-threaded context
 - No concurrent access occurs (verified by architecture)
 - Reset on each call prevents any state leakage
 - Common Rust pattern for interior mutability
 
 **Code Evidence**:
+
 ```rust
 pub struct PostgresWhereGenerator {
     param_counter: std::cell::Cell<usize>,  // ✅ Safe here
@@ -107,15 +117,18 @@ Only if the generator was Arc-shared across async tasks (which the architecture 
 ---
 
 ### Finding 4: Missing SQL Templates in CompiledSchema
+
 **Status**: ✅ **FALSE POSITIVE** - NOT A BLOCKER, INTENTIONAL DESIGN
 
 **Why It's Not an Issue**:
+
 - Comment explicitly states templates are "Populated by compiler from ir.fact_tables"
 - Intentional separation: schema definition vs. execution artifacts
 - Allows templates to be updated independently
 - Cleaner architecture with separated concerns
 
 **Code Evidence**:
+
 ```rust
 pub fn generate(&self, ir: &AuthoringIR, _templates: &[SqlTemplate]) -> Result<CompiledSchema> {
     // _templates parameter intentionally unused (marked with _)
@@ -125,6 +138,7 @@ pub fn generate(&self, ir: &AuthoringIR, _templates: &[SqlTemplate]) -> Result<C
 
 **Design Rationale**:
 Separating schema from SQL templates allows:
+
 - Different SQL strategies per database
 - Template optimization without schema changes
 - Schema caching and reuse across environments
@@ -132,14 +146,17 @@ Separating schema from SQL templates allows:
 ---
 
 ### Finding 5: Missing Fact Tables in CompiledSchema
+
 **Status**: ✅ **FALSE POSITIVE** - NOT A BLOCKER, INTENTIONAL DESIGN
 
 **Why It's Not an Issue**:
+
 - Comment documents this is deferred initialization
 - Fact tables populated in separate compiler pass
 - Maintains clean separation of analytics metadata
 
 **Code Evidence**:
+
 ```rust
 fact_tables: std::collections::HashMap::new(),
 /* Populated by compiler from ir.fact_tables */
@@ -151,15 +168,18 @@ Fact tables are configuration-driven analytics metadata, separate from core sche
 ---
 
 ### Finding 6: Type Parsing DoS
+
 **Status**: ✅ **FALSE POSITIVE** - NOT VULNERABLE
 
 **Why It's Safe**:
+
 - O(n) linear scan, no nested loops or recursion
 - Early returns (`?` operator) prevent processing pathological inputs
 - Bounded string operations
 - No unbounded complexity explosion possible
 
 **Code Evidence**:
+
 ```rust
 fn extract_type_argument(&self, query: &str) -> Option<String> {
     // Each operation is O(1):
@@ -178,15 +198,18 @@ fn extract_type_argument(&self, query: &str) -> Option<String> {
 ---
 
 ### Finding 7: Unbounded Recursion in Projector
+
 **Status**: ✅ **FALSE POSITIVE** - NOT VULNERABLE
 
 **Why It's Safe**:
+
 - Recursion depth bounded by JSON nesting (typically <100 levels)
 - Each recursive call processes different field from FieldMapping
 - FieldMapping sizes are schema-defined (compile-time fixed)
 - JSON parsers reject deeply nested structures before reaching this code
 
 **Code Evidence**:
+
 ```rust
 fn project_nested_value(&self, value: &JsonValue, field: &FieldMapping) -> Result<JsonValue> {
     // Recursion only continues if:
@@ -205,6 +228,7 @@ fn project_nested_value(&self, value: &JsonValue, field: &FieldMapping) -> Resul
 ```
 
 **Bounded By**:
+
 1. **JSON Nesting**: Can't exceed JSON parser limits
 2. **FieldMapping Size**: Schema-defined (compile-time)
 3. **Query Structure**: Admin-controlled schema, not user input
@@ -315,6 +339,7 @@ The earlier analysis reports contained multiple **false positives** due to over-
 ## Verification Methodology
 
 This analysis was performed by:
+
 1. Reading actual source code (not just patterns)
 2. Checking git history for bug fixes
 3. Verifying each claim with code evidence
@@ -328,4 +353,3 @@ Every claim is based on actual code examination, not speculation.
 **Report Generated**: 2026-01-19
 **Reviewer**: Code Architecture & Security Analysis
 **Status**: ✅ Production Ready - Proceed with Improvements
-

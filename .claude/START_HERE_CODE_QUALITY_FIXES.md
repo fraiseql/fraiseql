@@ -10,18 +10,22 @@
 ## 📍 Where to Start
 
 ### If you have 5 minutes
+
 Read this file (you're doing it!)
 
 ### If you have 30 minutes
+
 1. Skim this file (5 min)
 2. Read FIXES_QUICK_REFERENCE.md (25 min)
 
 ### If you have 1 hour
+
 1. Read this file (5 min)
 2. Look at ISSUES_TO_CODE_LOCATIONS.md for "Issue 1" (10 min)
 3. **Implement Phase 1** (45 min)
 
 ### If you have a full day
+
 1. Read README_IMPLEMENTATION_PLAN.md (30 min)
 2. Reference IMPLEMENTATION_PLAN_FIXES.md as you implement (14 hours)
 3. Commit after each phase (ongoing)
@@ -46,12 +50,14 @@ Read this file (you're doing it!)
 This will unblock everything and take only 1 hour:
 
 ### Step 1: Create branch
+
 ```bash
 cd /home/lionel/code/fraiseql
 git checkout -b feature/fixes-code-quality
 ```
 
 ### Step 2: Fix the doctest (30 min)
+
 ```bash
 code crates/fraiseql-core/src/runtime/query_tracing.rs
 ```
@@ -63,6 +69,7 @@ code crates/fraiseql-core/src/runtime/query_tracing.rs
 See **ISSUES_TO_CODE_LOCATIONS.md** for exact replacement code.
 
 ### Step 3: Fix the warnings (30 min)
+
 ```bash
 code crates/fraiseql-core/src/runtime/query_tracing.rs
 ```
@@ -72,12 +79,15 @@ code crates/fraiseql-core/src/runtime/query_tracing.rs
 **Fix**: Change to `assert!(trace.total_duration_us > 0)`
 
 Also fix in:
+
 ```bash
 code crates/fraiseql-core/src/runtime/sql_logger.rs
 ```
+
 **Find**: Line 282 - Same issue, same fix
 
 ### Step 4: Verify it works
+
 ```bash
 cargo test --doc -p fraiseql-core
 # Should now show: test result: ok. 138 passed; 0 failed
@@ -87,6 +97,7 @@ cargo clippy --all-targets --all-features -- -D warnings
 ```
 
 ### Step 5: Commit
+
 ```bash
 git add -A
 git commit -m "fix(quality): Fix doctest and type comparison warnings [Phase 1-2]"
@@ -100,18 +111,22 @@ git push -u origin feature/fixes-code-quality
 ## 📚 Which Document to Read Next?
 
 ### For Getting Unstuck in Phase 1
+
 → **ISSUES_TO_CODE_LOCATIONS.md**  
 Exact line numbers, exact code changes, exact verification commands
 
 ### For Understanding the Full Plan
+
 → **IMPLEMENTATION_PLAN_FIXES.md**  
 6 phases explained in detail, why each phase matters, success criteria
 
 ### For Quick Reference During Implementation
+
 → **FIXES_QUICK_REFERENCE.md**  
 Checklists, shortcuts, common pitfalls, FAQ
 
 ### For Overview & Planning
+
 → **README_IMPLEMENTATION_PLAN.md**  
 Big picture, time estimates, how to structure commits
 
@@ -134,6 +149,7 @@ All in `.claude/`:
 ## ✅ Success Looks Like This
 
 ### After Phase 1 (1 hour)
+
 ```bash
 $ cargo test --doc -p fraiseql-core
 test result: ok. 138 passed; 0 failed ✓
@@ -146,6 +162,7 @@ abc1234 fix(quality): Fix doctest and type comparison warnings [Phase 1-2]
 ```
 
 ### After All Phases (16 hours)
+
 ```bash
 $ cargo test
 test result: ok. 3240+ passed; 0 failed ✓
@@ -229,17 +246,20 @@ A: No. Each phase is independent. ISSUES_TO_CODE_LOCATIONS.md has exact line num
 **Pick ONE:**
 
 ### Option A: I have 1 hour right now
+
 → Go to **ISSUES_TO_CODE_LOCATIONS.md**  
 → Find "Issue 1: QueryTraceBuilder Doctest"  
 → Follow exact steps  
 → You'll be done in 1 hour
 
 ### Option B: I want to understand the full plan
+
 → Read **README_IMPLEMENTATION_PLAN.md**  
 → Then read **IMPLEMENTATION_PLAN_FIXES.md**  
 → Then start Phase 1
 
 ### Option C: I want quick reference while coding
+
 → Keep **FIXES_QUICK_REFERENCE.md** open  
 → Use **ISSUES_TO_CODE_LOCATIONS.md** for exact locations  
 → Refer to **IMPLEMENTATION_PLAN_FIXES.md** for details

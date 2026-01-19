@@ -26,10 +26,12 @@ This plan addresses all critical issues identified in the code quality review:
 **Location**: `crates/fraiseql-core/src/runtime/query_tracing.rs:61-77`
 
 **Problem**: The doctest example calls non-existent methods:
+
 - Calls `builder.record_phase("compile", async { ... })` - method doesn't exist
 - Calls `builder.finish(true, None)` - missing required `result_count` parameter
 
 **Current API**:
+
 ```rust
 pub fn record_phase_success(&mut self, phase_name: &str, duration_us: u64)
 pub fn record_phase_error(&mut self, phase_name: &str, duration_us: u64, error: &str)
@@ -39,6 +41,7 @@ pub fn finish(self, success: bool, error: Option<&str>, result_count: Option<usi
 **Root Cause**: Documentation example was written for a different API than what was implemented.
 
 **Fix Strategy**:
+
 - Update doctest to match actual API
 - Show manual phase tracking (as per actual implementation)
 - Option: Add higher-level `record_phase` helper if intended API
@@ -50,6 +53,7 @@ pub fn finish(self, success: bool, error: Option<&str>, result_count: Option<usi
 **Location**: `crates/fraiseql-core/src/compiler/parser.rs:138-140`
 
 **Current Status**:
+
 ```rust
 interfaces: Vec::new(),  // TODO: Parse interfaces from JSON
 unions: Vec::new(),      // TODO: Parse unions from JSON
@@ -59,6 +63,7 @@ input_types: Vec::new(), // TODO: Parse input types from JSON
 **Impact**: Schemas using GraphQL interfaces, unions, or input types silently fail (only `eprintln!` warnings).
 
 **Plan**:
+
 1. Implement `parse_interfaces()` function
 2. Implement `parse_unions()` function
 3. Implement `parse_input_types()` function
@@ -74,6 +79,7 @@ input_types: Vec::new(), // TODO: Parse input types from JSON
 **Current Status**: `// TODO: Add server tests`
 
 **Components to Test**:
+
 - GraphQL endpoint (POST / GET)
 - CORS middleware
 - Bearer auth middleware
@@ -85,6 +91,7 @@ input_types: Vec::new(), // TODO: Parse input types from JSON
 - Request/response formatting
 
 **Plan**:
+
 1. Create test infrastructure setup
 2. Add 20+ integration tests
 3. Cover happy path and error cases
@@ -98,6 +105,7 @@ input_types: Vec::new(), // TODO: Parse input types from JSON
 **Current Status**: Test is skipped with comment "TODO: Schema optimizer behavior changed - needs update (Phase 4+)"
 
 **Plan**:
+
 - Investigate optimizer behavior
 - Either fix/re-enable test or remove it
 - Document decision
@@ -107,10 +115,12 @@ input_types: Vec::new(), // TODO: Parse input types from JSON
 ### Issue #5: Minor Code Quality Issues
 
 **Type Warnings** (2 issues):
+
 - `crates/fraiseql-core/src/runtime/query_tracing.rs:339` - Useless comparison
 - `crates/fraiseql-core/src/runtime/sql_logger.rs:282` - Useless comparison
 
 **Documentation Gaps**:
+
 - `execute_raw_query` lacks security warning
 - Some error context trait examples missing
 
@@ -125,17 +135,20 @@ input_types: Vec::new(), // TODO: Parse input types from JSON
 **Tasks**:
 
 1.1 **Fix QueryTraceBuilder doctest**
+
 - File: `crates/fraiseql-core/src/runtime/query_tracing.rs:61-77`
 - Update example to use actual API: `record_phase_success()` + `record_phase_error()`
 - Add timing calculations to example
 - Ensure example compiles and runs
 
 1.2 **Verify all doctests pass**
+
 ```bash
 cargo test --doc -p fraiseql-core
 ```
 
 **Acceptance Criteria**:
+
 - ✅ Doctest compiles without errors
 - ✅ Doctest demonstrates actual API usage
 - ✅ All doctests in project pass
@@ -149,6 +162,7 @@ cargo test --doc -p fraiseql-core
 **Tasks**:
 
 2.1 **Fix useless comparison warnings**
+
 - File: `crates/fraiseql-core/src/runtime/query_tracing.rs:339`
   - Change: `assert!(trace.total_duration_us >= 0);` (u64 always >= 0)
   - Solution: Remove assertion or change to assertion about value, not limit
@@ -158,11 +172,13 @@ cargo test --doc -p fraiseql-core
   - Solution: Similar fix
 
 2.2 **Verify clean build**
+
 ```bash
 cargo clippy --all-targets --all-features -- -D warnings
 ```
 
 **Acceptance Criteria**:
+
 - ✅ Zero clippy warnings
 - ✅ Build completes with no warnings
 
@@ -175,39 +191,46 @@ cargo clippy --all-targets --all-features -- -D warnings
 **Tasks**:
 
 3.1 **Analyze existing parser patterns**
+
 - Study how `parse_types()` and `parse_queries()` work
 - Understand IR structures for interfaces, unions, input types
 - Review schema format expectations
 
 3.2 **Implement `parse_interfaces()`**
+
 - Read interface definitions from JSON
 - Extract fields, possible implementations
 - Build `IRInterface` structures
 - Add 10+ test cases
 
 3.3 **Implement `parse_unions()`**
+
 - Read union member types from JSON
 - Build `IRUnion` structures
 - Validate member types exist
 - Add 10+ test cases
 
 3.4 **Implement `parse_input_types()`**
+
 - Read input object definitions from JSON
 - Extract fields and their types
 - Build `IRInputType` structures
 - Add 10+ test cases
 
 3.5 **Update parser integration**
+
 - Call new functions from `parse()`
 - Remove `eprintln!` warnings (feature now supported)
 - Update documentation
 
 3.6 **Comprehensive testing**
+
 ```bash
 cargo test -p fraiseql-core parser::tests
 ```
 
 **Acceptance Criteria**:
+
 - ✅ All interface/union/input_type tests pass
 - ✅ Round-trip test: JSON → IR → JSON succeeds
 - ✅ Error cases handled properly
@@ -222,11 +245,13 @@ cargo test -p fraiseql-core parser::tests
 **Tasks**:
 
 4.1 **Create test infrastructure**
+
 - Setup test server instance
 - Create test fixtures (schemas, queries)
 - Setup mocking/testcontainers for database
 
 4.2 **Implement GraphQL endpoint tests**
+
 - POST /graphql with valid query
 - GET /graphql with valid query
 - Invalid queries return 400
@@ -234,6 +259,7 @@ cargo test -p fraiseql-core parser::tests
 - Large queries handled correctly
 
 4.3 **Implement middleware tests**
+
 - CORS headers present/correct
 - Bearer token validation works
 - Missing auth returns 401
@@ -241,12 +267,14 @@ cargo test -p fraiseql-core parser::tests
 - OIDC flow integration (mock)
 
 4.4 **Implement endpoint tests**
+
 - GET /health returns 200 OK
 - GET /metrics returns metrics
 - Rate limiting enforced
 - Error responses formatted correctly
 
 4.5 **Test error handling**
+
 - Database errors → 500 + error details
 - Validation errors → 400 + field info
 - Parse errors → 400 + location info
@@ -254,6 +282,7 @@ cargo test -p fraiseql-core parser::tests
 - Authorization errors → 403
 
 **File Structure**:
+
 ```
 crates/fraiseql-server/tests/
 ├── integration_test.rs         (setup + helpers)
@@ -264,6 +293,7 @@ crates/fraiseql-server/tests/
 ```
 
 **Acceptance Criteria**:
+
 - ✅ 25+ integration tests
 - ✅ 85%+ code coverage for server module
 - ✅ All happy path scenarios covered
@@ -279,6 +309,7 @@ crates/fraiseql-server/tests/
 **Tasks**:
 
 5.1 **Understand optimizer purpose**
+
 - Read `crates/fraiseql-cli/src/schema/optimizer.rs`
 - Understand what optimizations it performs
 - Check if it's still relevant in current architecture
@@ -286,20 +317,24 @@ crates/fraiseql-server/tests/
 5.2 **Decide: Fix or Remove**
 
 **Option A: Fix & Re-enable** (if still relevant)
+
 - Update optimizer logic if needed
 - Re-enable test
 - Add comprehensive test cases
 
 **Option B: Remove** (if superseded)
+
 - Document why it was removed
 - Remove test, optimizer file, or mark as deprecated
 - Update architecture docs
 
 5.3 **Decision & Implementation**
+
 - Document in PR why this choice was made
 - Either restore tests or clean up code
 
 **Acceptance Criteria**:
+
 - ✅ Optimizer status is clear (active/deprecated/removed)
 - ✅ Test is either passing or properly removed
 - ✅ Decision documented in code/PR
@@ -313,22 +348,26 @@ crates/fraiseql-server/tests/
 **Tasks**:
 
 6.1 **Update documentation**
+
 - Add security note to `execute_raw_query()` docs
 - Document new parser features (interfaces, unions, input types)
 - Add examples in relevant modules
 
 6.2 **Code review**
+
 - Self-review all changes against project standards
 - Verify no new warnings introduced
 - Check test coverage metrics
 
 6.3 **Final verification**
+
 ```bash
 # Full build + test + lint
 cargo check && cargo test && cargo clippy --all-targets --all-features -- -D warnings && cargo doc
 ```
 
 **Acceptance Criteria**:
+
 - ✅ All documentation updated
 - ✅ Full test suite passes (3235 tests)
 - ✅ Zero warnings/clippy issues
@@ -387,6 +426,7 @@ git push -u origin feature/fixes-code-quality
 ### Phase 1 Detail: Fixing QueryTraceBuilder Doctest
 
 **Current Code** (`query_tracing.rs:61-77`):
+
 ```rust
 /// # Example
 ///
@@ -411,10 +451,12 @@ git push -u origin feature/fixes-code-quality
 ```
 
 **Issues**:
+
 - Line 68: `builder.record_phase()` doesn't exist
 - Line 74: `builder.finish(true, None)` is missing 3rd parameter `result_count`
 
 **Fix**:
+
 ```rust
 /// # Example
 ///
@@ -441,6 +483,7 @@ git push -u origin feature/fixes-code-quality
 ### Phase 2 Detail: Fixing Warnings
 
 **Warning 1** - File: `crates/fraiseql-core/src/runtime/query_tracing.rs:339`
+
 ```rust
 // Current (warning: useless comparison, u64 >= 0 always true)
 assert!(trace.total_duration_us >= 0);
@@ -450,6 +493,7 @@ assert!(trace.total_duration_us > 0, "Query should have taken some time");
 ```
 
 **Warning 2** - File: `crates/fraiseql-core/src/runtime/sql_logger.rs:282`
+
 ```rust
 // Current (warning: useless comparison, u64 >= 0 always true)
 assert!(log.duration_us >= 0);
@@ -465,6 +509,7 @@ assert!(log.duration_us >= 0, "Duration should never be negative");
 ### Phase 3 Detail: GraphQL Parser Implementation
 
 **File Structure to Modify**:
+
 - `crates/fraiseql-core/src/compiler/parser.rs` - Main parser
 - `crates/fraiseql-core/src/compiler/ir.rs` - IR definitions (review existing structures)
 - `crates/fraiseql-core/tests/phase*_integration.rs` - Add tests
@@ -500,6 +545,7 @@ fn parse_input_types(&self, value: &Value) -> Result<Vec<IRInputType>> {
 ```
 
 **Test Cases (Minimum 30)**:
+
 - Valid interface with single field
 - Valid interface with multiple fields
 - Interface with arguments on fields
@@ -518,6 +564,7 @@ fn parse_input_types(&self, value: &Value) -> Result<Vec<IRInputType>> {
 ### Phase 4 Detail: HTTP Server Tests
 
 **Test Infrastructure Setup**:
+
 ```rust
 // tests/integration_test.rs
 

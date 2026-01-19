@@ -63,6 +63,7 @@ cargo flamegraph -- --test test_complex_query
 ```
 
 **Reading flamegraphs**:
+
 - Y-axis: Function call stack (bottom = main)
 - X-axis: Time spent in function
 - Width: Time spent (wider = slower)
@@ -208,6 +209,7 @@ CompiledSchema::from_json_cached(json)
 ```
 
 **Solutions**:
+
 - Use compilation cache (enabled by default)
 - Pre-compile schemas at build time
 - Implement lazy loading for large schemas
@@ -222,6 +224,7 @@ cargo flamegraph -- --test benchmark_query_matching
 ```
 
 **Solutions**:
+
 - Cache query plans (enabled by default)
 - Simplify field selection
 - Use field-level caching
@@ -238,6 +241,7 @@ RUST_LOG=fraiseql_core=debug cargo test
 ```
 
 **Solutions**:
+
 - Add database indexes
 - Use connection pooling
 - Batch requests
@@ -253,6 +257,7 @@ cargo flamegraph -- --test serialize_large_response
 ```
 
 **Solutions**:
+
 - Stream JSON responses
 - Use more efficient serialization
 - Implement response compression
@@ -271,6 +276,7 @@ valgrind --leak-check=full ./target/release/fraiseql-server
 ```
 
 **Solutions**:
+
 - Use `Vec::with_capacity()` for pre-allocated vectors
 - Reuse buffers
 - Avoid unnecessary clones

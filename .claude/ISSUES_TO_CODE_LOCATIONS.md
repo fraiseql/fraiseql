@@ -9,6 +9,7 @@ Use this guide to navigate directly to each issue that needs fixing.
 **Severity**: BLOCKING - Prevents `cargo test --doc`
 
 ### Location
+
 ```
 crates/fraiseql-core/src/runtime/query_tracing.rs
   Lines: 57-78 (doctest example)
@@ -18,6 +19,7 @@ crates/fraiseql-core/src/runtime/query_tracing.rs
 ### The Problem
 
 **Doctest Error 1** (line 68):
+
 ```rust
 let phase_result = builder.record_phase("compile", async {  // ❌ METHOD DOESN'T EXIST
     // Compilation logic here
@@ -26,28 +28,33 @@ let phase_result = builder.record_phase("compile", async {  // ❌ METHOD DOESN'
 ```
 
 **Error Message**:
+
 ```
 error[E0599]: no method named `record_phase` found for struct `QueryTraceBuilder`
 ```
 
 **What exists instead**:
+
 - `record_phase_success(&mut self, phase_name: &str, duration_us: u64)`
 - `record_phase_error(&mut self, phase_name: &str, duration_us: u64, error: &str)`
 
 ---
 
 **Doctest Error 2** (line 74):
+
 ```rust
 let trace = builder.finish(true, None)?;  // ❌ MISSING THIRD PARAMETER
 ```
 
 **Error Message**:
+
 ```
 error[E0061]: this method takes 3 arguments but 2 arguments were supplied
 argument #3 of type `Option<usize>` is missing
 ```
 
 **Actual signature**:
+
 ```rust
 pub fn finish(
     self,
@@ -62,6 +69,7 @@ pub fn finish(
 ### The Fix
 
 **Step 1**: Open the file
+
 ```bash
 code crates/fraiseql-core/src/runtime/query_tracing.rs
 ```
@@ -99,11 +107,13 @@ code crates/fraiseql-core/src/runtime/query_tracing.rs
 **Step 4**: Fix warning at line 339
 
 Find:
+
 ```rust
 assert!(trace.total_duration_us >= 0);  // ⚠️ Useless comparison (u64 always >= 0)
 ```
 
 Change to:
+
 ```rust
 assert!(trace.total_duration_us > 0);  // Meaningful assertion: query took time
 ```
@@ -122,11 +132,13 @@ cargo test --doc -p fraiseql-core --lib
 **File**: `crates/fraiseql-core/src/runtime/sql_logger.rs:282`
 
 Find:
+
 ```rust
 assert!(log.duration_us >= 0);  // ⚠️ Useless (u64 always >= 0)
 ```
 
 Change to:
+
 ```rust
 assert!(log.duration_us > 0);  // Meaningful: something was measured
 // OR if no duration is okay:
@@ -140,6 +152,7 @@ assert!(log.duration_us > 0);  // Meaningful: something was measured
 **Severity**: MEDIUM - Silently ignores features
 
 ### Location
+
 ```
 crates/fraiseql-core/src/compiler/parser.rs
   Lines: 120-145 (warning checks + stubs)
@@ -148,6 +161,7 @@ crates/fraiseql-core/src/compiler/parser.rs
 ### The Problem
 
 **Location 1** (lines 122-133): Warning-only feature detection
+
 ```rust
 if obj.contains_key("interfaces") {
     eprintln!("Warning: 'interfaces' feature in schema is not yet supported and will be ignored");
@@ -161,6 +175,7 @@ if obj.contains_key("input_types") {
 ```
 
 **Location 2** (lines 135-145): Empty stubs
+
 ```rust
 Ok(AuthoringIR {
     types,
@@ -180,6 +195,7 @@ Ok(AuthoringIR {
 Study these functions as templates:
 
 **Location 1**: `parse_types()` function in same file
+
 ```rust
 fn parse_types(&self, value: &Value) -> Result<Vec<IRType>> {
     let array = value.as_array().ok_or_else(|| FraiseQLError::Parse {
@@ -196,6 +212,7 @@ fn parse_types(&self, value: &Value) -> Result<Vec<IRType>> {
 ```
 
 **Location 2**: IR types in `compiler/ir.rs`
+
 ```rust
 pub struct IRType {
     pub name: String,
@@ -208,6 +225,7 @@ pub struct IRType {
 ### The Fix
 
 **Step 1**: Open the files
+
 ```bash
 code crates/fraiseql-core/src/compiler/parser.rs
 code crates/fraiseql-core/src/compiler/ir.rs  # For IR structures
@@ -327,6 +345,7 @@ fn test_parse_input_type_basic() {
 **Severity**: MEDIUM - Integration layer untested
 
 ### Location
+
 ```
 crates/fraiseql-server/src/server.rs
   Comment at top: // TODO: Add server tests
@@ -442,6 +461,7 @@ See `IMPLEMENTATION_PLAN_FIXES.md` Phase 4 for detailed list.
 **Severity**: LOW - Unclear status
 
 ### Location
+
 ```
 crates/fraiseql-cli/src/schema/optimizer.rs
   Test marker with #[ignore]
@@ -454,6 +474,7 @@ grep -n "#\[ignore\]" crates/fraiseql-cli/src/schema/optimizer.rs
 ```
 
 Output will show:
+
 ```
 NNN: #[ignore = "TODO: Schema optimizer behavior changed - needs update (Phase 4+)"]
 ```
@@ -509,11 +530,13 @@ crates/fraiseql-core/src/db/traits.rs
 ```
 
 Find:
+
 ```rust
 pub async fn execute_raw_query(&self, sql: &str) -> Result<...>;
 ```
 
 Add doc comment:
+
 ```rust
 /// Execute raw SQL query.
 ///
@@ -533,6 +556,7 @@ crates/fraiseql-core/src/error.rs
 ```
 
 Add example to trait documentation:
+
 ```rust
 /// Extension trait for adding context to errors.
 ///

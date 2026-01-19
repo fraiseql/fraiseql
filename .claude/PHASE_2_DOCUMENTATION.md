@@ -13,6 +13,7 @@
 **File**: `crates/fraiseql-core/src/compiler/codegen.rs` (lines 53, 140-141)
 
 ### Current Issue
+
 The `generate()` function has unclear comments about templates and fact tables being "populated by compiler" - this confuses new developers about architectural design.
 
 ### Enhancement: Expanded Doc Comments
@@ -245,6 +246,7 @@ The Rust compiler itself prevents entire classes of SQL injection:
 ### Testing Strategy
 
 Security tests verify:
+
 - SQL queries don't contain unescaped user input
 - Parameterized queries are used consistently
 - Type boundaries are respected
@@ -263,22 +265,26 @@ pub struct PostgresWhereGenerator {
 ```
 
 **Why safe**:
+
 1. Single-threaded context: Each async task gets its own WHERE generator instance
 2. Reset on each call: Counter reset at start of `generate()` call
 3. No sharing: Generators aren't Arc-shared across tasks
 
 **Pattern**: Interior mutability is appropriate when:
+
 - State is tied to a single execution context
 - Concurrent access doesn't occur (verified by architecture)
 - Performance is critical (avoids mutex overhead)
 
 **Not Safe If**:
+
 - Generator is Arc-shared across async tasks (would require AtomicUsize)
 - Multiple threads call generate() on same instance
 
 ### Database Connection Pooling
 
 Connection pooling uses thread-safe structures:
+
 - `Arc<Pool>`: Shared connection pool reference
 - `tokio::sync::Mutex`: Async-aware mutual exclusion
 - Connection checkout/return: Atomic operations
@@ -302,6 +308,7 @@ GraphQL identifiers are validated against a regex at parse time:
 ### Type Checking
 
 GraphQL type checking prevents logic errors:
+
 - Field type mismatches caught at compile time
 - Null/Non-null violations caught at validation time
 - Circular references detected and rejected
@@ -311,11 +318,13 @@ GraphQL type checking prevents logic errors:
 ### Query Limits (Current/Planned)
 
 Current:
+
 - Query timeout: Configurable timeout per query execution
 - Connection pool limits: Max connections to database
 - Result set streaming: Avoid loading entire results in memory
 
 Planned:
+
 - Max result size: Configurable byte limit on responses
 - Max nesting depth: Limit deeply nested JSONB extraction
 - Max query complexity: Cost-based query limits
@@ -323,6 +332,7 @@ Planned:
 ### Testing
 
 DOS prevention tests:
+
 - Very deep nesting (100+ levels)
 - Large result sets (1M+ rows)
 - Slow queries (timeout handling)
@@ -376,6 +386,7 @@ When reviewing code for security:
 - [Rust Book: Safety](https://doc.rust-lang.org/book/ch19-01-unsafe-rust.html)
 - [OWASP Top 10 - SQL Injection](https://owasp.org/www-community/attacks/SQL_Injection)
 - [Tokio: Concurrency Patterns](https://tokio.rs/tokio/tutorial)
+
 ```
 
 ---
@@ -460,6 +471,7 @@ Key principle: **Separate schema definition from execution artifacts**
 ## Component Architecture
 
 ```
+
 ┌─────────────────────────────────────────────────────────┐
 │              GraphQL Schema Definition                   │
 │  (Type definitions, fields, relationships, queries)     │
@@ -484,6 +496,7 @@ Key principle: **Separate schema definition from execution artifacts**
         │  Runtime Executor    │
         │  (Processes queries) │
         └──────────────────────┘
+
 ```
 
 ## Compilation Pipeline
@@ -575,11 +588,13 @@ See [SECURITY_PATTERNS.md](crates/fraiseql-core/docs/SECURITY_PATTERNS.md).
 ## Verification Checklist
 
 ### Before Documentation Updates
+
 - [ ] Review all current documentation
 - [ ] Identify areas of confusion or missing context
 - [ ] Gather feedback from team on unclear patterns
 
 ### During Documentation Updates
+
 - [ ] Update compiler/codegen.rs with enhanced doc comments
 - [ ] Create SECURITY_PATTERNS.md with security details
 - [ ] Add inline code comments for design patterns
@@ -587,6 +602,7 @@ See [SECURITY_PATTERNS.md](crates/fraiseql-core/docs/SECURITY_PATTERNS.md).
 - [ ] Update README.md with security section
 
 ### After Documentation Updates
+
 - [ ] Run `cargo doc` and review generated documentation
 - [ ] Have team members review documentation for clarity
 - [ ] Verify all internal links work correctly
@@ -608,6 +624,7 @@ See [SECURITY_PATTERNS.md](crates/fraiseql-core/docs/SECURITY_PATTERNS.md).
 ## Integration with Phase 1
 
 Phase 1 (Parameterize LIMIT/OFFSET) should include:
+
 - Commit message explaining parameterization best practice
 - Link to SECURITY_PATTERNS.md in commit
 - Code comments referencing security documentation
@@ -641,4 +658,3 @@ Can be done in parallel with Phase 1, or immediately after.
 
 All documentation will be checked into version control and maintained
 alongside the code.
-

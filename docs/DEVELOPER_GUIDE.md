@@ -241,6 +241,7 @@ mod tests {
 ### Test Coverage
 
 Aim for:
+
 - **Critical paths**: 100% coverage (business logic)
 - **Error handling**: 100% coverage (every error branch)
 - **Edge cases**: 90%+ coverage
@@ -454,11 +455,13 @@ open flamegraph.svg
 ### Creating a Pull Request
 
 1. **Ensure clean history**: Squash fixup commits
+
    ```bash
    git rebase -i main
    ```
 
 2. **Write clear commit messages**:
+
    ```
    feat(scope): Add feature description
 
@@ -472,6 +475,7 @@ open flamegraph.svg
 4. **Update documentation**: If public API changes
 
 5. **Run full checks**:
+
    ```bash
    cargo fmt
    cargo clippy --all-targets --all-features

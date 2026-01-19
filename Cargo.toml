@@ -83,10 +83,10 @@ sqlx = {version = "0.8", features = ["mysql", "runtime-tokio", "json"]}
 thiserror = "2.0"
 # Async runtime
 tokio = {version = "1.0", features = ["full"]}
-tokio-util = {version = "0.7"}
 # Database drivers
 # PostgreSQL
 tokio-postgres = {version = "0.7", features = ["with-serde_json-1"]}
+tokio-util = {version = "0.7"}
 # Configuration
 toml = "0.8"
 tower = {version = "0.5"}

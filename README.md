@@ -91,6 +91,7 @@ FraiseQL separates schema definition from execution to enable optimization and r
 - **Runtime**: Query execution using pre-compiled artifacts
 
 This design enables:
+
 - Database-specific optimizations without changing schema
 - Schema caching and reuse across backends
 - Simplified testing and maintenance
@@ -109,6 +110,7 @@ See [ARCHITECTURE.md](.claude/ARCHITECTURE.md) for detailed component documentat
 - **Identifiers**: Validated against regex at parse time
 
 Thread-safe patterns throughout:
+
 - Single-threaded contexts use `Cell<T>` for interior mutability
 - Shared state protected with `Arc<T>` and atomic operations
 - Rust type system prevents data races at compile time

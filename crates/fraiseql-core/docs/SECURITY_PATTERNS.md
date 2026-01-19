@@ -102,6 +102,7 @@ The Rust compiler itself prevents entire classes of SQL injection:
 ### Testing Strategy
 
 Security tests verify:
+
 - SQL queries don't contain unescaped user input
 - Parameterized queries are used consistently
 - Type boundaries are respected
@@ -120,6 +121,7 @@ pub struct PostgresWhereGenerator {
 ```
 
 **Why safe**:
+
 1. **Single-threaded context**: Each WHERE generator is created for a single
    query execution and isn't shared across async tasks.
 2. **Reset per call**: The counter is reset at the start of `generate()`,
@@ -127,17 +129,20 @@ pub struct PostgresWhereGenerator {
 3. **Performance**: Avoids mutex overhead for a simple counter.
 
 **Pattern**: Interior mutability is appropriate when:
+
 - State is tied to a single execution context
 - Concurrent access doesn't occur (verified by architecture)
 - Performance is critical (avoids mutex overhead)
 
 **Not Safe If**:
+
 - Generator is Arc-shared across async tasks (would require AtomicUsize)
 - Multiple threads call generate() on same instance
 
 ### Database Connection Pooling
 
 Connection pooling uses thread-safe structures:
+
 - `Arc<Pool>`: Shared connection pool reference
 - `tokio::sync::Mutex`: Async-aware mutual exclusion
 - Connection checkout/return: Atomic operations
@@ -161,6 +166,7 @@ GraphQL identifiers are validated against a regex at parse time:
 ### Type Checking
 
 GraphQL type checking prevents logic errors:
+
 - Field type mismatches caught at compile time
 - Null/Non-null violations caught at validation time
 - Circular references detected and rejected
@@ -170,11 +176,13 @@ GraphQL type checking prevents logic errors:
 ### Query Limits (Current/Planned)
 
 Current:
+
 - Query timeout: Configurable timeout per query execution
 - Connection pool limits: Max connections to database
 - Result set streaming: Avoid loading entire results in memory
 
 Planned:
+
 - Max result size: Configurable byte limit on responses
 - Max nesting depth: Limit deeply nested JSONB extraction
 - Max query complexity: Cost-based query limits
@@ -182,6 +190,7 @@ Planned:
 ### Testing
 
 DOS prevention tests:
+
 - Very deep nesting (100+ levels)
 - Large result sets (1M+ rows)
 - Slow queries (timeout handling)

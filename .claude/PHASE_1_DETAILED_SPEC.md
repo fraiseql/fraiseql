@@ -13,6 +13,7 @@
 **File**: `crates/fraiseql-core/src/db/postgres/adapter.rs` (lines 287-294)
 
 ### Current Code
+
 ```rust
 // Add LIMIT
 if let Some(lim) = limit {
@@ -26,6 +27,7 @@ if let Some(off) = offset {
 ```
 
 ### New Implementation
+
 ```rust
 // PostgreSQL supports parameterized LIMIT/OFFSET
 // Add parameters to the values vector and generate placeholders
@@ -47,6 +49,7 @@ if let Some(off) = offset {
 ```
 
 ### Tests to Add
+
 ```rust
 #[cfg(test)]
 mod tests {
@@ -131,10 +134,12 @@ mod tests {
 ```
 
 ### Verification Steps
+
 1. Ensure PostgreSQL driver supports parameterized LIMIT
 2. Run: `cargo test --lib db::postgres::adapter`
 3. Check that query plan caching works (should use $1, $2 parameters)
 4. Verify with actual database:
+
    ```sql
    PREPARE test (INT, INT) AS SELECT * FROM users LIMIT $1 OFFSET $2;
    EXECUTE test(10, 20);
@@ -147,6 +152,7 @@ mod tests {
 **File**: `crates/fraiseql-core/src/db/mysql/adapter.rs` (lines 196-203)
 
 ### Current Code
+
 ```rust
 // Add LIMIT
 if let Some(lim) = limit {
@@ -160,6 +166,7 @@ if let Some(off) = offset {
 ```
 
 ### New Implementation
+
 ```rust
 // MySQL supports ? placeholders
 // Add parameters to the values vector
@@ -175,6 +182,7 @@ if let Some(off) = offset {
 ```
 
 ### Tests to Add
+
 ```rust
 #[cfg(test)]
 mod tests {
@@ -209,6 +217,7 @@ mod tests {
 ```
 
 ### Verification Steps
+
 1. Confirm MySQL accepts `LIMIT ? OFFSET ?`
 2. Run: `cargo test --lib db::mysql::adapter`
 3. Test with actual MySQL database
@@ -220,6 +229,7 @@ mod tests {
 **File**: `crates/fraiseql-core/src/db/sqlite/adapter.rs` (lines 211-218)
 
 ### Current Code
+
 ```rust
 // Add LIMIT
 if let Some(lim) = limit {
@@ -233,6 +243,7 @@ if let Some(off) = offset {
 ```
 
 ### New Implementation
+
 ```rust
 // SQLite supports ? placeholders
 if let Some(lim) = limit {
@@ -247,9 +258,11 @@ if let Some(off) = offset {
 ```
 
 ### Tests to Add
+
 Similar to MySQL (see Task 2)
 
 ### Verification Steps
+
 1. Run: `cargo test --lib db::sqlite::adapter`
 2. Test with actual SQLite database
 
@@ -260,12 +273,15 @@ Similar to MySQL (see Task 2)
 **File**: `crates/fraiseql-core/src/db/sqlserver/adapter.rs` (similar lines)
 
 ### Current Code
+
 ```rust
 // Find and replace similar LIMIT/OFFSET handling
 ```
 
 ### New Implementation
+
 SQL Server uses different syntax (OFFSET/FETCH), but should follow same pattern:
+
 ```rust
 // SQL Server uses OFFSET ... ROWS FETCH ... ROWS ONLY
 if let Some(off) = offset {
@@ -280,6 +296,7 @@ if let Some(lim) = limit {
 ```
 
 ### Tests to Add
+
 Similar pattern to other adapters
 
 ---
@@ -431,11 +448,13 @@ async fn test_limit_offset_consistency_across_databases() {
 ## Verification Checklist
 
 ### Before Implementation
+
 - [ ] Review current LIMIT/OFFSET implementations in all adapters
 - [ ] Verify each database supports parameterized LIMIT/OFFSET syntax
 - [ ] Check Value enum supports I32 type for binding
 
 ### During Implementation
+
 - [ ] PostgreSQL adapter updated and tested locally
 - [ ] MySQL adapter updated and tested locally
 - [ ] SQLite adapter updated and tested locally
@@ -444,6 +463,7 @@ async fn test_limit_offset_consistency_across_databases() {
 - [ ] Clippy checks pass: `cargo clippy --all-targets --all-features`
 
 ### After Implementation
+
 - [ ] Integration tests pass against real databases
 - [ ] Performance testing shows no regression (query plans should be similar)
 - [ ] Code review completed
@@ -494,4 +514,3 @@ If issues arise during implementation:
 3. Start with PostgreSQL adapter (most complex)
 4. Use this spec for code review
 5. Merge when all tests pass and reviews complete
-

@@ -7,6 +7,7 @@ FraiseQL v2 is a **compiled GraphQL execution engine** that transforms schema de
 **Core principle**: **Separate schema definition from execution artifacts**
 
 This separation enables:
+
 - Database-specific optimizations without changing schema
 - Schema reuse across backends (PostgreSQL, MySQL, SQLite, SQL Server)
 - Simplified testing and maintenance
@@ -112,12 +113,14 @@ OUTPUT: CompiledSchema + SQL Templates (ready for runtime)
 **Attack Vector**: User input directly interpolated into SQL strings
 
 **Prevention Mechanisms**:
+
 1. **Parameterized Queries**: All user values passed as database parameters
 2. **Type System**: `u32` for limits/offsets can't contain SQL code
 3. **Compile-Time Validation**: Column names fixed at schema definition time
 4. **Identifier Regex**: GraphQL names validated against `^[a-zA-Z_][a-zA-Z0-9_]*$`
 
 **Example**:
+
 ```rust
 // Safe: value is parameter, never interpolated
 // SELECT * FROM users WHERE id = $1
@@ -132,6 +135,7 @@ OUTPUT: CompiledSchema + SQL Templates (ready for runtime)
 **Attack Vector**: Expensive queries consuming resources
 
 **Prevention Mechanisms**:
+
 1. **Query Timeouts**: Configurable per execution
 2. **Connection Pool Limits**: Max concurrent connections
 3. **Result Streaming**: Avoid loading entire results in memory
@@ -143,12 +147,14 @@ OUTPUT: CompiledSchema + SQL Templates (ready for runtime)
 **Attack Vector**: Concurrent access to shared state without synchronization
 
 **Prevention Mechanisms**:
+
 1. **Interior Mutability**: `Cell<T>` for single-threaded contexts only
 2. **Thread-Safe Collections**: `Arc<T>` for shared immutable data
 3. **Atomic Operations**: `AtomicUsize` for counters when needed
 4. **Rust Type System**: Enforces ownership and borrowing rules
 
 **Example**:
+
 ```rust
 // Single-threaded context - safe with Cell
 param_counter: Cell<usize>,  // ✅ Safe
@@ -214,6 +220,7 @@ See `skills/fraiseql-testing.md` for complete testing documentation.
 ### Unit Tests
 
 Per-module tests in `mod.rs` or `tests.rs`:
+
 ```rust
 #[cfg(test)]
 mod tests {
@@ -229,6 +236,7 @@ mod tests {
 ### Integration Tests
 
 Full schema compilation and execution tests:
+
 ```rust
 #[tokio::test]
 async fn test_query_execution() {
@@ -242,6 +250,7 @@ async fn test_query_execution() {
 ### Security Tests
 
 SQL injection and thread-safety scenarios:
+
 ```rust
 #[test]
 fn test_sql_injection_prevention() {
@@ -258,6 +267,7 @@ fn test_sql_injection_prevention() {
 **Decision**: Schema definition kept separate from SQL templates
 
 **Rationale**:
+
 - Allows testing schema independently from SQL generation
 - Enables different SQL strategies per database
 - Simplifies debugging and maintenance
@@ -269,6 +279,7 @@ fn test_sql_injection_prevention() {
 **Decision**: Each compiler phase produces immutable data structures
 
 **Rationale**:
+
 - Ensures reproducible builds (same input = same output)
 - Enables thread-safe processing
 - Clear data flow through pipeline
@@ -280,6 +291,7 @@ fn test_sql_injection_prevention() {
 **Decision**: Runtime implemented in Rust, not Python/TypeScript
 
 **Rationale**:
+
 - Performance (zero-cost abstractions, memory safety)
 - Type safety prevents entire classes of bugs
 - No FFI overhead, no runtime Python interpreter
@@ -291,6 +303,7 @@ fn test_sql_injection_prevention() {
 **Decision**: All logic belongs in the database, not query resolvers
 
 **Rationale**:
+
 - Deterministic behavior (no runtime side effects)
 - Database can optimize across operations
 - Easier to reason about performance
@@ -351,6 +364,7 @@ pub type Result<T> = std::result::Result<T, FraiseQLError>;
 ```
 
 This enables:
+
 - Precise error categorization
 - Context-aware error messages
 - Proper error propagation through compilation phases

@@ -40,11 +40,13 @@ After deep verification against the actual source code, the earlier analysis rep
 ### 1. LIMIT/OFFSET: Best Practice Parameterization
 
 **Affected Files**:
+
 - `crates/fraiseql-core/src/db/postgres/adapter.rs` (lines 287-294)
 - `crates/fraiseql-core/src/db/mysql/adapter.rs` (lines 196-203)
 - `crates/fraiseql-core/src/db/sqlite/adapter.rs` (lines 211-218)
 
 **Current Implementation**:
+
 ```rust
 // PostgreSQL adapter
 if let Some(lim) = limit {
@@ -56,12 +58,14 @@ if let Some(off) = offset {
 ```
 
 **Why Change**:
+
 - Industry best practice: parameterize all query values
 - Improves query plan caching in some databases
 - More consistent with WHERE clause handling (already parameterized)
 - Zero risk (u32 type), but signals security awareness
 
 **Implementation**:
+
 ```rust
 // PostgreSQL - supports parameterized LIMIT
 if let Some(lim) = limit {
@@ -97,9 +101,11 @@ if let Some(off) = offset {
 **Issue**: Some design choices (templates, fact tables) are not immediately obvious to new developers
 
 **Affected Files**:
+
 - `crates/fraiseql-core/src/compiler/codegen.rs` (lines 53, 140-141)
 
 **Current Issue**:
+
 ```rust
 pub fn generate(&self, ir: &AuthoringIR, _templates: &[SqlTemplate]) -> Result<CompiledSchema> {
     // Parameter _templates is ignored but appears unused
@@ -109,6 +115,7 @@ pub fn generate(&self, ir: &AuthoringIR, _templates: &[SqlTemplate]) -> Result<C
 ```
 
 **Improvement**:
+
 ```rust
 /// Generate a compiled schema from the intermediate representation.
 ///
@@ -168,6 +175,7 @@ pub fn generate(&self, ir: &AuthoringIR, _templates: &[SqlTemplate]) -> Result<C
    - Multi-database compatibility verification
 
 **Verification**:
+
 ```bash
 cargo test --all
 cargo clippy --all-targets --all-features
@@ -204,6 +212,7 @@ cargo clippy --all-targets --all-features
    - "Interior Mutability Patterns" subsection
 
 **Verification**:
+
 ```bash
 cargo doc --open
 # Verify documentation is clear and complete
@@ -218,6 +227,7 @@ cargo doc --open
 **Objective**: Performance and observability improvements (not blocking release)
 
 **Tasks** (defer to post-GA):
+
 1. Query result size limits configuration
 2. Structured logging for SQL generation
 3. Performance profiling for cloning hotspots
@@ -259,6 +269,7 @@ cargo doc --open
 ### Unit Tests Required
 
 1. **LIMIT/OFFSET parameterization tests**:
+
    ```rust
    #[test]
    fn test_limit_offset_parameterization() {
@@ -269,6 +280,7 @@ cargo doc --open
    ```
 
 2. **Cross-database compatibility**:
+
    ```rust
    #[tokio::test]
    async fn test_limit_offset_all_databases() {
@@ -323,6 +335,7 @@ cargo fmt --all -- --check
 ## No Breaking Changes
 
 ✅ All improvements are **backward compatible**:
+
 - Same API surfaces (query signatures unchanged)
 - Same result semantics (queries return identical data)
 - Internal implementation detail only (LIMIT/OFFSET parameter binding)
@@ -333,6 +346,7 @@ cargo fmt --all -- --check
 ## Production Readiness
 
 ### Before Release
+
 - [ ] All Phase 1 improvements implemented
 - [ ] Full test suite passes
 - [ ] Performance profiling shows no regression
@@ -340,6 +354,7 @@ cargo fmt --all -- --check
 - [ ] Documentation updated
 
 ### After Release
+
 - [ ] Monitor query performance metrics
 - [ ] Gather user feedback on query behavior
 - [ ] Implement Phase 3 enhancements if needed
@@ -351,6 +366,7 @@ cargo fmt --all -- --check
 **Status**: ✅ **READY FOR PRODUCTION**
 
 The earlier analysis was overly critical. The actual codebase is:
+
 - ✅ Secure (Rust prevents entire vulnerability classes)
 - ✅ Well-architected (intentional design patterns)
 - ✅ Best practice aligned (minor parameterization improvement available)
@@ -360,6 +376,7 @@ The earlier analysis was overly critical. The actual codebase is:
 ---
 
 **Next Steps**:
+
 1. Review this plan with the team
 2. Assign Phase 1 implementation tasks
 3. Execute parameterization improvements
