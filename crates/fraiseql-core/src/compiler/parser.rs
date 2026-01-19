@@ -109,6 +109,24 @@ impl SchemaParser {
             std::collections::HashMap::new()
         };
 
+        // Validate that unimplemented features are not present in schema
+        // This prevents silent data loss - users will be alerted if they use these features
+        if obj.contains_key("enums") {
+            eprintln!("Warning: 'enums' feature in schema is not yet supported and will be ignored");
+        }
+        if obj.contains_key("interfaces") {
+            eprintln!("Warning: 'interfaces' feature in schema is not yet supported and will be ignored");
+        }
+        if obj.contains_key("unions") {
+            eprintln!("Warning: 'unions' feature in schema is not yet supported and will be ignored");
+        }
+        if obj.contains_key("input_types") {
+            eprintln!("Warning: 'input_types' feature in schema is not yet supported and will be ignored");
+        }
+        if obj.contains_key("fragments") {
+            eprintln!("Warning: 'fragments' feature in schema is not yet supported and will be ignored");
+        }
+
         Ok(AuthoringIR {
             types,
             enums: Vec::new(),       // TODO: Parse enums from JSON

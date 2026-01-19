@@ -670,7 +670,32 @@ impl SubscriptionManager {
     }
 }
 
-/// Get a value from JSON using JSON pointer syntax (e.g., "/user/name" or "user/name").
+/// Retrieve a value from JSON data using a JSON pointer path.
+///
+/// # Lifetime Parameter
+///
+/// The lifetime `'a` is tied to the input `data` reference. The returned reference
+/// is guaranteed to live as long as the input data reference, enabling zero-copy
+/// access to nested JSON values without allocation.
+///
+/// # Arguments
+///
+/// * `data` - The JSON data object to query
+/// * `path` - The path to the value, either in JSON pointer format (/a/b/c) or dot notation (a.b.c)
+///
+/// # Returns
+///
+/// A reference to the JSON value if found, or `None` if the path doesn't exist.
+/// The returned reference has the same lifetime as the input data.
+///
+/// # Examples
+///
+/// ```ignore
+/// let data = json!({"user": {"id": 123, "name": "Alice"}});
+/// let id = get_json_pointer_value(&data, "user/id");  // Some(&123)
+/// let alt = get_json_pointer_value(&data, "user.id"); // Some(&123)
+/// let missing = get_json_pointer_value(&data, "admin/id"); // None
+/// ```
 fn get_json_pointer_value<'a>(
     data: &'a serde_json::Value,
     path: &str,

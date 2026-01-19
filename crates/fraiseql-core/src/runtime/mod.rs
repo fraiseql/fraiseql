@@ -87,6 +87,9 @@ pub struct RuntimeConfig {
     /// Optional field filter for access control.
     /// When set, validates that users have required scopes to access fields.
     pub field_filter: Option<FieldFilter>,
+
+    /// Query timeout in milliseconds (0 = no timeout).
+    pub query_timeout_ms: u64,
 }
 
 impl Default for RuntimeConfig {
@@ -97,6 +100,7 @@ impl Default for RuntimeConfig {
             max_query_complexity: 1000,
             enable_tracing:       false,
             field_filter:         None,
+            query_timeout_ms:     30_000, // 30 second default timeout
         }
     }
 }

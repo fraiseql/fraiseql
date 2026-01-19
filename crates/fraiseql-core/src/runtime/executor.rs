@@ -1,6 +1,21 @@
 //! Query executor - main runtime execution engine.
+//!
+//! # Async Cancellation Strategy
+//!
+//! Queries are protected from long-running operations through the `query_timeout_ms`
+//! configuration in `RuntimeConfig`. When a query exceeds this timeout, the operation
+//! is cancelled via `tokio::time::timeout()`, which aborts the future.
+//!
+//! - **Default timeout**: 30 seconds
+//! - **No timeout**: Set `query_timeout_ms` to 0
+//! - **Custom timeout**: Set `query_timeout_ms` to desired milliseconds
+//!
+//! For graceful shutdown of long-running tasks, callers can wrap `execute()` calls
+//! with their own `tokio::time::timeout()` or use `tokio_util::task::AbortOnDrop`
+//! for task lifecycle management.
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use super::{QueryMatcher, QueryPlanner, ResultProjector, RuntimeConfig};
 #[cfg(test)]
@@ -130,6 +145,34 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// println!("{}", result);
     /// ```
     pub async fn execute(
+        &self,
+        query: &str,
+        variables: Option<&serde_json::Value>,
+    ) -> Result<String> {
+        // Apply query timeout if configured
+        if self.config.query_timeout_ms > 0 {
+            let timeout_duration = Duration::from_millis(self.config.query_timeout_ms);
+            tokio::time::timeout(timeout_duration, self.execute_internal(query, variables))
+                .await
+                .map_err(|_| {
+                    // Truncate query if too long for error reporting
+                    let query_snippet = if query.len() > 100 {
+                        format!("{}...", &query[..100])
+                    } else {
+                        query.to_string()
+                    };
+                    FraiseQLError::Timeout {
+                        timeout_ms: self.config.query_timeout_ms,
+                        query: Some(query_snippet),
+                    }
+                })?
+        } else {
+            self.execute_internal(query, variables).await
+        }
+    }
+
+    /// Internal execution logic (called by execute with timeout wrapper).
+    async fn execute_internal(
         &self,
         query: &str,
         variables: Option<&serde_json::Value>,
@@ -752,6 +795,7 @@ mod tests {
             max_query_complexity: 500,
             enable_tracing:       true,
             field_filter:         None,
+            query_timeout_ms:     30_000,
         };
 
         let executor = Executor::with_config(schema, adapter, config);

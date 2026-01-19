@@ -69,7 +69,9 @@ impl SchemaValidator {
     ///
     /// Returns error if validation fails.
     pub fn validate(&self, ir: AuthoringIR) -> Result<AuthoringIR> {
-        // Existing validation (TODO: implement basic validations)
+        // Comprehensive type coverage validation for all operation types
+        // Note: validate_queries() also validates mutations and subscriptions
+        // See lines 220-260 for full validation logic
         self.validate_types(&ir)?;
         self.validate_queries(&ir)?;
 

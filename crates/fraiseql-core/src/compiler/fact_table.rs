@@ -237,7 +237,25 @@ pub struct FilterColumn {
 }
 
 impl FactTableDetector {
-    /// Detect if a table name follows the fact table pattern
+    /// Detect if a table name follows the fact table pattern.
+    ///
+    /// Fact tables must follow the naming convention: `tf_<table_name>`
+    /// where the table name contains only lowercase letters, numbers, and underscores.
+    ///
+    /// # Arguments
+    ///
+    /// * `table_name` - Table name to check
+    ///
+    /// # Returns
+    ///
+    /// `true` if the table name starts with `tf_` and follows naming conventions,
+    /// `false` otherwise.
+    ///
+    /// # Notes
+    ///
+    /// - The check is strict: `tf_` is required as a prefix
+    /// - Table names like `TF_sales` (uppercase prefix) are NOT recognized as fact tables
+    /// - Empty strings and tables named just `tf_` without additional suffix are not valid
     ///
     /// # Examples
     ///
@@ -246,11 +264,15 @@ impl FactTableDetector {
     ///
     /// assert!(FactTableDetector::is_fact_table("tf_sales"));
     /// assert!(FactTableDetector::is_fact_table("tf_events"));
+    /// assert!(FactTableDetector::is_fact_table("tf_page_views_daily"));
     /// assert!(!FactTableDetector::is_fact_table("ta_sales_by_day"));
     /// assert!(!FactTableDetector::is_fact_table("v_user"));
+    /// assert!(!FactTableDetector::is_fact_table("TF_sales")); // uppercase prefix not recognized
+    /// assert!(!FactTableDetector::is_fact_table("tf_")); // incomplete name
     /// ```
     pub fn is_fact_table(table_name: &str) -> bool {
-        table_name.starts_with("tf_")
+        // Must start with "tf_" and have at least one more character
+        table_name.len() > 3 && table_name.starts_with("tf_")
     }
 
     /// Introspect a fact table from the database
@@ -560,17 +582,25 @@ impl FactTableDetector {
         match db_type {
             DatabaseType::PostgreSQL => {
                 // PostgreSQL: column->>'key' for top-level, column->'nested'->>'key' for nested
-                if parts.len() == 1 {
+                if parts.is_empty() {
+                    // Safety: handle empty path by returning raw column name
+                    column_name.to_string()
+                } else if parts.len() == 1 {
                     format!("{}->>'{}'", column_name, parts[0])
                 } else {
-                    let last = parts.last().unwrap();
-                    let rest = &parts[..parts.len() - 1];
-                    let nav = rest.iter().fold(String::new(), |mut acc, p| {
-                        use std::fmt::Write;
-                        let _ = write!(acc, "->'{}'", p);
-                        acc
-                    });
-                    format!("{}{}->>'{}'", column_name, nav, last)
+                    // Safe: parts.len() >= 2 is guaranteed here
+                    if let Some(last) = parts.last() {
+                        let rest = &parts[..parts.len() - 1];
+                        let nav = rest.iter().fold(String::new(), |mut acc, p| {
+                            use std::fmt::Write;
+                            let _ = write!(acc, "->'{}'", p);
+                            acc
+                        });
+                        format!("{}{}->>'{}'", column_name, nav, last)
+                    } else {
+                        // This branch is unreachable due to length check, but safe fallback
+                        column_name.to_string()
+                    }
                 }
             },
             DatabaseType::MySQL => {

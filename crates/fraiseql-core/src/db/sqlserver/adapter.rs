@@ -76,17 +76,30 @@ impl SqlServerAdapter {
     /// # Arguments
     ///
     /// * `connection_string` - SQL Server connection string
-    /// * `min_size` - Minimum pool size (not directly supported by bb8, ignored)
+    /// * `min_size` - Minimum pool size (bb8 doesn't support this; connections are created on-demand)
     /// * `max_size` - Maximum number of connections in pool
+    ///
+    /// # Note on min_size
+    ///
+    /// The bb8 connection pool used by this adapter creates connections on-demand
+    /// rather than pre-creating a minimum pool size. The `min_size` parameter is accepted
+    /// for API compatibility with other database adapters but does not affect behavior.
+    /// If you need a minimum number of pre-created connections, consider:
+    /// 1. Calling `warmup_connections()` after creating the pool
+    /// 2. Increasing `max_size` to ensure sufficient capacity
+    /// 3. Using a different connection pool strategy for your use case
     ///
     /// # Errors
     ///
     /// Returns `FraiseQLError::ConnectionPool` if pool creation fails.
     pub async fn with_pool_config(
         connection_string: &str,
-        _min_size: u32,
+        min_size: u32,
         max_size: u32,
     ) -> Result<Self> {
+        if min_size > 0 {
+            eprintln!("Warning: SQL Server adapter does not support min_size parameter (min_size={}) - connections are created on-demand. Consider warmup_connections() if pre-allocation is needed.", min_size);
+        }
         Self::with_pool_size(connection_string, max_size).await
     }
 
