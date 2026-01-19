@@ -175,6 +175,9 @@ mod invalidation;
 mod key;
 mod result;
 
+// Phase 3+: Cascading invalidation with transitive dependencies
+pub mod cascade_invalidator;
+
 // Phase 7: Entity-level caching modules
 pub mod cascade_metadata;
 pub mod cascade_response_parser;
@@ -187,6 +190,7 @@ pub mod fact_table_version;
 
 // Public exports
 pub use adapter::CachedDatabaseAdapter;
+pub use cascade_invalidator::{CascadeInvalidator, InvalidationStats};
 pub use cascade_metadata::CascadeMetadata;
 pub use cascade_response_parser::CascadeResponseParser;
 pub use config::CacheConfig;
