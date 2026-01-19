@@ -145,7 +145,7 @@ fn bench_performance_monitoring(c: &mut Criterion) {
 
 /// Benchmark distributed tracing
 fn bench_distributed_tracing(c: &mut Criterion) {
-    c.bench_function("trace_context_creation", |b| b.iter(|| TraceContext::new()));
+    c.bench_function("trace_context_creation", |b| b.iter(TraceContext::new));
 
     c.bench_function("trace_context_child_span", |b| {
         let ctx = TraceContext::new();
@@ -168,7 +168,7 @@ fn bench_distributed_tracing(c: &mut Criterion) {
 
 /// Benchmark request context creation
 fn bench_request_context(c: &mut Criterion) {
-    c.bench_function("request_context_new", |b| b.iter(|| RequestContext::new()));
+    c.bench_function("request_context_new", |b| b.iter(RequestContext::new));
 
     c.bench_function("request_context_builder", |b| {
         b.iter(|| {

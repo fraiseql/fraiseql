@@ -488,7 +488,7 @@ mod tests {
 
         // No errors expected for matching metadata
         let errors: Vec<_> = issues.iter().filter(|i| i.severity == IssueSeverity::Error).collect();
-        assert!(errors.is_empty(), "Unexpected errors: {:?}", errors);
+        assert!(errors.is_empty(), "Unexpected errors: {errors:?}");
     }
 
     #[test]

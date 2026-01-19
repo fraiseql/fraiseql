@@ -808,19 +808,19 @@ impl FieldType {
     /// assert_eq!(FieldType::parse("User", &known_types), FieldType::Object("User".to_string()));
     /// ```
     #[must_use]
-    pub fn parse(type_str: &str, known_types: &std::collections::HashSet<String>) -> Self {
-        Self::parse_type_string(type_str.trim(), known_types)
+    pub fn parse(type_str: &str, _known_types: &std::collections::HashSet<String>) -> Self {
+        Self::parse_type_string(type_str.trim())
     }
 
     /// Internal parser for type strings.
-    fn parse_type_string(s: &str, known_types: &std::collections::HashSet<String>) -> Self {
+    fn parse_type_string(s: &str) -> Self {
         // Strip non-null marker (we handle nullability separately)
         let s = s.trim_end_matches('!');
 
         // Handle list types: [Type] or [Type!]
         if s.starts_with('[') && s.ends_with(']') {
             let inner = &s[1..s.len() - 1];
-            let inner_type = Self::parse_type_string(inner, known_types);
+            let inner_type = Self::parse_type_string(inner);
             return Self::List(Box::new(inner_type));
         }
 
