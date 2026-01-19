@@ -45,6 +45,7 @@ mod executor;
 mod matcher;
 mod planner;
 mod projection;
+pub mod query_tracing;
 pub mod subscription;
 pub mod window;
 mod window_parser;
@@ -57,6 +58,9 @@ pub use executor::Executor;
 pub use matcher::{QueryMatch, QueryMatcher};
 pub use planner::{ExecutionPlan, QueryPlanner};
 pub use projection::{FieldMapping, ProjectionMapper, ResultProjector};
+pub use query_tracing::{
+    create_phase_span, create_query_span, QueryExecutionTrace, QueryPhaseSpan, QueryTraceBuilder,
+};
 pub use subscription::{
     ActiveSubscription, DeliveryResult, KafkaAdapter, KafkaConfig, KafkaMessage, ListenerConfig,
     ListenerHandle, PostgresListener, SubscriptionError, SubscriptionEvent, SubscriptionId,
