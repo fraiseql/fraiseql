@@ -112,10 +112,10 @@ pub mod config;
 pub mod error;
 pub mod schema;
 
-// Compilation (Phase 4)
+// Compilation layer
 pub mod compiler;
 
-// Execution (Phase 5)
+// Execution layer
 pub mod runtime;
 
 // GraphQL parsing and query processing

@@ -53,19 +53,17 @@ def get_user(user_id: int) -> Optional[User]:  # ❌ Old style
 
 ## Development Workflow
 
-### Phase-Based Development
+### Implementation Status
 
-FraiseQL v2 follows an 11-phase implementation plan (see `.claude/IMPLEMENTATION_ROADMAP.md`).
-
-**Current Status**: ✅ Phase 1 Complete (Foundation modules copied)
+FraiseQL v2 is in active development with core engine, database abstraction, caching, and GraphQL execution already implemented. See `.claude/IMPLEMENTATION_ROADMAP.md` for detailed feature status.
 
 ### Workflow Pattern
 
 ```bash
-# 1. Create phase branch
-git checkout -b feature/phase-N-name
+# 1. Create feature branch
+git checkout -b feature/description
 
-# 2. Implement phase tasks
+# 2. Implement changes
 # Follow .claude/IMPLEMENTATION_ROADMAP.md
 
 # 3. Verify build
@@ -74,7 +72,7 @@ cargo clippy --all-targets --all-features
 cargo test
 
 # 4. Commit with descriptive message
-git commit -m "feat(scope): Phase N - description
+git commit -m "feat(scope): Clear description of work
 
 ## Changes
 - Change 1
@@ -87,7 +85,7 @@ git commit -m "feat(scope): Phase N - description
 "
 
 # 5. Push and create PR
-git push -u origin feature/phase-N-name
+git push -u origin feature/description
 ```
 
 ### Fast Development Cycle
@@ -109,21 +107,21 @@ cargo clippy --all-targets --all-features -- -D warnings
 
 ### 1. Authoring vs Runtime Separation
 
-**Authoring (Phase 8):**
+**Authoring Layer:**
 
 - Python/TypeScript decorators
 - Generate `schema.json`
 - NO runtime Rust calls
 - Pure JSON output
 
-**Compilation (Phase 4 + Phase 9):**
+**Compilation Layer:**
 
 - `fraiseql-cli compile schema.json`
 - Validate schema structure
 - Generate optimized SQL templates
 - Output `schema.compiled.json`
 
-**Runtime (Phase 5 + Phase 6):**
+**Runtime Layer:**
 
 - Load `schema.compiled.json`
 - Execute GraphQL queries
@@ -214,7 +212,7 @@ async fn test_query_execution() {
 }
 ```
 
-**Benchmarks**: Criterion benchmarks (will be added in Phase 10)
+**Benchmarks**: Criterion benchmarks for performance analysis
 
 ---
 
@@ -224,11 +222,12 @@ async fn test_query_execution() {
 fraiseql/
 ├── .claude/
 │   ├── CLAUDE.md                    # This file
-│   └── IMPLEMENTATION_ROADMAP.md    # 11-phase plan
+│   └── IMPLEMENTATION_ROADMAP.md    # Feature implementation status
 ├── crates/
-│   ├── fraiseql-core/              # ✅ Phase 1-5 (engine core)
-│   ├── fraiseql-server/            # ⏳ Phase 6 (HTTP server)
-│   └── fraiseql-cli/               # ⏳ Phase 9 (compiler CLI)
+│   ├── fraiseql-core/              # Core execution engine
+│   ├── fraiseql-server/            # HTTP server
+│   ├── fraiseql-cli/               # Compiler CLI
+│   └── fraiseql-wire/              # Wire protocol
 ├── docs/                            # Architecture docs
 ├── tools/                           # Dev tooling
 └── Cargo.toml                       # Workspace config
@@ -367,16 +366,12 @@ RUST_LOG=debug cargo test
 
 ## Next Steps
 
-**Current Phase**: Phase 1 ✅ Complete
+See `.claude/IMPLEMENTATION_ROADMAP.md` for detailed feature implementation status and priority order. Current focus areas:
 
-**Next Phase**: Phase 2 - Database & Cache (6 days)
-
-- Adapt `db/` module with database-agnostic traits
-- Adapt `cache/` module for query result caching
-- Add PostgreSQL/MySQL connection pooling
-- Write integration tests
-
-See `.claude/IMPLEMENTATION_ROADMAP.md` for full Phase 2 details.
+- Performance optimization and benchmarking
+- Additional database backend support
+- Enhanced schema validation
+- Improved error handling and observability
 
 ---
 
