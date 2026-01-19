@@ -1375,31 +1375,51 @@ mod tests {
         }
     }
 
+    // =============================================================================
+    // Test Helpers
+    // =============================================================================
+
+    /// Helper to serialize test objects without panicking
+    fn serialize_json<T: serde::Serialize>(value: &T) -> String {
+        serde_json::to_string(value)
+            .expect("serialization should succeed for test objects")
+    }
+
+    /// Helper to deserialize test JSON without panicking
+    fn deserialize_json<'a, T: serde::Deserialize<'a>>(json: &'a str) -> T {
+        serde_json::from_str(json)
+            .expect("deserialization should succeed for valid test JSON")
+    }
+
+    // =============================================================================
+    // Tests
+    // =============================================================================
+
     #[test]
     fn test_window_function_type_serialization() {
         let func = WindowFunctionType::RowNumber;
-        let json = serde_json::to_string(&func).unwrap();
+        let json = serialize_json(&func);
         assert_eq!(json, r#"{"type":"row_number"}"#);
     }
 
     #[test]
     fn test_frame_type_serialization() {
         let frame_type = FrameType::Rows;
-        let json = serde_json::to_string(&frame_type).unwrap();
+        let json = serialize_json(&frame_type);
         assert_eq!(json, r#""ROWS""#);
     }
 
     #[test]
     fn test_frame_boundary_unbounded() {
         let boundary = FrameBoundary::UnboundedPreceding;
-        let json = serde_json::to_string(&boundary).unwrap();
+        let json = serialize_json(&boundary);
         assert!(json.contains("unbounded_preceding"));
     }
 
     #[test]
     fn test_frame_boundary_n_preceding() {
         let boundary = FrameBoundary::NPreceding { n: 5 };
-        let json = serde_json::to_string(&boundary).unwrap();
+        let json = serialize_json(&boundary);
         assert!(json.contains("n_preceding"));
         assert!(json.contains("\"n\":5"));
     }
@@ -1418,7 +1438,7 @@ mod tests {
             }]
         });
 
-        let plan = WindowFunctionPlanner::plan(&query, &metadata).unwrap();
+        let plan = WindowFunctionPlanner::plan(&query, &metadata).expect("window plan should succeed");
 
         assert_eq!(plan.table, "tf_sales");
         assert_eq!(plan.windows.len(), 1);
@@ -1444,7 +1464,7 @@ mod tests {
             }]
         });
 
-        let plan = WindowFunctionPlanner::plan(&query, &metadata).unwrap();
+        let plan = WindowFunctionPlanner::plan(&query, &metadata).expect("window plan should succeed");
 
         match &plan.windows[0].function {
             WindowFunctionType::Lag {
@@ -1532,7 +1552,7 @@ mod tests {
             offset:       None,
         };
 
-        let plan = WindowPlanner::plan(request, metadata).unwrap();
+        let plan = WindowPlanner::plan(request, metadata).expect("window plan should succeed");
 
         assert_eq!(plan.table, "tf_sales");
         assert_eq!(plan.select.len(), 2);
@@ -1584,7 +1604,7 @@ mod tests {
             offset:       None,
         };
 
-        let plan = WindowPlanner::plan(request, metadata).unwrap();
+        let plan = WindowPlanner::plan(request, metadata).expect("window plan should succeed");
 
         assert_eq!(plan.windows.len(), 1);
         match &plan.windows[0].function {
@@ -1613,7 +1633,7 @@ mod tests {
             offset:       None,
         };
 
-        let plan = WindowPlanner::plan(request, metadata).unwrap();
+        let plan = WindowPlanner::plan(request, metadata).expect("window plan should succeed");
 
         assert_eq!(plan.select.len(), 1);
         assert_eq!(plan.select[0].expression, "occurred_at");
@@ -1688,7 +1708,7 @@ mod tests {
             offset:       None,
         };
 
-        let plan = WindowPlanner::plan(request, metadata).unwrap();
+        let plan = WindowPlanner::plan(request, metadata).expect("window plan should succeed");
 
         match &plan.windows[0].function {
             WindowFunctionType::Lag {
@@ -1730,7 +1750,7 @@ mod tests {
             offset:       None,
         };
 
-        let plan = WindowPlanner::plan(request, metadata).unwrap();
+        let plan = WindowPlanner::plan(request, metadata).expect("window plan should succeed");
 
         match &plan.windows[0].function {
             WindowFunctionType::Lag { field, .. } => {
@@ -1762,7 +1782,7 @@ mod tests {
             offset:       None,
         };
 
-        let plan = WindowPlanner::plan(request, metadata).unwrap();
+        let plan = WindowPlanner::plan(request, metadata).expect("window plan should succeed");
 
         assert_eq!(plan.windows[0].partition_by, vec!["customer_id"]);
     }
@@ -1789,7 +1809,7 @@ mod tests {
             offset:       None,
         };
 
-        let plan = WindowPlanner::plan(request, metadata).unwrap();
+        let plan = WindowPlanner::plan(request, metadata).expect("window plan should succeed");
 
         assert_eq!(plan.order_by.len(), 2);
         assert_eq!(plan.order_by[0].field, "revenue");
@@ -1820,13 +1840,13 @@ mod tests {
         };
 
         // Should serialize without panic
-        let json = serde_json::to_string(&request).unwrap();
+        let json = serialize_json(&request);
         assert!(json.contains("tf_sales"));
         assert!(json.contains("revenue"));
         assert!(json.contains("row_number"));
 
         // Should deserialize back
-        let deserialized: WindowRequest = serde_json::from_str(&json).unwrap();
+        let deserialized: WindowRequest = deserialize_json(&json);
         assert_eq!(deserialized.table_name, "tf_sales");
         assert_eq!(deserialized.limit, Some(10));
     }
@@ -1836,12 +1856,12 @@ mod tests {
         let spec = WindowFunctionSpec::RunningSum {
             measure: "revenue".to_string(),
         };
-        let json = serde_json::to_string(&spec).unwrap();
+        let json = serialize_json(&spec);
         assert!(json.contains("running_sum"));
         assert!(json.contains("revenue"));
 
         let spec2 = WindowFunctionSpec::Ntile { n: 4 };
-        let json2 = serde_json::to_string(&spec2).unwrap();
+        let json2 = serialize_json(&spec2);
         assert!(json2.contains("ntile"));
         assert!(json2.contains("4"));
     }

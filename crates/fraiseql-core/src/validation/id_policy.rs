@@ -223,6 +223,143 @@ pub fn validate_ids(ids: &[&str], policy: IDPolicy) -> Result<(), IDValidationEr
     Ok(())
 }
 
+// =============================================================================
+// Pluggable ID Validator Trait System
+// =============================================================================
+
+/// Trait for pluggable ID validation strategies
+///
+/// This trait enables users to implement custom ID validation logic
+/// beyond the built-in UUID and OPAQUE policies.
+///
+/// # Examples
+///
+/// ```ignore
+/// use fraiseql_core::validation::IdValidator;
+///
+/// struct CustomIdValidator;
+///
+/// impl IdValidator for CustomIdValidator {
+///     fn validate(&self, value: &str) -> Result<(), IDValidationError> {
+///         if value.starts_with("CUSTOM-") {
+///             Ok(())
+///         } else {
+///             Err(IDValidationError {
+///                 value: value.to_string(),
+///                 policy: IDPolicy::OPAQUE,
+///                 message: "Custom IDs must start with 'CUSTOM-'".to_string(),
+///             })
+///         }
+///     }
+///
+///     fn format_name(&self) -> &'static str {
+///         "CUSTOM"
+///     }
+/// }
+/// ```
+pub trait IdValidator: Send + Sync {
+    /// Validate an ID value
+    fn validate(&self, value: &str) -> Result<(), IDValidationError>;
+
+    /// Human-readable name of the format (for error messages)
+    fn format_name(&self) -> &'static str;
+}
+
+/// UUID format validator
+#[derive(Debug, Clone, Copy)]
+pub struct UuidIdValidator;
+
+impl IdValidator for UuidIdValidator {
+    fn validate(&self, value: &str) -> Result<(), IDValidationError> {
+        validate_uuid_format(value)
+    }
+
+    fn format_name(&self) -> &'static str {
+        "UUID"
+    }
+}
+
+/// Numeric ID validator (integers)
+#[derive(Debug, Clone, Copy)]
+pub struct NumericIdValidator;
+
+impl IdValidator for NumericIdValidator {
+    fn validate(&self, value: &str) -> Result<(), IDValidationError> {
+        value.parse::<i64>().map_err(|_| IDValidationError {
+            value: value.to_string(),
+            policy: IDPolicy::OPAQUE,
+            message: format!(
+                "ID must be a valid {} (parseable as 64-bit integer)",
+                self.format_name()
+            ),
+        })?;
+        Ok(())
+    }
+
+    fn format_name(&self) -> &'static str {
+        "integer"
+    }
+}
+
+/// ULID format validator (Universally Unique Lexicographically Sortable Identifier)
+///
+/// ULIDs are 26 uppercase alphanumeric characters, providing sortable unique IDs.
+/// Example: `01ARZ3NDEKTSV4RRFFQ69G5FAV`
+#[derive(Debug, Clone, Copy)]
+pub struct UlidIdValidator;
+
+impl IdValidator for UlidIdValidator {
+    fn validate(&self, value: &str) -> Result<(), IDValidationError> {
+        if value.len() != 26 {
+            return Err(IDValidationError {
+                value: value.to_string(),
+                policy: IDPolicy::OPAQUE,
+                message: format!(
+                    "ID must be a valid {} ({} characters), got {}",
+                    self.format_name(),
+                    26,
+                    value.len()
+                ),
+            });
+        }
+
+        // ULIDs use Crockford base32 encoding (0-9, A-Z except I, L, O, U)
+        if !value.chars().all(|c| {
+            c.is_ascii_digit()
+                || (c.is_ascii_uppercase() && c != 'I' && c != 'L' && c != 'O' && c != 'U')
+        }) {
+            return Err(IDValidationError {
+                value: value.to_string(),
+                policy: IDPolicy::OPAQUE,
+                message: format!(
+                    "ID must be a valid {} (Crockford base32: 0-9, A-Z except I, L, O, U)",
+                    self.format_name()
+                ),
+            });
+        }
+
+        Ok(())
+    }
+
+    fn format_name(&self) -> &'static str {
+        "ULID"
+    }
+}
+
+/// Opaque ID validator (accepts any string)
+#[derive(Debug, Clone, Copy)]
+pub struct OpaqueIdValidator;
+
+impl IdValidator for OpaqueIdValidator {
+    fn validate(&self, _value: &str) -> Result<(), IDValidationError> {
+        Ok(()) // Accept any string
+    }
+
+    fn format_name(&self) -> &'static str {
+        "opaque"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -422,5 +559,265 @@ mod tests {
         assert_eq!(err.policy, IDPolicy::UUID);
         assert_eq!(err.value, "invalid");
         assert!(!err.message.is_empty());
+    }
+
+    // ==================== UUID Validator Tests ====================
+
+    #[test]
+    fn test_uuid_validator_valid() {
+        let validator = UuidIdValidator;
+        let result = validator.validate("550e8400-e29b-41d4-a716-446655440000");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_uuid_validator_invalid() {
+        let validator = UuidIdValidator;
+        let result = validator.validate("not-a-uuid");
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert_eq!(err.value, "not-a-uuid");
+    }
+
+    #[test]
+    fn test_uuid_validator_format_name() {
+        let validator = UuidIdValidator;
+        assert_eq!(validator.format_name(), "UUID");
+    }
+
+    #[test]
+    fn test_uuid_validator_nil_uuid() {
+        let validator = UuidIdValidator;
+        assert!(validator.validate("00000000-0000-0000-0000-000000000000").is_ok());
+    }
+
+    #[test]
+    fn test_uuid_validator_uppercase() {
+        let validator = UuidIdValidator;
+        assert!(validator.validate("550E8400-E29B-41D4-A716-446655440000").is_ok());
+    }
+
+    // ==================== Numeric Validator Tests ====================
+
+    #[test]
+    fn test_numeric_validator_valid_positive() {
+        let validator = NumericIdValidator;
+        assert!(validator.validate("12345").is_ok());
+        assert!(validator.validate("0").is_ok());
+        assert!(validator.validate("9223372036854775807").is_ok()); // i64::MAX
+    }
+
+    #[test]
+    fn test_numeric_validator_valid_negative() {
+        let validator = NumericIdValidator;
+        assert!(validator.validate("-1").is_ok());
+        assert!(validator.validate("-12345").is_ok());
+        assert!(validator.validate("-9223372036854775808").is_ok()); // i64::MIN
+    }
+
+    #[test]
+    fn test_numeric_validator_invalid_float() {
+        let validator = NumericIdValidator;
+        let result = validator.validate("123.45");
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert_eq!(err.value, "123.45");
+    }
+
+    #[test]
+    fn test_numeric_validator_invalid_non_numeric() {
+        let validator = NumericIdValidator;
+        let result = validator.validate("abc123");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_numeric_validator_overflow() {
+        let validator = NumericIdValidator;
+        // Too large for i64
+        let result = validator.validate("9223372036854775808");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_numeric_validator_empty_string() {
+        let validator = NumericIdValidator;
+        let result = validator.validate("");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_numeric_validator_format_name() {
+        let validator = NumericIdValidator;
+        assert_eq!(validator.format_name(), "integer");
+    }
+
+    // ==================== ULID Validator Tests ====================
+
+    #[test]
+    fn test_ulid_validator_valid() {
+        let validator = UlidIdValidator;
+        // Valid ULID: 01ARZ3NDEKTSV4RRFFQ69G5FAV
+        assert!(validator.validate("01ARZ3NDEKTSV4RRFFQ69G5FAV").is_ok());
+    }
+
+    #[test]
+    fn test_ulid_validator_valid_all_digits() {
+        let validator = UlidIdValidator;
+        // Valid ULID with all digits: 01234567890123456789012345
+        assert!(validator.validate("01234567890123456789012345").is_ok());
+    }
+
+    #[test]
+    fn test_ulid_validator_valid_all_uppercase() {
+        let validator = UlidIdValidator;
+        // Valid ULID with all uppercase (no I, L, O, U)
+        assert!(validator.validate("ABCDEFGHJKMNPQRSTVWXYZ0123").is_ok());
+    }
+
+    #[test]
+    fn test_ulid_validator_invalid_length_short() {
+        let validator = UlidIdValidator;
+        let result = validator.validate("01ARZ3NDEKTSV4RRFFQ69G5F");
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.message.contains("26 characters"));
+    }
+
+    #[test]
+    fn test_ulid_validator_invalid_length_long() {
+        let validator = UlidIdValidator;
+        let result = validator.validate("01ARZ3NDEKTSV4RRFFQ69G5FAVA");
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.message.contains("26 characters"));
+    }
+
+    #[test]
+    fn test_ulid_validator_invalid_lowercase() {
+        let validator = UlidIdValidator;
+        let result = validator.validate("01arz3ndektsv4rrffq69g5fav");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_ulid_validator_invalid_char_i() {
+        let validator = UlidIdValidator;
+        let result = validator.validate("01ARZ3NDEKTSV4RRFFQ69G5FAI");
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.message.contains("Crockford base32"));
+    }
+
+    #[test]
+    fn test_ulid_validator_invalid_char_l() {
+        let validator = UlidIdValidator;
+        let result = validator.validate("01ARZ3NDEKTSV4RRFFQ69G5FAL");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_ulid_validator_invalid_char_o() {
+        let validator = UlidIdValidator;
+        let result = validator.validate("01ARZ3NDEKTSV4RRFFQ69G5FAO");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_ulid_validator_invalid_char_u() {
+        let validator = UlidIdValidator;
+        let result = validator.validate("01ARZ3NDEKTSV4RRFFQ69G5FAU");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_ulid_validator_invalid_special_chars() {
+        let validator = UlidIdValidator;
+        let result = validator.validate("01ARZ3NDEKTSV4RRFFQ69G5FA-");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_ulid_validator_empty_string() {
+        let validator = UlidIdValidator;
+        let result = validator.validate("");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_ulid_validator_format_name() {
+        let validator = UlidIdValidator;
+        assert_eq!(validator.format_name(), "ULID");
+    }
+
+    // ==================== Opaque Validator Tests ====================
+
+    #[test]
+    fn test_opaque_validator_any_string() {
+        let validator = OpaqueIdValidator;
+        assert!(validator.validate("anything").is_ok());
+        assert!(validator.validate("12345").is_ok());
+        assert!(validator.validate("special@chars!#$%").is_ok());
+        assert!(validator.validate("").is_ok());
+    }
+
+    #[test]
+    fn test_opaque_validator_malicious_strings() {
+        let validator = OpaqueIdValidator;
+        // Opaque validator accepts anything - security is delegated to application layer
+        assert!(validator.validate("'; DROP TABLE users; --").is_ok());
+        assert!(validator.validate("../../etc/passwd").is_ok());
+        assert!(validator.validate("<script>alert('xss')</script>").is_ok());
+    }
+
+    #[test]
+    fn test_opaque_validator_uuid() {
+        let validator = OpaqueIdValidator;
+        assert!(validator.validate("550e8400-e29b-41d4-a716-446655440000").is_ok());
+    }
+
+    #[test]
+    fn test_opaque_validator_format_name() {
+        let validator = OpaqueIdValidator;
+        assert_eq!(validator.format_name(), "opaque");
+    }
+
+    // ==================== Cross-Validator Tests ====================
+
+    #[test]
+    fn test_validators_trait_object() {
+        let validators: Vec<Box<dyn IdValidator>> = vec![
+            Box::new(UuidIdValidator),
+            Box::new(NumericIdValidator),
+            Box::new(UlidIdValidator),
+            Box::new(OpaqueIdValidator),
+        ];
+
+        for validator in validators {
+            // All validators should have format names
+            let name = validator.format_name();
+            assert!(!name.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_validator_selection_by_id_format() {
+        // Demonstrate using correct validator for different ID formats
+        let uuid = "550e8400-e29b-41d4-a716-446655440000";
+        let numeric = "12345";
+        let ulid = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
+
+        let uuid_validator = UuidIdValidator;
+        let numeric_validator = NumericIdValidator;
+        let ulid_validator = UlidIdValidator;
+
+        assert!(uuid_validator.validate(uuid).is_ok());
+        assert!(numeric_validator.validate(numeric).is_ok());
+        assert!(ulid_validator.validate(ulid).is_ok());
+
+        // Wrong validators should fail
+        assert!(uuid_validator.validate(numeric).is_err());
+        assert!(numeric_validator.validate(uuid).is_err());
+        assert!(ulid_validator.validate(numeric).is_err());
     }
 }
