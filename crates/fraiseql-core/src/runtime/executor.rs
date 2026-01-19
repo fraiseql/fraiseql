@@ -54,23 +54,59 @@ enum QueryType {
 ///
 /// This is the main entry point for runtime query execution.
 /// It coordinates matching, planning, execution, and projection.
+///
+/// # Type Parameters
+///
+/// * `A` - The database adapter type (implements `DatabaseAdapter` trait)
+///
+/// # Ownership and Lifetimes
+///
+/// The executor holds owned references to schema and runtime data, with no borrowed pointers:
+/// - `schema`: Owned `CompiledSchema` (immutable after construction)
+/// - `adapter`: Shared via `Arc<A>` to allow multiple executors/tasks to use the same connection pool
+/// - `introspection`: Owned cached GraphQL schema responses
+/// - `config`: Owned runtime configuration
+///
+/// **No explicit lifetimes required** - all data is either owned or wrapped in `Arc`,
+/// so the executor can be stored in long-lived structures without lifetime annotations or borrow-checker issues.
+///
+/// # Concurrency
+///
+/// `Executor<A>` is `Send + Sync` when `A` is `Send + Sync`. It can be safely shared across
+/// threads and tasks without cloning:
+/// ```ignore
+/// let executor = Arc::new(Executor::new(schema, adapter, config));
+/// // Can be cloned into multiple tasks
+/// let exec_clone = executor.clone();
+/// tokio::spawn(async move {
+///     let result = exec_clone.execute(query, vars).await;
+/// });
+/// ```
+///
+/// # Query Timeout
+///
+/// Queries are protected by the `query_timeout_ms` configuration in `RuntimeConfig` (default: 30s).
+/// When a query exceeds this timeout, it returns `FraiseQLError::Timeout` without panicking.
+/// Set `query_timeout_ms` to 0 to disable timeout enforcement.
 pub struct Executor<A: DatabaseAdapter> {
-    /// Compiled schema.
+    /// Compiled schema with optimized SQL templates
     schema: CompiledSchema,
 
-    /// Database adapter.
+    /// Shared database adapter for query execution
+    /// Wrapped in Arc to allow multiple executors to use the same connection pool
     adapter: Arc<A>,
 
-    /// Query matcher.
+    /// Query matching engine (stateless)
     matcher: QueryMatcher,
 
-    /// Query planner.
+    /// Query execution planner (stateless)
     planner: QueryPlanner,
 
-    /// Runtime configuration.
+    /// Runtime configuration (timeouts, complexity limits, etc.)
     config: RuntimeConfig,
 
-    /// Pre-built introspection responses (for `__schema` and `__type` queries).
+    /// Pre-built introspection responses cached for `__schema` and `__type` queries
+    /// Avoids recomputing schema introspection on every request
     introspection: IntrospectionResponses,
 }
 
