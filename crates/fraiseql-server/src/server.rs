@@ -4,7 +4,8 @@ use std::sync::Arc;
 
 use axum::{Router, middleware, routing::get};
 use fraiseql_core::{
-    db::traits::DatabaseAdapter, runtime::Executor, schema::CompiledSchema, security::OidcValidator,
+    db::traits::DatabaseAdapter, runtime::{Executor, SubscriptionManager}, schema::CompiledSchema,
+    security::OidcValidator,
 };
 use tokio::net::TcpListener;
 use tracing::{info, warn};
@@ -17,16 +18,18 @@ use crate::{
         oidc_auth_middleware, trace_layer,
     },
     routes::{
-        PlaygroundState, graphql::AppState, graphql_get_handler, graphql_handler, health_handler,
-        introspection_handler, metrics_handler, metrics_json_handler, playground_handler,
+        PlaygroundState, SubscriptionState, graphql::AppState, graphql_get_handler, graphql_handler,
+        health_handler, introspection_handler, metrics_handler, metrics_json_handler, playground_handler,
+        subscription_handler,
     },
 };
 
 /// FraiseQL HTTP Server.
 pub struct Server<A: DatabaseAdapter> {
-    config:         ServerConfig,
-    executor:       Arc<Executor<A>>,
-    oidc_validator: Option<Arc<OidcValidator>>,
+    config:                ServerConfig,
+    executor:              Arc<Executor<A>>,
+    subscription_manager:  Arc<SubscriptionManager>,
+    oidc_validator:        Option<Arc<OidcValidator>>,
 }
 
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
@@ -58,7 +61,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         schema: CompiledSchema,
         adapter: Arc<A>,
     ) -> Result<Self> {
-        let executor = Arc::new(Executor::new(schema, adapter));
+        let executor = Arc::new(Executor::new(schema.clone(), adapter));
+        let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
 
         // Initialize OIDC validator if auth is configured
         let oidc_validator = if let Some(ref auth_config) = config.auth {
@@ -77,6 +81,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         Ok(Self {
             config,
             executor,
+            subscription_manager,
             oidc_validator,
         })
     }
@@ -130,6 +135,19 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 .route(&self.config.playground_path, get(playground_handler))
                 .with_state(playground_state);
             app = app.merge(playground_router);
+        }
+
+        // Conditionally add subscription route (WebSocket)
+        if self.config.subscriptions_enabled {
+            let subscription_state = SubscriptionState::new(self.subscription_manager.clone());
+            info!(
+                subscription_path = %self.config.subscription_path,
+                "GraphQL subscriptions enabled (graphql-ws protocol)"
+            );
+            let subscription_router = Router::new()
+                .route(&self.config.subscription_path, get(subscription_handler))
+                .with_state(subscription_state);
+            app = app.merge(subscription_router);
         }
 
         // Conditionally add metrics routes (protected by bearer token)

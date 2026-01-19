@@ -99,6 +99,17 @@ pub struct ServerConfig {
     #[serde(default)]
     pub playground_tool: PlaygroundTool,
 
+    /// WebSocket endpoint path for GraphQL subscriptions.
+    #[serde(default = "default_subscription_path")]
+    pub subscription_path: String,
+
+    /// Enable GraphQL subscriptions over WebSocket.
+    ///
+    /// When enabled, provides graphql-ws (graphql-transport-ws) protocol
+    /// support for real-time subscription events.
+    #[serde(default = "default_true")]
+    pub subscriptions_enabled: bool,
+
     /// Enable metrics endpoints.
     ///
     /// **Security**: Disabled by default for production safety.
@@ -164,6 +175,8 @@ impl Default for ServerConfig {
             playground_path:     default_playground_path(),
             playground_enabled:  true,
             playground_tool:     PlaygroundTool::default(),
+            subscription_path:   default_subscription_path(),
+            subscriptions_enabled: true,
             metrics_enabled:     false, // Disabled by default for security
             metrics_token:       None,
             pool_min_size:       default_pool_min_size(),
@@ -253,6 +266,10 @@ fn default_metrics_json_path() -> String {
 
 fn default_playground_path() -> String {
     "/playground".to_string()
+}
+
+fn default_subscription_path() -> String {
+    "/ws".to_string()
 }
 
 fn default_pool_min_size() -> usize {
@@ -359,5 +376,54 @@ mod tests {
             ..ServerConfig::default()
         };
         assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_default_subscription_config() {
+        let config = ServerConfig::default();
+        assert_eq!(config.subscription_path, "/ws");
+        assert!(config.subscriptions_enabled);
+    }
+
+    #[test]
+    fn test_subscription_config_with_custom_path() {
+        let config = ServerConfig {
+            subscription_path: "/subscriptions".to_string(),
+            ..ServerConfig::default()
+        };
+        assert_eq!(config.subscription_path, "/subscriptions");
+        assert!(config.subscriptions_enabled);
+    }
+
+    #[test]
+    fn test_subscriptions_can_be_disabled() {
+        let config = ServerConfig {
+            subscriptions_enabled: false,
+            ..ServerConfig::default()
+        };
+        assert!(!config.subscriptions_enabled);
+        assert_eq!(config.subscription_path, "/ws");
+    }
+
+    #[test]
+    fn test_subscription_path_serialization() {
+        let config = ServerConfig::default();
+        let json = serde_json::to_string(&config).expect("serialize should work");
+        let restored: ServerConfig = serde_json::from_str(&json).expect("deserialize should work");
+
+        assert_eq!(restored.subscription_path, config.subscription_path);
+        assert_eq!(restored.subscriptions_enabled, config.subscriptions_enabled);
+    }
+
+    #[test]
+    fn test_subscription_config_with_partial_toml() {
+        let toml_str = r#"
+            subscription_path = "/graphql-ws"
+            subscriptions_enabled = false
+        "#;
+
+        let decoded: ServerConfig = toml::from_str(toml_str).expect("decode should work");
+        assert_eq!(decoded.subscription_path, "/graphql-ws");
+        assert!(!decoded.subscriptions_enabled);
     }
 }
