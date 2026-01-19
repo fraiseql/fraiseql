@@ -46,6 +46,7 @@ mod matcher;
 mod planner;
 mod projection;
 pub mod query_tracing;
+pub mod sql_logger;
 pub mod subscription;
 pub mod window;
 mod window_parser;
@@ -60,6 +61,9 @@ pub use planner::{ExecutionPlan, QueryPlanner};
 pub use projection::{FieldMapping, ProjectionMapper, ResultProjector};
 pub use query_tracing::{
     create_phase_span, create_query_span, QueryExecutionTrace, QueryPhaseSpan, QueryTraceBuilder,
+};
+pub use sql_logger::{
+    create_sql_span, SqlOperation, SqlQueryLog, SqlQueryLogBuilder,
 };
 pub use subscription::{
     ActiveSubscription, DeliveryResult, KafkaAdapter, KafkaConfig, KafkaMessage, ListenerConfig,
