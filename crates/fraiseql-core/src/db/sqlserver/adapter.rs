@@ -264,26 +264,32 @@ impl DatabaseAdapter for SqlServerAdapter {
             sql.push_str(&where_sql);
 
             // Handle pagination with OFFSET...FETCH (requires ORDER BY)
+            let mut params = where_params;
             if let Some(off) = offset {
                 sql.push_str(" ORDER BY (SELECT NULL)"); // Arbitrary ordering for pagination
-                sql.push_str(&format!(" OFFSET {off} ROWS"));
+                sql.push_str(" OFFSET ? ROWS");
+                params.push(serde_json::Value::Number(off.into()));
                 if let Some(lim) = limit {
-                    sql.push_str(&format!(" FETCH NEXT {lim} ROWS ONLY"));
+                    sql.push_str(" FETCH NEXT ? ROWS ONLY");
+                    params.push(serde_json::Value::Number(lim.into()));
                 }
             }
 
-            self.execute_raw(&sql, where_params).await
+            self.execute_raw(&sql, params).await
         } else {
             // No WHERE clause
+            let mut params: Vec<serde_json::Value> = vec![];
             if let Some(off) = offset {
                 sql.push_str(" ORDER BY (SELECT NULL)");
-                sql.push_str(&format!(" OFFSET {off} ROWS"));
+                sql.push_str(" OFFSET ? ROWS");
+                params.push(serde_json::Value::Number(off.into()));
                 if let Some(lim) = limit {
-                    sql.push_str(&format!(" FETCH NEXT {lim} ROWS ONLY"));
+                    sql.push_str(" FETCH NEXT ? ROWS ONLY");
+                    params.push(serde_json::Value::Number(lim.into()));
                 }
             }
 
-            self.execute_raw(&sql, vec![]).await
+            self.execute_raw(&sql, params).await
         }
     }
 
@@ -403,5 +409,21 @@ mod tests {
             .expect("Failed to create SQL Server adapter");
 
         adapter.health_check().await.expect("Health check failed");
+    }
+
+    #[tokio::test]
+    async fn test_parameterized_limit_and_offset() {
+        let adapter = SqlServerAdapter::new(TEST_DB_URL)
+            .await
+            .expect("Failed to create SQL Server adapter");
+
+        // SQL Server requires ORDER BY for OFFSET...FETCH
+        // This test just ensures parameterization works
+        let results = adapter
+            .execute_where_query("v_user", None, Some(2), Some(1))
+            .await
+            .expect("Failed to execute query");
+
+        assert!(results.len() <= 2);
     }
 }

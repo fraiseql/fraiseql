@@ -192,28 +192,35 @@ impl DatabaseAdapter for MySqlAdapter {
             sql.push_str(" WHERE ");
             sql.push_str(&where_sql);
 
-            // Add LIMIT
+            // Add parameterized LIMIT and OFFSET
+            let mut params = where_params;
+
             if let Some(lim) = limit {
-                sql.push_str(&format!(" LIMIT {lim}"));
+                sql.push_str(" LIMIT ?");
+                params.push(serde_json::Value::Number(lim.into()));
             }
 
-            // Add OFFSET
             if let Some(off) = offset {
-                sql.push_str(&format!(" OFFSET {off}"));
+                sql.push_str(" OFFSET ?");
+                params.push(serde_json::Value::Number(off.into()));
             }
 
-            self.execute_raw(&sql, where_params).await
+            self.execute_raw(&sql, params).await
         } else {
             // No WHERE clause - execute simple query
+            let mut params: Vec<serde_json::Value> = vec![];
+
             if let Some(lim) = limit {
-                sql.push_str(&format!(" LIMIT {lim}"));
+                sql.push_str(" LIMIT ?");
+                params.push(serde_json::Value::Number(lim.into()));
             }
 
             if let Some(off) = offset {
-                sql.push_str(&format!(" OFFSET {off}"));
+                sql.push_str(" OFFSET ?");
+                params.push(serde_json::Value::Number(off.into()));
             }
 
-            self.execute_raw(&sql, vec![]).await
+            self.execute_raw(&sql, params).await
         }
     }
 
@@ -323,5 +330,44 @@ mod tests {
         let adapter = MySqlAdapter::new(TEST_DB_URL).await.expect("Failed to create MySQL adapter");
 
         adapter.health_check().await.expect("Health check failed");
+    }
+
+    #[tokio::test]
+    async fn test_parameterized_limit_only() {
+        let adapter =
+            MySqlAdapter::new(TEST_DB_URL).await.expect("Failed to create MySQL adapter");
+
+        let results = adapter
+            .execute_where_query("v_user", None, Some(2), None)
+            .await
+            .expect("Failed to execute query");
+
+        assert!(results.len() <= 2);
+    }
+
+    #[tokio::test]
+    async fn test_parameterized_offset_only() {
+        let adapter =
+            MySqlAdapter::new(TEST_DB_URL).await.expect("Failed to create MySQL adapter");
+
+        let results = adapter
+            .execute_where_query("v_user", None, None, Some(1))
+            .await
+            .expect("Failed to execute query");
+
+        assert!(!results.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_parameterized_limit_and_offset() {
+        let adapter =
+            MySqlAdapter::new(TEST_DB_URL).await.expect("Failed to create MySQL adapter");
+
+        let results = adapter
+            .execute_where_query("v_user", None, Some(2), Some(1))
+            .await
+            .expect("Failed to execute query");
+
+        assert!(results.len() <= 2);
     }
 }

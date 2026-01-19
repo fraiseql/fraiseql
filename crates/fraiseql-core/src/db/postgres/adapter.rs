@@ -234,14 +234,19 @@ impl PostgresAdapter {
             sql.push_str(" WHERE ");
             sql.push_str(&where_sql);
 
-            // Add LIMIT
+            // Add parameterized LIMIT
+            let mut params = where_params;
+            let mut param_count = params.len();
+
             if let Some(lim) = limit {
-                sql.push_str(&format!(" LIMIT {lim}"));
+                param_count += 1;
+                sql.push_str(&format!(" LIMIT ${param_count}"));
+                params.push(serde_json::Value::Number(lim.into()));
             }
 
             // Convert JSON values to QueryParam (preserves types)
             let typed_params: Vec<QueryParam> =
-                where_params.into_iter().map(QueryParam::from).collect();
+                params.into_iter().map(QueryParam::from).collect();
 
             eprintln!("DEBUG: SQL with projection = {}", sql);
             eprintln!("DEBUG: typed_params = {:?}", typed_params);
@@ -255,11 +260,26 @@ impl PostgresAdapter {
             self.execute_raw(&sql, &param_refs).await
         } else {
             // No WHERE clause
+            let mut params: Vec<serde_json::Value> = vec![];
+            let mut param_count = 0;
+
             if let Some(lim) = limit {
-                sql.push_str(&format!(" LIMIT {lim}"));
+                param_count += 1;
+                sql.push_str(&format!(" LIMIT ${param_count}"));
+                params.push(serde_json::Value::Number(lim.into()));
             }
 
-            self.execute_raw(&sql, &[]).await
+            // Convert JSON values to QueryParam (preserves types)
+            let typed_params: Vec<QueryParam> =
+                params.into_iter().map(QueryParam::from).collect();
+
+            // Create references to QueryParam for ToSql
+            let param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = typed_params
+                .iter()
+                .map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync))
+                .collect();
+
+            self.execute_raw(&sql, &param_refs).await
         }
     }
 }
@@ -283,19 +303,25 @@ impl DatabaseAdapter for PostgresAdapter {
             sql.push_str(" WHERE ");
             sql.push_str(&where_sql);
 
-            // Add LIMIT
+            // Add parameterized LIMIT and OFFSET
+            let mut params = where_params;
+            let mut param_count = params.len();
+
             if let Some(lim) = limit {
-                sql.push_str(&format!(" LIMIT {lim}"));
+                param_count += 1;
+                sql.push_str(&format!(" LIMIT ${param_count}"));
+                params.push(serde_json::Value::Number(lim.into()));
             }
 
-            // Add OFFSET
             if let Some(off) = offset {
-                sql.push_str(&format!(" OFFSET {off}"));
+                param_count += 1;
+                sql.push_str(&format!(" OFFSET ${param_count}"));
+                params.push(serde_json::Value::Number(off.into()));
             }
 
             // Convert JSON values to QueryParam (preserves types)
             let typed_params: Vec<QueryParam> =
-                where_params.into_iter().map(QueryParam::from).collect();
+                params.into_iter().map(QueryParam::from).collect();
 
             eprintln!("DEBUG: SQL = {}", sql);
             eprintln!("DEBUG: typed_params = {:?}", typed_params);
@@ -309,17 +335,32 @@ impl DatabaseAdapter for PostgresAdapter {
             self.execute_raw(&sql, &param_refs).await
         } else {
             // No WHERE clause - execute simple query
-            // Add LIMIT
+            let mut params: Vec<serde_json::Value> = vec![];
+            let mut param_count = 0;
+
             if let Some(lim) = limit {
-                sql.push_str(&format!(" LIMIT {lim}"));
+                param_count += 1;
+                sql.push_str(&format!(" LIMIT ${param_count}"));
+                params.push(serde_json::Value::Number(lim.into()));
             }
 
-            // Add OFFSET
             if let Some(off) = offset {
-                sql.push_str(&format!(" OFFSET {off}"));
+                param_count += 1;
+                sql.push_str(&format!(" OFFSET ${param_count}"));
+                params.push(serde_json::Value::Number(off.into()));
             }
 
-            self.execute_raw(&sql, &[]).await
+            // Convert JSON values to QueryParam (preserves types)
+            let typed_params: Vec<QueryParam> =
+                params.into_iter().map(QueryParam::from).collect();
+
+            // Create references to QueryParam for ToSql
+            let param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = typed_params
+                .iter()
+                .map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync))
+                .collect();
+
+            self.execute_raw(&sql, &param_refs).await
         }
     }
 
@@ -902,6 +943,105 @@ mod tests {
         match result {
             Err(FraiseQLError::ConnectionPool { .. }) => (),
             _ => panic!("Expected ConnectionPool error"),
+        }
+    }
+
+    // ========================================================================
+    // Parameterized Query Tests (LIMIT/OFFSET with parameters)
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_parameterized_limit_only() {
+        let adapter = create_test_adapter().await;
+
+        // Test that LIMIT is parameterized (not interpolated)
+        let results = adapter
+            .execute_where_query("v_user", None, Some(3), None)
+            .await
+            .expect("Failed to execute query");
+
+        assert_eq!(results.len(), 3, "Should return exactly 3 results with parameterized LIMIT");
+    }
+
+    #[tokio::test]
+    async fn test_parameterized_offset_only() {
+        let adapter = create_test_adapter().await;
+
+        let results_all = adapter
+            .execute_where_query("v_user", None, None, None)
+            .await
+            .expect("Failed to execute query");
+
+        let offset_val = 1;
+        let results_offset = adapter
+            .execute_where_query("v_user", None, None, Some(offset_val))
+            .await
+            .expect("Failed to execute query");
+
+        assert_eq!(results_offset.len(), results_all.len() - offset_val as usize);
+    }
+
+    #[tokio::test]
+    async fn test_parameterized_limit_and_offset() {
+        let adapter = create_test_adapter().await;
+
+        // Query with both LIMIT and OFFSET parameterized
+        let limit_val = 2;
+        let offset_val = 1;
+        let results = adapter
+            .execute_where_query("v_user", None, Some(limit_val), Some(offset_val))
+            .await
+            .expect("Failed to execute query");
+
+        assert_eq!(
+            results.len(),
+            limit_val as usize,
+            "Should return exactly {} results",
+            limit_val
+        );
+    }
+
+    #[tokio::test]
+    async fn test_parameterized_limit_with_where_clause() {
+        let adapter = create_test_adapter().await;
+
+        let where_clause = WhereClause::Field {
+            path:     vec!["active".to_string()],
+            operator: WhereOperator::Eq,
+            value:    json!(true),
+        };
+
+        // Parameterized LIMIT with WHERE clause
+        let results = adapter
+            .execute_where_query("v_user", Some(&where_clause), Some(2), None)
+            .await
+            .expect("Failed to execute query");
+
+        assert!(results.len() <= 2);
+        for result in &results {
+            assert_eq!(result.as_value()["active"], true);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_parameterized_limit_and_offset_with_where_clause() {
+        let adapter = create_test_adapter().await;
+
+        let where_clause = WhereClause::Field {
+            path:     vec!["active".to_string()],
+            operator: WhereOperator::Eq,
+            value:    json!(true),
+        };
+
+        // Parameterized LIMIT and OFFSET with WHERE clause
+        let results = adapter
+            .execute_where_query("v_user", Some(&where_clause), Some(2), Some(1))
+            .await
+            .expect("Failed to execute query");
+
+        assert!(results.len() <= 2);
+        for result in &results {
+            assert_eq!(result.as_value()["active"], true);
         }
     }
 }

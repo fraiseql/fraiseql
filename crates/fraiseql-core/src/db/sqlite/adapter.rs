@@ -207,28 +207,35 @@ impl DatabaseAdapter for SqliteAdapter {
             sql.push_str(" WHERE ");
             sql.push_str(&where_sql);
 
-            // Add LIMIT
+            // Add parameterized LIMIT and OFFSET
+            let mut params = where_params;
+
             if let Some(lim) = limit {
-                sql.push_str(&format!(" LIMIT {lim}"));
+                sql.push_str(" LIMIT ?");
+                params.push(serde_json::Value::Number(lim.into()));
             }
 
-            // Add OFFSET
             if let Some(off) = offset {
-                sql.push_str(&format!(" OFFSET {off}"));
+                sql.push_str(" OFFSET ?");
+                params.push(serde_json::Value::Number(off.into()));
             }
 
-            self.execute_raw(&sql, where_params).await
+            self.execute_raw(&sql, params).await
         } else {
             // No WHERE clause - execute simple query
+            let mut params: Vec<serde_json::Value> = vec![];
+
             if let Some(lim) = limit {
-                sql.push_str(&format!(" LIMIT {lim}"));
+                sql.push_str(" LIMIT ?");
+                params.push(serde_json::Value::Number(lim.into()));
             }
 
             if let Some(off) = offset {
-                sql.push_str(&format!(" OFFSET {off}"));
+                sql.push_str(" OFFSET ?");
+                params.push(serde_json::Value::Number(off.into()));
             }
 
-            self.execute_raw(&sql, vec![]).await
+            self.execute_raw(&sql, params).await
         }
     }
 
@@ -360,5 +367,92 @@ mod tests {
         assert_eq!(results.len(), 1);
         assert!(results[0].contains_key("id"));
         assert!(results[0].contains_key("data"));
+    }
+
+    #[tokio::test]
+    async fn test_parameterized_limit_only() {
+        let adapter = SqliteAdapter::in_memory().await.expect("Failed to create SQLite adapter");
+
+        // Create test table
+        sqlx::query("CREATE TABLE \"v_user\" (id INTEGER PRIMARY KEY, data TEXT)")
+            .execute(&adapter.pool)
+            .await
+            .expect("Failed to create table");
+
+        // Insert test data
+        for i in 1..=5 {
+            sqlx::query(&format!(
+                "INSERT INTO \"v_user\" (data) VALUES ('{{\"id\": {}, \"name\": \"user{}\"}}') ",
+                i, i
+            ))
+            .execute(&adapter.pool)
+            .await
+            .expect("Failed to insert data");
+        }
+
+        let results = adapter
+            .execute_where_query("v_user", None, Some(2), None)
+            .await
+            .expect("Failed to execute query");
+
+        assert_eq!(results.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_parameterized_offset_only() {
+        let adapter = SqliteAdapter::in_memory().await.expect("Failed to create SQLite adapter");
+
+        // Create test table
+        sqlx::query("CREATE TABLE \"v_user\" (id INTEGER PRIMARY KEY, data TEXT)")
+            .execute(&adapter.pool)
+            .await
+            .expect("Failed to create table");
+
+        // Insert test data
+        for i in 1..=5 {
+            sqlx::query(&format!(
+                "INSERT INTO \"v_user\" (data) VALUES ('{{\"id\": {}, \"name\": \"user{}\"}}') ",
+                i, i
+            ))
+            .execute(&adapter.pool)
+            .await
+            .expect("Failed to insert data");
+        }
+
+        let results = adapter
+            .execute_where_query("v_user", None, None, Some(2))
+            .await
+            .expect("Failed to execute query");
+
+        assert_eq!(results.len(), 3);
+    }
+
+    #[tokio::test]
+    async fn test_parameterized_limit_and_offset() {
+        let adapter = SqliteAdapter::in_memory().await.expect("Failed to create SQLite adapter");
+
+        // Create test table
+        sqlx::query("CREATE TABLE \"v_user\" (id INTEGER PRIMARY KEY, data TEXT)")
+            .execute(&adapter.pool)
+            .await
+            .expect("Failed to create table");
+
+        // Insert test data
+        for i in 1..=5 {
+            sqlx::query(&format!(
+                "INSERT INTO \"v_user\" (data) VALUES ('{{\"id\": {}, \"name\": \"user{}\"}}') ",
+                i, i
+            ))
+            .execute(&adapter.pool)
+            .await
+            .expect("Failed to insert data");
+        }
+
+        let results = adapter
+            .execute_where_query("v_user", None, Some(2), Some(1))
+            .await
+            .expect("Failed to execute query");
+
+        assert_eq!(results.len(), 2);
     }
 }
