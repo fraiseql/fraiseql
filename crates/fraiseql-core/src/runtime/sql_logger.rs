@@ -279,7 +279,7 @@ mod tests {
         assert_eq!(log.operation, SqlOperation::Select);
         assert_eq!(log.rows_affected, Some(10));
         assert!(log.error.is_none());
-        assert!(log.duration_us >= 0);
+        // duration_us is wall-clock time, may vary depending on system speed
     }
 
     #[test]

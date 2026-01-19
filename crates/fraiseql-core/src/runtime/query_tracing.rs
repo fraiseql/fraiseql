@@ -58,23 +58,26 @@ pub struct QueryExecutionTrace {
 ///
 /// # Example
 ///
-/// ```rust,no_run
+/// ```rust
 /// use fraiseql_core::runtime::query_tracing::QueryTraceBuilder;
 ///
-/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// let mut builder = QueryTraceBuilder::new("query_123", "{ user { id name } }");
 ///
-/// // Record compilation phase
-/// let phase_result = builder.record_phase("compile", async {
-///     // Compilation logic here
-///     Ok(())
-/// }).await;
+/// // Record parse phase (2.5ms = 2500 microseconds)
+/// builder.record_phase_success("parse", 2500);
 ///
-/// // Get final trace
-/// let trace = builder.finish(true, None)?;
-/// println!("Query took {:?} us total", trace.total_duration_us);
-/// # Ok(())
-/// # }
+/// // Record validate phase (3ms = 3000 microseconds)
+/// builder.record_phase_success("validate", 3000);
+///
+/// // Record execute phase (7ms = 7000 microseconds)
+/// builder.record_phase_success("execute", 7000);
+///
+/// // Finalize trace with result count
+/// let trace = builder.finish(true, None, Some(42))?;
+/// assert_eq!(trace.success, true);
+/// assert_eq!(trace.result_count, Some(42));
+/// println!("Query took {} microseconds", trace.total_duration_us);
+/// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 pub struct QueryTraceBuilder {
     query_id: String,
@@ -335,8 +338,7 @@ mod tests {
         assert_eq!(trace.query_id, "query_1");
         assert_eq!(trace.phases.len(), 2);
         assert_eq!(trace.result_count, Some(10));
-        // total_duration_us is wall-clock time, may be higher or lower than sum of phases
-        assert!(trace.total_duration_us >= 0);
+        // total_duration_us is wall-clock time, may vary depending on system speed
     }
 
     #[test]
