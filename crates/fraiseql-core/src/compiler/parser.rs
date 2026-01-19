@@ -3,14 +3,35 @@
 //! Parses JSON schema definitions from Python/TypeScript decorators
 //! into internal Intermediate Representation.
 //!
+//! Supports parsing all GraphQL schema elements:
+//! - **Types**: Object definitions with fields
+//! - **Interfaces**: Abstract type contracts that types can implement
+//! - **Unions**: Type combinations allowing multiple member types
+//! - **Input Types**: Input object definitions for mutations and filters
+//! - **Enums**: Enumeration type definitions
+//! - **Queries**: Root query definitions
+//! - **Mutations**: Root mutation definitions
+//! - **Subscriptions**: Root subscription definitions
+//!
 //! # Example
 //!
 //! ```rust
 //! use fraiseql_core::compiler::parser::SchemaParser;
 //!
 //! let parser = SchemaParser::new();
-//! let schema_json = r#"{"types": [], "queries": []}"#;
+//! let schema_json = r#"{
+//!     "types": [{"name": "User", "fields": []}],
+//!     "interfaces": [{"name": "Node", "fields": []}],
+//!     "unions": [{"name": "SearchResult", "types": ["User"]}],
+//!     "input_types": [{"name": "UserInput", "fields": []}],
+//!     "queries": [{"name": "users", "return_type": "User", "returns_list": true}]
+//! }"#;
 //! let ir = parser.parse(schema_json).unwrap();
+//! assert_eq!(ir.types.len(), 1);
+//! assert_eq!(ir.interfaces.len(), 1);
+//! assert_eq!(ir.unions.len(), 1);
+//! assert_eq!(ir.input_types.len(), 1);
+//! assert_eq!(ir.queries.len(), 1);
 //! ```
 
 use serde_json::Value;

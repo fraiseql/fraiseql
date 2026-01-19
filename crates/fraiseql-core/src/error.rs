@@ -413,19 +413,91 @@ impl From<std::env::VarError> for FraiseQLError {
 // ============================================================================
 
 /// Extension trait for adding context to errors.
+///
+/// Provides methods to attach contextual information to errors, making debugging easier
+/// and providing better error messages to users.
+///
+/// # Usage Examples
+///
+/// **Adding static context to an error:**
+///
+/// ```ignore
+/// use fraiseql_core::error::ErrorContext;
+///
+/// fn load_schema(path: &str) -> Result<String> {
+///     std::fs::read_to_string(path)
+///         .map_err(|e| e.into())
+///         .context(format!("Failed to load schema from {}", path))
+/// }
+/// ```
+///
+/// **Adding lazy context (computed only on error):**
+///
+/// ```ignore
+/// use fraiseql_core::error::ErrorContext;
+///
+/// fn execute_query(query: &str) -> Result<Vec<()>> {
+///     // ... query execution ...
+///     Ok(vec![])
+///         .with_context(|| format!("Query execution failed for query: {}", query))
+/// }
+/// ```
 pub trait ErrorContext<T> {
     /// Add context to an error.
+    ///
+    /// Prepends a context message to the error. Useful for providing operation-specific
+    /// information about where/why an error occurred.
+    ///
+    /// # Arguments
+    ///
+    /// * `message` - Context message to prepend to the error
     ///
     /// # Errors
     ///
     /// Returns the error with additional context message prepended.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// use fraiseql_core::error::ErrorContext;
+    /// # use fraiseql_core::error::Result;
+    ///
+    /// # async fn example() -> Result<()> {
+    /// let result: Result<String> = Err(fraiseql_core::error::FraiseQLError::database("connection failed"));
+    /// result.context("while connecting to primary database")?;
+    /// # Ok(())
+    /// # }
+    /// ```
     fn context(self, message: impl Into<String>) -> Result<T>;
 
     /// Add context lazily (only computed on error).
     ///
+    /// Similar to `context()`, but the message is only computed if an error actually occurs.
+    /// Useful when building the context message is expensive or requires runtime information.
+    ///
+    /// # Arguments
+    ///
+    /// * `f` - Closure that computes the context message on error
+    ///
     /// # Errors
     ///
     /// Returns the error with additional context message prepended.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// use fraiseql_core::error::ErrorContext;
+    /// # use fraiseql_core::error::Result;
+    ///
+    /// # async fn example(rows: Vec<()>) -> Result<()> {
+    /// // The expensive string formatting only happens if the operation fails
+    /// let processed: Result<()> = Ok(());
+    /// processed.with_context(|| {
+    ///     format!("Failed to process {} rows", rows.len())
+    /// })?;
+    /// # Ok(())
+    /// # }
+    /// ```
     fn with_context<F, M>(self, f: F) -> Result<T>
     where
         F: FnOnce() -> M,
