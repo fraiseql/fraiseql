@@ -1,6 +1,6 @@
 # FraiseQL v2 — Compiled GraphQL Execution Engine
 
-**Version:** 2.0.0-alpha.1
+**Version:** 2.0.0-a1
 **Status:** 🚧 In Development (Phase 1 Complete)
 **Date:** January 11, 2026
 
@@ -123,11 +123,11 @@ FraiseQL v2 supports **schema authoring in 5 programming languages**, all produc
 
 | Language | Version | Status | Tests | Features |
 |----------|---------|--------|-------|----------|
-| **Python** | 2.0.0-alpha.1 | ✅ Ready | 34/34 ✓ | Full support |
-| **TypeScript** | 2.0.0-alpha.1 | ✅ Ready | 10/10 ✓ | Full support |
-| **Go** | 2.0.0-alpha.1 | ✅ Ready | 45+ ✓ | Full support |
-| **Java** | 2.0.0-alpha.1 | ⏳ WIP | Pending | Full support |
-| **PHP** | 2.0.0-alpha.1 | ✅ Ready | 15+ ✓ | Full support |
+| **Python** | 2.0.0-a1 | ✅ Ready | 34/34 ✓ | Full support |
+| **TypeScript** | 2.0.0-a1 | ✅ Ready | 10/10 ✓ | Full support |
+| **Go** | 2.0.0-a1 | ✅ Ready | 45+ ✓ | Full support |
+| **Java** | 2.0.0-a1 | ⏳ WIP | Pending | Full support |
+| **PHP** | 2.0.0-a1 | ✅ Ready | 15+ ✓ | Full support |
 
 ### Quick Example (Python)
 

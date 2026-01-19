@@ -24,7 +24,7 @@ fn test_health_response_structure() {
             active_connections: Some(5),
             idle_connections:   Some(15),
         },
-        version:  "2.0.0-alpha.1".to_string(),
+        version:  "2.0.0-a1".to_string(),
     };
 
     assert_eq!(response.status, "healthy");
@@ -45,7 +45,7 @@ fn test_health_response_unhealthy() {
             active_connections: Some(0),
             idle_connections:   Some(0),
         },
-        version:  "2.0.0-alpha.1".to_string(),
+        version:  "2.0.0-a1".to_string(),
     };
 
     assert_eq!(response.status, "unhealthy");
@@ -63,7 +63,7 @@ fn test_health_response_serialization() {
             active_connections: Some(3),
             idle_connections:   Some(7),
         },
-        version:  "2.0.0-alpha.1".to_string(),
+        version:  "2.0.0-a1".to_string(),
     };
 
     let json = serde_json::to_string(&response).unwrap();
@@ -85,7 +85,7 @@ fn test_health_response_json_format() {
             active_connections: Some(2),
             idle_connections:   Some(8),
         },
-        version:  "2.0.0-alpha.1".to_string(),
+        version:  "2.0.0-a1".to_string(),
     };
 
     let json = serde_json::to_string(&response).unwrap();
@@ -93,7 +93,7 @@ fn test_health_response_json_format() {
 
     assert_eq!(json_value["status"], "healthy");
     assert_eq!(json_value["database"]["connected"], true);
-    assert_eq!(json_value["version"], "2.0.0-alpha.1");
+    assert_eq!(json_value["version"], "2.0.0-a1");
 }
 
 /// Test health with different database types
@@ -110,7 +110,7 @@ fn test_health_different_databases() {
                 active_connections: Some(5),
                 idle_connections:   Some(10),
             },
-            version:  "2.0.0-alpha.1".to_string(),
+            version:  "2.0.0-a1".to_string(),
         };
 
         assert_eq!(response.database.database_type, db_type);
@@ -129,7 +129,7 @@ fn test_health_optional_metrics() {
             active_connections: None,
             idle_connections:   None,
         },
-        version:  "2.0.0-alpha.1".to_string(),
+        version:  "2.0.0-a1".to_string(),
     };
 
     let json = serde_json::to_string(&response).unwrap();
@@ -147,7 +147,7 @@ fn test_health_optional_metrics() {
 /// Test health version field
 #[test]
 fn test_health_version_field() {
-    let versions = vec!["1.0.0", "2.0.0-alpha.1", "2.0.0-beta.2", "2.0.0"];
+    let versions = vec!["1.0.0", "2.0.0-a1", "2.0.0-beta.2", "2.0.0"];
 
     for version in versions {
         let response = HealthResponse {

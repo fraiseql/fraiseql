@@ -107,7 +107,7 @@ mod tests {
                 active_connections: Some(2),
                 idle_connections:   Some(8),
             },
-            version:  "2.0.0-alpha.1".to_string(),
+            version:  "2.0.0-a1".to_string(),
         };
 
         let json = serde_json::to_string(&response).unwrap();

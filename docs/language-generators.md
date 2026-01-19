@@ -35,11 +35,11 @@ FraiseQL v2 supports schema authoring in **5 programming languages**, all produc
 
 | Language | Version | Status | Tests | Features |
 |----------|---------|--------|-------|----------|
-| Python | 2.0.0-alpha.1 | ✅ Ready | 34/34 ✓ | Full support |
-| TypeScript | 2.0.0-alpha.1 | ✅ Ready | 10/10 ✓ | Full support |
-| Go | 2.0.0-alpha.1 | ✅ Ready | 45+ ✓ | Full support |
-| Java | 2.0.0-alpha.1 | ✅ Ready | 6 tests ✓ | Full support |
-| PHP | 2.0.0-alpha.1 | ✅ Ready | 15+ ✓ | Full support |
+| Python | 2.0.0-a1 | ✅ Ready | 34/34 ✓ | Full support |
+| TypeScript | 2.0.0-a1 | ✅ Ready | 10/10 ✓ | Full support |
+| Go | 2.0.0-a1 | ✅ Ready | 45+ ✓ | Full support |
+| Java | 2.0.0-a1 | ✅ Ready | 6 tests ✓ | Full support |
+| PHP | 2.0.0-a1 | ✅ Ready | 15+ ✓ | Full support |
 
 ## Python Generator
 

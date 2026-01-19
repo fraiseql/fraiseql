@@ -291,7 +291,7 @@ curl http://localhost:8000/health
     "active_connections": 5,
     "idle_connections": 15
   },
-  "version": "2.0.0-alpha.1"
+  "version": "2.0.0-a1"
 }
 ```
 
