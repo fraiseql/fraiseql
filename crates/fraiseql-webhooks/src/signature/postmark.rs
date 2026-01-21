@@ -1,0 +1,37 @@
+//! Postmark webhook signature verification.
+//!
+//! Format: Base64 encoded HMAC-SHA256
+
+use crate::signature::{constant_time_eq, SignatureError};
+use crate::traits::SignatureVerifier;
+use base64::{engine::general_purpose, Engine as _};
+use hmac::{Hmac, Mac};
+use sha2::Sha256;
+
+pub struct PostmarkVerifier;
+
+impl SignatureVerifier for PostmarkVerifier {
+    fn name(&self) -> &'static str {
+        "postmark"
+    }
+
+    fn signature_header(&self) -> &'static str {
+        "X-Postmark-Signature"
+    }
+
+    fn verify(
+        &self,
+        payload: &[u8],
+        signature: &str,
+        secret: &str,
+        _timestamp: Option<&str>,
+    ) -> Result<bool, SignatureError> {
+        let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
+            .map_err(|e| SignatureError::Crypto(e.to_string()))?;
+        mac.update(payload);
+
+        let expected = general_purpose::STANDARD.encode(mac.finalize().into_bytes());
+
+        Ok(constant_time_eq(signature.as_bytes(), expected.as_bytes()))
+    }
+}
