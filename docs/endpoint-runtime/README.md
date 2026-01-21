@@ -1,5 +1,7 @@
 # FraiseQL Endpoint Runtime Documentation
 
+**Status**: ✅ Phase 5 Complete | Last Updated: 2026-01-21
+
 Complete documentation for the 10-phase GraphQL server implementation plan.
 
 ---
@@ -15,26 +17,34 @@ Complete documentation for the 10-phase GraphQL server implementation plan.
 #### ✅ Completed Phases
 - **[00-OVERVIEW.md](./00-OVERVIEW.md)** - Original 10-phase vision overview
 - **[01-PHASE-1-FOUNDATION.md](./01-PHASE-1-FOUNDATION.md)** - Configuration, lifecycle, health checks (560 LOC)
-- **[02-PHASE-2-CORE.md](./02-PHASE-2-CORE.md)** - Rate limiting, CORS, metrics (2,091 LOC)
+- **[02-PHASE-2-CORE-RUNTIME.md](./02-PHASE-2-CORE-RUNTIME.md)** - Rate limiting, CORS, metrics (2,091 LOC)
 - **[03-PHASE-3-WEBHOOKS.md](./03-PHASE-3-WEBHOOKS.md)** - Webhooks, signatures, idempotency (2,800 LOC)
 - **[04-PHASE-4-FILES.md](./04-PHASE-4-FILES.md)** - File upload, storage, processing (2,400 LOC)
+- **[04B-PHASE-4B-RESTRUCTURING.md](./04B-PHASE-4B-RESTRUCTURING.md)** - Consolidated into fraiseql-server ✅
 
-**Status**: All 4 phases implemented with 7,851 LOC and 100%+ test coverage
+**Status**: Phases 1-5 complete with 9,851 LOC and 100%+ test coverage (41 auth tests, 2000+ LOC)
 
-#### 🔄 Next: Phase 4B (Restructuring)
-- **[04B-PHASE-4B-RESTRUCTURING.md](./04B-PHASE-4B-RESTRUCTURING.md)** - **⭐ START HERE** - Consolidate into fraiseql-server
-  - Merge 3 crates into 1 unified server
-  - Update all imports
-  - Verify tests pass
-  - **Effort**: 3-6 hours
+#### ✅ PHASE 5 COMPLETE: Authentication System
 
-#### 📋 Planned: Phase 5 (Auth)
-- **[05-PHASE-5-AUTH.md](./05-PHASE-5-AUTH.md)** - OAuth 2.0, JWT, sessions (extended fraiseql-server)
-  - 12+ OAuth providers (Google, GitHub, Microsoft, Apple, etc.)
-  - JWT token generation and verification
-  - Session management with token rotation
-  - CSRF protection
-  - **Effort**: 6-8 hours
+**Phase 5 is now complete!** Full OAuth 2.0 / OIDC authentication with comprehensive documentation.
+
+**Phase 5 Documentation**:
+- **[PHASE-5-IMPLEMENTATION-PLAN.md](./PHASE-5-IMPLEMENTATION-PLAN.md)** - Detailed 2-3 week implementation roadmap
+- **[PHASE-5-IMPLEMENTATION-STATUS.md](./PHASE-5-IMPLEMENTATION-STATUS.md)** - What was implemented (41 tests, 2000+ LOC)
+- **[PHASE-5-DECISION-APPROVED.md](./PHASE-5-DECISION-APPROVED.md)** - Design decision with rationale
+- **[PHASE-5-PERFORMANCE-ANALYSIS.md](./PHASE-5-PERFORMANCE-ANALYSIS.md)** - Performance characteristics
+
+**Complete Auth Documentation** (in `../auth/`):
+- **[../auth/README.md](../auth/README.md)** - Overview & quick start
+- **[../auth/SETUP-GOOGLE-OAUTH.md](../auth/SETUP-GOOGLE-OAUTH.md)** - Google OAuth setup
+- **[../auth/SETUP-KEYCLOAK.md](../auth/SETUP-KEYCLOAK.md)** - Keycloak self-hosted
+- **[../auth/SETUP-AUTH0.md](../auth/SETUP-AUTH0.md)** - Auth0 managed service
+- **[../auth/API-REFERENCE.md](../auth/API-REFERENCE.md)** - Complete API docs
+- **[../auth/IMPLEMENT-SESSION-STORE.md](../auth/IMPLEMENT-SESSION-STORE.md)** - Custom backends (Redis, DynamoDB, MongoDB)
+- **[../auth/DEPLOYMENT.md](../auth/DEPLOYMENT.md)** - Production deployment (Docker, K8s, Nginx)
+- **[../auth/MONITORING.md](../auth/MONITORING.md)** - Observability setup (Prometheus, Grafana)
+- **[../auth/SECURITY-CHECKLIST.md](../auth/SECURITY-CHECKLIST.md)** - Security audit checklist
+- **[../auth/TROUBLESHOOTING.md](../auth/TROUBLESHOOTING.md)** - Common issues & solutions
 
 #### 📈 Roadmap: Phases 6-10 (Extended Features)
 - **[06-10-PHASES-6-10-OVERVIEW.md](./06-10-PHASES-6-10-OVERVIEW.md)** - Overview of remaining features
@@ -77,8 +87,8 @@ Complete documentation for the 10-phase GraphQL server implementation plan.
 | 2 | Core Runtime | ✅ Done | 2,091 | 15 |
 | 3 | Webhooks | ✅ Done | 2,800 | 18 |
 | 4 | Files | ✅ Done | 2,400 | 10 |
-| **4B** | **Restructure** | 🔄 Next | - | - |
-| 5 | Auth | 📋 Planned | ~2,000 | ~20 |
+| **4B** | **Restructure** | ✅ Done | - | - |
+| **5** | **Auth** | ✅ Done | 2,000+ | 41 |
 | 6 | Observers | 📋 Planned | ~1,500 | ~15 |
 | 7 | Notifications | 📋 Planned | ~2,000 | ~20 |
 | 8A | Search | 📋 Planned | ~1,000 | ~10 |
@@ -170,16 +180,16 @@ How should we organize webhooks, file handling, and runtime features?
 
 ## 🚀 Development Path
 
-### Immediate (This Week)
+### Immediate (Reference Phase 5 Implementation)
 - [ ] Read IMPLEMENTATION-SUMMARY.md
-- [ ] Read Phase 4B plan
-- [ ] Execute Phase 4B restructuring
-- [ ] Verify all tests pass
+- [ ] Review Phase 5 Documentation
+- [ ] Reference [../auth/README.md](../auth/README.md) for setup guides
+- [ ] Deploy authentication using provided templates
 
-### Short Term (Next 1-2 Weeks)
-- [ ] Implement Phase 5 (Auth)
-- [ ] Add OAuth providers
-- [ ] Test JWT and sessions
+### Short Term (Phase 6+)
+- [ ] Plan Phase 6 (Observers & Events)
+- [ ] Review Phases 6-10 overview
+- [ ] Begin Phase 6 implementation
 
 ### Medium Term (Next 3-4 Weeks)
 - [ ] Phases 6-7 (Observers, Notifications)
@@ -344,7 +354,10 @@ A: Phase 4B must be first. Phase 5 is recommended before Phases 6-7 (auth enable
 If you have questions about:
 - **Architecture**: See IMPLEMENTATION-SUMMARY.md
 - **Restructuring**: See 04B-PHASE-4B-RESTRUCTURING.md
-- **Authentication**: See 05-PHASE-5-AUTH.md
+- **Authentication Setup**: See [../auth/README.md](../auth/README.md) or provider-specific guides
+- **Authentication API**: See [../auth/API-REFERENCE.md](../auth/API-REFERENCE.md)
+- **Authentication Deployment**: See [../auth/DEPLOYMENT.md](../auth/DEPLOYMENT.md)
+- **Authentication Troubleshooting**: See [../auth/TROUBLESHOOTING.md](../auth/TROUBLESHOOTING.md)
 - **Other features**: See 06-10-PHASES-6-10-OVERVIEW.md
 - **Quick answers**: See QUICK-REFERENCE.md
 
@@ -365,7 +378,7 @@ Everything you need to build a production-ready GraphQL server with authenticati
 ---
 
 **Last Updated**: January 2026
-**Status**: Phases 1-4 complete, Phase 4B next
-**Total Implementation**: 7,851 LOC (Phases 1-4), planned ~16,000 LOC (Phases 5-10)
+**Status**: Phases 1-5 complete ✅ | Phase 4B restructuring + Phase 5 authentication fully implemented
+**Total Implementation**: 9,851 LOC (Phases 1-5), planned ~13,000 LOC (Phases 6-10)
 
 Let's build! 🚀
