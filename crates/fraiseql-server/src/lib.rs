@@ -71,6 +71,9 @@ pub mod webhooks;
 // fraiseql-files modules (merged)
 pub mod files;
 
+// Authentication modules (Phase 5)
+pub mod auth;
+
 // Testing utilities
 #[cfg(any(test, feature = "testing"))]
 pub mod testing;
