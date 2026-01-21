@@ -2,11 +2,21 @@ use serde::Deserialize;
 use std::path::PathBuf;
 use std::collections::HashMap;
 
+pub mod cors;
 pub mod env;
-pub mod validation;
 pub mod loader;
+pub mod metrics;
+pub mod rate_limiting;
+pub mod tracing;
+pub mod validation;
 #[cfg(test)]
 mod tests;
+
+// Re-export config types
+pub use cors::CorsConfig;
+pub use metrics::{MetricsConfig, SloConfig, LatencyTargets};
+pub use rate_limiting::{RateLimitingConfig, RateLimitRule, BackpressureConfig};
+pub use tracing::TracingConfig;
 
 /// Root configuration structure
 #[derive(Debug, Clone, Deserialize)]
@@ -245,28 +255,7 @@ pub struct ActionConfig {
     pub template: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
-pub struct RateLimitingConfig {
-    pub backend: String,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct CorsConfig {
-    // TODO: Phase 2
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct MetricsConfig {
-    pub enabled: bool,
-    #[serde(default)]
-    pub path: Option<String>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct TracingConfig {
-    pub level: String,
-    pub format: String,
-}
+// These types are now defined in their own modules and re-exported above
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct LoggingConfig {

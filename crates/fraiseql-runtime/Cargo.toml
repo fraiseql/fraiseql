@@ -32,12 +32,16 @@ opentelemetry-otlp = { version = "0.15", optional = true }
 fraiseql-error = { path = "../fraiseql-error" }
 pin-project = "1"
 dirs = "5"
+redis = { version = "0.25", features = ["aio", "tokio-comp", "connection-manager"], optional = true }
+uuid = { version = "1", features = ["v4"] }
 
 [features]
 default = []
 database = ["sqlx"]
 metrics = ["dep:metrics", "metrics-exporter-prometheus"]
 tracing-opentelemetry = ["opentelemetry", "opentelemetry-otlp"]
+redis-rate-limiting = ["redis"]
+testing = []
 
 [lints]
 workspace = true

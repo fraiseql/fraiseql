@@ -6,6 +6,7 @@
 pub mod config;
 pub mod lifecycle;
 pub mod middleware;
+pub mod observability;
 pub mod resilience;
 pub mod server;
 pub mod state;
@@ -13,6 +14,6 @@ pub mod testing;
 
 // Re-export commonly used types
 pub use config::RuntimeConfig;
-pub use state::AppState;
 pub use lifecycle::shutdown::{ShutdownCoordinator, ShutdownConfig};
 pub use server::RuntimeServer;
+pub use state::AppState;
