@@ -45,6 +45,7 @@ pub mod condition;
 pub mod config;
 pub mod error;
 pub mod event;
+pub mod executor;
 pub mod listener;
 pub mod matcher;
 pub mod traits;
@@ -61,6 +62,7 @@ pub use config::{
 };
 pub use error::{ObserverError, ObserverErrorCode, Result};
 pub use event::{EntityEvent, EventKind, FieldChanges};
+pub use executor::{ExecutionSummary, ObserverExecutor};
 pub use listener::{EventListener, ListenerConfig};
 pub use matcher::EventMatcher;
 pub use traits::{
