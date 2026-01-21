@@ -1040,3 +1040,15 @@ crates/fraiseql-server/tests/
 - Single source of truth for all server features
 - Phases 6-10 follow the same pattern
 
+---
+
+## Design Enhancements (Phase 5 Refined)
+
+See `05-PHASE-5-AUTH-DESIGN.md` for detailed architecture focusing on:
+
+- **Performance**: Token caching (<100µs latency), JWKS caching (99% hit rate), connection pooling
+- **DX**: Environment-based config, one-command setup scripts, clear error messages with docs links
+- **Pluggability**: Trait-based provider system, middleware hooks, custom session stores (Postgres/Redis/In-Memory)
+
+The refined design improves upon this specification with concrete performance targets and practical developer experience patterns.
+
