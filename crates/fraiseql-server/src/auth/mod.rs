@@ -9,6 +9,7 @@ pub mod provider;
 pub mod oidc_provider;
 pub mod middleware;
 pub mod handlers;
+pub mod monitoring;
 
 pub use error::{AuthError, Result};
 pub use jwt::{Claims, JwtValidator};
@@ -21,3 +22,4 @@ pub use handlers::{
     AuthState, auth_start, auth_callback, auth_refresh, auth_logout,
     AuthStartRequest, AuthCallbackQuery, AuthRefreshRequest, AuthLogoutRequest,
 };
+pub use monitoring::{AuthEvent, AuthMetrics, OperationTimer};
