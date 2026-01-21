@@ -6,7 +6,7 @@ use std::sync::{Arc, atomic::Ordering};
 
 use axum::{body::Body, extract::State, http::Request, middleware::Next, response::Response};
 
-use crate::metrics::MetricsCollector;
+use crate::metrics_server::MetricsCollector;
 
 /// Metrics middleware that tracks HTTP requests and response status codes.
 ///

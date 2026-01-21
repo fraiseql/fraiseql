@@ -5,29 +5,72 @@ name = "performance_benchmarks"
 [dependencies]
 # Error handling
 anyhow = "1.0"
+thiserror = "2.0"
+
+# Async runtime
+tokio = {version = "1.45", features = ["full", "signal"]}
+async-trait = "0.1"
+futures = "0.3"
+pin-project = "1"
+
 # HTTP server
 axum = {version = "0.8", features = ["macros", "ws"]}
-# Date/time handling for timestamps
-chrono = {version = "0.4", features = ["serde"]}
-# FraiseQL core
-fraiseql-core = {path = "../fraiseql-core"}
-# WebSocket
-futures = "0.3"
+http = "1"
+tower = {version = "0.5", features = ["full"]}
+tower-http = {version = "0.6", features = ["trace", "cors", "compression-full", "limit", "timeout", "request-id"]}
+
 # Serialization
 serde = {version = "1.0", features = ["derive"]}
 serde_json = "1.0"
-thiserror = "2.0"
-# Async runtime
-tokio = {version = "1.45", features = ["full"]}
-# Config
+
+# Date/time handling
+chrono = {version = "0.4", features = ["serde"]}
+
+# UUID generation
+uuid = {version = "1.0", features = ["v4", "serde"]}
+
+# Config and paths
 toml = "0.8"
-tower = {version = "0.5", features = ["full"]}
-tower-http = {version = "0.6", features = ["trace", "cors", "compression-full"]}
+dirs = "5"
+
 # Tracing
 tracing = "0.1"
-tracing-subscriber = {version = "0.3", features = ["env-filter"]}
-# UUID generation for request tracking
-uuid = {version = "1.0", features = ["v4", "serde"]}
+tracing-subscriber = {version = "0.3", features = ["env-filter", "json"]}
+
+# Metrics (optional)
+metrics = {version = "0.22", optional = true}
+metrics-exporter-prometheus = {version = "0.14", optional = true}
+
+# OpenTelemetry (optional)
+opentelemetry = {version = "0.22", optional = true}
+opentelemetry-otlp = {version = "0.15", optional = true}
+
+# Database
+sqlx = {version = "0.8", features = ["postgres", "runtime-tokio", "uuid", "chrono"]}
+
+# Redis for rate limiting (optional)
+redis = {version = "0.25", features = ["aio", "tokio-comp", "connection-manager"], optional = true}
+
+# Webhook signature verification
+hmac = "0.12"
+sha2 = "0.10"
+sha1 = "0.10"
+hex = "0.4"
+base64 = "0.22"
+
+# File processing
+bytes = "1"
+image = {version = "0.24", features = ["jpeg", "png", "webp"]}
+infer = "0.15"
+mime_guess = "2"
+
+# AWS S3 (optional)
+aws-sdk-s3 = {version = "1", optional = true}
+aws-config = {version = "1", optional = true}
+
+# FraiseQL core
+fraiseql-core = {path = "../fraiseql-core"}
+fraiseql-error = {path = "../fraiseql-error"}
 
 [dev-dependencies]
 # Performance testing
@@ -42,6 +85,16 @@ tempfile = "3.13"
 tokio-test = "0.4"
 # Utilities for E2E tests
 tokio-util = "0.7"
+
+[features]
+default = []
+database = []
+cors = []
+metrics = ["dep:metrics", "metrics-exporter-prometheus"]
+tracing-opentelemetry = ["opentelemetry", "opentelemetry-otlp"]
+redis-rate-limiting = ["redis"]
+aws-s3 = ["aws-sdk-s3", "aws-config"]
+testing = []
 
 [package]
 authors = ["FraiseQL Contributors"]

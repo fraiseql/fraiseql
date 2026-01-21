@@ -21,9 +21,10 @@ opt-level = 1
 [workspace]
 members = [
   "crates/fraiseql-cli",
-  "crates/fraiseql-core", "crates/fraiseql-error", "crates/fraiseql-files", "crates/fraiseql-runtime",
-  "crates/fraiseql-server", "crates/fraiseql-webhooks",  # Phase 6 - HTTP server for compiled executor
-  "crates/fraiseql-wire"  # Streaming JSON query engine for Postgres
+  "crates/fraiseql-core",
+  "crates/fraiseql-error",
+  "crates/fraiseql-server",  # HTTP server with runtime, webhooks, files (Phases 1-4B)
+  "crates/fraiseql-wire"     # Streaming JSON query engine for Postgres
 ]
 resolver = "2"
 

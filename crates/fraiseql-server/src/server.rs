@@ -12,7 +12,7 @@ use tracing::{info, warn};
 
 use crate::{
     Result, ServerError,
-    config::ServerConfig,
+    server_config::ServerConfig,
     middleware::{
         BearerAuthState, OidcAuthState, bearer_auth_middleware, cors_layer, metrics_middleware,
         oidc_auth_middleware, trace_layer,

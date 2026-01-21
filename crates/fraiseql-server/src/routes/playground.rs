@@ -5,7 +5,7 @@ use axum::{
     response::{Html, IntoResponse},
 };
 
-use crate::config::PlaygroundTool;
+use crate::server_config::PlaygroundTool;
 
 /// State for playground handler containing configuration.
 #[derive(Clone)]

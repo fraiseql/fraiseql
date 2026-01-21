@@ -20,7 +20,7 @@ use tracing::{debug, error, info, warn};
 
 use crate::{
     error::{ErrorResponse, GraphQLError},
-    metrics::MetricsCollector,
+    metrics_server::MetricsCollector,
     validation::RequestValidator,
 };
 

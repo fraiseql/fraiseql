@@ -16,7 +16,7 @@ use fraiseql_core::db::traits::DatabaseAdapter;
 use serde::Serialize;
 use tracing::debug;
 
-use crate::{metrics::PrometheusMetrics, routes::graphql::AppState};
+use crate::{metrics_server::PrometheusMetrics, routes::graphql::AppState};
 
 /// Metrics response containing summary statistics.
 #[derive(Debug, Serialize)]

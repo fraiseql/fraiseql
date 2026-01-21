@@ -41,30 +41,52 @@
 #![allow(clippy::match_same_arms)] // Sometimes clearer to be explicit
 #![allow(clippy::double_must_use)] // CorsLayer already has must_use
 
-pub mod config;
+// Original fraiseql-server modules
+pub mod server_config;
 pub mod error;
 pub mod logging;
-pub mod metrics;
 pub mod middleware;
 pub mod performance;
 pub mod routes;
 pub mod schema;
 pub mod server;
-pub mod tracing;
 pub mod validation;
 
-pub use config::ServerConfig;
+// Renamed to avoid conflicts with runtime modules
+pub mod metrics_server;
+pub mod tracing_server;
+
+// fraiseql-runtime modules (merged)
+pub mod config;
+pub mod lifecycle;
+pub mod resilience;
+pub mod observability;
+pub mod runtime_middleware;
+pub mod runtime_server;
+pub mod runtime_state;
+
+// fraiseql-webhooks modules (merged)
+pub mod webhooks;
+
+// fraiseql-files modules (merged)
+pub mod files;
+
+// Testing utilities
+#[cfg(any(test, feature = "testing"))]
+pub mod testing;
+
+pub use server_config::ServerConfig;
 pub use logging::{
     ErrorDetails, LogLevel, LogMetrics, RequestContext, RequestId, RequestLogger, SourceLocation,
     StructuredLogEntry,
 };
-pub use metrics::{MetricsCollector, PrometheusMetrics};
+pub use metrics_server::{MetricsCollector, PrometheusMetrics};
 pub use performance::{
     OperationProfile, PerformanceMonitor, PerformanceStats, PerformanceTimer, QueryPerformance,
 };
 pub use schema::CompiledSchemaLoader;
 pub use server::Server;
-pub use tracing::{SpanStatus, TraceContext, TraceEvent, TraceParseError, TraceSpan};
+pub use tracing_server::{SpanStatus, TraceContext, TraceEvent, TraceParseError, TraceSpan};
 pub use validation::{RequestValidator, ValidationError};
 
 /// Server error type.
