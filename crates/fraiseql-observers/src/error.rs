@@ -1,0 +1,219 @@
+//! Observer error types and error code definitions.
+
+use thiserror::Error;
+
+/// Observer error type with structured error codes.
+#[derive(Debug, Error, Clone)]
+pub enum ObserverError {
+    /// OB001: Observer configuration is invalid
+    #[error("OB001: Invalid observer configuration: {message}")]
+    InvalidConfig { message: String },
+
+    /// OB002: Event does not match any observers
+    #[error("OB002: Event type '{event_type}' does not match configured observers")]
+    NoMatchingObservers { event_type: String },
+
+    /// OB003: Condition syntax is invalid
+    #[error("OB003: Invalid condition syntax: {reason}")]
+    InvalidCondition { reason: String },
+
+    /// OB004: Condition evaluation failed
+    #[error("OB004: Condition evaluation failed: {reason}")]
+    ConditionEvaluationFailed { reason: String },
+
+    /// OB005: Action configuration is invalid
+    #[error("OB005: Invalid action configuration: {reason}")]
+    InvalidActionConfig { reason: String },
+
+    /// OB006: Action execution failed (transient)
+    #[error("OB006: Action execution failed (transient): {reason}")]
+    ActionExecutionFailed { reason: String },
+
+    /// OB007: Action execution permanently failed
+    #[error("OB007: Action execution permanently failed: {reason}")]
+    ActionPermanentlyFailed { reason: String },
+
+    /// OB008: Template rendering failed
+    #[error("OB008: Template rendering failed: {reason}")]
+    TemplateRenderingFailed { reason: String },
+
+    /// OB009: Database operation failed
+    #[error("OB009: Database operation failed: {reason}")]
+    DatabaseError { reason: String },
+
+    /// OB010: PostgreSQL LISTEN connection error
+    #[error("OB010: PostgreSQL LISTEN connection failed: {reason}")]
+    ListenerConnectionFailed { reason: String },
+
+    /// OB011: Event channel backpressure - events dropped
+    #[error("OB011: Event channel backpressure - events dropped (capacity exceeded)")]
+    ChannelFull,
+
+    /// OB012: Dead letter queue operation failed
+    #[error("OB012: Dead letter queue operation failed: {reason}")]
+    DlqError { reason: String },
+
+    /// OB013: Retry logic exhausted all attempts
+    #[error("OB013: Retry logic exhausted all attempts: {reason}")]
+    RetriesExhausted { reason: String },
+
+    /// OB014: Unsupported action type
+    #[error("OB014: Unsupported action type: {action_type}")]
+    UnsupportedActionType { action_type: String },
+
+    /// Serialization/deserialization error
+    #[error("Serialization error: {0}")]
+    SerializationError(String),
+}
+
+/// Error code with classification for retry/DLQ decisions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ObserverErrorCode {
+    /// OB001: Invalid observer configuration
+    InvalidConfig,
+    /// OB002: No matching observers
+    NoMatchingObservers,
+    /// OB003: Invalid condition syntax
+    InvalidCondition,
+    /// OB004: Condition evaluation failed
+    ConditionEvaluationFailed,
+    /// OB005: Invalid action configuration
+    InvalidActionConfig,
+    /// OB006: Action execution failed (transient)
+    ActionExecutionFailed,
+    /// OB007: Action execution permanently failed
+    ActionPermanentlyFailed,
+    /// OB008: Template rendering failed
+    TemplateRenderingFailed,
+    /// OB009: Database operation failed
+    DatabaseError,
+    /// OB010: PostgreSQL LISTEN connection error
+    ListenerConnectionFailed,
+    /// OB011: Channel full - backpressure
+    ChannelFull,
+    /// OB012: Dead letter queue operation failed
+    DlqError,
+    /// OB013: Retries exhausted
+    RetriesExhausted,
+    /// OB014: Unsupported action type
+    UnsupportedActionType,
+}
+
+impl ObserverErrorCode {
+    /// Returns true if this error is transient (retryable)
+    pub fn is_transient(self) -> bool {
+        matches!(
+            self,
+            ObserverErrorCode::ActionExecutionFailed
+                | ObserverErrorCode::DatabaseError
+                | ObserverErrorCode::ListenerConnectionFailed
+        )
+    }
+
+    /// Returns true if this error should go to dead letter queue
+    pub fn should_dlq(self) -> bool {
+        matches!(
+            self,
+            ObserverErrorCode::ActionPermanentlyFailed
+                | ObserverErrorCode::TemplateRenderingFailed
+                | ObserverErrorCode::InvalidActionConfig
+        )
+    }
+}
+
+impl ObserverError {
+    /// Get the error code for this error
+    pub fn code(&self) -> ObserverErrorCode {
+        match self {
+            ObserverError::InvalidConfig { .. } => ObserverErrorCode::InvalidConfig,
+            ObserverError::NoMatchingObservers { .. } => ObserverErrorCode::NoMatchingObservers,
+            ObserverError::InvalidCondition { .. } => ObserverErrorCode::InvalidCondition,
+            ObserverError::ConditionEvaluationFailed { .. } => {
+                ObserverErrorCode::ConditionEvaluationFailed
+            }
+            ObserverError::InvalidActionConfig { .. } => ObserverErrorCode::InvalidActionConfig,
+            ObserverError::ActionExecutionFailed { .. } => ObserverErrorCode::ActionExecutionFailed,
+            ObserverError::ActionPermanentlyFailed { .. } => {
+                ObserverErrorCode::ActionPermanentlyFailed
+            }
+            ObserverError::TemplateRenderingFailed { .. } => {
+                ObserverErrorCode::TemplateRenderingFailed
+            }
+            ObserverError::DatabaseError { .. } => ObserverErrorCode::DatabaseError,
+            ObserverError::ListenerConnectionFailed { .. } => {
+                ObserverErrorCode::ListenerConnectionFailed
+            }
+            ObserverError::ChannelFull => ObserverErrorCode::ChannelFull,
+            ObserverError::DlqError { .. } => ObserverErrorCode::DlqError,
+            ObserverError::RetriesExhausted { .. } => ObserverErrorCode::RetriesExhausted,
+            ObserverError::UnsupportedActionType { .. } => ObserverErrorCode::UnsupportedActionType,
+            ObserverError::SerializationError(_) => ObserverErrorCode::InvalidConfig,
+        }
+    }
+
+    /// Returns true if this error is transient (retryable)
+    pub fn is_transient(&self) -> bool {
+        self.code().is_transient()
+    }
+
+    /// Returns true if this error should go to dead letter queue
+    pub fn should_dlq(&self) -> bool {
+        self.code().should_dlq()
+    }
+}
+
+/// Result type alias for observer operations
+pub type Result<T> = std::result::Result<T, ObserverError>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_error_code_is_transient() {
+        assert!(ObserverErrorCode::ActionExecutionFailed.is_transient());
+        assert!(ObserverErrorCode::DatabaseError.is_transient());
+        assert!(ObserverErrorCode::ListenerConnectionFailed.is_transient());
+
+        assert!(!ObserverErrorCode::InvalidConfig.is_transient());
+        assert!(!ObserverErrorCode::ActionPermanentlyFailed.is_transient());
+    }
+
+    #[test]
+    fn test_error_code_should_dlq() {
+        assert!(ObserverErrorCode::ActionPermanentlyFailed.should_dlq());
+        assert!(ObserverErrorCode::TemplateRenderingFailed.should_dlq());
+        assert!(ObserverErrorCode::InvalidActionConfig.should_dlq());
+
+        assert!(!ObserverErrorCode::ActionExecutionFailed.should_dlq());
+        assert!(!ObserverErrorCode::DatabaseError.should_dlq());
+    }
+
+    #[test]
+    fn test_observer_error_code_method() {
+        let err = ObserverError::InvalidConfig {
+            message: "test".to_string(),
+        };
+        assert_eq!(err.code(), ObserverErrorCode::InvalidConfig);
+        assert!(!err.is_transient());
+        assert!(!err.should_dlq());
+    }
+
+    #[test]
+    fn test_transient_action_failure() {
+        let err = ObserverError::ActionExecutionFailed {
+            reason: "timeout".to_string(),
+        };
+        assert!(err.is_transient());
+        assert!(!err.should_dlq());
+    }
+
+    #[test]
+    fn test_permanent_action_failure() {
+        let err = ObserverError::ActionPermanentlyFailed {
+            reason: "invalid config".to_string(),
+        };
+        assert!(!err.is_transient());
+        assert!(err.should_dlq());
+    }
+}

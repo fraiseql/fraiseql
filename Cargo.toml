@@ -22,7 +22,7 @@ opt-level = 1
 members = [
   "crates/fraiseql-cli",
   "crates/fraiseql-core",
-  "crates/fraiseql-error",
+  "crates/fraiseql-error", "crates/fraiseql-observers",
   "crates/fraiseql-server",  # HTTP server with runtime, webhooks, files (Phases 1-4B)
   "crates/fraiseql-wire"     # Streaming JSON query engine for Postgres
 ]
