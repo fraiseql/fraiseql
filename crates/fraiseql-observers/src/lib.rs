@@ -40,6 +40,7 @@
 //! - **Observable**: Structured logging, Prometheus metrics
 //! - **Testable**: All external dependencies abstracted as traits with mock implementations
 
+pub mod condition;
 pub mod config;
 pub mod error;
 pub mod event;
@@ -51,6 +52,7 @@ pub mod traits;
 pub mod testing;
 
 // Re-export common types at crate level
+pub use condition::{ConditionAst, ConditionParser};
 pub use config::{
     ActionConfig, BackoffStrategy, FailurePolicy, ObserverDefinition, ObserverRuntimeConfig,
     OverflowPolicy, RetryConfig,
