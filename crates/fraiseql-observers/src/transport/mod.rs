@@ -3,7 +3,8 @@
 //! This module provides a trait-based abstraction for event sourcing mechanisms,
 //! enabling FraiseQL's observer system to work with multiple event transports:
 //!
-//! - **`PostgresNotify`**: Existing PostgreSQL LISTEN/NOTIFY (low latency, ephemeral)
+//! - **`PostgresNotify`**: PostgreSQL LISTEN/NOTIFY (low latency, ephemeral)
+//! - **`MySQLBridge`**: MySQL polling-based bridge (Phase 3)
 //! - **Nats**: NATS `JetStream` for distributed architectures (Phase 2)
 //! - **`InMemory`**: Testing and development
 //!
@@ -14,10 +15,10 @@
 //!     ↓
 //! EventTransport trait (Arc<dyn>)
 //!     ↓
-//! ┌────────────────┬──────────────┬──────────────┐
-//! │                │              │              │
-//! PostgresNotify   NatsTransport  InMemory
-//! (existing)       (Phase 2)      (testing)
+//! ┌────────────────┬──────────────┬──────────────┬──────────────┐
+//! │                │              │              │              │
+//! PostgresNotify   MySQLBridge    NatsTransport  InMemory
+//! (postgres)       (mysql)        (nats)         (testing)
 //! ```
 //!
 //! # Design Decisions
@@ -39,8 +40,11 @@ pub mod in_memory;
 #[cfg(feature = "nats")]
 pub mod nats;
 
-#[cfg(feature = "nats")]
+#[cfg(all(feature = "postgres", feature = "nats"))]
 pub mod bridge;
+
+#[cfg(all(feature = "mysql", feature = "nats"))]
+pub mod mysql_bridge;
 
 pub use postgres_notify::PostgresNotifyTransport;
 pub use in_memory::InMemoryTransport;
@@ -48,9 +52,14 @@ pub use in_memory::InMemoryTransport;
 #[cfg(feature = "nats")]
 pub use nats::{NatsConfig, NatsTransport};
 
-#[cfg(feature = "nats")]
+#[cfg(all(feature = "postgres", feature = "nats"))]
 pub use bridge::{
     BridgeConfig, ChangeLogEntry, CheckpointStore, PostgresCheckpointStore, PostgresNatsBridge,
+};
+
+#[cfg(all(feature = "mysql", feature = "nats"))]
+pub use mysql_bridge::{
+    MySQLBridgeConfig, MySQLChangeLogEntry, MySQLCheckpointStore, MySQLNatsBridge,
 };
 
 /// Event stream type (async stream of `EntityEvents`)
@@ -97,8 +106,11 @@ pub trait EventTransport: Send + Sync {
 /// Transport type identifier
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TransportType {
-    /// PostgreSQL LISTEN/NOTIFY (existing)
+    /// PostgreSQL LISTEN/NOTIFY
     PostgresNotify,
+    /// MySQL polling-based (Phase 3)
+    #[cfg(feature = "mysql")]
+    MySQL,
     /// NATS `JetStream` (Phase 2)
     #[cfg(feature = "nats")]
     Nats,
