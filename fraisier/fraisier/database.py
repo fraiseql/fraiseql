@@ -145,6 +145,18 @@ def init_database() -> None:
                 updated_at TEXT NOT NULL
             );
 
+            -- Deployment locks to prevent concurrent deployments
+            CREATE TABLE IF NOT EXISTS tb_deployment_lock (
+                pk_deployment_lock INTEGER PRIMARY KEY AUTOINCREMENT,
+
+                service_name TEXT NOT NULL,
+                provider_name TEXT NOT NULL,
+                locked_at TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+
+                UNIQUE(service_name, provider_name)
+            );
+
             -- ================================================================
             -- READ SIDE (v_* views) - Trinity Pattern
             -- ================================================================
@@ -260,6 +272,12 @@ def init_database() -> None:
                 ON tb_webhook_event(id);
             CREATE INDEX IF NOT EXISTS idx_webhook_event_processed
                 ON tb_webhook_event(processed);
+
+            -- Deployment lock lookups
+            CREATE INDEX IF NOT EXISTS idx_deployment_lock_service_provider
+                ON tb_deployment_lock(service_name, provider_name);
+            CREATE INDEX IF NOT EXISTS idx_deployment_lock_expires_at
+                ON tb_deployment_lock(expires_at);
         """)
         conn.commit()
 
@@ -678,6 +696,83 @@ class FraisierDB:
                 (limit,),
             ).fetchall()
             return [dict(row) for row in rows]
+
+    # =========================================================================
+    # Deployment Locks
+    # =========================================================================
+
+    def acquire_deployment_lock(
+        self, service_name: str, provider_name: str, expires_at: str | Any
+    ) -> None:
+        """Acquire a deployment lock for a service/provider.
+
+        Args:
+            service_name: Name of service being deployed
+            provider_name: Name of provider/environment
+            expires_at: When lock expires (ISO format datetime or datetime object)
+
+        Raises:
+            Exception: If lock cannot be acquired (already locked)
+        """
+        import uuid
+
+        # Convert datetime object to ISO format string if needed
+        if hasattr(expires_at, "isoformat"):
+            expires_at_str = expires_at.isoformat()
+        else:
+            expires_at_str = expires_at
+
+        now = datetime.now().isoformat()
+
+        with get_connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO tb_deployment_lock (service_name, provider_name, locked_at, expires_at)
+                VALUES (?, ?, ?, ?)
+                """,
+                (service_name, provider_name, now, expires_at_str),
+            )
+            conn.commit()
+
+    def release_deployment_lock(self, service_name: str, provider_name: str) -> None:
+        """Release a deployment lock.
+
+        Args:
+            service_name: Name of service
+            provider_name: Name of provider/environment
+        """
+        with get_connection() as conn:
+            conn.execute(
+                """
+                DELETE FROM tb_deployment_lock
+                WHERE service_name=? AND provider_name=?
+                """,
+                (service_name, provider_name),
+            )
+            conn.commit()
+
+    def get_deployment_lock(
+        self, service_name: str, provider_name: str
+    ) -> dict[str, Any] | None:
+        """Get lock info if service is locked.
+
+        Args:
+            service_name: Name of service
+            provider_name: Name of provider/environment
+
+        Returns:
+            Lock dict or None if no lock exists
+        """
+        with get_connection() as conn:
+            row = conn.execute(
+                """
+                SELECT pk_deployment_lock, service_name, provider_name, locked_at, expires_at
+                FROM tb_deployment_lock
+                WHERE service_name=? AND provider_name=?
+                """,
+                (service_name, provider_name),
+            ).fetchone()
+            return dict(row) if row else None
 
 
 # Global instance
