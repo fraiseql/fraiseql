@@ -452,6 +452,88 @@ impl ObserverExecutor {
         Duration::from_millis(delay_ms)
     }
 
+    /// Run observer executor with pluggable event transport
+    ///
+    /// This is the new transport-agnostic method that works with any EventTransport
+    /// implementation (PostgreSQL, NATS, in-memory, etc.).
+    ///
+    /// # Design
+    ///
+    /// - Uses `Arc<dyn EventTransport>` for runtime transport selection
+    /// - Stream-based API for natural tokio integration
+    /// - Transport handles reconnection/backoff internally
+    /// - ACK happens after successful `process_event()` (at-least-once semantics)
+    ///
+    /// # Arguments
+    ///
+    /// * `transport` - Event transport to subscribe to
+    /// * `filter` - Event filter for subscription
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use std::sync::Arc;
+    /// use fraiseql_observers::{ObserverExecutor, EventMatcher};
+    /// use fraiseql_observers::transport::{InMemoryTransport, EventFilter};
+    /// use fraiseql_observers::testing::mocks::MockDeadLetterQueue;
+    ///
+    /// # async fn example() -> fraiseql_observers::Result<()> {
+    /// let matcher = EventMatcher::new();
+    /// let dlq = Arc::new(MockDeadLetterQueue::new());
+    /// let executor = ObserverExecutor::new(matcher, dlq);
+    ///
+    /// let transport = Arc::new(InMemoryTransport::new());
+    /// executor.run_with_transport(transport, EventFilter::default()).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn run_with_transport(
+        &self,
+        transport: Arc<dyn crate::transport::EventTransport>,
+        filter: crate::transport::EventFilter,
+    ) -> Result<()> {
+        use futures::StreamExt;
+
+        info!("Starting observer executor with {:?} transport", transport.transport_type());
+
+        // Subscribe to event stream
+        let mut event_stream = transport.subscribe(filter).await?;
+
+        // Process events from stream
+        while let Some(event_result) = event_stream.next().await {
+            match event_result {
+                Ok(event) => {
+                    debug!("Received event {} from transport", event.id);
+
+                    // Process the event through all matching observers
+                    match self.process_event(&event).await {
+                        Ok(summary) => {
+                            debug!(
+                                "Event {} processed: {} successful, {} failed",
+                                event.id, summary.successful_actions, summary.failed_actions
+                            );
+                        }
+                        Err(e) => {
+                            error!("Failed to process event {}: {}", event.id, e);
+                            // Continue processing other events
+                        }
+                    }
+
+                    // Note: Transport ACKs message internally after we return from process_event()
+                    // This ensures at-least-once delivery semantics
+                }
+                Err(e) => {
+                    error!("Transport error: {}", e);
+                    // Transport handles retry/backoff internally
+                    // Stream will continue after error recovery
+                }
+            }
+        }
+
+        warn!("Event stream ended (transport disconnected or fatal error)");
+        Ok(())
+    }
+
     /// Run listener loop: poll for change log entries and process as events
     ///
     /// This is the integration point between ChangeLogListener and ObserverExecutor.

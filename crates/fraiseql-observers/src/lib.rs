@@ -61,6 +61,7 @@ pub mod queue;
 pub mod resilience;
 pub mod search;
 pub mod traits;
+pub mod transport;
 
 #[cfg(any(test, feature = "testing"))]
 pub mod testing;
@@ -114,6 +115,10 @@ pub use resilience::{
 pub use traits::{
     ActionExecutor, ActionResult, ConditionEvaluator, DeadLetterQueue, DlqItem, EventSource,
     TemplateRenderer,
+};
+pub use transport::{
+    EventFilter, EventStream, EventTransport, HealthStatus, InMemoryTransport,
+    PostgresNotifyTransport, TransportHealth, TransportType,
 };
 
 #[cfg(test)]

@@ -114,6 +114,27 @@ pub enum ObserverError {
         /// Message describing why circuit is open
         message: String,
     },
+
+    /// OB016: Event transport connection failed
+    #[error("OB016: Event transport connection failed: {reason}")]
+    TransportConnectionFailed {
+        /// Reason for transport connection failure
+        reason: String,
+    },
+
+    /// OB017: Event transport publish failed
+    #[error("OB017: Event transport publish failed: {reason}")]
+    TransportPublishFailed {
+        /// Reason for publish failure
+        reason: String,
+    },
+
+    /// OB018: Event transport subscribe failed
+    #[error("OB018: Event transport subscribe failed: {reason}")]
+    TransportSubscribeFailed {
+        /// Reason for subscribe failure
+        reason: String,
+    },
 }
 
 /// Error code with classification for retry/DLQ decisions.
@@ -149,6 +170,12 @@ pub enum ObserverErrorCode {
     UnsupportedActionType,
     /// OB015: Circuit breaker is open
     CircuitBreakerOpen,
+    /// OB016: Event transport connection failed
+    TransportConnectionFailed,
+    /// OB017: Event transport publish failed
+    TransportPublishFailed,
+    /// OB018: Event transport subscribe failed
+    TransportSubscribeFailed,
 }
 
 impl ObserverErrorCode {
@@ -159,6 +186,9 @@ impl ObserverErrorCode {
             ObserverErrorCode::ActionExecutionFailed
                 | ObserverErrorCode::DatabaseError
                 | ObserverErrorCode::ListenerConnectionFailed
+                | ObserverErrorCode::TransportConnectionFailed
+                | ObserverErrorCode::TransportPublishFailed
+                | ObserverErrorCode::TransportSubscribeFailed
         )
     }
 
@@ -208,6 +238,15 @@ impl ObserverError {
             ObserverError::SerializationError(_) => ObserverErrorCode::InvalidConfig,
             ObserverError::SqlxError(_) => ObserverErrorCode::DatabaseError,
             ObserverError::CircuitBreakerOpen { .. } => ObserverErrorCode::CircuitBreakerOpen,
+            ObserverError::TransportConnectionFailed { .. } => {
+                ObserverErrorCode::TransportConnectionFailed
+            }
+            ObserverError::TransportPublishFailed { .. } => {
+                ObserverErrorCode::TransportPublishFailed
+            }
+            ObserverError::TransportSubscribeFailed { .. } => {
+                ObserverErrorCode::TransportSubscribeFailed
+            }
         }
     }
 

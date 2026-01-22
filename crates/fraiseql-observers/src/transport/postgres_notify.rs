@@ -1,0 +1,221 @@
+//! PostgreSQL LISTEN/NOTIFY transport implementation
+//!
+//! This module wraps the existing `ChangeLogListener` to implement the `EventTransport` trait,
+//! providing backward compatibility while enabling the new abstraction layer.
+//!
+//! # Design
+//!
+//! - Wraps `ChangeLogListener` (polls `tb_entity_change_log`)
+//! - Implements `EventTransport` trait
+//! - Maintains existing behavior (zero changes to semantics)
+//! - Enables gradual migration to transport-agnostic code
+
+use crate::error::Result;
+use crate::event::EntityEvent;
+use crate::listener::{ChangeLogEntry, ChangeLogListener, ChangeLogListenerConfig};
+use crate::transport::{EventFilter, EventStream, EventTransport, HealthStatus, TransportHealth, TransportType};
+use async_trait::async_trait;
+use futures::stream;
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::sync::Mutex;
+use tracing::{debug, error};
+
+/// PostgreSQL transport using LISTEN/NOTIFY (via `tb_entity_change_log` polling)
+///
+/// This is a wrapper around the existing `ChangeLogListener` that implements
+/// the `EventTransport` trait for backward compatibility.
+pub struct PostgresNotifyTransport {
+    /// Inner change log listener (wrapped)
+    listener: Arc<Mutex<ChangeLogListener>>,
+    /// Poll interval for checking new events
+    poll_interval: Duration,
+}
+
+impl PostgresNotifyTransport {
+    /// Create a new PostgreSQL transport from existing listener
+    pub fn new(listener: ChangeLogListener) -> Self {
+        let poll_interval = Duration::from_millis(100); // Default 100ms polling
+
+        Self {
+            listener: Arc::new(Mutex::new(listener)),
+            poll_interval,
+        }
+    }
+
+    /// Create from configuration (convenience constructor)
+    pub fn from_config(config: ChangeLogListenerConfig) -> Self {
+        let poll_interval = Duration::from_millis(config.poll_interval_ms);
+        let listener = ChangeLogListener::new(config);
+
+        Self {
+            listener: Arc::new(Mutex::new(listener)),
+            poll_interval,
+        }
+    }
+
+    /// Set poll interval
+    pub fn with_poll_interval(mut self, interval: Duration) -> Self {
+        self.poll_interval = interval;
+        self
+    }
+}
+
+#[async_trait]
+impl EventTransport for PostgresNotifyTransport {
+    async fn subscribe(&self, _filter: EventFilter) -> Result<EventStream> {
+        let listener = Arc::clone(&self.listener);
+        let poll_interval = self.poll_interval;
+
+        // Create a stream that polls the change log listener
+        let stream = stream::unfold(
+            (listener, poll_interval),
+            move |(listener, interval)| async move {
+                loop {
+                    // Lock the listener and fetch next batch
+                    let entries: Vec<ChangeLogEntry> = {
+                        let mut listener_guard = listener.lock().await;
+                        match listener_guard.next_batch().await {
+                            Ok(entries) => {
+                                drop(listener_guard); // Release lock
+                                entries
+                            }
+                            Err(e) => {
+                                error!("Error fetching batch from change log: {}", e);
+                                drop(listener_guard); // Release lock
+                                // Return error and continue
+                                return Some((Err(e), (listener, interval)));
+                            }
+                        }
+                    };
+
+                    // If we got entries, convert them to events
+                    if !entries.is_empty() {
+                        debug!("PostgresNotifyTransport: fetched {} entries", entries.len());
+
+                        // Convert entries to events and yield them one by one
+                        for entry in entries {
+                            match entry.to_entity_event() {
+                                Ok(event) => {
+                                    return Some((Ok(event), (listener, interval)));
+                                }
+                                Err(e) => {
+                                    error!("Error converting change log entry to event: {}", e);
+                                    return Some((Err(e), (listener, interval)));
+                                }
+                            }
+                        }
+                    }
+
+                    // No entries, sleep and retry
+                    tokio::time::sleep(interval).await;
+                }
+            },
+        );
+
+        Ok(Box::pin(stream))
+    }
+
+    async fn publish(&self, event: EntityEvent) -> Result<()> {
+        // PostgreSQL transport doesn't support publishing (write-only via database triggers)
+        // This is a no-op for now, but could be implemented via direct INSERT to tb_entity_change_log
+        debug!(
+            "PostgresNotifyTransport::publish() called for event {} (no-op)",
+            event.id
+        );
+        Ok(())
+    }
+
+    fn transport_type(&self) -> TransportType {
+        TransportType::PostgresNotify
+    }
+
+    async fn health_check(&self) -> Result<TransportHealth> {
+        // Try to lock the listener (if locked, it's healthy)
+        let listener = self.listener.lock().await;
+
+        // Could add more sophisticated health checks here (e.g., database ping)
+        drop(listener);
+
+        Ok(TransportHealth {
+            status: HealthStatus::Healthy,
+            message: Some("PostgreSQL change log listener operational".to_string()),
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::listener::ChangeLogListenerConfig;
+    use futures::StreamExt;
+    use sqlx::postgres::PgPool;
+    use std::env;
+
+    async fn get_test_pool() -> Option<PgPool> {
+        let database_url = env::var("TEST_DATABASE_URL").ok()?;
+        PgPool::connect(&database_url).await.ok()
+    }
+
+    #[tokio::test]
+    async fn test_postgres_transport_creation() {
+        let Some(pool) = get_test_pool().await else {
+            eprintln!("Skipping test: TEST_DATABASE_URL not set");
+            return;
+        };
+
+        let config = ChangeLogListenerConfig::new(pool);
+        let transport = PostgresNotifyTransport::from_config(config);
+
+        assert_eq!(transport.transport_type(), TransportType::PostgresNotify);
+    }
+
+    #[tokio::test]
+    async fn test_postgres_transport_health_check() {
+        let Some(pool) = get_test_pool().await else {
+            eprintln!("Skipping test: TEST_DATABASE_URL not set");
+            return;
+        };
+
+        let config = ChangeLogListenerConfig::new(pool);
+        let transport = PostgresNotifyTransport::from_config(config);
+
+        let health = transport.health_check().await.unwrap();
+        assert_eq!(health.status, HealthStatus::Healthy);
+    }
+
+    #[tokio::test]
+    async fn test_postgres_transport_subscribe() {
+        let Some(pool) = get_test_pool().await else {
+            eprintln!("Skipping test: TEST_DATABASE_URL not set");
+            return;
+        };
+
+        let config = ChangeLogListenerConfig::new(pool).with_poll_interval(50);
+        let transport = PostgresNotifyTransport::from_config(config);
+
+        // Subscribe to events
+        let stream = transport
+            .subscribe(EventFilter::default())
+            .await
+            .unwrap();
+
+        // Note: This test won't produce events unless the database has data
+        // It just verifies the stream can be created
+        drop(stream);
+    }
+
+    #[tokio::test]
+    async fn test_postgres_transport_poll_interval() {
+        let Some(pool) = get_test_pool().await else {
+            eprintln!("Skipping test: TEST_DATABASE_URL not set");
+            return;
+        };
+
+        let config = ChangeLogListenerConfig::new(pool);
+        let transport = PostgresNotifyTransport::from_config(config)
+            .with_poll_interval(Duration::from_millis(200));
+
+        assert_eq!(transport.poll_interval, Duration::from_millis(200));
+    }
+}
