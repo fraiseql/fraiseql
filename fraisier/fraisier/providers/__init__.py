@@ -14,10 +14,12 @@ from .base import (
     ProviderStatus,
     ProviderType,
 )
+from .docker_compose import DockerComposeProvider
 
 __all__ = [
     "DeploymentProvider",
     "BareMetalProvider",
+    "DockerComposeProvider",
     "ProviderType",
     "ProviderStatus",
     "HealthCheck",

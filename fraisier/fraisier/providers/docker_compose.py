@@ -1,582 +1,547 @@
-"""Docker Compose deployment provider for containerized services.
+"""Docker Compose provider for containerized deployments.
 
-Deploys services using Docker Compose with support for:
-- Service up/down/restart operations
-- Environment variable substitution
-- Port mapping configuration
-- Volume handling
-- Health checks (HTTP, TCP, or exec)
-- Log retrieval
-- Rollback via image versioning
+Handles deployment to Docker Compose stacks with service management,
+health checks, and container orchestration.
 """
 
-import subprocess
-import time
-from pathlib import Path
+import asyncio
+import json
+import logging
 from typing import Any
 
-import yaml
+from .base import DeploymentProvider, HealthCheck, HealthCheckType, ProviderType
 
-from fraisier.deployers.base import DeploymentResult, DeploymentStatus
-
-from . import BaseProvider, ProviderConfig
+logger = logging.getLogger(__name__)
 
 
-class DockerComposeProvider(BaseProvider):
+class DockerComposeProvider(DeploymentProvider):
     """Deploy services using Docker Compose.
 
-    Configuration requirements:
-        - url: Path to docker-compose directory (e.g., "/var/compose")
-        - custom_fields:
-            - compose_file: Filename or relative path (default: "docker-compose.yml")
-            - service_name: Service name in compose file (e.g., "api")
-            - health_check_type: "http", "tcp", "exec", or "none" (default: "http")
-            - health_check_url: HTTP endpoint (e.g., "http://localhost:8000/health")
-            - health_check_port: TCP port to check
-            - health_check_exec: Command to execute in container
-            - health_check_timeout: Timeout in seconds (default: 10)
-            - health_check_retries: Number of retries (default: 3)
-
-    Example configuration:
-        ProviderConfig(
-            name="production",
-            type="docker_compose",
-            url="/var/compose",
-            custom_fields={
-                "compose_file": "docker-compose.yml",
-                "service_name": "my_api",
-                "health_check_type": "http",
-                "health_check_url": "http://localhost:8000/health",
-                "health_check_timeout": 10,
-            }
-        )
+    Supports:
+    - Docker Compose stack management
+    - Service deployment and updates
+    - Container health checks
+    - Log streaming
+    - Volume management
+    - Network configuration
     """
 
-    type = "docker_compose"
-
-    def __init__(self, config: ProviderConfig):
+    def __init__(self, config: dict[str, Any]):
         """Initialize Docker Compose provider.
 
-        Args:
-            config: ProviderConfig with compose directory and service details
-
-        Raises:
-            ProviderConfigError: If required configuration is missing
+        Config should include:
+            compose_file: Path to docker-compose.yml
+            project_name: Docker Compose project name
+            docker_host: Docker daemon socket/host (optional)
+            timeout: Command timeout in seconds (default 300)
         """
         super().__init__(config)
+        self.compose_file = config.get("compose_file", "docker-compose.yml")
+        self.project_name = config.get("project_name", "fraisier")
+        self.docker_host = config.get("docker_host")
+        self.timeout = config.get("timeout", 300)
+        self.docker_available = False
 
-        # Compose configuration
-        self.compose_dir = config.url
-        if not self.compose_dir:
-            from . import ProviderConfigError
-            raise ProviderConfigError("Docker Compose provider requires 'url' (compose directory)")
+    def _get_provider_type(self) -> ProviderType:
+        """Return provider type."""
+        return ProviderType.DOCKER_COMPOSE
 
-        self.compose_file = config.custom_fields.get("compose_file", "docker-compose.yml")
-        self.service_name = config.custom_fields.get("service_name")
+    async def connect(self) -> None:
+        """Verify Docker and docker-compose availability.
 
-        if not self.service_name:
-            from . import ProviderConfigError
-            raise ProviderConfigError(
-                "Docker Compose provider requires 'service_name' in custom_fields"
-            )
-
-        # Health check configuration
-        self.health_check_type = config.custom_fields.get("health_check_type", "http")
-        self.health_check_url = config.custom_fields.get("health_check_url")
-        self.health_check_port = config.custom_fields.get("health_check_port")
-        self.health_check_exec = config.custom_fields.get("health_check_exec")
-        self.health_check_timeout = config.custom_fields.get("health_check_timeout", 10)
-        self.health_check_retries = config.custom_fields.get("health_check_retries", 3)
-
-        # Full path to compose file
-        self.compose_path = Path(self.compose_dir) / self.compose_file
-
-    def pre_flight_check(self) -> tuple[bool, str]:
-        """Verify Docker Compose setup is valid and accessible.
-
-        Checks:
-        - docker-compose command is available
-        - compose file exists
-        - compose file is valid YAML
-        - services can be listed
-
-        Returns:
-            Tuple of (success: bool, message: str)
+        Raises:
+            ConnectionError: If Docker or docker-compose not available
         """
         try:
-            # Check docker-compose is available
-            result = subprocess.run(
-                ["docker-compose", "--version"],
-                capture_output=True,
-                timeout=5,
-                text=True,
-            )
-            if result.returncode != 0:
-                return False, "docker-compose not available or not in PATH"
+            # Check docker availability
+            exit_code, stdout, stderr = await self.execute_command("docker --version")
+            if exit_code != 0:
+                raise ConnectionError(f"Docker not available: {stderr}")
 
-            # Check compose file exists
-            if not self.compose_path.exists():
-                return False, f"Compose file not found: {self.compose_path}"
+            # Check docker-compose availability
+            exit_code, stdout, stderr = await self.execute_command("docker-compose --version")
+            if exit_code != 0:
+                raise ConnectionError(f"docker-compose not available: {stderr}")
 
-            # Validate YAML
-            try:
-                with open(self.compose_path) as f:
-                    yaml.safe_load(f)
-            except yaml.YAMLError as e:
-                return False, f"Invalid YAML in compose file: {str(e)}"
+            self.docker_available = True
+            logger.info("Connected to Docker daemon")
 
-            # Check service exists
-            result = subprocess.run(
-                ["docker-compose", "-f", str(self.compose_path), "config"],
-                cwd=self.compose_dir,
-                capture_output=True,
-                timeout=10,
-                text=True,
-            )
-            if result.returncode != 0:
-                return (
-                    False,
-                    f"docker-compose config validation failed: {result.stderr}",
-                )
-
-            return True, "Docker Compose setup is valid and accessible"
-
-        except subprocess.TimeoutExpired:
-            return False, "docker-compose command timed out"
         except Exception as e:
-            return False, f"Pre-flight check error: {str(e)}"
+            raise ConnectionError(f"Failed to connect to Docker: {e}") from e
 
-    def deploy_service(
+    async def disconnect(self) -> None:
+        """Disconnect from Docker (no-op for Docker Compose)."""
+        self.docker_available = False
+        logger.info("Disconnected from Docker daemon")
+
+    async def execute_command(
         self,
-        service_name: str,
-        version: str,
-        config: dict[str, Any],
-    ) -> DeploymentResult:
-        """Deploy service using Docker Compose.
-
-        Steps:
-        1. Pull latest images
-        2. Update environment variables for version
-        3. Bring up service
-        4. Wait for service to be ready
-        5. Check health
+        command: str,
+        timeout: int | None = None,
+    ) -> tuple[int, str, str]:
+        """Execute a shell command.
 
         Args:
-            service_name: Name of service to deploy
-            version: Version string (commit SHA, tag, image tag, etc.)
-            config: Service configuration (env vars, port mappings, etc.)
+            command: Command to execute
+            timeout: Command timeout in seconds
 
         Returns:
-            DeploymentResult with success/failure status
+            Tuple of (return_code, stdout, stderr)
+
+        Raises:
+            RuntimeError: If command fails
         """
-        start_time = time.time()
-        old_version = None
+        if timeout is None:
+            timeout = self.timeout
 
         try:
-            # Get current version before deployment
-            old_version = self._get_current_version()
-
-            # Pull latest images
-            pull_result = self._run_compose_command(["pull", self.service_name])
-            if pull_result["returncode"] != 0:
-                return DeploymentResult(
-                    success=False,
-                    status=DeploymentStatus.FAILED,
-                    error_message=f"docker-compose pull failed: {pull_result['stderr']}",
-                    new_version=version,
-                    old_version=old_version,
-                )
-
-            # Update environment variables if provided
-            env_vars = config.get("env", {})
-            if env_vars:
-                self._update_compose_env(env_vars, version)
-
-            # Bring up service
-            up_result = self._run_compose_command(
-                ["up", "-d", "--no-deps", "--build", self.service_name]
-            )
-            if up_result["returncode"] != 0:
-                return DeploymentResult(
-                    success=False,
-                    status=DeploymentStatus.FAILED,
-                    error_message=f"docker-compose up failed: {up_result['stderr']}",
-                    new_version=version,
-                    old_version=old_version,
-                )
-
-            # Wait for service to be ready
-            time.sleep(2)
-
-            # Check health
-            if not self.health_check(service_name):
-                return DeploymentResult(
-                    success=False,
-                    status=DeploymentStatus.FAILED,
-                    error_message="Health check failed after deployment",
-                    new_version=version,
-                    old_version=old_version,
-                )
-
-            # Success
-            duration = time.time() - start_time
-            return DeploymentResult(
-                success=True,
-                status=DeploymentStatus.SUCCESS,
-                new_version=version,
-                old_version=old_version,
-                duration_seconds=duration,
+            process = await asyncio.create_subprocess_shell(
+                command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
             )
 
+            try:
+                stdout_data, stderr_data = await asyncio.wait_for(
+                    process.communicate(),
+                    timeout=timeout,
+                )
+            except asyncio.TimeoutError:
+                process.kill()
+                raise RuntimeError(f"Command timed out after {timeout} seconds: {command}")
+
+            return (
+                process.returncode,
+                stdout_data.decode(),
+                stderr_data.decode(),
+            )
+
+        except asyncio.TimeoutError as e:
+            raise RuntimeError(f"Command timed out: {command}") from e
         except Exception as e:
-            duration = time.time() - start_time
-            return DeploymentResult(
-                success=False,
-                status=DeploymentStatus.FAILED,
-                error_message=f"Deployment error: {str(e)}",
-                new_version=version,
-                old_version=old_version,
-                duration_seconds=duration,
-            )
+            raise RuntimeError(f"Command execution failed: {e}") from e
 
-    def get_service_status(self, service_name: str) -> dict[str, Any]:
-        """Get current status of deployed service.
-
-        Returns dict with:
-        - status: "running", "stopped", or "error"
-        - version: currently deployed version (from image tag)
-        - uptime: uptime in seconds
-        - port: port mapping if applicable
-        - container_id: Docker container ID
+    async def upload_file(self, local_path: str, remote_path: str) -> None:
+        """Upload file to container via docker cp.
 
         Args:
-            service_name: Name of service
+            local_path: Local file path
+            remote_path: Remote path (container_name:path)
+
+        Raises:
+            FileNotFoundError: If local file doesn't exist
+            RuntimeError: If upload fails
+        """
+        try:
+            exit_code, _, stderr = await self.execute_command(
+                f"docker cp {local_path} {remote_path}"
+            )
+            if exit_code != 0:
+                raise RuntimeError(f"Docker cp failed: {stderr}")
+
+            logger.info(f"Uploaded {local_path} to {remote_path}")
+
+        except FileNotFoundError as e:
+            raise FileNotFoundError(f"Local file not found: {local_path}") from e
+        except Exception as e:
+            raise RuntimeError(f"File upload failed: {e}") from e
+
+    async def download_file(self, remote_path: str, local_path: str) -> None:
+        """Download file from container via docker cp.
+
+        Args:
+            remote_path: Remote path (container_name:path)
+            local_path: Local destination path
+
+        Raises:
+            RuntimeError: If download fails
+        """
+        try:
+            exit_code, _, stderr = await self.execute_command(
+                f"docker cp {remote_path} {local_path}"
+            )
+            if exit_code != 0:
+                raise RuntimeError(f"Docker cp failed: {stderr}")
+
+            logger.info(f"Downloaded {remote_path} to {local_path}")
+
+        except Exception as e:
+            raise RuntimeError(f"File download failed: {e}") from e
+
+    async def get_service_status(self, service_name: str) -> dict[str, Any]:
+        """Get Docker Compose service status.
+
+        Args:
+            service_name: Service name (from docker-compose.yml)
 
         Returns:
             Dict with status information
         """
         try:
-            # Get service status
-            ps_result = self._run_compose_command(["ps", self.service_name])
+            # Get container status
+            exit_code, stdout, stderr = await self.execute_command(
+                f"docker-compose -f {self.compose_file} -p {self.project_name} "
+                f"ps {service_name} --format json"
+            )
 
-            if ps_result["returncode"] != 0:
+            if exit_code != 0:
                 return {
-                    "status": "error",
-                    "version": None,
-                    "error_message": ps_result["stderr"],
+                    "service": service_name,
+                    "active": False,
+                    "state": "unknown",
+                    "error": stderr,
                 }
 
-            # Parse ps output
-            lines = ps_result["stdout"].strip().split("\n")
-            if len(lines) < 2:
-                return {"status": "stopped", "version": None}
-
-            # Extract container info
-            ps_line = lines[-1]  # Last line is the actual container
-            parts = ps_line.split()
-
-            # Extract container ID and status
-            container_id = parts[0] if parts else None
-            service_status = "running" if "Up" in ps_line else "stopped"
-
-            # Get image version
-            version = self._get_current_version()
+            # Parse JSON output
+            containers = json.loads(stdout)
+            if isinstance(containers, list) and len(containers) > 0:
+                container = containers[0]
+                return {
+                    "service": service_name,
+                    "active": container.get("State") == "running",
+                    "state": container.get("State", "unknown"),
+                    "container_id": container.get("ID", "")[:12],
+                    "image": container.get("Image", ""),
+                }
 
             return {
-                "status": service_status,
-                "version": version or "unknown",
-                "container_id": container_id,
+                "service": service_name,
+                "active": False,
+                "state": "not_running",
             }
 
         except Exception as e:
             return {
-                "status": "error",
-                "version": None,
-                "error_message": str(e),
+                "service": service_name,
+                "active": False,
+                "error": str(e),
             }
 
-    def rollback_service(
-        self,
-        service_name: str,
-        to_version: str | None = None,
-    ) -> DeploymentResult:
-        """Rollback service to previous version.
+    async def check_health(self, health_check: HealthCheck) -> bool:
+        """Check service health.
 
-        Rolls back by updating compose file to use previous image version.
+        Supports HTTP, TCP, and exec checks.
 
         Args:
-            service_name: Name of service to rollback
-            to_version: Specific version to rollback to.
-                       If None, uses docker-compose ps to find previous
+            health_check: Health check configuration
 
         Returns:
-            DeploymentResult with success/failure status
+            True if healthy, False otherwise
         """
-        start_time = time.time()
-        old_version = self._get_current_version()
+        for attempt in range(health_check.retries):
+            try:
+                if health_check.type == HealthCheckType.HTTP:
+                    return await self._check_http(health_check)
 
-        try:
-            # For Docker Compose, rollback requires accessing deployment history
-            # This is typically done through image versioning or compose file management
-            # For simplicity, we stop and restart with previous configuration
-            if not to_version:
-                # Without version history, we can only do a service restart
-                return DeploymentResult(
-                    success=False,
-                    status=DeploymentStatus.FAILED,
-                    error_message=(
-                        "Rollback requires 'to_version' for Docker Compose. "
-                        "Use deployment history to find previous version."
-                    ),
-                    new_version=to_version,
-                    old_version=old_version,
+                elif health_check.type == HealthCheckType.TCP:
+                    return await self._check_tcp(health_check)
+
+                elif health_check.type == HealthCheckType.EXEC:
+                    return await self._check_exec(health_check)
+
+                else:
+                    logger.warning(f"Unsupported health check type: {health_check.type}")
+                    return False
+
+            except Exception as e:
+                logger.warning(
+                    f"Health check attempt {attempt + 1}/{health_check.retries} failed: {e}"
                 )
+                if attempt < health_check.retries - 1:
+                    await asyncio.sleep(health_check.retry_delay)
+                continue
 
-            # Pull specific version
-            pull_result = self._run_compose_command(["pull", self.service_name])
-            if pull_result["returncode"] != 0:
-                return DeploymentResult(
-                    success=False,
-                    status=DeploymentStatus.FAILED,
-                    error_message=f"docker-compose pull failed: {pull_result['stderr']}",
-                    new_version=to_version,
-                    old_version=old_version,
-                )
+        return False
 
-            # Bring up service with rolled-back version
-            up_result = self._run_compose_command(
-                ["up", "-d", "--no-deps", self.service_name]
-            )
-            if up_result["returncode"] != 0:
-                return DeploymentResult(
-                    success=False,
-                    status=DeploymentStatus.FAILED,
-                    error_message=f"docker-compose up failed: {up_result['stderr']}",
-                    new_version=to_version,
-                    old_version=old_version,
-                )
-
-            # Wait for service
-            time.sleep(2)
-
-            # Check health
-            if not self.health_check(service_name):
-                return DeploymentResult(
-                    success=False,
-                    status=DeploymentStatus.FAILED,
-                    error_message="Health check failed after rollback",
-                    new_version=to_version,
-                    old_version=old_version,
-                )
-
-            # Success
-            new_version = self._get_current_version()
-            duration = time.time() - start_time
-            return DeploymentResult(
-                success=True,
-                status=DeploymentStatus.SUCCESS,
-                new_version=new_version,
-                old_version=old_version,
-                duration_seconds=duration,
-            )
-
-        except Exception as e:
-            duration = time.time() - start_time
-            return DeploymentResult(
-                success=False,
-                status=DeploymentStatus.FAILED,
-                error_message=f"Rollback error: {str(e)}",
-                new_version=to_version,
-                old_version=old_version,
-                duration_seconds=duration,
-            )
-
-    def health_check(self, service_name: str) -> bool:
-        """Check if service is healthy and responding.
-
-        Supports:
-        - HTTP health checks (GET request to URL)
-        - TCP health checks (port connectivity)
-        - Exec health checks (command in container)
-        - Docker compose ps status
-
-        Args:
-            service_name: Name of service
-
-        Returns:
-            True if service is healthy, False otherwise
-        """
-        try:
-            # First check if service is running via docker-compose ps
-            ps_result = self._run_compose_command(["ps", self.service_name])
-            if ps_result["returncode"] != 0 or "Up" not in ps_result["stdout"]:
-                return False
-
-            # If no health check configured, just check ps status
-            if self.health_check_type == "none":
-                return True
-
-            # HTTP health check
-            if self.health_check_type == "http" and self.health_check_url:
-                for attempt in range(self.health_check_retries):
-                    try:
-                        import urllib.request
-                        urllib.request.urlopen(
-                            self.health_check_url,
-                            timeout=self.health_check_timeout,
-                        )
-                        return True
-                    except Exception:
-                        if attempt < self.health_check_retries - 1:
-                            time.sleep(1)
-                return False
-
-            # TCP health check
-            if self.health_check_type == "tcp" and self.health_check_port:
-                import socket
-                for attempt in range(self.health_check_retries):
-                    try:
-                        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                        sock.settimeout(self.health_check_timeout)
-                        result = sock.connect_ex(("localhost", self.health_check_port))
-                        sock.close()
-                        if result == 0:
-                            return True
-                    except Exception:
-                        pass
-                    if attempt < self.health_check_retries - 1:
-                        time.sleep(1)
-                return False
-
-            # Exec health check (run command in container)
-            if self.health_check_type == "exec" and self.health_check_exec:
-                exec_result = self._run_compose_command(
-                    ["exec", "-T", self.service_name, "sh", "-c", self.health_check_exec]
-                )
-                return exec_result["returncode"] == 0
-
-            return True
-
-        except Exception:
+    async def _check_http(self, health_check: HealthCheck) -> bool:
+        """Check HTTP endpoint."""
+        if not health_check.url:
+            logger.error("HTTP health check requires 'url'")
             return False
 
-    def get_logs(self, service_name: str, lines: int = 100) -> str:
-        """Get recent logs from service.
-
-        Uses docker-compose logs to retrieve service logs.
-
-        Args:
-            service_name: Name of service
-            lines: Number of recent log lines to return
-
-        Returns:
-            Log output as string (newline-separated lines)
-        """
         try:
-            logs_result = self._run_compose_command(
-                ["logs", "--tail", str(lines), "--no-color", self.service_name]
+            import httpx
+
+            async with httpx.AsyncClient(timeout=health_check.timeout) as client:
+                response = await client.get(health_check.url)
+                return response.status_code < 400
+
+        except ImportError:
+            logger.error("httpx not installed. Install with: pip install httpx")
+            return False
+        except Exception as e:
+            logger.debug(f"HTTP health check failed: {e}")
+            return False
+
+    async def _check_tcp(self, health_check: HealthCheck) -> bool:
+        """Check TCP connectivity."""
+        if not health_check.port:
+            logger.error("TCP health check requires 'port'")
+            return False
+
+        try:
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection("127.0.0.1", health_check.port),
+                timeout=health_check.timeout,
             )
-            return (
-                logs_result["stdout"]
-                if logs_result["returncode"] == 0
-                else logs_result["stderr"]
+            writer.close()
+            await writer.wait_closed()
+            return True
+
+        except asyncio.TimeoutError:
+            logger.debug(f"TCP connection timeout on port {health_check.port}")
+            return False
+        except Exception as e:
+            logger.debug(f"TCP health check failed: {e}")
+            return False
+
+    async def _check_exec(self, health_check: HealthCheck) -> bool:
+        """Check using docker exec command."""
+        if not health_check.command:
+            logger.error("Exec health check requires 'command'")
+            return False
+
+        try:
+            exit_code, _, _ = await self.execute_command(
+                health_check.command,
+                timeout=health_check.timeout,
             )
+            return exit_code == 0
 
         except Exception as e:
-            return f"Error retrieving logs: {str(e)}"
+            logger.debug(f"Exec health check failed: {e}")
+            return False
 
-    # Private helper methods
-
-    def _run_compose_command(self, args: list[str]) -> dict[str, Any]:
-        """Execute docker-compose command.
-
-        Args:
-            args: Command arguments (without 'docker-compose')
-
-        Returns:
-            Dict with returncode, stdout, stderr
-        """
-        cmd = ["docker-compose", "-f", str(self.compose_path)] + args
-
-        result = subprocess.run(
-            cmd,
-            cwd=self.compose_dir,
-            capture_output=True,
-            timeout=120,
-            text=True,
-        )
-
-        return {
-            "returncode": result.returncode,
-            "stdout": result.stdout,
-            "stderr": result.stderr,
-        }
-
-    def _get_current_version(self) -> str | None:
-        """Get current image version for service.
-
-        Extracts image tag from compose file or running container.
-
-        Returns:
-            Image tag/version or None if error
-        """
-        try:
-            # Try to get from running container first
-            ps_result = self._run_compose_command(["ps", self.service_name])
-            if ps_result["returncode"] == 0 and ps_result["stdout"]:
-                lines = ps_result["stdout"].strip().split("\n")
-                if len(lines) >= 2:
-                    # Extract image from ps output (format: image:tag)
-                    ps_line = lines[-1]
-                    parts = ps_line.split()
-                    if len(parts) >= 2:
-                        image = parts[1]  # Image column
-                        # Extract tag from image
-                        if ":" in image:
-                            return image.split(":")[-1]
-
-            # Fall back to reading compose file
-            with open(self.compose_path) as f:
-                compose = yaml.safe_load(f)
-                if compose and "services" in compose:
-                    service = compose["services"].get(self.service_name, {})
-                    image = service.get("image", "")
-                    if ":" in image:
-                        return image.split(":")[-1]
-
-            return None
-
-        except Exception:
-            return None
-
-    def _update_compose_env(self, env_vars: dict[str, str], version: str) -> None:
-        """Update environment variables in compose file.
+    async def start_service(self, service_name: str, timeout: int | None = None) -> bool:
+        """Start a service in the Docker Compose stack.
 
         Args:
-            env_vars: Environment variables to set
-            version: Version to set as VERSION env var
+            service_name: Service name
+            timeout: Timeout in seconds
 
-        Raises:
-            Exception: If update fails
+        Returns:
+            True if successful
         """
+        if timeout is None:
+            timeout = self.timeout
+
         try:
-            with open(self.compose_path) as f:
-                compose = yaml.safe_load(f)
-
-            if not compose or "services" not in compose:
-                return
-
-            service = compose["services"].get(self.service_name, {})
-            if "environment" not in service:
-                service["environment"] = {}
-
-            # Update environment
-            service["environment"].update(env_vars)
-            service["environment"]["VERSION"] = version
-
-            # Write back
-            with open(self.compose_path, "w") as f:
-                yaml.dump(compose, f, default_flow_style=False)
+            exit_code, _, stderr = await self.execute_command(
+                f"docker-compose -f {self.compose_file} -p {self.project_name} "
+                f"up -d {service_name}",
+                timeout=timeout,
+            )
+            if exit_code == 0:
+                logger.info(f"Started service {service_name}")
+                return True
+            else:
+                logger.error(f"Failed to start {service_name}: {stderr}")
+                return False
 
         except Exception as e:
-            raise Exception(f"Failed to update compose environment: {str(e)}")
+            logger.error(f"Error starting service {service_name}: {e}")
+            return False
+
+    async def stop_service(self, service_name: str, timeout: int | None = None) -> bool:
+        """Stop a service in the Docker Compose stack.
+
+        Args:
+            service_name: Service name
+            timeout: Timeout in seconds
+
+        Returns:
+            True if successful
+        """
+        if timeout is None:
+            timeout = self.timeout
+
+        try:
+            exit_code, _, stderr = await self.execute_command(
+                f"docker-compose -f {self.compose_file} -p {self.project_name} "
+                f"stop {service_name}",
+                timeout=timeout,
+            )
+            if exit_code == 0:
+                logger.info(f"Stopped service {service_name}")
+                return True
+            else:
+                logger.error(f"Failed to stop {service_name}: {stderr}")
+                return False
+
+        except Exception as e:
+            logger.error(f"Error stopping service {service_name}: {e}")
+            return False
+
+    async def restart_service(self, service_name: str, timeout: int | None = None) -> bool:
+        """Restart a service in the Docker Compose stack.
+
+        Args:
+            service_name: Service name
+            timeout: Timeout in seconds
+
+        Returns:
+            True if successful
+        """
+        if timeout is None:
+            timeout = self.timeout
+
+        try:
+            exit_code, _, stderr = await self.execute_command(
+                f"docker-compose -f {self.compose_file} -p {self.project_name} "
+                f"restart {service_name}",
+                timeout=timeout,
+            )
+            if exit_code == 0:
+                logger.info(f"Restarted service {service_name}")
+                return True
+            else:
+                logger.error(f"Failed to restart {service_name}: {stderr}")
+                return False
+
+        except Exception as e:
+            logger.error(f"Error restarting service {service_name}: {e}")
+            return False
+
+    async def pull_image(self, service_name: str, timeout: int | None = None) -> bool:
+        """Pull latest image for a service.
+
+        Args:
+            service_name: Service name
+            timeout: Timeout in seconds
+
+        Returns:
+            True if successful
+        """
+        if timeout is None:
+            timeout = self.timeout
+
+        try:
+            exit_code, _, stderr = await self.execute_command(
+                f"docker-compose -f {self.compose_file} -p {self.project_name} "
+                f"pull {service_name}",
+                timeout=timeout,
+            )
+            if exit_code == 0:
+                logger.info(f"Pulled latest image for {service_name}")
+                return True
+            else:
+                logger.error(f"Failed to pull image for {service_name}: {stderr}")
+                return False
+
+        except Exception as e:
+            logger.error(f"Error pulling image for {service_name}: {e}")
+            return False
+
+    async def get_container_logs(
+        self,
+        service_name: str,
+        lines: int = 100,
+    ) -> str:
+        """Get container logs for a service.
+
+        Args:
+            service_name: Service name
+            lines: Number of log lines to retrieve
+
+        Returns:
+            Log output as string
+        """
+        try:
+            exit_code, stdout, stderr = await self.execute_command(
+                f"docker-compose -f {self.compose_file} -p {self.project_name} "
+                f"logs --tail {lines} {service_name}"
+            )
+            if exit_code == 0:
+                return stdout
+            else:
+                return f"Error getting logs: {stderr}"
+
+        except Exception as e:
+            return f"Error getting logs: {e}"
+
+    async def get_service_env(self, service_name: str) -> dict[str, str]:
+        """Get environment variables for a service.
+
+        Args:
+            service_name: Service name
+
+        Returns:
+            Dict of environment variables
+        """
+        try:
+            exit_code, stdout, stderr = await self.execute_command(
+                f"docker-compose -f {self.compose_file} -p {self.project_name} "
+                f"exec {service_name} env"
+            )
+            if exit_code != 0:
+                logger.warning(f"Failed to get env for {service_name}: {stderr}")
+                return {}
+
+            env_dict = {}
+            for line in stdout.strip().split("\n"):
+                if "=" in line:
+                    key, value = line.split("=", 1)
+                    env_dict[key] = value
+
+            return env_dict
+
+        except Exception as e:
+            logger.warning(f"Error getting service env: {e}")
+            return {}
+
+    async def scale_service(
+        self,
+        service_name: str,
+        replicas: int,
+        timeout: int | None = None,
+    ) -> bool:
+        """Scale a service to desired number of replicas.
+
+        Args:
+            service_name: Service name
+            replicas: Number of desired replicas
+            timeout: Timeout in seconds
+
+        Returns:
+            True if successful
+        """
+        if timeout is None:
+            timeout = self.timeout
+
+        try:
+            exit_code, _, stderr = await self.execute_command(
+                f"docker-compose -f {self.compose_file} -p {self.project_name} "
+                f"up -d --scale {service_name}={replicas}",
+                timeout=timeout,
+            )
+            if exit_code == 0:
+                logger.info(f"Scaled {service_name} to {replicas} replicas")
+                return True
+            else:
+                logger.error(f"Failed to scale {service_name}: {stderr}")
+                return False
+
+        except Exception as e:
+            logger.error(f"Error scaling service {service_name}: {e}")
+            return False
+
+    async def validate_compose_file(self) -> bool:
+        """Validate docker-compose.yml syntax.
+
+        Returns:
+            True if valid
+        """
+        try:
+            exit_code, _, stderr = await self.execute_command(
+                f"docker-compose -f {self.compose_file} config > /dev/null"
+            )
+            if exit_code == 0:
+                logger.info(f"Compose file {self.compose_file} is valid")
+                return True
+            else:
+                logger.error(f"Compose file validation failed: {stderr}")
+                return False
+
+        except Exception as e:
+            logger.error(f"Error validating compose file: {e}")
+            return False

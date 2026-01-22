@@ -1,5 +1,7 @@
 """Tests for deployment providers."""
 
+import asyncio
+import json
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -219,3 +221,260 @@ class TestHealthCheck:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+class TestDockerComposeProvider:
+    """Test Docker Compose provider implementation."""
+
+    def test_creation_with_defaults(self):
+        """Test creating provider with default values."""
+        from fraisier.providers import DockerComposeProvider
+
+        config = {}
+        provider = DockerComposeProvider(config)
+        assert provider.compose_file == "docker-compose.yml"
+        assert provider.project_name == "fraisier"
+        assert provider.timeout == 300
+
+    def test_creation_with_config(self):
+        """Test creating provider with custom config."""
+        from fraisier.providers import DockerComposeProvider
+
+        config = {
+            "compose_file": "docker-compose.prod.yml",
+            "project_name": "my_app",
+            "timeout": 600,
+        }
+        provider = DockerComposeProvider(config)
+        assert provider.compose_file == "docker-compose.prod.yml"
+        assert provider.project_name == "my_app"
+        assert provider.timeout == 600
+
+    def test_provider_type(self):
+        """Test provider returns correct type."""
+        from fraisier.providers import DockerComposeProvider
+
+        config = {}
+        provider = DockerComposeProvider(config)
+        assert provider._get_provider_type() == ProviderType.DOCKER_COMPOSE
+
+    @pytest.mark.asyncio
+    async def test_connect_without_docker_fails(self):
+        """Test connect fails if docker not available."""
+        from fraisier.providers import DockerComposeProvider
+
+        config = {}
+        provider = DockerComposeProvider(config)
+
+        with patch.object(provider, "execute_command") as mock_exec:
+            mock_exec.return_value = (1, "", "docker: command not found")
+            with pytest.raises(ConnectionError):
+                await provider.connect()
+
+    @pytest.mark.asyncio
+    async def test_get_service_status(self):
+        """Test getting service status."""
+        from fraisier.providers import DockerComposeProvider
+
+        config = {"compose_file": "docker-compose.yml", "project_name": "test"}
+        provider = DockerComposeProvider(config)
+
+        # Mock the command execution
+        mock_output = json.dumps(
+            [
+                {
+                    "ID": "abc123def456",
+                    "Image": "nginx:latest",
+                    "State": "running",
+                }
+            ]
+        )
+
+        with patch.object(provider, "execute_command") as mock_exec:
+            mock_exec.return_value = (0, mock_output, "")
+
+            status = await provider.get_service_status("web")
+            assert status["service"] == "web"
+            assert status["active"] is True
+            assert status["state"] == "running"
+
+    @pytest.mark.asyncio
+    async def test_start_service_success(self):
+        """Test starting a service."""
+        from fraisier.providers import DockerComposeProvider
+
+        config = {"compose_file": "docker-compose.yml", "project_name": "test"}
+        provider = DockerComposeProvider(config)
+
+        with patch.object(provider, "execute_command") as mock_exec:
+            mock_exec.return_value = (0, "", "")
+
+            result = await provider.start_service("web")
+            assert result is True
+            mock_exec.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_stop_service_success(self):
+        """Test stopping a service."""
+        from fraisier.providers import DockerComposeProvider
+
+        config = {"compose_file": "docker-compose.yml", "project_name": "test"}
+        provider = DockerComposeProvider(config)
+
+        with patch.object(provider, "execute_command") as mock_exec:
+            mock_exec.return_value = (0, "", "")
+
+            result = await provider.stop_service("web")
+            assert result is True
+
+    @pytest.mark.asyncio
+    async def test_restart_service_success(self):
+        """Test restarting a service."""
+        from fraisier.providers import DockerComposeProvider
+
+        config = {"compose_file": "docker-compose.yml", "project_name": "test"}
+        provider = DockerComposeProvider(config)
+
+        with patch.object(provider, "execute_command") as mock_exec:
+            mock_exec.return_value = (0, "", "")
+
+            result = await provider.restart_service("web")
+            assert result is True
+
+    @pytest.mark.asyncio
+    async def test_pull_image_success(self):
+        """Test pulling latest image."""
+        from fraisier.providers import DockerComposeProvider
+
+        config = {"compose_file": "docker-compose.yml", "project_name": "test"}
+        provider = DockerComposeProvider(config)
+
+        with patch.object(provider, "execute_command") as mock_exec:
+            mock_exec.return_value = (0, "Pulling from nginx...", "")
+
+            result = await provider.pull_image("web")
+            assert result is True
+
+    @pytest.mark.asyncio
+    async def test_get_container_logs(self):
+        """Test retrieving container logs."""
+        from fraisier.providers import DockerComposeProvider
+
+        config = {"compose_file": "docker-compose.yml", "project_name": "test"}
+        provider = DockerComposeProvider(config)
+
+        mock_logs = "web_1  | nginx started\nweb_1  | listening on port 80"
+
+        with patch.object(provider, "execute_command") as mock_exec:
+            mock_exec.return_value = (0, mock_logs, "")
+
+            logs = await provider.get_container_logs("web", lines=50)
+            assert "nginx started" in logs
+
+    @pytest.mark.asyncio
+    async def test_scale_service(self):
+        """Test scaling a service."""
+        from fraisier.providers import DockerComposeProvider
+
+        config = {"compose_file": "docker-compose.yml", "project_name": "test"}
+        provider = DockerComposeProvider(config)
+
+        with patch.object(provider, "execute_command") as mock_exec:
+            mock_exec.return_value = (0, "", "")
+
+            result = await provider.scale_service("api", replicas=3)
+            assert result is True
+
+    @pytest.mark.asyncio
+    async def test_validate_compose_file_success(self):
+        """Test compose file validation."""
+        from fraisier.providers import DockerComposeProvider
+
+        config = {"compose_file": "docker-compose.yml", "project_name": "test"}
+        provider = DockerComposeProvider(config)
+
+        with patch.object(provider, "execute_command") as mock_exec:
+            mock_exec.return_value = (0, "", "")
+
+            result = await provider.validate_compose_file()
+            assert result is True
+
+    @pytest.mark.asyncio
+    async def test_get_service_env(self):
+        """Test getting service environment variables."""
+        from fraisier.providers import DockerComposeProvider
+
+        config = {"compose_file": "docker-compose.yml", "project_name": "test"}
+        provider = DockerComposeProvider(config)
+
+        mock_env = "PATH=/usr/local/sbin:/usr/local/bin\nDATABASE_URL=postgres://localhost"
+
+        with patch.object(provider, "execute_command") as mock_exec:
+            mock_exec.return_value = (0, mock_env, "")
+
+            env = await provider.get_service_env("web")
+            assert env["DATABASE_URL"] == "postgres://localhost"
+
+    @pytest.mark.asyncio
+    async def test_execute_command_success(self):
+        """Test command execution."""
+        from fraisier.providers import DockerComposeProvider
+
+        config = {}
+        provider = DockerComposeProvider(config)
+
+        with patch("asyncio.create_subprocess_shell") as mock_shell:
+            mock_process = AsyncMock()
+            mock_process.returncode = 0
+            mock_process.communicate = AsyncMock(
+                return_value=(b"output", b"")
+            )
+            mock_shell.return_value = mock_process
+
+            exit_code, stdout, stderr = await provider.execute_command("echo hello")
+            assert exit_code == 0
+            assert stdout == "output"
+
+    @pytest.mark.asyncio
+    async def test_execute_command_timeout(self):
+        """Test command timeout."""
+        from fraisier.providers import DockerComposeProvider
+
+        config = {}
+        provider = DockerComposeProvider(config)
+
+        with patch("asyncio.create_subprocess_shell") as mock_shell:
+            mock_process = AsyncMock()
+            mock_process.communicate = AsyncMock(
+                side_effect=asyncio.TimeoutError()
+            )
+            mock_process.kill = MagicMock()
+            mock_shell.return_value = mock_process
+
+            with pytest.raises(RuntimeError):
+                await provider.execute_command("sleep 1000", timeout=1)
+
+    @pytest.mark.asyncio
+    async def test_health_check_tcp(self):
+        """Test TCP health check for Docker Compose."""
+        from fraisier.providers import DockerComposeProvider
+
+        config = {}
+        provider = DockerComposeProvider(config)
+
+        health_check = HealthCheck(
+            type=HealthCheckType.TCP,
+            port=5432,
+            timeout=5,
+            retries=1,
+        )
+
+        with patch("asyncio.open_connection") as mock_connect:
+            mock_reader = AsyncMock()
+            mock_writer = AsyncMock()
+            mock_writer.wait_closed = AsyncMock()
+            mock_connect.return_value = (mock_reader, mock_writer)
+
+            result = await provider.check_health(health_check)
+            assert result is True
+            mock_writer.close.assert_called_once()
