@@ -12,7 +12,7 @@ from typing import Any
 
 import aiosqlite
 
-from .adapter import DatabaseType, FraiserDatabaseAdapter, PoolMetrics, QueryResult
+from .adapter import DatabaseType, FraiserDatabaseAdapter, PoolMetrics
 
 
 class SqliteAdapter(FraiserDatabaseAdapter):

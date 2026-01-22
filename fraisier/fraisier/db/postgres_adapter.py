@@ -9,7 +9,6 @@ Aligns with FraiseQL's PostgreSQL implementation patterns.
 from typing import Any
 
 import psycopg
-from psycopg import AsyncConnection
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 
@@ -144,7 +143,10 @@ class PostgresAdapter(FraiserDatabaseAdapter):
                             result = await cursor.fetchone()
                             if result:
                                 # Assume first column is ID
-                                self._last_insert_id = result[0] if isinstance(result, tuple) else list(result.values())[0]
+                                if isinstance(result, tuple):
+                                    self._last_insert_id = result[0]
+                                else:
+                                    self._last_insert_id = list(result.values())[0]
                         except Exception:
                             pass
                     return rows_affected

@@ -5,7 +5,6 @@ Follows factory pattern aligned with FraiseQL implementations.
 """
 
 import os
-from typing import Any
 
 from .adapter import DatabaseType, FraiserDatabaseAdapter
 from .sqlite_adapter import SqliteAdapter
@@ -85,8 +84,8 @@ class DatabaseConfig:
                 f"Valid values: {', '.join(sorted(valid_types))}"
             )
 
-        if self.pool_min_size < 1:
-            raise ValueError("FRAISIER_DB_POOL_MIN must be >= 1")
+        if self.pool_min_size < 0:
+            raise ValueError("FRAISIER_DB_POOL_MIN must be >= 0")
 
         if self.pool_max_size < self.pool_min_size:
             raise ValueError(
@@ -127,7 +126,16 @@ async def create_adapter_from_url(
     # Create appropriate adapter (lazy import optional databases)
     if scheme == "sqlite":
         # Extract path from sqlite:///path or sqlite:///:memory:
-        path = connection_url.replace("sqlite://", "")
+        # Handle sqlite:///:memory: → :memory: (3 slashes)
+        # Handle sqlite://:memory: → :memory: (2 slashes)
+        # Handle sqlite:///path → path (3 slashes)
+        path = connection_url.replace("sqlite://", "", 1)
+        # Remove leading slash if present (from sqlite:///path)
+        if path.startswith("/") and not path.startswith("/:memory:"):
+            path = path[1:]
+        # Normalize :memory: variants
+        if path == "/:memory:":
+            path = ":memory:"
         if not path:
             path = ":memory:"
         adapter = SqliteAdapter(path)
