@@ -37,6 +37,9 @@ clap = { version = "4.5", features = ["derive"] }
 colored = "2.1"
 tabwriter = "1.4"
 
+# Phase 9.2.B Dependencies
+fraiseql-observers-macros = { path = "../fraiseql-observers-macros", optional = true }
+
 [dev-dependencies]
 tokio-test = "0.4"
 criterion = { version = "0.5", features = ["async_tokio"] }
@@ -51,6 +54,9 @@ queue = ["redis"]
 search = []
 metrics = ["prometheus"]
 phase8 = ["checkpoint", "dedup", "caching", "queue", "search", "metrics"]
+# Phase 9.2 Features
+macros = ["fraiseql-observers-macros"]
+phase9 = ["macros"]
 
 [lints]
 workspace = true
