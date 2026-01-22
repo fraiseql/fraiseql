@@ -10,7 +10,9 @@
 //!     ↓
 //! tb_observer (database)
 //!     ↓
-//! Observer Executor (fraiseql-observers)
+//! ObserverRuntime (runtime.rs)
+//!     ↓
+//! ChangeLogListener → ObserverExecutor
 //!     ↓
 //! Actions (webhook, email, etc.)
 //! ```
@@ -18,6 +20,7 @@
 //! # Features
 //!
 //! - CRUD operations for observer definitions
+//! - Runtime execution of observers via change log polling
 //! - Execution logging and statistics
 //! - Multi-tenancy support via `fk_customer_org`
 //! - Soft delete support
@@ -26,11 +29,13 @@ pub mod config;
 pub mod handlers;
 pub mod repository;
 pub mod routes;
+pub mod runtime;
 
 pub use config::ObserverManagementConfig;
-pub use handlers::*;
+pub use handlers::{ObserverState, RuntimeHealthState};
 pub use repository::ObserverRepository;
-pub use routes::observer_routes;
+pub use routes::{observer_routes, observer_runtime_routes};
+pub use runtime::{ObserverRuntime, ObserverRuntimeConfig, RuntimeHealth};
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};

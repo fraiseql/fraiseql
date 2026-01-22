@@ -7,7 +7,8 @@ use axum::{
 
 use super::handlers::{
     create_observer, delete_observer, disable_observer, enable_observer, get_observer,
-    get_observer_stats, list_observer_logs, list_observers, update_observer, ObserverState,
+    get_observer_stats, get_runtime_health, list_observer_logs, list_observers, reload_observers,
+    update_observer, ObserverState, RuntimeHealthState,
 };
 
 /// Create the observer management router.
@@ -70,6 +71,19 @@ async fn list_single_logs(
     query: axum::extract::Query<super::ListObserverLogsQuery>,
 ) -> impl axum::response::IntoResponse {
     list_observer_logs(state, axum::extract::Path(Some(path.0)), query).await
+}
+
+/// Create the observer runtime health router.
+///
+/// # Routes
+///
+/// - `GET  /runtime/health` - Get runtime health status
+/// - `POST /runtime/reload` - Reload observers from database
+pub fn observer_runtime_routes(state: RuntimeHealthState) -> Router {
+    Router::new()
+        .route("/runtime/health", get(get_runtime_health))
+        .route("/runtime/reload", post(reload_observers))
+        .with_state(state)
 }
 
 #[cfg(test)]

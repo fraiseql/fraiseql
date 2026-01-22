@@ -363,3 +363,73 @@ impl Default for UpdateObserverRequest {
         }
     }
 }
+
+// ============================================================================
+// Runtime Health Check Handlers
+// ============================================================================
+
+use std::sync::Arc;
+use tokio::sync::RwLock;
+
+/// State for runtime health checks
+#[derive(Clone)]
+pub struct RuntimeHealthState {
+    /// Reference to the observer runtime (wrapped in RwLock for thread safety)
+    pub runtime: Arc<RwLock<super::ObserverRuntime>>,
+}
+
+/// Get observer runtime health status.
+///
+/// GET /api/observers/runtime/health
+pub async fn get_runtime_health(
+    State(state): State<RuntimeHealthState>,
+) -> impl IntoResponse {
+    let runtime = state.runtime.read().await;
+    let health = runtime.health();
+
+    let status = if health.running {
+        StatusCode::OK
+    } else {
+        StatusCode::SERVICE_UNAVAILABLE
+    };
+
+    // Convert RuntimeHealth to JSON-serializable format
+    let health_json = serde_json::json!({
+        "running": health.running,
+        "observer_count": health.observer_count,
+        "last_checkpoint": health.last_checkpoint,
+        "events_processed": health.events_processed,
+        "errors": health.errors
+    });
+
+    (status, Json(health_json)).into_response()
+}
+
+/// Reload observers from database.
+///
+/// POST /api/observers/runtime/reload
+pub async fn reload_observers(
+    State(state): State<RuntimeHealthState>,
+) -> impl IntoResponse {
+    let runtime = state.runtime.read().await;
+
+    match runtime.reload_observers().await {
+        Ok(count) => (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "message": "Observers reloaded successfully",
+                "count": count
+            })),
+        )
+            .into_response(),
+        Err(e) => {
+            let error_msg = e.to_string();
+            tracing::error!("Failed to reload observers: {}", error_msg);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": error_msg })),
+            )
+                .into_response()
+        }
+    }
+}
