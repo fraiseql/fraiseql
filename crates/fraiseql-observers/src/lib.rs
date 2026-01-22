@@ -43,6 +43,7 @@
 pub mod actions;
 pub mod actions_additional;
 pub mod checkpoint;
+pub mod concurrent;
 pub mod condition;
 pub mod config;
 pub mod error;
@@ -60,6 +61,7 @@ pub use actions::{ActionExecutionResult, EmailAction, SlackAction, WebhookAction
 pub use actions_additional::{CacheAction, PushAction, SearchAction, SmsAction};
 pub use checkpoint::{CheckpointState, CheckpointStore};
 pub use checkpoint::postgres::PostgresCheckpointStore;
+pub use concurrent::ConcurrentActionExecutor;
 pub use condition::{ConditionAst, ConditionParser};
 pub use config::{
     ActionConfig, BackoffStrategy, FailurePolicy, ObserverDefinition, ObserverRuntimeConfig,
