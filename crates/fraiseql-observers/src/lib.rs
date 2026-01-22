@@ -42,6 +42,7 @@
 
 pub mod actions;
 pub mod actions_additional;
+pub mod cache;
 pub mod checkpoint;
 pub mod concurrent;
 pub mod condition;
@@ -60,6 +61,9 @@ pub mod testing;
 // Re-export common types at crate level
 pub use actions::{ActionExecutionResult, EmailAction, SlackAction, WebhookAction};
 pub use actions_additional::{CacheAction, PushAction, SearchAction, SmsAction};
+pub use cache::{CacheBackend, CachedActionResult, CacheStats};
+#[cfg(feature = "caching")]
+pub use cache::redis::RedisCacheBackend;
 pub use checkpoint::{CheckpointState, CheckpointStore};
 pub use checkpoint::postgres::PostgresCheckpointStore;
 pub use concurrent::ConcurrentActionExecutor;
