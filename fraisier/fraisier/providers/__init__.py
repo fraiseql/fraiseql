@@ -14,12 +14,14 @@ from .base import (
     ProviderStatus,
     ProviderType,
 )
+from .coolify import CoolifyProvider
 from .docker_compose import DockerComposeProvider
 
 __all__ = [
     "DeploymentProvider",
     "BareMetalProvider",
     "DockerComposeProvider",
+    "CoolifyProvider",
     "ProviderType",
     "ProviderStatus",
     "HealthCheck",

@@ -1,508 +1,521 @@
-"""Coolify deployment provider for cloud-based deployments.
+"""Coolify provider for PaaS deployments.
 
-Deploys services using Coolify platform with support for:
-- Project and application management
-- Deployment triggering and status polling
-- Environment variable management
-- Health checks via Coolify
-- Log retrieval
-- Webhook support
+Handles deployment to Coolify self-hosted PaaS with API integration,
+service management, and deployment orchestration.
 """
 
+import asyncio
+import json
+import logging
 import time
 from typing import Any
 
-from fraisier.deployers.base import DeploymentResult, DeploymentStatus
+from .base import DeploymentProvider, HealthCheck, HealthCheckType, ProviderType
 
-from . import BaseProvider, ProviderConfig
-from .coolify_client import CoolifyAPIError, CoolifyClient, CoolifyNotFoundError
+logger = logging.getLogger(__name__)
 
 
-class CoolifyProvider(BaseProvider):
-    """Deploy services using Coolify cloud platform.
+class CoolifyProvider(DeploymentProvider):
+    """Deploy services using Coolify PaaS.
 
-    Configuration requirements:
-        - url: Coolify instance URL (e.g., "https://coolify.example.com")
-        - api_key: Coolify API key for authentication
-        - custom_fields:
-            - application_id: UUID of application in Coolify
-            - project_id: UUID of project in Coolify (optional, for listing)
-            - health_check_type: "status_api", "http", or "none" (default: "status_api")
-            - health_check_url: HTTP endpoint for health checks (if http type)
-            - health_check_timeout: Timeout in seconds (default: 10)
-            - poll_interval: Deployment status poll interval in seconds (default: 5)
-            - poll_timeout: Timeout for deployment completion in seconds (default: 300)
-
-    Example configuration:
-        ProviderConfig(
-            name="production",
-            type="coolify",
-            url="https://coolify.example.com",
-            api_key="coolify_api_key_xyz",
-            custom_fields={
-                "application_id": "app-uuid-123",
-                "project_id": "proj-uuid-456",
-                "health_check_type": "status_api",
-                "poll_interval": 5,
-                "poll_timeout": 300,
-            }
-        )
+    Supports:
+    - Coolify API integration
+    - Application deployment and management
+    - Service health checks
+    - Deployment logs and monitoring
+    - Configuration management
+    - Rollback capabilities
     """
 
-    type = "coolify"
-
-    def __init__(self, config: ProviderConfig):
+    def __init__(self, config: dict[str, Any]):
         """Initialize Coolify provider.
 
-        Args:
-            config: ProviderConfig with Coolify details
-
-        Raises:
-            ProviderConfigError: If required configuration is missing
+        Config should include:
+            api_url: Coolify API base URL
+            api_token: Coolify API authentication token
+            application_id: Coolify application ID
+            timeout: API request timeout (default 300)
         """
         super().__init__(config)
+        self.api_url = config.get("api_url", "http://localhost:3000/api")
+        self.api_token = config.get("api_token")
+        self.application_id = config.get("application_id")
+        self.timeout = config.get("timeout", 300)
+        self.http_client = None
 
-        # Coolify configuration
-        self.coolify_url = config.url
-        self.api_key = config.api_key
-
-        if not self.coolify_url or not self.api_key:
-            from . import ProviderConfigError
-            raise ProviderConfigError(
-                "Coolify provider requires 'url' and 'api_key'"
-            )
-
-        self.application_id = config.custom_fields.get("application_id")
+        if not self.api_token:
+            raise ValueError("Coolify provider requires 'api_token' configuration")
         if not self.application_id:
-            from . import ProviderConfigError
-            raise ProviderConfigError(
-                "Coolify provider requires 'application_id' in custom_fields"
-            )
+            raise ValueError("Coolify provider requires 'application_id' configuration")
 
-        self.project_id = config.custom_fields.get("project_id")
+    def _get_provider_type(self) -> ProviderType:
+        """Return provider type."""
+        return ProviderType.COOLIFY
 
-        # Health check configuration
-        self.health_check_type = config.custom_fields.get(
-            "health_check_type", "status_api"
-        )
-        self.health_check_url = config.custom_fields.get("health_check_url")
-        self.health_check_timeout = config.custom_fields.get(
-            "health_check_timeout", 10
-        )
+    async def connect(self) -> None:
+        """Verify Coolify API availability.
 
-        # Polling configuration
-        self.poll_interval = config.custom_fields.get("poll_interval", 5)
-        self.poll_timeout = config.custom_fields.get("poll_timeout", 300)
-
-        # Initialize Coolify client
-        self.client = CoolifyClient(self.coolify_url, self.api_key)
-
-    def pre_flight_check(self) -> tuple[bool, str]:
-        """Verify Coolify API is accessible and application exists.
-
-        Checks:
-        - Coolify API is reachable
-        - API key is valid
-        - Application exists and is accessible
-
-        Returns:
-            Tuple of (success: bool, message: str)
+        Raises:
+            ConnectionError: If Coolify API not available
         """
         try:
-            # Check API health
-            if not self.client.health_check():
-                return False, "Coolify API is not accessible"
+            # Try to import httpx
+            import httpx
 
-            # Check application exists
-            app = self.client.get_application(self.application_id)
-            app_name = app.get("name", "unknown")
+            self.http_client = httpx.AsyncClient(
+                base_url=self.api_url,
+                headers={"Authorization": f"Bearer {self.api_token}"},
+                timeout=self.timeout,
+            )
 
-            return True, f"Coolify API accessible, application '{app_name}' found"
+            # Test connection by getting application status
+            response = await self.http_client.get(
+                f"/applications/{self.application_id}",
+                headers={"Authorization": f"Bearer {self.api_token}"},
+            )
 
-        except CoolifyNotFoundError:
-            return False, f"Application {self.application_id} not found in Coolify"
-        except CoolifyAPIError as e:
-            return False, f"Coolify API error: {str(e)}"
+            if response.status_code not in (200, 401, 404):
+                raise ConnectionError(f"Coolify API returned status {response.status_code}")
+
+            logger.info(f"Connected to Coolify API at {self.api_url}")
+
+        except ImportError:
+            raise ConnectionError(
+                "httpx not installed. Install with: pip install httpx"
+            )
         except Exception as e:
-            return False, f"Pre-flight check error: {str(e)}"
+            raise ConnectionError(f"Failed to connect to Coolify: {e}") from e
 
-    def deploy_service(
+    async def disconnect(self) -> None:
+        """Close Coolify API connection."""
+        if self.http_client:
+            await self.http_client.aclose()
+            logger.info("Disconnected from Coolify API")
+
+    async def _api_request(
         self,
-        service_name: str,
-        version: str,
-        config: dict[str, Any],
-    ) -> DeploymentResult:
-        """Deploy service via Coolify.
-
-        Steps:
-        1. Get current application status
-        2. Trigger deployment with version
-        3. Poll deployment status
-        4. Check health
+        method: str,
+        endpoint: str,
+        **kwargs,
+    ) -> dict[str, Any]:
+        """Make authenticated request to Coolify API.
 
         Args:
-            service_name: Name of service to deploy
-            version: Version string (image tag, commit SHA, etc.)
-            config: Service configuration (env vars, ports, etc.)
+            method: HTTP method (GET, POST, PUT, DELETE)
+            endpoint: API endpoint path
+            **kwargs: Additional arguments for request
 
         Returns:
-            DeploymentResult with success/failure status
+            Response JSON as dict
+
+        Raises:
+            RuntimeError: If request fails
         """
-        start_time = time.time()
-        old_version = None
+        if not self.http_client:
+            raise RuntimeError("Not connected to Coolify API")
 
         try:
-            # Get current version
-            old_version = self._get_current_version()
+            method_func = getattr(self.http_client, method.lower())
+            response = await method_func(endpoint, **kwargs)
 
-            # Trigger deployment
-            deploy_payload = {
-                "tag": version,
-                **(config.get("env", {})),  # Include env vars from config
-            }
-
-            deployment = self.client.deploy_application(
-                self.application_id, deploy_payload
-            )
-            deployment_id = deployment.get("id")
-
-            if not deployment_id:
-                return DeploymentResult(
-                    success=False,
-                    status=DeploymentStatus.FAILED,
-                    error_message="No deployment ID returned from Coolify",
-                    new_version=version,
-                    old_version=old_version,
+            if response.status_code >= 400:
+                raise RuntimeError(
+                    f"Coolify API error {response.status_code}: {response.text}"
                 )
 
-            # Poll deployment status
-            deployment_status = self._poll_deployment_status(
-                deployment_id, version
-            )
+            return response.json() if response.text else {}
 
-            if not deployment_status["success"]:
-                return DeploymentResult(
-                    success=False,
-                    status=DeploymentStatus.FAILED,
-                    error_message=deployment_status.get(
-                        "error_message", "Deployment failed"
-                    ),
-                    new_version=version,
-                    old_version=old_version,
-                )
-
-            # Check health
-            if not self.health_check(service_name):
-                return DeploymentResult(
-                    success=False,
-                    status=DeploymentStatus.FAILED,
-                    error_message="Health check failed after deployment",
-                    new_version=version,
-                    old_version=old_version,
-                )
-
-            # Success
-            duration = time.time() - start_time
-            return DeploymentResult(
-                success=True,
-                status=DeploymentStatus.SUCCESS,
-                new_version=version,
-                old_version=old_version,
-                duration_seconds=duration,
-            )
-
-        except CoolifyAPIError as e:
-            duration = time.time() - start_time
-            return DeploymentResult(
-                success=False,
-                status=DeploymentStatus.FAILED,
-                error_message=f"Coolify API error: {str(e)}",
-                new_version=version,
-                old_version=old_version,
-                duration_seconds=duration,
-            )
         except Exception as e:
-            duration = time.time() - start_time
-            return DeploymentResult(
-                success=False,
-                status=DeploymentStatus.FAILED,
-                error_message=f"Deployment error: {str(e)}",
-                new_version=version,
-                old_version=old_version,
-                duration_seconds=duration,
-            )
+            raise RuntimeError(f"Coolify API request failed: {e}") from e
 
-    def get_service_status(self, service_name: str) -> dict[str, Any]:
-        """Get current status of deployed service.
-
-        Returns dict with:
-        - status: "running", "stopped", or "error"
-        - version: currently deployed version
-        - container_id: Container/deployment ID
-        - uptime: Uptime in seconds
+    async def execute_command(
+        self,
+        command: str,
+        timeout: int = 300,
+    ) -> tuple[int, str, str]:
+        """Execute a command on the Coolify server.
 
         Args:
-            service_name: Name of service
+            command: Command to execute
+            timeout: Command timeout in seconds
+
+        Returns:
+            Tuple of (return_code, stdout, stderr)
+
+        Raises:
+            RuntimeError: If command execution fails
+        """
+        # For Coolify, commands are typically executed via container exec
+        # This is a placeholder that would be implemented based on deployment
+        logger.warning("Direct command execution not supported for Coolify")
+        return (1, "", "Command execution not supported for Coolify provider")
+
+    async def upload_file(self, local_path: str, remote_path: str) -> None:
+        """Upload file to Coolify environment.
+
+        Args:
+            local_path: Local file path
+            remote_path: Remote destination path
+
+        Raises:
+            FileNotFoundError: If local file doesn't exist
+            RuntimeError: If upload fails
+        """
+        try:
+            # For Coolify, file uploads would typically be done via
+            # environment variable management or build artifacts
+            logger.warning("Direct file upload not implemented for Coolify")
+            raise NotImplementedError(
+                "Use Coolify's environment/artifact management instead"
+            )
+
+        except Exception as e:
+            raise RuntimeError(f"File upload failed: {e}") from e
+
+    async def download_file(self, remote_path: str, local_path: str) -> None:
+        """Download file from Coolify environment.
+
+        Args:
+            remote_path: Remote file path
+            local_path: Local destination path
+
+        Raises:
+            RuntimeError: If download fails
+        """
+        try:
+            logger.warning("Direct file download not implemented for Coolify")
+            raise NotImplementedError(
+                "Use Coolify's log retrieval and artifact download instead"
+            )
+
+        except Exception as e:
+            raise RuntimeError(f"File download failed: {e}") from e
+
+    async def get_service_status(self, service_name: str) -> dict[str, Any]:
+        """Get Coolify application status.
+
+        Args:
+            service_name: Application identifier
 
         Returns:
             Dict with status information
         """
         try:
-            status = self.client.get_application_status(self.application_id)
+            response = await self._api_request(
+                "GET",
+                f"/applications/{self.application_id}",
+            )
 
             return {
-                "status": status.get("status", "unknown"),
-                "version": self._get_current_version(),
-                "container_id": status.get("container_id"),
-                "uptime": status.get("uptime"),
+                "service": service_name,
+                "active": response.get("status") == "running",
+                "state": response.get("status", "unknown"),
+                "version": response.get("version", "unknown"),
+                "git_branch": response.get("git_branch"),
+                "git_commit": response.get("git_commit"),
+                "updated_at": response.get("updated_at"),
             }
 
         except Exception as e:
             return {
-                "status": "error",
-                "version": None,
-                "error_message": str(e),
+                "service": service_name,
+                "active": False,
+                "error": str(e),
             }
 
-    def rollback_service(
-        self,
-        service_name: str,
-        to_version: str | None = None,
-    ) -> DeploymentResult:
-        """Rollback service to previous version.
-
-        Triggers deployment of previous version via Coolify.
+    async def check_health(self, health_check: HealthCheck) -> bool:
+        """Check application health.
 
         Args:
-            service_name: Name of service to rollback
-            to_version: Specific version to rollback to.
-                       If None, requires deployment history
+            health_check: Health check configuration
 
         Returns:
-            DeploymentResult with success/failure status
+            True if healthy, False otherwise
         """
-        start_time = time.time()
-        old_version = self._get_current_version()
+        for attempt in range(health_check.retries):
+            try:
+                if health_check.type == HealthCheckType.HTTP:
+                    return await self._check_http(health_check)
 
-        try:
-            if not to_version:
-                return DeploymentResult(
-                    success=False,
-                    status=DeploymentStatus.FAILED,
-                    error_message=(
-                        "Rollback requires 'to_version' for Coolify. "
-                        "Use deployment history to find previous version."
-                    ),
-                    new_version=to_version,
-                    old_version=old_version,
-                )
+                elif health_check.type == HealthCheckType.TCP:
+                    return await self._check_tcp(health_check)
 
-            # Trigger rollback deployment
-            deploy_payload = {"tag": to_version}
-            deployment = self.client.deploy_application(
-                self.application_id, deploy_payload
-            )
-            deployment_id = deployment.get("id")
-
-            if not deployment_id:
-                return DeploymentResult(
-                    success=False,
-                    status=DeploymentStatus.FAILED,
-                    error_message="No deployment ID returned from Coolify",
-                    new_version=to_version,
-                    old_version=old_version,
-                )
-
-            # Poll deployment status
-            deployment_status = self._poll_deployment_status(
-                deployment_id, to_version
-            )
-
-            if not deployment_status["success"]:
-                return DeploymentResult(
-                    success=False,
-                    status=DeploymentStatus.FAILED,
-                    error_message=deployment_status.get(
-                        "error_message", "Rollback failed"
-                    ),
-                    new_version=to_version,
-                    old_version=old_version,
-                )
-
-            # Check health
-            if not self.health_check(service_name):
-                return DeploymentResult(
-                    success=False,
-                    status=DeploymentStatus.FAILED,
-                    error_message="Health check failed after rollback",
-                    new_version=to_version,
-                    old_version=old_version,
-                )
-
-            # Success
-            duration = time.time() - start_time
-            return DeploymentResult(
-                success=True,
-                status=DeploymentStatus.SUCCESS,
-                new_version=to_version,
-                old_version=old_version,
-                duration_seconds=duration,
-            )
-
-        except CoolifyAPIError as e:
-            duration = time.time() - start_time
-            return DeploymentResult(
-                success=False,
-                status=DeploymentStatus.FAILED,
-                error_message=f"Coolify API error: {str(e)}",
-                new_version=to_version,
-                old_version=old_version,
-                duration_seconds=duration,
-            )
-        except Exception as e:
-            duration = time.time() - start_time
-            return DeploymentResult(
-                success=False,
-                status=DeploymentStatus.FAILED,
-                error_message=f"Rollback error: {str(e)}",
-                new_version=to_version,
-                old_version=old_version,
-                duration_seconds=duration,
-            )
-
-    def health_check(self, service_name: str) -> bool:
-        """Check if service is healthy.
-
-        Supports:
-        - Coolify API status endpoint
-        - HTTP health checks
-        - Custom health check logic
-
-        Args:
-            service_name: Name of service
-
-        Returns:
-            True if service is healthy, False otherwise
-        """
-        try:
-            if self.health_check_type == "status_api":
-                # Check via Coolify status API
-                status = self.client.get_application_status(
-                    self.application_id
-                )
-                return status.get("status") == "running"
-
-            elif self.health_check_type == "http" and self.health_check_url:
-                # Check via HTTP endpoint
-                import urllib.request
-                try:
-                    urllib.request.urlopen(
-                        self.health_check_url,
-                        timeout=self.health_check_timeout,
-                    )
-                    return True
-                except Exception:
+                else:
+                    logger.warning(f"Unsupported health check type: {health_check.type}")
                     return False
 
-            elif self.health_check_type == "none":
-                return True
+            except Exception as e:
+                logger.warning(
+                    f"Health check attempt {attempt + 1}/{health_check.retries} failed: {e}"
+                )
+                if attempt < health_check.retries - 1:
+                    await asyncio.sleep(health_check.retry_delay)
+                continue
 
+        return False
+
+    async def _check_http(self, health_check: HealthCheck) -> bool:
+        """Check HTTP endpoint."""
+        if not health_check.url:
+            logger.error("HTTP health check requires 'url'")
             return False
 
-        except Exception:
+        try:
+            import httpx
+
+            async with httpx.AsyncClient(timeout=health_check.timeout) as client:
+                response = await client.get(health_check.url)
+                return response.status_code < 400
+
+        except ImportError:
+            logger.error("httpx not installed. Install with: pip install httpx")
+            return False
+        except Exception as e:
+            logger.debug(f"HTTP health check failed: {e}")
             return False
 
-    def get_logs(self, service_name: str, lines: int = 100) -> str:
-        """Get recent logs from service.
+    async def _check_tcp(self, health_check: HealthCheck) -> bool:
+        """Check TCP connectivity."""
+        if not health_check.port:
+            logger.error("TCP health check requires 'port'")
+            return False
+
+        try:
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection("127.0.0.1", health_check.port),
+                timeout=health_check.timeout,
+            )
+            writer.close()
+            await writer.wait_closed()
+            return True
+
+        except asyncio.TimeoutError:
+            logger.debug(f"TCP connection timeout on port {health_check.port}")
+            return False
+        except Exception as e:
+            logger.debug(f"TCP health check failed: {e}")
+            return False
+
+    async def deploy(self, git_branch: str = "main") -> dict[str, Any]:
+        """Trigger a deployment via Coolify.
 
         Args:
-            service_name: Name of service
-            lines: Number of recent log lines to return
+            git_branch: Git branch to deploy from
 
         Returns:
-            Log output as string
+            Deployment status dict
         """
         try:
-            logs = self.client.get_application_logs(
-                self.application_id, lines=lines
+            response = await self._api_request(
+                "POST",
+                f"/applications/{self.application_id}/deploy",
+                json={"git_branch": git_branch},
             )
-            return logs if logs else "(no logs available)"
+
+            return {
+                "success": True,
+                "deployment_id": response.get("deployment_id"),
+                "status": response.get("status"),
+                "timestamp": time.time(),
+            }
 
         except Exception as e:
-            return f"Error retrieving logs: {str(e)}"
+            return {
+                "success": False,
+                "error": str(e),
+                "timestamp": time.time(),
+            }
 
-    # Private helper methods
-
-    def _get_current_version(self) -> str | None:
-        """Get current deployed version.
-
-        Returns:
-            Version string from deployment or None if error
-        """
-        try:
-            app = self.client.get_application(self.application_id)
-            # Try to get tag from application config
-            return app.get("tag") or app.get("version")
-        except Exception:
-            return None
-
-    def _poll_deployment_status(
-        self, deployment_id: str, version: str
-    ) -> dict[str, Any]:
-        """Poll deployment status until completion.
+    async def get_deployment_logs(self, deployment_id: str) -> str:
+        """Get logs for a specific deployment.
 
         Args:
-            deployment_id: Deployment ID from Coolify
-            version: Version being deployed
+            deployment_id: Deployment ID
 
         Returns:
-            Dict with success status and optional error message
+            Deployment logs as string
         """
-        poll_count = 0
-        max_polls = self.poll_timeout // self.poll_interval
+        try:
+            response = await self._api_request(
+                "GET",
+                f"/applications/{self.application_id}/deployments/{deployment_id}/logs",
+            )
 
-        while poll_count < max_polls:
+            logs = response.get("logs", "")
+            return logs if isinstance(logs, str) else json.dumps(logs, indent=2)
+
+        except Exception as e:
+            return f"Error retrieving logs: {e}"
+
+    async def get_recent_deployments(self, limit: int = 10) -> list[dict[str, Any]]:
+        """Get recent deployments for the application.
+
+        Args:
+            limit: Maximum number of deployments to retrieve
+
+        Returns:
+            List of deployment records
+        """
+        try:
+            response = await self._api_request(
+                "GET",
+                f"/applications/{self.application_id}/deployments?limit={limit}",
+            )
+
+            deployments = response.get("deployments", [])
+            return deployments if isinstance(deployments, list) else []
+
+        except Exception as e:
+            logger.error(f"Failed to get deployments: {e}")
+            return []
+
+    async def rollback_deployment(
+        self,
+        deployment_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Rollback to a previous deployment.
+
+        Args:
+            deployment_id: Specific deployment to rollback to, or None for previous
+
+        Returns:
+            Rollback status dict
+        """
+        try:
+            endpoint = (
+                f"/applications/{self.application_id}/rollback/{deployment_id}"
+                if deployment_id
+                else f"/applications/{self.application_id}/rollback"
+            )
+
+            response = await self._api_request("POST", endpoint)
+
+            return {
+                "success": True,
+                "deployment_id": response.get("deployment_id"),
+                "status": response.get("status"),
+                "timestamp": time.time(),
+            }
+
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "timestamp": time.time(),
+            }
+
+    async def get_application_config(self) -> dict[str, Any]:
+        """Get application configuration from Coolify.
+
+        Returns:
+            Application configuration dict
+        """
+        try:
+            response = await self._api_request(
+                "GET",
+                f"/applications/{self.application_id}/config",
+            )
+
+            return response
+
+        except Exception as e:
+            logger.error(f"Failed to get application config: {e}")
+            return {}
+
+    async def update_environment_variables(
+        self,
+        env_vars: dict[str, str],
+    ) -> bool:
+        """Update environment variables for the application.
+
+        Args:
+            env_vars: Dictionary of environment variables
+
+        Returns:
+            True if successful
+        """
+        try:
+            await self._api_request(
+                "PUT",
+                f"/applications/{self.application_id}/config",
+                json={"environment_variables": env_vars},
+            )
+
+            logger.info("Updated environment variables")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to update environment variables: {e}")
+            return False
+
+    async def get_metrics(self) -> dict[str, Any]:
+        """Get application metrics from Coolify.
+
+        Returns:
+            Metrics dict with CPU, memory, uptime, etc.
+        """
+        try:
+            response = await self._api_request(
+                "GET",
+                f"/applications/{self.application_id}/metrics",
+            )
+
+            return {
+                "cpu_usage": response.get("cpu_usage"),
+                "memory_usage": response.get("memory_usage"),
+                "uptime": response.get("uptime"),
+                "restart_count": response.get("restart_count"),
+                "last_deployment": response.get("last_deployment"),
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to get metrics: {e}")
+            return {}
+
+    async def wait_for_deployment(
+        self,
+        deployment_id: str,
+        timeout: int = 3600,
+        check_interval: int = 10,
+    ) -> bool:
+        """Wait for a deployment to complete.
+
+        Args:
+            deployment_id: Deployment ID to wait for
+            timeout: Maximum wait time in seconds
+            check_interval: How often to check status in seconds
+
+        Returns:
+            True if deployment succeeded
+        """
+        start_time = time.time()
+
+        while time.time() - start_time < timeout:
             try:
-                status = self.client.get_deployment_status(
-                    self.application_id, deployment_id
+                response = await self._api_request(
+                    "GET",
+                    f"/applications/{self.application_id}/deployments/{deployment_id}",
                 )
 
-                deployment_status = status.get("status", "pending")
+                status = response.get("status")
 
-                # Check completion states
-                if deployment_status == "completed":
-                    return {"success": True}
+                if status == "success":
+                    logger.info(f"Deployment {deployment_id} succeeded")
+                    return True
 
-                if deployment_status == "failed":
-                    error_msg = status.get(
-                        "error_message", "Deployment failed"
-                    )
-                    return {"success": False, "error_message": error_msg}
+                elif status == "failed":
+                    logger.error(f"Deployment {deployment_id} failed")
+                    return False
 
-                if deployment_status == "canceled":
-                    return {
-                        "success": False,
-                        "error_message": "Deployment was canceled",
-                    }
+                elif status in ("running", "queued"):
+                    logger.info(f"Deployment {deployment_id} status: {status}")
+                    await asyncio.sleep(check_interval)
+                    continue
 
-                # Still in progress, wait and retry
-                time.sleep(self.poll_interval)
-                poll_count += 1
-
-            except CoolifyAPIError as e:
-                return {
-                    "success": False,
-                    "error_message": f"API error during deployment: {str(e)}",
-                }
             except Exception as e:
-                return {
-                    "success": False,
-                    "error_message": f"Error polling deployment: {str(e)}",
-                }
+                logger.warning(f"Error checking deployment status: {e}")
+                await asyncio.sleep(check_interval)
+                continue
 
-        # Timeout reached
-        return {
-            "success": False,
-            "error_message": f"Deployment polling timed out after "
-            f"{self.poll_timeout}s",
-        }
+        logger.error(f"Deployment {deployment_id} timed out after {timeout}s")
+        return False

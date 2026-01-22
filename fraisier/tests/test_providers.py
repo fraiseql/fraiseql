@@ -478,3 +478,338 @@ class TestDockerComposeProvider:
             result = await provider.check_health(health_check)
             assert result is True
             mock_writer.close.assert_called_once()
+
+
+class TestCoolifyProvider:
+    """Test Coolify provider implementation."""
+
+    def test_creation_with_required_config(self):
+        """Test creating provider with required configuration."""
+        from fraisier.providers import CoolifyProvider
+
+        config = {
+            "api_token": "test-token-123",
+            "application_id": "app-456",
+        }
+        provider = CoolifyProvider(config)
+        assert provider.api_token == "test-token-123"
+        assert provider.application_id == "app-456"
+
+    def test_creation_without_api_token_fails(self):
+        """Test that provider requires api_token."""
+        from fraisier.providers import CoolifyProvider
+
+        config = {"application_id": "app-456"}
+        with pytest.raises(ValueError):
+            CoolifyProvider(config)
+
+    def test_creation_without_application_id_fails(self):
+        """Test that provider requires application_id."""
+        from fraisier.providers import CoolifyProvider
+
+        config = {"api_token": "test-token"}
+        with pytest.raises(ValueError):
+            CoolifyProvider(config)
+
+    def test_default_values(self):
+        """Test provider default values."""
+        from fraisier.providers import CoolifyProvider
+
+        config = {
+            "api_token": "token",
+            "application_id": "app",
+        }
+        provider = CoolifyProvider(config)
+        assert provider.api_url == "http://localhost:3000/api"
+        assert provider.timeout == 300
+
+    def test_provider_type(self):
+        """Test provider returns correct type."""
+        from fraisier.providers import CoolifyProvider
+
+        config = {
+            "api_token": "token",
+            "application_id": "app",
+        }
+        provider = CoolifyProvider(config)
+        assert provider._get_provider_type() == ProviderType.COOLIFY
+
+    @pytest.mark.asyncio
+    async def test_connect_without_httpx_fails(self):
+        """Test connect fails gracefully if httpx not available."""
+        from fraisier.providers import CoolifyProvider
+
+        config = {
+            "api_token": "token",
+            "application_id": "app",
+        }
+        provider = CoolifyProvider(config)
+
+        with patch.dict("sys.modules", {"httpx": None}):
+            with pytest.raises(ConnectionError):
+                await provider.connect()
+
+    @pytest.mark.asyncio
+    async def test_get_service_status(self):
+        """Test getting service status from Coolify."""
+        from fraisier.providers import CoolifyProvider
+
+        config = {
+            "api_token": "token",
+            "application_id": "app-123",
+        }
+        provider = CoolifyProvider(config)
+
+        with patch.object(provider, "_api_request") as mock_request:
+            mock_request.return_value = {
+                "status": "running",
+                "version": "1.2.3",
+                "git_branch": "main",
+                "git_commit": "abc123def456",
+                "updated_at": "2026-01-22T12:00:00Z",
+            }
+
+            status = await provider.get_service_status("api")
+            assert status["service"] == "api"
+            assert status["active"] is True
+            assert status["version"] == "1.2.3"
+
+    @pytest.mark.asyncio
+    async def test_deploy_application(self):
+        """Test triggering deployment."""
+        from fraisier.providers import CoolifyProvider
+
+        config = {
+            "api_token": "token",
+            "application_id": "app-123",
+        }
+        provider = CoolifyProvider(config)
+
+        with patch.object(provider, "_api_request") as mock_request:
+            mock_request.return_value = {
+                "deployment_id": "deploy-789",
+                "status": "running",
+            }
+
+            result = await provider.deploy(git_branch="main")
+            assert result["success"] is True
+            assert result["deployment_id"] == "deploy-789"
+
+    @pytest.mark.asyncio
+    async def test_get_deployment_logs(self):
+        """Test retrieving deployment logs."""
+        from fraisier.providers import CoolifyProvider
+
+        config = {
+            "api_token": "token",
+            "application_id": "app-123",
+        }
+        provider = CoolifyProvider(config)
+
+        mock_logs = "Step 1: Building...\nStep 2: Deploying...\nDeployment complete"
+
+        with patch.object(provider, "_api_request") as mock_request:
+            mock_request.return_value = {"logs": mock_logs}
+
+            logs = await provider.get_deployment_logs("deploy-789")
+            assert "Building" in logs
+            assert "Deploying" in logs
+
+    @pytest.mark.asyncio
+    async def test_get_recent_deployments(self):
+        """Test retrieving recent deployments."""
+        from fraisier.providers import CoolifyProvider
+
+        config = {
+            "api_token": "token",
+            "application_id": "app-123",
+        }
+        provider = CoolifyProvider(config)
+
+        mock_deployments = [
+            {
+                "deployment_id": "deploy-1",
+                "status": "success",
+                "timestamp": "2026-01-22T12:00:00Z",
+            },
+            {
+                "deployment_id": "deploy-2",
+                "status": "failed",
+                "timestamp": "2026-01-22T11:00:00Z",
+            },
+        ]
+
+        with patch.object(provider, "_api_request") as mock_request:
+            mock_request.return_value = {"deployments": mock_deployments}
+
+            deployments = await provider.get_recent_deployments(limit=10)
+            assert len(deployments) == 2
+            assert deployments[0]["deployment_id"] == "deploy-1"
+
+    @pytest.mark.asyncio
+    async def test_rollback_deployment(self):
+        """Test rolling back to previous deployment."""
+        from fraisier.providers import CoolifyProvider
+
+        config = {
+            "api_token": "token",
+            "application_id": "app-123",
+        }
+        provider = CoolifyProvider(config)
+
+        with patch.object(provider, "_api_request") as mock_request:
+            mock_request.return_value = {
+                "deployment_id": "deploy-old",
+                "status": "running",
+            }
+
+            result = await provider.rollback_deployment(deployment_id="deploy-old")
+            assert result["success"] is True
+            assert result["deployment_id"] == "deploy-old"
+
+    @pytest.mark.asyncio
+    async def test_get_application_config(self):
+        """Test retrieving application configuration."""
+        from fraisier.providers import CoolifyProvider
+
+        config = {
+            "api_token": "token",
+            "application_id": "app-123",
+        }
+        provider = CoolifyProvider(config)
+
+        mock_config = {
+            "git_repo": "https://github.com/example/repo",
+            "git_branch": "main",
+            "port": 8000,
+            "replicas": 2,
+        }
+
+        with patch.object(provider, "_api_request") as mock_request:
+            mock_request.return_value = mock_config
+
+            app_config = await provider.get_application_config()
+            assert app_config["git_repo"] == "https://github.com/example/repo"
+            assert app_config["port"] == 8000
+
+    @pytest.mark.asyncio
+    async def test_update_environment_variables(self):
+        """Test updating environment variables."""
+        from fraisier.providers import CoolifyProvider
+
+        config = {
+            "api_token": "token",
+            "application_id": "app-123",
+        }
+        provider = CoolifyProvider(config)
+
+        with patch.object(provider, "_api_request") as mock_request:
+            mock_request.return_value = {}
+
+            env_vars = {
+                "DATABASE_URL": "postgres://localhost",
+                "DEBUG": "false",
+            }
+
+            result = await provider.update_environment_variables(env_vars)
+            assert result is True
+
+    @pytest.mark.asyncio
+    async def test_get_metrics(self):
+        """Test retrieving application metrics."""
+        from fraisier.providers import CoolifyProvider
+
+        config = {
+            "api_token": "token",
+            "application_id": "app-123",
+        }
+        provider = CoolifyProvider(config)
+
+        mock_metrics = {
+            "cpu_usage": 25.5,
+            "memory_usage": 512,
+            "uptime": 3600,
+            "restart_count": 2,
+            "last_deployment": "2026-01-22T12:00:00Z",
+        }
+
+        with patch.object(provider, "_api_request") as mock_request:
+            mock_request.return_value = mock_metrics
+
+            metrics = await provider.get_metrics()
+            assert metrics["cpu_usage"] == 25.5
+            assert metrics["memory_usage"] == 512
+            assert metrics["uptime"] == 3600
+
+    @pytest.mark.asyncio
+    async def test_wait_for_deployment_success(self):
+        """Test waiting for deployment to complete successfully."""
+        from fraisier.providers import CoolifyProvider
+
+        config = {
+            "api_token": "token",
+            "application_id": "app-123",
+        }
+        provider = CoolifyProvider(config)
+
+        with patch.object(provider, "_api_request") as mock_request:
+            mock_request.return_value = {"status": "success"}
+
+            result = await provider.wait_for_deployment(
+                "deploy-123",
+                timeout=10,
+                check_interval=1,
+            )
+            assert result is True
+
+    @pytest.mark.asyncio
+    async def test_wait_for_deployment_failed(self):
+        """Test waiting for failed deployment."""
+        from fraisier.providers import CoolifyProvider
+
+        config = {
+            "api_token": "token",
+            "application_id": "app-123",
+        }
+        provider = CoolifyProvider(config)
+
+        with patch.object(provider, "_api_request") as mock_request:
+            mock_request.return_value = {"status": "failed"}
+
+            result = await provider.wait_for_deployment(
+                "deploy-123",
+                timeout=10,
+                check_interval=1,
+            )
+            assert result is False
+
+    @pytest.mark.asyncio
+    @pytest.mark.skip(reason="httpx not installed")
+    async def test_health_check_http(self):
+        """Test HTTP health check for Coolify."""
+        from fraisier.providers import CoolifyProvider
+
+        config = {
+            "api_token": "token",
+            "application_id": "app-123",
+        }
+        provider = CoolifyProvider(config)
+
+        health_check = HealthCheck(
+            type=HealthCheckType.HTTP,
+            url="http://localhost:8000/health",
+            timeout=5,
+            retries=1,
+        )
+
+        with patch("httpx.AsyncClient") as mock_client:
+            mock_response = AsyncMock()
+            mock_response.status_code = 200
+            mock_client_instance = AsyncMock()
+            mock_client_instance.__aenter__ = AsyncMock(return_value=mock_client_instance)
+            mock_client_instance.__aexit__ = AsyncMock(return_value=None)
+            mock_client_instance.get = AsyncMock(return_value=mock_response)
+            mock_client.return_value = mock_client_instance
+
+            result = await provider.check_health(health_check)
+            assert result is True
