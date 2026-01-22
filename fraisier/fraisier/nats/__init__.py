@@ -13,6 +13,16 @@ from fraisier.nats.events import (
     NatsEvent,
 )
 from fraisier.nats.provider import NatsEventProvider
+from fraisier.nats.subscribers import (
+    EventSubscriberRegistry,
+    EventSubscription,
+    EventFilter,
+    EventHandler,
+    AsyncEventHandler,
+    EventHandlers,
+    get_subscriber_registry,
+    reset_subscriber_registry,
+)
 
 __all__ = [
     "NatsClient",
@@ -23,4 +33,12 @@ __all__ = [
     "HealthCheckEvents",
     "DatabaseEvents",
     "MetricsEvents",
+    "EventSubscriberRegistry",
+    "EventSubscription",
+    "EventFilter",
+    "EventHandler",
+    "AsyncEventHandler",
+    "EventHandlers",
+    "get_subscriber_registry",
+    "reset_subscriber_registry",
 ]
