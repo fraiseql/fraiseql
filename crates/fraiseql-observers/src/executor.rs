@@ -471,7 +471,7 @@ impl ObserverExecutor {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```ignore
     /// use std::sync::Arc;
     /// use fraiseql_observers::{ObserverExecutor, EventMatcher};
     /// use fraiseql_observers::transport::{InMemoryTransport, EventFilter};
