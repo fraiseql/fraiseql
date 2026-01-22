@@ -26,6 +26,9 @@ pub mod instrumentation;
 pub mod action_tracing;
 pub mod action_integration;
 
+#[cfg(test)]
+mod tests;
+
 use crate::error::{Error, Result};
 use config::TracingConfig;
 
