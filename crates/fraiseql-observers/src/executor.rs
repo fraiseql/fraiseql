@@ -470,7 +470,8 @@ impl ObserverExecutor {
     /// - Polls listener.next_batch() at configured interval
     /// - Converts each ChangeLogEntry to EntityEvent
     /// - Processes event through observers
-    /// - Updates checkpoint after successful processing
+    /// - Implements exponential backoff on database errors (up to 10 retries)
+    /// - Skips malformed entries and continues processing
     /// - Continues indefinitely until listener stops or error occurs
     pub async fn run_listener_loop(
         &self,
@@ -478,6 +479,9 @@ impl ObserverExecutor {
         max_iterations: Option<usize>,
     ) -> Result<()> {
         let mut iteration = 0;
+        let mut consecutive_errors = 0;
+        const MAX_CONSECUTIVE_ERRORS: u32 = 10;
+        const MAX_BACKOFF_MS: u64 = 30000; // 30 seconds
 
         loop {
             // Check iteration limit (for testing)
@@ -491,6 +495,9 @@ impl ObserverExecutor {
 
             match listener.next_batch().await {
                 Ok(entries) => {
+                    // Reset error counter on successful batch fetch
+                    consecutive_errors = 0;
+
                     if entries.is_empty() {
                         debug!("No new entries from change log");
                         // Wait before polling again
@@ -499,6 +506,9 @@ impl ObserverExecutor {
                     }
 
                     debug!("Processing {} change log entries", entries.len());
+
+                    let mut conversion_errors = 0;
+                    let mut processing_errors = 0;
 
                     // Convert and process each entry
                     for entry in entries {
@@ -514,22 +524,52 @@ impl ObserverExecutor {
                                     }
                                     Err(e) => {
                                         error!("Failed to process event: {}", e);
+                                        processing_errors += 1;
                                         // Continue processing other entries despite error
                                     }
                                 }
                             }
                             Err(e) => {
                                 error!("Failed to convert change log entry to event: {}", e);
+                                conversion_errors += 1;
                                 // Continue processing other entries despite error
                             }
                         }
                     }
+
+                    // Log batch summary
+                    if conversion_errors > 0 || processing_errors > 0 {
+                        warn!(
+                            "Batch processing: {} conversion errors, {} processing errors",
+                            conversion_errors, processing_errors
+                        );
+                    }
                 }
                 Err(e) => {
-                    error!("Error fetching from change log: {}", e);
-                    // Back off and retry
-                    warn!("Retrying in 1 second...");
-                    sleep(Duration::from_secs(1)).await;
+                    consecutive_errors += 1;
+
+                    // Exponential backoff: 1s, 2s, 4s, 8s, ..., capped at 30s
+                    let backoff_ms = ((1000_u64) * 2_u64.saturating_pow(consecutive_errors - 1))
+                        .min(MAX_BACKOFF_MS);
+
+                    error!(
+                        "Error fetching from change log (attempt {}): {}",
+                        consecutive_errors, e
+                    );
+
+                    if consecutive_errors >= MAX_CONSECUTIVE_ERRORS {
+                        error!(
+                            "Max consecutive errors ({}) reached. Stopping listener loop.",
+                            MAX_CONSECUTIVE_ERRORS
+                        );
+                        return Err(e);
+                    }
+
+                    warn!(
+                        "Exponential backoff: retrying in {}ms ({} attempts so far)",
+                        backoff_ms, consecutive_errors
+                    );
+                    sleep(Duration::from_millis(backoff_ms)).await;
                 }
             }
         }
@@ -783,5 +823,81 @@ mod tests {
         assert_eq!(config.poll_interval_ms, 250);
         assert_eq!(config.batch_size, 200);
         assert_eq!(config.resume_from_id, Some(500));
+    }
+
+    // Error handling and resilience tests (Subphase 7.4)
+
+    #[tokio::test]
+    async fn test_run_listener_loop_with_iteration_limit() {
+        use crate::listener::{ChangeLogListener, ChangeLogListenerConfig};
+        use sqlx::postgres::PgPool;
+
+        let executor = create_test_executor();
+        let pool = PgPool::connect_lazy("postgres://localhost/dummy").unwrap();
+        let config = ChangeLogListenerConfig::new(pool);
+        let mut listener = ChangeLogListener::new(config);
+
+        // Should complete successfully with iteration limit
+        let result = executor.run_listener_loop(&mut listener, Some(3)).await;
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_exponential_backoff_calculation() {
+        let executor = create_test_executor();
+        let config = RetryConfig {
+            max_attempts: 5,
+            initial_delay_ms: 100,
+            max_delay_ms: 5000,
+            backoff_strategy: BackoffStrategy::Exponential,
+        };
+
+        // Exponential backoff should double each time
+        let delay1 = executor.calculate_backoff(1, &config);
+        let delay2 = executor.calculate_backoff(2, &config);
+        let delay3 = executor.calculate_backoff(3, &config);
+
+        // 2^0 * 100 = 100
+        assert_eq!(delay1.as_millis(), 100);
+
+        // 2^1 * 100 = 200
+        assert_eq!(delay2.as_millis(), 200);
+
+        // 2^2 * 100 = 400
+        assert_eq!(delay3.as_millis(), 400);
+    }
+
+    #[test]
+    fn test_exponential_backoff_cap() {
+        let executor = create_test_executor();
+        let config = RetryConfig {
+            max_attempts: 10,
+            initial_delay_ms: 100,
+            max_delay_ms: 1000,
+            backoff_strategy: BackoffStrategy::Exponential,
+        };
+
+        // Should cap at max_delay_ms
+        let delay8 = executor.calculate_backoff(8, &config);
+        let delay9 = executor.calculate_backoff(9, &config);
+
+        // Both should be at max (1000)
+        assert!(delay8.as_millis() <= 1000);
+        assert!(delay9.as_millis() <= 1000);
+    }
+
+    #[tokio::test]
+    async fn test_run_listener_loop_zero_iterations() {
+        use crate::listener::{ChangeLogListener, ChangeLogListenerConfig};
+        use sqlx::postgres::PgPool;
+
+        let executor = create_test_executor();
+        let pool = PgPool::connect_lazy("postgres://localhost/dummy").unwrap();
+        let config = ChangeLogListenerConfig::new(pool);
+        let mut listener = ChangeLogListener::new(config);
+
+        // Should handle zero iterations
+        let result = executor.run_listener_loop(&mut listener, Some(0)).await;
+        assert!(result.is_ok());
     }
 }
