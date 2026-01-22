@@ -609,7 +609,7 @@ def provider_test(ctx: click.Context, provider_type: str,
     # Load provider config if file provided
     if config_file:
         try:
-            with open(config_file, "r") as f:
+            with open(config_file) as f:
                 config_data = yaml.safe_load(f)
         except Exception as e:
             console.print(f"[red]Error loading config file:[/red] {e}")
@@ -647,10 +647,10 @@ def provider_test(ctx: click.Context, provider_type: str,
         success, message = provider.pre_flight_check()
 
         if success:
-            console.print(f"[green]✓ Pre-flight check passed[/green]")
+            console.print("[green]✓ Pre-flight check passed[/green]")
             console.print(f"[dim]{message}[/dim]")
         else:
-            console.print(f"[red]✗ Pre-flight check failed[/red]")
+            console.print("[red]✗ Pre-flight check failed[/red]")
             console.print(f"[dim]{message}[/dim]")
             raise SystemExit(1)
 

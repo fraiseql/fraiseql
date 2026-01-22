@@ -25,7 +25,6 @@ from fraisier.providers.docker_compose import DockerComposeProvider
 try:
     from fraisier.providers.coolify import CoolifyProvider
     from fraisier.providers.coolify_client import (
-        CoolifyAPIError,
         CoolifyAuthError,
         CoolifyClient,
         CoolifyNotFoundError,

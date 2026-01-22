@@ -33,6 +33,9 @@ futures = "0.3"
 redis = { version = "0.25", features = ["aio", "connection-manager"], optional = true }
 prometheus = { version = "0.13", optional = true }
 http = "1.1"
+clap = { version = "4.5", features = ["derive"] }
+colored = "2.1"
+tabwriter = "1.4"
 
 [dev-dependencies]
 tokio-test = "0.4"
