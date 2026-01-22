@@ -46,6 +46,7 @@ pub mod checkpoint;
 pub mod concurrent;
 pub mod condition;
 pub mod config;
+pub mod dedup;
 pub mod error;
 pub mod event;
 pub mod executor;
@@ -62,6 +63,9 @@ pub use actions_additional::{CacheAction, PushAction, SearchAction, SmsAction};
 pub use checkpoint::{CheckpointState, CheckpointStore};
 pub use checkpoint::postgres::PostgresCheckpointStore;
 pub use concurrent::ConcurrentActionExecutor;
+pub use dedup::{DeduplicationStats, DeduplicationStore};
+#[cfg(feature = "dedup")]
+pub use dedup::redis::RedisDeduplicationStore;
 pub use condition::{ConditionAst, ConditionParser};
 pub use config::{
     ActionConfig, BackoffStrategy, FailurePolicy, ObserverDefinition, ObserverRuntimeConfig,

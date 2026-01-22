@@ -38,11 +38,13 @@ def get_connection() -> Generator[sqlite3.Connection, None, None]:
 def init_database() -> None:
     """Initialize database schema following trinity pattern.
 
-    Trinity pattern conventions:
-    - pk_* = INTEGER PRIMARY KEY (internal, deterministic allocation)
-    - id = UUID (public, API-exposed)
+    Trinity pattern conventions (aligned with PrintOptim):
+    - pk_* = Primary key for internal references
+      * SQLite: INTEGER AUTOINCREMENT (SQLite doesn't support BIGINT/GENERATED ALWAYS)
+      * PostgreSQL/Production: BIGINT GENERATED ALWAYS AS IDENTITY
+    - id = TEXT/UUID (public, API-exposed, cross-database sync)
     - identifier = TEXT (business key, human-readable)
-    - fk_* = Foreign key references (always to pk_*, not id)
+    - fk_* = Foreign key references (always to pk_*, never id)
     - tb_* = Write-side operational tables
     - v_* = Read-side views
 
@@ -50,6 +52,9 @@ def init_database() -> None:
     - id column enables UUID-based sync across databases
     - identifier enables human-readable lookups
     - pk_* enables efficient internal references
+
+    Note: SQLite uses INTEGER AUTOINCREMENT. When migrating to PostgreSQL,
+    use: ALTER TABLE RENAME TO _old; CREATE TABLE WITH BIGINT; MIGRATE DATA.
     """
     with get_connection() as conn:
         conn.executescript("""
