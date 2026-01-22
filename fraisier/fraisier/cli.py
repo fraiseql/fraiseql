@@ -659,6 +659,51 @@ def provider_test(ctx: click.Context, provider_type: str,
         raise SystemExit(1)
 
 
+@main.command(name="metrics")
+@click.option("--port", "-p", default=8001, type=int, help="Port for metrics server")
+@click.option("--address", "-a", default="localhost", help="Address to bind to")
+def metrics_endpoint(port: int, address: str) -> None:
+    """Start Prometheus metrics exporter endpoint.
+
+    Exports deployment metrics at http://ADDRESS:PORT/metrics
+
+    \b
+    Examples:
+        fraisier metrics                    # Start on localhost:8001
+        fraisier metrics --port 8080        # Use port 8080
+        fraisier metrics --address 0.0.0.0  # Listen on all interfaces
+    """
+    try:
+        from prometheus_client import start_http_server
+    except ImportError:
+        console.print(
+            "[red]Error:[/red] prometheus_client not installed\n"
+            "[yellow]Install with:[/yellow] pip install prometheus-client"
+        )
+        raise SystemExit(1)
+
+    try:
+        # Start metrics server
+        start_http_server(port, addr=address)
+        console.print(
+            f"[green]✓ Prometheus metrics server started[/green]\n"
+            f"Metrics available at: [cyan]http://{address}:{port}/metrics[/cyan]\n"
+            f"[dim]Press Ctrl+C to stop[/dim]"
+        )
+
+        # Keep server running
+        import time
+        while True:
+            time.sleep(1)
+
+    except OSError as e:
+        console.print(f"[red]Error:[/red] Failed to start metrics server: {e}")
+        raise SystemExit(1)
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Metrics server stopped[/yellow]")
+        raise SystemExit(0)
+
+
 def _get_deployer(fraise_type: str, fraise_config: dict, job: str | None = None):
     """Get appropriate deployer for fraise type."""
     if fraise_type == "api":
