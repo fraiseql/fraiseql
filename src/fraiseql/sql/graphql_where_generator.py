@@ -428,7 +428,7 @@ class LTreeFilter:
 
     # Array operations
     in_array: list[str] | None = None  # <@ - Path is in array of paths
-    array_contains: tuple[list[str], str] | None = None  # @> - Array contains path
+    array_contains: str | None = None  # @> - Array contains path
 
 
 @fraise_input

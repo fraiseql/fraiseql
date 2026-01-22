@@ -485,351 +485,6 @@ def convert_type_to_graphql_output(
                 fields = getattr(typ, "__gql_fields__", {})
                 type_hints = getattr(typ, "__gql_type_hints__", {})
 
-                gql_fields = {}
-                for name, field in fields.items():
-                    field_type = field.field_type or type_hints.get(name)
-                    if field_type is not None:
-                        # Check if we should use enhanced resolver for where filtering support
-                        # This takes priority over the standard nested resolver
-                        if (
-                            hasattr(field, "supports_where_filtering")
-                            and field.supports_where_filtering
-                        ):
-                            # Use enhanced resolver with where parameter support
-                            from fraiseql.core.nested_field_resolver import (
-                                create_nested_array_field_resolver_with_where,
-                            )
-
-                            enhanced_resolver = create_nested_array_field_resolver_with_where(
-                                name, field_type, field
-                            )
-
-                            # Wrap with enum serialization
-                            from fraiseql.gql.enum_serializer import (
-                                wrap_resolver_with_enum_serialization,
-                            )
-
-                            # Use explicit graphql_name if provided, otherwise convert to
-                            # camelCase if configured
-                            config = SchemaConfig.get_instance()
-                            if field.graphql_name:
-                                graphql_field_name = field.graphql_name
-                            else:
-                                graphql_field_name = (
-                                    snake_to_camel(name) if config.camel_case_fields else name
-                                )
-
-                            # Create GraphQL field with where parameter
-                            from graphql import GraphQLArgument
-
-                            # Determine the WhereInput type
-                            # Priority: field.where_input_type > field.nested_where_type > registry
-                            where_input_type = None
-                            nested_type = None
-
-                            if field.where_input_type:
-                                where_input_type = field.where_input_type
-                            elif field.nested_where_type:
-                                nested_type = field.nested_where_type
-                            else:
-                                # Check registry as fallback
-                                from fraiseql.nested_array_filters import get_nested_array_filter
-
-                                nested_type = get_nested_array_filter(typ, name)
-
-                            # Generate WhereInput type if we have a nested type
-                            if nested_type and not where_input_type:
-                                from fraiseql.sql.graphql_where_generator import (
-                                    create_graphql_where_input,
-                                )
-
-                                where_input_type = create_graphql_where_input(nested_type)
-
-                            # Create args dict with where parameter
-                            gql_args = {}
-                            if where_input_type:
-                                where_gql_type = convert_type_to_graphql_input(where_input_type)
-                                gql_args["where"] = GraphQLArgument(where_gql_type)
-
-                            gql_type = convert_type_to_graphql_output(field_type)
-                            if not is_optional_type(field_type):
-                                gql_type = GraphQLNonNull(gql_type)
-                            gql_fields[graphql_field_name] = GraphQLField(
-                                type_=gql_type,
-                                description=field.description,
-                                args=gql_args,
-                                resolve=wrap_resolver_with_enum_serialization(enhanced_resolver),
-                            )
-                            continue  # Skip other resolver creation
-
-                        # Check if we should use nested resolver (only if explicitly requested)
-                        # By default (resolve_nested=False), nested objects are assumed to be
-                        # embedded in the parent's JSONB data and use the standard resolver.
-                        # Only when resolve_nested=True do we create a special resolver that
-                        # can query the nested type's sql_source separately.
-                        from fraiseql.core.nested_field_resolver import (
-                            create_smart_nested_field_resolver,
-                            should_use_nested_resolver,
-                        )
-
-                        if should_use_nested_resolver(field_type):
-                            # Use smart resolver for resolve_nested=True types
-                            smart_resolver = create_smart_nested_field_resolver(name, field_type)
-
-                            # Wrap with enum serialization
-                            from fraiseql.gql.enum_serializer import (
-                                wrap_resolver_with_enum_serialization,
-                            )
-
-                            # Use explicit graphql_name if provided, otherwise convert to
-                            # camelCase if configured
-                            config = SchemaConfig.get_instance()
-                            if field.graphql_name:
-                                graphql_field_name = field.graphql_name
-                            else:
-                                graphql_field_name = (
-                                    snake_to_camel(name) if config.camel_case_fields else name
-                                )
-
-                            gql_type = convert_type_to_graphql_output(field_type)
-                            if not is_optional_type(field_type):
-                                gql_type = GraphQLNonNull(gql_type)
-                            gql_fields[graphql_field_name] = GraphQLField(
-                                type_=gql_type,
-                                description=field.description,
-                                resolve=wrap_resolver_with_enum_serialization(smart_resolver),
-                            )
-                            continue  # Skip the regular resolver creation
-
-                        # Create resolver for enum serialization and nested object conversion
-                        def make_field_resolver(field_name: str, field_type: Any) -> Callable:
-                            def resolve_field(obj: Any, info: Any) -> Any:
-                                # Rust-first: Objects are plain dicts (Rust-transformed)
-                                # No JSONPassthrough wrapper needed
-                                value = getattr(obj, field_name, None)
-
-                                # Handle None values
-                                if value is None:
-                                    return None
-
-                                # Handle enum serialization at field level
-                                if isinstance(value, Enum):
-                                    # Check if the field type is an enum - if so, return the
-                                    # enum member so GraphQL can handle serialization properly
-                                    origin_type = get_origin(field_type) or field_type
-                                    if origin_type is Union or origin_type is types.UnionType:
-                                        # For Optional types, get the non-None type
-                                        args = get_args(field_type)
-                                        non_none_types = [t for t in args if t is not type(None)]
-                                        if non_none_types:
-                                            origin_type = non_none_types[0]
-
-                                    if isinstance(origin_type, type) and issubclass(
-                                        origin_type, Enum
-                                    ):
-                                        # Field type is an enum, return the member for GraphQL
-                                        return value
-                                    # Field type is not an enum, return the value
-                                    return value.value
-                                if isinstance(value, list):
-                                    # Handle lists of enums or nested objects
-                                    result = []
-                                    for item in value:
-                                        if isinstance(item, Enum):
-                                            # Check if list contains enum types
-                                            list_origin = get_origin(field_type)
-                                            if list_origin is list:
-                                                list_args = get_args(field_type)
-                                                if list_args:
-                                                    item_type = list_args[0]
-                                                    # Handle Optional[Enum]
-                                                    origin_item_type = (
-                                                        get_origin(item_type) or item_type
-                                                    )
-                                                    if (
-                                                        origin_item_type is Union
-                                                        or origin_item_type is types.UnionType
-                                                    ):
-                                                        args = get_args(item_type)
-                                                        non_none_types = [
-                                                            t for t in args if t is not type(None)
-                                                        ]
-                                                        if non_none_types:
-                                                            item_type = non_none_types[0]
-
-                                                    if isinstance(item_type, type) and issubclass(
-                                                        item_type, Enum
-                                                    ):
-                                                        result.append(item)
-                                                    else:
-                                                        result.append(item.value)
-                                                else:
-                                                    result.append(item.value)
-                                            else:
-                                                result.append(item.value)
-                                        elif isinstance(item, dict):
-                                            # Check if list has FraiseQL types needing conversion
-                                            list_item_type = _extract_list_item_type(field_type)
-
-                                            if list_item_type and hasattr(
-                                                list_item_type, "__fraiseql_definition__"
-                                            ):
-                                                # Convert dict to typed object
-                                                if hasattr(list_item_type, "from_dict"):
-                                                    result.append(list_item_type.from_dict(item))
-                                                else:
-                                                    result.append(item)
-                                            else:
-                                                result.append(item)
-                                        else:
-                                            result.append(item)
-                                    return result
-
-                                # Handle nested objects - check dict to FraiseQL conversion
-                                if isinstance(value, dict):
-                                    # Extract actual type from Optional if needed
-                                    actual_field_type = field_type
-                                    origin = get_origin(field_type)
-                                    if origin is Union or origin is types.UnionType:
-                                        args = get_args(field_type)
-                                        non_none_types = [t for t in args if t is not type(None)]
-                                        if non_none_types:
-                                            actual_field_type = non_none_types[0]
-
-                                    # Check if the field type is a FraiseQL type
-                                    if hasattr(
-                                        actual_field_type, "__fraiseql_definition__"
-                                    ) and hasattr(actual_field_type, "from_dict"):
-                                        return actual_field_type.from_dict(value)
-
-                                return value
-
-                            return resolve_field
-
-                        # Use explicit graphql_name if provided, otherwise convert to
-                        # camelCase if configured
-                        config = SchemaConfig.get_instance()
-                        if field.graphql_name:
-                            graphql_field_name = field.graphql_name
-                        else:
-                            graphql_field_name = (
-                                snake_to_camel(name) if config.camel_case_fields else name
-                            )
-
-                        # Wrap field resolver with enum serialization
-                        from fraiseql.gql.enum_serializer import (
-                            wrap_resolver_with_enum_serialization,
-                        )
-
-                        gql_type = convert_type_to_graphql_output(field_type)
-                        if not is_optional_type(field_type):
-                            gql_type = GraphQLNonNull(gql_type)
-                        gql_fields[graphql_field_name] = GraphQLField(
-                            type_=gql_type,
-                            description=field.description,
-                            resolve=wrap_resolver_with_enum_serialization(
-                                make_field_resolver(name, field_type)
-                            ),
-                        )
-
-                # Check for custom field methods (@dataloader_field, @field, etc.)
-                for attr_name in dir(typ):
-                    # Skip if we already have this field from regular processing
-                    if attr_name in gql_fields:
-                        continue
-
-                    # Skip private/special methods
-                    if attr_name.startswith("_"):
-                        continue
-
-                    attr = getattr(typ, attr_name)
-                    if not callable(attr):
-                        continue
-
-                    # Check for field resolver decorators
-                    if hasattr(attr, "__fraiseql_field__") or hasattr(
-                        attr,
-                        "__fraiseql_dataloader__",
-                    ):
-                        # Get method signature for type information
-                        from typing import get_type_hints
-
-                        try:
-                            hints = get_type_hints(attr)
-                            return_type = hints.get("return")
-
-                            if return_type is None:
-                                logger.warning(
-                                    "Custom field method %s missing return type annotation",
-                                    attr_name,
-                                )
-                                continue
-
-                            logger.debug("Found custom field method: %s", attr_name)
-
-                            # Convert return type to GraphQL type
-                            gql_return_type = convert_type_to_graphql_output(return_type)
-                            if not is_optional_type(return_type):
-                                gql_return_type = GraphQLNonNull(gql_return_type)
-
-                            # Create a wrapper that adapts the method signature for GraphQL
-                            def make_custom_resolver(method: Callable[..., Any]) -> Callable:
-                                import asyncio
-
-                                if asyncio.iscoroutinefunction(method):
-
-                                    async def async_resolver(
-                                        obj: Any, info: GraphQLResolveInfo, **kwargs: Any
-                                    ) -> Any:
-                                        # Call the method with the object instance and info
-                                        return await method(obj, info, **kwargs)
-
-                                    return async_resolver
-
-                                def sync_resolver(
-                                    obj: Any, info: GraphQLResolveInfo, **kwargs: Any
-                                ) -> Any:
-                                    # Call the method with the object instance and info
-                                    return method(obj, info, **kwargs)
-
-                                return sync_resolver
-
-                            # Wrap with enum serialization
-                            from fraiseql.gql.enum_serializer import (
-                                wrap_resolver_with_enum_serialization,
-                            )
-
-                            wrapped_resolver = wrap_resolver_with_enum_serialization(
-                                make_custom_resolver(attr),
-                            )
-
-                            # Get description from decorator or docstring
-                            description = getattr(
-                                attr,
-                                "__fraiseql_field_description__",
-                                None,
-                            ) or getattr(attr, "__doc__", None)
-
-                            # Convert field name to camelCase if configured
-                            config = SchemaConfig.get_instance()
-                            graphql_field_name = (
-                                snake_to_camel(attr_name) if config.camel_case_fields else attr_name
-                            )
-
-                            gql_fields[graphql_field_name] = GraphQLField(
-                                type_=cast("GraphQLOutputType", gql_return_type),
-                                resolve=wrapped_resolver,
-                                description=description,
-                            )
-
-                        except Exception as e:
-                            logger.warning(
-                                "Failed to process custom field %s: %s",
-                                attr_name,
-                                e,
-                            )
-                            continue
-
                 # Get interfaces this type implements
                 interfaces = []
                 if hasattr(typ, "__fraiseql_interfaces__"):
@@ -847,9 +502,379 @@ def convert_type_to_graphql_output(
                         else False
                     )
 
+                # Create a thunk (lazy function) for fields to handle recursive references
+                # This allows the type to reference itself (e.g., Playlist with child_playlists)
+                def make_fields_thunk():
+                    gql_fields = {}
+                    for name, field in fields.items():
+                        field_type = field.field_type or type_hints.get(name)
+                        if field_type is not None:
+                            # Check if we should use enhanced resolver for where filtering support
+                            # This takes priority over the standard nested resolver
+                            if (
+                                hasattr(field, "supports_where_filtering")
+                                and field.supports_where_filtering
+                            ):
+                                # Use enhanced resolver with where parameter support
+                                from fraiseql.core.nested_field_resolver import (
+                                    create_nested_array_field_resolver_with_where,
+                                )
+
+                                enhanced_resolver = create_nested_array_field_resolver_with_where(
+                                    name, field_type, field
+                                )
+
+                                # Wrap with enum serialization
+                                from fraiseql.gql.enum_serializer import (
+                                    wrap_resolver_with_enum_serialization,
+                                )
+
+                                # Use explicit graphql_name if provided, otherwise convert to
+                                # camelCase if configured
+                                config = SchemaConfig.get_instance()
+                                if field.graphql_name:
+                                    graphql_field_name = field.graphql_name
+                                else:
+                                    graphql_field_name = (
+                                        snake_to_camel(name) if config.camel_case_fields else name
+                                    )
+
+                                # Create GraphQL field with where parameter
+                                from graphql import GraphQLArgument
+
+                                # Determine the WhereInput type
+                                # Priority: field.where_input_type >
+                                # field.nested_where_type > registry
+                                where_input_type = None
+                                nested_type = None
+
+                                if field.where_input_type:
+                                    where_input_type = field.where_input_type
+                                elif field.nested_where_type:
+                                    nested_type = field.nested_where_type
+                                else:
+                                    # Check registry as fallback
+                                    from fraiseql.nested_array_filters import (
+                                        get_nested_array_filter,
+                                    )
+
+                                    nested_type = get_nested_array_filter(typ, name)
+
+                                # Generate WhereInput type if we have a nested type
+                                if nested_type and not where_input_type:
+                                    from fraiseql.sql.graphql_where_generator import (
+                                        create_graphql_where_input,
+                                    )
+
+                                    where_input_type = create_graphql_where_input(nested_type)
+
+                                # Create args dict with where parameter
+                                gql_args = {}
+                                if where_input_type:
+                                    where_gql_type = convert_type_to_graphql_input(where_input_type)
+                                    gql_args["where"] = GraphQLArgument(where_gql_type)
+
+                                gql_type = convert_type_to_graphql_output(field_type)
+                                if not is_optional_type(field_type):
+                                    gql_type = GraphQLNonNull(gql_type)
+                                gql_fields[graphql_field_name] = GraphQLField(
+                                    type_=gql_type,
+                                    description=field.description,
+                                    args=gql_args,
+                                    resolve=wrap_resolver_with_enum_serialization(
+                                        enhanced_resolver
+                                    ),
+                                )
+                                continue  # Skip other resolver creation
+
+                            # Check if we should use nested resolver (only if explicitly requested)
+                            # By default (resolve_nested=False), nested objects are assumed to be
+                            # embedded in the parent's JSONB data and use the standard resolver.
+                            # Only when resolve_nested=True do we create a special resolver that
+                            # can query the nested type's sql_source separately.
+                            from fraiseql.core.nested_field_resolver import (
+                                create_smart_nested_field_resolver,
+                                should_use_nested_resolver,
+                            )
+
+                            if should_use_nested_resolver(field_type):
+                                # Use smart resolver for resolve_nested=True types
+                                smart_resolver = create_smart_nested_field_resolver(
+                                    name, field_type
+                                )
+
+                                # Wrap with enum serialization
+                                from fraiseql.gql.enum_serializer import (
+                                    wrap_resolver_with_enum_serialization,
+                                )
+
+                                # Use explicit graphql_name if provided, otherwise convert to
+                                # camelCase if configured
+                                config = SchemaConfig.get_instance()
+                                if field.graphql_name:
+                                    graphql_field_name = field.graphql_name
+                                else:
+                                    graphql_field_name = (
+                                        snake_to_camel(name) if config.camel_case_fields else name
+                                    )
+
+                                gql_type = convert_type_to_graphql_output(field_type)
+                                if not is_optional_type(field_type):
+                                    gql_type = GraphQLNonNull(gql_type)
+                                gql_fields[graphql_field_name] = GraphQLField(
+                                    type_=gql_type,
+                                    description=field.description,
+                                    resolve=wrap_resolver_with_enum_serialization(smart_resolver),
+                                )
+                                continue  # Skip the regular resolver creation
+
+                            # Create resolver for enum serialization and nested object conversion
+                            def make_field_resolver(field_name: str, field_type: Any) -> Callable:
+                                def resolve_field(obj: Any, info: Any) -> Any:
+                                    # Rust-first: Objects are plain dicts (Rust-transformed)
+                                    # No JSONPassthrough wrapper needed
+                                    value = getattr(obj, field_name, None)
+
+                                    # Handle None values
+                                    if value is None:
+                                        return None
+
+                                    # Handle enum serialization at field level
+                                    if isinstance(value, Enum):
+                                        # Check if the field type is an enum - if so, return the
+                                        # enum member so GraphQL can handle serialization properly
+                                        origin_type = get_origin(field_type) or field_type
+                                        if origin_type is Union or origin_type is types.UnionType:
+                                            # For Optional types, get the non-None type
+                                            args = get_args(field_type)
+                                            non_none_types = [
+                                                t for t in args if t is not type(None)
+                                            ]
+                                            if non_none_types:
+                                                origin_type = non_none_types[0]
+
+                                        if isinstance(origin_type, type) and issubclass(
+                                            origin_type, Enum
+                                        ):
+                                            # Field type is an enum, return the member for GraphQL
+                                            return value
+                                        # Field type is not an enum, return the value
+                                        return value.value
+                                    if isinstance(value, list):
+                                        # Handle lists of enums or nested objects
+                                        result = []
+                                        for item in value:
+                                            if isinstance(item, Enum):
+                                                # Check if list contains enum types
+                                                list_origin = get_origin(field_type)
+                                                if list_origin is list:
+                                                    list_args = get_args(field_type)
+                                                    if list_args:
+                                                        item_type = list_args[0]
+                                                        # Handle Optional[Enum]
+                                                        origin_item_type = (
+                                                            get_origin(item_type) or item_type
+                                                        )
+                                                        if (
+                                                            origin_item_type is Union
+                                                            or origin_item_type is types.UnionType
+                                                        ):
+                                                            args = get_args(item_type)
+                                                            non_none_types = [
+                                                                t
+                                                                for t in args
+                                                                if t is not type(None)
+                                                            ]
+                                                            if non_none_types:
+                                                                item_type = non_none_types[0]
+
+                                                        if isinstance(
+                                                            item_type, type
+                                                        ) and issubclass(item_type, Enum):
+                                                            result.append(item)
+                                                        else:
+                                                            result.append(item.value)
+                                                    else:
+                                                        result.append(item.value)
+                                                else:
+                                                    result.append(item.value)
+                                            elif isinstance(item, dict):
+                                                # Check if list has FraiseQL types
+                                                # needing conversion
+                                                list_item_type = _extract_list_item_type(field_type)
+
+                                                if list_item_type and hasattr(
+                                                    list_item_type, "__fraiseql_definition__"
+                                                ):
+                                                    # Convert dict to typed object
+                                                    if hasattr(list_item_type, "from_dict"):
+                                                        result.append(
+                                                            list_item_type.from_dict(item)
+                                                        )
+                                                    else:
+                                                        result.append(item)
+                                                else:
+                                                    result.append(item)
+                                            else:
+                                                result.append(item)
+                                        return result
+
+                                    # Handle nested objects - check dict to FraiseQL conversion
+                                    if isinstance(value, dict):
+                                        # Extract actual type from Optional if needed
+                                        actual_field_type = field_type
+                                        origin = get_origin(field_type)
+                                        if origin is Union or origin is types.UnionType:
+                                            args = get_args(field_type)
+                                            non_none_types = [
+                                                t for t in args if t is not type(None)
+                                            ]
+                                            if non_none_types:
+                                                actual_field_type = non_none_types[0]
+
+                                        # Check if the field type is a FraiseQL type
+                                        if hasattr(
+                                            actual_field_type, "__fraiseql_definition__"
+                                        ) and hasattr(actual_field_type, "from_dict"):
+                                            return actual_field_type.from_dict(value)
+
+                                    return value
+
+                                return resolve_field
+
+                            # Use explicit graphql_name if provided, otherwise convert to
+                            # camelCase if configured
+                            config = SchemaConfig.get_instance()
+                            if field.graphql_name:
+                                graphql_field_name = field.graphql_name
+                            else:
+                                graphql_field_name = (
+                                    snake_to_camel(name) if config.camel_case_fields else name
+                                )
+
+                            # Wrap field resolver with enum serialization
+                            from fraiseql.gql.enum_serializer import (
+                                wrap_resolver_with_enum_serialization,
+                            )
+
+                            gql_type = convert_type_to_graphql_output(field_type)
+                            if not is_optional_type(field_type):
+                                gql_type = GraphQLNonNull(gql_type)
+                            gql_fields[graphql_field_name] = GraphQLField(
+                                type_=gql_type,
+                                description=field.description,
+                                resolve=wrap_resolver_with_enum_serialization(
+                                    make_field_resolver(name, field_type)
+                                ),
+                            )
+
+                    # Check for custom field methods (@dataloader_field, @field, etc.)
+                    for attr_name in dir(typ):
+                        # Skip if we already have this field from regular processing
+                        if attr_name in gql_fields:
+                            continue
+
+                        # Skip private/special methods
+                        if attr_name.startswith("_"):
+                            continue
+
+                        attr = getattr(typ, attr_name)
+                        if not callable(attr):
+                            continue
+
+                        # Check for field resolver decorators
+                        if hasattr(attr, "__fraiseql_field__") or hasattr(
+                            attr,
+                            "__fraiseql_dataloader__",
+                        ):
+                            # Get method signature for type information
+                            from typing import get_type_hints
+
+                            try:
+                                hints = get_type_hints(attr)
+                                return_type = hints.get("return")
+
+                                if return_type is None:
+                                    logger.warning(
+                                        "Custom field method %s missing return type annotation",
+                                        attr_name,
+                                    )
+                                    continue
+
+                                logger.debug("Found custom field method: %s", attr_name)
+
+                                # Convert return type to GraphQL type
+                                gql_return_type = convert_type_to_graphql_output(return_type)
+                                if not is_optional_type(return_type):
+                                    gql_return_type = GraphQLNonNull(gql_return_type)
+
+                                # Create a wrapper that adapts the method signature for GraphQL
+                                def make_custom_resolver(method: Callable[..., Any]) -> Callable:
+                                    import asyncio
+
+                                    if asyncio.iscoroutinefunction(method):
+
+                                        async def async_resolver(
+                                            obj: Any, info: GraphQLResolveInfo, **kwargs: Any
+                                        ) -> Any:
+                                            # Call the method with the object instance and info
+                                            return await method(obj, info, **kwargs)
+
+                                        return async_resolver
+
+                                    def sync_resolver(
+                                        obj: Any, info: GraphQLResolveInfo, **kwargs: Any
+                                    ) -> Any:
+                                        # Call the method with the object instance and info
+                                        return method(obj, info, **kwargs)
+
+                                    return sync_resolver
+
+                                # Wrap with enum serialization
+                                from fraiseql.gql.enum_serializer import (
+                                    wrap_resolver_with_enum_serialization,
+                                )
+
+                                wrapped_resolver = wrap_resolver_with_enum_serialization(
+                                    make_custom_resolver(attr),
+                                )
+
+                                # Get description from decorator or docstring
+                                description = getattr(
+                                    attr,
+                                    "__fraiseql_field_description__",
+                                    None,
+                                ) or getattr(attr, "__doc__", None)
+
+                                # Convert field name to camelCase if configured
+                                config = SchemaConfig.get_instance()
+                                graphql_field_name = (
+                                    snake_to_camel(attr_name)
+                                    if config.camel_case_fields
+                                    else attr_name
+                                )
+
+                                gql_fields[graphql_field_name] = GraphQLField(
+                                    type_=cast("GraphQLOutputType", gql_return_type),
+                                    resolve=wrapped_resolver,
+                                    description=description,
+                                )
+
+                            except Exception as e:
+                                logger.warning(
+                                    "Failed to process custom field %s: %s",
+                                    attr_name,
+                                    e,
+                                )
+                                continue
+
+                    return gql_fields
+
+                # Create the type with a thunk and cache it BEFORE resolving fields
+                # This enables self-referential types like Playlist with child_playlists
                 gql_type = GraphQLObjectType(
                     name=typ.__name__,
-                    fields=gql_fields,
+                    fields=make_fields_thunk,
                     interfaces=interfaces if interfaces else None,
                     is_type_of=is_type_of,
                     description=_clean_docstring(typ.__doc__),
@@ -861,27 +886,30 @@ def convert_type_to_graphql_output(
                 fields = getattr(typ, "__gql_fields__", {})
                 type_hints = getattr(typ, "__gql_type_hints__", {})
 
-                gql_fields = {}
-                for name, field in fields.items():
-                    field_type = field.field_type or type_hints.get(name)
-                    if field_type is not None:
-                        # Use explicit graphql_name if provided, otherwise convert to
-                        # camelCase if configured
-                        config = SchemaConfig.get_instance()
-                        if field.graphql_name:
-                            graphql_field_name = field.graphql_name
-                        else:
-                            graphql_field_name = (
-                                snake_to_camel(name) if config.camel_case_fields else name
-                            )
+                # Create a thunk (lazy function) for fields to handle recursive references
+                def make_interface_fields_thunk():
+                    gql_fields = {}
+                    for name, field in fields.items():
+                        field_type = field.field_type or type_hints.get(name)
+                        if field_type is not None:
+                            # Use explicit graphql_name if provided, otherwise convert to
+                            # camelCase if configured
+                            config = SchemaConfig.get_instance()
+                            if field.graphql_name:
+                                graphql_field_name = field.graphql_name
+                            else:
+                                graphql_field_name = (
+                                    snake_to_camel(name) if config.camel_case_fields else name
+                                )
 
-                        gql_type = convert_type_to_graphql_output(field_type)
-                        if not is_optional_type(field_type):
-                            gql_type = GraphQLNonNull(gql_type)
-                        gql_fields[graphql_field_name] = GraphQLField(
-                            type_=gql_type,
-                            description=field.description,
-                        )
+                            gql_type = convert_type_to_graphql_output(field_type)
+                            if not is_optional_type(field_type):
+                                gql_type = GraphQLNonNull(gql_type)
+                            gql_fields[graphql_field_name] = GraphQLField(
+                                type_=gql_type,
+                                description=field.description,
+                            )
+                    return gql_fields
 
                 # Create interface type with type resolver
                 def resolve_type(
@@ -892,9 +920,10 @@ def convert_type_to_graphql_output(
                         return obj.__class__.__name__
                     return None
 
+                # Create the interface with a thunk and cache it BEFORE resolving fields
                 gql_type = GraphQLInterfaceType(
                     name=typ.__name__,
-                    fields=gql_fields,
+                    fields=make_interface_fields_thunk,
                     resolve_type=resolve_type,
                     description=_clean_docstring(typ.__doc__),
                 )
