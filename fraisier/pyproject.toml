@@ -21,7 +21,8 @@ dependencies = [
   "pyyaml>=6.0",
   "requests>=2.31.0",
   "click>=8.1.0",
-  "rich>=13.0.0"
+  "rich>=13.0.0",
+  "nats-py>=2.0.0"
 ]
 description = "Fraisier - Deployment orchestrator for the FraiseQL ecosystem. Any language, any database, any deployment target."
 keywords = ["deployment", "orchestration", "devops", "graphql", "fraiseql"]
