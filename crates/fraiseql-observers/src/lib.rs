@@ -53,6 +53,7 @@ pub mod error;
 pub mod event;
 pub mod executor;
 pub mod listener;
+pub mod logging;
 pub mod matcher;
 #[cfg(feature = "metrics")]
 pub mod metrics;
@@ -99,6 +100,10 @@ pub use listener::{
     FailoverEvent, FailoverManager, EventListener, ListenerConfig, ListenerHandle, ListenerHealth,
     ListenerState, ListenerStateMachine, MultiListenerCoordinator,
 };
+pub use logging::{
+    StructuredLogger, TraceIdExtractor, set_trace_id_context, get_current_trace_id,
+};
+pub use logging::correlation::TraceContext;
 pub use matcher::EventMatcher;
 #[cfg(feature = "metrics")]
 pub use metrics::ObserverMetrics;
