@@ -91,3 +91,66 @@ class ETLDeployer(BaseDeployer):
                 duration_seconds=duration,
                 error_message=str(e),
             )
+
+    def rollback(self, to_version: str | None = None) -> DeploymentResult:
+        """Rollback ETL deployment to previous version.
+
+        For ETL fraises, rollback typically means restoring the shared code
+        to the previous git commit (similar to API deployer).
+
+        Args:
+            to_version: Specific commit hash to rollback to, or previous if None
+
+        Returns:
+            DeploymentResult with rollback status
+        """
+        start_time = time.time()
+        current_version = self.get_current_version()
+
+        try:
+            if not self.app_path:
+                raise ValueError("app_path not configured for rollback")
+
+            if to_version:
+                # Rollback to specific version
+                logger.info(f"Rolling back to commit: {to_version}")
+                subprocess.run(
+                    ["git", "checkout", to_version],
+                    cwd=self.app_path,
+                    check=True,
+                    capture_output=True,
+                )
+            else:
+                # Rollback to previous commit
+                logger.info("Rolling back to previous commit")
+                subprocess.run(
+                    ["git", "checkout", "HEAD~1"],
+                    cwd=self.app_path,
+                    check=True,
+                    capture_output=True,
+                )
+
+            new_version = self.get_current_version()
+            duration = time.time() - start_time
+
+            logger.info(f"ETL rollback successful: {current_version} → {new_version}")
+
+            return DeploymentResult(
+                success=True,
+                status=DeploymentStatus.ROLLED_BACK,
+                old_version=current_version,
+                new_version=new_version,
+                duration_seconds=duration,
+            )
+
+        except Exception as e:
+            duration = time.time() - start_time
+            logger.exception(f"ETL rollback failed: {e}")
+
+            return DeploymentResult(
+                success=False,
+                status=DeploymentStatus.FAILED,
+                old_version=current_version,
+                duration_seconds=duration,
+                error_message=f"Rollback failed: {e}",
+            )

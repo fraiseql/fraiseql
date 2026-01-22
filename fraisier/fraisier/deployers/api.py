@@ -127,19 +127,83 @@ class APIDeployer(BaseDeployer):
         )
 
     def _run_migrations(self) -> None:
-        """Run database migrations."""
+        """Run database migrations.
+
+        Supports two strategies:
+        - apply: Run safe migrations only (production safe)
+        - rebuild: Full database rebuild (dev/staging only)
+
+        The migration tool is configurable via database.tool in fraises.yaml.
+        Supported tools: alembic, confiture, custom
+        """
         strategy = self.database_config.get("strategy", "apply")
+        tool = self.database_config.get("tool")
+        database_url = self.database_config.get("url")
 
         if strategy == "rebuild":
             # Full database rebuild (dev/staging only!)
-            logger.warning("Running database rebuild - this drops all data!")
-            # Implementation depends on your database setup
-            pass
+            logger.warning(
+                "⚠️  DANGEROUS: Running database rebuild - this drops all data!"
+            )
+            if tool == "alembic":
+                # Alembic: downgrade to base, then upgrade
+                subprocess.run(
+                    ["alembic", "downgrade", "base"],
+                    cwd=self.app_path,
+                    check=True,
+                    capture_output=True,
+                )
+                subprocess.run(
+                    ["alembic", "upgrade", "head"],
+                    cwd=self.app_path,
+                    check=True,
+                    capture_output=True,
+                )
+                logger.info("Database rebuild complete (alembic)")
+            elif tool == "confiture":
+                # Confiture: rebuild command
+                subprocess.run(
+                    ["confiture", "build", "--rebuild"],
+                    cwd=self.app_path,
+                    check=True,
+                    capture_output=True,
+                )
+                logger.info("Database rebuild complete (confiture)")
+            else:
+                logger.warning(
+                    f"Rebuild strategy requested but no migration tool configured. "
+                    f"Skipping database rebuild."
+                )
+
         elif strategy == "apply":
-            # Safe migrations only
+            # Safe migrations only (production safe)
             logger.info("Applying database migrations")
-            # Implementation depends on your migration tool
-            pass
+            if tool == "alembic":
+                # Alembic: upgrade to head
+                subprocess.run(
+                    ["alembic", "upgrade", "head"],
+                    cwd=self.app_path,
+                    check=True,
+                    capture_output=True,
+                )
+                logger.info("Migrations applied (alembic)")
+            elif tool == "confiture":
+                # Confiture: build command
+                subprocess.run(
+                    ["confiture", "build"],
+                    cwd=self.app_path,
+                    check=True,
+                    capture_output=True,
+                )
+                logger.info("Migrations applied (confiture)")
+            elif tool:
+                logger.warning(f"Unknown migration tool: {tool}. Skipping migrations.")
+            else:
+                logger.debug(
+                    "No migration tool configured. Skipping database migrations."
+                )
+        else:
+            logger.warning(f"Unknown migration strategy: {strategy}. Skipping.")
 
     def _restart_service(self) -> None:
         """Restart systemd service."""

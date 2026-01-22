@@ -129,3 +129,61 @@ class ScheduledDeployer(BaseDeployer):
             return result.returncode == 0
         except subprocess.CalledProcessError:
             return False
+
+    def rollback(self, to_version: str | None = None) -> DeploymentResult:
+        """Rollback scheduled job deployment.
+
+        For scheduled jobs, rollback typically means stopping/disabling the timer.
+        The timer can be re-enabled via another deployment.
+
+        Args:
+            to_version: Ignored for scheduled jobs
+
+        Returns:
+            DeploymentResult with rollback status
+        """
+        start_time = time.time()
+        current_version = self.get_current_version()
+
+        try:
+            if self.systemd_timer:
+                logger.info(f"Stopping timer: {self.systemd_timer}")
+
+                # Stop timer
+                subprocess.run(
+                    ["sudo", "systemctl", "stop", self.systemd_timer],
+                    check=True,
+                    capture_output=True,
+                )
+
+                # Disable timer
+                subprocess.run(
+                    ["sudo", "systemctl", "disable", self.systemd_timer],
+                    check=True,
+                    capture_output=True,
+                )
+
+                logger.info(f"Timer disabled: {self.systemd_timer}")
+
+            new_version = self.get_current_version()
+            duration = time.time() - start_time
+
+            return DeploymentResult(
+                success=True,
+                status=DeploymentStatus.ROLLED_BACK,
+                old_version=current_version,
+                new_version=new_version,
+                duration_seconds=duration,
+            )
+
+        except Exception as e:
+            duration = time.time() - start_time
+            logger.exception(f"Scheduled job rollback failed: {e}")
+
+            return DeploymentResult(
+                success=False,
+                status=DeploymentStatus.FAILED,
+                old_version=current_version,
+                duration_seconds=duration,
+                error_message=f"Rollback failed: {e}",
+            )
