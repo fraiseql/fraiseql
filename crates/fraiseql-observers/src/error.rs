@@ -107,6 +107,13 @@ pub enum ObserverError {
     /// Phase 8: Database query/connection error (from sqlx)
     #[error("Database query error: {0}")]
     SqlxError(String),
+
+    /// OB015: Circuit breaker is open - fast fail
+    #[error("OB015: Circuit breaker is open: {message}")]
+    CircuitBreakerOpen {
+        /// Message describing why circuit is open
+        message: String,
+    },
 }
 
 /// Error code with classification for retry/DLQ decisions.
@@ -140,6 +147,8 @@ pub enum ObserverErrorCode {
     RetriesExhausted,
     /// OB014: Unsupported action type
     UnsupportedActionType,
+    /// OB015: Circuit breaker is open
+    CircuitBreakerOpen,
 }
 
 impl ObserverErrorCode {
@@ -198,6 +207,7 @@ impl ObserverError {
             ObserverError::UnsupportedActionType { .. } => ObserverErrorCode::UnsupportedActionType,
             ObserverError::SerializationError(_) => ObserverErrorCode::InvalidConfig,
             ObserverError::SqlxError(_) => ObserverErrorCode::DatabaseError,
+            ObserverError::CircuitBreakerOpen { .. } => ObserverErrorCode::CircuitBreakerOpen,
         }
     }
 

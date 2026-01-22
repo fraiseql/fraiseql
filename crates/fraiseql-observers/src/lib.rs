@@ -56,6 +56,7 @@ pub mod matcher;
 #[cfg(feature = "metrics")]
 pub mod metrics;
 pub mod queue;
+pub mod resilience;
 pub mod search;
 pub mod traits;
 
@@ -96,6 +97,10 @@ pub use listener::{ChangeLogEntry, ChangeLogListener, ChangeLogListenerConfig, E
 pub use matcher::EventMatcher;
 #[cfg(feature = "metrics")]
 pub use metrics::ObserverMetrics;
+pub use resilience::{
+    CircuitBreaker, CircuitBreakerConfig, CircuitState, DegradationLevel, GracefulDegradation,
+    PerEndpointCircuitBreaker, ResilientExecutor, ResilienceStrategy,
+};
 pub use traits::{
     ActionExecutor, ActionResult, ConditionEvaluator, DeadLetterQueue, DlqItem, EventSource,
     TemplateRenderer,
