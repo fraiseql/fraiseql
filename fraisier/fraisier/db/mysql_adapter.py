@@ -7,13 +7,7 @@ and pool metrics. Supports both aiomysql and asyncmy drivers.
 from typing import Any
 from urllib.parse import urlparse
 
-try:
-    import aiomysql
-except ImportError as e:
-    raise ImportError(
-        "MySQL support requires 'aiomysql>=0.2.0'. "
-        "Install with: pip install aiomysql or pip install fraisier[mysql]"
-    ) from e
+import aiomysql
 
 from .adapter import DatabaseType, FraiserDatabaseAdapter, PoolMetrics
 

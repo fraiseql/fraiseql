@@ -8,8 +8,6 @@ import os
 from typing import Any
 
 from .adapter import DatabaseType, FraiserDatabaseAdapter
-from .mysql_adapter import MysqlAdapter
-from .postgres_adapter import PostgresAdapter
 from .sqlite_adapter import SqliteAdapter
 
 
@@ -126,7 +124,7 @@ async def create_adapter_from_url(
     if not scheme:
         raise ValueError(f"Invalid connection URL: {connection_url}")
 
-    # Create appropriate adapter
+    # Create appropriate adapter (lazy import optional databases)
     if scheme == "sqlite":
         # Extract path from sqlite:///path or sqlite:///:memory:
         path = connection_url.replace("sqlite://", "")
@@ -134,12 +132,28 @@ async def create_adapter_from_url(
             path = ":memory:"
         adapter = SqliteAdapter(path)
     elif scheme in ("postgresql", "postgres"):
+        try:
+            from .postgres_adapter import PostgresAdapter
+        except ImportError as e:
+            raise ImportError(
+                "PostgreSQL support requires 'psycopg[binary]>=3.1.0'. "
+                "Install with: pip install 'psycopg[binary]' or pip install fraisier[postgres]"
+            ) from e
+
         adapter = PostgresAdapter(
             connection_url,
             pool_min_size=pool_min_size,
             pool_max_size=pool_max_size,
         )
     elif scheme in ("mysql", "mysql+aiomysql"):
+        try:
+            from .mysql_adapter import MysqlAdapter
+        except ImportError as e:
+            raise ImportError(
+                "MySQL support requires 'aiomysql>=0.2.0'. "
+                "Install with: pip install aiomysql or pip install fraisier[mysql]"
+            ) from e
+
         adapter = MysqlAdapter(
             connection_url,
             pool_min_size=pool_min_size,

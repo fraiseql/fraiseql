@@ -8,16 +8,10 @@ Aligns with FraiseQL's PostgreSQL implementation patterns.
 
 from typing import Any
 
-try:
-    import psycopg
-    from psycopg import AsyncConnection
-    from psycopg.rows import dict_row
-    from psycopg_pool import AsyncConnectionPool
-except ImportError as e:
-    raise ImportError(
-        "PostgreSQL support requires 'psycopg[binary]>=3.1.0'. "
-        "Install with: pip install 'psycopg[binary]' or pip install fraisier[postgres]"
-    ) from e
+import psycopg
+from psycopg import AsyncConnection
+from psycopg.rows import dict_row
+from psycopg_pool import AsyncConnectionPool
 
 from .adapter import DatabaseType, FraiserDatabaseAdapter, PoolMetrics
 
