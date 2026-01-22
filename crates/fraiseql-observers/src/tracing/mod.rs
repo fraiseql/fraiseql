@@ -22,6 +22,7 @@ pub mod config;
 pub mod exporter;
 pub mod propagation;
 pub mod spans;
+pub mod instrumentation;
 
 use crate::error::{Error, Result};
 use config::TracingConfig;
@@ -30,6 +31,7 @@ pub use config::TracingConfig;
 pub use exporter::init_tracing;
 pub use propagation::TraceContext;
 pub use spans::{create_event_span, create_action_span, create_phase_span};
+pub use instrumentation::{ListenerTracer, ExecutorTracer, ConditionTracer};
 
 /// Initialize tracing provider with configuration
 ///
