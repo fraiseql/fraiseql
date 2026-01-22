@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.9.12] - 2026-01-18
+## [1.9.13] - 2026-01-18
 
 **LTREE Filter Support - User Type Annotation Discovery**
 
