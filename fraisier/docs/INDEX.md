@@ -9,7 +9,19 @@ Complete documentation for the Fraisier deployment orchestrator and reference im
 ### For Getting Started
 - **New to Fraisier?** Start with [../README.md](../README.md)
 - **Setting up development?** See [../DEVELOPMENT.md](../DEVELOPMENT.md)
-- **Deploying to production?** See [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)
+- **Your first deployment?** See [GETTING_STARTED_DOCKER.md](GETTING_STARTED_DOCKER.md) (10 min) or [GETTING_STARTED_SQLITE.md](GETTING_STARTED_SQLITE.md) (5 min)
+
+### For Production Deployment
+- **Quick setup (Docker)?** See [GETTING_STARTED_DOCKER.md](GETTING_STARTED_DOCKER.md)
+- **Setup guide (your DB)?** See [GETTING_STARTED_POSTGRES.md](GETTING_STARTED_POSTGRES.md), [GETTING_STARTED_MYSQL.md](GETTING_STARTED_MYSQL.md), [GETTING_STARTED_SQLITE.md](GETTING_STARTED_SQLITE.md)
+- **Your deployment method?** See [PROVIDER_BARE_METAL.md](PROVIDER_BARE_METAL.md), [PROVIDER_DOCKER_COMPOSE.md](PROVIDER_DOCKER_COMPOSE.md), or [PROVIDER_COOLIFY.md](PROVIDER_COOLIFY.md)
+- **Real-world examples?** See [REAL_WORLD_EXAMPLES.md](REAL_WORLD_EXAMPLES.md) (4 complete configurations)
+
+### For API & Integration
+- **REST API?** See [API_REFERENCE.md](API_REFERENCE.md)
+- **CLI commands?** See [CLI_REFERENCE.md](CLI_REFERENCE.md)
+- **Webhooks?** See [WEBHOOK_REFERENCE.md](WEBHOOK_REFERENCE.md)
+- **Event types?** See [EVENT_REFERENCE.md](EVENT_REFERENCE.md)
 
 ### For Development
 - **Project standards?** See [../.claude/CLAUDE.md](../.claude/CLAUDE.md)
@@ -18,9 +30,9 @@ Complete documentation for the Fraisier deployment orchestrator and reference im
 - **Understanding architecture?** See [ARCHITECTURE.md](ARCHITECTURE.md)
 
 ### For Operations
-- **Deploying services?** See [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)
-- **Monitoring deployments?** See [DEPLOYMENT_GUIDE.md#monitoring--logs](DEPLOYMENT_GUIDE.md#monitoring--logs)
-- **Troubleshooting?** See [DEPLOYMENT_GUIDE.md#troubleshooting](DEPLOYMENT_GUIDE.md#troubleshooting)
+- **Monitoring setup?** See [MONITORING_SETUP.md](MONITORING_SETUP.md)
+- **Troubleshooting?** See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) (50+ scenarios)
+- **FAQ?** See [FAQ_AND_ADVANCED_TOPICS.md](FAQ_AND_ADVANCED_TOPICS.md) (40+ Q&A)
 
 ---
 
@@ -28,12 +40,58 @@ Complete documentation for the Fraisier deployment orchestrator and reference im
 
 ### In this `docs/` Directory
 
+#### Core Documentation
 | File | Purpose | Audience |
 |------|---------|----------|
 | **ARCHITECTURE.md** | Detailed technical architecture | Engineers, Architects |
 | **DEPLOYMENT_GUIDE.md** | Production deployment instructions | DevOps, Operators |
 | **TESTING.md** | Testing strategy and examples | Engineers, QA |
 | **PRD.md** | Product requirements document | Product Managers, Architects |
+
+#### Phase 10: Complete Documentation System (v0.1.0)
+
+##### 10.1: API Reference Documentation
+| File | Purpose | Size | Audience |
+|------|---------|------|----------|
+| **API_REFERENCE.md** | Complete REST API endpoints, examples, SDKs | 25K | Developers, Integrators |
+| **CLI_REFERENCE.md** | 40+ CLI commands with options and examples | 18K | DevOps, Operators |
+| **WEBHOOK_REFERENCE.md** | Webhook configuration, security, integrations | 19K | DevOps, Operators |
+| **EVENT_REFERENCE.md** | NATS event types, filtering, replay patterns | 17K | Developers, DevOps |
+
+##### 10.2: Getting Started Guides
+| File | Purpose | Time | Audience |
+|------|---------|------|----------|
+| **GETTING_STARTED_SQLITE.md** | Local development setup | 5-10 min | Everyone |
+| **GETTING_STARTED_POSTGRES.md** | Production PostgreSQL with HA | 20-30 min | DevOps |
+| **GETTING_STARTED_MYSQL.md** | MySQL 8.0+ configuration | 20-30 min | DevOps |
+| **GETTING_STARTED_DOCKER.md** | Full Docker Compose stack | 15-20 min | Everyone |
+
+##### 10.3: Provider Setup Guides
+| File | Purpose | Time | Audience |
+|------|---------|------|----------|
+| **PROVIDER_BARE_METAL.md** | SSH + systemd deployment | 20-25 min | DevOps |
+| **PROVIDER_DOCKER_COMPOSE.md** | Docker Compose deployments | 10-15 min | DevOps, Developers |
+| **PROVIDER_COOLIFY.md** | Coolify PaaS integration | 20-25 min | DevOps |
+
+##### 10.4: Monitoring & Operations
+| File | Purpose | Audience |
+|------|---------|----------|
+| **MONITORING_SETUP.md** | Prometheus, Grafana, alerting rules | DevOps, SREs |
+
+##### 10.5: Troubleshooting & Help
+| File | Purpose | Scenarios | Audience |
+|------|---------|-----------|----------|
+| **TROUBLESHOOTING.md** | 50+ common issues with debug commands | 50+ | Everyone |
+
+##### 10.6: Real-World Examples
+| File | Purpose | Examples | Audience |
+|------|---------|----------|----------|
+| **REAL_WORLD_EXAMPLES.md** | 4 production configurations with code | 4 | DevOps, Architects |
+
+##### 10.7: FAQ & Advanced Topics
+| File | Purpose | Q&A | Audience |
+|------|---------|-----|----------|
+| **FAQ_AND_ADVANCED_TOPICS.md** | 40+ FAQ, custom providers, performance tuning | 40+ | Everyone |
 
 ### In Parent `fraisier/` Directory
 
@@ -199,6 +257,21 @@ fraisier/
 | DEPLOYMENT_GUIDE.md | 2026-01-22 | 0.1.0 |
 | TESTING.md | 2026-01-22 | 0.1.0 |
 | PRD.md | 2026-01-15 | 1.0.0 |
+| **API_REFERENCE.md** | **2026-01-22** | **0.1.0** |
+| **CLI_REFERENCE.md** | **2026-01-22** | **0.1.0** |
+| **WEBHOOK_REFERENCE.md** | **2026-01-22** | **0.1.0** |
+| **EVENT_REFERENCE.md** | **2026-01-22** | **0.1.0** |
+| **GETTING_STARTED_SQLITE.md** | **2026-01-22** | **0.1.0** |
+| **GETTING_STARTED_POSTGRES.md** | **2026-01-22** | **0.1.0** |
+| **GETTING_STARTED_MYSQL.md** | **2026-01-22** | **0.1.0** |
+| **GETTING_STARTED_DOCKER.md** | **2026-01-22** | **0.1.0** |
+| **PROVIDER_BARE_METAL.md** | **2026-01-22** | **0.1.0** |
+| **PROVIDER_DOCKER_COMPOSE.md** | **2026-01-22** | **0.1.0** |
+| **PROVIDER_COOLIFY.md** | **2026-01-22** | **0.1.0** |
+| **MONITORING_SETUP.md** | **2026-01-22** | **0.1.0** |
+| **TROUBLESHOOTING.md** | **2026-01-22** | **0.1.0** |
+| **REAL_WORLD_EXAMPLES.md** | **2026-01-22** | **0.1.0** |
+| **FAQ_AND_ADVANCED_TOPICS.md** | **2026-01-22** | **0.1.0** |
 
 ---
 
