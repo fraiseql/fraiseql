@@ -3,7 +3,14 @@
 # Includes:
 # - PostgreSQL database
 # - FraiseQL server
-# - Optional: schema compiler CLI
+# - Optional: Redis (caching) - use profile: with-redis
+# - Optional: NATS (distributed events) - use profile: with-nats
+#
+# Usage:
+#   docker compose up -d                           # Core services only
+#   docker compose --profile with-redis up -d      # Include Redis
+#   docker compose --profile with-nats up -d       # Include NATS
+#   docker compose --profile with-redis --profile with-nats up -d  # All services
 
 version: '3.9'
 
@@ -73,10 +80,32 @@ services:
     profiles:
       - with-redis
 
+  # NATS (optional - for distributed event transport)
+  nats:
+    image: nats:2.10-alpine
+    container_name: fraiseql-nats
+    command: ["--jetstream", "--store_dir", "/data"]
+    ports:
+      - "4222:4222"   # Client connections
+      - "8222:8222"   # HTTP monitoring
+    volumes:
+      - nats_data:/data
+    networks:
+      - fraiseql
+    profiles:
+      - with-nats
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8222/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   postgres_data:
     driver: local
   redis_data:
+    driver: local
+  nats_data:
     driver: local
 
 networks:

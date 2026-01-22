@@ -8,6 +8,7 @@
 # Run tests:
 #   cargo test -- --ignored                              # Run integration tests
 #   cargo test -p fraiseql-core -- --ignored             # Run core integration tests
+#   cargo test --test nats_integration --features nats -- --ignored  # NATS tests
 
 version: '3.8'
 
@@ -101,6 +102,38 @@ services:
     networks:
       - fraiseql-test
 
+  # Redis test server (for caching, queue, dedup tests)
+  redis-test:
+    image: redis:7-alpine
+    container_name: fraiseql-redis-test
+    ports:
+      - "6380:6379"  # Use 6380 to avoid conflicts
+    networks:
+      - fraiseql-test
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # NATS test server (for distributed event transport tests)
+  nats-test:
+    image: nats:2.10-alpine
+    container_name: fraiseql-nats-test
+    command: ["--jetstream", "--store_dir", "/data"]
+    ports:
+      - "4223:4222"  # Use 4223 to avoid conflicts with local NATS
+      - "8223:8222"  # HTTP monitoring
+    volumes:
+      - nats-test-data:/data
+    networks:
+      - fraiseql-test
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8222/healthz"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
 volumes:
   postgres-test-data:
     name: fraiseql-postgres-test-data
@@ -108,6 +141,8 @@ volumes:
     name: fraiseql-postgres-vector-test-data
   mysql-test-data:
     name: fraiseql-mysql-test-data
+  nats-test-data:
+    name: fraiseql-nats-test-data
 
 networks:
   fraiseql-test:
