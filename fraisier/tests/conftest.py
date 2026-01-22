@@ -20,7 +20,13 @@ def tmp_db_path(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def test_db(tmp_db_path: Path) -> FraisierDB:
-    """Create test database with schema."""
+    """Create test database with trinity schema.
+
+    Initializes empty database with trinity pattern tables:
+    - tb_fraise_state (pk_fraise_state, id UUID, identifier business key)
+    - tb_deployment (pk_deployment, id UUID, identifier, fk_fraise_state)
+    - tb_webhook_event (pk_webhook_event, id UUID, fk_deployment)
+    """
     # Patch get_db_path to use test database
     with patch("fraisier.database.get_db_path", return_value=tmp_db_path):
         db = FraisierDB()
