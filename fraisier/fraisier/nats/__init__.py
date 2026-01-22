@@ -23,6 +23,15 @@ from fraisier.nats.subscribers import (
     get_subscriber_registry,
     reset_subscriber_registry,
 )
+from fraisier.nats.config import (
+    NatsConnectionConfig,
+    NatsStreamConfig,
+    NatsRegionalConfig,
+    NatsEventHandlerConfig,
+    NatsFullConfig,
+    is_nats_enabled,
+    get_nats_config,
+)
 
 __all__ = [
     "NatsClient",
@@ -41,4 +50,11 @@ __all__ = [
     "EventHandlers",
     "get_subscriber_registry",
     "reset_subscriber_registry",
+    "NatsConnectionConfig",
+    "NatsStreamConfig",
+    "NatsRegionalConfig",
+    "NatsEventHandlerConfig",
+    "NatsFullConfig",
+    "is_nats_enabled",
+    "get_nats_config",
 ]
