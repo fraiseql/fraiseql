@@ -58,30 +58,42 @@ def init_database() -> None:
             -- ================================================================
 
             -- Current state of each fraise/environment
-            -- Trinity identifiers: pk_fraise_state (internal), id (public UUID), identifier (business key)
+            -- Trinity identifiers follow PrintOptim order: id → identifier → pk_*
             CREATE TABLE IF NOT EXISTS tb_fraise_state (
-                pk_fraise_state INTEGER PRIMARY KEY AUTOINCREMENT,
-                id TEXT NOT NULL UNIQUE,  -- UUID for cross-database sync
-                identifier TEXT NOT NULL UNIQUE,  -- business key: fraise_name:environment[:job]
+                id TEXT NOT NULL UNIQUE,                         -- 1. Public UUID for sync
+                identifier TEXT NOT NULL UNIQUE,                 -- 2. Business key: fraise:env[:job]
+                pk_fraise_state INTEGER PRIMARY KEY AUTOINCREMENT,  -- 3. Internal key (last)
+
+                -- Foreign Keys (if any)
+
+                -- Domain Columns
                 fraise_name TEXT NOT NULL,
                 environment_name TEXT NOT NULL,
-                job_name TEXT,  -- NULL for non-job fraises
+                job_name TEXT,                                   -- NULL for non-scheduled
                 current_version TEXT,
                 last_deployed_at TEXT,
                 last_deployed_by TEXT,
-                status TEXT DEFAULT 'unknown',  -- healthy, degraded, down, unknown
+                status TEXT DEFAULT 'unknown',                   -- healthy, degraded, down, unknown
+
+                -- Audit Trail
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
+
+                -- Natural Key
                 UNIQUE(fraise_name, environment_name, job_name)
             );
 
             -- Deployment history log
-            -- Trinity identifiers: pk_deployment (internal), id (public UUID), identifier (business key)
+            -- Trinity identifiers follow PrintOptim order: id → identifier → pk_*
             CREATE TABLE IF NOT EXISTS tb_deployment (
-                pk_deployment INTEGER PRIMARY KEY AUTOINCREMENT,
-                id TEXT NOT NULL UNIQUE,  -- UUID for cross-database sync
-                identifier TEXT NOT NULL UNIQUE,  -- business key: fraise:env:timestamp
+                id TEXT NOT NULL UNIQUE,                         -- 1. Public UUID for sync
+                identifier TEXT NOT NULL UNIQUE,                 -- 2. Business key: fraise:env:timestamp
+                pk_deployment INTEGER PRIMARY KEY AUTOINCREMENT,    -- 3. Internal key (last)
+
+                -- Foreign Keys
                 fk_fraise_state INTEGER NOT NULL REFERENCES tb_fraise_state(pk_fraise_state),
+
+                -- Domain Columns
                 fraise_name TEXT NOT NULL,
                 environment_name TEXT NOT NULL,
                 job_name TEXT,
@@ -90,32 +102,40 @@ def init_database() -> None:
                 duration_seconds REAL,
                 old_version TEXT,
                 new_version TEXT,
-                status TEXT NOT NULL,  -- pending, in_progress, success, failed, rolled_back
-                triggered_by TEXT,  -- webhook, manual, scheduled
+                status TEXT NOT NULL,                            -- pending, in_progress, success, failed, rolled_back
+                triggered_by TEXT,                               -- webhook, manual, scheduled
                 triggered_by_user TEXT,
                 git_commit TEXT,
                 git_branch TEXT,
                 error_message TEXT,
-                details TEXT,  -- JSON for additional data
+                details TEXT,                                    -- JSON for additional data
+
+                -- Audit Trail
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
 
             -- Webhook events received
-            -- Trinity identifiers: pk_webhook_event (internal), id (public UUID), identifier (business key)
+            -- Trinity identifiers follow PrintOptim order: id → identifier → pk_*
             CREATE TABLE IF NOT EXISTS tb_webhook_event (
-                pk_webhook_event INTEGER PRIMARY KEY AUTOINCREMENT,
-                id TEXT NOT NULL UNIQUE,  -- UUID for cross-database sync
-                identifier TEXT NOT NULL UNIQUE,  -- business key: provider:timestamp:hash
+                id TEXT NOT NULL UNIQUE,                         -- 1. Public UUID for sync
+                identifier TEXT NOT NULL UNIQUE,                 -- 2. Business key: provider:timestamp:hash
+                pk_webhook_event INTEGER PRIMARY KEY AUTOINCREMENT,  -- 3. Internal key (last)
+
+                -- Foreign Keys
                 fk_deployment INTEGER REFERENCES tb_deployment(pk_deployment),
+
+                -- Domain Columns
                 received_at TEXT NOT NULL,
-                event_type TEXT NOT NULL,  -- push, ping, pull_request, etc.
-                git_provider TEXT NOT NULL,  -- github, gitlab, gitea, bitbucket
+                event_type TEXT NOT NULL,                        -- push, ping, pull_request, etc.
+                git_provider TEXT NOT NULL,                      -- github, gitlab, gitea, bitbucket
                 branch_name TEXT,
                 commit_sha TEXT,
                 sender TEXT,
-                payload TEXT,  -- Full JSON payload
+                payload TEXT,                                    -- Full JSON payload
                 processed INTEGER DEFAULT 0,
+
+                -- Audit Trail
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
