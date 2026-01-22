@@ -65,7 +65,7 @@ pub use config::{
 pub use error::{ObserverError, ObserverErrorCode, Result};
 pub use event::{EntityEvent, EventKind, FieldChanges};
 pub use executor::{ExecutionSummary, ObserverExecutor};
-pub use listener::{EventListener, ListenerConfig};
+pub use listener::{ChangeLogEntry, ChangeLogListener, ChangeLogListenerConfig, EventListener, ListenerConfig};
 pub use matcher::EventMatcher;
 pub use traits::{
     ActionExecutor, ActionResult, ConditionEvaluator, DeadLetterQueue, DlqItem, EventSource,

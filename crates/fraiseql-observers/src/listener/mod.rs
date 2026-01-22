@@ -1,8 +1,12 @@
-//! PostgreSQL event listener using LISTEN/NOTIFY.
+//! PostgreSQL event listeners for the observer system.
 //!
-//! This module implements a listener that connects to PostgreSQL and receives
-//! events via the NOTIFY mechanism. Events are deserialized and sent through
-//! a bounded channel with configurable backpressure policies.
+//! This module provides two listening strategies:
+//! 1. **LISTEN/NOTIFY** - Low-latency but ephemeral (mod.rs)
+//! 2. **ChangeLog Polling** - Durable polling from tb_entity_change_log (change_log.rs)
+
+pub mod change_log;
+
+pub use change_log::{ChangeLogEntry, ChangeLogListener, ChangeLogListenerConfig};
 
 use crate::error::{ObserverError, Result};
 use crate::event::EntityEvent;
@@ -163,7 +167,6 @@ impl EventListener {
 mod tests {
     use super::*;
     use crate::event::EventKind;
-    use serde_json::json;
     use uuid::Uuid;
 
 

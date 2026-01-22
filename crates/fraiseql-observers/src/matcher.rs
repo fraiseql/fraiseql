@@ -137,7 +137,7 @@ impl Default for EventMatcher {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{ActionConfig, BackoffStrategy, FailurePolicy, RetryConfig};
+    use crate::config::{ActionConfig, FailurePolicy, RetryConfig};
     use serde_json::json;
     use uuid::Uuid;
 

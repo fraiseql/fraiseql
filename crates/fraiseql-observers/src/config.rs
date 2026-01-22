@@ -382,7 +382,7 @@ mod tests {
 
     #[test]
     fn test_observer_runtime_config_defaults() {
-        let config = ObserverRuntimeConfig {
+        let _config = ObserverRuntimeConfig {
             channel_capacity: 0,
             max_concurrency: 0,
             overflow_policy: OverflowPolicy::Drop,
