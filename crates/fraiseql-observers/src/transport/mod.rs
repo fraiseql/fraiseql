@@ -39,11 +39,19 @@ pub mod in_memory;
 #[cfg(feature = "nats")]
 pub mod nats;
 
+#[cfg(feature = "nats")]
+pub mod bridge;
+
 pub use postgres_notify::PostgresNotifyTransport;
 pub use in_memory::InMemoryTransport;
 
 #[cfg(feature = "nats")]
 pub use nats::{NatsConfig, NatsTransport};
+
+#[cfg(feature = "nats")]
+pub use bridge::{
+    BridgeConfig, ChangeLogEntry, CheckpointStore, PostgresCheckpointStore, PostgresNatsBridge,
+};
 
 /// Event stream type (async stream of `EntityEvents`)
 pub type EventStream = Pin<Box<dyn Stream<Item = Result<EntityEvent>> + Send>>;
