@@ -15,6 +15,12 @@ from .adapter import (
     QueryResult,
 )
 from .factory import create_adapter_from_url, get_database_adapter
+from .migrations import (
+    MigrationError,
+    MigrationRunner,
+    get_migration_runner,
+    run_migrations,
+)
 
 __all__ = [
     "DatabaseType",
@@ -23,4 +29,8 @@ __all__ = [
     "QueryResult",
     "create_adapter_from_url",
     "get_database_adapter",
+    "MigrationError",
+    "MigrationRunner",
+    "get_migration_runner",
+    "run_migrations",
 ]
