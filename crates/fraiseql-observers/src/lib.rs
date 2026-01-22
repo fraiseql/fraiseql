@@ -53,6 +53,8 @@ pub mod event;
 pub mod executor;
 pub mod listener;
 pub mod matcher;
+#[cfg(feature = "metrics")]
+pub mod metrics;
 pub mod queue;
 pub mod search;
 pub mod traits;
@@ -92,6 +94,8 @@ pub use event::{EntityEvent, EventKind, FieldChanges};
 pub use executor::{ExecutionSummary, ObserverExecutor};
 pub use listener::{ChangeLogEntry, ChangeLogListener, ChangeLogListenerConfig, EventListener, ListenerConfig};
 pub use matcher::EventMatcher;
+#[cfg(feature = "metrics")]
+pub use metrics::ObserverMetrics;
 pub use traits::{
     ActionExecutor, ActionResult, ConditionEvaluator, DeadLetterQueue, DlqItem, EventSource,
     TemplateRenderer,
