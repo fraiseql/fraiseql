@@ -215,9 +215,8 @@ impl ConditionParser {
                         return Err(ObserverError::InvalidCondition {
                             reason: "!= should be part of comparison, not standalone".to_string(),
                         });
-                    } else {
-                        tokens.push(Token::Not);
                     }
+                    tokens.push(Token::Not);
                 }
                 // Logical AND
                 '&' => {

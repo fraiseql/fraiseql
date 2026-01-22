@@ -274,7 +274,7 @@ impl ChangeLogListener {
 
         let rows: Vec<(i64, String, String, Option<String>, String, String, String, String, Value, Option<Value>, String)> =
             sqlx::query_as(
-                r#"
+                r"
                 SELECT
                     id,
                     pk_entity_change_log,
@@ -291,7 +291,7 @@ impl ChangeLogListener {
                 WHERE id > $1
                 ORDER BY id ASC
                 LIMIT $2
-                "#,
+                ",
             )
             .bind(self.last_processed_id)
             .bind(self.config.batch_size as i64)

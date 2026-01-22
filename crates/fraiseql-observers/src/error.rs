@@ -7,43 +7,73 @@ use thiserror::Error;
 pub enum ObserverError {
     /// OB001: Observer configuration is invalid
     #[error("OB001: Invalid observer configuration: {message}")]
-    InvalidConfig { message: String },
+    InvalidConfig {
+        /// Detailed error message
+        message: String,
+    },
 
     /// OB002: Event does not match any observers
     #[error("OB002: Event type '{event_type}' does not match configured observers")]
-    NoMatchingObservers { event_type: String },
+    NoMatchingObservers {
+        /// The event type that didn't match
+        event_type: String,
+    },
 
     /// OB003: Condition syntax is invalid
     #[error("OB003: Invalid condition syntax: {reason}")]
-    InvalidCondition { reason: String },
+    InvalidCondition {
+        /// Reason for invalid condition
+        reason: String,
+    },
 
     /// OB004: Condition evaluation failed
     #[error("OB004: Condition evaluation failed: {reason}")]
-    ConditionEvaluationFailed { reason: String },
+    ConditionEvaluationFailed {
+        /// Reason for evaluation failure
+        reason: String,
+    },
 
     /// OB005: Action configuration is invalid
     #[error("OB005: Invalid action configuration: {reason}")]
-    InvalidActionConfig { reason: String },
+    InvalidActionConfig {
+        /// Reason for invalid configuration
+        reason: String,
+    },
 
     /// OB006: Action execution failed (transient)
     #[error("OB006: Action execution failed (transient): {reason}")]
-    ActionExecutionFailed { reason: String },
+    ActionExecutionFailed {
+        /// Reason for execution failure
+        reason: String,
+    },
 
     /// OB007: Action execution permanently failed
     #[error("OB007: Action execution permanently failed: {reason}")]
-    ActionPermanentlyFailed { reason: String },
+    ActionPermanentlyFailed {
+        /// Reason for permanent failure
+        reason: String,
+    },
 
     /// OB008: Template rendering failed
     #[error("OB008: Template rendering failed: {reason}")]
-    TemplateRenderingFailed { reason: String },
+    TemplateRenderingFailed {
+        /// Reason for rendering failure
+        reason: String,
+    },
 
     /// OB009: Database operation failed
     #[error("OB009: Database operation failed: {reason}")]
-    DatabaseError { reason: String },
+    DatabaseError {
+        /// Reason for database error
+        reason: String,
+    },
 
     /// OB010: PostgreSQL LISTEN connection error
     #[error("OB010: PostgreSQL LISTEN connection failed: {reason}")]
-    ListenerConnectionFailed { reason: String },
+    ListenerConnectionFailed {
+        /// Reason for connection failure
+        reason: String,
+    },
 
     /// OB011: Event channel backpressure - events dropped
     #[error("OB011: Event channel backpressure - events dropped (capacity exceeded)")]
@@ -51,15 +81,24 @@ pub enum ObserverError {
 
     /// OB012: Dead letter queue operation failed
     #[error("OB012: Dead letter queue operation failed: {reason}")]
-    DlqError { reason: String },
+    DlqError {
+        /// Reason for DLQ operation failure
+        reason: String,
+    },
 
     /// OB013: Retry logic exhausted all attempts
     #[error("OB013: Retry logic exhausted all attempts: {reason}")]
-    RetriesExhausted { reason: String },
+    RetriesExhausted {
+        /// Reason for retry exhaustion
+        reason: String,
+    },
 
     /// OB014: Unsupported action type
     #[error("OB014: Unsupported action type: {action_type}")]
-    UnsupportedActionType { action_type: String },
+    UnsupportedActionType {
+        /// The action type that is not supported
+        action_type: String,
+    },
 
     /// Serialization/deserialization error
     #[error("Serialization error: {0}")]

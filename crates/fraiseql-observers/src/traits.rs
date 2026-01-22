@@ -147,7 +147,7 @@ mod tests {
 
         assert_eq!(result.action_type, "email");
         assert!(result.success);
-        assert_eq!(result.duration_ms, 125.5);
+        assert!((result.duration_ms - 125.5).abs() < f64::EPSILON);
     }
 
     #[test]

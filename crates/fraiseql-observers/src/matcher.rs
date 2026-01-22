@@ -149,7 +149,7 @@ mod tests {
             actions: vec![ActionConfig::Webhook {
                 url: Some("https://example.com".to_string()),
                 url_env: None,
-                headers: Default::default(),
+                headers: HashMap::default(),
                 body_template: Some("{}".to_string()),
             }],
             retry: RetryConfig::default(),
@@ -179,14 +179,14 @@ mod tests {
 
     #[test]
     fn test_matcher_find_exact_match() {
-        let mut matcher = EventMatcher::new();
-        matcher
+        let mut evt_matcher = EventMatcher::new();
+        evt_matcher
             .add_observer(create_observer("INSERT", "Order"))
             .unwrap();
-        matcher
+        evt_matcher
             .add_observer(create_observer("UPDATE", "Order"))
             .unwrap();
-        matcher
+        evt_matcher
             .add_observer(create_observer("INSERT", "User"))
             .unwrap();
 
@@ -197,15 +197,15 @@ mod tests {
             json!({}),
         );
 
-        let matches = matcher.find_matches(&event);
-        assert_eq!(matches.len(), 1);
-        assert_eq!(matches[0].entity, "Order");
+        let results = evt_matcher.find_matches(&event);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].entity, "Order");
     }
 
     #[test]
     fn test_matcher_find_no_match() {
-        let mut matcher = EventMatcher::new();
-        matcher
+        let mut evt_matcher = EventMatcher::new();
+        evt_matcher
             .add_observer(create_observer("INSERT", "Order"))
             .unwrap();
 
@@ -216,17 +216,17 @@ mod tests {
             json!({}),
         );
 
-        let matches = matcher.find_matches(&event);
-        assert_eq!(matches.len(), 0);
+        let results = evt_matcher.find_matches(&event);
+        assert_eq!(results.len(), 0);
     }
 
     #[test]
     fn test_matcher_multiple_observers_same_event() {
-        let mut matcher = EventMatcher::new();
-        matcher
+        let mut evt_matcher = EventMatcher::new();
+        evt_matcher
             .add_observer(create_observer("INSERT", "Order"))
             .unwrap();
-        matcher
+        evt_matcher
             .add_observer(create_observer("INSERT", "Order"))
             .unwrap();
 
@@ -237,8 +237,8 @@ mod tests {
             json!({}),
         );
 
-        let matches = matcher.find_matches(&event);
-        assert_eq!(matches.len(), 2);
+        let results = evt_matcher.find_matches(&event);
+        assert_eq!(results.len(), 2);
     }
 
     #[test]
@@ -258,19 +258,19 @@ mod tests {
 
     #[test]
     fn test_matcher_find_by_event_and_entity() {
-        let mut matcher = EventMatcher::new();
-        matcher
+        let mut evt_matcher = EventMatcher::new();
+        evt_matcher
             .add_observer(create_observer("INSERT", "Order"))
             .unwrap();
-        matcher
+        evt_matcher
             .add_observer(create_observer("UPDATE", "Order"))
             .unwrap();
 
-        let matches = matcher.find_by_event_and_entity(EventKind::Created, "Order");
-        assert_eq!(matches.len(), 1);
+        let matching_observers = evt_matcher.find_by_event_and_entity(EventKind::Created, "Order");
+        assert_eq!(matching_observers.len(), 1);
 
-        let no_matches = matcher.find_by_event_and_entity(EventKind::Deleted, "Order");
-        assert_eq!(no_matches.len(), 0);
+        let no_matching_observers = evt_matcher.find_by_event_and_entity(EventKind::Deleted, "Order");
+        assert_eq!(no_matching_observers.len(), 0);
     }
 
     #[test]

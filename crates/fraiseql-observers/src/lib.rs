@@ -137,7 +137,7 @@ mod e2e_tests {
     //! End-to-end integration tests (Subphase 7.5)
     //!
     //! These tests verify the full workflow:
-    //! Change Log Entry → EntityEvent → Observer Matching → Action Execution
+    //! Change Log Entry → `EntityEvent` → Observer Matching → Action Execution
 
     use super::*;
     use serde_json::{json, Value};

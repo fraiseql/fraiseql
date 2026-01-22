@@ -2,6 +2,7 @@
 
 #[cfg(any(test, feature = "testing"))]
 pub mod mocks {
+    //! Mock implementations of traits for use in tests.
     use crate::config::ActionConfig;
     use crate::event::EntityEvent;
     use crate::error::Result;
