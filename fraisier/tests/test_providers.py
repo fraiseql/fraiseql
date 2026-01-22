@@ -2,6 +2,9 @@
 
 Tests cover:
 - BareMetalProvider: SSH/systemd deployment
+- DockerComposeProvider: Docker Compose deployments
+- CoolifyProvider: Coolify cloud platform deployments
+- CoolifyClient: Coolify API integration
 - ProviderRegistry: Plugin management
 - DeploymentLock: Concurrency control
 """
@@ -17,6 +20,19 @@ from fraisier.locking import DeploymentLock, DeploymentLockedError
 from fraisier.providers import ProviderConfig, ProviderRegistry
 from fraisier.providers.bare_metal import BareMetalProvider
 from fraisier.providers.docker_compose import DockerComposeProvider
+
+# Import coolify modules only if requests is available
+try:
+    from fraisier.providers.coolify import CoolifyProvider
+    from fraisier.providers.coolify_client import (
+        CoolifyAPIError,
+        CoolifyAuthError,
+        CoolifyClient,
+        CoolifyNotFoundError,
+    )
+    HAS_COOLIFY = True
+except ImportError:
+    HAS_COOLIFY = False
 
 
 class TestBareMetalProvider:
@@ -1013,3 +1029,469 @@ services:
         updated = yaml.safe_load(compose_file.read_text())
         assert updated["services"]["api"]["environment"]["DEBUG"] == "true"
         assert updated["services"]["api"]["environment"]["VERSION"] == "v1.0.0"
+
+
+@pytest.mark.skipif(not HAS_COOLIFY, reason="requests library not available")
+class TestCoolifyClient:
+    """Tests for CoolifyClient API integration."""
+
+    @pytest.fixture
+    def client(self):
+        """Create CoolifyClient instance."""
+        return CoolifyClient("https://coolify.example.com", "test_api_key")
+
+    def test_init_with_valid_credentials(self, client):
+        """Test client initialization with valid credentials."""
+        assert client.base_url == "https://coolify.example.com"
+        assert client.api_key == "test_api_key"
+        assert client.timeout == 30
+
+    def test_init_missing_base_url(self):
+        """Test initialization fails if base_url is missing."""
+        with pytest.raises(ValueError):
+            CoolifyClient(None, "api_key")
+
+    def test_init_missing_api_key(self):
+        """Test initialization fails if api_key is missing."""
+        with pytest.raises(ValueError):
+            CoolifyClient("https://coolify.example.com", None)
+
+    def test_get_headers(self, client):
+        """Test headers include authorization."""
+        headers = client._get_headers()
+
+        assert "Authorization" in headers
+        assert headers["Authorization"] == "Bearer test_api_key"
+        assert headers["Content-Type"] == "application/json"
+
+    def test_health_check_success(self, client):
+        """Test successful health check."""
+        with patch("requests.Session.get") as mock_get:
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            mock_get.return_value = mock_response
+
+            result = client.health_check()
+
+        assert result is True
+
+    def test_health_check_failure(self, client):
+        """Test health check failure."""
+        with patch("requests.Session.get") as mock_get:
+            mock_get.side_effect = Exception("Connection refused")
+
+            result = client.health_check()
+
+        assert result is False
+
+    def test_make_request_success(self, client):
+        """Test successful API request."""
+        with patch.object(client.session, "request") as mock_request:
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = {"id": "app-123", "name": "my_app"}
+            mock_request.return_value = mock_response
+
+            result = client._make_request("GET", "v1/applications/app-123")
+
+        assert result["id"] == "app-123"
+
+    def test_make_request_auth_error(self, client):
+        """Test request with authentication error."""
+        with patch.object(client.session, "request") as mock_request:
+            mock_response = MagicMock()
+            mock_response.status_code = 401
+            mock_request.return_value = mock_response
+
+            with pytest.raises(CoolifyAuthError):
+                client._make_request("GET", "v1/applications/app-123")
+
+    def test_make_request_not_found(self, client):
+        """Test request for non-existent resource."""
+        with patch.object(client.session, "request") as mock_request:
+            mock_response = MagicMock()
+            mock_response.status_code = 404
+            mock_request.return_value = mock_response
+
+            with pytest.raises(CoolifyNotFoundError):
+                client._make_request("GET", "v1/applications/not-found")
+
+    def test_get_application(self, client):
+        """Test getting application details."""
+        with patch.object(client, "_make_request") as mock_request:
+            mock_request.return_value = {
+                "id": "app-123",
+                "name": "my_app",
+                "status": "running",
+            }
+
+            result = client.get_application("app-123")
+
+        assert result["name"] == "my_app"
+        assert result["status"] == "running"
+
+    def test_deploy_application(self, client):
+        """Test triggering application deployment."""
+        with patch.object(client, "_make_request") as mock_request:
+            mock_request.return_value = {
+                "id": "deploy-456",
+                "status": "in_progress",
+            }
+
+            result = client.deploy_application(
+                "app-123", {"tag": "v1.0.0"}
+            )
+
+        assert result["id"] == "deploy-456"
+        mock_request.assert_called_once()
+
+    def test_get_deployment_status(self, client):
+        """Test getting deployment status."""
+        with patch.object(client, "_make_request") as mock_request:
+            mock_request.return_value = {
+                "id": "deploy-456",
+                "status": "completed",
+            }
+
+            result = client.get_deployment_status("app-123", "deploy-456")
+
+        assert result["status"] == "completed"
+
+    def test_get_application_logs(self, client):
+        """Test retrieving application logs."""
+        expected_logs = "2026-01-22 10:00:00 INFO: App started\n"
+
+        with patch.object(client, "_make_request") as mock_request:
+            mock_request.return_value = {"logs": expected_logs}
+
+            result = client.get_application_logs("app-123")
+
+        assert result == expected_logs
+
+    def test_update_application_config(self, client):
+        """Test updating application configuration."""
+        with patch.object(client, "_make_request") as mock_request:
+            mock_request.return_value = {"id": "app-123", "updated": True}
+
+            result = client.update_application_config(
+                "app-123", {"env": {"DEBUG": "true"}}
+            )
+
+        assert result["updated"] is True
+
+    def test_get_application_status(self, client):
+        """Test getting application status."""
+        with patch.object(client, "_make_request") as mock_request:
+            mock_request.return_value = {
+                "status": "running",
+                "uptime": 3600,
+            }
+
+            result = client.get_application_status("app-123")
+
+        assert result["status"] == "running"
+
+
+@pytest.mark.skipif(not HAS_COOLIFY, reason="requests library not available")
+class TestCoolifyProvider:
+    """Tests for CoolifyProvider cloud deployments."""
+
+    @pytest.fixture
+    def provider_config(self):
+        """Create valid Coolify provider configuration."""
+        return ProviderConfig(
+            name="production",
+            type="coolify",
+            url="https://coolify.example.com",
+            api_key="coolify_api_key_xyz",
+            custom_fields={
+                "application_id": "app-uuid-123",
+                "project_id": "proj-uuid-456",
+                "health_check_type": "status_api",
+                "poll_interval": 2,
+                "poll_timeout": 60,
+            },
+        )
+
+    @pytest.fixture
+    def provider(self, provider_config):
+        """Create CoolifyProvider instance."""
+        return CoolifyProvider(provider_config)
+
+    def test_init_with_valid_config(self, provider, provider_config):
+        """Test provider initialization with valid configuration."""
+        assert provider.name == "production"
+        assert provider.type == "coolify"
+        assert provider.application_id == "app-uuid-123"
+        assert provider.health_check_type == "status_api"
+
+    def test_init_missing_url(self):
+        """Test initialization fails if URL is missing."""
+        config = ProviderConfig(
+            name="test",
+            type="coolify",
+            url=None,
+            api_key="key",
+            custom_fields={"application_id": "app-123"},
+        )
+
+        from fraisier.providers import ProviderConfigError
+
+        with pytest.raises(ProviderConfigError):
+            CoolifyProvider(config)
+
+    def test_init_missing_api_key(self):
+        """Test initialization fails if api_key is missing."""
+        config = ProviderConfig(
+            name="test",
+            type="coolify",
+            url="https://coolify.example.com",
+            api_key=None,
+            custom_fields={"application_id": "app-123"},
+        )
+
+        from fraisier.providers import ProviderConfigError
+
+        with pytest.raises(ProviderConfigError):
+            CoolifyProvider(config)
+
+    def test_init_missing_application_id(self):
+        """Test initialization fails if application_id is missing."""
+        config = ProviderConfig(
+            name="test",
+            type="coolify",
+            url="https://coolify.example.com",
+            api_key="key",
+            custom_fields={},
+        )
+
+        from fraisier.providers import ProviderConfigError
+
+        with pytest.raises(ProviderConfigError):
+            CoolifyProvider(config)
+
+    def test_pre_flight_check_success(self, provider):
+        """Test successful pre-flight check."""
+        with patch.object(provider.client, "health_check", return_value=True):
+            with patch.object(provider.client, "get_application") as mock_get:
+                mock_get.return_value = {"id": "app-123", "name": "my_app"}
+
+                success, message = provider.pre_flight_check()
+
+        assert success is True
+        assert "my_app" in message
+
+    def test_pre_flight_check_api_not_accessible(self, provider):
+        """Test pre-flight check fails if API not accessible."""
+        with patch.object(provider.client, "health_check", return_value=False):
+            success, message = provider.pre_flight_check()
+
+        assert success is False
+        assert "not accessible" in message
+
+    def test_pre_flight_check_app_not_found(self, provider):
+        """Test pre-flight check fails if application not found."""
+        with patch.object(provider.client, "health_check", return_value=True):
+            with patch.object(
+                provider.client,
+                "get_application",
+                side_effect=CoolifyNotFoundError("not found"),
+            ):
+                success, message = provider.pre_flight_check()
+
+        assert success is False
+        assert "not found" in message
+
+    def test_deploy_service_success(self, provider):
+        """Test successful service deployment."""
+        with patch.object(provider, "_get_current_version") as mock_version:
+            with patch.object(provider.client, "deploy_application") as mock_deploy:
+                with patch.object(provider, "_poll_deployment_status") as mock_poll:
+                    with patch.object(provider, "health_check", return_value=True):
+                        mock_version.side_effect = ["v1.0.0", "v2.0.0"]
+                        mock_deploy.return_value = {"id": "deploy-123"}
+                        mock_poll.return_value = {"success": True}
+
+                        result = provider.deploy_service(
+                            "api",
+                            "v2.0.0",
+                            {},
+                        )
+
+        assert result.success is True
+        assert result.status == DeploymentStatus.SUCCESS
+        assert result.old_version == "v1.0.0"
+        assert result.new_version == "v2.0.0"
+
+    def test_deploy_service_no_deployment_id(self, provider):
+        """Test deployment fails if no deployment ID returned."""
+        with patch.object(provider, "_get_current_version") as mock_version:
+            with patch.object(provider.client, "deploy_application") as mock_deploy:
+                mock_version.return_value = "v1.0.0"
+                mock_deploy.return_value = {}  # No ID
+
+                result = provider.deploy_service("api", "v2.0.0", {})
+
+        assert result.success is False
+        assert "No deployment ID" in result.error_message
+
+    def test_deploy_service_health_check_fails(self, provider):
+        """Test deployment fails when health check fails."""
+        with patch.object(provider, "_get_current_version") as mock_version:
+            with patch.object(provider.client, "deploy_application") as mock_deploy:
+                with patch.object(provider, "_poll_deployment_status") as mock_poll:
+                    with patch.object(provider, "health_check", return_value=False):
+                        mock_version.return_value = "v1.0.0"
+                        mock_deploy.return_value = {"id": "deploy-123"}
+                        mock_poll.return_value = {"success": True}
+
+                        result = provider.deploy_service(
+                            "api",
+                            "v2.0.0",
+                            {},
+                        )
+
+        assert result.success is False
+        assert "Health check failed" in result.error_message
+
+    def test_get_service_status(self, provider):
+        """Test getting service status."""
+        with patch.object(provider.client, "get_application_status") as mock_status:
+            with patch.object(provider, "_get_current_version") as mock_version:
+                mock_status.return_value = {
+                    "status": "running",
+                    "uptime": 3600,
+                }
+                mock_version.return_value = "v2.0.0"
+
+                status = provider.get_service_status("api")
+
+        assert status["status"] == "running"
+        assert status["version"] == "v2.0.0"
+
+    def test_rollback_service_without_version(self, provider):
+        """Test rollback fails if no version specified."""
+        with patch.object(provider, "_get_current_version") as mock_version:
+            mock_version.return_value = "v2.0.0"
+
+            result = provider.rollback_service("api")
+
+        assert result.success is False
+        assert "requires 'to_version'" in result.error_message
+
+    def test_rollback_service_success(self, provider):
+        """Test successful service rollback."""
+        with patch.object(provider, "_get_current_version") as mock_version:
+            with patch.object(provider.client, "deploy_application") as mock_deploy:
+                with patch.object(provider, "_poll_deployment_status") as mock_poll:
+                    with patch.object(provider, "health_check", return_value=True):
+                        mock_version.side_effect = ["v2.0.0", "v1.0.0"]
+                        mock_deploy.return_value = {"id": "deploy-456"}
+                        mock_poll.return_value = {"success": True}
+
+                        result = provider.rollback_service(
+                            "api", to_version="v1.0.0"
+                        )
+
+        assert result.success is True
+        assert result.new_version == "v1.0.0"
+
+    def test_health_check_status_api(self, provider):
+        """Test health check via status API."""
+        with patch.object(provider.client, "get_application_status") as mock_status:
+            mock_status.return_value = {"status": "running"}
+
+            result = provider.health_check("api")
+
+        assert result is True
+
+    def test_health_check_status_api_not_running(self, provider):
+        """Test health check fails when not running."""
+        with patch.object(provider.client, "get_application_status") as mock_status:
+            mock_status.return_value = {"status": "stopped"}
+
+            result = provider.health_check("api")
+
+        assert result is False
+
+    def test_health_check_http(self, provider):
+        """Test health check via HTTP."""
+        provider.health_check_type = "http"
+        provider.health_check_url = "http://localhost:8000/health"
+
+        with patch("urllib.request.urlopen", MagicMock()):
+            result = provider.health_check("api")
+
+        assert result is True
+
+    def test_health_check_none_type(self, provider):
+        """Test health check with type='none'."""
+        provider.health_check_type = "none"
+
+        result = provider.health_check("api")
+
+        assert result is True
+
+    def test_get_logs(self, provider):
+        """Test retrieving service logs."""
+        expected_logs = "2026-01-22 10:00:00 INFO: App started\n"
+
+        with patch.object(provider.client, "get_application_logs") as mock_logs:
+            mock_logs.return_value = expected_logs
+
+            logs = provider.get_logs("api", lines=100)
+
+        assert logs == expected_logs
+
+    def test_get_logs_error(self, provider):
+        """Test getting logs when API fails."""
+        with patch.object(provider.client, "get_application_logs") as mock_logs:
+            mock_logs.side_effect = Exception("API error")
+
+            logs = provider.get_logs("api")
+
+        assert "Error retrieving logs" in logs
+
+    def test_poll_deployment_status_success(self, provider):
+        """Test deployment polling reaches completion."""
+        with patch.object(provider.client, "get_deployment_status") as mock_status:
+            mock_status.return_value = {"status": "completed"}
+
+            result = provider._poll_deployment_status("deploy-123", "v2.0.0")
+
+        assert result["success"] is True
+
+    def test_poll_deployment_status_failed(self, provider):
+        """Test deployment polling detects failure."""
+        with patch.object(provider.client, "get_deployment_status") as mock_status:
+            mock_status.return_value = {
+                "status": "failed",
+                "error_message": "Build failed",
+            }
+
+            result = provider._poll_deployment_status("deploy-123", "v2.0.0")
+
+        assert result["success"] is False
+        assert "Build failed" in result["error_message"]
+
+    def test_poll_deployment_status_timeout(self, provider):
+        """Test deployment polling times out."""
+        provider.poll_timeout = 0.1  # Very short timeout
+        provider.poll_interval = 0.05
+
+        with patch.object(provider.client, "get_deployment_status") as mock_status:
+            mock_status.return_value = {"status": "in_progress"}
+
+            result = provider._poll_deployment_status("deploy-123", "v2.0.0")
+
+        assert result["success"] is False
+        assert "timed out" in result["error_message"]
+
+    def test_get_current_version(self, provider):
+        """Test getting current version from application."""
+        with patch.object(provider.client, "get_application") as mock_get:
+            mock_get.return_value = {"id": "app-123", "tag": "v2.0.0"}
+
+            version = provider._get_current_version()
+
+        assert version == "v2.0.0"
