@@ -1,503 +1,444 @@
-"""Bare Metal deployment provider for SSH/systemd deployments.
+"""Bare Metal provider for SSH + systemd deployments.
 
-Deploys to bare metal servers using SSH connections and systemd service management.
-Supports:
-- SSH key-based authentication
-- Systemd service restart
-- Git operations on remote servers
-- Health checks via TCP or HTTP
-- Log retrieval via journalctl
-- Rollback via git checkout
+Handles deployment to bare metal or VM infrastructure via SSH,
+with systemd service management and TCP health checks.
 """
 
-import subprocess
-import time
+import asyncio
+import logging
 from typing import Any
 
-from fraisier.deployers.base import DeploymentResult, DeploymentStatus
+from .base import DeploymentProvider, HealthCheck, HealthCheckType, ProviderType
 
-from . import BaseProvider, ProviderConfig
+logger = logging.getLogger(__name__)
 
 
-class BareMetalProvider(BaseProvider):
-    """Deploy to bare metal servers via SSH and systemd.
+class BareMetalProvider(DeploymentProvider):
+    """Deploy to bare metal servers via SSH.
 
-    Configuration requirements:
-        - url: SSH host (e.g., "prod.example.com")
-        - custom_fields:
-            - ssh_user: SSH username (default: "deploy")
-            - ssh_key_path: Path to SSH private key (default: "~/.ssh/id_rsa")
-            - app_path: Application path on remote (e.g., "/var/app")
-            - systemd_service: Systemd service name (e.g., "my_api.service")
-            - health_check_type: "http", "tcp", or "none" (default: "http")
-            - health_check_url: HTTP endpoint to check (e.g., "http://localhost:8000/health")
-            - health_check_port: TCP port to check if tcp type
-            - health_check_timeout: Timeout in seconds (default: 10)
-
-    Example configuration:
-        ProviderConfig(
-            name="production",
-            type="bare_metal",
-            url="prod.example.com",
-            custom_fields={
-                "ssh_user": "deploy",
-                "ssh_key_path": "/etc/fraisier/keys/prod.pem",
-                "app_path": "/var/app",
-                "systemd_service": "my_api.service",
-                "health_check_type": "http",
-                "health_check_url": "http://localhost:8000/health",
-                "health_check_timeout": 10,
-            }
-        )
+    Supports:
+    - SSH key-based authentication
+    - systemd service management
+    - TCP and HTTP health checks
+    - Command execution
+    - File operations (upload/download)
     """
 
-    type = "bare_metal"
+    def __init__(self, config: dict[str, Any]):
+        """Initialize bare metal provider.
 
-    def __init__(self, config: ProviderConfig):
-        """Initialize Bare Metal provider with SSH configuration.
-
-        Args:
-            config: ProviderConfig with SSH and service details
-
-        Raises:
-            ProviderConfigError: If required configuration is missing
+        Config should include:
+            host: SSH hostname or IP
+            port: SSH port (default 22)
+            username: SSH username
+            key_path: Path to SSH private key
+            known_hosts_path: Optional custom known_hosts file
         """
         super().__init__(config)
+        self.host = config.get("host")
+        self.port = config.get("port", 22)
+        self.username = config.get("username", "root")
+        self.key_path = config.get("key_path")
+        self.known_hosts_path = config.get("known_hosts_path")
+        self.ssh_client = None
+        self._connection_timeout = 10
 
-        # SSH configuration
-        self.ssh_host = config.url
-        if not self.ssh_host:
-            from . import ProviderConfigError
-            raise ProviderConfigError("Bare Metal provider requires 'url' (SSH host)")
+        if not self.host:
+            raise ValueError("Bare Metal provider requires 'host' configuration")
 
-        self.ssh_user = config.custom_fields.get("ssh_user", "deploy")
-        self.ssh_key_path = config.custom_fields.get("ssh_key_path", "~/.ssh/id_rsa")
+    def _get_provider_type(self) -> ProviderType:
+        """Return provider type."""
+        return ProviderType.BARE_METAL
 
-        # Application configuration
-        self.app_path = config.custom_fields.get("app_path")
-        self.systemd_service = config.custom_fields.get("systemd_service")
-
-        # Health check configuration
-        self.health_check_type = config.custom_fields.get("health_check_type", "http")
-        self.health_check_url = config.custom_fields.get("health_check_url")
-        self.health_check_port = config.custom_fields.get("health_check_port")
-        self.health_check_timeout = config.custom_fields.get("health_check_timeout", 10)
-
-    def pre_flight_check(self) -> tuple[bool, str]:
-        """Verify SSH connection to remote server.
-
-        Returns:
-            Tuple of (success: bool, message: str)
-            - True if SSH connection successful
-            - False if connection failed or server unreachable
-        """
-        try:
-            cmd = [
-                "ssh",
-                "-i", self.ssh_key_path,
-                f"{self.ssh_user}@{self.ssh_host}",
-                "echo 'SSH connection test'",
-            ]
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                timeout=10,
-                text=True,
-            )
-
-            if result.returncode == 0:
-                return True, f"SSH connection to {self.ssh_host} successful"
-            else:
-                return False, f"SSH connection failed: {result.stderr}"
-
-        except subprocess.TimeoutExpired:
-            return False, f"SSH connection to {self.ssh_host} timed out"
-        except Exception as e:
-            return False, f"SSH connection error: {str(e)}"
-
-    def deploy_service(
-        self,
-        service_name: str,
-        version: str,
-        config: dict[str, Any],
-    ) -> DeploymentResult:
-        """Deploy service via SSH and systemd.
-
-        Steps:
-        1. SSH to remote server
-        2. Change to app directory
-        3. Git pull to get latest code
-        4. Systemctl restart service
-        5. Wait for service to start
-        6. Check health
-
-        Args:
-            service_name: Name of service to deploy
-            version: Version string (commit SHA, tag, etc.)
-            config: Service configuration (paths, ports, env vars, etc.)
-
-        Returns:
-            DeploymentResult with success/failure status
+    async def connect(self) -> None:
+        """Establish SSH connection.
 
         Raises:
-            ProviderDeploymentError: If deployment fails
+            ConnectionError: If SSH connection fails
         """
-        import time as time_module
-
-        start_time = time_module.time()
-        old_version = None
-
         try:
-            # Get current version before deployment
-            old_version = self._get_remote_version()
+            import asyncssh
 
-            # Verify required configuration
-            if not self.app_path:
-                return DeploymentResult(
-                    success=False,
-                    status=DeploymentStatus.FAILED,
-                    error_message="app_path not configured",
-                    new_version=version,
-                    old_version=old_version,
-                )
+            # Create SSH connection options
+            options = asyncssh.SSHClientConnectionOptions()
+            if self.key_path:
+                options.client_keys = [self.key_path]
+            if self.known_hosts_path:
+                options.known_hosts = self.known_hosts_path
+            else:
+                options.known_hosts = None  # Accept unknown hosts
 
-            if not self.systemd_service:
-                return DeploymentResult(
-                    success=False,
-                    status=DeploymentStatus.FAILED,
-                    error_message="systemd_service not configured",
-                    new_version=version,
-                    old_version=old_version,
-                )
-
-            # Get branch from config (default to main)
-            branch = config.get("branch", "main")
-
-            # Build SSH command to pull latest code
-            pull_cmd = (
-                f"cd {self.app_path} && "
-                f"git pull --ff-only origin {branch}"
+            # Establish connection
+            self.ssh_client = await asyncssh.connect(
+                self.host,
+                port=self.port,
+                username=self.username,
+                options=options,
+                connect_timeout=self._connection_timeout,
             )
+            logger.info(f"Connected to {self.username}@{self.host}:{self.port}")
 
-            result = self._run_ssh_command(pull_cmd)
-            if result["returncode"] != 0:
-                return DeploymentResult(
-                    success=False,
-                    status=DeploymentStatus.FAILED,
-                    error_message=f"Git pull failed: {result['stderr']}",
-                    new_version=version,
-                    old_version=old_version,
-                )
-
-            # Restart systemd service
-            restart_cmd = f"sudo systemctl restart {self.systemd_service}"
-            result = self._run_ssh_command(restart_cmd)
-            if result["returncode"] != 0:
-                return DeploymentResult(
-                    success=False,
-                    status=DeploymentStatus.FAILED,
-                    error_message=f"Systemctl restart failed: {result['stderr']}",
-                    new_version=version,
-                    old_version=old_version,
-                )
-
-            # Wait for service to start
-            time.sleep(2)
-
-            # Check health
-            if not self.health_check(service_name):
-                return DeploymentResult(
-                    success=False,
-                    status=DeploymentStatus.FAILED,
-                    error_message="Health check failed after deployment",
-                    new_version=version,
-                    old_version=old_version,
-                )
-
-            # Success
-            duration = time.time() - start_time
-            return DeploymentResult(
-                success=True,
-                status=DeploymentStatus.SUCCESS,
-                new_version=version,
-                old_version=old_version,
-                duration_seconds=duration,
+        except ImportError:
+            raise ConnectionError(
+                "asyncssh not installed. Install with: pip install asyncssh"
             )
-
         except Exception as e:
-            duration = time.time() - start_time
-            return DeploymentResult(
-                success=False,
-                status=DeploymentStatus.FAILED,
-                error_message=f"Deployment error: {str(e)}",
-                new_version=version,
-                old_version=old_version,
-                duration_seconds=duration,
-            )
+            raise ConnectionError(
+                f"Failed to connect to {self.host}:{self.port}: {e}"
+            ) from e
 
-    def get_service_status(self, service_name: str) -> dict[str, Any]:
-        """Get current status of deployed service.
+    async def disconnect(self) -> None:
+        """Close SSH connection."""
+        if self.ssh_client:
+            self.ssh_client.close()
+            await self.ssh_client.wait_closed()
+            logger.info(f"Disconnected from {self.host}")
 
-        Returns dict with:
-        - status: "running", "stopped", or "error"
-        - version: currently deployed version (from git)
-        - uptime: uptime in seconds
-        - last_error: if any
-        - port: if applicable
+    async def execute_command(
+        self,
+        command: str,
+        timeout: int = 300,
+    ) -> tuple[int, str, str]:
+        """Execute command via SSH.
 
         Args:
-            service_name: Name of service
+            command: Command to execute
+            timeout: Command timeout in seconds
+
+        Returns:
+            Tuple of (return_code, stdout, stderr)
+
+        Raises:
+            RuntimeError: If connection not established or command fails
+        """
+        if not self.ssh_client:
+            raise RuntimeError("Not connected to SSH server")
+
+        try:
+            result = await asyncio.wait_for(
+                self.ssh_client.run(command),
+                timeout=timeout,
+            )
+            return (
+                result.exit_status,
+                result.stdout or "",
+                result.stderr or "",
+            )
+        except asyncio.TimeoutError:
+            raise RuntimeError(f"Command timed out after {timeout} seconds: {command}")
+        except Exception as e:
+            raise RuntimeError(f"Command execution failed: {e}") from e
+
+    async def upload_file(self, local_path: str, remote_path: str) -> None:
+        """Upload file via SCP.
+
+        Args:
+            local_path: Local file path
+            remote_path: Remote destination path
+
+        Raises:
+            FileNotFoundError: If local file doesn't exist
+            RuntimeError: If upload fails
+        """
+        if not self.ssh_client:
+            raise RuntimeError("Not connected to SSH server")
+
+        try:
+            import asyncssh
+
+            async with asyncssh.connect(
+                self.host,
+                port=self.port,
+                username=self.username,
+            ) as conn:
+                await conn.copy_files(local_path, (conn, remote_path))
+                logger.info(f"Uploaded {local_path} to {remote_path}")
+
+        except FileNotFoundError as e:
+            raise FileNotFoundError(f"Local file not found: {local_path}") from e
+        except Exception as e:
+            raise RuntimeError(f"File upload failed: {e}") from e
+
+    async def download_file(self, remote_path: str, local_path: str) -> None:
+        """Download file via SCP.
+
+        Args:
+            remote_path: Remote file path
+            local_path: Local destination path
+
+        Raises:
+            RuntimeError: If download fails
+        """
+        if not self.ssh_client:
+            raise RuntimeError("Not connected to SSH server")
+
+        try:
+            import asyncssh
+
+            async with asyncssh.connect(
+                self.host,
+                port=self.port,
+                username=self.username,
+            ) as conn:
+                await conn.copy_files((conn, remote_path), local_path)
+                logger.info(f"Downloaded {remote_path} to {local_path}")
+
+        except Exception as e:
+            raise RuntimeError(f"File download failed: {e}") from e
+
+    async def get_service_status(self, service_name: str) -> dict[str, Any]:
+        """Get systemd service status.
+
+        Args:
+            service_name: Service name (without .service suffix)
 
         Returns:
             Dict with status information
         """
         try:
-            # Get service status
-            status_cmd = f"sudo systemctl is-active {self.systemd_service}"
-            result = self._run_ssh_command(status_cmd)
-
-            service_status = "running" if result["returncode"] == 0 else "stopped"
-
-            # Get current version
-            version = self._get_remote_version()
-
-            # Get service info
-            info_cmd = (
-                f"sudo systemctl show {self.systemd_service} "
-                f"-p MainPID,ExecMainStartTimestampMonotonic"
+            exit_code, stdout, stderr = await self.execute_command(
+                f"systemctl is-active {service_name}.service"
             )
-            result = self._run_ssh_command(info_cmd)
+
+            if exit_code == 0:
+                # Also get details
+                _, details, _ = await self.execute_command(
+                    f"systemctl show {service_name}.service -p ActiveState,SubState"
+                )
+
+                return {
+                    "service": service_name,
+                    "active": True,
+                    "state": stdout.strip(),
+                    "details": details,
+                }
 
             return {
-                "status": service_status,
-                "version": version or "unknown",
-                "uptime": None,  # Would require parsing systemctl output
-                "last_error": None,
-                "port": None,
-                "custom": {"stdout": result["stdout"]},
+                "service": service_name,
+                "active": False,
+                "state": "inactive",
+                "error": stderr,
             }
 
         except Exception as e:
             return {
-                "status": "error",
-                "version": None,
-                "last_error": str(e),
+                "service": service_name,
+                "active": False,
+                "error": str(e),
             }
 
-    def rollback_service(
-        self,
-        service_name: str,
-        to_version: str | None = None,
-    ) -> DeploymentResult:
-        """Rollback service to previous version.
+    async def check_health(self, health_check: HealthCheck) -> bool:
+        """Check service health.
 
-        Uses git to checkout previous version or specific version.
+        Supports HTTP, TCP, exec, and systemd checks.
 
         Args:
-            service_name: Name of service to rollback
-            to_version: Specific version to rollback to.
-                       If None, rollback to HEAD~1 (previous commit)
+            health_check: Health check configuration
 
         Returns:
-            DeploymentResult with success/failure status
+            True if healthy, False otherwise
         """
-        import time as time_module
+        for attempt in range(health_check.retries):
+            try:
+                if health_check.type == HealthCheckType.HTTP:
+                    return await self._check_http(health_check)
 
-        start_time = time_module.time()
-        old_version = self._get_remote_version()
+                elif health_check.type == HealthCheckType.TCP:
+                    return await self._check_tcp(health_check)
 
-        try:
-            if not self.app_path or not self.systemd_service:
-                return DeploymentResult(
-                    success=False,
-                    status=DeploymentStatus.FAILED,
-                    error_message="app_path and systemd_service required for rollback",
-                    new_version=to_version,
-                    old_version=old_version,
+                elif health_check.type == HealthCheckType.EXEC:
+                    return await self._check_exec(health_check)
+
+                elif health_check.type == HealthCheckType.SYSTEMD:
+                    return await self._check_systemd(health_check)
+
+                else:
+                    logger.warning(f"Unknown health check type: {health_check.type}")
+                    return False
+
+            except Exception as e:
+                logger.warning(
+                    f"Health check attempt {attempt + 1}/{health_check.retries} failed: {e}"
                 )
+                if attempt < health_check.retries - 1:
+                    await asyncio.sleep(health_check.retry_delay)
+                continue
 
-            # Determine target version
-            target = to_version if to_version else "HEAD~1"
+        return False
 
-            # Checkout version
-            checkout_cmd = f"cd {self.app_path} && git checkout {target}"
-            result = self._run_ssh_command(checkout_cmd)
-            if result["returncode"] != 0:
-                return DeploymentResult(
-                    success=False,
-                    status=DeploymentStatus.FAILED,
-                    error_message=f"Git checkout failed: {result['stderr']}",
-                    new_version=to_version,
-                    old_version=old_version,
-                )
-
-            # Restart service
-            restart_cmd = f"sudo systemctl restart {self.systemd_service}"
-            result = self._run_ssh_command(restart_cmd)
-            if result["returncode"] != 0:
-                return DeploymentResult(
-                    success=False,
-                    status=DeploymentStatus.FAILED,
-                    error_message=f"Systemctl restart failed: {result['stderr']}",
-                    new_version=to_version,
-                    old_version=old_version,
-                )
-
-            # Wait for service
-            time.sleep(2)
-
-            # Check health
-            if not self.health_check(service_name):
-                return DeploymentResult(
-                    success=False,
-                    status=DeploymentStatus.FAILED,
-                    error_message="Health check failed after rollback",
-                    new_version=to_version,
-                    old_version=old_version,
-                )
-
-            # Success
-            new_version = self._get_remote_version()
-            duration = time.time() - start_time
-            return DeploymentResult(
-                success=True,
-                status=DeploymentStatus.SUCCESS,
-                new_version=new_version,
-                old_version=old_version,
-                duration_seconds=duration,
-            )
-
-        except Exception as e:
-            duration = time.time() - start_time
-            return DeploymentResult(
-                success=False,
-                status=DeploymentStatus.FAILED,
-                error_message=f"Rollback error: {str(e)}",
-                new_version=to_version,
-                old_version=old_version,
-                duration_seconds=duration,
-            )
-
-    def health_check(self, service_name: str) -> bool:
-        """Check if service is healthy and responding.
-
-        Supports:
-        - HTTP health checks (GET request)
-        - TCP health checks (port connectivity)
-        - Systemd status check
-
-        Args:
-            service_name: Name of service
-
-        Returns:
-            True if service is healthy, False otherwise
-        """
-        try:
-            # First check if systemd service is running
-            status_cmd = f"sudo systemctl is-active {self.systemd_service}"
-            result = self._run_ssh_command(status_cmd)
-            if result["returncode"] != 0:
-                return False
-
-            # If no health check configured, just check systemd status
-            if self.health_check_type == "none":
-                return True
-
-            # HTTP health check
-            if self.health_check_type == "http" and self.health_check_url:
-                # Use curl on remote server to check HTTP endpoint
-                curl_cmd = (
-                    f"curl -s -f -m {self.health_check_timeout} "
-                    f"{self.health_check_url}"
-                )
-                result = self._run_ssh_command(curl_cmd)
-                return result["returncode"] == 0
-
-            # TCP health check
-            if self.health_check_type == "tcp" and self.health_check_port:
-                # Use nc (netcat) on remote server to check port
-                nc_cmd = (
-                    f"timeout {self.health_check_timeout} "
-                    f"nc -zv localhost {self.health_check_port}"
-                )
-                result = self._run_ssh_command(nc_cmd)
-                return result["returncode"] == 0
-
-            return True
-
-        except Exception:
+    async def _check_http(self, health_check: HealthCheck) -> bool:
+        """Check HTTP endpoint."""
+        if not health_check.url:
+            logger.error("HTTP health check requires 'url'")
             return False
 
-    def get_logs(self, service_name: str, lines: int = 100) -> str:
-        """Get recent logs from systemd service.
-
-        Uses journalctl to retrieve service logs.
-
-        Args:
-            service_name: Name of service
-            lines: Number of recent log lines to return
-
-        Returns:
-            Log output as string (newline-separated lines)
-        """
         try:
-            log_cmd = (
-                f"sudo journalctl -u {self.systemd_service} "
-                f"-n {lines} --no-pager"
+            import httpx
+
+            async with httpx.AsyncClient(timeout=health_check.timeout) as client:
+                response = await client.get(health_check.url)
+                return response.status_code < 400
+
+        except ImportError:
+            logger.error("httpx not installed. Install with: pip install httpx")
+            return False
+        except Exception as e:
+            logger.debug(f"HTTP health check failed: {e}")
+            return False
+
+    async def _check_tcp(self, health_check: HealthCheck) -> bool:
+        """Check TCP connectivity."""
+        if not health_check.port:
+            logger.error("TCP health check requires 'port'")
+            return False
+
+        try:
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection("127.0.0.1", health_check.port),
+                timeout=health_check.timeout,
             )
-            result = self._run_ssh_command(log_cmd)
-            return result["stdout"] if result["returncode"] == 0 else result["stderr"]
+            writer.close()
+            await writer.wait_closed()
+            return True
+
+        except asyncio.TimeoutError:
+            logger.debug(f"TCP connection timeout on port {health_check.port}")
+            return False
+        except Exception as e:
+            logger.debug(f"TCP health check failed: {e}")
+            return False
+
+    async def _check_exec(self, health_check: HealthCheck) -> bool:
+        """Check using exec command."""
+        if not health_check.command:
+            logger.error("Exec health check requires 'command'")
+            return False
+
+        try:
+            exit_code, _, _ = await self.execute_command(
+                health_check.command,
+                timeout=health_check.timeout,
+            )
+            return exit_code == 0
 
         except Exception as e:
-            return f"Error retrieving logs: {str(e)}"
+            logger.debug(f"Exec health check failed: {e}")
+            return False
 
-    # Private helper methods
+    async def _check_systemd(self, health_check: HealthCheck) -> bool:
+        """Check systemd service status."""
+        if not health_check.service:
+            logger.error("Systemd health check requires 'service'")
+            return False
 
-    def _run_ssh_command(self, remote_cmd: str) -> dict[str, Any]:
-        """Execute command on remote server via SSH.
+        try:
+            exit_code, _, _ = await self.execute_command(
+                f"systemctl is-active {health_check.service}.service"
+            )
+            return exit_code == 0
+
+        except Exception as e:
+            logger.debug(f"Systemd health check failed: {e}")
+            return False
+
+    async def start_service(self, service_name: str, timeout: int = 60) -> bool:
+        """Start a systemd service.
 
         Args:
-            remote_cmd: Command to execute on remote server
+            service_name: Service name (without .service)
+            timeout: Timeout in seconds
 
         Returns:
-            Dict with returncode, stdout, stderr
-        """
-        cmd = [
-            "ssh",
-            "-i", self.ssh_key_path,
-            f"{self.ssh_user}@{self.ssh_host}",
-            remote_cmd,
-        ]
-
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            timeout=60,
-            text=True,
-        )
-
-        return {
-            "returncode": result.returncode,
-            "stdout": result.stdout,
-            "stderr": result.stderr,
-        }
-
-    def _get_remote_version(self) -> str | None:
-        """Get current git commit SHA from remote server.
-
-        Returns:
-            Commit SHA (short form) or None if error
+            True if successful
         """
         try:
-            if not self.app_path:
-                return None
+            exit_code, _, stderr = await self.execute_command(
+                f"systemctl start {service_name}.service",
+                timeout=timeout,
+            )
+            if exit_code == 0:
+                logger.info(f"Started service {service_name}")
+                return True
+            else:
+                logger.error(f"Failed to start {service_name}: {stderr}")
+                return False
 
-            version_cmd = f"cd {self.app_path} && git rev-parse --short HEAD"
-            result = self._run_ssh_command(version_cmd)
+        except Exception as e:
+            logger.error(f"Error starting service {service_name}: {e}")
+            return False
 
-            if result["returncode"] == 0:
-                return result["stdout"].strip()
-            return None
+    async def stop_service(self, service_name: str, timeout: int = 60) -> bool:
+        """Stop a systemd service.
 
-        except Exception:
-            return None
+        Args:
+            service_name: Service name (without .service)
+            timeout: Timeout in seconds
+
+        Returns:
+            True if successful
+        """
+        try:
+            exit_code, _, stderr = await self.execute_command(
+                f"systemctl stop {service_name}.service",
+                timeout=timeout,
+            )
+            if exit_code == 0:
+                logger.info(f"Stopped service {service_name}")
+                return True
+            else:
+                logger.error(f"Failed to stop {service_name}: {stderr}")
+                return False
+
+        except Exception as e:
+            logger.error(f"Error stopping service {service_name}: {e}")
+            return False
+
+    async def restart_service(self, service_name: str, timeout: int = 60) -> bool:
+        """Restart a systemd service.
+
+        Args:
+            service_name: Service name (without .service)
+            timeout: Timeout in seconds
+
+        Returns:
+            True if successful
+        """
+        try:
+            exit_code, _, stderr = await self.execute_command(
+                f"systemctl restart {service_name}.service",
+                timeout=timeout,
+            )
+            if exit_code == 0:
+                logger.info(f"Restarted service {service_name}")
+                return True
+            else:
+                logger.error(f"Failed to restart {service_name}: {stderr}")
+                return False
+
+        except Exception as e:
+            logger.error(f"Error restarting service {service_name}: {e}")
+            return False
+
+    async def enable_service(self, service_name: str) -> bool:
+        """Enable a systemd service (auto-start on boot).
+
+        Args:
+            service_name: Service name (without .service)
+
+        Returns:
+            True if successful
+        """
+        try:
+            exit_code, _, stderr = await self.execute_command(
+                f"systemctl enable {service_name}.service"
+            )
+            if exit_code == 0:
+                logger.info(f"Enabled service {service_name}")
+                return True
+            else:
+                logger.error(f"Failed to enable {service_name}: {stderr}")
+                return False
+
+        except Exception as e:
+            logger.error(f"Error enabling service {service_name}: {e}")
+            return False
