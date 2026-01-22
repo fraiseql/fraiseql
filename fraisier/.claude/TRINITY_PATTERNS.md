@@ -3,6 +3,29 @@
 **Status**: ✅ Implemented across all tables
 **Purpose**: Enable multi-database reconciliation and consistent identifier management
 **Benefit**: When Fraisier has multiple database backends (SQLite for local, PostgreSQL for cloud), reconciliation is straightforward
+**Standard**: Follows PrintOptim database architecture conventions
+
+---
+
+## PrintOptim Trinity Column Order
+
+**All Fraisier tables follow this strict column declaration order** (consistent with PrintOptim):
+
+```
+1. id (TEXT/UUID)                           - Public, API-facing identifier
+2. identifier (TEXT)                        - Business key, human-readable
+3. pk_* (INTEGER PRIMARY KEY)               - Internal key (ALWAYS LAST)
+4. fk_* (FOREIGN KEYS)                      - References to other pk_* columns
+5. Domain Columns                           - Business logic data
+6. Audit Columns                            - created_at, updated_at, etc.
+```
+
+**Why This Order?**
+- ✅ Consistent across entire organization
+- ✅ Easy scanning: trinity identifiers always first 3 columns
+- ✅ Clear hierarchy: public → business → internal
+- ✅ Logical grouping: related columns together
+- ✅ Team-wide standards enable tooling and automation
 
 ---
 
@@ -101,25 +124,27 @@ SELECT * FROM tb_fraise_state WHERE identifier = 'my_api:production:backup_job'
 
 **Purpose**: Current deployment state of each fraise
 
+**Column Order** follows PrintOptim standard: public → business → internal → domain → audit
+
 ```sql
 CREATE TABLE tb_fraise_state (
-    -- Trinity Identifiers
-    pk_fraise_state INTEGER PRIMARY KEY AUTOINCREMENT,
-    id TEXT NOT NULL UNIQUE,                    -- UUID for sync
-    identifier TEXT NOT NULL UNIQUE,            -- "fraise:env[:job]"
+    -- Trinity Identifiers (in strict order: id → identifier → pk_*)
+    id TEXT NOT NULL UNIQUE,                         -- 1. Public UUID for sync
+    identifier TEXT NOT NULL UNIQUE,                 -- 2. Business key: "fraise:env[:job]"
+    pk_fraise_state INTEGER PRIMARY KEY AUTOINCREMENT,  -- 3. Internal key
 
-    -- Business Data (semantic naming)
+    -- Domain Data (semantic naming)
     fraise_name TEXT NOT NULL,
     environment_name TEXT NOT NULL,
-    job_name TEXT,                              -- NULL for non-scheduled
+    job_name TEXT,                                   -- NULL for non-scheduled
     current_version TEXT,
     last_deployed_at TEXT,
     last_deployed_by TEXT,
     status TEXT DEFAULT 'unknown',
 
     -- Audit Trail
-    created_at TEXT NOT NULL,                   -- When first created
-    updated_at TEXT NOT NULL,                   -- Last modification
+    created_at TEXT NOT NULL,                        -- When first created
+    updated_at TEXT NOT NULL,                        -- Last modification
 
     -- Natural Key
     UNIQUE(fraise_name, environment_name, job_name)
@@ -187,25 +212,27 @@ pk_deployment  id                  identifier                              fk_fr
 
 **Purpose**: Webhook events received and processed
 
+**Column Order** follows PrintOptim standard: public → business → internal → domain → audit
+
 ```sql
 CREATE TABLE tb_webhook_event (
-    -- Trinity Identifiers
-    pk_webhook_event INTEGER PRIMARY KEY AUTOINCREMENT,
-    id TEXT NOT NULL UNIQUE,                    -- UUID for sync
-    identifier TEXT NOT NULL UNIQUE,            -- "provider:timestamp:hash"
+    -- Trinity Identifiers (in strict order: id → identifier → pk_*)
+    id TEXT NOT NULL UNIQUE,                           -- 1. Public UUID for sync
+    identifier TEXT NOT NULL UNIQUE,                   -- 2. Business key: "provider:timestamp:hash"
+    pk_webhook_event INTEGER PRIMARY KEY AUTOINCREMENT,  -- 3. Internal key
 
-    -- Foreign Key (uses pk_*, can be NULL if not linked)
+    -- Foreign Keys (after pk_*)
     fk_deployment INTEGER REFERENCES tb_deployment(pk_deployment),
 
-    -- Business Data (semantic naming)
+    -- Domain Data (semantic naming)
     received_at TEXT NOT NULL,
-    event_type TEXT NOT NULL,                   -- push, ping, pull_request
-    git_provider TEXT NOT NULL,                 -- github, gitlab, gitea, bitbucket
+    event_type TEXT NOT NULL,                          -- push, ping, pull_request
+    git_provider TEXT NOT NULL,                        -- github, gitlab, gitea, bitbucket
     branch_name TEXT,
     commit_sha TEXT,
     sender TEXT,
-    payload TEXT,                               -- Full JSON payload
-    processed INTEGER DEFAULT 0,                -- 1 if linked to deployment
+    payload TEXT,                                      -- Full JSON payload
+    processed INTEGER DEFAULT 0,                       -- 1 if linked to deployment
 
     -- Audit Trail
     created_at TEXT NOT NULL,
