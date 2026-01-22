@@ -282,11 +282,12 @@ async def generic_webhook(request: Request, background_tasks: BackgroundTasks) -
     # Record webhook event in database
     db = get_db()
     webhook_id = db.record_webhook_event(
-        event_type=f"{event.provider}:{event.event_type}",
+        event_type=event.event_type,
         payload=json.dumps(payload),
         branch=event.branch,
         commit_sha=event.commit_sha,
         sender=event.sender,
+        git_provider=event.provider,
     )
 
     # Process the event
