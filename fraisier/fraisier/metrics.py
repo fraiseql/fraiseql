@@ -65,6 +65,7 @@ class DeploymentMetrics:
     - Rollback events
     - Health check performance
     - Active deployments
+    - Database operations and performance
     """
 
     # Counters - monotonically increasing values
@@ -92,6 +93,25 @@ class DeploymentMetrics:
         ["provider", "check_type", "status"],
     )
 
+    # Database operation counters
+    db_queries_total = Counter(
+        "fraisier_db_queries_total",
+        "Total database queries executed",
+        ["database_type", "operation", "status"],
+    )
+
+    db_errors_total = Counter(
+        "fraisier_db_errors_total",
+        "Total database errors",
+        ["database_type", "error_type"],
+    )
+
+    deployment_db_operations_total = Counter(
+        "fraisier_deployment_db_operations_total",
+        "Total database operations during deployments",
+        ["database_type", "operation_type"],
+    )
+
     # Histograms - distribution of values in buckets
     deployment_duration_seconds = Histogram(
         "fraisier_deployment_duration_seconds",
@@ -114,6 +134,21 @@ class DeploymentMetrics:
         buckets=[5, 10, 30, 60, 120],
     )
 
+    # Database operation latency
+    query_latency_seconds = Histogram(
+        "fraisier_query_latency_seconds",
+        "Database query execution time",
+        ["database_type", "operation"],
+        buckets=[0.01, 0.05, 0.1, 0.5, 1, 2, 5],
+    )
+
+    db_transaction_duration_seconds = Histogram(
+        "fraisier_db_transaction_duration_seconds",
+        "Database transaction duration",
+        ["database_type"],
+        buckets=[0.1, 0.5, 1, 2, 5, 10],
+    )
+
     # Gauges - point-in-time values
     active_deployments = Gauge(
         "fraisier_active_deployments",
@@ -131,6 +166,25 @@ class DeploymentMetrics:
         "fraisier_provider_availability",
         "Provider availability (1=available, 0=unavailable)",
         ["provider"],
+    )
+
+    # Database connection metrics
+    active_db_connections = Gauge(
+        "fraisier_active_db_connections",
+        "Currently active database connections",
+        ["database_type"],
+    )
+
+    idle_db_connections = Gauge(
+        "fraisier_idle_db_connections",
+        "Currently idle database connections",
+        ["database_type"],
+    )
+
+    db_pool_waiting_requests = Gauge(
+        "fraisier_db_pool_waiting_requests",
+        "Requests waiting for database connection",
+        ["database_type"],
     )
 
 
@@ -289,6 +343,109 @@ class MetricsRecorder:
             service=service,
             provider=provider,
         ).set(wait_time)
+
+    # Database operation metrics
+    def record_db_query(
+        self,
+        database_type: str,
+        operation: str,
+        status: str,
+        duration_seconds: float,
+    ) -> None:
+        """Record database query execution.
+
+        Args:
+            database_type: Database type (sqlite, postgresql, mysql)
+            operation: Operation type (select, insert, update, delete)
+            status: Result status (success, failed)
+            duration_seconds: Query execution time
+        """
+        # Record query count
+        self.metrics.db_queries_total.labels(
+            database_type=database_type,
+            operation=operation,
+            status=status,
+        ).inc()
+
+        # Record query latency
+        self.metrics.query_latency_seconds.labels(
+            database_type=database_type,
+            operation=operation,
+        ).observe(duration_seconds)
+
+    def record_db_error(
+        self,
+        database_type: str,
+        error_type: str,
+    ) -> None:
+        """Record database error.
+
+        Args:
+            database_type: Database type (sqlite, postgresql, mysql)
+            error_type: Error category (connection, syntax, timeout, etc.)
+        """
+        self.metrics.db_errors_total.labels(
+            database_type=database_type,
+            error_type=error_type,
+        ).inc()
+
+    def record_db_transaction(
+        self,
+        database_type: str,
+        duration_seconds: float,
+    ) -> None:
+        """Record database transaction.
+
+        Args:
+            database_type: Database type
+            duration_seconds: Transaction duration
+        """
+        self.metrics.db_transaction_duration_seconds.labels(
+            database_type=database_type,
+        ).observe(duration_seconds)
+
+    def record_deployment_db_operation(
+        self,
+        database_type: str,
+        operation_type: str,
+    ) -> None:
+        """Record database operation during deployment.
+
+        Args:
+            database_type: Database type
+            operation_type: Operation (record_start, record_complete, record_error, etc.)
+        """
+        self.metrics.deployment_db_operations_total.labels(
+            database_type=database_type,
+            operation_type=operation_type,
+        ).inc()
+
+    def update_db_pool_metrics(
+        self,
+        database_type: str,
+        active_connections: int,
+        idle_connections: int,
+        waiting_requests: int,
+    ) -> None:
+        """Update database connection pool metrics.
+
+        Args:
+            database_type: Database type
+            active_connections: Number of active connections
+            idle_connections: Number of idle connections
+            waiting_requests: Number of requests waiting for connections
+        """
+        self.metrics.active_db_connections.labels(
+            database_type=database_type,
+        ).set(active_connections)
+
+        self.metrics.idle_db_connections.labels(
+            database_type=database_type,
+        ).set(idle_connections)
+
+        self.metrics.db_pool_waiting_requests.labels(
+            database_type=database_type,
+        ).set(waiting_requests)
 
     def get_metrics_summary(self) -> dict[str, Any]:
         """Get summary of current metrics.

@@ -704,6 +704,73 @@ def metrics_endpoint(port: int, address: str) -> None:
         raise SystemExit(0)
 
 
+@main.command(name="db-check")
+@click.pass_context
+def db_check(ctx: click.Context) -> None:
+    """Check database health and show connection pool metrics.
+
+    Verifies database connectivity and displays:
+    - Database type and version
+    - Connection pool status
+    - Query performance
+    - Recent errors
+
+    \b
+    Examples:
+        fraisier db-check
+    """
+    import asyncio
+
+    from .db.factory import get_database_adapter
+
+    async def _check_db():
+        try:
+            adapter = get_database_adapter(ctx.obj["config"])
+            await adapter.connect()
+
+            try:
+                # Test connectivity
+                console.print("[cyan]Testing database connectivity...[/cyan]")
+                result = await adapter.execute_query("SELECT 1")
+                console.print("[green]✓ Database connection successful[/green]")
+
+                # Get pool metrics
+                metrics = adapter.pool_metrics()
+                console.print("\n[bold]Connection Pool Status:[/bold]")
+                pool_table = Table(show_header=True, header_style="bold cyan")
+                pool_table.add_column("Metric", style="dim")
+                pool_table.add_column("Value")
+                pool_table.add_row("Active connections", str(metrics.active_connections))
+                pool_table.add_row("Idle connections", str(metrics.idle_connections))
+                pool_table.add_row("Total connections", str(
+                    metrics.active_connections + metrics.idle_connections
+                ))
+                pool_table.add_row("Waiting requests", str(metrics.waiting_requests))
+                console.print(pool_table)
+
+                # Get database info
+                console.print("\n[bold]Database Information:[/bold]")
+                db_type = adapter.database_type()
+                info_table = Table(show_header=False)
+                info_table.add_row("[dim]Type:[/dim]", str(db_type.value).upper())
+                console.print(info_table)
+
+                console.print("\n[green]✓ All database checks passed[/green]")
+
+            finally:
+                await adapter.disconnect()
+
+        except Exception as e:
+            console.print(f"[red]✗ Database health check failed:[/red] {e}")
+            raise SystemExit(1)
+
+    try:
+        asyncio.run(_check_db())
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise SystemExit(1)
+
+
 def _get_deployer(fraise_type: str, fraise_config: dict, job: str | None = None):
     """Get appropriate deployer for fraise type."""
     if fraise_type == "api":

@@ -21,6 +21,12 @@ from .migrations import (
     get_migration_runner,
     run_migrations,
 )
+from .observability import (
+    DatabaseObservability,
+    DeploymentDatabaseAudit,
+    get_audit_logger,
+    get_database_observability,
+)
 
 __all__ = [
     "DatabaseType",
@@ -33,4 +39,8 @@ __all__ = [
     "MigrationRunner",
     "get_migration_runner",
     "run_migrations",
+    "DatabaseObservability",
+    "DeploymentDatabaseAudit",
+    "get_database_observability",
+    "get_audit_logger",
 ]
