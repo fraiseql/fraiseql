@@ -10,11 +10,13 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
+import yaml
 
 from fraisier.deployers.base import DeploymentStatus
 from fraisier.locking import DeploymentLock, DeploymentLockedError
 from fraisier.providers import ProviderConfig, ProviderRegistry
 from fraisier.providers.bare_metal import BareMetalProvider
+from fraisier.providers.docker_compose import DockerComposeProvider
 
 
 class TestBareMetalProvider:
@@ -567,3 +569,447 @@ class TestDeploymentLock:
         lock = DeploymentLock("my_api", "production", timeout=600)
 
         assert lock.timeout == 600
+
+
+class TestDockerComposeProvider:
+    """Tests for DockerComposeProvider Docker Compose deployment."""
+
+    @pytest.fixture
+    def provider_config(self):
+        """Create valid Docker Compose provider configuration."""
+        return ProviderConfig(
+            name="staging",
+            type="docker_compose",
+            url="/var/compose",
+            custom_fields={
+                "compose_file": "docker-compose.yml",
+                "service_name": "api",
+                "health_check_type": "http",
+                "health_check_url": "http://localhost:8000/health",
+                "health_check_timeout": 10,
+                "health_check_retries": 3,
+            },
+        )
+
+    @pytest.fixture
+    def provider(self, provider_config):
+        """Create DockerComposeProvider instance."""
+        return DockerComposeProvider(provider_config)
+
+    def test_init_with_valid_config(self, provider, provider_config):
+        """Test provider initialization with valid configuration."""
+        assert provider.name == "staging"
+        assert provider.type == "docker_compose"
+        assert provider.compose_dir == "/var/compose"
+        assert provider.service_name == "api"
+        assert provider.health_check_type == "http"
+
+    def test_init_missing_url(self):
+        """Test initialization fails if URL (compose directory) is missing."""
+        config = ProviderConfig(
+            name="test",
+            type="docker_compose",
+            url=None,
+            custom_fields={"service_name": "api"},
+        )
+
+        from fraisier.providers import ProviderConfigError
+
+        with pytest.raises(ProviderConfigError):
+            DockerComposeProvider(config)
+
+    def test_init_missing_service_name(self):
+        """Test initialization fails if service_name is missing."""
+        config = ProviderConfig(
+            name="test",
+            type="docker_compose",
+            url="/var/compose",
+            custom_fields={},
+        )
+
+        from fraisier.providers import ProviderConfigError
+
+        with pytest.raises(ProviderConfigError):
+            DockerComposeProvider(config)
+
+    def test_pre_flight_check_success(self, provider):
+        """Test successful pre-flight check."""
+        with patch(
+            "fraisier.providers.docker_compose.subprocess.run"
+        ) as mock_run:
+            # Mock docker-compose --version
+            version_call = MagicMock(returncode=0, stdout="docker-compose version 1.29.0\n")
+            # Mock docker-compose config
+            config_call = MagicMock(returncode=0, stdout="config output")
+
+            mock_run.side_effect = [version_call, config_call]
+
+            with patch("pathlib.Path.exists", return_value=True):
+                with patch("builtins.open", MagicMock()):
+                    with patch("yaml.safe_load", return_value={"services": {"api": {}}}):
+                        success, message = provider.pre_flight_check()
+
+        assert success is True
+        assert "valid and accessible" in message
+
+    def test_pre_flight_check_docker_compose_not_available(self, provider):
+        """Test pre-flight check fails if docker-compose not available."""
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=127, stderr="not found")
+
+            success, message = provider.pre_flight_check()
+
+        assert success is False
+        assert "not available" in message
+
+    def test_pre_flight_check_compose_file_not_found(self, provider):
+        """Test pre-flight check fails if compose file doesn't exist."""
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+
+            with patch("pathlib.Path.exists", return_value=False):
+                success, message = provider.pre_flight_check()
+
+        assert success is False
+        assert "not found" in message
+
+    def test_pre_flight_check_invalid_yaml(self, provider):
+        """Test pre-flight check fails on invalid YAML."""
+        import yaml
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+
+            with patch("pathlib.Path.exists", return_value=True):
+                with patch("builtins.open", MagicMock()):
+                    with patch("yaml.safe_load", side_effect=yaml.YAMLError("bad yaml")):
+                        success, message = provider.pre_flight_check()
+
+        assert success is False
+        assert "Invalid YAML" in message
+
+    def test_deploy_service_success(self, provider):
+        """Test successful service deployment."""
+        with patch.object(provider, "_run_compose_command") as mock_cmd:
+            with patch.object(provider, "_get_current_version") as mock_version:
+                with patch.object(provider, "health_check", return_value=True):
+                    mock_version.side_effect = ["old-tag", "new-tag"]
+                    mock_cmd.return_value = {"returncode": 0, "stdout": "", "stderr": ""}
+
+                    result = provider.deploy_service(
+                        service_name="api",
+                        version="new-tag",
+                        config={},
+                    )
+
+        assert result.success is True
+        assert result.status == DeploymentStatus.SUCCESS
+        assert result.old_version == "old-tag"
+        assert result.new_version == "new-tag"
+
+    def test_deploy_service_pull_fails(self, provider):
+        """Test deployment fails when docker-compose pull fails."""
+        with patch.object(provider, "_run_compose_command") as mock_cmd:
+            with patch.object(provider, "_get_current_version") as mock_version:
+                mock_version.return_value = "old-tag"
+                mock_cmd.return_value = {
+                    "returncode": 1,
+                    "stdout": "",
+                    "stderr": "failed to pull",
+                }
+
+                result = provider.deploy_service(
+                    service_name="api",
+                    version="new-tag",
+                    config={},
+                )
+
+        assert result.success is False
+        assert "pull failed" in result.error_message
+
+    def test_deploy_service_up_fails(self, provider):
+        """Test deployment fails when docker-compose up fails."""
+        with patch.object(provider, "_run_compose_command") as mock_cmd:
+            with patch.object(provider, "_get_current_version") as mock_version:
+                mock_version.return_value = "old-tag"
+
+                # First call (pull) succeeds, second call (up) fails
+                mock_cmd.side_effect = [
+                    {"returncode": 0, "stdout": "", "stderr": ""},
+                    {"returncode": 1, "stdout": "", "stderr": "up failed"},
+                ]
+
+                result = provider.deploy_service(
+                    service_name="api",
+                    version="new-tag",
+                    config={},
+                )
+
+        assert result.success is False
+        assert "up failed" in result.error_message
+
+    def test_deploy_service_health_check_fails(self, provider):
+        """Test deployment fails when health check fails."""
+        with patch.object(provider, "_run_compose_command") as mock_cmd:
+            with patch.object(provider, "_get_current_version") as mock_version:
+                with patch.object(provider, "health_check", return_value=False):
+                    mock_version.return_value = "old-tag"
+                    mock_cmd.return_value = {"returncode": 0, "stdout": "", "stderr": ""}
+
+                    result = provider.deploy_service(
+                        service_name="api",
+                        version="new-tag",
+                        config={},
+                    )
+
+        assert result.success is False
+        assert "Health check failed" in result.error_message
+
+    def test_get_service_status(self, provider):
+        """Test getting service status."""
+        with patch.object(provider, "_run_compose_command") as mock_cmd:
+            with patch.object(provider, "_get_current_version") as mock_version:
+                mock_version.return_value = "v1.2.3"
+                mock_cmd.return_value = {
+                    "returncode": 0,
+                    "stdout": (
+                        "NAME    IMAGE           STATUS\n"
+                        "api     api:v1.2.3      Up 5 minutes\n"
+                    ),
+                    "stderr": "",
+                }
+
+                status = provider.get_service_status("api")
+
+        assert status["status"] == "running"
+        assert status["version"] == "v1.2.3"
+        assert status["container_id"] is not None
+
+    def test_get_service_status_stopped(self, provider):
+        """Test status of stopped service."""
+        with patch.object(provider, "_run_compose_command") as mock_cmd:
+            mock_cmd.return_value = {
+                "returncode": 0,
+                "stdout": "NAME    IMAGE       STATUS\napi     api:v1.0    Exited\n",
+                "stderr": "",
+            }
+
+            status = provider.get_service_status("api")
+
+        assert status["status"] == "stopped"
+
+    def test_rollback_service_without_version(self, provider):
+        """Test rollback fails if no version specified."""
+        with patch.object(provider, "_get_current_version") as mock_version:
+            mock_version.return_value = "current-tag"
+
+            result = provider.rollback_service("api")
+
+        assert result.success is False
+        assert "requires 'to_version'" in result.error_message
+
+    def test_rollback_service_success(self, provider):
+        """Test successful service rollback."""
+        with patch.object(provider, "_run_compose_command") as mock_cmd:
+            with patch.object(provider, "_get_current_version") as mock_version:
+                with patch.object(provider, "health_check", return_value=True):
+                    mock_version.side_effect = ["v1.2.3", "v1.2.2"]
+                    mock_cmd.return_value = {"returncode": 0, "stdout": "", "stderr": ""}
+
+                    result = provider.rollback_service("api", to_version="v1.2.2")
+
+        assert result.success is True
+        assert result.status == DeploymentStatus.SUCCESS
+
+    def test_rollback_service_pull_fails(self, provider):
+        """Test rollback fails when docker-compose pull fails."""
+        with patch.object(provider, "_run_compose_command") as mock_cmd:
+            with patch.object(provider, "_get_current_version") as mock_version:
+                mock_version.return_value = "v1.2.3"
+                mock_cmd.return_value = {
+                    "returncode": 1,
+                    "stdout": "",
+                    "stderr": "pull failed",
+                }
+
+                result = provider.rollback_service("api", to_version="v1.2.2")
+
+        assert result.success is False
+        assert "pull failed" in result.error_message
+
+    def test_health_check_http_success(self, provider):
+        """Test successful HTTP health check."""
+        with patch.object(provider, "_run_compose_command") as mock_cmd:
+            mock_cmd.return_value = {
+                "returncode": 0,
+                "stdout": "Up 5 minutes",
+                "stderr": "",
+            }
+
+            with patch("urllib.request.urlopen", MagicMock()):
+                result = provider.health_check("api")
+
+        assert result is True
+
+    def test_health_check_http_failure(self, provider):
+        """Test failed HTTP health check."""
+        with patch.object(provider, "_run_compose_command") as mock_cmd:
+            mock_cmd.return_value = {
+                "returncode": 0,
+                "stdout": "Up 5 minutes",
+                "stderr": "",
+            }
+
+            with patch("urllib.request.urlopen", side_effect=Exception("connection refused")):
+                result = provider.health_check("api")
+
+        assert result is False
+
+    def test_health_check_tcp_success(self, provider):
+        """Test successful TCP health check."""
+        provider.health_check_type = "tcp"
+        provider.health_check_port = 8000
+
+        with patch.object(provider, "_run_compose_command") as mock_cmd:
+            mock_cmd.return_value = {
+                "returncode": 0,
+                "stdout": "Up 5 minutes",
+                "stderr": "",
+            }
+
+            with patch("socket.socket") as mock_socket:
+                mock_sock_instance = MagicMock()
+                mock_sock_instance.connect_ex.return_value = 0
+                mock_socket.return_value = mock_sock_instance
+
+                result = provider.health_check("api")
+
+        assert result is True
+
+    def test_health_check_exec_success(self, provider):
+        """Test successful exec health check."""
+        provider.health_check_type = "exec"
+        provider.health_check_exec = "curl -f http://localhost:8000/health"
+
+        with patch.object(provider, "_run_compose_command") as mock_cmd:
+            mock_cmd.side_effect = [
+                {"returncode": 0, "stdout": "Up", "stderr": ""},  # ps check
+                {"returncode": 0, "stdout": "ok", "stderr": ""},  # exec check
+            ]
+
+            result = provider.health_check("api")
+
+        assert result is True
+
+    def test_health_check_service_not_running(self, provider):
+        """Test health check fails if service not running."""
+        with patch.object(provider, "_run_compose_command") as mock_cmd:
+            mock_cmd.return_value = {
+                "returncode": 1,
+                "stdout": "",
+                "stderr": "Service not found",
+            }
+
+            result = provider.health_check("api")
+
+        assert result is False
+
+    def test_get_logs(self, provider):
+        """Test retrieving service logs."""
+        expected_logs = (
+            "api_1  | INFO: Application startup complete [2026-01-22 10:00:00]\n"
+            "api_1  | INFO: GET /health status=200\n"
+        )
+
+        with patch.object(provider, "_run_compose_command") as mock_cmd:
+            mock_cmd.return_value = {
+                "returncode": 0,
+                "stdout": expected_logs,
+                "stderr": "",
+            }
+
+            logs = provider.get_logs("api", lines=100)
+
+        assert logs == expected_logs
+        # Verify logs command was called
+        call_args = mock_cmd.call_args[0][0]
+        assert "logs" in call_args
+
+    def test_get_logs_error(self, provider):
+        """Test getting logs when docker-compose logs fails."""
+        with patch.object(provider, "_run_compose_command") as mock_cmd:
+            mock_cmd.return_value = {
+                "returncode": 1,
+                "stdout": "",
+                "stderr": "Service not found",
+            }
+
+            logs = provider.get_logs("api")
+
+        assert "Service not found" in logs
+
+    def test_run_compose_command(self, provider):
+        """Test compose command execution."""
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(
+                returncode=0,
+                stdout="output\n",
+                stderr="",
+            )
+
+            result = provider._run_compose_command(["ps"])
+
+        assert result["returncode"] == 0
+        assert "output" in result["stdout"]
+
+    def test_get_current_version_from_running_container(self, provider):
+        """Test getting version from running container."""
+        with patch.object(provider, "_run_compose_command") as mock_cmd:
+            mock_cmd.return_value = {
+                "returncode": 0,
+                "stdout": "NAME  IMAGE         STATUS\napi   api:v1.2.3   Up\n",
+                "stderr": "",
+            }
+
+            version = provider._get_current_version()
+
+        assert version == "v1.2.3"
+
+    def test_get_current_version_from_compose_file(self, provider):
+        """Test getting version from compose file."""
+        with patch.object(provider, "_run_compose_command") as mock_cmd:
+            mock_cmd.return_value = {
+                "returncode": 0,
+                "stdout": "",  # Empty ps output
+                "stderr": "",
+            }
+
+            with patch("builtins.open", MagicMock()):
+                with patch("yaml.safe_load", return_value={
+                    "services": {"api": {"image": "api:v2.0.0"}}
+                }):
+                    version = provider._get_current_version()
+
+        assert version == "v2.0.0"
+
+    def test_update_compose_env(self, provider, tmp_path):
+        """Test updating environment variables in compose file."""
+        # Create a temporary compose file
+        compose_file = tmp_path / "docker-compose.yml"
+        compose_content = """
+services:
+  api:
+    image: api:latest
+    environment:
+      DEBUG: "false"
+"""
+        compose_file.write_text(compose_content)
+        provider.compose_path = compose_file
+
+        # Update env
+        provider._update_compose_env({"DEBUG": "true"}, "v1.0.0")
+
+        # Verify file was updated
+        updated = yaml.safe_load(compose_file.read_text())
+        assert updated["services"]["api"]["environment"]["DEBUG"] == "true"
+        assert updated["services"]["api"]["environment"]["VERSION"] == "v1.0.0"

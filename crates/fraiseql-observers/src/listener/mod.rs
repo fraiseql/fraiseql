@@ -3,10 +3,24 @@
 //! This module provides two listening strategies:
 //! 1. **LISTEN/NOTIFY** - Low-latency but ephemeral (mod.rs)
 //! 2. **ChangeLog Polling** - Durable polling from tb_entity_change_log (change_log.rs)
+//!
+//! Multi-listener coordination for high availability:
+//! - state.rs: Listener lifecycle state machine
+//! - lease.rs: Distributed checkpoint leasing
+//! - coordinator.rs: Multi-listener coordination
+//! - failover.rs: Automatic failover management
 
 pub mod change_log;
+pub mod state;
+pub mod coordinator;
+pub mod lease;
+pub mod failover;
 
 pub use change_log::{ChangeLogEntry, ChangeLogListener, ChangeLogListenerConfig};
+pub use state::{ListenerState, ListenerStateMachine};
+pub use coordinator::{MultiListenerCoordinator, ListenerHandle, ListenerHealth};
+pub use lease::CheckpointLease;
+pub use failover::{FailoverManager, FailoverEvent};
 
 use crate::error::{ObserverError, Result};
 use crate::event::EntityEvent;

@@ -293,6 +293,73 @@ pub mod mocks {
         }
     }
 
+    /// Mock checkpoint store for testing
+    #[derive(Clone)]
+    pub struct MockCheckpointStore {
+        checkpoints: std::sync::Arc<Mutex<std::collections::HashMap<String, crate::checkpoint::CheckpointState>>>,
+    }
+
+    impl MockCheckpointStore {
+        /// Create a new mock checkpoint store
+        pub fn new() -> Self {
+            Self {
+                checkpoints: std::sync::Arc::new(Mutex::new(std::collections::HashMap::new())),
+            }
+        }
+    }
+
+    impl Default for MockCheckpointStore {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
+    #[async_trait]
+    impl crate::checkpoint::CheckpointStore for MockCheckpointStore {
+        async fn load(&self, listener_id: &str) -> Result<Option<crate::checkpoint::CheckpointState>> {
+            Ok(self.checkpoints.lock().unwrap().get(listener_id).cloned())
+        }
+
+        async fn save(&self, listener_id: &str, state: &crate::checkpoint::CheckpointState) -> Result<()> {
+            self.checkpoints.lock().unwrap().insert(listener_id.to_string(), state.clone());
+            Ok(())
+        }
+
+        async fn compare_and_swap(
+            &self,
+            listener_id: &str,
+            expected_id: i64,
+            new_id: i64,
+        ) -> Result<bool> {
+            let mut checkpoints = self.checkpoints.lock().unwrap();
+            match checkpoints.get(listener_id) {
+                Some(state) if state.last_processed_id == expected_id => {
+                    let mut new_state = state.clone();
+                    new_state.last_processed_id = new_id;
+                    checkpoints.insert(listener_id.to_string(), new_state);
+                    Ok(true)
+                }
+                None if expected_id == 0 => {
+                    let new_state = crate::checkpoint::CheckpointState {
+                        listener_id: listener_id.to_string(),
+                        last_processed_id: new_id,
+                        last_processed_at: chrono::Utc::now(),
+                        batch_size: 0,
+                        event_count: 0,
+                    };
+                    checkpoints.insert(listener_id.to_string(), new_state);
+                    Ok(true)
+                }
+                _ => Ok(false),
+            }
+        }
+
+        async fn delete(&self, listener_id: &str) -> Result<()> {
+            self.checkpoints.lock().unwrap().remove(listener_id);
+            Ok(())
+        }
+    }
+
     #[cfg(test)]
     mod tests {
         use super::*;
