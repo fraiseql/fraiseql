@@ -8,6 +8,7 @@
 //! 5. Handles failures via Dead Letter Queue
 
 use crate::actions::{EmailAction, SlackAction, WebhookAction};
+use crate::actions_additional::{CacheAction, PushAction, SearchAction, SmsAction};
 use crate::config::{ActionConfig, BackoffStrategy, FailurePolicy, RetryConfig};
 use crate::condition::ConditionParser;
 use crate::error::{ObserverError, Result};
@@ -31,6 +32,14 @@ pub struct ObserverExecutor {
     slack_action: Arc<SlackAction>,
     /// Email action executor
     email_action: Arc<EmailAction>,
+    /// SMS action executor
+    sms_action: Arc<SmsAction>,
+    /// Push notification action executor
+    push_action: Arc<PushAction>,
+    /// Search index action executor
+    search_action: Arc<SearchAction>,
+    /// Cache action executor
+    cache_action: Arc<CacheAction>,
     /// Dead letter queue for failed actions
     dlq: Arc<dyn DeadLetterQueue>,
 }
@@ -47,6 +56,10 @@ impl ObserverExecutor {
             webhook_action: Arc::new(WebhookAction::new()),
             slack_action: Arc::new(SlackAction::new()),
             email_action: Arc::new(EmailAction::new()),
+            sms_action: Arc::new(SmsAction::new()),
+            push_action: Arc::new(PushAction::new()),
+            search_action: Arc::new(SearchAction::new()),
+            cache_action: Arc::new(CacheAction::new()),
             dlq,
         }
     }
@@ -274,13 +287,100 @@ impl ObserverExecutor {
                     Err(e) => Err(e),
                 }
             }
-            ActionConfig::Sms { .. }
-            | ActionConfig::Push { .. }
-            | ActionConfig::Search { .. }
-            | ActionConfig::Cache { .. } => {
-                Err(ObserverError::UnsupportedActionType {
-                    action_type: action.action_type().to_string(),
-                })
+            ActionConfig::Sms {
+                phone,
+                phone_template: _,
+                message_template,
+            } => {
+                let sms_phone = phone.as_ref().ok_or(ObserverError::InvalidActionConfig {
+                    reason: "SMS 'phone' not provided".to_string(),
+                })?;
+
+                match self
+                    .sms_action
+                    .execute(sms_phone.clone(), message_template.as_deref(), event)
+                    .await
+                {
+                    Ok(response) => Ok(ActionResult {
+                        action_type: "sms".to_string(),
+                        success: response.success,
+                        message: response
+                            .message_id
+                            .unwrap_or_else(|| "sent".to_string()),
+                        duration_ms: response.duration_ms,
+                    }),
+                    Err(e) => Err(e),
+                }
+            }
+            ActionConfig::Push {
+                device_token,
+                title_template,
+                body_template,
+            } => {
+                let token = device_token.as_ref().ok_or(ObserverError::InvalidActionConfig {
+                    reason: "Push 'device_token' not provided".to_string(),
+                })?;
+
+                let title = title_template.as_ref().ok_or(ObserverError::InvalidActionConfig {
+                    reason: "Push 'title_template' not provided".to_string(),
+                })?;
+
+                let body = body_template.as_ref().ok_or(ObserverError::InvalidActionConfig {
+                    reason: "Push 'body_template' not provided".to_string(),
+                })?;
+
+                match self
+                    .push_action
+                    .execute(token.clone(), title.clone(), body.clone())
+                    .await
+                {
+                    Ok(response) => Ok(ActionResult {
+                        action_type: "push".to_string(),
+                        success: response.success,
+                        message: response
+                            .notification_id
+                            .unwrap_or_else(|| "sent".to_string()),
+                        duration_ms: response.duration_ms,
+                    }),
+                    Err(e) => Err(e),
+                }
+            }
+            ActionConfig::Search {
+                index,
+                id_template,
+            } => {
+                match self
+                    .search_action
+                    .execute(index.clone(), id_template.as_deref(), event)
+                    .await
+                {
+                    Ok(response) => Ok(ActionResult {
+                        action_type: "search".to_string(),
+                        success: response.success,
+                        message: if response.indexed {
+                            "indexed".to_string()
+                        } else {
+                            "not_indexed".to_string()
+                        },
+                        duration_ms: response.duration_ms,
+                    }),
+                    Err(e) => Err(e),
+                }
+            }
+            ActionConfig::Cache { key_pattern, action } => {
+                match self
+                    .cache_action
+                    .execute(key_pattern.clone(), action)
+                    .await
+                {
+                    Ok(response) => Ok(ActionResult {
+                        action_type: "cache".to_string(),
+                        success: response.success,
+                        message: format!("affected: {}", response.keys_affected),
+                        duration_ms: response.duration_ms,
+                    }),
+                    Err(e) => Err(e),
+                }
             }
         }
     }
