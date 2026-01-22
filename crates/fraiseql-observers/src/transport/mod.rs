@@ -5,6 +5,7 @@
 //!
 //! - **`PostgresNotify`**: PostgreSQL LISTEN/NOTIFY (low latency, ephemeral)
 //! - **`MySQLBridge`**: MySQL polling-based bridge (Phase 3)
+//! - **`MSSQLBridge`**: SQL Server polling-based bridge (Phase 3)
 //! - **Nats**: NATS `JetStream` for distributed architectures (Phase 2)
 //! - **`InMemory`**: Testing and development
 //!
@@ -15,10 +16,10 @@
 //!     ↓
 //! EventTransport trait (Arc<dyn>)
 //!     ↓
-//! ┌────────────────┬──────────────┬──────────────┬──────────────┐
-//! │                │              │              │              │
-//! PostgresNotify   MySQLBridge    NatsTransport  InMemory
-//! (postgres)       (mysql)        (nats)         (testing)
+//! ┌────────────────┬──────────────┬──────────────┬──────────────┬──────────────┐
+//! │                │              │              │              │              │
+//! PostgresNotify   MySQLBridge    MSSQLBridge    NatsTransport  InMemory
+//! (postgres)       (mysql)        (mssql)        (nats)         (testing)
 //! ```
 //!
 //! # Design Decisions
@@ -46,6 +47,9 @@ pub mod bridge;
 #[cfg(all(feature = "mysql", feature = "nats"))]
 pub mod mysql_bridge;
 
+#[cfg(all(feature = "mssql", feature = "nats"))]
+pub mod mssql_bridge;
+
 pub use postgres_notify::PostgresNotifyTransport;
 pub use in_memory::InMemoryTransport;
 
@@ -60,6 +64,12 @@ pub use bridge::{
 #[cfg(all(feature = "mysql", feature = "nats"))]
 pub use mysql_bridge::{
     MySQLBridgeConfig, MySQLChangeLogEntry, MySQLCheckpointStore, MySQLNatsBridge,
+};
+
+#[cfg(all(feature = "mssql", feature = "nats"))]
+pub use mssql_bridge::{
+    create_mssql_pool, MSSQLBridgeConfig, MSSQLChangeLogEntry, MSSQLCheckpointStore,
+    MSSQLNatsBridge, MSSQLPool,
 };
 
 /// Event stream type (async stream of `EntityEvents`)
@@ -111,6 +121,9 @@ pub enum TransportType {
     /// MySQL polling-based (Phase 3)
     #[cfg(feature = "mysql")]
     MySQL,
+    /// SQL Server polling-based (Phase 3)
+    #[cfg(feature = "mssql")]
+    MSSQL,
     /// NATS `JetStream` (Phase 2)
     #[cfg(feature = "nats")]
     Nats,

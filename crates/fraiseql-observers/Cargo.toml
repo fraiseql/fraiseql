@@ -44,6 +44,12 @@ fraiseql-observers-macros = { path = "../fraiseql-observers-macros", optional = 
 # Phase 2 NATS Dependencies
 async-nats = { version = "0.40", optional = true }
 
+# Phase 3 SQL Server Dependencies (tiberius - sqlx doesn't support MSSQL)
+tiberius = { version = "0.12", default-features = false, features = ["rustls", "chrono"], optional = true }
+tokio-util = { version = "0.7", features = ["compat"], optional = true }
+bb8 = { version = "0.8", optional = true }
+bb8-tiberius = { version = "0.15", optional = true }
+
 [dev-dependencies]
 tokio-test = "0.4"
 criterion = { version = "0.5", features = ["async_tokio"] }
@@ -58,7 +64,8 @@ testing = []
 postgres = ["sqlx/postgres"]
 mysql = ["sqlx/mysql"]
 sqlite = ["sqlx/sqlite"]
-# Note: SQL Server requires tiberius crate (sqlx doesn't support MSSQL in v0.8)
+# SQL Server uses tiberius crate (sqlx doesn't support MSSQL in v0.8)
+mssql = ["tiberius", "tokio-util", "bb8", "bb8-tiberius"]
 
 # Phase 8 Features (all optional for composability)
 checkpoint = []
@@ -78,6 +85,7 @@ nats = ["async-nats"]
 
 # Phase 3 Multi-Database Features
 multi-db = ["postgres", "mysql"]
+all-db = ["postgres", "mysql", "mssql"]
 
 [lints]
 workspace = true
