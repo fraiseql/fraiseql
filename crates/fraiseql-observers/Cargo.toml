@@ -44,9 +44,10 @@ testing = []
 checkpoint = []
 dedup = ["redis"]
 caching = ["redis"]
+queue = ["redis"]
 search = []
 metrics = ["prometheus"]
-phase8 = ["checkpoint", "dedup", "caching", "search", "metrics"]
+phase8 = ["checkpoint", "dedup", "caching", "queue", "search", "metrics"]
 
 [lints]
 workspace = true

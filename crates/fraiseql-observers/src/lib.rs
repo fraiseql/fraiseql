@@ -53,6 +53,7 @@ pub mod event;
 pub mod executor;
 pub mod listener;
 pub mod matcher;
+pub mod queue;
 pub mod search;
 pub mod traits;
 
@@ -71,6 +72,13 @@ pub use concurrent::ConcurrentActionExecutor;
 pub use dedup::{DeduplicationStats, DeduplicationStore};
 #[cfg(feature = "dedup")]
 pub use dedup::redis::RedisDeduplicationStore;
+pub use queue::{
+    ExponentialBackoffPolicy, FixedBackoffPolicy, Job, JobQueue, JobResult, JobStatus,
+    LinearBackoffPolicy, QueueStats, RetryPolicy,
+};
+pub use queue::worker::{JobWorker, JobWorkerPool};
+#[cfg(feature = "queue")]
+pub use queue::redis::RedisJobQueue;
 pub use search::{IndexedEvent, SearchBackend, SearchStats};
 #[cfg(feature = "search")]
 pub use search::http::HttpSearchBackend;
