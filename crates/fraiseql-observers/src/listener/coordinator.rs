@@ -13,18 +13,27 @@ use std::time::Instant;
 /// Health status of a listener
 #[derive(Debug, Clone)]
 pub struct ListenerHealth {
+    /// Unique identifier for the listener
     pub listener_id: String,
+    /// Whether the listener is currently healthy
     pub is_healthy: bool,
+    /// Last processed checkpoint ID
     pub last_checkpoint: i64,
+    /// Current state of the listener
     pub state: ListenerState,
+    /// Timestamp of last heartbeat
     pub last_heartbeat: Instant,
 }
 
 /// Handle to a registered listener
 pub struct ListenerHandle {
+    /// Unique identifier for the listener
     pub listener_id: String,
+    /// State machine managing listener lifecycle
     pub state_machine: ListenerStateMachine,
+    /// Current checkpoint (last processed event ID)
     pub checkpoint: Arc<AtomicU64>,
+    /// Last heartbeat timestamp
     pub last_heartbeat: Arc<tokio::sync::Mutex<Instant>>,
 }
 

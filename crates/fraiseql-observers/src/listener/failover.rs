@@ -13,9 +13,13 @@ use tokio::sync::mpsc;
 /// Event triggered when a failover occurs
 #[derive(Debug, Clone)]
 pub struct FailoverEvent {
+    /// ID of the listener that failed
     pub failed_listener_id: String,
+    /// ID of the listener taking over (new leader)
     pub failover_target_id: String,
+    /// Last processed checkpoint for recovery
     pub checkpoint: i64,
+    /// When the failover was triggered
     pub timestamp: Instant,
 }
 
