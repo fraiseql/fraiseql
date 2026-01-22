@@ -4,6 +4,9 @@ Commands:
     fraisier list                           # List all fraises
     fraisier deploy <fraise> <environment>  # Deploy a fraise
     fraisier status <fraise> <environment>  # Check fraise status
+    fraisier providers                      # List available providers
+    fraisier provider-info <type>           # Show provider details
+    fraisier provider-test <type>           # Test provider pre-flight
 """
 
 import click
@@ -27,13 +30,16 @@ console = Console()
 def main(ctx: click.Context, config: str | None) -> None:
     """Fraisier - Deployment orchestrator for the FraiseQL ecosystem.
 
-    Manage deployments for all your fraises (services).
+    Manage deployments for all your fraises (services) across multiple providers
+    (Bare Metal, Docker Compose, Coolify).
 
     \b
     Examples:
         fraisier list
         fraisier deploy my_api production
-        fraisier deploy etl production --dry-run
+        fraisier providers
+        fraisier provider-info bare_metal
+        fraisier provider-test docker_compose -f config.yaml
     """
     ctx.ensure_object(dict)
     ctx.obj["config"] = get_config(config)
@@ -451,6 +457,206 @@ def version_cmd() -> None:
     """Show Fraisier version."""
     from . import __version__
     console.print(f"Fraisier v{__version__}")
+
+
+@main.command(name="providers")
+@click.pass_context
+def providers(ctx: click.Context) -> None:
+    """List all available deployment providers."""
+    from .providers import ProviderRegistry
+    from .providers.bare_metal import BareMetalProvider
+    from .providers.docker_compose import DockerComposeProvider
+
+    # Register built-in providers
+    if not ProviderRegistry.is_registered("bare_metal"):
+        ProviderRegistry.register(BareMetalProvider)
+    if not ProviderRegistry.is_registered("docker_compose"):
+        ProviderRegistry.register(DockerComposeProvider)
+
+    providers_list = ProviderRegistry.list_providers()
+
+    if not providers_list:
+        console.print("[yellow]No providers registered[/yellow]")
+        return
+
+    table = Table(title="Available Deployment Providers")
+    table.add_column("Provider Type", style="cyan")
+    table.add_column("Description", style="white")
+
+    provider_descriptions = {
+        "bare_metal": "SSH/systemd deployments to bare metal servers",
+        "docker_compose": "Docker Compose based containerized deployments",
+        "coolify": "Coolify cloud platform deployments",
+    }
+
+    for provider_type in providers_list:
+        description = provider_descriptions.get(provider_type, "Custom provider")
+        table.add_row(provider_type, description)
+
+    console.print(table)
+
+
+@main.command(name="provider-info")
+@click.argument("provider_type")
+@click.pass_context
+def provider_info(ctx: click.Context, provider_type: str) -> None:
+    """Show detailed information about a provider type."""
+    from .providers import ProviderRegistry
+    from .providers.bare_metal import BareMetalProvider
+    from .providers.docker_compose import DockerComposeProvider
+
+    # Register built-in providers
+    if not ProviderRegistry.is_registered("bare_metal"):
+        ProviderRegistry.register(BareMetalProvider)
+    if not ProviderRegistry.is_registered("docker_compose"):
+        ProviderRegistry.register(DockerComposeProvider)
+
+    if not ProviderRegistry.is_registered(provider_type):
+        console.print(
+            f"[red]Error:[/red] Unknown provider type '{provider_type}'"
+        )
+        available = ", ".join(ProviderRegistry.list_providers())
+        console.print(f"Available providers: {available}")
+        raise SystemExit(1)
+
+    provider_info_map = {
+        "bare_metal": {
+            "name": "Bare Metal",
+            "description": "Deploy to bare metal servers via SSH and systemd",
+            "config_fields": [
+                "url: SSH host (e.g., 'prod.example.com')",
+                "ssh_user: SSH username (default: 'deploy')",
+                "ssh_key_path: Path to SSH private key",
+                "app_path: Application path on remote (e.g., '/var/app')",
+                "systemd_service: Systemd service name (e.g., 'api.service')",
+                "health_check_type: 'http', 'tcp', or 'none'",
+                "health_check_url: HTTP endpoint (if http type)",
+                "health_check_port: TCP port (if tcp type)",
+            ],
+        },
+        "docker_compose": {
+            "name": "Docker Compose",
+            "description": "Deploy services using Docker Compose",
+            "config_fields": [
+                "url: Path to docker-compose directory",
+                "compose_file: Path to docker-compose.yml (default: 'docker-compose.yml')",
+                "service_name: Service name in compose file",
+                "health_check_type: 'http', 'tcp', 'exec', 'status', or 'none'",
+                "health_check_url: HTTP endpoint (if http type)",
+                "health_check_port: TCP port (if tcp type)",
+                "health_check_exec: Command to execute (if exec type)",
+            ],
+        },
+        "coolify": {
+            "name": "Coolify",
+            "description": "Deploy to Coolify cloud platform",
+            "config_fields": [
+                "url: Coolify instance URL (e.g., 'https://coolify.example.com')",
+                "api_key: Coolify API key for authentication",
+                "application_id: UUID of application in Coolify",
+                "health_check_type: 'status_api', 'http', or 'none'",
+                "health_check_url: HTTP endpoint (if http type)",
+                "poll_interval: Deployment status poll interval (default: 5s)",
+                "poll_timeout: Timeout for deployment (default: 300s)",
+            ],
+        },
+    }
+
+    if provider_type not in provider_info_map:
+        info = {
+            "name": provider_type.replace("_", " ").title(),
+            "description": "Custom provider",
+            "config_fields": ["(See provider documentation)"],
+        }
+    else:
+        info = provider_info_map[provider_type]
+
+    console.print(f"\n[bold cyan]{info['name']} Provider[/bold cyan]")
+    console.print(f"[white]{info['description']}[/white]\n")
+
+    console.print("[bold]Configuration fields:[/bold]")
+    for field in info["config_fields"]:
+        console.print(f"  • {field}")
+    console.print()
+
+
+@main.command(name="provider-test")
+@click.argument("provider_type")
+@click.option("--config-file", "-f", type=click.Path(exists=True),
+              help="Provider configuration file (YAML)")
+@click.pass_context
+def provider_test(ctx: click.Context, provider_type: str,
+                  config_file: str | None) -> None:
+    """Run pre-flight checks for a provider."""
+    import yaml
+
+    from .providers import ProviderConfig, ProviderRegistry
+    from .providers.bare_metal import BareMetalProvider
+    from .providers.docker_compose import DockerComposeProvider
+
+    # Register built-in providers
+    if not ProviderRegistry.is_registered("bare_metal"):
+        ProviderRegistry.register(BareMetalProvider)
+    if not ProviderRegistry.is_registered("docker_compose"):
+        ProviderRegistry.register(DockerComposeProvider)
+
+    if not ProviderRegistry.is_registered(provider_type):
+        console.print(
+            f"[red]Error:[/red] Unknown provider type '{provider_type}'"
+        )
+        raise SystemExit(1)
+
+    # Load provider config if file provided
+    if config_file:
+        try:
+            with open(config_file, "r") as f:
+                config_data = yaml.safe_load(f)
+        except Exception as e:
+            console.print(f"[red]Error loading config file:[/red] {e}")
+            raise SystemExit(1)
+
+        if not isinstance(config_data, dict):
+            console.print("[red]Error:[/red] Config file must contain a YAML object")
+            raise SystemExit(1)
+
+        # Create provider config from file
+        try:
+            provider_config = ProviderConfig(
+                name=config_data.get("name", "test"),
+                type=provider_type,
+                url=config_data.get("url", ""),
+                api_key=config_data.get("api_key"),
+                custom_fields=config_data.get("custom_fields", {}),
+            )
+        except Exception as e:
+            console.print(f"[red]Error creating provider config:[/red] {e}")
+            raise SystemExit(1)
+    else:
+        # Create minimal test config
+        provider_config = ProviderConfig(
+            name="test",
+            type=provider_type,
+            url="localhost",
+            custom_fields={},
+        )
+
+    # Create provider and run pre-flight check
+    try:
+        provider = ProviderRegistry.get_provider(provider_type, provider_config)
+        console.print(f"[cyan]Testing {provider_type} provider...[/cyan]")
+        success, message = provider.pre_flight_check()
+
+        if success:
+            console.print(f"[green]✓ Pre-flight check passed[/green]")
+            console.print(f"[dim]{message}[/dim]")
+        else:
+            console.print(f"[red]✗ Pre-flight check failed[/red]")
+            console.print(f"[dim]{message}[/dim]")
+            raise SystemExit(1)
+
+    except Exception as e:
+        console.print(f"[red]Error running pre-flight check:[/red] {e}")
+        raise SystemExit(1)
 
 
 def _get_deployer(fraise_type: str, fraise_config: dict, job: str | None = None):
