@@ -37,8 +37,8 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use crate::config::ActionConfig;
-use crate::event::EntityEvent;
 use crate::error::Result;
+use crate::event::EntityEvent;
 use crate::traits::{ActionExecutor, ActionResult};
 use futures::stream::{FuturesUnordered, StreamExt};
 use std::time::Duration;
@@ -96,7 +96,7 @@ impl<E: ActionExecutor + Clone + Send + Sync + 'static> ConcurrentActionExecutor
         let event = Arc::new(event.clone());
 
         // Spawn all action futures concurrently
-        for (idx, action) in actions.iter().enumerate() {
+        for (_idx, action) in actions.iter().enumerate() {
             let executor = self.inner.clone();
             let event = Arc::clone(&event);
             let action = action.clone();

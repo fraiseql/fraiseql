@@ -53,6 +53,7 @@ pub mod event;
 pub mod executor;
 pub mod listener;
 pub mod matcher;
+pub mod search;
 pub mod traits;
 
 #[cfg(any(test, feature = "testing"))]
@@ -70,6 +71,9 @@ pub use concurrent::ConcurrentActionExecutor;
 pub use dedup::{DeduplicationStats, DeduplicationStore};
 #[cfg(feature = "dedup")]
 pub use dedup::redis::RedisDeduplicationStore;
+pub use search::{IndexedEvent, SearchBackend, SearchStats};
+#[cfg(feature = "search")]
+pub use search::http::HttpSearchBackend;
 pub use condition::{ConditionAst, ConditionParser};
 pub use config::{
     ActionConfig, BackoffStrategy, FailurePolicy, ObserverDefinition, ObserverRuntimeConfig,

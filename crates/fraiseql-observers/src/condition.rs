@@ -182,7 +182,6 @@ impl ConditionParser {
 
     // Private helper methods
 
-    #[allow(unused_self)]
     fn tokenize(&self, condition: &str) -> Result<Vec<Token>> {
         let mut tokens = Vec::new();
         let mut chars = condition.chars().peekable();
@@ -479,7 +478,6 @@ impl ConditionParser {
         }
     }
 
-    #[allow(unused_self)]
     fn parse_function(&self, name: &str, args: &[String]) -> Result<ConditionAst> {
         match name {
             "has_field" => {
@@ -564,7 +562,6 @@ impl ConditionParser {
         }
     }
 
-    #[allow(unused_self)]
     fn eval_has_field(&self, field: &str, event: &EntityEvent) -> Result<bool> {
         Ok(event.data.get(field).is_some())
     }
