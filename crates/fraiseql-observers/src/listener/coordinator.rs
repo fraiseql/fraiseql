@@ -179,17 +179,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_coordinator_creation() {
-        // Use mock checkpoint store
-        let checkpoint_store = Arc::new(crate::testing::mocks::MockCheckpointStore::new());
-        let coordinator = MultiListenerCoordinator::new(checkpoint_store);
-
+        let coordinator = MultiListenerCoordinator::new();
         assert_eq!(coordinator.listener_count(), 0);
     }
 
     #[tokio::test]
     async fn test_listener_registration() {
-        let checkpoint_store = Arc::new(crate::testing::mocks::MockCheckpointStore::new());
-        let coordinator = MultiListenerCoordinator::new(checkpoint_store);
+        let coordinator = MultiListenerCoordinator::new();
 
         coordinator.register_listener("listener-1".to_string()).await.ok();
         coordinator.register_listener("listener-2".to_string()).await.ok();
@@ -199,8 +195,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_listener_deregistration() {
-        let checkpoint_store = Arc::new(crate::testing::mocks::MockCheckpointStore::new());
-        let coordinator = MultiListenerCoordinator::new(checkpoint_store);
+        let coordinator = MultiListenerCoordinator::new();
 
         coordinator.register_listener("listener-1".to_string()).await.ok();
         assert_eq!(coordinator.listener_count(), 1);
@@ -211,8 +206,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_listener_state_retrieval() {
-        let checkpoint_store = Arc::new(crate::testing::mocks::MockCheckpointStore::new());
-        let coordinator = MultiListenerCoordinator::new(checkpoint_store);
+        let coordinator = MultiListenerCoordinator::new();
 
         coordinator.register_listener("listener-1".to_string()).await.ok();
 
@@ -222,8 +216,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_listener_health_check() {
-        let checkpoint_store = Arc::new(crate::testing::mocks::MockCheckpointStore::new());
-        let coordinator = MultiListenerCoordinator::new(checkpoint_store);
+        let coordinator = MultiListenerCoordinator::new();
 
         coordinator.register_listener("listener-1".to_string()).await.ok();
         coordinator.register_listener("listener-2".to_string()).await.ok();
@@ -234,8 +227,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_leader_election() {
-        let checkpoint_store = Arc::new(crate::testing::mocks::MockCheckpointStore::new());
-        let coordinator = MultiListenerCoordinator::new(checkpoint_store);
+        let coordinator = MultiListenerCoordinator::new();
 
         coordinator.register_listener("listener-1".to_string()).await.ok();
         coordinator.register_listener("listener-2".to_string()).await.ok();

@@ -87,13 +87,17 @@ pub use search::{IndexedEvent, SearchBackend, SearchStats};
 pub use search::http::HttpSearchBackend;
 pub use condition::{ConditionAst, ConditionParser};
 pub use config::{
-    ActionConfig, BackoffStrategy, FailurePolicy, ObserverDefinition, ObserverRuntimeConfig,
-    OverflowPolicy, RetryConfig,
+    ActionConfig, BackoffStrategy, FailurePolicy, MultiListenerConfig, ObserverDefinition,
+    ObserverRuntimeConfig, OverflowPolicy, RetryConfig,
 };
 pub use error::{ObserverError, ObserverErrorCode, Result};
 pub use event::{EntityEvent, EventKind, FieldChanges};
 pub use executor::{ExecutionSummary, ObserverExecutor};
-pub use listener::{ChangeLogEntry, ChangeLogListener, ChangeLogListenerConfig, EventListener, ListenerConfig};
+pub use listener::{
+    ChangeLogEntry, ChangeLogListener, ChangeLogListenerConfig, CheckpointLease,
+    FailoverEvent, FailoverManager, EventListener, ListenerConfig, ListenerHandle, ListenerHealth,
+    ListenerState, ListenerStateMachine, MultiListenerCoordinator,
+};
 pub use matcher::EventMatcher;
 #[cfg(feature = "metrics")]
 pub use metrics::ObserverMetrics;

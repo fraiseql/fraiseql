@@ -376,6 +376,121 @@ impl ActionConfig {
     }
 }
 
+/// Multi-listener configuration for high-availability setup
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MultiListenerConfig {
+    /// Enable multi-listener coordination (default: false)
+    #[serde(default)]
+    pub enabled: bool,
+
+    /// Unique listener ID for this instance (default: random UUID)
+    #[serde(default = "default_listener_id")]
+    pub listener_id: String,
+
+    /// Lease duration in milliseconds (default: 30000)
+    #[serde(default = "default_lease_duration_ms")]
+    pub lease_duration_ms: u64,
+
+    /// Health check interval in milliseconds (default: 5000)
+    #[serde(default = "default_health_check_interval_ms")]
+    pub health_check_interval_ms: u64,
+
+    /// Failover threshold in milliseconds (default: 60000)
+    #[serde(default = "default_failover_threshold_ms")]
+    pub failover_threshold_ms: u64,
+
+    /// Maximum listeners in group (default: 10)
+    #[serde(default = "default_max_listeners")]
+    pub max_listeners: usize,
+}
+
+fn default_listener_id() -> String {
+    format!("listener-{}", uuid::Uuid::new_v4())
+}
+
+fn default_lease_duration_ms() -> u64 {
+    30000
+}
+
+fn default_health_check_interval_ms() -> u64 {
+    5000
+}
+
+fn default_failover_threshold_ms() -> u64 {
+    60000
+}
+
+fn default_max_listeners() -> usize {
+    10
+}
+
+impl Default for MultiListenerConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            listener_id: default_listener_id(),
+            lease_duration_ms: default_lease_duration_ms(),
+            health_check_interval_ms: default_health_check_interval_ms(),
+            failover_threshold_ms: default_failover_threshold_ms(),
+            max_listeners: default_max_listeners(),
+        }
+    }
+}
+
+impl MultiListenerConfig {
+    /// Create a new multi-listener config with default values
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Validate the configuration
+    pub fn validate(&self) -> Result<()> {
+        if self.lease_duration_ms == 0 {
+            return Err(ObserverError::InvalidConfig {
+                message: "lease_duration_ms must be > 0".to_string(),
+            });
+        }
+
+        if self.health_check_interval_ms == 0 {
+            return Err(ObserverError::InvalidConfig {
+                message: "health_check_interval_ms must be > 0".to_string(),
+            });
+        }
+
+        if self.failover_threshold_ms < self.health_check_interval_ms {
+            return Err(ObserverError::InvalidConfig {
+                message: "failover_threshold_ms must be >= health_check_interval_ms".to_string(),
+            });
+        }
+
+        if self.max_listeners == 0 {
+            return Err(ObserverError::InvalidConfig {
+                message: "max_listeners must be > 0".to_string(),
+            });
+        }
+
+        Ok(())
+    }
+
+    /// Enable multi-listener coordination
+    pub fn enable(mut self) -> Self {
+        self.enabled = true;
+        self
+    }
+
+    /// Set listener ID
+    pub fn with_listener_id(mut self, listener_id: String) -> Self {
+        self.listener_id = listener_id;
+        self
+    }
+
+    /// Set lease duration
+    pub fn with_lease_duration_ms(mut self, lease_duration_ms: u64) -> Self {
+        self.lease_duration_ms = lease_duration_ms;
+        self
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -476,5 +591,58 @@ mod tests {
         };
 
         assert!(valid.validate().is_ok());
+    }
+
+    #[test]
+    fn test_multi_listener_config_defaults() {
+        let config = MultiListenerConfig::default();
+        assert!(!config.enabled);
+        assert_eq!(config.lease_duration_ms, 30000);
+        assert_eq!(config.health_check_interval_ms, 5000);
+        assert_eq!(config.failover_threshold_ms, 60000);
+        assert_eq!(config.max_listeners, 10);
+    }
+
+    #[test]
+    fn test_multi_listener_config_validation() {
+        let valid_config = MultiListenerConfig::default();
+        assert!(valid_config.validate().is_ok());
+
+        let invalid_lease = MultiListenerConfig {
+            lease_duration_ms: 0,
+            ..Default::default()
+        };
+        assert!(invalid_lease.validate().is_err());
+
+        let invalid_health_check = MultiListenerConfig {
+            health_check_interval_ms: 0,
+            ..Default::default()
+        };
+        assert!(invalid_health_check.validate().is_err());
+
+        let invalid_threshold = MultiListenerConfig {
+            failover_threshold_ms: 1000,
+            health_check_interval_ms: 5000,
+            ..Default::default()
+        };
+        assert!(invalid_threshold.validate().is_err());
+
+        let invalid_max_listeners = MultiListenerConfig {
+            max_listeners: 0,
+            ..Default::default()
+        };
+        assert!(invalid_max_listeners.validate().is_err());
+    }
+
+    #[test]
+    fn test_multi_listener_config_builder() {
+        let config = MultiListenerConfig::new()
+            .enable()
+            .with_listener_id("test-listener".to_string())
+            .with_lease_duration_ms(20000);
+
+        assert!(config.enabled);
+        assert_eq!(config.listener_id, "test-listener");
+        assert_eq!(config.lease_duration_ms, 20000);
     }
 }

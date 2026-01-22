@@ -151,12 +151,10 @@ impl FailoverManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testing::mocks::MockCheckpointStore;
 
     #[tokio::test]
     async fn test_failover_manager_creation() {
-        let store = Arc::new(MockCheckpointStore);
-        let coordinator = Arc::new(MultiListenerCoordinator::new(store));
+        let coordinator = Arc::new(MultiListenerCoordinator::new());
         let manager = FailoverManager::new(coordinator);
 
         assert_eq!(manager.health_check_interval_ms(), 5000);
@@ -165,8 +163,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_failover_manager_custom_intervals() {
-        let store = Arc::new(MockCheckpointStore);
-        let coordinator = Arc::new(MultiListenerCoordinator::new(store));
+        let coordinator = Arc::new(MultiListenerCoordinator::new());
         let manager = FailoverManager::with_intervals(coordinator, 3000, 45000);
 
         assert_eq!(manager.health_check_interval_ms(), 3000);
@@ -175,8 +172,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_failure_detection() {
-        let store = Arc::new(MockCheckpointStore);
-        let coordinator = Arc::new(MultiListenerCoordinator::new(store));
+        let coordinator = Arc::new(MultiListenerCoordinator::new());
         let manager = FailoverManager::new(coordinator.clone());
 
         coordinator.register_listener("listener-1".to_string()).await.ok();
@@ -189,8 +185,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_failover_trigger() {
-        let store = Arc::new(MockCheckpointStore);
-        let coordinator = Arc::new(MultiListenerCoordinator::new(store));
+        let coordinator = Arc::new(MultiListenerCoordinator::new());
         let manager = FailoverManager::new(coordinator.clone());
 
         coordinator.register_listener("listener-1".to_string()).await.ok();
@@ -204,8 +199,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_failover_checkpoint_consistency() {
-        let store = Arc::new(MockCheckpointStore);
-        let coordinator = Arc::new(MultiListenerCoordinator::new(store));
+        let coordinator = Arc::new(MultiListenerCoordinator::new());
 
         coordinator.register_listener("listener-1".to_string()).await.ok();
         coordinator.update_checkpoint("listener-1", 1000).ok();
@@ -222,8 +216,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_multiple_listener_failover() {
-        let store = Arc::new(MockCheckpointStore);
-        let coordinator = Arc::new(MultiListenerCoordinator::new(store));
+        let coordinator = Arc::new(MultiListenerCoordinator::new());
 
         for i in 0..3 {
             coordinator
