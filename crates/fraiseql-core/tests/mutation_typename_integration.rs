@@ -24,7 +24,6 @@ fn test_compiled_schema_has_mutation_return_types() {
     let _mutations: Vec<MutationDefinition> = schema.mutations.clone();
 
     // This test verifies the structure exists (mutations have typing)
-    assert!(true);
 }
 
 #[test]
@@ -38,7 +37,6 @@ fn test_mutation_definition_has_return_type_field() {
         let _return_type = &mutation.return_type;
     }
 
-    assert!(true);
 }
 
 #[test]
@@ -57,7 +55,6 @@ fn test_query_and_mutation_both_have_types() {
     }
 
     // This verifies type structure is present in both operation types
-    assert!(true);
 }
 
 #[test]
@@ -77,7 +74,6 @@ fn test_mutation_typename_consistency() {
         let _mutation_return = &mutation.return_type;
     }
 
-    assert!(true);
 }
 
 #[test]
@@ -97,7 +93,6 @@ fn test_mutation_return_type_not_mixed_with_operation_field() {
         // The presence of both verifies proper separation
     }
 
-    assert!(true);
 }
 
 #[test]
@@ -113,7 +108,6 @@ fn test_schema_types_have_names_for_typename_field() {
         // This validates the field exists for typename purposes
     }
 
-    assert!(true);
 }
 
 #[test]
@@ -136,7 +130,6 @@ fn test_mutation_typename_tracking_structure() {
         // In a populated schema, this would match one of the type names
     }
 
-    assert!(true);
 }
 
 #[test]
@@ -163,7 +156,6 @@ fn test_mutation_response_structure_includes_typename_mechanism() {
         // This structure enables __typename field generation
     }
 
-    assert!(true);
 }
 
 #[test]
@@ -183,5 +175,4 @@ fn test_schema_structure_differentiates_query_mutation_returns() {
     }
 
     // This demonstrates they're tracked independently, enabling proper typename
-    assert!(true);
 }

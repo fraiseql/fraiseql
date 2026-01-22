@@ -342,7 +342,7 @@ fn test_deprecated_status_field_structure() {
     assert!(field_info["deprecationReason"].is_string());
 
     // Deprecation info specifically
-    assert_eq!(field_info["isDeprecated"].as_bool().unwrap(), true);
+    assert!(field_info["isDeprecated"].as_bool().unwrap());
     let reason = field_info["deprecationReason"].as_str().unwrap();
     assert!(!reason.is_empty());
 }

@@ -2,6 +2,9 @@
 //!
 //! All runtime crates depend on this crate for error handling.
 
+// Error variants and fields are self-documenting via their #[error(...)] messages
+#![allow(missing_docs)]
+
 mod config;
 mod auth;
 mod webhook;
@@ -64,7 +67,7 @@ pub enum RuntimeError {
 
 impl RuntimeError {
     /// Get the error code for this error
-    pub fn error_code(&self) -> &'static str {
+    pub const fn error_code(&self) -> &'static str {
         match self {
             Self::Config(e) => e.error_code(),
             Self::Auth(e) => e.error_code(),

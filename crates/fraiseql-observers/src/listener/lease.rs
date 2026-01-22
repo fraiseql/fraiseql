@@ -21,6 +21,7 @@ pub struct CheckpointLease {
 
 impl CheckpointLease {
     /// Create a new checkpoint lease
+    #[must_use] 
     pub fn new(
         listener_id: String,
         checkpoint_id: i64,
@@ -43,7 +44,7 @@ impl CheckpointLease {
         if let Some(current_holder) = holder.as_ref() {
             let acquired_at = *self.lease_acquired_at.lock().await;
             if let Some(acquired_time) = acquired_at {
-                if acquired_time.elapsed().as_millis() < self.lease_duration_ms as u128 {
+                if acquired_time.elapsed().as_millis() < u128::from(self.lease_duration_ms) {
                     // Lease still held and valid
                     return Ok(current_holder == &self.listener_id);
                 }
@@ -100,7 +101,7 @@ impl CheckpointLease {
                 let acquired_at = *self.lease_acquired_at.lock().await;
                 if let Some(acquired_time) = acquired_at {
                     return Ok(acquired_time.elapsed().as_millis()
-                        < self.lease_duration_ms as u128);
+                        < u128::from(self.lease_duration_ms));
                 }
             }
         }
@@ -130,11 +131,13 @@ impl CheckpointLease {
     }
 
     /// Get checkpoint ID this lease is for
-    pub fn checkpoint_id(&self) -> i64 {
+    #[must_use] 
+    pub const fn checkpoint_id(&self) -> i64 {
         self.checkpoint_id
     }
 
     /// Get listener ID that owns this lease
+    #[must_use] 
     pub fn listener_id(&self) -> &str {
         &self.listener_id
     }
@@ -243,8 +246,8 @@ mod tests {
         let leases: Vec<_> = (0..3)
             .map(|i| {
                 CheckpointLease::new(
-                    format!("listener-{}", i),
-                    1000 + i as i64,
+                    format!("listener-{i}"),
+                    1000 + i64::from(i),
                     5000,
                 )
             })
@@ -256,7 +259,7 @@ mod tests {
 
         for (i, lease) in leases.iter().enumerate() {
             let holder = lease.get_holder().await.unwrap();
-            assert_eq!(holder, Some(format!("listener-{}", i)));
+            assert_eq!(holder, Some(format!("listener-{i}")));
         }
     }
 

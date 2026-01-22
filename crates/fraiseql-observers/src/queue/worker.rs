@@ -75,7 +75,7 @@ where
             match self.queue.dequeue(&self.worker_id).await {
                 Ok(Some(job)) => {
                     if let Err(e) = self.process_job(job).await {
-                        eprintln!("Error processing job: {}", e);
+                        eprintln!("Error processing job: {e}");
                     }
                 }
                 Ok(None) => {
@@ -84,7 +84,7 @@ where
                 }
                 Err(e) => {
                     // Dequeue error - log and wait before retrying
-                    eprintln!("Dequeue error: {}", e);
+                    eprintln!("Dequeue error: {e}");
                     tokio::time::sleep(Duration::from_secs(1)).await;
                 }
             }
@@ -251,7 +251,7 @@ where
 
                     // Try to process jobs
                     if let Err(e) = worker.run().await {
-                        eprintln!("Worker error: {}", e);
+                        eprintln!("Worker error: {e}");
                         // Continue running despite errors
                         tokio::time::sleep(Duration::from_secs(1)).await;
                     }
@@ -281,10 +281,10 @@ where
             match handle.await {
                 Ok(Ok(())) => {}
                 Ok(Err(e)) => {
-                    eprintln!("Worker finished with error: {}", e);
+                    eprintln!("Worker finished with error: {e}");
                 }
                 Err(e) => {
-                    eprintln!("Worker task error: {}", e);
+                    eprintln!("Worker task error: {e}");
                 }
             }
         }
@@ -310,59 +310,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_job_worker_pool_creation() {
         // Pool structure is tested through type system
         // Runtime tests require full async setup
-    }
-
-    // Mock queue for testing
-    #[derive(Clone)]
-    struct MockJobQueue;
-
-    impl MockJobQueue {
-        fn new() -> Self {
-            Self
-        }
-    }
-
-    #[async_trait::async_trait]
-    impl JobQueue for MockJobQueue {
-        async fn enqueue(&self, _job: &Job) -> Result<String> {
-            Ok("mock-id".to_string())
-        }
-
-        async fn dequeue(&self, _worker_id: &str) -> Result<Option<Job>> {
-            Ok(None)
-        }
-
-        async fn mark_processing(&self, _job_id: &str) -> Result<()> {
-            Ok(())
-        }
-
-        async fn mark_success(&self, _job_id: &str, _result: &JobResult) -> Result<()> {
-            Ok(())
-        }
-
-        async fn mark_retry(&self, _job_id: &str, _next_retry_at: i64) -> Result<()> {
-            Ok(())
-        }
-
-        async fn mark_deadletter(&self, _job_id: &str, _reason: &str) -> Result<()> {
-            Ok(())
-        }
-
-        async fn get_stats(&self) -> Result<crate::QueueStats> {
-            Ok(crate::QueueStats {
-                pending_jobs: 0,
-                processing_jobs: 0,
-                retry_jobs: 0,
-                successful_jobs: 0,
-                failed_jobs: 0,
-                avg_processing_time_ms: 0.0,
-            })
-        }
     }
 }

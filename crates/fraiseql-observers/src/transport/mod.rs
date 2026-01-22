@@ -3,9 +3,9 @@
 //! This module provides a trait-based abstraction for event sourcing mechanisms,
 //! enabling FraiseQL's observer system to work with multiple event transports:
 //!
-//! - **PostgresNotify**: Existing PostgreSQL LISTEN/NOTIFY (low latency, ephemeral)
-//! - **Nats**: NATS JetStream for distributed architectures (Phase 2)
-//! - **InMemory**: Testing and development
+//! - **`PostgresNotify`**: Existing PostgreSQL LISTEN/NOTIFY (low latency, ephemeral)
+//! - **Nats**: NATS `JetStream` for distributed architectures (Phase 2)
+//! - **`InMemory`**: Testing and development
 //!
 //! # Architecture
 //!
@@ -25,7 +25,7 @@
 //! - **Arc<dyn EventTransport>**: Runtime transport selection without monomorphization bloat
 //! - **Stream-based API**: Natural tokio integration with backpressure
 //! - **Transport-managed reconnection**: Transports handle retry/backoff internally
-//! - **At-least-once delivery**: Transport ACKs after ObserverExecutor processes event
+//! - **At-least-once delivery**: Transport ACKs after `ObserverExecutor` processes event
 
 use crate::error::Result;
 use crate::event::EntityEvent;
@@ -36,10 +36,16 @@ use std::pin::Pin;
 pub mod postgres_notify;
 pub mod in_memory;
 
+#[cfg(feature = "nats")]
+pub mod nats;
+
 pub use postgres_notify::PostgresNotifyTransport;
 pub use in_memory::InMemoryTransport;
 
-/// Event stream type (async stream of EntityEvents)
+#[cfg(feature = "nats")]
+pub use nats::{NatsConfig, NatsTransport};
+
+/// Event stream type (async stream of `EntityEvents`)
 pub type EventStream = Pin<Box<dyn Stream<Item = Result<EntityEvent>> + Send>>;
 
 /// Core event transport abstraction
@@ -59,9 +65,9 @@ pub trait EventTransport: Send + Sync {
     /// - Stream ends on fatal errors (consumers restart loop)
     ///
     /// # ACK Semantics
-    /// - NatsTransport ACKs only after ObserverExecutor::process_event() returns Ok()
+    /// - `NatsTransport` ACKs only after `ObserverExecutor::process_event()` returns `Ok()`
     /// - At-least-once delivery preserved (redelivery on processing failure)
-    /// - If processing fails, message is NOT ACKed and will be redelivered
+    /// - If processing fails, message is NOT `ACKed` and will be redelivered
     /// - Idempotent consumers required (duplicates possible on retry)
     async fn subscribe(&self, filter: EventFilter) -> Result<EventStream>;
 
@@ -85,7 +91,7 @@ pub trait EventTransport: Send + Sync {
 pub enum TransportType {
     /// PostgreSQL LISTEN/NOTIFY (existing)
     PostgresNotify,
-    /// NATS JetStream (Phase 2)
+    /// NATS `JetStream` (Phase 2)
     #[cfg(feature = "nats")]
     Nats,
     /// In-memory for testing

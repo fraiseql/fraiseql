@@ -34,15 +34,15 @@
 //! # Index Structure
 //!
 //! Each event is indexed with:
-//! - event_type: Type of event (Created, Updated, Deleted)
-//! - entity_type: Entity being observed (Order, User, Product)
-//! - entity_id: UUID of the entity
-//! - tenant_id: Multi-tenant isolation key
+//! - `event_type`: Type of event (Created, Updated, Deleted)
+//! - `entity_type`: Entity being observed (Order, User, Product)
+//! - `entity_id`: UUID of the entity
+//! - `tenant_id`: Multi-tenant isolation key
 //! - timestamp: Event creation time
-//! - actions_executed: Array of actions run
-//! - success_count: Successful actions
-//! - failure_count: Failed actions
-//! - search_text: Full-text searchable content
+//! - `actions_executed`: Array of actions run
+//! - `success_count`: Successful actions
+//! - `failure_count`: Failed actions
+//! - `search_text`: Full-text searchable content
 //!
 //! # Daily Index Pattern
 //!
@@ -94,6 +94,7 @@ impl IndexedEvent {
     /// * `actions` - Array of action names executed
     /// * `success_count` - Number of successful actions
     /// * `failure_count` - Number of failed actions
+    #[must_use] 
     pub fn from_event(
         event: &EntityEvent,
         tenant_id: String,
@@ -128,9 +129,10 @@ impl IndexedEvent {
     /// Get the index name for this event (date-based sharding).
     ///
     /// Returns format: `events-YYYY-MM-DD`
+    #[must_use] 
     pub fn index_name(&self) -> String {
         let datetime = chrono::DateTime::<chrono::Utc>::from_timestamp(self.timestamp, 0)
-            .unwrap_or_else(|| chrono::Utc::now());
+            .unwrap_or_else(chrono::Utc::now);
         format!("events-{}", datetime.format("%Y-%m-%d"))
     }
 }
@@ -254,7 +256,8 @@ pub struct SearchStats {
 
 impl SearchStats {
     /// Create new search statistics.
-    pub fn new() -> Self {
+    #[must_use] 
+    pub const fn new() -> Self {
         Self {
             total_indexed: 0,
             successful_indexes: 0,
@@ -269,9 +272,7 @@ impl SearchStats {
 
         if success {
             self.successful_indexes += 1;
-            self.avg_index_latency_ms = (self.avg_index_latency_ms
-                * (self.successful_indexes as f64 - 1.0)
-                + latency_ms)
+            self.avg_index_latency_ms = self.avg_index_latency_ms.mul_add(self.successful_indexes as f64 - 1.0, latency_ms)
                 / self.successful_indexes as f64;
         } else {
             self.failed_indexes += 1;
@@ -287,6 +288,7 @@ impl SearchStats {
     }
 
     /// Get success rate as percentage.
+    #[must_use] 
     pub fn success_rate(&self) -> f64 {
         if self.total_indexed == 0 {
             0.0

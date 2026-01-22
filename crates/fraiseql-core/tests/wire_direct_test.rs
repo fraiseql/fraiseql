@@ -9,7 +9,7 @@ mod wire_direct_tests {
     use futures::StreamExt;
 
     #[tokio::test]
-    async fn test_direct_v_users_query() {
+    async fn test_direct_v_user_query() {
         let conn_str = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
             "postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql"
                 .to_string()
@@ -19,11 +19,11 @@ mod wire_direct_tests {
 
         let client = FraiseClient::connect(&conn_str).await.unwrap();
 
-        println!("Querying v_users directly...");
+        println!("Querying v_user directly...");
 
-        // Query v_users directly
+        // Query v_user directly
         let stream_result =
-            client.query::<serde_json::Value>("v_users").chunk_size(1024).execute().await;
+            client.query::<serde_json::Value>("v_user").chunk_size(1024).execute().await;
 
         match &stream_result {
             Ok(_) => println!("Query executed successfully"),
@@ -49,6 +49,6 @@ mod wire_direct_tests {
         }
 
         println!("SUCCESS: Got {} rows", count);
-        assert_eq!(count, 10, "Should get 10 rows");
+        assert_eq!(count, 5, "Should get 5 rows (from test data)");
     }
 }

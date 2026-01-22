@@ -7,17 +7,21 @@ use sha1::Sha1;
 use sha2::Sha256;
 
 /// Generic HMAC-SHA256 verifier with configurable header
+///
+/// Note: `name` and `header` fields are stored but not used because
+/// the `SignatureVerifier` trait returns `&'static str`. These fields
+/// exist for potential future trait changes.
 pub struct HmacSha256Verifier {
-    name: String,
-    header: String,
+    _name: String,
+    _header: String,
 }
 
 impl HmacSha256Verifier {
     #[must_use]
     pub fn new(name: &str, header: &str) -> Self {
         Self {
-            name: name.to_string(),
-            header: header.to_string(),
+            _name: name.to_string(),
+            _header: header.to_string(),
         }
     }
 }
@@ -57,17 +61,21 @@ impl SignatureVerifier for HmacSha256Verifier {
 }
 
 /// Generic HMAC-SHA1 verifier with configurable header
+///
+/// Note: `name` and `header` fields are stored but not used because
+/// the `SignatureVerifier` trait returns `&'static str`. These fields
+/// exist for potential future trait changes.
 pub struct HmacSha1Verifier {
-    name: String,
-    header: String,
+    _name: String,
+    _header: String,
 }
 
 impl HmacSha1Verifier {
     #[must_use]
     pub fn new(name: &str, header: &str) -> Self {
         Self {
-            name: name.to_string(),
-            header: header.to_string(),
+            _name: name.to_string(),
+            _header: header.to_string(),
         }
     }
 }

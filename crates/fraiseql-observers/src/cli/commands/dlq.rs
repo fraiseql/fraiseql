@@ -2,7 +2,7 @@
 
 use crate::cli::DlqSubcommand;
 use crate::error::Result;
-use colored::*;
+use colored::Colorize;
 use serde_json::json;
 
 /// Execute DLQ subcommands
@@ -84,7 +84,7 @@ async fn execute_list(format: crate::cli::OutputFormat, limit: usize) -> Result<
         crate::cli::OutputFormat::Json => {
             let json_str = serde_json::to_string_pretty(&items)
                 .unwrap_or_else(|_| "{}".to_string());
-            println!("{}", json_str);
+            println!("{json_str}");
         }
         crate::cli::OutputFormat::Text => {
             println!("{}", "Dead Letter Queue Items".bold().underline());
@@ -102,7 +102,7 @@ async fn execute_list(format: crate::cli::OutputFormat, limit: usize) -> Result<
                     println!("{}", item_id.yellow().bold());
                     println!("  Observer: {}", observer.cyan());
                     println!("  Error: {}", error.red());
-                    println!("  Retries: {}/{}", retries, max);
+                    println!("  Retries: {retries}/{max}");
                     println!();
                 }
             }
@@ -138,7 +138,7 @@ async fn execute_show(format: crate::cli::OutputFormat, item_id: &str) -> Result
         crate::cli::OutputFormat::Json => {
             let json_str = serde_json::to_string_pretty(&item)
                 .unwrap_or_else(|_| "{}".to_string());
-            println!("{}", json_str);
+            println!("{json_str}");
         }
         crate::cli::OutputFormat::Text => {
             println!("{}", "DLQ Item Details".bold().underline());
@@ -212,7 +212,7 @@ async fn execute_retry(format: crate::cli::OutputFormat, item_id: &str) -> Resul
         crate::cli::OutputFormat::Json => {
             let json_str = serde_json::to_string_pretty(&result)
                 .unwrap_or_else(|_| "{}".to_string());
-            println!("{}", json_str);
+            println!("{json_str}");
         }
         crate::cli::OutputFormat::Text => {
             println!("{}", "Retry Result".bold().underline());
@@ -249,7 +249,7 @@ async fn execute_retry_all(format: crate::cli::OutputFormat) -> Result<()> {
         crate::cli::OutputFormat::Json => {
             let json_str = serde_json::to_string_pretty(&result)
                 .unwrap_or_else(|_| "{}".to_string());
-            println!("{}", json_str);
+            println!("{json_str}");
         }
         crate::cli::OutputFormat::Text => {
             println!("{}", "Batch Retry Result".bold().underline());
@@ -285,7 +285,7 @@ async fn execute_remove(format: crate::cli::OutputFormat, item_id: &str) -> Resu
         crate::cli::OutputFormat::Json => {
             let json_str = serde_json::to_string_pretty(&result)
                 .unwrap_or_else(|_| "{}".to_string());
-            println!("{}", json_str);
+            println!("{json_str}");
         }
         crate::cli::OutputFormat::Text => {
             println!("{}", "Remove Result".bold().underline());
@@ -336,7 +336,7 @@ async fn execute_stats(
         crate::cli::OutputFormat::Json => {
             let json_str = serde_json::to_string_pretty(&stats)
                 .unwrap_or_else(|_| "{}".to_string());
-            println!("{}", json_str);
+            println!("{json_str}");
         }
         crate::cli::OutputFormat::Text => {
             println!("{}", "DLQ Statistics".bold().underline());

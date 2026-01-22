@@ -33,7 +33,8 @@ pub struct FailoverManager {
 
 impl FailoverManager {
     /// Create a new failover manager
-    pub fn new(coordinator: Arc<MultiListenerCoordinator>) -> Self {
+    #[must_use] 
+    pub const fn new(coordinator: Arc<MultiListenerCoordinator>) -> Self {
         Self {
             coordinator,
             health_check_interval_ms: 5000,
@@ -42,7 +43,8 @@ impl FailoverManager {
     }
 
     /// Create with custom intervals
-    pub fn with_intervals(
+    #[must_use] 
+    pub const fn with_intervals(
         coordinator: Arc<MultiListenerCoordinator>,
         health_check_interval_ms: u64,
         failover_threshold_ms: u64,
@@ -79,7 +81,7 @@ impl FailoverManager {
             .find(|h| h.listener_id == failed_listener_id)
             .map(|h| h.last_checkpoint)
             .ok_or(ObserverError::InvalidConfig {
-                message: format!("Listener {} not found", failed_listener_id),
+                message: format!("Listener {failed_listener_id} not found"),
             })?;
 
         // Elect new leader (failover target)
@@ -136,18 +138,20 @@ impl FailoverManager {
     }
 
     /// Stop health monitoring (by dropping receiver)
-    pub fn stop_health_monitor(&self) {
+    pub const fn stop_health_monitor(&self) {
         // Receiver will be dropped, causing channel to close
         // and health monitor task to end
     }
 
     /// Get health check interval
-    pub fn health_check_interval_ms(&self) -> u64 {
+    #[must_use] 
+    pub const fn health_check_interval_ms(&self) -> u64 {
         self.health_check_interval_ms
     }
 
     /// Get failover threshold
-    pub fn failover_threshold_ms(&self) -> u64 {
+    #[must_use] 
+    pub const fn failover_threshold_ms(&self) -> u64 {
         self.failover_threshold_ms
     }
 }
@@ -212,8 +216,7 @@ mod tests {
         let checkpoint = health
             .iter()
             .find(|h| h.listener_id == "listener-1")
-            .map(|h| h.last_checkpoint)
-            .unwrap_or(0);
+            .map_or(0, |h| h.last_checkpoint);
 
         assert_eq!(checkpoint, 1000);
     }
@@ -224,7 +227,7 @@ mod tests {
 
         for i in 0..3 {
             coordinator
-                .register_listener(format!("listener-{}", i))
+                .register_listener(format!("listener-{i}"))
                 .await
                 .ok();
         }

@@ -2,7 +2,7 @@
 
 use axum::http::{HeaderName, Method};
 use std::str::FromStr;
-use tower_http::cors::{AllowHeaders, AllowMethods, AllowOrigin, CorsLayer};
+use tower_http::cors::{AllowOrigin, CorsLayer};
 
 use crate::config::cors::CorsConfig;
 use fraiseql_error::ConfigError;

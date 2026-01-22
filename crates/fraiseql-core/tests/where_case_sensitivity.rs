@@ -18,7 +18,7 @@ use serde_json::json;
 #[test]
 fn test_where_case_sensitive_operators() {
     // Contains operator (LIKE with %) - case-sensitive in most databases
-    let test_value = "Hello World";
+    let _test_value = "Hello World";
 
     let cases = vec![
         ("Hello", WhereOperator::Contains, true),  // exact case
@@ -48,7 +48,7 @@ fn test_where_case_sensitive_operators() {
 #[test]
 fn test_where_case_insensitive_operators() {
     // Icontains operator (ILIKE with %) - case-insensitive
-    let test_value = "Hello World";
+    let _test_value = "Hello World";
 
     let patterns = vec![
         "hello",

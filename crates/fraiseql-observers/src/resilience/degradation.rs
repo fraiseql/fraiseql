@@ -40,6 +40,7 @@ pub struct GracefulDegradation {
 
 impl GracefulDegradation {
     /// Create a new graceful degradation manager
+    #[must_use] 
     pub fn new(circuit_breaker: Arc<CircuitBreaker>) -> Self {
         Self {
             circuit_breaker,
@@ -49,6 +50,7 @@ impl GracefulDegradation {
     }
 
     /// Check if system is in degraded mode
+    #[must_use] 
     pub fn is_degraded(&self) -> bool {
         self.degraded_mode.load(Ordering::Relaxed)
     }
@@ -88,6 +90,7 @@ impl GracefulDegradation {
     }
 
     /// Check if degradation management is enabled
+    #[must_use] 
     pub fn is_enabled(&self) -> bool {
         self.enabled.load(Ordering::Relaxed)
     }

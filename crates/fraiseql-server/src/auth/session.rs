@@ -1,9 +1,12 @@
 // Session management - trait definition and implementations
-use crate::auth::error::{AuthError, Result};
+use crate::auth::error::Result;
 use async_trait::async_trait;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+#[cfg(test)]
+use crate::auth::error::AuthError;
+#[cfg(test)]
 use std::sync::Arc;
 
 /// Session data stored in the backend
@@ -154,6 +157,11 @@ impl InMemorySessionStore {
     /// Get number of sessions (useful for tests)
     pub fn len(&self) -> usize {
         self.sessions.len()
+    }
+
+    /// Check if there are no sessions
+    pub fn is_empty(&self) -> bool {
+        self.sessions.is_empty()
     }
 }
 

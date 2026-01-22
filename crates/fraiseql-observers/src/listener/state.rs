@@ -47,6 +47,7 @@ pub struct ListenerStateMachine {
 
 impl ListenerStateMachine {
     /// Create a new listener state machine
+    #[must_use] 
     pub fn new(listener_id: String) -> Self {
         Self {
             current_state: Arc::new(Mutex::new(ListenerState::Initializing)),
@@ -58,7 +59,8 @@ impl ListenerStateMachine {
     }
 
     /// Create with custom max recovery attempts
-    pub fn with_max_recovery_attempts(mut self, max_attempts: u32) -> Self {
+    #[must_use] 
+    pub const fn with_max_recovery_attempts(mut self, max_attempts: u32) -> Self {
         self.max_recovery_attempts = max_attempts;
         self
     }
@@ -71,8 +73,7 @@ impl ListenerStateMachine {
         if !self.is_valid_transition(current, next_state) {
             return Err(ObserverError::InvalidConfig {
                 message: format!(
-                    "Invalid state transition: {} → {}",
-                    current, next_state
+                    "Invalid state transition: {current} → {next_state}"
                 ),
             });
         }
@@ -110,6 +111,7 @@ impl ListenerStateMachine {
     }
 
     /// Get listener ID
+    #[must_use] 
     pub fn listener_id(&self) -> &str {
         &self.listener_id
     }
@@ -127,7 +129,7 @@ impl ListenerStateMachine {
 
     /// Validate state transition
     #[allow(clippy::unnested_or_patterns)]
-    fn is_valid_transition(&self, current: ListenerState, next: ListenerState) -> bool {
+    const fn is_valid_transition(&self, current: ListenerState, next: ListenerState) -> bool {
         matches!(
             (current, next),
             // Initial transitions

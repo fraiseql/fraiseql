@@ -295,7 +295,7 @@ fn test_interface_list_membership() {
 #[test]
 fn test_interface_implementation_type_validation() {
     // Verify interface requirements are preserved in implementing type
-    let interface = json!({
+    let _interface = json!({
         "name": "Result",
         "kind": "INTERFACE",
         "fields": [
@@ -325,7 +325,7 @@ fn test_interface_implementation_type_validation() {
     });
 
     // Both types have the interface fields
-    for type_def in vec![success_type, error_type] {
+    for type_def in [success_type, error_type] {
         let type_fields: Vec<&str> = type_def["fields"].as_array().unwrap()
             .iter()
             .filter_map(|f| f["name"].as_str())

@@ -26,7 +26,7 @@ impl PostgresSessionStore {
     /// Returns error if table creation fails
     pub async fn init(&self) -> Result<()> {
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS _system.sessions (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 user_id TEXT NOT NULL,
@@ -40,7 +40,7 @@ impl PostgresSessionStore {
             CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON _system.sessions(user_id);
             CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON _system.sessions(expires_at);
             CREATE INDEX IF NOT EXISTS idx_sessions_revoked_at ON _system.sessions(revoked_at);
-            "#,
+            ",
         )
         .execute(&self.db)
         .await
@@ -77,11 +77,11 @@ impl SessionStore for PostgresSessionStore {
             .as_secs();
 
         sqlx::query(
-            r#"
+            r"
             INSERT INTO _system.sessions
             (user_id, refresh_token_hash, issued_at, expires_at)
             VALUES ($1, $2, $3, $4)
-            "#,
+            ",
         )
         .bind(user_id)
         .bind(&refresh_token_hash)
@@ -113,11 +113,11 @@ impl SessionStore for PostgresSessionStore {
 
     async fn get_session(&self, refresh_token_hash: &str) -> Result<SessionData> {
         let row = sqlx::query(
-            r#"
+            r"
             SELECT user_id, issued_at, expires_at, refresh_token_hash
             FROM _system.sessions
             WHERE refresh_token_hash = $1 AND revoked_at IS NULL
-            "#,
+            ",
         )
         .bind(refresh_token_hash)
         .fetch_optional(&self.db)
@@ -142,11 +142,11 @@ impl SessionStore for PostgresSessionStore {
 
     async fn revoke_session(&self, refresh_token_hash: &str) -> Result<()> {
         let result = sqlx::query(
-            r#"
+            r"
             UPDATE _system.sessions
             SET revoked_at = NOW()
             WHERE refresh_token_hash = $1 AND revoked_at IS NULL
-            "#,
+            ",
         )
         .bind(refresh_token_hash)
         .execute(&self.db)
@@ -166,11 +166,11 @@ impl SessionStore for PostgresSessionStore {
 
     async fn revoke_all_sessions(&self, user_id: &str) -> Result<()> {
         sqlx::query(
-            r#"
+            r"
             UPDATE _system.sessions
             SET revoked_at = NOW()
             WHERE user_id = $1 AND revoked_at IS NULL
-            "#,
+            ",
         )
         .bind(user_id)
         .execute(&self.db)

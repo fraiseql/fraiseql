@@ -185,43 +185,40 @@ impl DatabaseAdapter for MySqlAdapter {
         // Build base query
         let mut sql = format!("SELECT data FROM `{view}`");
 
+        // Collect WHERE clause params (if any)
+        let mut params: Vec<serde_json::Value> = Vec::new();
+
         // Add WHERE clause if present
         if let Some(clause) = where_clause {
             let generator = MySqlWhereGenerator::new();
             let (where_sql, where_params) = generator.generate(clause)?;
             sql.push_str(" WHERE ");
             sql.push_str(&where_sql);
-
-            // Add parameterized LIMIT and OFFSET
-            let mut params = where_params;
-
-            if let Some(lim) = limit {
-                sql.push_str(" LIMIT ?");
-                params.push(serde_json::Value::Number(lim.into()));
-            }
-
-            if let Some(off) = offset {
-                sql.push_str(" OFFSET ?");
-                params.push(serde_json::Value::Number(off.into()));
-            }
-
-            self.execute_raw(&sql, params).await
-        } else {
-            // No WHERE clause - execute simple query
-            let mut params: Vec<serde_json::Value> = vec![];
-
-            if let Some(lim) = limit {
-                sql.push_str(" LIMIT ?");
-                params.push(serde_json::Value::Number(lim.into()));
-            }
-
-            if let Some(off) = offset {
-                sql.push_str(" OFFSET ?");
-                params.push(serde_json::Value::Number(off.into()));
-            }
-
-            self.execute_raw(&sql, params).await
+            params = where_params;
         }
+
+        // Add LIMIT and OFFSET
+        // Note: MySQL requires LIMIT when using OFFSET, so we use a large number for "unlimited"
+        match (limit, offset) {
+            (Some(lim), Some(off)) => {
+                sql.push_str(" LIMIT ? OFFSET ?");
+                params.push(serde_json::Value::Number(lim.into()));
+                params.push(serde_json::Value::Number(off.into()));
+            }
+            (Some(lim), None) => {
+                sql.push_str(" LIMIT ?");
+                params.push(serde_json::Value::Number(lim.into()));
+            }
+            (None, Some(off)) => {
+                // MySQL requires LIMIT with OFFSET; use large number for "unlimited"
+                // MySQL's max is 18446744073709551615, but we use a practical large value
+                sql.push_str(" LIMIT 18446744073709551615 OFFSET ?");
+                params.push(serde_json::Value::Number(off.into()));
+            }
+            (None, None) => {}
+        }
+
+        self.execute_raw(&sql, params).await
     }
 
     fn database_type(&self) -> DatabaseType {

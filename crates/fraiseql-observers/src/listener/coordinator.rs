@@ -48,6 +48,7 @@ pub struct MultiListenerCoordinator {
 
 impl MultiListenerCoordinator {
     /// Create new coordinator
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             listeners: Arc::new(DashMap::new()),
@@ -80,7 +81,7 @@ impl MultiListenerCoordinator {
             .listeners
             .get(listener_id)
             .ok_or(ObserverError::InvalidConfig {
-                message: format!("Listener {} not found", listener_id),
+                message: format!("Listener {listener_id} not found"),
             })?;
 
         Ok(handle.state_machine.get_state().await)
@@ -92,7 +93,7 @@ impl MultiListenerCoordinator {
             .listeners
             .get(listener_id)
             .ok_or(ObserverError::InvalidConfig {
-                message: format!("Listener {} not found", listener_id),
+                message: format!("Listener {listener_id} not found"),
             })?;
 
         *handle.last_heartbeat.lock().await = Instant::now();
@@ -105,7 +106,7 @@ impl MultiListenerCoordinator {
             .listeners
             .get(listener_id)
             .ok_or(ObserverError::InvalidConfig {
-                message: format!("Listener {} not found", listener_id),
+                message: format!("Listener {listener_id} not found"),
             })?;
 
         handle.checkpoint.store(checkpoint as u64, Ordering::SeqCst);
@@ -172,6 +173,7 @@ impl MultiListenerCoordinator {
     }
 
     /// Get number of listeners
+    #[must_use] 
     pub fn listener_count(&self) -> usize {
         self.listeners.len()
     }

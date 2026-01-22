@@ -58,7 +58,7 @@ pub trait DeduplicationStore: Send + Sync + Clone {
     ///
     /// # Arguments
     ///
-    /// * `event_key` - Unique event identifier (typically event_type + entity_id)
+    /// * `event_key` - Unique event identifier (typically `event_type` + `entity_id`)
     ///
     /// # Errors
     ///
@@ -114,7 +114,8 @@ pub struct DeduplicationStats {
 
 impl DeduplicationStats {
     /// Create new deduplication statistics.
-    pub fn new() -> Self {
+    #[must_use] 
+    pub const fn new() -> Self {
         Self {
             total_checked: 0,
             duplicates_skipped: 0,

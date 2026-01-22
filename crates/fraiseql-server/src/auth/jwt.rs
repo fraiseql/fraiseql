@@ -1,6 +1,8 @@
 // JWT validation and claims parsing
 use crate::auth::error::{AuthError, Result};
-use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation, Algorithm};
+use jsonwebtoken::{decode, DecodingKey, Validation, Algorithm};
+#[cfg(test)]
+use jsonwebtoken::{encode, EncodingKey, Header};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 

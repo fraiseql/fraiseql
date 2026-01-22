@@ -2,7 +2,7 @@
 //!
 //! This module provides two listening strategies:
 //! 1. **LISTEN/NOTIFY** - Low-latency but ephemeral (mod.rs)
-//! 2. **ChangeLog Polling** - Durable polling from tb_entity_change_log (change_log.rs)
+//! 2. **`ChangeLog` Polling** - Durable polling from `tb_entity_change_log` (`change_log.rs`)
 //!
 //! Multi-listener coordination for high availability:
 //! - state.rs: Listener lifecycle state machine
@@ -55,6 +55,7 @@ pub struct EventListener {
 
 impl EventListener {
     /// Create a new event listener
+    #[must_use] 
     pub fn new(config: ListenerConfig) -> (Self, mpsc::Receiver<EntityEvent>) {
         let (sender, receiver) = mpsc::channel(config.channel_capacity);
 
@@ -71,7 +72,7 @@ impl EventListener {
     ///
     /// This spawns a task that:
     /// 1. Connects to PostgreSQL with a separate connection
-    /// 2. Executes LISTEN for the fraiseql_events channel
+    /// 2. Executes LISTEN for the `fraiseql_events` channel
     /// 3. Receives NOTIFY events and deserializes them
     /// 4. Sends events through the bounded channel
     /// 5. Handles backpressure according to overflow policy
@@ -87,14 +88,14 @@ impl EventListener {
         let mut listener = PgListener::connect_with(&self.config.pool)
             .await
             .map_err(|e| ObserverError::ListenerConnectionFailed {
-                reason: format!("Failed to create listener: {}", e),
+                reason: format!("Failed to create listener: {e}"),
             })?;
 
         listener
             .listen("fraiseql_events")
             .await
             .map_err(|e| ObserverError::ListenerConnectionFailed {
-                reason: format!("Failed to listen to channel: {}", e),
+                reason: format!("Failed to listen to channel: {e}"),
             })?;
 
         let sender = self.sender.clone();
@@ -121,7 +122,7 @@ impl EventListener {
                                 debug!("Deserialized event: {:?}", event.id);
 
                                 match sender.try_send(event) {
-                                    Ok(_) => {
+                                    Ok(()) => {
                                         debug!("Event sent through channel");
                                     }
                                     Err(mpsc::error::TrySendError::Full(_event)) => {
@@ -160,11 +161,13 @@ impl EventListener {
     }
 
     /// Check if listener is running
+    #[must_use] 
     pub fn is_running(&self) -> bool {
         self.running.load(Ordering::SeqCst)
     }
 
     /// Get the current backlog size (approximate)
+    #[must_use] 
     pub fn backlog_size(&self) -> usize {
         // Since mpsc doesn't expose the number of items in queue,
         // we use a conservative estimate based on channel capacity
@@ -172,6 +175,7 @@ impl EventListener {
     }
 
     /// Get the channel capacity
+    #[must_use] 
     pub fn capacity(&self) -> usize {
         self.sender.capacity()
     }

@@ -1,6 +1,6 @@
 // Generic OIDC provider implementation
 use crate::auth::error::{AuthError, Result};
-use crate::auth::provider::{OAuthProvider, PkceChallenge, TokenResponse, UserInfo};
+use crate::auth::provider::{OAuthProvider, TokenResponse, UserInfo};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 

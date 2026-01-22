@@ -35,7 +35,8 @@ pub struct ChangeLogListenerConfig {
 
 impl ChangeLogListenerConfig {
     /// Create config with defaults
-    pub fn new(pool: PgPool) -> Self {
+    #[must_use] 
+    pub const fn new(pool: PgPool) -> Self {
         Self {
             pool,
             poll_interval_ms: 100,
@@ -45,19 +46,22 @@ impl ChangeLogListenerConfig {
     }
 
     /// Set poll interval
-    pub fn with_poll_interval(mut self, ms: u64) -> Self {
+    #[must_use] 
+    pub const fn with_poll_interval(mut self, ms: u64) -> Self {
         self.poll_interval_ms = ms;
         self
     }
 
     /// Set batch size
-    pub fn with_batch_size(mut self, size: usize) -> Self {
+    #[must_use] 
+    pub const fn with_batch_size(mut self, size: usize) -> Self {
         self.batch_size = size;
         self
     }
 
     /// Set resume checkpoint
-    pub fn with_resume_from(mut self, id: i64) -> Self {
+    #[must_use] 
+    pub const fn with_resume_from(mut self, id: i64) -> Self {
         self.resume_from_id = Some(id);
         self
     }
@@ -123,11 +127,12 @@ impl ChangeLogEntry {
     }
 
     /// Get "before" values (entity state before change)
+    #[must_use] 
     pub fn before_values(&self) -> Option<Value> {
         self.object_data.get("before").cloned()
     }
 
-    /// Convert to EntityEvent for observer processing
+    /// Convert to `EntityEvent` for observer processing
     pub fn to_entity_event(&self) -> Result<EntityEvent> {
         // Map operation code to EventKind
         let event_kind = match self.debezium_operation()? {
@@ -137,7 +142,7 @@ impl ChangeLogEntry {
             'r' => EventKind::Custom, // read/noop
             op => {
                 return Err(ObserverError::TemplateRenderingFailed {
-                    reason: format!("Unknown operation code: {}", op),
+                    reason: format!("Unknown operation code: {op}"),
                 });
             }
         };
@@ -204,7 +209,7 @@ impl ChangeLogEntry {
         let mut changes = HashMap::new();
 
         // Compare before and after to find changed fields
-        for (key, after_val) in after.iter() {
+        for (key, after_val) in &after {
             if let Some(before_val) = before.get(key) {
                 if before_val != after_val {
                     changes.insert(
@@ -228,7 +233,7 @@ impl ChangeLogEntry {
         }
 
         // Check for deleted fields (in before but not in after)
-        for (key, before_val) in before.iter() {
+        for (key, before_val) in &before {
             if !after.contains_key(key) {
                 changes.insert(
                     key.clone(),
@@ -256,6 +261,7 @@ pub struct ChangeLogListener {
 
 impl ChangeLogListener {
     /// Create a new change log listener
+    #[must_use] 
     pub fn new(config: ChangeLogListenerConfig) -> Self {
         let last_processed_id = config.resume_from_id.unwrap_or(0);
 
@@ -298,7 +304,7 @@ impl ChangeLogListener {
             .fetch_all(&self.config.pool)
             .await
             .map_err(|e| ObserverError::DatabaseError {
-                reason: format!("Failed to query change log: {}", e),
+                reason: format!("Failed to query change log: {e}"),
             })?;
 
         let mut entries = Vec::new();
@@ -328,7 +334,8 @@ impl ChangeLogListener {
     }
 
     /// Get the current checkpoint (last processed ID)
-    pub fn checkpoint(&self) -> i64 {
+    #[must_use] 
+    pub const fn checkpoint(&self) -> i64 {
         self.last_processed_id
     }
 

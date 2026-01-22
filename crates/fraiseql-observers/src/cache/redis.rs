@@ -24,13 +24,14 @@ impl RedisCacheBackend {
     ///
     /// * `conn` - Redis connection manager
     /// * `ttl_seconds` - Time-to-live for cached results in seconds
-    pub fn new(conn: ConnectionManager, ttl_seconds: u64) -> Self {
+    #[must_use] 
+    pub const fn new(conn: ConnectionManager, ttl_seconds: u64) -> Self {
         Self { conn, ttl_seconds }
     }
 
     /// Generate cache key for consistent naming.
     fn cache_key(key: &str) -> String {
-        format!("cache:v1:{}", key)
+        format!("cache:v1:{key}")
     }
 }
 
@@ -63,7 +64,7 @@ impl CacheBackend for RedisCacheBackend {
             .arg(&key)
             .arg(self.ttl_seconds as i64)
             .arg(&json)
-            .query_async(&mut self.conn.clone())
+            .query_async::<_, ()>(&mut self.conn.clone())
             .await?;
 
         Ok(())
@@ -82,7 +83,7 @@ impl CacheBackend for RedisCacheBackend {
 
         redis::cmd("DEL")
             .arg(&key)
-            .query_async(&mut self.conn.clone())
+            .query_async::<_, ()>(&mut self.conn.clone())
             .await?;
 
         Ok(())
@@ -106,7 +107,7 @@ impl CacheBackend for RedisCacheBackend {
             if !keys.is_empty() {
                 redis::cmd("DEL")
                     .arg(&keys)
-                    .query_async(&mut self.conn.clone())
+                    .query_async::<_, ()>(&mut self.conn.clone())
                     .await?;
             }
 
@@ -134,6 +135,7 @@ mod tests {
     fn test_redis_cache_backend_clone() {
         // Ensure RedisCacheBackend is Clone-able
         fn assert_clone<T: Clone>() {}
+        assert_clone::<RedisCacheBackend>();
         // Note: This test verifies the struct is Clone
         // Actual Redis tests require a Redis server
     }

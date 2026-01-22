@@ -21,6 +21,7 @@ pub struct WebhookAction {
 
 impl WebhookAction {
     /// Create a new webhook action executor
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             client: Client::new(),
@@ -60,7 +61,7 @@ impl WebhookAction {
             .send()
             .await
             .map_err(|e| ObserverError::ActionExecutionFailed {
-                reason: format!("HTTP request failed: {}", e),
+                reason: format!("HTTP request failed: {e}"),
             })?;
 
         let status = response.status();
@@ -74,7 +75,7 @@ impl WebhookAction {
             })
         } else {
             Err(ObserverError::ActionExecutionFailed {
-                reason: format!("HTTP {} response", status),
+                reason: format!("HTTP {status} response"),
             })
         }
     }
@@ -84,7 +85,7 @@ impl WebhookAction {
 
         if let Value::Object(map) = data {
             for (key, value) in map {
-                let placeholder = format!("{{{{ {} }}}}", key);
+                let placeholder = format!("{{{{ {key} }}}}");
                 let value_str = match value {
                     Value::String(s) => s.clone(),
                     _ => value.to_string(),
@@ -93,7 +94,7 @@ impl WebhookAction {
             }
         }
 
-        serde_json::from_str(&rendered).or_else(|_| Ok(Value::String(rendered)))
+        serde_json::from_str(&rendered).or(Ok(Value::String(rendered)))
     }
 }
 
@@ -122,6 +123,7 @@ pub struct SlackAction {
 
 impl SlackAction {
     /// Create a new Slack action executor
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             client: Client::new(),
@@ -168,7 +170,7 @@ impl SlackAction {
             .send()
             .await
             .map_err(|e| ObserverError::ActionExecutionFailed {
-                reason: format!("Slack webhook failed: {}", e),
+                reason: format!("Slack webhook failed: {e}"),
             })?;
 
         let status = response.status();
@@ -182,7 +184,7 @@ impl SlackAction {
             })
         } else {
             Err(ObserverError::ActionExecutionFailed {
-                reason: format!("Slack HTTP {} response", status),
+                reason: format!("Slack HTTP {status} response"),
             })
         }
     }
@@ -192,7 +194,7 @@ impl SlackAction {
 
         if let Value::Object(map) = data {
             for (key, value) in map {
-                let placeholder = format!("{{{{ {} }}}}", key);
+                let placeholder = format!("{{{{ {key} }}}}");
                 let value_str = match value {
                     Value::String(s) => s.clone(),
                     _ => value.to_string(),
@@ -229,7 +231,8 @@ pub struct EmailAction {
 
 impl EmailAction {
     /// Create a new email action executor
-    pub fn new() -> Self {
+    #[must_use] 
+    pub const fn new() -> Self {
         Self {}
     }
 

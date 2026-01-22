@@ -31,7 +31,7 @@ pub enum ConfigError {
 }
 
 impl ConfigError {
-    pub fn error_code(&self) -> &'static str {
+    pub const fn error_code(&self) -> &'static str {
         match self {
             Self::NotFound => "config_not_found",
             Self::ReadError { .. } => "config_read_error",

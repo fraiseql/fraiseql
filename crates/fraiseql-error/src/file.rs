@@ -26,7 +26,7 @@ pub enum FileError {
 }
 
 impl FileError {
-    pub fn error_code(&self) -> &'static str {
+    pub const fn error_code(&self) -> &'static str {
         match self {
             Self::TooLarge { .. } => "file_too_large",
             Self::InvalidType { .. } => "file_invalid_type",

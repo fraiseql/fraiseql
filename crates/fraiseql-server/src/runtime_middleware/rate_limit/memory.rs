@@ -46,7 +46,7 @@ impl SlidingWindow {
         self.requests.push(Instant::now());
     }
 
-    fn remaining(&self, limit: u32, window: Duration) -> u32 {
+    fn _remaining(&self, limit: u32, window: Duration) -> u32 {
         limit.saturating_sub(self.count_in_window(window))
     }
 

@@ -1,7 +1,7 @@
 //! Prometheus metrics inspection command (requires "metrics" feature)
 
 use crate::error::Result;
-use colored::*;
+use colored::Colorize;
 use serde_json::json;
 
 /// Execute metrics command
@@ -72,7 +72,7 @@ pub async fn execute(
         crate::cli::OutputFormat::Json => {
             let json_str = serde_json::to_string_pretty(&metrics)
                 .unwrap_or_else(|_| "{}".to_string());
-            println!("{}", json_str);
+            println!("{json_str}");
         }
         crate::cli::OutputFormat::Text => {
             println!("{}", "Observer Metrics".bold().underline());

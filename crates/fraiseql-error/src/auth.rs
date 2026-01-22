@@ -35,7 +35,7 @@ pub enum AuthError {
 }
 
 impl AuthError {
-    pub fn error_code(&self) -> &'static str {
+    pub const fn error_code(&self) -> &'static str {
         match self {
             Self::InvalidCredentials => "invalid_credentials",
             Self::TokenExpired => "token_expired",

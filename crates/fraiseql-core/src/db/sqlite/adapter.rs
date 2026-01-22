@@ -200,43 +200,39 @@ impl DatabaseAdapter for SqliteAdapter {
         // Build base query - SQLite uses double quotes for identifiers
         let mut sql = format!("SELECT data FROM \"{view}\"");
 
+        // Collect WHERE clause params (if any)
+        let mut params: Vec<serde_json::Value> = Vec::new();
+
         // Add WHERE clause if present
         if let Some(clause) = where_clause {
             let generator = SqliteWhereGenerator::new();
             let (where_sql, where_params) = generator.generate(clause)?;
             sql.push_str(" WHERE ");
             sql.push_str(&where_sql);
-
-            // Add parameterized LIMIT and OFFSET
-            let mut params = where_params;
-
-            if let Some(lim) = limit {
-                sql.push_str(" LIMIT ?");
-                params.push(serde_json::Value::Number(lim.into()));
-            }
-
-            if let Some(off) = offset {
-                sql.push_str(" OFFSET ?");
-                params.push(serde_json::Value::Number(off.into()));
-            }
-
-            self.execute_raw(&sql, params).await
-        } else {
-            // No WHERE clause - execute simple query
-            let mut params: Vec<serde_json::Value> = vec![];
-
-            if let Some(lim) = limit {
-                sql.push_str(" LIMIT ?");
-                params.push(serde_json::Value::Number(lim.into()));
-            }
-
-            if let Some(off) = offset {
-                sql.push_str(" OFFSET ?");
-                params.push(serde_json::Value::Number(off.into()));
-            }
-
-            self.execute_raw(&sql, params).await
+            params = where_params;
         }
+
+        // Add LIMIT and OFFSET
+        // Note: SQLite requires LIMIT when using OFFSET, so we use LIMIT -1 for "unlimited"
+        match (limit, offset) {
+            (Some(lim), Some(off)) => {
+                sql.push_str(" LIMIT ? OFFSET ?");
+                params.push(serde_json::Value::Number(lim.into()));
+                params.push(serde_json::Value::Number(off.into()));
+            }
+            (Some(lim), None) => {
+                sql.push_str(" LIMIT ?");
+                params.push(serde_json::Value::Number(lim.into()));
+            }
+            (None, Some(off)) => {
+                // SQLite requires LIMIT with OFFSET; use -1 for unlimited
+                sql.push_str(" LIMIT -1 OFFSET ?");
+                params.push(serde_json::Value::Number(off.into()));
+            }
+            (None, None) => {}
+        }
+
+        self.execute_raw(&sql, params).await
     }
 
     fn database_type(&self) -> DatabaseType {

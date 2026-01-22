@@ -131,6 +131,7 @@ pub struct CachedActionResult {
 
 impl CachedActionResult {
     /// Create a new cached action result.
+    #[must_use] 
     pub fn new(action_type: String, success: bool, message: String, duration_ms: f64) -> Self {
         Self {
             action_type,
@@ -147,6 +148,7 @@ impl CachedActionResult {
     /// Check if this cached result is "fresh" (low latency).
     ///
     /// Results with <10ms duration are considered fresh (likely cached).
+    #[must_use] 
     pub fn is_fresh(&self) -> bool {
         self.duration_ms < 10.0
     }
@@ -171,7 +173,8 @@ pub struct CacheStats {
 
 impl CacheStats {
     /// Create new cache statistics.
-    pub fn new() -> Self {
+    #[must_use] 
+    pub const fn new() -> Self {
         Self {
             total_requests: 0,
             cache_hits: 0,
@@ -194,13 +197,11 @@ impl CacheStats {
         if is_hit {
             self.cache_hits += 1;
             self.avg_hit_latency_ms =
-                (self.avg_hit_latency_ms * (self.cache_hits as f64 - 1.0) + latency_ms)
+                self.avg_hit_latency_ms.mul_add(self.cache_hits as f64 - 1.0, latency_ms)
                     / self.cache_hits as f64;
         } else {
             self.cache_misses += 1;
-            self.avg_miss_latency_ms = (self.avg_miss_latency_ms
-                * (self.cache_misses as f64 - 1.0)
-                + latency_ms)
+            self.avg_miss_latency_ms = self.avg_miss_latency_ms.mul_add(self.cache_misses as f64 - 1.0, latency_ms)
                 / self.cache_misses as f64;
         }
 

@@ -1,9 +1,9 @@
 //! Resilience strategies for different failure handling approaches.
 //!
 //! Provides different strategies for handling failures:
-//! - FailFast: Immediately fail when circuit is open
+//! - `FailFast`: Immediately fail when circuit is open
 //! - Fallback: Return a default value on failure
-//! - RetryWithBreaker: Retry with circuit breaker protection
+//! - `RetryWithBreaker`: Retry with circuit breaker protection
 
 use super::CircuitBreaker;
 use crate::error::Result;
@@ -33,7 +33,8 @@ pub struct ResilientExecutor {
 
 impl ResilientExecutor {
     /// Create a new resilient executor
-    pub fn new(circuit_breaker: Arc<CircuitBreaker>, strategy: ResilienceStrategy) -> Self {
+    #[must_use] 
+    pub const fn new(circuit_breaker: Arc<CircuitBreaker>, strategy: ResilienceStrategy) -> Self {
         Self {
             circuit_breaker,
             strategy,
@@ -85,7 +86,7 @@ impl ResilientExecutor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::error::ObserverError;
+    
 
     #[tokio::test]
     async fn test_strategy_fail_fast() {
@@ -138,14 +139,14 @@ mod tests {
     #[test]
     fn test_resilience_strategy_clone() {
         let strategy1 = ResilienceStrategy::FailFast;
-        let strategy2 = strategy1.clone();
+        let strategy2 = strategy1;
         assert!(matches!(strategy2, ResilienceStrategy::FailFast));
     }
 
     #[test]
     fn test_resilience_strategy_display() {
         let strategy = ResilienceStrategy::Fallback("test".to_string());
-        let debug_str = format!("{:?}", strategy);
+        let debug_str = format!("{strategy:?}");
         assert!(debug_str.contains("Fallback"));
     }
 }

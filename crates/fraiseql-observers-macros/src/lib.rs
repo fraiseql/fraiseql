@@ -156,20 +156,18 @@ pub fn instrument(_args: TokenStream, input: TokenStream) -> TokenStream {
                 }
             }
         }
-    } else {
-        if field_captures.is_empty() {
-            quote! {
-                #fn_visibility #fn_sig {
-                    tracing::debug!(target: stringify!(#fn_name), "function entered");
-                    #fn_body
-                }
+    } else if field_captures.is_empty() {
+        quote! {
+            #fn_visibility #fn_sig {
+                tracing::debug!(target: stringify!(#fn_name), "function entered");
+                #fn_body
             }
-        } else {
-            quote! {
-                #fn_visibility #fn_sig {
-                    tracing::debug!(target: stringify!(#fn_name), #(#field_captures),*, "function entered");
-                    #fn_body
-                }
+        }
+    } else {
+        quote! {
+            #fn_visibility #fn_sig {
+                tracing::debug!(target: stringify!(#fn_name), #(#field_captures),*, "function entered");
+                #fn_body
             }
         }
     };

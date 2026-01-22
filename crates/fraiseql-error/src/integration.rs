@@ -17,7 +17,7 @@ pub enum IntegrationError {
 }
 
 impl IntegrationError {
-    pub fn error_code(&self) -> &'static str {
+    pub const fn error_code(&self) -> &'static str {
         match self {
             Self::Search { .. } => "integration_search_error",
             Self::Cache { .. } => "integration_cache_error",

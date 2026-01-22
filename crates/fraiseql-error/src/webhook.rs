@@ -29,7 +29,7 @@ pub enum WebhookError {
 }
 
 impl WebhookError {
-    pub fn error_code(&self) -> &'static str {
+    pub const fn error_code(&self) -> &'static str {
         match self {
             Self::InvalidSignature => "webhook_invalid_signature",
             Self::MissingSignature { .. } => "webhook_missing_signature",

@@ -81,7 +81,7 @@ impl ShutdownCoordinator {
     }
 
     /// Track a new in-flight request
-    pub fn request_started(&self) -> Option<RequestGuard> {
+    pub fn request_started(&self) -> Option<RequestGuard<'_>> {
         if self.is_shutting_down() {
             return None;
         }

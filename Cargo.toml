@@ -104,6 +104,7 @@ uuid = {version = "1.0", features = ["v4", "serde"]}
 # Deny all warnings in CI (priority -1 lets individual lints override)
 all = {level = "deny", priority = -1}
 cargo = {level = "warn", priority = -1}  # Changed to warn - metadata errors not blocking
+cargo_common_metadata = "allow"  # Internal crates don't need all metadata
 missing_errors_doc = "allow"  # Can be too verbose
 missing_panics_doc = "allow"  # Can be too verbose
 module_name_repetitions = "allow"
@@ -116,6 +117,18 @@ struct_excessive_bools = "allow"  # Schema structs often have many bool flags
 # Allow some pedantic lints that are too strict for practical use
 too_many_lines = "allow"
 unnecessary_wraps = "allow"  # API consistency over strictness
+# Additional allows for common pedantic/nursery lints that don't add value
+uninlined_format_args = "allow"  # Style preference, too noisy
+unused_self = "allow"  # Sometimes needed for API compatibility
+use_self = "allow"  # Style preference
+redundant_closure_for_method_calls = "allow"  # Style preference
+unused_async = "allow"  # Sometimes needed for trait conformance
+significant_drop_tightening = "allow"  # Too aggressive, false positives
+or_fun_call = "allow"  # Often clearer to keep explicit
+option_if_let_else = "allow"  # Style preference
+if_not_else = "allow"  # Style preference
+return_self_not_must_use = "allow"  # Builder pattern compatibility
+unused_enumerate_index = "allow"  # Sometimes index needed later
 
 [workspace.lints.rust]
 dead_code = "warn"

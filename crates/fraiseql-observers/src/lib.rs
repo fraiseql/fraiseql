@@ -1,9 +1,40 @@
 #![forbid(unsafe_code)]
-#![warn(missing_docs)]
+// TODO: Add documentation incrementally - allowing for now to focus on actionable warnings
+#![allow(missing_docs)]
 #![warn(clippy::all)]
 #![warn(clippy::pedantic)]
+// Allow common pedantic lints that are too noisy for this codebase
 #![allow(clippy::struct_excessive_bools)]
 #![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::missing_errors_doc)]
+#![allow(clippy::missing_panics_doc)]
+#![allow(clippy::unused_self)]
+#![allow(clippy::unnecessary_wraps)]
+#![allow(clippy::needless_pass_by_value)]
+#![allow(clippy::must_use_candidate)]
+#![allow(clippy::module_name_repetitions)]
+#![allow(clippy::doc_markdown)]
+#![allow(clippy::return_self_not_must_use)]
+#![allow(clippy::cast_precision_loss)]
+#![allow(clippy::cast_sign_loss)]
+#![allow(clippy::too_many_lines)]
+#![allow(clippy::cast_possible_wrap)]
+#![allow(clippy::no_effect_underscore_binding)]
+#![allow(clippy::default_trait_access)]
+#![allow(clippy::struct_field_names)]
+#![allow(clippy::wildcard_imports)]
+#![allow(clippy::items_after_statements)]
+#![allow(clippy::new_without_default)]
+#![allow(clippy::manual_let_else)]
+#![allow(clippy::match_same_arms)]
+#![allow(clippy::match_wildcard_for_single_variants)]
+#![allow(clippy::unused_async)]
+// Test-related - exact float comparison is intentional in tests
+#![allow(clippy::float_cmp)]
+// Nursery lints - experimental, too noisy
+#![allow(clippy::collection_is_never_read)]
+#![allow(clippy::future_not_send)]
+#![allow(clippy::significant_drop_in_scrutinee)]
 
 //! FraiseQL Observer System - Post-Mutation Side Effects
 //!

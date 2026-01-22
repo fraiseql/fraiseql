@@ -597,7 +597,7 @@ impl SchemaParser {
                 })
                 .collect::<Result<Vec<_>>>()?
                 .iter()
-                .map(|s| s.to_string())
+                .map(|s| (*s).to_string())
                 .collect()
         } else {
             Vec::new()

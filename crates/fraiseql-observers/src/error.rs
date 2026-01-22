@@ -180,7 +180,8 @@ pub enum ObserverErrorCode {
 
 impl ObserverErrorCode {
     /// Returns true if this error is transient (retryable)
-    pub fn is_transient(self) -> bool {
+    #[must_use] 
+    pub const fn is_transient(self) -> bool {
         matches!(
             self,
             ObserverErrorCode::ActionExecutionFailed
@@ -193,7 +194,8 @@ impl ObserverErrorCode {
     }
 
     /// Returns true if this error should go to dead letter queue
-    pub fn should_dlq(self) -> bool {
+    #[must_use] 
+    pub const fn should_dlq(self) -> bool {
         matches!(
             self,
             ObserverErrorCode::ActionPermanentlyFailed
@@ -209,9 +211,19 @@ impl From<sqlx::Error> for ObserverError {
     }
 }
 
+#[cfg(any(feature = "dedup", feature = "caching", feature = "queue"))]
+impl From<redis::RedisError> for ObserverError {
+    fn from(err: redis::RedisError) -> Self {
+        Self::DatabaseError {
+            reason: format!("Redis error: {err}"),
+        }
+    }
+}
+
 impl ObserverError {
     /// Get the error code for this error
-    pub fn code(&self) -> ObserverErrorCode {
+    #[must_use] 
+    pub const fn code(&self) -> ObserverErrorCode {
         match self {
             ObserverError::InvalidConfig { .. } => ObserverErrorCode::InvalidConfig,
             ObserverError::NoMatchingObservers { .. } => ObserverErrorCode::NoMatchingObservers,
@@ -251,12 +263,14 @@ impl ObserverError {
     }
 
     /// Returns true if this error is transient (retryable)
-    pub fn is_transient(&self) -> bool {
+    #[must_use] 
+    pub const fn is_transient(&self) -> bool {
         self.code().is_transient()
     }
 
     /// Returns true if this error should go to dead letter queue
-    pub fn should_dlq(&self) -> bool {
+    #[must_use] 
+    pub const fn should_dlq(&self) -> bool {
         self.code().should_dlq()
     }
 }

@@ -3,6 +3,10 @@
 //! These tests verify system behavior under high load, long duration,
 //! and failure scenarios.
 
+#![allow(unused_imports)]
+#![allow(clippy::cast_precision_loss)]
+#![allow(clippy::cast_sign_loss)]
+
 #[cfg(test)]
 mod stress_tests {
     use fraiseql_observers::*;
@@ -15,7 +19,7 @@ mod stress_tests {
     /// Simulates 1000 events/second for 60 seconds
     /// Verifies: throughput, latency distribution, no memory leaks
     #[tokio::test]
-    #[ignore] // Run with: cargo test --test stress_tests -- --ignored
+    #[ignore = "stress test - run with: cargo test --test stress_tests -- --ignored"]
     async fn stress_test_high_throughput() {
         let event_count = Arc::new(AtomicU64::new(0));
         let error_count = Arc::new(AtomicU64::new(0));
@@ -48,7 +52,7 @@ mod stress_tests {
             // Rate limiting
             let elapsed = event_start.elapsed();
             if elapsed < interval {
-                tokio::time::sleep(interval - elapsed).await;
+                tokio::time::sleep(interval.checked_sub(elapsed).unwrap()).await;
             }
         }
 
@@ -89,13 +93,13 @@ mod stress_tests {
     ///
     /// Verifies system can handle large event payloads without crashing
     #[tokio::test]
-    #[ignore]
+    #[ignore = "stress test - requires time and resources"]
     async fn stress_test_large_events() {
         let sizes = vec![
             1024,                  // 1 KB
-            102400,                // 100 KB
-            1048576,               // 1 MB
-            10485760,              // 10 MB
+            102_400,               // 100 KB
+            1_048_576,             // 1 MB
+            10_485_760,            // 10 MB
         ];
 
         println!("\n=== Large Event Stress Test ===");
@@ -124,7 +128,7 @@ mod stress_tests {
     ///
     /// Verifies thread safety and no race conditions
     #[tokio::test]
-    #[ignore]
+    #[ignore = "stress test - requires time and resources"]
     async fn stress_test_concurrent_access() {
         let counter = Arc::new(AtomicU64::new(0));
         let mut handles = vec![];
@@ -162,7 +166,7 @@ mod stress_tests {
     ///
     /// Verifies system recovers gracefully from failures
     #[tokio::test]
-    #[ignore]
+    #[ignore = "stress test - requires time and resources"]
     async fn stress_test_error_recovery() {
         let success_count = Arc::new(AtomicU64::new(0));
         let failure_count = Arc::new(AtomicU64::new(0));
@@ -206,7 +210,7 @@ mod stress_tests {
     ///
     /// Verifies no memory leaks over extended period
     #[tokio::test]
-    #[ignore]
+    #[ignore = "stress test - requires time and resources"]
     async fn stress_test_memory_stability() {
         println!("\n=== Memory Stability Stress Test ===");
 
@@ -219,14 +223,14 @@ mod stress_tests {
 
             if (i + 1) % 10_000 == 0 {
                 let elapsed = start.elapsed();
-                let rate = (i + 1) as f64 / elapsed.as_secs_f64();
+                let rate = f64::from(i + 1) / elapsed.as_secs_f64();
                 println!("Progress: {}/{} ({:.0} ops/sec)", i + 1, iterations, rate);
             }
         }
 
         let elapsed = start.elapsed();
         println!("\nTotal time: {:.2}s", elapsed.as_secs_f64());
-        println!("Rate: {:.0} ops/sec", iterations as f64 / elapsed.as_secs_f64());
+        println!("Rate: {:.0} ops/sec", f64::from(iterations) / elapsed.as_secs_f64());
 
         assert!(elapsed < Duration::from_secs(60), "Should complete in reasonable time");
     }
@@ -264,6 +268,6 @@ mod stress_tests {
     fn sanity_check_stress_tests() {
         println!("\n=== Sanity Check ===");
         println!("Stress test framework operational");
-        assert!(true);
+        // Sanity check passes by reaching this point without panic
     }
 }

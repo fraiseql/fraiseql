@@ -1,6 +1,6 @@
 // Authentication monitoring and observability
 use std::time::Instant;
-use tracing::{info, warn, error, span, Level};
+use tracing::{info, warn, span, Level};
 use serde::Serialize;
 
 /// Structured log for authentication events

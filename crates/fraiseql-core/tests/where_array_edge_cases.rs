@@ -92,7 +92,7 @@ fn test_where_array_with_mixed_types() {
         "string",
         true,
         null,
-        3.14,
+        3.15,
         {"nested": "object"},
         ["nested", "array"]
     ]);
@@ -111,7 +111,7 @@ fn test_where_array_with_mixed_types() {
             assert_eq!(arr[1], json!("string"));
             assert_eq!(arr[2], json!(true));
             assert_eq!(arr[3], json!(null));
-            assert_eq!(arr[4], json!(3.14));
+            assert_eq!(arr[4], json!(3.15));
         }
         _ => panic!("Should be Field variant"),
     }

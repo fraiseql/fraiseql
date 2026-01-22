@@ -1,7 +1,6 @@
 //! Redis-backed rate limiter with atomic sliding window.
 
 use async_trait::async_trait;
-use redis::AsyncCommands;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use super::{RateLimit, RateLimitResult, RateLimitState, RateLimiter};
@@ -26,7 +25,7 @@ impl RedisRateLimiter {
         })?;
 
         // Test connection
-        let mut conn = client.get_async_connection().await.map_err(|e| {
+        let mut conn = client.get_multiplexed_async_connection().await.map_err(|e| {
             RuntimeError::Integration(fraiseql_error::IntegrationError::ConnectionFailed {
                 service: format!("redis: {e}"),
             })
@@ -60,14 +59,14 @@ impl RateLimiter for RedisRateLimiter {
 
         let window_start_ms = now_ms - limit.window.as_millis() as i64;
 
-        let mut conn = match self.client.get_async_connection().await {
+        let mut conn = match self.client.get_multiplexed_async_connection().await {
             Ok(c) => c,
             Err(_) => return RateLimitResult::Overloaded, // Fail open or closed based on policy
         };
 
         // Lua script for atomic sliding window check
         let script = redis::Script::new(
-            r#"
+            r"
             local key = KEYS[1]
             local now = tonumber(ARGV[1])
             local window_start = tonumber(ARGV[2])
@@ -94,7 +93,7 @@ impl RateLimiter for RedisRateLimiter {
                 end
                 return {0, 0, reset_at}
             end
-        "#,
+        ",
         );
 
         let result: Vec<i64> = match script
@@ -137,7 +136,7 @@ impl RateLimiter for RedisRateLimiter {
 
     async fn get_state(&self, key: &str) -> Option<RateLimitState> {
         let redis_key = self.make_key(key);
-        let mut conn: redis::aio::Connection = self.client.get_async_connection().await.ok()?;
+        let mut conn = self.client.get_multiplexed_async_connection().await.ok()?;
         let count: i64 = redis::cmd("ZCARD")
             .arg(&redis_key)
             .query_async(&mut conn)

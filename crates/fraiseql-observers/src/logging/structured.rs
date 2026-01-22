@@ -19,6 +19,7 @@ impl StructuredLogger {
     /// let logger = StructuredLogger::new("webhook-service");
     /// logger.info("webhook_sent", vec![("status", "200"), ("duration_ms", "42")]);
     /// ```
+    #[must_use] 
     pub fn new(service: &str) -> Self {
         Self {
             service: service.to_string(),
@@ -27,6 +28,7 @@ impl StructuredLogger {
     }
 
     /// Create logger with span ID for distributed tracing
+    #[must_use] 
     pub fn with_span(service: &str, span_id: &str) -> Self {
         Self {
             service: service.to_string(),
@@ -35,6 +37,7 @@ impl StructuredLogger {
     }
 
     /// Create logger with trace context
+    #[must_use] 
     pub fn with_context(service: &str, context: &TraceContext) -> Self {
         Self {
             service: service.to_string(),
@@ -107,9 +110,9 @@ impl StructuredLogger {
             .iter()
             .map(|(k, v)| {
                 if v.contains(' ') || v.contains('=') {
-                    format!("{}=\"{}\"", k, v)
+                    format!("{k}=\"{v}\"")
                 } else {
-                    format!("{}={}", k, v)
+                    format!("{k}={v}")
                 }
             })
             .collect::<Vec<_>>()
@@ -127,6 +130,7 @@ pub struct LogBuilder {
 
 impl LogBuilder {
     /// Create new log builder
+    #[must_use] 
     pub fn new(service: &str) -> Self {
         Self {
             service: service.to_string(),
@@ -137,24 +141,28 @@ impl LogBuilder {
     }
 
     /// Add field
+    #[must_use] 
     pub fn field(mut self, key: &str, value: &str) -> Self {
         self.fields.push((key.to_string(), value.to_string()));
         self
     }
 
     /// Add numeric field
+    #[must_use] 
     pub fn field_i64(mut self, key: &str, value: i64) -> Self {
         self.fields.push((key.to_string(), value.to_string()));
         self
     }
 
     /// Add float field
+    #[must_use] 
     pub fn field_f64(mut self, key: &str, value: f64) -> Self {
         self.fields.push((key.to_string(), value.to_string()));
         self
     }
 
     /// Add trace context
+    #[must_use] 
     pub fn with_context(mut self, context: &TraceContext) -> Self {
         self.trace_id = Some(context.trace_id.clone());
         self.span_id = Some(context.span_id.clone());
@@ -229,7 +237,7 @@ mod tests {
         let builder = LogBuilder::new("service")
             .field("status", "200")
             .field_i64("duration_ms", 42)
-            .field_f64("latency", 3.14);
+            .field_f64("latency", 3.15);
 
         assert_eq!(builder.service, "service");
         assert_eq!(builder.fields.len(), 3);

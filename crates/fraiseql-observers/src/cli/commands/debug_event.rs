@@ -1,7 +1,7 @@
 //! Debug event command - inspect and analyze events
 
 use crate::error::Result;
-use colored::*;
+use colored::Colorize;
 use serde_json::json;
 
 /// Execute debug-event command
@@ -75,7 +75,7 @@ pub async fn execute(
         crate::cli::OutputFormat::Json => {
             let json_str = serde_json::to_string_pretty(&event_info)
                 .unwrap_or_else(|_| "{}".to_string());
-            println!("{}", json_str);
+            println!("{json_str}");
         }
         crate::cli::OutputFormat::Text => {
             println!("{}", "Event Details".bold().underline());

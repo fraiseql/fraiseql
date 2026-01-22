@@ -17,6 +17,7 @@ pub struct PerEndpointCircuitBreaker {
 
 impl PerEndpointCircuitBreaker {
     /// Create a new per-endpoint breaker manager
+    #[must_use] 
     pub fn new(default_config: CircuitBreakerConfig) -> Self {
         Self {
             breakers: Arc::new(DashMap::new()),
@@ -25,6 +26,7 @@ impl PerEndpointCircuitBreaker {
     }
 
     /// Get or create a circuit breaker for an endpoint
+    #[must_use] 
     pub fn get_or_create(&self, endpoint: &str) -> Arc<CircuitBreaker> {
         self.breakers
             .entry(endpoint.to_string())
@@ -64,6 +66,7 @@ impl PerEndpointCircuitBreaker {
     }
 
     /// Get number of managed endpoints
+    #[must_use] 
     pub fn endpoint_count(&self) -> usize {
         self.breakers.len()
     }
@@ -120,8 +123,8 @@ mod tests {
         let manager = PerEndpointCircuitBreaker::new(config);
 
         // Create some endpoints
-        manager.get_or_create("endpoint1");
-        manager.get_or_create("endpoint2");
+        let _ = manager.get_or_create("endpoint1");
+        let _ = manager.get_or_create("endpoint2");
 
         assert_eq!(manager.endpoint_count(), 2);
 
@@ -139,8 +142,8 @@ mod tests {
         let config = CircuitBreakerConfig::default();
         let manager = PerEndpointCircuitBreaker::new(config);
 
-        manager.get_or_create("endpoint1");
-        manager.get_or_create("endpoint2");
+        let _ = manager.get_or_create("endpoint1");
+        let _ = manager.get_or_create("endpoint2");
 
         let states = manager.get_all_states().await;
 

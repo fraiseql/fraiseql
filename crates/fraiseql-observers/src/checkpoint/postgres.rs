@@ -23,7 +23,8 @@ impl PostgresCheckpointStore {
     /// # Arguments
     ///
     /// * `pool` - PostgreSQL connection pool
-    pub fn new(pool: PgPool) -> Self {
+    #[must_use] 
+    pub const fn new(pool: PgPool) -> Self {
         Self { pool }
     }
 }
@@ -33,11 +34,11 @@ impl CheckpointStore for PostgresCheckpointStore {
     async fn load(&self, listener_id: &str) -> Result<Option<CheckpointState>> {
         #[allow(clippy::cast_possible_wrap)]
         let record = sqlx::query_as::<_, (String, i64, chrono::DateTime<Utc>, i32, i32)>(
-            r#"
+            r"
             SELECT listener_id, last_processed_id, last_processed_at, batch_size, event_count
             FROM observer_checkpoints
             WHERE listener_id = $1
-            "#,
+            ",
         )
         .bind(listener_id)
         .fetch_optional(&self.pool)
@@ -57,7 +58,7 @@ impl CheckpointStore for PostgresCheckpointStore {
     async fn save(&self, listener_id: &str, state: &CheckpointState) -> Result<()> {
         #[allow(clippy::cast_possible_wrap)]
         sqlx::query(
-            r#"
+            r"
             INSERT INTO observer_checkpoints
                 (listener_id, last_processed_id, last_processed_at, batch_size, event_count, updated_at)
             VALUES ($1, $2, $3, $4, $5, NOW())
@@ -68,7 +69,7 @@ impl CheckpointStore for PostgresCheckpointStore {
                 batch_size = EXCLUDED.batch_size,
                 event_count = EXCLUDED.event_count,
                 updated_at = NOW()
-            "#,
+            ",
         )
         .bind(listener_id)
         .bind(state.last_processed_id)
@@ -88,11 +89,11 @@ impl CheckpointStore for PostgresCheckpointStore {
         new_id: i64,
     ) -> Result<bool> {
         let result = sqlx::query(
-            r#"
+            r"
             UPDATE observer_checkpoints
             SET last_processed_id = $3, updated_at = NOW()
             WHERE listener_id = $1 AND last_processed_id = $2
-            "#,
+            ",
         )
         .bind(listener_id)
         .bind(expected_id)

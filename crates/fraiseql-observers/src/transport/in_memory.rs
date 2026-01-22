@@ -32,6 +32,7 @@ pub struct InMemoryTransport {
 
 impl InMemoryTransport {
     /// Create a new in-memory transport
+    #[must_use] 
     pub fn new() -> Self {
         let (sender, receiver) = mpsc::unbounded_channel();
 
@@ -46,6 +47,7 @@ impl InMemoryTransport {
     /// Note: Currently uses unbounded channel for simplicity.
     /// Bounded capacity support can be added in Phase 2 if needed.
     #[allow(unused_variables)]
+    #[must_use] 
     pub fn with_capacity(capacity: usize) -> Self {
         // For now, just use unbounded for simplicity
         let (sender_unbounded, receiver_unbounded) = mpsc::unbounded_channel();
@@ -94,7 +96,7 @@ impl EventTransport for InMemoryTransport {
         sender
             .send(event.clone())
             .map_err(|e| ObserverError::TransportPublishFailed {
-                reason: format!("Failed to send event to in-memory channel: {}", e),
+                reason: format!("Failed to send event to in-memory channel: {e}"),
             })?;
 
         debug!("InMemoryTransport: published event {}", event.id);
@@ -187,9 +189,9 @@ mod tests {
         }
 
         // Receive all events and verify
-        for i in 0..5 {
+        for (i, expected_id) in event_ids.iter().enumerate().take(5) {
             let received = stream.next().await.unwrap().unwrap();
-            assert_eq!(received.id, event_ids[i]);
+            assert_eq!(received.id, *expected_id);
             assert_eq!(received.data["index"], i);
         }
     }

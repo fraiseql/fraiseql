@@ -34,6 +34,7 @@ pub struct PostgresNotifyTransport {
 
 impl PostgresNotifyTransport {
     /// Create a new PostgreSQL transport from existing listener
+    #[must_use] 
     pub fn new(listener: ChangeLogListener) -> Self {
         let poll_interval = Duration::from_millis(100); // Default 100ms polling
 
@@ -44,6 +45,7 @@ impl PostgresNotifyTransport {
     }
 
     /// Create from configuration (convenience constructor)
+    #[must_use] 
     pub fn from_config(config: ChangeLogListenerConfig) -> Self {
         let poll_interval = Duration::from_millis(config.poll_interval_ms);
         let listener = ChangeLogListener::new(config);
@@ -55,7 +57,8 @@ impl PostgresNotifyTransport {
     }
 
     /// Set poll interval
-    pub fn with_poll_interval(mut self, interval: Duration) -> Self {
+    #[must_use] 
+    pub const fn with_poll_interval(mut self, interval: Duration) -> Self {
         self.poll_interval = interval;
         self
     }
@@ -94,7 +97,7 @@ impl EventTransport for PostgresNotifyTransport {
                         debug!("PostgresNotifyTransport: fetched {} entries", entries.len());
 
                         // Convert entries to events and yield them one by one
-                        for entry in entries {
+                        if let Some(entry) = entries.into_iter().next() {
                             match entry.to_entity_event() {
                                 Ok(event) => {
                                     return Some((Ok(event), (listener, interval)));
@@ -148,7 +151,7 @@ impl EventTransport for PostgresNotifyTransport {
 mod tests {
     use super::*;
     use crate::listener::ChangeLogListenerConfig;
-    use futures::StreamExt;
+    
     use sqlx::postgres::PgPool;
     use std::env;
 

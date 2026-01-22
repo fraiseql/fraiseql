@@ -122,7 +122,7 @@ impl RuntimeServer {
         // Timeout
         if let Some(limits) = &self.config.server.limits {
             if let Some(timeout) = parse_duration(&limits.request_timeout) {
-                app = app.layer(TimeoutLayer::new(timeout));
+                app = app.layer(TimeoutLayer::with_status_code(http::StatusCode::REQUEST_TIMEOUT, timeout));
             }
         }
 

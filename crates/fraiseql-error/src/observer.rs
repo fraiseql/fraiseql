@@ -23,7 +23,7 @@ pub enum ObserverError {
 }
 
 impl ObserverError {
-    pub fn error_code(&self) -> &'static str {
+    pub const fn error_code(&self) -> &'static str {
         match self {
             Self::InvalidCondition { .. } => "observer_invalid_condition",
             Self::TemplateError { .. } => "observer_template_error",

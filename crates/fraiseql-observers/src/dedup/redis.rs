@@ -24,7 +24,8 @@ impl RedisDeduplicationStore {
     ///
     /// * `conn` - Redis connection manager
     /// * `window_seconds` - Deduplication time window in seconds (default 300)
-    pub fn new(conn: ConnectionManager, window_seconds: u64) -> Self {
+    #[must_use] 
+    pub const fn new(conn: ConnectionManager, window_seconds: u64) -> Self {
         Self {
             conn,
             window_seconds,
@@ -41,7 +42,7 @@ impl RedisDeduplicationStore {
     ///
     /// Redis key with dedup prefix
     fn dedup_key(event_key: &str) -> String {
-        format!("dedup:v1:{}", event_key)
+        format!("dedup:v1:{event_key}")
     }
 }
 
@@ -64,7 +65,7 @@ impl DeduplicationStore for RedisDeduplicationStore {
             .arg(&key)
             .arg(self.window_seconds as i64)
             .arg("1")
-            .query_async(&mut self.conn.clone())
+            .query_async::<_, ()>(&mut self.conn.clone())
             .await?;
 
         Ok(())
@@ -83,7 +84,7 @@ impl DeduplicationStore for RedisDeduplicationStore {
 
         redis::cmd("DEL")
             .arg(&key)
-            .query_async(&mut self.conn.clone())
+            .query_async::<_, ()>(&mut self.conn.clone())
             .await?;
 
         Ok(())
@@ -104,6 +105,7 @@ mod tests {
     fn test_redis_dedup_store_clone() {
         // Ensure RedisDeduplicationStore is Clone
         fn assert_clone<T: Clone>() {}
+        assert_clone::<RedisDeduplicationStore>();
         // Note: This test only verifies the struct is Clone-able
         // Actual Redis tests require a Redis server
     }

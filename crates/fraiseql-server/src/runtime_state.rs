@@ -39,6 +39,10 @@ pub struct AppState {
 
 impl AppState {
     /// Create new application state from configuration (without database)
+    ///
+    /// # Panics
+    /// Panics if the "database" feature is enabled - use `new_with_database` instead.
+    #[allow(unreachable_code, unused_variables)]
     pub fn new(config: crate::config::RuntimeConfig, shutdown: Arc<ShutdownCoordinator>) -> Self {
         Self {
             config: Arc::new(config),

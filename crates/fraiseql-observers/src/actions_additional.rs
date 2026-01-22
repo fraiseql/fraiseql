@@ -13,7 +13,8 @@ pub struct SmsAction;
 
 impl SmsAction {
     /// Creates a new SMS action.
-    pub fn new() -> Self {
+    #[must_use] 
+    pub const fn new() -> Self {
         Self
     }
 
@@ -80,7 +81,8 @@ pub struct PushAction;
 
 impl PushAction {
     /// Creates a new push notification action.
-    pub fn new() -> Self {
+    #[must_use] 
+    pub const fn new() -> Self {
         Self
     }
 
@@ -147,7 +149,8 @@ pub struct SearchAction;
 
 impl SearchAction {
     /// Creates a new search index action.
-    pub fn new() -> Self {
+    #[must_use] 
+    pub const fn new() -> Self {
         Self
     }
 
@@ -156,7 +159,7 @@ impl SearchAction {
     /// # Arguments
     ///
     /// * `index` - Search index name
-    /// * `document_id_template` - Optional document ID template (uses entity_id if None)
+    /// * `document_id_template` - Optional document ID template (uses `entity_id` if None)
     /// * `event` - Entity event containing data to index
     ///
     /// # Errors
@@ -214,7 +217,8 @@ pub struct CacheAction;
 
 impl CacheAction {
     /// Creates a new cache action.
-    pub fn new() -> Self {
+    #[must_use] 
+    pub const fn new() -> Self {
         Self
     }
 

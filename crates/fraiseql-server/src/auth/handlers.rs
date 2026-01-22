@@ -1,15 +1,12 @@
 // HTTP handlers for authentication endpoints
 use crate::auth::error::{AuthError, Result};
-use crate::auth::jwt::Claims;
-use crate::auth::middleware::AuthenticatedUser;
 use crate::auth::provider::OAuthProvider;
 use crate::auth::session::SessionStore;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
-use axum::response::{IntoResponse, Redirect, Response};
+use axum::response::IntoResponse;
 use axum::Json;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::sync::Arc;
 
 /// AuthState holds the auth configuration and backends
@@ -86,19 +83,6 @@ pub struct AuthRefreshResponse {
 pub struct AuthLogoutRequest {
     /// Refresh token to revoke
     pub refresh_token: Option<String>,
-}
-
-/// Response for successful auth operations
-#[derive(Debug, Serialize)]
-struct SuccessResponse<T: Serialize> {
-    data: T,
-}
-
-/// Error response
-#[derive(Debug, Serialize)]
-struct ErrorResponseBody {
-    error: String,
-    message: String,
 }
 
 /// POST /auth/start - Initiate OAuth flow

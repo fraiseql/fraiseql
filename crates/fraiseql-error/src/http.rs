@@ -39,7 +39,7 @@ impl ErrorResponse {
         self
     }
 
-    pub fn with_retry_after(mut self, seconds: u64) -> Self {
+    pub const fn with_retry_after(mut self, seconds: u64) -> Self {
         self.retry_after = Some(seconds);
         self
     }
@@ -57,8 +57,8 @@ impl IntoResponse for RuntimeError {
 
             RuntimeError::Auth(e) => {
                 let status = match e {
-                    AuthError::InsufficientPermissions { .. } => StatusCode::FORBIDDEN,
-                    AuthError::AccountLocked { .. } => StatusCode::FORBIDDEN,
+                    AuthError::InsufficientPermissions { .. }
+                    | AuthError::AccountLocked { .. } => StatusCode::FORBIDDEN,
                     _ => StatusCode::UNAUTHORIZED,
                 };
                 (status, ErrorResponse::new("authentication_error", self.to_string(), error_code))
@@ -67,7 +67,6 @@ impl IntoResponse for RuntimeError {
             RuntimeError::Webhook(e) => {
                 let status = match e {
                     WebhookError::InvalidSignature => StatusCode::UNAUTHORIZED,
-                    WebhookError::MissingSignature { .. } => StatusCode::BAD_REQUEST,
                     WebhookError::DuplicateEvent { .. } => StatusCode::OK,
                     _ => StatusCode::BAD_REQUEST,
                 };
@@ -89,7 +88,7 @@ impl IntoResponse for RuntimeError {
             },
 
             RuntimeError::Notification(e) => {
-                use crate::NotificationError::*;
+                use crate::NotificationError::{CircuitOpen, ProviderUnavailable, ProviderRateLimited, InvalidInput};
                 let status = match e {
                     CircuitOpen { .. } | ProviderUnavailable { .. } => {
                         StatusCode::SERVICE_UNAVAILABLE
@@ -157,8 +156,8 @@ impl IntoResponse for RuntimeError {
 impl RuntimeError {
     fn retry_after_header(&self) -> Option<String> {
         match self {
-            Self::RateLimited { retry_after: Some(secs) } => Some(secs.to_string()),
-            Self::ServiceUnavailable { retry_after: Some(secs), .. } => Some(secs.to_string()),
+            Self::RateLimited { retry_after: Some(secs) }
+            | Self::ServiceUnavailable { retry_after: Some(secs), .. } => Some(secs.to_string()),
             _ => None,
         }
     }

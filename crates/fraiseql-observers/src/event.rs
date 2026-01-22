@@ -24,7 +24,8 @@ pub enum EventKind {
 
 impl EventKind {
     /// Convert to string representation
-    pub fn as_str(&self) -> &'static str {
+    #[must_use] 
+    pub const fn as_str(&self) -> &'static str {
         match self {
             EventKind::Created => "INSERT",
             EventKind::Updated => "UPDATE",
@@ -66,6 +67,7 @@ pub struct EntityEvent {
 
 impl EntityEvent {
     /// Create a new entity event
+    #[must_use] 
     pub fn new(
         event_type: EventKind,
         entity_type: String,
@@ -84,13 +86,15 @@ impl EntityEvent {
         }
     }
 
-    /// Set the user_id for this event
+    /// Set the `user_id` for this event
+    #[must_use] 
     pub fn with_user_id(mut self, user_id: String) -> Self {
         self.user_id = Some(user_id);
         self
     }
 
     /// Set field changes for UPDATE events
+    #[must_use] 
     pub fn with_changes(
         mut self,
         changes: std::collections::HashMap<String, FieldChanges>,
@@ -100,23 +104,24 @@ impl EntityEvent {
     }
 
     /// Check if a field changed value
+    #[must_use] 
     pub fn field_changed(&self, field_name: &str) -> bool {
         self.changes
             .as_ref()
-            .map(|changes| changes.contains_key(field_name))
-            .unwrap_or(false)
+            .is_some_and(|changes| changes.contains_key(field_name))
     }
 
     /// Check if a field changed to a specific value
+    #[must_use] 
     pub fn field_changed_to(&self, field_name: &str, expected_value: &serde_json::Value) -> bool {
         self.changes
             .as_ref()
             .and_then(|changes| changes.get(field_name))
-            .map(|change| change.new == *expected_value)
-            .unwrap_or(false)
+            .is_some_and(|change| change.new == *expected_value)
     }
 
     /// Check if a field changed from a specific value
+    #[must_use] 
     pub fn field_changed_from(
         &self,
         field_name: &str,
@@ -125,16 +130,17 @@ impl EntityEvent {
         self.changes
             .as_ref()
             .and_then(|changes| changes.get(field_name))
-            .map(|change| change.old == *expected_value)
-            .unwrap_or(false)
+            .is_some_and(|change| change.old == *expected_value)
     }
 
     /// Check if this is a new entity (no old value for any field)
+    #[must_use] 
     pub fn is_new(&self) -> bool {
         self.event_type == EventKind::Created
     }
 
     /// Check if this is a delete event
+    #[must_use] 
     pub fn is_deleted(&self) -> bool {
         self.event_type == EventKind::Deleted
     }

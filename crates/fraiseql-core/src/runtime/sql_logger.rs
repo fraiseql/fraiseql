@@ -132,7 +132,7 @@ impl SqlQueryLogBuilder {
     /// Finish logging and create log entry (successful execution).
     pub fn finish_success(self, rows_affected: Option<usize>) -> SqlQueryLog {
         let duration_us = self.start.elapsed().as_micros() as u64;
-        let was_slow = self.slow_threshold_us.map_or(false, |t| duration_us > t);
+        let was_slow = self.slow_threshold_us.is_some_and(|t| duration_us > t);
 
         let log = SqlQueryLog {
             query_id: self.query_id.clone(),
@@ -310,7 +310,7 @@ mod tests {
         let log = builder.finish_success(Some(5));
 
         // Query should be considered fast (runs much faster than 100 us typically)
-        assert_eq!(log.was_slow, false);
+        assert!(!log.was_slow);
     }
 
     #[test]

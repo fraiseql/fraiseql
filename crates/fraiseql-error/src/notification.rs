@@ -28,7 +28,7 @@ pub enum NotificationError {
 }
 
 impl NotificationError {
-    pub fn error_code(&self) -> &'static str {
+    pub const fn error_code(&self) -> &'static str {
         match self {
             Self::Configuration { .. } => "notification_config_error",
             Self::Provider { .. } => "notification_provider_error",

@@ -256,41 +256,35 @@ impl DatabaseAdapter for SqlServerAdapter {
             format!("SELECT data FROM [{view}]")
         };
 
+        // Collect WHERE clause params (if any)
+        let mut params: Vec<serde_json::Value> = Vec::new();
+        let mut param_count = 0;
+
         // Add WHERE clause if present
         if let Some(clause) = where_clause {
             let generator = SqlServerWhereGenerator::new();
             let (where_sql, where_params) = generator.generate(clause)?;
             sql.push_str(" WHERE ");
             sql.push_str(&where_sql);
-
-            // Handle pagination with OFFSET...FETCH (requires ORDER BY)
-            let mut params = where_params;
-            if let Some(off) = offset {
-                sql.push_str(" ORDER BY (SELECT NULL)"); // Arbitrary ordering for pagination
-                sql.push_str(" OFFSET ? ROWS");
-                params.push(serde_json::Value::Number(off.into()));
-                if let Some(lim) = limit {
-                    sql.push_str(" FETCH NEXT ? ROWS ONLY");
-                    params.push(serde_json::Value::Number(lim.into()));
-                }
-            }
-
-            self.execute_raw(&sql, params).await
-        } else {
-            // No WHERE clause
-            let mut params: Vec<serde_json::Value> = vec![];
-            if let Some(off) = offset {
-                sql.push_str(" ORDER BY (SELECT NULL)");
-                sql.push_str(" OFFSET ? ROWS");
-                params.push(serde_json::Value::Number(off.into()));
-                if let Some(lim) = limit {
-                    sql.push_str(" FETCH NEXT ? ROWS ONLY");
-                    params.push(serde_json::Value::Number(lim.into()));
-                }
-            }
-
-            self.execute_raw(&sql, params).await
+            param_count = where_params.len();
+            params = where_params;
         }
+
+        // Handle pagination with OFFSET...FETCH (requires ORDER BY)
+        // SQL Server uses @p1, @p2, ... for parameters
+        if let Some(off) = offset {
+            sql.push_str(" ORDER BY (SELECT NULL)"); // Arbitrary ordering for pagination
+            param_count += 1;
+            sql.push_str(&format!(" OFFSET @p{param_count} ROWS"));
+            params.push(serde_json::Value::Number(off.into()));
+            if let Some(lim) = limit {
+                param_count += 1;
+                sql.push_str(&format!(" FETCH NEXT @p{param_count} ROWS ONLY"));
+                params.push(serde_json::Value::Number(lim.into()));
+            }
+        }
+
+        self.execute_raw(&sql, params).await
     }
 
     fn database_type(&self) -> DatabaseType {

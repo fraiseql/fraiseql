@@ -28,7 +28,6 @@ fn test_mutation_and_query_are_distinct() {
     let _queries_vec: Vec<_> = schema.queries.clone();
 
     // This test verifies the schema structure exists (no panics above)
-    assert!(true);
 }
 
 #[test]
@@ -60,8 +59,8 @@ fn test_mutations_and_queries_are_separate_lists() {
 
     // Both should be accessible without error (compile-time proof they're distinct fields)
     // This verifies they are separate lists, not mixed together
-    assert_eq!(schema.mutations.is_empty(), true);
-    assert_eq!(schema.queries.is_empty(), true);
+    assert!(schema.mutations.is_empty());
+    assert!(schema.queries.is_empty());
 }
 
 #[test]

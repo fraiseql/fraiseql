@@ -23,6 +23,7 @@ pub struct EventMatcher {
 
 impl EventMatcher {
     /// Create a new event matcher
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             index: HashMap::new(),
@@ -35,7 +36,7 @@ impl EventMatcher {
     /// * `observers` - Map of observer name -> definition
     ///
     /// # Returns
-    /// EventMatcher with all observers indexed
+    /// `EventMatcher` with all observers indexed
     pub fn build(observers: HashMap<String, ObserverDefinition>) -> Result<Self> {
         let mut matcher = Self::new();
 
@@ -53,9 +54,9 @@ impl EventMatcher {
 
         self.index
             .entry(event_type)
-            .or_insert_with(HashMap::new)
+            .or_default()
             .entry(entity_type)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(observer);
 
         Ok(())
@@ -68,6 +69,7 @@ impl EventMatcher {
     ///
     /// # Returns
     /// Vector of matching observer definitions (empty if no matches)
+    #[must_use] 
     pub fn find_matches(&self, event: &EntityEvent) -> Vec<&ObserverDefinition> {
         let event_type_str = event.event_type.as_str().to_uppercase();
 
@@ -79,6 +81,7 @@ impl EventMatcher {
     }
 
     /// Find observers matching an event type and entity
+    #[must_use] 
     pub fn find_by_event_and_entity(
         &self,
         event_type: EventKind,
@@ -94,6 +97,7 @@ impl EventMatcher {
     }
 
     /// Get all observers (for administrative/debugging purposes)
+    #[must_use] 
     pub fn all_observers(&self) -> Vec<&ObserverDefinition> {
         self.index
             .values()
@@ -102,23 +106,26 @@ impl EventMatcher {
     }
 
     /// Get count of all observers
+    #[must_use] 
     pub fn observer_count(&self) -> usize {
         self.index
             .values()
-            .map(|entity_map| entity_map.values().map(|obs| obs.len()).sum::<usize>())
+            .map(|entity_map| entity_map.values().map(std::vec::Vec::len).sum::<usize>())
             .sum()
     }
 
     /// Get count of unique event types
+    #[must_use] 
     pub fn event_type_count(&self) -> usize {
         self.index.len()
     }
 
     /// Get count of unique entity types
+    #[must_use] 
     pub fn entity_type_count(&self) -> usize {
         self.index
             .values()
-            .map(|entity_map| entity_map.len())
+            .map(std::collections::HashMap::len)
             .sum()
     }
 

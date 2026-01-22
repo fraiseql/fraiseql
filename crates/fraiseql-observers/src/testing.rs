@@ -19,6 +19,7 @@ pub mod mocks {
 
     impl MockEventSource {
         /// Create a new mock event source with predefined events
+        #[must_use] 
         pub fn new(events: Vec<EntityEvent>) -> Self {
             Self {
                 events: Mutex::new(events.into()),
@@ -26,7 +27,8 @@ pub mod mocks {
         }
 
         /// Create an empty mock event source
-        pub fn empty() -> Self {
+        #[must_use] 
+        pub const fn empty() -> Self {
             Self {
                 events: Mutex::new(VecDeque::new()),
             }
@@ -51,13 +53,14 @@ pub mod mocks {
         executions: Mutex<Vec<(String, bool)>>,
         /// Should fail for all actions
         should_fail: Mutex<bool>,
-        /// Failure reason if should_fail is true
+        /// Failure reason if `should_fail` is true
         failure_reason: Mutex<Option<String>>,
     }
 
     impl MockActionExecutor {
         /// Create a new mock action executor
-        pub fn new() -> Self {
+        #[must_use] 
+        pub const fn new() -> Self {
             Self {
                 executions: Mutex::new(Vec::new()),
                 should_fail: Mutex::new(false),
@@ -108,7 +111,7 @@ pub mod mocks {
                 self.executions
                     .lock()
                     .unwrap()
-                    .push((action_type.clone(), false));
+                    .push((action_type, false));
                 return Err(crate::error::ObserverError::ActionExecutionFailed {
                     reason,
                 });
@@ -135,7 +138,8 @@ pub mod mocks {
 
     impl MockDeadLetterQueue {
         /// Create a new mock DLQ
-        pub fn new() -> Self {
+        #[must_use] 
+        pub const fn new() -> Self {
             Self {
                 items: Mutex::new(Vec::new()),
             }
@@ -207,6 +211,7 @@ pub mod mocks {
 
     impl MockConditionEvaluator {
         /// Create a new mock condition evaluator
+        #[must_use] 
         pub fn new() -> Self {
             Self {
                 results: Mutex::new(std::collections::HashMap::new()),
@@ -244,6 +249,7 @@ pub mod mocks {
 
     impl MockTemplateRenderer {
         /// Create a new mock template renderer
+        #[must_use] 
         pub fn new() -> Self {
             Self {
                 templates: Mutex::new(std::collections::HashMap::new()),
@@ -256,13 +262,14 @@ pub mod mocks {
         }
 
         /// Simple placeholder substitution ({{ key }} → value)
+        #[must_use] 
         pub fn simple_substitute(template: &str, data: &serde_json::Value) -> String {
             let mut result = template.to_string();
 
             // Replace {{ key }} with data[key]
             if let serde_json::Value::Object(map) = data {
                 for (key, value) in map {
-                    let placeholder = format!("{{{{ {} }}}}", key);
+                    let placeholder = format!("{{{{ {key} }}}}");
                     let value_str = match value {
                         serde_json::Value::String(s) => s.clone(),
                         _ => value.to_string(),
@@ -301,6 +308,7 @@ pub mod mocks {
 
     impl MockCheckpointStore {
         /// Create a new mock checkpoint store
+        #[must_use] 
         pub fn new() -> Self {
             Self {
                 checkpoints: std::sync::Arc::new(Mutex::new(std::collections::HashMap::new())),

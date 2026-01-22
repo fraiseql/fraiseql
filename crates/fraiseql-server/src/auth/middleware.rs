@@ -3,8 +3,6 @@ use crate::auth::error::{AuthError, Result};
 use crate::auth::jwt::Claims;
 use crate::auth::session::SessionStore;
 use crate::auth::jwt::JwtValidator;
-use axum::extract::FromRequestParts;
-use axum::http::request::Parts;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use std::sync::Arc;
@@ -46,9 +44,9 @@ impl AuthenticatedUser {
 /// Authentication middleware configuration
 pub struct AuthMiddleware {
     validator: Arc<JwtValidator>,
-    session_store: Arc<dyn SessionStore>,
+    _session_store: Arc<dyn SessionStore>,
     public_key: Vec<u8>,
-    optional: bool,
+    _optional: bool,
 }
 
 impl AuthMiddleware {
@@ -67,9 +65,9 @@ impl AuthMiddleware {
     ) -> Self {
         Self {
             validator,
-            session_store,
+            _session_store: session_store,
             public_key,
-            optional,
+            _optional: optional,
         }
     }
 
@@ -77,13 +75,6 @@ impl AuthMiddleware {
     pub async fn validate_token(&self, token: &str) -> Result<Claims> {
         self.validator.validate(token, &self.public_key)
     }
-}
-
-/// Error response for authentication failures
-#[derive(Debug, Serialize)]
-struct AuthErrorResponse {
-    error: String,
-    message: String,
 }
 
 impl IntoResponse for AuthError {

@@ -129,7 +129,7 @@ fn test_mutation_argument_types_preserved() {
             {"name": "str_arg", "value": "text", "type": "String"},
             {"name": "int_arg", "value": 42, "type": "Int"},
             {"name": "bool_arg", "value": true, "type": "Boolean"},
-            {"name": "float_arg", "value": 3.14, "type": "Float"},
+            {"name": "float_arg", "value": 3.15, "type": "Float"},
             {"name": "id_arg", "value": "id123", "type": "ID"},
             {"name": "null_arg", "value": null, "type": "String"}
         ]
@@ -262,7 +262,7 @@ fn test_mutation_optional_arguments() {
     assert_eq!(args[1]["value"], json!(null));
 
     // Omitted argument might not have value field
-    assert!(!args[2].get("value").is_some() || args[2]["value"].is_null());
+    assert!(args[2].get("value").is_none() || args[2]["value"].is_null());
 }
 
 #[test]

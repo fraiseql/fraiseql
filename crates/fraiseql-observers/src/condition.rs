@@ -83,19 +83,19 @@ impl fmt::Display for ConditionAst {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ConditionAst::Comparison { field, op, value } => {
-                write!(f, "{} {} {}", field, op, value)
+                write!(f, "{field} {op} {value}")
             }
-            ConditionAst::HasField { field } => write!(f, "has_field('{}')", field),
-            ConditionAst::FieldChanged { field } => write!(f, "field_changed('{}')", field),
+            ConditionAst::HasField { field } => write!(f, "has_field('{field}')"),
+            ConditionAst::FieldChanged { field } => write!(f, "field_changed('{field}')"),
             ConditionAst::FieldChangedTo { field, value } => {
-                write!(f, "field_changed_to('{}', '{}')", field, value)
+                write!(f, "field_changed_to('{field}', '{value}')")
             }
             ConditionAst::FieldChangedFrom { field, value } => {
-                write!(f, "field_changed_from('{}', '{}')", field, value)
+                write!(f, "field_changed_from('{field}', '{value}')")
             }
-            ConditionAst::And { left, right } => write!(f, "({}) && ({})", left, right),
-            ConditionAst::Or { left, right } => write!(f, "({}) || ({})", left, right),
-            ConditionAst::Not { expr } => write!(f, "!({})", expr),
+            ConditionAst::And { left, right } => write!(f, "({left}) && ({right})"),
+            ConditionAst::Or { left, right } => write!(f, "({left}) || ({right})"),
+            ConditionAst::Not { expr } => write!(f, "!({expr})"),
         }
     }
 }
@@ -113,6 +113,7 @@ pub struct ConditionParser {
 
 impl ConditionParser {
     /// Create a new condition parser
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             comparison_re: Regex::new(r"(\w+)\s*(==|!=|>|<|>=|<=)\s*('([^']*)')")
@@ -129,7 +130,7 @@ impl ConditionParser {
     /// * `condition` - The condition string to parse
     ///
     /// # Returns
-    /// Result with ConditionAst on success
+    /// Result with `ConditionAst` on success
     pub fn parse(&self, condition: &str) -> Result<ConditionAst> {
         let tokens = self.tokenize(condition)?;
         self.parse_tokens(&tokens)
@@ -258,7 +259,7 @@ impl ConditionParser {
                     }
 
                     // Skip whitespace
-                    while chars.peek().map_or(false, |c| c.is_whitespace()) {
+                    while chars.peek().is_some_and(|c| c.is_whitespace()) {
                         chars.next();
                     }
 
@@ -270,7 +271,7 @@ impl ConditionParser {
 
                         loop {
                             // Skip whitespace
-                            while chars.peek().map_or(false, |c| c.is_whitespace()) {
+                            while chars.peek().is_some_and(|c| c.is_whitespace()) {
                                 chars.next();
                             }
 
@@ -292,7 +293,7 @@ impl ConditionParser {
                             }
 
                             // Skip whitespace
-                            while chars.peek().map_or(false, |c| c.is_whitespace()) {
+                            while chars.peek().is_some_and(|c| c.is_whitespace()) {
                                 chars.next();
                             }
 
@@ -325,7 +326,7 @@ impl ConditionParser {
 
                         if !op.is_empty() && (op == "==" || op == "!=" || op == ">" || op == "<" || op == ">=" || op == "<=") {
                             // Skip whitespace
-                            while chars.peek().map_or(false, |c| c.is_whitespace()) {
+                            while chars.peek().is_some_and(|c| c.is_whitespace()) {
                                 chars.next();
                             }
 
@@ -360,14 +361,14 @@ impl ConditionParser {
                             });
                         } else {
                             return Err(ObserverError::InvalidCondition {
-                                reason: format!("Unknown token: {}", ident),
+                                reason: format!("Unknown token: {ident}"),
                             });
                         }
                     }
                 }
                 _ => {
                     return Err(ObserverError::InvalidCondition {
-                        reason: format!("Unexpected character: {}", ch),
+                        reason: format!("Unexpected character: {ch}"),
                     });
                 }
             }
@@ -391,7 +392,7 @@ impl ConditionParser {
         let mut left = self.parse_and(tokens, pos)?;
 
         while *pos < tokens.len() {
-            if let Token::Or = tokens[*pos] {
+            if matches!(tokens[*pos], Token::Or) {
                 *pos += 1;
                 let right = self.parse_and(tokens, pos)?;
                 left = ConditionAst::Or {
@@ -410,7 +411,7 @@ impl ConditionParser {
         let mut left = self.parse_not(tokens, pos)?;
 
         while *pos < tokens.len() {
-            if let Token::And = tokens[*pos] {
+            if matches!(tokens[*pos], Token::And) {
                 *pos += 1;
                 let right = self.parse_not(tokens, pos)?;
                 left = ConditionAst::And {
@@ -426,15 +427,14 @@ impl ConditionParser {
     }
 
     fn parse_not(&self, tokens: &[Token], pos: &mut usize) -> Result<ConditionAst> {
-        if *pos < tokens.len() {
-            if let Token::Not = tokens[*pos] {
+        if *pos < tokens.len()
+            && matches!(tokens[*pos], Token::Not) {
                 *pos += 1;
                 let expr = self.parse_not(tokens, pos)?;
                 return Ok(ConditionAst::Not {
                     expr: Box::new(expr),
                 });
             }
-        }
 
         self.parse_primary(tokens, pos)
     }
@@ -535,14 +535,14 @@ impl ConditionParser {
                 })
             }
             _ => Err(ObserverError::InvalidCondition {
-                reason: format!("Unknown function: {}", name),
+                reason: format!("Unknown function: {name}"),
             }),
         }
     }
 
     fn eval_comparison(&self, field: &str, op: &str, value: &str, event: &EntityEvent) -> Result<bool> {
         let event_value = event.data.get(field).ok_or(ObserverError::InvalidCondition {
-            reason: format!("Field not found: {}", field),
+            reason: format!("Field not found: {field}"),
         })?;
 
         // Try to parse value as number first, then as string
@@ -557,7 +557,7 @@ impl ConditionParser {
             ">=" => self.compare_numeric(event_value, &value_parsed, |a, b| a >= b),
             "<=" => self.compare_numeric(event_value, &value_parsed, |a, b| a <= b),
             _ => Err(ObserverError::InvalidCondition {
-                reason: format!("Unknown operator: {}", op),
+                reason: format!("Unknown operator: {op}"),
             }),
         }
     }

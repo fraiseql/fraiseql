@@ -32,15 +32,15 @@ pub struct ObserverRuntimeConfig {
     pub observers: HashMap<String, ObserverDefinition>,
 }
 
-fn default_channel_capacity() -> usize {
+const fn default_channel_capacity() -> usize {
     1000
 }
 
-fn default_max_concurrency() -> usize {
+const fn default_max_concurrency() -> usize {
     50
 }
 
-fn default_backlog_threshold() -> usize {
+const fn default_backlog_threshold() -> usize {
     500
 }
 
@@ -117,15 +117,15 @@ impl Default for RetryConfig {
     }
 }
 
-fn default_max_attempts() -> u32 {
+const fn default_max_attempts() -> u32 {
     3
 }
 
-fn default_initial_delay() -> u64 {
+const fn default_initial_delay() -> u64 {
     100
 }
 
-fn default_max_delay() -> u64 {
+const fn default_max_delay() -> u64 {
     30000
 }
 
@@ -133,10 +133,10 @@ fn default_max_delay() -> u64 {
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BackoffStrategy {
-    /// Exponential backoff (2^attempt * initial_delay)
+    /// Exponential backoff (2^attempt * `initial_delay`)
     #[default]
     Exponential,
-    /// Linear backoff (attempt * initial_delay)
+    /// Linear backoff (attempt * `initial_delay`)
     Linear,
     /// Fixed delay between retries
     Fixed,
@@ -243,7 +243,8 @@ pub enum ActionConfig {
 
 impl ActionConfig {
     /// Get the action type name
-    pub fn action_type(&self) -> &'static str {
+    #[must_use] 
+    pub const fn action_type(&self) -> &'static str {
         match self {
             ActionConfig::Webhook { .. } => "webhook",
             ActionConfig::Slack { .. } => "slack",
@@ -269,7 +270,7 @@ impl ActionConfig {
                         reason: "Webhook action requires 'url' or 'url_env'".to_string(),
                     });
                 }
-                if body_template.as_ref().map_or(false, |t| t.is_empty()) {
+                if body_template.as_ref().is_some_and(std::string::String::is_empty) {
                     return Err(ObserverError::InvalidActionConfig {
                         reason: "Webhook body_template cannot be empty".to_string(),
                     });
@@ -408,19 +409,19 @@ fn default_listener_id() -> String {
     format!("listener-{}", uuid::Uuid::new_v4())
 }
 
-fn default_lease_duration_ms() -> u64 {
+const fn default_lease_duration_ms() -> u64 {
     30000
 }
 
-fn default_health_check_interval_ms() -> u64 {
+const fn default_health_check_interval_ms() -> u64 {
     5000
 }
 
-fn default_failover_threshold_ms() -> u64 {
+const fn default_failover_threshold_ms() -> u64 {
     60000
 }
 
-fn default_max_listeners() -> usize {
+const fn default_max_listeners() -> usize {
     10
 }
 
@@ -439,6 +440,7 @@ impl Default for MultiListenerConfig {
 
 impl MultiListenerConfig {
     /// Create a new multi-listener config with default values
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
@@ -473,19 +475,22 @@ impl MultiListenerConfig {
     }
 
     /// Enable multi-listener coordination
-    pub fn enable(mut self) -> Self {
+    #[must_use] 
+    pub const fn enable(mut self) -> Self {
         self.enabled = true;
         self
     }
 
     /// Set listener ID
+    #[must_use] 
     pub fn with_listener_id(mut self, listener_id: String) -> Self {
         self.listener_id = listener_id;
         self
     }
 
     /// Set lease duration
-    pub fn with_lease_duration_ms(mut self, lease_duration_ms: u64) -> Self {
+    #[must_use] 
+    pub const fn with_lease_duration_ms(mut self, lease_duration_ms: u64) -> Self {
         self.lease_duration_ms = lease_duration_ms;
         self
     }

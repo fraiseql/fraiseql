@@ -25,7 +25,7 @@ pub struct MockStorage {
 #[derive(Clone)]
 struct MockFile {
     data: Bytes,
-    content_type: String,
+    _content_type: String,
     metadata: StorageMetadata,
 }
 
@@ -88,7 +88,7 @@ impl StorageBackend for MockStorage {
             key.to_string(),
             MockFile {
                 data,
-                content_type: content_type.to_string(),
+                _content_type: content_type.to_string(),
                 metadata: metadata.cloned().unwrap_or_else(|| StorageMetadata {
                     content_type: content_type.to_string(),
                     content_length: size,

@@ -168,14 +168,18 @@ fn init_slo_metrics(config: &SloConfig) {
     );
 
     // Set initial targets
+    #[allow(clippy::cast_precision_loss)]
     gauge!("slo_latency_target_seconds", "component" => "graphql")
-        .set(f64::from(config.latency_targets.graphql_p99_ms) / 1000.0);
+        .set(config.latency_targets.graphql_p99_ms as f64 / 1000.0);
+    #[allow(clippy::cast_precision_loss)]
     gauge!("slo_latency_target_seconds", "component" => "webhook")
-        .set(f64::from(config.latency_targets.webhook_p99_ms) / 1000.0);
+        .set(config.latency_targets.webhook_p99_ms as f64 / 1000.0);
+    #[allow(clippy::cast_precision_loss)]
     gauge!("slo_latency_target_seconds", "component" => "auth")
-        .set(f64::from(config.latency_targets.auth_p99_ms) / 1000.0);
+        .set(config.latency_targets.auth_p99_ms as f64 / 1000.0);
+    #[allow(clippy::cast_precision_loss)]
     gauge!("slo_latency_target_seconds", "component" => "file_upload")
-        .set(f64::from(config.latency_targets.file_upload_p99_ms) / 1000.0);
+        .set(config.latency_targets.file_upload_p99_ms as f64 / 1000.0);
 }
 
 /// Middleware to record HTTP request metrics
@@ -216,6 +220,7 @@ pub async fn metrics_middleware(req: Request, next: Next) -> Response {
 }
 
 /// Normalize path for metrics (replace IDs with placeholders)
+#[cfg(feature = "metrics")]
 fn normalize_path(path: &str) -> String {
     // Simple normalization: replace numeric segments
     let parts: Vec<&str> = path.split('/').collect();
@@ -237,6 +242,7 @@ fn normalize_path(path: &str) -> String {
     normalized.join("/")
 }
 
+#[cfg(feature = "metrics")]
 fn is_uuid(s: &str) -> bool {
     s.len() == 36
         && s.chars().enumerate().all(|(i, c)| {
@@ -248,7 +254,19 @@ fn is_uuid(s: &str) -> bool {
         })
 }
 
-/// Record operation metrics with SLO tracking
+/// Record operation metrics with SLO tracking.
+///
+/// This is public API for library consumers to record custom operation metrics.
+/// When the `metrics` feature is disabled, all methods become no-ops.
+///
+/// # Example
+///
+/// ```ignore
+/// let metrics = OperationMetrics::new("graphql", "query_users", 100);
+/// // ... perform operation ...
+/// metrics.success(); // or metrics.failure("timeout");
+/// ```
+#[allow(dead_code)] // Public API for library consumers, not used internally
 pub struct OperationMetrics {
     component: &'static str,
     operation: String,
@@ -323,7 +341,7 @@ pub async fn metrics_handler(
     handle.render()
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "metrics"))]
 mod tests {
     use super::*;
 

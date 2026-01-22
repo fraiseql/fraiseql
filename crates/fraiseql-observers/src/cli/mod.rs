@@ -56,8 +56,7 @@ impl std::str::FromStr for OutputFormat {
             "text" => Ok(Self::Text),
             "json" => Ok(Self::Json),
             other => Err(format!(
-                "Invalid format '{}'. Use 'text' or 'json'",
-                other
+                "Invalid format '{other}'. Use 'text' or 'json'"
             )),
         }
     }

@@ -7,7 +7,7 @@
 //! - Job details: Redis hashes (serialized job data)
 //! - Statistics: Redis counters
 
-use super::{Job, JobQueue, JobResult, JobStatus, QueueStats};
+use super::{Job, JobQueue, JobResult, QueueStats};
 use crate::error::{ObserverError, Result};
 use redis::aio::ConnectionManager;
 use redis::AsyncCommands;
@@ -28,6 +28,7 @@ impl RedisJobQueue {
     /// # Arguments
     ///
     /// * `conn` - Redis connection manager
+    #[must_use] 
     pub fn new(conn: ConnectionManager) -> Self {
         Self {
             conn,
@@ -40,12 +41,12 @@ impl RedisJobQueue {
 
     /// Get Redis key for job data storage.
     fn job_key(job_id: &str) -> String {
-        format!("job:v1:{}", job_id)
+        format!("job:v1:{job_id}")
     }
 
     /// Get Redis key for completed job data storage.
     fn completed_key(job_id: &str) -> String {
-        format!("job:v1:completed:{}", job_id)
+        format!("job:v1:completed:{job_id}")
     }
 
     /// Serialize job to JSON for storage.
@@ -60,7 +61,7 @@ impl RedisJobQueue {
             .map_err(|e| ObserverError::SerializationError(e.to_string()))
     }
 
-    /// Serialize job result metadata to JSON (excluding ActionResult which isn't Serializable).
+    /// Serialize job result metadata to JSON (excluding `ActionResult` which isn't Serializable).
     fn serialize_result(result: &JobResult) -> Result<String> {
         let metadata = serde_json::json!({
             "job_id": result.job_id,
@@ -85,22 +86,22 @@ impl JobQueue for RedisJobQueue {
         let mut conn = self.conn.clone();
 
         // Store job data
-        conn.set_ex(
+        conn.set_ex::<_, _, ()>(
             Self::job_key(&job_id),
             &job_json,
             86400, // 24-hour expiration for job metadata
         )
         .await
         .map_err(|e| ObserverError::DatabaseError {
-            reason: format!("Failed to store job: {}", e),
+            reason: format!("Failed to store job: {e}"),
         })?;
 
         // Add to pending queue (score = current timestamp for FIFO)
         let now = chrono::Utc::now().timestamp() as f64;
-        conn.zadd(&self.pending_key, &job_id, now)
+        conn.zadd::<_, _, _, ()>(&self.pending_key, &job_id, now)
             .await
             .map_err(|e| ObserverError::DatabaseError {
-                reason: format!("Failed to add to pending queue: {}", e),
+                reason: format!("Failed to add to pending queue: {e}"),
             })?;
 
         Ok(job_id)
@@ -109,38 +110,37 @@ impl JobQueue for RedisJobQueue {
     async fn dequeue(&self, worker_id: &str) -> Result<Option<Job>> {
         let mut conn = self.conn.clone();
 
-        // BZPOPMIN on pending queue (blocking if empty)
-        // Returns (key, member, score) - we need member (job_id)
-        let result: Vec<(Vec<u8>, f64)> = conn
-            .bzpop_min(&[&self.pending_key], 1.0)
+        // ZPOPMIN on pending queue (non-blocking, gets first element)
+        // Returns Vec<(member, score)>
+        let result: Vec<(String, f64)> = conn
+            .zpopmin(&self.pending_key, 1)
             .await
             .map_err(|e| ObserverError::DatabaseError {
-                reason: format!("Failed to dequeue: {}", e),
+                reason: format!("Failed to dequeue: {e}"),
             })?;
 
         if result.is_empty() {
             return Ok(None);
         }
 
-        let job_id_bytes = &result[0].0;
-        let job_id = String::from_utf8_lossy(job_id_bytes).to_string();
+        let job_id = &result[0].0;
 
         // Get job data
         let job_json: String = conn
-            .get(Self::job_key(&job_id))
+            .get(Self::job_key(job_id))
             .await
             .map_err(|e| ObserverError::DatabaseError {
-                reason: format!("Failed to get job data: {}", e),
+                reason: format!("Failed to get job data: {e}"),
             })?;
 
         let job = Self::deserialize_job(&job_json)?;
 
         // Mark as processing (add to processing set with worker info)
         let processing_info = format!("{}:{}", worker_id, chrono::Utc::now().timestamp());
-        conn.hset(&self.processing_key, &job_id, &processing_info)
+        conn.hset::<_, _, _, ()>(&self.processing_key, job_id, &processing_info)
             .await
             .map_err(|e| ObserverError::DatabaseError {
-                reason: format!("Failed to mark as processing: {}", e),
+                reason: format!("Failed to mark as processing: {e}"),
             })?;
 
         Ok(Some(job))
@@ -150,10 +150,10 @@ impl JobQueue for RedisJobQueue {
         let mut conn = self.conn.clone();
 
         let processing_info = format!("{}:{}", "worker", chrono::Utc::now().timestamp());
-        conn.hset(&self.processing_key, job_id, processing_info)
+        conn.hset::<_, _, _, ()>(&self.processing_key, job_id, processing_info)
             .await
             .map_err(|e| ObserverError::DatabaseError {
-                reason: format!("Failed to mark as processing: {}", e),
+                reason: format!("Failed to mark as processing: {e}"),
             })?;
 
         Ok(())
@@ -165,35 +165,35 @@ impl JobQueue for RedisJobQueue {
         let result_json = Self::serialize_result(result)?;
 
         // Store completed job data
-        conn.set_ex(
+        conn.set_ex::<_, _, ()>(
             Self::completed_key(job_id),
             result_json,
             86400, // 24-hour retention
         )
         .await
         .map_err(|e| ObserverError::DatabaseError {
-            reason: format!("Failed to store completed job: {}", e),
+            reason: format!("Failed to store completed job: {e}"),
         })?;
 
         // Remove from processing
-        conn.hdel(&self.processing_key, job_id)
+        conn.hdel::<_, _, ()>(&self.processing_key, job_id)
             .await
             .map_err(|e| ObserverError::DatabaseError {
-                reason: format!("Failed to remove from processing: {}", e),
+                reason: format!("Failed to remove from processing: {e}"),
             })?;
 
         // Remove job data
-        conn.del(Self::job_key(job_id))
+        conn.del::<_, ()>(Self::job_key(job_id))
             .await
             .map_err(|e| ObserverError::DatabaseError {
-                reason: format!("Failed to delete job data: {}", e),
+                reason: format!("Failed to delete job data: {e}"),
             })?;
 
         // Increment success counter
-        conn.incr("queue:v1:stats:success", 1)
+        conn.incr::<_, _, ()>("queue:v1:stats:success", 1)
             .await
             .map_err(|e| ObserverError::DatabaseError {
-                reason: format!("Failed to update stats: {}", e),
+                reason: format!("Failed to update stats: {e}"),
             })?;
 
         Ok(())
@@ -203,24 +203,24 @@ impl JobQueue for RedisJobQueue {
         let mut conn = self.conn.clone();
 
         // Remove from processing
-        conn.hdel(&self.processing_key, job_id)
+        conn.hdel::<_, _, ()>(&self.processing_key, job_id)
             .await
             .map_err(|e| ObserverError::DatabaseError {
-                reason: format!("Failed to remove from processing: {}", e),
+                reason: format!("Failed to remove from processing: {e}"),
             })?;
 
         // Add to retry queue with next_retry_at as score
-        conn.zadd(&self.retry_key, job_id, next_retry_at as f64)
+        conn.zadd::<_, _, _, ()>(&self.retry_key, job_id, next_retry_at as f64)
             .await
             .map_err(|e| ObserverError::DatabaseError {
-                reason: format!("Failed to add to retry queue: {}", e),
+                reason: format!("Failed to add to retry queue: {e}"),
             })?;
 
         // Increment retry counter
-        conn.incr("queue:v1:stats:retries", 1)
+        conn.incr::<_, _, ()>("queue:v1:stats:retries", 1)
             .await
             .map_err(|e| ObserverError::DatabaseError {
-                reason: format!("Failed to update stats: {}", e),
+                reason: format!("Failed to update stats: {e}"),
             })?;
 
         Ok(())
@@ -230,38 +230,38 @@ impl JobQueue for RedisJobQueue {
         let mut conn = self.conn.clone();
 
         // Remove from processing
-        conn.hdel(&self.processing_key, job_id)
+        conn.hdel::<_, _, ()>(&self.processing_key, job_id)
             .await
             .map_err(|e| ObserverError::DatabaseError {
-                reason: format!("Failed to remove from processing: {}", e),
+                reason: format!("Failed to remove from processing: {e}"),
             })?;
 
         // Store deadletter entry with reason
         let now = chrono::Utc::now().timestamp() as f64;
         let entry = format!("{}|{}", reason, chrono::Utc::now().timestamp());
 
-        conn.zadd(&self.deadletter_key, &job_id, now)
+        conn.zadd::<_, _, _, ()>(&self.deadletter_key, &job_id, now)
             .await
             .map_err(|e| ObserverError::DatabaseError {
-                reason: format!("Failed to add to deadletter queue: {}", e),
+                reason: format!("Failed to add to deadletter queue: {e}"),
             })?;
 
         // Store reason
-        conn.set_ex(
-            format!("job:v1:deadletter:reason:{}", job_id),
+        conn.set_ex::<_, _, ()>(
+            format!("job:v1:deadletter:reason:{job_id}"),
             entry,
             86400,
         )
         .await
         .map_err(|e| ObserverError::DatabaseError {
-            reason: format!("Failed to store deadletter reason: {}", e),
+            reason: format!("Failed to store deadletter reason: {e}"),
         })?;
 
         // Increment failed counter
-        conn.incr("queue:v1:stats:failed", 1)
+        conn.incr::<_, _, ()>("queue:v1:stats:failed", 1)
             .await
             .map_err(|e| ObserverError::DatabaseError {
-                reason: format!("Failed to update stats: {}", e),
+                reason: format!("Failed to update stats: {e}"),
             })?;
 
         Ok(())
@@ -317,6 +317,7 @@ impl JobQueue for RedisJobQueue {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{ActionConfig, ActionResult, EntityEvent, JobStatus};
     use redis::Client;
 
     async fn setup_test_queue() -> RedisJobQueue {
@@ -337,7 +338,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore] // Requires Redis running
+    #[ignore = "requires Redis running"]
     async fn test_redis_enqueue() {
         let queue = setup_test_queue().await;
 
@@ -351,10 +352,12 @@ mod tests {
                 serde_json::json!({}),
             ),
             action_config: ActionConfig::Email {
-                to: vec!["test@example.com".to_string()],
-                to_env: None,
-                subject: "Test".to_string(),
+                to: Some("test@example.com".to_string()),
+                to_template: None,
+                subject: Some("Test".to_string()),
+                subject_template: None,
                 body_template: None,
+                reply_to: None,
             },
             attempt: 1,
             created_at: chrono::Utc::now().timestamp(),
@@ -366,7 +369,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore] // Requires Redis running
+    #[ignore = "requires Redis running"]
     async fn test_redis_dequeue() {
         let queue = setup_test_queue().await;
 
@@ -380,10 +383,12 @@ mod tests {
                 serde_json::json!({}),
             ),
             action_config: ActionConfig::Email {
-                to: vec!["test@example.com".to_string()],
-                to_env: None,
-                subject: "Test".to_string(),
+                to: Some("test@example.com".to_string()),
+                to_template: None,
+                subject: Some("Test".to_string()),
+                subject_template: None,
                 body_template: None,
+                reply_to: None,
             },
             attempt: 1,
             created_at: chrono::Utc::now().timestamp(),
@@ -402,7 +407,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore] // Requires Redis running
+    #[ignore = "requires Redis running"]
     async fn test_redis_mark_success() {
         let queue = setup_test_queue().await;
 
@@ -416,10 +421,12 @@ mod tests {
                 serde_json::json!({}),
             ),
             action_config: ActionConfig::Email {
-                to: vec!["test@example.com".to_string()],
-                to_env: None,
-                subject: "Test".to_string(),
+                to: Some("test@example.com".to_string()),
+                to_template: None,
+                subject: Some("Test".to_string()),
+                subject_template: None,
                 body_template: None,
+                reply_to: None,
             },
             attempt: 1,
             created_at: chrono::Utc::now().timestamp(),
@@ -451,7 +458,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore] // Requires Redis running
+    #[ignore = "requires Redis running"]
     async fn test_redis_mark_retry() {
         let queue = setup_test_queue().await;
 
@@ -465,10 +472,12 @@ mod tests {
                 serde_json::json!({}),
             ),
             action_config: ActionConfig::Email {
-                to: vec!["test@example.com".to_string()],
-                to_env: None,
-                subject: "Test".to_string(),
+                to: Some("test@example.com".to_string()),
+                to_template: None,
+                subject: Some("Test".to_string()),
+                subject_template: None,
                 body_template: None,
+                reply_to: None,
             },
             attempt: 1,
             created_at: chrono::Utc::now().timestamp(),
@@ -488,7 +497,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore] // Requires Redis running
+    #[ignore = "requires Redis running"]
     async fn test_redis_mark_deadletter() {
         let queue = setup_test_queue().await;
 
@@ -502,10 +511,12 @@ mod tests {
                 serde_json::json!({}),
             ),
             action_config: ActionConfig::Email {
-                to: vec!["test@example.com".to_string()],
-                to_env: None,
-                subject: "Test".to_string(),
+                to: Some("test@example.com".to_string()),
+                to_template: None,
+                subject: Some("Test".to_string()),
+                subject_template: None,
                 body_template: None,
+                reply_to: None,
             },
             attempt: 1,
             created_at: chrono::Utc::now().timestamp(),
@@ -524,7 +535,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore] // Requires Redis running
+    #[ignore = "requires Redis running"]
     async fn test_redis_get_stats() {
         let queue = setup_test_queue().await;
 

@@ -386,7 +386,7 @@ fn test_ltree_path_depth_constraints() {
     // LTree has depth limits (PostgreSQL: 65535 maximum path length)
     // We test that various depths are handled structurally
 
-    for depth in vec![1, 10, 100, 1000] {
+    for depth in [1, 10, 100, 1000] {
         let components: Vec<String> = (0..depth).map(|i| format!("l{}", i)).collect();
         let path = components.join(".");
 

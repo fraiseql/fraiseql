@@ -126,7 +126,7 @@ mod tls_integration {
 
     /// Test that TLS connection succeeds with valid configuration
     #[tokio::test]
-    #[ignore] // Requires PostgreSQL with TLS enabled
+    #[ignore = "requires PostgreSQL with TLS enabled"]
     async fn test_tls_connection_succeeds() {
         install_crypto_provider();
 
@@ -171,7 +171,7 @@ mod tls_integration {
 
     /// Test that standard password auth works over TLS
     #[tokio::test]
-    #[ignore] // Requires PostgreSQL with TLS enabled
+    #[ignore = "requires PostgreSQL with TLS enabled"]
     async fn test_tls_with_password_auth() {
         install_crypto_provider();
 
@@ -213,7 +213,7 @@ mod tls_integration {
 
     /// Test that multiple TLS connections can be created
     #[tokio::test]
-    #[ignore] // Requires PostgreSQL with TLS enabled
+    #[ignore = "requires PostgreSQL with TLS enabled"]
     async fn test_multiple_tls_connections() {
         install_crypto_provider();
 
@@ -271,7 +271,7 @@ mod tls_integration {
 
     /// Test that TLS connection can stream results correctly
     #[tokio::test]
-    #[ignore] // Requires PostgreSQL with TLS enabled
+    #[ignore = "requires PostgreSQL with TLS enabled"]
     async fn test_tls_streaming() {
         install_crypto_provider();
 

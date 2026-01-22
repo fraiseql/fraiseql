@@ -309,7 +309,7 @@ impl RetryPolicy for LinearBackoffPolicy {
     }
 
     fn get_backoff_ms(&self, attempt: u32) -> u64 {
-        let delay = self.delay_increment_ms * attempt as u64;
+        let delay = self.delay_increment_ms * u64::from(attempt);
         delay.min(self.max_delay_ms)
     }
 }

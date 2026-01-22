@@ -246,9 +246,11 @@ pub struct FilterColumn {
 /// - **AccumulatingSnapshot**: Records updated with new events (e.g., order milestones)
 /// - **PeriodicSnapshot**: Complete snapshot at regular intervals (e.g., daily inventory)
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum AggregationStrategy {
     /// New records are appended (e.g., transaction logs, event streams)
     #[serde(rename = "incremental")]
+    #[default]
     Incremental,
 
     /// Records are updated with new events (e.g., order status changes)
@@ -260,11 +262,6 @@ pub enum AggregationStrategy {
     PeriodicSnapshot,
 }
 
-impl Default for AggregationStrategy {
-    fn default() -> Self {
-        Self::Incremental
-    }
-}
 
 /// Explicit fact table schema declaration
 ///
@@ -1723,8 +1720,7 @@ mod tests {
 
     #[test]
     fn test_multiple_fact_table_declarations() {
-        let declarations = vec![
-            FactTableDeclaration {
+        let declarations = [FactTableDeclaration {
                 name: "tf_sales".to_string(),
                 measures: vec!["amount".to_string()],
                 dimensions: vec!["product_id".to_string()],
@@ -1737,8 +1733,7 @@ mod tests {
                 dimensions: vec!["user_id".to_string()],
                 primary_key: "id".to_string(),
                 metadata: None,
-            },
-        ];
+            }];
 
         assert_eq!(declarations.len(), 2);
         assert_eq!(declarations[0].name, "tf_sales");

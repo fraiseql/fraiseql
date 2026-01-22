@@ -220,11 +220,11 @@ mod tests {
     #[test]
     fn test_hsts_policy_compliance() {
         // HSTS policy should enforce HTTPS for at least 1 year
-        let max_age_seconds = 31536000; // 1 year in seconds
-        assert!(max_age_seconds >= 31536000, "HSTS max-age should be at least 1 year");
+        let max_age_seconds = 31_536_000; // 1 year in seconds
+        assert!(max_age_seconds >= 31_536_000, "HSTS max-age should be at least 1 year");
 
-        // Verify subdomain inclusion
-        assert!(true, "HSTS includeSubDomains is included");
+        // Verify subdomain inclusion is typically used
+        // Note: actual HSTS header setting happens in middleware configuration
     }
 
     #[test]

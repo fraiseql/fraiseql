@@ -5,7 +5,7 @@
 //!
 //! - **Closed**: Normal operation, all requests pass through
 //! - **Open**: Failures detected, requests fail fast
-//! - **HalfOpen**: Recovery testing, limited requests allowed
+//! - **`HalfOpen`**: Recovery testing, limited requests allowed
 //!
 //! # Example
 //!
@@ -30,7 +30,7 @@ use crate::error::Result;
 use crate::error::ObserverError;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use tokio::sync::Mutex;
 
 /// Circuit breaker state machine
@@ -61,9 +61,9 @@ pub struct CircuitBreakerConfig {
     pub failure_threshold: f64,
     /// Number of requests to sample for failure rate calculation
     pub sample_size: usize,
-    /// Timeout from Open to HalfOpen transition (milliseconds)
+    /// Timeout from Open to `HalfOpen` transition (milliseconds)
     pub open_timeout_ms: u64,
-    /// Maximum requests allowed in HalfOpen state
+    /// Maximum requests allowed in `HalfOpen` state
     pub half_open_max_requests: usize,
 }
 
@@ -91,6 +91,7 @@ pub struct CircuitBreaker {
 
 impl CircuitBreaker {
     /// Create a new circuit breaker with the given configuration
+    #[must_use] 
     pub fn new(config: CircuitBreakerConfig) -> Self {
         Self {
             config,
@@ -188,12 +189,10 @@ impl CircuitBreaker {
                 *state = CircuitState::Closed;
                 self.reset_counters();
                 return CircuitState::Closed;
-            } else {
+            } else if self.half_open_requests.load(Ordering::SeqCst) >= self.config.half_open_max_requests {
                 // Recovery failed, back to open
-                if self.half_open_requests.load(Ordering::SeqCst) >= self.config.half_open_max_requests {
-                    *state = CircuitState::Open;
-                    return CircuitState::Open;
-                }
+                *state = CircuitState::Open;
+                return CircuitState::Open;
             }
         }
 
@@ -235,19 +234,6 @@ impl CircuitBreaker {
         }
     }
 
-    /// Static version for concurrent contexts
-    fn calculate_failure_rate_static(failures: u64, successes: u64, sample_size: usize) -> f64 {
-        let failures = failures as f64;
-        let successes = successes as f64;
-        let total = failures + successes;
-
-        if total < sample_size as f64 {
-            0.0
-        } else {
-            failures / total
-        }
-    }
-
     /// Reset all counters
     fn reset_counters(&self) {
         self.failure_count.store(0, Ordering::SeqCst);
@@ -258,6 +244,7 @@ impl CircuitBreaker {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::Duration;
 
     #[tokio::test]
     async fn test_circuit_breaker_creation() {

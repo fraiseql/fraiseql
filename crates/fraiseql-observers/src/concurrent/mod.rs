@@ -37,7 +37,6 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use crate::config::ActionConfig;
-use crate::error::Result;
 use crate::event::EntityEvent;
 use crate::traits::{ActionExecutor, ActionResult};
 use futures::stream::{FuturesUnordered, StreamExt};
@@ -61,7 +60,7 @@ impl<E: ActionExecutor + Clone + Send + Sync + 'static> ConcurrentActionExecutor
     ///
     /// * `inner` - The underlying action executor
     /// * `action_timeout_ms` - Timeout per action in milliseconds (default: 30000)
-    pub fn new(inner: E, action_timeout_ms: u64) -> Self {
+    pub const fn new(inner: E, action_timeout_ms: u64) -> Self {
         Self {
             inner,
             action_timeout_ms,
@@ -96,7 +95,7 @@ impl<E: ActionExecutor + Clone + Send + Sync + 'static> ConcurrentActionExecutor
         let event = Arc::new(event.clone());
 
         // Spawn all action futures concurrently
-        for (_idx, action) in actions.iter().enumerate() {
+        for action in actions {
             let executor = self.inner.clone();
             let event = Arc::clone(&event);
             let action = action.clone();
@@ -114,13 +113,13 @@ impl<E: ActionExecutor + Clone + Send + Sync + 'static> ConcurrentActionExecutor
                         action_result
                     }
                     Ok(Err(err)) => ActionResult {
-                        action_type: format!("{:?}", action),
+                        action_type: format!("{action:?}"),
                         success: false,
                         message: format!("Execution error: {err}"),
                         duration_ms,
                     },
                     Err(_) => ActionResult {
-                        action_type: format!("{:?}", action),
+                        action_type: format!("{action:?}"),
                         success: false,
                         message: "Action timeout".to_string(),
                         duration_ms,
@@ -139,7 +138,7 @@ impl<E: ActionExecutor + Clone + Send + Sync + 'static> ConcurrentActionExecutor
     }
 
     /// Get the action timeout in milliseconds.
-    pub fn action_timeout_ms(&self) -> u64 {
+    pub const fn action_timeout_ms(&self) -> u64 {
         self.action_timeout_ms
     }
 
@@ -152,6 +151,7 @@ impl<E: ActionExecutor + Clone + Send + Sync + 'static> ConcurrentActionExecutor
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::error::Result;
     use serde_json::json;
     use uuid::Uuid;
 

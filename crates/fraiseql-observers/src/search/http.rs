@@ -23,7 +23,8 @@ impl HttpSearchBackend {
     ///
     /// # Arguments
     ///
-    /// * `es_url` - Elasticsearch base URL (e.g., "http://localhost:9200")
+    /// * `es_url` - Elasticsearch base URL (e.g., "<http://localhost:9200>")
+    #[must_use] 
     pub fn new(es_url: String) -> Self {
         Self {
             client: Client::new(),
@@ -44,7 +45,7 @@ impl HttpSearchBackend {
             .send()
             .await
             .map_err(|e| ObserverError::DatabaseError {
-                reason: format!("Elasticsearch connection failed: {}", e),
+                reason: format!("Elasticsearch connection failed: {e}"),
             })?;
 
         Ok(response.status().is_success())
@@ -82,7 +83,7 @@ impl HttpSearchBackend {
                 .send()
                 .await
                 .map_err(|e| ObserverError::DatabaseError {
-                    reason: format!("Failed to create Elasticsearch index: {}", e),
+                    reason: format!("Failed to create Elasticsearch index: {e}"),
                 })?;
         }
 
@@ -107,7 +108,7 @@ impl SearchBackend for HttpSearchBackend {
             .send()
             .await
             .map_err(|e| ObserverError::DatabaseError {
-                reason: format!("Failed to index event: {}", e),
+                reason: format!("Failed to index event: {e}"),
             })?;
 
         Ok(())
@@ -153,7 +154,7 @@ impl SearchBackend for HttpSearchBackend {
             .send()
             .await
             .map_err(|e| ObserverError::DatabaseError {
-                reason: format!("Failed to bulk index events: {}", e),
+                reason: format!("Failed to bulk index events: {e}"),
             })?;
 
         Ok(())
@@ -194,12 +195,12 @@ impl SearchBackend for HttpSearchBackend {
             .send()
             .await
             .map_err(|e| ObserverError::DatabaseError {
-                reason: format!("Search query failed: {}", e),
+                reason: format!("Search query failed: {e}"),
             })?;
 
         let body: Value = response.json().await.map_err(|e| {
             ObserverError::DatabaseError {
-                reason: format!("Failed to parse search response: {}", e),
+                reason: format!("Failed to parse search response: {e}"),
             }
         })?;
 
@@ -243,12 +244,12 @@ impl SearchBackend for HttpSearchBackend {
             .send()
             .await
             .map_err(|e| ObserverError::DatabaseError {
-                reason: format!("Entity search failed: {}", e),
+                reason: format!("Entity search failed: {e}"),
             })?;
 
         let body: Value = response.json().await.map_err(|e| {
             ObserverError::DatabaseError {
-                reason: format!("Failed to parse search response: {}", e),
+                reason: format!("Failed to parse search response: {e}"),
             }
         })?;
 
@@ -299,12 +300,12 @@ impl SearchBackend for HttpSearchBackend {
             .send()
             .await
             .map_err(|e| ObserverError::DatabaseError {
-                reason: format!("Time range search failed: {}", e),
+                reason: format!("Time range search failed: {e}"),
             })?;
 
         let body: Value = response.json().await.map_err(|e| {
             ObserverError::DatabaseError {
-                reason: format!("Failed to parse search response: {}", e),
+                reason: format!("Failed to parse search response: {e}"),
             }
         })?;
 
@@ -322,7 +323,7 @@ impl SearchBackend for HttpSearchBackend {
 
     async fn delete_old_events(&self, days_old: u32) -> Result<()> {
         let cutoff_date = chrono::Utc::now()
-            - chrono::Duration::days(days_old as i64);
+            - chrono::Duration::days(i64::from(days_old));
         let cutoff_timestamp = cutoff_date.timestamp();
 
         let delete_query = json!({
@@ -342,7 +343,7 @@ impl SearchBackend for HttpSearchBackend {
             .send()
             .await
             .map_err(|e| ObserverError::DatabaseError {
-                reason: format!("Failed to delete old events: {}", e),
+                reason: format!("Failed to delete old events: {e}"),
             })?;
 
         Ok(())
@@ -356,7 +357,7 @@ mod tests {
     #[test]
     fn test_http_search_backend_clone() {
         let backend = HttpSearchBackend::new("http://localhost:9200".to_string());
-        let _cloned = backend.clone();
+        let _cloned = backend;
         // If this compiles, Clone is working
     }
 

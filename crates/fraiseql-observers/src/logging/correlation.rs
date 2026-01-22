@@ -2,11 +2,10 @@
 //!
 //! Provides utilities for injecting and extracting trace IDs from logging context.
 
-use std::sync::OnceLock;
 use std::cell::RefCell;
 
 thread_local! {
-    static TRACE_ID_CONTEXT: RefCell<Option<String>> = RefCell::new(None);
+    static TRACE_ID_CONTEXT: RefCell<Option<String>> = const { RefCell::new(None) };
 }
 
 /// Extracts trace ID from various sources
@@ -20,6 +19,7 @@ impl TraceIdExtractor {
     /// traceparent: 00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01
     ///             version-trace_id-span_id-flags
     /// ```
+    #[must_use] 
     pub fn from_w3c_traceparent(header: &str) -> Option<String> {
         let parts: Vec<&str> = header.split('-').collect();
         if parts.len() >= 3 {
@@ -30,6 +30,7 @@ impl TraceIdExtractor {
     }
 
     /// Extract trace ID from X-Trace-Id header
+    #[must_use] 
     pub fn from_x_trace_id(header: &str) -> Option<String> {
         if header.is_empty() {
             None
@@ -39,6 +40,7 @@ impl TraceIdExtractor {
     }
 
     /// Extract trace ID from HTTP headers map
+    #[must_use] 
     pub fn from_headers(headers: &[(String, String)]) -> Option<String> {
         for (key, value) in headers {
             let lower_key = key.to_lowercase();
@@ -52,6 +54,7 @@ impl TraceIdExtractor {
     }
 
     /// Extract trace ID from Jaeger trace header format
+    #[must_use] 
     pub fn from_jaeger_header(header: &str) -> Option<String> {
         // Jaeger format: trace_id:span_id:flags
         let parts: Vec<&str> = header.split(':').collect();
@@ -84,6 +87,7 @@ pub fn set_trace_id_context(trace_id: &str) {
 ///
 /// # Returns
 /// `Some(trace_id)` if trace ID is set, `None` otherwise
+#[must_use] 
 pub fn get_current_trace_id() -> Option<String> {
     TRACE_ID_CONTEXT.with(|ctx| ctx.borrow().clone())
 }
@@ -110,7 +114,8 @@ pub struct TraceContext {
 
 impl TraceContext {
     /// Create new trace context
-    pub fn new(trace_id: String, span_id: String, sampled: bool) -> Self {
+    #[must_use] 
+    pub const fn new(trace_id: String, span_id: String, sampled: bool) -> Self {
         Self {
             trace_id,
             span_id,
@@ -120,7 +125,8 @@ impl TraceContext {
     }
 
     /// Create trace context with parent span
-    pub fn with_parent(
+    #[must_use] 
+    pub const fn with_parent(
         trace_id: String,
         span_id: String,
         parent_span_id: String,
@@ -135,6 +141,7 @@ impl TraceContext {
     }
 
     /// Convert to W3C traceparent header format
+    #[must_use] 
     pub fn to_traceparent_header(&self) -> String {
         let sampled_flag = if self.sampled { "01" } else { "00" };
         format!(
@@ -146,6 +153,7 @@ impl TraceContext {
     }
 
     /// Parse from W3C traceparent header
+    #[must_use] 
     pub fn from_traceparent_header(header: &str) -> Option<Self> {
         let parts: Vec<&str> = header.split('-').collect();
         if parts.len() < 4 {

@@ -201,7 +201,7 @@ impl ObserverExecutor {
                     u.clone()
                 } else if let Some(var_name) = url_env {
                     std::env::var(var_name).map_err(|_| ObserverError::InvalidActionConfig {
-                        reason: format!("Webhook URL env var {} not found", var_name),
+                        reason: format!("Webhook URL env var {var_name} not found"),
                     })?
                 } else {
                     return Err(ObserverError::InvalidActionConfig {
@@ -233,7 +233,7 @@ impl ObserverExecutor {
                     u.clone()
                 } else if let Some(var_name) = webhook_url_env {
                     std::env::var(var_name).map_err(|_| ObserverError::InvalidActionConfig {
-                        reason: format!("Slack webhook URL env var {} not found", var_name),
+                        reason: format!("Slack webhook URL env var {var_name} not found"),
                     })?
                 } else {
                     return Err(ObserverError::InvalidActionConfig {
@@ -434,13 +434,13 @@ impl ObserverExecutor {
         let delay_ms = match config.backoff_strategy {
             BackoffStrategy::Exponential => {
                 // 2^(attempt-1) * initial_delay, capped at max_delay
-                let exponent = (attempt - 1) as u32;
+                let exponent = attempt - 1;
                 let base_delay = config.initial_delay_ms * (2_u64.pow(exponent));
                 base_delay.min(config.max_delay_ms)
             }
             BackoffStrategy::Linear => {
                 // attempt * initial_delay, capped at max_delay
-                let base_delay = config.initial_delay_ms * (attempt as u64);
+                let base_delay = config.initial_delay_ms * u64::from(attempt);
                 base_delay.min(config.max_delay_ms)
             }
             BackoffStrategy::Fixed => {
@@ -454,7 +454,7 @@ impl ObserverExecutor {
 
     /// Run observer executor with pluggable event transport
     ///
-    /// This is the new transport-agnostic method that works with any EventTransport
+    /// This is the new transport-agnostic method that works with any `EventTransport`
     /// implementation (PostgreSQL, NATS, in-memory, etc.).
     ///
     /// # Design
@@ -536,17 +536,17 @@ impl ObserverExecutor {
 
     /// Run listener loop: poll for change log entries and process as events
     ///
-    /// This is the integration point between ChangeLogListener and ObserverExecutor.
-    /// It continuously polls the change log for new entries, converts them to EntityEvents,
+    /// This is the integration point between `ChangeLogListener` and `ObserverExecutor`.
+    /// It continuously polls the change log for new entries, converts them to `EntityEvents`,
     /// and processes them through the observer pipeline.
     ///
     /// # Arguments
-    /// * `listener` - Mutable reference to ChangeLogListener
+    /// * `listener` - Mutable reference to `ChangeLogListener`
     /// * `max_iterations` - Optional limit on polling iterations (for testing)
     ///
     /// # Behavior
-    /// - Polls listener.next_batch() at configured interval
-    /// - Converts each ChangeLogEntry to EntityEvent
+    /// - Polls `listener.next_batch()` at configured interval
+    /// - Converts each `ChangeLogEntry` to `EntityEvent`
     /// - Processes event through observers
     /// - Implements exponential backoff on database errors (up to 10 retries)
     /// - Skips malformed entries and continues processing
@@ -662,7 +662,8 @@ impl ObserverExecutor {
     /// to manage the background execution.
     ///
     /// # Returns
-    /// JoinHandle for the background listener task
+    /// `JoinHandle` for the background listener task
+    #[must_use] 
     pub fn spawn_listener(
         self: Arc<Self>,
         mut listener: crate::listener::ChangeLogListener,
@@ -690,17 +691,20 @@ pub struct ExecutionSummary {
 
 impl ExecutionSummary {
     /// Create a new empty summary
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Check if execution was successful
+    #[must_use] 
     pub fn is_success(&self) -> bool {
         self.failed_actions == 0 && self.dlq_errors == 0 && self.errors.is_empty()
     }
 
     /// Get total actions processed
-    pub fn total_actions(&self) -> usize {
+    #[must_use] 
+    pub const fn total_actions(&self) -> usize {
         self.successful_actions + self.failed_actions
     }
 }

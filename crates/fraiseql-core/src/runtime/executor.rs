@@ -381,7 +381,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             result = self.execute(query, variables) => {
                 result
             }
-            _ = token.cancelled() => {
+            () = token.cancelled() => {
                 Err(FraiseQLError::cancelled(
                     ctx.query_id().to_string(),
                     "Query cancelled during execution".to_string(),

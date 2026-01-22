@@ -36,7 +36,7 @@ impl AdmissionController {
         match self.semaphore.clone().try_acquire_owned() {
             Ok(permit) => Some(AdmissionPermit {
                 _permit: permit,
-                controller: self as *const Self as usize,
+                _controller: self as *const Self as usize,
                 _phantom: std::marker::PhantomData,
             }),
             Err(_) => {
@@ -64,7 +64,7 @@ impl AdmissionController {
                 self.queue_depth.fetch_sub(1, Ordering::Relaxed);
                 Some(AdmissionPermit {
                     _permit: permit,
-                    controller: self as *const Self as usize,
+                    _controller: self as *const Self as usize,
                     _phantom: std::marker::PhantomData,
                 })
             }
@@ -84,7 +84,7 @@ impl AdmissionController {
 /// RAII guard that holds an admission permit
 pub struct AdmissionPermit<'a> {
     _permit: tokio::sync::OwnedSemaphorePermit,
-    controller: usize, // Pointer to controller (for lifetime hack)
+    _controller: usize, // Pointer to controller (for lifetime hack)
     _phantom: std::marker::PhantomData<&'a ()>,
 }
 
@@ -94,7 +94,7 @@ impl<'a> AdmissionPermit<'a> {
     fn _new(_permit: tokio::sync::OwnedSemaphorePermit, controller: usize) -> Self {
         Self {
             _permit,
-            controller,
+            _controller: controller,
             _phantom: std::marker::PhantomData,
         }
     }

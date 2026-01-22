@@ -124,14 +124,14 @@ mod tests {
 
     #[test]
     fn test_valid_signature() {
-        let clock = Arc::new(MockClock::new(1679076299));
+        let clock = Arc::new(MockClock::new(1_679_076_299));
         let verifier = StripeVerifier::with_clock(clock);
         let payload = b"test payload";
         let secret = "whsec_test";
         let signature = generate_signature(
             &String::from_utf8_lossy(payload),
             secret,
-            1679076299,
+            1_679_076_299,
         );
 
         assert!(verifier.verify(payload, &signature, secret, None).unwrap());
@@ -139,20 +139,20 @@ mod tests {
 
     #[test]
     fn test_invalid_signature() {
-        let clock = Arc::new(MockClock::new(1679076299));
+        let clock = Arc::new(MockClock::new(1_679_076_299));
         let verifier = StripeVerifier::with_clock(clock);
         let signature = "t=1679076299,v1=invalid";
 
         assert!(!verifier
-            .verify(b"test", &signature, "secret", None)
+            .verify(b"test", signature, "secret", None)
             .unwrap());
     }
 
     #[test]
     fn test_expired_timestamp() {
-        let clock = Arc::new(MockClock::new(1679076299 + 600)); // 10 minutes later
+        let clock = Arc::new(MockClock::new(1_679_076_299 + 600)); // 10 minutes later
         let verifier = StripeVerifier::with_clock(clock);
-        let signature = generate_signature("test", "secret", 1679076299);
+        let signature = generate_signature("test", "secret", 1_679_076_299);
 
         let result = verifier.verify(b"test", &signature, "secret", None);
         assert!(matches!(result, Err(SignatureError::TimestampExpired)));
@@ -162,6 +162,6 @@ mod tests {
     fn test_extract_timestamp() {
         let verifier = StripeVerifier::new();
         let signature = "t=1679076299,v1=abc123";
-        assert_eq!(verifier.extract_timestamp(signature), Some(1679076299));
+        assert_eq!(verifier.extract_timestamp(signature), Some(1_679_076_299));
     }
 }

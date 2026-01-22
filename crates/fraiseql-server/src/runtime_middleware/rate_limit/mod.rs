@@ -8,8 +8,6 @@ pub mod memory;
 #[cfg(feature = "redis-rate-limiting")]
 pub mod redis;
 
-use crate::config::rate_limiting::BackpressureConfig;
-
 /// Parsed rate limit
 #[derive(Debug, Clone)]
 pub struct RateLimit {
