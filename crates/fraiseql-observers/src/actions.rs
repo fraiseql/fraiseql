@@ -79,6 +79,7 @@ impl WebhookAction {
         }
     }
 
+    #[allow(unused_self)]
     fn render_body_template(&self, template: &str, data: &Value) -> Result<Value> {
         let mut rendered = template.to_string();
 
@@ -187,6 +188,7 @@ impl SlackAction {
         }
     }
 
+    #[allow(unused_self)]
     fn render_message_template(&self, template: &str, data: &Value) -> Result<String> {
         let mut rendered = template.to_string();
 

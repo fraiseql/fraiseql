@@ -299,7 +299,6 @@ impl ObserverExecutor {
                 match self
                     .sms_action
                     .execute(sms_phone.clone(), message_template.as_deref(), event)
-                    .await
                 {
                     Ok(response) => Ok(ActionResult {
                         action_type: "sms".to_string(),
@@ -332,7 +331,6 @@ impl ObserverExecutor {
                 match self
                     .push_action
                     .execute(token.clone(), title.clone(), body.clone())
-                    .await
                 {
                     Ok(response) => Ok(ActionResult {
                         action_type: "push".to_string(),
@@ -352,7 +350,6 @@ impl ObserverExecutor {
                 match self
                     .search_action
                     .execute(index.clone(), id_template.as_deref(), event)
-                    .await
                 {
                     Ok(response) => Ok(ActionResult {
                         action_type: "search".to_string(),
@@ -371,7 +368,6 @@ impl ObserverExecutor {
                 match self
                     .cache_action
                     .execute(key_pattern.clone(), action)
-                    .await
                 {
                     Ok(response) => Ok(ActionResult {
                         action_type: "cache".to_string(),

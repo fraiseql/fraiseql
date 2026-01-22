@@ -42,6 +42,7 @@
 
 pub mod actions;
 pub mod actions_additional;
+pub mod checkpoint;
 pub mod condition;
 pub mod config;
 pub mod error;
@@ -57,6 +58,8 @@ pub mod testing;
 // Re-export common types at crate level
 pub use actions::{ActionExecutionResult, EmailAction, SlackAction, WebhookAction};
 pub use actions_additional::{CacheAction, PushAction, SearchAction, SmsAction};
+pub use checkpoint::{CheckpointState, CheckpointStore};
+pub use checkpoint::postgres::PostgresCheckpointStore;
 pub use condition::{ConditionAst, ConditionParser};
 pub use config::{
     ActionConfig, BackoffStrategy, FailurePolicy, ObserverDefinition, ObserverRuntimeConfig,

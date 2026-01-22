@@ -103,6 +103,10 @@ pub enum ObserverError {
     /// Serialization/deserialization error
     #[error("Serialization error: {0}")]
     SerializationError(String),
+
+    /// Phase 8: Database query/connection error (from sqlx)
+    #[error("Database query error: {0}")]
+    SqlxError(String),
 }
 
 /// Error code with classification for retry/DLQ decisions.
@@ -160,6 +164,12 @@ impl ObserverErrorCode {
     }
 }
 
+impl From<sqlx::Error> for ObserverError {
+    fn from(err: sqlx::Error) -> Self {
+        Self::SqlxError(err.to_string())
+    }
+}
+
 impl ObserverError {
     /// Get the error code for this error
     pub fn code(&self) -> ObserverErrorCode {
@@ -187,6 +197,7 @@ impl ObserverError {
             ObserverError::RetriesExhausted { .. } => ObserverErrorCode::RetriesExhausted,
             ObserverError::UnsupportedActionType { .. } => ObserverErrorCode::UnsupportedActionType,
             ObserverError::SerializationError(_) => ObserverErrorCode::InvalidConfig,
+            ObserverError::SqlxError(_) => ObserverErrorCode::DatabaseError,
         }
     }
 

@@ -28,7 +28,7 @@ impl SmsAction {
     /// # Errors
     ///
     /// Returns `ObserverError` if SMS sending fails.
-    pub async fn execute(
+    pub fn execute(
         &self,
         phone: String,
         message_template: Option<&str>,
@@ -95,7 +95,7 @@ impl PushAction {
     /// # Errors
     ///
     /// Returns `ObserverError` if push notification fails.
-    pub async fn execute(
+    pub fn execute(
         &self,
         device_token: String,
         title: String,
@@ -162,7 +162,7 @@ impl SearchAction {
     /// # Errors
     ///
     /// Returns `ObserverError` if indexing fails.
-    pub async fn execute(
+    pub fn execute(
         &self,
         index: String,
         document_id_template: Option<&str>,
@@ -228,7 +228,7 @@ impl CacheAction {
     /// # Errors
     ///
     /// Returns `ObserverError` if cache operation fails.
-    pub async fn execute(
+    pub fn execute(
         &self,
         key_pattern: String,
         action_type: &str,
@@ -298,8 +298,8 @@ mod tests {
         let _action = SmsAction::new();
     }
 
-    #[tokio::test]
-    async fn test_sms_action_execute() {
+    #[test]
+    fn test_sms_action_execute() {
         let action = SmsAction::new();
         let event = create_test_event();
         let response = action
@@ -308,7 +308,6 @@ mod tests {
                 Some("Test notification"),
                 &event,
             )
-            .await
             .unwrap();
 
         assert!(response.success);
@@ -322,8 +321,8 @@ mod tests {
         let _action = PushAction::new();
     }
 
-    #[tokio::test]
-    async fn test_push_action_execute() {
+    #[test]
+    fn test_push_action_execute() {
         let action = PushAction::new();
         let response = action
             .execute(
@@ -331,7 +330,6 @@ mod tests {
                 "Test Title".to_string(),
                 "Test Body".to_string(),
             )
-            .await
             .unwrap();
 
         assert!(response.success);
@@ -345,13 +343,12 @@ mod tests {
         let _action = SearchAction::new();
     }
 
-    #[tokio::test]
-    async fn test_search_action_execute() {
+    #[test]
+    fn test_search_action_execute() {
         let action = SearchAction::new();
         let event = create_test_event();
         let response = action
             .execute("users".to_string(), Some("user_123"), &event)
-            .await
             .unwrap();
 
         assert!(response.success);
@@ -365,12 +362,11 @@ mod tests {
         let _action = CacheAction::new();
     }
 
-    #[tokio::test]
-    async fn test_cache_action_execute() {
+    #[test]
+    fn test_cache_action_execute() {
         let action = CacheAction::new();
         let response = action
             .execute("user:*".to_string(), "invalidate")
-            .await
             .unwrap();
 
         assert!(response.success);
