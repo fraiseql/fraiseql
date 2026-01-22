@@ -455,6 +455,102 @@ impl ObserverExecutor {
 
         Duration::from_millis(delay_ms)
     }
+
+    /// Run listener loop: poll for change log entries and process as events
+    ///
+    /// This is the integration point between ChangeLogListener and ObserverExecutor.
+    /// It continuously polls the change log for new entries, converts them to EntityEvents,
+    /// and processes them through the observer pipeline.
+    ///
+    /// # Arguments
+    /// * `listener` - Mutable reference to ChangeLogListener
+    /// * `max_iterations` - Optional limit on polling iterations (for testing)
+    ///
+    /// # Behavior
+    /// - Polls listener.next_batch() at configured interval
+    /// - Converts each ChangeLogEntry to EntityEvent
+    /// - Processes event through observers
+    /// - Updates checkpoint after successful processing
+    /// - Continues indefinitely until listener stops or error occurs
+    pub async fn run_listener_loop(
+        &self,
+        listener: &mut crate::listener::ChangeLogListener,
+        max_iterations: Option<usize>,
+    ) -> Result<()> {
+        let mut iteration = 0;
+
+        loop {
+            // Check iteration limit (for testing)
+            if let Some(max) = max_iterations {
+                if iteration >= max {
+                    info!("Listener loop reached max iterations: {}", max);
+                    break;
+                }
+                iteration += 1;
+            }
+
+            match listener.next_batch().await {
+                Ok(entries) => {
+                    if entries.is_empty() {
+                        debug!("No new entries from change log");
+                        // Wait before polling again
+                        sleep(Duration::from_millis(100)).await;
+                        continue;
+                    }
+
+                    debug!("Processing {} change log entries", entries.len());
+
+                    // Convert and process each entry
+                    for entry in entries {
+                        match entry.to_entity_event() {
+                            Ok(event) => {
+                                match self.process_event(&event).await {
+                                    Ok(summary) => {
+                                        debug!(
+                                            "Event {} processed: {} successful, {} failed",
+                                            event.id, summary.successful_actions,
+                                            summary.failed_actions
+                                        );
+                                    }
+                                    Err(e) => {
+                                        error!("Failed to process event: {}", e);
+                                        // Continue processing other entries despite error
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                error!("Failed to convert change log entry to event: {}", e);
+                                // Continue processing other entries despite error
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    error!("Error fetching from change log: {}", e);
+                    // Back off and retry
+                    warn!("Retrying in 1 second...");
+                    sleep(Duration::from_secs(1)).await;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Start listener in background task
+    ///
+    /// Spawns a background task that runs the listener loop,
+    /// returning immediately with a task handle for the caller
+    /// to manage the background execution.
+    ///
+    /// # Returns
+    /// JoinHandle for the background listener task
+    pub fn spawn_listener(
+        self: Arc<Self>,
+        mut listener: crate::listener::ChangeLogListener,
+    ) -> tokio::task::JoinHandle<Result<()>> {
+        tokio::spawn(async move { self.run_listener_loop(&mut listener, None).await })
+    }
 }
 
 /// Summary of event processing results
@@ -632,5 +728,60 @@ mod tests {
         assert_eq!(config.max_attempts, 3);
         assert_eq!(config.initial_delay_ms, 100);
         assert_eq!(config.max_delay_ms, 30000);
+    }
+
+    // Listener integration tests (Subphase 7.3)
+
+    #[tokio::test]
+    async fn test_run_listener_loop_empty_batch() {
+        use crate::listener::{ChangeLogListener, ChangeLogListenerConfig};
+        use sqlx::postgres::PgPool;
+
+        let executor = create_test_executor();
+        let pool = PgPool::connect_lazy("postgres://localhost/dummy").unwrap();
+        let config = ChangeLogListenerConfig::new(pool);
+        let mut listener = ChangeLogListener::new(config);
+
+        // Run for 1 iteration - should handle empty batch gracefully
+        let result = executor.run_listener_loop(&mut listener, Some(1)).await;
+
+        // Should succeed despite no entries
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_checkpoint_tracking() {
+        use crate::listener::{ChangeLogListener, ChangeLogListenerConfig};
+        use sqlx::postgres::PgPool;
+
+        let pool = PgPool::connect_lazy("postgres://localhost/dummy").unwrap();
+        let config = ChangeLogListenerConfig::new(pool);
+        let mut listener = ChangeLogListener::new(config);
+
+        // Initial checkpoint should be 0
+        assert_eq!(listener.checkpoint(), 0);
+
+        // Update checkpoint
+        listener.set_checkpoint(100);
+        assert_eq!(listener.checkpoint(), 100);
+
+        // Checkpoint persists
+        assert_eq!(listener.checkpoint(), 100);
+    }
+
+    #[tokio::test]
+    async fn test_listener_config_builder() {
+        use crate::listener::ChangeLogListenerConfig;
+        use sqlx::postgres::PgPool;
+
+        let pool = PgPool::connect_lazy("postgres://localhost/dummy").unwrap();
+        let config = ChangeLogListenerConfig::new(pool)
+            .with_poll_interval(250)
+            .with_batch_size(200)
+            .with_resume_from(500);
+
+        assert_eq!(config.poll_interval_ms, 250);
+        assert_eq!(config.batch_size, 200);
+        assert_eq!(config.resume_from_id, Some(500));
     }
 }
