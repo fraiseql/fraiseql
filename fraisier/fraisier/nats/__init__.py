@@ -12,11 +12,13 @@ from fraisier.nats.events import (
     MetricsEvents,
     NatsEvent,
 )
+from fraisier.nats.provider import NatsEventProvider
 
 __all__ = [
     "NatsClient",
     "NatsEventBus",
     "NatsEvent",
+    "NatsEventProvider",
     "DeploymentEvents",
     "HealthCheckEvents",
     "DatabaseEvents",

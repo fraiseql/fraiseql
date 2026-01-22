@@ -6,14 +6,18 @@ with systemd service management and TCP health checks.
 
 import asyncio
 import logging
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from .base import DeploymentProvider, HealthCheck, HealthCheckType, ProviderType
+from fraisier.nats.provider import NatsEventProvider
+
+if TYPE_CHECKING:
+    from fraisier.nats.client import NatsEventBus
 
 logger = logging.getLogger(__name__)
 
 
-class BareMetalProvider(DeploymentProvider):
+class BareMetalProvider(DeploymentProvider, NatsEventProvider):
     """Deploy to bare metal servers via SSH.
 
     Supports:
@@ -24,7 +28,12 @@ class BareMetalProvider(DeploymentProvider):
     - File operations (upload/download)
     """
 
-    def __init__(self, config: dict[str, Any]):
+    def __init__(
+        self,
+        config: dict[str, Any],
+        event_bus: "NatsEventBus | None" = None,
+        region: str | None = None,
+    ):
         """Initialize bare metal provider.
 
         Config should include:
@@ -33,6 +42,11 @@ class BareMetalProvider(DeploymentProvider):
             username: SSH username
             key_path: Path to SSH private key
             known_hosts_path: Optional custom known_hosts file
+
+        Args:
+            config: Provider configuration
+            event_bus: Optional NATS event bus for emitting deployment events
+            region: Optional region identifier for multi-region deployments
         """
         super().__init__(config)
         self.host = config.get("host")
@@ -42,6 +56,10 @@ class BareMetalProvider(DeploymentProvider):
         self.known_hosts_path = config.get("known_hosts_path")
         self.ssh_client = None
         self._connection_timeout = 10
+
+        # NATS event bus for emitting events
+        self.event_bus = event_bus
+        self.region = region
 
         if not self.host:
             raise ValueError("Bare Metal provider requires 'host' configuration")
@@ -231,6 +249,7 @@ class BareMetalProvider(DeploymentProvider):
         """Check service health.
 
         Supports HTTP, TCP, exec, and systemd checks.
+        Emits NATS events for health check results.
 
         Args:
             health_check: Health check configuration
@@ -238,23 +257,47 @@ class BareMetalProvider(DeploymentProvider):
         Returns:
             True if healthy, False otherwise
         """
+        import time
+
+        service_name = getattr(health_check, "service", "unknown")
+        check_type = health_check.type.value if hasattr(health_check.type, "value") else str(health_check.type)
+
+        # Emit health check started event
+        await self.emit_health_check_started(
+            service_name=service_name,
+            check_type=check_type,
+            endpoint=health_check.url or getattr(health_check, "port", None),
+        )
+
+        start_time = time.time()
+
         for attempt in range(health_check.retries):
             try:
                 if health_check.type == HealthCheckType.HTTP:
-                    return await self._check_http(health_check)
+                    result = await self._check_http(health_check)
 
                 elif health_check.type == HealthCheckType.TCP:
-                    return await self._check_tcp(health_check)
+                    result = await self._check_tcp(health_check)
 
                 elif health_check.type == HealthCheckType.EXEC:
-                    return await self._check_exec(health_check)
+                    result = await self._check_exec(health_check)
 
                 elif health_check.type == HealthCheckType.SYSTEMD:
-                    return await self._check_systemd(health_check)
+                    result = await self._check_systemd(health_check)
 
                 else:
                     logger.warning(f"Unknown health check type: {health_check.type}")
-                    return False
+                    result = False
+
+                if result:
+                    # Emit health check passed event
+                    duration_ms = int((time.time() - start_time) * 1000)
+                    await self.emit_health_check_passed(
+                        service_name=service_name,
+                        check_type=check_type,
+                        duration_ms=duration_ms,
+                    )
+                    return True
 
             except Exception as e:
                 logger.warning(
@@ -263,6 +306,15 @@ class BareMetalProvider(DeploymentProvider):
                 if attempt < health_check.retries - 1:
                     await asyncio.sleep(health_check.retry_delay)
                 continue
+
+        # Emit health check failed event
+        duration_ms = int((time.time() - start_time) * 1000)
+        await self.emit_health_check_failed(
+            service_name=service_name,
+            check_type=check_type,
+            reason="Health check failed after all retries",
+            duration_ms=duration_ms,
+        )
 
         return False
 

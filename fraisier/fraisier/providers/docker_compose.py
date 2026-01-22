@@ -7,14 +7,18 @@ health checks, and container orchestration.
 import asyncio
 import json
 import logging
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from .base import DeploymentProvider, HealthCheck, HealthCheckType, ProviderType
+from fraisier.nats.provider import NatsEventProvider
+
+if TYPE_CHECKING:
+    from fraisier.nats.client import NatsEventBus
 
 logger = logging.getLogger(__name__)
 
 
-class DockerComposeProvider(DeploymentProvider):
+class DockerComposeProvider(DeploymentProvider, NatsEventProvider):
     """Deploy services using Docker Compose.
 
     Supports:
@@ -26,7 +30,12 @@ class DockerComposeProvider(DeploymentProvider):
     - Network configuration
     """
 
-    def __init__(self, config: dict[str, Any]):
+    def __init__(
+        self,
+        config: dict[str, Any],
+        event_bus: "NatsEventBus | None" = None,
+        region: str | None = None,
+    ):
         """Initialize Docker Compose provider.
 
         Config should include:
@@ -34,6 +43,11 @@ class DockerComposeProvider(DeploymentProvider):
             project_name: Docker Compose project name
             docker_host: Docker daemon socket/host (optional)
             timeout: Command timeout in seconds (default 300)
+
+        Args:
+            config: Provider configuration
+            event_bus: Optional NATS event bus for emitting deployment events
+            region: Optional region identifier for multi-region deployments
         """
         super().__init__(config)
         self.compose_file = config.get("compose_file", "docker-compose.yml")
@@ -41,6 +55,10 @@ class DockerComposeProvider(DeploymentProvider):
         self.docker_host = config.get("docker_host")
         self.timeout = config.get("timeout", 300)
         self.docker_available = False
+
+        # NATS event bus for emitting events
+        self.event_bus = event_bus
+        self.region = region
 
     def _get_provider_type(self) -> ProviderType:
         """Return provider type."""
@@ -221,6 +239,7 @@ class DockerComposeProvider(DeploymentProvider):
         """Check service health.
 
         Supports HTTP, TCP, and exec checks.
+        Emits NATS events for health check results.
 
         Args:
             health_check: Health check configuration
@@ -228,20 +247,44 @@ class DockerComposeProvider(DeploymentProvider):
         Returns:
             True if healthy, False otherwise
         """
+        import time
+
+        service_name = getattr(health_check, "service", "unknown")
+        check_type = health_check.type.value if hasattr(health_check.type, "value") else str(health_check.type)
+
+        # Emit health check started event
+        await self.emit_health_check_started(
+            service_name=service_name,
+            check_type=check_type,
+            endpoint=health_check.url or getattr(health_check, "port", None),
+        )
+
+        start_time = time.time()
+
         for attempt in range(health_check.retries):
             try:
                 if health_check.type == HealthCheckType.HTTP:
-                    return await self._check_http(health_check)
+                    result = await self._check_http(health_check)
 
                 elif health_check.type == HealthCheckType.TCP:
-                    return await self._check_tcp(health_check)
+                    result = await self._check_tcp(health_check)
 
                 elif health_check.type == HealthCheckType.EXEC:
-                    return await self._check_exec(health_check)
+                    result = await self._check_exec(health_check)
 
                 else:
                     logger.warning(f"Unsupported health check type: {health_check.type}")
-                    return False
+                    result = False
+
+                if result:
+                    # Emit health check passed event
+                    duration_ms = int((time.time() - start_time) * 1000)
+                    await self.emit_health_check_passed(
+                        service_name=service_name,
+                        check_type=check_type,
+                        duration_ms=duration_ms,
+                    )
+                    return True
 
             except Exception as e:
                 logger.warning(
@@ -250,6 +293,15 @@ class DockerComposeProvider(DeploymentProvider):
                 if attempt < health_check.retries - 1:
                     await asyncio.sleep(health_check.retry_delay)
                 continue
+
+        # Emit health check failed event
+        duration_ms = int((time.time() - start_time) * 1000)
+        await self.emit_health_check_failed(
+            service_name=service_name,
+            check_type=check_type,
+            reason="Health check failed after all retries",
+            duration_ms=duration_ms,
+        )
 
         return False
 
