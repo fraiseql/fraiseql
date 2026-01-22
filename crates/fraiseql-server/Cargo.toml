@@ -79,6 +79,9 @@ aws-config = {version = "1", optional = true}
 fraiseql-core = {path = "../fraiseql-core"}
 fraiseql-error = {path = "../fraiseql-error"}
 
+# FraiseQL observers (optional)
+fraiseql-observers = {path = "../fraiseql-observers", optional = true}
+
 [dev-dependencies]
 # Performance testing
 criterion = {version = "0.5", features = ["async_tokio"]}
@@ -102,6 +105,11 @@ tracing-opentelemetry = ["opentelemetry", "opentelemetry-otlp"]
 redis-rate-limiting = ["redis"]
 aws-s3 = ["aws-sdk-s3", "aws-config"]
 testing = []
+
+# Observer system for reactive business logic
+observers = ["fraiseql-observers"]
+observers-nats = ["observers", "fraiseql-observers/nats"]
+observers-full = ["observers", "fraiseql-observers/phase8", "fraiseql-observers/nats"]
 
 [package]
 authors = ["FraiseQL Contributors"]

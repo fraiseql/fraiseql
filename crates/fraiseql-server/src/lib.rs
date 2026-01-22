@@ -104,6 +104,10 @@ pub mod files;
 // Authentication modules (Phase 5)
 pub mod auth;
 
+// Observer management (Phase 6) - optional
+#[cfg(feature = "observers")]
+pub mod observers;
+
 // Testing utilities
 #[cfg(any(test, feature = "testing"))]
 pub mod testing;
@@ -140,6 +144,22 @@ pub enum ServerError {
     /// IO error.
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),
+
+    /// Database error.
+    #[error("Database error: {0}")]
+    Database(String),
+
+    /// Validation error.
+    #[error("Validation error: {0}")]
+    Validation(String),
+
+    /// Resource conflict error.
+    #[error("Conflict: {0}")]
+    Conflict(String),
+
+    /// Resource not found error.
+    #[error("Not found: {0}")]
+    NotFound(String),
 }
 
 /// Server result type.
