@@ -197,8 +197,44 @@ def status(ctx: click.Context, fraise: str, environment: str) -> None:
     if fraise_config.get("systemd_service"):
         console.print(f"[bold]Systemd:[/bold] {fraise_config.get('systemd_service')}")
 
-    # TODO: Add actual version/health checking once deployers are complete
-    console.print("\n[yellow]Detailed status checking not yet implemented[/yellow]")
+    # Get deployer and check actual status
+    deployer = _get_deployer(fraise_config.get("type"), fraise_config)
+
+    if deployer:
+        try:
+            current_version = deployer.get_current_version()
+            latest_version = deployer.get_latest_version()
+            health_ok = deployer.health_check()
+
+            console.print()
+            console.print(f"[bold]Current Version:[/bold] {current_version or 'unknown'}")
+            console.print(f"[bold]Latest Version:[/bold] {latest_version or 'unknown'}")
+
+            health_status = "[green]healthy[/green]" if health_ok else "[red]unhealthy[/red]"
+            console.print(f"[bold]Health Check:[/bold] {health_status}")
+
+            # Check if deployment is needed
+            needs_deployment = deployer.is_deployment_needed()
+            deployment_status = "[yellow]needs update[/yellow]" if needs_deployment else "[green]up to date[/green]"
+            console.print(f"[bold]Status:[/bold] {deployment_status}")
+
+            # Show recent deployments
+            from .database import get_db
+            db = get_db()
+            recent = db.get_recent_deployments(limit=3, fraise=fraise, environment=environment)
+
+            if recent:
+                console.print("\n[bold]Recent Deployments:[/bold]")
+                for d in recent[:1]:  # Show most recent
+                    status_color = "green" if d["status"] == "success" else "red"
+                    console.print(
+                        f"  [{status_color}]{d['status']}[/{status_color}] "
+                        f"({d['old_version']} → {d['new_version']}) "
+                        f"at {d['started_at'][:10]}"
+                    )
+
+        except Exception as e:
+            console.print(f"\n[red]Error checking status:[/red] {e}")
 
 
 @main.command(name="status-all")
@@ -207,29 +243,60 @@ def status(ctx: click.Context, fraise: str, environment: str) -> None:
 @click.pass_context
 def status_all(ctx: click.Context, environment: str | None, fraise_type: str | None) -> None:
     """Check status of all fraises."""
+    from .database import get_db
+
     config = ctx.obj["config"]
-    deployments = config.list_all_deployments()
+    db = get_db()
+
+    # Get fraise states from database
+    all_states = db.get_all_fraise_states()
 
     if environment:
-        deployments = [d for d in deployments if d["environment"] == environment]
+        all_states = [s for s in all_states if s["environment_name"] == environment]
     if fraise_type:
-        deployments = [d for d in deployments if d["type"] == fraise_type]
+        fraise_config = config.get_fraise(s["fraise_name"]) if all_states else None
+        if fraise_config:
+            all_states = [s for s in all_states if fraise_config.get("type") == fraise_type]
+
+    if not all_states:
+        console.print("[yellow]No fraises found matching filters[/yellow]")
+        return
 
     table = Table(title="Fraise Status")
     table.add_column("Fraise", style="cyan")
     table.add_column("Environment", style="magenta")
     table.add_column("Type", style="green")
-    table.add_column("Version", style="yellow")
+    table.add_column("Current", style="yellow")
     table.add_column("Status")
+    table.add_column("Last Deploy", style="dim")
 
-    for d in deployments:
-        # TODO: Implement actual status checking
+    for state in all_states:
+        fraise_name = state["fraise_name"]
+        env_name = state["environment_name"]
+        fraise_cfg = config.get_fraise(fraise_name)
+        fraise_type_str = fraise_cfg.get("type", "unknown") if fraise_cfg else "unknown"
+        current_version = state.get("current_version") or "unknown"
+
+        # Format status with color
+        db_status = state.get("status", "unknown")
+        if db_status == "healthy":
+            status_str = "[green]healthy[/green]"
+        elif db_status == "degraded":
+            status_str = "[yellow]degraded[/yellow]"
+        elif db_status == "down":
+            status_str = "[red]down[/red]"
+        else:
+            status_str = "[dim]unknown[/dim]"
+
+        last_deploy = state.get("last_deployed_at", "")[:10] if state.get("last_deployed_at") else "-"
+
         table.add_row(
-            d["fraise"],
-            d["environment"],
-            d["type"],
-            "?.?.?",
-            "[yellow]Unknown[/yellow]",
+            fraise_name,
+            env_name,
+            fraise_type_str,
+            current_version,
+            status_str,
+            last_deploy,
         )
 
     console.print(table)
