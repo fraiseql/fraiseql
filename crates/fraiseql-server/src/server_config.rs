@@ -153,6 +153,70 @@ pub struct ServerConfig {
     /// ```
     #[serde(default)]
     pub auth: Option<OidcConfig>,
+
+    /// Observer runtime configuration (optional, requires `observers` feature).
+    #[cfg(feature = "observers")]
+    #[serde(default)]
+    pub observers: Option<ObserverConfig>,
+}
+
+#[cfg(feature = "observers")]
+fn default_observers_enabled() -> bool {
+    true
+}
+
+#[cfg(feature = "observers")]
+fn default_poll_interval_ms() -> u64 {
+    100
+}
+
+#[cfg(feature = "observers")]
+fn default_batch_size() -> usize {
+    100
+}
+
+#[cfg(feature = "observers")]
+fn default_channel_capacity() -> usize {
+    1000
+}
+
+#[cfg(feature = "observers")]
+fn default_auto_reload() -> bool {
+    true
+}
+
+#[cfg(feature = "observers")]
+fn default_reload_interval_secs() -> u64 {
+    60
+}
+
+/// Observer runtime configuration.
+#[cfg(feature = "observers")]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ObserverConfig {
+    /// Enable observer runtime (default: true).
+    #[serde(default = "default_observers_enabled")]
+    pub enabled: bool,
+
+    /// Poll interval for change log in milliseconds (default: 100).
+    #[serde(default = "default_poll_interval_ms")]
+    pub poll_interval_ms: u64,
+
+    /// Batch size for fetching change log entries (default: 100).
+    #[serde(default = "default_batch_size")]
+    pub batch_size: usize,
+
+    /// Channel capacity for event buffering (default: 1000).
+    #[serde(default = "default_channel_capacity")]
+    pub channel_capacity: usize,
+
+    /// Auto-reload observers on changes (default: true).
+    #[serde(default = "default_auto_reload")]
+    pub auto_reload: bool,
+
+    /// Reload interval in seconds (default: 60).
+    #[serde(default = "default_reload_interval_secs")]
+    pub reload_interval_secs: u64,
 }
 
 impl Default for ServerConfig {
@@ -183,6 +247,8 @@ impl Default for ServerConfig {
             pool_max_size:       default_pool_max_size(),
             pool_timeout_secs:   default_pool_timeout(),
             auth:                None, // No auth by default
+            #[cfg(feature = "observers")]
+            observers:           None, // Observers disabled by default
         }
     }
 }

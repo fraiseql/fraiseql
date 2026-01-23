@@ -116,8 +116,22 @@ async fn main() -> anyhow::Result<()> {
     );
     tracing::info!("Database adapter initialized successfully with connection pooling");
 
+    // Create sqlx pool for observers (if enabled)
+    #[cfg(feature = "observers")]
+    let db_pool = {
+        use sqlx::postgres::PgPoolOptions;
+        let pool = PgPoolOptions::new()
+            .min_connections(config.pool_min_size as u32)
+            .max_connections(config.pool_max_size as u32)
+            .connect(&config.database_url)
+            .await?;
+        Some(pool)
+    };
+    #[cfg(not(feature = "observers"))]
+    let db_pool: Option<sqlx::PgPool> = None;
+
     // Create and start server
-    let server = Server::new(config, schema, adapter).await?;
+    let server = Server::new(config, schema, adapter, db_pool).await?;
     tracing::info!("FraiseQL Server {} starting", env!("CARGO_PKG_VERSION"));
 
     server.serve().await?;

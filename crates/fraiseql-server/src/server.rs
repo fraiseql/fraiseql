@@ -10,6 +10,9 @@ use fraiseql_core::{
 use tokio::net::TcpListener;
 use tracing::{info, warn};
 
+#[cfg(feature = "observers")]
+use tracing::error;
+
 use crate::{
     Result, ServerError,
     server_config::ServerConfig,
@@ -24,12 +27,24 @@ use crate::{
     },
 };
 
+#[cfg(feature = "observers")]
+use {
+    crate::observers::{ObserverRuntime, ObserverRuntimeConfig},
+    tokio::sync::RwLock,
+};
+
 /// FraiseQL HTTP Server.
 pub struct Server<A: DatabaseAdapter> {
     config:                ServerConfig,
     executor:              Arc<Executor<A>>,
     subscription_manager:  Arc<SubscriptionManager>,
     oidc_validator:        Option<Arc<OidcValidator>>,
+
+    #[cfg(feature = "observers")]
+    observer_runtime:      Option<Arc<RwLock<ObserverRuntime>>>,
+
+    #[cfg(feature = "observers")]
+    db_pool:               Option<sqlx::PgPool>,
 }
 
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
@@ -40,6 +55,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// * `config` - Server configuration
     /// * `schema` - Compiled GraphQL schema
     /// * `adapter` - Database adapter
+    /// * `db_pool` - Database connection pool (optional, required for observers)
     ///
     /// # Errors
     ///
@@ -53,13 +69,15 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// let schema = CompiledSchema::from_json(schema_json)?;
     /// let adapter = Arc::new(PostgresAdapter::new(db_url).await?);
     ///
-    /// let server = Server::new(config, schema, adapter).await?;
+    /// let server = Server::new(config, schema, adapter, None).await?;
     /// server.serve().await?;
     /// ```
     pub async fn new(
         config: ServerConfig,
         schema: CompiledSchema,
         adapter: Arc<A>,
+        #[allow(unused_variables)]
+        db_pool: Option<sqlx::PgPool>,
     ) -> Result<Self> {
         let executor = Arc::new(Executor::new(schema.clone(), adapter));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
@@ -78,12 +96,54 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             None
         };
 
+        // Initialize observer runtime
+        #[cfg(feature = "observers")]
+        let observer_runtime = Self::init_observer_runtime(&config, db_pool.as_ref()).await;
+
         Ok(Self {
             config,
             executor,
             subscription_manager,
             oidc_validator,
+            #[cfg(feature = "observers")]
+            observer_runtime,
+            #[cfg(feature = "observers")]
+            db_pool,
         })
+    }
+
+    /// Initialize observer runtime from configuration
+    #[cfg(feature = "observers")]
+    async fn init_observer_runtime(
+        config: &ServerConfig,
+        pool: Option<&sqlx::PgPool>,
+    ) -> Option<Arc<RwLock<ObserverRuntime>>> {
+        // Check if enabled
+        let observer_config = match &config.observers {
+            Some(cfg) if cfg.enabled => cfg,
+            _ => {
+                info!("Observer runtime disabled");
+                return None;
+            }
+        };
+
+        let pool = match pool {
+            Some(p) => p,
+            None => {
+                warn!("No database pool provided for observers");
+                return None;
+            }
+        };
+
+        info!("Initializing observer runtime");
+
+        let runtime_config = ObserverRuntimeConfig::new(pool.clone())
+            .with_poll_interval(observer_config.poll_interval_ms)
+            .with_batch_size(observer_config.batch_size)
+            .with_channel_capacity(observer_config.channel_capacity);
+
+        let runtime = ObserverRuntime::new(runtime_config);
+        Some(Arc::new(RwLock::new(runtime)))
     }
 
     /// Build application router.
@@ -181,6 +241,12 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // This runs on ALL routes, even when metrics endpoints are disabled
         app = app.layer(middleware::from_fn_with_state(metrics, metrics_middleware));
 
+        // Observer routes (if enabled and compiled with feature)
+        #[cfg(feature = "observers")]
+        {
+            app = self.add_observer_routes(app);
+        }
+
         // Add middleware
         if self.config.tracing_enabled {
             app = app.layer(trace_layer());
@@ -191,6 +257,34 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         }
 
         app
+    }
+
+    /// Add observer-related routes to the router
+    #[cfg(feature = "observers")]
+    fn add_observer_routes(&self, app: Router) -> Router {
+        use crate::observers::{observer_routes, observer_runtime_routes, ObserverRepository, ObserverState, RuntimeHealthState};
+
+        // Management API (always available with feature)
+        let observer_state = ObserverState {
+            repository: ObserverRepository::new(
+                self.db_pool.clone().expect("Pool required for observers")
+            ),
+        };
+
+        let app = app.nest("/api/observers", observer_routes(observer_state));
+
+        // Runtime health API (only if runtime present)
+        if let Some(ref runtime) = self.observer_runtime {
+            info!(path = "/api/observers", "Observer management and runtime health endpoints enabled");
+
+            let runtime_state = RuntimeHealthState {
+                runtime: runtime.clone(),
+            };
+
+            app.merge(observer_runtime_routes(runtime_state))
+        } else {
+            app
+        }
     }
 
     /// Start server and listen for requests.
@@ -207,6 +301,22 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             "Starting FraiseQL server"
         );
 
+        // Start observer runtime if configured
+        #[cfg(feature = "observers")]
+        if let Some(ref runtime) = self.observer_runtime {
+            info!("Starting observer runtime...");
+            let mut guard = runtime.write().await;
+
+            match guard.start().await {
+                Ok(()) => info!("Observer runtime started"),
+                Err(e) => {
+                    error!("Failed to start observer runtime: {}", e);
+                    warn!("Server will continue without observers");
+                }
+            }
+            drop(guard);
+        }
+
         let listener = TcpListener::bind(self.config.bind_addr)
             .await
             .map_err(|e| ServerError::BindError(e.to_string()))?;
@@ -214,10 +324,50 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         info!("Server listening on http://{}", self.config.bind_addr);
 
         axum::serve(listener, app)
+            .with_graceful_shutdown(async move {
+                Self::shutdown_signal().await;
+
+                // Stop observer runtime
+                #[cfg(feature = "observers")]
+                if let Some(ref runtime) = self.observer_runtime {
+                    info!("Shutting down observer runtime");
+                    let mut guard = runtime.write().await;
+                    if let Err(e) = guard.stop().await {
+                        error!("Error stopping runtime: {}", e);
+                    } else {
+                        info!("Runtime stopped cleanly");
+                    }
+                }
+            })
             .await
             .map_err(|e| ServerError::IoError(std::io::Error::other(e)))?;
 
         Ok(())
+    }
+
+    /// Listen for shutdown signals (Ctrl+C or SIGTERM)
+    async fn shutdown_signal() {
+        use tokio::signal;
+
+        let ctrl_c = async {
+            signal::ctrl_c().await.expect("Failed to install Ctrl+C handler");
+        };
+
+        #[cfg(unix)]
+        let terminate = async {
+            signal::unix::signal(signal::unix::SignalKind::terminate())
+                .expect("Failed to install SIGTERM handler")
+                .recv()
+                .await;
+        };
+
+        #[cfg(not(unix))]
+        let terminate = std::future::pending::<()>();
+
+        tokio::select! {
+            _ = ctrl_c => info!("Received Ctrl+C"),
+            _ = terminate => info!("Received SIGTERM"),
+        }
     }
 }
 
