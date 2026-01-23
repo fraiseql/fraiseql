@@ -893,3 +893,134 @@ async fn test_debug_debezium_envelope() {
         println!("✗ No change log entry found!");
     }
 }
+
+/// Test action parsing from JSONB
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn test_action_parsing() {
+    // Try to parse the action JSON that we use in tests
+    let actions_json = serde_json::json!([
+        {
+            "type": "webhook",
+            "url": "http://127.0.0.1:8080/webhook",
+            "method": "POST",
+            "headers": {
+                "Content-Type": "application/json"
+            }
+        }
+    ]);
+
+    println!("Input JSON: {}", serde_json::to_string_pretty(&actions_json).unwrap());
+
+    match serde_json::from_value::<Vec<fraiseql_observers::config::ActionConfig>>(actions_json) {
+        Ok(actions) => {
+            println!("✓ Successfully parsed {} actions", actions.len());
+            for (i, action) in actions.iter().enumerate() {
+                println!("  Action {}: {:?}", i, action);
+            }
+        }
+        Err(e) => {
+            println!("✗ Failed to parse actions: {}", e);
+            panic!("Action parsing failed");
+        }
+    }
+}
+
+/// Test with longer wait time and polling
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn test_with_longer_polling() {
+    let pool = create_test_pool().await;
+    setup_observer_schema(&pool).await.expect("Failed to setup schema");
+
+    let mock_server = MockWebhookServer::start().await;
+    mock_server.mock_success().await;
+
+    let _observer_id = create_test_observer(
+        &pool,
+        "long-poll-test",
+        Some("Widget"),
+        Some("INSERT"),
+        None,
+        &mock_server.webhook_url(),
+    )
+    .await
+    .expect("Failed to create observer");
+
+    // Create runtime with VERY fast polling
+    let config = ObserverRuntimeConfig::new(pool.clone())
+        .with_poll_interval(5);  // 5ms polling
+    
+    let mut runtime = ObserverRuntime::new(config);
+    runtime.start().await.expect("Failed to start runtime");
+    
+    // Wait for runtime to fully initialize (background task)
+    println!("Waiting for runtime initialization...");
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    println!("Runtime initialized");
+
+    // Now insert event
+    let widget_id = uuid::Uuid::new_v4();
+    println!("Inserting change log entry...");
+    let _ = insert_change_log_entry(
+        &pool,
+        "INSERT",
+        "Widget",
+        &widget_id.to_string(),
+        serde_json::json!({"id": widget_id.to_string(), "name": "Test Widget"}),
+        None,
+    )
+    .await
+    .expect("Failed to insert");
+    println!("Change log entry inserted");
+
+    // Wait much longer for processing (5ms polling * multiple times)
+    println!("Waiting for event processing...");
+    for i in 0..50 {
+        tokio::time::sleep(Duration::from_millis(10)).await;
+        let requests = mock_server.received_requests().await;
+        if !requests.is_empty() {
+            println!("✓ Webhook called after {} ms", (i + 1) * 10);
+            break;
+        }
+        if i % 10 == 0 {
+            println!("  Still waiting... ({} ms elapsed)", (i + 1) * 10);
+        }
+    }
+
+    let requests = mock_server.received_requests().await;
+    println!("Final webhook calls: {}", requests.len());
+    println!("Expected: 1");
+
+    runtime.stop().await.ok();
+
+    if requests.is_empty() {
+        println!("\nDEBUG: Checking database state...");
+        
+        // Check change log
+        let cl_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM core.tb_entity_change_log")
+            .fetch_one(&pool)
+            .await
+            .ok()
+            .unwrap_or((0,));
+        println!("  Change log entries: {}", cl_count.0);
+        
+        // Check observer
+        let obs_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM tb_observer WHERE enabled = true")
+            .fetch_one(&pool)
+            .await
+            .ok()
+            .unwrap_or((0,));
+        println!("  Observers enabled: {}", obs_count.0);
+        
+        // Check observer log
+        let logs: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM tb_observer_log")
+            .fetch_one(&pool)
+            .await
+            .ok()
+            .unwrap_or((0,));
+        println!("  Observer logs: {}", logs.0);
+    }
+
+    assert!(!requests.is_empty(), "No webhook calls received after 500ms");
+}
