@@ -286,7 +286,7 @@ impl ChangeLogListener {
         // ORDER BY pk_entity_change_log ASC
         // LIMIT batch_size
 
-        let rows: Vec<(i64, String, String, Option<String>, String, String, String, String, Value, Option<Value>, String)> =
+        let rows: Vec<(i64, Uuid, Option<String>, Option<String>, String, String, String, Option<String>, Value, Option<Value>, Option<DateTime<Utc>>)> =
             sqlx::query_as(
                 r"
                 SELECT
@@ -318,18 +318,22 @@ impl ChangeLogListener {
         let mut entries = Vec::new();
 
         for (pk, id, org, contact, obj_type, obj_id, mod_type, status, data, meta, created) in rows {
+            let created_at_str = created
+                .map(|dt| dt.to_rfc3339())
+                .unwrap_or_else(|| Utc::now().to_rfc3339());
+
             entries.push(ChangeLogEntry {
                 id: pk,
-                pk_entity_change_log: id,
-                fk_customer_org: org,
+                pk_entity_change_log: id.to_string(),
+                fk_customer_org: org.unwrap_or_default(),
                 fk_contact: contact,
                 object_type: obj_type,
                 object_id: obj_id,
                 modification_type: mod_type,
-                change_status: status,
+                change_status: status.unwrap_or_default(),
                 object_data: data,
                 extra_metadata: meta,
-                created_at: created,
+                created_at: created_at_str,
             });
 
             // Update checkpoint for recovery
