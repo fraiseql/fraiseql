@@ -298,8 +298,12 @@ async fn test_checkpoint_recovery_after_restart() {
 /// 1. Losing in-flight events
 /// 2. Stopping the runtime
 /// 3. Requiring manual intervention
+///
+/// NOTE: Currently failing because `reload_observers()` only updates the count,
+/// not the actual matcher/executor. Hot reload needs to atomically swap the matcher
+/// to make new observers active. See runtime.rs:454-462 for details.
 #[tokio::test]
-#[ignore = "requires PostgreSQL"]
+#[ignore = "requires PostgreSQL; hot reload not fully implemented"]
 async fn test_hot_reload_observers() {
     init_test_tracing();
 
@@ -489,7 +493,9 @@ async fn test_graceful_shutdown_mid_processing() {
     }
 
     // Give runtime time to start processing
-    tokio::time::sleep(Duration::from_secs(1)).await;
+    // Note: webhooks have 2s delay and are processed sequentially
+    // We have 5 events × 2s = 10s + buffer = 11s
+    tokio::time::sleep(Duration::from_secs(11)).await;
 
     // Verify checkpoint was saved before attempting more events
     let checkpoint_exists = check_checkpoint_exists(&pool, &entity_type)
@@ -1051,7 +1057,7 @@ async fn test_debug_debezium_envelope() {
     .expect("Failed to insert");
 
     // Query the change log entry
-    let entry: Option<(i64, String, String, String, String, String, String, serde_json::Value)> = sqlx::query_as(
+    let entry: Option<(i64, Option<i64>, String, String, String, Option<String>, chrono::DateTime<chrono::Utc>, serde_json::Value)> = sqlx::query_as(
         "SELECT pk_entity_change_log, fk_customer_org, object_type, object_id, modification_type, change_status, created_at, object_data FROM core.tb_entity_change_log LIMIT 1"
     )
     .fetch_optional(&pool)
@@ -1127,15 +1133,19 @@ async fn test_with_longer_polling() {
     let pool = create_test_pool().await;
     setup_observer_schema(&pool).await.expect("Failed to setup schema");
 
-    // Clean up old change log entries from previous test runs
-    sqlx::query("DELETE FROM core.tb_entity_change_log")
+    // Clean up old test data (order matters due to foreign keys)
+    sqlx::query("DELETE FROM tb_observer_log")
         .execute(&pool)
         .await
-        .expect("Failed to clean change log");
+        .expect("Failed to clean observer logs");
     sqlx::query("DELETE FROM tb_observer")
         .execute(&pool)
         .await
         .expect("Failed to clean observers");
+    sqlx::query("DELETE FROM core.tb_entity_change_log")
+        .execute(&pool)
+        .await
+        .expect("Failed to clean change log");
 
     let mock_server = MockWebhookServer::start().await;
     mock_server.mock_success().await;

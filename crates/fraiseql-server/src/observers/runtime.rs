@@ -355,9 +355,40 @@ impl ObserverRuntime {
                                     }
                                 }
 
-                                // Update checkpoint
+                                // Update checkpoint (in-memory and database)
                                 if let Some(last_entry) = entries.last() {
                                     last_checkpoint.store(last_entry.id, Ordering::Relaxed);
+
+                                    // Persist checkpoint to database
+                                    // Use entity_type as listener_id for now
+                                    let listener_id = last_entry.object_type.clone();
+                                    let batch_count = entries.len() as i32;
+
+                                    match sqlx::query(
+                                        "INSERT INTO observer_checkpoints
+                                         (listener_id, last_processed_id, last_processed_at, batch_size, event_count, updated_at)
+                                         VALUES ($1, $2, NOW(), $3, $4, NOW())
+                                         ON CONFLICT (listener_id)
+                                         DO UPDATE SET
+                                            last_processed_id = $2,
+                                            last_processed_at = NOW(),
+                                            batch_size = $3,
+                                            event_count = observer_checkpoints.event_count + $4,
+                                            updated_at = NOW()"
+                                    )
+                                    .bind(&listener_id)
+                                    .bind(last_entry.id)
+                                    .bind(batch_count)
+                                    .bind(batch_count)
+                                    .execute(&pool)
+                                    .await {
+                                        Ok(_) => {
+                                            info!("✅ Checkpoint saved: listener_id={}, last_id={}", listener_id, last_entry.id);
+                                        }
+                                        Err(e) => {
+                                            error!("❌ Failed to save checkpoint: {}", e);
+                                        }
+                                    }
                                 }
                             }
                             Err(e) => {
