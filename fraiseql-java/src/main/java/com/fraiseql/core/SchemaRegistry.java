@@ -15,12 +15,14 @@ public class SchemaRegistry {
     private final Map<String, QueryInfo> queries;
     private final Map<String, MutationInfo> mutations;
     private final Map<String, SubscriptionInfo> subscriptions;
+    private final Map<String, ObserverInfo> observers;
 
     private SchemaRegistry() {
         this.types = new ConcurrentHashMap<>();
         this.queries = new ConcurrentHashMap<>();
         this.mutations = new ConcurrentHashMap<>();
         this.subscriptions = new ConcurrentHashMap<>();
+        this.observers = new ConcurrentHashMap<>();
     }
 
     /**
@@ -122,6 +124,23 @@ public class SchemaRegistry {
     }
 
     /**
+     * Register an observer in the schema.
+     * Observers react to database change events (INSERT/UPDATE/DELETE) with configurable actions.
+     *
+     * @param name the observer name (unique identifier)
+     * @param entity the entity type to observe
+     * @param event the event type (INSERT, UPDATE, DELETE)
+     * @param actions the actions to execute (webhooks, Slack, email)
+     * @param condition optional condition expression
+     * @param retry retry configuration for action execution
+     */
+    public void registerObserver(String name, String entity, String event,
+                                 List<Map<String, Object>> actions, String condition, RetryConfig retry) {
+        ObserverInfo observerInfo = new ObserverInfo(name, entity, event, actions, condition, retry);
+        observers.put(name, observerInfo);
+    }
+
+    /**
      * Get a registered type by name.
      *
      * @param typeName the type name
@@ -198,7 +217,16 @@ public class SchemaRegistry {
     }
 
     /**
-     * Clear all registered types, queries, mutations, and subscriptions.
+     * Get all registered observers.
+     *
+     * @return unmodifiable map of observer name to ObserverInfo
+     */
+    public Map<String, ObserverInfo> getAllObservers() {
+        return Collections.unmodifiableMap(observers);
+    }
+
+    /**
+     * Clear all registered types, queries, mutations, subscriptions, and observers.
      * Useful for testing.
      */
     public void clear() {
@@ -206,6 +234,7 @@ public class SchemaRegistry {
         queries.clear();
         mutations.clear();
         subscriptions.clear();
+        observers.clear();
     }
 
     /**
@@ -317,6 +346,40 @@ public class SchemaRegistry {
                 ", arguments=" + arguments.size() +
                 (topic != null ? ", topic='" + topic + '\'' : "") +
                 (operation != null ? ", operation='" + operation + '\'' : "") +
+                '}';
+        }
+    }
+
+    /**
+     * Information about a registered FraiseQL observer.
+     * Observers react to database change events with configurable actions.
+     */
+    public static class ObserverInfo {
+        public final String name;
+        public final String entity;
+        public final String event;
+        public final List<Map<String, Object>> actions;
+        public final String condition;
+        public final RetryConfig retry;
+
+        public ObserverInfo(String name, String entity, String event,
+                           List<Map<String, Object>> actions, String condition, RetryConfig retry) {
+            this.name = name;
+            this.entity = entity;
+            this.event = event;
+            this.actions = Collections.unmodifiableList(new ArrayList<>(actions));
+            this.condition = condition;
+            this.retry = retry;
+        }
+
+        @Override
+        public String toString() {
+            return "ObserverInfo{" +
+                "name='" + name + '\'' +
+                ", entity='" + entity + '\'' +
+                ", event='" + event + '\'' +
+                ", actions=" + actions.size() +
+                (condition != null && !condition.isEmpty() ? ", condition='" + condition + '\'' : "") +
                 '}';
         }
     }

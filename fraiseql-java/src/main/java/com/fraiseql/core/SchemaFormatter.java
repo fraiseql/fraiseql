@@ -49,6 +49,11 @@ public class SchemaFormatter {
         // Format mutations
         root.set("mutations", formatMutations(registry.getAllMutations()));
 
+        // Format observers
+        if (!registry.getAllObservers().isEmpty()) {
+            root.set("observers", formatObservers(registry.getAllObservers()));
+        }
+
         return root;
     }
 
@@ -159,6 +164,48 @@ public class SchemaFormatter {
         }
 
         return mutationsNode;
+    }
+
+    /**
+     * Format all registered observers.
+     *
+     * @param observers map of observer name to ObserverInfo
+     * @return ArrayNode with formatted observers
+     */
+    private static ArrayNode formatObservers(Map<String, SchemaRegistry.ObserverInfo> observers) {
+        ArrayNode observersArray = mapper.createArrayNode();
+
+        for (SchemaRegistry.ObserverInfo observerInfo : observers.values()) {
+            ObjectNode observerNode = mapper.createObjectNode();
+
+            observerNode.put("name", observerInfo.name);
+            observerNode.put("entity", observerInfo.entity);
+            observerNode.put("event", observerInfo.event);
+
+            if (observerInfo.condition != null && !observerInfo.condition.isEmpty()) {
+                observerNode.put("condition", observerInfo.condition);
+            }
+
+            // Format actions
+            ArrayNode actionsArray = mapper.createArrayNode();
+            for (Map<String, Object> action : observerInfo.actions) {
+                ObjectNode actionNode = mapper.valueToTree(action);
+                actionsArray.add(actionNode);
+            }
+            observerNode.set("actions", actionsArray);
+
+            // Format retry config
+            ObjectNode retryNode = mapper.createObjectNode();
+            Map<String, Object> retryMap = observerInfo.retry.toMap();
+            for (Map.Entry<String, Object> entry : retryMap.entrySet()) {
+                retryNode.putPOJO(entry.getKey(), entry.getValue());
+            }
+            observerNode.set("retry", retryNode);
+
+            observersArray.add(observerNode);
+        }
+
+        return observersArray;
     }
 
     /**
