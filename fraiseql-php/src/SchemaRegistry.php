@@ -38,6 +38,9 @@ final class SchemaRegistry
     /** @var array<string, SubscriptionDefinition> Registered subscriptions */
     private array $subscriptions = [];
 
+    /** @var array<string, ObserverDefinition> Registered observers */
+    private array $observers = [];
+
     private function __construct()
     {
     }
@@ -214,6 +217,50 @@ final class SchemaRegistry
     }
 
     /**
+     * Register an observer.
+     *
+     * @param ObserverDefinition $observer The observer definition
+     * @return self Fluent interface
+     */
+    public function registerObserver(ObserverDefinition $observer): self
+    {
+        $this->observers[$observer->name] = $observer;
+        return $this;
+    }
+
+    /**
+     * Get a registered observer by name.
+     *
+     * @param string $name Observer name
+     * @return ObserverDefinition|null
+     */
+    public function getObserver(string $name): ?ObserverDefinition
+    {
+        return $this->observers[$name] ?? null;
+    }
+
+    /**
+     * Get all registered observers.
+     *
+     * @return array<string, ObserverDefinition>
+     */
+    public function getAllObservers(): array
+    {
+        return $this->observers;
+    }
+
+    /**
+     * Check if an observer is registered.
+     *
+     * @param string $name Observer name
+     * @return bool
+     */
+    public function hasObserver(string $name): bool
+    {
+        return isset($this->observers[$name]);
+    }
+
+    /**
      * Clear all registered types (useful for testing).
      *
      * @return self Fluent interface
@@ -224,6 +271,7 @@ final class SchemaRegistry
         $this->classToTypeName = [];
         $this->typeFields = [];
         $this->subscriptions = [];
+        $this->observers = [];
 
         return $this;
     }
