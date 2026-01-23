@@ -651,6 +651,7 @@ mod tests {
             directives:        None,
             fact_tables:       None,
             aggregate_queries: None,
+            observers:         None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -697,6 +698,7 @@ mod tests {
             directives:        None,
             fact_tables:       None,
             aggregate_queries: None,
+            observers:         None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -733,6 +735,7 @@ mod tests {
             directives:        None,
             fact_tables:       None,
             aggregate_queries: None,
+            observers:         None,
         };
 
         let result = SchemaConverter::convert(intermediate);
@@ -782,6 +785,7 @@ mod tests {
             directives:        None,
             fact_tables:       None,
             aggregate_queries: None,
+            observers:         None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -834,6 +838,7 @@ mod tests {
             directives:        None,
             fact_tables:       None,
             aggregate_queries: None,
+            observers:         None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -895,6 +900,7 @@ mod tests {
             directives:        None,
             fact_tables:       None,
             aggregate_queries: None,
+            observers:         None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -972,6 +978,7 @@ mod tests {
             directives:        None,
             fact_tables:       None,
             aggregate_queries: None,
+            observers:         None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -1027,6 +1034,7 @@ mod tests {
             directives:        None,
             fact_tables:       None,
             aggregate_queries: None,
+            observers:         None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -1093,6 +1101,7 @@ mod tests {
             directives:        None,
             fact_tables:       None,
             aggregate_queries: None,
+            observers:         None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -1136,6 +1145,7 @@ mod tests {
             directives:        None,
             fact_tables:       None,
             aggregate_queries: None,
+            observers:         None,
         };
 
         let result = SchemaConverter::convert(intermediate);
@@ -1189,6 +1199,7 @@ mod tests {
             directives:        None,
             fact_tables:       None,
             aggregate_queries: None,
+            observers:         None,
         };
 
         let result = SchemaConverter::convert(intermediate);
@@ -1245,6 +1256,7 @@ mod tests {
             directives:        None,
             fact_tables:       None,
             aggregate_queries: None,
+            observers:         None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -1315,6 +1327,7 @@ mod tests {
             directives:        None,
             fact_tables:       None,
             aggregate_queries: None,
+            observers:         None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();

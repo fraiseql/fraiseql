@@ -177,6 +177,210 @@ impl SchemaValidator {
             }
         }
 
+        // Validate observers
+        if let Some(observers) = &schema.observers {
+            let mut observer_names = HashSet::new();
+            for (idx, observer) in observers.iter().enumerate() {
+                debug!("Validating observer: {}", observer.name);
+
+                // Check for duplicate observer names
+                if observer_names.contains(&observer.name) {
+                    report.errors.push(ValidationError {
+                        message:    format!("Duplicate observer name: '{}'", observer.name),
+                        path:       format!("observers[{idx}].name"),
+                        severity:   ErrorSeverity::Error,
+                        suggestion: Some("Observer names must be unique".to_string()),
+                    });
+                }
+                observer_names.insert(observer.name.clone());
+
+                // Validate entity type exists
+                if !type_names.contains(&observer.entity) {
+                    report.errors.push(ValidationError {
+                        message:    format!(
+                            "Observer '{}' references unknown entity '{}'",
+                            observer.name, observer.entity
+                        ),
+                        path:       format!("observers[{idx}].entity"),
+                        severity:   ErrorSeverity::Error,
+                        suggestion: Some(format!(
+                            "Available types: {}",
+                            Self::suggest_similar_type(&observer.entity, &type_names)
+                        )),
+                    });
+                }
+
+                // Validate event type
+                let valid_events = ["INSERT", "UPDATE", "DELETE"];
+                if !valid_events.contains(&observer.event.as_str()) {
+                    report.errors.push(ValidationError {
+                        message:    format!(
+                            "Observer '{}' has invalid event '{}'. Must be INSERT, UPDATE, or DELETE",
+                            observer.name, observer.event
+                        ),
+                        path:       format!("observers[{idx}].event"),
+                        severity:   ErrorSeverity::Error,
+                        suggestion: Some("Valid events: INSERT, UPDATE, DELETE".to_string()),
+                    });
+                }
+
+                // Validate at least one action exists
+                if observer.actions.is_empty() {
+                    report.errors.push(ValidationError {
+                        message:    format!("Observer '{}' must have at least one action", observer.name),
+                        path:       format!("observers[{idx}].actions"),
+                        severity:   ErrorSeverity::Error,
+                        suggestion: Some("Add a webhook, slack, or email action".to_string()),
+                    });
+                }
+
+                // Validate each action
+                for (action_idx, action) in observer.actions.iter().enumerate() {
+                    if let Some(obj) = action.as_object() {
+                        // Check action has a type field
+                        if let Some(action_type) = obj.get("type").and_then(|v| v.as_str()) {
+                            let valid_action_types = ["webhook", "slack", "email"];
+                            if !valid_action_types.contains(&action_type) {
+                                report.errors.push(ValidationError {
+                                    message:    format!(
+                                        "Observer '{}' action {} has invalid type '{}'",
+                                        observer.name, action_idx, action_type
+                                    ),
+                                    path:       format!("observers[{idx}].actions[{action_idx}].type"),
+                                    severity:   ErrorSeverity::Error,
+                                    suggestion: Some("Valid action types: webhook, slack, email".to_string()),
+                                });
+                            }
+
+                            // Validate action-specific required fields
+                            match action_type {
+                                "webhook" => {
+                                    let has_url = obj.contains_key("url");
+                                    let has_url_env = obj.contains_key("url_env");
+                                    if !has_url && !has_url_env {
+                                        report.errors.push(ValidationError {
+                                            message:    format!(
+                                                "Observer '{}' webhook action must have 'url' or 'url_env'",
+                                                observer.name
+                                            ),
+                                            path:       format!("observers[{idx}].actions[{action_idx}]"),
+                                            severity:   ErrorSeverity::Error,
+                                            suggestion: Some("Add 'url' or 'url_env' field".to_string()),
+                                        });
+                                    }
+                                }
+                                "slack" => {
+                                    if !obj.contains_key("channel") {
+                                        report.errors.push(ValidationError {
+                                            message:    format!(
+                                                "Observer '{}' slack action must have 'channel' field",
+                                                observer.name
+                                            ),
+                                            path:       format!("observers[{idx}].actions[{action_idx}]"),
+                                            severity:   ErrorSeverity::Error,
+                                            suggestion: Some("Add 'channel' field (e.g., '#sales')".to_string()),
+                                        });
+                                    }
+                                    if !obj.contains_key("message") {
+                                        report.errors.push(ValidationError {
+                                            message:    format!(
+                                                "Observer '{}' slack action must have 'message' field",
+                                                observer.name
+                                            ),
+                                            path:       format!("observers[{idx}].actions[{action_idx}]"),
+                                            severity:   ErrorSeverity::Error,
+                                            suggestion: Some("Add 'message' field".to_string()),
+                                        });
+                                    }
+                                }
+                                "email" => {
+                                    let required_fields = ["to", "subject", "body"];
+                                    for field in &required_fields {
+                                        if !obj.contains_key(*field) {
+                                            report.errors.push(ValidationError {
+                                                message:    format!(
+                                                    "Observer '{}' email action must have '{}' field",
+                                                    observer.name, field
+                                                ),
+                                                path:       format!("observers[{idx}].actions[{action_idx}]"),
+                                                severity:   ErrorSeverity::Error,
+                                                suggestion: Some(format!("Add '{}' field", field)),
+                                            });
+                                        }
+                                    }
+                                }
+                                _ => {}
+                            }
+                        } else {
+                            report.errors.push(ValidationError {
+                                message:    format!(
+                                    "Observer '{}' action {} missing 'type' field",
+                                    observer.name, action_idx
+                                ),
+                                path:       format!("observers[{idx}].actions[{action_idx}]"),
+                                severity:   ErrorSeverity::Error,
+                                suggestion: Some("Add 'type' field (webhook, slack, or email)".to_string()),
+                            });
+                        }
+                    } else {
+                        report.errors.push(ValidationError {
+                            message:    format!(
+                                "Observer '{}' action {} must be an object",
+                                observer.name, action_idx
+                            ),
+                            path:       format!("observers[{idx}].actions[{action_idx}]"),
+                            severity:   ErrorSeverity::Error,
+                            suggestion: None,
+                        });
+                    }
+                }
+
+                // Validate retry config
+                let valid_backoff_strategies = ["exponential", "linear", "fixed"];
+                if !valid_backoff_strategies.contains(&observer.retry.backoff_strategy.as_str()) {
+                    report.errors.push(ValidationError {
+                        message:    format!(
+                            "Observer '{}' has invalid backoff_strategy '{}'",
+                            observer.name, observer.retry.backoff_strategy
+                        ),
+                        path:       format!("observers[{idx}].retry.backoff_strategy"),
+                        severity:   ErrorSeverity::Error,
+                        suggestion: Some("Valid strategies: exponential, linear, fixed".to_string()),
+                    });
+                }
+
+                if observer.retry.max_attempts == 0 {
+                    report.errors.push(ValidationError {
+                        message:    format!("Observer '{}' has max_attempts=0, actions will never execute", observer.name),
+                        path:       format!("observers[{idx}].retry.max_attempts"),
+                        severity:   ErrorSeverity::Warning,
+                        suggestion: Some("Set max_attempts >= 1".to_string()),
+                    });
+                }
+
+                if observer.retry.initial_delay_ms == 0 {
+                    report.errors.push(ValidationError {
+                        message:    format!("Observer '{}' has initial_delay_ms=0, retries will be immediate", observer.name),
+                        path:       format!("observers[{idx}].retry.initial_delay_ms"),
+                        severity:   ErrorSeverity::Warning,
+                        suggestion: Some("Consider setting initial_delay_ms > 0".to_string()),
+                    });
+                }
+
+                if observer.retry.max_delay_ms < observer.retry.initial_delay_ms {
+                    report.errors.push(ValidationError {
+                        message:    format!(
+                            "Observer '{}' has max_delay_ms < initial_delay_ms",
+                            observer.name
+                        ),
+                        path:       format!("observers[{idx}].retry.max_delay_ms"),
+                        severity:   ErrorSeverity::Error,
+                        suggestion: Some("max_delay_ms must be >= initial_delay_ms".to_string()),
+                    });
+                }
+            }
+        }
+
         info!(
             "Validation complete: {} errors, {} warnings",
             report.error_count(),
@@ -295,6 +499,7 @@ mod tests {
             directives:        None,
             fact_tables:       None,
             aggregate_queries: None,
+            observers:         None,
         };
 
         let report = SchemaValidator::validate(&schema).unwrap();
@@ -327,6 +532,7 @@ mod tests {
             directives:        None,
             fact_tables:       None,
             aggregate_queries: None,
+            observers:         None,
         };
 
         let report = SchemaValidator::validate(&schema).unwrap();
@@ -379,6 +585,7 @@ mod tests {
             directives:        None,
             fact_tables:       None,
             aggregate_queries: None,
+            observers:         None,
         };
 
         let report = SchemaValidator::validate(&schema).unwrap();
@@ -417,11 +624,230 @@ mod tests {
             directives:        None,
             fact_tables:       None,
             aggregate_queries: None,
+            observers:         None,
         };
 
         let report = SchemaValidator::validate(&schema).unwrap();
         assert!(report.is_valid()); // Still valid, just a warning
         assert_eq!(report.warning_count(), 1);
         assert!(report.errors[0].message.contains("no sql_source"));
+    }
+
+    #[test]
+    fn test_valid_observer() {
+        use super::super::intermediate::{IntermediateObserver, IntermediateRetryConfig};
+        use serde_json::json;
+
+        let schema = IntermediateSchema {
+            version:           "2.0.0".to_string(),
+            types:             vec![IntermediateType {
+                name:        "Order".to_string(),
+                fields:      vec![],
+                description: None,
+                implements:  vec![],
+            }],
+            enums:             vec![],
+            input_types:       vec![],
+            interfaces:        vec![],
+            unions:            vec![],
+            queries:           vec![],
+            mutations:         vec![],
+            subscriptions:     vec![],
+            fragments:         None,
+            directives:        None,
+            fact_tables:       None,
+            aggregate_queries: None,
+            observers:         Some(vec![IntermediateObserver {
+                name:      "onOrderCreated".to_string(),
+                entity:    "Order".to_string(),
+                event:     "INSERT".to_string(),
+                actions:   vec![json!({
+                    "type": "webhook",
+                    "url": "https://example.com/orders"
+                })],
+                condition: None,
+                retry:     IntermediateRetryConfig {
+                    max_attempts:      3,
+                    backoff_strategy:  "exponential".to_string(),
+                    initial_delay_ms:  100,
+                    max_delay_ms:      60000,
+                },
+            }]),
+        };
+
+        let report = SchemaValidator::validate(&schema).unwrap();
+        assert!(report.is_valid(), "Valid observer should pass validation");
+        assert_eq!(report.error_count(), 0);
+    }
+
+    #[test]
+    fn test_observer_with_unknown_entity() {
+        use super::super::intermediate::{IntermediateObserver, IntermediateRetryConfig};
+        use serde_json::json;
+
+        let schema = IntermediateSchema {
+            version:           "2.0.0".to_string(),
+            types:             vec![],
+            enums:             vec![],
+            input_types:       vec![],
+            interfaces:        vec![],
+            unions:            vec![],
+            queries:           vec![],
+            mutations:         vec![],
+            subscriptions:     vec![],
+            fragments:         None,
+            directives:        None,
+            fact_tables:       None,
+            aggregate_queries: None,
+            observers:         Some(vec![IntermediateObserver {
+                name:      "onOrderCreated".to_string(),
+                entity:    "UnknownEntity".to_string(),
+                event:     "INSERT".to_string(),
+                actions:   vec![json!({"type": "webhook", "url": "https://example.com"})],
+                condition: None,
+                retry:     IntermediateRetryConfig {
+                    max_attempts:      3,
+                    backoff_strategy:  "exponential".to_string(),
+                    initial_delay_ms:  100,
+                    max_delay_ms:      60000,
+                },
+            }]),
+        };
+
+        let report = SchemaValidator::validate(&schema).unwrap();
+        assert!(!report.is_valid());
+        assert!(report.errors.iter().any(|e| e.message.contains("unknown entity")));
+    }
+
+    #[test]
+    fn test_observer_with_invalid_event() {
+        use super::super::intermediate::{IntermediateObserver, IntermediateRetryConfig};
+        use serde_json::json;
+
+        let schema = IntermediateSchema {
+            version:           "2.0.0".to_string(),
+            types:             vec![IntermediateType {
+                name:        "Order".to_string(),
+                fields:      vec![],
+                description: None,
+                implements:  vec![],
+            }],
+            enums:             vec![],
+            input_types:       vec![],
+            interfaces:        vec![],
+            unions:            vec![],
+            queries:           vec![],
+            mutations:         vec![],
+            subscriptions:     vec![],
+            fragments:         None,
+            directives:        None,
+            fact_tables:       None,
+            aggregate_queries: None,
+            observers:         Some(vec![IntermediateObserver {
+                name:      "onOrderCreated".to_string(),
+                entity:    "Order".to_string(),
+                event:     "INVALID_EVENT".to_string(),
+                actions:   vec![json!({"type": "webhook", "url": "https://example.com"})],
+                condition: None,
+                retry:     IntermediateRetryConfig {
+                    max_attempts:      3,
+                    backoff_strategy:  "exponential".to_string(),
+                    initial_delay_ms:  100,
+                    max_delay_ms:      60000,
+                },
+            }]),
+        };
+
+        let report = SchemaValidator::validate(&schema).unwrap();
+        assert!(!report.is_valid());
+        assert!(report.errors.iter().any(|e| e.message.contains("invalid event")));
+    }
+
+    #[test]
+    fn test_observer_with_invalid_action_type() {
+        use super::super::intermediate::{IntermediateObserver, IntermediateRetryConfig};
+        use serde_json::json;
+
+        let schema = IntermediateSchema {
+            version:           "2.0.0".to_string(),
+            types:             vec![IntermediateType {
+                name:        "Order".to_string(),
+                fields:      vec![],
+                description: None,
+                implements:  vec![],
+            }],
+            enums:             vec![],
+            input_types:       vec![],
+            interfaces:        vec![],
+            unions:            vec![],
+            queries:           vec![],
+            mutations:         vec![],
+            subscriptions:     vec![],
+            fragments:         None,
+            directives:        None,
+            fact_tables:       None,
+            aggregate_queries: None,
+            observers:         Some(vec![IntermediateObserver {
+                name:      "onOrderCreated".to_string(),
+                entity:    "Order".to_string(),
+                event:     "INSERT".to_string(),
+                actions:   vec![json!({"type": "invalid_action"})],
+                condition: None,
+                retry:     IntermediateRetryConfig {
+                    max_attempts:      3,
+                    backoff_strategy:  "exponential".to_string(),
+                    initial_delay_ms:  100,
+                    max_delay_ms:      60000,
+                },
+            }]),
+        };
+
+        let report = SchemaValidator::validate(&schema).unwrap();
+        assert!(!report.is_valid());
+        assert!(report.errors.iter().any(|e| e.message.contains("invalid type")));
+    }
+
+    #[test]
+    fn test_observer_with_invalid_retry_config() {
+        use super::super::intermediate::{IntermediateObserver, IntermediateRetryConfig};
+        use serde_json::json;
+
+        let schema = IntermediateSchema {
+            version:           "2.0.0".to_string(),
+            types:             vec![IntermediateType {
+                name:        "Order".to_string(),
+                fields:      vec![],
+                description: None,
+                implements:  vec![],
+            }],
+            enums:             vec![],
+            input_types:       vec![],
+            interfaces:        vec![],
+            unions:            vec![],
+            queries:           vec![],
+            mutations:         vec![],
+            subscriptions:     vec![],
+            fragments:         None,
+            directives:        None,
+            fact_tables:       None,
+            aggregate_queries: None,
+            observers:         Some(vec![IntermediateObserver {
+                name:      "onOrderCreated".to_string(),
+                entity:    "Order".to_string(),
+                event:     "INSERT".to_string(),
+                actions:   vec![json!({"type": "webhook", "url": "https://example.com"})],
+                condition: None,
+                retry:     IntermediateRetryConfig {
+                    max_attempts:      3,
+                    backoff_strategy:  "invalid_strategy".to_string(),
+                    initial_delay_ms:  100,
+                    max_delay_ms:      60000,
+                },
+            }]),
+        };
+
+        let report = SchemaValidator::validate(&schema).unwrap();
+        assert!(!report.is_valid());
+        assert!(report.errors.iter().any(|e| e.message.contains("invalid backoff_strategy")));
     }
 }
