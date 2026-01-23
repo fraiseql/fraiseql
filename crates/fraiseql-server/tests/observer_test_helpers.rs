@@ -337,9 +337,17 @@ pub async fn insert_change_log_entry(
     data: serde_json::Value,
     before_data: Option<serde_json::Value>,
 ) -> Result<i64, sqlx::Error> {
+    // Convert event type to Debezium operation code
+    let op_code = match event_type.to_uppercase().as_str() {
+        "INSERT" | "C" => "c",
+        "UPDATE" | "U" => "u",
+        "DELETE" | "D" => "d",
+        _ => "c", // Default to create
+    };
+
     // Build Debezium envelope
     let object_data = json!({
-        "op": event_type,
+        "op": op_code,
         "before": before_data,
         "after": data,
         "source": {

@@ -69,19 +69,29 @@ impl EventMatcher {
     ///
     /// # Returns
     /// Vector of matching observer definitions (empty if no matches)
-    #[must_use] 
+    #[must_use]
     pub fn find_matches(&self, event: &EntityEvent) -> Vec<&ObserverDefinition> {
         let event_type_str = event.event_type.as_str().to_uppercase();
 
-        self.index
-            .get(&event_type_str)
-            .and_then(|entity_index| entity_index.get(&event.entity_type))
-            .map(|observers| observers.iter().collect())
-            .unwrap_or_default()
+        let mut results = Vec::new();
+
+        if let Some(entity_index) = self.index.get(&event_type_str) {
+            // Try exact entity type match first
+            if let Some(observers) = entity_index.get(&event.entity_type) {
+                results.extend(observers.iter());
+            }
+
+            // Also try wildcard "*" match for observers that match all entities
+            if let Some(wildcard_observers) = entity_index.get("*") {
+                results.extend(wildcard_observers.iter());
+            }
+        }
+
+        results
     }
 
     /// Find observers matching an event type and entity
-    #[must_use] 
+    #[must_use]
     pub fn find_by_event_and_entity(
         &self,
         event_type: EventKind,
@@ -89,11 +99,21 @@ impl EventMatcher {
     ) -> Vec<&ObserverDefinition> {
         let event_type_str = event_type.as_str().to_uppercase();
 
-        self.index
-            .get(&event_type_str)
-            .and_then(|entity_index| entity_index.get(entity_type))
-            .map(|observers| observers.iter().collect())
-            .unwrap_or_default()
+        let mut results = Vec::new();
+
+        if let Some(entity_index) = self.index.get(&event_type_str) {
+            // Try exact entity type match first
+            if let Some(observers) = entity_index.get(entity_type) {
+                results.extend(observers.iter());
+            }
+
+            // Also try wildcard "*" match for observers that match all entities
+            if let Some(wildcard_observers) = entity_index.get("*") {
+                results.extend(wildcard_observers.iter());
+            }
+        }
+
+        results
     }
 
     /// Get all observers (for administrative/debugging purposes)

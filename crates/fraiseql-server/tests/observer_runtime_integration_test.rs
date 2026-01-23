@@ -659,3 +659,237 @@ async fn test_runtime_basic_lifecycle() {
     
     runtime2.stop().await.ok();
 }
+
+/// Debug test - check if events are being polled and processed
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn test_debug_event_processing() {
+    let pool = create_test_pool().await;
+    setup_observer_schema(&pool).await.expect("Failed to setup schema");
+
+    // Insert observer with webhook
+    let mock_server = MockWebhookServer::start().await;
+    mock_server.mock_success().await;
+
+    let _observer_id = create_test_observer(
+        &pool,
+        "debug-observer",
+        Some("TestOrder"),
+        Some("INSERT"),
+        None,
+        &mock_server.webhook_url(),
+    )
+    .await
+    .expect("Failed to create observer");
+
+    // Check that observer was created
+    let observer_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM tb_observer WHERE enabled = true")
+        .fetch_one(&pool)
+        .await
+        .expect("Failed to count observers");
+    
+    println!("✓ Created observer. Count in DB: {}", observer_count.0);
+    assert_eq!(observer_count.0, 1, "Observer not in database");
+
+    // Create and start runtime
+    let config = ObserverRuntimeConfig::new(pool.clone())
+        .with_poll_interval(10);  // Very fast polling
+    
+    let mut runtime = ObserverRuntime::new(config);
+    runtime.start().await.expect("Failed to start runtime");
+    println!("✓ Runtime started");
+
+    // Insert change log entry
+    let order_id = uuid::Uuid::new_v4();
+    let _change_log_id = insert_change_log_entry(
+        &pool,
+        "INSERT",
+        "TestOrder",
+        &order_id.to_string(),
+        serde_json::json!({"id": order_id.to_string(), "amount": 100}),
+        None,
+    )
+    .await
+    .expect("Failed to insert change log entry");
+    println!("✓ Inserted change log entry");
+
+    // Check that entry is in database
+    let entry_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM core.tb_entity_change_log")
+        .fetch_one(&pool)
+        .await
+        .expect("Failed to count entries");
+    println!("✓ Change log entries in DB: {}", entry_count.0);
+
+    // Wait a bit for processing
+    tokio::time::sleep(Duration::from_millis(500)).await;
+
+    // Check if webhook was called
+    let requests = mock_server.received_requests().await;
+    println!("✓ Webhook calls received: {}", requests.len());
+
+    // Check observer log
+    let log_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM tb_observer_log")
+        .fetch_one(&pool)
+        .await
+        .ok()
+        .unwrap_or((0,));
+    println!("✓ Observer log entries: {}", log_count.0);
+
+    runtime.stop().await.expect("Failed to stop runtime");
+
+    // Don't assert webhook - just log what happened
+    println!("\nDebug Results:");
+    println!("  Observers in DB: {}", observer_count.0);
+    println!("  Change log entries: {}", entry_count.0);
+    println!("  Webhook calls: {}", requests.len());
+    println!("  Observer logs: {}", log_count.0);
+}
+
+/// Test observer loading from database
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn test_observer_loading() {
+    let pool = create_test_pool().await;
+    setup_observer_schema(&pool).await.expect("Failed to setup schema");
+
+    // Create observer
+    let mock_server = MockWebhookServer::start().await;
+    mock_server.mock_success().await;
+
+    let _observer_id = create_test_observer(
+        &pool,
+        "load-test-observer",
+        Some("Product"),
+        Some("INSERT"),
+        None,
+        &mock_server.webhook_url(),
+    )
+    .await
+    .expect("Failed to create observer");
+
+    // Manually query observer to verify it's in database
+    let observer: Option<(String, Option<String>, Option<String>)> = sqlx::query_as(
+        "SELECT name, entity_type, event_type FROM tb_observer WHERE name = 'load-test-observer'"
+    )
+    .fetch_optional(&pool)
+    .await
+    .expect("Failed to query observer");
+
+    let (name, entity_type, event_type) = observer.expect("Observer not found");
+    println!("✓ Observer in DB:");
+    println!("  name: {}", name);
+    println!("  entity_type: {:?}", entity_type);
+    println!("  event_type: {:?}", event_type);
+
+    // Check actions column
+    let actions: Option<(serde_json::Value,)> = sqlx::query_as(
+        "SELECT actions FROM tb_observer WHERE name = 'load-test-observer'"
+    )
+    .fetch_optional(&pool)
+    .await
+    .expect("Failed to query actions");
+
+    if let Some((actions_json,)) = actions {
+        println!("✓ Actions:");
+        println!("  {}", serde_json::to_string_pretty(&actions_json).unwrap());
+    }
+
+    assert_eq!(name, "load-test-observer");
+    assert_eq!(entity_type.as_deref(), Some("Product"));
+    assert_eq!(event_type.as_deref(), Some("INSERT"));
+}
+
+/// Test if runtime loads observers from database
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn test_runtime_loads_observers() {
+    let pool = create_test_pool().await;
+    setup_observer_schema(&pool).await.expect("Failed to setup schema");
+
+    // Create observer
+    let mock_server = MockWebhookServer::start().await;
+    let _observer_id = create_test_observer(
+        &pool,
+        "runtime-load-test",
+        Some("User"),
+        Some("INSERT"),
+        None,
+        &mock_server.webhook_url(),
+    )
+    .await
+    .expect("Failed to create observer");
+
+    // Create and start runtime
+    let config = ObserverRuntimeConfig::new(pool.clone());
+    let mut runtime = ObserverRuntime::new(config);
+    
+    // The start() method loads observers
+    let start_result = runtime.start().await;
+    println!("✓ Runtime.start() result: {:?}", start_result);
+    assert!(start_result.is_ok(), "Failed to start: {:?}", start_result);
+
+    // Wait a moment for internal state
+    tokio::time::sleep(Duration::from_millis(100)).await;
+
+    // If runtime has a health method, check it
+    // (can't check internal state easily, but if start works and observers load, good sign)
+    
+    runtime.stop().await.ok();
+    println!("✓ Runtime started and stopped successfully");
+}
+
+/// Detailed debug test - check Debezium envelope and event conversion
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn test_debug_debezium_envelope() {
+    let pool = create_test_pool().await;
+    setup_observer_schema(&pool).await.expect("Failed to setup schema");
+
+    // Insert change log entry directly
+    let order_id = uuid::Uuid::new_v4();
+    let _ = insert_change_log_entry(
+        &pool,
+        "INSERT",
+        "Order",
+        &order_id.to_string(),
+        serde_json::json!({"id": order_id.to_string(), "total": 50}),
+        None,
+    )
+    .await
+    .expect("Failed to insert");
+
+    // Query the change log entry
+    let entry: Option<(i64, String, String, String, String, String, String, serde_json::Value)> = sqlx::query_as(
+        "SELECT pk_entity_change_log, fk_customer_org, object_type, object_id, modification_type, change_status, created_at, object_data FROM core.tb_entity_change_log LIMIT 1"
+    )
+    .fetch_optional(&pool)
+    .await
+    .expect("Query failed");
+
+    if let Some((pk, fk_cust, obj_type, obj_id, mod_type, change_status, created_at, obj_data)) = entry {
+        println!("✓ Change log entry found:");
+        println!("  pk: {}", pk);
+        println!("  object_type: {}", obj_type);
+        println!("  object_id: {}", obj_id);
+        println!("  modification_type: {}", mod_type);
+        println!("  change_status: {:?}", change_status);
+        println!("  object_data (Debezium envelope):");
+        println!("    {}", serde_json::to_string_pretty(&obj_data).unwrap());
+
+        // Check operation code
+        if let Some(op_val) = obj_data.get("op") {
+            println!("  ✓ op field: {:?}", op_val);
+            if let Some(op_char) = op_val.as_str().and_then(|s| s.chars().next()) {
+                println!("  ✓ op first char: '{}'", op_char);
+                match op_char {
+                    'c' => println!("    → Recognized as CREATE"),
+                    'u' => println!("    → Recognized as UPDATE"),
+                    'd' => println!("    → Recognized as DELETE"),
+                    x => println!("    → UNRECOGNIZED: '{}'", x),
+                }
+            }
+        }
+    } else {
+        println!("✗ No change log entry found!");
+    }
+}
