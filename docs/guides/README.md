@@ -6,6 +6,23 @@ Practical how-to guides for operators, developers, and DevOps teams.
 
 ## 📖 Available Guides
 
+### Features
+
+| Document | Description | Lines | Est. Time |
+|----------|-------------|-------|-----------|
+| [observers.md](observers.md) | Event-driven observers and webhooks | 850 | 45 min |
+
+**Topics Covered:**
+
+- Observer system overview
+- Event types (INSERT/UPDATE/DELETE)
+- Actions (webhooks, Slack, email)
+- Retry strategies and error handling
+- Language examples (Python, TS, Go, Java, PHP)
+- Best practices and patterns
+
+---
+
 ### Testing
 
 | Document | Description | Lines | Est. Time |
@@ -48,6 +65,7 @@ Practical how-to guides for operators, developers, and DevOps teams.
 
 **I want to...**
 
+- **Set up event-driven workflows** → [observers.md](observers.md)
 - **Set up testing** → [testing-strategy.md](testing-strategy.md)
 - **Deploy to Kubernetes** → [production-deployment.md](production-deployment.md)
 - **Configure monitoring** → [monitoring.md](monitoring.md)
