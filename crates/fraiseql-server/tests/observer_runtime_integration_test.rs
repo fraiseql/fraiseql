@@ -866,7 +866,7 @@ async fn test_debug_debezium_envelope() {
     .await
     .expect("Query failed");
 
-    if let Some((pk, fk_cust, obj_type, obj_id, mod_type, change_status, created_at, obj_data)) = entry {
+    if let Some((pk, _fk_cust, obj_type, obj_id, mod_type, _change_status, _created_at, obj_data)) = entry {
         println!("✓ Change log entry found:");
         println!("  pk: {}", pk);
         println!("  object_type: {}", obj_type);
@@ -1023,4 +1023,61 @@ async fn test_with_longer_polling() {
     }
 
     assert!(!requests.is_empty(), "No webhook calls received after 500ms");
+}
+
+/// Direct listener test - verify listener.next_batch() works
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn test_listener_direct() {
+    let pool = create_test_pool().await;
+    setup_observer_schema(&pool).await.expect("Failed to setup schema");
+
+    // Insert a change log entry
+    let product_id = uuid::Uuid::new_v4();
+    insert_change_log_entry(
+        &pool,
+        "INSERT",
+        "Product",
+        &product_id.to_string(),
+        serde_json::json!({"id": product_id.to_string(), "name": "Test"}),
+        None,
+    )
+    .await
+    .expect("Failed to insert");
+
+    // Create listener directly
+    let config = fraiseql_observers::listener::change_log::ChangeLogListenerConfig::new(pool.clone())
+        .with_poll_interval(10);
+    
+    let mut listener = fraiseql_observers::listener::change_log::ChangeLogListener::new(config);
+
+    println!("Calling listener.next_batch()...");
+    let result = listener.next_batch().await;
+    
+    match result {
+        Ok(entries) => {
+            println!("✓ Got {} entries from listener", entries.len());
+            assert!(!entries.is_empty(), "Listener should have found entries");
+            
+            for entry in entries {
+                println!("  Entry: pk={}, object_type={}, op={:?}", 
+                    entry.id, entry.object_type, 
+                    entry.object_data.get("op"));
+                
+                // Try to convert to EntityEvent
+                match entry.to_entity_event() {
+                    Ok(event) => {
+                        println!("    ✓ Converted to EntityEvent: {:?}", event.event_type);
+                    }
+                    Err(e) => {
+                        println!("    ✗ Failed to convert: {}", e);
+                        panic!("Failed to convert: {}", e);
+                    }
+                }
+            }
+        }
+        Err(e) => {
+            panic!("Listener failed: {}", e);
+        }
+    }
 }
