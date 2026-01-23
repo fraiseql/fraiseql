@@ -191,6 +191,9 @@ impl CodeGenerator {
             // This maintains clear separation between schema definition (type system) and analytics
             // metadata (fact table configuration). Empty initially; populated during post-codegen pass.
             fact_tables: std::collections::HashMap::new(),
+            // Observers are populated from ir.observers. Currently empty; will be populated
+            // when observer support is added to the IR layer.
+            observers: Vec::new(),
         })
     }
 

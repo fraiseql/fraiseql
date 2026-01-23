@@ -119,6 +119,7 @@ impl SchemaConverter {
             subscriptions,
             directives,
             fact_tables, // Analytics metadata
+            observers: Vec::new(), // Observer definitions (populated from IntermediateSchema)
         };
 
         // Validate the compiled schema

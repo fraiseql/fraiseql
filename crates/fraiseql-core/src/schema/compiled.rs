@@ -83,6 +83,10 @@ pub struct CompiledSchema {
     /// Key: table name (e.g., `tf_sales`)
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub fact_tables: HashMap<String, serde_json::Value>,
+
+    /// Observer definitions (database change event listeners).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub observers: Vec<ObserverDefinition>,
 }
 
 impl CompiledSchema {
@@ -238,6 +242,36 @@ impl CompiledSchema {
     #[must_use]
     pub fn has_fact_tables(&self) -> bool {
         !self.fact_tables.is_empty()
+    }
+
+    /// Find an observer definition by name.
+    #[must_use]
+    pub fn find_observer(&self, name: &str) -> Option<&ObserverDefinition> {
+        self.observers.iter().find(|o| o.name == name)
+    }
+
+    /// Get all observers for a specific entity type.
+    #[must_use]
+    pub fn find_observers_for_entity(&self, entity: &str) -> Vec<&ObserverDefinition> {
+        self.observers.iter().filter(|o| o.entity == entity).collect()
+    }
+
+    /// Get all observers for a specific event type (INSERT, UPDATE, DELETE).
+    #[must_use]
+    pub fn find_observers_for_event(&self, event: &str) -> Vec<&ObserverDefinition> {
+        self.observers.iter().filter(|o| o.event == event).collect()
+    }
+
+    /// Check if schema contains any observers.
+    #[must_use]
+    pub fn has_observers(&self) -> bool {
+        !self.observers.is_empty()
+    }
+
+    /// Get total number of observers.
+    #[must_use]
+    pub fn observer_count(&self) -> usize {
+        self.observers.len()
     }
 
     /// Validate the schema for internal consistency.
@@ -1660,5 +1694,360 @@ impl DirectiveLocationKind {
     #[must_use]
     pub fn is_type_system(&self) -> bool {
         !self.is_executable()
+    }
+}
+
+// =============================================================================
+// Observer Definitions
+// =============================================================================
+
+/// Observer definition - database change event listener.
+///
+/// Observers trigger actions (webhooks, notifications) when database
+/// changes occur, enabling event-driven architectures.
+///
+/// # Example
+///
+/// ```
+/// use fraiseql_core::schema::{ObserverDefinition, RetryConfig};
+///
+/// let observer = ObserverDefinition {
+///     name: "onHighValueOrder".to_string(),
+///     entity: "Order".to_string(),
+///     event: "INSERT".to_string(),
+///     condition: Some("total > 1000".to_string()),
+///     actions: vec![
+///         serde_json::json!({
+///             "type": "webhook",
+///             "url": "https://api.example.com/high-value-orders"
+///         }),
+///     ],
+///     retry: RetryConfig {
+///         max_attempts: 3,
+///         backoff_strategy: "exponential".to_string(),
+///         initial_delay_ms: 1000,
+///         max_delay_ms: 60000,
+///     },
+/// };
+/// ```
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ObserverDefinition {
+    /// Observer name (unique identifier).
+    pub name: String,
+
+    /// Entity type to observe (e.g., "Order", "User").
+    pub entity: String,
+
+    /// Event type: INSERT, UPDATE, or DELETE.
+    pub event: String,
+
+    /// Optional condition expression in FraiseQL DSL.
+    /// Example: "total > 1000" or "status.changed() and status == 'shipped'"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub condition: Option<String>,
+
+    /// Actions to execute when observer triggers.
+    /// Each action is a JSON object with a "type" field (webhook, slack, email).
+    pub actions: Vec<serde_json::Value>,
+
+    /// Retry configuration for action execution.
+    pub retry: RetryConfig,
+}
+
+impl ObserverDefinition {
+    /// Create a new observer definition.
+    #[must_use]
+    pub fn new(name: impl Into<String>, entity: impl Into<String>, event: impl Into<String>) -> Self {
+        Self {
+            name:      name.into(),
+            entity:    entity.into(),
+            event:     event.into(),
+            condition: None,
+            actions:   Vec::new(),
+            retry:     RetryConfig::default(),
+        }
+    }
+
+    /// Set the condition expression.
+    #[must_use]
+    pub fn with_condition(mut self, condition: impl Into<String>) -> Self {
+        self.condition = Some(condition.into());
+        self
+    }
+
+    /// Add an action to this observer.
+    #[must_use]
+    pub fn with_action(mut self, action: serde_json::Value) -> Self {
+        self.actions.push(action);
+        self
+    }
+
+    /// Add multiple actions to this observer.
+    #[must_use]
+    pub fn with_actions(mut self, actions: Vec<serde_json::Value>) -> Self {
+        self.actions = actions;
+        self
+    }
+
+    /// Set the retry configuration.
+    #[must_use]
+    pub fn with_retry(mut self, retry: RetryConfig) -> Self {
+        self.retry = retry;
+        self
+    }
+
+    /// Check if this observer has a condition.
+    #[must_use]
+    pub fn has_condition(&self) -> bool {
+        self.condition.is_some()
+    }
+
+    /// Get the number of actions.
+    #[must_use]
+    pub fn action_count(&self) -> usize {
+        self.actions.len()
+    }
+}
+
+/// Retry configuration for observer actions.
+///
+/// Controls how failed actions are retried with configurable
+/// backoff strategies.
+///
+/// # Example
+///
+/// ```
+/// use fraiseql_core::schema::RetryConfig;
+///
+/// let retry = RetryConfig {
+///     max_attempts: 5,
+///     backoff_strategy: "exponential".to_string(),
+///     initial_delay_ms: 1000,
+///     max_delay_ms: 60000,
+/// };
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RetryConfig {
+    /// Maximum number of retry attempts.
+    pub max_attempts: u32,
+
+    /// Backoff strategy: exponential, linear, or fixed.
+    pub backoff_strategy: String,
+
+    /// Initial delay in milliseconds.
+    pub initial_delay_ms: u32,
+
+    /// Maximum delay in milliseconds (cap for exponential backoff).
+    pub max_delay_ms: u32,
+}
+
+impl Default for RetryConfig {
+    fn default() -> Self {
+        Self {
+            max_attempts:      3,
+            backoff_strategy:  "exponential".to_string(),
+            initial_delay_ms:  1000,
+            max_delay_ms:      60000,
+        }
+    }
+}
+
+impl RetryConfig {
+    /// Create a new retry configuration.
+    #[must_use]
+    pub fn new(
+        max_attempts: u32,
+        backoff_strategy: impl Into<String>,
+        initial_delay_ms: u32,
+        max_delay_ms: u32,
+    ) -> Self {
+        Self {
+            max_attempts,
+            backoff_strategy: backoff_strategy.into(),
+            initial_delay_ms,
+            max_delay_ms,
+        }
+    }
+
+    /// Create exponential backoff configuration.
+    #[must_use]
+    pub fn exponential(max_attempts: u32, initial_delay_ms: u32, max_delay_ms: u32) -> Self {
+        Self::new(max_attempts, "exponential", initial_delay_ms, max_delay_ms)
+    }
+
+    /// Create linear backoff configuration.
+    #[must_use]
+    pub fn linear(max_attempts: u32, initial_delay_ms: u32, max_delay_ms: u32) -> Self {
+        Self::new(max_attempts, "linear", initial_delay_ms, max_delay_ms)
+    }
+
+    /// Create fixed delay configuration.
+    #[must_use]
+    pub fn fixed(max_attempts: u32, delay_ms: u32) -> Self {
+        Self::new(max_attempts, "fixed", delay_ms, delay_ms)
+    }
+
+    /// Check if backoff strategy is exponential.
+    #[must_use]
+    pub fn is_exponential(&self) -> bool {
+        self.backoff_strategy == "exponential"
+    }
+
+    /// Check if backoff strategy is linear.
+    #[must_use]
+    pub fn is_linear(&self) -> bool {
+        self.backoff_strategy == "linear"
+    }
+
+    /// Check if backoff strategy is fixed.
+    #[must_use]
+    pub fn is_fixed(&self) -> bool {
+        self.backoff_strategy == "fixed"
+    }
+}
+
+// =============================================================================
+// Tests
+// =============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_compiled_schema_with_observers() {
+        let json = r#"{
+            "types": [],
+            "enums": [],
+            "input_types": [],
+            "interfaces": [],
+            "unions": [],
+            "queries": [],
+            "mutations": [],
+            "subscriptions": [],
+            "observers": [
+                {
+                    "name": "onHighValueOrder",
+                    "entity": "Order",
+                    "event": "INSERT",
+                    "condition": "total > 1000",
+                    "actions": [
+                        {
+                            "type": "webhook",
+                            "url": "https://api.example.com/webhook"
+                        }
+                    ],
+                    "retry": {
+                        "max_attempts": 3,
+                        "backoff_strategy": "exponential",
+                        "initial_delay_ms": 1000,
+                        "max_delay_ms": 60000
+                    }
+                }
+            ]
+        }"#;
+
+        let schema = CompiledSchema::from_json(json).unwrap();
+        
+        assert!(schema.has_observers());
+        assert_eq!(schema.observer_count(), 1);
+        
+        let observer = schema.find_observer("onHighValueOrder").unwrap();
+        assert_eq!(observer.entity, "Order");
+        assert_eq!(observer.event, "INSERT");
+        assert_eq!(observer.condition, Some("total > 1000".to_string()));
+        assert_eq!(observer.actions.len(), 1);
+        assert_eq!(observer.retry.max_attempts, 3);
+        assert!(observer.retry.is_exponential());
+    }
+
+    #[test]
+    fn test_compiled_schema_backward_compatible() {
+        // Schema without observers field should still load
+        let json = r#"{
+            "types": [],
+            "enums": [],
+            "input_types": [],
+            "interfaces": [],
+            "unions": [],
+            "queries": [],
+            "mutations": [],
+            "subscriptions": []
+        }"#;
+
+        let schema = CompiledSchema::from_json(json).unwrap();
+        assert!(!schema.has_observers());
+        assert_eq!(schema.observer_count(), 0);
+    }
+
+    #[test]
+    fn test_find_observers_for_entity() {
+        let schema = CompiledSchema {
+            observers: vec![
+                ObserverDefinition::new("onOrderInsert", "Order", "INSERT"),
+                ObserverDefinition::new("onOrderUpdate", "Order", "UPDATE"),
+                ObserverDefinition::new("onUserInsert", "User", "INSERT"),
+            ],
+            ..Default::default()
+        };
+
+        let order_observers = schema.find_observers_for_entity("Order");
+        assert_eq!(order_observers.len(), 2);
+        
+        let user_observers = schema.find_observers_for_entity("User");
+        assert_eq!(user_observers.len(), 1);
+    }
+
+    #[test]
+    fn test_find_observers_for_event() {
+        let schema = CompiledSchema {
+            observers: vec![
+                ObserverDefinition::new("onOrderInsert", "Order", "INSERT"),
+                ObserverDefinition::new("onOrderUpdate", "Order", "UPDATE"),
+                ObserverDefinition::new("onUserInsert", "User", "INSERT"),
+            ],
+            ..Default::default()
+        };
+
+        let insert_observers = schema.find_observers_for_event("INSERT");
+        assert_eq!(insert_observers.len(), 2);
+        
+        let update_observers = schema.find_observers_for_event("UPDATE");
+        assert_eq!(update_observers.len(), 1);
+    }
+
+    #[test]
+    fn test_observer_definition_builder() {
+        let observer = ObserverDefinition::new("test", "Order", "INSERT")
+            .with_condition("total > 1000")
+            .with_action(serde_json::json!({"type": "webhook", "url": "https://example.com"}))
+            .with_retry(RetryConfig::exponential(5, 1000, 60000));
+
+        assert_eq!(observer.name, "test");
+        assert_eq!(observer.entity, "Order");
+        assert_eq!(observer.event, "INSERT");
+        assert!(observer.has_condition());
+        assert_eq!(observer.action_count(), 1);
+        assert_eq!(observer.retry.max_attempts, 5);
+    }
+
+    #[test]
+    fn test_retry_config_types() {
+        let exponential = RetryConfig::exponential(3, 1000, 60000);
+        assert!(exponential.is_exponential());
+        assert!(!exponential.is_linear());
+        assert!(!exponential.is_fixed());
+
+        let linear = RetryConfig::linear(3, 1000, 60000);
+        assert!(!linear.is_exponential());
+        assert!(linear.is_linear());
+        assert!(!linear.is_fixed());
+
+        let fixed = RetryConfig::fixed(3, 5000);
+        assert!(!fixed.is_exponential());
+        assert!(!fixed.is_linear());
+        assert!(fixed.is_fixed());
+        assert_eq!(fixed.initial_delay_ms, 5000);
+        assert_eq!(fixed.max_delay_ms, 5000);
     }
 }
