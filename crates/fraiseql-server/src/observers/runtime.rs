@@ -244,16 +244,16 @@ impl ObserverRuntime {
         let poll_interval = Duration::from_millis(self.config.poll_interval_ms);
         let pool = self.config.pool.clone();
 
-        info!("🔧 About to spawn background task...");
+        debug!("About to spawn background task");
         running.store(true, Ordering::SeqCst);
 
         // Spawn background processing task
-        info!("🔧 Calling tokio::spawn()...");
+        debug!("Calling tokio::spawn()");
         let handle = tokio::spawn(async move {
             let mut listener = ChangeLogListener::new(listener_config);
 
-            info!("🚀 Observer runtime background task SPAWNED");
-            info!("⏰ Poll interval: {:?}", poll_interval);
+            debug!("Observer runtime background task spawned");
+            debug!("Poll interval: {:?}", poll_interval);
             info!("Observer runtime started, beginning event processing loop");
 
             loop {
@@ -271,7 +271,7 @@ impl ObserverRuntime {
                                     continue;
                                 }
 
-                                info!("🔄 Processing batch of {} change log entries", entries.len());
+                                debug!("Processing batch of {} change log entries", entries.len());
 
                                 for entry in &entries {
                                     // Convert ChangeLogEntry to EntityEvent
@@ -303,10 +303,10 @@ impl ObserverRuntime {
                                             let event_type_str = event.event_type.as_str().to_uppercase();
                                             if let Some(observer_ids) = entity_type_index.get(&(event.entity_type.clone(), event_type_str.clone())) {
                                                 let status = if summary.successful_actions > 0 { "success" } else { "error" };
-                                                let duration_ms = if !matching_observers.is_empty() {
-                                                    (summary.total_duration_ms / matching_observers.len() as f64) as i32
-                                                } else {
+                                                let duration_ms = if matching_observers.is_empty() {
                                                     0
+                                                } else {
+                                                    (summary.total_duration_ms / matching_observers.len() as f64) as i32
                                                 };
 
                                                 // Write a log entry for each matched observer
@@ -317,10 +317,10 @@ impl ObserverRuntime {
                                                          VALUES ($1, $2, $3, $4, $5, $6, $7, 1, 3)"
                                                     )
                                                     .bind(observer_id)
-                                                    .bind(&event.id)
+                                                    .bind(event.id)
                                                     .bind(&event.entity_type)
-                                                    .bind(&event.entity_id.to_string())
-                                                    .bind(&event.event_type.as_str())
+                                                    .bind(event.entity_id.to_string())
+                                                    .bind(event.event_type.as_str())
                                                     .bind(status)
                                                     .bind(duration_ms)
                                                     .execute(&pool)
@@ -342,11 +342,11 @@ impl ObserverRuntime {
                                                          VALUES ($1, $2, $3, $4, $5, 'error', $6, 1, 3)"
                                                     )
                                                     .bind(observer_id)
-                                                    .bind(&event.id)
+                                                    .bind(event.id)
                                                     .bind(&event.entity_type)
-                                                    .bind(&event.entity_id.to_string())
-                                                    .bind(&event.event_type.as_str())
-                                                    .bind(&e.to_string())
+                                                    .bind(event.entity_id.to_string())
+                                                    .bind(event.event_type.as_str())
+                                                    .bind(e.to_string())
                                                     .execute(&pool)
                                                     .await;
                                                 }
@@ -383,10 +383,10 @@ impl ObserverRuntime {
                                     .execute(&pool)
                                     .await {
                                         Ok(_) => {
-                                            info!("✅ Checkpoint saved: listener_id={}, last_id={}", listener_id, last_entry.id);
+                                            info!("Checkpoint saved: listener_id={}, last_id={}", listener_id, last_entry.id);
                                         }
                                         Err(e) => {
-                                            error!("❌ Failed to save checkpoint: {}", e);
+                                            error!("Failed to save checkpoint: {}", e);
                                         }
                                     }
                                 }
@@ -409,10 +409,10 @@ impl ObserverRuntime {
             info!("Observer runtime stopped");
         });
 
-        info!("🔧 tokio::spawn() returned, storing task handle");
+        debug!("tokio::spawn() returned, storing task handle");
         self.task_handle = Some(handle);
 
-        info!("✅ Runtime.start() completed successfully");
+        info!("Runtime started successfully");
         Ok(())
     }
 

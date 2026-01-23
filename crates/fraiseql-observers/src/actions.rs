@@ -12,7 +12,7 @@ use crate::event::EntityEvent;
 use reqwest::Client;
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use tracing::info;
+use tracing::{debug, info};
 
 /// Webhook action executor
 pub struct WebhookAction {
@@ -39,7 +39,7 @@ impl WebhookAction {
     ) -> Result<WebhookResponse> {
         let start = std::time::Instant::now();
 
-        info!("🌐 WebhookAction.execute() called");
+        debug!("WebhookAction.execute() called");
         info!("  URL: {}", url);
         info!("  Headers: {:?}", headers);
         info!("  Body template: {:?}", body_template);

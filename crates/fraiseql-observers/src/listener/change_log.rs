@@ -318,9 +318,7 @@ impl ChangeLogListener {
         let mut entries = Vec::new();
 
         for (pk, id, org, contact, obj_type, obj_id, mod_type, status, data, meta, created) in rows {
-            let created_at_str = created
-                .map(|dt| dt.to_rfc3339())
-                .unwrap_or_else(|| Utc::now().to_rfc3339());
+            let created_at_str = created.map_or_else(|| Utc::now().to_rfc3339(), |dt| dt.to_rfc3339());
 
             entries.push(ChangeLogEntry {
                 id: pk,
