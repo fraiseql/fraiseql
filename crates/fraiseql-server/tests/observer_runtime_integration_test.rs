@@ -44,6 +44,22 @@ use fraiseql_server::observers::runtime::{ObserverRuntime, ObserverRuntimeConfig
 use std::time::Duration;
 use uuid::Uuid;
 
+/// Initialize tracing subscriber for test logging
+fn init_test_tracing() {
+    use std::sync::Once;
+    static INIT: Once = Once::new();
+
+    INIT.call_once(|| {
+        tracing_subscriber::fmt()
+            .with_env_filter(
+                tracing_subscriber::EnvFilter::try_from_default_env()
+                    .unwrap_or_else(|_| "info".into())
+            )
+            .with_test_writer()
+            .init();
+    });
+}
+
 /// Test 1: Runtime Startup and Shutdown Lifecycle
 ///
 /// Verifies that the observer runtime:
@@ -866,7 +882,7 @@ async fn test_debug_debezium_envelope() {
     .await
     .expect("Query failed");
 
-    if let Some((pk, _fk_cust, obj_type, obj_id, mod_type, _change_status, _created_at, obj_data)) = entry {
+    if let Some((pk, _fk_cust, obj_type, obj_id, mod_type, change_status, _created_at, obj_data)) = entry {
         println!("✓ Change log entry found:");
         println!("  pk: {}", pk);
         println!("  object_type: {}", obj_type);
@@ -930,8 +946,16 @@ async fn test_action_parsing() {
 #[tokio::test]
 #[ignore = "requires PostgreSQL"]
 async fn test_with_longer_polling() {
+    init_test_tracing();
+
     let pool = create_test_pool().await;
     setup_observer_schema(&pool).await.expect("Failed to setup schema");
+
+    // Clean up old change log entries from previous test runs
+    sqlx::query("DELETE FROM core.tb_entity_change_log")
+        .execute(&pool)
+        .await
+        .expect("Failed to clean change log");
 
     let mock_server = MockWebhookServer::start().await;
     mock_server.mock_success().await;

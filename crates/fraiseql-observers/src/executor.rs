@@ -74,9 +74,14 @@ impl ObserverExecutor {
         let mut summary = ExecutionSummary::new();
         let matching_observers = self.matcher.find_matches(event);
 
-        debug!(
-            "Processing event {} with {} matching observers",
+        info!(
+            "🔍 Executor.process_event() called for event {} (entity_type: {}, event_type: {:?})",
             event.id,
+            event.entity_type,
+            event.event_type
+        );
+        info!(
+            "📋 Found {} matching observers for this event",
             matching_observers.len()
         );
 
@@ -190,6 +195,8 @@ impl ObserverExecutor {
         action: &ActionConfig,
         event: &EntityEvent,
     ) -> Result<ActionResult> {
+        info!("🎯 Executing action: {} for event {}", action.action_type(), event.id);
+
         match action {
             ActionConfig::Webhook {
                 url,
@@ -197,6 +204,8 @@ impl ObserverExecutor {
                 headers,
                 body_template,
             } => {
+                info!("📡 Webhook action: url={:?}, url_env={:?}", url, url_env);
+
                 let webhook_url = if let Some(u) = url {
                     u.clone()
                 } else if let Some(var_name) = url_env {

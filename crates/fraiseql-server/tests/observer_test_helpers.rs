@@ -194,8 +194,11 @@ impl MockWebhookServer {
                 // Capture request body
                 let body: serde_json::Value = serde_json::from_slice(&req.body)
                     .unwrap_or_else(|_| serde_json::json!({}));
-                let mut reqs = requests.blocking_lock();
-                reqs.push(body.clone());
+
+                // Use try_lock() instead of blocking_lock() to avoid panic in async context
+                if let Ok(mut reqs) = requests.try_lock() {
+                    reqs.push(body.clone());
+                }
 
                 ResponseTemplate::new(200)
                     .set_body_json(serde_json::json!({"status": "success"}))
@@ -221,15 +224,21 @@ impl MockWebhookServer {
         Mock::given(method("POST"))
             .and(path("/webhook"))
             .respond_with(move |req: &wiremock::Request| {
-                let mut count = counter.blocking_lock();
+                let mut count = counter.try_lock().expect("Counter lock failed");
                 *count += 1;
+                let current_count = *count;
+                drop(count); // Release lock before other operations
 
-                if *count <= fail_count {
+                if current_count <= fail_count {
                     ResponseTemplate::new(500)
                 } else {
                     let body: serde_json::Value = serde_json::from_slice(&req.body)
                         .unwrap_or_else(|_| serde_json::json!({}));
-                    requests.blocking_lock().push(body.clone());
+
+                    if let Ok(mut reqs) = requests.try_lock() {
+                        reqs.push(body.clone());
+                    }
+
                     ResponseTemplate::new(200)
                 }
             })
@@ -261,8 +270,10 @@ impl MockWebhookServer {
             .respond_with(move |req: &wiremock::Request| {
                 let body: serde_json::Value = serde_json::from_slice(&req.body)
                     .unwrap_or_else(|_| serde_json::json!({}));
-                let mut reqs = requests.blocking_lock();
-                reqs.push(body.clone());
+
+                if let Ok(mut reqs) = requests.try_lock() {
+                    reqs.push(body.clone());
+                }
 
                 ResponseTemplate::new(200)
                     .set_delay(delay)

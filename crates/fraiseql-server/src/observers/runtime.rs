@@ -229,12 +229,16 @@ impl ObserverRuntime {
         let last_checkpoint = self.last_checkpoint.clone();
         let poll_interval = Duration::from_millis(self.config.poll_interval_ms);
 
+        info!("🔧 About to spawn background task...");
         running.store(true, Ordering::SeqCst);
 
         // Spawn background processing task
+        info!("🔧 Calling tokio::spawn()...");
         let handle = tokio::spawn(async move {
             let mut listener = ChangeLogListener::new(listener_config);
 
+            info!("🚀 Observer runtime background task SPAWNED");
+            info!("⏰ Poll interval: {:?}", poll_interval);
             info!("Observer runtime started, beginning event processing loop");
 
             loop {
@@ -305,8 +309,10 @@ impl ObserverRuntime {
             info!("Observer runtime stopped");
         });
 
+        info!("🔧 tokio::spawn() returned, storing task handle");
         self.task_handle = Some(handle);
 
+        info!("✅ Runtime.start() completed successfully");
         Ok(())
     }
 

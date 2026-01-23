@@ -12,6 +12,7 @@ use crate::event::EntityEvent;
 use reqwest::Client;
 use serde_json::{json, Value};
 use std::collections::HashMap;
+use tracing::info;
 
 /// Webhook action executor
 pub struct WebhookAction {
@@ -38,6 +39,11 @@ impl WebhookAction {
     ) -> Result<WebhookResponse> {
         let start = std::time::Instant::now();
 
+        info!("🌐 WebhookAction.execute() called");
+        info!("  URL: {}", url);
+        info!("  Headers: {:?}", headers);
+        info!("  Body template: {:?}", body_template);
+
         // Prepare request body
         let body = if let Some(template) = body_template {
             // Simple template substitution: replace {{ field }} with event.data[field]
@@ -47,6 +53,8 @@ impl WebhookAction {
             event.data.clone()
         };
 
+        info!("  Body: {}", serde_json::to_string(&body).unwrap_or_else(|_| "<invalid json>".to_string()));
+
         // Build request
         let mut request = self.client.post(url);
 
@@ -54,6 +62,8 @@ impl WebhookAction {
         for (key, value) in headers {
             request = request.header(key, value);
         }
+
+        info!("  Sending HTTP POST...");
 
         // Send request
         let response = request
