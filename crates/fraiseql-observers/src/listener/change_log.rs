@@ -9,7 +9,7 @@
 
 use crate::error::{ObserverError, Result};
 use crate::event::{EntityEvent, EventKind, FieldChanges};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, TimeZone, Utc};
 use serde_json::Value;
 use sqlx::postgres::PgPool;
 use std::collections::HashMap;
@@ -153,12 +153,20 @@ impl ChangeLogEntry {
                 reason: format!("Invalid entity ID (not UUID): {} - {}", self.object_id, e),
             })?;
 
-        // Parse timestamp from created_at
-        let timestamp = DateTime::parse_from_rfc3339(&self.created_at)
-            .map_err(|e| ObserverError::TemplateRenderingFailed {
+        // Parse timestamp from created_at (PostgreSQL TIMESTAMPTZ format)
+        // PostgreSQL returns: "2026-01-23 12:34:56.123456" or "2026-01-23 12:34:56.123456+00"
+        let timestamp = if let Ok(dt) = DateTime::parse_from_rfc3339(&self.created_at) {
+            dt.with_timezone(&Utc)
+        } else {
+            // Try PostgreSQL format without timezone indicator
+            let ndt = chrono::NaiveDateTime::parse_from_str(
+                &self.created_at,
+                "%Y-%m-%d %H:%M:%S%.f"
+            ).map_err(|e| ObserverError::TemplateRenderingFailed {
                 reason: format!("Invalid timestamp format: {} - {}", self.created_at, e),
-            })?
-            .with_timezone(&Utc);
+            })?;
+            Utc.from_utc_datetime(&ndt)
+        };
 
         // Get entity data (use "after" values, or "before" for DELETE)
         let data = if event_kind == EventKind::Deleted {
@@ -274,16 +282,16 @@ impl ChangeLogListener {
     /// Fetch next batch of entries from change log
     pub async fn next_batch(&mut self) -> Result<Vec<ChangeLogEntry>> {
         // Query: SELECT * FROM tb_entity_change_log
-        // WHERE id > last_processed_id
-        // ORDER BY id ASC
+        // WHERE pk_entity_change_log > last_processed_id
+        // ORDER BY pk_entity_change_log ASC
         // LIMIT batch_size
 
         let rows: Vec<(i64, String, String, Option<String>, String, String, String, String, Value, Option<Value>, String)> =
             sqlx::query_as(
                 r"
                 SELECT
-                    id,
                     pk_entity_change_log,
+                    id,
                     fk_customer_org,
                     fk_contact,
                     object_type,
@@ -294,8 +302,8 @@ impl ChangeLogListener {
                     extra_metadata,
                     created_at
                 FROM core.tb_entity_change_log
-                WHERE id > $1
-                ORDER BY id ASC
+                WHERE pk_entity_change_log > $1
+                ORDER BY pk_entity_change_log ASC
                 LIMIT $2
                 ",
             )
@@ -309,10 +317,10 @@ impl ChangeLogListener {
 
         let mut entries = Vec::new();
 
-        for (id, pk, org, contact, obj_type, obj_id, mod_type, status, data, meta, created) in rows {
+        for (pk, id, org, contact, obj_type, obj_id, mod_type, status, data, meta, created) in rows {
             entries.push(ChangeLogEntry {
-                id,
-                pk_entity_change_log: pk,
+                id: pk,
+                pk_entity_change_log: id,
                 fk_customer_org: org,
                 fk_contact: contact,
                 object_type: obj_type,
@@ -325,7 +333,7 @@ impl ChangeLogListener {
             });
 
             // Update checkpoint for recovery
-            self.last_processed_id = id;
+            self.last_processed_id = pk;
         }
 
         debug!("Fetched {} entries from change log", entries.len());

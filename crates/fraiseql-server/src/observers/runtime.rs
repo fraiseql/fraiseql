@@ -252,7 +252,7 @@ impl ObserverRuntime {
                                     continue;
                                 }
 
-                                debug!("Processing batch of {} change log entries", entries.len());
+                                info!("🔄 Processing batch of {} change log entries", entries.len());
 
                                 for entry in &entries {
                                     // Convert ChangeLogEntry to EntityEvent
