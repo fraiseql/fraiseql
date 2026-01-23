@@ -8,7 +8,9 @@ use metrics::{counter, describe_counter, describe_gauge, describe_histogram, gau
 #[cfg(feature = "metrics")]
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
 
-use crate::config::metrics::{MetricsConfig, SloConfig};
+use crate::config::metrics::MetricsConfig;
+#[cfg(feature = "metrics")]
+use crate::config::metrics::SloConfig;
 use fraiseql_error::RuntimeError;
 
 /// Initialize metrics exporter with SLO buckets
