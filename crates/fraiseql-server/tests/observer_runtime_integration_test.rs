@@ -69,19 +69,32 @@ fn init_test_tracing() {
 #[tokio::test]
 #[ignore = "requires PostgreSQL"]
 async fn test_runtime_start_stop_lifecycle() {
+    init_test_tracing();
+
     let test_id = Uuid::new_v4().to_string();
     let pool = create_test_pool().await;
     setup_observer_schema(&pool).await.expect("Failed to setup schema");
+
+    // Clean up old test data
+    sqlx::query("DELETE FROM core.tb_entity_change_log")
+        .execute(&pool)
+        .await
+        .expect("Failed to clean change log");
+    sqlx::query("DELETE FROM tb_observer")
+        .execute(&pool)
+        .await
+        .expect("Failed to clean observers");
 
     // Start mock webhook server
     let mock_server = MockWebhookServer::start().await;
     mock_server.mock_success().await;
 
-    // Create observer
+    // Create observer with unique entity type for this test
+    let entity_type = format!("Order_{}", test_id);
     let _observer_id = create_test_observer(
         &pool,
         &format!("test-lifecycle-{}", test_id),
-        Some("Order"),
+        Some(&entity_type),
         Some("INSERT"),
         None,
         &mock_server.webhook_url(),
@@ -95,12 +108,12 @@ async fn test_runtime_start_stop_lifecycle() {
     let mut runtime = ObserverRuntime::new(config);
     runtime.start().await.expect("Failed to start runtime");
 
-    // Insert initial change log entry
+    // Insert initial change log entry with matching entity type
     let order_id = Uuid::new_v4();
     let _ = insert_change_log_entry(
         &pool,
         "INSERT",
-        &format!("Order_{}", test_id),
+        &entity_type,
         &order_id.to_string(),
         serde_json::json!({"id": order_id.to_string(), "status": "new"}),
         None,
@@ -127,7 +140,7 @@ async fn test_runtime_start_stop_lifecycle() {
     assert!(log_count > 0, "Expected at least 1 successful observer log");
 
     // Verify checkpoint was saved
-    let checkpoint_exists = check_checkpoint_exists(&pool, &format!("Order_{}", test_id))
+    let checkpoint_exists = check_checkpoint_exists(&pool, &entity_type)
         .await
         .expect("Failed to check checkpoint");
     assert!(
@@ -153,18 +166,31 @@ async fn test_runtime_start_stop_lifecycle() {
 #[tokio::test]
 #[ignore = "requires PostgreSQL"]
 async fn test_checkpoint_recovery_after_restart() {
+    init_test_tracing();
+
     let test_id = Uuid::new_v4().to_string();
     let pool = create_test_pool().await;
     setup_observer_schema(&pool).await.expect("Failed to setup schema");
 
+    // Clean up old test data
+    sqlx::query("DELETE FROM core.tb_entity_change_log")
+        .execute(&pool)
+        .await
+        .expect("Failed to clean change log");
+    sqlx::query("DELETE FROM tb_observer")
+        .execute(&pool)
+        .await
+        .expect("Failed to clean observers");
+
     let mock_server = MockWebhookServer::start().await;
     mock_server.mock_success().await;
 
-    // Create observer
+    // Create observer with unique entity type for this test
+    let entity_type = format!("Order_{}", test_id);
     let _observer_id = create_test_observer(
         &pool,
         &format!("test-checkpoint-{}", test_id),
-        Some("Order"),
+        Some(&entity_type),
         Some("INSERT"),
         None,
         &mock_server.webhook_url(),
@@ -178,13 +204,13 @@ async fn test_checkpoint_recovery_after_restart() {
     let mut runtime = ObserverRuntime::new(config);
     runtime.start().await.expect("Failed to start runtime");
 
-    // Insert first batch of events
+    // Insert first batch of events with matching entity type
     for i in 0..5 {
         let order_id = Uuid::new_v4();
         let _ = insert_change_log_entry(
             &pool,
             "INSERT",
-            &format!("Order_{}", test_id),
+            &entity_type,
             &order_id.to_string(),
             serde_json::json!({"id": order_id.to_string(), "sequence": i}),
             None,
@@ -204,13 +230,13 @@ async fn test_checkpoint_recovery_after_restart() {
         first_request_count
     );
 
-    // Insert second batch of events
+    // Insert second batch of events with matching entity type
     for i in 5..10 {
         let order_id = Uuid::new_v4();
         let _ = insert_change_log_entry(
             &pool,
             "INSERT",
-            &format!("Order_{}", test_id),
+            &entity_type,
             &order_id.to_string(),
             serde_json::json!({"id": order_id.to_string(), "sequence": i}),
             None,
@@ -223,7 +249,7 @@ async fn test_checkpoint_recovery_after_restart() {
     wait_for_webhook(&mock_server, 10, Duration::from_secs(20)).await;
 
     // Verify checkpoint was updated
-    let checkpoint_after_second = get_checkpoint_value(&pool, &format!("Order_{}", test_id))
+    let checkpoint_after_second = get_checkpoint_value(&pool, &entity_type)
         .await
         .expect("Failed to get checkpoint");
     assert!(
@@ -267,20 +293,35 @@ async fn test_checkpoint_recovery_after_restart() {
 #[tokio::test]
 #[ignore = "requires PostgreSQL"]
 async fn test_hot_reload_observers() {
+    init_test_tracing();
+
     let test_id = Uuid::new_v4().to_string();
     let pool = create_test_pool().await;
     setup_observer_schema(&pool).await.expect("Failed to setup schema");
+
+    // Clean up old test data
+    sqlx::query("DELETE FROM core.tb_entity_change_log")
+        .execute(&pool)
+        .await
+        .expect("Failed to clean change log");
+    sqlx::query("DELETE FROM tb_observer")
+        .execute(&pool)
+        .await
+        .expect("Failed to clean observers");
 
     let mock_server_1 = MockWebhookServer::start().await;
     let mock_server_2 = MockWebhookServer::start().await;
     mock_server_1.mock_success().await;
     mock_server_2.mock_success().await;
 
+    // Create unique entity type for this test
+    let entity_type = format!("Order_{}", test_id);
+
     // Create initial observer pointing to server 1
     let _observer_id_1 = create_test_observer(
         &pool,
         &format!("test-reload-1-{}", test_id),
-        Some("Order"),
+        Some(&entity_type),
         Some("INSERT"),
         None,
         &mock_server_1.webhook_url(),
@@ -299,7 +340,7 @@ async fn test_hot_reload_observers() {
     let _ = insert_change_log_entry(
         &pool,
         "INSERT",
-        &format!("Order_{}", test_id),
+        &entity_type,
         &order_id_1.to_string(),
         serde_json::json!({"id": order_id_1.to_string(), "status": "created"}),
         None,
@@ -314,7 +355,7 @@ async fn test_hot_reload_observers() {
     let _observer_id_2 = create_test_observer(
         &pool,
         &format!("test-reload-2-{}", test_id),
-        Some("Order"),
+        Some(&entity_type),
         Some("UPDATE"),
         None,
         &mock_server_2.webhook_url(),
@@ -327,7 +368,7 @@ async fn test_hot_reload_observers() {
     let _ = insert_change_log_entry(
         &pool,
         "UPDATE",
-        &format!("Order_{}", test_id),
+        &entity_type,
         &order_id_2.to_string(),
         serde_json::json!({"id": order_id_2.to_string(), "status": "updated"}),
         Some(serde_json::json!({"id": order_id_2.to_string(), "status": "created"})),
@@ -369,19 +410,34 @@ async fn test_hot_reload_observers() {
 #[tokio::test]
 #[ignore = "requires PostgreSQL"]
 async fn test_graceful_shutdown_mid_processing() {
+    init_test_tracing();
+
     let test_id = Uuid::new_v4().to_string();
     let pool = create_test_pool().await;
     setup_observer_schema(&pool).await.expect("Failed to setup schema");
+
+    // Clean up old test data
+    sqlx::query("DELETE FROM core.tb_entity_change_log")
+        .execute(&pool)
+        .await
+        .expect("Failed to clean change log");
+    sqlx::query("DELETE FROM tb_observer")
+        .execute(&pool)
+        .await
+        .expect("Failed to clean observers");
 
     // Create mock server with delayed responses
     let mock_server = MockWebhookServer::start().await;
     mock_server.mock_delayed_response(Duration::from_secs(2)).await;
 
+    // Create unique entity type for this test
+    let entity_type = format!("Order_{}", test_id);
+
     // Create observer
     let _observer_id = create_test_observer(
         &pool,
         &format!("test-shutdown-{}", test_id),
-        Some("Order"),
+        Some(&entity_type),
         Some("INSERT"),
         None,
         &mock_server.webhook_url(),
@@ -407,7 +463,7 @@ async fn test_graceful_shutdown_mid_processing() {
         let _ = insert_change_log_entry(
             &pool,
             "INSERT",
-            &format!("Order_{}", test_id),
+            &entity_type,
             &order_id.to_string(),
             serde_json::json!({"id": order_id.to_string(), "sequence": i}),
             None,
@@ -420,7 +476,7 @@ async fn test_graceful_shutdown_mid_processing() {
     tokio::time::sleep(Duration::from_secs(1)).await;
 
     // Verify checkpoint was saved before attempting more events
-    let checkpoint_exists = check_checkpoint_exists(&pool, &format!("Order_{}", test_id))
+    let checkpoint_exists = check_checkpoint_exists(&pool, &entity_type)
         .await
         .expect("Failed to check checkpoint");
     assert!(checkpoint_exists, "Expected checkpoint to exist");
@@ -451,19 +507,34 @@ async fn test_graceful_shutdown_mid_processing() {
 #[tokio::test]
 #[ignore = "requires PostgreSQL"]
 async fn test_runtime_continues_after_errors() {
+    init_test_tracing();
+
     let test_id = Uuid::new_v4().to_string();
     let pool = create_test_pool().await;
     setup_observer_schema(&pool).await.expect("Failed to setup schema");
+
+    // Clean up old test data
+    sqlx::query("DELETE FROM core.tb_entity_change_log")
+        .execute(&pool)
+        .await
+        .expect("Failed to clean change log");
+    sqlx::query("DELETE FROM tb_observer")
+        .execute(&pool)
+        .await
+        .expect("Failed to clean observers");
 
     // Mock server that initially fails, then succeeds
     let mock_server = MockWebhookServer::start().await;
     mock_server.mock_transient_failure(2).await;
 
+    // Create unique entity type for this test
+    let entity_type = format!("Order_{}", test_id);
+
     // Create observer
     let _observer_id = create_test_observer(
         &pool,
         &format!("test-error-resilience-{}", test_id),
-        Some("Order"),
+        Some(&entity_type),
         Some("INSERT"),
         None,
         &mock_server.webhook_url(),
@@ -482,7 +553,7 @@ async fn test_runtime_continues_after_errors() {
     let _ = insert_change_log_entry(
         &pool,
         "INSERT",
-        &format!("Order_{}", test_id),
+        &entity_type,
         &order_id_1.to_string(),
         serde_json::json!({"id": order_id_1.to_string(), "sequence": 1}),
         None,
@@ -521,7 +592,7 @@ async fn test_runtime_continues_after_errors() {
     let _ = insert_change_log_entry(
         &pool,
         "INSERT",
-        &format!("Order_{}", test_id),
+        &entity_type,
         &order_id_2.to_string(),
         serde_json::json!({"id": order_id_2.to_string(), "sequence": 2}),
         None,
@@ -558,18 +629,33 @@ async fn test_runtime_continues_after_errors() {
 #[tokio::test]
 #[ignore = "requires PostgreSQL"]
 async fn test_high_throughput_processing() {
+    init_test_tracing();
+
     let test_id = Uuid::new_v4().to_string();
     let pool = create_test_pool().await;
     setup_observer_schema(&pool).await.expect("Failed to setup schema");
 
+    // Clean up old test data
+    sqlx::query("DELETE FROM core.tb_entity_change_log")
+        .execute(&pool)
+        .await
+        .expect("Failed to clean change log");
+    sqlx::query("DELETE FROM tb_observer")
+        .execute(&pool)
+        .await
+        .expect("Failed to clean observers");
+
     let mock_server = MockWebhookServer::start().await;
     mock_server.mock_success().await;
+
+    // Create unique entity type for this test
+    let entity_type = format!("Order_{}", test_id);
 
     // Create observer
     let _observer_id = create_test_observer(
         &pool,
         &format!("test-throughput-{}", test_id),
-        Some("Order"),
+        Some(&entity_type),
         Some("INSERT"),
         None,
         &mock_server.webhook_url(),
@@ -583,14 +669,14 @@ async fn test_high_throughput_processing() {
     let mut runtime = ObserverRuntime::new(config);
     runtime.start().await.expect("Failed to start runtime");
 
-    // Insert high volume of events
+    // Insert high volume of events with matching entity type
     let event_count = 100;
     for i in 0..event_count {
         let order_id = Uuid::new_v4();
         let _ = insert_change_log_entry(
             &pool,
             "INSERT",
-            &format!("Order_{}", test_id),
+            &entity_type,
             &order_id.to_string(),
             serde_json::json!({"id": order_id.to_string(), "sequence": i, "batch": "throughput"}),
             None,
@@ -651,8 +737,20 @@ async fn test_high_throughput_processing() {
 #[tokio::test]
 #[ignore = "requires PostgreSQL"]
 async fn test_runtime_basic_lifecycle() {
+    init_test_tracing();
+
     let pool = create_test_pool().await;
     setup_observer_schema(&pool).await.expect("Failed to setup schema");
+
+    // Clean up old test data
+    sqlx::query("DELETE FROM core.tb_entity_change_log")
+        .execute(&pool)
+        .await
+        .expect("Failed to clean change log");
+    sqlx::query("DELETE FROM tb_observer")
+        .execute(&pool)
+        .await
+        .expect("Failed to clean observers");
 
     // Create basic config
     let config = ObserverRuntimeConfig::new(pool.clone())
@@ -680,8 +778,20 @@ async fn test_runtime_basic_lifecycle() {
 #[tokio::test]
 #[ignore = "requires PostgreSQL"]
 async fn test_debug_event_processing() {
+    init_test_tracing();
+
     let pool = create_test_pool().await;
     setup_observer_schema(&pool).await.expect("Failed to setup schema");
+
+    // Clean up old test data
+    sqlx::query("DELETE FROM core.tb_entity_change_log")
+        .execute(&pool)
+        .await
+        .expect("Failed to clean change log");
+    sqlx::query("DELETE FROM tb_observer")
+        .execute(&pool)
+        .await
+        .expect("Failed to clean observers");
 
     // Insert observer with webhook
     let mock_server = MockWebhookServer::start().await;
@@ -765,6 +875,8 @@ async fn test_debug_event_processing() {
 #[tokio::test]
 #[ignore = "requires PostgreSQL"]
 async fn test_observer_loading() {
+    init_test_tracing();
+
     let pool = create_test_pool().await;
     setup_observer_schema(&pool).await.expect("Failed to setup schema");
 
@@ -819,8 +931,20 @@ async fn test_observer_loading() {
 #[tokio::test]
 #[ignore = "requires PostgreSQL"]
 async fn test_runtime_loads_observers() {
+    init_test_tracing();
+
     let pool = create_test_pool().await;
     setup_observer_schema(&pool).await.expect("Failed to setup schema");
+
+    // Clean up old test data
+    sqlx::query("DELETE FROM core.tb_entity_change_log")
+        .execute(&pool)
+        .await
+        .expect("Failed to clean change log");
+    sqlx::query("DELETE FROM tb_observer")
+        .execute(&pool)
+        .await
+        .expect("Failed to clean observers");
 
     // Create observer
     let mock_server = MockWebhookServer::start().await;
@@ -858,8 +982,20 @@ async fn test_runtime_loads_observers() {
 #[tokio::test]
 #[ignore = "requires PostgreSQL"]
 async fn test_debug_debezium_envelope() {
+    init_test_tracing();
+
     let pool = create_test_pool().await;
     setup_observer_schema(&pool).await.expect("Failed to setup schema");
+
+    // Clean up old test data
+    sqlx::query("DELETE FROM core.tb_entity_change_log")
+        .execute(&pool)
+        .await
+        .expect("Failed to clean change log");
+    sqlx::query("DELETE FROM tb_observer")
+        .execute(&pool)
+        .await
+        .expect("Failed to clean observers");
 
     // Insert change log entry directly
     let order_id = uuid::Uuid::new_v4();
@@ -956,6 +1092,10 @@ async fn test_with_longer_polling() {
         .execute(&pool)
         .await
         .expect("Failed to clean change log");
+    sqlx::query("DELETE FROM tb_observer")
+        .execute(&pool)
+        .await
+        .expect("Failed to clean observers");
 
     let mock_server = MockWebhookServer::start().await;
     mock_server.mock_success().await;
@@ -1053,8 +1193,20 @@ async fn test_with_longer_polling() {
 #[tokio::test]
 #[ignore = "requires PostgreSQL"]
 async fn test_listener_direct() {
+    init_test_tracing();
+
     let pool = create_test_pool().await;
     setup_observer_schema(&pool).await.expect("Failed to setup schema");
+
+    // Clean up old test data
+    sqlx::query("DELETE FROM core.tb_entity_change_log")
+        .execute(&pool)
+        .await
+        .expect("Failed to clean change log");
+    sqlx::query("DELETE FROM tb_observer")
+        .execute(&pool)
+        .await
+        .expect("Failed to clean observers");
 
     // Insert a change log entry
     let product_id = uuid::Uuid::new_v4();
