@@ -249,6 +249,32 @@ impl MockWebhookServer {
     pub async fn request_count(&self) -> usize {
         self.requests.lock().await.len()
     }
+
+    /// Mock delayed response (responds after specified duration)
+    pub async fn mock_delayed_response(&self, delay: Duration) {
+        let requests = Arc::clone(&self.requests);
+
+        Mock::given(method("POST"))
+            .and(path("/webhook"))
+            .respond_with(move |req: &wiremock::Request| {
+                let body: serde_json::Value = serde_json::from_slice(&req.body)
+                    .unwrap_or_else(|_| serde_json::json!({}));
+                let mut reqs = requests.blocking_lock();
+                reqs.push(body.clone());
+
+                ResponseTemplate::new(200)
+                    .set_delay(delay)
+                    .set_body_json(serde_json::json!({"status": "success"}))
+            })
+            .mount(&self.server)
+            .await;
+    }
+
+    /// Reset mock server state (clear requests)
+    pub async fn reset(&self) {
+        let mut reqs = self.requests.lock().await;
+        reqs.clear();
+    }
 }
 
 /// Insert an observer configuration into the database
@@ -468,6 +494,67 @@ pub async fn get_observer_logs_for_entity(
     .bind(entity_id)
     .fetch_all(pool)
     .await
+}
+
+/// Check if checkpoint exists for a listener
+pub async fn check_checkpoint_exists(
+    pool: &PgPool,
+    listener_id: &str,
+) -> Result<bool, sqlx::Error> {
+    let row: Option<(i32,)> = sqlx::query_as(
+        "SELECT COUNT(*) FROM observer_checkpoints WHERE listener_id = $1",
+    )
+    .bind(listener_id)
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(row.map(|(count,)| count > 0).unwrap_or(false))
+}
+
+/// Get checkpoint value (last processed ID) for a listener
+pub async fn get_checkpoint_value(
+    pool: &PgPool,
+    listener_id: &str,
+) -> Result<i64, sqlx::Error> {
+    let row: Option<(i64,)> = sqlx::query_as(
+        "SELECT last_processed_id FROM observer_checkpoints WHERE listener_id = $1",
+    )
+    .bind(listener_id)
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(row.map(|(id,)| id).unwrap_or(0))
+}
+
+/// Wait for multiple runtime events to be recorded
+pub async fn wait_for_runtime_events(
+    pool: &PgPool,
+    expected_status: &str,
+    expected_count: i64,
+    timeout: Duration,
+) {
+    let start = tokio::time::Instant::now();
+
+    loop {
+        if start.elapsed() > timeout {
+            panic!(
+                "Timeout waiting for {} events with status {}. Got: {:?}",
+                expected_count,
+                expected_status,
+                get_observer_log_count(pool, expected_status)
+                    .await
+                    .unwrap_or(0)
+            );
+        }
+
+        if let Ok(count) = get_observer_log_count(pool, expected_status).await {
+            if count >= expected_count {
+                break;
+            }
+        }
+
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
 }
 
 #[cfg(test)]
