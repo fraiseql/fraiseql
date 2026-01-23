@@ -32,6 +32,9 @@ func ExportSchema(outputPath string) error {
 	if len(schema.AggregateQueries) > 0 {
 		fmt.Printf("   Aggregate Queries: %d\n", len(schema.AggregateQueries))
 	}
+	if len(schema.Observers) > 0 {
+		fmt.Printf("   Observers: %d\n", len(schema.Observers))
+	}
 
 	return nil
 }

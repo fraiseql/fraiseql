@@ -86,6 +86,7 @@ type Schema struct {
 	Subscriptions    []SubscriptionDefinition   `json:"subscriptions"`
 	FactTables       []FactTableDefinition      `json:"fact_tables,omitempty"`
 	AggregateQueries []AggregateQueryDefinition `json:"aggregate_queries,omitempty"`
+	Observers        []ObserverDefinition       `json:"observers,omitempty"`
 }
 
 // SchemaRegistry is a singleton registry for collecting types, queries, mutations, and subscriptions
@@ -97,6 +98,7 @@ type SchemaRegistry struct {
 	subscriptions    map[string]SubscriptionDefinition
 	factTables       map[string]FactTableDefinition
 	aggregateQueries map[string]AggregateQueryDefinition
+	observers        map[string]ObserverDefinition
 }
 
 // Global registry instance
@@ -113,6 +115,7 @@ func getInstance() *SchemaRegistry {
 			subscriptions:    make(map[string]SubscriptionDefinition),
 			factTables:       make(map[string]FactTableDefinition),
 			aggregateQueries: make(map[string]AggregateQueryDefinition),
+			observers:        make(map[string]ObserverDefinition),
 		}
 	})
 	return registry
@@ -178,6 +181,15 @@ func RegisterSubscription(definition SubscriptionDefinition) {
 	reg.subscriptions[definition.Name] = definition
 }
 
+// RegisterObserver registers an observer with the schema registry
+func RegisterObserver(definition ObserverDefinition) {
+	reg := getInstance()
+	reg.mu.Lock()
+	defer reg.mu.Unlock()
+
+	reg.observers[definition.Name] = definition
+}
+
 // GetSchema returns the complete schema as a Schema struct
 func GetSchema() Schema {
 	reg := getInstance()
@@ -211,6 +223,10 @@ func GetSchema() Schema {
 		schema.AggregateQueries = append(schema.AggregateQueries, aggregateQuery)
 	}
 
+	for _, observer := range reg.observers {
+		schema.Observers = append(schema.Observers, observer)
+	}
+
 	return schema
 }
 
@@ -236,6 +252,7 @@ func Reset() {
 	reg.subscriptions = make(map[string]SubscriptionDefinition)
 	reg.factTables = make(map[string]FactTableDefinition)
 	reg.aggregateQueries = make(map[string]AggregateQueryDefinition)
+	reg.observers = make(map[string]ObserverDefinition)
 }
 
 // RegisterTypes extracts fields from Go struct types and registers them
