@@ -134,7 +134,9 @@ impl ObserverRuntime {
     }
 
     /// Load observers from the database and convert to ObserverDefinitions
-    async fn load_observers(&self) -> Result<HashMap<String, ObserverDefinition>, ServerError> {
+    /// Returns (definitions, entity_type_index) tuple
+    /// entity_type_index maps (entity_type, event_type) -> observer_id for logging
+    async fn load_observers(&self) -> Result<(HashMap<String, ObserverDefinition>, HashMap<(String, String), Vec<i64>>), ServerError> {
         // Load all enabled observers
         let query = crate::observers::ListObserversQuery {
             page: 1,
@@ -148,10 +150,19 @@ impl ObserverRuntime {
         let (observers, _total) = self.repository.list(&query, None).await?;
 
         let mut definitions = HashMap::new();
+        let mut entity_type_index: HashMap<(String, String), Vec<i64>> = HashMap::new();
 
         for observer in observers {
             match Self::convert_observer(&observer) {
                 Ok(definition) => {
+                    // Index by (entity_type, event_type) for reverse lookup during logging
+                    let entity_type = observer.entity_type.clone().unwrap_or_else(|| "*".to_string());
+                    let event_type = observer.event_type.clone().unwrap_or_else(|| "INSERT".to_string());
+                    entity_type_index
+                        .entry((entity_type, event_type.to_uppercase()))
+                        .or_default()
+                        .push(observer.pk_observer);
+
                     definitions.insert(observer.name.clone(), definition);
                 }
                 Err(e) => {
@@ -161,7 +172,7 @@ impl ObserverRuntime {
         }
 
         info!("Loaded {} observers from database", definitions.len());
-        Ok(definitions)
+        Ok((definitions, entity_type_index))
     }
 
     /// Convert database Observer to ObserverDefinition
@@ -199,8 +210,8 @@ impl ObserverRuntime {
 
         info!("Starting observer runtime...");
 
-        // Load initial observers
-        let observers = self.load_observers().await?;
+        // Load initial observers with entity_type index for logging
+        let (observers, entity_type_index) = self.load_observers().await?;
         self.observer_count
             .store(observers.len(), Ordering::SeqCst);
 
@@ -208,6 +219,9 @@ impl ObserverRuntime {
         let matcher = EventMatcher::build(observers).map_err(|e| {
             ServerError::ConfigError(format!("Failed to build event matcher: {}", e))
         })?;
+
+        // Clone matcher for logging (we need it to find matching observers)
+        let matcher_for_logging = matcher.clone();
 
         // Create executor with in-memory DLQ for now
         let dlq = Arc::new(InMemoryDlq::new());
@@ -228,6 +242,7 @@ impl ObserverRuntime {
         let errors = self.errors.clone();
         let last_checkpoint = self.last_checkpoint.clone();
         let poll_interval = Duration::from_millis(self.config.poll_interval_ms);
+        let pool = self.config.pool.clone();
 
         info!("🔧 About to spawn background task...");
         running.store(true, Ordering::SeqCst);
@@ -269,6 +284,10 @@ impl ObserverRuntime {
                                         }
                                     };
 
+                                    // Find matching observers before processing
+                                    let matching_observers = matcher_for_logging.find_matches(&event);
+
+                                    // Process event
                                     match executor.process_event(&event).await {
                                         Ok(summary) => {
                                             events_processed.fetch_add(1, Ordering::Relaxed);
@@ -278,10 +297,60 @@ impl ObserverRuntime {
                                                 summary.successful_actions,
                                                 summary.conditions_skipped
                                             );
+
+                                            // Write execution logs for each matched observer
+                                            // Look up observer IDs by (entity_type, event_type)
+                                            let event_type_str = event.event_type.as_str().to_uppercase();
+                                            if let Some(observer_ids) = entity_type_index.get(&(event.entity_type.clone(), event_type_str.clone())) {
+                                                let status = if summary.successful_actions > 0 { "success" } else { "error" };
+                                                let duration_ms = if !matching_observers.is_empty() {
+                                                    (summary.total_duration_ms / matching_observers.len() as f64) as i32
+                                                } else {
+                                                    0
+                                                };
+
+                                                // Write a log entry for each matched observer
+                                                for observer_id in observer_ids {
+                                                    let _ = sqlx::query(
+                                                        "INSERT INTO tb_observer_log
+                                                         (fk_observer, event_id, entity_type, entity_id, event_type, status, duration_ms, attempt_number, max_attempts)
+                                                         VALUES ($1, $2, $3, $4, $5, $6, $7, 1, 3)"
+                                                    )
+                                                    .bind(observer_id)
+                                                    .bind(&event.id)
+                                                    .bind(&event.entity_type)
+                                                    .bind(&event.entity_id.to_string())
+                                                    .bind(&event.event_type.as_str())
+                                                    .bind(status)
+                                                    .bind(duration_ms)
+                                                    .execute(&pool)
+                                                    .await;
+                                                }
+                                            }
                                         }
                                         Err(e) => {
                                             errors.fetch_add(1, Ordering::Relaxed);
                                             error!("Failed to process event {}: {}", event.id, e);
+
+                                            // Write error logs for matched observers
+                                            let event_type_str = event.event_type.as_str().to_uppercase();
+                                            if let Some(observer_ids) = entity_type_index.get(&(event.entity_type.clone(), event_type_str)) {
+                                                for observer_id in observer_ids {
+                                                    let _ = sqlx::query(
+                                                        "INSERT INTO tb_observer_log
+                                                         (fk_observer, event_id, entity_type, entity_id, event_type, status, error_message, attempt_number, max_attempts)
+                                                         VALUES ($1, $2, $3, $4, $5, 'error', $6, 1, 3)"
+                                                    )
+                                                    .bind(observer_id)
+                                                    .bind(&event.id)
+                                                    .bind(&event.entity_type)
+                                                    .bind(&event.entity_id.to_string())
+                                                    .bind(&event.event_type.as_str())
+                                                    .bind(&e.to_string())
+                                                    .execute(&pool)
+                                                    .await;
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -359,7 +428,7 @@ impl ObserverRuntime {
 
     /// Reload observers from the database
     pub async fn reload_observers(&self) -> Result<usize, ServerError> {
-        let observers = self.load_observers().await?;
+        let (observers, _entity_type_index) = self.load_observers().await?;
         let count = observers.len();
         self.observer_count.store(count, Ordering::SeqCst);
         // Note: In a production system, we'd need to swap the matcher atomically

@@ -522,7 +522,7 @@ pub async fn check_checkpoint_exists(
     pool: &PgPool,
     listener_id: &str,
 ) -> Result<bool, sqlx::Error> {
-    let row: Option<(i32,)> = sqlx::query_as(
+    let row: Option<(i64,)> = sqlx::query_as(
         "SELECT COUNT(*) FROM observer_checkpoints WHERE listener_id = $1",
     )
     .bind(listener_id)

@@ -75,15 +75,19 @@ async fn test_runtime_start_stop_lifecycle() {
     let pool = create_test_pool().await;
     setup_observer_schema(&pool).await.expect("Failed to setup schema");
 
-    // Clean up old test data
-    sqlx::query("DELETE FROM core.tb_entity_change_log")
+    // Clean up old test data (order matters due to foreign keys)
+    sqlx::query("DELETE FROM tb_observer_log")
         .execute(&pool)
         .await
-        .expect("Failed to clean change log");
+        .expect("Failed to clean observer logs");
     sqlx::query("DELETE FROM tb_observer")
         .execute(&pool)
         .await
         .expect("Failed to clean observers");
+    sqlx::query("DELETE FROM core.tb_entity_change_log")
+        .execute(&pool)
+        .await
+        .expect("Failed to clean change log");
 
     // Start mock webhook server
     let mock_server = MockWebhookServer::start().await;
@@ -172,15 +176,19 @@ async fn test_checkpoint_recovery_after_restart() {
     let pool = create_test_pool().await;
     setup_observer_schema(&pool).await.expect("Failed to setup schema");
 
-    // Clean up old test data
-    sqlx::query("DELETE FROM core.tb_entity_change_log")
+    // Clean up old test data (order matters due to foreign keys)
+    sqlx::query("DELETE FROM tb_observer_log")
         .execute(&pool)
         .await
-        .expect("Failed to clean change log");
+        .expect("Failed to clean observer logs");
     sqlx::query("DELETE FROM tb_observer")
         .execute(&pool)
         .await
         .expect("Failed to clean observers");
+    sqlx::query("DELETE FROM core.tb_entity_change_log")
+        .execute(&pool)
+        .await
+        .expect("Failed to clean change log");
 
     let mock_server = MockWebhookServer::start().await;
     mock_server.mock_success().await;
@@ -299,15 +307,19 @@ async fn test_hot_reload_observers() {
     let pool = create_test_pool().await;
     setup_observer_schema(&pool).await.expect("Failed to setup schema");
 
-    // Clean up old test data
-    sqlx::query("DELETE FROM core.tb_entity_change_log")
+    // Clean up old test data (order matters due to foreign keys)
+    sqlx::query("DELETE FROM tb_observer_log")
         .execute(&pool)
         .await
-        .expect("Failed to clean change log");
+        .expect("Failed to clean observer logs");
     sqlx::query("DELETE FROM tb_observer")
         .execute(&pool)
         .await
         .expect("Failed to clean observers");
+    sqlx::query("DELETE FROM core.tb_entity_change_log")
+        .execute(&pool)
+        .await
+        .expect("Failed to clean change log");
 
     let mock_server_1 = MockWebhookServer::start().await;
     let mock_server_2 = MockWebhookServer::start().await;
@@ -416,15 +428,19 @@ async fn test_graceful_shutdown_mid_processing() {
     let pool = create_test_pool().await;
     setup_observer_schema(&pool).await.expect("Failed to setup schema");
 
-    // Clean up old test data
-    sqlx::query("DELETE FROM core.tb_entity_change_log")
+    // Clean up old test data (order matters due to foreign keys)
+    sqlx::query("DELETE FROM tb_observer_log")
         .execute(&pool)
         .await
-        .expect("Failed to clean change log");
+        .expect("Failed to clean observer logs");
     sqlx::query("DELETE FROM tb_observer")
         .execute(&pool)
         .await
         .expect("Failed to clean observers");
+    sqlx::query("DELETE FROM core.tb_entity_change_log")
+        .execute(&pool)
+        .await
+        .expect("Failed to clean change log");
 
     // Create mock server with delayed responses
     let mock_server = MockWebhookServer::start().await;
@@ -513,15 +529,19 @@ async fn test_runtime_continues_after_errors() {
     let pool = create_test_pool().await;
     setup_observer_schema(&pool).await.expect("Failed to setup schema");
 
-    // Clean up old test data
-    sqlx::query("DELETE FROM core.tb_entity_change_log")
+    // Clean up old test data (order matters due to foreign keys)
+    sqlx::query("DELETE FROM tb_observer_log")
         .execute(&pool)
         .await
-        .expect("Failed to clean change log");
+        .expect("Failed to clean observer logs");
     sqlx::query("DELETE FROM tb_observer")
         .execute(&pool)
         .await
         .expect("Failed to clean observers");
+    sqlx::query("DELETE FROM core.tb_entity_change_log")
+        .execute(&pool)
+        .await
+        .expect("Failed to clean change log");
 
     // Mock server that initially fails, then succeeds
     let mock_server = MockWebhookServer::start().await;
@@ -635,15 +655,19 @@ async fn test_high_throughput_processing() {
     let pool = create_test_pool().await;
     setup_observer_schema(&pool).await.expect("Failed to setup schema");
 
-    // Clean up old test data
-    sqlx::query("DELETE FROM core.tb_entity_change_log")
+    // Clean up old test data (order matters due to foreign keys)
+    sqlx::query("DELETE FROM tb_observer_log")
         .execute(&pool)
         .await
-        .expect("Failed to clean change log");
+        .expect("Failed to clean observer logs");
     sqlx::query("DELETE FROM tb_observer")
         .execute(&pool)
         .await
         .expect("Failed to clean observers");
+    sqlx::query("DELETE FROM core.tb_entity_change_log")
+        .execute(&pool)
+        .await
+        .expect("Failed to clean change log");
 
     let mock_server = MockWebhookServer::start().await;
     mock_server.mock_success().await;
@@ -742,15 +766,19 @@ async fn test_runtime_basic_lifecycle() {
     let pool = create_test_pool().await;
     setup_observer_schema(&pool).await.expect("Failed to setup schema");
 
-    // Clean up old test data
-    sqlx::query("DELETE FROM core.tb_entity_change_log")
+    // Clean up old test data (order matters due to foreign keys)
+    sqlx::query("DELETE FROM tb_observer_log")
         .execute(&pool)
         .await
-        .expect("Failed to clean change log");
+        .expect("Failed to clean observer logs");
     sqlx::query("DELETE FROM tb_observer")
         .execute(&pool)
         .await
         .expect("Failed to clean observers");
+    sqlx::query("DELETE FROM core.tb_entity_change_log")
+        .execute(&pool)
+        .await
+        .expect("Failed to clean change log");
 
     // Create basic config
     let config = ObserverRuntimeConfig::new(pool.clone())
@@ -783,15 +811,19 @@ async fn test_debug_event_processing() {
     let pool = create_test_pool().await;
     setup_observer_schema(&pool).await.expect("Failed to setup schema");
 
-    // Clean up old test data
-    sqlx::query("DELETE FROM core.tb_entity_change_log")
+    // Clean up old test data (order matters due to foreign keys)
+    sqlx::query("DELETE FROM tb_observer_log")
         .execute(&pool)
         .await
-        .expect("Failed to clean change log");
+        .expect("Failed to clean observer logs");
     sqlx::query("DELETE FROM tb_observer")
         .execute(&pool)
         .await
         .expect("Failed to clean observers");
+    sqlx::query("DELETE FROM core.tb_entity_change_log")
+        .execute(&pool)
+        .await
+        .expect("Failed to clean change log");
 
     // Insert observer with webhook
     let mock_server = MockWebhookServer::start().await;
@@ -936,15 +968,19 @@ async fn test_runtime_loads_observers() {
     let pool = create_test_pool().await;
     setup_observer_schema(&pool).await.expect("Failed to setup schema");
 
-    // Clean up old test data
-    sqlx::query("DELETE FROM core.tb_entity_change_log")
+    // Clean up old test data (order matters due to foreign keys)
+    sqlx::query("DELETE FROM tb_observer_log")
         .execute(&pool)
         .await
-        .expect("Failed to clean change log");
+        .expect("Failed to clean observer logs");
     sqlx::query("DELETE FROM tb_observer")
         .execute(&pool)
         .await
         .expect("Failed to clean observers");
+    sqlx::query("DELETE FROM core.tb_entity_change_log")
+        .execute(&pool)
+        .await
+        .expect("Failed to clean change log");
 
     // Create observer
     let mock_server = MockWebhookServer::start().await;
@@ -987,15 +1023,19 @@ async fn test_debug_debezium_envelope() {
     let pool = create_test_pool().await;
     setup_observer_schema(&pool).await.expect("Failed to setup schema");
 
-    // Clean up old test data
-    sqlx::query("DELETE FROM core.tb_entity_change_log")
+    // Clean up old test data (order matters due to foreign keys)
+    sqlx::query("DELETE FROM tb_observer_log")
         .execute(&pool)
         .await
-        .expect("Failed to clean change log");
+        .expect("Failed to clean observer logs");
     sqlx::query("DELETE FROM tb_observer")
         .execute(&pool)
         .await
         .expect("Failed to clean observers");
+    sqlx::query("DELETE FROM core.tb_entity_change_log")
+        .execute(&pool)
+        .await
+        .expect("Failed to clean change log");
 
     // Insert change log entry directly
     let order_id = uuid::Uuid::new_v4();
@@ -1198,15 +1238,19 @@ async fn test_listener_direct() {
     let pool = create_test_pool().await;
     setup_observer_schema(&pool).await.expect("Failed to setup schema");
 
-    // Clean up old test data
-    sqlx::query("DELETE FROM core.tb_entity_change_log")
+    // Clean up old test data (order matters due to foreign keys)
+    sqlx::query("DELETE FROM tb_observer_log")
         .execute(&pool)
         .await
-        .expect("Failed to clean change log");
+        .expect("Failed to clean observer logs");
     sqlx::query("DELETE FROM tb_observer")
         .execute(&pool)
         .await
         .expect("Failed to clean observers");
+    sqlx::query("DELETE FROM core.tb_entity_change_log")
+        .execute(&pool)
+        .await
+        .expect("Failed to clean change log");
 
     // Insert a change log entry
     let product_id = uuid::Uuid::new_v4();
