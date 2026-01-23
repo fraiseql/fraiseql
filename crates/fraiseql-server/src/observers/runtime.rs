@@ -18,7 +18,7 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, RwLock};
 use tokio::task::JoinHandle;
 use tracing::{debug, error, info, warn};
 
@@ -113,6 +113,10 @@ pub struct ObserverRuntime {
     errors: Arc<std::sync::atomic::AtomicU64>,
     observer_count: Arc<std::sync::atomic::AtomicUsize>,
     last_checkpoint: Arc<std::sync::atomic::AtomicI64>,
+    /// Hot-swappable components for reload
+    matcher: Arc<RwLock<Option<EventMatcher>>>,
+    executor: Arc<RwLock<Option<Arc<ObserverExecutor>>>>,
+    entity_type_index: Arc<RwLock<HashMap<(String, String), Vec<i64>>>>,
 }
 
 impl ObserverRuntime {
@@ -130,6 +134,9 @@ impl ObserverRuntime {
             errors: Arc::new(std::sync::atomic::AtomicU64::new(0)),
             observer_count: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
             last_checkpoint: Arc::new(std::sync::atomic::AtomicI64::new(0)),
+            matcher: Arc::new(RwLock::new(None)),
+            executor: Arc::new(RwLock::new(None)),
+            entity_type_index: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -225,7 +232,21 @@ impl ObserverRuntime {
 
         // Create executor with in-memory DLQ for now
         let dlq = Arc::new(InMemoryDlq::new());
-        let executor = Arc::new(ObserverExecutor::new(matcher, dlq));
+        let executor = Arc::new(ObserverExecutor::new(matcher.clone(), dlq));
+
+        // Store in shared references for hot reload
+        {
+            let mut m = self.matcher.write().await;
+            *m = Some(matcher_for_logging.clone());
+        }
+        {
+            let mut ex = self.executor.write().await;
+            *ex = Some(executor.clone());
+        }
+        {
+            let mut idx = self.entity_type_index.write().await;
+            *idx = entity_type_index;
+        }
 
         // Create change log listener
         let listener_config = ChangeLogListenerConfig::new(self.config.pool.clone())
@@ -243,6 +264,11 @@ impl ObserverRuntime {
         let last_checkpoint = self.last_checkpoint.clone();
         let poll_interval = Duration::from_millis(self.config.poll_interval_ms);
         let pool = self.config.pool.clone();
+
+        // Clone Arc references for hot reload
+        let matcher_ref = Arc::clone(&self.matcher);
+        let executor_ref = Arc::clone(&self.executor);
+        let entity_type_index_ref = Arc::clone(&self.entity_type_index);
 
         debug!("About to spawn background task");
         running.store(true, Ordering::SeqCst);
@@ -284,11 +310,22 @@ impl ObserverRuntime {
                                         }
                                     };
 
-                                    // Find matching observers before processing
-                                    let matching_observers = matcher_for_logging.find_matches(&event);
+                                    // Clone matcher from shared reference (cheap - EventMatcher uses Arc internally)
+                                    let matcher = {
+                                        let m = matcher_ref.read().await;
+                                        m.as_ref().unwrap().clone()
+                                    };
 
-                                    // Process event
-                                    match executor.process_event(&event).await {
+                                    // Find matching observers
+                                    let matching_observers = matcher.find_matches(&event);
+
+                                    // Process event (read executor from shared reference)
+                                    let process_result = {
+                                        let ex = executor_ref.read().await;
+                                        ex.as_ref().unwrap().process_event(&event).await
+                                    };
+
+                                    match process_result {
                                         Ok(summary) => {
                                             events_processed.fetch_add(1, Ordering::Relaxed);
                                             debug!(
@@ -299,9 +336,13 @@ impl ObserverRuntime {
                                             );
 
                                             // Write execution logs for each matched observer
-                                            // Look up observer IDs by (entity_type, event_type)
+                                            // Look up observer IDs by (entity_type, event_type) from shared reference
                                             let event_type_str = event.event_type.as_str().to_uppercase();
-                                            if let Some(observer_ids) = entity_type_index.get(&(event.entity_type.clone(), event_type_str.clone())) {
+                                            let observer_ids = {
+                                                let idx = entity_type_index_ref.read().await;
+                                                idx.get(&(event.entity_type.clone(), event_type_str.clone())).cloned()
+                                            };
+                                            if let Some(observer_ids) = observer_ids {
                                                 let status = if summary.successful_actions > 0 { "success" } else { "error" };
                                                 let duration_ms = if matching_observers.is_empty() {
                                                     0
@@ -334,7 +375,11 @@ impl ObserverRuntime {
 
                                             // Write error logs for matched observers
                                             let event_type_str = event.event_type.as_str().to_uppercase();
-                                            if let Some(observer_ids) = entity_type_index.get(&(event.entity_type.clone(), event_type_str)) {
+                                            let observer_ids_err = {
+                                                let idx = entity_type_index_ref.read().await;
+                                                idx.get(&(event.entity_type.clone(), event_type_str)).cloned()
+                                            };
+                                            if let Some(observer_ids) = observer_ids_err {
                                                 for observer_id in observer_ids {
                                                     let _ = sqlx::query(
                                                         "INSERT INTO tb_observer_log
@@ -459,12 +504,42 @@ impl ObserverRuntime {
 
     /// Reload observers from the database
     pub async fn reload_observers(&self) -> Result<usize, ServerError> {
-        let (observers, _entity_type_index) = self.load_observers().await?;
+        debug!("Reloading observers from database");
+
+        // Load observers from database
+        let (observers, new_entity_type_index) = self.load_observers().await?;
         let count = observers.len();
+
+        // Build new matcher
+        let new_matcher = EventMatcher::build(observers)
+            .map_err(|e| ServerError::ConfigError(format!("Failed to build matcher: {}", e)))?;
+
+        // Build new executor
+        let dlq = Arc::new(InMemoryDlq::new());
+        let new_executor = Arc::new(ObserverExecutor::new(new_matcher.clone(), dlq));
+
+        // Atomic swap - write locks block readers briefly
+        debug!("Swapping matcher, executor, and entity_type_index atomically");
+
+        {
+            let mut m = self.matcher.write().await;
+            *m = Some(new_matcher);
+        }
+
+        {
+            let mut ex = self.executor.write().await;
+            *ex = Some(new_executor);
+        }
+
+        {
+            let mut idx = self.entity_type_index.write().await;
+            *idx = new_entity_type_index;
+        }
+
+        // Update count
         self.observer_count.store(count, Ordering::SeqCst);
-        // Note: In a production system, we'd need to swap the matcher atomically
-        // For now, this just updates the count
-        info!("Reloaded {} observers", count);
+
+        info!("Reloaded {} observers successfully", count);
         Ok(count)
     }
 }

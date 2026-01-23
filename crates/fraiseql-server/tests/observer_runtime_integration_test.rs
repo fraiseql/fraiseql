@@ -299,11 +299,10 @@ async fn test_checkpoint_recovery_after_restart() {
 /// 2. Stopping the runtime
 /// 3. Requiring manual intervention
 ///
-/// NOTE: Currently failing because `reload_observers()` only updates the count,
-/// not the actual matcher/executor. Hot reload needs to atomically swap the matcher
-/// to make new observers active. See runtime.rs:454-462 for details.
+/// Hot reload allows adding/removing observers without restarting the runtime.
+/// This is useful for dynamic observer management in production.
 #[tokio::test]
-#[ignore = "requires PostgreSQL; hot reload not fully implemented"]
+#[ignore = "requires PostgreSQL"]
 async fn test_hot_reload_observers() {
     init_test_tracing();
 
@@ -379,7 +378,11 @@ async fn test_hot_reload_observers() {
     .await
     .expect("Failed to create observer 2");
 
-    // Insert UPDATE event that should trigger both observers after reload
+    // Reload observers so the new observer becomes active
+    let observer_count = runtime.reload_observers().await.expect("Failed to reload observers");
+    assert_eq!(observer_count, 2, "Should have 2 observers after reload");
+
+    // Insert UPDATE event that should trigger the new observer after reload
     let order_id_2 = Uuid::new_v4();
     let _ = insert_change_log_entry(
         &pool,
