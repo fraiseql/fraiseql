@@ -346,24 +346,6 @@ pub async fn disable_observer(
     }
 }
 
-// Implement Default for UpdateObserverRequest for convenience
-impl Default for UpdateObserverRequest {
-    fn default() -> Self {
-        Self {
-            name: None,
-            description: None,
-            entity_type: None,
-            event_type: None,
-            condition_expression: None,
-            actions: None,
-            enabled: None,
-            priority: None,
-            retry_config: None,
-            timeout_ms: None,
-        }
-    }
-}
-
 // ============================================================================
 // Runtime Health Check Handlers
 // ============================================================================

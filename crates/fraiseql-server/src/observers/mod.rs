@@ -143,7 +143,7 @@ pub struct CreateObserverRequest {
 }
 
 /// Request to update an existing observer.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct UpdateObserverRequest {
     /// Human-readable name
     #[serde(default)]

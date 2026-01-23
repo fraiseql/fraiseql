@@ -63,7 +63,7 @@ impl ObserverRepository {
 
         // Get paginated results
         let select_sql = format!(
-            r#"
+            r"
             SELECT
                 pk_observer, id, name, description, entity_type, event_type,
                 condition_expression, actions, enabled, priority, retry_config,
@@ -73,7 +73,7 @@ impl ObserverRepository {
             WHERE {}
             ORDER BY priority ASC, pk_observer ASC
             LIMIT {} OFFSET {}
-            "#,
+            ",
             where_clause, query.page_size, offset
         );
 
@@ -92,7 +92,7 @@ impl ObserverRepository {
         customer_org: Option<i64>,
     ) -> Result<Option<Observer>, ServerError> {
         let mut query = String::from(
-            r#"
+            r"
             SELECT
                 pk_observer, id, name, description, entity_type, event_type,
                 condition_expression, actions, enabled, priority, retry_config,
@@ -100,7 +100,7 @@ impl ObserverRepository {
                 created_by, updated_by, deleted_at
             FROM tb_observer
             WHERE id = $1 AND deleted_at IS NULL
-            "#,
+            ",
         );
 
         if let Some(org_id) = customer_org {
@@ -134,7 +134,7 @@ impl ObserverRepository {
             .map_err(|e| ServerError::Validation(format!("Invalid retry config: {}", e)))?;
 
         let observer: Observer = sqlx::query_as(
-            r#"
+            r"
             INSERT INTO tb_observer (
                 name, description, entity_type, event_type,
                 condition_expression, actions, enabled, priority,
@@ -146,7 +146,7 @@ impl ObserverRepository {
                 condition_expression, actions, enabled, priority, retry_config,
                 timeout_ms, fk_customer_org, created_at, updated_at,
                 created_by, updated_by, deleted_at
-            "#,
+            ",
         )
         .bind(&request.name)
         .bind(&request.description)
@@ -233,7 +233,7 @@ impl ObserverRepository {
         }
 
         let sql = format!(
-            r#"
+            r"
             UPDATE tb_observer
             SET {}
             WHERE id = $1 AND deleted_at IS NULL
@@ -242,7 +242,7 @@ impl ObserverRepository {
                 condition_expression, actions, enabled, priority, retry_config,
                 timeout_ms, fk_customer_org, created_at, updated_at,
                 created_by, updated_by, deleted_at
-            "#,
+            ",
             set_clauses.join(", ")
         );
 
@@ -299,11 +299,11 @@ impl ObserverRepository {
         customer_org: Option<i64>,
     ) -> Result<bool, ServerError> {
         let mut sql = String::from(
-            r#"
+            r"
             UPDATE tb_observer
             SET deleted_at = NOW()
             WHERE id = $1 AND deleted_at IS NULL
-            "#,
+            ",
         );
 
         if let Some(org_id) = customer_org {
@@ -403,7 +403,7 @@ impl ObserverRepository {
 
         // Get paginated results
         let select_sql = format!(
-            r#"
+            r"
             SELECT
                 pk_observer_log, id, fk_observer, event_id, entity_type, entity_id,
                 event_type, status, action_index, action_type, started_at, completed_at,
@@ -412,7 +412,7 @@ impl ObserverRepository {
             WHERE {}
             ORDER BY created_at DESC
             LIMIT {} OFFSET {}
-            "#,
+            ",
             where_clause, query.page_size, offset
         );
 
