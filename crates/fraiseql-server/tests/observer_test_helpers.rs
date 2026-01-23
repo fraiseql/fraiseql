@@ -77,6 +77,8 @@ pub async fn setup_observer_schema(pool: &PgPool) -> Result<(), sqlx::Error> {
             retry_config JSONB NOT NULL DEFAULT '{"max_attempts": 3, "backoff": "exponential", "initial_delay_ms": 100}',
             timeout_ms INTEGER NOT NULL DEFAULT 30000,
             fk_customer_org BIGINT,
+            created_by VARCHAR(255),
+            updated_by VARCHAR(255),
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             deleted_at TIMESTAMPTZ

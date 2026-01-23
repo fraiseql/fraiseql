@@ -40,6 +40,7 @@
 mod observer_test_helpers;
 
 use observer_test_helpers::*;
+use fraiseql_server::observers::runtime::{ObserverRuntime, ObserverRuntimeConfig};
 use std::time::Duration;
 use uuid::Uuid;
 
@@ -71,6 +72,12 @@ async fn test_runtime_start_stop_lifecycle() {
     )
     .await
     .expect("Failed to create observer");
+
+    // Create and start observer runtime with fast polling for tests
+    let config = ObserverRuntimeConfig::new(pool.clone())
+        .with_poll_interval(50);
+    let mut runtime = ObserverRuntime::new(config);
+    runtime.start().await.expect("Failed to start runtime");
 
     // Insert initial change log entry
     let order_id = Uuid::new_v4();
@@ -112,6 +119,9 @@ async fn test_runtime_start_stop_lifecycle() {
         "Expected checkpoint to be saved after processing"
     );
 
+    // Stop the runtime gracefully
+    runtime.stop().await.expect("Failed to stop runtime");
+
     // Cleanup
     cleanup_test_data(&pool, &test_id)
         .await
@@ -145,6 +155,12 @@ async fn test_checkpoint_recovery_after_restart() {
     )
     .await
     .expect("Failed to create observer");
+
+    // Create and start observer runtime with fast polling for tests
+    let config = ObserverRuntimeConfig::new(pool.clone())
+        .with_poll_interval(50);
+    let mut runtime = ObserverRuntime::new(config);
+    runtime.start().await.expect("Failed to start runtime");
 
     // Insert first batch of events
     for i in 0..5 {
@@ -217,6 +233,9 @@ async fn test_checkpoint_recovery_after_restart() {
         "Expected no duplicate IDs in webhook payloads"
     );
 
+    // Stop the runtime gracefully
+    runtime.stop().await.expect("Failed to stop runtime");
+
     // Cleanup
     cleanup_test_data(&pool, &test_id)
         .await
@@ -252,6 +271,12 @@ async fn test_hot_reload_observers() {
     )
     .await
     .expect("Failed to create observer 1");
+
+    // Create and start observer runtime with fast polling for tests
+    let config = ObserverRuntimeConfig::new(pool.clone())
+        .with_poll_interval(50);
+    let mut runtime = ObserverRuntime::new(config);
+    runtime.start().await.expect("Failed to start runtime");
 
     // Insert event that should trigger observer 1
     let order_id_1 = Uuid::new_v4();
@@ -309,6 +334,9 @@ async fn test_hot_reload_observers() {
         "Observer 2 should have 1 event after reload"
     );
 
+    // Stop the runtime gracefully
+    runtime.stop().await.expect("Failed to stop runtime");
+
     // Cleanup
     cleanup_test_data(&pool, &test_id)
         .await
@@ -344,6 +372,12 @@ async fn test_graceful_shutdown_mid_processing() {
     )
     .await
     .expect("Failed to create observer");
+
+    // Create and start observer runtime with fast polling for tests
+    let config = ObserverRuntimeConfig::new(pool.clone())
+        .with_poll_interval(50);
+    let mut runtime = ObserverRuntime::new(config);
+    runtime.start().await.expect("Failed to start runtime");
 
     // Insert events for processing
     let order_ids: Vec<_> = (0..5)
@@ -382,6 +416,9 @@ async fn test_graceful_shutdown_mid_processing() {
         "Expected at least one event to start processing"
     );
 
+    // Stop the runtime gracefully
+    runtime.stop().await.expect("Failed to stop runtime");
+
     // Cleanup
     cleanup_test_data(&pool, &test_id)
         .await
@@ -417,6 +454,12 @@ async fn test_runtime_continues_after_errors() {
     )
     .await
     .expect("Failed to create observer");
+
+    // Create and start observer runtime with fast polling for tests
+    let config = ObserverRuntimeConfig::new(pool.clone())
+        .with_poll_interval(50);
+    let mut runtime = ObserverRuntime::new(config);
+    runtime.start().await.expect("Failed to start runtime");
 
     // Insert event that will fail initially
     let order_id_1 = Uuid::new_v4();
@@ -480,6 +523,9 @@ async fn test_runtime_continues_after_errors() {
         "Expected runtime to continue processing after errors"
     );
 
+    // Stop the runtime gracefully
+    runtime.stop().await.expect("Failed to stop runtime");
+
     // Cleanup
     cleanup_test_data(&pool, &test_id)
         .await
@@ -514,6 +560,12 @@ async fn test_high_throughput_processing() {
     )
     .await
     .expect("Failed to create observer");
+
+    // Create and start observer runtime with fast polling for tests
+    let config = ObserverRuntimeConfig::new(pool.clone())
+        .with_poll_interval(50);
+    let mut runtime = ObserverRuntime::new(config);
+    runtime.start().await.expect("Failed to start runtime");
 
     // Insert high volume of events
     let event_count = 100;
@@ -570,8 +622,40 @@ async fn test_high_throughput_processing() {
         success_count
     );
 
+    // Stop the runtime gracefully
+    runtime.stop().await.expect("Failed to stop runtime");
+
     // Cleanup
     cleanup_test_data(&pool, &test_id)
         .await
         .expect("Failed to cleanup");
+}
+
+/// Simple validation test - verify runtime can start/stop without errors
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn test_runtime_basic_lifecycle() {
+    let pool = create_test_pool().await;
+    setup_observer_schema(&pool).await.expect("Failed to setup schema");
+
+    // Create basic config
+    let config = ObserverRuntimeConfig::new(pool.clone())
+        .with_poll_interval(50);
+
+    let mut runtime = ObserverRuntime::new(config);
+
+    // Start should succeed even with no observers
+    let start_result = runtime.start().await;
+    assert!(start_result.is_ok(), "Failed to start runtime: {:?}", start_result);
+
+    // Should be able to stop
+    let stop_result = runtime.stop().await;
+    assert!(stop_result.is_ok(), "Failed to stop runtime: {:?}", stop_result);
+
+    // Verify we can start again
+    let mut runtime2 = ObserverRuntime::new(ObserverRuntimeConfig::new(pool));
+    let start_result2 = runtime2.start().await;
+    assert!(start_result2.is_ok(), "Failed to start runtime second time");
+    
+    runtime2.stop().await.ok();
 }
