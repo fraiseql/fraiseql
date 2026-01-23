@@ -21,6 +21,7 @@ class SchemaRegistry:
     _subscriptions: dict[str, dict[str, Any]] = {}
     _fact_tables: dict[str, dict[str, Any]] = {}
     _aggregate_queries: dict[str, dict[str, Any]] = {}
+    _observers: dict[str, dict[str, Any]] = {}
 
     @classmethod
     def register_type(
@@ -299,6 +300,35 @@ class SchemaRegistry:
         }
 
     @classmethod
+    def register_observer(
+        cls,
+        name: str,
+        entity: str,
+        event: str,
+        actions: list[dict[str, Any]],
+        condition: str | None = None,
+        retry: dict[str, Any] | None = None,
+    ) -> None:
+        """Register an observer.
+
+        Args:
+            name: Observer function name (e.g., "on_order_created")
+            entity: Entity type to observe (e.g., "Order")
+            event: Event type (INSERT, UPDATE, or DELETE)
+            actions: List of action configurations
+            condition: Optional condition expression
+            retry: Optional retry configuration
+        """
+        cls._observers[name] = {
+            "name": name,
+            "entity": entity,
+            "event": event.upper(),
+            "actions": actions,
+            "condition": condition,
+            "retry": retry,
+        }
+
+    @classmethod
     def get_schema(cls) -> dict[str, Any]:
         """Get the complete schema as a dictionary.
 
@@ -323,6 +353,10 @@ class SchemaRegistry:
         if cls._aggregate_queries:
             schema["aggregate_queries"] = list(cls._aggregate_queries.values())
 
+        # Add observers if present
+        if cls._observers:
+            schema["observers"] = list(cls._observers.values())
+
         return schema
 
     @classmethod
@@ -338,3 +372,4 @@ class SchemaRegistry:
         cls._subscriptions.clear()
         cls._fact_tables.clear()
         cls._aggregate_queries.clear()
+        cls._observers.clear()

@@ -50,6 +50,14 @@ from fraiseql.decorators import interface as interface_decorator
 from fraiseql.decorators import mutation, query, subscription
 from fraiseql.decorators import type as type_decorator
 from fraiseql.decorators import union as union_decorator
+from fraiseql.observers import (
+    Observer,
+    RetryConfig,
+    email,
+    observer as observer_decorator,
+    slack,
+    webhook,
+)
 from fraiseql.scalars import ID, UUID, Date, DateTime, Decimal, Json, Time, Vector
 from fraiseql.schema import config, export_schema
 
@@ -67,6 +75,13 @@ __all__ = [
     "subscription",
     "field",
     "FieldConfig",
+    # Observers
+    "observer_decorator",
+    "Observer",
+    "RetryConfig",
+    "webhook",
+    "slack",
+    "email",
     # Scalar types
     "ID",
     "UUID",
@@ -92,3 +107,4 @@ enum = enum_decorator
 input = input_decorator
 interface = interface_decorator
 union = union_decorator
+observer = observer_decorator

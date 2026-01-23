@@ -79,6 +79,8 @@ def export_schema(output_path: str, pretty: bool = True) -> None:
     print(f"   Types: {len(schema['types'])}")
     print(f"   Queries: {len(schema['queries'])}")
     print(f"   Mutations: {len(schema['mutations'])}")
+    if "observers" in schema:
+        print(f"   Observers: {len(schema['observers'])}")
 
 
 def get_schema_dict() -> dict[str, Any]:
