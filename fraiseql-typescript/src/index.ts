@@ -54,6 +54,9 @@ export type {
   DenormalizedFilter,
   FactTableDefinition,
   AggregateQueryDefinition,
+  ObserverAction,
+  ObserverRetryConfig,
+  ObserverDefinition,
 } from "./registry";
 
 // Export decorators
@@ -89,6 +92,18 @@ export {
   registerTypeFieldsManual,
 } from "./analytics";
 export type { FactTableDecoratorConfig, AggregateQueryDecoratorConfig } from "./analytics";
+
+// Export observers
+export { Observer, webhook, slack, email, DEFAULT_RETRY_CONFIG } from "./observers";
+export type {
+  RetryConfig,
+  WebhookAction,
+  SlackAction,
+  EmailAction,
+  Action,
+  ObserverConfig,
+  ObserverDefinition as ObserverDef,
+} from "./observers";
 
 // Export scalar types for schema authoring
 export {

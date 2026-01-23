@@ -134,6 +134,36 @@ export interface SubscriptionDefinition {
 }
 
 /**
+ * Observer action definition.
+ */
+export interface ObserverAction {
+  type: "webhook" | "slack" | "email";
+  [key: string]: unknown;
+}
+
+/**
+ * Observer retry configuration.
+ */
+export interface ObserverRetryConfig {
+  max_attempts: number;
+  backoff_strategy: string;
+  initial_delay_ms: number;
+  max_delay_ms: number;
+}
+
+/**
+ * Observer definition.
+ */
+export interface ObserverDefinition {
+  name: string;
+  entity: string;
+  event: string;
+  actions: ObserverAction[];
+  condition?: string;
+  retry: ObserverRetryConfig;
+}
+
+/**
  * Complete schema definition.
  */
 export interface Schema {
@@ -143,6 +173,7 @@ export interface Schema {
   subscriptions: SubscriptionDefinition[];
   fact_tables?: FactTableDefinition[];
   aggregate_queries?: AggregateQueryDefinition[];
+  observers?: ObserverDefinition[];
 }
 
 /**
@@ -158,6 +189,7 @@ export class SchemaRegistry {
   private static subscriptions: Map<string, SubscriptionDefinition> = new Map();
   private static factTables: Map<string, FactTableDefinition> = new Map();
   private static aggregateQueries: Map<string, AggregateQueryDefinition> = new Map();
+  private static observers: Map<string, ObserverDefinition> = new Map();
 
   /**
    * Register a GraphQL type.
@@ -319,6 +351,39 @@ export class SchemaRegistry {
   }
 
   /**
+   * Register an observer.
+   *
+   * @param name - Observer function name
+   * @param entity - Entity type to observe
+   * @param event - Event type (INSERT, UPDATE, or DELETE)
+   * @param actions - List of action configurations
+   * @param condition - Optional condition expression
+   * @param retry - Retry configuration
+   */
+  static registerObserver(
+    name: string,
+    entity: string,
+    event: string,
+    actions: ObserverAction[],
+    condition?: string,
+    retry?: ObserverRetryConfig
+  ): void {
+    this.observers.set(name, {
+      name,
+      entity,
+      event: event.toUpperCase(),
+      actions,
+      condition,
+      retry: retry || {
+        max_attempts: 3,
+        backoff_strategy: "exponential",
+        initial_delay_ms: 100,
+        max_delay_ms: 60000,
+      },
+    });
+  }
+
+  /**
    * Get the complete schema as an object.
    *
    * @returns Schema object with types, queries, mutations, subscriptions, and analytics sections
@@ -339,6 +404,10 @@ export class SchemaRegistry {
       schema.aggregate_queries = Array.from(this.aggregateQueries.values());
     }
 
+    if (this.observers.size > 0) {
+      schema.observers = Array.from(this.observers.values());
+    }
+
     return schema;
   }
 
@@ -352,5 +421,6 @@ export class SchemaRegistry {
     this.subscriptions.clear();
     this.factTables.clear();
     this.aggregateQueries.clear();
+    this.observers.clear();
   }
 }
