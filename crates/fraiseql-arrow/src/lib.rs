@@ -45,6 +45,7 @@
 pub mod convert;
 pub mod db_convert;
 pub mod error;
+pub mod event_schema;
 pub mod flight_server;
 pub mod metadata;
 pub mod schema;
