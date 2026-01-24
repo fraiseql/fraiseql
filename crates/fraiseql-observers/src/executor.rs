@@ -15,6 +15,8 @@ use crate::error::{ObserverError, Result};
 use crate::event::EntityEvent;
 use crate::matcher::EventMatcher;
 use crate::traits::{ActionResult, DeadLetterQueue};
+#[cfg(feature = "metrics")]
+use crate::metrics::MetricsRegistry;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
@@ -42,6 +44,9 @@ pub struct ObserverExecutor {
     cache_action: Arc<CacheAction>,
     /// Dead letter queue for failed actions
     dlq: Arc<dyn DeadLetterQueue>,
+    /// Prometheus metrics registry
+    #[cfg(feature = "metrics")]
+    metrics: MetricsRegistry,
 }
 
 impl ObserverExecutor {
@@ -61,6 +66,8 @@ impl ObserverExecutor {
             search_action: Arc::new(SearchAction::new()),
             cache_action: Arc::new(CacheAction::new()),
             dlq,
+            #[cfg(feature = "metrics")]
+            metrics: MetricsRegistry::global().unwrap_or_default(),
         }
     }
 
@@ -71,6 +78,10 @@ impl ObserverExecutor {
     /// 2. Execute actions with retry logic
     /// 3. Handle failures via DLQ
     pub async fn process_event(&self, event: &EntityEvent) -> Result<ExecutionSummary> {
+        // Record metrics
+        #[cfg(feature = "metrics")]
+        self.metrics.event_processed();
+
         let mut summary = ExecutionSummary::new();
         let matching_observers = self.matcher.find_matches(event);
 
@@ -142,6 +153,10 @@ impl ObserverExecutor {
                         action.action_type(),
                         result.duration_ms
                     );
+                    // Record metrics for successful action execution
+                    #[cfg(feature = "metrics")]
+                    self.metrics.action_executed(&result.action_type, result.duration_ms / 1000.0);
+
                     summary.successful_actions += 1;
                     summary.total_duration_ms += result.duration_ms;
                     return;
@@ -399,6 +414,21 @@ impl ObserverExecutor {
         failure_policy: &FailurePolicy,
         summary: &mut ExecutionSummary,
     ) {
+        // Record error metrics
+        #[cfg(feature = "metrics")]
+        {
+            let error_type = match error.code() {
+                crate::error::ObserverErrorCode::ActionExecutionFailed => "execution_failed",
+                crate::error::ObserverErrorCode::ActionPermanentlyFailed => "permanently_failed",
+                crate::error::ObserverErrorCode::InvalidActionConfig => "invalid_config",
+                crate::error::ObserverErrorCode::TemplateRenderingFailed => "template_rendering_failed",
+                crate::error::ObserverErrorCode::DatabaseError => "database_error",
+                crate::error::ObserverErrorCode::CircuitBreakerOpen => "circuit_breaker_open",
+                _ => "other_error",
+            };
+            self.metrics.action_error(action.action_type(), error_type);
+        }
+
         match failure_policy {
             FailurePolicy::Log => {
                 error!(
