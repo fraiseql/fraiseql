@@ -84,6 +84,8 @@ pub mod config;
 pub mod dedup;
 #[cfg(feature = "dedup")]
 pub mod deduped_executor;
+
+pub mod factory;
 pub mod error;
 pub mod event;
 pub mod executor;
