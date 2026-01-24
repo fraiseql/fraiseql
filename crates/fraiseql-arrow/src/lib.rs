@@ -42,6 +42,7 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod convert;
 pub mod error;
 pub mod flight_server;
 pub mod schema;
