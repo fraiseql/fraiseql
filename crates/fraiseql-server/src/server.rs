@@ -13,6 +13,12 @@ use tracing::{info, warn};
 #[cfg(feature = "observers")]
 use tracing::error;
 
+#[cfg(feature = "arrow")]
+use {
+    fraiseql_arrow::FraiseQLFlightService,
+    tonic::transport::Server as GrpcServer,
+};
+
 use crate::{
     Result, ServerError,
     server_config::ServerConfig,
@@ -45,6 +51,9 @@ pub struct Server<A: DatabaseAdapter> {
 
     #[cfg(feature = "observers")]
     db_pool:               Option<sqlx::PgPool>,
+
+    #[cfg(feature = "arrow")]
+    flight_service:        Option<FraiseQLFlightService>,
 }
 
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
@@ -100,6 +109,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         #[cfg(feature = "observers")]
         let observer_runtime = Self::init_observer_runtime(&config, db_pool.as_ref()).await;
 
+        // Initialize Flight service
+        #[cfg(feature = "arrow")]
+        let flight_service = Some(FraiseQLFlightService::new());
+
         Ok(Self {
             config,
             executor,
@@ -109,6 +122,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             observer_runtime,
             #[cfg(feature = "observers")]
             db_pool,
+            #[cfg(feature = "arrow")]
+            flight_service,
         })
     }
 
@@ -323,24 +338,67 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
         info!("Server listening on http://{}", self.config.bind_addr);
 
-        axum::serve(listener, app)
-            .with_graceful_shutdown(async move {
-                Self::shutdown_signal().await;
+        // Start both HTTP and gRPC servers concurrently if Arrow Flight is enabled
+        #[cfg(feature = "arrow")]
+        if let Some(flight_service) = self.flight_service {
+            // Flight server runs on port 50051
+            let flight_addr = "0.0.0.0:50051".parse().expect("Valid Flight address");
+            info!("Arrow Flight server listening on grpc://{}", flight_addr);
 
-                // Stop observer runtime
-                #[cfg(feature = "observers")]
-                if let Some(ref runtime) = self.observer_runtime {
-                    info!("Shutting down observer runtime");
-                    let mut guard = runtime.write().await;
-                    if let Err(e) = guard.stop().await {
-                        error!("Error stopping runtime: {}", e);
-                    } else {
-                        info!("Runtime stopped cleanly");
+            // Spawn Flight server in background
+            let flight_server = tokio::spawn(async move {
+                GrpcServer::builder()
+                    .add_service(flight_service.into_server())
+                    .serve(flight_addr)
+                    .await
+            });
+
+            // Run HTTP server with graceful shutdown
+            axum::serve(listener, app)
+                .with_graceful_shutdown(async move {
+                    Self::shutdown_signal().await;
+
+                    // Stop observer runtime
+                    #[cfg(feature = "observers")]
+                    if let Some(ref runtime) = self.observer_runtime {
+                        info!("Shutting down observer runtime");
+                        let mut guard = runtime.write().await;
+                        if let Err(e) = guard.stop().await {
+                            error!("Error stopping runtime: {}", e);
+                        } else {
+                            info!("Runtime stopped cleanly");
+                        }
                     }
-                }
-            })
-            .await
-            .map_err(|e| ServerError::IoError(std::io::Error::other(e)))?;
+                })
+                .await
+                .map_err(|e| ServerError::IoError(std::io::Error::other(e)))?;
+
+            // Wait for Flight server to shut down
+            flight_server.abort();
+        }
+
+        // HTTP-only server (when arrow feature not enabled)
+        #[cfg(not(feature = "arrow"))]
+        {
+            axum::serve(listener, app)
+                .with_graceful_shutdown(async move {
+                    Self::shutdown_signal().await;
+
+                    // Stop observer runtime
+                    #[cfg(feature = "observers")]
+                    if let Some(ref runtime) = self.observer_runtime {
+                        info!("Shutting down observer runtime");
+                        let mut guard = runtime.write().await;
+                        if let Err(e) = guard.stop().await {
+                            error!("Error stopping runtime: {}", e);
+                        } else {
+                            info!("Runtime stopped cleanly");
+                        }
+                    }
+                })
+                .await
+                .map_err(|e| ServerError::IoError(std::io::Error::other(e)))?;
+        }
 
         Ok(())
     }

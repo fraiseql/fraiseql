@@ -82,6 +82,10 @@ fraiseql-error = {path = "../fraiseql-error"}
 # FraiseQL observers (optional)
 fraiseql-observers = {path = "../fraiseql-observers", optional = true}
 
+# FraiseQL Arrow Flight (optional)
+fraiseql-arrow = {path = "../fraiseql-arrow", optional = true}
+tonic = {version = "0.12", optional = true}
+
 [dev-dependencies]
 # Performance testing
 criterion = {version = "0.5", features = ["async_tokio"]}
@@ -111,6 +115,9 @@ testing = []
 observers = ["fraiseql-observers"]
 observers-nats = ["observers", "fraiseql-observers/nats"]
 observers-full = ["observers", "fraiseql-observers/phase8", "fraiseql-observers/nats"]
+
+# Arrow Flight for high-performance data delivery
+arrow = ["fraiseql-arrow", "tonic"]
 
 [package]
 authors = ["FraiseQL Contributors"]
