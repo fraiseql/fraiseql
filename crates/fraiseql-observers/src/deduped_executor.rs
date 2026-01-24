@@ -56,6 +56,8 @@ use crate::dedup::DeduplicationStore;
 use crate::error::Result;
 use crate::event::EntityEvent;
 use crate::executor::{ExecutionSummary, ObserverExecutor};
+#[cfg(feature = "metrics")]
+use crate::metrics::MetricsRegistry;
 use std::sync::Arc;
 use tracing::{debug, warn};
 
@@ -84,6 +86,9 @@ pub struct DedupedObserverExecutor<D: DeduplicationStore> {
     inner: Arc<ObserverExecutor>,
     /// Deduplication store (typically Redis-backed)
     dedup_store: D,
+    /// Prometheus metrics registry
+    #[cfg(feature = "metrics")]
+    metrics: MetricsRegistry,
 }
 
 #[cfg(feature = "dedup")]
@@ -106,6 +111,8 @@ impl<D: DeduplicationStore> DedupedObserverExecutor<D> {
         Self {
             inner: Arc::new(executor),
             dedup_store,
+            #[cfg(feature = "metrics")]
+            metrics: MetricsRegistry::global().unwrap_or_default(),
         }
     }
 
@@ -148,6 +155,13 @@ impl<D: DeduplicationStore> DedupedObserverExecutor<D> {
                     event.id,
                     self.dedup_store.window_seconds()
                 );
+
+                // Record deduplication metrics
+                #[cfg(feature = "metrics")]
+                {
+                    self.metrics.dedup_detected();
+                    self.metrics.dedup_processing_skipped();
+                }
 
                 return Ok(ExecutionSummary {
                     successful_actions: 0,

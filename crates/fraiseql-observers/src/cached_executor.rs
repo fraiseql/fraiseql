@@ -75,6 +75,8 @@ use crate::config::ActionConfig;
 use crate::error::Result;
 use crate::event::EntityEvent;
 use crate::traits::{ActionExecutor, ActionResult};
+#[cfg(feature = "metrics")]
+use crate::metrics::MetricsRegistry;
 use std::sync::Arc;
 use tracing::{debug, warn};
 
@@ -106,6 +108,9 @@ pub struct CachedActionExecutor<E: ActionExecutor, C: CacheBackend> {
     inner: E,
     /// Cache backend
     cache: Arc<C>,
+    /// Prometheus metrics registry
+    #[cfg(feature = "metrics")]
+    metrics: MetricsRegistry,
 }
 
 #[cfg(feature = "caching")]
@@ -128,6 +133,8 @@ impl<E: ActionExecutor, C: CacheBackend> CachedActionExecutor<E, C> {
         Self {
             inner: executor,
             cache: Arc::new(cache),
+            #[cfg(feature = "metrics")]
+            metrics: MetricsRegistry::global().unwrap_or_default(),
         }
     }
 
@@ -155,6 +162,9 @@ impl<E: ActionExecutor + Send + Sync, C: CacheBackend + Send + Sync> ActionExecu
             Ok(Some(cached_result)) => {
                 // Cache hit - convert to ActionResult
                 debug!("Cache HIT for action key: {}", cache_key);
+                #[cfg(feature = "metrics")]
+                self.metrics.cache_hit();
+
                 return Ok(ActionResult {
                     action_type: cached_result.action_type,
                     success: cached_result.success,
@@ -165,6 +175,8 @@ impl<E: ActionExecutor + Send + Sync, C: CacheBackend + Send + Sync> ActionExecu
             Ok(None) => {
                 // Cache miss - execute action
                 debug!("Cache MISS for action key: {}", cache_key);
+                #[cfg(feature = "metrics")]
+                self.metrics.cache_miss();
             }
             Err(e) => {
                 // Cache check failed - log warning and execute anyway (fail-open)
@@ -172,6 +184,9 @@ impl<E: ActionExecutor + Send + Sync, C: CacheBackend + Send + Sync> ActionExecu
                     "Cache check failed for key {}: {}. Executing action (fail-open).",
                     cache_key, e
                 );
+                // Still record as a cache miss since we couldn't use the cache
+                #[cfg(feature = "metrics")]
+                self.metrics.cache_miss();
             }
         }
 
