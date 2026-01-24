@@ -72,6 +72,7 @@ Practical how-to guides for operators and developers.
 - [Quick Reference](guides/view-selection-quick-reference.md) — Quick decision matrix and cheat sheet
 - [Migration Checklist](guides/view-selection-migration-checklist.md) — Step-by-step migration workflow
 - [Performance Testing](guides/view-selection-performance-testing.md) — Methodology for validating performance improvements
+- [DDL Generation Guide](guides/ddl-generation-guide.md) — Generate SQL for table-backed views
 
 ### [Enterprise Features](enterprise/)
 

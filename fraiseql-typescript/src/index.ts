@@ -84,6 +84,26 @@ export type {
 // Export schema functions
 export { config, exportSchema, getSchemaDict, exportSchemaToString } from "./schema";
 
+// Export DDL generation helpers for table-backed views
+export {
+  loadSchema,
+  generateTvDdl,
+  generateTaDdl,
+  generateCompositionViews,
+  suggestRefreshStrategy,
+  validateGeneratedDdl,
+} from "./views";
+export type {
+  SchemaField,
+  SchemaRelationship,
+  SchemaType,
+  SchemaObject,
+  GenerateTvOptions,
+  GenerateTaOptions,
+  CompositionOptions,
+  StrategyOptions,
+} from "./views";
+
 // Export analytics
 export {
   FactTable,

@@ -73,6 +73,45 @@ enum Commands {
         database: Option<String>,
     },
 
+    /// Generate DDL for Arrow views (va_*, tv_*, ta_*)
+    GenerateViews {
+        /// Path to schema.json
+        #[arg(short, long, value_name = "SCHEMA")]
+        schema: String,
+
+        /// Entity name from schema
+        #[arg(short, long, value_name = "NAME")]
+        entity: String,
+
+        /// View name (must start with va_, tv_, or ta_)
+        #[arg(long, value_name = "NAME")]
+        view: String,
+
+        /// Refresh strategy (trigger-based or scheduled)
+        #[arg(long, value_name = "STRATEGY", default_value = "trigger-based")]
+        refresh_strategy: String,
+
+        /// Output file path (default: {view}.sql)
+        #[arg(short, long, value_name = "PATH")]
+        output: Option<String>,
+
+        /// Include helper/composition views
+        #[arg(long, default_value = "true")]
+        include_composition_views: bool,
+
+        /// Include monitoring functions
+        #[arg(long, default_value = "true")]
+        include_monitoring: bool,
+
+        /// Validate only, don't write file
+        #[arg(long)]
+        validate: bool,
+
+        /// Show generation steps (use global --verbose flag)
+        #[arg(long, action = clap::ArgAction::SetTrue)]
+        gen_verbose: bool,
+    },
+
     /// Validate schema.json or fact tables
     Validate {
         #[command(subcommand)]
@@ -145,6 +184,37 @@ async fn main() {
             check,
             database,
         } => commands::compile::run(&input, &output, check, database.as_deref()).await,
+
+        Commands::GenerateViews {
+            schema,
+            entity,
+            view,
+            refresh_strategy,
+            output,
+            include_composition_views,
+            include_monitoring,
+            validate,
+            gen_verbose,
+        } => {
+            match commands::generate_views::RefreshStrategy::from_str(&refresh_strategy) {
+                Ok(refresh_strat) => {
+                    let config = commands::generate_views::GenerateViewsConfig {
+                        schema_path: schema,
+                        entity,
+                        view,
+                        refresh_strategy: refresh_strat,
+                        output,
+                        include_composition_views,
+                        include_monitoring,
+                        validate_only: validate,
+                        verbose: cli.verbose || gen_verbose,
+                    };
+
+                    commands::generate_views::run(config)
+                }
+                Err(e) => Err(anyhow::anyhow!(e)),
+            }
+        },
 
         Commands::Validate { command, input } => match command {
             Some(ValidateCommands::Facts { schema, database }) => {
