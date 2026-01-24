@@ -62,6 +62,11 @@ uuid = {workspace = true}
 async-trait.workspace = true
 deadpool-postgres.workspace = true
 
+# Arrow Flight integration (optional)
+arrow = {version = "53", optional = true}
+arrow-array = {version = "53", optional = true}
+fraiseql-arrow = {path = "../fraiseql-arrow", optional = true}
+
 [dev-dependencies]
 criterion = {version = "0.5", features = ["async_tokio"]}
 tokio-test = "0.4"
@@ -81,6 +86,8 @@ test-postgres = []
 # Run with: cargo test --features test-sqlserver -- --test-threads=1
 test-sqlserver = ["sqlserver"]
 wire-backend = ["fraiseql-wire"]
+# Arrow Flight integration for high-performance analytics
+arrow = ["dep:arrow", "dep:arrow-array", "dep:fraiseql-arrow"]
 
 [package]
 description = "Core execution engine for FraiseQL v2 - Compiled GraphQL over SQL"
