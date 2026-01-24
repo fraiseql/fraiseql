@@ -32,6 +32,9 @@ System architecture, design decisions, and technical specifications.
 
 - [Core Pipeline](architecture/core/) — Compilation and execution fundamentals
 - [Database Integration](architecture/database/) — Database targeting and Arrow support
+  - [View Selection Guide](architecture/database/view-selection-guide.md) — Choose between v_*, tv_*, va_*, ta_*
+  - [tv_* Table Pattern](architecture/database/tv-table-pattern.md) — Pre-computed JSON views for GraphQL
+  - [ta_* Table Pattern](architecture/database/ta-table-pattern.md) — Optimized columnar views for analytics
 
 **System Qualities:**
 

@@ -37,9 +37,10 @@ FraiseQL enforces opinionated PostgreSQL schema conventions that enable automati
 |---------|---------|---------|
 | `v_{entity}` | Base projection (JSON plane) | `v_user`, `v_post` |
 | `v_{entities}_by_{parent}` | Pre-aggregated composition | `v_posts_by_user`, `v_order_items_by_order` |
-| `tv_{entity}` | Table-backed view (PostgreSQL) | `tv_user_summary` |
+| `tv_{entity}` | Table-backed view (JSON plane) | `tv_user_summary` |
 | `mv_{entity}` | Materialized view (cached) | `mv_user_stats` |
-| `av_{entity}` | Arrow plane projection (columnar) | `av_user`, `av_post` |
+| `va_{entity}` | Logical view (Arrow plane) | `va_user`, `va_post` |
+| `ta_{entity}` | Table-backed view (Arrow plane) | `ta_user`, `ta_orders` |
 
 **Rules:**
 
@@ -47,6 +48,17 @@ FraiseQL enforces opinionated PostgreSQL schema conventions that enable automati
 - Pre-aggregated views group by foreign key
 - Arrow views are flat, single-level only
 - View names must be lowercase snake_case
+
+**When to use each pattern:**
+
+See [View Selection Guide](../../database/view-selection-guide.md) for detailed decision trees:
+- `v_*` vs `tv_*`: Logical vs table-backed for JSON/GraphQL queries
+- `va_*` vs `ta_*`: Logical vs table-backed for Arrow/Analytics queries
+
+**Quick decision:**
+- Simple queries → `v_*` (JSON) or `va_*` (Arrow)
+- Complex queries with 3+ JOINs → `tv_*` (JSON)
+- Large datasets (>1M rows) → `ta_*` (Arrow)
 
 ### 2.3 Function Naming (Stored Procedures)
 
