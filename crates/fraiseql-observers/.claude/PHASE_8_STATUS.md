@@ -4,6 +4,8 @@
 **Status**: 50% Complete (6.5 of 13 subphases)
 **Framework Status**: **Production-Ready with NATS + Redis Integration**
 
+**📋 See also**: `/home/lionel/code/fraiseql/.claude/FRAISEQL_V2_UNIFIED_ROADMAP.md` for complete FraiseQL v2 roadmap including Apache Arrow Flight integration (Phase 9)
+
 ## Executive Summary
 
 The FraiseQL Observer System has been successfully enhanced with enterprise-grade features and distributed architecture support. The Redis + NATS integration (Phases 8.3-8.4 + infrastructure) is now **complete and production-ready**:
