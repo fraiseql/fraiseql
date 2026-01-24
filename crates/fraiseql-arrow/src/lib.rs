@@ -45,6 +45,7 @@
 pub mod error;
 pub mod flight_server;
 pub mod schema;
+pub mod schema_gen;
 pub mod ticket;
 
 pub use error::{ArrowFlightError, Result};
