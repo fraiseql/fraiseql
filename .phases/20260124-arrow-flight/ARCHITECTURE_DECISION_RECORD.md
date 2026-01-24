@@ -87,9 +87,9 @@ Observer Event → NATS JetStream
    (analytics)             (operational search)
 ```
 
-### Key Principle: No Redundant Storage
+### Key Principle: No Redundant Source of Truth
 
-Events are stored in **both** systems but serve **different purposes**:
+Storage is duplicated by design for performance, but **truth is not duplicated**: both ClickHouse and Elasticsearch are derived from the same event stream and can be rebuilt.
 
 | Question | Dataplane | Why |
 |----------|-----------|-----|
@@ -98,7 +98,15 @@ Events are stored in **both** systems but serve **different purposes**:
 | "Average order value by region?" | ClickHouse | Analytics (window functions, time-series) |
 | "Show events for user-123 last hour" | Elasticsearch | Debugging (flexible filters, fast lookup) |
 
-**Not redundant** - complementary capabilities.
+**Not redundant** - complementary capabilities optimized for different query patterns.
+
+### Data Authority & Rebuildability
+
+* **PostgreSQL remains the system of record** for operational state (users, orders, products)
+* **NATS JetStream is the event delivery backbone** (durable stream with at-least-once guarantees)
+* **ClickHouse and Elasticsearch are derived projections** optimized for analytics and operational search
+* Both sinks must be **rebuildable** from the event stream (replay from JetStream) to support schema evolution and disaster recovery
+* Schema changes are additive (new columns/fields) to maintain replay compatibility
 
 ---
 
@@ -202,7 +210,7 @@ Events are stored in **both** systems but serve **different purposes**:
 **Rationale**:
 - Arrow Flight is a **foundational architectural change**
 - If we implement Phase 8 features first, we'll need to update them all after adding Arrow Flight
-- Building production features once for the complete architecture saves 30-40% tokens
+- Building production features once for the complete architecture saves 30-40% engineering effort (avoids duplicate implementation)
 
 **Concrete Example - Prometheus Metrics (Phase 8.7)**:
 
@@ -221,16 +229,18 @@ Week 6: Implement metrics for NATS + Arrow + ClickHouse + ES (once)
 Result: Single implementation covering complete architecture
 ```
 
-**Token Savings**:
+**Engineering Effort Savings**:
 - Metrics: 30% savings (implement once vs twice)
 - CLI tools: 40% savings (debug all transports together)
 - Testing: 50% savings (test complete system once)
 - Elasticsearch: 100% savings (Phase 8.5 becomes part of Phase 9.5)
 
-**Trade-off**:
-- ⚠️ Con: Phase 8 production features delayed by 4-5 weeks
-- ✅ Pro: When implemented, they cover the complete architecture
-- ✅ Pro: Total time savings (no rework)
+**Trade-offs**:
+- ⚠️ Con: Phase 8 production features (metrics, CLI, etc.) delayed by 4-5 weeks
+- ✅ Pro: When implemented, they cover the complete architecture (NATS + Arrow + ClickHouse + ES)
+- ✅ Pro: Total effort savings (30-40% reduction via avoiding rework)
+- ✅ Pro: Cleaner implementation (designed for dual-dataplane from the start)
+- ✅ Decision: Foundation-first approach reduces long-term technical debt
 
 ---
 
@@ -263,31 +273,93 @@ elasticsearch = ["elasticsearch"]  # Enable Elasticsearch indexer
 - ✅ Arrow Flight is additive (feature flag)
 - ✅ Clients opt-in (no forced migration)
 
+**Security & Authentication**:
+- Arrow Flight endpoints require **same auth model as HTTP/JSON** (JWT/API key)
+- Credentials transmitted via **gRPC metadata** (standard practice)
+- **TLS required in production**; local dev can run insecure for simplicity
+- Authorization scope mirrors GraphQL permissions (row/org-level filters enforced server-side)
+- mTLS optional for future enhancement (Phase 10+)
+
+**Schema Evolution Strategy**:
+- **ClickHouse**: Stable core columns + `Map(String, String)` or JSON column for flexible extensions
+- **Arrow Flight**: Stable "core columns" in schema + `payload_json` or versioned struct fields
+- Additive changes only (new columns/fields) to maintain replay compatibility
+- Schema version tracking in event metadata for future migrations
+
 ---
 
 ## Performance Expectations
 
 ### Benchmarks (Conservative Estimates)
 
-| Workload | HTTP/JSON | Arrow Flight | Improvement |
-|----------|-----------|--------------|-------------|
+**Query Performance** (GraphQL → Arrow vs HTTP/JSON):
+
+| Workload | HTTP/JSON (Baseline) | Arrow Flight (Target) | Improvement |
+|----------|---------------------|----------------------|-------------|
 | **GraphQL (1k rows)** | 200ms | 50ms | **4x** |
 | **GraphQL (10k rows)** | 3s | 300ms | **10x** |
-| **GraphQL (100k rows)** | 30s | 2s | **15x** |
-| **GraphQL (1M rows)** | 5min | 10s | **30x** |
-| **Event streaming** | 50k/sec | 1M+/sec | **20x** |
-| **Memory (100k rows)** | 250MB | 50MB | **5x** |
+| **GraphQL (100k rows)** | 30s | 2-3s | **10-15x** |
+| **GraphQL (1M rows)** | 5min | 10-20s | **15-30x** |
+| **Memory (100k rows)** | 250MB | 50MB | **5x** (constant memory streaming) |
+
+**Event Ingestion** (Observer Events → Databases):
+
+| Metric | Baseline (Postgres only) | Target (ClickHouse + ES) | Notes |
+|--------|--------------------------|--------------------------|-------|
+| Throughput | 5-10k/sec | 50k-200k/sec (MVP) | Goal: 1M+/sec with batching + hardware |
+| Latency (event → indexed) | N/A | <5 seconds (P95) | At 10k event/sec load |
 
 ### Throughput Targets
 
-- **ClickHouse ingestion**: 1M+ events/sec (observed in production systems)
-- **Arrow Flight streaming**: 100k+ rows/sec/client
-- **Elasticsearch indexing**: 50k+ events/sec (bulk API)
+**Note**: Arrow Flight is the **query delivery plane** (serving results), not the ingestion path. Ingestion uses native database protocols.
+
+**Ingestion Throughput** (Observer Events → NATS → Databases):
+- **ClickHouse**: Target sustained high-throughput ingestion (goal 1M events/sec under batching and appropriate hardware)
+  - MVP baseline: 50k-200k events/sec is already a significant win
+  - Uses native ClickHouse HTTP bulk insert or clickhouse-rs client
+  - Batch size: 10k events per insert (configurable)
+- **Elasticsearch**: 50k+ events/sec (bulk API with 1k event batches)
+
+**Query Throughput** (Arrow Flight serving results):
+- **Arrow Flight streaming**: 100k+ rows/sec per client connection
 - **Concurrent clients**: 100+ simultaneous Arrow Flight connections
+- **gRPC streaming**: Chunked RecordBatch delivery (10k rows per batch)
 
 ---
 
 ## Risk Assessment
+
+### Failure Modes & Degraded Operation
+
+**Core Principle**: Writes must never fail due to ClickHouse or Elasticsearch outages.
+
+**Expected Behavior**:
+
+* **If ClickHouse is unavailable**:
+  - Events are buffered/retried from NATS JetStream (durable queue)
+  - Analytics queries fail fast with explicit "analytics backend unavailable" error (no silent failures)
+  - Core GraphQL API (HTTP/JSON) remains fully operational
+  - DLQ captures events that exceed retry limits for manual replay
+
+* **If Elasticsearch is unavailable**:
+  - Debug/search workflows degrade (Kibana/search unavailable)
+  - Core GraphQL API remains fully operational
+  - Events buffer in NATS for retry when Elasticsearch recovers
+
+* **If Arrow Flight server crashes**:
+  - HTTP/JSON API unaffected (independent transport)
+  - Analytics clients gracefully degrade or failover to HTTP/JSON
+  - Automatic restart via process manager (systemd/k8s)
+
+* **If NATS is unavailable**:
+  - Observer actions (webhooks/emails) pause (existing behavior)
+  - PostgreSQL LISTEN/NOTIFY continues buffering
+  - Automatic resume when NATS recovers
+
+**Implementation**:
+- DLQ + exponential backoff for sink consumers
+- Health checks expose degraded state (monitoring/alerting)
+- Event replay tooling for disaster recovery
 
 ### High Risk
 
@@ -323,10 +395,16 @@ elasticsearch = ["elasticsearch"]  # Enable Elasticsearch indexer
 
 ### Performance (Quantitative)
 
-- ✅ 100k row query: < 3 seconds (vs 30s baseline)
-- ✅ 1M events/sec sustained streaming to ClickHouse
-- ✅ < 100ms Elasticsearch search queries (P95)
-- ✅ < 500MB memory for 1M row stream (constant memory)
+**MVP Targets** (must achieve):
+- ✅ 100k row query: < 3 seconds via Arrow Flight (vs 30s HTTP/JSON baseline) = **10x improvement**
+- ✅ 50k-200k events/sec sustained ingestion to ClickHouse (vs 5-10k/sec baseline) = **10-20x improvement**
+- ✅ < 100ms Elasticsearch search queries (P95) for debugging workflows
+- ✅ < 500MB memory for 1M row stream (constant memory via batching)
+
+**Stretch Goals** (Phase 9+):
+- 🎯 1M+ events/sec sustained ingestion under batching and appropriate hardware
+- 🎯 100k+ rows/sec streaming per Arrow Flight client
+- 🎯 < 1 second for 100k row queries (vs 3s MVP target)
 
 ### Adoption (Qualitative)
 
