@@ -696,6 +696,12 @@ pub struct ExecutionSummary {
     pub dlq_errors: usize,
     /// Other errors encountered
     pub errors: Vec<String>,
+    /// Whether this event was skipped due to deduplication (Phase 8.3)
+    pub duplicate_skipped: bool,
+    /// Number of cache hits during action execution (Phase 8.4)
+    pub cache_hits: usize,
+    /// Number of cache misses during action execution (Phase 8.4)
+    pub cache_misses: usize,
 }
 
 impl ExecutionSummary {
@@ -815,6 +821,9 @@ mod tests {
             total_duration_ms: 50.0,
             dlq_errors: 0,
             errors: vec![],
+            duplicate_skipped: false,
+            cache_hits: 0,
+            cache_misses: 0,
         };
 
         assert!(summary.is_success());
@@ -830,6 +839,9 @@ mod tests {
             total_duration_ms: 75.0,
             dlq_errors: 0,
             errors: vec![],
+            duplicate_skipped: false,
+            cache_hits: 0,
+            cache_misses: 0,
         };
 
         assert!(!summary.is_success());

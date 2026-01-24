@@ -74,12 +74,16 @@
 pub mod actions;
 pub mod actions_additional;
 pub mod cache;
+#[cfg(feature = "caching")]
+pub mod cached_executor;
 pub mod checkpoint;
 pub mod cli;
 pub mod concurrent;
 pub mod condition;
 pub mod config;
 pub mod dedup;
+#[cfg(feature = "dedup")]
+pub mod deduped_executor;
 pub mod error;
 pub mod event;
 pub mod executor;
