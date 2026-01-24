@@ -67,6 +67,12 @@ Practical how-to guides for operators and developers.
 - [Monitoring](guides/monitoring.md) — Prometheus, OpenTelemetry, health checks
 - [Observability](guides/observability.md) — Logging, tracing, metrics
 
+**View Selection Guides**:
+
+- [Quick Reference](guides/view-selection-quick-reference.md) — Quick decision matrix and cheat sheet
+- [Migration Checklist](guides/view-selection-migration-checklist.md) — Step-by-step migration workflow
+- [Performance Testing](guides/view-selection-performance-testing.md) — Methodology for validating performance improvements
+
 ### [Enterprise Features](enterprise/)
 
 Enterprise-grade features for production deployments.
