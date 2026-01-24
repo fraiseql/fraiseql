@@ -146,7 +146,9 @@ pub use logging::{
 pub use logging::correlation::TraceContext;
 pub use matcher::EventMatcher;
 #[cfg(feature = "metrics")]
-pub use metrics::ObserverMetrics;
+pub use metrics::MetricsRegistry;
+#[cfg(feature = "metrics")]
+pub use metrics::handler::metrics_handler;
 pub use resilience::{
     CircuitBreaker, CircuitBreakerConfig, CircuitState, DegradationLevel, GracefulDegradation,
     PerEndpointCircuitBreaker, ResilientExecutor, ResilienceStrategy,
