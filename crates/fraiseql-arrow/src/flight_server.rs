@@ -1,0 +1,234 @@
+//! FraiseQL Arrow Flight service implementation.
+//!
+//! This module provides the core gRPC service that handles Flight RPC calls.
+//! In Phase 9.1, it implements the basic server skeleton with empty data streams.
+//! Phase 9.2+ will add actual query execution and data streaming.
+
+use crate::schema::{graphql_result_schema, observer_event_schema};
+use crate::ticket::FlightTicket;
+use arrow_flight::{
+    flight_service_server::{FlightService, FlightServiceServer},
+    Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightInfo, PollInfo,
+    HandshakeRequest, HandshakeResponse, PutResult, SchemaResult, Ticket,
+};
+use futures::Stream;
+use std::pin::Pin;
+use tonic::{Request, Response, Status, Streaming};
+use tracing::{info, warn};
+
+type HandshakeStream = Pin<Box<dyn Stream<Item = std::result::Result<HandshakeResponse, Status>> + Send>>;
+type FlightInfoStream = Pin<Box<dyn Stream<Item = std::result::Result<FlightInfo, Status>> + Send>>;
+type FlightDataStream = Pin<Box<dyn Stream<Item = std::result::Result<FlightData, Status>> + Send>>;
+type PutResultStream = Pin<Box<dyn Stream<Item = std::result::Result<PutResult, Status>> + Send>>;
+type ActionResultStream = Pin<Box<dyn Stream<Item = std::result::Result<arrow_flight::Result, Status>> + Send>>;
+type ActionTypeStream = Pin<Box<dyn Stream<Item = std::result::Result<ActionType, Status>> + Send>>;
+
+/// FraiseQL Arrow Flight service implementation.
+///
+/// This is the core gRPC service that handles Flight RPC calls.
+/// It will be extended in subsequent phases to actually fetch/stream data.
+///
+/// # Example
+///
+/// ```no_run
+/// use fraiseql_arrow::flight_server::FraiseQLFlightService;
+/// use tonic::transport::Server;
+///
+/// #[tokio::main]
+/// async fn main() -> Result<(), Box<dyn std::error::Error>> {
+///     let service = FraiseQLFlightService::new();
+///     let addr = "0.0.0.0:50051".parse()?;
+///
+///     Server::builder()
+///         .add_service(service.into_server())
+///         .serve(addr)
+///         .await?;
+///
+///     Ok(())
+/// }
+/// ```
+pub struct FraiseQLFlightService {
+    // Future: Will hold references to query executor, observer system, etc.
+}
+
+impl FraiseQLFlightService {
+    /// Create a new Flight service.
+    #[must_use]
+    pub fn new() -> Self {
+        Self {}
+    }
+
+    /// Convert this service into a gRPC server.
+    #[must_use]
+    pub fn into_server(self) -> FlightServiceServer<Self> {
+        FlightServiceServer::new(self)
+    }
+}
+
+impl Default for FraiseQLFlightService {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[tonic::async_trait]
+impl FlightService for FraiseQLFlightService {
+    type HandshakeStream = HandshakeStream;
+    type ListFlightsStream = FlightInfoStream;
+    type DoGetStream = FlightDataStream;
+    type DoPutStream = PutResultStream;
+    type DoActionStream = ActionResultStream;
+    type ListActionsStream = ActionTypeStream;
+    type DoExchangeStream = FlightDataStream;
+
+    /// Handshake for authentication (not implemented yet).
+    ///
+    /// Will be implemented in Phase 10 with JWT/API key authentication.
+    async fn handshake(
+        &self,
+        _request: Request<Streaming<HandshakeRequest>>,
+    ) -> std::result::Result<Response<Self::HandshakeStream>, Status> {
+        info!("Handshake called (not implemented)");
+        Err(Status::unimplemented("Handshake not implemented yet"))
+    }
+
+    /// List available datasets/queries.
+    ///
+    /// In Phase 9.1, this returns an empty list for testing.
+    /// In Phase 9.2+, this will list available GraphQL queries, observer events, etc.
+    async fn list_flights(
+        &self,
+        _request: Request<Criteria>,
+    ) -> std::result::Result<Response<Self::ListFlightsStream>, Status> {
+        info!("ListFlights called");
+
+        // TODO: Return actual available datasets
+        // For now, demonstrate the API works with an empty stream
+        let stream = futures::stream::empty();
+        Ok(Response::new(Box::pin(stream)))
+    }
+
+    /// Get schema for a dataset without fetching data.
+    ///
+    /// This is used by clients to inspect the schema before fetching data.
+    async fn get_schema(
+        &self,
+        request: Request<FlightDescriptor>,
+    ) -> std::result::Result<Response<SchemaResult>, Status> {
+        let descriptor = request.into_inner();
+        info!("GetSchema called: {:?}", descriptor);
+
+        // Decode ticket from descriptor path
+        if descriptor.path.is_empty() {
+            return Err(Status::invalid_argument("Empty flight descriptor path"));
+        }
+
+        let ticket_bytes = descriptor.path[0].as_bytes();
+        let ticket = FlightTicket::decode(ticket_bytes)
+            .map_err(|e| Status::invalid_argument(format!("Invalid ticket: {e}")))?;
+
+        // Return appropriate schema based on ticket type
+        let schema = match ticket {
+            FlightTicket::GraphQLQuery { .. } => graphql_result_schema(),
+            FlightTicket::ObserverEvents { .. } => observer_event_schema(),
+            FlightTicket::BulkExport { .. } => {
+                // Will be implemented in Phase 9.4
+                return Err(Status::unimplemented("BulkExport not implemented yet"));
+            }
+        };
+
+        // Serialize schema to IPC format
+        let options = arrow::ipc::writer::IpcWriteOptions::default();
+        let data_gen = arrow::ipc::writer::IpcDataGenerator::default();
+        let mut dict_tracker = arrow::ipc::writer::DictionaryTracker::new(false);
+        let encoded_data =
+            data_gen.schema_to_bytes_with_dictionary_tracker(&schema, &mut dict_tracker, &options);
+
+        Ok(Response::new(SchemaResult {
+            schema: encoded_data.ipc_message.into(),
+        }))
+    }
+
+    /// Fetch data stream (main data retrieval method).
+    ///
+    /// In Phase 9.1, this returns empty streams.
+    /// In Phase 9.2+, this will execute queries and stream Arrow RecordBatches.
+    async fn do_get(
+        &self,
+        request: Request<Ticket>,
+    ) -> std::result::Result<Response<Self::DoGetStream>, Status> {
+        let ticket_bytes = request.into_inner().ticket;
+        let ticket = FlightTicket::decode(&ticket_bytes)
+            .map_err(|e| Status::invalid_argument(format!("Invalid ticket: {e}")))?;
+
+        info!("DoGet called: {:?}", ticket);
+
+        // TODO: Phase 9.2+ will implement actual data fetching
+        // For now, return empty stream to validate server works
+        let stream = futures::stream::empty();
+        Ok(Response::new(Box::pin(stream)))
+    }
+
+    /// Upload data stream (for client-to-server data transfer).
+    ///
+    /// Not needed for Phase 9.1-9.3 (we're focused on server→client).
+    /// May be useful in Phase 9.4+ for bulk imports.
+    async fn do_put(
+        &self,
+        _request: Request<Streaming<FlightData>>,
+    ) -> std::result::Result<Response<Self::DoPutStream>, Status> {
+        warn!("DoPut called but not implemented");
+        Err(Status::unimplemented("DoPut not implemented yet"))
+    }
+
+    /// Execute an action (RPC method for operations beyond data transfer).
+    async fn do_action(
+        &self,
+        _request: Request<Action>,
+    ) -> std::result::Result<Response<Self::DoActionStream>, Status> {
+        warn!("DoAction called but not implemented");
+        Err(Status::unimplemented("DoAction not implemented yet"))
+    }
+
+    /// List available actions.
+    async fn list_actions(
+        &self,
+        _request: Request<Empty>,
+    ) -> std::result::Result<Response<Self::ListActionsStream>, Status> {
+        info!("ListActions called");
+        let stream = futures::stream::empty();
+        Ok(Response::new(Box::pin(stream)))
+    }
+
+    /// Bidirectional streaming (not needed for FraiseQL use cases).
+    async fn do_exchange(
+        &self,
+        _request: Request<Streaming<FlightData>>,
+    ) -> std::result::Result<Response<Self::DoExchangeStream>, Status> {
+        warn!("DoExchange called but not implemented");
+        Err(Status::unimplemented("DoExchange not implemented yet"))
+    }
+
+    /// Get flight info for a descriptor (metadata about available data).
+    ///
+    /// This method provides metadata about what data is available without
+    /// actually fetching it. Will be implemented in Phase 9.2+.
+    async fn get_flight_info(
+        &self,
+        _request: Request<FlightDescriptor>,
+    ) -> std::result::Result<Response<FlightInfo>, Status> {
+        info!("GetFlightInfo called");
+        Err(Status::unimplemented("GetFlightInfo not implemented yet"))
+    }
+
+    /// Poll for flight info updates (for long-running operations).
+    ///
+    /// Not needed for FraiseQL use cases (queries are synchronous).
+    async fn poll_flight_info(
+        &self,
+        _request: Request<FlightDescriptor>,
+    ) -> std::result::Result<Response<PollInfo>, Status> {
+        info!("PollFlightInfo called");
+        Err(Status::unimplemented("PollFlightInfo not implemented yet"))
+    }
+}
