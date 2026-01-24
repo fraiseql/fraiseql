@@ -4,6 +4,7 @@
 //! In Phase 9.1, it implements the basic server skeleton with empty data streams.
 //! Phase 9.2+ will add actual query execution and data streaming.
 
+use crate::metadata::SchemaRegistry;
 use crate::schema::{graphql_result_schema, observer_event_schema};
 use crate::ticket::FlightTicket;
 use arrow_flight::{
@@ -48,6 +49,8 @@ type ActionTypeStream = Pin<Box<dyn Stream<Item = std::result::Result<ActionType
 /// }
 /// ```
 pub struct FraiseQLFlightService {
+    /// Schema registry for pre-compiled Arrow views
+    schema_registry: SchemaRegistry,
     // Future: Will hold references to query executor, observer system, etc.
 }
 
@@ -55,7 +58,10 @@ impl FraiseQLFlightService {
     /// Create a new Flight service.
     #[must_use]
     pub fn new() -> Self {
-        Self {}
+        let schema_registry = SchemaRegistry::new();
+        schema_registry.register_defaults(); // Register av_orders, av_users, etc.
+
+        Self { schema_registry }
     }
 
     /// Convert this service into a gRPC server.
@@ -125,32 +131,34 @@ impl FraiseQLFlightService {
     /// - Minimal row → Arrow conversion (types already match)
     async fn execute_optimized_view(
         &self,
-        _view: &str,
-        _filter: Option<String>,
-        _order_by: Option<String>,
-        _limit: Option<usize>,
-        _offset: Option<usize>,
+        view: &str,
+        filter: Option<String>,
+        order_by: Option<String>,
+        limit: Option<usize>,
+        offset: Option<usize>,
     ) -> std::result::Result<
         impl Stream<Item = std::result::Result<FlightData, Status>>,
         Status,
     > {
-        // TODO: Phase 9.3+ - Execute optimized view query
-        // 1. Load pre-compiled Arrow schema from metadata
-        //    let schema = load_arrow_schema(view)?;
-        //
+        // 1. Load pre-compiled Arrow schema from registry
+        let _schema = self
+            .schema_registry
+            .get(view)
+            .map_err(|e| Status::not_found(format!("Schema not found for view {view}: {e}")))?;
+
         // 2. Build optimized SQL query
-        //    let sql = build_view_query(view, filter, order_by, limit, offset);
-        //
-        // 3. Execute query via database adapter
+        let _sql = build_optimized_sql(view, filter, order_by, limit, offset);
+
+        // 3. TODO: Execute query via database adapter
         //    let rows = db.query(&sql).await?;
         //
-        // 4. Fast conversion (types already aligned)
+        // 4. TODO: Fast conversion (types already aligned)
         //    let batches = fast_convert(rows, schema);
         //
-        // 5. Stream batches
+        // 5. TODO: Stream batches
         //    stream_batches(batches)
 
-        // Placeholder: Return empty stream
+        // Placeholder: Return empty stream until database integration complete
         let stream = futures::stream::empty();
         Ok(stream)
     }
@@ -224,11 +232,9 @@ impl FlightService for FraiseQLFlightService {
             FlightTicket::ObserverEvents { .. } => observer_event_schema(),
             FlightTicket::OptimizedView { view, .. } => {
                 // Phase 9.3: Load pre-compiled Arrow schema for optimized view
-                // TODO: Load schema from metadata table
-                // For now, return a placeholder schema
-                return Err(Status::unimplemented(format!(
-                    "OptimizedView schema loading not implemented yet for view: {view}"
-                )));
+                self.schema_registry
+                    .get(&view)
+                    .map_err(|e| Status::not_found(format!("Schema not found for view {view}: {e}")))?
             }
             FlightTicket::BulkExport { .. } => {
                 // Will be implemented in Phase 9.4
@@ -358,4 +364,58 @@ impl FlightService for FraiseQLFlightService {
         info!("PollFlightInfo called");
         Err(Status::unimplemented("PollFlightInfo not implemented yet"))
     }
+}
+
+/// Build optimized SQL query for av_* view.
+///
+/// # Arguments
+///
+/// * `view` - View name (e.g., "av_orders")
+/// * `filter` - Optional WHERE clause
+/// * `order_by` - Optional ORDER BY clause
+/// * `limit` - Optional LIMIT
+/// * `offset` - Optional OFFSET
+///
+/// # Returns
+///
+/// SQL query string
+///
+/// # Example
+///
+/// ```ignore
+/// let sql = build_optimized_sql(
+///     "av_orders",
+///     Some("created_at > '2026-01-01'"),
+///     Some("created_at DESC"),
+///     Some(100),
+///     Some(0)
+/// );
+/// // Returns: "SELECT * FROM av_orders WHERE created_at > '2026-01-01' ORDER BY created_at DESC LIMIT 100 OFFSET 0"
+/// ```
+fn build_optimized_sql(
+    view: &str,
+    filter: Option<String>,
+    order_by: Option<String>,
+    limit: Option<usize>,
+    offset: Option<usize>,
+) -> String {
+    let mut sql = format!("SELECT * FROM {view}");
+
+    if let Some(where_clause) = filter {
+        sql.push_str(&format!(" WHERE {where_clause}"));
+    }
+
+    if let Some(order_clause) = order_by {
+        sql.push_str(&format!(" ORDER BY {order_clause}"));
+    }
+
+    if let Some(limit_value) = limit {
+        sql.push_str(&format!(" LIMIT {limit_value}"));
+    }
+
+    if let Some(offset_value) = offset {
+        sql.push_str(&format!(" OFFSET {offset_value}"));
+    }
+
+    sql
 }
