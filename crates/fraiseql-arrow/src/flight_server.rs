@@ -9,6 +9,8 @@ use crate::db_convert::convert_db_rows_to_arrow;
 use crate::metadata::SchemaRegistry;
 use crate::schema::{graphql_result_schema, observer_event_schema};
 use crate::ticket::FlightTicket;
+use arrow::array::RecordBatch;
+use arrow::ipc::writer::{DictionaryTracker, IpcDataGenerator, IpcWriteOptions};
 use arrow_flight::{
     flight_service_server::{FlightService, FlightServiceServer},
     Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightInfo, PollInfo,
@@ -16,6 +18,7 @@ use arrow_flight::{
 };
 use futures::Stream;
 use std::pin::Pin;
+use std::sync::Arc;
 use tonic::{Request, Response, Status, Streaming};
 use tracing::{info, warn};
 
@@ -176,10 +179,21 @@ impl FraiseQLFlightService {
 
         info!("Generated {} Arrow batches", batches.len());
 
-        // 6. Convert batches to FlightData (placeholder - will use IPC encoding)
-        // TODO: Implement proper RecordBatch → FlightData conversion
-        // For now, return empty stream
-        let stream = futures::stream::empty();
+        // 6. Convert batches to FlightData and stream to client
+        // First message: schema
+        let schema_message = schema_to_flight_data(&schema)?;
+
+        // Subsequent messages: data batches
+        let batch_messages: Vec<std::result::Result<FlightData, Status>> = batches
+            .iter()
+            .map(record_batch_to_flight_data)
+            .collect();
+
+        // Combine schema + batches into a single stream
+        let mut all_messages = vec![Ok(schema_message)];
+        all_messages.extend(batch_messages);
+
+        let stream = futures::stream::iter(all_messages);
         Ok(stream)
     }
 }
@@ -384,6 +398,66 @@ impl FlightService for FraiseQLFlightService {
         info!("PollFlightInfo called");
         Err(Status::unimplemented("PollFlightInfo not implemented yet"))
     }
+}
+
+/// Convert RecordBatch to FlightData using Arrow IPC encoding.
+///
+/// # Arguments
+///
+/// * `batch` - Arrow RecordBatch to encode
+///
+/// # Returns
+///
+/// FlightData message with IPC-encoded batch
+///
+/// # Errors
+///
+/// Returns error if IPC encoding fails
+#[allow(clippy::result_large_err)]
+fn record_batch_to_flight_data(batch: &RecordBatch) -> std::result::Result<FlightData, Status> {
+    let options = IpcWriteOptions::default();
+    let data_gen = IpcDataGenerator::default();
+    let mut dict_tracker = DictionaryTracker::new(false);
+
+    let (_, encoded_data) = data_gen
+        .encoded_batch(batch, &mut dict_tracker, &options)
+        .map_err(|e| Status::internal(format!("Failed to encode RecordBatch: {e}")))?;
+
+    Ok(FlightData {
+        data_header: encoded_data.ipc_message.into(),
+        data_body: encoded_data.arrow_data.into(),
+        ..Default::default()
+    })
+}
+
+/// Convert schema to FlightData for initial message.
+///
+/// # Arguments
+///
+/// * `schema` - Arrow schema to encode
+///
+/// # Returns
+///
+/// FlightData message with IPC-encoded schema
+///
+/// # Errors
+///
+/// Returns error if IPC encoding fails
+#[allow(clippy::result_large_err)]
+fn schema_to_flight_data(
+    schema: &Arc<arrow::datatypes::Schema>,
+) -> std::result::Result<FlightData, Status> {
+    let options = IpcWriteOptions::default();
+    let data_gen = IpcDataGenerator::default();
+    let mut dict_tracker = DictionaryTracker::new(false);
+
+    let encoded_data = data_gen.schema_to_bytes_with_dictionary_tracker(schema, &mut dict_tracker, &options);
+
+    Ok(FlightData {
+        data_header: encoded_data.ipc_message.into(),
+        data_body: vec![].into(),
+        ..Default::default()
+    })
 }
 
 /// Build optimized SQL query for av_* view.
