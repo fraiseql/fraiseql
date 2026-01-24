@@ -6,7 +6,7 @@
 
 **Analogous to**: `tv_*` tables for JSON plane (GraphQL), but `ta_*` for Arrow plane (analytics).
 
-**Key difference**: Unlike logical views (`av_*`), ta_* tables are actual PostgreSQL tables with:
+**Key difference**: Unlike logical views (`va_*`), ta_* tables are actual PostgreSQL tables with:
 - Physical storage on disk (materialized data)
 - Trigger-based or scheduled refresh mechanism
 - BRIN indexes for fast time-series queries
@@ -24,7 +24,7 @@
 
 ### ❌ **Don't use ta_* when**
 
-- **Small tables** (<100K rows) - use `av_*` logical views instead
+- **Small tables** (<100K rows) - use `va_*` logical views instead
 - **Frequently changing data** with millisecond latency requirements
 - **Non-PostgreSQL databases** (BRIN indexes are PostgreSQL-only)
 - **Write-heavy workloads** where constant synchronization overhead is unacceptable

@@ -68,7 +68,7 @@ impl FraiseQLFlightService {
     #[must_use]
     pub fn new() -> Self {
         let schema_registry = SchemaRegistry::new();
-        schema_registry.register_defaults(); // Register av_orders, av_users, ta_orders, ta_users, etc.
+        schema_registry.register_defaults(); // Register va_orders, va_users, ta_orders, ta_users, etc.
 
         Self {
             schema_registry,
@@ -102,7 +102,7 @@ impl FraiseQLFlightService {
     #[must_use]
     pub fn new_with_db(db_adapter: Arc<dyn DatabaseAdapter>) -> Self {
         let schema_registry = SchemaRegistry::new();
-        schema_registry.register_defaults(); // Register av_orders, av_users, ta_orders, ta_users, etc.
+        schema_registry.register_defaults(); // Register va_orders, va_users, ta_orders, ta_users, etc.
 
         Self {
             schema_registry,
@@ -164,14 +164,14 @@ impl FraiseQLFlightService {
         Ok(stream)
     }
 
-    /// Execute optimized query on pre-compiled av_* view.
+    /// Execute optimized query on pre-compiled va_* view.
     ///
     /// Phase 9.3: Fast path for compiler-generated Arrow views.
     /// Uses pre-compiled Arrow schemas, eliminating runtime type inference.
     ///
     /// # Arguments
     ///
-    /// * `view` - View name (e.g., "av_orders")
+    /// * `view` - View name (e.g., "va_orders")
     /// * `filter` - Optional WHERE clause
     /// * `order_by` - Optional ORDER BY clause
     /// * `limit` - Optional LIMIT
@@ -272,8 +272,8 @@ mod tests {
     #[test]
     fn test_new_registers_defaults() {
         let service = FraiseQLFlightService::new();
-        assert!(service.schema_registry.contains("av_orders"));
-        assert!(service.schema_registry.contains("av_users"));
+        assert!(service.schema_registry.contains("va_orders"));
+        assert!(service.schema_registry.contains("va_users"));
         assert!(service.schema_registry.contains("ta_orders"));
         assert!(service.schema_registry.contains("ta_users"));
     }
@@ -390,7 +390,7 @@ impl FlightService for FraiseQLFlightService {
                 limit,
                 offset,
             } => {
-                // Phase 9.3: Optimized path using pre-compiled av_* views
+                // Phase 9.3: Optimized path using pre-compiled va_* views
                 let stream = self
                     .execute_optimized_view(&view, filter, order_by, limit, offset)
                     .await?;
@@ -535,11 +535,11 @@ fn schema_to_flight_data(
     })
 }
 
-/// Build optimized SQL query for av_* view.
+/// Build optimized SQL query for va_* view.
 ///
 /// # Arguments
 ///
-/// * `view` - View name (e.g., "av_orders")
+/// * `view` - View name (e.g., "va_orders")
 /// * `filter` - Optional WHERE clause
 /// * `order_by` - Optional ORDER BY clause
 /// * `limit` - Optional LIMIT
@@ -553,13 +553,13 @@ fn schema_to_flight_data(
 ///
 /// ```ignore
 /// let sql = build_optimized_sql(
-///     "av_orders",
+///     "va_orders",
 ///     Some("created_at > '2026-01-01'"),
 ///     Some("created_at DESC"),
 ///     Some(100),
 ///     Some(0)
 /// );
-/// // Returns: "SELECT * FROM av_orders WHERE created_at > '2026-01-01' ORDER BY created_at DESC LIMIT 100 OFFSET 0"
+/// // Returns: "SELECT * FROM va_orders WHERE created_at > '2026-01-01' ORDER BY created_at DESC LIMIT 100 OFFSET 0"
 /// ```
 fn build_optimized_sql(
     view: &str,
@@ -595,7 +595,7 @@ fn build_optimized_sql(
 ///
 /// # Arguments
 ///
-/// * `view` - View name (e.g., "av_orders", "av_users")
+/// * `view` - View name (e.g., "va_orders", "va_users")
 /// * `limit` - Optional limit on number of rows
 ///
 /// # Returns
@@ -612,7 +612,7 @@ fn execute_placeholder_query(
     let mut rows = Vec::with_capacity(row_count);
 
     match view {
-        "av_orders" => {
+        "va_orders" => {
             // Schema: id (Int64), total (Float64), created_at (Timestamp), customer_name (Utf8)
             for i in 0..row_count {
                 let mut row = HashMap::new();
@@ -629,7 +629,7 @@ fn execute_placeholder_query(
                 rows.push(row);
             }
         }
-        "av_users" => {
+        "va_users" => {
             // Schema: id (Int64), email (Utf8), name (Utf8), created_at (Timestamp)
             for i in 0..row_count {
                 let mut row = HashMap::new();

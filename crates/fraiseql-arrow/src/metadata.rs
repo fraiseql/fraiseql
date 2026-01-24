@@ -23,16 +23,16 @@ use crate::error::{ArrowFlightError, Result};
 ///
 /// let registry = SchemaRegistry::new();
 ///
-/// // Register a schema for av_orders view
+/// // Register a schema for va_orders view
 /// let schema = Arc::new(Schema::new(vec![
 ///     Field::new("id", DataType::Int64, false),
 ///     Field::new("total", DataType::Float64, false),
 /// ]));
 ///
-/// registry.register("av_orders", schema.clone());
+/// registry.register("va_orders", schema.clone());
 ///
 /// // Load the schema
-/// let loaded = registry.get("av_orders").unwrap();
+/// let loaded = registry.get("va_orders").unwrap();
 /// assert_eq!(loaded.fields().len(), 2);
 /// ```
 pub struct SchemaRegistry {
@@ -52,7 +52,7 @@ impl SchemaRegistry {
     ///
     /// # Arguments
     ///
-    /// * `view_name` - View name (e.g., "av_orders")
+    /// * `view_name` - View name (e.g., "va_orders")
     /// * `schema` - Pre-compiled Arrow schema
     pub fn register(&self, view_name: impl Into<String>, schema: Arc<Schema>) {
         self.schemas.insert(view_name.into(), schema);
@@ -107,7 +107,7 @@ impl SchemaRegistry {
     pub fn register_defaults(&self) {
         use arrow::datatypes::{DataType, Field, TimeUnit};
 
-        // av_orders view
+        // va_orders view
         let orders_schema = Arc::new(Schema::new(vec![
             Field::new("id", DataType::Int64, false),
             Field::new("total", DataType::Float64, false),
@@ -118,9 +118,9 @@ impl SchemaRegistry {
             ),
             Field::new("customer_name", DataType::Utf8, true),
         ]));
-        self.register("av_orders", orders_schema);
+        self.register("va_orders", orders_schema);
 
-        // av_users view
+        // va_users view
         let users_schema = Arc::new(Schema::new(vec![
             Field::new("id", DataType::Int64, false),
             Field::new("email", DataType::Utf8, false),
@@ -131,7 +131,7 @@ impl SchemaRegistry {
                 false,
             ),
         ]));
-        self.register("av_users", users_schema);
+        self.register("va_users", users_schema);
 
         // Register ta_* (table-backed) schemas
         self.register_ta_tables();
@@ -141,7 +141,7 @@ impl SchemaRegistry {
     ///
     /// These are materialized table-backed views that pre-compute and physically store
     /// Arrow-optimized columnar data for high-performance Arrow Flight streaming.
-    /// Unlike logical views (av_*), ta_* tables are actual PostgreSQL tables with
+    /// Unlike logical views (va_*), ta_* tables are actual PostgreSQL tables with
     /// trigger-based refresh and BRIN indexes for fast range queries.
     ///
     /// This is a convenience method for Phase 9.3 testing.
@@ -192,9 +192,9 @@ mod tests {
             Field::new("name", DataType::Utf8, false),
         ]));
 
-        registry.register("av_test", schema.clone());
+        registry.register("va_test", schema.clone());
 
-        let retrieved = registry.get("av_test").unwrap();
+        let retrieved = registry.get("va_test").unwrap();
         assert_eq!(retrieved.fields().len(), 2);
         assert_eq!(retrieved.field(0).name(), "id");
     }
@@ -217,9 +217,9 @@ mod tests {
 
         let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int64, false)]));
 
-        assert!(!registry.contains("av_test"));
-        registry.register("av_test", schema);
-        assert!(registry.contains("av_test"));
+        assert!(!registry.contains("va_test"));
+        registry.register("va_test", schema);
+        assert!(registry.contains("va_test"));
     }
 
     #[test]
@@ -228,12 +228,12 @@ mod tests {
 
         let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int64, false)]));
 
-        registry.register("av_test", schema);
-        assert!(registry.contains("av_test"));
+        registry.register("va_test", schema);
+        assert!(registry.contains("va_test"));
 
-        let removed = registry.remove("av_test");
+        let removed = registry.remove("va_test");
         assert!(removed.is_some());
-        assert!(!registry.contains("av_test"));
+        assert!(!registry.contains("va_test"));
     }
 
     #[test]
@@ -245,11 +245,11 @@ mod tests {
 
         let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int64, false)]));
 
-        registry.register("av_test1", schema.clone());
+        registry.register("va_test1", schema.clone());
         assert_eq!(registry.len(), 1);
         assert!(!registry.is_empty());
 
-        registry.register("av_test2", schema);
+        registry.register("va_test2", schema);
         assert_eq!(registry.len(), 2);
     }
 
@@ -259,8 +259,8 @@ mod tests {
 
         let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int64, false)]));
 
-        registry.register("av_test1", schema.clone());
-        registry.register("av_test2", schema);
+        registry.register("va_test1", schema.clone());
+        registry.register("va_test2", schema);
         assert_eq!(registry.len(), 2);
 
         registry.clear();
@@ -273,15 +273,15 @@ mod tests {
 
         registry.register_defaults();
 
-        assert!(registry.contains("av_orders"));
-        assert!(registry.contains("av_users"));
+        assert!(registry.contains("va_orders"));
+        assert!(registry.contains("va_users"));
 
-        let orders_schema = registry.get("av_orders").unwrap();
+        let orders_schema = registry.get("va_orders").unwrap();
         assert_eq!(orders_schema.fields().len(), 4);
         assert_eq!(orders_schema.field(0).name(), "id");
         assert_eq!(orders_schema.field(1).name(), "total");
 
-        let users_schema = registry.get("av_users").unwrap();
+        let users_schema = registry.get("va_users").unwrap();
         assert_eq!(users_schema.fields().len(), 4);
         assert_eq!(users_schema.field(0).name(), "id");
         assert_eq!(users_schema.field(1).name(), "email");
@@ -321,7 +321,7 @@ mod tests {
         // register_defaults() should call register_ta_tables()
         assert!(registry.contains("ta_orders"));
         assert!(registry.contains("ta_users"));
-        assert!(registry.contains("av_orders"));
-        assert!(registry.contains("av_users"));
+        assert!(registry.contains("va_orders"));
+        assert!(registry.contains("va_users"));
     }
 }

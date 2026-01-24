@@ -56,7 +56,7 @@ pub enum FlightTicket {
 
     /// Optimized pre-compiled Arrow view.
     ///
-    /// Uses compiler-generated `av_*` views for maximum performance.
+    /// Uses compiler-generated `va_*` views for maximum performance.
     /// Pre-compiled Arrow schemas eliminate runtime type inference.
     ///
     /// # Example
@@ -64,13 +64,13 @@ pub enum FlightTicket {
     /// ```json
     /// {
     ///   "type": "OptimizedView",
-    ///   "view": "av_orders",
+    ///   "view": "va_orders",
     ///   "filter": "created_at > '2026-01-01'",
     ///   "limit": 100000
     /// }
     /// ```
     OptimizedView {
-        /// View name (e.g., "av_orders", "av_users")
+        /// View name (e.g., "va_orders", "va_users")
         view: String,
         /// Optional WHERE clause filter
         filter: Option<String>,
@@ -189,7 +189,7 @@ mod tests {
     #[test]
     fn test_optimized_view_ticket() {
         let ticket = FlightTicket::OptimizedView {
-            view: "av_orders".to_string(),
+            view: "va_orders".to_string(),
             filter: Some("created_at > '2026-01-01'".to_string()),
             order_by: Some("created_at DESC".to_string()),
             limit: Some(100_000),
@@ -207,7 +207,7 @@ mod tests {
                 limit,
                 offset,
             } => {
-                assert_eq!(view, "av_orders");
+                assert_eq!(view, "va_orders");
                 assert_eq!(filter, Some("created_at > '2026-01-01'".to_string()));
                 assert_eq!(order_by, Some("created_at DESC".to_string()));
                 assert_eq!(limit, Some(100_000));
@@ -220,7 +220,7 @@ mod tests {
     #[test]
     fn test_optimized_view_minimal() {
         let ticket = FlightTicket::OptimizedView {
-            view: "av_users".to_string(),
+            view: "va_users".to_string(),
             filter: None,
             order_by: None,
             limit: None,
