@@ -1,7 +1,7 @@
 # FraiseQL v2: Unified Development Roadmap
-**Date**: January 24, 2026
-**Version**: 2.0 (Updated with Apache Arrow Flight Integration)
-**Status**: Comprehensive Architectural Plan
+**Date**: January 24, 2026 (Updated)
+**Version**: 2.1 (Phase 8.7 Complete, Phase 8.6 Ready, Phase 9.5 Complete)
+**Status**: Comprehensive Architectural Plan with Recent Completions
 
 ---
 
@@ -84,8 +84,8 @@ FraiseQL v2 is a **compiled GraphQL execution engine** with a **high-performance
 | Phase | Component | Status | Priority | Effort | Dependencies |
 |-------|-----------|--------|----------|--------|--------------|
 | **Phase 1-7** | Core GraphQL Engine | ✅ Complete | - | - | - |
-| **Phase 8** | Observer System Excellence | 🔄 50% Complete | ⭐⭐⭐⭐⭐ | 6 weeks | Phase 1-7 |
-| **Phase 9** | **Apache Arrow Flight Integration** | 📋 Planned | ⭐⭐⭐⭐⭐ | 3-4 weeks | Phase 8.7 |
+| **Phase 8** | Observer System Excellence | 🔄 ~60% Complete (8/13) | ⭐⭐⭐⭐⭐ | 6 weeks | Phase 1-7 |
+| **Phase 9** | **Apache Arrow Flight Integration** | 📋 Planned | ⭐⭐⭐⭐⭐ | 3-4 weeks | Phase 8.7 ✅ |
 | **Phase 10** | Advanced Analytics | 📋 Planned | ⭐⭐⭐ | 2-3 weeks | Phase 9 |
 | **Phase 11** | Production Hardening | 📋 Planned | ⭐⭐⭐⭐ | 2 weeks | Phase 9 |
 
@@ -93,7 +93,7 @@ FraiseQL v2 is a **compiled GraphQL execution engine** with a **high-performance
 
 ## Phase 8: Observer System Excellence (Continued)
 
-**Current Status**: 50% Complete (6.5 of 13 subphases)
+**Current Status**: ~60% Complete (8 of 13 subphases)
 
 ### ✅ Completed Subphases
 
@@ -104,49 +104,62 @@ FraiseQL v2 is a **compiled GraphQL execution engine** with a **high-performance
 - **8.4**: Redis Caching Layer (100x cache hits)
 - **8.4.5**: Configuration System (4 deployment topologies)
 - **8.4.6**: Executor Composition Factory
+- **8.7**: ✅ **Prometheus Metrics for Observer System** (Jan 24, 2026)
 - **8.12**: Integration Tests + Benchmarks
 
 ### 🔄 Remaining Subphases (Prioritized)
 
-#### Phase 8.7: Prometheus Metrics (HIGH PRIORITY - NEXT)
-**Effort**: 2-3 days
-**Why Critical**: Production monitoring for Redis + NATS deployment
+#### Phase 8.7: Prometheus Metrics (✅ COMPLETE - January 24, 2026)
+**Effort**: 2-3 days (COMPLETED)
+**Status**: ✅ DONE
 
-**Deliverables**:
-- Metrics registry integration
-- HTTP /metrics endpoint
-- Key metrics:
-  - `fraiseql_observer_events_processed_total`
-  - `fraiseql_observer_cache_hit_rate`
-  - `fraiseql_observer_dedup_hit_rate`
-  - `fraiseql_observer_action_duration_seconds`
-  - `fraiseql_observer_backlog_size`
-- Grafana dashboard JSON
+**Deliverables Completed**:
+- ✅ Metrics registry integration (14 metrics total)
+- ✅ HTTP /metrics endpoint (Axum handler)
+- ✅ Feature-gated implementation (zero overhead when disabled)
+- ✅ Instrumented executors: executor.rs, cached_executor.rs, deduped_executor.rs
+- ✅ All key metrics exported:
+  - Event processing: `fraiseql_observer_events_processed_total`, `fraiseql_observer_events_failed_total`
+  - Caching: `fraiseql_observer_cache_hits_total`, `fraiseql_observer_cache_misses_total`, `fraiseql_observer_cache_evictions_total`
+  - Deduplication: `fraiseql_observer_dedup_detected_total`, `fraiseql_observer_dedup_processing_skipped_total`
+  - Actions: `fraiseql_observer_action_executed_total`, `fraiseql_observer_action_duration_seconds`, `fraiseql_observer_action_errors_total`
+  - Queue: `fraiseql_observer_backlog_size`, `fraiseql_observer_dlq_items`
+- ✅ Grafana dashboard (10 panels, docs/monitoring/grafana-dashboard-8.7.json)
+- ✅ Comprehensive metrics documentation (docs/monitoring/PHASE_8_7_METRICS.md)
+- ✅ Test coverage: 255 observer tests, 8 metrics tests (all passing)
 
-**Acceptance Criteria**:
-- ✅ Prometheus endpoint exposed
-- ✅ All key metrics exported
-- ✅ Grafana dashboard ready
-- ✅ Documentation updated
+**Files Created**: 3 (registry.rs, handler.rs, mod.rs)
+**Files Modified**: 4 (lib.rs, executor.rs, cached_executor.rs, deduped_executor.rs)
+**Documentation**: PHASE_8_7_METRICS.md (500+ lines) + Grafana dashboard JSON
+**Commits**: 4 commits (bd83dbc0, 9f302de2, d65e08ea, 45983f32)
 
 ---
 
-#### Phase 8.6: Job Queue System (HIGH PRIORITY)
+#### Phase 8.6: Job Queue System (🔄 READY TO START - Plan Complete)
 **Effort**: 3-4 days
-**Dependency**: Phase 8.7 (for monitoring job queues)
+**Dependency**: Phase 8.7 ✅ (SATISFIED)
+**Status**: 🔄 Plan created and ready for implementation
+
+**Plan Location**: `.claude/PHASE_8_6_PLAN.md` (comprehensive, 400+ lines)
 
 **Deliverables**:
 - `JobQueue` trait + Redis implementation
 - Worker pool management
-- Exponential backoff retry
+- Exponential backoff retry with jitter
 - Job status tracking (pending/running/success/failed)
-- DLQ integration for failed jobs
+- DLQ integration for permanent failures
+- Integration with Phase 8.7 metrics (6 new metrics)
+- Full test coverage and documentation
 
 **Use Cases**:
 - Long-running video processing
 - Report generation
 - Batch email sends
 - Data export jobs
+
+**Implementation Strategy**: 8 tasks in PHASE_8_6_PLAN.md
+- Task 1-3: Architecture (Claude)
+- Task 4-8: Integration & testing (following established patterns)
 
 ---
 
@@ -494,21 +507,24 @@ df = pl.from_arrow(reader.read_all())
 
 ## Updated Timeline
 
-### Q1 2026 (Current)
-- ✅ **Week 1-2**: Phase 8 completion (Observers)
-- 🔄 **Week 3**: Phase 8.7 (Prometheus Metrics)
-- 🔄 **Week 4**: Phase 8.6 (Job Queue)
+### Q1 2026 (Current - Late January)
+- ✅ **Week 1-3**: Phase 8 Metrics & Observer completion
+  - ✅ Phase 8.7: Prometheus Metrics (COMPLETE - Jan 24)
+  - ✅ 255 observer tests passing, 0 failures
+- 🔄 **Week 4+**: Phase 8.6 (Job Queue System) - Ready to Start
+  - Plan: `.claude/PHASE_8_6_PLAN.md` (comprehensive, 8 tasks)
+  - Timeline: 3-4 days estimated
 
 ### Q2 2026
-- 📋 **Week 1-2**: Phase 9.1-9.2 (Arrow Flight Foundation + GraphQL)
-- 📋 **Week 3-4**: Phase 9.3-9.4 (Observer Streaming + Bulk Export)
-- 📋 **Week 5**: Phase 9.5-9.6 (Client Examples + Testing)
-- 📋 **Week 6**: Phase 8.5, 8.8-8.11 (Remaining Observer features)
+- 📋 **After Phase 8.6**: Phase 9.1-9.2 (Arrow Flight Foundation + GraphQL)
+- 📋 **Following**: Phase 9.3-9.4 (Observer Streaming + Bulk Export)
+- 📋 **Mid-cycle**: Phase 9.5-9.6 (Client Examples + Testing)
+- 📋 **Late cycle**: Phase 8.5, 8.8-8.11 (Remaining Observer features)
 
 ### Q3 2026
-- 📋 **Week 1-3**: Phase 10 (Advanced Analytics)
-- 📋 **Week 4-5**: Phase 11 (Production Hardening)
-- 📋 **Week 6**: Documentation finalization, release prep
+- 📋 **Early**: Phase 10 (Advanced Analytics)
+- 📋 **Mid**: Phase 11 (Production Hardening)
+- 📋 **Late**: Documentation finalization, release prep
 
 ---
 
@@ -558,20 +574,35 @@ df = pl.from_arrow(reader.read_all())
 
 ## Next Actions
 
-### Immediate (This Week)
-1. ✅ **Complete Phase 8.7** (Prometheus Metrics) - 2-3 days
-2. ✅ **Review and approve** this roadmap
-3. ✅ **Create Phase 9.1 detailed plan** (Arrow Flight Foundation)
+### Immediate (Next Session)
+1. ✅ **Start Phase 8.6 Implementation** (Job Queue System)
+   - Reference: `.claude/PHASE_8_6_PLAN.md` (comprehensive plan ready)
+   - Timeline: 3-4 days following 8 tasks
+   - Build on: Phase 8.7 metrics infrastructure (just completed)
 
-### Next Week
-1. ✅ **Start Phase 9.1** implementation
-2. ✅ Set up Arrow dependencies
-3. ✅ Basic Flight server prototype
+2. ✅ **Task 1** (1 day): Job definition & types
+   - Implement Job struct and JobQueue trait
+   - Define job statuses and retry logic
 
-### Next Month
-1. ✅ Complete Phase 9 (Arrow Flight Integration)
-2. ✅ Performance benchmarks vs HTTP/JSON
-3. ✅ Python/Java/R client examples
+3. ✅ **Task 2** (1 day): Redis job queue
+   - RedisJobQueue implementation
+   - Job serialization and persistence
+
+### Following Tasks
+4. ✅ **Task 3** (1 day): Job executor/worker
+   - JobExecutor implementation
+   - Worker pool management
+
+5. ✅ **Tasks 4-8** (1 day): Integration, metrics, docs, tests
+   - QueuedObserverExecutor wrapper
+   - Metrics integration
+   - Documentation
+   - Comprehensive test coverage
+
+### After Phase 8.6 Complete
+1. 📋 **Create Phase 9.1 detailed plan** (Arrow Flight Foundation)
+2. 📋 **Start Phase 9.1** implementation (if timeline allows)
+3. 📋 Or continue with **Phase 8.5** (Elasticsearch Integration) if preferred
 
 ---
 
@@ -595,6 +626,7 @@ df = pl.from_arrow(reader.read_all())
 
 ---
 
-**Last Updated**: January 24, 2026
-**Next Review**: After Phase 8.7 completion
-**Status**: Awaiting approval to proceed with Phase 9
+**Last Updated**: January 24, 2026 (Phase 8.7 Complete)
+**Phase 8.7 Completion Date**: January 24, 2026 at end-of-session
+**Phase 8.6 Plan Ready**: `.claude/PHASE_8_6_PLAN.md`
+**Status**: Phase 8.7 ✅ COMPLETE | Phase 8.6 🔄 READY TO START | Repository cleaned and organized for next session
