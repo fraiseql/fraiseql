@@ -43,6 +43,7 @@
 #![warn(missing_docs)]
 
 pub mod convert;
+pub mod db;
 pub mod db_convert;
 pub mod error;
 pub mod event_schema;
@@ -52,6 +53,7 @@ pub mod schema;
 pub mod schema_gen;
 pub mod ticket;
 
+pub use db::{DatabaseAdapter, DatabaseError, DatabaseResult};
 pub use error::{ArrowFlightError, Result};
 pub use flight_server::FraiseQLFlightService;
 pub use metadata::SchemaRegistry;

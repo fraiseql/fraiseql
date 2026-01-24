@@ -10,16 +10,16 @@ use std::sync::Arc;
 /// Arrow schema for FraiseQL observer events.
 ///
 /// Maps to `EntityEvent` from fraiseql-observers:
-/// ```rust
+/// ```ignore
 /// pub struct EntityEvent {
-///     pub id: Uuid,
-///     pub event_type: String,
-///     pub entity_type: String,
-///     pub entity_id: String,
-///     pub timestamp: DateTime<Utc>,
-///     pub data: serde_json::Value,
-///     pub user_id: Option<String>,
-///     pub org_id: Option<String>,
+///     pub id: Uuid,                      // UUID of the event
+///     pub event_type: String,            // Event type (e.g., "Order.Created")
+///     pub entity_type: String,           // Entity type (e.g., "Order")
+///     pub entity_id: String,             // Entity ID
+///     pub timestamp: DateTime<Utc>,      // Event timestamp
+///     pub data: serde_json::Value,       // Event payload
+///     pub user_id: Option<String>,       // User who triggered event
+///     pub org_id: Option<String>,        // Organization context
 /// }
 /// ```
 ///

@@ -132,6 +132,43 @@ impl SchemaRegistry {
             ),
         ]));
         self.register("av_users", users_schema);
+
+        // Register ta_* (table-backed) schemas
+        self.register_ta_tables();
+    }
+
+    /// Register ta_* (table-backed Arrow) table schemas.
+    ///
+    /// These are materialized table-backed views that pre-compute and physically store
+    /// Arrow-optimized columnar data for high-performance Arrow Flight streaming.
+    /// Unlike logical views (av_*), ta_* tables are actual PostgreSQL tables with
+    /// trigger-based refresh and BRIN indexes for fast range queries.
+    ///
+    /// This is a convenience method for Phase 9.3 testing.
+    pub fn register_ta_tables(&self) {
+        use arrow::datatypes::DataType;
+
+        // ta_orders: Table-backed view of orders
+        // Fields match the physical ta_orders PostgreSQL table
+        // Note: Using Utf8 for timestamp strings to work around Arrow conversion limitations
+        let ta_orders_schema = Arc::new(Schema::new(vec![
+            arrow::datatypes::Field::new("id", DataType::Utf8, false),
+            arrow::datatypes::Field::new("total", DataType::Utf8, false), // Decimal128 would be ideal
+            arrow::datatypes::Field::new("created_at", DataType::Utf8, false), // ISO 8601 string
+            arrow::datatypes::Field::new("customer_name", DataType::Utf8, true),
+        ]));
+        self.register("ta_orders", ta_orders_schema);
+
+        // ta_users: Table-backed view of users
+        // Fields match the physical ta_users PostgreSQL table
+        // Note: Using Utf8 for timestamp strings to work around Arrow conversion limitations
+        let ta_users_schema = Arc::new(Schema::new(vec![
+            arrow::datatypes::Field::new("id", DataType::Utf8, false),
+            arrow::datatypes::Field::new("email", DataType::Utf8, false),
+            arrow::datatypes::Field::new("name", DataType::Utf8, true),
+            arrow::datatypes::Field::new("created_at", DataType::Utf8, false), // ISO 8601 string
+        ]));
+        self.register("ta_users", ta_users_schema);
     }
 }
 
@@ -248,5 +285,43 @@ mod tests {
         assert_eq!(users_schema.fields().len(), 4);
         assert_eq!(users_schema.field(0).name(), "id");
         assert_eq!(users_schema.field(1).name(), "email");
+    }
+
+    #[test]
+    fn test_register_ta_tables() {
+        let registry = SchemaRegistry::new();
+
+        registry.register_ta_tables();
+
+        // Verify ta_orders is registered
+        assert!(registry.contains("ta_orders"));
+        let ta_orders_schema = registry.get("ta_orders").unwrap();
+        assert_eq!(ta_orders_schema.fields().len(), 4);
+        assert_eq!(ta_orders_schema.field(0).name(), "id");
+        assert_eq!(ta_orders_schema.field(1).name(), "total");
+        assert_eq!(ta_orders_schema.field(2).name(), "created_at");
+        assert_eq!(ta_orders_schema.field(3).name(), "customer_name");
+
+        // Verify ta_users is registered
+        assert!(registry.contains("ta_users"));
+        let ta_users_schema = registry.get("ta_users").unwrap();
+        assert_eq!(ta_users_schema.fields().len(), 4);
+        assert_eq!(ta_users_schema.field(0).name(), "id");
+        assert_eq!(ta_users_schema.field(1).name(), "email");
+        assert_eq!(ta_users_schema.field(2).name(), "name");
+        assert_eq!(ta_users_schema.field(3).name(), "created_at");
+    }
+
+    #[test]
+    fn test_register_defaults_includes_ta_tables() {
+        let registry = SchemaRegistry::new();
+
+        registry.register_defaults();
+
+        // register_defaults() should call register_ta_tables()
+        assert!(registry.contains("ta_orders"));
+        assert!(registry.contains("ta_users"));
+        assert!(registry.contains("av_orders"));
+        assert!(registry.contains("av_users"));
     }
 }

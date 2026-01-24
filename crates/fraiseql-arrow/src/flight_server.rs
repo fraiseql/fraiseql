@@ -6,6 +6,7 @@
 
 use crate::convert::{ConvertConfig, RowToArrowConverter};
 use crate::db_convert::convert_db_rows_to_arrow;
+use crate::db::DatabaseAdapter;
 use crate::metadata::SchemaRegistry;
 use crate::schema::{graphql_result_schema, observer_event_schema};
 use crate::ticket::FlightTicket;
@@ -56,17 +57,65 @@ type ActionTypeStream = Pin<Box<dyn Stream<Item = std::result::Result<ActionType
 pub struct FraiseQLFlightService {
     /// Schema registry for pre-compiled Arrow views
     schema_registry: SchemaRegistry,
+    /// Optional database adapter for executing real queries.
+    /// If None, placeholder queries are used (for testing/development).
+    db_adapter: Option<Arc<dyn DatabaseAdapter>>,
     // Future: Will hold references to query executor, observer system, etc.
 }
 
 impl FraiseQLFlightService {
-    /// Create a new Flight service.
+    /// Create a new Flight service with placeholder data (for testing/development).
     #[must_use]
     pub fn new() -> Self {
         let schema_registry = SchemaRegistry::new();
-        schema_registry.register_defaults(); // Register av_orders, av_users, etc.
+        schema_registry.register_defaults(); // Register av_orders, av_users, ta_orders, ta_users, etc.
 
-        Self { schema_registry }
+        Self {
+            schema_registry,
+            db_adapter: None,
+        }
+    }
+
+    /// Create a new Flight service connected to a database adapter.
+    ///
+    /// # Arguments
+    ///
+    /// * `db_adapter` - Database adapter for executing real queries
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use fraiseql_arrow::flight_server::FraiseQLFlightService;
+    /// use fraiseql_arrow::DatabaseAdapter;
+    /// use std::sync::Arc;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// // In production, create a real PostgresAdapter from fraiseql-core
+    /// // and wrap it to implement the local DatabaseAdapter trait
+    /// let db_adapter: Arc<dyn DatabaseAdapter> = todo!("Create from fraiseql_core::db::PostgresAdapter");
+    ///
+    /// let service = FraiseQLFlightService::new_with_db(db_adapter);
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[must_use]
+    pub fn new_with_db(db_adapter: Arc<dyn DatabaseAdapter>) -> Self {
+        let schema_registry = SchemaRegistry::new();
+        schema_registry.register_defaults(); // Register av_orders, av_users, ta_orders, ta_users, etc.
+
+        Self {
+            schema_registry,
+            db_adapter: Some(db_adapter),
+        }
+    }
+
+    /// Get a reference to the schema registry.
+    ///
+    /// Useful for testing and schema introspection.
+    #[must_use]
+    pub fn schema_registry(&self) -> &SchemaRegistry {
+        &self.schema_registry
     }
 
     /// Convert this service into a gRPC server.
@@ -155,10 +204,16 @@ impl FraiseQLFlightService {
         let sql = build_optimized_sql(view, filter, order_by, limit, offset);
         info!("Executing optimized query: {}", sql);
 
-        // 3. Execute query via database adapter (placeholder)
-        // TODO: When integrated with fraiseql-server, use actual database adapter
-        // let rows = db.execute_raw_query(&sql).await?;
-        let db_rows = execute_placeholder_query(view, limit);
+        // 3. Execute query via database adapter
+        let db_rows = if let Some(db) = &self.db_adapter {
+            // Use real database adapter
+            db.execute_raw_query(&sql)
+                .await
+                .map_err(|e| Status::internal(format!("Database query failed: {e}")))?
+        } else {
+            // Fall back to placeholder (for backward compatibility and testing)
+            execute_placeholder_query(view, limit)
+        };
 
         // 4. Convert database rows to Arrow Values
         let arrow_rows = convert_db_rows_to_arrow(&db_rows, &schema)
@@ -201,6 +256,26 @@ impl FraiseQLFlightService {
 impl Default for FraiseQLFlightService {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_new_creates_service_without_db_adapter() {
+        let service = FraiseQLFlightService::new();
+        assert!(service.db_adapter.is_none());
+    }
+
+    #[test]
+    fn test_new_registers_defaults() {
+        let service = FraiseQLFlightService::new();
+        assert!(service.schema_registry.contains("av_orders"));
+        assert!(service.schema_registry.contains("av_users"));
+        assert!(service.schema_registry.contains("ta_orders"));
+        assert!(service.schema_registry.contains("ta_users"));
     }
 }
 
@@ -567,6 +642,42 @@ fn execute_placeholder_query(
                 row.insert(
                     "created_at".to_string(),
                     json!(1_700_000_000_000_000_i64 + i64::from(i as i32) * 86_400_000_000),
+                );
+                rows.push(row);
+            }
+        }
+        "ta_orders" => {
+            // Schema: id (Utf8), total (Utf8), created_at (Utf8 ISO 8601), customer_name (Utf8)
+            for i in 0..row_count {
+                let mut row = HashMap::new();
+                row.insert("id".to_string(), json!(format!("order-{}", i + 1)));
+                row.insert("total".to_string(), json!(format!("{:.2}", (i as f64 + 1.0) * 99.99)));
+                // ISO 8601 timestamp format
+                row.insert(
+                    "created_at".to_string(),
+                    json!(format!("2025-11-{:02}T12:00:00Z", (i % 30) + 1)),
+                );
+                row.insert(
+                    "customer_name".to_string(),
+                    json!(format!("Customer {}", i + 1)),
+                );
+                rows.push(row);
+            }
+        }
+        "ta_users" => {
+            // Schema: id (Utf8), email (Utf8), name (Utf8), created_at (Utf8 ISO 8601)
+            for i in 0..row_count {
+                let mut row = HashMap::new();
+                row.insert("id".to_string(), json!(format!("user-{}", i + 1)));
+                row.insert(
+                    "email".to_string(),
+                    json!(format!("user{}@example.com", i + 1)),
+                );
+                row.insert("name".to_string(), json!(format!("User {}", i + 1)));
+                // ISO 8601 timestamp format
+                row.insert(
+                    "created_at".to_string(),
+                    json!(format!("2025-11-{:02}T12:00:00Z", (i % 30) + 1)),
                 );
                 rows.push(row);
             }
