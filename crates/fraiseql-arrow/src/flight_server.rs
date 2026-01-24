@@ -4,6 +4,8 @@
 //! In Phase 9.1, it implements the basic server skeleton with empty data streams.
 //! Phase 9.2+ will add actual query execution and data streaming.
 
+use crate::convert::{ConvertConfig, RowToArrowConverter};
+use crate::db_convert::convert_db_rows_to_arrow;
 use crate::metadata::SchemaRegistry;
 use crate::schema::{graphql_result_schema, observer_event_schema};
 use crate::ticket::FlightTicket;
@@ -141,24 +143,42 @@ impl FraiseQLFlightService {
         Status,
     > {
         // 1. Load pre-compiled Arrow schema from registry
-        let _schema = self
+        let schema = self
             .schema_registry
             .get(view)
             .map_err(|e| Status::not_found(format!("Schema not found for view {view}: {e}")))?;
 
         // 2. Build optimized SQL query
-        let _sql = build_optimized_sql(view, filter, order_by, limit, offset);
+        let sql = build_optimized_sql(view, filter, order_by, limit, offset);
+        info!("Executing optimized query: {}", sql);
 
-        // 3. TODO: Execute query via database adapter
-        //    let rows = db.query(&sql).await?;
-        //
-        // 4. TODO: Fast conversion (types already aligned)
-        //    let batches = fast_convert(rows, schema);
-        //
-        // 5. TODO: Stream batches
-        //    stream_batches(batches)
+        // 3. Execute query via database adapter (placeholder)
+        // TODO: When integrated with fraiseql-server, use actual database adapter
+        // let rows = db.execute_raw_query(&sql).await?;
+        let db_rows = execute_placeholder_query(view, limit);
 
-        // Placeholder: Return empty stream until database integration complete
+        // 4. Convert database rows to Arrow Values
+        let arrow_rows = convert_db_rows_to_arrow(&db_rows, &schema)
+            .map_err(|e| Status::internal(format!("Row conversion failed: {e}")))?;
+
+        // 5. Convert to RecordBatches
+        let config = ConvertConfig {
+            batch_size: limit.unwrap_or(10_000).min(10_000),
+            max_rows: limit,
+        };
+        let converter = RowToArrowConverter::new(schema.clone(), config);
+
+        let batches = arrow_rows
+            .chunks(config.batch_size)
+            .map(|chunk| converter.convert_batch(chunk.to_vec()))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| Status::internal(format!("Arrow conversion failed: {e}")))?;
+
+        info!("Generated {} Arrow batches", batches.len());
+
+        // 6. Convert batches to FlightData (placeholder - will use IPC encoding)
+        // TODO: Implement proper RecordBatch → FlightData conversion
+        // For now, return empty stream
         let stream = futures::stream::empty();
         Ok(stream)
     }
@@ -418,4 +438,70 @@ fn build_optimized_sql(
     }
 
     sql
+}
+
+/// Generate placeholder database rows for testing.
+///
+/// TODO: Replace with actual database adapter when integrated with fraiseql-server.
+///
+/// # Arguments
+///
+/// * `view` - View name (e.g., "av_orders", "av_users")
+/// * `limit` - Optional limit on number of rows
+///
+/// # Returns
+///
+/// Vec of rows as HashMap<column_name, json_value>
+fn execute_placeholder_query(
+    view: &str,
+    limit: Option<usize>,
+) -> Vec<std::collections::HashMap<String, serde_json::Value>> {
+    use serde_json::json;
+    use std::collections::HashMap;
+
+    let row_count = limit.unwrap_or(10).min(100); // Cap at 100 for testing
+    let mut rows = Vec::with_capacity(row_count);
+
+    match view {
+        "av_orders" => {
+            // Schema: id (Int64), total (Float64), created_at (Timestamp), customer_name (Utf8)
+            for i in 0..row_count {
+                let mut row = HashMap::new();
+                row.insert("id".to_string(), json!(i64::from(i as i32 + 1)));
+                row.insert("total".to_string(), json!((i as f64 + 1.0) * 99.99));
+                row.insert(
+                    "created_at".to_string(),
+                    json!(1_700_000_000_000_000_i64 + i64::from(i as i32) * 86_400_000_000),
+                );
+                row.insert(
+                    "customer_name".to_string(),
+                    json!(format!("Customer {}", i + 1)),
+                );
+                rows.push(row);
+            }
+        }
+        "av_users" => {
+            // Schema: id (Int64), email (Utf8), name (Utf8), created_at (Timestamp)
+            for i in 0..row_count {
+                let mut row = HashMap::new();
+                row.insert("id".to_string(), json!(i64::from(i as i32 + 1)));
+                row.insert(
+                    "email".to_string(),
+                    json!(format!("user{}@example.com", i + 1)),
+                );
+                row.insert("name".to_string(), json!(format!("User {}", i + 1)));
+                row.insert(
+                    "created_at".to_string(),
+                    json!(1_700_000_000_000_000_i64 + i64::from(i as i32) * 86_400_000_000),
+                );
+                rows.push(row);
+            }
+        }
+        _ => {
+            // Unknown view, return empty rows
+            warn!("Unknown view '{}', returning empty result", view);
+        }
+    }
+
+    rows
 }

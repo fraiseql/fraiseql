@@ -12,7 +12,7 @@ use arrow::error::ArrowError;
 use std::sync::Arc;
 
 /// Configuration for Arrow batch conversion.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct ConvertConfig {
     /// Number of rows per RecordBatch (default: 10,000)
     pub batch_size: usize,
