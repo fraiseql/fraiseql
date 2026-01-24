@@ -45,10 +45,12 @@
 pub mod convert;
 pub mod error;
 pub mod flight_server;
+pub mod metadata;
 pub mod schema;
 pub mod schema_gen;
 pub mod ticket;
 
 pub use error::{ArrowFlightError, Result};
 pub use flight_server::FraiseQLFlightService;
+pub use metadata::SchemaRegistry;
 pub use ticket::FlightTicket;
