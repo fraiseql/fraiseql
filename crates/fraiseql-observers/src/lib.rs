@@ -88,6 +88,8 @@ pub mod deduped_executor;
 pub mod factory;
 pub mod error;
 pub mod event;
+#[cfg(feature = "arrow")]
+pub mod arrow_bridge;
 pub mod executor;
 pub mod listener;
 pub mod logging;

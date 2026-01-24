@@ -36,12 +36,15 @@
 //! executor_stack.process_event(&event).await?;
 //! ```
 
-use crate::config::{ObserverRuntimeConfig, RedisConfig};
+use crate::config::ObserverRuntimeConfig;
 use crate::error::{ObserverError, Result};
 use crate::executor::ObserverExecutor;
 use crate::matcher::EventMatcher;
 use crate::traits::DeadLetterQueue;
 use std::sync::Arc;
+
+#[cfg(any(feature = "dedup", feature = "caching"))]
+use crate::config::RedisConfig;
 
 #[cfg(feature = "dedup")]
 use crate::deduped_executor::DedupedObserverExecutor;

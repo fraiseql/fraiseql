@@ -44,6 +44,10 @@ fraiseql-observers-macros = { path = "../fraiseql-observers-macros", optional = 
 # Phase 2 NATS Dependencies
 async-nats = { version = "0.40", optional = true }
 
+# Phase 9.3 Arrow Flight Dependencies
+fraiseql-arrow = { path = "../fraiseql-arrow", optional = true }
+arrow = { version = "53", optional = true }
+
 # Phase 3 SQL Server Dependencies (tiberius - sqlx doesn't support MSSQL)
 tiberius = { version = "0.12", default-features = false, features = ["rustls", "chrono"], optional = true }
 tokio-util = { version = "0.7", features = ["compat"], optional = true }
@@ -78,7 +82,11 @@ phase8 = ["checkpoint", "dedup", "caching", "queue", "search", "metrics"]
 
 # Phase 9.2 Features
 macros = ["fraiseql-observers-macros"]
-phase9 = ["macros"]
+
+# Phase 9.3 Features
+arrow = ["fraiseql-arrow", "dep:arrow"]
+
+phase9 = ["macros", "arrow"]
 
 # Phase 2 NATS Features
 nats = ["async-nats"]
