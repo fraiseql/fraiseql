@@ -54,6 +54,34 @@ pub enum FlightTicket {
         limit: Option<usize>,
     },
 
+    /// Optimized pre-compiled Arrow view.
+    ///
+    /// Uses compiler-generated `av_*` views for maximum performance.
+    /// Pre-compiled Arrow schemas eliminate runtime type inference.
+    ///
+    /// # Example
+    ///
+    /// ```json
+    /// {
+    ///   "type": "OptimizedView",
+    ///   "view": "av_orders",
+    ///   "filter": "created_at > '2026-01-01'",
+    ///   "limit": 100000
+    /// }
+    /// ```
+    OptimizedView {
+        /// View name (e.g., "av_orders", "av_users")
+        view: String,
+        /// Optional WHERE clause filter
+        filter: Option<String>,
+        /// Optional ORDER BY clause
+        order_by: Option<String>,
+        /// Maximum number of rows
+        limit: Option<usize>,
+        /// Offset for pagination
+        offset: Option<usize>,
+    },
+
     /// Bulk data export.
     ///
     /// # Example
@@ -156,6 +184,53 @@ mod tests {
             }
             _ => panic!("Wrong ticket type"),
         }
+    }
+
+    #[test]
+    fn test_optimized_view_ticket() {
+        let ticket = FlightTicket::OptimizedView {
+            view: "av_orders".to_string(),
+            filter: Some("created_at > '2026-01-01'".to_string()),
+            order_by: Some("created_at DESC".to_string()),
+            limit: Some(100_000),
+            offset: Some(0),
+        };
+
+        let bytes = ticket.encode().unwrap();
+        let decoded = FlightTicket::decode(&bytes).unwrap();
+
+        match decoded {
+            FlightTicket::OptimizedView {
+                view,
+                filter,
+                order_by,
+                limit,
+                offset,
+            } => {
+                assert_eq!(view, "av_orders");
+                assert_eq!(filter, Some("created_at > '2026-01-01'".to_string()));
+                assert_eq!(order_by, Some("created_at DESC".to_string()));
+                assert_eq!(limit, Some(100_000));
+                assert_eq!(offset, Some(0));
+            }
+            _ => panic!("Wrong ticket type"),
+        }
+    }
+
+    #[test]
+    fn test_optimized_view_minimal() {
+        let ticket = FlightTicket::OptimizedView {
+            view: "av_users".to_string(),
+            filter: None,
+            order_by: None,
+            limit: None,
+            offset: None,
+        };
+
+        let bytes = ticket.encode().unwrap();
+        let decoded = FlightTicket::decode(&bytes).unwrap();
+
+        assert_eq!(ticket, decoded);
     }
 
     #[test]

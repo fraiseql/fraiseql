@@ -103,6 +103,57 @@ impl FraiseQLFlightService {
         let stream = futures::stream::empty();
         Ok(stream)
     }
+
+    /// Execute optimized query on pre-compiled av_* view.
+    ///
+    /// Phase 9.3: Fast path for compiler-generated Arrow views.
+    /// Uses pre-compiled Arrow schemas, eliminating runtime type inference.
+    ///
+    /// # Arguments
+    ///
+    /// * `view` - View name (e.g., "av_orders")
+    /// * `filter` - Optional WHERE clause
+    /// * `order_by` - Optional ORDER BY clause
+    /// * `limit` - Optional LIMIT
+    /// * `offset` - Optional OFFSET for pagination
+    ///
+    /// # TODO
+    ///
+    /// - Load pre-compiled Arrow schema from metadata
+    /// - Build optimized SQL query
+    /// - Execute via database adapter
+    /// - Minimal row → Arrow conversion (types already match)
+    async fn execute_optimized_view(
+        &self,
+        _view: &str,
+        _filter: Option<String>,
+        _order_by: Option<String>,
+        _limit: Option<usize>,
+        _offset: Option<usize>,
+    ) -> std::result::Result<
+        impl Stream<Item = std::result::Result<FlightData, Status>>,
+        Status,
+    > {
+        // TODO: Phase 9.3+ - Execute optimized view query
+        // 1. Load pre-compiled Arrow schema from metadata
+        //    let schema = load_arrow_schema(view)?;
+        //
+        // 2. Build optimized SQL query
+        //    let sql = build_view_query(view, filter, order_by, limit, offset);
+        //
+        // 3. Execute query via database adapter
+        //    let rows = db.query(&sql).await?;
+        //
+        // 4. Fast conversion (types already aligned)
+        //    let batches = fast_convert(rows, schema);
+        //
+        // 5. Stream batches
+        //    stream_batches(batches)
+
+        // Placeholder: Return empty stream
+        let stream = futures::stream::empty();
+        Ok(stream)
+    }
 }
 
 impl Default for FraiseQLFlightService {
@@ -171,6 +222,14 @@ impl FlightService for FraiseQLFlightService {
         let schema = match ticket {
             FlightTicket::GraphQLQuery { .. } => graphql_result_schema(),
             FlightTicket::ObserverEvents { .. } => observer_event_schema(),
+            FlightTicket::OptimizedView { view, .. } => {
+                // Phase 9.3: Load pre-compiled Arrow schema for optimized view
+                // TODO: Load schema from metadata table
+                // For now, return a placeholder schema
+                return Err(Status::unimplemented(format!(
+                    "OptimizedView schema loading not implemented yet for view: {view}"
+                )));
+            }
             FlightTicket::BulkExport { .. } => {
                 // Will be implemented in Phase 9.4
                 return Err(Status::unimplemented("BulkExport not implemented yet"));
@@ -207,6 +266,19 @@ impl FlightService for FraiseQLFlightService {
             FlightTicket::GraphQLQuery { query, variables } => {
                 // Phase 9.2: Execute query and stream batches (placeholder for now)
                 let stream = self.execute_graphql_query(&query, variables).await?;
+                Ok(Response::new(Box::pin(stream)))
+            }
+            FlightTicket::OptimizedView {
+                view,
+                filter,
+                order_by,
+                limit,
+                offset,
+            } => {
+                // Phase 9.3: Optimized path using pre-compiled av_* views
+                let stream = self
+                    .execute_optimized_view(&view, filter, order_by, limit, offset)
+                    .await?;
                 Ok(Response::new(Box::pin(stream)))
             }
             FlightTicket::ObserverEvents { .. } => {
