@@ -1,0 +1,107 @@
+# NATS Distributed Observer Configuration
+# ==========================================
+#
+# This deployment uses NATS JetStream for distributed event sourcing:
+# - NATS JetStream for at-least-once event delivery
+# - Redis for deduplication (prevents duplicate processing)
+# - Redis for action result caching (performance optimization)
+# - PostgreSQL → NATS bridge (publishes events from change log)
+#
+# Best for:
+# - Multiple observer workers (horizontal scaling)
+# - High availability (worker failures tolerated)
+# - High event volume (10000+ events/sec)
+# - Geographic distribution
+#
+# Architecture:
+#   PostgreSQL → Bridge → NATS JetStream → Workers (this config)
+#                                          ↓
+#                                        Redis (dedup + cache)
+
+# Transport configuration
+[transport]
+transport = "nats"          # ✅ NATS JetStream transport
+run_bridge = false          # Bridge runs separately
+run_executors = true        # This worker processes events
+
+# NATS transport settings
+[transport.nats]
+url = "nats://nats-1:4222,nats://nats-2:4222,nats://nats-3:4222"  # HA cluster
+subject_prefix = "fraiseql.mutation"
+consumer_name = "fraiseql_observer_worker_group_1"  # Workers with same name compete for messages
+stream_name = "fraiseql_events"
+
+# JetStream configuration
+[transport.nats.jetstream]
+dedup_window_minutes = 5    # NATS-level deduplication window
+max_age_days = 7            # Keep events for 7 days
+max_msgs = 10_000_000       # 10M messages max
+max_bytes = 10_737_418_240  # 10 GB max
+ack_wait_secs = 30          # Wait 30s for ack before redelivery
+max_deliver = 3             # Retry up to 3 times before DLQ
+
+# Redis configuration (required for dedup + caching)
+[redis]
+url = "redis://redis-cluster:6379"
+pool_size = 20              # Higher pool for distributed workers
+connect_timeout_secs = 5
+command_timeout_secs = 2
+dedup_window_secs = 300     # 5 minutes (matches JetStream)
+cache_ttl_secs = 60
+
+# Performance features (all enabled)
+[performance]
+enable_dedup = true         # ✅ CRITICAL: Prevents duplicate processing with at-least-once NATS delivery
+enable_caching = true       # ✅ Cache expensive operations
+enable_concurrent = true    # ✅ Parallel action execution
+max_concurrent_actions = 20 # Higher concurrency for worker
+concurrent_timeout_ms = 30000
+
+# Runtime settings (tuned for high throughput)
+channel_capacity = 2000     # Larger buffer for NATS bursts
+max_concurrency = 100       # Higher concurrency (worker is dedicated)
+overflow_policy = "drop"
+backlog_alert_threshold = 1000
+shutdown_timeout = "60s"    # Longer timeout for graceful NATS shutdown
+
+# Example observer: Webhook for all order events
+[[observers]]
+event_type = "INSERT"
+entity = "Order"
+
+[[observers.actions]]
+type = "webhook"
+url_env = "ANALYTICS_WEBHOOK_URL"
+headers = { "Authorization" = "Bearer ${API_TOKEN}" }
+body_template = '''
+{
+  "event_id": "{{ event.id }}",
+  "event_type": "{{ event.event_type }}",
+  "entity": "{{ event.entity_type }}",
+  "data": {{ event.data }}
+}
+'''
+
+[observers.retry]
+max_attempts = 3
+initial_delay_ms = 100
+max_delay_ms = 30000
+backoff_strategy = "exponential"
+
+# Example observer: Email on order shipped (deduplicated + cached)
+[[observers]]
+event_type = "UPDATE"
+entity = "Order"
+condition = "data.status == 'shipped'"
+
+[[observers.actions]]
+type = "email"
+to_template = "{{ data.customer_email }}"
+subject = "Your order has shipped!"
+body_template = "Order #{{ data.id }} is on its way. Tracking: {{ data.tracking_number }}"
+
+[observers.retry]
+max_attempts = 5  # More retries for critical emails
+initial_delay_ms = 200
+max_delay_ms = 60000
+backoff_strategy = "exponential"
