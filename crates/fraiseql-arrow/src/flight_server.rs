@@ -63,6 +63,46 @@ impl FraiseQLFlightService {
     pub fn into_server(self) -> FlightServiceServer<Self> {
         FlightServiceServer::new(self)
     }
+
+    /// Execute GraphQL query and stream Arrow batches.
+    ///
+    /// Phase 9.2: Placeholder implementation returns empty stream.
+    /// Phase 9.3+: Will integrate with fraiseql-core query executor.
+    ///
+    /// # TODO
+    ///
+    /// - Add query executor reference to FraiseQLFlightService struct
+    /// - Call fraiseql_core::arrow_executor::execute_query_as_arrow()
+    /// - Convert RecordBatches to FlightData
+    /// - Stream batches to client
+    async fn execute_graphql_query(
+        &self,
+        _query: &str,
+        _variables: Option<serde_json::Value>,
+    ) -> std::result::Result<
+        impl Stream<Item = std::result::Result<FlightData, Status>>,
+        Status,
+    > {
+        // TODO: Phase 9.3+ - Execute actual query
+        // let executor = &self.query_executor;
+        // let batches = fraiseql_core::arrow_executor::execute_query_as_arrow(
+        //     executor,
+        //     query,
+        //     variables,
+        //     10_000, // batch size
+        // ).await
+        //   .map_err(|e| Status::internal(format!("Query execution failed: {}", e)))?;
+        //
+        // Convert RecordBatches to FlightData and stream
+        //  let stream = stream::iter(batches.into_iter().map(|batch| {
+        //      let flight_data = ... // Convert RecordBatch to FlightData
+        //      Ok(flight_data)
+        //  }));
+
+        // Placeholder: Return empty stream
+        let stream = futures::stream::empty();
+        Ok(stream)
+    }
 }
 
 impl Default for FraiseQLFlightService {
@@ -163,10 +203,25 @@ impl FlightService for FraiseQLFlightService {
 
         info!("DoGet called: {:?}", ticket);
 
-        // TODO: Phase 9.2+ will implement actual data fetching
-        // For now, return empty stream to validate server works
-        let stream = futures::stream::empty();
-        Ok(Response::new(Box::pin(stream)))
+        match ticket {
+            FlightTicket::GraphQLQuery { query, variables } => {
+                // Phase 9.2: Execute query and stream batches (placeholder for now)
+                let stream = self.execute_graphql_query(&query, variables).await?;
+                Ok(Response::new(Box::pin(stream)))
+            }
+            FlightTicket::ObserverEvents { .. } => {
+                // Phase 9.3: Will implement observer event streaming
+                Err(Status::unimplemented(
+                    "Observer events not implemented yet (Phase 9.3)",
+                ))
+            }
+            FlightTicket::BulkExport { .. } => {
+                // Phase 9.4: Will implement bulk exports
+                Err(Status::unimplemented(
+                    "Bulk export not implemented yet (Phase 9.4)",
+                ))
+            }
+        }
     }
 
     /// Upload data stream (for client-to-server data transfer).
