@@ -22,6 +22,59 @@ pub enum PlaygroundTool {
     ApolloSandbox,
 }
 
+/// TLS server configuration for HTTPS and secure connections.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TlsServerConfig {
+    /// Enable TLS for HTTP/gRPC endpoints.
+    pub enabled: bool,
+
+    /// Path to TLS certificate file (PEM format).
+    pub cert_path: PathBuf,
+
+    /// Path to TLS private key file (PEM format).
+    pub key_path: PathBuf,
+
+    /// Require client certificate (mTLS) for all connections.
+    #[serde(default)]
+    pub require_client_cert: bool,
+
+    /// Path to CA certificate for validating client certificates (for mTLS).
+    #[serde(default)]
+    pub client_ca_path: Option<PathBuf>,
+
+    /// Minimum TLS version ("1.2" or "1.3", default: "1.2").
+    #[serde(default = "default_tls_min_version")]
+    pub min_version: String,
+}
+
+/// Database TLS configuration for encrypted database connections.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DatabaseTlsConfig {
+    /// PostgreSQL SSL mode: disable, allow, prefer, require, verify-ca, verify-full.
+    #[serde(default = "default_postgres_ssl_mode")]
+    pub postgres_ssl_mode: String,
+
+    /// Enable TLS for Redis connections (use rediss:// protocol).
+    #[serde(default = "default_redis_ssl")]
+    pub redis_ssl: bool,
+
+    /// Enable HTTPS for ClickHouse connections.
+    #[serde(default = "default_clickhouse_https")]
+    pub clickhouse_https: bool,
+
+    /// Enable HTTPS for Elasticsearch connections.
+    #[serde(default = "default_elasticsearch_https")]
+    pub elasticsearch_https: bool,
+
+    /// Verify server certificates for HTTPS connections.
+    #[serde(default = "default_verify_certs")]
+    pub verify_certificates: bool,
+
+    /// Path to CA certificate bundle for verifying server certificates.
+    #[serde(default)]
+    pub ca_bundle_path: Option<PathBuf>,
+}
+
 /// Server configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerConfig {
@@ -154,6 +207,42 @@ pub struct ServerConfig {
     #[serde(default)]
     pub auth: Option<OidcConfig>,
 
+    /// TLS/SSL configuration for HTTPS and encrypted connections.
+    ///
+    /// When set, enables TLS enforcement for HTTP/gRPC endpoints and
+    /// optionally requires mutual TLS (mTLS) for client certificates.
+    ///
+    /// # Example (TOML)
+    ///
+    /// ```toml
+    /// [tls]
+    /// enabled = true
+    /// cert_path = "/etc/fraiseql/cert.pem"
+    /// key_path = "/etc/fraiseql/key.pem"
+    /// require_client_cert = false
+    /// min_version = "1.2"  # "1.2" or "1.3"
+    /// ```
+    #[serde(default)]
+    pub tls: Option<TlsServerConfig>,
+
+    /// Database TLS configuration.
+    ///
+    /// Enables TLS for database connections and configures
+    /// per-database TLS settings (PostgreSQL, Redis, ClickHouse, etc.).
+    ///
+    /// # Example (TOML)
+    ///
+    /// ```toml
+    /// [database_tls]
+    /// postgres_ssl_mode = "require"  # disable, allow, prefer, require, verify-ca, verify-full
+    /// redis_ssl = true               # Use rediss:// protocol
+    /// clickhouse_https = true         # Use HTTPS
+    /// elasticsearch_https = true      # Use HTTPS
+    /// verify_certificates = true      # Verify server certificates
+    /// ```
+    #[serde(default)]
+    pub database_tls: Option<DatabaseTlsConfig>,
+
     /// Observer runtime configuration (optional, requires `observers` feature).
     #[cfg(feature = "observers")]
     #[serde(default)]
@@ -247,6 +336,8 @@ impl Default for ServerConfig {
             pool_max_size: default_pool_max_size(),
             pool_timeout_secs: default_pool_timeout(),
             auth: None, // No auth by default
+            tls: None, // TLS disabled by default
+            database_tls: None, // Database TLS disabled by default
             #[cfg(feature = "observers")]
             observers: None, // Observers disabled by default
         }
@@ -262,6 +353,8 @@ impl ServerConfig {
     /// - `metrics_enabled` is true but `metrics_token` is not set
     /// - `metrics_token` is set but too short (< 16 characters)
     /// - `auth` config is set but invalid (e.g., empty issuer)
+    /// - `tls` is enabled but cert or key path is missing
+    /// - TLS minimum version is invalid
     pub fn validate(&self) -> Result<(), String> {
         if self.metrics_enabled {
             match &self.metrics_token {
@@ -282,6 +375,72 @@ impl ServerConfig {
         // Validate OIDC config if present
         if let Some(ref auth) = self.auth {
             auth.validate().map_err(|e| e.to_string())?;
+        }
+
+        // Validate TLS config if present and enabled
+        if let Some(ref tls) = self.tls {
+            if tls.enabled {
+                if !tls.cert_path.exists() {
+                    return Err(format!(
+                        "TLS enabled but certificate file not found: {}",
+                        tls.cert_path.display()
+                    ));
+                }
+                if !tls.key_path.exists() {
+                    return Err(format!(
+                        "TLS enabled but key file not found: {}",
+                        tls.key_path.display()
+                    ));
+                }
+
+                // Validate TLS version
+                if !["1.2", "1.3"].contains(&tls.min_version.as_str()) {
+                    return Err(
+                        "TLS min_version must be '1.2' or '1.3'".to_string()
+                    );
+                }
+
+                // Validate mTLS config if required
+                if tls.require_client_cert {
+                    if let Some(ref ca_path) = tls.client_ca_path {
+                        if !ca_path.exists() {
+                            return Err(format!(
+                                "Client CA file not found: {}",
+                                ca_path.display()
+                            ));
+                        }
+                    } else {
+                        return Err(
+                            "require_client_cert is true but client_ca_path is not set"
+                                .to_string()
+                        );
+                    }
+                }
+            }
+        }
+
+        // Validate database TLS config if present
+        if let Some(ref db_tls) = self.database_tls {
+            // Validate PostgreSQL SSL mode
+            if !["disable", "allow", "prefer", "require", "verify-ca", "verify-full"]
+                .contains(&db_tls.postgres_ssl_mode.as_str())
+            {
+                return Err(
+                    "Invalid postgres_ssl_mode. Must be one of: \
+                     disable, allow, prefer, require, verify-ca, verify-full"
+                        .to_string()
+                );
+            }
+
+            // Validate CA bundle path if provided
+            if let Some(ref ca_path) = db_tls.ca_bundle_path {
+                if !ca_path.exists() {
+                    return Err(format!(
+                        "CA bundle file not found: {}",
+                        ca_path.display()
+                    ));
+                }
+            }
         }
 
         Ok(())
@@ -348,6 +507,30 @@ fn default_pool_max_size() -> usize {
 
 fn default_pool_timeout() -> u64 {
     30
+}
+
+fn default_tls_min_version() -> String {
+    "1.2".to_string()
+}
+
+fn default_postgres_ssl_mode() -> String {
+    "prefer".to_string()
+}
+
+fn default_redis_ssl() -> bool {
+    false
+}
+
+fn default_clickhouse_https() -> bool {
+    false
+}
+
+fn default_elasticsearch_https() -> bool {
+    false
+}
+
+fn default_verify_certs() -> bool {
+    true
 }
 
 #[cfg(test)]
@@ -491,5 +674,158 @@ mod tests {
         let decoded: ServerConfig = toml::from_str(toml_str).expect("decode should work");
         assert_eq!(decoded.subscription_path, "/graphql-ws");
         assert!(!decoded.subscriptions_enabled);
+    }
+
+    #[test]
+    fn test_tls_config_defaults() {
+        let config = ServerConfig::default();
+        assert!(config.tls.is_none());
+        assert!(config.database_tls.is_none());
+    }
+
+    #[test]
+    fn test_database_tls_config_defaults() {
+        let db_tls = DatabaseTlsConfig {
+            postgres_ssl_mode: "prefer".to_string(),
+            redis_ssl: false,
+            clickhouse_https: false,
+            elasticsearch_https: false,
+            verify_certificates: true,
+            ca_bundle_path: None,
+        };
+
+        assert_eq!(db_tls.postgres_ssl_mode, "prefer");
+        assert!(!db_tls.redis_ssl);
+        assert!(!db_tls.clickhouse_https);
+        assert!(!db_tls.elasticsearch_https);
+        assert!(db_tls.verify_certificates);
+    }
+
+    #[test]
+    fn test_tls_server_config_fields() {
+        let tls = TlsServerConfig {
+            enabled: true,
+            cert_path: PathBuf::from("/etc/fraiseql/cert.pem"),
+            key_path: PathBuf::from("/etc/fraiseql/key.pem"),
+            require_client_cert: false,
+            client_ca_path: None,
+            min_version: "1.3".to_string(),
+        };
+
+        assert!(tls.enabled);
+        assert_eq!(tls.cert_path, PathBuf::from("/etc/fraiseql/cert.pem"));
+        assert_eq!(tls.key_path, PathBuf::from("/etc/fraiseql/key.pem"));
+        assert!(!tls.require_client_cert);
+        assert_eq!(tls.min_version, "1.3");
+    }
+
+    #[test]
+    fn test_validate_tls_enabled_without_cert() {
+        let config = ServerConfig {
+            tls: Some(TlsServerConfig {
+                enabled: true,
+                cert_path: PathBuf::from("/nonexistent/cert.pem"),
+                key_path: PathBuf::from("/etc/fraiseql/key.pem"),
+                require_client_cert: false,
+                client_ca_path: None,
+                min_version: "1.2".to_string(),
+            }),
+            ..ServerConfig::default()
+        };
+
+        let result = config.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("certificate file not found"));
+    }
+
+    #[test]
+    fn test_validate_tls_invalid_min_version() {
+        // Create temp cert and key files that exist
+        let cert_path = PathBuf::from("/tmp/test_cert.pem");
+        let key_path = PathBuf::from("/tmp/test_key.pem");
+        std::fs::write(&cert_path, "test").ok();
+        std::fs::write(&key_path, "test").ok();
+
+        let config = ServerConfig {
+            tls: Some(TlsServerConfig {
+                enabled: true,
+                cert_path,
+                key_path,
+                require_client_cert: false,
+                client_ca_path: None,
+                min_version: "1.1".to_string(),
+            }),
+            ..ServerConfig::default()
+        };
+
+        let result = config.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("min_version must be"));
+    }
+
+    #[test]
+    fn test_validate_database_tls_invalid_postgres_ssl_mode() {
+        let config = ServerConfig {
+            database_tls: Some(DatabaseTlsConfig {
+                postgres_ssl_mode: "invalid_mode".to_string(),
+                redis_ssl: false,
+                clickhouse_https: false,
+                elasticsearch_https: false,
+                verify_certificates: true,
+                ca_bundle_path: None,
+            }),
+            ..ServerConfig::default()
+        };
+
+        let result = config.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Invalid postgres_ssl_mode"));
+    }
+
+    #[test]
+    fn test_validate_tls_requires_client_ca() {
+        // Create temp cert and key files that exist
+        let cert_path = PathBuf::from("/tmp/test_cert2.pem");
+        let key_path = PathBuf::from("/tmp/test_key2.pem");
+        std::fs::write(&cert_path, "test").ok();
+        std::fs::write(&key_path, "test").ok();
+
+        let config = ServerConfig {
+            tls: Some(TlsServerConfig {
+                enabled: true,
+                cert_path,
+                key_path,
+                require_client_cert: true,
+                client_ca_path: None,
+                min_version: "1.3".to_string(),
+            }),
+            ..ServerConfig::default()
+        };
+
+        let result = config.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("client_ca_path is not set"));
+    }
+
+    #[test]
+    fn test_database_tls_serialization() {
+        let db_tls = DatabaseTlsConfig {
+            postgres_ssl_mode: "require".to_string(),
+            redis_ssl: true,
+            clickhouse_https: true,
+            elasticsearch_https: true,
+            verify_certificates: true,
+            ca_bundle_path: Some(PathBuf::from("/etc/ssl/certs/ca-bundle.crt")),
+        };
+
+        let json = serde_json::to_string(&db_tls).expect("serialize should work");
+        let restored: DatabaseTlsConfig =
+            serde_json::from_str(&json).expect("deserialize should work");
+
+        assert_eq!(restored.postgres_ssl_mode, db_tls.postgres_ssl_mode);
+        assert_eq!(restored.redis_ssl, db_tls.redis_ssl);
+        assert_eq!(restored.clickhouse_https, db_tls.clickhouse_https);
+        assert_eq!(restored.elasticsearch_https, db_tls.elasticsearch_https);
+        assert_eq!(restored.ca_bundle_path, db_tls.ca_bundle_path);
     }
 }

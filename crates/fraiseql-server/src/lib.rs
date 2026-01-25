@@ -110,6 +110,9 @@ pub mod secrets;
 // Backup and disaster recovery (Phase 10.9)
 pub mod backup;
 
+// TLS/SSL and encryption (Phase 10.10)
+pub mod tls;
+
 // Observer management (Phase 6) - optional
 #[cfg(feature = "observers")]
 pub mod observers;
@@ -130,6 +133,7 @@ pub use schema::CompiledSchemaLoader;
 pub use secrets::SecretManager;
 pub use server::Server;
 pub use server_config::ServerConfig;
+pub use tls::TlsSetup;
 pub use tracing_server::{SpanStatus, TraceContext, TraceEvent, TraceParseError, TraceSpan};
 pub use validation::{RequestValidator, ValidationError};
 
