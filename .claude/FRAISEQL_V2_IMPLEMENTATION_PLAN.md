@@ -60,63 +60,67 @@
 
 ---
 
-## 4️⃣ Phase 9.10: Cross-Language Arrow Flight SDK (NEW)
+## 4️⃣ Phase 9.10: Language-Agnostic Arrow Schema Authoring (NEW)
 
-**Objective**: Express Arrow Flight in ANY programming language
+**Objective**: Enable Arrow schemas to be authored in ANY programming language
+
+**Architecture Principle**: Authoring (any language) → Compilation → Runtime (Rust)
 
 ### Problem
-- Arrow Flight currently: Rust server + Python/R/Rust clients
-- Gap: No language-agnostic schema or code generation
-- Limitation: Hard to implement Flight in other languages
+- Arrow schemas currently defined in Rust code only
+- Python/TypeScript/Go developers can't define schemas without Rust
+- No standard schema format for other languages
+- Schema changes require Rust recompilation
 
-### Solution: Language-Neutral SDK
+### Solution: Language-Neutral Schema Authoring
 
-**Components** (2 weeks total):
+**Components** (1.5 weeks total):
 
 | Component | Purpose | Output |
 |-----------|---------|--------|
-| **Arrow Schema IDL** | Language-agnostic schema definition | `.arrow-schema` files (YAML/JSON) |
-| **Code Generators** | Generate client/server stubs | Gen for Go, Java, C#, Node.js, C++, etc. |
-| **Protocol Spec** | Formal Arrow Flight protocol doc | Reference implementation in any language |
-| **Example Implementations** | Show integration in 3+ languages | Minimal working examples per language |
+| **Python Library** | @schema decorator for Arrow definitions | `fraiseql_arrow` pip package |
+| **TypeScript Library** | @Field decorators for Arrow definitions | `@fraiseql/arrow` npm package |
+| **Schema Format** | JSON-based, language-neutral schema | `.arrow-schema` standard |
+| **Rust Integration** | Load .arrow-schema files, serve via Flight | Schema registry in Arrow Flight server |
+| **CLI Tools** | Validate, export, register schemas | `fraiseql arrow-schema` command |
 
 **Implementation Plan**:
 
-1. **Define Arrow Schema Language** (3 days)
-   - JSON schema for Arrow table definitions
-   - Support: scalars, fields, nested types, TTL, indexes
+1. **Schema Format & Python/TypeScript Libraries** (2 days)
+   - Define `.arrow-schema` JSON format (scalars, fields, constraints)
+   - Python: @schema decorator → JSON export
+   - TypeScript: @Field decorators → JSON export
    - Example:
-     ```json
-     {
-       "namespace": "fraiseql.events",
-       "name": "EntityEvent",
-       "fields": [
-         {"name": "event_id", "type": "string", "required": true},
-         {"name": "timestamp", "type": "timestamp_us", "required": true},
-         ...
-       ]
-     }
+     ```python
+     @schema(namespace="fraiseql.events", version="1.0")
+     class EntityEvent(Schema):
+         event_id: String(required=True)
+         timestamp: Timestamp(required=True, index=True)
+         data: String(required=True)
+
+     EntityEvent.to_schema_file("EntityEvent.arrow-schema")
      ```
 
-2. **Create Code Generators** (5 days)
-   - Base: Template-driven code gen (Handlebars/Tera)
-   - Targets: Go, Java, C#, Node.js, C++ (5 languages × 2 templates)
-   - Output: Serialization + deserialization code per language
+2. **Rust Server Integration** (2 days)
+   - Schema registry to load `.arrow-schema` files
+   - Update Flight GetFlightInfo to serve loaded schemas
+   - Auto-discovery from schemas directory
 
-3. **Document Flight Protocol** (2 days)
-   - Formal spec: Message format, batching, backpressure
-   - Wire format reference
-   - Interop testing guide
+3. **CLI & Validation** (1 day)
+   - `fraiseql arrow-schema validate` - Check schema validity
+   - `fraiseql arrow-schema export` - Export to Arrow proto format
+   - `fraiseql arrow-schema register` - Register with server
 
-4. **Example Implementations** (4 days)
-   - Full working client in: Go, Java, Node.js
-   - Full working server in: Go
-   - Docker Compose for testing cross-language interop
+4. **Examples & Documentation** (1 day)
+   - Python → JSON → Rust → Flight example
+   - TypeScript → JSON → Rust → Flight example
+   - YAML schema definition support
+   - Schema versioning guide
 
-5. **Integration & Testing** (2 days)
-   - Verify all generated code compiles
-   - E2E cross-language interop tests
-   - Documentation with code examples
+5. **Integration Testing** (1 day)
+   - Python-authored schema works with Rust server
+   - TypeScript-authored schema works with Rust server
+   - E2E: Author in Python → Load in Rust → Query with any client
 
 ---
 
