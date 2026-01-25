@@ -93,6 +93,8 @@ pub mod error;
 pub mod event;
 pub mod executor;
 pub mod factory;
+#[cfg(feature = "queue")]
+pub mod job_queue;
 pub mod listener;
 pub mod logging;
 pub mod matcher;
@@ -148,6 +150,8 @@ pub use queue::{
     LinearBackoffPolicy, QueueStats, RetryPolicy,
     worker::{JobWorker, JobWorkerPool},
 };
+#[cfg(feature = "queue")]
+pub use job_queue::{Job as JobQueueItem, JobQueue as JobQueueTrait, JobState};
 pub use resilience::{
     CircuitBreaker, CircuitBreakerConfig, CircuitState, DegradationLevel, GracefulDegradation,
     PerEndpointCircuitBreaker, ResilienceStrategy, ResilientExecutor,
