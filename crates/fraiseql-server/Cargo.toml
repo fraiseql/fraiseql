@@ -51,6 +51,9 @@ sqlx = {version = "0.8", features = ["postgres", "runtime-tokio", "uuid", "chron
 # Redis for rate limiting (optional)
 redis = {version = "0.25", features = ["aio", "tokio-comp", "connection-manager"], optional = true}
 
+# Encryption
+aes-gcm = "0.10"
+
 # Webhook signature verification
 hmac = "0.12"
 sha2 = "0.10"

@@ -36,6 +36,10 @@ anyhow = "1.0"
 async-trait = "0.1"
 # HTTP server (Axum)
 axum = {version = "0.7"}
+# Encryption
+aes-gcm = "0.10"
+# Encoding
+base64 = "0.22"
 # Utilities
 bytes = "1.0"
 # Time

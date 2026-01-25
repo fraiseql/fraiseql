@@ -14,6 +14,7 @@ name = "sql_projection_benchmark"
 
 [dependencies]
 anyhow = {workspace = true}
+base64 = {workspace = true}
 bb8 = {version = "0.8", optional = true}
 bb8-tiberius = {version = "0.15", optional = true}
 # Utilities

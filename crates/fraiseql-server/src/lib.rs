@@ -104,6 +104,9 @@ pub mod files;
 // Authentication modules (Phase 5)
 pub mod auth;
 
+// Secrets management (Phase 10.8)
+pub mod secrets;
+
 // Observer management (Phase 6) - optional
 #[cfg(feature = "observers")]
 pub mod observers;
@@ -121,6 +124,7 @@ pub use performance::{
     OperationProfile, PerformanceMonitor, PerformanceStats, PerformanceTimer, QueryPerformance,
 };
 pub use schema::CompiledSchemaLoader;
+pub use secrets::SecretManager;
 pub use server::Server;
 pub use server_config::ServerConfig;
 pub use tracing_server::{SpanStatus, TraceContext, TraceEvent, TraceParseError, TraceSpan};

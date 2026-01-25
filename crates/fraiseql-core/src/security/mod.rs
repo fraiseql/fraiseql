@@ -22,6 +22,7 @@ pub mod field_filter;
 pub mod field_masking;
 pub mod headers;
 pub mod introspection_enforcer;
+pub mod kms;
 pub mod oidc;
 pub mod profiles;
 pub mod query_validator;
@@ -36,6 +37,10 @@ pub use field_filter::{FieldAccessError, FieldFilter, FieldFilterBuilder, FieldF
 pub use field_masking::{FieldMasker, FieldSensitivity};
 pub use headers::SecurityHeaders;
 pub use introspection_enforcer::{IntrospectionEnforcer, IntrospectionPolicy};
+pub use kms::{
+    BaseKmsProvider, DataKeyPair, EncryptedData, KeyPurpose, KeyReference, KeyState,
+    KmsError, KmsResult, RotationPolicy, VaultConfig, VaultKmsProvider,
+};
 pub use oidc::{OidcConfig, OidcValidator};
 pub use profiles::SecurityProfile;
 pub use query_validator::{QueryMetrics, QueryValidator, QueryValidatorConfig};
