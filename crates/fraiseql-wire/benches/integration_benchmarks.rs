@@ -18,6 +18,7 @@
 //! psql -U postgres -c "CREATE DATABASE fraiseql_bench"
 //! psql -U postgres fraiseql_bench < benches/setup.sql
 //! ```
+#![allow(missing_docs)]
 
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use std::time::Instant;
@@ -351,6 +352,71 @@ fn json_parsing_load_benchmarks(c: &mut Criterion) {
 // ============================================================================
 // Criterion Groups and Main
 // ============================================================================
+
+// **Integration Benchmark Groups Overview**
+//
+// This benchmark suite measures real-world fraiseql-wire performance against Postgres 17.
+// All benchmarks require a live Postgres connection and the fraiseql_bench database.
+//
+// ## Benchmark Groups
+//
+// 1. **Throughput** (`throughput_benchmarks`) - Rows per second under sustained load
+//    - Measures maximum streaming throughput across different view sizes
+//    - Validates performance is independent of result set size (streaming property)
+//
+// 2. **Latency** (`latency_benchmarks`) - Time-to-first-row and query completion time
+//    - Identifies protocol overhead and connection setup cost
+//    - Critical for interactive query scenarios
+//
+// 3. **Connection Setup** (`connection_setup_benchmarks`) - TCP/Unix socket initialization
+//    - Measures handshake and authentication overhead
+//    - Compares TCP vs. Unix domain socket performance
+//
+// 4. **Memory Usage** (`memory_benchmarks`) - Heap allocation under streaming load
+//    - Validates streaming doesn't buffer full result sets
+//    - Measures peak memory across different query sizes
+//
+// 5. **Chunking** (`chunking_benchmarks`) - Channel chunk size impact
+//    - Tests chunk sizes: 8, 64, 256, 1024 items
+//    - Balances latency (small chunks) vs. throughput (large chunks)
+//
+// 6. **Predicate Filtering** (`predicate_benchmarks`) - WHERE clause efficiency
+//    - Measures cost of SQL predicates vs. Rust-side filtering
+//    - Validates predicate pushdown benefits
+//
+// 7. **Streaming Stability** (`streaming_stability_benchmarks`) - Long-running streams
+//    - Tests multi-second streaming without memory leaks
+//    - Validates cancellation and resource cleanup
+//
+// 8. **JSON Parsing Load** (`json_parsing_load_benchmarks`) - Decoding under sustained load
+//    - Measures JSON parsing overhead at high throughput
+//    - Tests with various payload sizes and complexity
+//
+// ## Performance Characteristics
+//
+// Expected results for reference implementations:
+// - Throughput: 50K-200K rows/second (depends on network and payload size)
+// - Time-to-first-row: <10ms (local TCP), <5ms (Unix socket)
+// - Memory: Scales with chunk_size, not result set size
+// - Chunk overhead: <1% latency impact for 256+ item chunks
+//
+// ## Running Integration Benchmarks
+//
+// Prerequisites:
+// ```bash
+// createdb fraiseql_bench
+// psql fraiseql_bench < benches/setup.sql
+// ```
+//
+// Run benchmarks:
+// ```bash
+// cargo bench --bench integration_benchmarks --features bench-with-postgres
+// ```
+//
+// Compare against baseline:
+// ```bash
+// cargo bench --bench integration_benchmarks --features bench-with-postgres -- --verbose
+// ```
 
 criterion_group!(
     benches,

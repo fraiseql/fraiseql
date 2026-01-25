@@ -3,10 +3,11 @@
 //! Provides durable, transactional checkpoint persistence using PostgreSQL.
 //! Supports atomic compare-and-swap for multi-listener coordination.
 
-use super::{CheckpointState, CheckpointStore};
-use crate::error::Result;
 use chrono::Utc;
 use sqlx::PgPool;
+
+use super::{CheckpointState, CheckpointStore};
+use crate::error::Result;
 
 /// PostgreSQL-backed checkpoint store.
 ///
@@ -23,7 +24,7 @@ impl PostgresCheckpointStore {
     /// # Arguments
     ///
     /// * `pool` - PostgreSQL connection pool
-    #[must_use] 
+    #[must_use]
     pub const fn new(pool: PgPool) -> Self {
         Self { pool }
     }
@@ -44,15 +45,17 @@ impl CheckpointStore for PostgresCheckpointStore {
         .fetch_optional(&self.pool)
         .await?;
 
-        Ok(record.map(|(listener_id, last_processed_id, last_processed_at, batch_size, event_count)| {
-            CheckpointState {
-                listener_id,
-                last_processed_id,
-                last_processed_at,
-                batch_size: batch_size as usize,
-                event_count: event_count as usize,
-            }
-        }))
+        Ok(record.map(
+            |(listener_id, last_processed_id, last_processed_at, batch_size, event_count)| {
+                CheckpointState {
+                    listener_id,
+                    last_processed_id,
+                    last_processed_at,
+                    batch_size: batch_size as usize,
+                    event_count: event_count as usize,
+                }
+            },
+        ))
     }
 
     async fn save(&self, listener_id: &str, state: &CheckpointState) -> Result<()> {

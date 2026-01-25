@@ -32,9 +32,8 @@
 
 pub mod postgres;
 
-pub use postgres::PostgresCheckpointStore;
-
 use chrono::{DateTime, Utc};
+pub use postgres::PostgresCheckpointStore;
 use serde::{Deserialize, Serialize};
 
 use crate::error::Result;
@@ -46,25 +45,25 @@ use crate::error::Result;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CheckpointState {
     /// Listener identifier (used as primary key)
-    pub listener_id: String,
+    pub listener_id:       String,
     /// Last successfully processed changelog entry ID
     pub last_processed_id: i64,
     /// Timestamp of last checkpoint update
     pub last_processed_at: DateTime<Utc>,
     /// Size of the last batch processed
-    pub batch_size: usize,
+    pub batch_size:        usize,
     /// Total events processed in this batch
-    pub event_count: usize,
+    pub event_count:       usize,
 }
 
 impl Default for CheckpointState {
     fn default() -> Self {
         Self {
-            listener_id: String::new(),
+            listener_id:       String::new(),
             last_processed_id: 0,
             last_processed_at: Utc::now(),
-            batch_size: 0,
-            event_count: 0,
+            batch_size:        0,
+            event_count:       0,
         }
     }
 }
@@ -168,11 +167,11 @@ mod tests {
     #[test]
     fn test_checkpoint_state_serialization() {
         let state = CheckpointState {
-            listener_id: "test-listener".to_string(),
+            listener_id:       "test-listener".to_string(),
             last_processed_id: 1000,
             last_processed_at: Utc::now(),
-            batch_size: 50,
-            event_count: 50,
+            batch_size:        50,
+            event_count:       50,
         };
 
         let json = serde_json::to_string(&state).expect("serialize");

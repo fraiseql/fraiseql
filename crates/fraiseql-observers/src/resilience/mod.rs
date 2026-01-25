@@ -22,16 +22,20 @@ pub mod degradation;
 pub mod per_endpoint;
 pub mod strategies;
 
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicU64, AtomicUsize, Ordering},
+    },
+    time::Instant,
+};
+
 pub use degradation::{DegradationLevel, GracefulDegradation};
 pub use per_endpoint::PerEndpointCircuitBreaker;
-pub use strategies::{ResilientExecutor, ResilienceStrategy};
-
-use crate::error::Result;
-use crate::error::ObserverError;
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
-use std::sync::Arc;
-use std::time::Instant;
+pub use strategies::{ResilienceStrategy, ResilientExecutor};
 use tokio::sync::Mutex;
+
+use crate::error::{ObserverError, Result};
 
 /// Circuit breaker state machine
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -58,11 +62,11 @@ impl std::fmt::Display for CircuitState {
 #[derive(Debug, Clone)]
 pub struct CircuitBreakerConfig {
     /// Failure rate threshold (0.0-1.0) to trigger open state
-    pub failure_threshold: f64,
+    pub failure_threshold:      f64,
     /// Number of requests to sample for failure rate calculation
-    pub sample_size: usize,
+    pub sample_size:            usize,
     /// Timeout from Open to `HalfOpen` transition (milliseconds)
-    pub open_timeout_ms: u64,
+    pub open_timeout_ms:        u64,
     /// Maximum requests allowed in `HalfOpen` state
     pub half_open_max_requests: usize,
 }
@@ -70,10 +74,10 @@ pub struct CircuitBreakerConfig {
 impl Default for CircuitBreakerConfig {
     fn default() -> Self {
         Self {
-            failure_threshold: 0.5,      // 50% failure rate threshold
-            sample_size: 100,            // Sample last 100 requests
-            open_timeout_ms: 30000,      // 30 seconds before HalfOpen
-            half_open_max_requests: 5,   // Test up to 5 requests
+            failure_threshold:      0.5,   // 50% failure rate threshold
+            sample_size:            100,   // Sample last 100 requests
+            open_timeout_ms:        30000, // 30 seconds before HalfOpen
+            half_open_max_requests: 5,     // Test up to 5 requests
         }
     }
 }
@@ -81,17 +85,17 @@ impl Default for CircuitBreakerConfig {
 /// Circuit breaker state machine implementation
 #[derive(Clone)]
 pub struct CircuitBreaker {
-    config: CircuitBreakerConfig,
-    state: Arc<Mutex<CircuitState>>,
-    failure_count: Arc<AtomicU64>,
-    success_count: Arc<AtomicU64>,
-    last_failure_time: Arc<Mutex<Option<Instant>>>,
+    config:             CircuitBreakerConfig,
+    state:              Arc<Mutex<CircuitState>>,
+    failure_count:      Arc<AtomicU64>,
+    success_count:      Arc<AtomicU64>,
+    last_failure_time:  Arc<Mutex<Option<Instant>>>,
     half_open_requests: Arc<AtomicUsize>,
 }
 
 impl CircuitBreaker {
     /// Create a new circuit breaker with the given configuration
-    #[must_use] 
+    #[must_use]
     pub fn new(config: CircuitBreakerConfig) -> Self {
         Self {
             config,
@@ -125,19 +129,19 @@ impl CircuitBreaker {
                     Ok(result) => {
                         self.record_success();
                         Ok(result)
-                    }
+                    },
                     Err(e) => {
                         self.record_failure().await;
                         Err(e)
-                    }
+                    },
                 }
-            }
+            },
             CircuitState::Open => {
                 // Fail fast in open state
                 Err(ObserverError::CircuitBreakerOpen {
                     message: "Circuit breaker is open".to_string(),
                 })
-            }
+            },
             CircuitState::HalfOpen => {
                 // Allow limited requests in half-open state
                 let permits = self.half_open_requests.load(Ordering::SeqCst);
@@ -153,13 +157,13 @@ impl CircuitBreaker {
                     Ok(result) => {
                         self.record_success();
                         Ok(result)
-                    }
+                    },
                     Err(e) => {
                         self.record_failure().await;
                         Err(e)
-                    }
+                    },
                 }
-            }
+            },
         }
     }
 
@@ -189,7 +193,9 @@ impl CircuitBreaker {
                 *state = CircuitState::Closed;
                 self.reset_counters();
                 return CircuitState::Closed;
-            } else if self.half_open_requests.load(Ordering::SeqCst) >= self.config.half_open_max_requests {
+            } else if self.half_open_requests.load(Ordering::SeqCst)
+                >= self.config.half_open_max_requests
+            {
                 // Recovery failed, back to open
                 *state = CircuitState::Open;
                 return CircuitState::Open;
@@ -243,8 +249,9 @@ impl CircuitBreaker {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::time::Duration;
+
+    use super::*;
 
     #[tokio::test]
     async fn test_circuit_breaker_creation() {
@@ -257,17 +264,15 @@ mod tests {
     #[tokio::test]
     async fn test_circuit_breaker_closed_state() {
         let config = CircuitBreakerConfig {
-            failure_threshold: 0.5,
-            sample_size: 10,
-            open_timeout_ms: 1000,
+            failure_threshold:      0.5,
+            sample_size:            10,
+            open_timeout_ms:        1000,
             half_open_max_requests: 3,
         };
         let breaker = CircuitBreaker::new(config);
 
         // Call should succeed in closed state
-        let result = breaker
-            .call(|| Box::pin(async { Ok::<i32, ObserverError>(42) }))
-            .await;
+        let result = breaker.call(|| Box::pin(async { Ok::<i32, ObserverError>(42) })).await;
 
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), 42);
@@ -276,9 +281,9 @@ mod tests {
     #[tokio::test]
     async fn test_circuit_breaker_failure_transition() {
         let config = CircuitBreakerConfig {
-            failure_threshold: 0.5,
-            sample_size: 3,
-            open_timeout_ms: 1000,
+            failure_threshold:      0.5,
+            sample_size:            3,
+            open_timeout_ms:        1000,
             half_open_max_requests: 3,
         };
         let breaker = CircuitBreaker::new(config);
@@ -304,9 +309,9 @@ mod tests {
     #[tokio::test]
     async fn test_circuit_breaker_open_state_fails_fast() {
         let config = CircuitBreakerConfig {
-            failure_threshold: 0.1,
-            sample_size: 1,
-            open_timeout_ms: 10000,
+            failure_threshold:      0.1,
+            sample_size:            1,
+            open_timeout_ms:        10000,
             half_open_max_requests: 3,
         };
         let breaker = CircuitBreaker::new(config);
@@ -323,9 +328,7 @@ mod tests {
             .await;
 
         // Should fail fast in open state
-        let result = breaker
-            .call(|| Box::pin(async { Ok::<i32, _>(42) }))
-            .await;
+        let result = breaker.call(|| Box::pin(async { Ok::<i32, _>(42) })).await;
 
         assert!(result.is_err());
     }
@@ -333,9 +336,9 @@ mod tests {
     #[tokio::test]
     async fn test_circuit_breaker_half_open_limited_requests() {
         let config = CircuitBreakerConfig {
-            failure_threshold: 0.1,
-            sample_size: 1,
-            open_timeout_ms: 100,
+            failure_threshold:      0.1,
+            sample_size:            1,
+            open_timeout_ms:        100,
             half_open_max_requests: 2,
         };
         let breaker = CircuitBreaker::new(config);
@@ -355,20 +358,14 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(150)).await;
 
         // Should allow limited requests in half-open
-        let result1 = breaker
-            .call(|| Box::pin(async { Ok::<i32, _>(1) }))
-            .await;
+        let result1 = breaker.call(|| Box::pin(async { Ok::<i32, _>(1) })).await;
         assert!(result1.is_ok());
 
-        let result2 = breaker
-            .call(|| Box::pin(async { Ok::<i32, _>(2) }))
-            .await;
+        let result2 = breaker.call(|| Box::pin(async { Ok::<i32, _>(2) })).await;
         assert!(result2.is_ok());
 
         // Third request should fail
-        let result3 = breaker
-            .call(|| Box::pin(async { Ok::<i32, _>(3) }))
-            .await;
+        let result3 = breaker.call(|| Box::pin(async { Ok::<i32, _>(3) })).await;
         assert!(result3.is_err());
     }
 

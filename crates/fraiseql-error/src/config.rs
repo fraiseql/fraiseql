@@ -7,7 +7,7 @@ pub enum ConfigError {
 
     #[error("Failed to read configuration file {path}: {source}")]
     ReadError {
-        path: PathBuf,
+        path:   PathBuf,
         source: std::io::Error,
     },
 
@@ -18,10 +18,7 @@ pub enum ConfigError {
     },
 
     #[error("Validation error in {field}: {message}")]
-    ValidationError {
-        field: String,
-        message: String,
-    },
+    ValidationError { field: String, message: String },
 
     #[error("Missing required environment variable: {name}")]
     MissingEnvVar { name: String },

@@ -1,14 +1,16 @@
 //! Image processing pipeline
 
+use std::{collections::HashMap, io::Cursor};
+
 use async_trait::async_trait;
 use bytes::Bytes;
-use image::{imageops::FilterType, DynamicImage, ImageFormat};
-use std::collections::HashMap;
-use std::io::Cursor;
+use image::{DynamicImage, ImageFormat, imageops::FilterType};
 
-use crate::files::config::{ProcessingConfig, VariantConfig};
-use crate::files::error::ProcessingError;
-use crate::files::traits::ImageProcessor;
+use crate::files::{
+    config::{ProcessingConfig, VariantConfig},
+    error::ProcessingError,
+    traits::ImageProcessor,
+};
 
 pub struct ProcessedImages {
     pub variants: HashMap<String, Bytes>,
@@ -59,13 +61,15 @@ impl ImageProcessorImpl {
     ) -> Result<DynamicImage, ProcessingError> {
         let resized = match config.mode.as_str() {
             "fit" => img.resize(config.width, config.height, FilterType::Lanczos3),
-            "fill" | "crop" => img.resize_to_fill(config.width, config.height, FilterType::Lanczos3),
+            "fill" | "crop" => {
+                img.resize_to_fill(config.width, config.height, FilterType::Lanczos3)
+            },
             "exact" => img.resize_exact(config.width, config.height, FilterType::Lanczos3),
             _ => {
                 return Err(ProcessingError::InvalidConfig {
                     message: format!("Invalid resize mode: {}", config.mode),
-                })
-            }
+                });
+            },
         };
 
         Ok(resized)
@@ -91,29 +95,30 @@ impl ImageProcessorImpl {
             ImageFormat::Jpeg => {
                 let encoder =
                     image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buffer, quality);
-                img.write_with_encoder(encoder)
-                    .map_err(|e| ProcessingError::EncodeFailed {
-                        message: e.to_string(),
-                    })?;
-            }
+                img.write_with_encoder(encoder).map_err(|e| ProcessingError::EncodeFailed {
+                    message: e.to_string(),
+                })?;
+            },
             ImageFormat::WebP => {
                 // image crate's WebP encoder
-                img.write_to(&mut buffer, ImageFormat::WebP)
-                    .map_err(|e| ProcessingError::EncodeFailed {
+                img.write_to(&mut buffer, ImageFormat::WebP).map_err(|e| {
+                    ProcessingError::EncodeFailed {
                         message: e.to_string(),
-                    })?;
-            }
+                    }
+                })?;
+            },
             ImageFormat::Png => {
-                img.write_to(&mut buffer, ImageFormat::Png)
-                    .map_err(|e| ProcessingError::EncodeFailed {
+                img.write_to(&mut buffer, ImageFormat::Png).map_err(|e| {
+                    ProcessingError::EncodeFailed {
                         message: e.to_string(),
-                    })?;
-            }
+                    }
+                })?;
+            },
             _ => {
                 return Err(ProcessingError::InvalidConfig {
                     message: format!("Unsupported format: {:?}", format),
                 });
-            }
+            },
         }
 
         Ok(Bytes::from(buffer.into_inner()))

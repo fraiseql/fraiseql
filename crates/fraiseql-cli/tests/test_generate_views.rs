@@ -1,12 +1,33 @@
-/// Integration tests for FraiseQL CLI view generation commands
-///
-/// Tests the fraiseql generate-views subcommand with various schemas and options.
-/// These tests verify end-to-end functionality from schema loading to DDL output.
+//! Integration tests for FraiseQL CLI view generation commands
+//!
+//! This test suite validates the `fraiseql generate-views` subcommand functionality across
+//! multiple scenarios and view types. The tests verify:
+//!
+//! - **Schema Loading**: Ability to read and parse FraiseQL schema JSON files
+//! - **DDL Generation**: Correct SQL generation for different view patterns:
+//!   - Table-backed views (tv_*) with JSON storage and indexing
+//!   - Arrow-backed views (ta_*) with columnar compression
+//!   - Composition views (cv_*) for entity relationships
+//! - **Refresh Mechanisms**: Both trigger-based and scheduled refresh strategies
+//! - **Complex Relationships**: Multi-entity schemas with foreign key denormalization
+//! - **Monitoring & Observability**: Staleness tracking and health check functions
+//!
+//! These tests are critical for ensuring DDL output is syntactically correct and properly
+//! indexed for runtime performance. They serve as documentation of the expected DDL format
+//! for AI-assisted debugging and code generation.
+//!
+//! # Test Organization
+//!
+//! Tests are grouped by feature area:
+//! - Basic view generation (test 1-2): Schema structure and basic DDL validation
+//! - Arrow integration (test 3): Column-oriented view format
+//! - Multi-entity support (test 4-7): Complex schemas with relationships
+//! - Output format (test 8): Complete DDL file structure with headers
+//! - Advanced features (test 9-10): Composition views and monitoring functions
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
-    use std::path::PathBuf;
+    use std::{fs, path::PathBuf};
 
     /// Helper function to get test schema directory
     fn get_test_schema_dir() -> PathBuf {
@@ -27,8 +48,7 @@ mod tests {
         assert!(schema_file.exists(), "Test schema file should exist");
 
         // Read and parse schema
-        let schema_content =
-            fs::read_to_string(&schema_file).expect("Failed to read schema file");
+        let schema_content = fs::read_to_string(&schema_file).expect("Failed to read schema file");
         let schema: serde_json::Value =
             serde_json::from_str(&schema_content).expect("Failed to parse schema JSON");
 
@@ -45,10 +65,7 @@ mod tests {
             .find(|t| t.get("name").map(|v| v.as_str()) == Some(Some("User")))
             .expect("User entity should exist");
 
-        assert!(
-            user_type.get("fields").is_some(),
-            "User should have fields"
-        );
+        assert!(user_type.get("fields").is_some(), "User should have fields");
     }
 
     /// Test 2: DDL validation for generated views
@@ -78,24 +95,12 @@ mod tests {
         "#;
 
         // Validate DDL
-        assert!(
-            sample_ddl.contains("CREATE TABLE"),
-            "Should have CREATE TABLE statement"
-        );
-        assert!(
-            sample_ddl.contains("CREATE INDEX"),
-            "Should have CREATE INDEX statements"
-        );
-        assert!(
-            sample_ddl.contains("COMMENT ON"),
-            "Should have COMMENT statements"
-        );
+        assert!(sample_ddl.contains("CREATE TABLE"), "Should have CREATE TABLE statement");
+        assert!(sample_ddl.contains("CREATE INDEX"), "Should have CREATE INDEX statements");
+        assert!(sample_ddl.contains("COMMENT ON"), "Should have COMMENT statements");
 
         // Check for proper formatting
-        assert!(
-            !sample_ddl.contains("{{"),
-            "Should not have unresolved template variables"
-        );
+        assert!(!sample_ddl.contains("{{"), "Should not have unresolved template variables");
     }
 
     /// Test 3: Arrow view DDL generation
@@ -127,18 +132,9 @@ mod tests {
         "#;
 
         // Validate Arrow DDL
-        assert!(
-            sample_arrow_ddl.contains("BYTEA"),
-            "Arrow columns should be BYTEA type"
-        );
-        assert!(
-            sample_arrow_ddl.contains("batch_number"),
-            "Should have batch tracking column"
-        );
-        assert!(
-            sample_arrow_ddl.contains("col_id"),
-            "Should have Arrow column for id field"
-        );
+        assert!(sample_arrow_ddl.contains("BYTEA"), "Arrow columns should be BYTEA type");
+        assert!(sample_arrow_ddl.contains("batch_number"), "Should have batch tracking column");
+        assert!(sample_arrow_ddl.contains("col_id"), "Should have Arrow column for id field");
     }
 
     /// Test 4: Multiple views from single schema
@@ -150,28 +146,22 @@ mod tests {
         assert!(schema_file.exists(), "Test schema file should exist");
 
         // Read schema
-        let schema_content =
-            fs::read_to_string(&schema_file).expect("Failed to read schema file");
+        let schema_content = fs::read_to_string(&schema_file).expect("Failed to read schema file");
         let schema: serde_json::Value =
             serde_json::from_str(&schema_content).expect("Failed to parse schema JSON");
 
         // Verify multiple types
         let types = schema["types"].as_array().expect("types should be array");
-        assert!(
-            types.len() >= 2,
-            "Schema should have multiple types (User, Post)"
-        );
+        assert!(types.len() >= 2, "Schema should have multiple types (User, Post)");
 
         // Verify User type
-        let user_exists = types
-            .iter()
-            .any(|t| t.get("name").map(|v| v.as_str()) == Some(Some("User")));
+        let user_exists =
+            types.iter().any(|t| t.get("name").map(|v| v.as_str()) == Some(Some("User")));
         assert!(user_exists, "User type should exist");
 
         // Verify Post type
-        let post_exists = types
-            .iter()
-            .any(|t| t.get("name").map(|v| v.as_str()) == Some(Some("Post")));
+        let post_exists =
+            types.iter().any(|t| t.get("name").map(|v| v.as_str()) == Some(Some("Post")));
         assert!(post_exists, "Post type should exist");
     }
 
@@ -202,10 +192,7 @@ mod tests {
             trigger_ddl.contains("CREATE OR REPLACE FUNCTION"),
             "Should have function creation"
         );
-        assert!(
-            trigger_ddl.contains("CREATE TRIGGER"),
-            "Should have trigger creation"
-        );
+        assert!(trigger_ddl.contains("CREATE TRIGGER"), "Should have trigger creation");
         assert!(
             trigger_ddl.contains("AFTER INSERT OR UPDATE OR DELETE"),
             "Should trigger on DML changes"
@@ -234,14 +221,8 @@ mod tests {
             scheduled_ddl.contains("REFRESH MATERIALIZED VIEW"),
             "Should have refresh view statement"
         );
-        assert!(
-            scheduled_ddl.contains("cron.schedule"),
-            "Should use pg_cron for scheduling"
-        );
-        assert!(
-            scheduled_ddl.contains("30 minutes"),
-            "Should specify refresh interval"
-        );
+        assert!(scheduled_ddl.contains("cron.schedule"), "Should use pg_cron for scheduling");
+        assert!(scheduled_ddl.contains("30 minutes"), "Should specify refresh interval");
     }
 
     /// Test 7: Complex schema with relationships
@@ -253,8 +234,7 @@ mod tests {
         assert!(schema_file.exists(), "Test schema file should exist");
 
         // Read schema
-        let schema_content =
-            fs::read_to_string(&schema_file).expect("Failed to read schema file");
+        let schema_content = fs::read_to_string(&schema_file).expect("Failed to read schema file");
         let schema: serde_json::Value =
             serde_json::from_str(&schema_content).expect("Failed to parse schema JSON");
 
@@ -270,10 +250,7 @@ mod tests {
             .find(|t| t.get("name").map(|v| v.as_str()) == Some(Some("Order")))
             .expect("Order entity should exist");
 
-        assert!(
-            order_type.get("fields").is_some(),
-            "Order should have fields"
-        );
+        assert!(order_type.get("fields").is_some(), "Order should have fields");
     }
 
     /// Test 8: DDL file output with proper headers
@@ -345,10 +322,7 @@ COMMENT ON TABLE tv_user IS 'Table-backed JSON view for User entity';
             composition_ddl.contains("CREATE OR REPLACE VIEW cv_"),
             "Should create composition view"
         );
-        assert!(
-            composition_ddl.contains("LEFT JOIN"),
-            "Should use LEFT JOIN for relationships"
-        );
+        assert!(composition_ddl.contains("LEFT JOIN"), "Should use LEFT JOIN for relationships");
         assert!(
             composition_ddl.contains("batch_compose_"),
             "Should provide batch composition function"
@@ -392,13 +366,7 @@ COMMENT ON TABLE tv_user IS 'Table-backed JSON view for User entity';
             monitoring_ddl.contains("check_staleness_"),
             "Should provide staleness check function"
         );
-        assert!(
-            monitoring_ddl.contains("v_staleness_"),
-            "Should provide staleness view"
-        );
-        assert!(
-            monitoring_ddl.contains("NOW()"),
-            "Should check current timestamp"
-        );
+        assert!(monitoring_ddl.contains("v_staleness_"), "Should provide staleness view");
+        assert!(monitoring_ddl.contains("NOW()"), "Should check current timestamp");
     }
 }

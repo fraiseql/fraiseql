@@ -1,7 +1,8 @@
 //! Structured logging with automatic trace ID injection
 
-use super::correlation::{get_current_trace_id, TraceContext};
 use std::collections::HashMap;
+
+use super::correlation::{TraceContext, get_current_trace_id};
 
 /// Structured logger with automatic trace ID field injection
 pub struct StructuredLogger {
@@ -19,7 +20,7 @@ impl StructuredLogger {
     /// let logger = StructuredLogger::new("webhook-service");
     /// logger.info("webhook_sent", vec![("status", "200"), ("duration_ms", "42")]);
     /// ```
-    #[must_use] 
+    #[must_use]
     pub fn new(service: &str) -> Self {
         Self {
             service: service.to_string(),
@@ -28,7 +29,7 @@ impl StructuredLogger {
     }
 
     /// Create logger with span ID for distributed tracing
-    #[must_use] 
+    #[must_use]
     pub fn with_span(service: &str, span_id: &str) -> Self {
         Self {
             service: service.to_string(),
@@ -37,7 +38,7 @@ impl StructuredLogger {
     }
 
     /// Create logger with trace context
-    #[must_use] 
+    #[must_use]
     pub fn with_context(service: &str, context: &TraceContext) -> Self {
         Self {
             service: service.to_string(),
@@ -122,47 +123,47 @@ impl StructuredLogger {
 
 /// Builder for structured log fields
 pub struct LogBuilder {
-    service: String,
-    fields: Vec<(String, String)>,
+    service:  String,
+    fields:   Vec<(String, String)>,
     trace_id: Option<String>,
-    span_id: Option<String>,
+    span_id:  Option<String>,
 }
 
 impl LogBuilder {
     /// Create new log builder
-    #[must_use] 
+    #[must_use]
     pub fn new(service: &str) -> Self {
         Self {
-            service: service.to_string(),
-            fields: Vec::new(),
+            service:  service.to_string(),
+            fields:   Vec::new(),
             trace_id: None,
-            span_id: None,
+            span_id:  None,
         }
     }
 
     /// Add field
-    #[must_use] 
+    #[must_use]
     pub fn field(mut self, key: &str, value: &str) -> Self {
         self.fields.push((key.to_string(), value.to_string()));
         self
     }
 
     /// Add numeric field
-    #[must_use] 
+    #[must_use]
     pub fn field_i64(mut self, key: &str, value: i64) -> Self {
         self.fields.push((key.to_string(), value.to_string()));
         self
     }
 
     /// Add float field
-    #[must_use] 
+    #[must_use]
     pub fn field_f64(mut self, key: &str, value: f64) -> Self {
         self.fields.push((key.to_string(), value.to_string()));
         self
     }
 
     /// Add trace context
-    #[must_use] 
+    #[must_use]
     pub fn with_context(mut self, context: &TraceContext) -> Self {
         self.trace_id = Some(context.trace_id.clone());
         self.span_id = Some(context.span_id.clone());
@@ -172,44 +173,28 @@ impl LogBuilder {
     /// Log as DEBUG
     pub fn debug(self, event: &str) {
         let logger = StructuredLogger::with_span(&self.service, "");
-        let fields = self
-            .fields
-            .iter()
-            .map(|(k, v)| (k.as_str(), v.as_str()))
-            .collect::<Vec<_>>();
+        let fields = self.fields.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect::<Vec<_>>();
         logger.debug(event, fields);
     }
 
     /// Log as INFO
     pub fn info(self, event: &str) {
         let logger = StructuredLogger::with_span(&self.service, "");
-        let fields = self
-            .fields
-            .iter()
-            .map(|(k, v)| (k.as_str(), v.as_str()))
-            .collect::<Vec<_>>();
+        let fields = self.fields.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect::<Vec<_>>();
         logger.info(event, fields);
     }
 
     /// Log as WARN
     pub fn warn(self, event: &str) {
         let logger = StructuredLogger::with_span(&self.service, "");
-        let fields = self
-            .fields
-            .iter()
-            .map(|(k, v)| (k.as_str(), v.as_str()))
-            .collect::<Vec<_>>();
+        let fields = self.fields.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect::<Vec<_>>();
         logger.warn(event, fields);
     }
 
     /// Log as ERROR
     pub fn error(self, event: &str) {
         let logger = StructuredLogger::with_span(&self.service, "");
-        let fields = self
-            .fields
-            .iter()
-            .map(|(k, v)| (k.as_str(), v.as_str()))
-            .collect::<Vec<_>>();
+        let fields = self.fields.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect::<Vec<_>>();
         logger.error(event, fields);
     }
 }

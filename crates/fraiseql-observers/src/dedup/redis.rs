@@ -3,9 +3,10 @@
 //! Provides time-window based deduplication using Redis keys with TTL.
 //! Events are considered duplicates if their dedup key exists in Redis.
 
+use redis::aio::ConnectionManager;
+
 use super::DeduplicationStore;
 use crate::error::Result;
-use redis::aio::ConnectionManager;
 
 /// Redis-backed deduplication store.
 ///
@@ -13,7 +14,7 @@ use redis::aio::ConnectionManager;
 /// and if the key exists, the event is a duplicate. TTL automatically expires keys.
 #[derive(Clone)]
 pub struct RedisDeduplicationStore {
-    conn: ConnectionManager,
+    conn:           ConnectionManager,
     window_seconds: u64,
 }
 
@@ -24,7 +25,7 @@ impl RedisDeduplicationStore {
     ///
     /// * `conn` - Redis connection manager
     /// * `window_seconds` - Deduplication time window in seconds (default 300)
-    #[must_use] 
+    #[must_use]
     pub const fn new(conn: ConnectionManager, window_seconds: u64) -> Self {
         Self {
             conn,
@@ -50,10 +51,8 @@ impl RedisDeduplicationStore {
 impl DeduplicationStore for RedisDeduplicationStore {
     async fn is_duplicate(&self, event_key: &str) -> Result<bool> {
         let key = Self::dedup_key(event_key);
-        let exists: bool = redis::cmd("EXISTS")
-            .arg(&key)
-            .query_async(&mut self.conn.clone())
-            .await?;
+        let exists: bool =
+            redis::cmd("EXISTS").arg(&key).query_async(&mut self.conn.clone()).await?;
 
         Ok(exists)
     }
@@ -82,10 +81,7 @@ impl DeduplicationStore for RedisDeduplicationStore {
     async fn remove(&self, event_key: &str) -> Result<()> {
         let key = Self::dedup_key(event_key);
 
-        redis::cmd("DEL")
-            .arg(&key)
-            .query_async::<_, ()>(&mut self.conn.clone())
-            .await?;
+        redis::cmd("DEL").arg(&key).query_async::<_, ()>(&mut self.conn.clone()).await?;
 
         Ok(())
     }

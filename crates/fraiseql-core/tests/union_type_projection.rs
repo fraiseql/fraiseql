@@ -150,9 +150,7 @@ fn test_union_member_list_preservation() {
     });
 
     let members = union_with_many_members["members"].as_array().unwrap();
-    let member_names: Vec<&str> = members.iter()
-        .filter_map(|m| m.as_str())
-        .collect();
+    let member_names: Vec<&str> = members.iter().filter_map(|m| m.as_str()).collect();
 
     assert_eq!(member_names.len(), 7);
     assert!(member_names.contains(&"Article"));
@@ -307,7 +305,10 @@ fn test_union_type_distinctions() {
     });
 
     // Different responses can be different types
-    assert_ne!(search_result["search"]["__typename"], notification["notification"]["__typename"]);
+    assert_ne!(
+        search_result["search"]["__typename"],
+        notification["notification"]["__typename"]
+    );
     assert_eq!(search_result["search"]["__typename"], json!("User"));
     assert_eq!(notification["notification"]["__typename"], json!("Comment"));
 }
@@ -337,4 +338,3 @@ fn test_union_fragment_projection() {
     assert_eq!(post["likes"], json!(42));
     assert_eq!(post["comments"], json!(5));
 }
-

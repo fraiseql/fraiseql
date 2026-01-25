@@ -3,9 +3,10 @@
 //! Provides high-performance caching of action results using Redis with
 //! automatic TTL-based expiration.
 
+use redis::aio::ConnectionManager;
+
 use super::{CacheBackend, CachedActionResult};
 use crate::error::Result;
-use redis::aio::ConnectionManager;
 
 /// Redis-backed cache backend.
 ///
@@ -13,7 +14,7 @@ use redis::aio::ConnectionManager;
 /// Supports fast retrieval (<1ms) for cached results.
 #[derive(Clone)]
 pub struct RedisCacheBackend {
-    conn: ConnectionManager,
+    conn:        ConnectionManager,
     ttl_seconds: u64,
 }
 
@@ -24,7 +25,7 @@ impl RedisCacheBackend {
     ///
     /// * `conn` - Redis connection manager
     /// * `ttl_seconds` - Time-to-live for cached results in seconds
-    #[must_use] 
+    #[must_use]
     pub const fn new(conn: ConnectionManager, ttl_seconds: u64) -> Self {
         Self { conn, ttl_seconds }
     }
@@ -40,17 +41,15 @@ impl CacheBackend for RedisCacheBackend {
     async fn get(&self, cache_key: &str) -> Result<Option<CachedActionResult>> {
         let key = Self::cache_key(cache_key);
 
-        let value: Option<String> = redis::cmd("GET")
-            .arg(&key)
-            .query_async(&mut self.conn.clone())
-            .await?;
+        let value: Option<String> =
+            redis::cmd("GET").arg(&key).query_async(&mut self.conn.clone()).await?;
 
         match value {
             Some(json) => {
                 let result = serde_json::from_str(&json)
                     .map_err(|e| crate::error::ObserverError::SerializationError(e.to_string()))?;
                 Ok(Some(result))
-            }
+            },
             None => Ok(None),
         }
     }
@@ -81,10 +80,7 @@ impl CacheBackend for RedisCacheBackend {
     async fn invalidate(&self, cache_key: &str) -> Result<()> {
         let key = Self::cache_key(cache_key);
 
-        redis::cmd("DEL")
-            .arg(&key)
-            .query_async::<_, ()>(&mut self.conn.clone())
-            .await?;
+        redis::cmd("DEL").arg(&key).query_async::<_, ()>(&mut self.conn.clone()).await?;
 
         Ok(())
     }

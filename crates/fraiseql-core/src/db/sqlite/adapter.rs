@@ -219,17 +219,17 @@ impl DatabaseAdapter for SqliteAdapter {
                 sql.push_str(" LIMIT ? OFFSET ?");
                 params.push(serde_json::Value::Number(lim.into()));
                 params.push(serde_json::Value::Number(off.into()));
-            }
+            },
             (Some(lim), None) => {
                 sql.push_str(" LIMIT ?");
                 params.push(serde_json::Value::Number(lim.into()));
-            }
+            },
             (None, Some(off)) => {
                 // SQLite requires LIMIT with OFFSET; use -1 for unlimited
                 sql.push_str(" LIMIT -1 OFFSET ?");
                 params.push(serde_json::Value::Number(off.into()));
-            }
-            (None, None) => {}
+            },
+            (None, None) => {},
         }
 
         self.execute_raw(&sql, params).await

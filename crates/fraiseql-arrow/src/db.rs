@@ -10,8 +10,9 @@
 //! the methods needed for Arrow Flight streaming. In fraiseql-server, a wrapper
 //! can implement both traits by delegating to the core adapter.
 
-use async_trait::async_trait;
 use std::collections::HashMap;
+
+use async_trait::async_trait;
 
 /// Error type for database operations.
 ///

@@ -1,8 +1,9 @@
 //! Debug event command - inspect and analyze events
 
-use crate::error::Result;
 use colored::Colorize;
 use serde_json::json;
+
+use crate::error::Result;
 
 /// Execute debug-event command
 pub async fn execute(
@@ -73,10 +74,10 @@ pub async fn execute(
 
     match format {
         crate::cli::OutputFormat::Json => {
-            let json_str = serde_json::to_string_pretty(&event_info)
-                .unwrap_or_else(|_| "{}".to_string());
+            let json_str =
+                serde_json::to_string_pretty(&event_info).unwrap_or_else(|_| "{}".to_string());
             println!("{json_str}");
-        }
+        },
         crate::cli::OutputFormat::Text => {
             println!("{}", "Event Details".bold().underline());
             println!(
@@ -93,10 +94,7 @@ pub async fn execute(
             println!(
                 "{}: {}",
                 "Kind".cyan(),
-                event_info["kind"]
-                    .as_str()
-                    .unwrap_or("unknown")
-                    .yellow()
+                event_info["kind"].as_str().unwrap_or("unknown").yellow()
             );
             println!(
                 "{}: {}",
@@ -157,7 +155,7 @@ pub async fn execute(
                     println!("  {}. {} ({})", idx + 1, obs_name.cyan(), reason.bright_black());
                 }
             }
-        }
+        },
     }
 
     Ok(())

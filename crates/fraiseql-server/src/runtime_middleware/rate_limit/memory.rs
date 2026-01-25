@@ -1,9 +1,12 @@
 //! In-memory rate limiter using sliding window with backpressure support.
 
+use std::{
+    collections::HashMap,
+    sync::Arc,
+    time::{Duration, Instant, SystemTime},
+};
+
 use async_trait::async_trait;
-use std::collections::HashMap;
-use std::sync::Arc;
-use std::time::{Duration, Instant, SystemTime};
 use tokio::sync::RwLock;
 
 use super::{RateLimit, RateLimitResult, RateLimitState, RateLimiter};
@@ -12,12 +15,12 @@ use crate::config::rate_limiting::BackpressureConfig;
 /// In-memory rate limiter using sliding window with backpressure support
 pub struct MemoryRateLimiter {
     windows: Arc<RwLock<HashMap<String, SlidingWindow>>>,
-    config: BackpressureConfig,
+    config:  BackpressureConfig,
 }
 
 struct SlidingWindow {
     /// Timestamps of requests in the window
-    requests: Vec<Instant>,
+    requests:    Vec<Instant>,
     /// Current queue depth
     queue_depth: std::sync::atomic::AtomicUsize,
 }
@@ -25,7 +28,7 @@ struct SlidingWindow {
 impl SlidingWindow {
     fn new(_config: &BackpressureConfig) -> Self {
         Self {
-            requests: Vec::new(),
+            requests:    Vec::new(),
             queue_depth: std::sync::atomic::AtomicUsize::new(0),
         }
     }
@@ -106,14 +109,12 @@ impl RateLimiter for MemoryRateLimiter {
             // Under limit, allow
             RateLimitResult::Allowed {
                 remaining: effective_limit - current_count - 1,
-                limit: limit.requests,
-                reset_at: window.reset_at(limit.window),
+                limit:     limit.requests,
+                reset_at:  window.reset_at(limit.window),
             }
         } else if self.config.queue_enabled {
             // At limit but queueing is enabled
-            let queue_depth = window
-                .queue_depth
-                .load(std::sync::atomic::Ordering::SeqCst);
+            let queue_depth = window.queue_depth.load(std::sync::atomic::Ordering::SeqCst);
 
             if queue_depth >= self.config.max_queue_size {
                 if self.config.load_shed {
@@ -124,16 +125,14 @@ impl RateLimiter for MemoryRateLimiter {
                             .reset_at(limit.window)
                             .duration_since(SystemTime::now())
                             .unwrap_or(limit.window),
-                        limit: limit.requests,
+                        limit:       limit.requests,
                     }
                 }
             } else {
                 // Queue the request
-                window
-                    .queue_depth
-                    .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                window.queue_depth.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                 RateLimitResult::Queued {
-                    position: queue_depth + 1,
+                    position:       queue_depth + 1,
                     estimated_wait: Duration::from_millis(
                         ((queue_depth as u64) + 1)
                             * (limit.window.as_millis() as u64 / u64::from(limit.requests)),
@@ -147,7 +146,7 @@ impl RateLimiter for MemoryRateLimiter {
                     .reset_at(limit.window)
                     .duration_since(SystemTime::now())
                     .unwrap_or(limit.window),
-                limit: limit.requests,
+                limit:       limit.requests,
             }
         }
     }
@@ -163,10 +162,8 @@ impl RateLimiter for MemoryRateLimiter {
         let windows = self.windows.read().await;
         windows.get(key).map(|w| RateLimitState {
             current_count: w.requests.len() as u32,
-            window_start: SystemTime::now(), // Simplified
-            queue_depth: w
-                .queue_depth
-                .load(std::sync::atomic::Ordering::SeqCst),
+            window_start:  SystemTime::now(), // Simplified
+            queue_depth:   w.queue_depth.load(std::sync::atomic::Ordering::SeqCst),
         })
     }
 }
@@ -227,10 +224,10 @@ mod tests {
     #[tokio::test]
     async fn test_memory_rate_limiter_backpressure_queue() {
         let config = BackpressureConfig {
-            queue_enabled: true,
+            queue_enabled:  true,
             max_queue_size: 5,
-            queue_timeout: "5s".to_string(),
-            load_shed: false,
+            queue_timeout:  "5s".to_string(),
+            load_shed:      false,
         };
         let limiter = MemoryRateLimiter::new(config);
         let limit = RateLimit::parse("2/minute").unwrap();
@@ -250,10 +247,10 @@ mod tests {
     #[tokio::test]
     async fn test_memory_rate_limiter_load_shedding() {
         let config = BackpressureConfig {
-            queue_enabled: true,
+            queue_enabled:  true,
             max_queue_size: 2,
-            queue_timeout: "5s".to_string(),
-            load_shed: true,
+            queue_timeout:  "5s".to_string(),
+            load_shed:      true,
         };
         let limiter = MemoryRateLimiter::new(config);
         let limit = RateLimit::parse("1/minute").unwrap();

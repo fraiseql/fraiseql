@@ -1,9 +1,9 @@
 //! Dead letter queue management commands
 
-use crate::cli::DlqSubcommand;
-use crate::error::Result;
 use colored::Colorize;
 use serde_json::json;
+
+use crate::{cli::DlqSubcommand, error::Result};
 
 /// Execute DLQ subcommands
 pub async fn execute(format: crate::cli::OutputFormat, subcommand: DlqSubcommand) -> Result<()> {
@@ -13,29 +13,19 @@ pub async fn execute(format: crate::cli::OutputFormat, subcommand: DlqSubcommand
             offset: _,
             observer: _,
             after: _,
-        } => {
-            execute_list(format, limit).await
-        }
+        } => execute_list(format, limit).await,
         DlqSubcommand::Show { item_id } => execute_show(format, &item_id).await,
-        DlqSubcommand::Retry { item_id, force: _ } => {
-            execute_retry(format, &item_id).await
-        }
+        DlqSubcommand::Retry { item_id, force: _ } => execute_retry(format, &item_id).await,
         DlqSubcommand::RetryAll {
             observer: _,
             after: _,
             dry_run: _,
-        } => {
-            execute_retry_all(format).await
-        }
-        DlqSubcommand::Remove { item_id, force: _ } => {
-            execute_remove(format, &item_id).await
-        }
+        } => execute_retry_all(format).await,
+        DlqSubcommand::Remove { item_id, force: _ } => execute_remove(format, &item_id).await,
         DlqSubcommand::Stats {
             by_observer,
             by_error,
-        } => {
-            execute_stats(format, by_observer, by_error).await
-        }
+        } => execute_stats(format, by_observer, by_error).await,
     }
 }
 
@@ -82,10 +72,10 @@ async fn execute_list(format: crate::cli::OutputFormat, limit: usize) -> Result<
 
     match format {
         crate::cli::OutputFormat::Json => {
-            let json_str = serde_json::to_string_pretty(&items)
-                .unwrap_or_else(|_| "{}".to_string());
+            let json_str =
+                serde_json::to_string_pretty(&items).unwrap_or_else(|_| "{}".to_string());
             println!("{json_str}");
-        }
+        },
         crate::cli::OutputFormat::Text => {
             println!("{}", "Dead Letter Queue Items".bold().underline());
             println!("{}: {}", "Total".cyan(), items["total"].as_u64().unwrap_or(0));
@@ -106,7 +96,7 @@ async fn execute_list(format: crate::cli::OutputFormat, limit: usize) -> Result<
                     println!();
                 }
             }
-        }
+        },
     }
 
     Ok(())
@@ -136,10 +126,9 @@ async fn execute_show(format: crate::cli::OutputFormat, item_id: &str) -> Result
 
     match format {
         crate::cli::OutputFormat::Json => {
-            let json_str = serde_json::to_string_pretty(&item)
-                .unwrap_or_else(|_| "{}".to_string());
+            let json_str = serde_json::to_string_pretty(&item).unwrap_or_else(|_| "{}".to_string());
             println!("{json_str}");
-        }
+        },
         crate::cli::OutputFormat::Text => {
             println!("{}", "DLQ Item Details".bold().underline());
             println!("\n{}: {}", "ID".cyan(), item["item_id"].as_str().unwrap_or("unknown"));
@@ -193,7 +182,7 @@ async fn execute_show(format: crate::cli::OutputFormat, item_id: &str) -> Result
                 "Next Retry".cyan(),
                 item["next_retry"].as_str().unwrap_or("not scheduled").bright_black()
             );
-        }
+        },
     }
 
     Ok(())
@@ -210,10 +199,10 @@ async fn execute_retry(format: crate::cli::OutputFormat, item_id: &str) -> Resul
 
     match format {
         crate::cli::OutputFormat::Json => {
-            let json_str = serde_json::to_string_pretty(&result)
-                .unwrap_or_else(|_| "{}".to_string());
+            let json_str =
+                serde_json::to_string_pretty(&result).unwrap_or_else(|_| "{}".to_string());
             println!("{json_str}");
-        }
+        },
         crate::cli::OutputFormat::Text => {
             println!("{}", "Retry Result".bold().underline());
             println!("{}: {}", "Item ID".cyan(), result["item_id"].as_str().unwrap_or("unknown"));
@@ -226,12 +215,8 @@ async fn execute_retry(format: crate::cli::OutputFormat, item_id: &str) -> Resul
                     "Failed".red()
                 }
             );
-            println!(
-                "{}: {}",
-                "Message".cyan(),
-                result["message"].as_str().unwrap_or("unknown")
-            );
-        }
+            println!("{}: {}", "Message".cyan(), result["message"].as_str().unwrap_or("unknown"));
+        },
     }
 
     Ok(())
@@ -247,10 +232,10 @@ async fn execute_retry_all(format: crate::cli::OutputFormat) -> Result<()> {
 
     match format {
         crate::cli::OutputFormat::Json => {
-            let json_str = serde_json::to_string_pretty(&result)
-                .unwrap_or_else(|_| "{}".to_string());
+            let json_str =
+                serde_json::to_string_pretty(&result).unwrap_or_else(|_| "{}".to_string());
             println!("{json_str}");
-        }
+        },
         crate::cli::OutputFormat::Text => {
             println!("{}", "Batch Retry Result".bold().underline());
             println!(
@@ -268,7 +253,7 @@ async fn execute_retry_all(format: crate::cli::OutputFormat) -> Result<()> {
                 "Items Skipped".cyan(),
                 result["items_skipped"].as_u64().unwrap_or(0).to_string().yellow()
             );
-        }
+        },
     }
 
     Ok(())
@@ -283,10 +268,10 @@ async fn execute_remove(format: crate::cli::OutputFormat, item_id: &str) -> Resu
 
     match format {
         crate::cli::OutputFormat::Json => {
-            let json_str = serde_json::to_string_pretty(&result)
-                .unwrap_or_else(|_| "{}".to_string());
+            let json_str =
+                serde_json::to_string_pretty(&result).unwrap_or_else(|_| "{}".to_string());
             println!("{json_str}");
-        }
+        },
         crate::cli::OutputFormat::Text => {
             println!("{}", "Remove Result".bold().underline());
             println!("{}: {}", "Item ID".cyan(), result["item_id"].as_str().unwrap_or("unknown"));
@@ -299,7 +284,7 @@ async fn execute_remove(format: crate::cli::OutputFormat, item_id: &str) -> Resu
                     "Failed".red()
                 }
             );
-        }
+        },
     }
 
     Ok(())
@@ -334,14 +319,18 @@ async fn execute_stats(
 
     match format {
         crate::cli::OutputFormat::Json => {
-            let json_str = serde_json::to_string_pretty(&stats)
-                .unwrap_or_else(|_| "{}".to_string());
+            let json_str =
+                serde_json::to_string_pretty(&stats).unwrap_or_else(|_| "{}".to_string());
             println!("{json_str}");
-        }
+        },
         crate::cli::OutputFormat::Text => {
             println!("{}", "DLQ Statistics".bold().underline());
             println!("{}: {}", "Total Items".cyan(), stats["total_items"].as_u64().unwrap_or(0));
-            println!("{}: {}", "Total Retries".cyan(), stats["total_retries"].as_u64().unwrap_or(0));
+            println!(
+                "{}: {}",
+                "Total Retries".cyan(),
+                stats["total_retries"].as_u64().unwrap_or(0)
+            );
             println!(
                 "{}: {:.1}%",
                 "Failure Rate".cyan(),
@@ -365,7 +354,7 @@ async fn execute_stats(
                     }
                 }
             }
-        }
+        },
     }
 
     Ok(())

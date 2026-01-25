@@ -1,7 +1,6 @@
 //! CORS and security headers middleware.
 
-use axum::middleware::Next;
-use axum::response::IntoResponse;
+use axum::{middleware::Next, response::IntoResponse};
 use tower_http::cors::{Any, CorsLayer};
 
 /// Create CORS layer.
@@ -77,37 +76,24 @@ pub async fn security_headers_middleware(
     let headers = response.headers_mut();
 
     // Prevent MIME type sniffing
-    headers.insert(
-        "X-Content-Type-Options",
-        "nosniff".parse().expect("valid header value"),
-    );
+    headers.insert("X-Content-Type-Options", "nosniff".parse().expect("valid header value"));
 
     // Prevent framing/clickjacking
-    headers.insert(
-        "X-Frame-Options",
-        "DENY".parse().expect("valid header value"),
-    );
+    headers.insert("X-Frame-Options", "DENY".parse().expect("valid header value"));
 
     // Enforce HTTPS (1 year with subdomains)
     headers.insert(
         "Strict-Transport-Security",
-        "max-age=31536000; includeSubDomains"
-            .parse()
-            .expect("valid header value"),
+        "max-age=31536000; includeSubDomains".parse().expect("valid header value"),
     );
 
     // Enable XSS protection in older browsers
-    headers.insert(
-        "X-XSS-Protection",
-        "1; mode=block".parse().expect("valid header value"),
-    );
+    headers.insert("X-XSS-Protection", "1; mode=block".parse().expect("valid header value"));
 
     // Control referrer leakage
     headers.insert(
         "Referrer-Policy",
-        "strict-origin-when-cross-origin"
-            .parse()
-            .expect("valid header value"),
+        "strict-origin-when-cross-origin".parse().expect("valid header value"),
     );
 
     // Content Security Policy - restrict resource loading
@@ -145,7 +131,10 @@ mod tests {
 
     #[test]
     fn test_cors_layer_restricted_invalid_origin() {
-        let origins = vec!["not-a-valid-url".to_string(), "https://valid.com".to_string()];
+        let origins = vec![
+            "not-a-valid-url".to_string(),
+            "https://valid.com".to_string(),
+        ];
         let layer = cors_layer_restricted(origins);
         // Layer creation should handle invalid origins gracefully
         let _ = layer;
@@ -203,7 +192,10 @@ mod tests {
     #[test]
     fn test_cors_layer_config_comprehensive() {
         // Test comprehensive CORS configuration
-        let origins = vec!["https://example.com".to_string(), "https://app.example.com".to_string()];
+        let origins = vec![
+            "https://example.com".to_string(),
+            "https://app.example.com".to_string(),
+        ];
         let layer = cors_layer_restricted(origins);
 
         // Layer creation succeeds

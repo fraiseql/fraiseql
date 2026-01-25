@@ -109,8 +109,8 @@
 
 pub mod aggregate_types;
 pub mod aggregation;
-pub mod compilation_cache;
 mod codegen;
+pub mod compilation_cache;
 pub mod enum_validator;
 pub mod fact_table;
 pub mod ir;
@@ -122,9 +122,7 @@ pub mod window_functions;
 pub use aggregate_types::{AggregateType, AggregateTypeGenerator, GroupByInput, HavingInput};
 pub use aggregation::{AggregationPlan, AggregationPlanner, AggregationRequest};
 pub use codegen::CodeGenerator;
-pub use compilation_cache::{
-    CompilationCache, CompilationCacheConfig, CompilationCacheMetrics,
-};
+pub use compilation_cache::{CompilationCache, CompilationCacheConfig, CompilationCacheMetrics};
 pub use enum_validator::EnumValidator;
 pub use ir::{
     AuthoringIR, AutoParams, IRArgument, IRField, IRMutation, IRQuery, IRSubscription, IRType,

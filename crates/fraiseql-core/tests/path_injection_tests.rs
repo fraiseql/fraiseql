@@ -34,8 +34,7 @@ mod path_injection_tests {
         // All quotes should be doubled
         let quote_count = segment.matches('\'').count();
         let escaped_quote_count = escaped.matches("''").count();
-        assert_eq!(quote_count, escaped_quote_count,
-                   "Not all quotes were properly escaped");
+        assert_eq!(quote_count, escaped_quote_count, "Not all quotes were properly escaped");
     }
 
     #[test]
@@ -145,10 +144,7 @@ mod path_injection_tests {
 
     #[test]
     fn test_mysql_multipart_path_with_injection() {
-        let path = vec![
-            "user'".to_string(),
-            "admin' OR '1'='1".to_string(),
-        ];
+        let path = vec!["user'".to_string(), "admin' OR '1'='1".to_string()];
         let escaped = path_escape::escape_mysql_json_path(&path);
 
         // All quotes should be escaped
@@ -169,14 +165,22 @@ mod path_injection_tests {
             // Path components should be joined with dots for JSON path
             assert!(escaped.starts_with("$."), "JSON path must start with $.");
             // No quotes in these examples, so keywords are preserved as-is
-            assert!(escaped.contains("DELETE") || escaped.contains("DROP") || escaped.contains("UPDATE"),
-                    "Keywords should be preserved");
+            assert!(
+                escaped.contains("DELETE")
+                    || escaped.contains("DROP")
+                    || escaped.contains("UPDATE"),
+                "Keywords should be preserved"
+            );
         }
     }
 
     #[test]
     fn test_mysql_preserves_dot_notation() {
-        let path = vec!["user".to_string(), "profile".to_string(), "name".to_string()];
+        let path = vec![
+            "user".to_string(),
+            "profile".to_string(),
+            "name".to_string(),
+        ];
         let escaped = path_escape::escape_mysql_json_path(&path);
         assert_eq!(escaped, "$.user.profile.name");
     }
@@ -223,10 +227,7 @@ mod path_injection_tests {
 
     #[test]
     fn test_sqlserver_multipart_path() {
-        let path = vec![
-            "user'".to_string(),
-            "admin' OR '1'='1".to_string(),
-        ];
+        let path = vec!["user'".to_string(), "admin' OR '1'='1".to_string()];
         let escaped = path_escape::escape_sqlserver_json_path(&path);
 
         let sql = format!("JSON_VALUE(data, '{}')", escaped);
@@ -248,7 +249,8 @@ mod path_injection_tests {
         let pg_escaped = path_escape::escape_postgres_jsonb_segment(segment_with_null);
         let mysql_escaped = path_escape::escape_mysql_json_path(&[segment_with_null.to_string()]);
         let sqlite_escaped = path_escape::escape_sqlite_json_path(&[segment_with_null.to_string()]);
-        let sqlserver_escaped = path_escape::escape_sqlserver_json_path(&[segment_with_null.to_string()]);
+        let sqlserver_escaped =
+            path_escape::escape_sqlserver_json_path(&[segment_with_null.to_string()]);
 
         // None should lose content due to null bytes
         assert!(pg_escaped.contains("test"), "Null byte caused truncation in PostgreSQL");
@@ -343,7 +345,8 @@ mod path_injection_tests {
         // The once-escaped version has doubled quotes
         assert_eq!(once, "user''name");
 
-        // If we escape it again (as if it were user input), it should double the already-doubled quotes
+        // If we escape it again (as if it were user input), it should double the already-doubled
+        // quotes
         let twice = path_escape::escape_postgres_jsonb_segment(&once);
         assert_eq!(twice, "user''''name");
     }
@@ -364,7 +367,8 @@ mod path_injection_tests {
         let pg_escaped = path_escape::escape_postgres_jsonb_segment(special_chars);
         let mysql_escaped = path_escape::escape_mysql_json_path(&[special_chars.to_string()]);
         let sqlite_escaped = path_escape::escape_sqlite_json_path(&[special_chars.to_string()]);
-        let sqlserver_escaped = path_escape::escape_sqlserver_json_path(&[special_chars.to_string()]);
+        let sqlserver_escaped =
+            path_escape::escape_sqlserver_json_path(&[special_chars.to_string()]);
 
         // Special characters should be preserved, only quotes (if any) should change
         assert!(pg_escaped.contains("!@#$%^&*"), "Special chars lost in PostgreSQL");
@@ -390,8 +394,7 @@ mod path_injection_tests {
             let single_quotes = vector.matches('\'').count();
             let doubled_quotes = pg_escaped.matches("''").count();
 
-            assert_eq!(single_quotes, doubled_quotes,
-                       "Quote escaping failed for: {}", vector);
+            assert_eq!(single_quotes, doubled_quotes, "Quote escaping failed for: {}", vector);
         }
     }
 

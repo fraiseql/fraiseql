@@ -148,9 +148,7 @@ fn test_interface_field_type_combinations() {
     assert_eq!(fields.len(), 5);
 
     // Verify all types are preserved
-    let types: Vec<&str> = fields.iter()
-        .map(|f| f["type"].as_str().unwrap())
-        .collect();
+    let types: Vec<&str> = fields.iter().map(|f| f["type"].as_str().unwrap()).collect();
 
     assert!(types.contains(&"String"));
     assert!(types.contains(&"Int!"));
@@ -181,21 +179,28 @@ fn test_implementing_type_has_interface_fields() {
     });
 
     // Get interface field names
-    let interface_field_names: Vec<&str> = interface["fields"].as_array().unwrap()
+    let interface_field_names: Vec<&str> = interface["fields"]
+        .as_array()
+        .unwrap()
         .iter()
         .filter_map(|f| f["name"].as_str())
         .collect();
 
     // Get implementing type field names
-    let type_field_names: Vec<&str> = implementing_type["fields"].as_array().unwrap()
+    let type_field_names: Vec<&str> = implementing_type["fields"]
+        .as_array()
+        .unwrap()
         .iter()
         .filter_map(|f| f["name"].as_str())
         .collect();
 
     // All interface fields should be in implementing type
     for interface_field in &interface_field_names {
-        assert!(type_field_names.contains(interface_field),
-                "Implementing type should have interface field '{}'", interface_field);
+        assert!(
+            type_field_names.contains(interface_field),
+            "Implementing type should have interface field '{}'",
+            interface_field
+        );
     }
 }
 
@@ -326,7 +331,9 @@ fn test_interface_implementation_type_validation() {
 
     // Both types have the interface fields
     for type_def in [success_type, error_type] {
-        let type_fields: Vec<&str> = type_def["fields"].as_array().unwrap()
+        let type_fields: Vec<&str> = type_def["fields"]
+            .as_array()
+            .unwrap()
             .iter()
             .filter_map(|f| f["name"].as_str())
             .collect();
@@ -335,4 +342,3 @@ fn test_interface_implementation_type_validation() {
         assert!(type_fields.contains(&"message"));
     }
 }
-

@@ -5,9 +5,10 @@
 //! 2. Idempotency check: Read-only transaction
 //! 3. Event processing: Single transaction with idempotency record + handler
 
-use super::{Result, WebhookError};
 use futures::future::BoxFuture;
 use sqlx::{PgPool, Postgres, Transaction};
+
+use super::{Result, WebhookError};
 
 /// Transaction isolation levels for webhook processing
 #[derive(Debug, Clone, Copy, Default)]
@@ -43,7 +44,8 @@ impl WebhookIsolation {
 ///
 /// # Errors
 ///
-/// Returns `WebhookError::Database` if transaction fails to start, commit, or during handler execution.
+/// Returns `WebhookError::Database` if transaction fails to start, commit, or during handler
+/// execution.
 pub async fn execute_in_transaction<F, T>(
     pool: &PgPool,
     isolation: WebhookIsolation,
@@ -52,34 +54,26 @@ pub async fn execute_in_transaction<F, T>(
 where
     F: for<'c> FnOnce(&'c mut Transaction<'_, Postgres>) -> BoxFuture<'c, Result<T>>,
 {
-    let mut tx = pool
-        .begin()
-        .await
-        .map_err(|e| WebhookError::Database(e.to_string()))?;
+    let mut tx = pool.begin().await.map_err(|e| WebhookError::Database(e.to_string()))?;
 
     // Set isolation level
-    sqlx::query(&format!(
-        "SET TRANSACTION ISOLATION LEVEL {}",
-        isolation.as_sql()
-    ))
-    .execute(&mut *tx)
-    .await
-    .map_err(|e| WebhookError::Database(e.to_string()))?;
+    sqlx::query(&format!("SET TRANSACTION ISOLATION LEVEL {}", isolation.as_sql()))
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| WebhookError::Database(e.to_string()))?;
 
     let result = f(&mut tx).await;
 
     match result {
         Ok(value) => {
-            tx.commit()
-                .await
-                .map_err(|e| WebhookError::Database(e.to_string()))?;
+            tx.commit().await.map_err(|e| WebhookError::Database(e.to_string()))?;
             Ok(value)
-        }
+        },
         Err(e) => {
             // Explicit rollback (also happens on drop, but be explicit)
             let _ = tx.rollback().await;
             Err(e)
-        }
+        },
     }
 }
 
@@ -89,14 +83,8 @@ mod tests {
 
     #[test]
     fn test_isolation_level_sql() {
-        assert_eq!(
-            WebhookIsolation::ReadCommitted.as_sql(),
-            "READ COMMITTED"
-        );
-        assert_eq!(
-            WebhookIsolation::RepeatableRead.as_sql(),
-            "REPEATABLE READ"
-        );
+        assert_eq!(WebhookIsolation::ReadCommitted.as_sql(), "READ COMMITTED");
+        assert_eq!(WebhookIsolation::RepeatableRead.as_sql(), "REPEATABLE READ");
         assert_eq!(WebhookIsolation::Serializable.as_sql(), "SERIALIZABLE");
     }
 

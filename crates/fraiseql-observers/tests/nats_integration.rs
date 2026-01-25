@@ -4,31 +4,30 @@
 //!
 //! ## Running Tests
 //!
-//! 1. Start NATS with `JetStream`:
-//!    ```bash
-//!    docker run -d --name nats -p 4222:4222 nats:latest -js
+//! 1. Start NATS with `JetStream`: ```bash docker run -d --name nats -p 4222:4222 nats:latest -js
 //!    ```
 //!
-//! 2. Run tests:
-//!    ```bash
-//!    cargo test --test nats_integration --features nats -- --ignored
-//!    ```
+//! 2. Run tests: ```bash cargo test --test nats_integration --features nats -- --ignored ```
 
 #![allow(unused_imports)]
 #![cfg(feature = "nats")]
 
 use std::time::Duration;
+
 use uuid::Uuid;
 
 #[cfg(test)]
 mod nats_tests {
-    use super::*;
-    use fraiseql_observers::event::{EntityEvent, EventKind};
-    use fraiseql_observers::transport::{
-        EventFilter, EventTransport, HealthStatus, NatsConfig, NatsTransport, TransportType,
+    use fraiseql_observers::{
+        event::{EntityEvent, EventKind},
+        transport::{
+            EventFilter, EventTransport, HealthStatus, NatsConfig, NatsTransport, TransportType,
+        },
     };
     use futures::StreamExt;
     use serde_json::json;
+
+    use super::*;
 
     /// Test `NatsConfig` default values
     #[test]
@@ -50,15 +49,15 @@ mod nats_tests {
     #[test]
     fn test_nats_config_custom() {
         let config = NatsConfig {
-            url: "nats://custom:4222".to_string(),
-            stream_name: "custom.stream".to_string(),
-            consumer_name: "custom-consumer".to_string(),
-            subject_prefix: "custom.prefix".to_string(),
+            url:                    "nats://custom:4222".to_string(),
+            stream_name:            "custom.stream".to_string(),
+            consumer_name:          "custom-consumer".to_string(),
+            subject_prefix:         "custom.prefix".to_string(),
             max_reconnect_attempts: 10,
-            reconnect_delay_ms: 2000,
-            ack_wait_secs: 60,
+            reconnect_delay_ms:     2000,
+            ack_wait_secs:          60,
             retention_max_messages: 500_000,
-            retention_max_bytes: 512_000_000,
+            retention_max_bytes:    512_000_000,
         };
 
         assert_eq!(config.url, "nats://custom:4222");
@@ -83,9 +82,7 @@ mod nats_tests {
             ..Default::default()
         };
 
-        let transport = NatsTransport::new(config)
-            .await
-            .expect("Should connect to NATS server");
+        let transport = NatsTransport::new(config).await.expect("Should connect to NATS server");
 
         assert_eq!(transport.transport_type(), TransportType::Nats);
     }
@@ -101,9 +98,7 @@ mod nats_tests {
             ..Default::default()
         };
 
-        let transport = NatsTransport::new(config)
-            .await
-            .expect("Should connect to NATS server");
+        let transport = NatsTransport::new(config).await.expect("Should connect to NATS server");
 
         let health = transport.health_check().await.expect("Health check should succeed");
         assert_eq!(health.status, HealthStatus::Healthy);
@@ -124,9 +119,7 @@ mod nats_tests {
             ..Default::default()
         };
 
-        let transport = NatsTransport::new(config)
-            .await
-            .expect("Should connect to NATS server");
+        let transport = NatsTransport::new(config).await.expect("Should connect to NATS server");
 
         // Create test event using the builder pattern
         let event = EntityEvent::new(
@@ -172,15 +165,13 @@ mod nats_tests {
             ..Default::default()
         };
 
-        let transport = NatsTransport::new(config)
-            .await
-            .expect("Should connect to NATS server");
+        let transport = NatsTransport::new(config).await.expect("Should connect to NATS server");
 
         // Subscribe with filter for "Product" only
         let filter = EventFilter {
             entity_type: Some("Product".to_string()),
-            operation: None,
-            tenant_id: None,
+            operation:   None,
+            tenant_id:   None,
         };
         let mut stream = transport.subscribe(filter).await.expect("Subscribe should succeed");
 
@@ -227,15 +218,13 @@ mod nats_tests {
             ..Default::default()
         };
 
-        let transport = NatsTransport::new(config)
-            .await
-            .expect("Should connect to NATS server");
+        let transport = NatsTransport::new(config).await.expect("Should connect to NATS server");
 
         // Subscribe with filter for UPDATE operations only
         let filter = EventFilter {
             entity_type: None,
-            operation: Some("UPDATE".to_string()),
-            tenant_id: None,
+            operation:   Some("UPDATE".to_string()),
+            tenant_id:   None,
         };
         let mut stream = transport.subscribe(filter).await.expect("Subscribe should succeed");
 
@@ -304,9 +293,7 @@ mod nats_tests {
             ..Default::default()
         };
 
-        let transport = NatsTransport::new(config)
-            .await
-            .expect("Should connect to NATS server");
+        let transport = NatsTransport::new(config).await.expect("Should connect to NATS server");
 
         let filter = EventFilter::default();
         let mut stream = transport.subscribe(filter).await.expect("Subscribe should succeed");
@@ -329,7 +316,9 @@ mod nats_tests {
         let start = std::time::Instant::now();
 
         while received_count < event_count && start.elapsed() < timeout {
-            if let Ok(Some(result)) = tokio::time::timeout(Duration::from_secs(2), stream.next()).await {
+            if let Ok(Some(result)) =
+                tokio::time::timeout(Duration::from_secs(2), stream.next()).await
+            {
                 if result.is_ok() {
                     received_count += 1;
                 }
@@ -359,9 +348,8 @@ mod nats_tests {
                 ..Default::default()
             };
 
-            let transport = NatsTransport::new(config)
-                .await
-                .expect("Should connect to NATS server");
+            let transport =
+                NatsTransport::new(config).await.expect("Should connect to NATS server");
 
             let event = EntityEvent::new(
                 EventKind::Created,
@@ -386,9 +374,8 @@ mod nats_tests {
                 ..Default::default()
             };
 
-            let transport = NatsTransport::new(config)
-                .await
-                .expect("Should reconnect to NATS server");
+            let transport =
+                NatsTransport::new(config).await.expect("Should reconnect to NATS server");
 
             let filter = EventFilter::default();
             let mut stream = transport.subscribe(filter).await.expect("Subscribe should succeed");
@@ -417,9 +404,7 @@ mod nats_tests {
             ..Default::default()
         };
 
-        let transport = NatsTransport::new(config)
-            .await
-            .expect("Should connect to NATS server");
+        let transport = NatsTransport::new(config).await.expect("Should connect to NATS server");
 
         let filter = EventFilter::default();
         let mut stream = transport.subscribe(filter).await.expect("Subscribe should succeed");
@@ -430,7 +415,8 @@ mod nats_tests {
             "Order".to_string(),
             Uuid::new_v4(),
             json!({"total": 100}),
-        ).with_user_id("user-123".to_string());
+        )
+        .with_user_id("user-123".to_string());
 
         transport.publish(event.clone()).await.expect("Publish should succeed");
 

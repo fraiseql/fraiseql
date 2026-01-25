@@ -1757,7 +1757,11 @@ pub struct ObserverDefinition {
 impl ObserverDefinition {
     /// Create a new observer definition.
     #[must_use]
-    pub fn new(name: impl Into<String>, entity: impl Into<String>, event: impl Into<String>) -> Self {
+    pub fn new(
+        name: impl Into<String>,
+        entity: impl Into<String>,
+        event: impl Into<String>,
+    ) -> Self {
         Self {
             name:      name.into(),
             entity:    entity.into(),
@@ -1844,10 +1848,10 @@ pub struct RetryConfig {
 impl Default for RetryConfig {
     fn default() -> Self {
         Self {
-            max_attempts:      3,
-            backoff_strategy:  "exponential".to_string(),
-            initial_delay_ms:  1000,
-            max_delay_ms:      60000,
+            max_attempts:     3,
+            backoff_strategy: "exponential".to_string(),
+            initial_delay_ms: 1000,
+            max_delay_ms:     60000,
         }
     }
 }
@@ -1948,10 +1952,10 @@ mod tests {
         }"#;
 
         let schema = CompiledSchema::from_json(json).unwrap();
-        
+
         assert!(schema.has_observers());
         assert_eq!(schema.observer_count(), 1);
-        
+
         let observer = schema.find_observer("onHighValueOrder").unwrap();
         assert_eq!(observer.entity, "Order");
         assert_eq!(observer.event, "INSERT");
@@ -1993,7 +1997,7 @@ mod tests {
 
         let order_observers = schema.find_observers_for_entity("Order");
         assert_eq!(order_observers.len(), 2);
-        
+
         let user_observers = schema.find_observers_for_entity("User");
         assert_eq!(user_observers.len(), 1);
     }
@@ -2011,7 +2015,7 @@ mod tests {
 
         let insert_observers = schema.find_observers_for_event("INSERT");
         assert_eq!(insert_observers.len(), 2);
-        
+
         let update_observers = schema.find_observers_for_event("UPDATE");
         assert_eq!(update_observers.len(), 1);
     }

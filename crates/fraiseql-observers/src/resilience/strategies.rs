@@ -5,9 +5,10 @@
 //! - Fallback: Return a default value on failure
 //! - `RetryWithBreaker`: Retry with circuit breaker protection
 
+use std::sync::Arc;
+
 use super::CircuitBreaker;
 use crate::error::Result;
-use std::sync::Arc;
 
 /// Different resilience strategies for failure handling
 #[derive(Debug, Clone)]
@@ -21,19 +22,19 @@ pub enum ResilienceStrategy {
         /// Maximum retry attempts
         max_attempts: u32,
         /// Backoff in milliseconds
-        backoff_ms: u64,
+        backoff_ms:   u64,
     },
 }
 
 /// Executor with resilience strategy
 pub struct ResilientExecutor {
     circuit_breaker: Arc<CircuitBreaker>,
-    strategy: ResilienceStrategy,
+    strategy:        ResilienceStrategy,
 }
 
 impl ResilientExecutor {
     /// Create a new resilient executor
-    #[must_use] 
+    #[must_use]
     pub const fn new(circuit_breaker: Arc<CircuitBreaker>, strategy: ResilienceStrategy) -> Self {
         Self {
             circuit_breaker,
@@ -48,17 +49,11 @@ impl ResilientExecutor {
         T: 'static,
     {
         match &self.strategy {
-            ResilienceStrategy::FailFast => {
-                self.circuit_breaker
-                    .call(|| Box::pin(f()))
-                    .await
-            }
+            ResilienceStrategy::FailFast => self.circuit_breaker.call(|| Box::pin(f())).await,
             ResilienceStrategy::Fallback(_) => {
                 // Call through circuit breaker, will return error if open
-                self.circuit_breaker
-                    .call(|| Box::pin(f()))
-                    .await
-            }
+                self.circuit_breaker.call(|| Box::pin(f())).await
+            },
             ResilienceStrategy::RetryWithBreaker {
                 max_attempts,
                 backoff_ms,
@@ -73,12 +68,11 @@ impl ResilientExecutor {
                             if attempt >= *max_attempts {
                                 return Err(e);
                             }
-                            tokio::time::sleep(std::time::Duration::from_millis(*backoff_ms))
-                                .await;
-                        }
+                            tokio::time::sleep(std::time::Duration::from_millis(*backoff_ms)).await;
+                        },
                     }
                 }
-            }
+            },
         }
     }
 }
@@ -86,7 +80,6 @@ impl ResilientExecutor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
 
     #[tokio::test]
     async fn test_strategy_fail_fast() {
@@ -94,9 +87,7 @@ mod tests {
         let breaker = Arc::new(CircuitBreaker::new(config));
         let executor = ResilientExecutor::new(breaker, ResilienceStrategy::FailFast);
 
-        let result = executor
-            .execute(|| Box::pin(async { Ok::<i32, _>(42) }))
-            .await;
+        let result = executor.execute(|| Box::pin(async { Ok::<i32, _>(42) })).await;
 
         assert!(result.is_ok());
     }
@@ -105,14 +96,10 @@ mod tests {
     async fn test_strategy_fallback() {
         let config = crate::resilience::CircuitBreakerConfig::default();
         let breaker = Arc::new(CircuitBreaker::new(config));
-        let executor = ResilientExecutor::new(
-            breaker,
-            ResilienceStrategy::Fallback("default".to_string()),
-        );
+        let executor =
+            ResilientExecutor::new(breaker, ResilienceStrategy::Fallback("default".to_string()));
 
-        let result = executor
-            .execute(|| Box::pin(async { Ok::<i32, _>(42) }))
-            .await;
+        let result = executor.execute(|| Box::pin(async { Ok::<i32, _>(42) })).await;
 
         assert!(result.is_ok());
     }
@@ -125,13 +112,11 @@ mod tests {
             breaker,
             ResilienceStrategy::RetryWithBreaker {
                 max_attempts: 3,
-                backoff_ms: 10,
+                backoff_ms:   10,
             },
         );
 
-        let result = executor
-            .execute(|| Box::pin(async { Ok::<i32, _>(42) }))
-            .await;
+        let result = executor.execute(|| Box::pin(async { Ok::<i32, _>(42) })).await;
 
         assert!(result.is_ok());
     }

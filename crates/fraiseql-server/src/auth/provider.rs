@@ -1,20 +1,22 @@
 // OAuth 2.0 / OIDC provider trait and implementations
-use crate::auth::error::{AuthError, Result};
+use std::fmt;
+
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use std::fmt;
+
+use crate::auth::error::{AuthError, Result};
 
 /// User information retrieved from OAuth provider
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserInfo {
     /// Unique user identifier from provider
-    pub id: String,
+    pub id:         String,
     /// User's email address
-    pub email: String,
+    pub email:      String,
     /// User's display name (optional)
-    pub name: Option<String>,
+    pub name:       Option<String>,
     /// User's profile picture URL (optional)
-    pub picture: Option<String>,
+    pub picture:    Option<String>,
     /// Raw claims from provider (for custom fields)
     pub raw_claims: serde_json::Value,
 }
@@ -23,13 +25,13 @@ pub struct UserInfo {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TokenResponse {
     /// Access token (short-lived)
-    pub access_token: String,
+    pub access_token:  String,
     /// Refresh token if provider supports it
     pub refresh_token: Option<String>,
     /// Token expiration in seconds
-    pub expires_in: u64,
+    pub expires_in:    u64,
     /// Token type (typically "Bearer")
-    pub token_type: String,
+    pub token_type:    String,
 }
 
 /// OAuth 2.0 / OIDC provider trait
@@ -92,7 +94,7 @@ pub trait OAuthProvider: Send + Sync + fmt::Debug {
 #[derive(Debug, Clone)]
 pub struct PkceChallenge {
     /// Generated code verifier (cryptographically random)
-    pub verifier: String,
+    pub verifier:  String,
     /// Code challenge (SHA256 hash of verifier)
     pub challenge: String,
 }
@@ -109,7 +111,10 @@ impl PkceChallenge {
         let challenge_bytes = hasher.finalize();
         let challenge = base64_url_encode(&challenge_bytes);
 
-        Ok(Self { verifier, challenge })
+        Ok(Self {
+            verifier,
+            challenge,
+        })
     }
 
     /// Validate a verifier against a challenge

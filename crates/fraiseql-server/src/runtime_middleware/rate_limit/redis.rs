@@ -1,13 +1,14 @@
 //! Redis-backed rate limiter with atomic sliding window.
 
-use async_trait::async_trait;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use super::{RateLimit, RateLimitResult, RateLimitState, RateLimiter};
+use async_trait::async_trait;
 use fraiseql_error::RuntimeError;
 
+use super::{RateLimit, RateLimitResult, RateLimitState, RateLimiter};
+
 pub struct RedisRateLimiter {
-    client: redis::Client,
+    client:     redis::Client,
     key_prefix: String,
 }
 
@@ -52,10 +53,7 @@ impl RedisRateLimiter {
 impl RateLimiter for RedisRateLimiter {
     async fn check(&self, key: &str, limit: &RateLimit) -> RateLimitResult {
         let redis_key = self.make_key(key);
-        let now_ms = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_millis() as i64;
+        let now_ms = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as i64;
 
         let window_start_ms = now_ms - limit.window.as_millis() as i64;
 
@@ -112,8 +110,8 @@ impl RateLimiter for RedisRateLimiter {
         if result[0] == 1 {
             RateLimitResult::Allowed {
                 remaining: result[1] as u32,
-                limit: limit.requests,
-                reset_at: SystemTime::now() + limit.window,
+                limit:     limit.requests,
+                reset_at:  SystemTime::now() + limit.window,
             }
         } else {
             let reset_at_ms = result[2];
@@ -137,16 +135,12 @@ impl RateLimiter for RedisRateLimiter {
     async fn get_state(&self, key: &str) -> Option<RateLimitState> {
         let redis_key = self.make_key(key);
         let mut conn = self.client.get_multiplexed_async_connection().await.ok()?;
-        let count: i64 = redis::cmd("ZCARD")
-            .arg(&redis_key)
-            .query_async(&mut conn)
-            .await
-            .ok()?;
+        let count: i64 = redis::cmd("ZCARD").arg(&redis_key).query_async(&mut conn).await.ok()?;
 
         Some(RateLimitState {
             current_count: count as u32,
-            window_start: SystemTime::now(),
-            queue_depth: 0, // Redis doesn't track queue depth
+            window_start:  SystemTime::now(),
+            queue_depth:   0, // Redis doesn't track queue depth
         })
     }
 }

@@ -3,12 +3,12 @@
 //! Detects listener failures and triggers automatic failover to healthy listeners,
 //! maintaining checkpoint consistency and preventing data loss.
 
-use super::coordinator::MultiListenerCoordinator;
-use super::state::ListenerState;
-use crate::error::{ObserverError, Result};
-use std::sync::Arc;
-use std::time::Instant;
+use std::{sync::Arc, time::Instant};
+
 use tokio::sync::mpsc;
+
+use super::{coordinator::MultiListenerCoordinator, state::ListenerState};
+use crate::error::{ObserverError, Result};
 
 /// Event triggered when a failover occurs
 #[derive(Debug, Clone)]
@@ -18,22 +18,22 @@ pub struct FailoverEvent {
     /// ID of the listener taking over (new leader)
     pub failover_target_id: String,
     /// Last processed checkpoint for recovery
-    pub checkpoint: i64,
+    pub checkpoint:         i64,
     /// When the failover was triggered
-    pub timestamp: Instant,
+    pub timestamp:          Instant,
 }
 
 /// Manages automatic failover between listeners
 #[derive(Clone)]
 pub struct FailoverManager {
-    coordinator: Arc<MultiListenerCoordinator>,
+    coordinator:              Arc<MultiListenerCoordinator>,
     health_check_interval_ms: u64,
-    failover_threshold_ms: u64,
+    failover_threshold_ms:    u64,
 }
 
 impl FailoverManager {
     /// Create a new failover manager
-    #[must_use] 
+    #[must_use]
     pub const fn new(coordinator: Arc<MultiListenerCoordinator>) -> Self {
         Self {
             coordinator,
@@ -43,7 +43,7 @@ impl FailoverManager {
     }
 
     /// Create with custom intervals
-    #[must_use] 
+    #[must_use]
     pub const fn with_intervals(
         coordinator: Arc<MultiListenerCoordinator>,
         health_check_interval_ms: u64,
@@ -144,13 +144,13 @@ impl FailoverManager {
     }
 
     /// Get health check interval
-    #[must_use] 
+    #[must_use]
     pub const fn health_check_interval_ms(&self) -> u64 {
         self.health_check_interval_ms
     }
 
     /// Get failover threshold
-    #[must_use] 
+    #[must_use]
     pub const fn failover_threshold_ms(&self) -> u64 {
         self.failover_threshold_ms
     }
@@ -226,10 +226,7 @@ mod tests {
         let coordinator = Arc::new(MultiListenerCoordinator::new());
 
         for i in 0..3 {
-            coordinator
-                .register_listener(format!("listener-{i}"))
-                .await
-                .ok();
+            coordinator.register_listener(format!("listener-{i}")).await.ok();
         }
 
         let listener_count = coordinator.listener_count();

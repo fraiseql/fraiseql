@@ -4,9 +4,9 @@
 //! basic RPC calls. Actual data streaming will be tested in Phase 9.2+.
 
 use arrow_flight::{
-    flight_service_client::FlightServiceClient, Criteria, FlightDescriptor, Ticket,
+    Criteria, FlightDescriptor, Ticket, flight_service_client::FlightServiceClient,
 };
-use fraiseql_arrow::{flight_server::FraiseQLFlightService, FlightTicket};
+use fraiseql_arrow::{FlightTicket, flight_server::FraiseQLFlightService};
 use tonic::transport::Server;
 
 /// Start a test Flight server on a random available port.
@@ -60,9 +60,9 @@ async fn test_get_schema_for_observer_events() {
     // Create ticket for observer events
     let ticket = FlightTicket::ObserverEvents {
         entity_type: "Order".to_string(),
-        start_date: None,
-        end_date: None,
-        limit: None,
+        start_date:  None,
+        end_date:    None,
+        limit:       None,
     };
 
     let ticket_bytes = ticket.encode().unwrap();
@@ -78,8 +78,8 @@ async fn test_get_schema_for_observer_events() {
     assert!(!schema_result.schema.is_empty(), "Schema should not be empty");
 
     // Decode and verify schema structure
-    let schema = arrow::ipc::root_as_message(&schema_result.schema)
-        .expect("Failed to decode schema");
+    let schema =
+        arrow::ipc::root_as_message(&schema_result.schema).expect("Failed to decode schema");
     // Just verify we can decode it - detailed schema checks in unit tests
     assert!(schema.header_type() == arrow::ipc::MessageHeader::Schema);
 }
@@ -94,7 +94,7 @@ async fn test_get_schema_for_graphql_query() {
 
     // Create ticket for GraphQL query
     let ticket = FlightTicket::GraphQLQuery {
-        query: "{ users { id name } }".to_string(),
+        query:     "{ users { id name } }".to_string(),
         variables: None,
     };
 
@@ -121,7 +121,7 @@ async fn test_do_get_returns_empty_stream() {
 
     // Create ticket for GraphQL query
     let ticket = FlightTicket::GraphQLQuery {
-        query: "{ users { id } }".to_string(),
+        query:     "{ users { id } }".to_string(),
         variables: None,
     };
 
@@ -172,9 +172,9 @@ async fn test_bulk_export_ticket_not_implemented() {
 
     // Create bulk export ticket (not implemented in Phase 9.1)
     let ticket = FlightTicket::BulkExport {
-        table: "users".to_string(),
+        table:  "users".to_string(),
         filter: None,
-        limit: Some(1000),
+        limit:  Some(1000),
     };
 
     let ticket_bytes = ticket.encode().unwrap();

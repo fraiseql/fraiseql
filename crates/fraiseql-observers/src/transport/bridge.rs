@@ -27,19 +27,21 @@
 //! - Does NOT guarantee exactly-once delivery (consumers must be idempotent)
 //! - Does NOT guarantee global ordering (only per-subject best-effort)
 
-#[cfg(feature = "nats")]
-use super::{EventTransport, NatsTransport};
-use crate::error::{ObserverError, Result};
-use crate::event::EntityEvent;
+use std::{sync::Arc, time::Duration};
+
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde_json::Value;
-use sqlx::postgres::PgListener;
-use sqlx::PgPool;
-use std::sync::Arc;
-use std::time::Duration;
+use sqlx::{PgPool, postgres::PgListener};
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
+
+#[cfg(feature = "nats")]
+use super::{EventTransport, NatsTransport};
+use crate::{
+    error::{ObserverError, Result},
+    event::EntityEvent,
+};
 
 // ============================================================================
 // CheckpointStore Trait
@@ -189,7 +191,7 @@ impl ChangeLogEntry {
                 return Err(ObserverError::InvalidConfig {
                     message: format!("Unknown modification type: {other}"),
                 });
-            }
+            },
         };
 
         // Use the existing UUID from the change log, or generate new one
@@ -237,10 +239,10 @@ pub struct BridgeConfig {
 impl Default for BridgeConfig {
     fn default() -> Self {
         Self {
-            transport_name: "pg_to_nats".to_string(),
-            batch_size: 100,
+            transport_name:     "pg_to_nats".to_string(),
+            batch_size:         100,
             poll_interval_secs: 1,
-            notify_channel: "fraiseql_events".to_string(),
+            notify_channel:     "fraiseql_events".to_string(),
         }
     }
 }
@@ -269,10 +271,10 @@ impl Default for BridgeConfig {
 ///    - Safe against accidental multi-bridge races
 #[cfg(feature = "nats")]
 pub struct PostgresNatsBridge {
-    pool: PgPool,
-    nats_transport: Arc<NatsTransport>,
+    pool:             PgPool,
+    nats_transport:   Arc<NatsTransport>,
     checkpoint_store: Arc<dyn CheckpointStore>,
-    config: BridgeConfig,
+    config:           BridgeConfig,
 }
 
 #[cfg(feature = "nats")]
@@ -314,9 +316,7 @@ impl PostgresNatsBridge {
 
     /// Save cursor checkpoint.
     async fn save_cursor(&self, cursor: i64) -> Result<()> {
-        self.checkpoint_store
-            .save_checkpoint(&self.config.transport_name, cursor)
-            .await
+        self.checkpoint_store.save_checkpoint(&self.config.transport_name, cursor).await
     }
 
     /// Fetch batch from cursor (NOT filtered by `nats_published_at`).
@@ -383,10 +383,7 @@ impl PostgresNatsBridge {
     /// 4. Wait for NOTIFY or timeout
     /// 5. Repeat
     pub async fn run(&self) -> Result<()> {
-        info!(
-            "Starting PostgreSQL → NATS bridge: {}",
-            self.config.transport_name
-        );
+        info!("Starting PostgreSQL → NATS bridge: {}", self.config.transport_name);
 
         // Load last cursor on startup (crash recovery)
         let mut cursor = self.load_cursor().await?;
@@ -399,23 +396,18 @@ impl PostgresNatsBridge {
             }
         })?;
 
-        notify_listener
-            .listen(&self.config.notify_channel)
-            .await
-            .map_err(|e| ObserverError::ListenerConnectionFailed {
+        notify_listener.listen(&self.config.notify_channel).await.map_err(|e| {
+            ObserverError::ListenerConnectionFailed {
                 reason: format!("Failed to LISTEN on {}: {e}", self.config.notify_channel),
-            })?;
+            }
+        })?;
 
         loop {
             // Fetch batch from cursor
             let entries = self.fetch_batch_from_cursor(cursor).await?;
 
             if !entries.is_empty() {
-                debug!(
-                    "Processing {} entries from cursor {}",
-                    entries.len(),
-                    cursor
-                );
+                debug!("Processing {} entries from cursor {}", entries.len(), cursor);
 
                 for entry in entries {
                     // Check if already published (skip if so)
@@ -438,16 +430,15 @@ impl PostgresNatsBridge {
                             );
                             cursor = entry.pk_entity_change_log;
                             continue;
-                        }
+                        },
                     };
 
                     // Publish to NATS JetStream
                     match self.nats_transport.publish(event.clone()).await {
                         Ok(()) => {
                             // Mark as published (conditional, safe against races)
-                            let was_first = self
-                                .mark_published(entry.pk_entity_change_log, event.id)
-                                .await?;
+                            let was_first =
+                                self.mark_published(entry.pk_entity_change_log, event.id).await?;
 
                             if was_first {
                                 debug!(
@@ -463,7 +454,7 @@ impl PostgresNatsBridge {
 
                             // Advance cursor (regardless of who published)
                             cursor = entry.pk_entity_change_log;
-                        }
+                        },
                         Err(e) => {
                             error!(
                                 "Failed to publish event {} to NATS: {}. Will retry on next iteration.",
@@ -471,7 +462,7 @@ impl PostgresNatsBridge {
                             );
                             // Do NOT advance cursor - will retry this event next iteration
                             break;
-                        }
+                        },
                     }
                 }
 
@@ -521,12 +512,11 @@ impl PostgresNatsBridge {
             }
         })?;
 
-        notify_listener
-            .listen(&self.config.notify_channel)
-            .await
-            .map_err(|e| ObserverError::ListenerConnectionFailed {
+        notify_listener.listen(&self.config.notify_channel).await.map_err(|e| {
+            ObserverError::ListenerConnectionFailed {
                 reason: format!("Failed to LISTEN on {}: {e}", self.config.notify_channel),
-            })?;
+            }
+        })?;
 
         loop {
             // Check for shutdown signal
@@ -554,20 +544,19 @@ impl PostgresNatsBridge {
                             );
                             cursor = entry.pk_entity_change_log;
                             continue;
-                        }
+                        },
                     };
 
                     match self.nats_transport.publish(event.clone()).await {
                         Ok(()) => {
-                            let _ = self
-                                .mark_published(entry.pk_entity_change_log, event.id)
-                                .await?;
+                            let _ =
+                                self.mark_published(entry.pk_entity_change_log, event.id).await?;
                             cursor = entry.pk_entity_change_log;
-                        }
+                        },
                         Err(e) => {
                             error!("Failed to publish event {}: {}. Retrying.", event.id, e);
                             break;
-                        }
+                        },
                     }
                 }
 
@@ -616,18 +605,18 @@ mod tests {
 
         let entry = ChangeLogEntry {
             pk_entity_change_log: 1,
-            id: Uuid::new_v4(),
-            fk_customer_org: Some(123),
-            fk_contact: Some(456),
-            object_type: "Order".to_string(),
-            object_id: Uuid::new_v4(),
-            modification_type: "INSERT".to_string(),
-            change_status: None,
-            object_data: Some(serde_json::json!({"total": 100})),
-            extra_metadata: None,
-            created_at: Utc::now(),
-            nats_published_at: None,
-            nats_event_id: None,
+            id:                   Uuid::new_v4(),
+            fk_customer_org:      Some(123),
+            fk_contact:           Some(456),
+            object_type:          "Order".to_string(),
+            object_id:            Uuid::new_v4(),
+            modification_type:    "INSERT".to_string(),
+            change_status:        None,
+            object_data:          Some(serde_json::json!({"total": 100})),
+            extra_metadata:       None,
+            created_at:           Utc::now(),
+            nats_published_at:    None,
+            nats_event_id:        None,
         };
 
         let event = entry.to_entity_event().unwrap();
@@ -642,18 +631,18 @@ mod tests {
 
         let entry = ChangeLogEntry {
             pk_entity_change_log: 2,
-            id: Uuid::new_v4(),
-            fk_customer_org: None,
-            fk_contact: None,
-            object_type: "User".to_string(),
-            object_id: Uuid::new_v4(),
-            modification_type: "UPDATE".to_string(),
-            change_status: None,
-            object_data: None,
-            extra_metadata: None,
-            created_at: Utc::now(),
-            nats_published_at: None,
-            nats_event_id: None,
+            id:                   Uuid::new_v4(),
+            fk_customer_org:      None,
+            fk_contact:           None,
+            object_type:          "User".to_string(),
+            object_id:            Uuid::new_v4(),
+            modification_type:    "UPDATE".to_string(),
+            change_status:        None,
+            object_data:          None,
+            extra_metadata:       None,
+            created_at:           Utc::now(),
+            nats_published_at:    None,
+            nats_event_id:        None,
         };
 
         let event = entry.to_entity_event().unwrap();
@@ -666,18 +655,18 @@ mod tests {
 
         let entry = ChangeLogEntry {
             pk_entity_change_log: 3,
-            id: Uuid::new_v4(),
-            fk_customer_org: None,
-            fk_contact: None,
-            object_type: "Product".to_string(),
-            object_id: Uuid::new_v4(),
-            modification_type: "DELETE".to_string(),
-            change_status: None,
-            object_data: None,
-            extra_metadata: None,
-            created_at: Utc::now(),
-            nats_published_at: None,
-            nats_event_id: None,
+            id:                   Uuid::new_v4(),
+            fk_customer_org:      None,
+            fk_contact:           None,
+            object_type:          "Product".to_string(),
+            object_id:            Uuid::new_v4(),
+            modification_type:    "DELETE".to_string(),
+            change_status:        None,
+            object_data:          None,
+            extra_metadata:       None,
+            created_at:           Utc::now(),
+            nats_published_at:    None,
+            nats_event_id:        None,
         };
 
         let event = entry.to_entity_event().unwrap();
@@ -688,18 +677,18 @@ mod tests {
     fn test_change_log_entry_invalid_modification_type() {
         let entry = ChangeLogEntry {
             pk_entity_change_log: 4,
-            id: Uuid::new_v4(),
-            fk_customer_org: None,
-            fk_contact: None,
-            object_type: "Test".to_string(),
-            object_id: Uuid::new_v4(),
-            modification_type: "INVALID".to_string(),
-            change_status: None,
-            object_data: None,
-            extra_metadata: None,
-            created_at: Utc::now(),
-            nats_published_at: None,
-            nats_event_id: None,
+            id:                   Uuid::new_v4(),
+            fk_customer_org:      None,
+            fk_contact:           None,
+            object_type:          "Test".to_string(),
+            object_id:            Uuid::new_v4(),
+            modification_type:    "INVALID".to_string(),
+            change_status:        None,
+            object_data:          None,
+            extra_metadata:       None,
+            created_at:           Utc::now(),
+            nats_published_at:    None,
+            nats_event_id:        None,
         };
 
         let result = entry.to_entity_event();

@@ -50,8 +50,9 @@
 #[cfg(feature = "caching")]
 pub mod redis;
 
-use crate::error::Result;
 use serde::{Deserialize, Serialize};
+
+use crate::error::Result;
 
 /// Cache backend abstraction.
 ///
@@ -118,20 +119,20 @@ pub trait CacheBackend: Send + Sync + Clone {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CachedActionResult {
     /// Type of action that was executed
-    pub action_type: String,
+    pub action_type:    String,
     /// Whether the action succeeded
-    pub success: bool,
+    pub success:        bool,
     /// Status message
-    pub message: String,
+    pub message:        String,
     /// Execution time in milliseconds
-    pub duration_ms: f64,
+    pub duration_ms:    f64,
     /// When this result was cached (Unix timestamp)
     pub cached_at_unix: i64,
 }
 
 impl CachedActionResult {
     /// Create a new cached action result.
-    #[must_use] 
+    #[must_use]
     pub fn new(action_type: String, success: bool, message: String, duration_ms: f64) -> Self {
         Self {
             action_type,
@@ -148,7 +149,7 @@ impl CachedActionResult {
     /// Check if this cached result is "fresh" (low latency).
     ///
     /// Results with <10ms duration are considered fresh (likely cached).
-    #[must_use] 
+    #[must_use]
     pub fn is_fresh(&self) -> bool {
         self.duration_ms < 10.0
     }
@@ -158,29 +159,29 @@ impl CachedActionResult {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CacheStats {
     /// Total cache requests
-    pub total_requests: u64,
+    pub total_requests:      u64,
     /// Cache hits (result found and returned)
-    pub cache_hits: u64,
+    pub cache_hits:          u64,
     /// Cache misses (result not found, required execution)
-    pub cache_misses: u64,
+    pub cache_misses:        u64,
     /// Cache hit rate (0.0 - 1.0)
-    pub hit_rate: f64,
+    pub hit_rate:            f64,
     /// Average latency for cache hits (ms)
-    pub avg_hit_latency_ms: f64,
+    pub avg_hit_latency_ms:  f64,
     /// Average latency for cache misses (ms)
     pub avg_miss_latency_ms: f64,
 }
 
 impl CacheStats {
     /// Create new cache statistics.
-    #[must_use] 
+    #[must_use]
     pub const fn new() -> Self {
         Self {
-            total_requests: 0,
-            cache_hits: 0,
-            cache_misses: 0,
-            hit_rate: 0.0,
-            avg_hit_latency_ms: 0.0,
+            total_requests:      0,
+            cache_hits:          0,
+            cache_misses:        0,
+            hit_rate:            0.0,
+            avg_hit_latency_ms:  0.0,
             avg_miss_latency_ms: 0.0,
         }
     }
@@ -201,8 +202,9 @@ impl CacheStats {
                     / self.cache_hits as f64;
         } else {
             self.cache_misses += 1;
-            self.avg_miss_latency_ms = self.avg_miss_latency_ms.mul_add(self.cache_misses as f64 - 1.0, latency_ms)
-                / self.cache_misses as f64;
+            self.avg_miss_latency_ms =
+                self.avg_miss_latency_ms.mul_add(self.cache_misses as f64 - 1.0, latency_ms)
+                    / self.cache_misses as f64;
         }
 
         if self.total_requests > 0 {
@@ -233,12 +235,8 @@ mod tests {
 
     #[test]
     fn test_cached_action_result_new() {
-        let result = CachedActionResult::new(
-            "email".to_string(),
-            true,
-            "Email sent".to_string(),
-            125.5,
-        );
+        let result =
+            CachedActionResult::new("email".to_string(), true, "Email sent".to_string(), 125.5);
 
         assert_eq!(result.action_type, "email");
         assert!(result.success);
@@ -248,20 +246,12 @@ mod tests {
 
     #[test]
     fn test_cached_action_result_is_fresh() {
-        let fresh = CachedActionResult::new(
-            "cache".to_string(),
-            true,
-            "From cache".to_string(),
-            5.0,
-        );
+        let fresh =
+            CachedActionResult::new("cache".to_string(), true, "From cache".to_string(), 5.0);
         assert!(fresh.is_fresh());
 
-        let not_fresh = CachedActionResult::new(
-            "api".to_string(),
-            true,
-            "From API".to_string(),
-            100.0,
-        );
+        let not_fresh =
+            CachedActionResult::new("api".to_string(), true, "From API".to_string(), 100.0);
         assert!(!not_fresh.is_fresh());
     }
 

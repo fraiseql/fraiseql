@@ -53,16 +53,16 @@ fn test_where_equals_injection_safe() {
     // Test Eq operator with injection payloads
     for payload in INJECTION_PAYLOADS {
         let clause = WhereClause::Field {
-            path: vec!["email".to_string()],
+            path:     vec!["email".to_string()],
             operator: WhereOperator::Eq,
-            value: json!(payload),
+            value:    json!(payload),
         };
 
         // Verify structure is valid (no panic)
         match clause {
             WhereClause::Field { value, .. } => {
                 assert_eq!(value, json!(payload), "Payload should be preserved in structure");
-            }
+            },
             _ => panic!("Should be Field variant"),
         }
     }
@@ -73,15 +73,15 @@ fn test_where_contains_injection_safe() {
     // Test Contains operator (LIKE) with injection payloads
     for payload in INJECTION_PAYLOADS {
         let clause = WhereClause::Field {
-            path: vec!["comment".to_string()],
+            path:     vec!["comment".to_string()],
             operator: WhereOperator::Contains,
-            value: json!(payload),
+            value:    json!(payload),
         };
 
         match clause {
             WhereClause::Field { value, .. } => {
                 assert_eq!(value, json!(payload));
-            }
+            },
             _ => panic!("Should be Field variant"),
         }
     }
@@ -92,15 +92,15 @@ fn test_where_icontains_injection_safe() {
     // Test IContains operator (ILIKE) with injection payloads
     for payload in INJECTION_PAYLOADS {
         let clause = WhereClause::Field {
-            path: vec!["name".to_string()],
+            path:     vec!["name".to_string()],
             operator: WhereOperator::Icontains,
-            value: json!(payload),
+            value:    json!(payload),
         };
 
         match clause {
             WhereClause::Field { value, .. } => {
                 assert_eq!(value, json!(payload));
-            }
+            },
             _ => panic!("Should be Field variant"),
         }
     }
@@ -111,15 +111,15 @@ fn test_where_startswith_injection_safe() {
     // Test Startswith operator with injection payloads
     for payload in INJECTION_PAYLOADS {
         let clause = WhereClause::Field {
-            path: vec!["username".to_string()],
+            path:     vec!["username".to_string()],
             operator: WhereOperator::Startswith,
-            value: json!(payload),
+            value:    json!(payload),
         };
 
         match clause {
             WhereClause::Field { value, .. } => {
                 assert_eq!(value, json!(payload));
-            }
+            },
             _ => panic!("Should be Field variant"),
         }
     }
@@ -138,16 +138,16 @@ fn test_where_numeric_operators_injection_safe() {
     for op in numeric_operators {
         for payload in INJECTION_PAYLOADS {
             let clause = WhereClause::Field {
-                path: vec!["age".to_string()],
+                path:     vec!["age".to_string()],
                 operator: op.clone(),
-                value: json!(payload),
+                value:    json!(payload),
             };
 
             // Should accept payload without panic
             match clause {
                 WhereClause::Field { value, .. } => {
                     assert_eq!(value, json!(payload));
-                }
+                },
                 _ => panic!("Should be Field variant"),
             }
         }
@@ -176,7 +176,7 @@ fn test_where_injection_in_nested_path() {
                 // Path should be preserved exactly as-is
                 // SQL generation layer will handle escaping
                 assert!(!p.is_empty());
-            }
+            },
             _ => panic!("Should be Field variant"),
         }
     }
@@ -187,14 +187,14 @@ fn test_where_injection_in_complex_and_or() {
     // Test injection in compound WHERE clauses
     let clause = WhereClause::And(vec![
         WhereClause::Field {
-            path: vec!["email".to_string()],
+            path:     vec!["email".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("'; DROP TABLE users; --"),
+            value:    json!("'; DROP TABLE users; --"),
         },
         WhereClause::Field {
-            path: vec!["status".to_string()],
+            path:     vec!["status".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("' OR '1'='1"),
+            value:    json!("' OR '1'='1"),
         },
     ]);
 
@@ -202,7 +202,7 @@ fn test_where_injection_in_complex_and_or() {
     match clause {
         WhereClause::And(clauses) => {
             assert_eq!(clauses.len(), 2);
-        }
+        },
         _ => panic!("Should be And variant"),
     }
 }
@@ -211,15 +211,15 @@ fn test_where_injection_in_complex_and_or() {
 fn test_where_injection_null_byte() {
     // Test null byte injection (common in some databases)
     let clause = WhereClause::Field {
-        path: vec!["data".to_string()],
+        path:     vec!["data".to_string()],
         operator: WhereOperator::Eq,
-        value: json!("test\0attack"),
+        value:    json!("test\0attack"),
     };
 
     match clause {
         WhereClause::Field { value, .. } => {
             assert_eq!(value, json!("test\0attack"));
-        }
+        },
         _ => panic!("Should be Field variant"),
     }
 }
@@ -228,23 +228,23 @@ fn test_where_injection_null_byte() {
 fn test_where_injection_unicode_quotes() {
     // Test Unicode quote characters that might bypass basic escaping
     let unicode_payloads = vec![
-        "'\u{2019}",  // Right single quotation mark
-        "'\u{201C}",  // Left double quotation mark
-        "\u{FB02}",   // Ligature fi
+        "'\u{2019}", // Right single quotation mark
+        "'\u{201C}", // Left double quotation mark
+        "\u{FB02}",  // Ligature fi
     ];
 
     for payload in unicode_payloads {
         let clause = WhereClause::Field {
-            path: vec!["text".to_string()],
+            path:     vec!["text".to_string()],
             operator: WhereOperator::Contains,
-            value: json!(payload),
+            value:    json!(payload),
         };
 
         match clause {
             WhereClause::Field { value, .. } => {
                 // Should preserve Unicode safely
                 assert_eq!(value.as_str(), Some(payload));
-            }
+            },
             _ => panic!("Should be Field variant"),
         }
     }
@@ -256,15 +256,15 @@ fn test_where_injection_long_payload() {
     let long_payload = "x".repeat(10000) + "' OR '1'='1";
 
     let clause = WhereClause::Field {
-        path: vec!["comment".to_string()],
+        path:     vec!["comment".to_string()],
         operator: WhereOperator::Contains,
-        value: json!(long_payload),
+        value:    json!(long_payload),
     };
 
     match clause {
         WhereClause::Field { value, .. } => {
             assert_eq!(value.as_str(), Some(long_payload.as_str()));
-        }
+        },
         _ => panic!("Should be Field variant"),
     }
 }
@@ -274,21 +274,21 @@ fn test_where_injection_encoded_payloads() {
     // Test URL-encoded and hex-encoded payloads
     let encoded_payloads = vec![
         "%27%20OR%20%271%27%3D%271",  // URL encoded: ' OR '1'='1
-        "0x27 OR 0x31=0x31",           // Hex encoded
-        "0x3c7375622066696c653d7e20",  // Hex encoded
+        "0x27 OR 0x31=0x31",          // Hex encoded
+        "0x3c7375622066696c653d7e20", // Hex encoded
     ];
 
     for payload in encoded_payloads {
         let clause = WhereClause::Field {
-            path: vec!["data".to_string()],
+            path:     vec!["data".to_string()],
             operator: WhereOperator::Eq,
-            value: json!(payload),
+            value:    json!(payload),
         };
 
         match clause {
             WhereClause::Field { value, .. } => {
                 assert_eq!(value, json!(payload));
-            }
+            },
             _ => panic!("Should be Field variant"),
         }
     }
@@ -305,15 +305,15 @@ fn test_where_injection_backslash_escaping() {
 
     for payload in backslash_payloads {
         let clause = WhereClause::Field {
-            path: vec!["user".to_string()],
+            path:     vec!["user".to_string()],
             operator: WhereOperator::Eq,
-            value: json!(payload),
+            value:    json!(payload),
         };
 
         match clause {
             WhereClause::Field { value, .. } => {
                 assert_eq!(value, json!(payload));
-            }
+            },
             _ => panic!("Should be Field variant"),
         }
     }
@@ -323,23 +323,23 @@ fn test_where_injection_backslash_escaping() {
 fn test_where_injection_comment_techniques() {
     // Test SQL comment techniques used in injection
     let comment_payloads = vec![
-        "'; --",             // SQL comment
-        "'; #",              // MySQL comment
-        "'; /**/",           // Multi-line comment
-        "1' /*! UNION SELECT 1 */",  // MySQL conditional comment
+        "'; --",                    // SQL comment
+        "'; #",                     // MySQL comment
+        "'; /**/",                  // Multi-line comment
+        "1' /*! UNION SELECT 1 */", // MySQL conditional comment
     ];
 
     for payload in comment_payloads {
         let clause = WhereClause::Field {
-            path: vec!["id".to_string()],
+            path:     vec!["id".to_string()],
             operator: WhereOperator::Eq,
-            value: json!(payload),
+            value:    json!(payload),
         };
 
         match clause {
             WhereClause::Field { value, .. } => {
                 assert_eq!(value, json!(payload));
-            }
+            },
             _ => panic!("Should be Field variant"),
         }
     }
@@ -368,16 +368,16 @@ fn test_where_injection_all_operators() {
 
     for op in operators {
         let clause = WhereClause::Field {
-            path: vec!["field".to_string()],
+            path:     vec!["field".to_string()],
             operator: op.clone(),
-            value: json!("'; DROP TABLE users; --"),
+            value:    json!("'; DROP TABLE users; --"),
         };
 
         // Should not panic for any operator
         match clause {
             WhereClause::Field { .. } => {
                 // Success - operator accepts payload
-            }
+            },
             _ => panic!("Should be Field variant"),
         }
     }
@@ -390,9 +390,9 @@ fn test_where_injection_boolean_operators() {
         WhereClause::And(vec![]),
         WhereClause::Or(vec![]),
         WhereClause::Not(Box::new(WhereClause::Field {
-            path: vec!["test".to_string()],
+            path:     vec!["test".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("'; DROP TABLE;"),
+            value:    json!("'; DROP TABLE;"),
         })),
     ];
 
@@ -401,7 +401,7 @@ fn test_where_injection_boolean_operators() {
         match clause {
             WhereClause::And(_) | WhereClause::Or(_) | WhereClause::Not(_) => {
                 // Success
-            }
+            },
             _ => panic!("Unexpected variant"),
         }
     }
@@ -431,16 +431,16 @@ fn test_where_injection_real_world_examples() {
 
     for payload in real_world_payloads {
         let clause = WhereClause::Field {
-            path: vec!["vulnerable_field".to_string()],
+            path:     vec!["vulnerable_field".to_string()],
             operator: WhereOperator::Eq,
-            value: json!(payload),
+            value:    json!(payload),
         };
 
         // Should create valid structure without panicking
         match clause {
             WhereClause::Field { value, .. } => {
                 assert_eq!(value, json!(payload));
-            }
+            },
             _ => panic!("Should be Field variant"),
         }
     }

@@ -7,9 +7,10 @@
 //! - Error tracking
 //! - Performance statistics
 
-use serde::{Deserialize, Serialize};
 use std::time::Instant;
-use tracing::{debug, span, warn, Level};
+
+use serde::{Deserialize, Serialize};
+use tracing::{Level, debug, span, warn};
 
 /// SQL query log entry with execution details.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -93,10 +94,10 @@ impl std::fmt::Display for SqlOperation {
 
 /// Builder for creating SQL query logs.
 pub struct SqlQueryLogBuilder {
-    query_id: String,
-    sql: String,
-    param_count: usize,
-    start: Instant,
+    query_id:          String,
+    sql:               String,
+    param_count:       usize,
+    start:             Instant,
     slow_threshold_us: Option<u64>,
 }
 
@@ -243,17 +244,14 @@ pub fn create_sql_span(query_id: &str, operation: SqlOperation) -> tracing::Span
 
 #[cfg(test)]
 mod tests {
+    use std::{thread, time::Duration};
+
     use super::*;
-    use std::thread;
-    use std::time::Duration;
 
     #[test]
     fn test_sql_operation_detection() {
         assert_eq!(SqlOperation::from_sql("SELECT * FROM users"), SqlOperation::Select);
-        assert_eq!(
-            SqlOperation::from_sql("  select id from users"),
-            SqlOperation::Select
-        );
+        assert_eq!(SqlOperation::from_sql("  select id from users"), SqlOperation::Select);
         assert_eq!(SqlOperation::from_sql("INSERT INTO users VALUES (1)"), SqlOperation::Insert);
         assert_eq!(SqlOperation::from_sql("UPDATE users SET id=1"), SqlOperation::Update);
         assert_eq!(SqlOperation::from_sql("DELETE FROM users"), SqlOperation::Delete);
@@ -304,8 +302,8 @@ mod tests {
 
     #[test]
     fn test_slow_query_detection() {
-        let builder = SqlQueryLogBuilder::new("query_1", "SELECT * FROM users", 0)
-            .with_slow_threshold(100);
+        let builder =
+            SqlQueryLogBuilder::new("query_1", "SELECT * FROM users", 0).with_slow_threshold(100);
 
         let log = builder.finish_success(Some(5));
 
@@ -315,8 +313,8 @@ mod tests {
 
     #[test]
     fn test_slow_query_warning() {
-        let builder = SqlQueryLogBuilder::new("query_1", "SELECT * FROM users", 0)
-            .with_slow_threshold(1);
+        let builder =
+            SqlQueryLogBuilder::new("query_1", "SELECT * FROM users", 0).with_slow_threshold(1);
 
         // Simulate slow query by sleeping
         thread::sleep(Duration::from_micros(100));
@@ -393,7 +391,8 @@ mod tests {
 
     #[test]
     fn test_param_count() {
-        let builder = SqlQueryLogBuilder::new("query_1", "SELECT * FROM users WHERE id = ? AND name = ?", 2);
+        let builder =
+            SqlQueryLogBuilder::new("query_1", "SELECT * FROM users WHERE id = ? AND name = ?", 2);
         let log = builder.finish_success(Some(1));
 
         assert_eq!(log.param_count, 2);

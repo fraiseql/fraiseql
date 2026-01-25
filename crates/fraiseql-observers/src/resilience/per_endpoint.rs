@@ -3,21 +3,23 @@
 //! Manages separate circuit breakers for each external endpoint,
 //! providing isolation and independent failure handling.
 
+use std::sync::Arc;
+
+use dashmap::DashMap;
+
 use super::{CircuitBreaker, CircuitBreakerConfig, CircuitState};
 use crate::error::Result;
-use dashmap::DashMap;
-use std::sync::Arc;
 
 /// Manages circuit breakers per endpoint
 #[derive(Clone)]
 pub struct PerEndpointCircuitBreaker {
-    breakers: Arc<DashMap<String, Arc<CircuitBreaker>>>,
+    breakers:       Arc<DashMap<String, Arc<CircuitBreaker>>>,
     default_config: CircuitBreakerConfig,
 }
 
 impl PerEndpointCircuitBreaker {
     /// Create a new per-endpoint breaker manager
-    #[must_use] 
+    #[must_use]
     pub fn new(default_config: CircuitBreakerConfig) -> Self {
         Self {
             breakers: Arc::new(DashMap::new()),
@@ -26,7 +28,7 @@ impl PerEndpointCircuitBreaker {
     }
 
     /// Get or create a circuit breaker for an endpoint
-    #[must_use] 
+    #[must_use]
     pub fn get_or_create(&self, endpoint: &str) -> Arc<CircuitBreaker> {
         self.breakers
             .entry(endpoint.to_string())
@@ -66,7 +68,7 @@ impl PerEndpointCircuitBreaker {
     }
 
     /// Get number of managed endpoints
-    #[must_use] 
+    #[must_use]
     pub fn endpoint_count(&self) -> usize {
         self.breakers.len()
     }
@@ -88,9 +90,9 @@ mod tests {
     #[tokio::test]
     async fn test_per_endpoint_independent_breakers() {
         let config = CircuitBreakerConfig {
-            failure_threshold: 0.1,
-            sample_size: 2,
-            open_timeout_ms: 1000,
+            failure_threshold:      0.1,
+            sample_size:            2,
+            open_timeout_ms:        1000,
             half_open_max_requests: 3,
         };
         let manager = PerEndpointCircuitBreaker::new(config);

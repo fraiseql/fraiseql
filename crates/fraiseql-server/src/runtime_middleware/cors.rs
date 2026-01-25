@@ -1,11 +1,12 @@
 //! CORS middleware configuration and builder.
 
-use axum::http::{HeaderName, Method};
 use std::str::FromStr;
+
+use axum::http::{HeaderName, Method};
+use fraiseql_error::ConfigError;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 
 use crate::config::cors::CorsConfig;
-use fraiseql_error::ConfigError;
 
 /// Build CORS layer from configuration
 ///
@@ -19,7 +20,7 @@ pub fn build_cors_layer(config: &CorsConfig) -> Result<CorsLayer, ConfigError> {
     if config.origins.len() == 1 && config.origins[0] == "*" {
         if config.credentials {
             return Err(ConfigError::ValidationError {
-                field: "cors".to_string(),
+                field:   "cors".to_string(),
                 message: "Cannot use wildcard origin with credentials=true".to_string(),
             });
         }
@@ -39,25 +40,19 @@ pub fn build_cors_layer(config: &CorsConfig) -> Result<CorsLayer, ConfigError> {
     }
 
     // Methods
-    let methods: Vec<Method> = config
-        .methods
-        .iter()
-        .filter_map(|m| Method::from_str(m).ok())
-        .collect();
+    let methods: Vec<Method> =
+        config.methods.iter().filter_map(|m| Method::from_str(m).ok()).collect();
     if methods.is_empty() {
         return Err(ConfigError::ValidationError {
-            field: "cors.methods".to_string(),
+            field:   "cors.methods".to_string(),
             message: "At least one valid HTTP method is required".to_string(),
         });
     }
     layer = layer.allow_methods(methods);
 
     // Headers
-    let headers: Vec<HeaderName> = config
-        .headers
-        .iter()
-        .filter_map(|h| HeaderName::from_str(h).ok())
-        .collect();
+    let headers: Vec<HeaderName> =
+        config.headers.iter().filter_map(|h| HeaderName::from_str(h).ok()).collect();
     layer = layer.allow_headers(headers);
 
     // Credentials
@@ -89,8 +84,8 @@ pub fn build_cors_layer(config: &CorsConfig) -> Result<CorsLayer, ConfigError> {
 /// Simple wildcard pattern matcher
 #[derive(Clone)]
 struct WildcardPattern {
-    prefix: String,
-    suffix: String,
+    prefix:       String,
+    suffix:       String,
     has_wildcard: bool,
 }
 
@@ -98,14 +93,14 @@ impl WildcardPattern {
     fn new(pattern: &str) -> Self {
         if let Some(idx) = pattern.find('*') {
             Self {
-                prefix: pattern[..idx].to_string(),
-                suffix: pattern[idx + 1..].to_string(),
+                prefix:       pattern[..idx].to_string(),
+                suffix:       pattern[idx + 1..].to_string(),
                 has_wildcard: true,
             }
         } else {
             Self {
-                prefix: pattern.to_string(),
-                suffix: String::new(),
+                prefix:       pattern.to_string(),
+                suffix:       String::new(),
                 has_wildcard: false,
             }
         }

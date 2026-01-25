@@ -23,9 +23,9 @@ pub struct TracingConfig {
 impl Default for TracingConfig {
     fn default() -> Self {
         Self {
-            enabled: default_enabled(),
-            level: default_level(),
-            format: default_format(),
+            enabled:      default_enabled(),
+            level:        default_level(),
+            format:       default_format(),
             service_name: default_service_name(),
         }
     }

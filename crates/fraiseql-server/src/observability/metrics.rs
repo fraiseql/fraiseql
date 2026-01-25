@@ -1,8 +1,9 @@
 //! Metrics collection with SLO tracking.
 
-use axum::{extract::Request, middleware::Next, response::Response};
 use std::time::Instant;
 
+use axum::{extract::Request, middleware::Next, response::Response};
+use fraiseql_error::RuntimeError;
 #[cfg(feature = "metrics")]
 use metrics::{counter, describe_counter, describe_gauge, describe_histogram, gauge, histogram};
 #[cfg(feature = "metrics")]
@@ -11,7 +12,6 @@ use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
 use crate::config::metrics::MetricsConfig;
 #[cfg(feature = "metrics")]
 use crate::config::metrics::SloConfig;
-use fraiseql_error::RuntimeError;
 
 /// Initialize metrics exporter with SLO buckets
 ///
@@ -31,12 +31,12 @@ pub fn init_metrics(config: &MetricsConfig) -> Result<PrometheusHandle, RuntimeE
         .set_buckets(&slo_buckets)
         .map_err(|e| RuntimeError::Internal {
             message: format!("Failed to configure metric buckets: {e}"),
-            source: None,
+            source:  None,
         })?
         .install_recorder()
         .map_err(|e| RuntimeError::Internal {
             message: format!("Failed to install metrics: {e}"),
-            source: None,
+            source:  None,
         })?;
 
     // Register standard metrics with descriptions
@@ -57,16 +57,10 @@ pub fn init_metrics(_config: &MetricsConfig) -> Result<(), RuntimeError> {
 fn describe_metrics() {
     // HTTP metrics
     describe_counter!("http_requests_total", "Total number of HTTP requests");
-    describe_histogram!(
-        "http_request_duration_seconds",
-        "HTTP request duration in seconds"
-    );
+    describe_histogram!("http_request_duration_seconds", "HTTP request duration in seconds");
 
     // GraphQL metrics
-    describe_counter!(
-        "graphql_operations_total",
-        "Total number of GraphQL operations"
-    );
+    describe_counter!("graphql_operations_total", "Total number of GraphQL operations");
     describe_histogram!(
         "graphql_operation_duration_seconds",
         "GraphQL operation duration in seconds"
@@ -74,79 +68,43 @@ fn describe_metrics() {
     describe_counter!("graphql_errors_total", "Total number of GraphQL errors");
 
     // Webhook metrics
-    describe_counter!(
-        "webhook_events_total",
-        "Total number of webhook events received"
-    );
+    describe_counter!("webhook_events_total", "Total number of webhook events received");
     describe_histogram!(
         "webhook_processing_duration_seconds",
         "Webhook processing duration in seconds"
     );
 
     // Auth metrics
-    describe_counter!(
-        "auth_operations_total",
-        "Total number of authentication operations"
-    );
+    describe_counter!("auth_operations_total", "Total number of authentication operations");
     describe_histogram!(
         "auth_operation_duration_seconds",
         "Authentication operation duration in seconds"
     );
 
     // File metrics
-    describe_counter!(
-        "file_operations_total",
-        "Total number of file operations"
-    );
-    describe_histogram!(
-        "file_upload_duration_seconds",
-        "File upload duration in seconds"
-    );
+    describe_counter!("file_operations_total", "Total number of file operations");
+    describe_histogram!("file_upload_duration_seconds", "File upload duration in seconds");
     describe_histogram!("file_size_bytes", "File size in bytes");
 
     // Notification metrics
-    describe_counter!(
-        "notifications_total",
-        "Total number of notifications sent"
-    );
-    describe_histogram!(
-        "notification_duration_seconds",
-        "Notification send duration in seconds"
-    );
+    describe_counter!("notifications_total", "Total number of notifications sent");
+    describe_histogram!("notification_duration_seconds", "Notification send duration in seconds");
 
     // Observer metrics
-    describe_counter!(
-        "observer_events_total",
-        "Total number of observer events processed"
-    );
-    describe_histogram!(
-        "observer_action_duration_seconds",
-        "Observer action duration in seconds"
-    );
+    describe_counter!("observer_events_total", "Total number of observer events processed");
+    describe_histogram!("observer_action_duration_seconds", "Observer action duration in seconds");
 
     // Database metrics
-    describe_gauge!(
-        "db_pool_connections_active",
-        "Number of active database connections"
-    );
-    describe_gauge!(
-        "db_pool_connections_idle",
-        "Number of idle database connections"
-    );
-    describe_histogram!(
-        "db_query_duration_seconds",
-        "Database query duration in seconds"
-    );
+    describe_gauge!("db_pool_connections_active", "Number of active database connections");
+    describe_gauge!("db_pool_connections_idle", "Number of idle database connections");
+    describe_histogram!("db_query_duration_seconds", "Database query duration in seconds");
 
     // Rate limiting metrics
     describe_counter!("rate_limit_requests_total", "Total rate limit decisions");
     describe_gauge!("rate_limit_queue_depth", "Current rate limit queue depth");
 
     // Circuit breaker metrics
-    describe_counter!(
-        "circuit_breaker_state_changes_total",
-        "Circuit breaker state changes"
-    );
+    describe_counter!("circuit_breaker_state_changes_total", "Circuit breaker state changes");
     describe_gauge!(
         "circuit_breaker_state",
         "Current circuit breaker state (0=closed, 1=open, 2=half-open)"
@@ -156,18 +114,9 @@ fn describe_metrics() {
 #[cfg(feature = "metrics")]
 fn init_slo_metrics(config: &SloConfig) {
     // SLO compliance metrics
-    describe_gauge!(
-        "slo_latency_target_seconds",
-        "SLO latency target in seconds"
-    );
-    describe_counter!(
-        "slo_latency_violations_total",
-        "Total SLO latency violations"
-    );
-    describe_gauge!(
-        "slo_error_budget_remaining",
-        "Remaining SLO error budget (0-1)"
-    );
+    describe_gauge!("slo_latency_target_seconds", "SLO latency target in seconds");
+    describe_counter!("slo_latency_violations_total", "Total SLO latency violations");
+    describe_gauge!("slo_error_budget_remaining", "Remaining SLO error budget (0-1)");
 
     // Set initial targets
     #[allow(clippy::cast_precision_loss)]
@@ -270,9 +219,9 @@ fn is_uuid(s: &str) -> bool {
 /// ```
 #[allow(dead_code)] // Public API for library consumers, not used internally
 pub struct OperationMetrics {
-    component: &'static str,
-    operation: String,
-    start: Instant,
+    component:     &'static str,
+    operation:     String,
+    start:         Instant,
     slo_target_ms: u64,
 }
 
@@ -350,14 +299,8 @@ mod tests {
     #[test]
     fn test_normalize_path() {
         assert_eq!(normalize_path("/users/123"), "/users/:id");
-        assert_eq!(
-            normalize_path("/files/550e8400-e29b-41d4-a716-446655440000"),
-            "/files/:id"
-        );
-        assert_eq!(
-            normalize_path("/api/v1/users/123/posts/456"),
-            "/api/v1/users/:id/posts/:id"
-        );
+        assert_eq!(normalize_path("/files/550e8400-e29b-41d4-a716-446655440000"), "/files/:id");
+        assert_eq!(normalize_path("/api/v1/users/123/posts/456"), "/api/v1/users/:id/posts/:id");
     }
 
     #[test]

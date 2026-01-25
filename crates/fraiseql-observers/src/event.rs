@@ -24,7 +24,7 @@ pub enum EventKind {
 
 impl EventKind {
     /// Convert to string representation
-    #[must_use] 
+    #[must_use]
     pub const fn as_str(&self) -> &'static str {
         match self {
             EventKind::Created => "INSERT",
@@ -48,26 +48,26 @@ pub struct FieldChanges {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EntityEvent {
     /// Unique event identifier
-    pub id: Uuid,
+    pub id:          Uuid,
     /// Type of event (INSERT, UPDATE, DELETE, CUSTOM)
-    pub event_type: EventKind,
+    pub event_type:  EventKind,
     /// Entity type name (e.g., "Order", "User", "Product")
     pub entity_type: String,
     /// Entity instance ID
-    pub entity_id: Uuid,
+    pub entity_id:   Uuid,
     /// Current entity data
-    pub data: serde_json::Value,
+    pub data:        serde_json::Value,
     /// Field changes (for UPDATE events)
-    pub changes: Option<std::collections::HashMap<String, FieldChanges>>,
+    pub changes:     Option<std::collections::HashMap<String, FieldChanges>>,
     /// User ID from auth context (if available)
-    pub user_id: Option<String>,
+    pub user_id:     Option<String>,
     /// When the event occurred
-    pub timestamp: DateTime<Utc>,
+    pub timestamp:   DateTime<Utc>,
 }
 
 impl EntityEvent {
     /// Create a new entity event
-    #[must_use] 
+    #[must_use]
     pub fn new(
         event_type: EventKind,
         entity_type: String,
@@ -87,14 +87,14 @@ impl EntityEvent {
     }
 
     /// Set the `user_id` for this event
-    #[must_use] 
+    #[must_use]
     pub fn with_user_id(mut self, user_id: String) -> Self {
         self.user_id = Some(user_id);
         self
     }
 
     /// Set field changes for UPDATE events
-    #[must_use] 
+    #[must_use]
     pub fn with_changes(
         mut self,
         changes: std::collections::HashMap<String, FieldChanges>,
@@ -104,15 +104,13 @@ impl EntityEvent {
     }
 
     /// Check if a field changed value
-    #[must_use] 
+    #[must_use]
     pub fn field_changed(&self, field_name: &str) -> bool {
-        self.changes
-            .as_ref()
-            .is_some_and(|changes| changes.contains_key(field_name))
+        self.changes.as_ref().is_some_and(|changes| changes.contains_key(field_name))
     }
 
     /// Check if a field changed to a specific value
-    #[must_use] 
+    #[must_use]
     pub fn field_changed_to(&self, field_name: &str, expected_value: &serde_json::Value) -> bool {
         self.changes
             .as_ref()
@@ -121,12 +119,8 @@ impl EntityEvent {
     }
 
     /// Check if a field changed from a specific value
-    #[must_use] 
-    pub fn field_changed_from(
-        &self,
-        field_name: &str,
-        expected_value: &serde_json::Value,
-    ) -> bool {
+    #[must_use]
+    pub fn field_changed_from(&self, field_name: &str, expected_value: &serde_json::Value) -> bool {
         self.changes
             .as_ref()
             .and_then(|changes| changes.get(field_name))
@@ -134,13 +128,13 @@ impl EntityEvent {
     }
 
     /// Check if this is a new entity (no old value for any field)
-    #[must_use] 
+    #[must_use]
     pub fn is_new(&self) -> bool {
         self.event_type == EventKind::Created
     }
 
     /// Check if this is a delete event
-    #[must_use] 
+    #[must_use]
     pub fn is_deleted(&self) -> bool {
         self.event_type == EventKind::Deleted
     }
@@ -148,8 +142,9 @@ impl EntityEvent {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serde_json::json;
+
+    use super::*;
 
     #[test]
     fn test_event_kind_as_str() {
@@ -177,13 +172,9 @@ mod tests {
 
     #[test]
     fn test_entity_event_with_user_id() {
-        let event = EntityEvent::new(
-            EventKind::Created,
-            "Order".to_string(),
-            Uuid::new_v4(),
-            json!({}),
-        )
-        .with_user_id("user123".to_string());
+        let event =
+            EntityEvent::new(EventKind::Created, "Order".to_string(), Uuid::new_v4(), json!({}))
+                .with_user_id("user123".to_string());
 
         assert_eq!(event.user_id, Some("user123".to_string()));
     }
@@ -216,12 +207,8 @@ mod tests {
 
     #[test]
     fn test_delete_event() {
-        let event = EntityEvent::new(
-            EventKind::Deleted,
-            "Order".to_string(),
-            Uuid::new_v4(),
-            json!({}),
-        );
+        let event =
+            EntityEvent::new(EventKind::Deleted, "Order".to_string(), Uuid::new_v4(), json!({}));
 
         assert!(event.is_deleted());
         assert!(!event.is_new());

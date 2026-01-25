@@ -38,8 +38,9 @@
 #[cfg(feature = "dedup")]
 pub mod redis;
 
-use crate::error::Result;
 use serde::{Deserialize, Serialize};
+
+use crate::error::Result;
 
 /// Deduplication store abstraction.
 ///
@@ -103,24 +104,24 @@ pub trait DeduplicationStore: Send + Sync + Clone {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeduplicationStats {
     /// Total events checked
-    pub total_checked: u64,
+    pub total_checked:      u64,
     /// Events marked as duplicates
     pub duplicates_skipped: u64,
     /// New events processed
-    pub new_events: u64,
+    pub new_events:         u64,
     /// Deduplication hit rate (0.0 - 1.0)
-    pub hit_rate: f64,
+    pub hit_rate:           f64,
 }
 
 impl DeduplicationStats {
     /// Create new deduplication statistics.
-    #[must_use] 
+    #[must_use]
     pub const fn new() -> Self {
         Self {
-            total_checked: 0,
+            total_checked:      0,
             duplicates_skipped: 0,
-            new_events: 0,
-            hit_rate: 0.0,
+            new_events:         0,
+            hit_rate:           0.0,
         }
     }
 

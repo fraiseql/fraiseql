@@ -6,7 +6,7 @@
 pub mod correlation;
 pub mod structured;
 
-pub use correlation::{TraceIdExtractor, set_trace_id_context, get_current_trace_id};
+pub use correlation::{TraceIdExtractor, get_current_trace_id, set_trace_id_context};
 pub use structured::StructuredLogger;
 
 #[cfg(test)]

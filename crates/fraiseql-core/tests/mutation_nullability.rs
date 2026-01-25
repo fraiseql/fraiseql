@@ -72,16 +72,16 @@ fn test_mutation_array_return_type_nullable_items() {
 fn test_mutation_scalar_return_types_nullability() {
     // Various scalar return types with nullability
     let scalar_types = vec![
-        ("String!", true),   // non-nullable string
-        ("String", false),   // nullable string
-        ("Int!", true),      // non-nullable int
-        ("Int", false),      // nullable int
-        ("Boolean!", true),  // non-nullable boolean
-        ("Boolean", false),  // nullable boolean
-        ("Float!", true),    // non-nullable float
-        ("Float", false),    // nullable float
-        ("ID!", true),       // non-nullable ID
-        ("ID", false),       // nullable ID
+        ("String!", true),  // non-nullable string
+        ("String", false),  // nullable string
+        ("Int!", true),     // non-nullable int
+        ("Int", false),     // nullable int
+        ("Boolean!", true), // non-nullable boolean
+        ("Boolean", false), // nullable boolean
+        ("Float!", true),   // non-nullable float
+        ("Float", false),   // nullable float
+        ("ID!", true),      // non-nullable ID
+        ("ID", false),      // nullable ID
     ];
 
     for (type_str, should_be_non_nullable) in scalar_types {
@@ -93,8 +93,11 @@ fn test_mutation_scalar_return_types_nullability() {
         let ret_type = mutation["return_type"].as_str().unwrap();
         let is_non_nullable = ret_type.ends_with("!");
 
-        assert_eq!(is_non_nullable, should_be_non_nullable,
-                   "Type {} should have non_nullable={}", type_str, should_be_non_nullable);
+        assert_eq!(
+            is_non_nullable, should_be_non_nullable,
+            "Type {} should have non_nullable={}",
+            type_str, should_be_non_nullable
+        );
     }
 }
 
@@ -119,8 +122,11 @@ fn test_mutation_custom_type_return_nullability() {
         let ret_type = mutation["return_type"].as_str().unwrap();
         let is_non_nullable = ret_type.ends_with("!");
 
-        assert_eq!(is_non_nullable, should_be_non_nullable,
-                   "Custom type {} should have non_nullable={}", type_str, should_be_non_nullable);
+        assert_eq!(
+            is_non_nullable, should_be_non_nullable,
+            "Custom type {} should have non_nullable={}",
+            type_str, should_be_non_nullable
+        );
     }
 }
 
@@ -193,10 +199,10 @@ fn test_mutation_nullability_with_input_args() {
 fn test_mutation_list_return_nullability_combinations() {
     // All valid combinations of list nullability
     let combinations = vec![
-        "[Type]",      // nullable list of nullable items
-        "[Type!]",     // nullable list of non-nullable items
-        "[Type]!",     // non-nullable list of nullable items
-        "[Type!]!",    // non-nullable list of non-nullable items
+        "[Type]",   // nullable list of nullable items
+        "[Type!]",  // nullable list of non-nullable items
+        "[Type]!",  // non-nullable list of nullable items
+        "[Type!]!", // non-nullable list of non-nullable items
     ];
 
     for type_str in combinations {
@@ -232,4 +238,3 @@ fn test_mutation_return_type_distinctions() {
     assert_eq!(user_list_non_nullable["return_type"], json!("[User]!"));
     assert_eq!(user_list_nullable["return_type"], json!("[User]"));
 }
-

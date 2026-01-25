@@ -6,16 +6,20 @@
 //! - Automatic reconnection with exponential backoff
 //! - Subject-based routing: `entity.change.{entity_type}.{operation}`
 
+use std::{sync::Arc, time::Duration};
+
 #[cfg(feature = "nats")]
 use async_nats::jetstream;
 use async_trait::async_trait;
 use futures::stream::StreamExt;
-use std::sync::Arc;
-use std::time::Duration;
 
-use crate::error::{ObserverError, Result};
-use crate::event::EntityEvent;
-use crate::transport::{EventFilter, EventStream, EventTransport, HealthStatus, TransportHealth, TransportType};
+use crate::{
+    error::{ObserverError, Result},
+    event::EntityEvent,
+    transport::{
+        EventFilter, EventStream, EventTransport, HealthStatus, TransportHealth, TransportType,
+    },
+};
 
 /// Configuration for NATS `JetStream` transport.
 #[derive(Debug, Clone)]
@@ -51,15 +55,15 @@ pub struct NatsConfig {
 impl Default for NatsConfig {
     fn default() -> Self {
         Self {
-            url: "nats://localhost:4222".to_string(),
-            stream_name: "fraiseql.entity_changes".to_string(),
-            consumer_name: "observer-default".to_string(),
-            subject_prefix: "entity.change".to_string(),
+            url:                    "nats://localhost:4222".to_string(),
+            stream_name:            "fraiseql.entity_changes".to_string(),
+            consumer_name:          "observer-default".to_string(),
+            subject_prefix:         "entity.change".to_string(),
             max_reconnect_attempts: 5,
-            reconnect_delay_ms: 1000,
-            ack_wait_secs: 30,
+            reconnect_delay_ms:     1000,
+            ack_wait_secs:          30,
             retention_max_messages: 1_000_000,
-            retention_max_bytes: 1_073_741_824, // 1 GB
+            retention_max_bytes:    1_073_741_824, // 1 GB
         }
     }
 }
@@ -102,9 +106,9 @@ impl Default for NatsConfig {
 /// ```
 #[cfg(feature = "nats")]
 pub struct NatsTransport {
-    client: Arc<async_nats::Client>,
+    client:    Arc<async_nats::Client>,
     jetstream: Arc<jetstream::Context>,
-    config: NatsConfig,
+    config:    NatsConfig,
 }
 
 #[cfg(feature = "nats")]
@@ -121,13 +125,11 @@ impl NatsTransport {
     /// Returns `TransportConnectionError` if connection fails.
     pub async fn new(config: NatsConfig) -> Result<Self> {
         // Connect to NATS server
-        let client = async_nats::connect(&config.url)
-            .await
-            .map_err(|e| {
-                ObserverError::TransportConnectionFailed {
-                    reason: format!("Failed to connect to NATS server: {e}"),
-                }
-            })?;
+        let client = async_nats::connect(&config.url).await.map_err(|e| {
+            ObserverError::TransportConnectionFailed {
+                reason: format!("Failed to connect to NATS server: {e}"),
+            }
+        })?;
 
         // Create JetStream context
         let jetstream = jetstream::new(client.clone());
@@ -149,10 +151,7 @@ impl NatsTransport {
     /// - **Subjects**: `{subject_prefix}.>`
     /// - **Retention**: Limits-based (max messages or max bytes)
     /// - **Discard policy**: Old messages when limits reached
-    async fn ensure_stream(
-        jetstream: &jetstream::Context,
-        config: &NatsConfig,
-    ) -> Result<()> {
+    async fn ensure_stream(jetstream: &jetstream::Context, config: &NatsConfig) -> Result<()> {
         let subjects = vec![format!("{}.>", config.subject_prefix)];
 
         // Try to get existing stream, create if it doesn't exist
@@ -167,10 +166,8 @@ impl NatsTransport {
                     ..Default::default()
                 })
                 .await
-                .map_err(|e| {
-                    ObserverError::TransportConnectionFailed {
-                        reason: format!("Failed to create JetStream stream: {e}"),
-                    }
+                .map_err(|e| ObserverError::TransportConnectionFailed {
+                    reason: format!("Failed to create JetStream stream: {e}"),
                 })?;
         }
 
@@ -186,12 +183,9 @@ impl NatsTransport {
         let payload = msg.payload.clone();
 
         // Deserialize EntityEvent from JSON
-        serde_json::from_slice(&payload)
-            .map_err(|e| {
-                ObserverError::TransportSubscribeFailed {
-                    reason: format!("Failed to deserialize EntityEvent: {e}"),
-                }
-            })
+        serde_json::from_slice(&payload).map_err(|e| ObserverError::TransportSubscribeFailed {
+            reason: format!("Failed to deserialize EntityEvent: {e}"),
+        })
     }
 
     /// Build subject filter from `EventFilter`
@@ -228,20 +222,14 @@ impl EventTransport for NatsTransport {
                 &config.stream_name,
             )
             .await
-            .map_err(|e| {
-                ObserverError::TransportSubscribeFailed {
-                    reason: format!("Failed to create consumer: {e}"),
-                }
+            .map_err(|e| ObserverError::TransportSubscribeFailed {
+                reason: format!("Failed to create consumer: {e}"),
             })?;
 
         // Get message stream from consumer
-        let messages: jetstream::consumer::pull::Stream = consumer
-            .messages()
-            .await
-            .map_err(|e| {
-                ObserverError::TransportSubscribeFailed {
-                    reason: format!("Failed to get message stream: {e}"),
-                }
+        let messages: jetstream::consumer::pull::Stream =
+            consumer.messages().await.map_err(|e| ObserverError::TransportSubscribeFailed {
+                reason: format!("Failed to get message stream: {e}"),
             })?;
 
         // Clone filter fields for use in async closure (wrapped in Arc for sharing)
@@ -254,54 +242,60 @@ impl EventTransport for NatsTransport {
             let _filter_tenant = Arc::clone(&filter_tenant_id);
 
             async move {
-            match msg_result {
-                Ok(msg) => {
-                    // Parse message into EntityEvent
-                    match Self::parse_message(&msg) {
-                        Ok(event) => {
-                            // Apply additional filters (operation, tenant_id)
-                            if let Some(ref op) = filter_op.as_ref() {
-                                let event_op = match event.event_type {
-                                    crate::event::EventKind::Created => "INSERT",
-                                    crate::event::EventKind::Updated => "UPDATE",
-                                    crate::event::EventKind::Deleted => "DELETE",
-                                    crate::event::EventKind::Custom => "CUSTOM",
-                                };
-                                if event_op != op {
-                                    // Skip if operation doesn't match
-                                    if let Err(e) = msg.ack().await {
-                                        tracing::error!("Failed to ack filtered message: {}", e);
+                match msg_result {
+                    Ok(msg) => {
+                        // Parse message into EntityEvent
+                        match Self::parse_message(&msg) {
+                            Ok(event) => {
+                                // Apply additional filters (operation, tenant_id)
+                                if let Some(ref op) = filter_op.as_ref() {
+                                    let event_op = match event.event_type {
+                                        crate::event::EventKind::Created => "INSERT",
+                                        crate::event::EventKind::Updated => "UPDATE",
+                                        crate::event::EventKind::Deleted => "DELETE",
+                                        crate::event::EventKind::Custom => "CUSTOM",
+                                    };
+                                    if event_op != op {
+                                        // Skip if operation doesn't match
+                                        if let Err(e) = msg.ack().await {
+                                            tracing::error!(
+                                                "Failed to ack filtered message: {}",
+                                                e
+                                            );
+                                        }
+                                        return None;
                                     }
-                                    return None;
                                 }
-                            }
 
-                            // TODO: Filter by tenant_id when multi-tenancy is implemented
+                                // TODO: Filter by tenant_id when multi-tenancy is implemented
 
-                            // Acknowledge message after successful parsing
-                            if let Err(e) = msg.ack().await {
-                                tracing::error!("Failed to acknowledge NATS message: {}", e);
-                            }
+                                // Acknowledge message after successful parsing
+                                if let Err(e) = msg.ack().await {
+                                    tracing::error!("Failed to acknowledge NATS message: {}", e);
+                                }
 
-                            Some(Ok(event))
+                                Some(Ok(event))
+                            },
+                            Err(e) => {
+                                tracing::error!("Failed to parse NATS message: {}", e);
+                                // Acknowledge invalid message to prevent redelivery
+                                if let Err(ack_err) = msg.ack().await {
+                                    tracing::error!(
+                                        "Failed to acknowledge invalid message: {}",
+                                        ack_err
+                                    );
+                                }
+                                Some(Err(e))
+                            },
                         }
-                        Err(e) => {
-                            tracing::error!("Failed to parse NATS message: {}", e);
-                            // Acknowledge invalid message to prevent redelivery
-                            if let Err(ack_err) = msg.ack().await {
-                                tracing::error!("Failed to acknowledge invalid message: {}", ack_err);
-                            }
-                            Some(Err(e))
-                        }
-                    }
+                    },
+                    Err(e) => {
+                        tracing::error!("Error receiving NATS message: {}", e);
+                        Some(Err(ObserverError::TransportSubscribeFailed {
+                            reason: format!("Failed to receive message: {e}"),
+                        }))
+                    },
                 }
-                Err(e) => {
-                    tracing::error!("Error receiving NATS message: {}", e);
-                    Some(Err(ObserverError::TransportSubscribeFailed {
-                        reason: format!("Failed to receive message: {e}"),
-                    }))
-                }
-            }
             }
         });
 
@@ -317,35 +311,24 @@ impl EventTransport for NatsTransport {
             crate::event::EventKind::Custom => "CUSTOM",
         };
 
-        let subject = format!(
-            "{}.{}.{}",
-            self.config.subject_prefix,
-            event.entity_type,
-            operation
-        );
+        let subject = format!("{}.{}.{}", self.config.subject_prefix, event.entity_type, operation);
 
         // Serialize event to JSON
-        let payload = serde_json::to_vec(&event)
-            .map_err(|e| {
-                ObserverError::TransportPublishFailed {
-                    reason: format!("Failed to serialize event: {e}"),
-                }
+        let payload =
+            serde_json::to_vec(&event).map_err(|e| ObserverError::TransportPublishFailed {
+                reason: format!("Failed to serialize event: {e}"),
             })?;
 
         // Publish to NATS JetStream
         self.jetstream
             .publish(subject, payload.into())
             .await
-            .map_err(|e| {
-                ObserverError::TransportPublishFailed {
-                    reason: format!("Failed to publish event: {e}"),
-                }
+            .map_err(|e| ObserverError::TransportPublishFailed {
+                reason: format!("Failed to publish event: {e}"),
             })?
             .await
-            .map_err(|e| {
-                ObserverError::TransportPublishFailed {
-                    reason: format!("Failed to confirm event publication: {e}"),
-                }
+            .map_err(|e| ObserverError::TransportPublishFailed {
+                reason: format!("Failed to confirm event publication: {e}"),
             })?;
 
         Ok(())
@@ -358,24 +341,18 @@ impl EventTransport for NatsTransport {
     async fn health_check(&self) -> Result<TransportHealth> {
         // Check NATS connection status
         match self.client.connection_state() {
-            async_nats::connection::State::Connected => {
-                Ok(TransportHealth {
-                    status: HealthStatus::Healthy,
-                    message: None,
-                })
-            }
-            async_nats::connection::State::Disconnected => {
-                Ok(TransportHealth {
-                    status: HealthStatus::Unhealthy,
-                    message: Some("NATS client disconnected".to_string()),
-                })
-            }
-            _ => {
-                Ok(TransportHealth {
-                    status: HealthStatus::Degraded,
-                    message: Some("NATS client in degraded state".to_string()),
-                })
-            }
+            async_nats::connection::State::Connected => Ok(TransportHealth {
+                status:  HealthStatus::Healthy,
+                message: None,
+            }),
+            async_nats::connection::State::Disconnected => Ok(TransportHealth {
+                status:  HealthStatus::Unhealthy,
+                message: Some("NATS client disconnected".to_string()),
+            }),
+            _ => Ok(TransportHealth {
+                status:  HealthStatus::Degraded,
+                message: Some("NATS client in degraded state".to_string()),
+            }),
         }
     }
 }

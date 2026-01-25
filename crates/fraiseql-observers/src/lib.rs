@@ -63,8 +63,10 @@
 //!
 //! # Key Features
 //!
-//! - **Flexible Actions**: Webhook, email, Slack, SMS, push notifications, cache invalidation, search indexing
-//! - **Conditions**: DSL for conditional action execution (e.g., `status_changed_to('shipped') && total > 100`)
+//! - **Flexible Actions**: Webhook, email, Slack, SMS, push notifications, cache invalidation,
+//!   search indexing
+//! - **Conditions**: DSL for conditional action execution (e.g., `status_changed_to('shipped') &&
+//!   total > 100`)
 //! - **Reliability**: Retry logic with exponential/linear/fixed backoff
 //! - **Dead Letter Queue**: Failed actions stored for manual retry
 //! - **Backpressure**: Configurable overflow policies (drop, block, drop-oldest)
@@ -85,12 +87,12 @@ pub mod dedup;
 #[cfg(feature = "dedup")]
 pub mod deduped_executor;
 
-pub mod factory;
-pub mod error;
-pub mod event;
 #[cfg(feature = "arrow")]
 pub mod arrow_bridge;
+pub mod error;
+pub mod event;
 pub mod executor;
+pub mod factory;
 pub mod listener;
 pub mod logging;
 pub mod matcher;
@@ -108,51 +110,50 @@ pub mod testing;
 // Re-export common types at crate level
 pub use actions::{ActionExecutionResult, EmailAction, SlackAction, WebhookAction};
 pub use actions_additional::{CacheAction, PushAction, SearchAction, SmsAction};
-pub use cache::{CacheBackend, CachedActionResult, CacheStats};
 #[cfg(feature = "caching")]
 pub use cache::redis::RedisCacheBackend;
-pub use checkpoint::{CheckpointState, CheckpointStore};
-pub use checkpoint::postgres::PostgresCheckpointStore;
+pub use cache::{CacheBackend, CacheStats, CachedActionResult};
+pub use checkpoint::{CheckpointState, CheckpointStore, postgres::PostgresCheckpointStore};
 pub use concurrent::ConcurrentActionExecutor;
-pub use dedup::{DeduplicationStats, DeduplicationStore};
-#[cfg(feature = "dedup")]
-pub use dedup::redis::RedisDeduplicationStore;
-pub use queue::{
-    ExponentialBackoffPolicy, FixedBackoffPolicy, Job, JobQueue, JobResult, JobStatus,
-    LinearBackoffPolicy, QueueStats, RetryPolicy,
-};
-pub use queue::worker::{JobWorker, JobWorkerPool};
-#[cfg(feature = "queue")]
-pub use queue::redis::RedisJobQueue;
-pub use search::{IndexedEvent, SearchBackend, SearchStats};
-#[cfg(feature = "search")]
-pub use search::http::HttpSearchBackend;
 pub use condition::{ConditionAst, ConditionParser};
 pub use config::{
     ActionConfig, BackoffStrategy, FailurePolicy, MultiListenerConfig, ObserverDefinition,
     ObserverRuntimeConfig, OverflowPolicy, RetryConfig,
 };
+#[cfg(feature = "dedup")]
+pub use dedup::redis::RedisDeduplicationStore;
+pub use dedup::{DeduplicationStats, DeduplicationStore};
 pub use error::{ObserverError, ObserverErrorCode, Result};
 pub use event::{EntityEvent, EventKind, FieldChanges};
 pub use executor::{ExecutionSummary, ObserverExecutor};
 pub use listener::{
-    ChangeLogEntry, ChangeLogListener, ChangeLogListenerConfig, CheckpointLease,
-    FailoverEvent, FailoverManager, EventListener, ListenerConfig, ListenerHandle, ListenerHealth,
-    ListenerState, ListenerStateMachine, MultiListenerCoordinator,
+    ChangeLogEntry, ChangeLogListener, ChangeLogListenerConfig, CheckpointLease, EventListener,
+    FailoverEvent, FailoverManager, ListenerConfig, ListenerHandle, ListenerHealth, ListenerState,
+    ListenerStateMachine, MultiListenerCoordinator,
 };
 pub use logging::{
-    StructuredLogger, TraceIdExtractor, set_trace_id_context, get_current_trace_id,
+    StructuredLogger, TraceIdExtractor, correlation::TraceContext, get_current_trace_id,
+    set_trace_id_context,
 };
-pub use logging::correlation::TraceContext;
 pub use matcher::EventMatcher;
 #[cfg(feature = "metrics")]
 pub use metrics::MetricsRegistry;
 #[cfg(feature = "metrics")]
 pub use metrics::handler::metrics_handler;
+#[cfg(feature = "queue")]
+pub use queue::redis::RedisJobQueue;
+pub use queue::{
+    ExponentialBackoffPolicy, FixedBackoffPolicy, Job, JobQueue, JobResult, JobStatus,
+    LinearBackoffPolicy, QueueStats, RetryPolicy,
+    worker::{JobWorker, JobWorkerPool},
+};
 pub use resilience::{
     CircuitBreaker, CircuitBreakerConfig, CircuitState, DegradationLevel, GracefulDegradation,
-    PerEndpointCircuitBreaker, ResilientExecutor, ResilienceStrategy,
+    PerEndpointCircuitBreaker, ResilienceStrategy, ResilientExecutor,
 };
+#[cfg(feature = "search")]
+pub use search::http::HttpSearchBackend;
+pub use search::{IndexedEvent, SearchBackend, SearchStats};
 pub use traits::{
     ActionExecutor, ActionResult, ConditionEvaluator, DeadLetterQueue, DlqItem, EventSource,
     TemplateRenderer,
@@ -164,9 +165,10 @@ pub use transport::{
 
 #[cfg(test)]
 mod integration_tests {
-    use super::*;
     use serde_json::json;
     use uuid::Uuid;
+
+    use super::*;
 
     #[test]
     fn test_entity_event_creation() {
@@ -195,18 +197,18 @@ mod integration_tests {
     #[test]
     fn test_webhook_action_validation() {
         let invalid = ActionConfig::Webhook {
-            url: None,
-            url_env: None,
-            headers: std::collections::HashMap::new(),
+            url:           None,
+            url_env:       None,
+            headers:       std::collections::HashMap::new(),
             body_template: None,
         };
 
         assert!(invalid.validate().is_err());
 
         let valid = ActionConfig::Webhook {
-            url: Some("https://example.com".to_string()),
-            url_env: None,
-            headers: std::collections::HashMap::new(),
+            url:           Some("https://example.com".to_string()),
+            url_env:       None,
+            headers:       std::collections::HashMap::new(),
             body_template: Some("{}".to_string()),
         };
 
@@ -229,10 +231,12 @@ mod e2e_tests {
     //! These tests verify the full workflow:
     //! Change Log Entry → `EntityEvent` → Observer Matching → Action Execution
 
-    use super::*;
-    use serde_json::{json, Value};
     use std::sync::Arc;
+
+    use serde_json::{Value, json};
     use uuid::Uuid;
+
+    use super::*;
 
     #[test]
     fn test_e2e_insert_workflow() {
@@ -240,21 +244,21 @@ mod e2e_tests {
 
         let entity_id = Uuid::new_v4();
         let changelog_entry = listener::ChangeLogEntry {
-            id: 1,
+            id:                   1,
             pk_entity_change_log: Uuid::new_v4().to_string(),
-            fk_customer_org: "acme".to_string(),
-            fk_contact: Some("user-1".to_string()),
-            object_type: "Order".to_string(),
-            object_id: entity_id.to_string(),
-            modification_type: "INSERT".to_string(),
-            change_status: "success".to_string(),
-            object_data: json!({
+            fk_customer_org:      "acme".to_string(),
+            fk_contact:           Some("user-1".to_string()),
+            object_type:          "Order".to_string(),
+            object_id:            entity_id.to_string(),
+            modification_type:    "INSERT".to_string(),
+            change_status:        "success".to_string(),
+            object_data:          json!({
                 "op": "c",
                 "before": null,
                 "after": { "id": entity_id.to_string(), "total": 250.00, "status": "new" }
             }),
-            extra_metadata: None,
-            created_at: "2026-01-22T12:00:00+00:00".to_string(),
+            extra_metadata:       None,
+            created_at:           "2026-01-22T12:00:00+00:00".to_string(),
         };
 
         // Step 1: Convert to EntityEvent
@@ -282,21 +286,21 @@ mod e2e_tests {
 
         let entity_id = Uuid::new_v4();
         let changelog_entry = listener::ChangeLogEntry {
-            id: 2,
+            id:                   2,
             pk_entity_change_log: Uuid::new_v4().to_string(),
-            fk_customer_org: "acme".to_string(),
-            fk_contact: Some("user-2".to_string()),
-            object_type: "Order".to_string(),
-            object_id: entity_id.to_string(),
-            modification_type: "UPDATE".to_string(),
-            change_status: "success".to_string(),
-            object_data: json!({
+            fk_customer_org:      "acme".to_string(),
+            fk_contact:           Some("user-2".to_string()),
+            object_type:          "Order".to_string(),
+            object_id:            entity_id.to_string(),
+            modification_type:    "UPDATE".to_string(),
+            change_status:        "success".to_string(),
+            object_data:          json!({
                 "op": "u",
                 "before": { "status": "new", "total": 250.00 },
                 "after": { "status": "shipped", "total": 250.00 }
             }),
-            extra_metadata: None,
-            created_at: "2026-01-22T13:00:00+00:00".to_string(),
+            extra_metadata:       None,
+            created_at:           "2026-01-22T13:00:00+00:00".to_string(),
         };
 
         // Step 1: Convert to EntityEvent
@@ -318,21 +322,21 @@ mod e2e_tests {
 
         let entity_id = Uuid::new_v4();
         let changelog_entry = listener::ChangeLogEntry {
-            id: 3,
+            id:                   3,
             pk_entity_change_log: Uuid::new_v4().to_string(),
-            fk_customer_org: "acme".to_string(),
-            fk_contact: None,
-            object_type: "User".to_string(),
-            object_id: entity_id.to_string(),
-            modification_type: "DELETE".to_string(),
-            change_status: "success".to_string(),
-            object_data: json!({
+            fk_customer_org:      "acme".to_string(),
+            fk_contact:           None,
+            object_type:          "User".to_string(),
+            object_id:            entity_id.to_string(),
+            modification_type:    "DELETE".to_string(),
+            change_status:        "success".to_string(),
+            object_data:          json!({
                 "op": "d",
                 "before": { "id": entity_id.to_string(), "name": "John Doe", "email": "john@example.com" },
                 "after": null
             }),
-            extra_metadata: None,
-            created_at: "2026-01-22T14:00:00+00:00".to_string(),
+            extra_metadata:       None,
+            created_at:           "2026-01-22T14:00:00+00:00".to_string(),
         };
 
         // Step 1: Convert to EntityEvent
@@ -353,21 +357,21 @@ mod e2e_tests {
         for entity_type in types {
             let entity_id = Uuid::new_v4();
             let entry = listener::ChangeLogEntry {
-                id: 1,
+                id:                   1,
                 pk_entity_change_log: Uuid::new_v4().to_string(),
-                fk_customer_org: "acme".to_string(),
-                fk_contact: None,
-                object_type: entity_type.to_string(),
-                object_id: entity_id.to_string(),
-                modification_type: "INSERT".to_string(),
-                change_status: "success".to_string(),
-                object_data: json!({
+                fk_customer_org:      "acme".to_string(),
+                fk_contact:           None,
+                object_type:          entity_type.to_string(),
+                object_id:            entity_id.to_string(),
+                modification_type:    "INSERT".to_string(),
+                change_status:        "success".to_string(),
+                object_data:          json!({
                     "op": "c",
                     "before": null,
                     "after": { "id": entity_id.to_string() }
                 }),
-                extra_metadata: None,
-                created_at: "2026-01-22T15:00:00+00:00".to_string(),
+                extra_metadata:       None,
+                created_at:           "2026-01-22T15:00:00+00:00".to_string(),
             };
 
             let event = entry.to_entity_event().expect("Failed to convert");
@@ -385,21 +389,21 @@ mod e2e_tests {
 
         for org_id in orgs {
             let entry = listener::ChangeLogEntry {
-                id: 1,
+                id:                   1,
                 pk_entity_change_log: Uuid::new_v4().to_string(),
-                fk_customer_org: org_id.to_string(),
-                fk_contact: None,
-                object_type: "Order".to_string(),
-                object_id: entity_id.to_string(),
-                modification_type: "INSERT".to_string(),
-                change_status: "success".to_string(),
-                object_data: json!({
+                fk_customer_org:      org_id.to_string(),
+                fk_contact:           None,
+                object_type:          "Order".to_string(),
+                object_id:            entity_id.to_string(),
+                modification_type:    "INSERT".to_string(),
+                change_status:        "success".to_string(),
+                object_data:          json!({
                     "op": "c",
                     "before": null,
                     "after": { "id": entity_id.to_string(), "org": org_id }
                 }),
-                extra_metadata: None,
-                created_at: "2026-01-22T16:00:00+00:00".to_string(),
+                extra_metadata:       None,
+                created_at:           "2026-01-22T16:00:00+00:00".to_string(),
             };
 
             let event = entry.to_entity_event().expect("Failed to convert");
@@ -413,15 +417,15 @@ mod e2e_tests {
 
         let entity_id = Uuid::new_v4();
         let entry = listener::ChangeLogEntry {
-            id: 1,
+            id:                   1,
             pk_entity_change_log: Uuid::new_v4().to_string(),
-            fk_customer_org: "acme".to_string(),
-            fk_contact: None,
-            object_type: "Order".to_string(),
-            object_id: entity_id.to_string(),
-            modification_type: "UPDATE".to_string(),
-            change_status: "success".to_string(),
-            object_data: json!({
+            fk_customer_org:      "acme".to_string(),
+            fk_contact:           None,
+            object_type:          "Order".to_string(),
+            object_id:            entity_id.to_string(),
+            modification_type:    "UPDATE".to_string(),
+            change_status:        "success".to_string(),
+            object_data:          json!({
                 "op": "u",
                 "before": {
                     "status": "pending",
@@ -435,8 +439,8 @@ mod e2e_tests {
                     "shipped_at": "2026-01-22T16:30:00Z"
                 }
             }),
-            extra_metadata: None,
-            created_at: "2026-01-22T16:30:00+00:00".to_string(),
+            extra_metadata:       None,
+            created_at:           "2026-01-22T16:30:00+00:00".to_string(),
         };
 
         let event = entry.to_entity_event().expect("Failed to convert");
@@ -467,21 +471,21 @@ mod e2e_tests {
         let timestamp_str = "2026-01-22T14:30:45.123456+00:00";
 
         let entry = listener::ChangeLogEntry {
-            id: 1,
+            id:                   1,
             pk_entity_change_log: Uuid::new_v4().to_string(),
-            fk_customer_org: "acme".to_string(),
-            fk_contact: None,
-            object_type: "Order".to_string(),
-            object_id: entity_id.to_string(),
-            modification_type: "INSERT".to_string(),
-            change_status: "success".to_string(),
-            object_data: json!({
+            fk_customer_org:      "acme".to_string(),
+            fk_contact:           None,
+            object_type:          "Order".to_string(),
+            object_id:            entity_id.to_string(),
+            modification_type:    "INSERT".to_string(),
+            change_status:        "success".to_string(),
+            object_data:          json!({
                 "op": "c",
                 "before": null,
                 "after": { "id": entity_id.to_string() }
             }),
-            extra_metadata: None,
-            created_at: timestamp_str.to_string(),
+            extra_metadata:       None,
+            created_at:           timestamp_str.to_string(),
         };
 
         let event = entry.to_entity_event().expect("Failed to convert");
@@ -495,21 +499,21 @@ mod e2e_tests {
         // Verify error handling for invalid UUID in object_id
 
         let entry = listener::ChangeLogEntry {
-            id: 1,
+            id:                   1,
             pk_entity_change_log: Uuid::new_v4().to_string(),
-            fk_customer_org: "acme".to_string(),
-            fk_contact: None,
-            object_type: "Order".to_string(),
-            object_id: "not-a-uuid".to_string(),
-            modification_type: "INSERT".to_string(),
-            change_status: "success".to_string(),
-            object_data: json!({
+            fk_customer_org:      "acme".to_string(),
+            fk_contact:           None,
+            object_type:          "Order".to_string(),
+            object_id:            "not-a-uuid".to_string(),
+            modification_type:    "INSERT".to_string(),
+            change_status:        "success".to_string(),
+            object_data:          json!({
                 "op": "c",
                 "before": null,
                 "after": { "id": "invalid" }
             }),
-            extra_metadata: None,
-            created_at: "2026-01-22T17:00:00+00:00".to_string(),
+            extra_metadata:       None,
+            created_at:           "2026-01-22T17:00:00+00:00".to_string(),
         };
 
         let result = entry.to_entity_event();

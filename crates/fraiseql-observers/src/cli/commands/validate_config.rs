@@ -1,9 +1,11 @@
 //! Configuration validation command
 
-use crate::error::Result;
+use std::path::PathBuf;
+
 use colored::Colorize;
 use serde_json::json;
-use std::path::PathBuf;
+
+use crate::error::Result;
 
 /// Execute validate-config command
 pub async fn execute(
@@ -66,7 +68,7 @@ pub async fn execute(
             let json_str = serde_json::to_string_pretty(&validation_result)
                 .unwrap_or_else(|_| "{}".to_string());
             println!("{json_str}");
-        }
+        },
         crate::cli::OutputFormat::Text => {
             println!("{}", "Configuration Validation Report".bold().underline());
 
@@ -150,19 +152,12 @@ pub async fn execute(
             if is_valid {
                 println!(
                     "\n{}",
-                    "✓ Configuration is valid and ready for deployment"
-                        .green()
-                        .bold()
+                    "✓ Configuration is valid and ready for deployment".green().bold()
                 );
             } else {
-                println!(
-                    "\n{}",
-                    "✗ Configuration has errors and cannot be deployed"
-                        .red()
-                        .bold()
-                );
+                println!("\n{}", "✗ Configuration has errors and cannot be deployed".red().bold());
             }
-        }
+        },
     }
 
     Ok(())

@@ -1,36 +1,40 @@
 use axum::{
-    response::{IntoResponse, Response},
-    http::StatusCode,
     Json,
+    http::StatusCode,
+    response::{IntoResponse, Response},
 };
 use serde::Serialize;
 
-use crate::{RuntimeError, AuthError, WebhookError, FileError};
+use crate::{AuthError, FileError, RuntimeError, WebhookError};
 
 /// Error response format (consistent across all endpoints)
 #[derive(Debug, Serialize)]
 pub struct ErrorResponse {
-    pub error: String,
+    pub error:             String,
     pub error_description: String,
-    pub error_code: String,
+    pub error_code:        String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub error_uri: Option<String>,
+    pub error_uri:         Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub details: Option<serde_json::Value>,
+    pub details:           Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub retry_after: Option<u64>,
+    pub retry_after:       Option<u64>,
 }
 
 impl ErrorResponse {
-    pub fn new(error: impl Into<String>, description: impl Into<String>, code: impl Into<String>) -> Self {
+    pub fn new(
+        error: impl Into<String>,
+        description: impl Into<String>,
+        code: impl Into<String>,
+    ) -> Self {
         let code = code.into();
         Self {
-            error: error.into(),
+            error:             error.into(),
             error_description: description.into(),
-            error_uri: Some(format!("https://docs.fraiseql.dev/errors#{}", code)),
-            error_code: code,
-            details: None,
-            retry_after: None,
+            error_uri:         Some(format!("https://docs.fraiseql.dev/errors#{}", code)),
+            error_code:        code,
+            details:           None,
+            retry_after:       None,
         }
     }
 
@@ -52,13 +56,14 @@ impl IntoResponse for RuntimeError {
         let (status, response) = match &self {
             RuntimeError::Config(_) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                ErrorResponse::new("configuration_error", self.to_string(), error_code)
+                ErrorResponse::new("configuration_error", self.to_string(), error_code),
             ),
 
             RuntimeError::Auth(e) => {
                 let status = match e {
-                    AuthError::InsufficientPermissions { .. }
-                    | AuthError::AccountLocked { .. } => StatusCode::FORBIDDEN,
+                    AuthError::InsufficientPermissions { .. } | AuthError::AccountLocked { .. } => {
+                        StatusCode::FORBIDDEN
+                    },
                     _ => StatusCode::UNAUTHORIZED,
                 };
                 (status, ErrorResponse::new("authentication_error", self.to_string(), error_code))
@@ -78,7 +83,7 @@ impl IntoResponse for RuntimeError {
                     FileError::TooLarge { .. } => StatusCode::PAYLOAD_TOO_LARGE,
                     FileError::InvalidType { .. } | FileError::MimeMismatch { .. } => {
                         StatusCode::UNSUPPORTED_MEDIA_TYPE
-                    }
+                    },
                     FileError::NotFound { .. } => StatusCode::NOT_FOUND,
                     FileError::VirusDetected { .. } => StatusCode::UNPROCESSABLE_ENTITY,
                     FileError::QuotaExceeded => StatusCode::INSUFFICIENT_STORAGE,
@@ -88,11 +93,13 @@ impl IntoResponse for RuntimeError {
             },
 
             RuntimeError::Notification(e) => {
-                use crate::NotificationError::{CircuitOpen, ProviderUnavailable, ProviderRateLimited, InvalidInput};
+                use crate::NotificationError::{
+                    CircuitOpen, InvalidInput, ProviderRateLimited, ProviderUnavailable,
+                };
                 let status = match e {
                     CircuitOpen { .. } | ProviderUnavailable { .. } => {
                         StatusCode::SERVICE_UNAVAILABLE
-                    }
+                    },
                     ProviderRateLimited { .. } => StatusCode::TOO_MANY_REQUESTS,
                     InvalidInput { .. } => StatusCode::BAD_REQUEST,
                     _ => StatusCode::INTERNAL_SERVER_ERROR,
@@ -101,11 +108,8 @@ impl IntoResponse for RuntimeError {
             },
 
             RuntimeError::RateLimited { retry_after } => {
-                let mut resp = ErrorResponse::new(
-                    "rate_limited",
-                    "Rate limit exceeded",
-                    error_code
-                );
+                let mut resp =
+                    ErrorResponse::new("rate_limited", "Rate limit exceeded", error_code);
                 if let Some(secs) = retry_after {
                     resp = resp.with_retry_after(*secs);
                 }
@@ -113,11 +117,8 @@ impl IntoResponse for RuntimeError {
             },
 
             RuntimeError::ServiceUnavailable { retry_after, .. } => {
-                let mut resp = ErrorResponse::new(
-                    "service_unavailable",
-                    self.to_string(),
-                    error_code
-                );
+                let mut resp =
+                    ErrorResponse::new("service_unavailable", self.to_string(), error_code);
                 if let Some(secs) = retry_after {
                     resp = resp.with_retry_after(*secs);
                 }
@@ -126,27 +127,24 @@ impl IntoResponse for RuntimeError {
 
             RuntimeError::NotFound { .. } => (
                 StatusCode::NOT_FOUND,
-                ErrorResponse::new("not_found", self.to_string(), error_code)
+                ErrorResponse::new("not_found", self.to_string(), error_code),
             ),
 
             RuntimeError::Database(_) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                ErrorResponse::new("database_error", "A database error occurred", error_code)
+                ErrorResponse::new("database_error", "A database error occurred", error_code),
             ),
 
             _ => (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                ErrorResponse::new("internal_error", "An internal error occurred", error_code)
+                ErrorResponse::new("internal_error", "An internal error occurred", error_code),
             ),
         };
 
         // Add Retry-After header for rate limits
         let mut resp = (status, Json(response)).into_response();
         if let Some(retry_after) = self.retry_after_header() {
-            resp.headers_mut().insert(
-                "Retry-After",
-                retry_after.parse().unwrap()
-            );
+            resp.headers_mut().insert("Retry-After", retry_after.parse().unwrap());
         }
 
         resp
@@ -156,8 +154,13 @@ impl IntoResponse for RuntimeError {
 impl RuntimeError {
     fn retry_after_header(&self) -> Option<String> {
         match self {
-            Self::RateLimited { retry_after: Some(secs) }
-            | Self::ServiceUnavailable { retry_after: Some(secs), .. } => Some(secs.to_string()),
+            Self::RateLimited {
+                retry_after: Some(secs),
+            }
+            | Self::ServiceUnavailable {
+                retry_after: Some(secs),
+                ..
+            } => Some(secs.to_string()),
             _ => None,
         }
     }

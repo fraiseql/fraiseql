@@ -1,32 +1,33 @@
 // Authentication monitoring and observability
 use std::time::Instant;
-use tracing::{info, warn, span, Level};
+
 use serde::Serialize;
+use tracing::{Level, info, span, warn};
 
 /// Structured log for authentication events
 #[derive(Debug, Serialize)]
 pub struct AuthEvent {
-    pub event: String,
-    pub user_id: Option<String>,
-    pub provider: Option<String>,
-    pub status: String,
+    pub event:       String,
+    pub user_id:     Option<String>,
+    pub provider:    Option<String>,
+    pub status:      String,
     pub duration_ms: f64,
-    pub error: Option<String>,
-    pub timestamp: String,
-    pub request_id: Option<String>,
+    pub error:       Option<String>,
+    pub timestamp:   String,
+    pub request_id:  Option<String>,
 }
 
 impl AuthEvent {
     pub fn new(event: &str) -> Self {
         Self {
-            event: event.to_string(),
-            user_id: None,
-            provider: None,
-            status: "started".to_string(),
+            event:       event.to_string(),
+            user_id:     None,
+            provider:    None,
+            status:      "started".to_string(),
             duration_ms: 0.0,
-            error: None,
-            timestamp: chrono::Utc::now().to_rfc3339(),
-            request_id: None,
+            error:       None,
+            timestamp:   chrono::Utc::now().to_rfc3339(),
+            request_id:  None,
         }
     }
 
@@ -68,7 +69,7 @@ impl AuthEvent {
                     duration_ms = self.duration_ms,
                     "Authentication event",
                 );
-            }
+            },
             "error" => {
                 warn!(
                     event = %self.event,
@@ -76,8 +77,8 @@ impl AuthEvent {
                     duration_ms = self.duration_ms,
                     "Authentication error",
                 );
-            }
-            _ => {}
+            },
+            _ => {},
         }
     }
 }
@@ -85,23 +86,23 @@ impl AuthEvent {
 /// Metrics for authentication operations
 #[derive(Debug, Clone)]
 pub struct AuthMetrics {
-    pub total_auth_attempts: u64,
+    pub total_auth_attempts:        u64,
     pub successful_authentications: u64,
-    pub failed_authentications: u64,
-    pub tokens_issued: u64,
-    pub tokens_refreshed: u64,
-    pub sessions_revoked: u64,
+    pub failed_authentications:     u64,
+    pub tokens_issued:              u64,
+    pub tokens_refreshed:           u64,
+    pub sessions_revoked:           u64,
 }
 
 impl AuthMetrics {
     pub fn new() -> Self {
         Self {
-            total_auth_attempts: 0,
+            total_auth_attempts:        0,
             successful_authentications: 0,
-            failed_authentications: 0,
-            tokens_issued: 0,
-            tokens_refreshed: 0,
-            sessions_revoked: 0,
+            failed_authentications:     0,
+            tokens_issued:              0,
+            tokens_refreshed:           0,
+            sessions_revoked:           0,
         }
     }
 
@@ -146,7 +147,7 @@ impl Default for AuthMetrics {
 
 /// Timer for measuring operation duration
 pub struct OperationTimer {
-    start: Instant,
+    start:     Instant,
     operation: String,
 }
 
@@ -156,7 +157,7 @@ impl OperationTimer {
         let _guard = span.enter();
 
         Self {
-            start: Instant::now(),
+            start:     Instant::now(),
             operation: operation.to_string(),
         }
     }

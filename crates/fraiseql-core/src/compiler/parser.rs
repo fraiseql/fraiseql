@@ -36,10 +36,12 @@
 
 use serde_json::Value;
 
-use super::enum_validator::EnumValidator;
-use super::ir::{
-    AuthoringIR, AutoParams, IRArgument, IRField, IRInputField, IRInputType, IRInterface,
-    IRMutation, IRQuery, IRSubscription, IRType, IRUnion, MutationOperation,
+use super::{
+    enum_validator::EnumValidator,
+    ir::{
+        AuthoringIR, AutoParams, IRArgument, IRField, IRInputField, IRInputType, IRInterface,
+        IRMutation, IRQuery, IRSubscription, IRType, IRUnion, MutationOperation,
+    },
 };
 use crate::error::{FraiseQLError, Result};
 
@@ -161,7 +163,9 @@ impl SchemaParser {
 
         // Warn about unsupported fragments feature
         if obj.contains_key("fragments") {
-            eprintln!("Warning: 'fragments' feature in schema is not yet supported and will be ignored");
+            eprintln!(
+                "Warning: 'fragments' feature in schema is not yet supported and will be ignored"
+            );
         }
 
         Ok(AuthoringIR {
@@ -664,7 +668,12 @@ impl SchemaParser {
             .collect()
     }
 
-    fn parse_input_field(&self, value: &Value, type_name: &str, index: usize) -> Result<IRInputField> {
+    fn parse_input_field(
+        &self,
+        value: &Value,
+        type_name: &str,
+        index: usize,
+    ) -> Result<IRInputField> {
         let obj = value.as_object().ok_or_else(|| FraiseQLError::Parse {
             message:  format!("Input field at index {index} in type {type_name} must be an object"),
             location: format!("{type_name}.fields[{index}]"),
@@ -674,7 +683,9 @@ impl SchemaParser {
             .get("name")
             .and_then(|v| v.as_str())
             .ok_or_else(|| FraiseQLError::Parse {
-                message:  format!("Input field at index {index} in type {type_name} missing 'name'"),
+                message:  format!(
+                    "Input field at index {index} in type {type_name} missing 'name'"
+                ),
                 location: format!("{type_name}.fields[{index}].name"),
             })?
             .to_string();
@@ -855,7 +866,10 @@ mod tests {
 
         let ir = parser.parse(json).unwrap();
         assert_eq!(ir.interfaces[0].fields.len(), 2);
-        assert_eq!(ir.interfaces[0].description, Some("Records creation and update times".to_string()));
+        assert_eq!(
+            ir.interfaces[0].description,
+            Some("Records creation and update times".to_string())
+        );
     }
 
     #[test]

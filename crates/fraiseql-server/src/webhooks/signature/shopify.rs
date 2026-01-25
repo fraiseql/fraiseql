@@ -2,11 +2,14 @@
 //!
 //! Format: Base64 encoded HMAC-SHA256
 
-use crate::webhooks::signature::{constant_time_eq, SignatureError};
-use crate::webhooks::traits::SignatureVerifier;
-use base64::{engine::general_purpose, Engine as _};
+use base64::{Engine as _, engine::general_purpose};
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
+
+use crate::webhooks::{
+    signature::{SignatureError, constant_time_eq},
+    traits::SignatureVerifier,
+};
 
 pub struct ShopifyVerifier;
 
@@ -59,8 +62,6 @@ mod tests {
     #[test]
     fn test_invalid_signature() {
         let verifier = ShopifyVerifier;
-        assert!(!verifier
-            .verify(b"test", "invalid", "secret", None)
-            .unwrap());
+        assert!(!verifier.verify(b"test", "invalid", "secret", None).unwrap());
     }
 }

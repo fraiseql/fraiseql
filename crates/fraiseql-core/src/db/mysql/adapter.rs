@@ -204,18 +204,18 @@ impl DatabaseAdapter for MySqlAdapter {
                 sql.push_str(" LIMIT ? OFFSET ?");
                 params.push(serde_json::Value::Number(lim.into()));
                 params.push(serde_json::Value::Number(off.into()));
-            }
+            },
             (Some(lim), None) => {
                 sql.push_str(" LIMIT ?");
                 params.push(serde_json::Value::Number(lim.into()));
-            }
+            },
             (None, Some(off)) => {
                 // MySQL requires LIMIT with OFFSET; use large number for "unlimited"
                 // MySQL's max is 18446744073709551615, but we use a practical large value
                 sql.push_str(" LIMIT 18446744073709551615 OFFSET ?");
                 params.push(serde_json::Value::Number(off.into()));
-            }
-            (None, None) => {}
+            },
+            (None, None) => {},
         }
 
         self.execute_raw(&sql, params).await
@@ -331,8 +331,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_parameterized_limit_only() {
-        let adapter =
-            MySqlAdapter::new(TEST_DB_URL).await.expect("Failed to create MySQL adapter");
+        let adapter = MySqlAdapter::new(TEST_DB_URL).await.expect("Failed to create MySQL adapter");
 
         let results = adapter
             .execute_where_query("v_user", None, Some(2), None)
@@ -344,8 +343,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_parameterized_offset_only() {
-        let adapter =
-            MySqlAdapter::new(TEST_DB_URL).await.expect("Failed to create MySQL adapter");
+        let adapter = MySqlAdapter::new(TEST_DB_URL).await.expect("Failed to create MySQL adapter");
 
         let results = adapter
             .execute_where_query("v_user", None, None, Some(1))
@@ -357,8 +355,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_parameterized_limit_and_offset() {
-        let adapter =
-            MySqlAdapter::new(TEST_DB_URL).await.expect("Failed to create MySQL adapter");
+        let adapter = MySqlAdapter::new(TEST_DB_URL).await.expect("Failed to create MySQL adapter");
 
         let results = adapter
             .execute_where_query("v_user", None, Some(2), Some(1))

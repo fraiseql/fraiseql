@@ -32,9 +32,7 @@ pub fn escape_postgres_jsonb_segment(segment: &str) -> String {
 /// // Ensures each segment is properly escaped
 /// ```
 pub fn escape_postgres_jsonb_path(path: &[String]) -> Vec<String> {
-    path.iter()
-        .map(|segment| escape_postgres_jsonb_segment(segment))
-        .collect()
+    path.iter().map(|segment| escape_postgres_jsonb_segment(segment)).collect()
 }
 
 /// Escape a JSON path for MySQL JSON_EXTRACT/JSON_UNQUOTE.

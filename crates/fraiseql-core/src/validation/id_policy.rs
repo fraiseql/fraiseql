@@ -286,8 +286,8 @@ pub struct NumericIdValidator;
 impl IdValidator for NumericIdValidator {
     fn validate(&self, value: &str) -> Result<(), IDValidationError> {
         value.parse::<i64>().map_err(|_| IDValidationError {
-            value: value.to_string(),
-            policy: IDPolicy::OPAQUE,
+            value:   value.to_string(),
+            policy:  IDPolicy::OPAQUE,
             message: format!(
                 "ID must be a valid {} (parseable as 64-bit integer)",
                 self.format_name()
@@ -312,8 +312,8 @@ impl IdValidator for UlidIdValidator {
     fn validate(&self, value: &str) -> Result<(), IDValidationError> {
         if value.len() != 26 {
             return Err(IDValidationError {
-                value: value.to_string(),
-                policy: IDPolicy::OPAQUE,
+                value:   value.to_string(),
+                policy:  IDPolicy::OPAQUE,
                 message: format!(
                     "ID must be a valid {} ({} characters), got {}",
                     self.format_name(),
@@ -329,8 +329,8 @@ impl IdValidator for UlidIdValidator {
                 || (c.is_ascii_uppercase() && c != 'I' && c != 'L' && c != 'O' && c != 'U')
         }) {
             return Err(IDValidationError {
-                value: value.to_string(),
-                policy: IDPolicy::OPAQUE,
+                value:   value.to_string(),
+                policy:  IDPolicy::OPAQUE,
                 message: format!(
                     "ID must be a valid {} (Crockford base32: 0-9, A-Z except I, L, O, U)",
                     self.format_name()
@@ -413,7 +413,7 @@ impl IDValidationProfile {
     #[must_use]
     pub fn uuid() -> Self {
         Self {
-            name: "uuid".to_string(),
+            name:      "uuid".to_string(),
             validator: ValidationProfileType::Uuid(UuidIdValidator),
         }
     }
@@ -422,7 +422,7 @@ impl IDValidationProfile {
     #[must_use]
     pub fn numeric() -> Self {
         Self {
-            name: "numeric".to_string(),
+            name:      "numeric".to_string(),
             validator: ValidationProfileType::Numeric(NumericIdValidator),
         }
     }
@@ -431,7 +431,7 @@ impl IDValidationProfile {
     #[must_use]
     pub fn ulid() -> Self {
         Self {
-            name: "ulid".to_string(),
+            name:      "ulid".to_string(),
             validator: ValidationProfileType::Ulid(UlidIdValidator),
         }
     }
@@ -440,7 +440,7 @@ impl IDValidationProfile {
     #[must_use]
     pub fn opaque() -> Self {
         Self {
-            name: "opaque".to_string(),
+            name:      "opaque".to_string(),
             validator: ValidationProfileType::Opaque(OpaqueIdValidator),
         }
     }
@@ -1028,7 +1028,12 @@ mod tests {
     #[test]
     fn test_validation_profile_type_as_validator() {
         let uuid_type = ValidationProfileType::Uuid(UuidIdValidator);
-        assert!(uuid_type.as_validator().validate("550e8400-e29b-41d4-a716-446655440000").is_ok());
+        assert!(
+            uuid_type
+                .as_validator()
+                .validate("550e8400-e29b-41d4-a716-446655440000")
+                .is_ok()
+        );
 
         let numeric_type = ValidationProfileType::Numeric(NumericIdValidator);
         assert!(numeric_type.as_validator().validate("12345").is_ok());

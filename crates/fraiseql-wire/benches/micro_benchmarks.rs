@@ -8,6 +8,7 @@
 //!
 //! Run with: cargo bench --bench micro_benchmarks
 //! Run specific benchmark: cargo bench --bench micro_benchmarks protocol_encode
+#![allow(missing_docs)]
 
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use fraiseql_wire::connection::ConnectionConfig;

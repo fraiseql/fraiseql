@@ -3,11 +3,14 @@
 //! This module bridges database-agnostic row data (HashMap<String, serde_json::Value>)
 //! to Arrow Values for RecordBatch construction.
 
-use crate::convert::Value;
-use crate::error::{ArrowFlightError, Result};
+use std::{collections::HashMap, sync::Arc};
+
 use arrow::datatypes::{DataType, Schema};
-use std::collections::HashMap;
-use std::sync::Arc;
+
+use crate::{
+    convert::Value,
+    error::{ArrowFlightError, Result},
+};
 
 /// Convert database rows to Arrow Values.
 ///
@@ -73,7 +76,7 @@ pub fn convert_db_rows_to_arrow(
             let arrow_value = match value {
                 Some(json_val) if !json_val.is_null() => {
                     Some(json_to_arrow_value(json_val, field.data_type())?)
-                }
+                },
                 _ => None, // NULL or missing column
             };
 
@@ -110,32 +113,24 @@ fn json_to_arrow_value(json_val: &serde_json::Value, data_type: &DataType) -> Re
             ))),
         },
         DataType::Int64 => match json_val {
-            JsonValue::Number(n) => n
-                .as_i64()
-                .map(Value::Int)
-                .ok_or_else(|| {
-                    ArrowFlightError::InvalidTicket(format!("Cannot convert {n} to Int64"))
-                }),
+            JsonValue::Number(n) => n.as_i64().map(Value::Int).ok_or_else(|| {
+                ArrowFlightError::InvalidTicket(format!("Cannot convert {n} to Int64"))
+            }),
             _ => Err(ArrowFlightError::InvalidTicket(format!(
                 "Expected number for Int64, got {json_val}"
             ))),
         },
         DataType::Float64 => match json_val {
-            JsonValue::Number(n) => n
-                .as_f64()
-                .map(Value::Float)
-                .ok_or_else(|| {
-                    ArrowFlightError::InvalidTicket(format!("Cannot convert {n} to Float64"))
-                }),
+            JsonValue::Number(n) => n.as_f64().map(Value::Float).ok_or_else(|| {
+                ArrowFlightError::InvalidTicket(format!("Cannot convert {n} to Float64"))
+            }),
             _ => Err(ArrowFlightError::InvalidTicket(format!(
                 "Expected number for Float64, got {json_val}"
             ))),
         },
         DataType::Boolean => match json_val {
             JsonValue::Bool(b) => Ok(Value::Bool(*b)),
-            _ => Err(ArrowFlightError::InvalidTicket(format!(
-                "Expected boolean, got {json_val}"
-            ))),
+            _ => Err(ArrowFlightError::InvalidTicket(format!("Expected boolean, got {json_val}"))),
         },
         DataType::Timestamp(arrow::datatypes::TimeUnit::Microsecond, _) => {
             // Expect ISO 8601 string or Unix timestamp (microseconds)
@@ -146,15 +141,10 @@ fn json_to_arrow_value(json_val: &serde_json::Value, data_type: &DataType) -> Re
                     // For now, return placeholder
                     let _ = s; // Use variable to avoid warning
                     Ok(Value::Timestamp(1_700_000_000_000_000)) // Placeholder
-                }
-                JsonValue::Number(n) => n
-                    .as_i64()
-                    .map(Value::Timestamp)
-                    .ok_or_else(|| {
-                        ArrowFlightError::InvalidTicket(format!(
-                            "Cannot convert {n} to Timestamp"
-                        ))
-                    }),
+                },
+                JsonValue::Number(n) => n.as_i64().map(Value::Timestamp).ok_or_else(|| {
+                    ArrowFlightError::InvalidTicket(format!("Cannot convert {n} to Timestamp"))
+                }),
                 _ => Err(ArrowFlightError::InvalidTicket(format!(
                     "Expected string or number for Timestamp, got {json_val}"
                 ))),
@@ -164,29 +154,26 @@ fn json_to_arrow_value(json_val: &serde_json::Value, data_type: &DataType) -> Re
             JsonValue::String(_s) => {
                 // TODO: Parse date string
                 Ok(Value::Date(18_500)) // Placeholder
-            }
-            JsonValue::Number(n) => n
-                .as_i64()
-                .and_then(|i| i32::try_from(i).ok())
-                .map(Value::Date)
-                .ok_or_else(|| {
+            },
+            JsonValue::Number(n) => {
+                n.as_i64().and_then(|i| i32::try_from(i).ok()).map(Value::Date).ok_or_else(|| {
                     ArrowFlightError::InvalidTicket(format!("Cannot convert {n} to Date32"))
-                }),
+                })
+            },
             _ => Err(ArrowFlightError::InvalidTicket(format!(
                 "Expected string or number for Date32, got {json_val}"
             ))),
         },
-        _ => Err(ArrowFlightError::InvalidTicket(format!(
-            "Unsupported data type: {data_type:?}"
-        ))),
+        _ => Err(ArrowFlightError::InvalidTicket(format!("Unsupported data type: {data_type:?}"))),
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use arrow::datatypes::Field;
     use serde_json::json;
+
+    use super::*;
 
     #[test]
     fn test_convert_simple_rows() {

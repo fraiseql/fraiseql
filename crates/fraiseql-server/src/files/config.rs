@@ -1,7 +1,8 @@
 //! File configuration structures
 
-use serde::Deserialize;
 use std::collections::HashMap;
+
+use serde::Deserialize;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct FileConfig {
@@ -74,18 +75,18 @@ fn default_public() -> bool {
 impl Default for FileConfig {
     fn default() -> Self {
         Self {
-            path: None,
-            allowed_types: default_allowed_types(),
-            max_size: default_max_size(),
+            path:                 None,
+            allowed_types:        default_allowed_types(),
+            max_size:             default_max_size(),
             validate_magic_bytes: default_validate_magic(),
-            storage: default_storage(),
-            bucket_env: None,
-            public: default_public(),
-            cache: None,
-            url_expiry: None,
-            scan_malware: false,
-            processing: None,
-            on_upload: None,
+            storage:              default_storage(),
+            bucket_env:           None,
+            public:               default_public(),
+            cache:                None,
+            url_expiry:           None,
+            scan_malware:         false,
+            processing:           None,
+            on_upload:            None,
         }
     }
 }
@@ -109,8 +110,8 @@ pub struct ProcessingConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct VariantConfig {
-    pub name: String,
-    pub width: u32,
+    pub name:   String,
+    pub width:  u32,
     pub height: u32,
 
     /// Resize mode: fit, fill, crop
@@ -175,11 +176,12 @@ pub struct StorageConfig {
 pub fn parse_size(size_str: &str) -> Result<usize, String> {
     let size_str = size_str.trim().to_uppercase();
 
-    let (num_part, unit) = if let Some(pos) = size_str.find(|c: char| !c.is_ascii_digit() && c != '.') {
-        (&size_str[..pos], &size_str[pos..])
-    } else {
-        (size_str.as_str(), "")
-    };
+    let (num_part, unit) =
+        if let Some(pos) = size_str.find(|c: char| !c.is_ascii_digit() && c != '.') {
+            (&size_str[..pos], &size_str[pos..])
+        } else {
+            (size_str.as_str(), "")
+        };
 
     let num: f64 = num_part.parse().map_err(|_| format!("Invalid number: {}", num_part))?;
 

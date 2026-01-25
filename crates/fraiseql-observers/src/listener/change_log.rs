@@ -7,15 +7,18 @@
 //! 4. Maintains checkpoint for recovery after restarts
 //! 5. Handles backpressure and batch processing
 
-use crate::error::{ObserverError, Result};
-use crate::event::{EntityEvent, EventKind, FieldChanges};
+use std::{collections::HashMap, time::Duration};
+
 use chrono::{DateTime, TimeZone, Utc};
 use serde_json::Value;
 use sqlx::postgres::PgPool;
-use std::collections::HashMap;
-use std::time::Duration;
 use tracing::{debug, error, info};
 use uuid::Uuid;
+
+use crate::{
+    error::{ObserverError, Result},
+    event::{EntityEvent, EventKind, FieldChanges},
+};
 
 /// Configuration for the change log listener
 #[derive(Debug, Clone)]
@@ -35,7 +38,7 @@ pub struct ChangeLogListenerConfig {
 
 impl ChangeLogListenerConfig {
     /// Create config with defaults
-    #[must_use] 
+    #[must_use]
     pub const fn new(pool: PgPool) -> Self {
         Self {
             pool,
@@ -46,21 +49,21 @@ impl ChangeLogListenerConfig {
     }
 
     /// Set poll interval
-    #[must_use] 
+    #[must_use]
     pub const fn with_poll_interval(mut self, ms: u64) -> Self {
         self.poll_interval_ms = ms;
         self
     }
 
     /// Set batch size
-    #[must_use] 
+    #[must_use]
     pub const fn with_batch_size(mut self, size: usize) -> Self {
         self.batch_size = size;
         self
     }
 
     /// Set resume checkpoint
-    #[must_use] 
+    #[must_use]
     pub const fn with_resume_from(mut self, id: i64) -> Self {
         self.resume_from_id = Some(id);
         self
@@ -118,16 +121,15 @@ impl ChangeLogEntry {
 
     /// Get "after" values (entity state after change)
     pub fn after_values(&self) -> Result<Value> {
-        self.object_data
-            .get("after")
-            .cloned()
-            .ok_or_else(|| ObserverError::TemplateRenderingFailed {
+        self.object_data.get("after").cloned().ok_or_else(|| {
+            ObserverError::TemplateRenderingFailed {
                 reason: "Missing 'after' field in Debezium envelope".to_string(),
-            })
+            }
+        })
     }
 
     /// Get "before" values (entity state before change)
-    #[must_use] 
+    #[must_use]
     pub fn before_values(&self) -> Option<Value> {
         self.object_data.get("before").cloned()
     }
@@ -144,14 +146,15 @@ impl ChangeLogEntry {
                 return Err(ObserverError::TemplateRenderingFailed {
                     reason: format!("Unknown operation code: {op}"),
                 });
-            }
+            },
         };
 
         // Parse entity_id from object_id (should be UUID format)
-        let entity_id = Uuid::parse_str(&self.object_id)
-            .map_err(|e| ObserverError::TemplateRenderingFailed {
+        let entity_id = Uuid::parse_str(&self.object_id).map_err(|e| {
+            ObserverError::TemplateRenderingFailed {
                 reason: format!("Invalid entity ID (not UUID): {} - {}", self.object_id, e),
-            })?;
+            }
+        })?;
 
         // Parse timestamp from created_at (PostgreSQL TIMESTAMPTZ format)
         // PostgreSQL returns: "2026-01-23 12:34:56.123456" or "2026-01-23 12:34:56.123456+00"
@@ -159,12 +162,11 @@ impl ChangeLogEntry {
             dt.with_timezone(&Utc)
         } else {
             // Try PostgreSQL format without timezone indicator
-            let ndt = chrono::NaiveDateTime::parse_from_str(
-                &self.created_at,
-                "%Y-%m-%d %H:%M:%S%.f"
-            ).map_err(|e| ObserverError::TemplateRenderingFailed {
-                reason: format!("Invalid timestamp format: {} - {}", self.created_at, e),
-            })?;
+            let ndt =
+                chrono::NaiveDateTime::parse_from_str(&self.created_at, "%Y-%m-%d %H:%M:%S%.f")
+                    .map_err(|e| ObserverError::TemplateRenderingFailed {
+                        reason: format!("Invalid timestamp format: {} - {}", self.created_at, e),
+                    })?;
             Utc.from_utc_datetime(&ndt)
         };
 
@@ -186,8 +188,7 @@ impl ChangeLogEntry {
         let user_id = self.fk_contact.clone();
 
         Ok(EntityEvent {
-            id: Uuid::parse_str(&self.pk_entity_change_log)
-                .unwrap_or_else(|_| Uuid::new_v4()),
+            id: Uuid::parse_str(&self.pk_entity_change_log).unwrap_or_else(|_| Uuid::new_v4()),
             event_type: event_kind,
             entity_type: self.object_type.clone(),
             entity_id,
@@ -263,13 +264,13 @@ impl ChangeLogEntry {
 
 /// Change log listener that polls database for mutations
 pub struct ChangeLogListener {
-    config: ChangeLogListenerConfig,
+    config:            ChangeLogListenerConfig,
     last_processed_id: i64,
 }
 
 impl ChangeLogListener {
     /// Create a new change log listener
-    #[must_use] 
+    #[must_use]
     pub fn new(config: ChangeLogListenerConfig) -> Self {
         let last_processed_id = config.resume_from_id.unwrap_or(0);
 
@@ -286,9 +287,20 @@ impl ChangeLogListener {
         // ORDER BY pk_entity_change_log ASC
         // LIMIT batch_size
 
-        let rows: Vec<(i64, Uuid, Option<String>, Option<String>, String, String, String, Option<String>, Value, Option<Value>, Option<DateTime<Utc>>)> =
-            sqlx::query_as(
-                r"
+        let rows: Vec<(
+            i64,
+            Uuid,
+            Option<String>,
+            Option<String>,
+            String,
+            String,
+            String,
+            Option<String>,
+            Value,
+            Option<Value>,
+            Option<DateTime<Utc>>,
+        )> = sqlx::query_as(
+            r"
                 SELECT
                     pk_entity_change_log,
                     id,
@@ -306,32 +318,34 @@ impl ChangeLogListener {
                 ORDER BY pk_entity_change_log ASC
                 LIMIT $2
                 ",
-            )
-            .bind(self.last_processed_id)
-            .bind(self.config.batch_size as i64)
-            .fetch_all(&self.config.pool)
-            .await
-            .map_err(|e| ObserverError::DatabaseError {
-                reason: format!("Failed to query change log: {e}"),
-            })?;
+        )
+        .bind(self.last_processed_id)
+        .bind(self.config.batch_size as i64)
+        .fetch_all(&self.config.pool)
+        .await
+        .map_err(|e| ObserverError::DatabaseError {
+            reason: format!("Failed to query change log: {e}"),
+        })?;
 
         let mut entries = Vec::new();
 
-        for (pk, id, org, contact, obj_type, obj_id, mod_type, status, data, meta, created) in rows {
-            let created_at_str = created.map_or_else(|| Utc::now().to_rfc3339(), |dt| dt.to_rfc3339());
+        for (pk, id, org, contact, obj_type, obj_id, mod_type, status, data, meta, created) in rows
+        {
+            let created_at_str =
+                created.map_or_else(|| Utc::now().to_rfc3339(), |dt| dt.to_rfc3339());
 
             entries.push(ChangeLogEntry {
-                id: pk,
+                id:                   pk,
                 pk_entity_change_log: id.to_string(),
-                fk_customer_org: org.unwrap_or_default(),
-                fk_contact: contact,
-                object_type: obj_type,
-                object_id: obj_id,
-                modification_type: mod_type,
-                change_status: status.unwrap_or_default(),
-                object_data: data,
-                extra_metadata: meta,
-                created_at: created_at_str,
+                fk_customer_org:      org.unwrap_or_default(),
+                fk_contact:           contact,
+                object_type:          obj_type,
+                object_id:            obj_id,
+                modification_type:    mod_type,
+                change_status:        status.unwrap_or_default(),
+                object_data:          data,
+                extra_metadata:       meta,
+                created_at:           created_at_str,
             });
 
             // Update checkpoint for recovery
@@ -344,7 +358,7 @@ impl ChangeLogListener {
     }
 
     /// Get the current checkpoint (last processed ID)
-    #[must_use] 
+    #[must_use]
     pub const fn checkpoint(&self) -> i64 {
         self.last_processed_id
     }
@@ -356,10 +370,7 @@ impl ChangeLogListener {
 
     /// Poll indefinitely for events (for background task)
     pub async fn run(&mut self) -> Result<()> {
-        info!(
-            "Starting change log listener (resume from id: {})",
-            self.last_processed_id
-        );
+        info!("Starting change log listener (resume from id: {})", self.last_processed_id);
 
         loop {
             match self.next_batch().await {
@@ -373,12 +384,12 @@ impl ChangeLogListener {
                         tokio::time::sleep(Duration::from_millis(self.config.poll_interval_ms))
                             .await;
                     }
-                }
+                },
                 Err(e) => {
                     error!("Error fetching from change log: {}", e);
                     // Back off and retry
                     tokio::time::sleep(Duration::from_secs(1)).await;
-                }
+                },
             }
         }
     }
@@ -386,27 +397,28 @@ impl ChangeLogListener {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serde_json::json;
+
+    use super::*;
 
     #[test]
     fn test_change_log_entry_debezium_operation() {
         let entry = ChangeLogEntry {
-            id: 1,
+            id:                   1,
             pk_entity_change_log: "uuid".to_string(),
-            fk_customer_org: "org".to_string(),
-            fk_contact: None,
-            object_type: "Order".to_string(),
-            object_id: "order-id".to_string(),
-            modification_type: "INSERT".to_string(),
-            change_status: "success".to_string(),
-            object_data: json!({
+            fk_customer_org:      "org".to_string(),
+            fk_contact:           None,
+            object_type:          "Order".to_string(),
+            object_id:            "order-id".to_string(),
+            modification_type:    "INSERT".to_string(),
+            change_status:        "success".to_string(),
+            object_data:          json!({
                 "op": "c",
                 "before": null,
                 "after": { "id": "order-id" }
             }),
-            extra_metadata: None,
-            created_at: "2026-01-22T10:00:00Z".to_string(),
+            extra_metadata:       None,
+            created_at:           "2026-01-22T10:00:00Z".to_string(),
         };
 
         assert_eq!(entry.debezium_operation().unwrap(), 'c');
@@ -415,21 +427,21 @@ mod tests {
     #[test]
     fn test_change_log_entry_after_values() {
         let entry = ChangeLogEntry {
-            id: 1,
+            id:                   1,
             pk_entity_change_log: "uuid".to_string(),
-            fk_customer_org: "org".to_string(),
-            fk_contact: None,
-            object_type: "User".to_string(),
-            object_id: "user-id".to_string(),
-            modification_type: "UPDATE".to_string(),
-            change_status: "success".to_string(),
-            object_data: json!({
+            fk_customer_org:      "org".to_string(),
+            fk_contact:           None,
+            object_type:          "User".to_string(),
+            object_id:            "user-id".to_string(),
+            modification_type:    "UPDATE".to_string(),
+            change_status:        "success".to_string(),
+            object_data:          json!({
                 "op": "u",
                 "before": { "name": "old" },
                 "after": { "name": "new" }
             }),
-            extra_metadata: None,
-            created_at: "2026-01-22T10:00:00Z".to_string(),
+            extra_metadata:       None,
+            created_at:           "2026-01-22T10:00:00Z".to_string(),
         };
 
         let after = entry.after_values().unwrap();
@@ -439,21 +451,21 @@ mod tests {
     #[test]
     fn test_change_log_entry_before_values() {
         let entry = ChangeLogEntry {
-            id: 1,
+            id:                   1,
             pk_entity_change_log: "uuid".to_string(),
-            fk_customer_org: "org".to_string(),
-            fk_contact: None,
-            object_type: "Product".to_string(),
-            object_id: "prod-id".to_string(),
-            modification_type: "UPDATE".to_string(),
-            change_status: "success".to_string(),
-            object_data: json!({
+            fk_customer_org:      "org".to_string(),
+            fk_contact:           None,
+            object_type:          "Product".to_string(),
+            object_id:            "prod-id".to_string(),
+            modification_type:    "UPDATE".to_string(),
+            change_status:        "success".to_string(),
+            object_data:          json!({
                 "op": "u",
                 "before": { "price": 100 },
                 "after": { "price": 150 }
             }),
-            extra_metadata: None,
-            created_at: "2026-01-22T10:00:00Z".to_string(),
+            extra_metadata:       None,
+            created_at:           "2026-01-22T10:00:00Z".to_string(),
         };
 
         let before = entry.before_values().unwrap();
@@ -462,7 +474,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_change_log_listener_checkpoint() {
-        let config = ChangeLogListenerConfig::new(PgPool::connect_lazy("postgres://localhost/dummy").unwrap());
+        let config = ChangeLogListenerConfig::new(
+            PgPool::connect_lazy("postgres://localhost/dummy").unwrap(),
+        );
         let mut listener = ChangeLogListener::new(config);
 
         assert_eq!(listener.checkpoint(), 0);
@@ -490,21 +504,21 @@ mod tests {
     fn test_insert_to_entity_event() {
         let entity_id = Uuid::new_v4();
         let entry = ChangeLogEntry {
-            id: 1,
+            id:                   1,
             pk_entity_change_log: Uuid::new_v4().to_string(),
-            fk_customer_org: "org".to_string(),
-            fk_contact: Some("user-123".to_string()),
-            object_type: "Order".to_string(),
-            object_id: entity_id.to_string(),
-            modification_type: "INSERT".to_string(),
-            change_status: "success".to_string(),
-            object_data: json!({
+            fk_customer_org:      "org".to_string(),
+            fk_contact:           Some("user-123".to_string()),
+            object_type:          "Order".to_string(),
+            object_id:            entity_id.to_string(),
+            modification_type:    "INSERT".to_string(),
+            change_status:        "success".to_string(),
+            object_data:          json!({
                 "op": "c",
                 "before": null,
                 "after": { "id": entity_id.to_string(), "total": 150.00, "status": "pending" }
             }),
-            extra_metadata: None,
-            created_at: "2026-01-22T10:30:00+00:00".to_string(),
+            extra_metadata:       None,
+            created_at:           "2026-01-22T10:30:00+00:00".to_string(),
         };
 
         let event = entry.to_entity_event().unwrap();
@@ -521,21 +535,21 @@ mod tests {
     fn test_update_to_entity_event() {
         let entity_id = Uuid::new_v4();
         let entry = ChangeLogEntry {
-            id: 2,
+            id:                   2,
             pk_entity_change_log: Uuid::new_v4().to_string(),
-            fk_customer_org: "org".to_string(),
-            fk_contact: Some("user-456".to_string()),
-            object_type: "Order".to_string(),
-            object_id: entity_id.to_string(),
-            modification_type: "UPDATE".to_string(),
-            change_status: "success".to_string(),
-            object_data: json!({
+            fk_customer_org:      "org".to_string(),
+            fk_contact:           Some("user-456".to_string()),
+            object_type:          "Order".to_string(),
+            object_id:            entity_id.to_string(),
+            modification_type:    "UPDATE".to_string(),
+            change_status:        "success".to_string(),
+            object_data:          json!({
                 "op": "u",
                 "before": { "status": "pending", "total": 100.00 },
                 "after": { "status": "shipped", "total": 100.00 }
             }),
-            extra_metadata: None,
-            created_at: "2026-01-22T10:35:00+00:00".to_string(),
+            extra_metadata:       None,
+            created_at:           "2026-01-22T10:35:00+00:00".to_string(),
         };
 
         let event = entry.to_entity_event().unwrap();
@@ -556,21 +570,21 @@ mod tests {
     fn test_delete_to_entity_event() {
         let entity_id = Uuid::new_v4();
         let entry = ChangeLogEntry {
-            id: 3,
+            id:                   3,
             pk_entity_change_log: Uuid::new_v4().to_string(),
-            fk_customer_org: "org".to_string(),
-            fk_contact: None,
-            object_type: "User".to_string(),
-            object_id: entity_id.to_string(),
-            modification_type: "DELETE".to_string(),
-            change_status: "success".to_string(),
-            object_data: json!({
+            fk_customer_org:      "org".to_string(),
+            fk_contact:           None,
+            object_type:          "User".to_string(),
+            object_id:            entity_id.to_string(),
+            modification_type:    "DELETE".to_string(),
+            change_status:        "success".to_string(),
+            object_data:          json!({
                 "op": "d",
                 "before": { "id": entity_id.to_string(), "email": "user@example.com" },
                 "after": null
             }),
-            extra_metadata: None,
-            created_at: "2026-01-22T10:40:00+00:00".to_string(),
+            extra_metadata:       None,
+            created_at:           "2026-01-22T10:40:00+00:00".to_string(),
         };
 
         let event = entry.to_entity_event().unwrap();
@@ -585,21 +599,21 @@ mod tests {
     fn test_field_changes_new_field() {
         let entity_id = Uuid::new_v4();
         let entry = ChangeLogEntry {
-            id: 4,
+            id:                   4,
             pk_entity_change_log: Uuid::new_v4().to_string(),
-            fk_customer_org: "org".to_string(),
-            fk_contact: None,
-            object_type: "Product".to_string(),
-            object_id: entity_id.to_string(),
-            modification_type: "UPDATE".to_string(),
-            change_status: "success".to_string(),
-            object_data: json!({
+            fk_customer_org:      "org".to_string(),
+            fk_contact:           None,
+            object_type:          "Product".to_string(),
+            object_id:            entity_id.to_string(),
+            modification_type:    "UPDATE".to_string(),
+            change_status:        "success".to_string(),
+            object_data:          json!({
                 "op": "u",
                 "before": { "name": "Widget" },
                 "after": { "name": "Widget", "description": "A useful widget" }
             }),
-            extra_metadata: None,
-            created_at: "2026-01-22T10:45:00+00:00".to_string(),
+            extra_metadata:       None,
+            created_at:           "2026-01-22T10:45:00+00:00".to_string(),
         };
 
         let event = entry.to_entity_event().unwrap();
@@ -615,21 +629,21 @@ mod tests {
     fn test_field_changes_deleted_field() {
         let entity_id = Uuid::new_v4();
         let entry = ChangeLogEntry {
-            id: 5,
+            id:                   5,
             pk_entity_change_log: Uuid::new_v4().to_string(),
-            fk_customer_org: "org".to_string(),
-            fk_contact: None,
-            object_type: "User".to_string(),
-            object_id: entity_id.to_string(),
-            modification_type: "UPDATE".to_string(),
-            change_status: "success".to_string(),
-            object_data: json!({
+            fk_customer_org:      "org".to_string(),
+            fk_contact:           None,
+            object_type:          "User".to_string(),
+            object_id:            entity_id.to_string(),
+            modification_type:    "UPDATE".to_string(),
+            change_status:        "success".to_string(),
+            object_data:          json!({
                 "op": "u",
                 "before": { "name": "John", "temp_field": "value" },
                 "after": { "name": "John" }
             }),
-            extra_metadata: None,
-            created_at: "2026-01-22T10:50:00+00:00".to_string(),
+            extra_metadata:       None,
+            created_at:           "2026-01-22T10:50:00+00:00".to_string(),
         };
 
         let event = entry.to_entity_event().unwrap();
@@ -645,21 +659,21 @@ mod tests {
     fn test_timestamp_parsing() {
         let entity_id = Uuid::new_v4();
         let entry = ChangeLogEntry {
-            id: 6,
+            id:                   6,
             pk_entity_change_log: Uuid::new_v4().to_string(),
-            fk_customer_org: "org".to_string(),
-            fk_contact: None,
-            object_type: "Order".to_string(),
-            object_id: entity_id.to_string(),
-            modification_type: "INSERT".to_string(),
-            change_status: "success".to_string(),
-            object_data: json!({
+            fk_customer_org:      "org".to_string(),
+            fk_contact:           None,
+            object_type:          "Order".to_string(),
+            object_id:            entity_id.to_string(),
+            modification_type:    "INSERT".to_string(),
+            change_status:        "success".to_string(),
+            object_data:          json!({
                 "op": "c",
                 "before": null,
                 "after": { "id": entity_id.to_string() }
             }),
-            extra_metadata: None,
-            created_at: "2026-01-22T15:30:45.123456+00:00".to_string(),
+            extra_metadata:       None,
+            created_at:           "2026-01-22T15:30:45.123456+00:00".to_string(),
         };
 
         let event = entry.to_entity_event().unwrap();

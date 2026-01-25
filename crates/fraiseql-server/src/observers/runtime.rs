@@ -6,21 +6,30 @@
 //! 3. Routes events through the ObserverExecutor
 //! 4. Manages lifecycle (startup/shutdown)
 
-use crate::observers::{Observer, ObserverRepository};
-use crate::ServerError;
+use std::{
+    collections::HashMap,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::Duration,
+};
+
 use fraiseql_observers::{
-    ActionConfig as ObserverActionConfig, ChangeLogListener, ChangeLogListenerConfig,
-    EventMatcher, FailurePolicy, ObserverDefinition, ObserverExecutor,
-    RetryConfig as ObserverRetryConfig,
+    ActionConfig as ObserverActionConfig, ChangeLogListener, ChangeLogListenerConfig, EventMatcher,
+    FailurePolicy, ObserverDefinition, ObserverExecutor, RetryConfig as ObserverRetryConfig,
 };
 use sqlx::PgPool;
-use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-use std::time::Duration;
-use tokio::sync::{mpsc, RwLock};
-use tokio::task::JoinHandle;
+use tokio::{
+    sync::{RwLock, mpsc},
+    task::JoinHandle,
+};
 use tracing::{debug, error, info, warn};
+
+use crate::{
+    ServerError,
+    observers::{Observer, ObserverRepository},
+};
 
 /// Configuration for the observer runtime
 #[derive(Debug, Clone)]
@@ -101,21 +110,21 @@ pub struct RuntimeHealth {
 
 /// Observer runtime that manages the execution loop
 pub struct ObserverRuntime {
-    config: ObserverRuntimeConfig,
-    repository: ObserverRepository,
-    running: Arc<AtomicBool>,
+    config:            ObserverRuntimeConfig,
+    repository:        ObserverRepository,
+    running:           Arc<AtomicBool>,
     /// Handle to the background processing task
-    task_handle: Option<JoinHandle<()>>,
+    task_handle:       Option<JoinHandle<()>>,
     /// Channel to send shutdown signal
-    shutdown_tx: Option<mpsc::Sender<()>>,
+    shutdown_tx:       Option<mpsc::Sender<()>>,
     /// Statistics
-    events_processed: Arc<std::sync::atomic::AtomicU64>,
-    errors: Arc<std::sync::atomic::AtomicU64>,
-    observer_count: Arc<std::sync::atomic::AtomicUsize>,
-    last_checkpoint: Arc<std::sync::atomic::AtomicI64>,
+    events_processed:  Arc<std::sync::atomic::AtomicU64>,
+    errors:            Arc<std::sync::atomic::AtomicU64>,
+    observer_count:    Arc<std::sync::atomic::AtomicUsize>,
+    last_checkpoint:   Arc<std::sync::atomic::AtomicI64>,
     /// Hot-swappable components for reload
-    matcher: Arc<RwLock<Option<EventMatcher>>>,
-    executor: Arc<RwLock<Option<Arc<ObserverExecutor>>>>,
+    matcher:           Arc<RwLock<Option<EventMatcher>>>,
+    executor:          Arc<RwLock<Option<Arc<ObserverExecutor>>>>,
     entity_type_index: Arc<RwLock<HashMap<(String, String), Vec<i64>>>>,
 }
 
@@ -143,14 +152,19 @@ impl ObserverRuntime {
     /// Load observers from the database and convert to ObserverDefinitions
     /// Returns (definitions, entity_type_index) tuple
     /// entity_type_index maps (entity_type, event_type) -> observer_id for logging
-    async fn load_observers(&self) -> Result<(HashMap<String, ObserverDefinition>, HashMap<(String, String), Vec<i64>>), ServerError> {
+    async fn load_observers(
+        &self,
+    ) -> Result<
+        (HashMap<String, ObserverDefinition>, HashMap<(String, String), Vec<i64>>),
+        ServerError,
+    > {
         // Load all enabled observers
         let query = crate::observers::ListObserversQuery {
-            page: 1,
-            page_size: 10000, // Load all
-            entity_type: None,
-            event_type: None,
-            enabled: Some(true),
+            page:            1,
+            page_size:       10000, // Load all
+            entity_type:     None,
+            event_type:      None,
+            enabled:         Some(true),
             include_deleted: false,
         };
 
@@ -163,18 +177,20 @@ impl ObserverRuntime {
             match Self::convert_observer(&observer) {
                 Ok(definition) => {
                     // Index by (entity_type, event_type) for reverse lookup during logging
-                    let entity_type = observer.entity_type.clone().unwrap_or_else(|| "*".to_string());
-                    let event_type = observer.event_type.clone().unwrap_or_else(|| "INSERT".to_string());
+                    let entity_type =
+                        observer.entity_type.clone().unwrap_or_else(|| "*".to_string());
+                    let event_type =
+                        observer.event_type.clone().unwrap_or_else(|| "INSERT".to_string());
                     entity_type_index
                         .entry((entity_type, event_type.to_uppercase()))
                         .or_default()
                         .push(observer.pk_observer);
 
                     definitions.insert(observer.name.clone(), definition);
-                }
+                },
                 Err(e) => {
                     warn!("Failed to convert observer {}: {}", observer.name, e);
-                }
+                },
             }
         }
 
@@ -187,11 +203,11 @@ impl ObserverRuntime {
         // Parse actions from JSONB
         let actions: Vec<ObserverActionConfig> = serde_json::from_value(observer.actions.clone())
             .map_err(|e| {
-                ServerError::Validation(format!(
-                    "Failed to parse actions for observer {}: {}",
-                    observer.name, e
-                ))
-            })?;
+            ServerError::Validation(format!(
+                "Failed to parse actions for observer {}: {}",
+                observer.name, e
+            ))
+        })?;
 
         // Parse retry config
         let retry_config: ObserverRetryConfig =
@@ -210,17 +226,14 @@ impl ObserverRuntime {
     /// Start the observer runtime
     pub async fn start(&mut self) -> Result<(), ServerError> {
         if self.running.load(Ordering::SeqCst) {
-            return Err(ServerError::ConfigError(
-                "Observer runtime already running".to_string(),
-            ));
+            return Err(ServerError::ConfigError("Observer runtime already running".to_string()));
         }
 
         info!("Starting observer runtime...");
 
         // Load initial observers with entity_type index for logging
         let (observers, entity_type_index) = self.load_observers().await?;
-        self.observer_count
-            .store(observers.len(), Ordering::SeqCst);
+        self.observer_count.store(observers.len(), Ordering::SeqCst);
 
         // Build event matcher
         let matcher = EventMatcher::build(observers).map_err(|e| {
@@ -494,11 +507,11 @@ impl ObserverRuntime {
     #[must_use]
     pub fn health(&self) -> RuntimeHealth {
         RuntimeHealth {
-            running: self.running.load(Ordering::SeqCst),
-            observer_count: self.observer_count.load(Ordering::SeqCst),
-            last_checkpoint: Some(self.last_checkpoint.load(Ordering::SeqCst)),
+            running:          self.running.load(Ordering::SeqCst),
+            observer_count:   self.observer_count.load(Ordering::SeqCst),
+            last_checkpoint:  Some(self.last_checkpoint.load(Ordering::SeqCst)),
             events_processed: self.events_processed.load(Ordering::SeqCst),
-            errors: self.errors.load(Ordering::SeqCst),
+            errors:           self.errors.load(Ordering::SeqCst),
         }
     }
 
@@ -578,7 +591,10 @@ impl fraiseql_observers::DeadLetterQueue for InMemoryDlq {
         Ok(id)
     }
 
-    async fn get_pending(&self, limit: i64) -> fraiseql_observers::Result<Vec<fraiseql_observers::DlqItem>> {
+    async fn get_pending(
+        &self,
+        limit: i64,
+    ) -> fraiseql_observers::Result<Vec<fraiseql_observers::DlqItem>> {
         let items = self.items.lock().unwrap();
         Ok(items.iter().take(limit as usize).cloned().collect())
     }
@@ -589,7 +605,11 @@ impl fraiseql_observers::DeadLetterQueue for InMemoryDlq {
         Ok(())
     }
 
-    async fn mark_retry_failed(&self, id: uuid::Uuid, _error: &str) -> fraiseql_observers::Result<()> {
+    async fn mark_retry_failed(
+        &self,
+        id: uuid::Uuid,
+        _error: &str,
+    ) -> fraiseql_observers::Result<()> {
         let mut items = self.items.lock().unwrap();
         items.retain(|i| i.id != id);
         Ok(())
@@ -609,11 +629,11 @@ mod tests {
     #[test]
     fn test_runtime_health_default() {
         let health = RuntimeHealth {
-            running: false,
-            observer_count: 0,
-            last_checkpoint: None,
+            running:          false,
+            observer_count:   0,
+            last_checkpoint:  None,
             events_processed: 0,
-            errors: 0,
+            errors:           0,
         };
         assert!(!health.running);
         assert_eq!(health.observer_count, 0);

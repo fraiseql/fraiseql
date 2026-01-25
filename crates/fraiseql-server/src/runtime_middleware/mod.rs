@@ -14,7 +14,6 @@ pub mod rate_limit;
 
 // Re-export commonly used types
 pub use cors::build_cors_layer;
-pub use rate_limit::{RateLimit, RateLimitResult, RateLimiter};
-
 #[cfg(any(test, feature = "testing"))]
 pub use rate_limit::MockRateLimiter;
+pub use rate_limit::{RateLimit, RateLimitResult, RateLimiter};

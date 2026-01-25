@@ -10,16 +10,21 @@
 //! - Maintains existing behavior (zero changes to semantics)
 //! - Enables gradual migration to transport-agnostic code
 
-use crate::error::Result;
-use crate::event::EntityEvent;
-use crate::listener::{ChangeLogEntry, ChangeLogListener, ChangeLogListenerConfig};
-use crate::transport::{EventFilter, EventStream, EventTransport, HealthStatus, TransportHealth, TransportType};
+use std::{sync::Arc, time::Duration};
+
 use async_trait::async_trait;
 use futures::stream;
-use std::sync::Arc;
-use std::time::Duration;
 use tokio::sync::Mutex;
 use tracing::{debug, error};
+
+use crate::{
+    error::Result,
+    event::EntityEvent,
+    listener::{ChangeLogEntry, ChangeLogListener, ChangeLogListenerConfig},
+    transport::{
+        EventFilter, EventStream, EventTransport, HealthStatus, TransportHealth, TransportType,
+    },
+};
 
 /// PostgreSQL transport using LISTEN/NOTIFY (via `tb_entity_change_log` polling)
 ///
@@ -27,14 +32,14 @@ use tracing::{debug, error};
 /// the `EventTransport` trait for backward compatibility.
 pub struct PostgresNotifyTransport {
     /// Inner change log listener (wrapped)
-    listener: Arc<Mutex<ChangeLogListener>>,
+    listener:      Arc<Mutex<ChangeLogListener>>,
     /// Poll interval for checking new events
     poll_interval: Duration,
 }
 
 impl PostgresNotifyTransport {
     /// Create a new PostgreSQL transport from existing listener
-    #[must_use] 
+    #[must_use]
     pub fn new(listener: ChangeLogListener) -> Self {
         let poll_interval = Duration::from_millis(100); // Default 100ms polling
 
@@ -45,7 +50,7 @@ impl PostgresNotifyTransport {
     }
 
     /// Create from configuration (convenience constructor)
-    #[must_use] 
+    #[must_use]
     pub fn from_config(config: ChangeLogListenerConfig) -> Self {
         let poll_interval = Duration::from_millis(config.poll_interval_ms);
         let listener = ChangeLogListener::new(config);
@@ -57,7 +62,7 @@ impl PostgresNotifyTransport {
     }
 
     /// Set poll interval
-    #[must_use] 
+    #[must_use]
     pub const fn with_poll_interval(mut self, interval: Duration) -> Self {
         self.poll_interval = interval;
         self
@@ -71,9 +76,8 @@ impl EventTransport for PostgresNotifyTransport {
         let poll_interval = self.poll_interval;
 
         // Create a stream that polls the change log listener
-        let stream = stream::unfold(
-            (listener, poll_interval),
-            move |(listener, interval)| async move {
+        let stream =
+            stream::unfold((listener, poll_interval), move |(listener, interval)| async move {
                 loop {
                     // Lock the listener and fetch next batch
                     let entries: Vec<ChangeLogEntry> = {
@@ -82,13 +86,13 @@ impl EventTransport for PostgresNotifyTransport {
                             Ok(entries) => {
                                 drop(listener_guard); // Release lock
                                 entries
-                            }
+                            },
                             Err(e) => {
                                 error!("Error fetching batch from change log: {}", e);
                                 drop(listener_guard); // Release lock
                                 // Return error and continue
                                 return Some((Err(e), (listener, interval)));
-                            }
+                            },
                         }
                     };
 
@@ -101,11 +105,11 @@ impl EventTransport for PostgresNotifyTransport {
                             match entry.to_entity_event() {
                                 Ok(event) => {
                                     return Some((Ok(event), (listener, interval)));
-                                }
+                                },
                                 Err(e) => {
                                     error!("Error converting change log entry to event: {}", e);
                                     return Some((Err(e), (listener, interval)));
-                                }
+                                },
                             }
                         }
                     }
@@ -113,19 +117,16 @@ impl EventTransport for PostgresNotifyTransport {
                     // No entries, sleep and retry
                     tokio::time::sleep(interval).await;
                 }
-            },
-        );
+            });
 
         Ok(Box::pin(stream))
     }
 
     async fn publish(&self, event: EntityEvent) -> Result<()> {
         // PostgreSQL transport doesn't support publishing (write-only via database triggers)
-        // This is a no-op for now, but could be implemented via direct INSERT to tb_entity_change_log
-        debug!(
-            "PostgresNotifyTransport::publish() called for event {} (no-op)",
-            event.id
-        );
+        // This is a no-op for now, but could be implemented via direct INSERT to
+        // tb_entity_change_log
+        debug!("PostgresNotifyTransport::publish() called for event {} (no-op)", event.id);
         Ok(())
     }
 
@@ -141,7 +142,7 @@ impl EventTransport for PostgresNotifyTransport {
         drop(listener);
 
         Ok(TransportHealth {
-            status: HealthStatus::Healthy,
+            status:  HealthStatus::Healthy,
             message: Some("PostgreSQL change log listener operational".to_string()),
         })
     }
@@ -149,11 +150,12 @@ impl EventTransport for PostgresNotifyTransport {
 
 #[cfg(test)]
 mod tests {
+    use std::env;
+
+    use sqlx::postgres::PgPool;
+
     use super::*;
     use crate::listener::ChangeLogListenerConfig;
-    
-    use sqlx::postgres::PgPool;
-    use std::env;
 
     async fn get_test_pool() -> Option<PgPool> {
         let database_url = env::var("TEST_DATABASE_URL").ok()?;
@@ -198,10 +200,7 @@ mod tests {
         let transport = PostgresNotifyTransport::from_config(config);
 
         // Subscribe to events
-        let stream = transport
-            .subscribe(EventFilter::default())
-            .await
-            .unwrap();
+        let stream = transport.subscribe(EventFilter::default()).await.unwrap();
 
         // Note: This test won't produce events unless the database has data
         // It just verifies the stream can be created

@@ -1,8 +1,12 @@
-use super::*;
-use crate::config::env::{parse_size, parse_duration, resolve_env_value};
-use crate::config::validation::ConfigValidator;
-use fraiseql_error::ConfigError;
 use std::time::Duration;
+
+use fraiseql_error::ConfigError;
+
+use super::*;
+use crate::config::{
+    env::{parse_duration, parse_size, resolve_env_value},
+    validation::ConfigValidator,
+};
 
 #[test]
 fn test_parse_minimal_config() {

@@ -1,23 +1,21 @@
-use std::path::Path;
-use std::env;
+use std::{env, path::Path};
 
-use crate::config::RuntimeConfig;
-use crate::config::validation::ConfigValidator;
 use fraiseql_error::ConfigError;
+
+use crate::config::{RuntimeConfig, validation::ConfigValidator};
 
 impl RuntimeConfig {
     /// Load configuration from file with full validation
     pub fn from_file(path: impl AsRef<Path>) -> Result<Self, ConfigError> {
         let path = path.as_ref();
 
-        let content = std::fs::read_to_string(path)
-            .map_err(|e| ConfigError::ReadError {
-                path: path.to_path_buf(),
-                source: e
-            })?;
+        let content = std::fs::read_to_string(path).map_err(|e| ConfigError::ReadError {
+            path:   path.to_path_buf(),
+            source: e,
+        })?;
 
-        let config: RuntimeConfig = toml::from_str(&content)
-            .map_err(|e| ConfigError::ParseError { source: e })?;
+        let config: RuntimeConfig =
+            toml::from_str(&content).map_err(|e| ConfigError::ParseError { source: e })?;
 
         // Run comprehensive validation
         let validation = ConfigValidator::new(&config).validate();
@@ -65,8 +63,8 @@ impl RuntimeConfig {
 
     /// Validate configuration without loading env vars (for dry-run/testing)
     pub fn validate_syntax(content: &str) -> Result<(), ConfigError> {
-        let _config: RuntimeConfig = toml::from_str(content)
-            .map_err(|e| ConfigError::ParseError { source: e })?;
+        let _config: RuntimeConfig =
+            toml::from_str(content).map_err(|e| ConfigError::ParseError { source: e })?;
         Ok(())
     }
 }

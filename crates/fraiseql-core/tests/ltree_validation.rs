@@ -43,16 +43,18 @@ fn test_ltree_valid_path_formats() {
 
         for op in operators {
             let clause = WhereClause::Field {
-                path: vec!["hierarchy".to_string()],
+                path:     vec!["hierarchy".to_string()],
                 operator: op.clone(),
-                value: json!(path),
+                value:    json!(path),
             };
 
             match clause {
-                WhereClause::Field { value, operator, .. } => {
+                WhereClause::Field {
+                    value, operator, ..
+                } => {
                     assert_eq!(value, json!(path), "Path {} should be preserved", path);
                     assert_eq!(operator, op);
-                }
+                },
                 _ => panic!("Should be Field variant"),
             }
         }
@@ -62,21 +64,18 @@ fn test_ltree_valid_path_formats() {
 #[test]
 fn test_ltree_long_path_preservation() {
     // Very long paths should be preserved without truncation
-    let long_path_100 = (0..100)
-        .map(|i| format!("level{}", i))
-        .collect::<Vec<_>>()
-        .join(".");
+    let long_path_100 = (0..100).map(|i| format!("level{}", i)).collect::<Vec<_>>().join(".");
 
     let long_paths: Vec<&str> = vec![
-        "a.b.c.d.e.f.g.h.i.j.k.l.m.n.o.p.q.r.s.t.u.v.w.x.y.z",  // 26 components
-        "level1.level2.level3.level4.level5.level6.level7.level8.level9.level10",  // 10 levels
+        "a.b.c.d.e.f.g.h.i.j.k.l.m.n.o.p.q.r.s.t.u.v.w.x.y.z", // 26 components
+        "level1.level2.level3.level4.level5.level6.level7.level8.level9.level10", // 10 levels
     ];
 
     for path in &long_paths {
         let clause = WhereClause::Field {
-            path: vec!["tree".to_string()],
+            path:     vec!["tree".to_string()],
             operator: WhereOperator::AncestorOf,
-            value: json!(path),
+            value:    json!(path),
         };
 
         match clause {
@@ -89,16 +88,16 @@ fn test_ltree_long_path_preservation() {
                 let json_str = value.as_str().unwrap();
                 let json_component_count = json_str.split('.').count();
                 assert_eq!(json_component_count, component_count);
-            }
+            },
             _ => panic!("Should be Field variant"),
         }
     }
 
     // Test 100-component path separately
     let clause = WhereClause::Field {
-        path: vec!["tree".to_string()],
+        path:     vec!["tree".to_string()],
         operator: WhereOperator::AncestorOf,
-        value: json!(&long_path_100),
+        value:    json!(&long_path_100),
     };
 
     match clause {
@@ -108,7 +107,7 @@ fn test_ltree_long_path_preservation() {
             let json_str = value.as_str().unwrap();
             let json_component_count = json_str.split('.').count();
             assert_eq!(json_component_count, component_count);
-        }
+        },
         _ => panic!("Should be Field variant"),
     }
 }
@@ -133,15 +132,15 @@ fn test_ltree_special_characters_in_labels() {
 
     for label in label_types {
         let clause = WhereClause::Field {
-            path: vec!["path".to_string()],
+            path:     vec!["path".to_string()],
             operator: WhereOperator::DescendantOf,
-            value: json!(label),
+            value:    json!(label),
         };
 
         match clause {
             WhereClause::Field { value, .. } => {
                 assert_eq!(value, json!(label));
-            }
+            },
             _ => panic!("Should be Field variant"),
         }
     }
@@ -165,15 +164,15 @@ fn test_ltree_queries_lquery_patterns() {
 
     for pattern in lquery_patterns {
         let clause = WhereClause::Field {
-            path: vec!["path".to_string()],
+            path:     vec!["path".to_string()],
             operator: WhereOperator::MatchesLquery,
-            value: json!(pattern),
+            value:    json!(pattern),
         };
 
         match clause {
             WhereClause::Field { value, .. } => {
                 assert_eq!(value, json!(pattern));
-            }
+            },
             _ => panic!("Should be Field variant"),
         }
     }
@@ -196,16 +195,18 @@ fn test_ltree_depth_operators() {
 
         for op in operators {
             let clause = WhereClause::Field {
-                path: vec!["tree".to_string()],
+                path:     vec!["tree".to_string()],
                 operator: op.clone(),
-                value: json!(depth),
+                value:    json!(depth),
             };
 
             match clause {
-                WhereClause::Field { value, operator, .. } => {
+                WhereClause::Field {
+                    value, operator, ..
+                } => {
                     assert_eq!(value, json!(depth));
                     assert_eq!(operator, op);
-                }
+                },
                 _ => panic!("Should be Field variant"),
             }
         }
@@ -227,15 +228,15 @@ fn test_ltree_path_with_numbers() {
 
     for path in numeric_paths {
         let clause = WhereClause::Field {
-            path: vec!["numeric_path".to_string()],
+            path:     vec!["numeric_path".to_string()],
             operator: WhereOperator::AncestorOf,
-            value: json!(path),
+            value:    json!(path),
         };
 
         match clause {
             WhereClause::Field { value, .. } => {
                 assert_eq!(value, json!(path));
-            }
+            },
             _ => panic!("Should be Field variant"),
         }
     }
@@ -245,26 +246,26 @@ fn test_ltree_path_with_numbers() {
 fn test_ltree_empty_path_handling() {
     // Edge case: empty or minimal paths
     let edge_paths = vec![
-        "",          // empty string
-        "a",         // single component
-        ".",         // just dot (invalid)
-        "a.",        // trailing dot (invalid)
-        ".a",        // leading dot (invalid)
-        "a..b",      // double dot (invalid)
+        "",     // empty string
+        "a",    // single component
+        ".",    // just dot (invalid)
+        "a.",   // trailing dot (invalid)
+        ".a",   // leading dot (invalid)
+        "a..b", // double dot (invalid)
     ];
 
     for path in edge_paths {
         // Should still construct - validation happens at SQL generation
         let clause = WhereClause::Field {
-            path: vec!["path".to_string()],
+            path:     vec!["path".to_string()],
             operator: WhereOperator::MatchesLquery,
-            value: json!(path),
+            value:    json!(path),
         };
 
         match clause {
             WhereClause::Field { value, .. } => {
                 assert_eq!(value, json!(path));
-            }
+            },
             _ => panic!("Should be Field variant"),
         }
     }
@@ -274,28 +275,28 @@ fn test_ltree_empty_path_handling() {
 fn test_ltree_case_sensitivity() {
     // LTree paths are case-sensitive
     let case_variants = vec![
-        ("Org", "ORG", "org"),  // Different cases
+        ("Org", "ORG", "org"), // Different cases
         ("Company", "COMPANY", "company"),
         ("Department", "DEPARTMENT", "department"),
     ];
 
     for (variant1, variant2, variant3) in case_variants {
         let clause1 = WhereClause::Field {
-            path: vec!["path".to_string()],
+            path:     vec!["path".to_string()],
             operator: WhereOperator::DescendantOf,
-            value: json!(variant1),
+            value:    json!(variant1),
         };
 
         let clause2 = WhereClause::Field {
-            path: vec!["path".to_string()],
+            path:     vec!["path".to_string()],
             operator: WhereOperator::DescendantOf,
-            value: json!(variant2),
+            value:    json!(variant2),
         };
 
         let clause3 = WhereClause::Field {
-            path: vec!["path".to_string()],
+            path:     vec!["path".to_string()],
             operator: WhereOperator::DescendantOf,
-            value: json!(variant3),
+            value:    json!(variant3),
         };
 
         match (clause1, clause2, clause3) {
@@ -311,7 +312,7 @@ fn test_ltree_case_sensitivity() {
                 // And they should be different
                 assert_ne!(v1, v2);
                 assert_ne!(v2, v3);
-            }
+            },
             _ => panic!("Should be Field variants"),
         }
     }
@@ -325,23 +326,23 @@ fn test_ltree_unicode_labels() {
         "naïve",
         "resumé",
         "piñata",
-        "Москва",      // Russian
-        "北京",         // Chinese
-        "東京",         // Japanese
-        "🏢.company",   // Emoji (invalid but preserved)
+        "Москва",     // Russian
+        "北京",       // Chinese
+        "東京",       // Japanese
+        "🏢.company", // Emoji (invalid but preserved)
     ];
 
     for path in unicode_paths {
         let clause = WhereClause::Field {
-            path: vec!["path".to_string()],
+            path:     vec!["path".to_string()],
             operator: WhereOperator::AncestorOf,
-            value: json!(path),
+            value:    json!(path),
         };
 
         match clause {
             WhereClause::Field { value, .. } => {
                 assert_eq!(value, json!(path));
-            }
+            },
             _ => panic!("Should be Field variant"),
         }
     }
@@ -362,20 +363,20 @@ fn test_ltree_operators_all_variants() {
         (WhereOperator::DepthGte, "DepthGte"),
         (WhereOperator::DepthLt, "DepthLt"),
         (WhereOperator::DepthLte, "DepthLte"),
-        (WhereOperator::Lca, "Lca"),  // Lowest Common Ancestor
+        (WhereOperator::Lca, "Lca"), // Lowest Common Ancestor
     ];
 
     for (operator, _name) in all_ltree_operators {
         let clause = WhereClause::Field {
-            path: vec!["path".to_string()],
+            path:     vec!["path".to_string()],
             operator: operator.clone(),
-            value: json!("test_value"),
+            value:    json!("test_value"),
         };
 
         match clause {
             WhereClause::Field { operator: op, .. } => {
                 assert_eq!(op, operator);
-            }
+            },
             _ => panic!("Should be Field variant"),
         }
     }
@@ -391,9 +392,9 @@ fn test_ltree_path_depth_constraints() {
         let path = components.join(".");
 
         let clause = WhereClause::Field {
-            path: vec!["tree".to_string()],
+            path:     vec!["tree".to_string()],
             operator: WhereOperator::AncestorOf,
-            value: json!(&path),
+            value:    json!(&path),
         };
 
         match clause {
@@ -404,7 +405,7 @@ fn test_ltree_path_depth_constraints() {
                 // Component count should match depth
                 let actual_depth = value.as_str().unwrap().split('.').count();
                 assert_eq!(actual_depth, depth);
-            }
+            },
             _ => panic!("Should be Field variant"),
         }
     }

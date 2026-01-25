@@ -227,7 +227,10 @@ impl SchemaValidator {
                 // Validate at least one action exists
                 if observer.actions.is_empty() {
                     report.errors.push(ValidationError {
-                        message:    format!("Observer '{}' must have at least one action", observer.name),
+                        message:    format!(
+                            "Observer '{}' must have at least one action",
+                            observer.name
+                        ),
                         path:       format!("observers[{idx}].actions"),
                         severity:   ErrorSeverity::Error,
                         suggestion: Some("Add a webhook, slack, or email action".to_string()),
@@ -246,9 +249,13 @@ impl SchemaValidator {
                                         "Observer '{}' action {} has invalid type '{}'",
                                         observer.name, action_idx, action_type
                                     ),
-                                    path:       format!("observers[{idx}].actions[{action_idx}].type"),
+                                    path:       format!(
+                                        "observers[{idx}].actions[{action_idx}].type"
+                                    ),
                                     severity:   ErrorSeverity::Error,
-                                    suggestion: Some("Valid action types: webhook, slack, email".to_string()),
+                                    suggestion: Some(
+                                        "Valid action types: webhook, slack, email".to_string(),
+                                    ),
                                 });
                             }
 
@@ -268,7 +275,7 @@ impl SchemaValidator {
                                             suggestion: Some("Add 'url' or 'url_env' field".to_string()),
                                         });
                                     }
-                                }
+                                },
                                 "slack" => {
                                     if !obj.contains_key("channel") {
                                         report.errors.push(ValidationError {
@@ -292,7 +299,7 @@ impl SchemaValidator {
                                             suggestion: Some("Add 'message' field".to_string()),
                                         });
                                     }
-                                }
+                                },
                                 "email" => {
                                     let required_fields = ["to", "subject", "body"];
                                     for field in &required_fields {
@@ -308,8 +315,8 @@ impl SchemaValidator {
                                             });
                                         }
                                     }
-                                }
-                                _ => {}
+                                },
+                                _ => {},
                             }
                         } else {
                             report.errors.push(ValidationError {
@@ -319,7 +326,9 @@ impl SchemaValidator {
                                 ),
                                 path:       format!("observers[{idx}].actions[{action_idx}]"),
                                 severity:   ErrorSeverity::Error,
-                                suggestion: Some("Add 'type' field (webhook, slack, or email)".to_string()),
+                                suggestion: Some(
+                                    "Add 'type' field (webhook, slack, or email)".to_string(),
+                                ),
                             });
                         }
                     } else {
@@ -345,13 +354,18 @@ impl SchemaValidator {
                         ),
                         path:       format!("observers[{idx}].retry.backoff_strategy"),
                         severity:   ErrorSeverity::Error,
-                        suggestion: Some("Valid strategies: exponential, linear, fixed".to_string()),
+                        suggestion: Some(
+                            "Valid strategies: exponential, linear, fixed".to_string(),
+                        ),
                     });
                 }
 
                 if observer.retry.max_attempts == 0 {
                     report.errors.push(ValidationError {
-                        message:    format!("Observer '{}' has max_attempts=0, actions will never execute", observer.name),
+                        message:    format!(
+                            "Observer '{}' has max_attempts=0, actions will never execute",
+                            observer.name
+                        ),
                         path:       format!("observers[{idx}].retry.max_attempts"),
                         severity:   ErrorSeverity::Warning,
                         suggestion: Some("Set max_attempts >= 1".to_string()),
@@ -360,7 +374,10 @@ impl SchemaValidator {
 
                 if observer.retry.initial_delay_ms == 0 {
                     report.errors.push(ValidationError {
-                        message:    format!("Observer '{}' has initial_delay_ms=0, retries will be immediate", observer.name),
+                        message:    format!(
+                            "Observer '{}' has initial_delay_ms=0, retries will be immediate",
+                            observer.name
+                        ),
                         path:       format!("observers[{idx}].retry.initial_delay_ms"),
                         severity:   ErrorSeverity::Warning,
                         suggestion: Some("Consider setting initial_delay_ms > 0".to_string()),
@@ -635,8 +652,9 @@ mod tests {
 
     #[test]
     fn test_valid_observer() {
-        use super::super::intermediate::{IntermediateObserver, IntermediateRetryConfig};
         use serde_json::json;
+
+        use super::super::intermediate::{IntermediateObserver, IntermediateRetryConfig};
 
         let schema = IntermediateSchema {
             version:           "2.0.0".to_string(),
@@ -667,10 +685,10 @@ mod tests {
                 })],
                 condition: None,
                 retry:     IntermediateRetryConfig {
-                    max_attempts:      3,
-                    backoff_strategy:  "exponential".to_string(),
-                    initial_delay_ms:  100,
-                    max_delay_ms:      60000,
+                    max_attempts:     3,
+                    backoff_strategy: "exponential".to_string(),
+                    initial_delay_ms: 100,
+                    max_delay_ms:     60000,
                 },
             }]),
         };
@@ -682,8 +700,9 @@ mod tests {
 
     #[test]
     fn test_observer_with_unknown_entity() {
-        use super::super::intermediate::{IntermediateObserver, IntermediateRetryConfig};
         use serde_json::json;
+
+        use super::super::intermediate::{IntermediateObserver, IntermediateRetryConfig};
 
         let schema = IntermediateSchema {
             version:           "2.0.0".to_string(),
@@ -706,10 +725,10 @@ mod tests {
                 actions:   vec![json!({"type": "webhook", "url": "https://example.com"})],
                 condition: None,
                 retry:     IntermediateRetryConfig {
-                    max_attempts:      3,
-                    backoff_strategy:  "exponential".to_string(),
-                    initial_delay_ms:  100,
-                    max_delay_ms:      60000,
+                    max_attempts:     3,
+                    backoff_strategy: "exponential".to_string(),
+                    initial_delay_ms: 100,
+                    max_delay_ms:     60000,
                 },
             }]),
         };
@@ -721,8 +740,9 @@ mod tests {
 
     #[test]
     fn test_observer_with_invalid_event() {
-        use super::super::intermediate::{IntermediateObserver, IntermediateRetryConfig};
         use serde_json::json;
+
+        use super::super::intermediate::{IntermediateObserver, IntermediateRetryConfig};
 
         let schema = IntermediateSchema {
             version:           "2.0.0".to_string(),
@@ -750,10 +770,10 @@ mod tests {
                 actions:   vec![json!({"type": "webhook", "url": "https://example.com"})],
                 condition: None,
                 retry:     IntermediateRetryConfig {
-                    max_attempts:      3,
-                    backoff_strategy:  "exponential".to_string(),
-                    initial_delay_ms:  100,
-                    max_delay_ms:      60000,
+                    max_attempts:     3,
+                    backoff_strategy: "exponential".to_string(),
+                    initial_delay_ms: 100,
+                    max_delay_ms:     60000,
                 },
             }]),
         };
@@ -765,8 +785,9 @@ mod tests {
 
     #[test]
     fn test_observer_with_invalid_action_type() {
-        use super::super::intermediate::{IntermediateObserver, IntermediateRetryConfig};
         use serde_json::json;
+
+        use super::super::intermediate::{IntermediateObserver, IntermediateRetryConfig};
 
         let schema = IntermediateSchema {
             version:           "2.0.0".to_string(),
@@ -794,10 +815,10 @@ mod tests {
                 actions:   vec![json!({"type": "invalid_action"})],
                 condition: None,
                 retry:     IntermediateRetryConfig {
-                    max_attempts:      3,
-                    backoff_strategy:  "exponential".to_string(),
-                    initial_delay_ms:  100,
-                    max_delay_ms:      60000,
+                    max_attempts:     3,
+                    backoff_strategy: "exponential".to_string(),
+                    initial_delay_ms: 100,
+                    max_delay_ms:     60000,
                 },
             }]),
         };
@@ -809,8 +830,9 @@ mod tests {
 
     #[test]
     fn test_observer_with_invalid_retry_config() {
-        use super::super::intermediate::{IntermediateObserver, IntermediateRetryConfig};
         use serde_json::json;
+
+        use super::super::intermediate::{IntermediateObserver, IntermediateRetryConfig};
 
         let schema = IntermediateSchema {
             version:           "2.0.0".to_string(),
@@ -838,10 +860,10 @@ mod tests {
                 actions:   vec![json!({"type": "webhook", "url": "https://example.com"})],
                 condition: None,
                 retry:     IntermediateRetryConfig {
-                    max_attempts:      3,
-                    backoff_strategy:  "invalid_strategy".to_string(),
-                    initial_delay_ms:  100,
-                    max_delay_ms:      60000,
+                    max_attempts:     3,
+                    backoff_strategy: "invalid_strategy".to_string(),
+                    initial_delay_ms: 100,
+                    max_delay_ms:     60000,
                 },
             }]),
         };

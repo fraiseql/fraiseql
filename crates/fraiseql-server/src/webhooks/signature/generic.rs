@@ -1,10 +1,13 @@
 //! Generic HMAC signature verifiers.
 
-use crate::webhooks::signature::{constant_time_eq, SignatureError};
-use crate::webhooks::traits::SignatureVerifier;
 use hmac::{Hmac, Mac};
 use sha1::Sha1;
 use sha2::Sha256;
+
+use crate::webhooks::{
+    signature::{SignatureError, constant_time_eq},
+    traits::SignatureVerifier,
+};
 
 /// Generic HMAC-SHA256 verifier with configurable header
 ///
@@ -12,7 +15,7 @@ use sha2::Sha256;
 /// the `SignatureVerifier` trait returns `&'static str`. These fields
 /// exist for potential future trait changes.
 pub struct HmacSha256Verifier {
-    _name: String,
+    _name:   String,
     _header: String,
 }
 
@@ -20,7 +23,7 @@ impl HmacSha256Verifier {
     #[must_use]
     pub fn new(name: &str, header: &str) -> Self {
         Self {
-            _name: name.to_string(),
+            _name:   name.to_string(),
             _header: header.to_string(),
         }
     }
@@ -66,7 +69,7 @@ impl SignatureVerifier for HmacSha256Verifier {
 /// the `SignatureVerifier` trait returns `&'static str`. These fields
 /// exist for potential future trait changes.
 pub struct HmacSha1Verifier {
-    _name: String,
+    _name:   String,
     _header: String,
 }
 
@@ -74,7 +77,7 @@ impl HmacSha1Verifier {
     #[must_use]
     pub fn new(name: &str, header: &str) -> Self {
         Self {
-            _name: name.to_string(),
+            _name:   name.to_string(),
             _header: header.to_string(),
         }
     }

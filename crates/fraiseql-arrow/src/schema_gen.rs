@@ -3,8 +3,9 @@
 //! This module maps GraphQL scalar types to Apache Arrow data types
 //! and generates Arrow schemas from GraphQL query result shapes.
 
-use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use std::sync::Arc;
+
+use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 
 /// Map GraphQL scalar types to Arrow types.
 ///
@@ -39,8 +40,8 @@ pub fn graphql_type_to_arrow(graphql_type: &str, _nullable: bool) -> DataType {
         "DateTime" => DataType::Timestamp(TimeUnit::Nanosecond, Some(Arc::from("UTC"))),
         "Date" => DataType::Date32,
         "Time" => DataType::Time64(TimeUnit::Nanosecond),
-        "UUID" => DataType::Utf8, // UUIDs as strings
-        "JSON" => DataType::Utf8, // JSON as string for now
+        "UUID" => DataType::Utf8,                  // UUIDs as strings
+        "JSON" => DataType::Utf8,                  // JSON as string for now
         "Decimal" => DataType::Decimal128(38, 10), // Default precision
 
         // Unknown types default to JSON strings
@@ -102,14 +103,8 @@ mod tests {
         assert_eq!(graphql_type_to_arrow("UUID", false), DataType::Utf8);
         assert_eq!(graphql_type_to_arrow("JSON", false), DataType::Utf8);
         assert_eq!(graphql_type_to_arrow("Date", false), DataType::Date32);
-        assert_eq!(
-            graphql_type_to_arrow("Time", false),
-            DataType::Time64(TimeUnit::Nanosecond)
-        );
-        assert_eq!(
-            graphql_type_to_arrow("Decimal", false),
-            DataType::Decimal128(38, 10)
-        );
+        assert_eq!(graphql_type_to_arrow("Time", false), DataType::Time64(TimeUnit::Nanosecond));
+        assert_eq!(graphql_type_to_arrow("Decimal", false), DataType::Decimal128(38, 10));
     }
 
     #[test]
@@ -118,17 +113,14 @@ mod tests {
         match dt_type {
             DataType::Timestamp(TimeUnit::Nanosecond, Some(tz)) => {
                 assert_eq!(tz.as_ref(), "UTC");
-            }
+            },
             _ => panic!("Expected Timestamp(Nanosecond, UTC), got {:?}", dt_type),
         }
     }
 
     #[test]
     fn test_unknown_type_defaults_to_string() {
-        assert_eq!(
-            graphql_type_to_arrow("UnknownCustomType", false),
-            DataType::Utf8
-        );
+        assert_eq!(graphql_type_to_arrow("UnknownCustomType", false), DataType::Utf8);
     }
 
     #[test]
@@ -172,7 +164,7 @@ mod tests {
         match schema.field(0).data_type() {
             DataType::Timestamp(TimeUnit::Nanosecond, Some(tz)) => {
                 assert_eq!(tz.as_ref(), "UTC");
-            }
+            },
             _ => panic!("Expected Timestamp type"),
         }
     }

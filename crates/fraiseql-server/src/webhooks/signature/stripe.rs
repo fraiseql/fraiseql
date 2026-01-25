@@ -4,15 +4,18 @@
 //! Algorithm: HMAC-SHA256
 //! Signed payload: `<timestamp>.<payload>`
 
-use crate::webhooks::signature::{constant_time_eq, SignatureError};
-use crate::webhooks::traits::{Clock, SignatureVerifier, SystemClock};
+use std::{collections::HashMap, sync::Arc};
+
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
-use std::collections::HashMap;
-use std::sync::Arc;
+
+use crate::webhooks::{
+    signature::{SignatureError, constant_time_eq},
+    traits::{Clock, SignatureVerifier, SystemClock},
+};
 
 pub struct StripeVerifier {
-    clock: Arc<dyn Clock>,
+    clock:     Arc<dyn Clock>,
     tolerance: u64,
 }
 
@@ -20,7 +23,7 @@ impl StripeVerifier {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            clock: Arc::new(SystemClock),
+            clock:     Arc::new(SystemClock),
             tolerance: 300, // 5 minutes
         }
     }
@@ -76,9 +79,7 @@ impl SignatureVerifier for StripeVerifier {
         let sig_v1 = parts.get("v1").ok_or(SignatureError::InvalidFormat)?;
 
         // Verify timestamp is recent
-        let ts: i64 = timestamp
-            .parse()
-            .map_err(|_| SignatureError::InvalidFormat)?;
+        let ts: i64 = timestamp.parse().map_err(|_| SignatureError::InvalidFormat)?;
 
         let now = self.clock.now();
 
@@ -128,11 +129,8 @@ mod tests {
         let verifier = StripeVerifier::with_clock(clock);
         let payload = b"test payload";
         let secret = "whsec_test";
-        let signature = generate_signature(
-            &String::from_utf8_lossy(payload),
-            secret,
-            1_679_076_299,
-        );
+        let signature =
+            generate_signature(&String::from_utf8_lossy(payload), secret, 1_679_076_299);
 
         assert!(verifier.verify(payload, &signature, secret, None).unwrap());
     }
@@ -143,9 +141,7 @@ mod tests {
         let verifier = StripeVerifier::with_clock(clock);
         let signature = "t=1679076299,v1=invalid";
 
-        assert!(!verifier
-            .verify(b"test", signature, "secret", None)
-            .unwrap());
+        assert!(!verifier.verify(b"test", signature, "secret", None).unwrap());
     }
 
     #[test]

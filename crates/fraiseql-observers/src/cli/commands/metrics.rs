@@ -1,8 +1,9 @@
 //! Prometheus metrics inspection command (requires "metrics" feature)
 
-use crate::error::Result;
 use colored::Colorize;
 use serde_json::json;
+
+use crate::error::Result;
 
 /// Execute metrics command
 pub async fn execute(
@@ -70,10 +71,10 @@ pub async fn execute(
 
     match format {
         crate::cli::OutputFormat::Json => {
-            let json_str = serde_json::to_string_pretty(&metrics)
-                .unwrap_or_else(|_| "{}".to_string());
+            let json_str =
+                serde_json::to_string_pretty(&metrics).unwrap_or_else(|_| "{}".to_string());
             println!("{json_str}");
-        }
+        },
         crate::cli::OutputFormat::Text => {
             println!("{}", "Observer Metrics".bold().underline());
             println!();
@@ -90,7 +91,7 @@ pub async fn execute(
                     "counter" | "gauge" => {
                         let value = metric_data["value"].as_u64().unwrap_or(0);
                         println!("  {}: {}", "Value".green(), value);
-                    }
+                    },
                     "histogram" => {
                         if let Some(buckets) = metric_data["buckets"].as_object() {
                             println!("  {}:", "Buckets".green());
@@ -98,8 +99,8 @@ pub async fn execute(
                                 println!("    {} s: {}", bucket.cyan(), count);
                             }
                         }
-                    }
-                    _ => {}
+                    },
+                    _ => {},
                 }
 
                 println!();
@@ -118,9 +119,7 @@ pub async fn execute(
             println!(
                 "{}: {}",
                 "Matched Events".cyan(),
-                metrics["observer_events_matched_total"]["value"]
-                    .as_u64()
-                    .unwrap_or(0)
+                metrics["observer_events_matched_total"]["value"].as_u64().unwrap_or(0)
             );
             println!(
                 "{}: {:.1}%",
@@ -150,11 +149,9 @@ pub async fn execute(
             println!(
                 "{}: {}",
                 "DLQ Items".cyan(),
-                metrics["observer_dlq_items_total"]["value"]
-                    .as_u64()
-                    .unwrap_or(0)
+                metrics["observer_dlq_items_total"]["value"].as_u64().unwrap_or(0)
             );
-        }
+        },
     }
 
     Ok(())

@@ -3,10 +3,14 @@
 //! Tracks listener states: Initializing → Connecting → Running → Recovering
 //! Provides state transitions, duration tracking, and recovery management.
 
-use crate::error::{ObserverError, Result};
-use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
+
 use tokio::sync::Mutex;
+
+use crate::error::{ObserverError, Result};
 
 /// Listener lifecycle state
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -38,16 +42,16 @@ impl std::fmt::Display for ListenerState {
 /// State machine for tracking listener lifecycle
 #[derive(Clone)]
 pub struct ListenerStateMachine {
-    current_state: Arc<Mutex<ListenerState>>,
-    state_change_time: Arc<Mutex<Instant>>,
-    listener_id: String,
+    current_state:         Arc<Mutex<ListenerState>>,
+    state_change_time:     Arc<Mutex<Instant>>,
+    listener_id:           String,
     max_recovery_attempts: u32,
-    recovery_attempts: Arc<Mutex<u32>>,
+    recovery_attempts:     Arc<Mutex<u32>>,
 }
 
 impl ListenerStateMachine {
     /// Create a new listener state machine
-    #[must_use] 
+    #[must_use]
     pub fn new(listener_id: String) -> Self {
         Self {
             current_state: Arc::new(Mutex::new(ListenerState::Initializing)),
@@ -59,7 +63,7 @@ impl ListenerStateMachine {
     }
 
     /// Create with custom max recovery attempts
-    #[must_use] 
+    #[must_use]
     pub const fn with_max_recovery_attempts(mut self, max_attempts: u32) -> Self {
         self.max_recovery_attempts = max_attempts;
         self
@@ -72,9 +76,7 @@ impl ListenerStateMachine {
         // Validate state transition
         if !self.is_valid_transition(current, next_state) {
             return Err(ObserverError::InvalidConfig {
-                message: format!(
-                    "Invalid state transition: {current} → {next_state}"
-                ),
+                message: format!("Invalid state transition: {current} → {next_state}"),
             });
         }
 
@@ -111,7 +113,7 @@ impl ListenerStateMachine {
     }
 
     /// Get listener ID
-    #[must_use] 
+    #[must_use]
     pub fn listener_id(&self) -> &str {
         &self.listener_id
     }
@@ -167,10 +169,7 @@ mod tests {
         let state_machine = ListenerStateMachine::new("listener-1".to_string());
 
         // Valid transition: Initializing → Connecting
-        assert!(state_machine
-            .transition(ListenerState::Connecting)
-            .await
-            .is_ok());
+        assert!(state_machine.transition(ListenerState::Connecting).await.is_ok());
         assert_eq!(state_machine.get_state().await, ListenerState::Connecting);
 
         // Valid transition: Connecting → Running
@@ -178,10 +177,7 @@ mod tests {
         assert_eq!(state_machine.get_state().await, ListenerState::Running);
 
         // Valid transition: Running → Recovering
-        assert!(state_machine
-            .transition(ListenerState::Recovering)
-            .await
-            .is_ok());
+        assert!(state_machine.transition(ListenerState::Recovering).await.is_ok());
         assert_eq!(state_machine.get_state().await, ListenerState::Recovering);
 
         // Valid transition: Recovering → Running
@@ -194,16 +190,10 @@ mod tests {
         let state_machine = ListenerStateMachine::new("listener-1".to_string());
 
         // Invalid transition: Initializing → Running (skip Connecting)
-        assert!(state_machine
-            .transition(ListenerState::Running)
-            .await
-            .is_err());
+        assert!(state_machine.transition(ListenerState::Running).await.is_err());
 
         // Invalid transition: Initializing → Recovering
-        assert!(state_machine
-            .transition(ListenerState::Recovering)
-            .await
-            .is_err());
+        assert!(state_machine.transition(ListenerState::Recovering).await.is_err());
     }
 
     #[tokio::test]
@@ -214,10 +204,7 @@ mod tests {
         assert!(initial_duration.as_millis() < 100);
 
         // Transition and wait
-        state_machine
-            .transition(ListenerState::Connecting)
-            .await
-            .unwrap();
+        state_machine.transition(ListenerState::Connecting).await.unwrap();
         tokio::time::sleep(Duration::from_millis(50)).await;
 
         let connecting_duration = state_machine.get_state_duration().await;
@@ -226,42 +213,24 @@ mod tests {
 
     #[tokio::test]
     async fn test_listener_recovery_attempts() {
-        let state_machine = ListenerStateMachine::new("listener-1".to_string())
-            .with_max_recovery_attempts(3);
+        let state_machine =
+            ListenerStateMachine::new("listener-1".to_string()).with_max_recovery_attempts(3);
 
-        state_machine
-            .transition(ListenerState::Connecting)
-            .await
-            .unwrap();
-        state_machine
-            .transition(ListenerState::Running)
-            .await
-            .unwrap();
+        state_machine.transition(ListenerState::Connecting).await.unwrap();
+        state_machine.transition(ListenerState::Running).await.unwrap();
 
         // First recovery
-        state_machine
-            .transition(ListenerState::Recovering)
-            .await
-            .unwrap();
+        state_machine.transition(ListenerState::Recovering).await.unwrap();
         assert_eq!(state_machine.get_recovery_attempts().await, 1);
         assert!(state_machine.can_recover().await);
 
-        state_machine
-            .transition(ListenerState::Running)
-            .await
-            .unwrap();
+        state_machine.transition(ListenerState::Running).await.unwrap();
         assert_eq!(state_machine.get_recovery_attempts().await, 0); // Reset on success
 
         // Multiple recoveries
         for _ in 0..3 {
-            state_machine
-                .transition(ListenerState::Recovering)
-                .await
-                .unwrap();
-            state_machine
-                .transition(ListenerState::Running)
-                .await
-                .unwrap();
+            state_machine.transition(ListenerState::Recovering).await.unwrap();
+            state_machine.transition(ListenerState::Running).await.unwrap();
         }
     }
 

@@ -130,10 +130,7 @@ impl CascadeInvalidator {
             .insert(dependency.clone());
 
         // Add reverse mapping: dependency → dependent
-        self.dependents
-            .entry(dependency)
-            .or_insert_with(HashSet::new)
-            .insert(dependent);
+        self.dependents.entry(dependency).or_insert_with(HashSet::new).insert(dependent);
 
         Ok(())
     }
@@ -215,10 +212,7 @@ impl CascadeInvalidator {
     ///
     /// Set of views that directly depend on the given view
     pub fn get_direct_dependents(&self, view: &str) -> HashSet<String> {
-        self.dependents
-            .get(view)
-            .cloned()
-            .unwrap_or_default()
+        self.dependents.get(view).cloned().unwrap_or_default()
     }
 
     /// Get all views that a given view depends on (direct dependencies only).
@@ -231,10 +225,7 @@ impl CascadeInvalidator {
     ///
     /// Set of views that the given view depends on
     pub fn get_direct_dependencies(&self, view: &str) -> HashSet<String> {
-        self.view_dependencies
-            .get(view)
-            .cloned()
-            .unwrap_or_default()
+        self.view_dependencies.get(view).cloned().unwrap_or_default()
     }
 
     /// Get all views that transitively depend on a given view.
@@ -328,10 +319,7 @@ impl CascadeInvalidator {
 
     /// Get total number of dependency edges.
     pub fn dependency_count(&self) -> usize {
-        self.view_dependencies
-            .values()
-            .map(|deps| deps.len())
-            .sum()
+        self.view_dependencies.values().map(|deps| deps.len()).sum()
     }
 }
 

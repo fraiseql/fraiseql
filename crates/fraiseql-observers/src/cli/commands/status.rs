@@ -1,8 +1,9 @@
 //! Status command - display observer runtime status
 
-use crate::error::Result;
 use colored::Colorize;
 use serde_json::json;
+
+use crate::error::Result;
 
 /// Execute status command
 pub async fn execute(
@@ -42,10 +43,10 @@ pub async fn execute(
 
     match format {
         crate::cli::OutputFormat::Json => {
-            let json_str = serde_json::to_string_pretty(&status_info)
-                .unwrap_or_else(|_| "{}".to_string());
+            let json_str =
+                serde_json::to_string_pretty(&status_info).unwrap_or_else(|_| "{}".to_string());
             println!("{json_str}");
-        }
+        },
         crate::cli::OutputFormat::Text => {
             println!("{}", "Observer Runtime Status".bold().underline());
             println!(
@@ -82,7 +83,7 @@ pub async fn execute(
                     );
                 }
             }
-        }
+        },
     }
 
     Ok(())

@@ -335,7 +335,7 @@ mod tests {
             mutations:     vec![],
             subscriptions: vec![],
             directives:    vec![],
-            observers:   Vec::new(),
+            observers:     Vec::new(),
             fact_tables:   HashMap::default(),
         };
 
@@ -372,7 +372,7 @@ mod tests {
             mutations:     vec![],
             subscriptions: vec![],
             directives:    vec![],
-            observers:   Vec::new(),
+            observers:     Vec::new(),
             fact_tables:   HashMap::default(),
         };
 
@@ -409,7 +409,7 @@ mod tests {
             mutations:     vec![],
             subscriptions: vec![],
             directives:    vec![],
-            observers:   Vec::new(),
+            observers:     Vec::new(),
             fact_tables:   HashMap::default(),
         };
 
@@ -449,7 +449,7 @@ mod tests {
             mutations:     vec![],
             subscriptions: vec![],
             directives:    vec![],
-            observers:   Vec::new(),
+            observers:     Vec::new(),
             fact_tables:   HashMap::default(),
         };
 
@@ -489,7 +489,7 @@ mod tests {
             mutations:     vec![],
             subscriptions: vec![],
             directives:    vec![],
-            observers:   Vec::new(),
+            observers:     Vec::new(),
             fact_tables:   HashMap::default(),
         };
 
@@ -539,7 +539,7 @@ mod tests {
             mutations:     vec![],
             subscriptions: vec![],
             directives:    vec![],
-            observers:   Vec::new(),
+            observers:     Vec::new(),
             fact_tables:   HashMap::default(),
         };
 
@@ -549,5 +549,4 @@ mod tests {
         assert!(report.projection_hints.is_empty());
         assert!(!schema.types[0].has_sql_projection());
     }
-
 }

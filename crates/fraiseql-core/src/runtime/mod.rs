@@ -60,11 +60,9 @@ pub use matcher::{QueryMatch, QueryMatcher};
 pub use planner::{ExecutionPlan, QueryPlanner};
 pub use projection::{FieldMapping, ProjectionMapper, ResultProjector};
 pub use query_tracing::{
-    create_phase_span, create_query_span, QueryExecutionTrace, QueryPhaseSpan, QueryTraceBuilder,
+    QueryExecutionTrace, QueryPhaseSpan, QueryTraceBuilder, create_phase_span, create_query_span,
 };
-pub use sql_logger::{
-    create_sql_span, SqlOperation, SqlQueryLog, SqlQueryLogBuilder,
-};
+pub use sql_logger::{SqlOperation, SqlQueryLog, SqlQueryLogBuilder, create_sql_span};
 pub use subscription::{
     ActiveSubscription, DeliveryResult, KafkaAdapter, KafkaConfig, KafkaMessage, ListenerConfig,
     ListenerHandle, PostgresListener, SubscriptionError, SubscriptionEvent, SubscriptionId,

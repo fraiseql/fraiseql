@@ -3,10 +3,13 @@
 //! Format: HMAC-SHA256 (simplified - real Discord uses Ed25519)
 //! Note: For Phase 3, we use HMAC-SHA256. Full Ed25519 support in later phase.
 
-use crate::webhooks::signature::{constant_time_eq, SignatureError};
-use crate::webhooks::traits::SignatureVerifier;
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
+
+use crate::webhooks::{
+    signature::{SignatureError, constant_time_eq},
+    traits::SignatureVerifier,
+};
 
 pub struct DiscordVerifier;
 

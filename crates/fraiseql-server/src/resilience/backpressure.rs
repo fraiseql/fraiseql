@@ -1,7 +1,12 @@
-use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::Duration,
+};
+
 use tokio::sync::Semaphore;
-use std::time::Duration;
 
 /// Admission controller for managing concurrency and backpressure
 pub struct AdmissionController {
@@ -35,15 +40,15 @@ impl AdmissionController {
         // Try to acquire permit
         match self.semaphore.clone().try_acquire_owned() {
             Ok(permit) => Some(AdmissionPermit {
-                _permit: permit,
+                _permit:     permit,
                 _controller: self as *const Self as usize,
-                _phantom: std::marker::PhantomData,
+                _phantom:    std::marker::PhantomData,
             }),
             Err(_) => {
                 // No permits available, increment queue depth
                 self.queue_depth.fetch_add(1, Ordering::Relaxed);
                 None
-            }
+            },
         }
     }
 
@@ -63,15 +68,15 @@ impl AdmissionController {
             Ok(Ok(permit)) => {
                 self.queue_depth.fetch_sub(1, Ordering::Relaxed);
                 Some(AdmissionPermit {
-                    _permit: permit,
+                    _permit:     permit,
                     _controller: self as *const Self as usize,
-                    _phantom: std::marker::PhantomData,
+                    _phantom:    std::marker::PhantomData,
                 })
-            }
+            },
             _ => {
                 self.queue_depth.fetch_sub(1, Ordering::Relaxed);
                 None
-            }
+            },
         }
     }
 
@@ -83,9 +88,9 @@ impl AdmissionController {
 
 /// RAII guard that holds an admission permit
 pub struct AdmissionPermit<'a> {
-    _permit: tokio::sync::OwnedSemaphorePermit,
+    _permit:     tokio::sync::OwnedSemaphorePermit,
     _controller: usize, // Pointer to controller (for lifetime hack)
-    _phantom: std::marker::PhantomData<&'a ()>,
+    _phantom:    std::marker::PhantomData<&'a ()>,
 }
 
 // Safety: This is safe because we never actually dereference the controller pointer

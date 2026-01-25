@@ -7,8 +7,9 @@
 //! - Configuration validation
 //! - Prometheus metrics inspection
 
-use clap::{Parser, Subcommand};
 use std::path::PathBuf;
+
+use clap::{Parser, Subcommand};
 
 pub mod commands;
 
@@ -55,9 +56,7 @@ impl std::str::FromStr for OutputFormat {
         match s.to_lowercase().as_str() {
             "text" => Ok(Self::Text),
             "json" => Ok(Self::Json),
-            other => Err(format!(
-                "Invalid format '{other}'. Use 'text' or 'json'"
-            )),
+            other => Err(format!("Invalid format '{other}'. Use 'text' or 'json'")),
         }
     }
 }
@@ -222,31 +221,20 @@ pub async fn run() -> crate::error::Result<()> {
     match cli.command {
         Commands::Status { listener, detailed } => {
             commands::status::execute(cli.format, listener, detailed).await
-        }
+        },
         Commands::DebugEvent {
             event_id,
             history,
             entity_type,
             kind,
-        } => {
-            commands::debug_event::execute(
-                cli.format,
-                event_id,
-                history,
-                entity_type,
-                kind,
-            )
-            .await
-        }
-        Commands::Dlq { subcommand } => {
-            commands::dlq::execute(cli.format, subcommand).await
-        }
+        } => commands::debug_event::execute(cli.format, event_id, history, entity_type, kind).await,
+        Commands::Dlq { subcommand } => commands::dlq::execute(cli.format, subcommand).await,
         Commands::ValidateConfig { file, detailed } => {
             commands::validate_config::execute(cli.format, file, detailed).await
-        }
+        },
         #[cfg(feature = "metrics")]
         Commands::Metrics { metric, help } => {
             commands::metrics::execute(cli.format, metric, help).await
-        }
+        },
     }
 }

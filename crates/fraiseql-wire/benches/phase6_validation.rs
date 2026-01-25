@@ -12,6 +12,7 @@
 //! - Small result sets (1K-50K rows): Improved by 5-8ms per iteration
 //! - Time-to-first-row should show measurable improvement
 //! - Throughput unchanged (lazy init only affects startup)
+#![allow(missing_docs)]
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion, Throughput};
 use fraiseql_wire::client::FraiseClient;

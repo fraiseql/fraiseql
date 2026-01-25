@@ -3,30 +3,27 @@
 //! Implements lease-based coordination to ensure only one listener
 //! processes events at a time and handles lease expiration/renewal.
 
-use crate::error::{ObserverError, Result};
-use std::sync::Arc;
-use std::time::Instant;
+use std::{sync::Arc, time::Instant};
+
 use tokio::sync::Mutex;
+
+use crate::error::{ObserverError, Result};
 
 /// A lease for processing events at a specific checkpoint.
 /// Only one listener can hold a lease at a time.
 #[derive(Clone)]
 pub struct CheckpointLease {
-    listener_id: String,
-    checkpoint_id: i64,
-    lease_holder: Arc<Mutex<Option<String>>>,
+    listener_id:       String,
+    checkpoint_id:     i64,
+    lease_holder:      Arc<Mutex<Option<String>>>,
     lease_acquired_at: Arc<Mutex<Option<Instant>>>,
     lease_duration_ms: u64,
 }
 
 impl CheckpointLease {
     /// Create a new checkpoint lease
-    #[must_use] 
-    pub fn new(
-        listener_id: String,
-        checkpoint_id: i64,
-        lease_duration_ms: u64,
-    ) -> Self {
+    #[must_use]
+    pub fn new(listener_id: String, checkpoint_id: i64, lease_duration_ms: u64) -> Self {
         Self {
             listener_id,
             checkpoint_id,
@@ -100,8 +97,9 @@ impl CheckpointLease {
             if current_holder == &self.listener_id {
                 let acquired_at = *self.lease_acquired_at.lock().await;
                 if let Some(acquired_time) = acquired_at {
-                    return Ok(acquired_time.elapsed().as_millis()
-                        < u128::from(self.lease_duration_ms));
+                    return Ok(
+                        acquired_time.elapsed().as_millis() < u128::from(self.lease_duration_ms)
+                    );
                 }
             }
         }
@@ -131,13 +129,13 @@ impl CheckpointLease {
     }
 
     /// Get checkpoint ID this lease is for
-    #[must_use] 
+    #[must_use]
     pub const fn checkpoint_id(&self) -> i64 {
         self.checkpoint_id
     }
 
     /// Get listener ID that owns this lease
-    #[must_use] 
+    #[must_use]
     pub fn listener_id(&self) -> &str {
         &self.listener_id
     }
@@ -149,11 +147,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_lease_acquisition() {
-        let lease = CheckpointLease::new(
-            "listener-1".to_string(),
-            1000,
-            1000,
-        );
+        let lease = CheckpointLease::new("listener-1".to_string(), 1000, 1000);
 
         let acquired = lease.acquire().await.unwrap();
         assert!(acquired);
@@ -164,11 +158,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_lease_release() {
-        let lease = CheckpointLease::new(
-            "listener-1".to_string(),
-            1000,
-            1000,
-        );
+        let lease = CheckpointLease::new("listener-1".to_string(), 1000, 1000);
 
         lease.acquire().await.unwrap();
         lease.release().await.unwrap();
@@ -179,11 +169,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_lease_renewal() {
-        let lease = CheckpointLease::new(
-            "listener-1".to_string(),
-            1000,
-            100,
-        );
+        let lease = CheckpointLease::new("listener-1".to_string(), 1000, 100);
 
         lease.acquire().await.unwrap();
 
@@ -199,11 +185,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_lease_expiration() {
-        let lease = CheckpointLease::new(
-            "listener-1".to_string(),
-            1000,
-            50,
-        );
+        let lease = CheckpointLease::new("listener-1".to_string(), 1000, 50);
 
         lease.acquire().await.unwrap();
         assert!(lease.is_valid().await.unwrap());
@@ -214,17 +196,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_lease_contested_acquisition() {
-        let lease1 = CheckpointLease::new(
-            "listener-1".to_string(),
-            1000,
-            1000,
-        );
+        let lease1 = CheckpointLease::new("listener-1".to_string(), 1000, 1000);
 
-        let lease2 = CheckpointLease::new(
-            "listener-2".to_string(),
-            1000,
-            1000,
-        );
+        let lease2 = CheckpointLease::new("listener-2".to_string(), 1000, 1000);
 
         // Listener 1 acquires lease
         assert!(lease1.acquire().await.unwrap());
@@ -244,13 +218,7 @@ mod tests {
     #[tokio::test]
     async fn test_lease_multiple_listeners() {
         let leases: Vec<_> = (0..3)
-            .map(|i| {
-                CheckpointLease::new(
-                    format!("listener-{i}"),
-                    1000 + i64::from(i),
-                    5000,
-                )
-            })
+            .map(|i| CheckpointLease::new(format!("listener-{i}"), 1000 + i64::from(i), 5000))
             .collect();
 
         for lease in &leases {
@@ -265,11 +233,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_lease_time_remaining() {
-        let lease = CheckpointLease::new(
-            "listener-1".to_string(),
-            1000,
-            200,
-        );
+        let lease = CheckpointLease::new("listener-1".to_string(), 1000, 200);
 
         let initial_remaining = lease.time_remaining_ms().await.unwrap();
         assert_eq!(initial_remaining, 200);

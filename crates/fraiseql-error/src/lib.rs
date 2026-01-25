@@ -5,25 +5,24 @@
 // Error variants and fields are self-documenting via their #[error(...)] messages
 #![allow(missing_docs)]
 
-mod config;
 mod auth;
-mod webhook;
+mod config;
 mod file;
+mod http;
+mod integration;
 mod notification;
 mod observer;
-mod integration;
-mod http;
+mod webhook;
 
-pub use config::ConfigError;
 pub use auth::AuthError;
-pub use webhook::WebhookError;
+pub use config::ConfigError;
 pub use file::FileError;
+// Re-export for convenience
+pub use http::{ErrorResponse, IntoHttpResponse};
+pub use integration::IntegrationError;
 pub use notification::NotificationError;
 pub use observer::ObserverError;
-pub use integration::IntegrationError;
-
-// Re-export for convenience
-pub use http::{IntoHttpResponse, ErrorResponse};
+pub use webhook::WebhookError;
 
 /// Unified error type wrapping all domain errors
 #[derive(Debug, thiserror::Error)]
@@ -56,13 +55,20 @@ pub enum RuntimeError {
     RateLimited { retry_after: Option<u64> },
 
     #[error("Service unavailable: {reason}")]
-    ServiceUnavailable { reason: String, retry_after: Option<u64> },
+    ServiceUnavailable {
+        reason:      String,
+        retry_after: Option<u64>,
+    },
 
     #[error("Resource not found: {resource}")]
     NotFound { resource: String },
 
     #[error("Internal error: {message}")]
-    Internal { message: String, #[source] source: Option<Box<dyn std::error::Error + Send + Sync>> },
+    Internal {
+        message: String,
+        #[source]
+        source:  Option<Box<dyn std::error::Error + Send + Sync>>,
+    },
 }
 
 impl RuntimeError {

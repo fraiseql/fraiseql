@@ -79,7 +79,10 @@ impl EnumValidator {
     ///
     /// * `enum_obj` - JSON object containing enum definition
     /// * `index` - Index in array for error reporting
-    fn parse_single_enum(enum_obj: &serde_json::Map<String, Value>, index: usize) -> Result<IREnum> {
+    fn parse_single_enum(
+        enum_obj: &serde_json::Map<String, Value>,
+        index: usize,
+    ) -> Result<IREnum> {
         // Extract name
         let name = enum_obj
             .get("name")
@@ -94,7 +97,8 @@ impl EnumValidator {
         Self::validate_enum_name(&name)?;
 
         // Extract description (optional)
-        let description = enum_obj.get("description").and_then(|v| v.as_str()).map(|s| s.to_string());
+        let description =
+            enum_obj.get("description").and_then(|v| v.as_str()).map(|s| s.to_string());
 
         // Parse enum values
         let values_value = enum_obj.get("values").ok_or_else(|| FraiseQLError::Validation {
@@ -145,7 +149,10 @@ impl EnumValidator {
                 .get("name")
                 .and_then(|v| v.as_str())
                 .ok_or_else(|| FraiseQLError::Validation {
-                    message: format!("enum '{}' value at index {} must have a name", enum_name, idx),
+                    message: format!(
+                        "enum '{}' value at index {} must have a name",
+                        enum_name, idx
+                    ),
                     path:    Some(format!("schema.enums.{}.values[{}].name", enum_name, idx)),
                 })?
                 .to_string();
@@ -162,7 +169,8 @@ impl EnumValidator {
             }
 
             // Extract description (optional)
-            let description = value_obj.get("description").and_then(|v| v.as_str()).map(|s| s.to_string());
+            let description =
+                value_obj.get("description").and_then(|v| v.as_str()).map(|s| s.to_string());
 
             // Extract deprecation reason (optional)
             let deprecation_reason = value_obj
@@ -200,7 +208,10 @@ impl EnumValidator {
 
         if !name.chars().all(|c| c.is_alphanumeric() || c == '_') {
             return Err(FraiseQLError::Validation {
-                message: format!("enum name '{}' contains invalid characters (use alphanumeric and underscore)", name),
+                message: format!(
+                    "enum name '{}' contains invalid characters (use alphanumeric and underscore)",
+                    name
+                ),
                 path:    Some("schema.enums.name".to_string()),
             });
         }
@@ -225,14 +236,17 @@ impl EnumValidator {
                     "enum '{}' value '{}' should use SCREAMING_SNAKE_CASE (uppercase with underscores)",
                     enum_name, name
                 ),
-                path: Some(format!("schema.enums.{}.values.name", enum_name)),
+                path:    Some(format!("schema.enums.{}.values.name", enum_name)),
             });
         }
 
         // Check that it doesn't start with underscore
         if name.starts_with('_') {
             return Err(FraiseQLError::Validation {
-                message: format!("enum '{}' value '{}' cannot start with underscore", enum_name, name),
+                message: format!(
+                    "enum '{}' value '{}' cannot start with underscore",
+                    enum_name, name
+                ),
                 path:    Some(format!("schema.enums.{}.values.name", enum_name)),
             });
         }
@@ -483,14 +497,12 @@ mod tests {
     #[test]
     fn test_serialization_roundtrip() {
         let enum_val = IREnum {
-            name: "Status".to_string(),
-            values: vec![
-                IREnumValue {
-                    name: "ACTIVE".to_string(),
-                    description: Some("Active status".to_string()),
-                    deprecation_reason: None,
-                },
-            ],
+            name:        "Status".to_string(),
+            values:      vec![IREnumValue {
+                name:               "ACTIVE".to_string(),
+                description:        Some("Active status".to_string()),
+                deprecation_reason: None,
+            }],
             description: Some("Status enum".to_string()),
         };
 

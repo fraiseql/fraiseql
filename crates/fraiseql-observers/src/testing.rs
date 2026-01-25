@@ -3,14 +3,20 @@
 #[cfg(any(test, feature = "testing"))]
 pub mod mocks {
     //! Mock implementations of traits for use in tests.
-    use crate::config::ActionConfig;
-    use crate::event::EntityEvent;
-    use crate::error::Result;
-    use crate::traits::{ActionExecutor, ActionResult, ConditionEvaluator, DeadLetterQueue, DlqItem, EventSource, TemplateRenderer};
+    use std::{collections::VecDeque, sync::Mutex};
+
     use async_trait::async_trait;
-    use std::collections::VecDeque;
-    use std::sync::Mutex;
     use uuid::Uuid;
+
+    use crate::{
+        config::ActionConfig,
+        error::Result,
+        event::EntityEvent,
+        traits::{
+            ActionExecutor, ActionResult, ConditionEvaluator, DeadLetterQueue, DlqItem,
+            EventSource, TemplateRenderer,
+        },
+    };
 
     /// Mock event source that yields predefined events
     pub struct MockEventSource {
@@ -19,7 +25,7 @@ pub mod mocks {
 
     impl MockEventSource {
         /// Create a new mock event source with predefined events
-        #[must_use] 
+        #[must_use]
         pub fn new(events: Vec<EntityEvent>) -> Self {
             Self {
                 events: Mutex::new(events.into()),
@@ -27,7 +33,7 @@ pub mod mocks {
         }
 
         /// Create an empty mock event source
-        #[must_use] 
+        #[must_use]
         pub const fn empty() -> Self {
             Self {
                 events: Mutex::new(VecDeque::new()),
@@ -50,20 +56,20 @@ pub mod mocks {
     /// Mock action executor that records executions
     pub struct MockActionExecutor {
         /// Track executed actions
-        executions: Mutex<Vec<(String, bool)>>,
+        executions:     Mutex<Vec<(String, bool)>>,
         /// Should fail for all actions
-        should_fail: Mutex<bool>,
+        should_fail:    Mutex<bool>,
         /// Failure reason if `should_fail` is true
         failure_reason: Mutex<Option<String>>,
     }
 
     impl MockActionExecutor {
         /// Create a new mock action executor
-        #[must_use] 
+        #[must_use]
         pub const fn new() -> Self {
             Self {
-                executions: Mutex::new(Vec::new()),
-                should_fail: Mutex::new(false),
+                executions:     Mutex::new(Vec::new()),
+                should_fail:    Mutex::new(false),
                 failure_reason: Mutex::new(None),
             }
         }
@@ -108,19 +114,11 @@ pub mod mocks {
                     .unwrap()
                     .clone()
                     .unwrap_or_else(|| "Mock failure".to_string());
-                self.executions
-                    .lock()
-                    .unwrap()
-                    .push((action_type, false));
-                return Err(crate::error::ObserverError::ActionExecutionFailed {
-                    reason,
-                });
+                self.executions.lock().unwrap().push((action_type, false));
+                return Err(crate::error::ObserverError::ActionExecutionFailed { reason });
             }
 
-            self.executions
-                .lock()
-                .unwrap()
-                .push((action_type.clone(), true));
+            self.executions.lock().unwrap().push((action_type.clone(), true));
 
             Ok(ActionResult {
                 action_type,
@@ -138,7 +136,7 @@ pub mod mocks {
 
     impl MockDeadLetterQueue {
         /// Create a new mock DLQ
-        #[must_use] 
+        #[must_use]
         pub const fn new() -> Self {
             Self {
                 items: Mutex::new(Vec::new()),
@@ -188,10 +186,7 @@ pub mod mocks {
         }
 
         async fn mark_success(&self, id: Uuid) -> Result<()> {
-            self.items
-                .lock()
-                .unwrap()
-                .retain(|item| item.id != id);
+            self.items.lock().unwrap().retain(|item| item.id != id);
             Ok(())
         }
 
@@ -211,7 +206,7 @@ pub mod mocks {
 
     impl MockConditionEvaluator {
         /// Create a new mock condition evaluator
-        #[must_use] 
+        #[must_use]
         pub fn new() -> Self {
             Self {
                 results: Mutex::new(std::collections::HashMap::new()),
@@ -232,12 +227,7 @@ pub mod mocks {
 
     impl ConditionEvaluator for MockConditionEvaluator {
         fn evaluate(&self, condition: &str, _event: &EntityEvent) -> Result<bool> {
-            Ok(*self
-                .results
-                .lock()
-                .unwrap()
-                .get(condition)
-                .unwrap_or(&true))
+            Ok(*self.results.lock().unwrap().get(condition).unwrap_or(&true))
         }
     }
 
@@ -249,7 +239,7 @@ pub mod mocks {
 
     impl MockTemplateRenderer {
         /// Create a new mock template renderer
-        #[must_use] 
+        #[must_use]
         pub fn new() -> Self {
             Self {
                 templates: Mutex::new(std::collections::HashMap::new()),
@@ -262,7 +252,7 @@ pub mod mocks {
         }
 
         /// Simple placeholder substitution ({{ key }} → value)
-        #[must_use] 
+        #[must_use]
         pub fn simple_substitute(template: &str, data: &serde_json::Value) -> String {
             let mut result = template.to_string();
 
@@ -303,12 +293,14 @@ pub mod mocks {
     /// Mock checkpoint store for testing
     #[derive(Clone)]
     pub struct MockCheckpointStore {
-        checkpoints: std::sync::Arc<Mutex<std::collections::HashMap<String, crate::checkpoint::CheckpointState>>>,
+        checkpoints: std::sync::Arc<
+            Mutex<std::collections::HashMap<String, crate::checkpoint::CheckpointState>>,
+        >,
     }
 
     impl MockCheckpointStore {
         /// Create a new mock checkpoint store
-        #[must_use] 
+        #[must_use]
         pub fn new() -> Self {
             Self {
                 checkpoints: std::sync::Arc::new(Mutex::new(std::collections::HashMap::new())),
@@ -324,11 +316,18 @@ pub mod mocks {
 
     #[async_trait]
     impl crate::checkpoint::CheckpointStore for MockCheckpointStore {
-        async fn load(&self, listener_id: &str) -> Result<Option<crate::checkpoint::CheckpointState>> {
+        async fn load(
+            &self,
+            listener_id: &str,
+        ) -> Result<Option<crate::checkpoint::CheckpointState>> {
             Ok(self.checkpoints.lock().unwrap().get(listener_id).cloned())
         }
 
-        async fn save(&self, listener_id: &str, state: &crate::checkpoint::CheckpointState) -> Result<()> {
+        async fn save(
+            &self,
+            listener_id: &str,
+            state: &crate::checkpoint::CheckpointState,
+        ) -> Result<()> {
             self.checkpoints.lock().unwrap().insert(listener_id.to_string(), state.clone());
             Ok(())
         }
@@ -346,18 +345,18 @@ pub mod mocks {
                     new_state.last_processed_id = new_id;
                     checkpoints.insert(listener_id.to_string(), new_state);
                     Ok(true)
-                }
+                },
                 None if expected_id == 0 => {
                     let new_state = crate::checkpoint::CheckpointState {
-                        listener_id: listener_id.to_string(),
+                        listener_id:       listener_id.to_string(),
                         last_processed_id: new_id,
                         last_processed_at: chrono::Utc::now(),
-                        batch_size: 0,
-                        event_count: 0,
+                        batch_size:        0,
+                        event_count:       0,
                     };
                     checkpoints.insert(listener_id.to_string(), new_state);
                     Ok(true)
-                }
+                },
                 _ => Ok(false),
             }
         }
@@ -370,9 +369,10 @@ pub mod mocks {
 
     #[cfg(test)]
     mod tests {
+        use serde_json::json;
+
         use super::*;
         use crate::event::EventKind;
-        use serde_json::json;
 
         #[tokio::test]
         async fn test_mock_event_source() {
@@ -415,12 +415,12 @@ pub mod mocks {
             );
 
             let action = ActionConfig::Email {
-                to: Some("user@example.com".to_string()),
-                to_template: None,
-                subject: Some("Test".to_string()),
+                to:               Some("user@example.com".to_string()),
+                to_template:      None,
+                subject:          Some("Test".to_string()),
                 subject_template: None,
-                body_template: Some("Body".to_string()),
-                reply_to: None,
+                body_template:    Some("Body".to_string()),
+                reply_to:         None,
             };
 
             let result = executor.execute(&event, &action).await;
@@ -441,12 +441,12 @@ pub mod mocks {
             );
 
             let action = ActionConfig::Email {
-                to: Some("user@example.com".to_string()),
-                to_template: None,
-                subject: Some("Test".to_string()),
+                to:               Some("user@example.com".to_string()),
+                to_template:      None,
+                subject:          Some("Test".to_string()),
                 subject_template: None,
-                body_template: Some("Body".to_string()),
-                reply_to: None,
+                body_template:    Some("Body".to_string()),
+                reply_to:         None,
             };
 
             let result = executor.execute(&event, &action).await;
@@ -465,12 +465,12 @@ pub mod mocks {
             );
 
             let action = ActionConfig::Email {
-                to: Some("user@example.com".to_string()),
-                to_template: None,
-                subject: Some("Test".to_string()),
+                to:               Some("user@example.com".to_string()),
+                to_template:      None,
+                subject:          Some("Test".to_string()),
                 subject_template: None,
-                body_template: Some("Body".to_string()),
-                reply_to: None,
+                body_template:    Some("Body".to_string()),
+                reply_to:         None,
             };
 
             let id = dlq.push(event, action, "Error".to_string()).await.unwrap();

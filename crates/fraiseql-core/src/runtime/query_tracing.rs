@@ -6,7 +6,7 @@
 use std::time::Instant;
 
 use serde::{Deserialize, Serialize};
-use tracing::{debug, span, warn, Level};
+use tracing::{Level, debug, span, warn};
 
 use crate::error::Result;
 
@@ -81,9 +81,9 @@ pub struct QueryExecutionTrace {
 /// ```
 pub struct QueryTraceBuilder {
     query_id: String,
-    query: String,
-    phases: Vec<QueryPhaseSpan>,
-    start: Instant,
+    query:    String,
+    phases:   Vec<QueryPhaseSpan>,
+    start:    Instant,
 }
 
 impl QueryTraceBuilder {
@@ -103,9 +103,9 @@ impl QueryTraceBuilder {
 
         Self {
             query_id: query_id.to_string(),
-            query: query_str,
-            phases: Vec::new(),
-            start: Instant::now(),
+            query:    query_str,
+            phases:   Vec::new(),
+            start:    Instant::now(),
         }
     }
 
@@ -123,11 +123,7 @@ impl QueryTraceBuilder {
             error: None,
         });
 
-        debug!(
-            phase = phase_name,
-            duration_us = duration_us,
-            "Query phase completed"
-        );
+        debug!(phase = phase_name, duration_us = duration_us, "Query phase completed");
     }
 
     /// Record a phase that failed.
@@ -221,11 +217,7 @@ impl QueryExecutionTrace {
             .collect::<Vec<_>>()
             .join(" ");
 
-        let error_str = self
-            .error
-            .as_ref()
-            .map(|e| format!(" error={}", e))
-            .unwrap_or_default();
+        let error_str = self.error.as_ref().map(|e| format!(" error={}", e)).unwrap_or_default();
 
         format!(
             "query_id={} status={} total={}us phases=[{}]{}",
@@ -265,12 +257,7 @@ pub fn create_query_span(query_id: &str, query_text: &str) -> tracing::Span {
 /// * `phase_name` - Name of phase (e.g., "parse", "validate", "execute")
 /// * `query_id` - Query ID for correlation
 pub fn create_phase_span(phase_name: &str, query_id: &str) -> tracing::Span {
-    span!(
-        Level::DEBUG,
-        "query_phase",
-        phase = phase_name,
-        query_id = query_id
-    )
+    span!(Level::DEBUG, "query_phase", phase = phase_name, query_id = query_id)
 }
 
 /// Truncate query string to specified length.
@@ -434,14 +421,15 @@ mod tests {
     #[test]
     fn test_query_phase_span_serialize() {
         let span = QueryPhaseSpan {
-            phase: "parse".to_string(),
+            phase:       "parse".to_string(),
             duration_us: 100,
-            success: true,
-            error: None,
+            success:     true,
+            error:       None,
         };
 
         let json = serde_json::to_string(&span).expect("serialize should work");
-        let restored: QueryPhaseSpan = serde_json::from_str(&json).expect("deserialize should work");
+        let restored: QueryPhaseSpan =
+            serde_json::from_str(&json).expect("deserialize should work");
 
         assert_eq!(restored.phase, span.phase);
         assert_eq!(restored.duration_us, span.duration_us);

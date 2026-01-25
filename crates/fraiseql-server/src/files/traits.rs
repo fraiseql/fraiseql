@@ -1,13 +1,15 @@
 //! Testing seams for file operations
 
+use std::{collections::HashMap, time::Duration};
+
 use async_trait::async_trait;
 use bytes::Bytes;
-use std::collections::HashMap;
-use std::time::Duration;
 
-use crate::files::config::{FileConfig, ProcessingConfig};
-use crate::files::error::{FileError, ProcessingError, ScanError, StorageError};
-use crate::files::processing::ProcessedImages;
+use crate::files::{
+    config::{FileConfig, ProcessingConfig},
+    error::{FileError, ProcessingError, ScanError, StorageError},
+    processing::ProcessedImages,
+};
 
 /// Storage backend abstraction for testing
 #[async_trait]
@@ -32,17 +34,17 @@ pub trait StorageBackend: Send + Sync {
 
 #[derive(Debug, Clone)]
 pub struct StorageMetadata {
-    pub content_type: String,
+    pub content_type:   String,
     pub content_length: u64,
-    pub etag: Option<String>,
-    pub last_modified: Option<chrono::DateTime<chrono::Utc>>,
-    pub custom: HashMap<String, String>,
+    pub etag:           Option<String>,
+    pub last_modified:  Option<chrono::DateTime<chrono::Utc>>,
+    pub custom:         HashMap<String, String>,
 }
 
 #[derive(Debug)]
 pub struct StorageResult {
-    pub key: String,
-    pub url: String,
+    pub key:  String,
+    pub url:  String,
     pub etag: Option<String>,
     pub size: u64,
 }
@@ -76,15 +78,15 @@ pub trait MalwareScanner: Send + Sync {
 
 #[derive(Debug)]
 pub struct ScanResult {
-    pub clean: bool,
-    pub threat_name: Option<String>,
+    pub clean:           bool,
+    pub threat_name:     Option<String>,
     pub scanner_version: String,
 }
 
 #[derive(Debug)]
 pub struct ValidatedFile {
-    pub content_type: String,
+    pub content_type:       String,
     pub sanitized_filename: String,
-    pub size: usize,
-    pub detected_type: Option<String>,
+    pub size:               usize,
+    pub detected_type:      Option<String>,
 }

@@ -185,11 +185,13 @@ impl CodeGenerator {
             mutations,
             subscriptions,
             // Directives are custom decorators applied to schema elements. The IR doesn't currently
-            // have custom directive definitions. They will be populated when decorator support is added.
+            // have custom directive definitions. They will be populated when decorator support is
+            // added.
             directives: Vec::new(),
             // Fact tables are populated by the compiler from ir.fact_tables in a separate pass.
             // This maintains clear separation between schema definition (type system) and analytics
-            // metadata (fact table configuration). Empty initially; populated during post-codegen pass.
+            // metadata (fact table configuration). Empty initially; populated during post-codegen
+            // pass.
             fact_tables: std::collections::HashMap::new(),
             // Observers are populated from ir.observers. Currently empty; will be populated
             // when observer support is added to the IR layer.

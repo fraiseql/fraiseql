@@ -1,34 +1,35 @@
 //! File upload handler
 
+use std::{collections::HashMap, sync::Arc, time::Duration};
+
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::sync::Arc;
-use std::time::Duration;
 
-use crate::files::config::FileConfig;
-use crate::files::error::{FileError, ProcessingError, ScanError, StorageError};
-use crate::files::processing::ImageProcessorImpl;
-use crate::files::traits::{FileValidator, ImageProcessor, MalwareScanner, StorageBackend};
-use crate::files::validation::DefaultFileValidator;
+use crate::files::{
+    config::FileConfig,
+    error::{FileError, ProcessingError, ScanError, StorageError},
+    processing::ImageProcessorImpl,
+    traits::{FileValidator, ImageProcessor, MalwareScanner, StorageBackend},
+    validation::DefaultFileValidator,
+};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FileResponse {
-    pub id: String,
-    pub name: String,
-    pub filename: String,
+    pub id:                String,
+    pub name:              String,
+    pub filename:          String,
     pub original_filename: Option<String>,
-    pub content_type: String,
-    pub size: u64,
-    pub url: String,
-    pub variants: Option<HashMap<String, String>>,
-    pub metadata: Option<serde_json::Value>,
-    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub content_type:      String,
+    pub size:              u64,
+    pub url:               String,
+    pub variants:          Option<HashMap<String, String>>,
+    pub metadata:          Option<serde_json::Value>,
+    pub created_at:        chrono::DateTime<chrono::Utc>,
 }
 
 #[derive(Debug, Serialize)]
 pub struct SignedUrlResponse {
-    pub url: String,
+    pub url:        String,
     pub expires_at: chrono::DateTime<chrono::Utc>,
 }
 
@@ -66,23 +67,20 @@ impl From<ScanError> for HandlerError {
 
 pub struct FileHandler {
     upload_type: String,
-    config: FileConfig,
-    storage: Arc<dyn StorageBackend>,
-    validator: Arc<dyn FileValidator>,
-    processor: Option<Arc<dyn ImageProcessor>>,
-    scanner: Option<Arc<dyn MalwareScanner>>,
+    config:      FileConfig,
+    storage:     Arc<dyn StorageBackend>,
+    validator:   Arc<dyn FileValidator>,
+    processor:   Option<Arc<dyn ImageProcessor>>,
+    scanner:     Option<Arc<dyn MalwareScanner>>,
 }
 
 impl FileHandler {
-    pub fn new(
-        upload_type: &str,
-        config: FileConfig,
-        storage: Arc<dyn StorageBackend>,
-    ) -> Self {
+    pub fn new(upload_type: &str, config: FileConfig, storage: Arc<dyn StorageBackend>) -> Self {
         let validator = Arc::new(DefaultFileValidator) as Arc<dyn FileValidator>;
-        let processor = config.processing.as_ref().map(|p| {
-            Arc::new(ImageProcessorImpl::new(p.clone())) as Arc<dyn ImageProcessor>
-        });
+        let processor = config
+            .processing
+            .as_ref()
+            .map(|p| Arc::new(ImageProcessorImpl::new(p.clone())) as Arc<dyn ImageProcessor>);
 
         Self {
             upload_type: upload_type.to_string(),
@@ -112,12 +110,8 @@ impl FileHandler {
         metadata: Option<serde_json::Value>,
     ) -> Result<FileResponse, HandlerError> {
         // Validate file
-        let validated = self.validator.validate(
-            &data,
-            content_type,
-            original_filename,
-            &self.config,
-        )?;
+        let validated =
+            self.validator.validate(&data, content_type, original_filename, &self.config)?;
 
         // Scan for malware if configured
         if self.config.scan_malware {
@@ -125,7 +119,9 @@ impl FileHandler {
                 let scan_result = scanner.scan(&data).await?;
                 if !scan_result.clean {
                     return Err(FileError::MalwareDetected {
-                        threat_name: scan_result.threat_name.unwrap_or_else(|| "Unknown".to_string()),
+                        threat_name: scan_result
+                            .threat_name
+                            .unwrap_or_else(|| "Unknown".to_string()),
                     }
                     .into());
                 }
@@ -134,11 +130,7 @@ impl FileHandler {
 
         // Generate unique filename
         let file_id = uuid::Uuid::new_v4();
-        let extension = validated
-            .sanitized_filename
-            .rsplit('.')
-            .next()
-            .unwrap_or("bin");
+        let extension = validated.sanitized_filename.rsplit('.').next().unwrap_or("bin");
         let filename = format!("{}.{}", file_id, extension);
 
         // Storage key
@@ -181,11 +173,7 @@ impl FileHandler {
 
                 (
                     Some(variant_urls),
-                    processed
-                        .variants
-                        .get("original")
-                        .cloned()
-                        .unwrap_or(data.clone()),
+                    processed.variants.get("original").cloned().unwrap_or(data.clone()),
                 )
             } else {
                 (None, data.clone())
@@ -227,10 +215,8 @@ impl FileHandler {
         Ok(SignedUrlResponse {
             url,
             expires_at: chrono::Utc::now()
-                + chrono::Duration::from_std(expiry).map_err(|e| {
-                    StorageError::Provider {
-                        message: e.to_string(),
-                    }
+                + chrono::Duration::from_std(expiry).map_err(|e| StorageError::Provider {
+                    message: e.to_string(),
                 })?,
         })
     }
@@ -250,12 +236,7 @@ impl FileHandler {
     }
 
     fn get_output_content_type(&self) -> String {
-        match self
-            .config
-            .processing
-            .as_ref()
-            .and_then(|p| p.output_format.as_deref())
-        {
+        match self.config.processing.as_ref().and_then(|p| p.output_format.as_deref()) {
             Some("webp") => "image/webp".to_string(),
             Some("png") => "image/png".to_string(),
             _ => "image/jpeg".to_string(),
@@ -263,12 +244,7 @@ impl FileHandler {
     }
 
     fn get_output_extension(&self) -> &str {
-        match self
-            .config
-            .processing
-            .as_ref()
-            .and_then(|p| p.output_format.as_deref())
-        {
+        match self.config.processing.as_ref().and_then(|p| p.output_format.as_deref()) {
             Some("webp") => "webp",
             Some("png") => "png",
             _ => "jpg",

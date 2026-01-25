@@ -3,10 +3,13 @@
 //! Format: `sha256=<hex>`
 //! Algorithm: HMAC-SHA256
 
-use crate::webhooks::signature::{constant_time_eq, SignatureError};
-use crate::webhooks::traits::SignatureVerifier;
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
+
+use crate::webhooks::{
+    signature::{SignatureError, constant_time_eq},
+    traits::SignatureVerifier,
+};
 
 pub struct GitHubVerifier;
 
@@ -27,9 +30,7 @@ impl SignatureVerifier for GitHubVerifier {
         _timestamp: Option<&str>,
     ) -> Result<bool, SignatureError> {
         // GitHub format: sha256=<hex>
-        let sig_hex = signature
-            .strip_prefix("sha256=")
-            .ok_or(SignatureError::InvalidFormat)?;
+        let sig_hex = signature.strip_prefix("sha256=").ok_or(SignatureError::InvalidFormat)?;
 
         let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
             .map_err(|e| SignatureError::Crypto(e.to_string()))?;
@@ -66,9 +67,7 @@ mod tests {
         let verifier = GitHubVerifier;
         let signature = "sha256=invalid";
 
-        assert!(!verifier
-            .verify(b"test", signature, "secret", None)
-            .unwrap());
+        assert!(!verifier.verify(b"test", signature, "secret", None).unwrap());
     }
 
     #[test]

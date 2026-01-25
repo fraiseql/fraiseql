@@ -31,13 +31,12 @@ pub mod repository;
 pub mod routes;
 pub mod runtime;
 
+use chrono::{DateTime, Utc};
 pub use config::ObserverManagementConfig;
 pub use handlers::{ObserverState, RuntimeHealthState};
 pub use repository::ObserverRepository;
 pub use routes::{observer_routes, observer_runtime_routes};
 pub use runtime::{ObserverRuntime, ObserverRuntimeConfig, RuntimeHealth};
-
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
@@ -192,29 +191,29 @@ pub struct UpdateObserverRequest {
 pub enum ActionConfig {
     /// HTTP webhook action
     Webhook {
-        url: String,
+        url:           String,
         #[serde(default = "default_method")]
-        method: String,
+        method:        String,
         #[serde(default)]
-        headers: Option<std::collections::HashMap<String, String>>,
+        headers:       Option<std::collections::HashMap<String, String>>,
         #[serde(default)]
         body_template: Option<String>,
     },
 
     /// Email notification action
     Email {
-        to: String,
+        to:               String,
         #[serde(default)]
-        cc: Option<String>,
+        cc:               Option<String>,
         subject_template: String,
-        body_template: String,
+        body_template:    String,
     },
 
     /// Slack message action
     Slack {
-        webhook_url: String,
+        webhook_url:      String,
         #[serde(default)]
-        channel: Option<String>,
+        channel:          Option<String>,
         message_template: String,
     },
 
@@ -222,13 +221,13 @@ pub enum ActionConfig {
     Database {
         function_name: String,
         #[serde(default)]
-        params: Option<serde_json::Value>,
+        params:        Option<serde_json::Value>,
     },
 
     /// Log action (for debugging)
     Log {
         #[serde(default = "default_log_level")]
-        level: String,
+        level:            String,
         message_template: String,
     },
 }
@@ -256,10 +255,10 @@ pub struct RetryConfig {
 impl Default for RetryConfig {
     fn default() -> Self {
         Self {
-            max_attempts: 3,
-            backoff: "exponential".to_string(),
+            max_attempts:     3,
+            backoff:          "exponential".to_string(),
             initial_delay_ms: 1000,
-            max_delay_ms: 60000,
+            max_delay_ms:     60000,
         }
     }
 }
@@ -325,22 +324,22 @@ pub struct ObserverLog {
 /// Observer statistics from vw_observer_stats view.
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct ObserverStats {
-    pub pk_observer: i64,
-    pub observer_id: Uuid,
-    pub observer_name: String,
-    pub entity_type: Option<String>,
-    pub event_type: Option<String>,
-    pub enabled: bool,
-    pub total_executions: i64,
+    pub pk_observer:           i64,
+    pub observer_id:           Uuid,
+    pub observer_name:         String,
+    pub entity_type:           Option<String>,
+    pub event_type:            Option<String>,
+    pub enabled:               bool,
+    pub total_executions:      i64,
     pub successful_executions: i64,
-    pub failed_executions: i64,
-    pub timeout_executions: i64,
-    pub skipped_executions: i64,
-    pub success_rate_pct: Option<f64>,
-    pub avg_duration_ms: Option<f64>,
-    pub max_duration_ms: Option<i32>,
-    pub min_duration_ms: Option<i32>,
-    pub last_execution_at: Option<DateTime<Utc>>,
+    pub failed_executions:     i64,
+    pub timeout_executions:    i64,
+    pub skipped_executions:    i64,
+    pub success_rate_pct:      Option<f64>,
+    pub avg_duration_ms:       Option<f64>,
+    pub max_duration_ms:       Option<i32>,
+    pub min_duration_ms:       Option<i32>,
+    pub last_execution_at:     Option<DateTime<Utc>>,
 }
 
 /// Query parameters for listing observers.
@@ -402,9 +401,9 @@ pub struct ListObserverLogsQuery {
 /// Paginated response wrapper.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PaginatedResponse<T> {
-    pub data: Vec<T>,
-    pub page: i64,
-    pub page_size: i64,
+    pub data:        Vec<T>,
+    pub page:        i64,
+    pub page_size:   i64,
     pub total_count: i64,
     pub total_pages: i64,
 }

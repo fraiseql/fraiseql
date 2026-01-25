@@ -1,10 +1,10 @@
 //! HTTP handlers for observer management endpoints.
 
 use axum::{
+    Json,
     extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
-    Json,
 };
 use uuid::Uuid;
 
@@ -31,9 +31,10 @@ pub async fn list_observers(
 
     match state.repository.list(&query, customer_org).await {
         Ok((observers, total_count)) => {
-            let response = PaginatedResponse::new(observers, query.page, query.page_size, total_count);
+            let response =
+                PaginatedResponse::new(observers, query.page, query.page_size, total_count);
             (StatusCode::OK, Json(response)).into_response()
-        }
+        },
         Err(e) => {
             let error_msg = e.to_string();
             tracing::error!("Failed to list observers: {}", error_msg);
@@ -42,7 +43,7 @@ pub async fn list_observers(
                 Json(serde_json::json!({ "error": error_msg })),
             )
                 .into_response()
-        }
+        },
     }
 }
 
@@ -70,7 +71,7 @@ pub async fn get_observer(
                 Json(serde_json::json!({ "error": error_msg })),
             )
                 .into_response()
-        }
+        },
     }
 }
 
@@ -116,11 +117,7 @@ pub async fn create_observer(
     // TODO: Extract created_by from auth context
     let created_by: Option<&str> = None;
 
-    match state
-        .repository
-        .create(&request, customer_org, created_by)
-        .await
-    {
+    match state.repository.create(&request, customer_org, created_by).await {
         Ok(observer) => (StatusCode::CREATED, Json(observer)).into_response(),
         Err(e) => {
             let error_msg = e.to_string();
@@ -131,7 +128,7 @@ pub async fn create_observer(
                 StatusCode::INTERNAL_SERVER_ERROR
             };
             (status, Json(serde_json::json!({ "error": error_msg }))).into_response()
-        }
+        },
     }
 }
 
@@ -161,11 +158,7 @@ pub async fn update_observer(
     // TODO: Extract updated_by from auth context
     let updated_by: Option<&str> = None;
 
-    match state
-        .repository
-        .update(id, &request, customer_org, updated_by)
-        .await
-    {
+    match state.repository.update(id, &request, customer_org, updated_by).await {
         Ok(Some(observer)) => (StatusCode::OK, Json(observer)).into_response(),
         Ok(None) => (
             StatusCode::NOT_FOUND,
@@ -180,7 +173,7 @@ pub async fn update_observer(
                 Json(serde_json::json!({ "error": error_msg })),
             )
                 .into_response()
-        }
+        },
     }
 }
 
@@ -208,7 +201,7 @@ pub async fn delete_observer(
                 Json(serde_json::json!({ "error": error_msg })),
             )
                 .into_response()
-        }
+        },
     }
 }
 
@@ -233,7 +226,7 @@ pub async fn get_observer_stats(
                 Json(serde_json::json!({ "error": error_msg })),
             )
                 .into_response()
-        }
+        },
     }
 }
 
@@ -257,7 +250,7 @@ pub async fn list_observer_logs(
         Ok((logs, total_count)) => {
             let response = PaginatedResponse::new(logs, query.page, query.page_size, total_count);
             (StatusCode::OK, Json(response)).into_response()
-        }
+        },
         Err(e) => {
             let error_msg = e.to_string();
             tracing::error!("Failed to list observer logs: {}", error_msg);
@@ -266,7 +259,7 @@ pub async fn list_observer_logs(
                 Json(serde_json::json!({ "error": error_msg })),
             )
                 .into_response()
-        }
+        },
     }
 }
 
@@ -285,11 +278,7 @@ pub async fn enable_observer(
     let customer_org: Option<i64> = None;
     let updated_by: Option<&str> = None;
 
-    match state
-        .repository
-        .update(id, &request, customer_org, updated_by)
-        .await
-    {
+    match state.repository.update(id, &request, customer_org, updated_by).await {
         Ok(Some(observer)) => (StatusCode::OK, Json(observer)).into_response(),
         Ok(None) => (
             StatusCode::NOT_FOUND,
@@ -304,7 +293,7 @@ pub async fn enable_observer(
                 Json(serde_json::json!({ "error": error_msg })),
             )
                 .into_response()
-        }
+        },
     }
 }
 
@@ -323,11 +312,7 @@ pub async fn disable_observer(
     let customer_org: Option<i64> = None;
     let updated_by: Option<&str> = None;
 
-    match state
-        .repository
-        .update(id, &request, customer_org, updated_by)
-        .await
-    {
+    match state.repository.update(id, &request, customer_org, updated_by).await {
         Ok(Some(observer)) => (StatusCode::OK, Json(observer)).into_response(),
         Ok(None) => (
             StatusCode::NOT_FOUND,
@@ -342,7 +327,7 @@ pub async fn disable_observer(
                 Json(serde_json::json!({ "error": error_msg })),
             )
                 .into_response()
-        }
+        },
     }
 }
 
@@ -351,6 +336,7 @@ pub async fn disable_observer(
 // ============================================================================
 
 use std::sync::Arc;
+
 use tokio::sync::RwLock;
 
 /// State for runtime health checks
@@ -363,9 +349,7 @@ pub struct RuntimeHealthState {
 /// Get observer runtime health status.
 ///
 /// GET /api/observers/runtime/health
-pub async fn get_runtime_health(
-    State(state): State<RuntimeHealthState>,
-) -> impl IntoResponse {
+pub async fn get_runtime_health(State(state): State<RuntimeHealthState>) -> impl IntoResponse {
     let runtime = state.runtime.read().await;
     let health = runtime.health();
 
@@ -390,9 +374,7 @@ pub async fn get_runtime_health(
 /// Reload observers from database.
 ///
 /// POST /api/observers/runtime/reload
-pub async fn reload_observers(
-    State(state): State<RuntimeHealthState>,
-) -> impl IntoResponse {
+pub async fn reload_observers(State(state): State<RuntimeHealthState>) -> impl IntoResponse {
     let runtime = state.runtime.read().await;
 
     match runtime.reload_observers().await {
@@ -412,6 +394,6 @@ pub async fn reload_observers(
                 Json(serde_json::json!({ "error": error_msg })),
             )
                 .into_response()
-        }
+        },
     }
 }

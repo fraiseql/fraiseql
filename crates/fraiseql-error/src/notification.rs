@@ -9,7 +9,10 @@ pub enum NotificationError {
     Provider { provider: String, message: String },
 
     #[error("Provider unavailable: {provider}")]
-    ProviderUnavailable { provider: String, retry_after: Option<Duration> },
+    ProviderUnavailable {
+        provider:    String,
+        retry_after: Option<Duration>,
+    },
 
     #[error("Invalid input: {message}")]
     InvalidInput { message: String },
@@ -21,7 +24,10 @@ pub enum NotificationError {
     ProviderRateLimited { provider: String, seconds: u64 },
 
     #[error("Circuit breaker open for provider: {provider}")]
-    CircuitOpen { provider: String, retry_after: Duration },
+    CircuitOpen {
+        provider:    String,
+        retry_after: Duration,
+    },
 
     #[error("Timeout sending notification")]
     Timeout,

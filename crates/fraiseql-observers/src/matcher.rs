@@ -7,10 +7,13 @@
 //!
 //! This allows fast lookups when an event occurs.
 
-use crate::config::ObserverDefinition;
-use crate::error::Result;
-use crate::event::{EntityEvent, EventKind};
 use std::collections::HashMap;
+
+use crate::{
+    config::ObserverDefinition,
+    error::Result,
+    event::{EntityEvent, EventKind},
+};
 
 /// Index for fast O(1) event-to-observer matching
 ///
@@ -23,7 +26,7 @@ pub struct EventMatcher {
 
 impl EventMatcher {
     /// Create a new event matcher
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self {
             index: HashMap::new(),
@@ -117,7 +120,7 @@ impl EventMatcher {
     }
 
     /// Get all observers (for administrative/debugging purposes)
-    #[must_use] 
+    #[must_use]
     pub fn all_observers(&self) -> Vec<&ObserverDefinition> {
         self.index
             .values()
@@ -126,7 +129,7 @@ impl EventMatcher {
     }
 
     /// Get count of all observers
-    #[must_use] 
+    #[must_use]
     pub fn observer_count(&self) -> usize {
         self.index
             .values()
@@ -135,18 +138,15 @@ impl EventMatcher {
     }
 
     /// Get count of unique event types
-    #[must_use] 
+    #[must_use]
     pub fn event_type_count(&self) -> usize {
         self.index.len()
     }
 
     /// Get count of unique entity types
-    #[must_use] 
+    #[must_use]
     pub fn entity_type_count(&self) -> usize {
-        self.index
-            .values()
-            .map(std::collections::HashMap::len)
-            .sum()
+        self.index.values().map(std::collections::HashMap::len).sum()
     }
 
     /// Clear all observers (for testing/reset purposes)
@@ -163,23 +163,24 @@ impl Default for EventMatcher {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::config::{ActionConfig, FailurePolicy, RetryConfig};
     use serde_json::json;
     use uuid::Uuid;
+
+    use super::*;
+    use crate::config::{ActionConfig, FailurePolicy, RetryConfig};
 
     fn create_observer(event_type: &str, entity: &str) -> ObserverDefinition {
         ObserverDefinition {
             event_type: event_type.to_string(),
-            entity: entity.to_string(),
-            condition: None,
-            actions: vec![ActionConfig::Webhook {
-                url: Some("https://example.com".to_string()),
-                url_env: None,
-                headers: HashMap::default(),
+            entity:     entity.to_string(),
+            condition:  None,
+            actions:    vec![ActionConfig::Webhook {
+                url:           Some("https://example.com".to_string()),
+                url_env:       None,
+                headers:       HashMap::default(),
                 body_template: Some("{}".to_string()),
             }],
-            retry: RetryConfig::default(),
+            retry:      RetryConfig::default(),
             on_failure: FailurePolicy::Log,
         }
     }
@@ -207,22 +208,12 @@ mod tests {
     #[test]
     fn test_matcher_find_exact_match() {
         let mut evt_matcher = EventMatcher::new();
-        evt_matcher
-            .add_observer(create_observer("INSERT", "Order"))
-            .unwrap();
-        evt_matcher
-            .add_observer(create_observer("UPDATE", "Order"))
-            .unwrap();
-        evt_matcher
-            .add_observer(create_observer("INSERT", "User"))
-            .unwrap();
+        evt_matcher.add_observer(create_observer("INSERT", "Order")).unwrap();
+        evt_matcher.add_observer(create_observer("UPDATE", "Order")).unwrap();
+        evt_matcher.add_observer(create_observer("INSERT", "User")).unwrap();
 
-        let event = EntityEvent::new(
-            EventKind::Created,
-            "Order".to_string(),
-            Uuid::new_v4(),
-            json!({}),
-        );
+        let event =
+            EntityEvent::new(EventKind::Created, "Order".to_string(), Uuid::new_v4(), json!({}));
 
         let results = evt_matcher.find_matches(&event);
         assert_eq!(results.len(), 1);
@@ -232,16 +223,10 @@ mod tests {
     #[test]
     fn test_matcher_find_no_match() {
         let mut evt_matcher = EventMatcher::new();
-        evt_matcher
-            .add_observer(create_observer("INSERT", "Order"))
-            .unwrap();
+        evt_matcher.add_observer(create_observer("INSERT", "Order")).unwrap();
 
-        let event = EntityEvent::new(
-            EventKind::Updated,
-            "Product".to_string(),
-            Uuid::new_v4(),
-            json!({}),
-        );
+        let event =
+            EntityEvent::new(EventKind::Updated, "Product".to_string(), Uuid::new_v4(), json!({}));
 
         let results = evt_matcher.find_matches(&event);
         assert_eq!(results.len(), 0);
@@ -250,19 +235,11 @@ mod tests {
     #[test]
     fn test_matcher_multiple_observers_same_event() {
         let mut evt_matcher = EventMatcher::new();
-        evt_matcher
-            .add_observer(create_observer("INSERT", "Order"))
-            .unwrap();
-        evt_matcher
-            .add_observer(create_observer("INSERT", "Order"))
-            .unwrap();
+        evt_matcher.add_observer(create_observer("INSERT", "Order")).unwrap();
+        evt_matcher.add_observer(create_observer("INSERT", "Order")).unwrap();
 
-        let event = EntityEvent::new(
-            EventKind::Created,
-            "Order".to_string(),
-            Uuid::new_v4(),
-            json!({}),
-        );
+        let event =
+            EntityEvent::new(EventKind::Created, "Order".to_string(), Uuid::new_v4(), json!({}));
 
         let results = evt_matcher.find_matches(&event);
         assert_eq!(results.len(), 2);
@@ -278,7 +255,7 @@ mod tests {
         let matcher = EventMatcher::build(observers).unwrap();
 
         assert_eq!(matcher.observer_count(), 3);
-        assert_eq!(matcher.event_type_count(), 2);  // INSERT and UPDATE
+        assert_eq!(matcher.event_type_count(), 2); // INSERT and UPDATE
         // entity_type_count returns total entity type entries (Order appears twice, User once)
         assert_eq!(matcher.entity_type_count(), 3);
     }
@@ -286,29 +263,22 @@ mod tests {
     #[test]
     fn test_matcher_find_by_event_and_entity() {
         let mut evt_matcher = EventMatcher::new();
-        evt_matcher
-            .add_observer(create_observer("INSERT", "Order"))
-            .unwrap();
-        evt_matcher
-            .add_observer(create_observer("UPDATE", "Order"))
-            .unwrap();
+        evt_matcher.add_observer(create_observer("INSERT", "Order")).unwrap();
+        evt_matcher.add_observer(create_observer("UPDATE", "Order")).unwrap();
 
         let matching_observers = evt_matcher.find_by_event_and_entity(EventKind::Created, "Order");
         assert_eq!(matching_observers.len(), 1);
 
-        let no_matching_observers = evt_matcher.find_by_event_and_entity(EventKind::Deleted, "Order");
+        let no_matching_observers =
+            evt_matcher.find_by_event_and_entity(EventKind::Deleted, "Order");
         assert_eq!(no_matching_observers.len(), 0);
     }
 
     #[test]
     fn test_matcher_clear() {
         let mut matcher = EventMatcher::new();
-        matcher
-            .add_observer(create_observer("INSERT", "Order"))
-            .unwrap();
-        matcher
-            .add_observer(create_observer("UPDATE", "User"))
-            .unwrap();
+        matcher.add_observer(create_observer("INSERT", "Order")).unwrap();
+        matcher.add_observer(create_observer("UPDATE", "User")).unwrap();
 
         assert_eq!(matcher.observer_count(), 2);
 
@@ -320,15 +290,9 @@ mod tests {
     #[test]
     fn test_matcher_all_observers() {
         let mut matcher = EventMatcher::new();
-        matcher
-            .add_observer(create_observer("INSERT", "Order"))
-            .unwrap();
-        matcher
-            .add_observer(create_observer("UPDATE", "Order"))
-            .unwrap();
-        matcher
-            .add_observer(create_observer("INSERT", "User"))
-            .unwrap();
+        matcher.add_observer(create_observer("INSERT", "Order")).unwrap();
+        matcher.add_observer(create_observer("UPDATE", "Order")).unwrap();
+        matcher.add_observer(create_observer("INSERT", "User")).unwrap();
 
         let all = matcher.all_observers();
         assert_eq!(all.len(), 3);

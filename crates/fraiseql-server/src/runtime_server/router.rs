@@ -1,11 +1,11 @@
-use axum::{
-    Router,
-    routing::get,
-};
 use std::sync::Arc;
 
-use crate::runtime_state::AppState;
-use crate::lifecycle::health::{liveness_handler, readiness_handler, startup_handler};
+use axum::{Router, routing::get};
+
+use crate::{
+    lifecycle::health::{liveness_handler, readiness_handler, startup_handler},
+    runtime_state::AppState,
+};
 
 /// Router builder with testable component injection
 pub struct RuntimeRouter {

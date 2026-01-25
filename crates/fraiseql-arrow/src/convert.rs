@@ -3,13 +3,16 @@
 //! This module provides the core conversion logic for transforming database rows
 //! into Apache Arrow RecordBatches for high-performance data transfer.
 
-use arrow::array::{
-    ArrayBuilder, BooleanBuilder, Date32Builder, Float64Builder, Int32Builder, Int64Builder,
-    RecordBatch, StringBuilder, TimestampNanosecondBuilder,
-};
-use arrow::datatypes::{DataType, Schema, TimeUnit};
-use arrow::error::ArrowError;
 use std::sync::Arc;
+
+use arrow::{
+    array::{
+        ArrayBuilder, BooleanBuilder, Date32Builder, Float64Builder, Int32Builder, Int64Builder,
+        RecordBatch, StringBuilder, TimestampNanosecondBuilder,
+    },
+    datatypes::{DataType, Schema, TimeUnit},
+    error::ArrowError,
+};
 
 /// Configuration for Arrow batch conversion.
 #[derive(Debug, Clone, Copy)]
@@ -25,7 +28,7 @@ impl Default for ConvertConfig {
     fn default() -> Self {
         Self {
             batch_size: 10_000,
-            max_rows: None,
+            max_rows:   None,
         }
     }
 }
@@ -126,10 +129,8 @@ impl RowToArrowConverter {
         }
 
         // Finish builders and create RecordBatch
-        let columns: Vec<_> = column_builders
-            .into_iter()
-            .map(|mut builder| builder.finish())
-            .collect();
+        let columns: Vec<_> =
+            column_builders.into_iter().map(|mut builder| builder.finish()).collect();
 
         RecordBatch::try_new(self.schema.clone(), columns)
     }
@@ -163,28 +164,24 @@ impl RowToArrowConverter {
                     _ => {
                         return Err(ArrowError::InvalidArgumentError(
                             "Expected string value".into(),
-                        ))
-                    }
+                        ));
+                    },
                 }
-            }
+            },
             DataType::Int32 => {
                 let builder = builder
                     .as_any_mut()
                     .downcast_mut::<Int32Builder>()
                     .expect("Builder type mismatch");
                 match value {
-                    Some(Value::Int(i)) => builder.append_value(
-                        i32::try_from(*i)
-                            .map_err(|_| ArrowError::InvalidArgumentError("Int overflow".into()))?,
-                    ),
+                    Some(Value::Int(i)) => builder
+                        .append_value(i32::try_from(*i).map_err(|_| {
+                            ArrowError::InvalidArgumentError("Int overflow".into())
+                        })?),
                     None => builder.append_null(),
-                    _ => {
-                        return Err(ArrowError::InvalidArgumentError(
-                            "Expected int value".into(),
-                        ))
-                    }
+                    _ => return Err(ArrowError::InvalidArgumentError("Expected int value".into())),
                 }
-            }
+            },
             DataType::Int64 => {
                 let builder = builder
                     .as_any_mut()
@@ -196,10 +193,10 @@ impl RowToArrowConverter {
                     _ => {
                         return Err(ArrowError::InvalidArgumentError(
                             "Expected int64 value".into(),
-                        ))
-                    }
+                        ));
+                    },
                 }
-            }
+            },
             DataType::Float64 => {
                 let builder = builder
                     .as_any_mut()
@@ -211,10 +208,10 @@ impl RowToArrowConverter {
                     _ => {
                         return Err(ArrowError::InvalidArgumentError(
                             "Expected float value".into(),
-                        ))
-                    }
+                        ));
+                    },
                 }
-            }
+            },
             DataType::Boolean => {
                 let builder = builder
                     .as_any_mut()
@@ -224,12 +221,10 @@ impl RowToArrowConverter {
                     Some(Value::Bool(b)) => builder.append_value(*b),
                     None => builder.append_null(),
                     _ => {
-                        return Err(ArrowError::InvalidArgumentError(
-                            "Expected bool value".into(),
-                        ))
-                    }
+                        return Err(ArrowError::InvalidArgumentError("Expected bool value".into()));
+                    },
                 }
-            }
+            },
             DataType::Timestamp(TimeUnit::Nanosecond, _) => {
                 let builder = builder
                     .as_any_mut()
@@ -241,10 +236,10 @@ impl RowToArrowConverter {
                     _ => {
                         return Err(ArrowError::InvalidArgumentError(
                             "Expected timestamp value".into(),
-                        ))
-                    }
+                        ));
+                    },
                 }
-            }
+            },
             DataType::Date32 => {
                 let builder = builder
                     .as_any_mut()
@@ -254,17 +249,15 @@ impl RowToArrowConverter {
                     Some(Value::Date(days)) => builder.append_value(*days),
                     None => builder.append_null(),
                     _ => {
-                        return Err(ArrowError::InvalidArgumentError(
-                            "Expected date value".into(),
-                        ))
-                    }
+                        return Err(ArrowError::InvalidArgumentError("Expected date value".into()));
+                    },
                 }
-            }
+            },
             _ => {
                 return Err(ArrowError::InvalidArgumentError(format!(
                     "Unsupported data type: {data_type:?}"
-                )))
-            }
+                )));
+            },
         }
         Ok(())
     }
@@ -281,7 +274,7 @@ fn create_builder_for_type(data_type: &DataType, capacity: usize) -> Box<dyn Arr
         DataType::Utf8 => {
             // Estimate 50 bytes per string on average
             Box::new(StringBuilder::with_capacity(capacity, capacity * 50))
-        }
+        },
         DataType::Int32 => Box::new(Int32Builder::with_capacity(capacity)),
         DataType::Int64 => Box::new(Int64Builder::with_capacity(capacity)),
         DataType::Float64 => Box::new(Float64Builder::with_capacity(capacity)),
@@ -296,8 +289,9 @@ fn create_builder_for_type(data_type: &DataType, capacity: usize) -> Box<dyn Arr
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use arrow::datatypes::Field;
+
+    use super::*;
 
     #[test]
     fn test_convert_simple_batch() {
@@ -313,10 +307,7 @@ mod tests {
                 Some(Value::Int(1)),
                 Some(Value::String("Alice".to_string())),
             ],
-            vec![
-                Some(Value::Int(2)),
-                Some(Value::String("Bob".to_string())),
-            ],
+            vec![Some(Value::Int(2)), Some(Value::String("Bob".to_string()))],
             vec![Some(Value::Int(3)), None],
         ];
 
@@ -329,11 +320,8 @@ mod tests {
 
     #[test]
     fn test_null_handling() {
-        let schema = Arc::new(Schema::new(vec![Field::new(
-            "nullable_field",
-            DataType::Utf8,
-            true,
-        )]));
+        let schema =
+            Arc::new(Schema::new(vec![Field::new("nullable_field", DataType::Utf8, true)]));
 
         let converter = RowToArrowConverter::new(schema, ConvertConfig::default());
 
@@ -402,11 +390,7 @@ mod tests {
 
     #[test]
     fn test_date_conversion() {
-        let schema = Arc::new(Schema::new(vec![Field::new(
-            "birth_date",
-            DataType::Date32,
-            true,
-        )]));
+        let schema = Arc::new(Schema::new(vec![Field::new("birth_date", DataType::Date32, true)]));
 
         let converter = RowToArrowConverter::new(schema, ConvertConfig::default());
 
@@ -430,10 +414,7 @@ mod tests {
 
         let result = converter.convert_batch(rows);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("expected 2"));
+        assert!(result.unwrap_err().to_string().contains("expected 2"));
     }
 
     #[test]
@@ -461,7 +442,7 @@ mod tests {
     fn test_custom_config() {
         let config = ConvertConfig {
             batch_size: 5_000,
-            max_rows: Some(100_000),
+            max_rows:   Some(100_000),
         };
 
         assert_eq!(config.batch_size, 5_000);

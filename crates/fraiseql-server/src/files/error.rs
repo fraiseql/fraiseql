@@ -8,7 +8,10 @@ pub enum FileError {
     TooLarge { size: usize, max: usize },
 
     #[error("File type not allowed: {got} (allowed: {allowed:?})")]
-    InvalidType { got: String, allowed: Vec<String> },
+    InvalidType {
+        got:     String,
+        allowed: Vec<String>,
+    },
 
     #[error("MIME type mismatch: declared {declared}, detected {detected}")]
     MimeMismatch { declared: String, detected: String },

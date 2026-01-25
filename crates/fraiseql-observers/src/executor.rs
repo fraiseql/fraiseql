@@ -7,54 +7,54 @@
 //! 4. Executes actions with retry logic
 //! 5. Handles failures via Dead Letter Queue
 
-use crate::actions::{EmailAction, SlackAction, WebhookAction};
-use crate::actions_additional::{CacheAction, PushAction, SearchAction, SmsAction};
-use crate::config::{ActionConfig, BackoffStrategy, FailurePolicy, RetryConfig};
-use crate::condition::ConditionParser;
-use crate::error::{ObserverError, Result};
-use crate::event::EntityEvent;
-use crate::matcher::EventMatcher;
-use crate::traits::{ActionResult, DeadLetterQueue};
-#[cfg(feature = "metrics")]
-use crate::metrics::MetricsRegistry;
-use std::sync::Arc;
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
+
 use tokio::time::sleep;
 use tracing::{debug, error, info, warn};
+
+#[cfg(feature = "metrics")]
+use crate::metrics::MetricsRegistry;
+use crate::{
+    actions::{EmailAction, SlackAction, WebhookAction},
+    actions_additional::{CacheAction, PushAction, SearchAction, SmsAction},
+    condition::ConditionParser,
+    config::{ActionConfig, BackoffStrategy, FailurePolicy, RetryConfig},
+    error::{ObserverError, Result},
+    event::EntityEvent,
+    matcher::EventMatcher,
+    traits::{ActionResult, DeadLetterQueue},
+};
 
 /// Main observer executor engine
 pub struct ObserverExecutor {
     /// Event-to-observer matcher
-    matcher: Arc<EventMatcher>,
+    matcher:          Arc<EventMatcher>,
     /// Condition parser and evaluator
     condition_parser: Arc<ConditionParser>,
     /// Webhook action executor
-    webhook_action: Arc<WebhookAction>,
+    webhook_action:   Arc<WebhookAction>,
     /// Slack action executor
-    slack_action: Arc<SlackAction>,
+    slack_action:     Arc<SlackAction>,
     /// Email action executor
-    email_action: Arc<EmailAction>,
+    email_action:     Arc<EmailAction>,
     /// SMS action executor
-    sms_action: Arc<SmsAction>,
+    sms_action:       Arc<SmsAction>,
     /// Push notification action executor
-    push_action: Arc<PushAction>,
+    push_action:      Arc<PushAction>,
     /// Search index action executor
-    search_action: Arc<SearchAction>,
+    search_action:    Arc<SearchAction>,
     /// Cache action executor
-    cache_action: Arc<CacheAction>,
+    cache_action:     Arc<CacheAction>,
     /// Dead letter queue for failed actions
-    dlq: Arc<dyn DeadLetterQueue>,
+    dlq:              Arc<dyn DeadLetterQueue>,
     /// Prometheus metrics registry
     #[cfg(feature = "metrics")]
-    metrics: MetricsRegistry,
+    metrics:          MetricsRegistry,
 }
 
 impl ObserverExecutor {
     /// Create a new executor
-    pub fn new(
-        matcher: EventMatcher,
-        dlq: Arc<dyn DeadLetterQueue>,
-    ) -> Self {
+    pub fn new(matcher: EventMatcher, dlq: Arc<dyn DeadLetterQueue>) -> Self {
         Self {
             matcher: Arc::new(matcher),
             condition_parser: Arc::new(ConditionParser::new()),
@@ -87,14 +87,9 @@ impl ObserverExecutor {
 
         debug!(
             "Processing event {} (entity_type: {}, event_type: {:?})",
-            event.id,
-            event.entity_type,
-            event.event_type
+            event.id, event.entity_type, event.event_type
         );
-        debug!(
-            "Found {} matching observers for this event",
-            matching_observers.len()
-        );
+        debug!("Found {} matching observers for this event", matching_observers.len());
 
         for observer in matching_observers {
             // Skip if condition is not met
@@ -102,24 +97,30 @@ impl ObserverExecutor {
                 match self.condition_parser.parse_and_evaluate(condition, event) {
                     Ok(true) => {
                         debug!("Condition passed for observer");
-                    }
+                    },
                     Ok(false) => {
                         debug!("Condition failed, skipping observer");
                         summary.conditions_skipped += 1;
                         continue;
-                    }
+                    },
                     Err(e) => {
                         error!("Condition evaluation error: {}", e);
                         summary.errors.push(e.to_string());
                         continue;
-                    }
+                    },
                 }
             }
 
             // Execute actions for this observer
             for action in &observer.actions {
-                self.execute_action_with_retry(action, event, &observer.retry, &observer.on_failure, &mut summary)
-                    .await;
+                self.execute_action_with_retry(
+                    action,
+                    event,
+                    &observer.retry,
+                    &observer.on_failure,
+                    &mut summary,
+                )
+                .await;
             }
         }
 
@@ -148,11 +149,7 @@ impl ObserverExecutor {
 
             match self.execute_action_internal(action, event).await {
                 Ok(result) => {
-                    info!(
-                        "Action {} succeeded in {}ms",
-                        action.action_type(),
-                        result.duration_ms
-                    );
+                    info!("Action {} succeeded in {}ms", action.action_type(), result.duration_ms);
                     // Record metrics for successful action execution
                     #[cfg(feature = "metrics")]
                     self.metrics.action_executed(&result.action_type, result.duration_ms / 1000.0);
@@ -160,17 +157,13 @@ impl ObserverExecutor {
                     summary.successful_actions += 1;
                     summary.total_duration_ms += result.duration_ms;
                     return;
-                }
+                },
                 Err(e) => {
                     let is_transient = e.is_transient();
 
                     if !is_transient {
                         // Permanent error, don't retry
-                        warn!(
-                            "Permanent error in action {}: {}",
-                            action.action_type(),
-                            e
-                        );
+                        warn!("Permanent error in action {}: {}", action.action_type(), e);
                         self.handle_action_failure(action, event, &e, failure_policy, summary)
                             .await;
                         return;
@@ -178,11 +171,7 @@ impl ObserverExecutor {
 
                     if attempt >= retry_config.max_attempts {
                         // Retries exhausted
-                        error!(
-                            "Action {} failed after {} attempts",
-                            action.action_type(),
-                            attempt
-                        );
+                        error!("Action {} failed after {} attempts", action.action_type(), attempt);
                         self.handle_action_failure(action, event, &e, failure_policy, summary)
                             .await;
                         return;
@@ -199,7 +188,7 @@ impl ObserverExecutor {
                     );
 
                     sleep(delay).await;
-                }
+                },
             }
         }
     }
@@ -240,13 +229,13 @@ impl ObserverExecutor {
                 {
                     Ok(response) => Ok(ActionResult {
                         action_type: "webhook".to_string(),
-                        success: true,
-                        message: format!("HTTP {}", response.status_code),
+                        success:     true,
+                        message:     format!("HTTP {}", response.status_code),
                         duration_ms: response.duration_ms,
                     }),
                     Err(e) => Err(e),
                 }
-            }
+            },
             ActionConfig::Slack {
                 webhook_url,
                 webhook_url_env,
@@ -272,13 +261,13 @@ impl ObserverExecutor {
                 {
                     Ok(response) => Ok(ActionResult {
                         action_type: "slack".to_string(),
-                        success: true,
-                        message: format!("HTTP {}", response.status_code),
+                        success:     true,
+                        message:     format!("HTTP {}", response.status_code),
                         duration_ms: response.duration_ms,
                     }),
                     Err(e) => Err(e),
                 }
-            }
+            },
             ActionConfig::Email {
                 to,
                 to_template: _,
@@ -302,15 +291,13 @@ impl ObserverExecutor {
                 {
                     Ok(response) => Ok(ActionResult {
                         action_type: "email".to_string(),
-                        success: response.success,
-                        message: response
-                            .message_id
-                            .unwrap_or_else(|| "queued".to_string()),
+                        success:     response.success,
+                        message:     response.message_id.unwrap_or_else(|| "queued".to_string()),
                         duration_ms: response.duration_ms,
                     }),
                     Err(e) => Err(e),
                 }
-            }
+            },
             ActionConfig::Sms {
                 phone,
                 phone_template: _,
@@ -320,21 +307,17 @@ impl ObserverExecutor {
                     reason: "SMS 'phone' not provided".to_string(),
                 })?;
 
-                match self
-                    .sms_action
-                    .execute(sms_phone.clone(), message_template.as_deref(), event)
+                match self.sms_action.execute(sms_phone.clone(), message_template.as_deref(), event)
                 {
                     Ok(response) => Ok(ActionResult {
                         action_type: "sms".to_string(),
-                        success: response.success,
-                        message: response
-                            .message_id
-                            .unwrap_or_else(|| "sent".to_string()),
+                        success:     response.success,
+                        message:     response.message_id.unwrap_or_else(|| "sent".to_string()),
                         duration_ms: response.duration_ms,
                     }),
                     Err(e) => Err(e),
                 }
-            }
+            },
             ActionConfig::Push {
                 device_token,
                 title_template,
@@ -352,33 +335,22 @@ impl ObserverExecutor {
                     reason: "Push 'body_template' not provided".to_string(),
                 })?;
 
-                match self
-                    .push_action
-                    .execute(token.clone(), title.clone(), body.clone())
-                {
+                match self.push_action.execute(token.clone(), title.clone(), body.clone()) {
                     Ok(response) => Ok(ActionResult {
                         action_type: "push".to_string(),
-                        success: response.success,
-                        message: response
-                            .notification_id
-                            .unwrap_or_else(|| "sent".to_string()),
+                        success:     response.success,
+                        message:     response.notification_id.unwrap_or_else(|| "sent".to_string()),
                         duration_ms: response.duration_ms,
                     }),
                     Err(e) => Err(e),
                 }
-            }
-            ActionConfig::Search {
-                index,
-                id_template,
-            } => {
-                match self
-                    .search_action
-                    .execute(index.clone(), id_template.as_deref(), event)
-                {
+            },
+            ActionConfig::Search { index, id_template } => {
+                match self.search_action.execute(index.clone(), id_template.as_deref(), event) {
                     Ok(response) => Ok(ActionResult {
                         action_type: "search".to_string(),
-                        success: response.success,
-                        message: if response.indexed {
+                        success:     response.success,
+                        message:     if response.indexed {
                             "indexed".to_string()
                         } else {
                             "not_indexed".to_string()
@@ -387,21 +359,19 @@ impl ObserverExecutor {
                     }),
                     Err(e) => Err(e),
                 }
-            }
-            ActionConfig::Cache { key_pattern, action } => {
-                match self
-                    .cache_action
-                    .execute(key_pattern.clone(), action)
-                {
-                    Ok(response) => Ok(ActionResult {
-                        action_type: "cache".to_string(),
-                        success: response.success,
-                        message: format!("affected: {}", response.keys_affected),
-                        duration_ms: response.duration_ms,
-                    }),
-                    Err(e) => Err(e),
-                }
-            }
+            },
+            ActionConfig::Cache {
+                key_pattern,
+                action,
+            } => match self.cache_action.execute(key_pattern.clone(), action) {
+                Ok(response) => Ok(ActionResult {
+                    action_type: "cache".to_string(),
+                    success:     response.success,
+                    message:     format!("affected: {}", response.keys_affected),
+                    duration_ms: response.duration_ms,
+                }),
+                Err(e) => Err(e),
+            },
         }
     }
 
@@ -421,7 +391,9 @@ impl ObserverExecutor {
                 crate::error::ObserverErrorCode::ActionExecutionFailed => "execution_failed",
                 crate::error::ObserverErrorCode::ActionPermanentlyFailed => "permanently_failed",
                 crate::error::ObserverErrorCode::InvalidActionConfig => "invalid_config",
-                crate::error::ObserverErrorCode::TemplateRenderingFailed => "template_rendering_failed",
+                crate::error::ObserverErrorCode::TemplateRenderingFailed => {
+                    "template_rendering_failed"
+                },
                 crate::error::ObserverErrorCode::DatabaseError => "database_error",
                 crate::error::ObserverErrorCode::CircuitBreakerOpen => "circuit_breaker_open",
                 _ => "other_error",
@@ -431,14 +403,9 @@ impl ObserverExecutor {
 
         match failure_policy {
             FailurePolicy::Log => {
-                error!(
-                    "Action {} failed for event {}: {}",
-                    action.action_type(),
-                    event.id,
-                    error
-                );
+                error!("Action {} failed for event {}: {}", action.action_type(), event.id, error);
                 summary.failed_actions += 1;
-            }
+            },
             FailurePolicy::Alert => {
                 error!(
                     "ALERT: Action {} failed for event {}: {}",
@@ -448,23 +415,21 @@ impl ObserverExecutor {
                 );
                 summary.failed_actions += 1;
                 // Phase 6.7: Implement alerting via separate observer
-            }
+            },
             FailurePolicy::Dlq => {
                 info!(
                     "Moving failed action {} to DLQ for event {}",
                     action.action_type(),
                     event.id
                 );
-                if let Err(e) = self
-                    .dlq
-                    .push(event.clone(), action.clone(), error.to_string())
-                    .await
+                if let Err(e) =
+                    self.dlq.push(event.clone(), action.clone(), error.to_string()).await
                 {
                     error!("Failed to push to DLQ: {}", e);
                     summary.dlq_errors += 1;
                 }
                 summary.failed_actions += 1;
-            }
+            },
         }
     }
 
@@ -476,16 +441,16 @@ impl ObserverExecutor {
                 let exponent = attempt - 1;
                 let base_delay = config.initial_delay_ms * (2_u64.pow(exponent));
                 base_delay.min(config.max_delay_ms)
-            }
+            },
             BackoffStrategy::Linear => {
                 // attempt * initial_delay, capped at max_delay
                 let base_delay = config.initial_delay_ms * u64::from(attempt);
                 base_delay.min(config.max_delay_ms)
-            }
+            },
             BackoffStrategy::Fixed => {
                 // Always use initial_delay
                 config.initial_delay_ms
-            }
+            },
         };
 
         Duration::from_millis(delay_ms)
@@ -551,21 +516,21 @@ impl ObserverExecutor {
                                 "Event {} processed: {} successful, {} failed",
                                 event.id, summary.successful_actions, summary.failed_actions
                             );
-                        }
+                        },
                         Err(e) => {
                             error!("Failed to process event {}: {}", event.id, e);
                             // Continue processing other events
-                        }
+                        },
                     }
 
                     // Note: Transport ACKs message internally after we return from process_event()
                     // This ensures at-least-once delivery semantics
-                }
+                },
                 Err(e) => {
                     error!("Transport error: {}", e);
                     // Transport handles retry/backoff internally
                     // Stream will continue after error recovery
-                }
+                },
             }
         }
 
@@ -635,22 +600,23 @@ impl ObserverExecutor {
                                     Ok(summary) => {
                                         debug!(
                                             "Event {} processed: {} successful, {} failed",
-                                            event.id, summary.successful_actions,
+                                            event.id,
+                                            summary.successful_actions,
                                             summary.failed_actions
                                         );
-                                    }
+                                    },
                                     Err(e) => {
                                         error!("Failed to process event: {}", e);
                                         processing_errors += 1;
                                         // Continue processing other entries despite error
-                                    }
+                                    },
                                 }
-                            }
+                            },
                             Err(e) => {
                                 error!("Failed to convert change log entry to event: {}", e);
                                 conversion_errors += 1;
                                 // Continue processing other entries despite error
-                            }
+                            },
                         }
                     }
 
@@ -661,7 +627,7 @@ impl ObserverExecutor {
                             conversion_errors, processing_errors
                         );
                     }
-                }
+                },
                 Err(e) => {
                     consecutive_errors += 1;
 
@@ -687,7 +653,7 @@ impl ObserverExecutor {
                         backoff_ms, consecutive_errors
                     );
                     sleep(Duration::from_millis(backoff_ms)).await;
-                }
+                },
             }
         }
 
@@ -702,7 +668,7 @@ impl ObserverExecutor {
     ///
     /// # Returns
     /// `JoinHandle` for the background listener task
-    #[must_use] 
+    #[must_use]
     pub fn spawn_listener(
         self: Arc<Self>,
         mut listener: crate::listener::ChangeLogListener,
@@ -717,38 +683,38 @@ pub struct ExecutionSummary {
     /// Number of successful action executions
     pub successful_actions: usize,
     /// Number of failed action executions
-    pub failed_actions: usize,
+    pub failed_actions:     usize,
     /// Number of observers skipped due to condition
     pub conditions_skipped: usize,
     /// Total execution time in milliseconds
-    pub total_duration_ms: f64,
+    pub total_duration_ms:  f64,
     /// DLQ push errors
-    pub dlq_errors: usize,
+    pub dlq_errors:         usize,
     /// Other errors encountered
-    pub errors: Vec<String>,
+    pub errors:             Vec<String>,
     /// Whether this event was skipped due to deduplication (Phase 8.3)
-    pub duplicate_skipped: bool,
+    pub duplicate_skipped:  bool,
     /// Number of cache hits during action execution (Phase 8.4)
-    pub cache_hits: usize,
+    pub cache_hits:         usize,
     /// Number of cache misses during action execution (Phase 8.4)
-    pub cache_misses: usize,
+    pub cache_misses:       usize,
 }
 
 impl ExecutionSummary {
     /// Create a new empty summary
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Check if execution was successful
-    #[must_use] 
+    #[must_use]
     pub fn is_success(&self) -> bool {
         self.failed_actions == 0 && self.dlq_errors == 0 && self.errors.is_empty()
     }
 
     /// Get total actions processed
-    #[must_use] 
+    #[must_use]
     pub const fn total_actions(&self) -> usize {
         self.successful_actions + self.failed_actions
     }
@@ -756,10 +722,10 @@ impl ExecutionSummary {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::event::EventKind;
-    use crate::testing::mocks::MockDeadLetterQueue;
     use serde_json::json;
+
+    use super::*;
+    use crate::{event::EventKind, testing::mocks::MockDeadLetterQueue};
 
     fn create_test_matcher() -> EventMatcher {
         EventMatcher::new()
@@ -781,9 +747,9 @@ mod tests {
     fn test_backoff_exponential() {
         let executor = create_test_executor();
         let config = RetryConfig {
-            max_attempts: 5,
+            max_attempts:     5,
             initial_delay_ms: 100,
-            max_delay_ms: 5000,
+            max_delay_ms:     5000,
             backoff_strategy: BackoffStrategy::Exponential,
         };
 
@@ -798,9 +764,9 @@ mod tests {
     fn test_backoff_linear() {
         let executor = create_test_executor();
         let config = RetryConfig {
-            max_attempts: 5,
+            max_attempts:     5,
             initial_delay_ms: 100,
-            max_delay_ms: 5000,
+            max_delay_ms:     5000,
             backoff_strategy: BackoffStrategy::Linear,
         };
 
@@ -815,9 +781,9 @@ mod tests {
     fn test_backoff_fixed() {
         let executor = create_test_executor();
         let config = RetryConfig {
-            max_attempts: 5,
+            max_attempts:     5,
             initial_delay_ms: 100,
-            max_delay_ms: 5000,
+            max_delay_ms:     5000,
             backoff_strategy: BackoffStrategy::Fixed,
         };
 
@@ -832,9 +798,9 @@ mod tests {
     fn test_backoff_exponential_cap() {
         let executor = create_test_executor();
         let config = RetryConfig {
-            max_attempts: 10,
+            max_attempts:     10,
             initial_delay_ms: 100,
-            max_delay_ms: 1000,
+            max_delay_ms:     1000,
             backoff_strategy: BackoffStrategy::Exponential,
         };
 
@@ -846,14 +812,14 @@ mod tests {
     fn test_execution_summary_success() {
         let summary = ExecutionSummary {
             successful_actions: 5,
-            failed_actions: 0,
+            failed_actions:     0,
             conditions_skipped: 0,
-            total_duration_ms: 50.0,
-            dlq_errors: 0,
-            errors: vec![],
-            duplicate_skipped: false,
-            cache_hits: 0,
-            cache_misses: 0,
+            total_duration_ms:  50.0,
+            dlq_errors:         0,
+            errors:             vec![],
+            duplicate_skipped:  false,
+            cache_hits:         0,
+            cache_misses:       0,
         };
 
         assert!(summary.is_success());
@@ -864,14 +830,14 @@ mod tests {
     fn test_execution_summary_failure() {
         let summary = ExecutionSummary {
             successful_actions: 3,
-            failed_actions: 1,
+            failed_actions:     1,
             conditions_skipped: 1,
-            total_duration_ms: 75.0,
-            dlq_errors: 0,
-            errors: vec![],
-            duplicate_skipped: false,
-            cache_hits: 0,
-            cache_misses: 0,
+            total_duration_ms:  75.0,
+            dlq_errors:         0,
+            errors:             vec![],
+            duplicate_skipped:  false,
+            cache_hits:         0,
+            cache_misses:       0,
         };
 
         assert!(!summary.is_success());
@@ -907,8 +873,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_run_listener_loop_empty_batch() {
-        use crate::listener::{ChangeLogListener, ChangeLogListenerConfig};
         use sqlx::postgres::PgPool;
+
+        use crate::listener::{ChangeLogListener, ChangeLogListenerConfig};
 
         let executor = create_test_executor();
         let pool = PgPool::connect_lazy("postgres://localhost/dummy").unwrap();
@@ -924,8 +891,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_checkpoint_tracking() {
-        use crate::listener::{ChangeLogListener, ChangeLogListenerConfig};
         use sqlx::postgres::PgPool;
+
+        use crate::listener::{ChangeLogListener, ChangeLogListenerConfig};
 
         let pool = PgPool::connect_lazy("postgres://localhost/dummy").unwrap();
         let config = ChangeLogListenerConfig::new(pool);
@@ -944,8 +912,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_listener_config_builder() {
-        use crate::listener::ChangeLogListenerConfig;
         use sqlx::postgres::PgPool;
+
+        use crate::listener::ChangeLogListenerConfig;
 
         let pool = PgPool::connect_lazy("postgres://localhost/dummy").unwrap();
         let config = ChangeLogListenerConfig::new(pool)
@@ -962,8 +931,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_run_listener_loop_with_iteration_limit() {
-        use crate::listener::{ChangeLogListener, ChangeLogListenerConfig};
         use sqlx::postgres::PgPool;
+
+        use crate::listener::{ChangeLogListener, ChangeLogListenerConfig};
 
         let executor = create_test_executor();
         let pool = PgPool::connect_lazy("postgres://localhost/dummy").unwrap();
@@ -979,9 +949,9 @@ mod tests {
     fn test_exponential_backoff_calculation() {
         let executor = create_test_executor();
         let config = RetryConfig {
-            max_attempts: 5,
+            max_attempts:     5,
             initial_delay_ms: 100,
-            max_delay_ms: 5000,
+            max_delay_ms:     5000,
             backoff_strategy: BackoffStrategy::Exponential,
         };
 
@@ -1004,9 +974,9 @@ mod tests {
     fn test_exponential_backoff_cap() {
         let executor = create_test_executor();
         let config = RetryConfig {
-            max_attempts: 10,
+            max_attempts:     10,
             initial_delay_ms: 100,
-            max_delay_ms: 1000,
+            max_delay_ms:     1000,
             backoff_strategy: BackoffStrategy::Exponential,
         };
 
@@ -1021,8 +991,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_run_listener_loop_zero_iterations() {
-        use crate::listener::{ChangeLogListener, ChangeLogListenerConfig};
         use sqlx::postgres::PgPool;
+
+        use crate::listener::{ChangeLogListener, ChangeLogListenerConfig};
 
         let executor = create_test_executor();
         let pool = PgPool::connect_lazy("postgres://localhost/dummy").unwrap();

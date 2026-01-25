@@ -11,24 +11,29 @@
 //! - failover.rs: Automatic failover management
 
 pub mod change_log;
-pub mod state;
 pub mod coordinator;
-pub mod lease;
 pub mod failover;
+pub mod lease;
+pub mod state;
+
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
 
 pub use change_log::{ChangeLogEntry, ChangeLogListener, ChangeLogListenerConfig};
-pub use state::{ListenerState, ListenerStateMachine};
-pub use coordinator::{MultiListenerCoordinator, ListenerHandle, ListenerHealth};
+pub use coordinator::{ListenerHandle, ListenerHealth, MultiListenerCoordinator};
+pub use failover::{FailoverEvent, FailoverManager};
 pub use lease::CheckpointLease;
-pub use failover::{FailoverManager, FailoverEvent};
-
-use crate::error::{ObserverError, Result};
-use crate::event::EntityEvent;
 use sqlx::postgres::{PgListener, PgPool};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+pub use state::{ListenerState, ListenerStateMachine};
 use tokio::sync::mpsc;
 use tracing::{debug, error, warn};
+
+use crate::{
+    error::{ObserverError, Result},
+    event::EntityEvent,
+};
 
 /// Configuration for the event listener
 #[derive(Debug, Clone)]
@@ -48,14 +53,14 @@ pub struct ListenerConfig {
 
 /// PostgreSQL event listener that receives NOTIFY events
 pub struct EventListener {
-    config: ListenerConfig,
-    sender: mpsc::Sender<EntityEvent>,
+    config:  ListenerConfig,
+    sender:  mpsc::Sender<EntityEvent>,
     running: Arc<AtomicBool>,
 }
 
 impl EventListener {
     /// Create a new event listener
-    #[must_use] 
+    #[must_use]
     pub fn new(config: ListenerConfig) -> (Self, mpsc::Receiver<EntityEvent>) {
         let (sender, receiver) = mpsc::channel(config.channel_capacity);
 
@@ -85,18 +90,17 @@ impl EventListener {
 
         self.running.store(true, Ordering::SeqCst);
 
-        let mut listener = PgListener::connect_with(&self.config.pool)
-            .await
-            .map_err(|e| ObserverError::ListenerConnectionFailed {
+        let mut listener = PgListener::connect_with(&self.config.pool).await.map_err(|e| {
+            ObserverError::ListenerConnectionFailed {
                 reason: format!("Failed to create listener: {e}"),
-            })?;
+            }
+        })?;
 
-        listener
-            .listen("fraiseql_events")
-            .await
-            .map_err(|e| ObserverError::ListenerConnectionFailed {
+        listener.listen("fraiseql_events").await.map_err(|e| {
+            ObserverError::ListenerConnectionFailed {
                 reason: format!("Failed to listen to channel: {e}"),
-            })?;
+            }
+        })?;
 
         let sender = self.sender.clone();
         let running = self.running.clone();
@@ -124,30 +128,31 @@ impl EventListener {
                                 match sender.try_send(event) {
                                     Ok(()) => {
                                         debug!("Event sent through channel");
-                                    }
+                                    },
                                     Err(mpsc::error::TrySendError::Full(_event)) => {
-                                        // Handle based on overflow policy (Phase 6.4 will implement)
+                                        // Handle based on overflow policy (Phase 6.4 will
+                                        // implement)
                                         warn!("Channel full, dropping event");
-                                    }
+                                    },
                                     Err(mpsc::error::TrySendError::Closed(_)) => {
                                         // Channel is closed, listener should stop
                                         warn!("Channel closed, stopping listener");
                                         running.store(false, Ordering::SeqCst);
                                         break;
-                                    }
+                                    },
                                 }
-                            }
+                            },
                             Err(e) => {
                                 error!("Failed to deserialize event: {}", e);
                                 // Continue listening despite deserialization error
-                            }
+                            },
                         }
-                    }
+                    },
                     Err(e) => {
                         error!("Listener error: {}", e);
                         running.store(false, Ordering::SeqCst);
                         break;
-                    }
+                    },
                 }
             }
         });
@@ -161,13 +166,13 @@ impl EventListener {
     }
 
     /// Check if listener is running
-    #[must_use] 
+    #[must_use]
     pub fn is_running(&self) -> bool {
         self.running.load(Ordering::SeqCst)
     }
 
     /// Get the current backlog size (approximate)
-    #[must_use] 
+    #[must_use]
     pub fn backlog_size(&self) -> usize {
         // Since mpsc doesn't expose the number of items in queue,
         // we use a conservative estimate based on channel capacity
@@ -175,7 +180,7 @@ impl EventListener {
     }
 
     /// Get the channel capacity
-    #[must_use] 
+    #[must_use]
     pub fn capacity(&self) -> usize {
         self.sender.capacity()
     }
@@ -183,10 +188,10 @@ impl EventListener {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::event::EventKind;
     use uuid::Uuid;
 
+    use super::*;
+    use crate::event::EventKind;
 
     #[tokio::test]
     async fn test_event_deserialization() {

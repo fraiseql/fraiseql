@@ -118,7 +118,7 @@ impl SchemaConverter {
             mutations,
             subscriptions,
             directives,
-            fact_tables, // Analytics metadata
+            fact_tables,           // Analytics metadata
             observers: Vec::new(), // Observer definitions (populated from IntermediateSchema)
         };
 

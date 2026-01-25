@@ -1,9 +1,9 @@
 //! Request tracing and logging initialization.
 
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer};
+use fraiseql_error::RuntimeError;
+use tracing_subscriber::{EnvFilter, Layer, layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::config::tracing::TracingConfig;
-use fraiseql_error::RuntimeError;
 
 /// Initialize tracing and logging
 ///
@@ -12,8 +12,8 @@ use fraiseql_error::RuntimeError;
 /// Returns an error if tracing initialization fails
 pub fn init_tracing(config: &TracingConfig) -> Result<(), RuntimeError> {
     // Create filter from RUST_LOG or config
-    let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new(&config.level));
+    let filter =
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&config.level));
 
     // Create fmt layer based on format
     let fmt_layer = if config.format == "json" {
@@ -25,17 +25,11 @@ pub fn init_tracing(config: &TracingConfig) -> Result<(), RuntimeError> {
             .with_line_number(true)
             .boxed()
     } else {
-        tracing_subscriber::fmt::layer()
-            .with_target(true)
-            .with_thread_ids(true)
-            .boxed()
+        tracing_subscriber::fmt::layer().with_target(true).with_thread_ids(true).boxed()
     };
 
     // Initialize subscriber
-    tracing_subscriber::registry()
-        .with(filter)
-        .with(fmt_layer)
-        .init();
+    tracing_subscriber::registry().with(filter).with(fmt_layer).init();
 
     Ok(())
 }

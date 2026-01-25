@@ -3,9 +3,10 @@
 //! This module handles pre-compiled Arrow schema metadata for optimized views.
 //! Schemas are stored in memory (future: PostgreSQL metadata table).
 
+use std::sync::Arc;
+
 use arrow::datatypes::Schema;
 use dashmap::DashMap;
-use std::sync::Arc;
 
 use crate::error::{ArrowFlightError, Result};
 
@@ -64,12 +65,9 @@ impl SchemaRegistry {
     ///
     /// Returns error if schema not found for the view.
     pub fn get(&self, view_name: &str) -> Result<Arc<Schema>> {
-        self.schemas
-            .get(view_name)
-            .map(|entry| entry.clone())
-            .ok_or_else(|| {
-                ArrowFlightError::SchemaNotFound(format!("No schema registered for view: {view_name}"))
-            })
+        self.schemas.get(view_name).map(|entry| entry.clone()).ok_or_else(|| {
+            ArrowFlightError::SchemaNotFound(format!("No schema registered for view: {view_name}"))
+        })
     }
 
     /// Check if a view has a registered schema.
@@ -153,7 +151,8 @@ impl SchemaRegistry {
         // Note: Using Utf8 for timestamp strings to work around Arrow conversion limitations
         let ta_orders_schema = Arc::new(Schema::new(vec![
             arrow::datatypes::Field::new("id", DataType::Utf8, false),
-            arrow::datatypes::Field::new("total", DataType::Utf8, false), // Decimal128 would be ideal
+            arrow::datatypes::Field::new("total", DataType::Utf8, false), /* Decimal128 would be
+                                                                           * ideal */
             arrow::datatypes::Field::new("created_at", DataType::Utf8, false), // ISO 8601 string
             arrow::datatypes::Field::new("customer_name", DataType::Utf8, true),
         ]));
@@ -180,8 +179,9 @@ impl Default for SchemaRegistry {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use arrow::datatypes::{DataType, Field};
+
+    use super::*;
 
     #[test]
     fn test_register_and_get_schema() {
@@ -205,10 +205,7 @@ mod tests {
 
         let result = registry.get("nonexistent");
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("No schema registered"));
+        assert!(result.unwrap_err().to_string().contains("No schema registered"));
     }
 
     #[test]

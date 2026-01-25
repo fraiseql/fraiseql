@@ -1,7 +1,8 @@
 //! Webhook configuration structures.
 
-use serde::Deserialize;
 use std::collections::HashMap;
+
+use serde::Deserialize;
 
 /// Webhook endpoint configuration
 #[derive(Debug, Clone, Deserialize)]

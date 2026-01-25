@@ -1,14 +1,14 @@
 //! Axum route definitions for observer management.
 
 use axum::{
-    routing::{get, post},
     Router,
+    routing::{get, post},
 };
 
 use super::handlers::{
-    create_observer, delete_observer, disable_observer, enable_observer, get_observer,
-    get_observer_stats, get_runtime_health, list_observer_logs, list_observers, reload_observers,
-    update_observer, ObserverState, RuntimeHealthState,
+    ObserverState, RuntimeHealthState, create_observer, delete_observer, disable_observer,
+    enable_observer, get_observer, get_observer_stats, get_runtime_health, list_observer_logs,
+    list_observers, reload_observers, update_observer,
 };
 
 /// Create the observer management router.

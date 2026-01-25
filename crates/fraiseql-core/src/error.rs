@@ -330,9 +330,7 @@ impl FraiseQLError {
     pub const fn is_retryable(&self) -> bool {
         matches!(
             self,
-            Self::ConnectionPool { .. }
-                | Self::Timeout { .. }
-                | Self::Cancelled { .. }
+            Self::ConnectionPool { .. } | Self::Timeout { .. } | Self::Cancelled { .. }
         )
     }
 

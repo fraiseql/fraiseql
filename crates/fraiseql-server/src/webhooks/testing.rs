@@ -1,22 +1,30 @@
 //! Mock implementations for testing.
 
 pub mod mocks {
-    use crate::webhooks::{signature::SignatureError, Result, WebhookError};
-    use crate::webhooks::{Clock, IdempotencyStore, SecretProvider, SignatureVerifier};
+    use std::{
+        collections::HashMap,
+        sync::{
+            Mutex,
+            atomic::{AtomicU64, Ordering},
+        },
+    };
+
     use async_trait::async_trait;
-    use std::collections::HashMap;
-    use std::sync::atomic::{AtomicU64, Ordering};
-    use std::sync::Mutex;
+
+    use crate::webhooks::{
+        Clock, IdempotencyStore, Result, SecretProvider, SignatureVerifier, WebhookError,
+        signature::SignatureError,
+    };
 
     /// Mock signature verifier that always succeeds or fails based on configuration
     pub struct MockSignatureVerifier {
         pub should_succeed: bool,
-        pub calls: Mutex<Vec<MockVerifyCall>>,
+        pub calls:          Mutex<Vec<MockVerifyCall>>,
     }
 
     #[derive(Debug, Clone)]
     pub struct MockVerifyCall {
-        pub payload: Vec<u8>,
+        pub payload:   Vec<u8>,
         pub signature: String,
     }
 
@@ -25,7 +33,7 @@ pub mod mocks {
         pub fn succeeding() -> Self {
             Self {
                 should_succeed: true,
-                calls: Mutex::new(Vec::new()),
+                calls:          Mutex::new(Vec::new()),
             }
         }
 
@@ -33,7 +41,7 @@ pub mod mocks {
         pub fn failing() -> Self {
             Self {
                 should_succeed: false,
-                calls: Mutex::new(Vec::new()),
+                calls:          Mutex::new(Vec::new()),
             }
         }
 
@@ -60,7 +68,7 @@ pub mod mocks {
             _timestamp: Option<&str>,
         ) -> std::result::Result<bool, SignatureError> {
             self.calls.lock().unwrap().push(MockVerifyCall {
-                payload: payload.to_vec(),
+                payload:   payload.to_vec(),
                 signature: signature.to_string(),
             });
             Ok(self.should_succeed)
@@ -74,10 +82,10 @@ pub mod mocks {
 
     #[derive(Debug, Clone)]
     pub struct IdempotencyRecord {
-        pub id: uuid::Uuid,
+        pub id:         uuid::Uuid,
         pub event_type: String,
-        pub status: String,
-        pub error: Option<String>,
+        pub status:     String,
+        pub error:      Option<String>,
     }
 
     impl MockIdempotencyStore {
@@ -97,10 +105,10 @@ pub mod mocks {
                 map.insert(
                     (provider.to_string(), event_id.to_string()),
                     IdempotencyRecord {
-                        id: uuid::Uuid::new_v4(),
+                        id:         uuid::Uuid::new_v4(),
                         event_type: "test".to_string(),
-                        status: "success".to_string(),
-                        error: None,
+                        status:     "success".to_string(),
+                        error:      None,
                     },
                 );
             }

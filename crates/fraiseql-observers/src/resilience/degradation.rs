@@ -4,10 +4,13 @@
 //! allowing the system to operate in a reduced-capacity mode while
 //! maintaining stability.
 
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
+
 use super::{CircuitBreaker, CircuitState};
 use crate::error::Result;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
 
 /// Degradation level indicator
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -34,13 +37,13 @@ impl std::fmt::Display for DegradationLevel {
 #[derive(Clone)]
 pub struct GracefulDegradation {
     circuit_breaker: Arc<CircuitBreaker>,
-    enabled: Arc<AtomicBool>,
-    degraded_mode: Arc<AtomicBool>,
+    enabled:         Arc<AtomicBool>,
+    degraded_mode:   Arc<AtomicBool>,
 }
 
 impl GracefulDegradation {
     /// Create a new graceful degradation manager
-    #[must_use] 
+    #[must_use]
     pub fn new(circuit_breaker: Arc<CircuitBreaker>) -> Self {
         Self {
             circuit_breaker,
@@ -50,7 +53,7 @@ impl GracefulDegradation {
     }
 
     /// Check if system is in degraded mode
-    #[must_use] 
+    #[must_use]
     pub fn is_degraded(&self) -> bool {
         self.degraded_mode.load(Ordering::Relaxed)
     }
@@ -77,10 +80,7 @@ impl GracefulDegradation {
         ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<T>> + Send>>,
     {
         let level = self.get_degradation_level().await;
-        self.degraded_mode.store(
-            level != DegradationLevel::Normal,
-            Ordering::Relaxed,
-        );
+        self.degraded_mode.store(level != DegradationLevel::Normal, Ordering::Relaxed);
         f(level).await
     }
 
@@ -90,7 +90,7 @@ impl GracefulDegradation {
     }
 
     /// Check if degradation management is enabled
-    #[must_use] 
+    #[must_use]
     pub fn is_enabled(&self) -> bool {
         self.enabled.load(Ordering::Relaxed)
     }

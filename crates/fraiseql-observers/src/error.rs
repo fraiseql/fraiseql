@@ -180,7 +180,7 @@ pub enum ObserverErrorCode {
 
 impl ObserverErrorCode {
     /// Returns true if this error is transient (retryable)
-    #[must_use] 
+    #[must_use]
     pub const fn is_transient(self) -> bool {
         matches!(
             self,
@@ -194,7 +194,7 @@ impl ObserverErrorCode {
     }
 
     /// Returns true if this error should go to dead letter queue
-    #[must_use] 
+    #[must_use]
     pub const fn should_dlq(self) -> bool {
         matches!(
             self,
@@ -222,7 +222,7 @@ impl From<redis::RedisError> for ObserverError {
 
 impl ObserverError {
     /// Get the error code for this error
-    #[must_use] 
+    #[must_use]
     pub const fn code(&self) -> ObserverErrorCode {
         match self {
             ObserverError::InvalidConfig { .. } => ObserverErrorCode::InvalidConfig,
@@ -230,19 +230,19 @@ impl ObserverError {
             ObserverError::InvalidCondition { .. } => ObserverErrorCode::InvalidCondition,
             ObserverError::ConditionEvaluationFailed { .. } => {
                 ObserverErrorCode::ConditionEvaluationFailed
-            }
+            },
             ObserverError::InvalidActionConfig { .. } => ObserverErrorCode::InvalidActionConfig,
             ObserverError::ActionExecutionFailed { .. } => ObserverErrorCode::ActionExecutionFailed,
             ObserverError::ActionPermanentlyFailed { .. } => {
                 ObserverErrorCode::ActionPermanentlyFailed
-            }
+            },
             ObserverError::TemplateRenderingFailed { .. } => {
                 ObserverErrorCode::TemplateRenderingFailed
-            }
+            },
             ObserverError::DatabaseError { .. } => ObserverErrorCode::DatabaseError,
             ObserverError::ListenerConnectionFailed { .. } => {
                 ObserverErrorCode::ListenerConnectionFailed
-            }
+            },
             ObserverError::ChannelFull => ObserverErrorCode::ChannelFull,
             ObserverError::DlqError { .. } => ObserverErrorCode::DlqError,
             ObserverError::RetriesExhausted { .. } => ObserverErrorCode::RetriesExhausted,
@@ -252,24 +252,24 @@ impl ObserverError {
             ObserverError::CircuitBreakerOpen { .. } => ObserverErrorCode::CircuitBreakerOpen,
             ObserverError::TransportConnectionFailed { .. } => {
                 ObserverErrorCode::TransportConnectionFailed
-            }
+            },
             ObserverError::TransportPublishFailed { .. } => {
                 ObserverErrorCode::TransportPublishFailed
-            }
+            },
             ObserverError::TransportSubscribeFailed { .. } => {
                 ObserverErrorCode::TransportSubscribeFailed
-            }
+            },
         }
     }
 
     /// Returns true if this error is transient (retryable)
-    #[must_use] 
+    #[must_use]
     pub const fn is_transient(&self) -> bool {
         self.code().is_transient()
     }
 
     /// Returns true if this error should go to dead letter queue
-    #[must_use] 
+    #[must_use]
     pub const fn should_dlq(&self) -> bool {
         self.code().should_dlq()
     }

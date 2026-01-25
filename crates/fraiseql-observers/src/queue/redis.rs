@@ -7,18 +7,18 @@
 //! - Job details: Redis hashes (serialized job data)
 //! - Statistics: Redis counters
 
+use redis::{AsyncCommands, aio::ConnectionManager};
+
 use super::{Job, JobQueue, JobResult, QueueStats};
 use crate::error::{ObserverError, Result};
-use redis::aio::ConnectionManager;
-use redis::AsyncCommands;
 
 /// Redis-backed persistent job queue.
 #[derive(Clone)]
 pub struct RedisJobQueue {
-    conn: ConnectionManager,
-    pending_key: String,
+    conn:           ConnectionManager,
+    pending_key:    String,
     processing_key: String,
-    retry_key: String,
+    retry_key:      String,
     deadletter_key: String,
 }
 
@@ -28,7 +28,7 @@ impl RedisJobQueue {
     /// # Arguments
     ///
     /// * `conn` - Redis connection manager
-    #[must_use] 
+    #[must_use]
     pub fn new(conn: ConnectionManager) -> Self {
         Self {
             conn,
@@ -51,14 +51,12 @@ impl RedisJobQueue {
 
     /// Serialize job to JSON for storage.
     fn serialize_job(job: &Job) -> Result<String> {
-        serde_json::to_string(job)
-            .map_err(|e| ObserverError::SerializationError(e.to_string()))
+        serde_json::to_string(job).map_err(|e| ObserverError::SerializationError(e.to_string()))
     }
 
     /// Deserialize job from JSON.
     fn deserialize_job(json: &str) -> Result<Job> {
-        serde_json::from_str(json)
-            .map_err(|e| ObserverError::SerializationError(e.to_string()))
+        serde_json::from_str(json).map_err(|e| ObserverError::SerializationError(e.to_string()))
     }
 
     /// Serialize job result metadata to JSON (excluding `ActionResult` which isn't Serializable).
@@ -98,11 +96,11 @@ impl JobQueue for RedisJobQueue {
 
         // Add to pending queue (score = current timestamp for FIFO)
         let now = chrono::Utc::now().timestamp() as f64;
-        conn.zadd::<_, _, _, ()>(&self.pending_key, &job_id, now)
-            .await
-            .map_err(|e| ObserverError::DatabaseError {
+        conn.zadd::<_, _, _, ()>(&self.pending_key, &job_id, now).await.map_err(|e| {
+            ObserverError::DatabaseError {
                 reason: format!("Failed to add to pending queue: {e}"),
-            })?;
+            }
+        })?;
 
         Ok(job_id)
     }
@@ -112,12 +110,12 @@ impl JobQueue for RedisJobQueue {
 
         // ZPOPMIN on pending queue (non-blocking, gets first element)
         // Returns Vec<(member, score)>
-        let result: Vec<(String, f64)> = conn
-            .zpopmin(&self.pending_key, 1)
-            .await
-            .map_err(|e| ObserverError::DatabaseError {
-                reason: format!("Failed to dequeue: {e}"),
-            })?;
+        let result: Vec<(String, f64)> =
+            conn.zpopmin(&self.pending_key, 1)
+                .await
+                .map_err(|e| ObserverError::DatabaseError {
+                    reason: format!("Failed to dequeue: {e}"),
+                })?;
 
         if result.is_empty() {
             return Ok(None);
@@ -126,12 +124,12 @@ impl JobQueue for RedisJobQueue {
         let job_id = &result[0].0;
 
         // Get job data
-        let job_json: String = conn
-            .get(Self::job_key(job_id))
-            .await
-            .map_err(|e| ObserverError::DatabaseError {
-                reason: format!("Failed to get job data: {e}"),
-            })?;
+        let job_json: String =
+            conn.get(Self::job_key(job_id))
+                .await
+                .map_err(|e| ObserverError::DatabaseError {
+                    reason: format!("Failed to get job data: {e}"),
+                })?;
 
         let job = Self::deserialize_job(&job_json)?;
 
@@ -176,25 +174,25 @@ impl JobQueue for RedisJobQueue {
         })?;
 
         // Remove from processing
-        conn.hdel::<_, _, ()>(&self.processing_key, job_id)
-            .await
-            .map_err(|e| ObserverError::DatabaseError {
+        conn.hdel::<_, _, ()>(&self.processing_key, job_id).await.map_err(|e| {
+            ObserverError::DatabaseError {
                 reason: format!("Failed to remove from processing: {e}"),
-            })?;
+            }
+        })?;
 
         // Remove job data
-        conn.del::<_, ()>(Self::job_key(job_id))
-            .await
-            .map_err(|e| ObserverError::DatabaseError {
+        conn.del::<_, ()>(Self::job_key(job_id)).await.map_err(|e| {
+            ObserverError::DatabaseError {
                 reason: format!("Failed to delete job data: {e}"),
-            })?;
+            }
+        })?;
 
         // Increment success counter
-        conn.incr::<_, _, ()>("queue:v1:stats:success", 1)
-            .await
-            .map_err(|e| ObserverError::DatabaseError {
+        conn.incr::<_, _, ()>("queue:v1:stats:success", 1).await.map_err(|e| {
+            ObserverError::DatabaseError {
                 reason: format!("Failed to update stats: {e}"),
-            })?;
+            }
+        })?;
 
         Ok(())
     }
@@ -203,11 +201,11 @@ impl JobQueue for RedisJobQueue {
         let mut conn = self.conn.clone();
 
         // Remove from processing
-        conn.hdel::<_, _, ()>(&self.processing_key, job_id)
-            .await
-            .map_err(|e| ObserverError::DatabaseError {
+        conn.hdel::<_, _, ()>(&self.processing_key, job_id).await.map_err(|e| {
+            ObserverError::DatabaseError {
                 reason: format!("Failed to remove from processing: {e}"),
-            })?;
+            }
+        })?;
 
         // Add to retry queue with next_retry_at as score
         conn.zadd::<_, _, _, ()>(&self.retry_key, job_id, next_retry_at as f64)
@@ -217,11 +215,11 @@ impl JobQueue for RedisJobQueue {
             })?;
 
         // Increment retry counter
-        conn.incr::<_, _, ()>("queue:v1:stats:retries", 1)
-            .await
-            .map_err(|e| ObserverError::DatabaseError {
+        conn.incr::<_, _, ()>("queue:v1:stats:retries", 1).await.map_err(|e| {
+            ObserverError::DatabaseError {
                 reason: format!("Failed to update stats: {e}"),
-            })?;
+            }
+        })?;
 
         Ok(())
     }
@@ -230,11 +228,11 @@ impl JobQueue for RedisJobQueue {
         let mut conn = self.conn.clone();
 
         // Remove from processing
-        conn.hdel::<_, _, ()>(&self.processing_key, job_id)
-            .await
-            .map_err(|e| ObserverError::DatabaseError {
+        conn.hdel::<_, _, ()>(&self.processing_key, job_id).await.map_err(|e| {
+            ObserverError::DatabaseError {
                 reason: format!("Failed to remove from processing: {e}"),
-            })?;
+            }
+        })?;
 
         // Store deadletter entry with reason
         let now = chrono::Utc::now().timestamp() as f64;
@@ -247,22 +245,18 @@ impl JobQueue for RedisJobQueue {
             })?;
 
         // Store reason
-        conn.set_ex::<_, _, ()>(
-            format!("job:v1:deadletter:reason:{job_id}"),
-            entry,
-            86400,
-        )
-        .await
-        .map_err(|e| ObserverError::DatabaseError {
-            reason: format!("Failed to store deadletter reason: {e}"),
-        })?;
-
-        // Increment failed counter
-        conn.incr::<_, _, ()>("queue:v1:stats:failed", 1)
+        conn.set_ex::<_, _, ()>(format!("job:v1:deadletter:reason:{job_id}"), entry, 86400)
             .await
             .map_err(|e| ObserverError::DatabaseError {
-                reason: format!("Failed to update stats: {e}"),
+                reason: format!("Failed to store deadletter reason: {e}"),
             })?;
+
+        // Increment failed counter
+        conn.incr::<_, _, ()>("queue:v1:stats:failed", 1).await.map_err(|e| {
+            ObserverError::DatabaseError {
+                reason: format!("Failed to update stats: {e}"),
+            }
+        })?;
 
         Ok(())
     }
@@ -271,37 +265,20 @@ impl JobQueue for RedisJobQueue {
         let mut conn = self.conn.clone();
 
         // Get queue lengths
-        let pending_jobs: u64 = conn
-            .zcard(&self.pending_key)
-            .await
-            .unwrap_or(0);
+        let pending_jobs: u64 = conn.zcard(&self.pending_key).await.unwrap_or(0);
 
-        let processing_jobs: u64 = conn
-            .hlen(&self.processing_key)
-            .await
-            .unwrap_or(0);
+        let processing_jobs: u64 = conn.hlen(&self.processing_key).await.unwrap_or(0);
 
-        let retry_jobs: u64 = conn
-            .zcard(&self.retry_key)
-            .await
-            .unwrap_or(0);
+        let retry_jobs: u64 = conn.zcard(&self.retry_key).await.unwrap_or(0);
 
         // Get counters
-        let successful_jobs: u64 = conn
-            .get("queue:v1:stats:success")
-            .await
-            .unwrap_or(0);
+        let successful_jobs: u64 = conn.get("queue:v1:stats:success").await.unwrap_or(0);
 
-        let failed_jobs: u64 = conn
-            .zcard(&self.deadletter_key)
-            .await
-            .unwrap_or(0);
+        let failed_jobs: u64 = conn.zcard(&self.deadletter_key).await.unwrap_or(0);
 
         // Get average processing time (stored in Redis as float)
-        let avg_processing_time_ms: f64 = conn
-            .get("queue:v1:stats:avg_processing_ms")
-            .await
-            .unwrap_or(0.0);
+        let avg_processing_time_ms: f64 =
+            conn.get("queue:v1:stats:avg_processing_ms").await.unwrap_or(0.0);
 
         Ok(QueueStats {
             pending_jobs,
@@ -316,23 +293,18 @@ impl JobQueue for RedisJobQueue {
 
 #[cfg(test)]
 mod tests {
+    use redis::Client;
+
     use super::*;
     use crate::{ActionConfig, ActionResult, EntityEvent, JobStatus};
-    use redis::Client;
 
     async fn setup_test_queue() -> RedisJobQueue {
         let client = Client::open("redis://localhost:6379").expect("Failed to create client");
-        let conn = client
-            .get_connection_manager()
-            .await
-            .expect("Failed to connect to Redis");
+        let conn = client.get_connection_manager().await.expect("Failed to connect to Redis");
 
         // Clear test data
         let mut c = conn.clone();
-        let _: () = redis::cmd("FLUSHDB")
-            .query_async(&mut c)
-            .await
-            .expect("Failed to flush DB");
+        let _: () = redis::cmd("FLUSHDB").query_async(&mut c).await.expect("Failed to flush DB");
 
         RedisJobQueue::new(conn)
     }
@@ -343,24 +315,24 @@ mod tests {
         let queue = setup_test_queue().await;
 
         let job = Job {
-            id: "job-1".to_string(),
-            action_id: "send_email".to_string(),
-            event: EntityEvent::new(
+            id:            "job-1".to_string(),
+            action_id:     "send_email".to_string(),
+            event:         EntityEvent::new(
                 crate::event::EventKind::Created,
                 "Order".to_string(),
                 uuid::Uuid::new_v4(),
                 serde_json::json!({}),
             ),
             action_config: ActionConfig::Email {
-                to: Some("test@example.com".to_string()),
-                to_template: None,
-                subject: Some("Test".to_string()),
+                to:               Some("test@example.com".to_string()),
+                to_template:      None,
+                subject:          Some("Test".to_string()),
                 subject_template: None,
-                body_template: None,
-                reply_to: None,
+                body_template:    None,
+                reply_to:         None,
             },
-            attempt: 1,
-            created_at: chrono::Utc::now().timestamp(),
+            attempt:       1,
+            created_at:    chrono::Utc::now().timestamp(),
             next_retry_at: chrono::Utc::now().timestamp(),
         };
 
@@ -374,24 +346,24 @@ mod tests {
         let queue = setup_test_queue().await;
 
         let job = Job {
-            id: "job-1".to_string(),
-            action_id: "send_email".to_string(),
-            event: EntityEvent::new(
+            id:            "job-1".to_string(),
+            action_id:     "send_email".to_string(),
+            event:         EntityEvent::new(
                 crate::event::EventKind::Created,
                 "Order".to_string(),
                 uuid::Uuid::new_v4(),
                 serde_json::json!({}),
             ),
             action_config: ActionConfig::Email {
-                to: Some("test@example.com".to_string()),
-                to_template: None,
-                subject: Some("Test".to_string()),
+                to:               Some("test@example.com".to_string()),
+                to_template:      None,
+                subject:          Some("Test".to_string()),
                 subject_template: None,
-                body_template: None,
-                reply_to: None,
+                body_template:    None,
+                reply_to:         None,
             },
-            attempt: 1,
-            created_at: chrono::Utc::now().timestamp(),
+            attempt:       1,
+            created_at:    chrono::Utc::now().timestamp(),
             next_retry_at: chrono::Utc::now().timestamp(),
         };
 
@@ -412,46 +384,43 @@ mod tests {
         let queue = setup_test_queue().await;
 
         let job = Job {
-            id: "job-1".to_string(),
-            action_id: "send_email".to_string(),
-            event: EntityEvent::new(
+            id:            "job-1".to_string(),
+            action_id:     "send_email".to_string(),
+            event:         EntityEvent::new(
                 crate::event::EventKind::Created,
                 "Order".to_string(),
                 uuid::Uuid::new_v4(),
                 serde_json::json!({}),
             ),
             action_config: ActionConfig::Email {
-                to: Some("test@example.com".to_string()),
-                to_template: None,
-                subject: Some("Test".to_string()),
+                to:               Some("test@example.com".to_string()),
+                to_template:      None,
+                subject:          Some("Test".to_string()),
                 subject_template: None,
-                body_template: None,
-                reply_to: None,
+                body_template:    None,
+                reply_to:         None,
             },
-            attempt: 1,
-            created_at: chrono::Utc::now().timestamp(),
+            attempt:       1,
+            created_at:    chrono::Utc::now().timestamp(),
             next_retry_at: chrono::Utc::now().timestamp(),
         };
 
         queue.enqueue(&job).await.expect("Failed to enqueue");
 
         let result = JobResult {
-            job_id: "job-1".to_string(),
-            status: JobStatus::Success,
+            job_id:        "job-1".to_string(),
+            status:        JobStatus::Success,
             action_result: ActionResult {
                 action_type: "send_email".to_string(),
-                success: true,
-                message: "Email sent".to_string(),
+                success:     true,
+                message:     "Email sent".to_string(),
                 duration_ms: 100.0,
             },
-            attempts: 1,
-            duration_ms: 100.0,
+            attempts:      1,
+            duration_ms:   100.0,
         };
 
-        queue
-            .mark_success("job-1", &result)
-            .await
-            .expect("Failed to mark success");
+        queue.mark_success("job-1", &result).await.expect("Failed to mark success");
 
         let stats = queue.get_stats().await.expect("Failed to get stats");
         assert_eq!(stats.successful_jobs, 1);
@@ -463,34 +432,31 @@ mod tests {
         let queue = setup_test_queue().await;
 
         let job = Job {
-            id: "job-1".to_string(),
-            action_id: "send_email".to_string(),
-            event: EntityEvent::new(
+            id:            "job-1".to_string(),
+            action_id:     "send_email".to_string(),
+            event:         EntityEvent::new(
                 crate::event::EventKind::Created,
                 "Order".to_string(),
                 uuid::Uuid::new_v4(),
                 serde_json::json!({}),
             ),
             action_config: ActionConfig::Email {
-                to: Some("test@example.com".to_string()),
-                to_template: None,
-                subject: Some("Test".to_string()),
+                to:               Some("test@example.com".to_string()),
+                to_template:      None,
+                subject:          Some("Test".to_string()),
                 subject_template: None,
-                body_template: None,
-                reply_to: None,
+                body_template:    None,
+                reply_to:         None,
             },
-            attempt: 1,
-            created_at: chrono::Utc::now().timestamp(),
+            attempt:       1,
+            created_at:    chrono::Utc::now().timestamp(),
             next_retry_at: chrono::Utc::now().timestamp(),
         };
 
         queue.enqueue(&job).await.expect("Failed to enqueue");
 
         let next_retry = chrono::Utc::now().timestamp() + 5;
-        queue
-            .mark_retry("job-1", next_retry)
-            .await
-            .expect("Failed to mark retry");
+        queue.mark_retry("job-1", next_retry).await.expect("Failed to mark retry");
 
         let stats = queue.get_stats().await.expect("Failed to get stats");
         assert_eq!(stats.retry_jobs, 1);
@@ -502,24 +468,24 @@ mod tests {
         let queue = setup_test_queue().await;
 
         let job = Job {
-            id: "job-1".to_string(),
-            action_id: "send_email".to_string(),
-            event: EntityEvent::new(
+            id:            "job-1".to_string(),
+            action_id:     "send_email".to_string(),
+            event:         EntityEvent::new(
                 crate::event::EventKind::Created,
                 "Order".to_string(),
                 uuid::Uuid::new_v4(),
                 serde_json::json!({}),
             ),
             action_config: ActionConfig::Email {
-                to: Some("test@example.com".to_string()),
-                to_template: None,
-                subject: Some("Test".to_string()),
+                to:               Some("test@example.com".to_string()),
+                to_template:      None,
+                subject:          Some("Test".to_string()),
                 subject_template: None,
-                body_template: None,
-                reply_to: None,
+                body_template:    None,
+                reply_to:         None,
             },
-            attempt: 1,
-            created_at: chrono::Utc::now().timestamp(),
+            attempt:       1,
+            created_at:    chrono::Utc::now().timestamp(),
             next_retry_at: chrono::Utc::now().timestamp(),
         };
 

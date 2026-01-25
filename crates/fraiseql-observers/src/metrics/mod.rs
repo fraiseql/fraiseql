@@ -8,9 +8,9 @@
 //! - Queue/backlog monitoring
 
 #[cfg(feature = "metrics")]
-pub mod registry;
-#[cfg(feature = "metrics")]
 pub mod handler;
+#[cfg(feature = "metrics")]
+pub mod registry;
 
 #[cfg(feature = "metrics")]
 pub use registry::MetricsRegistry;

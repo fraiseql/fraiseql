@@ -6,5 +6,7 @@ pub mod local;
 pub mod s3;
 
 // Re-export types from traits
-pub use crate::files::traits::{StorageBackend, StorageMetadata, StorageResult};
-pub use crate::files::error::StorageError;
+pub use crate::files::{
+    error::StorageError,
+    traits::{StorageBackend, StorageMetadata, StorageResult},
+};

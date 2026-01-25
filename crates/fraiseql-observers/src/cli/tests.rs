@@ -2,23 +2,15 @@
 
 #[cfg(test)]
 mod command_tests {
-    use crate::cli::OutputFormat;
     use std::str::FromStr;
+
+    use crate::cli::OutputFormat;
 
     #[test]
     fn test_output_format_parsing() {
-        assert_eq!(
-            OutputFormat::from_str("text").unwrap(),
-            OutputFormat::Text
-        );
-        assert_eq!(
-            OutputFormat::from_str("json").unwrap(),
-            OutputFormat::Json
-        );
-        assert_eq!(
-            OutputFormat::from_str("TEXT").unwrap(),
-            OutputFormat::Text
-        );
+        assert_eq!(OutputFormat::from_str("text").unwrap(), OutputFormat::Text);
+        assert_eq!(OutputFormat::from_str("json").unwrap(), OutputFormat::Json);
+        assert_eq!(OutputFormat::from_str("TEXT").unwrap(), OutputFormat::Text);
     }
 
     #[test]
@@ -97,66 +89,84 @@ mod command_tests {
 
 #[cfg(test)]
 mod dlq_command_tests {
-    use crate::cli::{commands::dlq, DlqSubcommand, OutputFormat};
+    use crate::cli::{DlqSubcommand, OutputFormat, commands::dlq};
 
     #[tokio::test]
     async fn test_dlq_list_command() {
-        let result = dlq::execute(OutputFormat::Text, DlqSubcommand::List {
-            limit: 10,
-            offset: None,
-            observer: None,
-            after: None,
-        })
+        let result = dlq::execute(
+            OutputFormat::Text,
+            DlqSubcommand::List {
+                limit:    10,
+                offset:   None,
+                observer: None,
+                after:    None,
+            },
+        )
         .await;
         assert!(result.is_ok());
     }
 
     #[tokio::test]
     async fn test_dlq_show_command() {
-        let result = dlq::execute(OutputFormat::Json, DlqSubcommand::Show {
-            item_id: "dlq-001".to_string(),
-        })
+        let result = dlq::execute(
+            OutputFormat::Json,
+            DlqSubcommand::Show {
+                item_id: "dlq-001".to_string(),
+            },
+        )
         .await;
         assert!(result.is_ok());
     }
 
     #[tokio::test]
     async fn test_dlq_retry_command() {
-        let result = dlq::execute(OutputFormat::Text, DlqSubcommand::Retry {
-            item_id: "dlq-001".to_string(),
-            force: false,
-        })
+        let result = dlq::execute(
+            OutputFormat::Text,
+            DlqSubcommand::Retry {
+                item_id: "dlq-001".to_string(),
+                force:   false,
+            },
+        )
         .await;
         assert!(result.is_ok());
     }
 
     #[tokio::test]
     async fn test_dlq_retry_all_command() {
-        let result = dlq::execute(OutputFormat::Json, DlqSubcommand::RetryAll {
-            observer: None,
-            after: None,
-            dry_run: true,
-        })
+        let result = dlq::execute(
+            OutputFormat::Json,
+            DlqSubcommand::RetryAll {
+                observer: None,
+                after:    None,
+                dry_run:  true,
+            },
+        )
         .await;
         assert!(result.is_ok());
     }
 
     #[tokio::test]
     async fn test_dlq_remove_command() {
-        let result = dlq::execute(OutputFormat::Text, DlqSubcommand::Remove {
-            item_id: "dlq-001".to_string(),
-            force: false,
-        })
+        let result = dlq::execute(
+            OutputFormat::Text,
+            DlqSubcommand::Remove {
+                item_id: "dlq-001".to_string(),
+                force:   false,
+            },
+        )
         .await;
         assert!(result.is_ok());
     }
 
     #[tokio::test]
     async fn test_dlq_stats_command() {
-        let result = dlq::execute(OutputFormat::Json, DlqSubcommand::Stats {
-            by_observer: true,
-            by_error: true,
-        })
+        let result = dlq::execute(
+            OutputFormat::Json,
+            DlqSubcommand::Stats {
+                by_observer: true,
+                by_error:    true,
+            },
+        )
         .await;
         assert!(result.is_ok());
     }

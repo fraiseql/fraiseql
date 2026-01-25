@@ -2,10 +2,11 @@
 //!
 //! All external dependencies are abstracted behind traits for easy testing.
 
-use super::{signature::SignatureError, Result};
 use async_trait::async_trait;
 use serde_json::Value;
 use sqlx::{Postgres, Transaction};
+
+use super::{Result, signature::SignatureError};
 
 /// Signature verification abstraction for testing
 #[async_trait]

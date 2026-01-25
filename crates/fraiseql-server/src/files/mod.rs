@@ -15,7 +15,9 @@ pub mod validation;
 pub mod testing;
 
 // Re-exports
-pub use config::{FileConfig, ProcessingConfig, StorageConfig, UploadCallbackConfig, VariantConfig};
+pub use config::{
+    FileConfig, ProcessingConfig, StorageConfig, UploadCallbackConfig, VariantConfig,
+};
 pub use error::{FileError, ProcessingError, ScanError, StorageError};
 pub use handler::{FileHandler, FileResponse, SignedUrlResponse};
 pub use processing::{ImageProcessorImpl, ProcessedImages};

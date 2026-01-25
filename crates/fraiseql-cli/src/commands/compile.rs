@@ -240,7 +240,7 @@ mod tests {
             mutations:     vec![],
             subscriptions: vec![],
             directives:    vec![],
-            observers:   Vec::new(),
+            observers:     Vec::new(),
             fact_tables:   HashMap::default(),
         };
 
@@ -272,7 +272,7 @@ mod tests {
             mutations:     vec![],
             subscriptions: vec![],
             directives:    vec![],
-            observers:   Vec::new(),
+            observers:     Vec::new(),
             fact_tables:   HashMap::default(),
         };
 

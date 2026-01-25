@@ -14,10 +14,11 @@
 //!
 //! Environment variable precedence: `FRAISEQL_*` > TOML > defaults
 
-use crate::error::{ObserverError, Result};
+use std::{collections::HashMap, env};
+
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::env;
+
+use crate::error::{ObserverError, Result};
 
 // ============================================================================
 // Transport Configuration
@@ -40,14 +41,14 @@ impl TransportKind {
     /// Load from environment variable `FRAISEQL_OBSERVER_TRANSPORT`
     #[must_use]
     pub fn from_env() -> Option<Self> {
-        env::var("FRAISEQL_OBSERVER_TRANSPORT").ok().and_then(|v| {
-            match v.to_lowercase().as_str() {
+        env::var("FRAISEQL_OBSERVER_TRANSPORT")
+            .ok()
+            .and_then(|v| match v.to_lowercase().as_str() {
                 "postgres" | "postgresql" => Some(Self::Postgres),
                 "nats" => Some(Self::Nats),
                 "in_memory" | "inmemory" | "memory" => Some(Self::InMemory),
                 _ => None,
-            }
-        })
+            })
     }
 }
 
@@ -82,11 +83,11 @@ const fn default_true() -> bool {
 impl Default for TransportConfig {
     fn default() -> Self {
         Self {
-            transport: TransportKind::default(),
-            run_bridge: false,
+            transport:     TransportKind::default(),
+            run_bridge:    false,
             run_executors: true,
-            nats: NatsTransportConfig::default(),
-            bridge: BridgeTransportConfig::default(),
+            nats:          NatsTransportConfig::default(),
+            bridge:        BridgeTransportConfig::default(),
         }
     }
 }
@@ -170,7 +171,8 @@ fn default_subject_prefix() -> String {
 }
 
 fn default_consumer_name() -> String {
-    env::var("FRAISEQL_NATS_CONSUMER_NAME").unwrap_or_else(|_| "fraiseql_observer_worker".to_string())
+    env::var("FRAISEQL_NATS_CONSUMER_NAME")
+        .unwrap_or_else(|_| "fraiseql_observer_worker".to_string())
 }
 
 fn default_stream_name() -> String {
@@ -180,11 +182,11 @@ fn default_stream_name() -> String {
 impl Default for NatsTransportConfig {
     fn default() -> Self {
         Self {
-            url: default_nats_url(),
+            url:            default_nats_url(),
             subject_prefix: default_subject_prefix(),
-            consumer_name: default_consumer_name(),
-            stream_name: default_stream_name(),
-            jetstream: JetStreamConfig::default(),
+            consumer_name:  default_consumer_name(),
+            stream_name:    default_stream_name(),
+            jetstream:      JetStreamConfig::default(),
         }
     }
 }
@@ -282,11 +284,11 @@ impl Default for JetStreamConfig {
     fn default() -> Self {
         Self {
             dedup_window_minutes: default_dedup_window_minutes(),
-            max_age_days: default_max_age_days(),
-            max_msgs: default_max_msgs(),
-            max_bytes: default_max_bytes(),
-            ack_wait_secs: default_ack_wait_secs(),
-            max_deliver: default_max_deliver(),
+            max_age_days:         default_max_age_days(),
+            max_msgs:             default_max_msgs(),
+            max_bytes:            default_max_bytes(),
+            ack_wait_secs:        default_ack_wait_secs(),
+            max_deliver:          default_max_deliver(),
         }
     }
 }
@@ -392,10 +394,10 @@ fn default_bridge_notify_channel() -> String {
 impl Default for BridgeTransportConfig {
     fn default() -> Self {
         Self {
-            transport_name: default_bridge_transport_name(),
-            batch_size: default_bridge_batch_size(),
+            transport_name:     default_bridge_transport_name(),
+            batch_size:         default_bridge_batch_size(),
             poll_interval_secs: default_bridge_poll_interval_secs(),
-            notify_channel: default_bridge_notify_channel(),
+            notify_channel:     default_bridge_notify_channel(),
         }
     }
 }
@@ -448,10 +450,10 @@ impl BridgeTransportConfig {
     #[must_use]
     pub fn to_bridge_config(&self) -> crate::transport::BridgeConfig {
         crate::transport::BridgeConfig {
-            transport_name: self.transport_name.clone(),
-            batch_size: self.batch_size,
+            transport_name:     self.transport_name.clone(),
+            batch_size:         self.batch_size,
             poll_interval_secs: self.poll_interval_secs,
-            notify_channel: self.notify_channel.clone(),
+            notify_channel:     self.notify_channel.clone(),
         }
     }
 }
@@ -515,12 +517,12 @@ const fn default_cache_ttl_secs() -> u64 {
 impl Default for RedisConfig {
     fn default() -> Self {
         Self {
-            url: default_redis_url(),
-            pool_size: default_redis_pool_size(),
+            url:                  default_redis_url(),
+            pool_size:            default_redis_pool_size(),
             connect_timeout_secs: default_redis_connect_timeout_secs(),
             command_timeout_secs: default_redis_command_timeout_secs(),
-            dedup_window_secs: default_dedup_window_secs(),
-            cache_ttl_secs: default_cache_ttl_secs(),
+            dedup_window_secs:    default_dedup_window_secs(),
+            cache_ttl_secs:       default_cache_ttl_secs(),
         }
     }
 }
@@ -635,11 +637,11 @@ const fn default_concurrent_timeout_ms() -> u64 {
 impl Default for PerformanceConfig {
     fn default() -> Self {
         Self {
-            enable_dedup: false,
-            enable_caching: false,
-            enable_concurrent: true,
+            enable_dedup:           false,
+            enable_caching:         false,
+            enable_concurrent:      true,
             max_concurrent_actions: default_max_concurrent_actions(),
-            concurrent_timeout_ms: default_concurrent_timeout_ms(),
+            concurrent_timeout_ms:  default_concurrent_timeout_ms(),
         }
     }
 }
@@ -819,9 +821,9 @@ pub struct RetryConfig {
 impl Default for RetryConfig {
     fn default() -> Self {
         Self {
-            max_attempts: default_max_attempts(),
+            max_attempts:     default_max_attempts(),
             initial_delay_ms: default_initial_delay(),
-            max_delay_ms: default_max_delay(),
+            max_delay_ms:     default_max_delay(),
             backoff_strategy: BackoffStrategy::default(),
         }
     }
@@ -872,12 +874,12 @@ pub enum ActionConfig {
     /// HTTP POST webhook to external URL
     Webhook {
         /// URL to POST to
-        url: Option<String>,
+        url:           Option<String>,
         /// Environment variable containing the URL
-        url_env: Option<String>,
+        url_env:       Option<String>,
         /// Optional HTTP headers
         #[serde(default)]
-        headers: HashMap<String, String>,
+        headers:       HashMap<String, String>,
         /// Template for request body
         #[serde(default)]
         body_template: Option<String>,
@@ -886,12 +888,12 @@ pub enum ActionConfig {
     /// Send message to Slack webhook
     Slack {
         /// Slack webhook URL
-        webhook_url: Option<String>,
+        webhook_url:      Option<String>,
         /// Environment variable containing webhook URL
-        webhook_url_env: Option<String>,
+        webhook_url_env:  Option<String>,
         /// Channel to send to (if not in webhook URL)
         #[serde(default)]
-        channel: Option<String>,
+        channel:          Option<String>,
         /// Message template
         #[serde(default)]
         message_template: Option<String>,
@@ -900,26 +902,26 @@ pub enum ActionConfig {
     /// Send email via SMTP
     Email {
         /// Recipient email address
-        to: Option<String>,
+        to:               Option<String>,
         /// Template for recipient (e.g., "{{ data.email }}")
-        to_template: Option<String>,
+        to_template:      Option<String>,
         /// Email subject
-        subject: Option<String>,
+        subject:          Option<String>,
         /// Subject template
         subject_template: Option<String>,
         /// Email body template
-        body_template: Option<String>,
+        body_template:    Option<String>,
         /// Reply-to address
         #[serde(default)]
-        reply_to: Option<String>,
+        reply_to:         Option<String>,
     },
 
     /// Send SMS (stub for Phase 6, full implementation later)
     Sms {
         /// Phone number to send to
-        phone: Option<String>,
+        phone:            Option<String>,
         /// Template for phone number
-        phone_template: Option<String>,
+        phone_template:   Option<String>,
         /// Message template
         message_template: Option<String>,
     },
@@ -927,17 +929,17 @@ pub enum ActionConfig {
     /// Send push notification (stub for Phase 6)
     Push {
         /// Device token
-        device_token: Option<String>,
+        device_token:   Option<String>,
         /// Title template
         title_template: Option<String>,
         /// Body template
-        body_template: Option<String>,
+        body_template:  Option<String>,
     },
 
     /// Update search index (stub for Phase 6)
     Search {
         /// Index name
-        index: String,
+        index:       String,
         /// Document ID template
         id_template: Option<String>,
     },
@@ -947,13 +949,13 @@ pub enum ActionConfig {
         /// Cache key pattern
         key_pattern: String,
         /// Action: "invalidate" or "refresh"
-        action: String,
+        action:      String,
     },
 }
 
 impl ActionConfig {
     /// Get the action type name
-    #[must_use] 
+    #[must_use]
     pub const fn action_type(&self) -> &'static str {
         match self {
             ActionConfig::Webhook { .. } => "webhook",
@@ -986,7 +988,7 @@ impl ActionConfig {
                     });
                 }
                 Ok(())
-            }
+            },
             ActionConfig::Slack {
                 webhook_url,
                 webhook_url_env,
@@ -999,7 +1001,7 @@ impl ActionConfig {
                     });
                 }
                 Ok(())
-            }
+            },
             ActionConfig::Email {
                 to,
                 to_template,
@@ -1023,7 +1025,7 @@ impl ActionConfig {
                     });
                 }
                 Ok(())
-            }
+            },
             ActionConfig::Sms {
                 phone,
                 phone_template,
@@ -1040,7 +1042,7 @@ impl ActionConfig {
                     });
                 }
                 Ok(())
-            }
+            },
             ActionConfig::Push {
                 device_token,
                 title_template,
@@ -1058,7 +1060,7 @@ impl ActionConfig {
                     });
                 }
                 Ok(())
-            }
+            },
             ActionConfig::Search { index, .. } => {
                 if index.is_empty() {
                     return Err(ObserverError::InvalidActionConfig {
@@ -1066,7 +1068,7 @@ impl ActionConfig {
                     });
                 }
                 Ok(())
-            }
+            },
             ActionConfig::Cache {
                 key_pattern,
                 action,
@@ -1082,7 +1084,7 @@ impl ActionConfig {
                     });
                 }
                 Ok(())
-            }
+            },
         }
     }
 }
@@ -1138,19 +1140,19 @@ const fn default_max_listeners() -> usize {
 impl Default for MultiListenerConfig {
     fn default() -> Self {
         Self {
-            enabled: false,
-            listener_id: default_listener_id(),
-            lease_duration_ms: default_lease_duration_ms(),
+            enabled:                  false,
+            listener_id:              default_listener_id(),
+            lease_duration_ms:        default_lease_duration_ms(),
             health_check_interval_ms: default_health_check_interval_ms(),
-            failover_threshold_ms: default_failover_threshold_ms(),
-            max_listeners: default_max_listeners(),
+            failover_threshold_ms:    default_failover_threshold_ms(),
+            max_listeners:            default_max_listeners(),
         }
     }
 }
 
 impl MultiListenerConfig {
     /// Create a new multi-listener config with default values
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -1185,21 +1187,21 @@ impl MultiListenerConfig {
     }
 
     /// Enable multi-listener coordination
-    #[must_use] 
+    #[must_use]
     pub const fn enable(mut self) -> Self {
         self.enabled = true;
         self
     }
 
     /// Set listener ID
-    #[must_use] 
+    #[must_use]
     pub fn with_listener_id(mut self, listener_id: String) -> Self {
         self.listener_id = listener_id;
         self
     }
 
     /// Set lease duration
-    #[must_use] 
+    #[must_use]
     pub const fn with_lease_duration_ms(mut self, lease_duration_ms: u64) -> Self {
         self.lease_duration_ms = lease_duration_ms;
         self
@@ -1213,15 +1215,15 @@ mod tests {
     #[test]
     fn test_observer_runtime_config_defaults() {
         let _config = ObserverRuntimeConfig {
-            transport: TransportConfig::default(),
-            redis: None,
-            performance: PerformanceConfig::default(),
-            channel_capacity: 0,
-            max_concurrency: 0,
-            overflow_policy: OverflowPolicy::Drop,
+            transport:               TransportConfig::default(),
+            redis:                   None,
+            performance:             PerformanceConfig::default(),
+            channel_capacity:        0,
+            max_concurrency:         0,
+            overflow_policy:         OverflowPolicy::Drop,
             backlog_alert_threshold: 0,
-            shutdown_timeout: String::new(),
-            observers: HashMap::new(),
+            shutdown_timeout:        String::new(),
+            observers:               HashMap::new(),
         };
 
         assert_eq!(default_channel_capacity(), 1000);
@@ -1372,9 +1374,9 @@ mod tests {
     fn test_action_type_names() {
         assert_eq!(
             ActionConfig::Webhook {
-                url: None,
-                url_env: None,
-                headers: HashMap::new(),
+                url:           None,
+                url_env:       None,
+                headers:       HashMap::new(),
                 body_template: None,
             }
             .action_type(),
@@ -1383,12 +1385,12 @@ mod tests {
 
         assert_eq!(
             ActionConfig::Email {
-                to: None,
-                to_template: None,
-                subject: None,
+                to:               None,
+                to_template:      None,
+                subject:          None,
                 subject_template: None,
-                body_template: None,
-                reply_to: None,
+                body_template:    None,
+                reply_to:         None,
             }
             .action_type(),
             "email"
@@ -1398,18 +1400,18 @@ mod tests {
     #[test]
     fn test_webhook_action_validation() {
         let invalid = ActionConfig::Webhook {
-            url: None,
-            url_env: None,
-            headers: HashMap::new(),
+            url:           None,
+            url_env:       None,
+            headers:       HashMap::new(),
             body_template: None,
         };
 
         assert!(invalid.validate().is_err());
 
         let valid = ActionConfig::Webhook {
-            url: Some("https://example.com".to_string()),
-            url_env: None,
-            headers: HashMap::new(),
+            url:           Some("https://example.com".to_string()),
+            url_env:       None,
+            headers:       HashMap::new(),
             body_template: Some("{}".to_string()),
         };
 
@@ -1419,23 +1421,23 @@ mod tests {
     #[test]
     fn test_email_action_validation() {
         let invalid = ActionConfig::Email {
-            to: None,
-            to_template: None,
-            subject: None,
+            to:               None,
+            to_template:      None,
+            subject:          None,
             subject_template: None,
-            body_template: None,
-            reply_to: None,
+            body_template:    None,
+            reply_to:         None,
         };
 
         assert!(invalid.validate().is_err());
 
         let valid = ActionConfig::Email {
-            to: Some("user@example.com".to_string()),
-            to_template: None,
-            subject: Some("Test".to_string()),
+            to:               Some("user@example.com".to_string()),
+            to_template:      None,
+            subject:          Some("Test".to_string()),
             subject_template: None,
-            body_template: Some("Body".to_string()),
-            reply_to: None,
+            body_template:    Some("Body".to_string()),
+            reply_to:         None,
         };
 
         assert!(valid.validate().is_ok());

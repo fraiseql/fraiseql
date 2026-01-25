@@ -1,18 +1,18 @@
-use std::net::SocketAddr;
-use std::sync::Arc;
+use std::{net::SocketAddr, sync::Arc};
+
+use axum::Router;
 use tokio::net::TcpListener;
 use tower_http::{
-    compression::CompressionLayer,
-    limit::RequestBodyLimitLayer,
-    timeout::TimeoutLayer,
+    compression::CompressionLayer, limit::RequestBodyLimitLayer, timeout::TimeoutLayer,
     trace::TraceLayer,
 };
-use axum::Router;
 
-use crate::config::RuntimeConfig;
-use crate::runtime_state::AppState;
-use crate::lifecycle::shutdown::{ShutdownCoordinator, ShutdownConfig, shutdown_signal};
-use crate::runtime_middleware::admission::AdmissionLayer;
+use crate::{
+    config::RuntimeConfig,
+    lifecycle::shutdown::{ShutdownConfig, ShutdownCoordinator, shutdown_signal},
+    runtime_middleware::admission::AdmissionLayer,
+    runtime_state::AppState,
+};
 
 pub mod router;
 
@@ -31,10 +31,16 @@ impl RuntimeServer {
 
         // Build shutdown coordinator
         let shutdown_config = ShutdownConfig {
-            timeout: self.config.lifecycle.as_ref()
+            timeout: self
+                .config
+                .lifecycle
+                .as_ref()
                 .and_then(|l| parse_duration(&l.shutdown_timeout))
                 .unwrap_or(std::time::Duration::from_secs(30)),
-            delay: self.config.lifecycle.as_ref()
+            delay:   self
+                .config
+                .lifecycle
+                .as_ref()
                 .and_then(|l| parse_duration(&l.shutdown_delay))
                 .unwrap_or(std::time::Duration::from_secs(5)),
         };
@@ -42,7 +48,8 @@ impl RuntimeServer {
 
         // Build application state
         #[cfg(feature = "database")]
-        let state = Arc::new(AppState::new_with_database(self.config.clone(), shutdown.clone()).await?);
+        let state =
+            Arc::new(AppState::new_with_database(self.config.clone(), shutdown.clone()).await?);
 
         #[cfg(not(feature = "database"))]
         let state = Arc::new(AppState::new(self.config.clone(), shutdown.clone()));
@@ -89,16 +96,13 @@ impl RuntimeServer {
         }
 
         // Request tracing
-        app = app.layer(
-            TraceLayer::new_for_http()
-                .make_span_with(|request: &http::Request<_>| {
-                    tracing::info_span!(
-                        "http_request",
-                        method = %request.method(),
-                        uri = %request.uri(),
-                    )
-                })
-        );
+        app = app.layer(TraceLayer::new_for_http().make_span_with(|request: &http::Request<_>| {
+            tracing::info_span!(
+                "http_request",
+                method = %request.method(),
+                uri = %request.uri(),
+            )
+        }));
 
         // Admission control (backpressure)
         if let Some(limits) = &self.config.server.limits {
@@ -122,7 +126,10 @@ impl RuntimeServer {
         // Timeout
         if let Some(limits) = &self.config.server.limits {
             if let Some(timeout) = parse_duration(&limits.request_timeout) {
-                app = app.layer(TimeoutLayer::with_status_code(http::StatusCode::REQUEST_TIMEOUT, timeout));
+                app = app.layer(TimeoutLayer::with_status_code(
+                    http::StatusCode::REQUEST_TIMEOUT,
+                    timeout,
+                ));
             }
         }
 
@@ -131,38 +138,32 @@ impl RuntimeServer {
 }
 
 fn init_tracing(config: &RuntimeConfig) {
-    use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+    use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
-    let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| {
-            if let Some(tracing_config) = &config.tracing {
-                EnvFilter::new(&tracing_config.level)
-            } else {
-                EnvFilter::new("info")
-            }
-        });
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+        if let Some(tracing_config) = &config.tracing {
+            EnvFilter::new(&tracing_config.level)
+        } else {
+            EnvFilter::new("info")
+        }
+    });
 
-    let fmt_layer = tracing_subscriber::fmt::layer()
-        .with_target(true)
-        .with_thread_ids(true);
+    let fmt_layer = tracing_subscriber::fmt::layer().with_target(true).with_thread_ids(true);
 
-    tracing_subscriber::registry()
-        .with(filter)
-        .with(fmt_layer)
-        .init();
+    tracing_subscriber::registry().with(filter).with(fmt_layer).init();
 }
 
 fn parse_duration(s: &str) -> Option<std::time::Duration> {
     let s = s.trim().to_lowercase();
 
     let (num_str, multiplier_ms) = if s.ends_with("ms") {
-        (&s[..s.len()-2], 1u64)
+        (&s[..s.len() - 2], 1u64)
     } else if s.ends_with('s') {
-        (&s[..s.len()-1], 1000)
+        (&s[..s.len() - 1], 1000)
     } else if s.ends_with('m') {
-        (&s[..s.len()-1], 60 * 1000)
+        (&s[..s.len() - 1], 60 * 1000)
     } else if s.ends_with('h') {
-        (&s[..s.len()-1], 60 * 60 * 1000)
+        (&s[..s.len() - 1], 60 * 60 * 1000)
     } else {
         return None;
     };
@@ -176,13 +177,13 @@ fn parse_size(s: &str) -> Option<usize> {
     let s_upper = s.to_uppercase();
 
     let (num_str, multiplier) = if s_upper.ends_with("GB") {
-        (&s[..s.len()-2], 1024 * 1024 * 1024)
+        (&s[..s.len() - 2], 1024 * 1024 * 1024)
     } else if s_upper.ends_with("MB") {
-        (&s[..s.len()-2], 1024 * 1024)
+        (&s[..s.len() - 2], 1024 * 1024)
     } else if s_upper.ends_with("KB") {
-        (&s[..s.len()-2], 1024)
+        (&s[..s.len() - 2], 1024)
     } else if s_upper.ends_with("B") {
-        (&s[..s.len()-1], 1)
+        (&s[..s.len() - 1], 1)
     } else {
         (s, 1)
     };

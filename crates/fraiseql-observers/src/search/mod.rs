@@ -53,9 +53,9 @@
 
 pub mod http;
 
-use crate::event::EntityEvent;
-use crate::error::Result;
 use serde::{Deserialize, Serialize};
+
+use crate::{error::Result, event::EntityEvent};
 
 /// Indexed event representation for search systems.
 ///
@@ -63,25 +63,25 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IndexedEvent {
     /// Event type (Created, Updated, Deleted)
-    pub event_type: String,
+    pub event_type:       String,
     /// Entity type (Order, User, Product, etc.)
-    pub entity_type: String,
+    pub entity_type:      String,
     /// Entity unique identifier
-    pub entity_id: String,
+    pub entity_id:        String,
     /// Tenant ID for multi-tenant isolation
-    pub tenant_id: String,
+    pub tenant_id:        String,
     /// When the event occurred (Unix timestamp)
-    pub timestamp: i64,
+    pub timestamp:        i64,
     /// All actions executed for this event
     pub actions_executed: Vec<String>,
     /// Count of successful actions
-    pub success_count: usize,
+    pub success_count:    usize,
     /// Count of failed actions
-    pub failure_count: usize,
+    pub failure_count:    usize,
     /// Full event data as JSON string (for full-text search)
-    pub event_data: String,
+    pub event_data:       String,
     /// Optimized search text (action results, error messages)
-    pub search_text: String,
+    pub search_text:      String,
 }
 
 impl IndexedEvent {
@@ -94,7 +94,7 @@ impl IndexedEvent {
     /// * `actions` - Array of action names executed
     /// * `success_count` - Number of successful actions
     /// * `failure_count` - Number of failed actions
-    #[must_use] 
+    #[must_use]
     pub fn from_event(
         event: &EntityEvent,
         tenant_id: String,
@@ -129,7 +129,7 @@ impl IndexedEvent {
     /// Get the index name for this event (date-based sharding).
     ///
     /// Returns format: `events-YYYY-MM-DD`
-    #[must_use] 
+    #[must_use]
     pub fn index_name(&self) -> String {
         let datetime = chrono::DateTime::<chrono::Utc>::from_timestamp(self.timestamp, 0)
             .unwrap_or_else(chrono::Utc::now);
@@ -184,12 +184,8 @@ pub trait SearchBackend: Send + Sync + Clone {
     /// # Errors
     ///
     /// Returns error if search fails
-    async fn search(
-        &self,
-        query: &str,
-        tenant_id: &str,
-        limit: usize,
-    ) -> Result<Vec<IndexedEvent>>;
+    async fn search(&self, query: &str, tenant_id: &str, limit: usize)
+    -> Result<Vec<IndexedEvent>>;
 
     /// Search by entity type and ID.
     ///
@@ -245,23 +241,23 @@ pub trait SearchBackend: Send + Sync + Clone {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchStats {
     /// Total events indexed
-    pub total_indexed: u64,
+    pub total_indexed:        u64,
     /// Successful indexing operations
-    pub successful_indexes: u64,
+    pub successful_indexes:   u64,
     /// Failed indexing operations
-    pub failed_indexes: u64,
+    pub failed_indexes:       u64,
     /// Average indexing latency in milliseconds
     pub avg_index_latency_ms: f64,
 }
 
 impl SearchStats {
     /// Create new search statistics.
-    #[must_use] 
+    #[must_use]
     pub const fn new() -> Self {
         Self {
-            total_indexed: 0,
-            successful_indexes: 0,
-            failed_indexes: 0,
+            total_indexed:        0,
+            successful_indexes:   0,
+            failed_indexes:       0,
             avg_index_latency_ms: 0.0,
         }
     }
@@ -272,7 +268,9 @@ impl SearchStats {
 
         if success {
             self.successful_indexes += 1;
-            self.avg_index_latency_ms = self.avg_index_latency_ms.mul_add(self.successful_indexes as f64 - 1.0, latency_ms)
+            self.avg_index_latency_ms = self
+                .avg_index_latency_ms
+                .mul_add(self.successful_indexes as f64 - 1.0, latency_ms)
                 / self.successful_indexes as f64;
         } else {
             self.failed_indexes += 1;
@@ -288,7 +286,7 @@ impl SearchStats {
     }
 
     /// Get success rate as percentage.
-    #[must_use] 
+    #[must_use]
     pub fn success_rate(&self) -> f64 {
         if self.total_indexed == 0 {
             0.0
@@ -306,8 +304,9 @@ impl Default for SearchStats {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use uuid::Uuid;
+
+    use super::*;
 
     #[test]
     fn test_indexed_event_creation() {
@@ -342,13 +341,7 @@ mod tests {
             serde_json::json!({}),
         );
 
-        let indexed = IndexedEvent::from_event(
-            &event,
-            "tenant-1".to_string(),
-            vec![],
-            0,
-            0,
-        );
+        let indexed = IndexedEvent::from_event(&event, "tenant-1".to_string(), vec![], 0, 0);
 
         let index_name = indexed.index_name();
         assert!(index_name.starts_with("events-"));

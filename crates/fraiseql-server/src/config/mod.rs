@@ -1,27 +1,27 @@
+use std::{collections::HashMap, path::PathBuf};
+
 use serde::Deserialize;
-use std::path::PathBuf;
-use std::collections::HashMap;
 
 pub mod cors;
 pub mod env;
 pub mod loader;
 pub mod metrics;
 pub mod rate_limiting;
-pub mod tracing;
-pub mod validation;
 #[cfg(test)]
 mod tests;
+pub mod tracing;
+pub mod validation;
 
 // Re-export config types
 pub use cors::CorsConfig;
-pub use metrics::{MetricsConfig, SloConfig, LatencyTargets};
-pub use rate_limiting::{RateLimitingConfig, RateLimitRule, BackpressureConfig};
+pub use metrics::{LatencyTargets, MetricsConfig, SloConfig};
+pub use rate_limiting::{BackpressureConfig, RateLimitRule, RateLimitingConfig};
 pub use tracing::TracingConfig;
 
 /// Root configuration structure
 #[derive(Debug, Clone, Deserialize)]
 pub struct RuntimeConfig {
-    pub server: ServerConfig,
+    pub server:   ServerConfig,
     pub database: DatabaseConfig,
 
     #[serde(default)]
@@ -97,13 +97,17 @@ pub struct ServerConfig {
     pub limits: Option<ServerLimitsConfig>,
 }
 
-fn default_port() -> u16 { 4000 }
-fn default_host() -> String { "127.0.0.1".to_string() }
+fn default_port() -> u16 {
+    4000
+}
+fn default_host() -> String {
+    "127.0.0.1".to_string()
+}
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct TlsConfig {
     pub cert_file: PathBuf,
-    pub key_file: PathBuf,
+    pub key_file:  PathBuf,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -121,10 +125,18 @@ pub struct ServerLimitsConfig {
     pub max_queue_depth: usize,
 }
 
-fn default_max_request_size() -> String { "10MB".to_string() }
-fn default_request_timeout() -> String { "30s".to_string() }
-fn default_max_concurrent() -> usize { 1000 }
-fn default_max_queue_depth() -> usize { 5000 }
+fn default_max_request_size() -> String {
+    "10MB".to_string()
+}
+fn default_request_timeout() -> String {
+    "30s".to_string()
+}
+fn default_max_concurrent() -> usize {
+    1000
+}
+fn default_max_queue_depth() -> usize {
+    5000
+}
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct DatabaseConfig {
@@ -146,7 +158,9 @@ pub struct DatabaseConfig {
     pub health_check_interval: Option<String>,
 }
 
-fn default_pool_size() -> u32 { 10 }
+fn default_pool_size() -> u32 {
+    10
+}
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct ReplicaConfig {
@@ -156,7 +170,9 @@ pub struct ReplicaConfig {
     pub weight: u32,
 }
 
-fn default_weight() -> u32 { 1 }
+fn default_weight() -> u32 {
+    1
+}
 
 /// Lifecycle configuration for graceful shutdown
 #[derive(Debug, Clone, Deserialize)]
@@ -182,41 +198,49 @@ impl Default for LifecycleConfig {
     fn default() -> Self {
         Self {
             shutdown_timeout: default_shutdown_timeout(),
-            shutdown_delay: default_shutdown_delay(),
-            health_path: default_health_path(),
-            ready_path: default_ready_path(),
+            shutdown_delay:   default_shutdown_delay(),
+            health_path:      default_health_path(),
+            ready_path:       default_ready_path(),
         }
     }
 }
 
-fn default_shutdown_timeout() -> String { "30s".to_string() }
-fn default_shutdown_delay() -> String { "5s".to_string() }
-fn default_health_path() -> String { "/health".to_string() }
-fn default_ready_path() -> String { "/ready".to_string() }
+fn default_shutdown_timeout() -> String {
+    "30s".to_string()
+}
+fn default_shutdown_delay() -> String {
+    "5s".to_string()
+}
+fn default_health_path() -> String {
+    "/health".to_string()
+}
+fn default_ready_path() -> String {
+    "/ready".to_string()
+}
 
 // Placeholder structs for future phases (TODO: will be defined in later phases)
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct WebhookConfig {
     pub secret_env: String,
-    pub provider: String,
+    pub provider:   String,
     #[serde(default)]
-    pub path: Option<String>,
+    pub path:       Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct FileConfig {
-    pub storage: String,
+    pub storage:  String,
     pub max_size: String,
     #[serde(default)]
-    pub path: Option<String>,
+    pub path:     Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct AuthConfig {
-    pub jwt: JwtConfig,
+    pub jwt:               JwtConfig,
     #[serde(default)]
-    pub providers: HashMap<String, OAuthProviderConfig>,
+    pub providers:         HashMap<String, OAuthProviderConfig>,
     #[serde(default)]
     pub callback_base_url: Option<String>,
 }
@@ -228,11 +252,11 @@ pub struct JwtConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct OAuthProviderConfig {
-    pub provider_type: String,
-    pub client_id_env: String,
+    pub provider_type:     String,
+    pub client_id_env:     String,
     pub client_secret_env: String,
     #[serde(default)]
-    pub issuer_url: Option<String>,
+    pub issuer_url:        Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -242,8 +266,8 @@ pub struct NotificationsConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct ObserverConfig {
-    pub entity: String,
-    pub events: Vec<String>,
+    pub entity:  String,
+    pub events:  Vec<String>,
     pub actions: Vec<ActionConfig>,
 }
 
@@ -252,7 +276,7 @@ pub struct ActionConfig {
     #[serde(rename = "type")]
     pub action_type: String,
     #[serde(default)]
-    pub template: Option<String>,
+    pub template:    Option<String>,
 }
 
 // These types are now defined in their own modules and re-exported above
@@ -266,9 +290,9 @@ pub struct LoggingConfig {
 pub struct StorageConfig {
     pub backend: String,
     #[serde(default)]
-    pub bucket: Option<String>,
+    pub bucket:  Option<String>,
     #[serde(default)]
-    pub path: Option<String>,
+    pub path:    Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

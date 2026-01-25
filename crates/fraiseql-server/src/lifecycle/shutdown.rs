@@ -1,8 +1,15 @@
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::time::Duration;
-use tokio::sync::{broadcast, watch, Notify};
-use tokio::time::timeout;
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicBool, AtomicU64, Ordering},
+    },
+    time::Duration,
+};
+
+use tokio::{
+    sync::{Notify, broadcast, watch},
+    time::timeout,
+};
 
 /// Coordinates graceful shutdown across all components
 pub struct ShutdownCoordinator {
@@ -39,7 +46,7 @@ impl Default for ShutdownConfig {
     fn default() -> Self {
         Self {
             timeout: Duration::from_secs(30),
-            delay: Duration::from_secs(5),
+            delay:   Duration::from_secs(5),
         }
     }
 }
@@ -127,22 +134,19 @@ impl ShutdownCoordinator {
         if in_flight > 0 {
             tracing::info!("Waiting for {} in-flight requests to complete", in_flight);
 
-            let drain_result = timeout(
-                self.config.timeout,
-                self.wait_for_drain()
-            ).await;
+            let drain_result = timeout(self.config.timeout, self.wait_for_drain()).await;
 
             match drain_result {
                 Ok(()) => {
                     tracing::info!("All in-flight requests completed");
-                }
+                },
                 Err(_) => {
                     let remaining = self.in_flight.load(Ordering::SeqCst);
                     tracing::warn!(
                         "Shutdown timeout reached with {} requests still in-flight",
                         remaining
                     );
-                }
+                },
             }
         }
 
@@ -170,9 +174,7 @@ impl Drop for RequestGuard<'_> {
 /// Create shutdown signal future from OS signals
 pub async fn shutdown_signal() {
     let ctrl_c = async {
-        tokio::signal::ctrl_c()
-            .await
-            .expect("Failed to install Ctrl+C handler");
+        tokio::signal::ctrl_c().await.expect("Failed to install Ctrl+C handler");
     };
 
     #[cfg(unix)]

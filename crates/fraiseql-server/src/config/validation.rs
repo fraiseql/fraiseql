@@ -1,19 +1,19 @@
-use std::env;
-use std::collections::HashSet;
+use std::{collections::HashSet, env};
+
+use fraiseql_error::ConfigError;
 
 use crate::config::RuntimeConfig;
-use fraiseql_error::ConfigError;
 
 /// Validation result with all errors collected
 pub struct ValidationResult {
-    pub errors: Vec<ConfigError>,
+    pub errors:   Vec<ConfigError>,
     pub warnings: Vec<String>,
 }
 
 impl ValidationResult {
     pub fn new() -> Self {
         Self {
-            errors: Vec::new(),
+            errors:   Vec::new(),
             warnings: Vec::new(),
         }
     }
@@ -36,7 +36,9 @@ impl ValidationResult {
         } else if self.errors.len() == 1 {
             Err(self.errors.into_iter().next().unwrap())
         } else {
-            Err(ConfigError::MultipleErrors { errors: self.errors })
+            Err(ConfigError::MultipleErrors {
+                errors: self.errors,
+            })
         }
     }
 }
@@ -49,8 +51,8 @@ impl Default for ValidationResult {
 
 /// Comprehensive configuration validator
 pub struct ConfigValidator<'a> {
-    config: &'a RuntimeConfig,
-    result: ValidationResult,
+    config:           &'a RuntimeConfig,
+    result:           ValidationResult,
     checked_env_vars: HashSet<String>,
 }
 
@@ -79,7 +81,7 @@ impl<'a> ConfigValidator<'a> {
         // Port validation
         if self.config.server.port == 0 {
             self.result.add_error(ConfigError::ValidationError {
-                field: "server.port".to_string(),
+                field:   "server.port".to_string(),
                 message: "Port cannot be 0".to_string(),
             });
         }
@@ -88,21 +90,21 @@ impl<'a> ConfigValidator<'a> {
         if let Some(limits) = &self.config.server.limits {
             if let Err(e) = crate::config::env::parse_size(&limits.max_request_size) {
                 self.result.add_error(ConfigError::ValidationError {
-                    field: "server.limits.max_request_size".to_string(),
+                    field:   "server.limits.max_request_size".to_string(),
                     message: format!("Invalid size format: {}", e),
                 });
             }
 
             if let Err(e) = crate::config::env::parse_duration(&limits.request_timeout) {
                 self.result.add_error(ConfigError::ValidationError {
-                    field: "server.limits.request_timeout".to_string(),
+                    field:   "server.limits.request_timeout".to_string(),
                     message: format!("Invalid duration format: {}", e),
                 });
             }
 
             if limits.max_concurrent_requests == 0 {
                 self.result.add_error(ConfigError::ValidationError {
-                    field: "server.limits.max_concurrent_requests".to_string(),
+                    field:   "server.limits.max_concurrent_requests".to_string(),
                     message: "Must be greater than 0".to_string(),
                 });
             }
@@ -112,13 +114,13 @@ impl<'a> ConfigValidator<'a> {
         if let Some(tls) = &self.config.server.tls {
             if !tls.cert_file.exists() {
                 self.result.add_error(ConfigError::ValidationError {
-                    field: "server.tls.cert_file".to_string(),
+                    field:   "server.tls.cert_file".to_string(),
                     message: format!("Certificate file not found: {:?}", tls.cert_file),
                 });
             }
             if !tls.key_file.exists() {
                 self.result.add_error(ConfigError::ValidationError {
-                    field: "server.tls.key_file".to_string(),
+                    field:   "server.tls.key_file".to_string(),
                     message: format!("Key file not found: {:?}", tls.key_file),
                 });
             }
@@ -129,7 +131,7 @@ impl<'a> ConfigValidator<'a> {
         // Required env var
         if self.config.database.url_env.is_empty() {
             self.result.add_error(ConfigError::ValidationError {
-                field: "database.url_env".to_string(),
+                field:   "database.url_env".to_string(),
                 message: "Database URL environment variable must be specified".to_string(),
             });
         } else {
@@ -139,7 +141,7 @@ impl<'a> ConfigValidator<'a> {
         // Pool size
         if self.config.database.pool_size == 0 {
             self.result.add_error(ConfigError::ValidationError {
-                field: "database.pool_size".to_string(),
+                field:   "database.pool_size".to_string(),
                 message: "Pool size must be greater than 0".to_string(),
             });
         }
@@ -148,7 +150,7 @@ impl<'a> ConfigValidator<'a> {
         for (i, replica) in self.config.database.replicas.iter().enumerate() {
             if replica.url_env.is_empty() {
                 self.result.add_error(ConfigError::ValidationError {
-                    field: format!("database.replicas[{}].url_env", i),
+                    field:   format!("database.replicas[{}].url_env", i),
                     message: "Replica URL environment variable must be specified".to_string(),
                 });
             } else {
@@ -162,7 +164,7 @@ impl<'a> ConfigValidator<'a> {
             // Secret env var required
             if webhook.secret_env.is_empty() {
                 self.result.add_error(ConfigError::ValidationError {
-                    field: format!("webhooks.{}.secret_env", name),
+                    field:   format!("webhooks.{}.secret_env", name),
                     message: "Webhook secret environment variable must be specified".to_string(),
                 });
             } else {
@@ -171,9 +173,21 @@ impl<'a> ConfigValidator<'a> {
 
             // Provider must be valid
             let valid_providers = [
-                "stripe", "github", "shopify", "twilio", "sendgrid",
-                "paddle", "slack", "discord", "linear", "svix",
-                "clerk", "supabase", "novu", "resend", "generic_hmac"
+                "stripe",
+                "github",
+                "shopify",
+                "twilio",
+                "sendgrid",
+                "paddle",
+                "slack",
+                "discord",
+                "linear",
+                "svix",
+                "clerk",
+                "supabase",
+                "novu",
+                "resend",
+                "generic_hmac",
             ];
             if !valid_providers.contains(&webhook.provider.as_str()) {
                 self.result.add_warning(format!(
@@ -189,7 +203,7 @@ impl<'a> ConfigValidator<'a> {
             // JWT secret required if auth is enabled
             if auth.jwt.secret_env.is_empty() {
                 self.result.add_error(ConfigError::ValidationError {
-                    field: "auth.jwt.secret_env".to_string(),
+                    field:   "auth.jwt.secret_env".to_string(),
                     message: "JWT secret environment variable must be specified".to_string(),
                 });
             } else {
@@ -204,7 +218,7 @@ impl<'a> ConfigValidator<'a> {
                 // OIDC providers need issuer URL
                 if provider.provider_type == "oidc" && provider.issuer_url.is_none() {
                     self.result.add_error(ConfigError::ValidationError {
-                        field: format!("auth.providers.{}.issuer_url", name),
+                        field:   format!("auth.providers.{}.issuer_url", name),
                         message: "OIDC providers require issuer_url".to_string(),
                     });
                 }
@@ -213,8 +227,9 @@ impl<'a> ConfigValidator<'a> {
             // Callback URL required if any OAuth provider is configured
             if !auth.providers.is_empty() && auth.callback_base_url.is_none() {
                 self.result.add_error(ConfigError::ValidationError {
-                    field: "auth.callback_base_url".to_string(),
-                    message: "callback_base_url is required when OAuth providers are configured".to_string(),
+                    field:   "auth.callback_base_url".to_string(),
+                    message: "callback_base_url is required when OAuth providers are configured"
+                        .to_string(),
                 });
             }
         }
@@ -225,7 +240,7 @@ impl<'a> ConfigValidator<'a> {
             // Storage backend must be defined
             if !self.config.storage.contains_key(&file_config.storage) {
                 self.result.add_error(ConfigError::ValidationError {
-                    field: format!("files.{}.storage", name),
+                    field:   format!("files.{}.storage", name),
                     message: format!(
                         "Storage backend '{}' not found in storage configuration",
                         file_config.storage
@@ -236,7 +251,7 @@ impl<'a> ConfigValidator<'a> {
             // Max size validation
             if let Err(e) = crate::config::env::parse_size(&file_config.max_size) {
                 self.result.add_error(ConfigError::ValidationError {
-                    field: format!("files.{}.max_size", name),
+                    field:   format!("files.{}.max_size", name),
                     message: format!("Invalid size format: {}", e),
                 });
             }
@@ -248,25 +263,25 @@ impl<'a> ConfigValidator<'a> {
                 "s3" | "r2" | "gcs" => {
                     if storage.bucket.is_none() {
                         self.result.add_error(ConfigError::ValidationError {
-                            field: format!("storage.{}.bucket", name),
+                            field:   format!("storage.{}.bucket", name),
                             message: "Bucket name is required for cloud storage".to_string(),
                         });
                     }
-                }
+                },
                 "local" => {
                     if storage.path.is_none() {
                         self.result.add_error(ConfigError::ValidationError {
-                            field: format!("storage.{}.path", name),
+                            field:   format!("storage.{}.path", name),
                             message: "Path is required for local storage".to_string(),
                         });
                     }
-                }
+                },
                 _ => {
                     self.result.add_error(ConfigError::ValidationError {
-                        field: format!("storage.{}.backend", name),
+                        field:   format!("storage.{}.backend", name),
                         message: format!("Unknown storage backend: {}", storage.backend),
                     });
-                }
+                },
             }
         }
     }
@@ -286,8 +301,8 @@ impl<'a> ConfigValidator<'a> {
                                 ),
                             });
                         }
-                    }
-                    _ => {}
+                    },
+                    _ => {},
                 }
             }
         }
@@ -296,7 +311,7 @@ impl<'a> ConfigValidator<'a> {
         if let Some(rate_limit) = &self.config.rate_limiting {
             if rate_limit.backend == "redis" && self.config.cache.is_none() {
                 self.result.add_error(ConfigError::ValidationError {
-                    field: "rate_limiting.backend".to_string(),
+                    field:   "rate_limiting.backend".to_string(),
                     message: "Redis rate limiting requires cache configuration".to_string(),
                 });
             }

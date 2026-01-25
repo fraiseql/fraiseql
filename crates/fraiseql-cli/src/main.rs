@@ -195,25 +195,23 @@ async fn main() {
             include_monitoring,
             validate,
             gen_verbose,
-        } => {
-            match commands::generate_views::RefreshStrategy::from_str(&refresh_strategy) {
-                Ok(refresh_strat) => {
-                    let config = commands::generate_views::GenerateViewsConfig {
-                        schema_path: schema,
-                        entity,
-                        view,
-                        refresh_strategy: refresh_strat,
-                        output,
-                        include_composition_views,
-                        include_monitoring,
-                        validate_only: validate,
-                        verbose: cli.verbose || gen_verbose,
-                    };
+        } => match commands::generate_views::RefreshStrategy::from_str(&refresh_strategy) {
+            Ok(refresh_strat) => {
+                let config = commands::generate_views::GenerateViewsConfig {
+                    schema_path: schema,
+                    entity,
+                    view,
+                    refresh_strategy: refresh_strat,
+                    output,
+                    include_composition_views,
+                    include_monitoring,
+                    validate_only: validate,
+                    verbose: cli.verbose || gen_verbose,
+                };
 
-                    commands::generate_views::run(config)
-                }
-                Err(e) => Err(anyhow::anyhow!(e)),
-            }
+                commands::generate_views::run(config)
+            },
+            Err(e) => Err(anyhow::anyhow!(e)),
         },
 
         Commands::Validate { command, input } => match command {

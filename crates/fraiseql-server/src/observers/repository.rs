@@ -164,7 +164,10 @@ impl ObserverRepository {
         .await
         .map_err(|e| {
             if e.to_string().contains("idx_observer_name_unique") {
-                ServerError::Conflict(format!("Observer with name '{}' already exists", request.name))
+                ServerError::Conflict(format!(
+                    "Observer with name '{}' already exists",
+                    request.name
+                ))
             } else {
                 ServerError::Database(e.to_string())
             }
@@ -293,11 +296,7 @@ impl ObserverRepository {
     }
 
     /// Soft delete an observer.
-    pub async fn delete(
-        &self,
-        id: Uuid,
-        customer_org: Option<i64>,
-    ) -> Result<bool, ServerError> {
+    pub async fn delete(&self, id: Uuid, customer_org: Option<i64>) -> Result<bool, ServerError> {
         let mut sql = String::from(
             r"
             UPDATE tb_observer
@@ -383,19 +382,14 @@ impl ObserverRepository {
         }
 
         if let Some(org_id) = customer_org {
-            conditions.push(format!(
-                "(fk_customer_org IS NULL OR fk_customer_org = {})",
-                org_id
-            ));
+            conditions.push(format!("(fk_customer_org IS NULL OR fk_customer_org = {})", org_id));
         }
 
         let where_clause = conditions.join(" AND ");
 
         // Get total count
-        let count_sql = format!(
-            "SELECT COUNT(*) as count FROM tb_observer_log WHERE {}",
-            where_clause
-        );
+        let count_sql =
+            format!("SELECT COUNT(*) as count FROM tb_observer_log WHERE {}", where_clause);
         let total_count: (i64,) = sqlx::query_as(&count_sql)
             .fetch_one(&self.pool)
             .await

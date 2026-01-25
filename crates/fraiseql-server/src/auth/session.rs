@@ -1,23 +1,25 @@
 // Session management - trait definition and implementations
-use crate::auth::error::Result;
+#[cfg(test)]
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+
 #[cfg(test)]
 use crate::auth::error::AuthError;
-#[cfg(test)]
-use std::sync::Arc;
+use crate::auth::error::Result;
 
 /// Session data stored in the backend
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionData {
     /// User ID (unique per user)
-    pub user_id: String,
+    pub user_id:            String,
     /// Session issued timestamp (Unix seconds)
-    pub issued_at: u64,
+    pub issued_at:          u64,
     /// Session expiration timestamp (Unix seconds)
-    pub expires_at: u64,
+    pub expires_at:         u64,
     /// Hash of the refresh token (stored securely)
     pub refresh_token_hash: String,
 }
@@ -37,11 +39,11 @@ impl SessionData {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TokenPair {
     /// JWT access token (short-lived, typically 15 min - 1 hour)
-    pub access_token: String,
+    pub access_token:  String,
     /// Refresh token (long-lived, typically 7-30 days)
     pub refresh_token: String,
     /// Time in seconds until access token expires
-    pub expires_in: u64,
+    pub expires_in:    u64,
 }
 
 /// SessionStore trait - implement this for your storage backend
@@ -213,11 +215,9 @@ impl SessionStore for InMemorySessionStore {
     }
 
     async fn revoke_session(&self, refresh_token_hash: &str) -> Result<()> {
-        self.sessions
-            .remove(refresh_token_hash)
-            .ok_or(AuthError::SessionError {
-                message: "Session not found".to_string(),
-            })?;
+        self.sessions.remove(refresh_token_hash).ok_or(AuthError::SessionError {
+            message: "Session not found".to_string(),
+        })?;
         Ok(())
     }
 
@@ -275,9 +275,9 @@ mod tests {
             .as_secs();
 
         let session = SessionData {
-            user_id: "user123".to_string(),
-            issued_at: now,
-            expires_at: now + 3600,
+            user_id:            "user123".to_string(),
+            issued_at:          now,
+            expires_at:         now + 3600,
             refresh_token_hash: "hash".to_string(),
         };
 
@@ -292,9 +292,9 @@ mod tests {
             .as_secs();
 
         let session = SessionData {
-            user_id: "user123".to_string(),
-            issued_at: now - 3600,
-            expires_at: now - 100,
+            user_id:            "user123".to_string(),
+            issued_at:          now - 3600,
+            expires_at:         now - 100,
             refresh_token_hash: "hash".to_string(),
         };
 

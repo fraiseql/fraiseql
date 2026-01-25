@@ -1,13 +1,19 @@
 // HTTP handlers for authentication endpoints
-use crate::auth::error::{AuthError, Result};
-use crate::auth::provider::OAuthProvider;
-use crate::auth::session::SessionStore;
-use axum::extract::{Query, State};
-use axum::http::StatusCode;
-use axum::response::IntoResponse;
-use axum::Json;
-use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+
+use axum::{
+    Json,
+    extract::{Query, State},
+    http::StatusCode,
+    response::IntoResponse,
+};
+use serde::{Deserialize, Serialize};
+
+use crate::auth::{
+    error::{AuthError, Result},
+    provider::OAuthProvider,
+    session::SessionStore,
+};
 
 /// AuthState holds the auth configuration and backends
 #[derive(Clone)]
@@ -15,9 +21,9 @@ pub struct AuthState {
     /// OAuth provider
     pub oauth_provider: Arc<dyn OAuthProvider>,
     /// Session store backend
-    pub session_store: Arc<dyn SessionStore>,
+    pub session_store:  Arc<dyn SessionStore>,
     /// In-memory state store for CSRF protection (TODO: replace with persistent store)
-    pub state_store: Arc<dashmap::DashMap<String, (String, u64)>>,
+    pub state_store:    Arc<dashmap::DashMap<String, (String, u64)>>,
 }
 
 /// Request body for auth/start endpoint
@@ -38,11 +44,11 @@ pub struct AuthStartResponse {
 #[derive(Debug, Deserialize)]
 pub struct AuthCallbackQuery {
     /// Authorization code from provider
-    pub code: String,
+    pub code:              String,
     /// State parameter for CSRF protection
-    pub state: String,
+    pub state:             String,
     /// Error from provider if present
-    pub error: Option<String>,
+    pub error:             Option<String>,
     /// Error description from provider
     pub error_description: Option<String>,
 }
@@ -51,13 +57,13 @@ pub struct AuthCallbackQuery {
 #[derive(Debug, Serialize)]
 pub struct AuthCallbackResponse {
     /// Access token for API requests
-    pub access_token: String,
+    pub access_token:  String,
     /// Optional refresh token
     pub refresh_token: Option<String>,
     /// Token type (usually "Bearer")
-    pub token_type: String,
+    pub token_type:    String,
     /// Time in seconds until token expires
-    pub expires_in: u64,
+    pub expires_in:    u64,
 }
 
 /// Request body for auth/refresh endpoint
@@ -73,9 +79,9 @@ pub struct AuthRefreshResponse {
     /// New access token
     pub access_token: String,
     /// Token type
-    pub token_type: String,
+    pub token_type:   String,
     /// Time in seconds until token expires
-    pub expires_in: u64,
+    pub expires_in:   u64,
 }
 
 /// Request body for auth/logout endpoint
@@ -123,11 +129,7 @@ pub async fn auth_callback(
     // Check for provider error
     if let Some(error) = query.error {
         return Err(AuthError::OAuthError {
-            message: format!(
-                "{}: {}",
-                error,
-                query.error_description.unwrap_or_default()
-            ),
+            message: format!("{}: {}", error, query.error_description.unwrap_or_default()),
         });
     }
 
@@ -153,16 +155,13 @@ pub async fn auth_callback(
 
     // Create session (expires in 7 days)
     let expires_at = now + (7 * 24 * 60 * 60);
-    let session_tokens = state
-        .session_store
-        .create_session(&user_info.id, expires_at)
-        .await?;
+    let session_tokens = state.session_store.create_session(&user_info.id, expires_at).await?;
 
     let response = AuthCallbackResponse {
-        access_token: session_tokens.access_token,
+        access_token:  session_tokens.access_token,
         refresh_token: Some(session_tokens.refresh_token),
-        token_type: "Bearer".to_string(),
-        expires_in: session_tokens.expires_in,
+        token_type:    "Bearer".to_string(),
+        expires_in:    session_tokens.expires_in,
     };
 
     // In a real app, would redirect to frontend with tokens in URL fragment

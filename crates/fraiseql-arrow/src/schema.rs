@@ -3,8 +3,9 @@
 //! This module provides predefined Arrow schemas for common FraiseQL data structures.
 //! In Phase 9.2+, schemas will be generated dynamically from GraphQL types.
 
-use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use std::sync::Arc;
+
+use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 
 /// Arrow schema for GraphQL query results.
 ///
@@ -101,7 +102,7 @@ mod tests {
         match timestamp_field.data_type() {
             DataType::Timestamp(TimeUnit::Microsecond, Some(tz)) => {
                 assert_eq!(tz.as_ref(), "UTC");
-            }
+            },
             _ => panic!("Expected Timestamp(Microsecond, UTC)"),
         }
     }

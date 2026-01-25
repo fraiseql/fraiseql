@@ -1,14 +1,16 @@
 //! Provider registry for webhook signature verifiers.
 
-use crate::webhooks::signature::{
-    discord::DiscordVerifier, generic::*, github::GitHubVerifier, gitlab::GitLabVerifier,
-    lemonsqueezy::LemonSqueezyVerifier, paddle::PaddleVerifier, postmark::PostmarkVerifier,
-    sendgrid::SendGridVerifier, shopify::ShopifyVerifier, slack::SlackVerifier,
-    stripe::StripeVerifier, twilio::TwilioVerifier,
+use std::{collections::HashMap, sync::Arc};
+
+use crate::webhooks::{
+    signature::{
+        discord::DiscordVerifier, generic::*, github::GitHubVerifier, gitlab::GitLabVerifier,
+        lemonsqueezy::LemonSqueezyVerifier, paddle::PaddleVerifier, postmark::PostmarkVerifier,
+        sendgrid::SendGridVerifier, shopify::ShopifyVerifier, slack::SlackVerifier,
+        stripe::StripeVerifier, twilio::TwilioVerifier,
+    },
+    traits::SignatureVerifier,
 };
-use crate::webhooks::traits::SignatureVerifier;
-use std::collections::HashMap;
-use std::sync::Arc;
 
 /// Registry of webhook signature verifiers
 pub struct ProviderRegistry {

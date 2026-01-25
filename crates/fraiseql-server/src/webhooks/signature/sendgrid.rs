@@ -2,10 +2,13 @@
 //!
 //! Format: HMAC-SHA256 hex encoded
 
-use crate::webhooks::signature::{constant_time_eq, SignatureError};
-use crate::webhooks::traits::SignatureVerifier;
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
+
+use crate::webhooks::{
+    signature::{SignatureError, constant_time_eq},
+    traits::SignatureVerifier,
+};
 
 pub struct SendGridVerifier;
 

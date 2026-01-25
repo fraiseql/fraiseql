@@ -21,32 +21,31 @@
 //! cargo test --test integration_test --features "postgres,dedup,caching,nats,testing"
 //! ```
 
-use fraiseql_observers::config::{ActionConfig, ObserverRuntimeConfig, OverflowPolicy, PerformanceConfig, RedisConfig, TransportConfig, TransportKind};
-use fraiseql_observers::event::{EntityEvent, EventKind};
-use fraiseql_observers::executor::ObserverExecutor;
-use fraiseql_observers::matcher::EventMatcher;
-use fraiseql_observers::Result;
-use serde_json::json;
-use std::collections::HashMap;
-use std::sync::Arc;
-use std::time::Instant;
-use uuid::Uuid;
-
-#[cfg(feature = "testing")]
-use fraiseql_observers::testing::mocks::MockDeadLetterQueue;
-
-#[cfg(feature = "dedup")]
-use fraiseql_observers::{DeduplicationStore, RedisDeduplicationStore};
+use std::{collections::HashMap, sync::Arc, time::Instant};
 
 #[cfg(feature = "caching")]
 use fraiseql_observers::RedisCacheBackend;
-
+#[cfg(feature = "testing")]
+use fraiseql_observers::testing::mocks::MockDeadLetterQueue;
+#[cfg(feature = "dedup")]
+use fraiseql_observers::{DeduplicationStore, RedisDeduplicationStore};
+use fraiseql_observers::{
+    Result,
+    config::{
+        ActionConfig, ObserverRuntimeConfig, OverflowPolicy, PerformanceConfig, RedisConfig,
+        TransportConfig, TransportKind,
+    },
+    event::{EntityEvent, EventKind},
+    executor::ObserverExecutor,
+    matcher::EventMatcher,
+};
 #[cfg(all(feature = "dedup", feature = "caching"))]
 use fraiseql_observers::{
-    cached_executor::CachedActionExecutor,
-    deduped_executor::DedupedObserverExecutor,
+    cached_executor::CachedActionExecutor, deduped_executor::DedupedObserverExecutor,
     factory::ExecutorFactory,
 };
+use serde_json::json;
+use uuid::Uuid;
 
 // ============================================================================
 // Test Utilities
@@ -62,10 +61,10 @@ fn redis_url() -> String {
 #[allow(dead_code)]
 fn test_redis_config() -> RedisConfig {
     RedisConfig {
-        url: redis_url(),
-        pool_size: 5,
-        dedup_window_secs: 300,
-        cache_ttl_secs: 60,
+        url:                  redis_url(),
+        pool_size:            5,
+        dedup_window_secs:    300,
+        cache_ttl_secs:       60,
         connect_timeout_secs: 5,
         command_timeout_secs: 2,
     }
@@ -75,24 +74,24 @@ fn test_redis_config() -> RedisConfig {
 #[allow(dead_code)]
 fn test_runtime_config() -> ObserverRuntimeConfig {
     ObserverRuntimeConfig {
-        transport: TransportConfig {
+        transport:               TransportConfig {
             transport: TransportKind::InMemory,
             ..Default::default()
         },
-        redis: Some(test_redis_config()),
-        performance: PerformanceConfig {
-            enable_dedup: true,
-            enable_caching: true,
-            enable_concurrent: true,
+        redis:                   Some(test_redis_config()),
+        performance:             PerformanceConfig {
+            enable_dedup:           true,
+            enable_caching:         true,
+            enable_concurrent:      true,
             max_concurrent_actions: 10,
-            concurrent_timeout_ms: 5000,
+            concurrent_timeout_ms:  5000,
         },
-        observers: HashMap::new(),
-        channel_capacity: 100,
-        max_concurrency: 50,
-        shutdown_timeout: "30s".to_string(),
+        observers:               HashMap::new(),
+        channel_capacity:        100,
+        max_concurrency:         50,
+        shutdown_timeout:        "30s".to_string(),
         backlog_alert_threshold: 1000,
-        overflow_policy: OverflowPolicy::Drop,
+        overflow_policy:         OverflowPolicy::Drop,
     }
 }
 
@@ -106,10 +105,15 @@ fn create_test_event(kind: EventKind, entity_type: &str, data: serde_json::Value
 #[allow(dead_code)]
 fn create_http_action(url: &str) -> ActionConfig {
     ActionConfig::Webhook {
-        url: Some(url.to_string()),
-        url_env: None,
-        headers: HashMap::from([("Content-Type".to_string(), "application/json".to_string())]),
-        body_template: Some(r#"{"event": "{{ event.kind }}", "entity": "{{ event.entity_type }}"}"#.to_string()),
+        url:           Some(url.to_string()),
+        url_env:       None,
+        headers:       HashMap::from([(
+            "Content-Type".to_string(),
+            "application/json".to_string(),
+        )]),
+        body_template: Some(
+            r#"{"event": "{{ event.kind }}", "entity": "{{ event.entity_type }}"}"#.to_string(),
+        ),
     }
 }
 
@@ -122,16 +126,17 @@ fn create_http_action(url: &str) -> ActionConfig {
 async fn test_full_pipeline_with_deduplication() -> Result<()> {
     // Setup Redis dedup store
     let redis_config = test_redis_config();
-    let client = redis::Client::open(redis_config.url.as_str())
-        .map_err(|e| fraiseql_observers::error::ObserverError::InvalidConfig {
+    let client = redis::Client::open(redis_config.url.as_str()).map_err(|e| {
+        fraiseql_observers::error::ObserverError::InvalidConfig {
             message: format!("Failed to create Redis client: {}", e),
-        })?;
+        }
+    })?;
 
-    let conn = redis::aio::ConnectionManager::new(client)
-        .await
-        .map_err(|e| fraiseql_observers::error::ObserverError::InvalidConfig {
+    let conn = redis::aio::ConnectionManager::new(client).await.map_err(|e| {
+        fraiseql_observers::error::ObserverError::InvalidConfig {
             message: format!("Failed to connect to Redis: {}", e),
-        })?;
+        }
+    })?;
 
     let dedup_store = RedisDeduplicationStore::new(conn, 300);
 
@@ -178,16 +183,17 @@ async fn test_full_pipeline_with_deduplication() -> Result<()> {
 async fn test_cache_performance_improvement() -> Result<()> {
     // Setup Redis cache
     let redis_config = test_redis_config();
-    let client = redis::Client::open(redis_config.url.as_str())
-        .map_err(|e| fraiseql_observers::error::ObserverError::InvalidConfig {
+    let client = redis::Client::open(redis_config.url.as_str()).map_err(|e| {
+        fraiseql_observers::error::ObserverError::InvalidConfig {
             message: format!("Failed to create Redis client: {}", e),
-        })?;
+        }
+    })?;
 
-    let conn = redis::aio::ConnectionManager::new(client)
-        .await
-        .map_err(|e| fraiseql_observers::error::ObserverError::InvalidConfig {
+    let conn = redis::aio::ConnectionManager::new(client).await.map_err(|e| {
+        fraiseql_observers::error::ObserverError::InvalidConfig {
             message: format!("Failed to connect to Redis: {}", e),
-        })?;
+        }
+    })?;
 
     let _cache_backend = Arc::new(RedisCacheBackend::new(conn, 60));
 
@@ -221,11 +227,7 @@ async fn test_concurrent_execution_performance() -> Result<()> {
 
     // Create 10 test events
     let events: Vec<EntityEvent> = (0..10)
-        .map(|i| create_test_event(
-            EventKind::Created,
-            "TestEntity",
-            json!({"id": i}),
-        ))
+        .map(|i| create_test_event(EventKind::Created, "TestEntity", json!({"id": i})))
         .collect();
 
     // Sequential processing
@@ -241,9 +243,7 @@ async fn test_concurrent_execution_performance() -> Result<()> {
     for event in &events {
         let executor_clone = executor.clone();
         let event_clone = event.clone();
-        tasks.push(tokio::spawn(async move {
-            executor_clone.process_event(&event_clone).await
-        }));
+        tasks.push(tokio::spawn(async move { executor_clone.process_event(&event_clone).await }));
     }
 
     for task in tasks {
@@ -254,8 +254,8 @@ async fn test_concurrent_execution_performance() -> Result<()> {
     println!("Sequential: {sequential_duration:?}");
     println!("Concurrent: {concurrent_duration:?}");
 
-    // Concurrent should be faster or roughly same (might be slower for empty events due to spawn overhead)
-    // The real benefit is seen with actual I/O operations
+    // Concurrent should be faster or roughly same (might be slower for empty events due to spawn
+    // overhead) The real benefit is seen with actual I/O operations
     println!("✅ Concurrent execution test completed");
 
     Ok(())
@@ -301,11 +301,8 @@ async fn test_full_stack_all_features() -> Result<()> {
     let executor = ExecutorFactory::build(&config, dlq).await?;
 
     // Create and process test event
-    let event = create_test_event(
-        EventKind::Created,
-        "Order",
-        json!({"total": 150.00, "items": 3}),
-    );
+    let event =
+        create_test_event(EventKind::Created, "Order", json!({"total": 150.00, "items": 3}));
 
     let summary = executor.process_event(&event).await?;
 

@@ -1,15 +1,16 @@
 //! Local filesystem storage backend
 
+use std::{collections::HashMap, path::PathBuf, time::Duration};
+
 use async_trait::async_trait;
 use bytes::Bytes;
-use std::collections::HashMap;
-use std::path::PathBuf;
-use std::time::Duration;
 use tokio::fs;
 
-use crate::files::config::StorageConfig;
-use crate::files::error::StorageError;
-use crate::files::traits::{StorageBackend, StorageMetadata, StorageResult};
+use crate::files::{
+    config::StorageConfig,
+    error::StorageError,
+    traits::{StorageBackend, StorageMetadata, StorageResult},
+};
 
 pub struct LocalStorage {
     base_path: PathBuf,
@@ -24,10 +25,7 @@ impl LocalStorage {
             .map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from("./uploads"));
 
-        let serve_url = config
-            .serve_path
-            .clone()
-            .unwrap_or_else(|| "/files".to_string());
+        let serve_url = config.serve_path.clone().unwrap_or_else(|| "/files".to_string());
 
         // Create directory if it doesn't exist
         std::fs::create_dir_all(&base_path).map_err(|e| StorageError::Configuration {
@@ -58,22 +56,18 @@ impl StorageBackend for LocalStorage {
 
         // Create parent directories
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)
-                .await
-                .map_err(|e| StorageError::UploadFailed {
-                    message: e.to_string(),
-                })?;
-        }
-
-        fs::write(&path, &data)
-            .await
-            .map_err(|e| StorageError::UploadFailed {
+            fs::create_dir_all(parent).await.map_err(|e| StorageError::UploadFailed {
                 message: e.to_string(),
             })?;
+        }
+
+        fs::write(&path, &data).await.map_err(|e| StorageError::UploadFailed {
+            message: e.to_string(),
+        })?;
 
         Ok(StorageResult {
-            key: key.to_string(),
-            url: self.public_url(key),
+            key:  key.to_string(),
+            url:  self.public_url(key),
             etag: None,
             size: data.len() as u64,
         })
@@ -100,11 +94,9 @@ impl StorageBackend for LocalStorage {
     async fn delete(&self, key: &str) -> Result<(), StorageError> {
         let path = self.base_path.join(key);
 
-        fs::remove_file(&path)
-            .await
-            .map_err(|e| StorageError::Provider {
-                message: e.to_string(),
-            })?;
+        fs::remove_file(&path).await.map_err(|e| StorageError::Provider {
+            message: e.to_string(),
+        })?;
 
         Ok(())
     }
@@ -117,24 +109,17 @@ impl StorageBackend for LocalStorage {
     async fn metadata(&self, key: &str) -> Result<StorageMetadata, StorageError> {
         let path = self.base_path.join(key);
 
-        let meta = fs::metadata(&path)
-            .await
-            .map_err(|e| StorageError::Provider {
-                message: e.to_string(),
-            })?;
+        let meta = fs::metadata(&path).await.map_err(|e| StorageError::Provider {
+            message: e.to_string(),
+        })?;
 
-        let last_modified = meta
-            .modified()
-            .ok()
-            .and_then(|t| {
-                let duration = t.duration_since(std::time::UNIX_EPOCH).ok()?;
-                chrono::DateTime::from_timestamp(duration.as_secs() as i64, 0)
-            });
+        let last_modified = meta.modified().ok().and_then(|t| {
+            let duration = t.duration_since(std::time::UNIX_EPOCH).ok()?;
+            chrono::DateTime::from_timestamp(duration.as_secs() as i64, 0)
+        });
 
         Ok(StorageMetadata {
-            content_type: mime_guess::from_path(&path)
-                .first_or_octet_stream()
-                .to_string(),
+            content_type: mime_guess::from_path(&path).first_or_octet_stream().to_string(),
             content_length: meta.len(),
             etag: None,
             last_modified,

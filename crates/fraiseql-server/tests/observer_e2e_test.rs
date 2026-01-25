@@ -37,8 +37,9 @@
 
 mod observer_test_helpers;
 
-use observer_test_helpers::*;
 use std::time::Duration;
+
+use observer_test_helpers::*;
 use uuid::Uuid;
 
 /// Test 1: Happy Path - INSERT event with webhook execution
@@ -99,19 +100,10 @@ async fn test_observer_happy_path_insert_webhook() {
 
     // Assertions
     let requests = mock_server.received_requests().await;
-    assert_eq!(
-        requests.len(),
-        1,
-        "Expected exactly 1 webhook call, got {}",
-        requests.len()
-    );
+    assert_eq!(requests.len(), 1, "Expected exactly 1 webhook call, got {}", requests.len());
 
     let webhook_payload = &requests[0];
-    assert_webhook_payload(
-        webhook_payload,
-        &order_id.to_string(),
-        Some(("status", "pending")),
-    );
+    assert_webhook_payload(webhook_payload, &order_id.to_string(), Some(("status", "pending")));
 
     // Verify observer_log entry
     assert_observer_log(
@@ -129,9 +121,7 @@ async fn test_observer_happy_path_insert_webhook() {
     assert_eq!(success_count, 1, "Expected 1 success log entry");
 
     // Cleanup
-    cleanup_test_data(&pool, &test_id)
-        .await
-        .expect("Failed to cleanup");
+    cleanup_test_data(&pool, &test_id).await.expect("Failed to cleanup");
 }
 
 /// Test 2: Conditional Execution
@@ -199,17 +189,11 @@ async fn test_observer_conditional_execution() {
     wait_for_webhook(&mock_server, 1, Duration::from_secs(10)).await;
 
     let requests = mock_server.received_requests().await;
-    assert_eq!(
-        requests.len(),
-        1,
-        "Expected 1 webhook call for shipped status"
-    );
+    assert_eq!(requests.len(), 1, "Expected 1 webhook call for shipped status");
     assert_eq!(requests[0]["after"]["status"], "shipped");
 
     // Cleanup
-    cleanup_test_data(&pool, &test_id)
-        .await
-        .expect("Failed to cleanup");
+    cleanup_test_data(&pool, &test_id).await.expect("Failed to cleanup");
 }
 
 /// Test 3: Multiple Observers
@@ -269,16 +253,8 @@ async fn test_multiple_observers_single_event() {
     wait_for_webhook(&mock_server_1, 1, Duration::from_secs(10)).await;
     wait_for_webhook(&mock_server_2, 1, Duration::from_secs(10)).await;
 
-    assert_eq!(
-        mock_server_1.request_count().await,
-        1,
-        "Observer 1 should fire once"
-    );
-    assert_eq!(
-        mock_server_2.request_count().await,
-        1,
-        "Observer 2 should fire once"
-    );
+    assert_eq!(mock_server_1.request_count().await, 1, "Observer 1 should fire once");
+    assert_eq!(mock_server_2.request_count().await, 1, "Observer 2 should fire once");
 
     // Verify tb_observer_log has 2 success entries
     let success_count = get_observer_log_count(&pool, "success")
@@ -287,9 +263,7 @@ async fn test_multiple_observers_single_event() {
     assert_eq!(success_count, 2, "Expected 2 success log entries");
 
     // Cleanup
-    cleanup_test_data(&pool, &test_id)
-        .await
-        .expect("Failed to cleanup");
+    cleanup_test_data(&pool, &test_id).await.expect("Failed to cleanup");
 }
 
 /// Test 4: Retry Logic with Exponential Backoff
@@ -342,20 +316,14 @@ async fn test_observer_retry_exponential_backoff() {
         .expect("Failed to fetch observer logs");
 
     // Should have up to 3 attempts in the log
-    assert!(
-        logs.len() > 0,
-        "Expected observer log entries for entity {}",
-        order_id
-    );
+    assert!(logs.len() > 0, "Expected observer log entries for entity {}", order_id);
 
     // Verify final status is success
     let final_status = &logs.last().expect("Should have at least one log").0;
     assert_eq!(final_status, "success", "Final status should be success");
 
     // Cleanup
-    cleanup_test_data(&pool, &test_id)
-        .await
-        .expect("Failed to cleanup");
+    cleanup_test_data(&pool, &test_id).await.expect("Failed to cleanup");
 }
 
 /// Test 5: Dead Letter Queue (DLQ) on Permanent Failure
@@ -407,20 +375,13 @@ async fn test_observer_dlq_permanent_failure() {
         .await
         .expect("Failed to query observer logs");
 
-    assert!(
-        failed_count >= 1,
-        "Expected at least 1 failed attempt, got {}",
-        failed_count
-    );
+    assert!(failed_count >= 1, "Expected at least 1 failed attempt, got {}", failed_count);
 
     // Verify no success entries (should all be failures)
     let success_count = get_observer_log_count(&pool, "success")
         .await
         .expect("Failed to query observer logs");
-    assert_eq!(
-        success_count, 0,
-        "Expected 0 success entries for permanent failure"
-    );
+    assert_eq!(success_count, 0, "Expected 0 success entries for permanent failure");
 
     // Verify webhook was called multiple times (retries)
     let webhook_calls = mock_server.request_count().await;
@@ -431,9 +392,7 @@ async fn test_observer_dlq_permanent_failure() {
     );
 
     // Cleanup
-    cleanup_test_data(&pool, &test_id)
-        .await
-        .expect("Failed to cleanup");
+    cleanup_test_data(&pool, &test_id).await.expect("Failed to cleanup");
 }
 
 /// Test 6: Multiple Event Types on Same Entity
@@ -504,16 +463,10 @@ async fn test_multiple_event_types_same_entity() {
     wait_for_webhook(&mock_server, 2, Duration::from_secs(10)).await;
 
     let calls = mock_server.request_count().await;
-    assert_eq!(
-        calls, 2,
-        "Expected 2 webhook calls (1 INSERT + 1 UPDATE), got {}",
-        calls
-    );
+    assert_eq!(calls, 2, "Expected 2 webhook calls (1 INSERT + 1 UPDATE), got {}", calls);
 
     // Cleanup
-    cleanup_test_data(&pool, &test_id)
-        .await
-        .expect("Failed to cleanup");
+    cleanup_test_data(&pool, &test_id).await.expect("Failed to cleanup");
 }
 
 /// Test 7: Batch Processing
@@ -560,16 +513,10 @@ async fn test_batch_processing() {
     wait_for_webhook(&mock_server, event_count, Duration::from_secs(30)).await;
 
     let calls = mock_server.request_count().await;
-    assert_eq!(
-        calls, event_count,
-        "Expected {} webhook calls, got {}",
-        event_count, calls
-    );
+    assert_eq!(calls, event_count, "Expected {} webhook calls, got {}", event_count, calls);
 
     // Cleanup
-    cleanup_test_data(&pool, &test_id)
-        .await
-        .expect("Failed to cleanup");
+    cleanup_test_data(&pool, &test_id).await.expect("Failed to cleanup");
 }
 
 /// Performance Benchmark: Latency Measurement
@@ -657,7 +604,5 @@ async fn benchmark_observer_latency() {
     );
 
     // Cleanup
-    cleanup_test_data(&pool, &test_id)
-        .await
-        .expect("Failed to cleanup");
+    cleanup_test_data(&pool, &test_id).await.expect("Failed to cleanup");
 }

@@ -1,24 +1,26 @@
 // JWT validation and claims parsing
-use crate::auth::error::{AuthError, Result};
-use jsonwebtoken::{decode, DecodingKey, Validation, Algorithm};
-#[cfg(test)]
-use jsonwebtoken::{encode, EncodingKey, Header};
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+
+use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode};
+#[cfg(test)]
+use jsonwebtoken::{EncodingKey, Header, encode};
+use serde::{Deserialize, Serialize};
+
+use crate::auth::error::{AuthError, Result};
 
 /// Standard JWT claims with support for custom claims
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Claims {
     /// Subject (typically user ID)
-    pub sub: String,
+    pub sub:   String,
     /// Issued at (Unix timestamp)
-    pub iat: u64,
+    pub iat:   u64,
     /// Expiration time (Unix timestamp)
-    pub exp: u64,
+    pub exp:   u64,
     /// Issuer
-    pub iss: String,
+    pub iss:   String,
     /// Audience
-    pub aud: Vec<String>,
+    pub aud:   Vec<String>,
     /// Additional custom claims
     #[serde(flatten)]
     pub extra: HashMap<String, serde_json::Value>,
@@ -43,7 +45,7 @@ impl Claims {
 /// JWT validator configuration and validation logic
 pub struct JwtValidator {
     validation: Validation,
-    issuer: String,
+    issuer:     String,
 }
 
 impl JwtValidator {
@@ -85,23 +87,22 @@ impl JwtValidator {
             reason: format!("Failed to parse public key: {}", e),
         })?;
 
-        let token_data =
-            decode::<Claims>(token, &decoding_key, &self.validation).map_err(|e| {
-                use jsonwebtoken::errors::ErrorKind;
-                match e.kind() {
-                    ErrorKind::ExpiredSignature => AuthError::TokenExpired,
-                    ErrorKind::InvalidSignature => AuthError::InvalidSignature,
-                    ErrorKind::InvalidIssuer => AuthError::InvalidToken {
-                        reason: format!("Invalid issuer, expected: {}", self.issuer),
-                    },
-                    ErrorKind::MissingRequiredClaim(claim) => AuthError::MissingClaim {
-                        claim: claim.clone(),
-                    },
-                    _ => AuthError::InvalidToken {
-                        reason: e.to_string(),
-                    },
-                }
-            })?;
+        let token_data = decode::<Claims>(token, &decoding_key, &self.validation).map_err(|e| {
+            use jsonwebtoken::errors::ErrorKind;
+            match e.kind() {
+                ErrorKind::ExpiredSignature => AuthError::TokenExpired,
+                ErrorKind::InvalidSignature => AuthError::InvalidSignature,
+                ErrorKind::InvalidIssuer => AuthError::InvalidToken {
+                    reason: format!("Invalid issuer, expected: {}", self.issuer),
+                },
+                ErrorKind::MissingRequiredClaim(claim) => AuthError::MissingClaim {
+                    claim: claim.clone(),
+                },
+                _ => AuthError::InvalidToken {
+                    reason: e.to_string(),
+                },
+            }
+        })?;
 
         let claims = token_data.claims;
 
@@ -124,23 +125,22 @@ impl JwtValidator {
     pub fn validate_hmac(&self, token: &str, secret: &[u8]) -> Result<Claims> {
         let decoding_key = DecodingKey::from_secret(secret);
 
-        let token_data =
-            decode::<Claims>(token, &decoding_key, &self.validation).map_err(|e| {
-                use jsonwebtoken::errors::ErrorKind;
-                match e.kind() {
-                    ErrorKind::ExpiredSignature => AuthError::TokenExpired,
-                    ErrorKind::InvalidSignature => AuthError::InvalidSignature,
-                    ErrorKind::InvalidIssuer => AuthError::InvalidToken {
-                        reason: format!("Invalid issuer, expected: {}", self.issuer),
-                    },
-                    ErrorKind::MissingRequiredClaim(claim) => AuthError::MissingClaim {
-                        claim: claim.clone(),
-                    },
-                    _ => AuthError::InvalidToken {
-                        reason: e.to_string(),
-                    },
-                }
-            })?;
+        let token_data = decode::<Claims>(token, &decoding_key, &self.validation).map_err(|e| {
+            use jsonwebtoken::errors::ErrorKind;
+            match e.kind() {
+                ErrorKind::ExpiredSignature => AuthError::TokenExpired,
+                ErrorKind::InvalidSignature => AuthError::InvalidSignature,
+                ErrorKind::InvalidIssuer => AuthError::InvalidToken {
+                    reason: format!("Invalid issuer, expected: {}", self.issuer),
+                },
+                ErrorKind::MissingRequiredClaim(claim) => AuthError::MissingClaim {
+                    claim: claim.clone(),
+                },
+                _ => AuthError::InvalidToken {
+                    reason: e.to_string(),
+                },
+            }
+        })?;
 
         let claims = token_data.claims;
 
@@ -154,10 +154,7 @@ impl JwtValidator {
 
 /// Generate a JWT token (for testing and token creation)
 #[cfg(test)]
-pub fn generate_test_token(
-    claims: &Claims,
-    secret: &[u8],
-) -> Result<String> {
+pub fn generate_test_token(claims: &Claims, secret: &[u8]) -> Result<String> {
     let encoding_key = EncodingKey::from_secret(secret);
     encode(&Header::default(), claims, &encoding_key).map_err(|e| AuthError::Internal {
         message: format!("Failed to generate token: {}", e),
@@ -175,11 +172,11 @@ mod tests {
             .as_secs();
 
         Claims {
-            sub: "user123".to_string(),
-            iat: now,
-            exp: now + 3600, // 1 hour expiry
-            iss: "https://example.com".to_string(),
-            aud: vec!["api".to_string()],
+            sub:   "user123".to_string(),
+            iat:   now,
+            exp:   now + 3600, // 1 hour expiry
+            iss:   "https://example.com".to_string(),
+            aud:   vec!["api".to_string()],
             extra: HashMap::new(),
         }
     }
@@ -193,10 +190,7 @@ mod tests {
     #[test]
     fn test_jwt_validator_invalid_issuer() {
         let validator = JwtValidator::new("", Algorithm::HS256);
-        assert!(matches!(
-            validator,
-            Err(AuthError::ConfigError { .. })
-        ));
+        assert!(matches!(validator, Err(AuthError::ConfigError { .. })));
     }
 
     #[test]
@@ -234,9 +228,8 @@ mod tests {
         let claims = create_test_claims();
         let token = generate_test_token(&claims, secret).expect("Failed to generate token");
 
-        let validated_claims = validator
-            .validate_hmac(&token, secret)
-            .expect("Failed to validate token");
+        let validated_claims =
+            validator.validate_hmac(&token, secret).expect("Failed to validate token");
 
         assert_eq!(validated_claims.sub, claims.sub);
         assert_eq!(validated_claims.iss, claims.iss);
@@ -279,17 +272,10 @@ mod tests {
     #[test]
     fn test_get_custom_claim() {
         let mut claims = create_test_claims();
-        claims
-            .extra
-            .insert("email".to_string(), serde_json::json!("user@example.com"));
-        claims
-            .extra
-            .insert("role".to_string(), serde_json::json!("admin"));
+        claims.extra.insert("email".to_string(), serde_json::json!("user@example.com"));
+        claims.extra.insert("role".to_string(), serde_json::json!("admin"));
 
-        assert_eq!(
-            claims.get_custom("email"),
-            Some(&serde_json::json!("user@example.com"))
-        );
+        assert_eq!(claims.get_custom("email"), Some(&serde_json::json!("user@example.com")));
         assert_eq!(claims.get_custom("role"), Some(&serde_json::json!("admin")));
         assert_eq!(claims.get_custom("nonexistent"), None);
     }

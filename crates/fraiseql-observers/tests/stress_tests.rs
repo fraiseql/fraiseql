@@ -9,10 +9,15 @@
 
 #[cfg(test)]
 mod stress_tests {
+    use std::{
+        sync::{
+            Arc,
+            atomic::{AtomicU64, Ordering},
+        },
+        time::{Duration, Instant},
+    };
+
     use fraiseql_observers::*;
-    use std::sync::atomic::{AtomicU64, Ordering};
-    use std::sync::Arc;
-    use std::time::{Duration, Instant};
 
     /// Test high throughput event processing
     ///
@@ -96,10 +101,10 @@ mod stress_tests {
     #[ignore = "stress test - requires time and resources"]
     async fn stress_test_large_events() {
         let sizes = vec![
-            1024,                  // 1 KB
-            102_400,               // 100 KB
-            1_048_576,             // 1 MB
-            10_485_760,            // 10 MB
+            1024,       // 1 KB
+            102_400,    // 100 KB
+            1_048_576,  // 1 MB
+            10_485_760, // 10 MB
         ];
 
         println!("\n=== Large Event Stress Test ===");

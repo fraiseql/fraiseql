@@ -3,10 +3,11 @@
 //! Uses the `http` and `reqwest` crates to communicate with Elasticsearch,
 //! avoiding a tight dependency on the elasticsearch crate.
 
+use reqwest::Client;
+use serde_json::{Value, json};
+
 use super::{IndexedEvent, SearchBackend};
 use crate::error::{ObserverError, Result};
-use reqwest::Client;
-use serde_json::{json, Value};
 
 /// HTTP-based Elasticsearch search backend.
 ///
@@ -24,7 +25,7 @@ impl HttpSearchBackend {
     /// # Arguments
     ///
     /// * `es_url` - Elasticsearch base URL (e.g., "<http://localhost:9200>")
-    #[must_use] 
+    #[must_use]
     pub fn new(es_url: String) -> Self {
         Self {
             client: Client::new(),
@@ -39,12 +40,8 @@ impl HttpSearchBackend {
     /// Returns error if Elasticsearch is not responding
     pub async fn health_check(&self) -> Result<bool> {
         let url = format!("{}/", self.es_url);
-        let response = self
-            .client
-            .get(&url)
-            .send()
-            .await
-            .map_err(|e| ObserverError::DatabaseError {
+        let response =
+            self.client.get(&url).send().await.map_err(|e| ObserverError::DatabaseError {
                 reason: format!("Elasticsearch connection failed: {e}"),
             })?;
 
@@ -77,14 +74,11 @@ impl HttpSearchBackend {
                 }
             });
 
-            self.client
-                .put(&url)
-                .json(&mapping)
-                .send()
-                .await
-                .map_err(|e| ObserverError::DatabaseError {
+            self.client.put(&url).json(&mapping).send().await.map_err(|e| {
+                ObserverError::DatabaseError {
                     reason: format!("Failed to create Elasticsearch index: {e}"),
-                })?;
+                }
+            })?;
         }
 
         Ok(())
@@ -97,19 +91,13 @@ impl SearchBackend for HttpSearchBackend {
         let index_name = event.index_name();
         self.ensure_index(&index_name).await?;
 
-        let url = format!(
-            "{}/{}/_doc/{}",
-            self.es_url, index_name, event.entity_id
-        );
+        let url = format!("{}/{}/_doc/{}", self.es_url, index_name, event.entity_id);
 
-        self.client
-            .post(&url)
-            .json(event)
-            .send()
-            .await
-            .map_err(|e| ObserverError::DatabaseError {
+        self.client.post(&url).json(event).send().await.map_err(|e| {
+            ObserverError::DatabaseError {
                 reason: format!("Failed to index event: {e}"),
-            })?;
+            }
+        })?;
 
         Ok(())
     }
@@ -188,20 +176,14 @@ impl SearchBackend for HttpSearchBackend {
         });
 
         let url = format!("{}/_search", self.es_url);
-        let response = self
-            .client
-            .post(&url)
-            .json(&search_query)
-            .send()
-            .await
-            .map_err(|e| ObserverError::DatabaseError {
-                reason: format!("Search query failed: {e}"),
-            })?;
-
-        let body: Value = response.json().await.map_err(|e| {
+        let response = self.client.post(&url).json(&search_query).send().await.map_err(|e| {
             ObserverError::DatabaseError {
-                reason: format!("Failed to parse search response: {e}"),
+                reason: format!("Search query failed: {e}"),
             }
+        })?;
+
+        let body: Value = response.json().await.map_err(|e| ObserverError::DatabaseError {
+            reason: format!("Failed to parse search response: {e}"),
         })?;
 
         let mut results = Vec::new();
@@ -237,20 +219,14 @@ impl SearchBackend for HttpSearchBackend {
         });
 
         let url = format!("{}/_search", self.es_url);
-        let response = self
-            .client
-            .post(&url)
-            .json(&search_query)
-            .send()
-            .await
-            .map_err(|e| ObserverError::DatabaseError {
-                reason: format!("Entity search failed: {e}"),
-            })?;
-
-        let body: Value = response.json().await.map_err(|e| {
+        let response = self.client.post(&url).json(&search_query).send().await.map_err(|e| {
             ObserverError::DatabaseError {
-                reason: format!("Failed to parse search response: {e}"),
+                reason: format!("Entity search failed: {e}"),
             }
+        })?;
+
+        let body: Value = response.json().await.map_err(|e| ObserverError::DatabaseError {
+            reason: format!("Failed to parse search response: {e}"),
         })?;
 
         let mut results = Vec::new();
@@ -293,20 +269,14 @@ impl SearchBackend for HttpSearchBackend {
         });
 
         let url = format!("{}/_search", self.es_url);
-        let response = self
-            .client
-            .post(&url)
-            .json(&search_query)
-            .send()
-            .await
-            .map_err(|e| ObserverError::DatabaseError {
-                reason: format!("Time range search failed: {e}"),
-            })?;
-
-        let body: Value = response.json().await.map_err(|e| {
+        let response = self.client.post(&url).json(&search_query).send().await.map_err(|e| {
             ObserverError::DatabaseError {
-                reason: format!("Failed to parse search response: {e}"),
+                reason: format!("Time range search failed: {e}"),
             }
+        })?;
+
+        let body: Value = response.json().await.map_err(|e| ObserverError::DatabaseError {
+            reason: format!("Failed to parse search response: {e}"),
         })?;
 
         let mut results = Vec::new();
@@ -322,8 +292,7 @@ impl SearchBackend for HttpSearchBackend {
     }
 
     async fn delete_old_events(&self, days_old: u32) -> Result<()> {
-        let cutoff_date = chrono::Utc::now()
-            - chrono::Duration::days(i64::from(days_old));
+        let cutoff_date = chrono::Utc::now() - chrono::Duration::days(i64::from(days_old));
         let cutoff_timestamp = cutoff_date.timestamp();
 
         let delete_query = json!({
@@ -337,14 +306,11 @@ impl SearchBackend for HttpSearchBackend {
         });
 
         let url = format!("{}/_delete_by_query", self.es_url);
-        self.client
-            .post(&url)
-            .json(&delete_query)
-            .send()
-            .await
-            .map_err(|e| ObserverError::DatabaseError {
+        self.client.post(&url).json(&delete_query).send().await.map_err(|e| {
+            ObserverError::DatabaseError {
                 reason: format!("Failed to delete old events: {e}"),
-            })?;
+            }
+        })?;
 
         Ok(())
     }

@@ -22,9 +22,9 @@ impl Default for MetricsConfig {
     fn default() -> Self {
         Self {
             enabled: default_enabled(),
-            path: default_path(),
-            format: default_format(),
-            slos: SloConfig::default(),
+            path:    default_path(),
+            format:  default_format(),
+            slos:    SloConfig::default(),
         }
     }
 }

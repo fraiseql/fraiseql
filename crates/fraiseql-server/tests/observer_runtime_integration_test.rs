@@ -39,9 +39,10 @@
 
 mod observer_test_helpers;
 
-use observer_test_helpers::*;
-use fraiseql_server::observers::runtime::{ObserverRuntime, ObserverRuntimeConfig};
 use std::time::Duration;
+
+use fraiseql_server::observers::runtime::{ObserverRuntime, ObserverRuntimeConfig};
+use observer_test_helpers::*;
 use uuid::Uuid;
 
 /// Initialize tracing subscriber for test logging
@@ -53,7 +54,7 @@ fn init_test_tracing() {
         tracing_subscriber::fmt()
             .with_env_filter(
                 tracing_subscriber::EnvFilter::try_from_default_env()
-                    .unwrap_or_else(|_| "info".into())
+                    .unwrap_or_else(|_| "info".into()),
             )
             .with_test_writer()
             .init();
@@ -107,8 +108,7 @@ async fn test_runtime_start_stop_lifecycle() {
     .expect("Failed to create observer");
 
     // Create and start observer runtime with fast polling for tests
-    let config = ObserverRuntimeConfig::new(pool.clone())
-        .with_poll_interval(50);
+    let config = ObserverRuntimeConfig::new(pool.clone()).with_poll_interval(50);
     let mut runtime = ObserverRuntime::new(config);
     runtime.start().await.expect("Failed to start runtime");
 
@@ -147,18 +147,13 @@ async fn test_runtime_start_stop_lifecycle() {
     let checkpoint_exists = check_checkpoint_exists(&pool, &entity_type)
         .await
         .expect("Failed to check checkpoint");
-    assert!(
-        checkpoint_exists,
-        "Expected checkpoint to be saved after processing"
-    );
+    assert!(checkpoint_exists, "Expected checkpoint to be saved after processing");
 
     // Stop the runtime gracefully
     runtime.stop().await.expect("Failed to stop runtime");
 
     // Cleanup
-    cleanup_test_data(&pool, &test_id)
-        .await
-        .expect("Failed to cleanup");
+    cleanup_test_data(&pool, &test_id).await.expect("Failed to cleanup");
 }
 
 /// Test 2: Checkpoint Recovery After Runtime Restart
@@ -207,8 +202,7 @@ async fn test_checkpoint_recovery_after_restart() {
     .expect("Failed to create observer");
 
     // Create and start observer runtime with fast polling for tests
-    let config = ObserverRuntimeConfig::new(pool.clone())
-        .with_poll_interval(50);
+    let config = ObserverRuntimeConfig::new(pool.clone()).with_poll_interval(50);
     let mut runtime = ObserverRuntime::new(config);
     runtime.start().await.expect("Failed to start runtime");
 
@@ -269,27 +263,17 @@ async fn test_checkpoint_recovery_after_restart() {
     let requests = mock_server.received_requests().await;
     let ids: Vec<String> = requests
         .iter()
-        .filter_map(|r| {
-            r["after"]["id"]
-                .as_str()
-                .map(|s| s.to_string())
-        })
+        .filter_map(|r| r["after"]["id"].as_str().map(|s| s.to_string()))
         .collect();
 
     let unique_ids: std::collections::HashSet<_> = ids.iter().cloned().collect();
-    assert_eq!(
-        ids.len(),
-        unique_ids.len(),
-        "Expected no duplicate IDs in webhook payloads"
-    );
+    assert_eq!(ids.len(), unique_ids.len(), "Expected no duplicate IDs in webhook payloads");
 
     // Stop the runtime gracefully
     runtime.stop().await.expect("Failed to stop runtime");
 
     // Cleanup
-    cleanup_test_data(&pool, &test_id)
-        .await
-        .expect("Failed to cleanup");
+    cleanup_test_data(&pool, &test_id).await.expect("Failed to cleanup");
 }
 
 /// Test 3: Hot Reload of Observer Configurations
@@ -345,8 +329,7 @@ async fn test_hot_reload_observers() {
     .expect("Failed to create observer 1");
 
     // Create and start observer runtime with fast polling for tests
-    let config = ObserverRuntimeConfig::new(pool.clone())
-        .with_poll_interval(50);
+    let config = ObserverRuntimeConfig::new(pool.clone()).with_poll_interval(50);
     let mut runtime = ObserverRuntime::new(config);
     runtime.start().await.expect("Failed to start runtime");
 
@@ -399,11 +382,7 @@ async fn test_hot_reload_observers() {
     wait_for_webhook(&mock_server_2, 1, Duration::from_secs(15)).await;
 
     // Verify both observers processed their respective events
-    assert_eq!(
-        mock_server_1.request_count().await,
-        1,
-        "Observer 1 should have 1 event"
-    );
+    assert_eq!(mock_server_1.request_count().await, 1, "Observer 1 should have 1 event");
     assert_eq!(
         mock_server_2.request_count().await,
         1,
@@ -414,9 +393,7 @@ async fn test_hot_reload_observers() {
     runtime.stop().await.expect("Failed to stop runtime");
 
     // Cleanup
-    cleanup_test_data(&pool, &test_id)
-        .await
-        .expect("Failed to cleanup");
+    cleanup_test_data(&pool, &test_id).await.expect("Failed to cleanup");
 }
 
 /// Test 4: Graceful Shutdown During Active Processing
@@ -469,8 +446,7 @@ async fn test_graceful_shutdown_mid_processing() {
     .expect("Failed to create observer");
 
     // Create and start observer runtime with fast polling for tests
-    let config = ObserverRuntimeConfig::new(pool.clone())
-        .with_poll_interval(50);
+    let config = ObserverRuntimeConfig::new(pool.clone()).with_poll_interval(50);
     let mut runtime = ObserverRuntime::new(config);
     runtime.start().await.expect("Failed to start runtime");
 
@@ -508,18 +484,13 @@ async fn test_graceful_shutdown_mid_processing() {
 
     // Verify some events were processed
     let initial_count = mock_server.request_count().await;
-    assert!(
-        initial_count > 0,
-        "Expected at least one event to start processing"
-    );
+    assert!(initial_count > 0, "Expected at least one event to start processing");
 
     // Stop the runtime gracefully
     runtime.stop().await.expect("Failed to stop runtime");
 
     // Cleanup
-    cleanup_test_data(&pool, &test_id)
-        .await
-        .expect("Failed to cleanup");
+    cleanup_test_data(&pool, &test_id).await.expect("Failed to cleanup");
 }
 
 /// Test 5: Runtime Continues After Errors
@@ -572,8 +543,7 @@ async fn test_runtime_continues_after_errors() {
     .expect("Failed to create observer");
 
     // Create and start observer runtime with fast polling for tests
-    let config = ObserverRuntimeConfig::new(pool.clone())
-        .with_poll_interval(50);
+    let config = ObserverRuntimeConfig::new(pool.clone()).with_poll_interval(50);
     let mut runtime = ObserverRuntime::new(config);
     runtime.start().await.expect("Failed to start runtime");
 
@@ -595,11 +565,7 @@ async fn test_runtime_continues_after_errors() {
 
     // Verify success after retries
     let requests = mock_server.received_requests().await;
-    assert_eq!(
-        requests.len(),
-        1,
-        "Expected 1 successful webhook after retries"
-    );
+    assert_eq!(requests.len(), 1, "Expected 1 successful webhook after retries");
 
     // Verify log shows attempt tracking
     let logs = get_observer_logs_for_entity(&pool, &order_id_1.to_string())
@@ -607,10 +573,7 @@ async fn test_runtime_continues_after_errors() {
         .expect("Failed to fetch observer logs");
 
     // Should have multiple log entries tracking retries
-    assert!(
-        !logs.is_empty(),
-        "Expected observer logs for event with retries"
-    );
+    assert!(!logs.is_empty(), "Expected observer logs for event with retries");
 
     // Reset mock server for second event
     mock_server.reset().await;
@@ -634,18 +597,13 @@ async fn test_runtime_continues_after_errors() {
 
     // Verify runtime continues normally
     let second_count = mock_server.request_count().await;
-    assert_eq!(
-        second_count, 1,
-        "Expected runtime to continue processing after errors"
-    );
+    assert_eq!(second_count, 1, "Expected runtime to continue processing after errors");
 
     // Stop the runtime gracefully
     runtime.stop().await.expect("Failed to stop runtime");
 
     // Cleanup
-    cleanup_test_data(&pool, &test_id)
-        .await
-        .expect("Failed to cleanup");
+    cleanup_test_data(&pool, &test_id).await.expect("Failed to cleanup");
 }
 
 /// Test 6: High Throughput Processing
@@ -697,8 +655,7 @@ async fn test_high_throughput_processing() {
     .expect("Failed to create observer");
 
     // Create and start observer runtime with fast polling for tests
-    let config = ObserverRuntimeConfig::new(pool.clone())
-        .with_poll_interval(50);
+    let config = ObserverRuntimeConfig::new(pool.clone()).with_poll_interval(50);
     let mut runtime = ObserverRuntime::new(config);
     runtime.start().await.expect("Failed to start runtime");
 
@@ -733,19 +690,11 @@ async fn test_high_throughput_processing() {
     let requests = mock_server.received_requests().await;
     let ids: Vec<String> = requests
         .iter()
-        .filter_map(|r| {
-            r["after"]["id"]
-                .as_str()
-                .map(|s| s.to_string())
-        })
+        .filter_map(|r| r["after"]["id"].as_str().map(|s| s.to_string()))
         .collect();
 
     let unique_ids: std::collections::HashSet<_> = ids.iter().cloned().collect();
-    assert_eq!(
-        ids.len(),
-        unique_ids.len(),
-        "Expected no duplicates in high throughput test"
-    );
+    assert_eq!(ids.len(), unique_ids.len(), "Expected no duplicates in high throughput test");
 
     // Verify successful logging
     let success_count = get_observer_log_count(&pool, "success")
@@ -761,9 +710,7 @@ async fn test_high_throughput_processing() {
     runtime.stop().await.expect("Failed to stop runtime");
 
     // Cleanup
-    cleanup_test_data(&pool, &test_id)
-        .await
-        .expect("Failed to cleanup");
+    cleanup_test_data(&pool, &test_id).await.expect("Failed to cleanup");
 }
 
 /// Simple validation test - verify runtime can start/stop without errors
@@ -790,8 +737,7 @@ async fn test_runtime_basic_lifecycle() {
         .expect("Failed to clean change log");
 
     // Create basic config
-    let config = ObserverRuntimeConfig::new(pool.clone())
-        .with_poll_interval(50);
+    let config = ObserverRuntimeConfig::new(pool.clone()).with_poll_interval(50);
 
     let mut runtime = ObserverRuntime::new(config);
 
@@ -807,7 +753,7 @@ async fn test_runtime_basic_lifecycle() {
     let mut runtime2 = ObserverRuntime::new(ObserverRuntimeConfig::new(pool));
     let start_result2 = runtime2.start().await;
     assert!(start_result2.is_ok(), "Failed to start runtime second time");
-    
+
     runtime2.stop().await.ok();
 }
 
@@ -850,18 +796,18 @@ async fn test_debug_event_processing() {
     .expect("Failed to create observer");
 
     // Check that observer was created
-    let observer_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM tb_observer WHERE enabled = true")
-        .fetch_one(&pool)
-        .await
-        .expect("Failed to count observers");
-    
+    let observer_count: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM tb_observer WHERE enabled = true")
+            .fetch_one(&pool)
+            .await
+            .expect("Failed to count observers");
+
     println!("✓ Created observer. Count in DB: {}", observer_count.0);
     assert_eq!(observer_count.0, 1, "Observer not in database");
 
     // Create and start runtime
-    let config = ObserverRuntimeConfig::new(pool.clone())
-        .with_poll_interval(10);  // Very fast polling
-    
+    let config = ObserverRuntimeConfig::new(pool.clone()).with_poll_interval(10); // Very fast polling
+
     let mut runtime = ObserverRuntime::new(config);
     runtime.start().await.expect("Failed to start runtime");
     println!("✓ Runtime started");
@@ -938,7 +884,7 @@ async fn test_observer_loading() {
 
     // Manually query observer to verify it's in database
     let observer: Option<(String, Option<String>, Option<String>)> = sqlx::query_as(
-        "SELECT name, entity_type, event_type FROM tb_observer WHERE name = 'load-test-observer'"
+        "SELECT name, entity_type, event_type FROM tb_observer WHERE name = 'load-test-observer'",
     )
     .fetch_optional(&pool)
     .await
@@ -951,12 +897,11 @@ async fn test_observer_loading() {
     println!("  event_type: {:?}", event_type);
 
     // Check actions column
-    let actions: Option<(serde_json::Value,)> = sqlx::query_as(
-        "SELECT actions FROM tb_observer WHERE name = 'load-test-observer'"
-    )
-    .fetch_optional(&pool)
-    .await
-    .expect("Failed to query actions");
+    let actions: Option<(serde_json::Value,)> =
+        sqlx::query_as("SELECT actions FROM tb_observer WHERE name = 'load-test-observer'")
+            .fetch_optional(&pool)
+            .await
+            .expect("Failed to query actions");
 
     if let Some((actions_json,)) = actions {
         println!("✓ Actions:");
@@ -1007,7 +952,7 @@ async fn test_runtime_loads_observers() {
     // Create and start runtime
     let config = ObserverRuntimeConfig::new(pool.clone());
     let mut runtime = ObserverRuntime::new(config);
-    
+
     // The start() method loads observers
     let start_result = runtime.start().await;
     println!("✓ Runtime.start() result: {:?}", start_result);
@@ -1018,7 +963,7 @@ async fn test_runtime_loads_observers() {
 
     // If runtime has a health method, check it
     // (can't check internal state easily, but if start works and observers load, good sign)
-    
+
     runtime.stop().await.ok();
     println!("✓ Runtime started and stopped successfully");
 }
@@ -1067,7 +1012,9 @@ async fn test_debug_debezium_envelope() {
     .await
     .expect("Query failed");
 
-    if let Some((pk, _fk_cust, obj_type, obj_id, mod_type, change_status, _created_at, obj_data)) = entry {
+    if let Some((pk, _fk_cust, obj_type, obj_id, mod_type, change_status, _created_at, obj_data)) =
+        entry
+    {
         println!("✓ Change log entry found:");
         println!("  pk: {}", pk);
         println!("  object_type: {}", obj_type);
@@ -1119,11 +1066,11 @@ async fn test_action_parsing() {
             for (i, action) in actions.iter().enumerate() {
                 println!("  Action {}: {:?}", i, action);
             }
-        }
+        },
         Err(e) => {
             println!("✗ Failed to parse actions: {}", e);
             panic!("Action parsing failed");
-        }
+        },
     }
 }
 
@@ -1165,12 +1112,11 @@ async fn test_with_longer_polling() {
     .expect("Failed to create observer");
 
     // Create runtime with VERY fast polling
-    let config = ObserverRuntimeConfig::new(pool.clone())
-        .with_poll_interval(5);  // 5ms polling
-    
+    let config = ObserverRuntimeConfig::new(pool.clone()).with_poll_interval(5); // 5ms polling
+
     let mut runtime = ObserverRuntime::new(config);
     runtime.start().await.expect("Failed to start runtime");
-    
+
     // Wait for runtime to fully initialize (background task)
     println!("Waiting for runtime initialization...");
     tokio::time::sleep(Duration::from_millis(100)).await;
@@ -1213,7 +1159,7 @@ async fn test_with_longer_polling() {
 
     if requests.is_empty() {
         println!("\nDEBUG: Checking database state...");
-        
+
         // Check change log
         let cl_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM core.tb_entity_change_log")
             .fetch_one(&pool)
@@ -1221,15 +1167,16 @@ async fn test_with_longer_polling() {
             .ok()
             .unwrap_or((0,));
         println!("  Change log entries: {}", cl_count.0);
-        
+
         // Check observer
-        let obs_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM tb_observer WHERE enabled = true")
-            .fetch_one(&pool)
-            .await
-            .ok()
-            .unwrap_or((0,));
+        let obs_count: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM tb_observer WHERE enabled = true")
+                .fetch_one(&pool)
+                .await
+                .ok()
+                .unwrap_or((0,));
         println!("  Observers enabled: {}", obs_count.0);
-        
+
         // Check observer log
         let logs: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM tb_observer_log")
             .fetch_one(&pool)
@@ -1279,38 +1226,42 @@ async fn test_listener_direct() {
     .expect("Failed to insert");
 
     // Create listener directly
-    let config = fraiseql_observers::listener::change_log::ChangeLogListenerConfig::new(pool.clone())
-        .with_poll_interval(10);
-    
+    let config =
+        fraiseql_observers::listener::change_log::ChangeLogListenerConfig::new(pool.clone())
+            .with_poll_interval(10);
+
     let mut listener = fraiseql_observers::listener::change_log::ChangeLogListener::new(config);
 
     println!("Calling listener.next_batch()...");
     let result = listener.next_batch().await;
-    
+
     match result {
         Ok(entries) => {
             println!("✓ Got {} entries from listener", entries.len());
             assert!(!entries.is_empty(), "Listener should have found entries");
-            
+
             for entry in entries {
-                println!("  Entry: pk={}, object_type={}, op={:?}", 
-                    entry.id, entry.object_type, 
-                    entry.object_data.get("op"));
-                
+                println!(
+                    "  Entry: pk={}, object_type={}, op={:?}",
+                    entry.id,
+                    entry.object_type,
+                    entry.object_data.get("op")
+                );
+
                 // Try to convert to EntityEvent
                 match entry.to_entity_event() {
                     Ok(event) => {
                         println!("    ✓ Converted to EntityEvent: {:?}", event.event_type);
-                    }
+                    },
                     Err(e) => {
                         println!("    ✗ Failed to convert: {}", e);
                         panic!("Failed to convert: {}", e);
-                    }
+                    },
                 }
             }
-        }
+        },
         Err(e) => {
             panic!("Listener failed: {}", e);
-        }
+        },
     }
 }

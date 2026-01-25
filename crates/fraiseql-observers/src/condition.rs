@@ -16,11 +16,15 @@
 //! let result = evaluator.evaluate(&ast, &event)?;
 //! ```
 
-use crate::error::{ObserverError, Result};
-use crate::event::EntityEvent;
+use std::fmt;
+
 use regex::Regex;
 use serde_json::Value;
-use std::fmt;
+
+use crate::{
+    error::{ObserverError, Result},
+    event::EntityEvent,
+};
 
 /// Abstract Syntax Tree for conditions
 #[derive(Debug, Clone, PartialEq)]
@@ -30,7 +34,7 @@ pub enum ConditionAst {
         /// Field name or path
         field: String,
         /// Operator: ==, !=, >, <, >=, <=
-        op: String,
+        op:    String,
         /// Value to compare against
         value: String,
     },
@@ -61,14 +65,14 @@ pub enum ConditionAst {
     /// Logical AND
     And {
         /// Left operand
-        left: Box<ConditionAst>,
+        left:  Box<ConditionAst>,
         /// Right operand
         right: Box<ConditionAst>,
     },
     /// Logical OR
     Or {
         /// Left operand
-        left: Box<ConditionAst>,
+        left:  Box<ConditionAst>,
         /// Right operand
         right: Box<ConditionAst>,
     },
@@ -84,15 +88,15 @@ impl fmt::Display for ConditionAst {
         match self {
             ConditionAst::Comparison { field, op, value } => {
                 write!(f, "{field} {op} {value}")
-            }
+            },
             ConditionAst::HasField { field } => write!(f, "has_field('{field}')"),
             ConditionAst::FieldChanged { field } => write!(f, "field_changed('{field}')"),
             ConditionAst::FieldChangedTo { field, value } => {
                 write!(f, "field_changed_to('{field}', '{value}')")
-            }
+            },
             ConditionAst::FieldChangedFrom { field, value } => {
                 write!(f, "field_changed_from('{field}', '{value}')")
-            }
+            },
             ConditionAst::And { left, right } => write!(f, "({left}) && ({right})"),
             ConditionAst::Or { left, right } => write!(f, "({left}) || ({right})"),
             ConditionAst::Not { expr } => write!(f, "!({expr})"),
@@ -106,19 +110,19 @@ pub struct ConditionParser {
     #[allow(dead_code)]
     comparison_re: Regex,
     #[allow(dead_code)]
-    function_re: Regex,
+    function_re:   Regex,
     #[allow(dead_code)]
     identifier_re: Regex,
 }
 
 impl ConditionParser {
     /// Create a new condition parser
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self {
             comparison_re: Regex::new(r"(\w+)\s*(==|!=|>|<|>=|<=)\s*('([^']*)')")
                 .expect("Invalid regex"),
-            function_re: Regex::new(r"(\w+)\s*\(\s*'([^']*)'\s*(?:,\s*'([^']*)'\s*)?\)")
+            function_re:   Regex::new(r"(\w+)\s*\(\s*'([^']*)'\s*(?:,\s*'([^']*)'\s*)?\)")
                 .expect("Invalid regex"),
             identifier_re: Regex::new(r"^[a-zA-Z_]\w*$").expect("Invalid regex"),
         }
@@ -148,30 +152,26 @@ impl ConditionParser {
         match ast {
             ConditionAst::Comparison { field, op, value } => {
                 self.eval_comparison(field, op, value, event)
-            }
+            },
             ConditionAst::HasField { field } => self.eval_has_field(field, event),
-            ConditionAst::FieldChanged { field } => {
-                Ok(event.field_changed(field))
-            }
+            ConditionAst::FieldChanged { field } => Ok(event.field_changed(field)),
             ConditionAst::FieldChangedTo { field, value } => {
                 let parsed_value = serde_json::from_str::<Value>(value)
                     .unwrap_or_else(|_| Value::String(value.clone()));
                 Ok(event.field_changed_to(field, &parsed_value))
-            }
+            },
             ConditionAst::FieldChangedFrom { field, value } => {
                 let parsed_value = serde_json::from_str::<Value>(value)
                     .unwrap_or_else(|_| Value::String(value.clone()));
                 Ok(event.field_changed_from(field, &parsed_value))
-            }
+            },
             ConditionAst::And { left, right } => {
                 Ok(self.evaluate(left, event)? && self.evaluate(right, event)?)
-            }
+            },
             ConditionAst::Or { left, right } => {
                 Ok(self.evaluate(left, event)? || self.evaluate(right, event)?)
-            }
-            ConditionAst::Not { expr } => {
-                Ok(!self.evaluate(expr, event)?)
-            }
+            },
+            ConditionAst::Not { expr } => Ok(!self.evaluate(expr, event)?),
         }
     }
 
@@ -192,16 +192,16 @@ impl ConditionParser {
                 // Skip whitespace
                 ' ' | '\t' | '\n' | '\r' => {
                     chars.next();
-                }
+                },
                 // Parentheses
                 '(' => {
                     tokens.push(Token::LParen);
                     chars.next();
-                }
+                },
                 ')' => {
                     tokens.push(Token::RParen);
                     chars.next();
-                }
+                },
                 // Logical NOT
                 '!' => {
                     chars.next();
@@ -221,7 +221,7 @@ impl ConditionParser {
                         });
                     }
                     tokens.push(Token::Not);
-                }
+                },
                 // Logical AND
                 '&' => {
                     chars.next();
@@ -233,7 +233,7 @@ impl ConditionParser {
                             reason: "Expected '&&', got single '&'".to_string(),
                         });
                     }
-                }
+                },
                 // Logical OR
                 '|' => {
                     chars.next();
@@ -245,7 +245,7 @@ impl ConditionParser {
                             reason: "Expected '||', got single '|'".to_string(),
                         });
                     }
-                }
+                },
                 // Identifier or comparison
                 _ if ch.is_alphabetic() || ch == '_' => {
                     let mut ident = String::new();
@@ -308,10 +308,7 @@ impl ConditionParser {
                             }
                         }
 
-                        tokens.push(Token::Function {
-                            name: ident,
-                            args,
-                        });
+                        tokens.push(Token::Function { name: ident, args });
                     } else {
                         // It might be a comparison
                         let mut op = String::new();
@@ -324,7 +321,14 @@ impl ConditionParser {
                             }
                         }
 
-                        if !op.is_empty() && (op == "==" || op == "!=" || op == ">" || op == "<" || op == ">=" || op == "<=") {
+                        if !op.is_empty()
+                            && (op == "=="
+                                || op == "!="
+                                || op == ">"
+                                || op == "<"
+                                || op == ">="
+                                || op == "<=")
+                        {
                             // Skip whitespace
                             while chars.peek().is_some_and(|c| c.is_whitespace()) {
                                 chars.next();
@@ -365,12 +369,12 @@ impl ConditionParser {
                             });
                         }
                     }
-                }
+                },
                 _ => {
                     return Err(ObserverError::InvalidCondition {
                         reason: format!("Unexpected character: {ch}"),
                     });
-                }
+                },
             }
         }
 
@@ -396,7 +400,7 @@ impl ConditionParser {
                 *pos += 1;
                 let right = self.parse_and(tokens, pos)?;
                 left = ConditionAst::Or {
-                    left: Box::new(left),
+                    left:  Box::new(left),
                     right: Box::new(right),
                 };
             } else {
@@ -415,7 +419,7 @@ impl ConditionParser {
                 *pos += 1;
                 let right = self.parse_not(tokens, pos)?;
                 left = ConditionAst::And {
-                    left: Box::new(left),
+                    left:  Box::new(left),
                     right: Box::new(right),
                 };
             } else {
@@ -427,14 +431,13 @@ impl ConditionParser {
     }
 
     fn parse_not(&self, tokens: &[Token], pos: &mut usize) -> Result<ConditionAst> {
-        if *pos < tokens.len()
-            && matches!(tokens[*pos], Token::Not) {
-                *pos += 1;
-                let expr = self.parse_not(tokens, pos)?;
-                return Ok(ConditionAst::Not {
-                    expr: Box::new(expr),
-                });
-            }
+        if *pos < tokens.len() && matches!(tokens[*pos], Token::Not) {
+            *pos += 1;
+            let expr = self.parse_not(tokens, pos)?;
+            return Ok(ConditionAst::Not {
+                expr: Box::new(expr),
+            });
+        }
 
         self.parse_primary(tokens, pos)
     }
@@ -457,21 +460,21 @@ impl ConditionParser {
                 }
                 *pos += 1;
                 Ok(ast)
-            }
+            },
             Token::Comparison { field, op, value } => {
                 let ast = ConditionAst::Comparison {
                     field: field.clone(),
-                    op: op.clone(),
+                    op:    op.clone(),
                     value: value.clone(),
                 };
                 *pos += 1;
                 Ok(ast)
-            }
+            },
             Token::Function { name, args } => {
                 let ast = self.parse_function(name, args)?;
                 *pos += 1;
                 Ok(ast)
-            }
+            },
             _ => Err(ObserverError::InvalidCondition {
                 reason: format!("Expected expression, got {:?}", tokens[*pos]),
             }),
@@ -483,43 +486,34 @@ impl ConditionParser {
             "has_field" => {
                 if args.len() != 1 {
                     return Err(ObserverError::InvalidCondition {
-                        reason: format!(
-                            "has_field expects 1 argument, got {}",
-                            args.len()
-                        ),
+                        reason: format!("has_field expects 1 argument, got {}", args.len()),
                     });
                 }
                 Ok(ConditionAst::HasField {
                     field: args[0].clone(),
                 })
-            }
+            },
             "field_changed" => {
                 if args.len() != 1 {
                     return Err(ObserverError::InvalidCondition {
-                        reason: format!(
-                            "field_changed expects 1 argument, got {}",
-                            args.len()
-                        ),
+                        reason: format!("field_changed expects 1 argument, got {}", args.len()),
                     });
                 }
                 Ok(ConditionAst::FieldChanged {
                     field: args[0].clone(),
                 })
-            }
+            },
             "field_changed_to" => {
                 if args.len() != 2 {
                     return Err(ObserverError::InvalidCondition {
-                        reason: format!(
-                            "field_changed_to expects 2 arguments, got {}",
-                            args.len()
-                        ),
+                        reason: format!("field_changed_to expects 2 arguments, got {}", args.len()),
                     });
                 }
                 Ok(ConditionAst::FieldChangedTo {
                     field: args[0].clone(),
                     value: args[1].clone(),
                 })
-            }
+            },
             "field_changed_from" => {
                 if args.len() != 2 {
                     return Err(ObserverError::InvalidCondition {
@@ -533,21 +527,27 @@ impl ConditionParser {
                     field: args[0].clone(),
                     value: args[1].clone(),
                 })
-            }
+            },
             _ => Err(ObserverError::InvalidCondition {
                 reason: format!("Unknown function: {name}"),
             }),
         }
     }
 
-    fn eval_comparison(&self, field: &str, op: &str, value: &str, event: &EntityEvent) -> Result<bool> {
+    fn eval_comparison(
+        &self,
+        field: &str,
+        op: &str,
+        value: &str,
+        event: &EntityEvent,
+    ) -> Result<bool> {
         let event_value = event.data.get(field).ok_or(ObserverError::InvalidCondition {
             reason: format!("Field not found: {field}"),
         })?;
 
         // Try to parse value as number first, then as string
-        let value_parsed: Value = serde_json::from_str(value)
-            .unwrap_or_else(|_| Value::String(value.to_string()));
+        let value_parsed: Value =
+            serde_json::from_str(value).unwrap_or_else(|_| Value::String(value.to_string()));
 
         match op {
             "==" => Ok(event_value == &value_parsed),
@@ -593,7 +593,7 @@ impl Default for ConditionParser {
 enum Token {
     Comparison {
         field: String,
-        op: String,
+        op:    String,
         value: String,
     },
     Function {
@@ -609,10 +609,11 @@ enum Token {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::event::EventKind;
     use serde_json::json;
     use uuid::Uuid;
+
+    use super::*;
+    use crate::event::EventKind;
 
     #[test]
     fn test_parse_simple_comparison() {
@@ -624,7 +625,7 @@ mod tests {
                 assert_eq!(field, "total");
                 assert_eq!(op, "==");
                 assert_eq!(value, "100");
-            }
+            },
             _ => panic!("Expected comparison"),
         }
     }
@@ -637,7 +638,7 @@ mod tests {
         match ast {
             ConditionAst::HasField { field } => {
                 assert_eq!(field, "status");
-            }
+            },
             _ => panic!("Expected has_field"),
         }
     }
@@ -651,7 +652,7 @@ mod tests {
             ConditionAst::FieldChangedTo { field, value } => {
                 assert_eq!(field, "status");
                 assert_eq!(value, "shipped");
-            }
+            },
             _ => panic!("Expected field_changed_to"),
         }
     }
@@ -665,7 +666,7 @@ mod tests {
             ConditionAst::And { left, right } => {
                 assert!(matches!(*left, ConditionAst::Comparison { .. }));
                 assert!(matches!(*right, ConditionAst::FieldChangedTo { .. }));
-            }
+            },
             _ => panic!("Expected AND"),
         }
     }
@@ -676,7 +677,7 @@ mod tests {
         let ast = parser.parse("status == 'pending' || status == 'processing'").unwrap();
 
         match ast {
-            ConditionAst::Or { .. } => {}
+            ConditionAst::Or { .. } => {},
             _ => panic!("Expected OR"),
         }
     }
@@ -687,7 +688,7 @@ mod tests {
         let ast = parser.parse("!has_field('deleted_at')").unwrap();
 
         match ast {
-            ConditionAst::Not { .. } => {}
+            ConditionAst::Not { .. } => {},
             _ => panic!("Expected NOT"),
         }
     }
@@ -695,12 +696,10 @@ mod tests {
     #[test]
     fn test_parse_parentheses() {
         let parser = ConditionParser::new();
-        let ast = parser
-            .parse("(total > 100) && (status == 'shipped')")
-            .unwrap();
+        let ast = parser.parse("(total > 100) && (status == 'shipped')").unwrap();
 
         match ast {
-            ConditionAst::And { .. } => {}
+            ConditionAst::And { .. } => {},
             _ => panic!("Expected AND"),
         }
     }
@@ -715,14 +714,10 @@ mod tests {
             json!({"total": 150, "status": "pending"}),
         );
 
-        let result = parser
-            .parse_and_evaluate("total > 100", &event)
-            .unwrap();
+        let result = parser.parse_and_evaluate("total > 100", &event).unwrap();
         assert!(result);
 
-        let result = parser
-            .parse_and_evaluate("total < 100", &event)
-            .unwrap();
+        let result = parser.parse_and_evaluate("total < 100", &event).unwrap();
         assert!(!result);
     }
 
@@ -736,14 +731,10 @@ mod tests {
             json!({"status": "pending"}),
         );
 
-        let result = parser
-            .parse_and_evaluate("status == 'pending'", &event)
-            .unwrap();
+        let result = parser.parse_and_evaluate("status == 'pending'", &event).unwrap();
         assert!(result);
 
-        let result = parser
-            .parse_and_evaluate("status == 'shipped'", &event)
-            .unwrap();
+        let result = parser.parse_and_evaluate("status == 'shipped'", &event).unwrap();
         assert!(!result);
     }
 
@@ -757,14 +748,10 @@ mod tests {
             json!({"total": 100}),
         );
 
-        let result = parser
-            .parse_and_evaluate("has_field('total')", &event)
-            .unwrap();
+        let result = parser.parse_and_evaluate("has_field('total')", &event).unwrap();
         assert!(result);
 
-        let result = parser
-            .parse_and_evaluate("has_field('nonexistent')", &event)
-            .unwrap();
+        let result = parser.parse_and_evaluate("has_field('nonexistent')", &event).unwrap();
         assert!(!result);
     }
 
@@ -778,14 +765,12 @@ mod tests {
             json!({"total": 150, "status": "shipped"}),
         );
 
-        let result = parser
-            .parse_and_evaluate("total > 100 && status == 'shipped'", &event)
-            .unwrap();
+        let result =
+            parser.parse_and_evaluate("total > 100 && status == 'shipped'", &event).unwrap();
         assert!(result);
 
-        let result = parser
-            .parse_and_evaluate("total > 100 && status == 'pending'", &event)
-            .unwrap();
+        let result =
+            parser.parse_and_evaluate("total > 100 && status == 'pending'", &event).unwrap();
         assert!(!result);
     }
 
@@ -820,14 +805,10 @@ mod tests {
             json!({"total": 100}),
         );
 
-        let result = parser
-            .parse_and_evaluate("!has_field('deleted_at')", &event)
-            .unwrap();
+        let result = parser.parse_and_evaluate("!has_field('deleted_at')", &event).unwrap();
         assert!(result);
 
-        let result = parser
-            .parse_and_evaluate("!has_field('total')", &event)
-            .unwrap();
+        let result = parser.parse_and_evaluate("!has_field('total')", &event).unwrap();
         assert!(!result);
     }
 

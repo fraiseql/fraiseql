@@ -2,8 +2,10 @@
 //!
 //! Format: Plain token in X-Gitlab-Token header
 
-use crate::webhooks::signature::{constant_time_eq, SignatureError};
-use crate::webhooks::traits::SignatureVerifier;
+use crate::webhooks::{
+    signature::{SignatureError, constant_time_eq},
+    traits::SignatureVerifier,
+};
 
 pub struct GitLabVerifier;
 

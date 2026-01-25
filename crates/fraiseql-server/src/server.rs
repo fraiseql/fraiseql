@@ -4,56 +4,52 @@ use std::sync::Arc;
 
 use axum::{Router, middleware, routing::get};
 use fraiseql_core::{
-    db::traits::DatabaseAdapter, runtime::{Executor, SubscriptionManager}, schema::CompiledSchema,
+    db::traits::DatabaseAdapter,
+    runtime::{Executor, SubscriptionManager},
+    schema::CompiledSchema,
     security::OidcValidator,
 };
 use tokio::net::TcpListener;
-use tracing::{info, warn};
-
 #[cfg(feature = "observers")]
 use tracing::error;
-
-#[cfg(feature = "arrow")]
-use {
-    fraiseql_arrow::FraiseQLFlightService,
-    tonic::transport::Server as GrpcServer,
-};
-
-use crate::{
-    Result, ServerError,
-    server_config::ServerConfig,
-    middleware::{
-        BearerAuthState, OidcAuthState, bearer_auth_middleware, cors_layer, metrics_middleware,
-        oidc_auth_middleware, trace_layer,
-    },
-    routes::{
-        PlaygroundState, SubscriptionState, graphql::AppState, graphql_get_handler, graphql_handler,
-        health_handler, introspection_handler, metrics_handler, metrics_json_handler, playground_handler,
-        subscription_handler,
-    },
-};
-
+use tracing::{info, warn};
 #[cfg(feature = "observers")]
 use {
     crate::observers::{ObserverRuntime, ObserverRuntimeConfig},
     tokio::sync::RwLock,
 };
+#[cfg(feature = "arrow")]
+use {fraiseql_arrow::FraiseQLFlightService, tonic::transport::Server as GrpcServer};
+
+use crate::{
+    Result, ServerError,
+    middleware::{
+        BearerAuthState, OidcAuthState, bearer_auth_middleware, cors_layer, metrics_middleware,
+        oidc_auth_middleware, trace_layer,
+    },
+    routes::{
+        PlaygroundState, SubscriptionState, graphql::AppState, graphql_get_handler,
+        graphql_handler, health_handler, introspection_handler, metrics_handler,
+        metrics_json_handler, playground_handler, subscription_handler,
+    },
+    server_config::ServerConfig,
+};
 
 /// FraiseQL HTTP Server.
 pub struct Server<A: DatabaseAdapter> {
-    config:                ServerConfig,
-    executor:              Arc<Executor<A>>,
-    subscription_manager:  Arc<SubscriptionManager>,
-    oidc_validator:        Option<Arc<OidcValidator>>,
+    config:               ServerConfig,
+    executor:             Arc<Executor<A>>,
+    subscription_manager: Arc<SubscriptionManager>,
+    oidc_validator:       Option<Arc<OidcValidator>>,
 
     #[cfg(feature = "observers")]
-    observer_runtime:      Option<Arc<RwLock<ObserverRuntime>>>,
+    observer_runtime: Option<Arc<RwLock<ObserverRuntime>>>,
 
     #[cfg(feature = "observers")]
-    db_pool:               Option<sqlx::PgPool>,
+    db_pool: Option<sqlx::PgPool>,
 
     #[cfg(feature = "arrow")]
-    flight_service:        Option<FraiseQLFlightService>,
+    flight_service: Option<FraiseQLFlightService>,
 }
 
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
@@ -85,8 +81,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         config: ServerConfig,
         schema: CompiledSchema,
         adapter: Arc<A>,
-        #[allow(unused_variables)]
-        db_pool: Option<sqlx::PgPool>,
+        #[allow(unused_variables)] db_pool: Option<sqlx::PgPool>,
     ) -> Result<Self> {
         let executor = Arc::new(Executor::new(schema.clone(), adapter));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
@@ -139,7 +134,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             _ => {
                 info!("Observer runtime disabled");
                 return None;
-            }
+            },
         };
 
         let pool = match pool {
@@ -147,7 +142,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             None => {
                 warn!("No database pool provided for observers");
                 return None;
-            }
+            },
         };
 
         info!("Initializing observer runtime");
@@ -277,12 +272,15 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// Add observer-related routes to the router
     #[cfg(feature = "observers")]
     fn add_observer_routes(&self, app: Router) -> Router {
-        use crate::observers::{observer_routes, observer_runtime_routes, ObserverRepository, ObserverState, RuntimeHealthState};
+        use crate::observers::{
+            ObserverRepository, ObserverState, RuntimeHealthState, observer_routes,
+            observer_runtime_routes,
+        };
 
         // Management API (always available with feature)
         let observer_state = ObserverState {
             repository: ObserverRepository::new(
-                self.db_pool.clone().expect("Pool required for observers")
+                self.db_pool.clone().expect("Pool required for observers"),
             ),
         };
 
@@ -290,7 +288,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
         // Runtime health API (only if runtime present)
         if let Some(ref runtime) = self.observer_runtime {
-            info!(path = "/api/observers", "Observer management and runtime health endpoints enabled");
+            info!(
+                path = "/api/observers",
+                "Observer management and runtime health endpoints enabled"
+            );
 
             let runtime_state = RuntimeHealthState {
                 runtime: runtime.clone(),
@@ -327,7 +328,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 Err(e) => {
                     error!("Failed to start observer runtime: {}", e);
                     warn!("Server will continue without observers");
-                }
+                },
             }
             drop(guard);
         }

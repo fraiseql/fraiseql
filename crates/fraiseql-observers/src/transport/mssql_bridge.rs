@@ -30,26 +30,27 @@
 //! - **At-least-once delivery**: Events may be published multiple times
 //! - **Crash recovery**: Checkpoint-based resumption from last processed ID
 
-#[cfg(all(feature = "mssql", feature = "nats"))]
-use super::{EventTransport, NatsTransport};
-use crate::error::{ObserverError, Result};
-use crate::event::EntityEvent;
-use async_trait::async_trait;
-use chrono::{DateTime, Utc};
-use serde_json::Value;
-use std::sync::Arc;
-use std::time::Duration;
-use tracing::{debug, error, info, warn};
-use uuid::Uuid;
+use std::{sync::Arc, time::Duration};
 
+use async_trait::async_trait;
 #[cfg(feature = "mssql")]
 use bb8::Pool;
 #[cfg(feature = "mssql")]
 use bb8_tiberius::ConnectionManager;
+use chrono::{DateTime, Utc};
+use serde_json::Value;
 #[cfg(feature = "mssql")]
 use tiberius::{Query, Row};
+use tracing::{debug, error, info, warn};
+use uuid::Uuid;
 
 use super::CheckpointStore;
+#[cfg(all(feature = "mssql", feature = "nats"))]
+use super::{EventTransport, NatsTransport};
+use crate::{
+    error::{ObserverError, Result},
+    event::EntityEvent,
+};
 
 /// Type alias for SQL Server connection pool.
 #[cfg(feature = "mssql")]
@@ -86,24 +87,17 @@ impl CheckpointStore for MSSQLCheckpointStore {
             reason: format!("MSSQL pool get failed: {e}"),
         })?;
 
-        let mut query = Query::new(
-            "SELECT last_pk FROM tb_transport_checkpoint WHERE transport_name = @P1",
-        );
+        let mut query =
+            Query::new("SELECT last_pk FROM tb_transport_checkpoint WHERE transport_name = @P1");
         query.bind(transport_name);
 
-        let stream = query
-            .query(&mut *conn)
-            .await
-            .map_err(|e| ObserverError::DatabaseError {
-                reason: format!("MSSQL checkpoint query failed: {e}"),
-            })?;
+        let stream = query.query(&mut *conn).await.map_err(|e| ObserverError::DatabaseError {
+            reason: format!("MSSQL checkpoint query failed: {e}"),
+        })?;
 
-        let row = stream
-            .into_row()
-            .await
-            .map_err(|e| ObserverError::DatabaseError {
-                reason: format!("MSSQL checkpoint fetch failed: {e}"),
-            })?;
+        let row = stream.into_row().await.map_err(|e| ObserverError::DatabaseError {
+            reason: format!("MSSQL checkpoint fetch failed: {e}"),
+        })?;
 
         match row {
             Some(r) => {
@@ -111,7 +105,7 @@ impl CheckpointStore for MSSQLCheckpointStore {
                     reason: "MSSQL checkpoint: missing last_pk column".to_string(),
                 })?;
                 Ok(Some(last_pk))
-            }
+            },
             None => Ok(None),
         }
     }
@@ -126,12 +120,9 @@ impl CheckpointStore for MSSQLCheckpointStore {
         query.bind(transport_name);
         query.bind(cursor);
 
-        query
-            .execute(&mut *conn)
-            .await
-            .map_err(|e| ObserverError::DatabaseError {
-                reason: format!("MSSQL checkpoint save failed: {e}"),
-            })?;
+        query.execute(&mut *conn).await.map_err(|e| ObserverError::DatabaseError {
+            reason: format!("MSSQL checkpoint save failed: {e}"),
+        })?;
 
         Ok(())
     }
@@ -141,15 +132,13 @@ impl CheckpointStore for MSSQLCheckpointStore {
             reason: format!("MSSQL pool get failed: {e}"),
         })?;
 
-        let mut query = Query::new("DELETE FROM tb_transport_checkpoint WHERE transport_name = @P1");
+        let mut query =
+            Query::new("DELETE FROM tb_transport_checkpoint WHERE transport_name = @P1");
         query.bind(transport_name);
 
-        query
-            .execute(&mut *conn)
-            .await
-            .map_err(|e| ObserverError::DatabaseError {
-                reason: format!("MSSQL checkpoint delete failed: {e}"),
-            })?;
+        query.execute(&mut *conn).await.map_err(|e| ObserverError::DatabaseError {
+            reason: format!("MSSQL checkpoint delete failed: {e}"),
+        })?;
 
         Ok(())
     }
@@ -219,7 +208,7 @@ impl MSSQLChangeLogEntry {
                 return Err(ObserverError::InvalidConfig {
                     message: format!("Unknown modification type: {other}"),
                 });
-            }
+            },
         };
 
         let event_id = self.nats_event_id.unwrap_or_else(Uuid::new_v4);
@@ -272,11 +261,11 @@ impl MSSQLChangeLogEntry {
 
         // JSON columns are NVARCHAR(MAX), parse as needed
         let object_data_str: Option<&str> = row.get(8);
-        let object_data = object_data_str
-            .map(|s| serde_json::from_str(s))
-            .transpose()
-            .map_err(|e| ObserverError::DatabaseError {
-                reason: format!("Invalid object_data JSON: {e}"),
+        let object_data =
+            object_data_str.map(|s| serde_json::from_str(s)).transpose().map_err(|e| {
+                ObserverError::DatabaseError {
+                    reason: format!("Invalid object_data JSON: {e}"),
+                }
             })?;
 
         let extra_metadata_str: Option<&str> = row.get(9);
@@ -340,8 +329,8 @@ pub struct MSSQLBridgeConfig {
 impl Default for MSSQLBridgeConfig {
     fn default() -> Self {
         Self {
-            transport_name: "mssql_to_nats".to_string(),
-            batch_size: 100,
+            transport_name:     "mssql_to_nats".to_string(),
+            batch_size:         100,
             poll_interval_secs: 1,
         }
     }
@@ -371,10 +360,10 @@ impl Default for MSSQLBridgeConfig {
 /// 4. At-least-once delivery (consumers must be idempotent)
 #[cfg(all(feature = "mssql", feature = "nats"))]
 pub struct MSSQLNatsBridge {
-    pool: MSSQLPool,
-    nats_transport: Arc<NatsTransport>,
+    pool:             MSSQLPool,
+    nats_transport:   Arc<NatsTransport>,
     checkpoint_store: Arc<dyn CheckpointStore>,
-    config: MSSQLBridgeConfig,
+    config:           MSSQLBridgeConfig,
 }
 
 #[cfg(all(feature = "mssql", feature = "nats"))]
@@ -416,9 +405,7 @@ impl MSSQLNatsBridge {
 
     /// Save cursor checkpoint.
     async fn save_cursor(&self, cursor: i64) -> Result<()> {
-        self.checkpoint_store
-            .save_checkpoint(&self.config.transport_name, cursor)
-            .await
+        self.checkpoint_store.save_checkpoint(&self.config.transport_name, cursor).await
     }
 
     /// Fetch batch from cursor.
@@ -448,12 +435,9 @@ impl MSSQLNatsBridge {
         // Note: batch_size is handled via TOP literal for simplicity
         let _ = batch_size; // Suppress unused warning
 
-        let stream = query
-            .query(&mut *conn)
-            .await
-            .map_err(|e| ObserverError::DatabaseError {
-                reason: format!("MSSQL fetch batch query failed: {e}"),
-            })?;
+        let stream = query.query(&mut *conn).await.map_err(|e| ObserverError::DatabaseError {
+            reason: format!("MSSQL fetch batch query failed: {e}"),
+        })?;
 
         let rows = stream.into_first_result().await.map_err(|e| ObserverError::DatabaseError {
             reason: format!("MSSQL fetch batch failed: {e}"),
@@ -485,12 +469,9 @@ impl MSSQLNatsBridge {
         query.bind(event_id);
         query.bind(pk_change_log);
 
-        let result = query
-            .execute(&mut *conn)
-            .await
-            .map_err(|e| ObserverError::DatabaseError {
-                reason: format!("MSSQL mark_published failed: {e}"),
-            })?;
+        let result = query.execute(&mut *conn).await.map_err(|e| ObserverError::DatabaseError {
+            reason: format!("MSSQL mark_published failed: {e}"),
+        })?;
 
         // rows_affected() returns a slice of counts per statement
         let total_affected: u64 = result.rows_affected().iter().sum();
@@ -502,10 +483,7 @@ impl MSSQLNatsBridge {
     /// SQL Server has no LISTEN/NOTIFY, so this uses
     /// pure polling with configurable interval.
     pub async fn run(&self) -> Result<()> {
-        info!(
-            "Starting MSSQL → NATS bridge: {}",
-            self.config.transport_name
-        );
+        info!("Starting MSSQL → NATS bridge: {}", self.config.transport_name);
 
         let mut cursor = self.load_cursor().await?;
         info!("Bridge starting from cursor: {cursor}");
@@ -514,11 +492,7 @@ impl MSSQLNatsBridge {
             let entries = self.fetch_batch_from_cursor(cursor).await?;
 
             if !entries.is_empty() {
-                debug!(
-                    "Processing {} entries from cursor {}",
-                    entries.len(),
-                    cursor
-                );
+                debug!("Processing {} entries from cursor {}", entries.len(), cursor);
 
                 for entry in entries {
                     // Check if already published (skip if so)
@@ -541,15 +515,14 @@ impl MSSQLNatsBridge {
                             );
                             cursor = entry.pk_entity_change_log;
                             continue;
-                        }
+                        },
                     };
 
                     // Publish to NATS JetStream
                     match self.nats_transport.publish(event.clone()).await {
                         Ok(()) => {
-                            let was_first = self
-                                .mark_published(entry.pk_entity_change_log, event.id)
-                                .await?;
+                            let was_first =
+                                self.mark_published(entry.pk_entity_change_log, event.id).await?;
 
                             if was_first {
                                 debug!(
@@ -564,24 +537,21 @@ impl MSSQLNatsBridge {
                             }
 
                             cursor = entry.pk_entity_change_log;
-                        }
+                        },
                         Err(e) => {
                             error!(
                                 "Failed to publish event {} to NATS: {}. Will retry.",
                                 event.id, e
                             );
                             break;
-                        }
+                        },
                     }
                 }
 
                 self.save_cursor(cursor).await?;
             } else {
                 // No entries, wait for poll interval
-                debug!(
-                    "No new entries, sleeping for {}s",
-                    self.config.poll_interval_secs
-                );
+                debug!("No new entries, sleeping for {}s", self.config.poll_interval_secs);
                 tokio::time::sleep(Duration::from_secs(self.config.poll_interval_secs)).await;
             }
         }
@@ -626,20 +596,19 @@ impl MSSQLNatsBridge {
                             );
                             cursor = entry.pk_entity_change_log;
                             continue;
-                        }
+                        },
                     };
 
                     match self.nats_transport.publish(event.clone()).await {
                         Ok(()) => {
-                            let _ = self
-                                .mark_published(entry.pk_entity_change_log, event.id)
-                                .await?;
+                            let _ =
+                                self.mark_published(entry.pk_entity_change_log, event.id).await?;
                             cursor = entry.pk_entity_change_log;
-                        }
+                        },
                         Err(e) => {
                             error!("Failed to publish event {}: {}. Retrying.", event.id, e);
                             break;
-                        }
+                        },
                     }
                 }
 
@@ -692,13 +661,11 @@ pub async fn create_mssql_pool(connection_string: &str) -> Result<MSSQLPool> {
 
     let manager = ConnectionManager::new(config);
 
-    Pool::builder()
-        .max_size(10)
-        .build(manager)
-        .await
-        .map_err(|e| ObserverError::TransportConnectionFailed {
+    Pool::builder().max_size(10).build(manager).await.map_err(|e| {
+        ObserverError::TransportConnectionFailed {
             reason: format!("Failed to create SQL Server connection pool: {e}"),
-        })
+        }
+    })
 }
 
 // ============================================================================
@@ -724,18 +691,18 @@ mod tests {
 
         let entry = MSSQLChangeLogEntry {
             pk_entity_change_log: 1,
-            id: Uuid::new_v4(),
-            fk_customer_org: Some(123),
-            fk_contact: Some(456),
-            object_type: "Order".to_string(),
-            object_id: Uuid::new_v4(),
-            modification_type: "INSERT".to_string(),
-            change_status: None,
-            object_data: Some(serde_json::json!({"total": 100})),
-            extra_metadata: None,
-            created_at: Utc::now(),
-            nats_published_at: None,
-            nats_event_id: None,
+            id:                   Uuid::new_v4(),
+            fk_customer_org:      Some(123),
+            fk_contact:           Some(456),
+            object_type:          "Order".to_string(),
+            object_id:            Uuid::new_v4(),
+            modification_type:    "INSERT".to_string(),
+            change_status:        None,
+            object_data:          Some(serde_json::json!({"total": 100})),
+            extra_metadata:       None,
+            created_at:           Utc::now(),
+            nats_published_at:    None,
+            nats_event_id:        None,
         };
 
         let event = entry.to_entity_event().unwrap();
@@ -750,18 +717,18 @@ mod tests {
 
         let entry = MSSQLChangeLogEntry {
             pk_entity_change_log: 2,
-            id: Uuid::new_v4(),
-            fk_customer_org: None,
-            fk_contact: None,
-            object_type: "User".to_string(),
-            object_id: Uuid::new_v4(),
-            modification_type: "UPDATE".to_string(),
-            change_status: None,
-            object_data: None,
-            extra_metadata: None,
-            created_at: Utc::now(),
-            nats_published_at: None,
-            nats_event_id: None,
+            id:                   Uuid::new_v4(),
+            fk_customer_org:      None,
+            fk_contact:           None,
+            object_type:          "User".to_string(),
+            object_id:            Uuid::new_v4(),
+            modification_type:    "UPDATE".to_string(),
+            change_status:        None,
+            object_data:          None,
+            extra_metadata:       None,
+            created_at:           Utc::now(),
+            nats_published_at:    None,
+            nats_event_id:        None,
         };
 
         let event = entry.to_entity_event().unwrap();
@@ -774,18 +741,18 @@ mod tests {
 
         let entry = MSSQLChangeLogEntry {
             pk_entity_change_log: 3,
-            id: Uuid::new_v4(),
-            fk_customer_org: None,
-            fk_contact: None,
-            object_type: "Product".to_string(),
-            object_id: Uuid::new_v4(),
-            modification_type: "DELETE".to_string(),
-            change_status: None,
-            object_data: None,
-            extra_metadata: None,
-            created_at: Utc::now(),
-            nats_published_at: None,
-            nats_event_id: None,
+            id:                   Uuid::new_v4(),
+            fk_customer_org:      None,
+            fk_contact:           None,
+            object_type:          "Product".to_string(),
+            object_id:            Uuid::new_v4(),
+            modification_type:    "DELETE".to_string(),
+            change_status:        None,
+            object_data:          None,
+            extra_metadata:       None,
+            created_at:           Utc::now(),
+            nats_published_at:    None,
+            nats_event_id:        None,
         };
 
         let event = entry.to_entity_event().unwrap();
@@ -796,18 +763,18 @@ mod tests {
     fn test_mssql_change_log_entry_invalid_modification_type() {
         let entry = MSSQLChangeLogEntry {
             pk_entity_change_log: 4,
-            id: Uuid::new_v4(),
-            fk_customer_org: None,
-            fk_contact: None,
-            object_type: "Test".to_string(),
-            object_id: Uuid::new_v4(),
-            modification_type: "INVALID".to_string(),
-            change_status: None,
-            object_data: None,
-            extra_metadata: None,
-            created_at: Utc::now(),
-            nats_published_at: None,
-            nats_event_id: None,
+            id:                   Uuid::new_v4(),
+            fk_customer_org:      None,
+            fk_contact:           None,
+            object_type:          "Test".to_string(),
+            object_id:            Uuid::new_v4(),
+            modification_type:    "INVALID".to_string(),
+            change_status:        None,
+            object_data:          None,
+            extra_metadata:       None,
+            created_at:           Utc::now(),
+            nats_published_at:    None,
+            nats_event_id:        None,
         };
 
         let result = entry.to_entity_event();

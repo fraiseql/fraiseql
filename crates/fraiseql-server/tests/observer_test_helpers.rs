@@ -9,13 +9,15 @@
 
 #![allow(dead_code)] // Some helpers may not be used in all test files
 
+use std::{sync::Arc, time::Duration};
+
 use serde_json::json;
 use sqlx::PgPool;
-use std::sync::Arc;
-use std::time::Duration;
 use tokio::sync::Mutex;
-use wiremock::{Mock, MockServer, ResponseTemplate};
-use wiremock::matchers::{method, path};
+use wiremock::{
+    Mock, MockServer, ResponseTemplate,
+    matchers::{method, path},
+};
 
 /// Get database URL from environment or use default
 pub fn get_database_url() -> String {
@@ -35,9 +37,7 @@ pub async fn create_test_pool() -> PgPool {
 /// Set up all observer-related tables for testing
 pub async fn setup_observer_schema(pool: &PgPool) -> Result<(), sqlx::Error> {
     // 1. Create core schema
-    sqlx::query("CREATE SCHEMA IF NOT EXISTS core")
-        .execute(pool)
-        .await?;
+    sqlx::query("CREATE SCHEMA IF NOT EXISTS core").execute(pool).await?;
 
     // 2. Create tb_entity_change_log (with Debezium envelope)
     sqlx::query(
@@ -172,7 +172,7 @@ pub async fn cleanup_test_data(pool: &PgPool, test_id: &str) -> Result<(), sqlx:
 /// Mock webhook server with request tracking
 pub struct MockWebhookServer {
     pub server: MockServer,
-    requests: Arc<Mutex<Vec<serde_json::Value>>>,
+    requests:   Arc<Mutex<Vec<serde_json::Value>>>,
 }
 
 impl MockWebhookServer {
@@ -192,16 +192,15 @@ impl MockWebhookServer {
             .and(path("/webhook"))
             .respond_with(move |req: &wiremock::Request| {
                 // Capture request body
-                let body: serde_json::Value = serde_json::from_slice(&req.body)
-                    .unwrap_or_else(|_| serde_json::json!({}));
+                let body: serde_json::Value =
+                    serde_json::from_slice(&req.body).unwrap_or_else(|_| serde_json::json!({}));
 
                 // Use try_lock() instead of blocking_lock() to avoid panic in async context
                 if let Ok(mut reqs) = requests.try_lock() {
                     reqs.push(body.clone());
                 }
 
-                ResponseTemplate::new(200)
-                    .set_body_json(serde_json::json!({"status": "success"}))
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({"status": "success"}))
             })
             .mount(&self.server)
             .await;
@@ -232,8 +231,8 @@ impl MockWebhookServer {
                 if current_count <= fail_count {
                     ResponseTemplate::new(500)
                 } else {
-                    let body: serde_json::Value = serde_json::from_slice(&req.body)
-                        .unwrap_or_else(|_| serde_json::json!({}));
+                    let body: serde_json::Value =
+                        serde_json::from_slice(&req.body).unwrap_or_else(|_| serde_json::json!({}));
 
                     if let Ok(mut reqs) = requests.try_lock() {
                         reqs.push(body.clone());
@@ -268,8 +267,8 @@ impl MockWebhookServer {
         Mock::given(method("POST"))
             .and(path("/webhook"))
             .respond_with(move |req: &wiremock::Request| {
-                let body: serde_json::Value = serde_json::from_slice(&req.body)
-                    .unwrap_or_else(|_| serde_json::json!({}));
+                let body: serde_json::Value =
+                    serde_json::from_slice(&req.body).unwrap_or_else(|_| serde_json::json!({}));
 
                 if let Ok(mut reqs) = requests.try_lock() {
                     reqs.push(body.clone());
@@ -342,7 +341,7 @@ pub async fn create_test_observer(
 /// Insert a change log entry with Debezium envelope
 pub async fn insert_change_log_entry(
     pool: &PgPool,
-    event_type: &str,  // INSERT, UPDATE, DELETE
+    event_type: &str, // INSERT, UPDATE, DELETE
     entity_type: &str,
     entity_id: &str,
     data: serde_json::Value,
@@ -433,30 +432,15 @@ pub async fn assert_observer_log(
     .await
     .unwrap();
 
-    assert!(
-        row.is_some(),
-        "No observer log entry found for entity {}",
-        entity_id
-    );
+    assert!(row.is_some(), "No observer log entry found for entity {}", entity_id);
     let (status, attempts, duration) = row.unwrap();
-    assert_eq!(
-        status, expected_status,
-        "Expected status {}, got {}",
-        expected_status, status
-    );
+    assert_eq!(status, expected_status, "Expected status {}, got {}", expected_status, status);
 
     if let Some(expected) = expected_attempts {
-        assert_eq!(
-            attempts, expected,
-            "Expected {} attempts, got {}",
-            expected, attempts
-        );
+        assert_eq!(attempts, expected, "Expected {} attempts, got {}", expected, attempts);
     }
 
-    assert!(
-        duration.is_some() && duration.unwrap() > 0,
-        "Duration should be positive"
-    );
+    assert!(duration.is_some() && duration.unwrap() > 0, "Duration should be positive");
 }
 
 /// Assert webhook payload structure
@@ -465,36 +449,20 @@ pub fn assert_webhook_payload(
     expected_entity_id: &str,
     expected_field_value: Option<(&str, &str)>,
 ) {
-    assert!(
-        payload["after"]["id"].as_str().is_some(),
-        "Webhook payload missing after.id"
-    );
-    assert_eq!(
-        payload["after"]["id"].as_str().unwrap(),
-        expected_entity_id
-    );
+    assert!(payload["after"]["id"].as_str().is_some(), "Webhook payload missing after.id");
+    assert_eq!(payload["after"]["id"].as_str().unwrap(), expected_entity_id);
 
     if let Some((field, value)) = expected_field_value {
-        assert_eq!(
-            payload["after"][field].as_str().unwrap(),
-            value,
-            "Field {} mismatch",
-            field
-        );
+        assert_eq!(payload["after"][field].as_str().unwrap(), value, "Field {} mismatch", field);
     }
 }
 
 /// Get count of observer logs with specific status
-pub async fn get_observer_log_count(
-    pool: &PgPool,
-    status: &str,
-) -> Result<i64, sqlx::Error> {
-    let count: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM tb_observer_log WHERE status = $1",
-    )
-    .bind(status)
-    .fetch_one(pool)
-    .await?;
+pub async fn get_observer_log_count(pool: &PgPool, status: &str) -> Result<i64, sqlx::Error> {
+    let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM tb_observer_log WHERE status = $1")
+        .bind(status)
+        .fetch_one(pool)
+        .await?;
 
     Ok(count.0)
 }
@@ -522,27 +490,22 @@ pub async fn check_checkpoint_exists(
     pool: &PgPool,
     listener_id: &str,
 ) -> Result<bool, sqlx::Error> {
-    let row: Option<(i64,)> = sqlx::query_as(
-        "SELECT COUNT(*) FROM observer_checkpoints WHERE listener_id = $1",
-    )
-    .bind(listener_id)
-    .fetch_optional(pool)
-    .await?;
+    let row: Option<(i64,)> =
+        sqlx::query_as("SELECT COUNT(*) FROM observer_checkpoints WHERE listener_id = $1")
+            .bind(listener_id)
+            .fetch_optional(pool)
+            .await?;
 
     Ok(row.map(|(count,)| count > 0).unwrap_or(false))
 }
 
 /// Get checkpoint value (last processed ID) for a listener
-pub async fn get_checkpoint_value(
-    pool: &PgPool,
-    listener_id: &str,
-) -> Result<i64, sqlx::Error> {
-    let row: Option<(i64,)> = sqlx::query_as(
-        "SELECT last_processed_id FROM observer_checkpoints WHERE listener_id = $1",
-    )
-    .bind(listener_id)
-    .fetch_optional(pool)
-    .await?;
+pub async fn get_checkpoint_value(pool: &PgPool, listener_id: &str) -> Result<i64, sqlx::Error> {
+    let row: Option<(i64,)> =
+        sqlx::query_as("SELECT last_processed_id FROM observer_checkpoints WHERE listener_id = $1")
+            .bind(listener_id)
+            .fetch_optional(pool)
+            .await?;
 
     Ok(row.map(|(id,)| id).unwrap_or(0))
 }
@@ -562,9 +525,7 @@ pub async fn wait_for_runtime_events(
                 "Timeout waiting for {} events with status {}. Got: {:?}",
                 expected_count,
                 expected_status,
-                get_observer_log_count(pool, expected_status)
-                    .await
-                    .unwrap_or(0)
+                get_observer_log_count(pool, expected_status).await.unwrap_or(0)
             );
         }
 

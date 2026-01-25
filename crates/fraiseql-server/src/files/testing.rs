@@ -1,40 +1,41 @@
 //! Mock implementations for testing
 
+use std::{collections::HashMap, sync::Mutex, time::Duration};
+
 use async_trait::async_trait;
 use bytes::Bytes;
-use std::collections::HashMap;
-use std::sync::Mutex;
-use std::time::Duration;
 
-use crate::files::config::{FileConfig, ProcessingConfig};
-use crate::files::error::{FileError, ProcessingError, ScanError, StorageError};
-use crate::files::processing::ProcessedImages;
-use crate::files::traits::{
-    FileValidator, ImageProcessor, MalwareScanner, ScanResult, StorageBackend, StorageMetadata,
-    StorageResult, ValidatedFile,
+use crate::files::{
+    config::{FileConfig, ProcessingConfig},
+    error::{FileError, ProcessingError, ScanError, StorageError},
+    processing::ProcessedImages,
+    traits::{
+        FileValidator, ImageProcessor, MalwareScanner, ScanResult, StorageBackend, StorageMetadata,
+        StorageResult, ValidatedFile,
+    },
 };
 
 /// In-memory storage for testing
 pub struct MockStorage {
-    files: Mutex<HashMap<String, MockFile>>,
+    files:           Mutex<HashMap<String, MockFile>>,
     public_url_base: String,
     /// Simulate failures for specific keys
-    pub fail_keys: Mutex<Vec<String>>,
+    pub fail_keys:   Mutex<Vec<String>>,
 }
 
 #[derive(Clone)]
 struct MockFile {
-    data: Bytes,
+    data:          Bytes,
     _content_type: String,
-    metadata: StorageMetadata,
+    metadata:      StorageMetadata,
 }
 
 impl MockStorage {
     pub fn new() -> Self {
         Self {
-            files: Mutex::new(HashMap::new()),
+            files:           Mutex::new(HashMap::new()),
             public_url_base: "https://mock-storage.test".to_string(),
-            fail_keys: Mutex::new(Vec::new()),
+            fail_keys:       Mutex::new(Vec::new()),
         }
     }
 
@@ -90,11 +91,11 @@ impl StorageBackend for MockStorage {
                 data,
                 _content_type: content_type.to_string(),
                 metadata: metadata.cloned().unwrap_or_else(|| StorageMetadata {
-                    content_type: content_type.to_string(),
+                    content_type:   content_type.to_string(),
                     content_length: size,
-                    etag: Some(format!("\"{}\"", uuid::Uuid::new_v4())),
-                    last_modified: Some(chrono::Utc::now()),
-                    custom: HashMap::new(),
+                    etag:           Some(format!("\"{}\"", uuid::Uuid::new_v4())),
+                    last_modified:  Some(chrono::Utc::now()),
+                    custom:         HashMap::new(),
                 }),
             },
         );
@@ -108,14 +109,11 @@ impl StorageBackend for MockStorage {
     }
 
     async fn download(&self, key: &str) -> Result<Bytes, StorageError> {
-        self.files
-            .lock()
-            .unwrap()
-            .get(key)
-            .map(|f| f.data.clone())
-            .ok_or_else(|| StorageError::NotFound {
+        self.files.lock().unwrap().get(key).map(|f| f.data.clone()).ok_or_else(|| {
+            StorageError::NotFound {
                 key: key.to_string(),
-            })
+            }
+        })
     }
 
     async fn delete(&self, key: &str) -> Result<(), StorageError> {
@@ -128,14 +126,11 @@ impl StorageBackend for MockStorage {
     }
 
     async fn metadata(&self, key: &str) -> Result<StorageMetadata, StorageError> {
-        self.files
-            .lock()
-            .unwrap()
-            .get(key)
-            .map(|f| f.metadata.clone())
-            .ok_or_else(|| StorageError::NotFound {
+        self.files.lock().unwrap().get(key).map(|f| f.metadata.clone()).ok_or_else(|| {
+            StorageError::NotFound {
                 key: key.to_string(),
-            })
+            }
+        })
     }
 
     async fn signed_url(&self, key: &str, expiry: Duration) -> Result<String, StorageError> {
@@ -143,12 +138,7 @@ impl StorageBackend for MockStorage {
             + chrono::Duration::from_std(expiry).map_err(|e| StorageError::Provider {
                 message: e.to_string(),
             })?;
-        Ok(format!(
-            "{}{}?expires={}",
-            self.public_url_base,
-            key,
-            expires.timestamp()
-        ))
+        Ok(format!("{}{}?expires={}", self.public_url_base, key, expires.timestamp()))
     }
 
     fn public_url(&self, key: &str) -> String {
@@ -159,16 +149,16 @@ impl StorageBackend for MockStorage {
 /// Mock validator that accepts/rejects based on configuration
 pub struct MockValidator {
     pub allowed_types: Vec<String>,
-    pub max_size: usize,
-    pub reject_files: Mutex<Vec<String>>,
+    pub max_size:      usize,
+    pub reject_files:  Mutex<Vec<String>>,
 }
 
 impl MockValidator {
     pub fn permissive() -> Self {
         Self {
             allowed_types: vec!["*/*".to_string()],
-            max_size: usize::MAX,
-            reject_files: Mutex::new(Vec::new()),
+            max_size:      usize::MAX,
+            reject_files:  Mutex::new(Vec::new()),
         }
     }
 
@@ -181,10 +171,7 @@ impl MockValidator {
     }
 
     pub fn reject(&self, filename: &str) {
-        self.reject_files
-            .lock()
-            .unwrap()
-            .push(filename.to_string());
+        self.reject_files.lock().unwrap().push(filename.to_string());
     }
 }
 
@@ -196,14 +183,9 @@ impl FileValidator for MockValidator {
         filename: &str,
         _config: &FileConfig,
     ) -> Result<ValidatedFile, FileError> {
-        if self
-            .reject_files
-            .lock()
-            .unwrap()
-            .contains(&filename.to_string())
-        {
+        if self.reject_files.lock().unwrap().contains(&filename.to_string()) {
             return Err(FileError::InvalidType {
-                got: declared_type.to_string(),
+                got:     declared_type.to_string(),
                 allowed: self.allowed_types.clone(),
             });
         }
@@ -211,7 +193,7 @@ impl FileValidator for MockValidator {
         if data.len() > self.max_size {
             return Err(FileError::TooLarge {
                 size: data.len(),
-                max: self.max_size,
+                max:  self.max_size,
             });
         }
 
@@ -219,16 +201,16 @@ impl FileValidator for MockValidator {
             && !self.allowed_types.contains(&declared_type.to_string())
         {
             return Err(FileError::InvalidType {
-                got: declared_type.to_string(),
+                got:     declared_type.to_string(),
                 allowed: self.allowed_types.clone(),
             });
         }
 
         Ok(ValidatedFile {
-            content_type: declared_type.to_string(),
+            content_type:       declared_type.to_string(),
             sanitized_filename: sanitize_filename(filename),
-            size: data.len(),
-            detected_type: None,
+            size:               data.len(),
+            detected_type:      None,
         })
     }
 }
@@ -236,21 +218,21 @@ impl FileValidator for MockValidator {
 /// Mock image processor that returns predefined variants
 pub struct MockImageProcessor {
     pub should_fail: bool,
-    pub variants: Vec<String>,
+    pub variants:    Vec<String>,
 }
 
 impl MockImageProcessor {
     pub fn new(variants: Vec<&str>) -> Self {
         Self {
             should_fail: false,
-            variants: variants.iter().map(|s| (*s).to_string()).collect(),
+            variants:    variants.iter().map(|s| (*s).to_string()).collect(),
         }
     }
 
     pub fn failing() -> Self {
         Self {
             should_fail: true,
-            variants: Vec::new(),
+            variants:    Vec::new(),
         }
     }
 }
@@ -273,10 +255,7 @@ impl ImageProcessor for MockImageProcessor {
 
         for variant in &self.variants {
             // Create slightly smaller "processed" data
-            variants.insert(
-                variant.clone(),
-                data.slice(..data.len().saturating_sub(100)),
-            );
+            variants.insert(variant.clone(), data.slice(..data.len().saturating_sub(100)));
         }
 
         Ok(ProcessedImages { variants })
@@ -296,10 +275,7 @@ impl MockMalwareScanner {
     }
 
     pub fn with_threat(self, data: &[u8], threat_name: &str) -> Self {
-        self.threats
-            .lock()
-            .unwrap()
-            .insert(data.to_vec(), threat_name.to_string());
+        self.threats.lock().unwrap().insert(data.to_vec(), threat_name.to_string());
         self
     }
 }
@@ -310,14 +286,14 @@ impl MalwareScanner for MockMalwareScanner {
         let threats = self.threats.lock().unwrap();
         if let Some(threat_name) = threats.get(data.as_ref()) {
             Ok(ScanResult {
-                clean: false,
-                threat_name: Some(threat_name.clone()),
+                clean:           false,
+                threat_name:     Some(threat_name.clone()),
                 scanner_version: "mock-1.0".to_string(),
             })
         } else {
             Ok(ScanResult {
-                clean: true,
-                threat_name: None,
+                clean:           true,
+                threat_name:     None,
                 scanner_version: "mock-1.0".to_string(),
             })
         }

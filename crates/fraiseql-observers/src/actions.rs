@@ -7,12 +7,16 @@
 //!
 //! Each action handles template rendering, retry logic, and error handling.
 
-use crate::error::{ObserverError, Result};
-use crate::event::EntityEvent;
-use reqwest::Client;
-use serde_json::{json, Value};
 use std::collections::HashMap;
+
+use reqwest::Client;
+use serde_json::{Value, json};
 use tracing::{debug, info};
+
+use crate::{
+    error::{ObserverError, Result},
+    event::EntityEvent,
+};
 
 /// Webhook action executor
 pub struct WebhookAction {
@@ -22,7 +26,7 @@ pub struct WebhookAction {
 
 impl WebhookAction {
     /// Create a new webhook action executor
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self {
             client: Client::new(),
@@ -53,7 +57,10 @@ impl WebhookAction {
             event.data.clone()
         };
 
-        info!("  Body: {}", serde_json::to_string(&body).unwrap_or_else(|_| "<invalid json>".to_string()));
+        info!(
+            "  Body: {}",
+            serde_json::to_string(&body).unwrap_or_else(|_| "<invalid json>".to_string())
+        );
 
         // Build request
         let mut request = self.client.post(url);
@@ -66,13 +73,14 @@ impl WebhookAction {
         info!("  Sending HTTP POST...");
 
         // Send request
-        let response = request
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| ObserverError::ActionExecutionFailed {
-                reason: format!("HTTP request failed: {e}"),
-            })?;
+        let response =
+            request
+                .json(&body)
+                .send()
+                .await
+                .map_err(|e| ObserverError::ActionExecutionFailed {
+                    reason: format!("HTTP request failed: {e}"),
+                })?;
 
         let status = response.status();
         let duration_ms = start.elapsed().as_secs_f64() * 1000.0;
@@ -120,7 +128,7 @@ pub struct WebhookResponse {
     /// HTTP status code
     pub status_code: u16,
     /// Whether execution was successful
-    pub success: bool,
+    pub success:     bool,
     /// Duration in milliseconds
     pub duration_ms: f64,
 }
@@ -133,7 +141,7 @@ pub struct SlackAction {
 
 impl SlackAction {
     /// Create a new Slack action executor
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self {
             client: Client::new(),
@@ -173,15 +181,11 @@ impl SlackAction {
         }
 
         // Send request
-        let response = self
-            .client
-            .post(webhook_url)
-            .json(&payload)
-            .send()
-            .await
-            .map_err(|e| ObserverError::ActionExecutionFailed {
+        let response = self.client.post(webhook_url).json(&payload).send().await.map_err(|e| {
+            ObserverError::ActionExecutionFailed {
                 reason: format!("Slack webhook failed: {e}"),
-            })?;
+            }
+        })?;
 
         let status = response.status();
         let duration_ms = start.elapsed().as_secs_f64() * 1000.0;
@@ -229,7 +233,7 @@ pub struct SlackResponse {
     /// HTTP status code
     pub status_code: u16,
     /// Whether execution was successful
-    pub success: bool,
+    pub success:     bool,
     /// Duration in milliseconds
     pub duration_ms: f64,
 }
@@ -241,7 +245,7 @@ pub struct EmailAction {
 
 impl EmailAction {
     /// Create a new email action executor
-    #[must_use] 
+    #[must_use]
     pub const fn new() -> Self {
         Self {}
     }
@@ -256,8 +260,8 @@ impl EmailAction {
     ) -> Result<EmailResponse> {
         // Stub: will be implemented with real SMTP in Phase 6.4
         Ok(EmailResponse {
-            success: true,
-            message_id: Some(uuid::Uuid::new_v4().to_string()),
+            success:     true,
+            message_id:  Some(uuid::Uuid::new_v4().to_string()),
             duration_ms: 10.0,
         })
     }
@@ -273,9 +277,9 @@ impl Default for EmailAction {
 #[derive(Debug, Clone)]
 pub struct EmailResponse {
     /// Whether execution was successful
-    pub success: bool,
+    pub success:     bool,
     /// Message ID from provider (if available)
-    pub message_id: Option<String>,
+    pub message_id:  Option<String>,
     /// Duration in milliseconds
     pub duration_ms: f64,
 }
@@ -286,7 +290,7 @@ pub struct ActionExecutionResult {
     /// Action type (webhook, slack, email, etc.)
     pub action_type: String,
     /// Success status
-    pub success: bool,
+    pub success:     bool,
     /// Duration in milliseconds
     pub duration_ms: f64,
     /// Optional message ID or tracking info
@@ -295,9 +299,10 @@ pub struct ActionExecutionResult {
 
 #[cfg(test)]
 mod tests {
+    use serde_json::json;
+
     use super::*;
     use crate::event::EventKind;
-    use serde_json::json;
 
     #[test]
     fn test_webhook_action_creation() {
@@ -330,10 +335,7 @@ mod tests {
             json!({"total": 100}),
         );
 
-        let result = email
-            .execute("user@example.com", "Test", None, &event)
-            .await
-            .unwrap();
+        let result = email.execute("user@example.com", "Test", None, &event).await.unwrap();
 
         assert!(result.success);
         assert!(result.message_id.is_some());
@@ -359,9 +361,7 @@ mod tests {
         let data = json!({"status": "shipped", "order_id": "12345"});
         let template = "Order {{ order_id }} has been {{ status }}";
 
-        let result = slack
-            .render_message_template(template, &data)
-            .unwrap();
+        let result = slack.render_message_template(template, &data).unwrap();
 
         assert_eq!(result, "Order 12345 has been shipped");
     }
@@ -370,7 +370,7 @@ mod tests {
     fn test_action_execution_result() {
         let result = ActionExecutionResult {
             action_type: "webhook".to_string(),
-            success: true,
+            success:     true,
             duration_ms: 42.5,
             tracking_id: Some("abc123".to_string()),
         };

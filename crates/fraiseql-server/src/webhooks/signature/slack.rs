@@ -3,10 +3,13 @@
 //! Format: `v0=<hex>` with timestamp in separate header
 //! Algorithm: HMAC-SHA256 of `v0:<timestamp>:<body>`
 
-use crate::webhooks::signature::{constant_time_eq, SignatureError};
-use crate::webhooks::traits::SignatureVerifier;
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
+
+use crate::webhooks::{
+    signature::{SignatureError, constant_time_eq},
+    traits::SignatureVerifier,
+};
 
 pub struct SlackVerifier;
 
@@ -27,9 +30,7 @@ impl SignatureVerifier for SlackVerifier {
         timestamp: Option<&str>,
     ) -> Result<bool, SignatureError> {
         // Slack format: v0=<hex>
-        let sig_hex = signature
-            .strip_prefix("v0=")
-            .ok_or(SignatureError::InvalidFormat)?;
+        let sig_hex = signature.strip_prefix("v0=").ok_or(SignatureError::InvalidFormat)?;
 
         let timestamp = timestamp.ok_or(SignatureError::MissingTimestamp)?;
 

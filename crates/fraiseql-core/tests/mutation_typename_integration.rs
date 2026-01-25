@@ -36,7 +36,6 @@ fn test_mutation_definition_has_return_type_field() {
         // Access return_type - this verifies field exists
         let _return_type = &mutation.return_type;
     }
-
 }
 
 #[test]
@@ -63,8 +62,7 @@ fn test_mutation_typename_consistency() {
     let schema = CompiledSchema::default();
 
     // Collect all type names defined in schema
-    let _type_names: std::collections::HashSet<_> =
-        schema.types.iter().map(|t| &t.name).collect();
+    let _type_names: std::collections::HashSet<_> = schema.types.iter().map(|t| &t.name).collect();
 
     // Each mutation's return_type should reference a defined type
     for mutation in &schema.mutations {
@@ -73,7 +71,6 @@ fn test_mutation_typename_consistency() {
         // For default schema, both are empty, so this validates structure exists
         let _mutation_return = &mutation.return_type;
     }
-
 }
 
 #[test]
@@ -92,7 +89,6 @@ fn test_mutation_return_type_not_mixed_with_operation_field() {
         // These are distinct and must not interfere
         // The presence of both verifies proper separation
     }
-
 }
 
 #[test]
@@ -107,7 +103,6 @@ fn test_schema_types_have_names_for_typename_field() {
         // Name should be non-empty for real types (empty in default schema)
         // This validates the field exists for typename purposes
     }
-
 }
 
 #[test]
@@ -129,7 +124,6 @@ fn test_mutation_typename_tracking_structure() {
         let _return_type_ref = &mutation.return_type;
         // In a populated schema, this would match one of the type names
     }
-
 }
 
 #[test]
@@ -155,7 +149,6 @@ fn test_mutation_response_structure_includes_typename_mechanism() {
         // In real execution, this would be looked up: schema.types.find(name == return_type_name)
         // This structure enables __typename field generation
     }
-
 }
 
 #[test]

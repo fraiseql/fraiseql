@@ -13,22 +13,20 @@
 pub mod config;
 pub mod signature;
 pub mod testing;
-pub mod transaction;
 pub mod traits;
+pub mod transaction;
 
 // Re-exports
 pub use config::{WebhookConfig, WebhookEventConfig};
 pub use signature::SignatureError;
-pub use transaction::{execute_in_transaction, WebhookIsolation};
-pub use traits::{Clock, EventHandler, IdempotencyStore, SecretProvider, SignatureVerifier};
-
 // Re-export testing mocks for tests
 #[cfg(test)]
 pub use testing::mocks;
-
 // Also export mocks for integration tests (tests/ directory)
 #[cfg(not(test))]
 pub use testing::mocks;
+pub use traits::{Clock, EventHandler, IdempotencyStore, SecretProvider, SignatureVerifier};
+pub use transaction::{WebhookIsolation, execute_in_transaction};
 
 /// Webhook-specific errors
 #[derive(Debug, thiserror::Error)]
@@ -44,8 +42,8 @@ pub enum WebhookError {
 
     #[error("Timestamp expired (received: {received}, now: {now}, tolerance: {tolerance}s)")]
     TimestampExpired {
-        received: i64,
-        now: i64,
+        received:  i64,
+        now:       i64,
         tolerance: u64,
     },
 

@@ -86,12 +86,11 @@ pub async fn execute_query_as_arrow(
     // Split rows into batches and convert each
     let mut batches = Vec::new();
     for chunk in rows.chunks(batch_size) {
-        let batch = converter.convert_batch(chunk.to_vec()).map_err(|e| {
-            FraiseQLError::Internal {
+        let batch =
+            converter.convert_batch(chunk.to_vec()).map_err(|e| FraiseQLError::Internal {
                 message: format!("Arrow conversion error: {e}"),
                 source:  None,
-            }
-        })?;
+            })?;
         batches.push(batch);
     }
 
@@ -153,9 +152,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_execute_query_as_arrow_returns_batches() {
-        let batches = execute_query_as_arrow("{ users { id name } }", None, 10_000)
-            .await
-            .unwrap();
+        let batches = execute_query_as_arrow("{ users { id name } }", None, 10_000).await.unwrap();
 
         // Should have 1 batch (10 rows with batch_size=10_000)
         assert_eq!(batches.len(), 1);
@@ -165,9 +162,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_execute_query_with_small_batch_size() {
-        let batches = execute_query_as_arrow("{ users { id name } }", None, 3)
-            .await
-            .unwrap();
+        let batches = execute_query_as_arrow("{ users { id name } }", None, 3).await.unwrap();
 
         // Should have 4 batches: 3+3+3+1 rows
         assert_eq!(batches.len(), 4);
@@ -179,9 +174,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_schema_structure() {
-        let batches = execute_query_as_arrow("{ users { id name } }", None, 10_000)
-            .await
-            .unwrap();
+        let batches = execute_query_as_arrow("{ users { id name } }", None, 10_000).await.unwrap();
 
         let schema = batches[0].schema();
         assert_eq!(schema.fields().len(), 2);

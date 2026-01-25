@@ -76,7 +76,8 @@ impl SqlServerAdapter {
     /// # Arguments
     ///
     /// * `connection_string` - SQL Server connection string
-    /// * `min_size` - Minimum pool size (bb8 doesn't support this; connections are created on-demand)
+    /// * `min_size` - Minimum pool size (bb8 doesn't support this; connections are created
+    ///   on-demand)
     /// * `max_size` - Maximum number of connections in pool
     ///
     /// # Note on min_size
@@ -98,7 +99,10 @@ impl SqlServerAdapter {
         max_size: u32,
     ) -> Result<Self> {
         if min_size > 0 {
-            eprintln!("Warning: SQL Server adapter does not support min_size parameter (min_size={}) - connections are created on-demand. Consider warmup_connections() if pre-allocation is needed.", min_size);
+            eprintln!(
+                "Warning: SQL Server adapter does not support min_size parameter (min_size={}) - connections are created on-demand. Consider warmup_connections() if pre-allocation is needed.",
+                min_size
+            );
         }
         Self::with_pool_size(connection_string, max_size).await
     }

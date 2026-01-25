@@ -48,11 +48,11 @@ pub type IndexedColumnsCache = HashMap<String, HashSet<String>>;
 ///
 /// This struct uses `Cell<usize>` for the parameter counter. This is safe because:
 ///
-/// 1. **Single-threaded usage**: Each WHERE generator is created for a single
-///    query execution and isn't shared across async tasks.
+/// 1. **Single-threaded usage**: Each WHERE generator is created for a single query execution and
+///    isn't shared across async tasks.
 ///
-/// 2. **Reset per call**: The counter is reset at the start of `generate()`,
-///    ensuring no state leakage between calls.
+/// 2. **Reset per call**: The counter is reset at the start of `generate()`, ensuring no state
+///    leakage between calls.
 ///
 /// 3. **Performance**: Avoids mutex overhead for a simple counter that needs frequent updates.
 ///

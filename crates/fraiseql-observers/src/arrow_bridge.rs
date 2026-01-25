@@ -3,10 +3,14 @@
 //! This module provides conversion from EntityEvent to Arrow RecordBatches
 //! for high-performance event streaming and analytics.
 
-use crate::event::EntityEvent;
-use arrow::array::{Array, RecordBatch, StringBuilder, TimestampMicrosecondBuilder};
-use arrow::error::ArrowError;
 use std::sync::Arc;
+
+use arrow::{
+    array::{Array, RecordBatch, StringBuilder, TimestampMicrosecondBuilder},
+    error::ArrowError,
+};
+
+use crate::event::EntityEvent;
 
 /// Convert a batch of EntityEvents to Arrow RecordBatch.
 ///
@@ -62,12 +66,10 @@ impl EventToArrowConverter {
         // Create builders for each column
         let mut event_id_builder = StringBuilder::with_capacity(events.len(), events.len() * 36);
         let mut event_type_builder = StringBuilder::with_capacity(events.len(), events.len() * 10);
-        let mut entity_type_builder =
-            StringBuilder::with_capacity(events.len(), events.len() * 20);
+        let mut entity_type_builder = StringBuilder::with_capacity(events.len(), events.len() * 20);
         let mut entity_id_builder = StringBuilder::with_capacity(events.len(), events.len() * 36);
-        let mut timestamp_builder =
-            TimestampMicrosecondBuilder::with_capacity(events.len())
-                .with_timezone(Arc::from("UTC"));
+        let mut timestamp_builder = TimestampMicrosecondBuilder::with_capacity(events.len())
+            .with_timezone(Arc::from("UTC"));
         let mut data_builder = StringBuilder::with_capacity(events.len(), events.len() * 500);
         let mut user_id_builder = StringBuilder::with_capacity(events.len(), events.len() * 36);
         let mut org_id_builder = StringBuilder::with_capacity(events.len(), events.len() * 36);
@@ -124,10 +126,11 @@ impl EventToArrowConverter {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::event::EventKind;
     use serde_json::json;
     use uuid::Uuid;
+
+    use super::*;
+    use crate::event::EventKind;
 
     #[test]
     fn test_convert_single_event() {
@@ -188,12 +191,8 @@ mod tests {
 
     #[test]
     fn test_null_user_id() {
-        let event = EntityEvent::new(
-            EventKind::Created,
-            "Order".to_string(),
-            Uuid::new_v4(),
-            json!({}),
-        );
+        let event =
+            EntityEvent::new(EventKind::Created, "Order".to_string(), Uuid::new_v4(), json!({}));
 
         let converter = EventToArrowConverter::new(10_000);
         let batch = converter.convert_events(&[event]).unwrap();
@@ -205,30 +204,10 @@ mod tests {
     #[test]
     fn test_event_types() {
         let events = vec![
-            EntityEvent::new(
-                EventKind::Created,
-                "Order".to_string(),
-                Uuid::new_v4(),
-                json!({}),
-            ),
-            EntityEvent::new(
-                EventKind::Updated,
-                "Order".to_string(),
-                Uuid::new_v4(),
-                json!({}),
-            ),
-            EntityEvent::new(
-                EventKind::Deleted,
-                "Order".to_string(),
-                Uuid::new_v4(),
-                json!({}),
-            ),
-            EntityEvent::new(
-                EventKind::Custom,
-                "Order".to_string(),
-                Uuid::new_v4(),
-                json!({}),
-            ),
+            EntityEvent::new(EventKind::Created, "Order".to_string(), Uuid::new_v4(), json!({})),
+            EntityEvent::new(EventKind::Updated, "Order".to_string(), Uuid::new_v4(), json!({})),
+            EntityEvent::new(EventKind::Deleted, "Order".to_string(), Uuid::new_v4(), json!({})),
+            EntityEvent::new(EventKind::Custom, "Order".to_string(), Uuid::new_v4(), json!({})),
         ];
 
         let converter = EventToArrowConverter::new(10_000);

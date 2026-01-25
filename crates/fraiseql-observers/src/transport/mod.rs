@@ -29,14 +29,15 @@
 //! - **Transport-managed reconnection**: Transports handle retry/backoff internally
 //! - **At-least-once delivery**: Transport ACKs after `ObserverExecutor` processes event
 
-use crate::error::Result;
-use crate::event::EntityEvent;
-use async_trait::async_trait;
-use futures::Stream;
 use std::pin::Pin;
 
-pub mod postgres_notify;
+use async_trait::async_trait;
+use futures::Stream;
+
+use crate::{error::Result, event::EntityEvent};
+
 pub mod in_memory;
+pub mod postgres_notify;
 
 #[cfg(feature = "nats")]
 pub mod nats;
@@ -50,27 +51,23 @@ pub mod mysql_bridge;
 #[cfg(all(feature = "mssql", feature = "nats"))]
 pub mod mssql_bridge;
 
-pub use postgres_notify::PostgresNotifyTransport;
-pub use in_memory::InMemoryTransport;
-
-#[cfg(feature = "nats")]
-pub use nats::{NatsConfig, NatsTransport};
-
 #[cfg(all(feature = "postgres", feature = "nats"))]
 pub use bridge::{
     BridgeConfig, ChangeLogEntry, CheckpointStore, PostgresCheckpointStore, PostgresNatsBridge,
 };
-
+pub use in_memory::InMemoryTransport;
+#[cfg(all(feature = "mssql", feature = "nats"))]
+pub use mssql_bridge::{
+    MSSQLBridgeConfig, MSSQLChangeLogEntry, MSSQLCheckpointStore, MSSQLNatsBridge, MSSQLPool,
+    create_mssql_pool,
+};
 #[cfg(all(feature = "mysql", feature = "nats"))]
 pub use mysql_bridge::{
     MySQLBridgeConfig, MySQLChangeLogEntry, MySQLCheckpointStore, MySQLNatsBridge,
 };
-
-#[cfg(all(feature = "mssql", feature = "nats"))]
-pub use mssql_bridge::{
-    create_mssql_pool, MSSQLBridgeConfig, MSSQLChangeLogEntry, MSSQLCheckpointStore,
-    MSSQLNatsBridge, MSSQLPool,
-};
+#[cfg(feature = "nats")]
+pub use nats::{NatsConfig, NatsTransport};
+pub use postgres_notify::PostgresNotifyTransport;
 
 /// Event stream type (async stream of `EntityEvents`)
 pub type EventStream = Pin<Box<dyn Stream<Item = Result<EntityEvent>> + Send>>;
@@ -107,7 +104,7 @@ pub trait EventTransport: Send + Sync {
     /// Health check (optional, default implementation)
     async fn health_check(&self) -> Result<TransportHealth> {
         Ok(TransportHealth {
-            status: HealthStatus::Healthy,
+            status:  HealthStatus::Healthy,
             message: None,
         })
     }
@@ -139,16 +136,16 @@ pub struct EventFilter {
     /// Filter by entity type (None = all types)
     pub entity_type: Option<String>,
     /// Filter by operation (INSERT/UPDATE/DELETE)
-    pub operation: Option<String>,
+    pub operation:   Option<String>,
     /// Filter by tenant ID
-    pub tenant_id: Option<String>,
+    pub tenant_id:   Option<String>,
 }
 
 /// Transport health status
 #[derive(Debug, Clone)]
 pub struct TransportHealth {
     /// Health status
-    pub status: HealthStatus,
+    pub status:  HealthStatus,
     /// Optional message (for degraded/unhealthy states)
     pub message: Option<String>,
 }

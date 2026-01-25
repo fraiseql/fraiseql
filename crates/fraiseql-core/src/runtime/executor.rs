@@ -14,8 +14,7 @@
 //! with their own `tokio::time::timeout()` or use `tokio_util::task::AbortOnDrop`
 //! for task lifecycle management.
 
-use std::sync::Arc;
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use super::{ExecutionContext, QueryMatcher, QueryPlanner, ResultProjector, RuntimeConfig};
 #[cfg(test)]
@@ -63,12 +62,14 @@ enum QueryType {
 ///
 /// The executor holds owned references to schema and runtime data, with no borrowed pointers:
 /// - `schema`: Owned `CompiledSchema` (immutable after construction)
-/// - `adapter`: Shared via `Arc<A>` to allow multiple executors/tasks to use the same connection pool
+/// - `adapter`: Shared via `Arc<A>` to allow multiple executors/tasks to use the same connection
+///   pool
 /// - `introspection`: Owned cached GraphQL schema responses
 /// - `config`: Owned runtime configuration
 ///
 /// **No explicit lifetimes required** - all data is either owned or wrapped in `Arc`,
-/// so the executor can be stored in long-lived structures without lifetime annotations or borrow-checker issues.
+/// so the executor can be stored in long-lived structures without lifetime annotations or
+/// borrow-checker issues.
 ///
 /// # Concurrency
 ///
@@ -199,7 +200,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                     };
                     FraiseQLError::Timeout {
                         timeout_ms: self.config.query_timeout_ms,
-                        query: Some(query_snippet),
+                        query:      Some(query_snippet),
                     }
                 })?
         } else {
@@ -1043,7 +1044,7 @@ mod tests {
             FraiseQLError::Cancelled { query_id, reason } => {
                 assert_eq!(query_id, "test-query-2");
                 assert!(reason.contains("before execution"));
-            }
+            },
             e => panic!("Expected Cancelled error, got: {}", e),
         }
     }

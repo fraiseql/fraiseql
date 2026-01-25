@@ -69,16 +69,20 @@
 //! let result = cached_webhook.execute(&event, &action).await?;
 //! ```
 
+use std::sync::Arc;
+
+use tracing::{debug, warn};
+
 #[cfg(feature = "caching")]
 use crate::cache::{CacheBackend, CachedActionResult};
-use crate::config::ActionConfig;
-use crate::error::Result;
-use crate::event::EntityEvent;
-use crate::traits::{ActionExecutor, ActionResult};
 #[cfg(feature = "metrics")]
 use crate::metrics::MetricsRegistry;
-use std::sync::Arc;
-use tracing::{debug, warn};
+use crate::{
+    config::ActionConfig,
+    error::Result,
+    event::EntityEvent,
+    traits::{ActionExecutor, ActionResult},
+};
 
 /// `ActionExecutor` wrapper with caching support.
 ///
@@ -105,9 +109,9 @@ use tracing::{debug, warn};
 #[cfg(feature = "caching")]
 pub struct CachedActionExecutor<E: ActionExecutor, C: CacheBackend> {
     /// Inner action executor
-    inner: E,
+    inner:   E,
     /// Cache backend
-    cache: Arc<C>,
+    cache:   Arc<C>,
     /// Prometheus metrics registry
     #[cfg(feature = "metrics")]
     metrics: MetricsRegistry,
@@ -153,7 +157,9 @@ impl<E: ActionExecutor, C: CacheBackend> CachedActionExecutor<E, C> {
 
 #[cfg(feature = "caching")]
 #[async_trait::async_trait]
-impl<E: ActionExecutor + Send + Sync, C: CacheBackend + Send + Sync> ActionExecutor for CachedActionExecutor<E, C> {
+impl<E: ActionExecutor + Send + Sync, C: CacheBackend + Send + Sync> ActionExecutor
+    for CachedActionExecutor<E, C>
+{
     async fn execute(&self, event: &EntityEvent, action: &ActionConfig) -> Result<ActionResult> {
         let cache_key = Self::cache_key(event, action);
 
@@ -167,17 +173,17 @@ impl<E: ActionExecutor + Send + Sync, C: CacheBackend + Send + Sync> ActionExecu
 
                 return Ok(ActionResult {
                     action_type: cached_result.action_type,
-                    success: cached_result.success,
-                    message: cached_result.message,
+                    success:     cached_result.success,
+                    message:     cached_result.message,
                     duration_ms: cached_result.duration_ms,
                 });
-            }
+            },
             Ok(None) => {
                 // Cache miss - execute action
                 debug!("Cache MISS for action key: {}", cache_key);
                 #[cfg(feature = "metrics")]
                 self.metrics.cache_miss();
-            }
+            },
             Err(e) => {
                 // Cache check failed - log warning and execute anyway (fail-open)
                 warn!(
@@ -187,7 +193,7 @@ impl<E: ActionExecutor + Send + Sync, C: CacheBackend + Send + Sync> ActionExecu
                 // Still record as a cache miss since we couldn't use the cache
                 #[cfg(feature = "metrics")]
                 self.metrics.cache_miss();
-            }
+            },
         }
 
         // Cache miss or error - execute action
@@ -209,10 +215,10 @@ impl<E: ActionExecutor + Send + Sync, C: CacheBackend + Send + Sync> ActionExecu
                         cache_key,
                         self.cache.ttl_seconds()
                     );
-                }
+                },
                 Err(e) => {
                     warn!("Failed to cache action result: {}. Result not cached.", e);
-                }
+                },
             }
         } else {
             debug!("Not caching failed action result for key {}", cache_key);
@@ -222,13 +228,13 @@ impl<E: ActionExecutor + Send + Sync, C: CacheBackend + Send + Sync> ActionExecu
     }
 }
 
-
 #[cfg(all(test, feature = "caching"))]
 mod tests {
-    use super::*;
-    use crate::event::EventKind;
     use serde_json::json;
     use uuid::Uuid;
+
+    use super::*;
+    use crate::event::EventKind;
 
     // Simple mock executor for testing
     #[derive(Clone)]
@@ -244,8 +250,7 @@ mod tests {
         }
 
         fn call_count(&self) -> usize {
-            self.call_count
-                .load(std::sync::atomic::Ordering::SeqCst)
+            self.call_count.load(std::sync::atomic::Ordering::SeqCst)
         }
     }
 
@@ -256,12 +261,11 @@ mod tests {
             _event: &EntityEvent,
             _action: &ActionConfig,
         ) -> Result<ActionResult> {
-            self.call_count
-                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            self.call_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             Ok(ActionResult {
                 action_type: "test".to_string(),
-                success: true,
-                message: "Test success".to_string(),
+                success:     true,
+                message:     "Test success".to_string(),
                 duration_ms: 10.0,
             })
         }
@@ -270,14 +274,14 @@ mod tests {
     // Simple in-memory cache for testing
     #[derive(Clone)]
     struct InMemoryCache {
-        store: Arc<dashmap::DashMap<String, CachedActionResult>>,
+        store:       Arc<dashmap::DashMap<String, CachedActionResult>>,
         ttl_seconds: Arc<std::sync::atomic::AtomicU64>,
     }
 
     impl InMemoryCache {
         fn new() -> Self {
             Self {
-                store: Arc::new(dashmap::DashMap::new()),
+                store:       Arc::new(dashmap::DashMap::new()),
                 ttl_seconds: Arc::new(std::sync::atomic::AtomicU64::new(60)),
             }
         }
@@ -327,21 +331,18 @@ mod tests {
         );
 
         let action = ActionConfig::Email {
-            to: Some("test@example.com".to_string()),
-            to_template: None,
-            subject: Some("Test".to_string()),
+            to:               Some("test@example.com".to_string()),
+            to_template:      None,
+            subject:          Some("Test".to_string()),
             subject_template: None,
-            body_template: Some("Test body".to_string()),
-            reply_to: None,
+            body_template:    Some("Test body".to_string()),
+            reply_to:         None,
         };
 
-        let cache_key = CachedActionExecutor::<TestExecutor, InMemoryCache>::cache_key(&event, &action);
-        let cached_result = CachedActionResult::new(
-            "cached".to_string(),
-            true,
-            "Cached result".to_string(),
-            1.0,
-        );
+        let cache_key =
+            CachedActionExecutor::<TestExecutor, InMemoryCache>::cache_key(&event, &action);
+        let cached_result =
+            CachedActionResult::new("cached".to_string(), true, "Cached result".to_string(), 1.0);
 
         cache.set(&cache_key, &cached_result).await.unwrap();
 
@@ -361,14 +362,14 @@ mod tests {
         let event = EntityEvent::new(
             EventKind::Created,
             "Test".to_string(),
-            Uuid::new_v4(),  // entity_id (not event.id)
+            Uuid::new_v4(), // entity_id (not event.id)
             json!({}),
         );
 
         let action = ActionConfig::Webhook {
-            url: Some("https://example.com".to_string()),
-            url_env: None,
-            headers: std::collections::HashMap::new(),
+            url:           Some("https://example.com".to_string()),
+            url_env:       None,
+            headers:       std::collections::HashMap::new(),
             body_template: Some("{}".to_string()),
         };
 
@@ -377,7 +378,11 @@ mod tests {
         // Cache key format: action_result:{event_id}:{action_debug}
         // Verify key contains the actual event.id (auto-generated)
         let expected_event_id = event.id.to_string();
-        assert!(key.contains(&expected_event_id), "Key should contain event ID {}", expected_event_id);
+        assert!(
+            key.contains(&expected_event_id),
+            "Key should contain event ID {}",
+            expected_event_id
+        );
         assert!(key.contains("Webhook"), "Key should contain action type");
         assert!(key.starts_with("action_result:"), "Key should start with action_result:");
     }
@@ -396,12 +401,12 @@ mod tests {
         );
 
         let action = ActionConfig::Email {
-            to: Some("test@example.com".to_string()),
-            to_template: None,
-            subject: Some("Test".to_string()),
+            to:               Some("test@example.com".to_string()),
+            to_template:      None,
+            subject:          Some("Test".to_string()),
             subject_template: None,
-            body_template: Some("Test body".to_string()),
-            reply_to: None,
+            body_template:    Some("Test body".to_string()),
+            reply_to:         None,
         };
 
         // First execution - cache miss

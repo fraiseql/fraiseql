@@ -72,7 +72,6 @@
 #![allow(clippy::float_cmp)] // Test assertions with exact float comparison are intentional
 
 // Original fraiseql-server modules
-pub mod server_config;
 pub mod error;
 pub mod logging;
 pub mod middleware;
@@ -80,6 +79,7 @@ pub mod performance;
 pub mod routes;
 pub mod schema;
 pub mod server;
+pub mod server_config;
 pub mod validation;
 
 // Renamed to avoid conflicts with runtime modules
@@ -89,8 +89,8 @@ pub mod tracing_server;
 // fraiseql-runtime modules (merged)
 pub mod config;
 pub mod lifecycle;
-pub mod resilience;
 pub mod observability;
+pub mod resilience;
 pub mod runtime_middleware;
 pub mod runtime_server;
 pub mod runtime_state;
@@ -112,7 +112,6 @@ pub mod observers;
 #[cfg(any(test, feature = "testing"))]
 pub mod testing;
 
-pub use server_config::ServerConfig;
 pub use logging::{
     ErrorDetails, LogLevel, LogMetrics, RequestContext, RequestId, RequestLogger, SourceLocation,
     StructuredLogEntry,
@@ -123,6 +122,7 @@ pub use performance::{
 };
 pub use schema::CompiledSchemaLoader;
 pub use server::Server;
+pub use server_config::ServerConfig;
 pub use tracing_server::{SpanStatus, TraceContext, TraceEvent, TraceParseError, TraceSpan};
 pub use validation::{RequestValidator, ValidationError};
 

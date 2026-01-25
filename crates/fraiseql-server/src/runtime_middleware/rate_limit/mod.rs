@@ -1,7 +1,8 @@
 //! Rate limiting middleware with backpressure support.
 
-use async_trait::async_trait;
 use std::time::{Duration, SystemTime};
+
+use async_trait::async_trait;
 
 pub mod memory;
 
@@ -12,8 +13,8 @@ pub mod redis;
 #[derive(Debug, Clone)]
 pub struct RateLimit {
     pub requests: u32,
-    pub window: Duration,
-    pub burst: Option<u32>,
+    pub window:   Duration,
+    pub burst:    Option<u32>,
 }
 
 impl RateLimit {
@@ -38,8 +39,8 @@ impl RateLimit {
             _ => {
                 return Err(ParseError::InvalidPeriod {
                     value: parts[1].to_string(),
-                })
-            }
+                });
+            },
         };
 
         Ok(Self {
@@ -74,16 +75,19 @@ pub enum RateLimitResult {
     /// Request is allowed
     Allowed {
         remaining: u32,
-        limit: u32,
-        reset_at: SystemTime,
+        limit:     u32,
+        reset_at:  SystemTime,
     },
     /// Request should be queued (backpressure)
     Queued {
-        position: usize,
+        position:       usize,
         estimated_wait: Duration,
     },
     /// Request is rate limited
-    Limited { retry_after: Duration, limit: u32 },
+    Limited {
+        retry_after: Duration,
+        limit:       u32,
+    },
     /// System is overloaded, shed load
     Overloaded,
 }
@@ -104,15 +108,15 @@ pub trait RateLimiter: Send + Sync {
 #[derive(Debug, Clone)]
 pub struct RateLimitState {
     pub current_count: u32,
-    pub window_start: SystemTime,
-    pub queue_depth: usize,
+    pub window_start:  SystemTime,
+    pub queue_depth:   usize,
 }
 
 /// Mock rate limiter for testing
 #[cfg(any(test, feature = "testing"))]
 pub struct MockRateLimiter {
     pub results: std::sync::Arc<std::sync::Mutex<Vec<RateLimitResult>>>,
-    pub calls: std::sync::Arc<std::sync::Mutex<Vec<(String, RateLimit)>>>,
+    pub calls:   std::sync::Arc<std::sync::Mutex<Vec<(String, RateLimit)>>>,
 }
 
 #[cfg(any(test, feature = "testing"))]
@@ -121,7 +125,7 @@ impl MockRateLimiter {
     pub fn new() -> Self {
         Self {
             results: std::sync::Arc::new(std::sync::Mutex::new(Vec::new())),
-            calls: std::sync::Arc::new(std::sync::Mutex::new(Vec::new())),
+            calls:   std::sync::Arc::new(std::sync::Mutex::new(Vec::new())),
         }
     }
 
@@ -129,7 +133,7 @@ impl MockRateLimiter {
     pub fn with_results(results: Vec<RateLimitResult>) -> Self {
         Self {
             results: std::sync::Arc::new(std::sync::Mutex::new(results)),
-            calls: std::sync::Arc::new(std::sync::Mutex::new(Vec::new())),
+            calls:   std::sync::Arc::new(std::sync::Mutex::new(Vec::new())),
         }
     }
 }
@@ -145,19 +149,12 @@ impl Default for MockRateLimiter {
 #[async_trait]
 impl RateLimiter for MockRateLimiter {
     async fn check(&self, key: &str, limit: &RateLimit) -> RateLimitResult {
-        self.calls
-            .lock()
-            .unwrap()
-            .push((key.to_string(), limit.clone()));
-        self.results
-            .lock()
-            .unwrap()
-            .pop()
-            .unwrap_or(RateLimitResult::Allowed {
-                remaining: limit.requests,
-                limit: limit.requests,
-                reset_at: SystemTime::now() + limit.window,
-            })
+        self.calls.lock().unwrap().push((key.to_string(), limit.clone()));
+        self.results.lock().unwrap().pop().unwrap_or(RateLimitResult::Allowed {
+            remaining: limit.requests,
+            limit:     limit.requests,
+            reset_at:  SystemTime::now() + limit.window,
+        })
     }
 
     async fn record(&self, _key: &str, _limit: &RateLimit) {}
@@ -198,12 +195,12 @@ mod tests {
         let mock = MockRateLimiter::with_results(vec![
             RateLimitResult::Allowed {
                 remaining: 5,
-                limit: 10,
-                reset_at: SystemTime::now(),
+                limit:     10,
+                reset_at:  SystemTime::now(),
             },
             RateLimitResult::Limited {
                 retry_after: Duration::from_secs(60),
-                limit: 10,
+                limit:       10,
             },
         ]);
 

@@ -1,12 +1,17 @@
 // Authentication middleware for Axum
-use crate::auth::error::{AuthError, Result};
-use crate::auth::jwt::Claims;
-use crate::auth::session::SessionStore;
-use crate::auth::jwt::JwtValidator;
-use axum::http::StatusCode;
-use axum::response::{IntoResponse, Response};
 use std::sync::Arc;
+
+use axum::{
+    http::StatusCode,
+    response::{IntoResponse, Response},
+};
 use serde::{Deserialize, Serialize};
+
+use crate::auth::{
+    error::{AuthError, Result},
+    jwt::{Claims, JwtValidator},
+    session::SessionStore,
+};
 
 /// Authenticated user extracted from JWT token
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -14,7 +19,7 @@ pub struct AuthenticatedUser {
     /// User ID from token claims
     pub user_id: String,
     /// Full JWT claims
-    pub claims: Claims,
+    pub claims:  Claims,
 }
 
 impl AuthenticatedUser {
@@ -43,10 +48,10 @@ impl AuthenticatedUser {
 
 /// Authentication middleware configuration
 pub struct AuthMiddleware {
-    validator: Arc<JwtValidator>,
+    validator:      Arc<JwtValidator>,
     _session_store: Arc<dyn SessionStore>,
-    public_key: Vec<u8>,
-    _optional: bool,
+    public_key:     Vec<u8>,
+    _optional:      bool,
 }
 
 impl AuthMiddleware {
@@ -80,31 +85,21 @@ impl AuthMiddleware {
 impl IntoResponse for AuthError {
     fn into_response(self) -> Response {
         let (status, error, message) = match self {
-            AuthError::TokenExpired => (
-                StatusCode::UNAUTHORIZED,
-                "token_expired",
-                "Authentication token has expired",
-            ),
-            AuthError::InvalidSignature => (
-                StatusCode::UNAUTHORIZED,
-                "invalid_signature",
-                "Token signature is invalid",
-            ),
-            AuthError::InvalidToken { ref reason } => (
-                StatusCode::UNAUTHORIZED,
-                "invalid_token",
-                reason.as_str(),
-            ),
-            AuthError::TokenNotFound => (
-                StatusCode::UNAUTHORIZED,
-                "token_not_found",
-                "Authentication token not found",
-            ),
-            AuthError::SessionRevoked => (
-                StatusCode::UNAUTHORIZED,
-                "session_revoked",
-                "Session has been revoked",
-            ),
+            AuthError::TokenExpired => {
+                (StatusCode::UNAUTHORIZED, "token_expired", "Authentication token has expired")
+            },
+            AuthError::InvalidSignature => {
+                (StatusCode::UNAUTHORIZED, "invalid_signature", "Token signature is invalid")
+            },
+            AuthError::InvalidToken { ref reason } => {
+                (StatusCode::UNAUTHORIZED, "invalid_token", reason.as_str())
+            },
+            AuthError::TokenNotFound => {
+                (StatusCode::UNAUTHORIZED, "token_not_found", "Authentication token not found")
+            },
+            AuthError::SessionRevoked => {
+                (StatusCode::UNAUTHORIZED, "session_revoked", "Session has been revoked")
+            },
             _ => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "auth_error",
@@ -131,15 +126,16 @@ mod tests {
 
     #[test]
     fn test_authenticated_user_clone() {
-        use crate::auth::Claims;
         use std::collections::HashMap;
 
+        use crate::auth::Claims;
+
         let claims = Claims {
-            sub: "user123".to_string(),
-            iat: 1000,
-            exp: 2000,
-            iss: "https://example.com".to_string(),
-            aud: vec!["api".to_string()],
+            sub:   "user123".to_string(),
+            iat:   1000,
+            exp:   2000,
+            iss:   "https://example.com".to_string(),
+            aud:   vec!["api".to_string()],
             extra: HashMap::new(),
         };
 
@@ -154,21 +150,20 @@ mod tests {
 
     #[test]
     fn test_has_role_single_string() {
-        use crate::auth::Claims;
         use std::collections::HashMap;
 
+        use crate::auth::Claims;
+
         let mut claims = Claims {
-            sub: "user123".to_string(),
-            iat: 1000,
-            exp: 2000,
-            iss: "https://example.com".to_string(),
-            aud: vec!["api".to_string()],
+            sub:   "user123".to_string(),
+            iat:   1000,
+            exp:   2000,
+            iss:   "https://example.com".to_string(),
+            aud:   vec!["api".to_string()],
             extra: HashMap::new(),
         };
 
-        claims
-            .extra
-            .insert("role".to_string(), serde_json::json!("admin"));
+        claims.extra.insert("role".to_string(), serde_json::json!("admin"));
 
         let user = AuthenticatedUser {
             user_id: "user123".to_string(),
@@ -181,22 +176,22 @@ mod tests {
 
     #[test]
     fn test_has_role_array() {
-        use crate::auth::Claims;
         use std::collections::HashMap;
 
+        use crate::auth::Claims;
+
         let mut claims = Claims {
-            sub: "user123".to_string(),
-            iat: 1000,
-            exp: 2000,
-            iss: "https://example.com".to_string(),
-            aud: vec!["api".to_string()],
+            sub:   "user123".to_string(),
+            iat:   1000,
+            exp:   2000,
+            iss:   "https://example.com".to_string(),
+            aud:   vec!["api".to_string()],
             extra: HashMap::new(),
         };
 
-        claims.extra.insert(
-            "roles".to_string(),
-            serde_json::json!(["admin", "user", "editor"]),
-        );
+        claims
+            .extra
+            .insert("roles".to_string(), serde_json::json!(["admin", "user", "editor"]));
 
         let user = AuthenticatedUser {
             user_id: "user123".to_string(),
@@ -211,31 +206,27 @@ mod tests {
 
     #[test]
     fn test_get_custom_claim() {
-        use crate::auth::Claims;
         use std::collections::HashMap;
 
+        use crate::auth::Claims;
+
         let mut claims = Claims {
-            sub: "user123".to_string(),
-            iat: 1000,
-            exp: 2000,
-            iss: "https://example.com".to_string(),
-            aud: vec!["api".to_string()],
+            sub:   "user123".to_string(),
+            iat:   1000,
+            exp:   2000,
+            iss:   "https://example.com".to_string(),
+            aud:   vec!["api".to_string()],
             extra: HashMap::new(),
         };
 
-        claims
-            .extra
-            .insert("org_id".to_string(), serde_json::json!("org_456"));
+        claims.extra.insert("org_id".to_string(), serde_json::json!("org_456"));
 
         let user = AuthenticatedUser {
             user_id: "user123".to_string(),
             claims,
         };
 
-        assert_eq!(
-            user.get_custom_claim("org_id"),
-            Some(&serde_json::json!("org_456"))
-        );
+        assert_eq!(user.get_custom_claim("org_id"), Some(&serde_json::json!("org_456")));
         assert_eq!(user.get_custom_claim("nonexistent"), None);
     }
 }

@@ -16,6 +16,7 @@
 //! Requirements:
 //!   - Postgres 17 running on localhost:5432
 //!   - Test database and views created: psql -U postgres fraiseql_bench < benches/setup.sql
+#![allow(missing_docs)]
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use tokio::runtime::Runtime;

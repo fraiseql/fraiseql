@@ -3,36 +3,42 @@
 //! Manages multiple listeners with shared checkpoint store,
 //! providing leader election, health monitoring, and failover coordination.
 
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::Instant,
+};
+
+use dashmap::DashMap;
+
 use super::state::{ListenerState, ListenerStateMachine};
 use crate::error::{ObserverError, Result};
-use dashmap::DashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
-use std::time::Instant;
 
 /// Health status of a listener
 #[derive(Debug, Clone)]
 pub struct ListenerHealth {
     /// Unique identifier for the listener
-    pub listener_id: String,
+    pub listener_id:     String,
     /// Whether the listener is currently healthy
-    pub is_healthy: bool,
+    pub is_healthy:      bool,
     /// Last processed checkpoint ID
     pub last_checkpoint: i64,
     /// Current state of the listener
-    pub state: ListenerState,
+    pub state:           ListenerState,
     /// Timestamp of last heartbeat
-    pub last_heartbeat: Instant,
+    pub last_heartbeat:  Instant,
 }
 
 /// Handle to a registered listener
 pub struct ListenerHandle {
     /// Unique identifier for the listener
-    pub listener_id: String,
+    pub listener_id:    String,
     /// State machine managing listener lifecycle
-    pub state_machine: ListenerStateMachine,
+    pub state_machine:  ListenerStateMachine,
     /// Current checkpoint (last processed event ID)
-    pub checkpoint: Arc<AtomicU64>,
+    pub checkpoint:     Arc<AtomicU64>,
     /// Last heartbeat timestamp
     pub last_heartbeat: Arc<tokio::sync::Mutex<Instant>>,
 }
@@ -48,7 +54,7 @@ pub struct MultiListenerCoordinator {
 
 impl MultiListenerCoordinator {
     /// Create new coordinator
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self {
             listeners: Arc::new(DashMap::new()),
@@ -59,9 +65,9 @@ impl MultiListenerCoordinator {
     /// Register a listener
     pub async fn register_listener(&self, listener_id: String) -> Result<()> {
         let handle = Arc::new(ListenerHandle {
-            listener_id: listener_id.clone(),
-            state_machine: ListenerStateMachine::new(listener_id.clone()),
-            checkpoint: Arc::new(AtomicU64::new(0)),
+            listener_id:    listener_id.clone(),
+            state_machine:  ListenerStateMachine::new(listener_id.clone()),
+            checkpoint:     Arc::new(AtomicU64::new(0)),
             last_heartbeat: Arc::new(tokio::sync::Mutex::new(Instant::now())),
         });
 
@@ -77,24 +83,18 @@ impl MultiListenerCoordinator {
 
     /// Get listener state
     pub async fn get_listener_state(&self, listener_id: &str) -> Result<ListenerState> {
-        let handle = self
-            .listeners
-            .get(listener_id)
-            .ok_or(ObserverError::InvalidConfig {
-                message: format!("Listener {listener_id} not found"),
-            })?;
+        let handle = self.listeners.get(listener_id).ok_or(ObserverError::InvalidConfig {
+            message: format!("Listener {listener_id} not found"),
+        })?;
 
         Ok(handle.state_machine.get_state().await)
     }
 
     /// Update listener heartbeat
     pub async fn update_heartbeat(&self, listener_id: &str) -> Result<()> {
-        let handle = self
-            .listeners
-            .get(listener_id)
-            .ok_or(ObserverError::InvalidConfig {
-                message: format!("Listener {listener_id} not found"),
-            })?;
+        let handle = self.listeners.get(listener_id).ok_or(ObserverError::InvalidConfig {
+            message: format!("Listener {listener_id} not found"),
+        })?;
 
         *handle.last_heartbeat.lock().await = Instant::now();
         Ok(())
@@ -102,12 +102,9 @@ impl MultiListenerCoordinator {
 
     /// Update listener checkpoint
     pub fn update_checkpoint(&self, listener_id: &str, checkpoint: i64) -> Result<()> {
-        let handle = self
-            .listeners
-            .get(listener_id)
-            .ok_or(ObserverError::InvalidConfig {
-                message: format!("Listener {listener_id} not found"),
-            })?;
+        let handle = self.listeners.get(listener_id).ok_or(ObserverError::InvalidConfig {
+            message: format!("Listener {listener_id} not found"),
+        })?;
 
         handle.checkpoint.store(checkpoint as u64, Ordering::SeqCst);
         Ok(())
@@ -124,8 +121,8 @@ impl MultiListenerCoordinator {
             let checkpoint = handle.checkpoint.load(Ordering::SeqCst) as i64;
 
             // Healthy if Running and heartbeat within 60s
-            let is_healthy = state == ListenerState::Running
-                && last_heartbeat.elapsed().as_secs() < 60;
+            let is_healthy =
+                state == ListenerState::Running && last_heartbeat.elapsed().as_secs() < 60;
 
             health_statuses.push(ListenerHealth {
                 listener_id: handle.listener_id.clone(),
@@ -154,10 +151,7 @@ impl MultiListenerCoordinator {
 
         // Find healthy listeners
         let health = self.check_listener_health().await?;
-        let healthy: Vec<_> = health
-            .iter()
-            .filter(|h| h.is_healthy)
-            .collect();
+        let healthy: Vec<_> = health.iter().filter(|h| h.is_healthy).collect();
 
         if healthy.is_empty() {
             return Err(ObserverError::InvalidConfig {
@@ -173,7 +167,7 @@ impl MultiListenerCoordinator {
     }
 
     /// Get number of listeners
-    #[must_use] 
+    #[must_use]
     pub fn listener_count(&self) -> usize {
         self.listeners.len()
     }

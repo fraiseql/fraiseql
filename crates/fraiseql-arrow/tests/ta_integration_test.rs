@@ -7,10 +7,8 @@
 //! separate test files with feature gates.
 
 use arrow::ipc::root_as_message;
-use arrow_flight::{
-    flight_service_client::FlightServiceClient, FlightDescriptor, Ticket,
-};
-use fraiseql_arrow::{flight_server::FraiseQLFlightService, FlightTicket};
+use arrow_flight::{FlightDescriptor, Ticket, flight_service_client::FlightServiceClient};
+use fraiseql_arrow::{FlightTicket, flight_server::FraiseQLFlightService};
 use tonic::transport::Server;
 
 /// Start a test Flight server on a random available port.
@@ -47,11 +45,11 @@ async fn test_get_schema_for_ta_orders() {
 
     // Create ticket for ta_orders optimized view
     let ticket = FlightTicket::OptimizedView {
-        view: "ta_orders".to_string(),
-        filter: None,
+        view:     "ta_orders".to_string(),
+        filter:   None,
         order_by: None,
-        limit: None,
-        offset: None,
+        limit:    None,
+        offset:   None,
     };
 
     let ticket_bytes = ticket.encode().unwrap();
@@ -61,21 +59,15 @@ async fn test_get_schema_for_ta_orders() {
     let descriptor = FlightDescriptor::new_path(vec![ticket_path]);
     let request = tonic::Request::new(descriptor);
 
-    let response = client
-        .get_schema(request)
-        .await
-        .expect("GetSchema failed for ta_orders");
+    let response = client.get_schema(request).await.expect("GetSchema failed for ta_orders");
     let schema_result = response.into_inner();
 
     // Verify we got schema bytes back
-    assert!(
-        !schema_result.schema.is_empty(),
-        "Schema should not be empty for ta_orders"
-    );
+    assert!(!schema_result.schema.is_empty(), "Schema should not be empty for ta_orders");
 
     // Decode and verify schema structure
-    let schema = root_as_message(&schema_result.schema)
-        .expect("Failed to decode schema for ta_orders");
+    let schema =
+        root_as_message(&schema_result.schema).expect("Failed to decode schema for ta_orders");
     assert!(schema.header_type() == arrow::ipc::MessageHeader::Schema);
 
     // Verify schema fields match ta_orders definition
@@ -95,11 +87,11 @@ async fn test_get_schema_for_ta_users() {
 
     // Create ticket for ta_users optimized view
     let ticket = FlightTicket::OptimizedView {
-        view: "ta_users".to_string(),
-        filter: None,
+        view:     "ta_users".to_string(),
+        filter:   None,
         order_by: None,
-        limit: None,
-        offset: None,
+        limit:    None,
+        offset:   None,
     };
 
     let ticket_bytes = ticket.encode().unwrap();
@@ -109,21 +101,15 @@ async fn test_get_schema_for_ta_users() {
     let descriptor = FlightDescriptor::new_path(vec![ticket_path]);
     let request = tonic::Request::new(descriptor);
 
-    let response = client
-        .get_schema(request)
-        .await
-        .expect("GetSchema failed for ta_users");
+    let response = client.get_schema(request).await.expect("GetSchema failed for ta_users");
     let schema_result = response.into_inner();
 
     // Verify we got schema bytes back
-    assert!(
-        !schema_result.schema.is_empty(),
-        "Schema should not be empty for ta_users"
-    );
+    assert!(!schema_result.schema.is_empty(), "Schema should not be empty for ta_users");
 
     // Decode and verify schema structure
-    let schema = root_as_message(&schema_result.schema)
-        .expect("Failed to decode schema for ta_users");
+    let schema =
+        root_as_message(&schema_result.schema).expect("Failed to decode schema for ta_users");
     assert!(schema.header_type() == arrow::ipc::MessageHeader::Schema);
 
     println!("✅ ta_users schema successfully retrieved and decoded");
@@ -139,11 +125,11 @@ async fn test_do_get_ta_orders_returns_data() {
 
     // Create ticket for ta_orders with limit
     let ticket = FlightTicket::OptimizedView {
-        view: "ta_orders".to_string(),
-        filter: None,
+        view:     "ta_orders".to_string(),
+        filter:   None,
         order_by: None,
-        limit: Some(5),
-        offset: None,
+        limit:    Some(5),
+        offset:   None,
     };
 
     let ticket_bytes = ticket.encode().unwrap();
@@ -191,11 +177,11 @@ async fn test_do_get_ta_users_returns_data() {
 
     // Create ticket for ta_users with limit
     let ticket = FlightTicket::OptimizedView {
-        view: "ta_users".to_string(),
-        filter: None,
+        view:     "ta_users".to_string(),
+        filter:   None,
         order_by: None,
-        limit: Some(10),
-        offset: None,
+        limit:    Some(10),
+        offset:   None,
     };
 
     let ticket_bytes = ticket.encode().unwrap();
@@ -230,17 +216,10 @@ async fn test_ta_orders_schema_has_correct_fields() {
     let service = FraiseQLFlightService::new();
 
     // Verify ta_orders schema is registered
-    let schema = service
-        .schema_registry()
-        .get("ta_orders")
-        .expect("ta_orders schema not found");
+    let schema = service.schema_registry().get("ta_orders").expect("ta_orders schema not found");
 
     // Verify field names and count
-    assert_eq!(
-        schema.fields().len(),
-        4,
-        "ta_orders should have 4 fields"
-    );
+    assert_eq!(schema.fields().len(), 4, "ta_orders should have 4 fields");
 
     let field_names: Vec<&str> = schema.fields().iter().map(|f| f.name().as_str()).collect();
     assert_eq!(field_names, vec!["id", "total", "created_at", "customer_name"]);
@@ -253,17 +232,10 @@ async fn test_ta_users_schema_has_correct_fields() {
     let service = FraiseQLFlightService::new();
 
     // Verify ta_users schema is registered
-    let schema = service
-        .schema_registry()
-        .get("ta_users")
-        .expect("ta_users schema not found");
+    let schema = service.schema_registry().get("ta_users").expect("ta_users schema not found");
 
     // Verify field names and count
-    assert_eq!(
-        schema.fields().len(),
-        4,
-        "ta_users should have 4 fields"
-    );
+    assert_eq!(schema.fields().len(), 4, "ta_users should have 4 fields");
 
     let field_names: Vec<&str> = schema.fields().iter().map(|f| f.name().as_str()).collect();
     assert_eq!(field_names, vec!["id", "email", "name", "created_at"]);

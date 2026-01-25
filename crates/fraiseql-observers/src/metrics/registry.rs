@@ -2,12 +2,12 @@
 //!
 //! This module defines and manages all Prometheus metrics for the observer system.
 
+use std::sync::OnceLock;
+
 use prometheus::{
-    IntCounter, IntCounterVec, IntGauge,
-    HistogramVec, HistogramOpts, Opts,
+    HistogramOpts, HistogramVec, IntCounter, IntCounterVec, IntGauge, Opts,
     Result as PrometheusResult,
 };
-use std::sync::OnceLock;
 
 /// Lazy-initialized global metrics registry
 static GLOBAL_REGISTRY: OnceLock<MetricsRegistry> = OnceLock::new();
@@ -20,25 +20,25 @@ static GLOBAL_REGISTRY: OnceLock<MetricsRegistry> = OnceLock::new();
 pub struct MetricsRegistry {
     // Event processing metrics
     events_processed_total: IntCounter,
-    events_failed_total: IntCounterVec,
+    events_failed_total:    IntCounterVec,
 
     // Cache metrics
-    cache_hits_total: IntCounter,
-    cache_misses_total: IntCounter,
+    cache_hits_total:      IntCounter,
+    cache_misses_total:    IntCounter,
     cache_evictions_total: IntCounter,
 
     // Deduplication metrics
-    dedup_detected_total: IntCounter,
+    dedup_detected_total:           IntCounter,
     dedup_processing_skipped_total: IntCounter,
 
     // Action execution metrics
-    action_executed_total: IntCounterVec,
+    action_executed_total:   IntCounterVec,
     action_duration_seconds: HistogramVec,
-    action_errors_total: IntCounterVec,
+    action_errors_total:     IntCounterVec,
 
     // Queue metrics
     backlog_size: IntGauge,
-    dlq_items: IntGauge,
+    dlq_items:    IntGauge,
 }
 
 impl MetricsRegistry {
@@ -70,10 +70,8 @@ impl MetricsRegistry {
             IntCounter::new("fraiseql_observer_cache_misses_total", "Total cache misses")?;
         registry.register(Box::new(cache_misses_total.clone()))?;
 
-        let cache_evictions_total = IntCounter::new(
-            "fraiseql_observer_cache_evictions_total",
-            "Total cache evictions",
-        )?;
+        let cache_evictions_total =
+            IntCounter::new("fraiseql_observer_cache_evictions_total", "Total cache evictions")?;
         registry.register(Box::new(cache_evictions_total.clone()))?;
 
         // Deduplication metrics
@@ -91,10 +89,7 @@ impl MetricsRegistry {
 
         // Action execution metrics
         let action_executed_total = IntCounterVec::new(
-            Opts::new(
-                "fraiseql_observer_action_executed_total",
-                "Total actions executed",
-            ),
+            Opts::new("fraiseql_observer_action_executed_total", "Total actions executed"),
             &["action_type"],
         )?;
         registry.register(Box::new(action_executed_total.clone()))?;
@@ -110,10 +105,7 @@ impl MetricsRegistry {
         registry.register(Box::new(action_duration_seconds.clone()))?;
 
         let action_errors_total = IntCounterVec::new(
-            Opts::new(
-                "fraiseql_observer_action_errors_total",
-                "Total action execution errors",
-            ),
+            Opts::new("fraiseql_observer_action_errors_total", "Total action execution errors"),
             &["action_type", "error_type"],
         )?;
         registry.register(Box::new(action_errors_total.clone()))?;
@@ -154,9 +146,7 @@ impl MetricsRegistry {
 
     /// Record an event processing failure
     pub fn event_failed(&self, error_type: &str) {
-        self.events_failed_total
-            .with_label_values(&[error_type])
-            .inc();
+        self.events_failed_total.with_label_values(&[error_type]).inc();
     }
 
     /// Record a cache hit
@@ -186,9 +176,7 @@ impl MetricsRegistry {
 
     /// Record an action was executed
     pub fn action_executed(&self, action_type: &str, duration_secs: f64) {
-        self.action_executed_total
-            .with_label_values(&[action_type])
-            .inc();
+        self.action_executed_total.with_label_values(&[action_type]).inc();
         self.action_duration_seconds
             .with_label_values(&[action_type])
             .observe(duration_secs);
@@ -196,9 +184,7 @@ impl MetricsRegistry {
 
     /// Record an action execution error
     pub fn action_error(&self, action_type: &str, error_type: &str) {
-        self.action_errors_total
-            .with_label_values(&[action_type, error_type])
-            .inc();
+        self.action_errors_total.with_label_values(&[action_type, error_type]).inc();
     }
 
     /// Update the current backlog size
@@ -240,9 +226,7 @@ impl MetricsRegistry {
     /// Get or create the global singleton metrics registry
     pub fn global() -> PrometheusResult<Self> {
         Ok(GLOBAL_REGISTRY
-            .get_or_init(|| {
-                Self::new().expect("Failed to initialize global metrics registry")
-            })
+            .get_or_init(|| Self::new().expect("Failed to initialize global metrics registry"))
             .clone())
     }
 }
@@ -313,12 +297,8 @@ mod tests {
         metrics.action_executed("slack", 0.1);
 
         // Verify they were recorded
-        let webhook_count = metrics.action_executed_total
-            .with_label_values(&["webhook"])
-            .get();
-        let slack_count = metrics.action_executed_total
-            .with_label_values(&["slack"])
-            .get();
+        let webhook_count = metrics.action_executed_total.with_label_values(&["webhook"]).get();
+        let slack_count = metrics.action_executed_total.with_label_values(&["slack"]).get();
 
         assert!(webhook_count >= 1);
         assert!(slack_count >= 1);

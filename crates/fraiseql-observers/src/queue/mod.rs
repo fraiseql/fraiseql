@@ -60,12 +60,10 @@
 pub mod redis;
 pub mod worker;
 
-use crate::config::ActionConfig;
-use crate::error::Result;
-use crate::event::EntityEvent;
-use crate::traits::ActionResult;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+
+use crate::{config::ActionConfig, error::Result, event::EntityEvent, traits::ActionResult};
 
 /// Status of a job in the queue.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -101,17 +99,17 @@ impl std::fmt::Display for JobStatus {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Job {
     /// Unique job identifier
-    pub id: String,
+    pub id:            String,
     /// Action type identifier
-    pub action_id: String,
+    pub action_id:     String,
     /// Event that triggered the job
-    pub event: EntityEvent,
+    pub event:         EntityEvent,
     /// Action configuration
     pub action_config: ActionConfig,
     /// Current attempt number (1-indexed)
-    pub attempt: u32,
+    pub attempt:       u32,
     /// Unix timestamp when job was created
-    pub created_at: i64,
+    pub created_at:    i64,
     /// Unix timestamp when job should be retried (if failed)
     pub next_retry_at: i64,
 }
@@ -120,30 +118,30 @@ pub struct Job {
 #[derive(Debug, Clone)]
 pub struct JobResult {
     /// Job ID
-    pub job_id: String,
+    pub job_id:        String,
     /// Final status
-    pub status: JobStatus,
+    pub status:        JobStatus,
     /// Action execution result
     pub action_result: ActionResult,
     /// Total attempts made
-    pub attempts: u32,
+    pub attempts:      u32,
     /// Total processing duration in milliseconds
-    pub duration_ms: f64,
+    pub duration_ms:   f64,
 }
 
 /// Statistics about queue health and performance.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QueueStats {
     /// Number of jobs waiting to be processed
-    pub pending_jobs: u64,
+    pub pending_jobs:           u64,
     /// Number of jobs currently being processed
-    pub processing_jobs: u64,
+    pub processing_jobs:        u64,
     /// Number of jobs waiting for retry
-    pub retry_jobs: u64,
+    pub retry_jobs:             u64,
     /// Number of successfully completed jobs
-    pub successful_jobs: u64,
+    pub successful_jobs:        u64,
     /// Number of failed jobs in dead letter queue
-    pub failed_jobs: u64,
+    pub failed_jobs:            u64,
     /// Average job processing time in milliseconds
     pub avg_processing_time_ms: f64,
 }
@@ -247,22 +245,22 @@ pub trait RetryPolicy: Send + Sync + Clone {
 #[derive(Debug, Clone)]
 pub struct ExponentialBackoffPolicy {
     /// Maximum number of attempts
-    pub max_attempts: u32,
+    pub max_attempts:     u32,
     /// Initial delay in milliseconds
     pub initial_delay_ms: u64,
     /// Maximum delay in milliseconds
-    pub max_delay_ms: u64,
+    pub max_delay_ms:     u64,
     /// Exponential multiplier (typically 2.0)
-    pub multiplier: f64,
+    pub multiplier:       f64,
 }
 
 impl Default for ExponentialBackoffPolicy {
     fn default() -> Self {
         Self {
-            max_attempts: 3,
-            initial_delay_ms: 1000,      // 1 second
-            max_delay_ms: 60000,         // 60 seconds
-            multiplier: 2.0,
+            max_attempts:     3,
+            initial_delay_ms: 1000,  // 1 second
+            max_delay_ms:     60000, // 60 seconds
+            multiplier:       2.0,
         }
     }
 }
@@ -273,8 +271,8 @@ impl RetryPolicy for ExponentialBackoffPolicy {
     }
 
     fn get_backoff_ms(&self, attempt: u32) -> u64 {
-        let delay = (self.initial_delay_ms as f64 *
-                    self.multiplier.powi((attempt - 1) as i32)) as u64;
+        let delay =
+            (self.initial_delay_ms as f64 * self.multiplier.powi((attempt - 1) as i32)) as u64;
         delay.min(self.max_delay_ms)
     }
 }
@@ -286,19 +284,19 @@ impl RetryPolicy for ExponentialBackoffPolicy {
 #[derive(Debug, Clone)]
 pub struct LinearBackoffPolicy {
     /// Maximum number of attempts
-    pub max_attempts: u32,
+    pub max_attempts:       u32,
     /// Delay increment in milliseconds per attempt
     pub delay_increment_ms: u64,
     /// Maximum delay in milliseconds
-    pub max_delay_ms: u64,
+    pub max_delay_ms:       u64,
 }
 
 impl Default for LinearBackoffPolicy {
     fn default() -> Self {
         Self {
-            max_attempts: 3,
-            delay_increment_ms: 5000,    // 5 seconds per attempt
-            max_delay_ms: 30000,         // 30 seconds max
+            max_attempts:       3,
+            delay_increment_ms: 5000,  // 5 seconds per attempt
+            max_delay_ms:       30000, // 30 seconds max
         }
     }
 }
@@ -322,14 +320,14 @@ pub struct FixedBackoffPolicy {
     /// Maximum number of attempts
     pub max_attempts: u32,
     /// Fixed delay in milliseconds
-    pub delay_ms: u64,
+    pub delay_ms:     u64,
 }
 
 impl Default for FixedBackoffPolicy {
     fn default() -> Self {
         Self {
             max_attempts: 3,
-            delay_ms: 5000,              // 5 seconds
+            delay_ms:     5000, // 5 seconds
         }
     }
 }
@@ -351,22 +349,22 @@ mod tests {
     #[test]
     fn test_job_creation() {
         let job = Job {
-            id: "job-1".to_string(),
-            action_id: "send_email".to_string(),
-            event: EntityEvent::new(
+            id:            "job-1".to_string(),
+            action_id:     "send_email".to_string(),
+            event:         EntityEvent::new(
                 crate::event::EventKind::Created,
                 "Order".to_string(),
                 uuid::Uuid::new_v4(),
                 serde_json::json!({}),
             ),
             action_config: ActionConfig::Webhook {
-                url: Some("http://localhost:8000".to_string()),
-                url_env: None,
-                headers: std::collections::HashMap::new(),
+                url:           Some("http://localhost:8000".to_string()),
+                url_env:       None,
+                headers:       std::collections::HashMap::new(),
                 body_template: None,
             },
-            attempt: 1,
-            created_at: chrono::Utc::now().timestamp(),
+            attempt:       1,
+            created_at:    chrono::Utc::now().timestamp(),
             next_retry_at: chrono::Utc::now().timestamp(),
         };
 
@@ -387,10 +385,10 @@ mod tests {
     #[test]
     fn test_exponential_backoff_calculation() {
         let policy = ExponentialBackoffPolicy {
-            max_attempts: 5,
+            max_attempts:     5,
             initial_delay_ms: 1000,
-            max_delay_ms: 60000,
-            multiplier: 2.0,
+            max_delay_ms:     60000,
+            multiplier:       2.0,
         };
 
         // Attempt 1: 1000ms
@@ -406,10 +404,10 @@ mod tests {
     #[test]
     fn test_exponential_backoff_cap() {
         let policy = ExponentialBackoffPolicy {
-            max_attempts: 10,
+            max_attempts:     10,
             initial_delay_ms: 1000,
-            max_delay_ms: 10000,
-            multiplier: 2.0,
+            max_delay_ms:     10000,
+            multiplier:       2.0,
         };
 
         // Normally would be 32000ms (1000 * 2^5), but capped at 10000ms
@@ -420,10 +418,10 @@ mod tests {
     #[test]
     fn test_exponential_backoff_should_retry() {
         let policy = ExponentialBackoffPolicy {
-            max_attempts: 3,
+            max_attempts:     3,
             initial_delay_ms: 1000,
-            max_delay_ms: 60000,
-            multiplier: 2.0,
+            max_delay_ms:     60000,
+            multiplier:       2.0,
         };
 
         // Attempts 1-2 should retry
@@ -437,9 +435,9 @@ mod tests {
     #[test]
     fn test_linear_backoff_calculation() {
         let policy = LinearBackoffPolicy {
-            max_attempts: 5,
+            max_attempts:       5,
             delay_increment_ms: 5000,
-            max_delay_ms: 30000,
+            max_delay_ms:       30000,
         };
 
         // Attempt 1: 5000ms
@@ -453,9 +451,9 @@ mod tests {
     #[test]
     fn test_linear_backoff_cap() {
         let policy = LinearBackoffPolicy {
-            max_attempts: 10,
+            max_attempts:       10,
             delay_increment_ms: 5000,
-            max_delay_ms: 30000,
+            max_delay_ms:       30000,
         };
 
         // Normally would be 35000ms (5000 * 7), but capped at 30000ms
@@ -467,7 +465,7 @@ mod tests {
     fn test_fixed_backoff_calculation() {
         let policy = FixedBackoffPolicy {
             max_attempts: 5,
-            delay_ms: 5000,
+            delay_ms:     5000,
         };
 
         // All attempts have same delay
@@ -480,7 +478,7 @@ mod tests {
     fn test_fixed_backoff_should_retry() {
         let policy = FixedBackoffPolicy {
             max_attempts: 3,
-            delay_ms: 5000,
+            delay_ms:     5000,
         };
 
         assert!(policy.should_retry(1));

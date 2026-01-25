@@ -3,13 +3,13 @@
 //! This module provides the shared application state structure with injectable
 //! components for testing and modularity.
 
-use std::sync::Arc;
-use std::time::SystemTime;
-use fraiseql_error::RuntimeError;
-use crate::lifecycle::shutdown::ShutdownCoordinator;
+use std::{sync::Arc, time::SystemTime};
 
+use fraiseql_error::RuntimeError;
 #[cfg(feature = "database")]
 use sqlx::PgPool;
+
+use crate::lifecycle::shutdown::ShutdownCoordinator;
 
 /// Shared application state with injectable components
 pub struct AppState {
@@ -64,24 +64,21 @@ impl AppState {
         shutdown: Arc<ShutdownCoordinator>,
     ) -> Result<Self, RuntimeError> {
         // Connect to database
-        let db_url = std::env::var(&config.database.url_env)
-            .map_err(|_| RuntimeError::Internal {
+        let db_url =
+            std::env::var(&config.database.url_env).map_err(|_| RuntimeError::Internal {
                 message: format!("Missing environment variable: {}", config.database.url_env),
-                source: None,
+                source:  None,
             })?;
-        let db = PgPool::connect(&db_url).await
-            .map_err(|e| RuntimeError::Database(e))?;
+        let db = PgPool::connect(&db_url).await.map_err(|e| RuntimeError::Database(e))?;
 
         // Connect to replicas
         let mut replicas = Vec::new();
         for replica in &config.database.replicas {
-            let url = std::env::var(&replica.url_env)
-                .map_err(|_| RuntimeError::Internal {
-                    message: format!("Missing environment variable: {}", replica.url_env),
-                    source: None,
-                })?;
-            replicas.push(PgPool::connect(&url).await
-                .map_err(|e| RuntimeError::Database(e))?);
+            let url = std::env::var(&replica.url_env).map_err(|_| RuntimeError::Internal {
+                message: format!("Missing environment variable: {}", replica.url_env),
+                source:  None,
+            })?;
+            replicas.push(PgPool::connect(&url).await.map_err(|e| RuntimeError::Database(e))?);
         }
 
         Ok(Self {
@@ -119,7 +116,12 @@ impl AppState {
 #[async_trait::async_trait]
 pub trait CacheClient: Send + Sync {
     async fn get(&self, key: &str) -> Result<Option<Vec<u8>>, RuntimeError>;
-    async fn set(&self, key: &str, value: &[u8], ttl: Option<std::time::Duration>) -> Result<(), RuntimeError>;
+    async fn set(
+        &self,
+        key: &str,
+        value: &[u8],
+        ttl: Option<std::time::Duration>,
+    ) -> Result<(), RuntimeError>;
     async fn delete(&self, key: &str) -> Result<(), RuntimeError>;
     async fn ping(&self) -> Result<(), RuntimeError>;
 }
@@ -127,19 +129,29 @@ pub trait CacheClient: Send + Sync {
 /// Trait for rate limiting (injectable for testing)
 #[async_trait::async_trait]
 pub trait RateLimiter: Send + Sync {
-    async fn check(&self, key: &str, limit: u32, window: std::time::Duration) -> Result<RateLimitResult, RuntimeError>;
+    async fn check(
+        &self,
+        key: &str,
+        limit: u32,
+        window: std::time::Duration,
+    ) -> Result<RateLimitResult, RuntimeError>;
 }
 
 pub struct RateLimitResult {
-    pub allowed: bool,
+    pub allowed:   bool,
     pub remaining: u32,
-    pub reset_at: SystemTime,
+    pub reset_at:  SystemTime,
 }
 
 /// Trait for idempotency checking (injectable for testing)
 #[async_trait::async_trait]
 pub trait IdempotencyStore: Send + Sync {
-    async fn check_and_store(&self, key: &str, ttl: std::time::Duration) -> Result<bool, RuntimeError>;
+    async fn check_and_store(
+        &self,
+        key: &str,
+        ttl: std::time::Duration,
+    ) -> Result<bool, RuntimeError>;
     async fn get_result(&self, key: &str) -> Result<Option<serde_json::Value>, RuntimeError>;
-    async fn store_result(&self, key: &str, result: &serde_json::Value) -> Result<(), RuntimeError>;
+    async fn store_result(&self, key: &str, result: &serde_json::Value)
+    -> Result<(), RuntimeError>;
 }

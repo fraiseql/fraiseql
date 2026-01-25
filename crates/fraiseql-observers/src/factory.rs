@@ -36,23 +36,23 @@
 //! executor_stack.process_event(&event).await?;
 //! ```
 
-use crate::config::ObserverRuntimeConfig;
-use crate::error::{ObserverError, Result};
-use crate::executor::ObserverExecutor;
-use crate::matcher::EventMatcher;
-use crate::traits::DeadLetterQueue;
 use std::sync::Arc;
-
-#[cfg(any(feature = "dedup", feature = "caching"))]
-use crate::config::RedisConfig;
-
-#[cfg(feature = "dedup")]
-use crate::deduped_executor::DedupedObserverExecutor;
-#[cfg(feature = "dedup")]
-use crate::dedup::redis::RedisDeduplicationStore;
 
 #[cfg(feature = "caching")]
 use crate::cache::redis::RedisCacheBackend;
+#[cfg(any(feature = "dedup", feature = "caching"))]
+use crate::config::RedisConfig;
+#[cfg(feature = "dedup")]
+use crate::dedup::redis::RedisDeduplicationStore;
+#[cfg(feature = "dedup")]
+use crate::deduped_executor::DedupedObserverExecutor;
+use crate::{
+    config::ObserverRuntimeConfig,
+    error::{ObserverError, Result},
+    executor::ObserverExecutor,
+    matcher::EventMatcher,
+    traits::DeadLetterQueue,
+};
 
 /// Factory for building executor stacks
 pub struct ExecutorFactory;
@@ -110,11 +110,10 @@ impl ExecutorFactory {
 
         // Wrap with deduplication if enabled
         if config.performance.enable_dedup {
-            let redis_config = config.redis.as_ref().ok_or_else(|| {
-                ObserverError::InvalidConfig {
+            let redis_config =
+                config.redis.as_ref().ok_or_else(|| ObserverError::InvalidConfig {
                     message: "enable_dedup=true requires redis configuration".to_string(),
-                }
-            })?;
+                })?;
 
             let dedup_store = Self::build_dedup_store(redis_config).await?;
             let deduped_executor = DedupedObserverExecutor::new(base_executor, dedup_store);
@@ -148,9 +147,7 @@ impl ExecutorFactory {
 
     /// Build Redis deduplication store from config
     #[cfg(feature = "dedup")]
-    async fn build_dedup_store(
-        redis_config: &RedisConfig,
-    ) -> Result<RedisDeduplicationStore> {
+    async fn build_dedup_store(redis_config: &RedisConfig) -> Result<RedisDeduplicationStore> {
         use redis::aio::ConnectionManager;
 
         // Create Redis client and connection manager
@@ -160,16 +157,12 @@ impl ExecutorFactory {
             }
         })?;
 
-        let conn = ConnectionManager::new(client).await.map_err(|e| {
-            ObserverError::InvalidConfig {
+        let conn =
+            ConnectionManager::new(client).await.map_err(|e| ObserverError::InvalidConfig {
                 message: format!("Failed to connect to Redis: {}", e),
-            }
-        })?;
+            })?;
 
-        Ok(RedisDeduplicationStore::new(
-            conn,
-            redis_config.dedup_window_secs,
-        ))
+        Ok(RedisDeduplicationStore::new(conn, redis_config.dedup_window_secs))
     }
 
     /// Build Redis cache backend from config
@@ -184,11 +177,10 @@ impl ExecutorFactory {
             }
         })?;
 
-        let conn = ConnectionManager::new(client).await.map_err(|e| {
-            ObserverError::InvalidConfig {
+        let conn =
+            ConnectionManager::new(client).await.map_err(|e| ObserverError::InvalidConfig {
                 message: format!("Failed to connect to Redis: {}", e),
-            }
-        })?;
+            })?;
 
         Ok(RedisCacheBackend::new(conn, redis_config.cache_ttl_secs))
     }
@@ -245,7 +237,9 @@ impl ExecutorFactory {
         // Validate: should not have Redis features enabled
         if config.performance.enable_dedup || config.performance.enable_caching {
             return Err(ObserverError::InvalidConfig {
-                message: "PostgreSQL-only topology should not enable dedup or caching (requires Redis)".to_string(),
+                message:
+                    "PostgreSQL-only topology should not enable dedup or caching (requires Redis)"
+                        .to_string(),
             });
         }
 
@@ -316,31 +310,34 @@ impl ExecutorFactory {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::config::{PerformanceConfig, TransportConfig, TransportKind};
-    use crate::testing::mocks::MockDeadLetterQueue;
     use std::collections::HashMap;
+
+    use super::*;
+    use crate::{
+        config::{PerformanceConfig, TransportConfig, TransportKind},
+        testing::mocks::MockDeadLetterQueue,
+    };
 
     #[tokio::test]
     async fn test_build_postgres_only_topology() {
         let config = ObserverRuntimeConfig {
-            transport: TransportConfig {
+            transport:               TransportConfig {
                 transport: TransportKind::Postgres,
                 ..Default::default()
             },
-            redis: None, // No Redis
-            performance: PerformanceConfig {
+            redis:                   None, // No Redis
+            performance:             PerformanceConfig {
                 enable_dedup: false,
                 enable_caching: false,
                 enable_concurrent: true,
                 ..Default::default()
             },
-            observers: HashMap::new(),
-            channel_capacity: 1000,
-            max_concurrency: 50,
-            overflow_policy: crate::config::OverflowPolicy::Drop,
+            observers:               HashMap::new(),
+            channel_capacity:        1000,
+            max_concurrency:         50,
+            overflow_policy:         crate::config::OverflowPolicy::Drop,
             backlog_alert_threshold: 500,
-            shutdown_timeout: "30s".to_string(),
+            shutdown_timeout:        "30s".to_string(),
         };
 
         let dlq = Arc::new(MockDeadLetterQueue::new());
@@ -351,18 +348,18 @@ mod tests {
     #[tokio::test]
     async fn test_build_rejects_dedup_without_redis() {
         let config = ObserverRuntimeConfig {
-            transport: TransportConfig::default(),
-            redis: None, // No Redis but dedup enabled
-            performance: PerformanceConfig {
+            transport:               TransportConfig::default(),
+            redis:                   None, // No Redis but dedup enabled
+            performance:             PerformanceConfig {
                 enable_dedup: true, // Invalid!
                 ..Default::default()
             },
-            observers: HashMap::new(),
-            channel_capacity: 1000,
-            max_concurrency: 50,
-            overflow_policy: crate::config::OverflowPolicy::Drop,
+            observers:               HashMap::new(),
+            channel_capacity:        1000,
+            max_concurrency:         50,
+            overflow_policy:         crate::config::OverflowPolicy::Drop,
             backlog_alert_threshold: 500,
-            shutdown_timeout: "30s".to_string(),
+            shutdown_timeout:        "30s".to_string(),
         };
 
         let dlq = Arc::new(MockDeadLetterQueue::new());
@@ -390,16 +387,13 @@ mod tests {
         // Can use via trait object
         let processor: Arc<dyn ProcessEvent> = Arc::new(executor);
 
-        use crate::event::{EntityEvent, EventKind};
         use serde_json::json;
         use uuid::Uuid;
 
-        let event = EntityEvent::new(
-            EventKind::Created,
-            "Test".to_string(),
-            Uuid::new_v4(),
-            json!({}),
-        );
+        use crate::event::{EntityEvent, EventKind};
+
+        let event =
+            EntityEvent::new(EventKind::Created, "Test".to_string(), Uuid::new_v4(), json!({}));
 
         let summary = processor.process_event(&event).await.unwrap();
         assert!(!summary.duplicate_skipped);

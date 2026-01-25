@@ -28,20 +28,22 @@
 //! - **At-least-once delivery**: Events may be published multiple times
 //! - **Crash recovery**: Checkpoint-based resumption from last processed ID
 
-#[cfg(all(feature = "mysql", feature = "nats"))]
-use super::{EventTransport, NatsTransport};
-use crate::error::{ObserverError, Result};
-use crate::event::EntityEvent;
+use std::{sync::Arc, time::Duration};
+
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde_json::Value;
 use sqlx::mysql::MySqlPool;
-use std::sync::Arc;
-use std::time::Duration;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use super::CheckpointStore;
+#[cfg(all(feature = "mysql", feature = "nats"))]
+use super::{EventTransport, NatsTransport};
+use crate::{
+    error::{ObserverError, Result},
+    event::EntityEvent,
+};
 
 // ============================================================================
 // MySQLCheckpointStore Implementation
@@ -70,15 +72,14 @@ impl MySQLCheckpointStore {
 #[async_trait]
 impl CheckpointStore for MySQLCheckpointStore {
     async fn get_checkpoint(&self, transport_name: &str) -> Result<Option<i64>> {
-        let row: Option<(i64,)> = sqlx::query_as(
-            "SELECT last_pk FROM tb_transport_checkpoint WHERE transport_name = ?",
-        )
-        .bind(transport_name)
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(|e| ObserverError::DatabaseError {
-            reason: format!("MySQL checkpoint query failed: {e}"),
-        })?;
+        let row: Option<(i64,)> =
+            sqlx::query_as("SELECT last_pk FROM tb_transport_checkpoint WHERE transport_name = ?")
+                .bind(transport_name)
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(|e| ObserverError::DatabaseError {
+                    reason: format!("MySQL checkpoint query failed: {e}"),
+                })?;
 
         Ok(row.map(|(last_pk,)| last_pk))
     }
@@ -180,7 +181,7 @@ impl MySQLChangeLogEntry {
                 return Err(ObserverError::InvalidConfig {
                     message: format!("Unknown modification type: {other}"),
                 });
-            }
+            },
         };
 
         // Parse UUIDs from string format
@@ -190,9 +191,10 @@ impl MySQLChangeLogEntry {
             .and_then(|s| Uuid::parse_str(s).ok())
             .unwrap_or_else(Uuid::new_v4);
 
-        let entity_id = Uuid::parse_str(&self.object_id).map_err(|e| ObserverError::InvalidConfig {
-            message: format!("Invalid object_id UUID: {e}"),
-        })?;
+        let entity_id =
+            Uuid::parse_str(&self.object_id).map_err(|e| ObserverError::InvalidConfig {
+                message: format!("Invalid object_id UUID: {e}"),
+            })?;
 
         let mut event = EntityEvent::new(
             event_type,
@@ -221,18 +223,18 @@ impl<'r> sqlx::FromRow<'r, sqlx::mysql::MySqlRow> for MySQLChangeLogEntry {
 
         Ok(Self {
             pk_entity_change_log: row.try_get("pk_entity_change_log")?,
-            id: row.try_get("id")?,
-            fk_customer_org: row.try_get("fk_customer_org")?,
-            fk_contact: row.try_get("fk_contact")?,
-            object_type: row.try_get("object_type")?,
-            object_id: row.try_get("object_id")?,
-            modification_type: row.try_get("modification_type")?,
-            change_status: row.try_get("change_status")?,
-            object_data: row.try_get("object_data")?,
-            extra_metadata: row.try_get("extra_metadata")?,
-            created_at: row.try_get("created_at")?,
-            nats_published_at: row.try_get("nats_published_at")?,
-            nats_event_id: row.try_get("nats_event_id")?,
+            id:                   row.try_get("id")?,
+            fk_customer_org:      row.try_get("fk_customer_org")?,
+            fk_contact:           row.try_get("fk_contact")?,
+            object_type:          row.try_get("object_type")?,
+            object_id:            row.try_get("object_id")?,
+            modification_type:    row.try_get("modification_type")?,
+            change_status:        row.try_get("change_status")?,
+            object_data:          row.try_get("object_data")?,
+            extra_metadata:       row.try_get("extra_metadata")?,
+            created_at:           row.try_get("created_at")?,
+            nats_published_at:    row.try_get("nats_published_at")?,
+            nats_event_id:        row.try_get("nats_event_id")?,
         })
     }
 }
@@ -259,8 +261,8 @@ pub struct MySQLBridgeConfig {
 impl Default for MySQLBridgeConfig {
     fn default() -> Self {
         Self {
-            transport_name: "mysql_to_nats".to_string(),
-            batch_size: 100,
+            transport_name:     "mysql_to_nats".to_string(),
+            batch_size:         100,
             poll_interval_secs: 1,
         }
     }
@@ -290,10 +292,10 @@ impl Default for MySQLBridgeConfig {
 /// 4. At-least-once delivery (consumers must be idempotent)
 #[cfg(all(feature = "mysql", feature = "nats"))]
 pub struct MySQLNatsBridge {
-    pool: MySqlPool,
-    nats_transport: Arc<NatsTransport>,
+    pool:             MySqlPool,
+    nats_transport:   Arc<NatsTransport>,
     checkpoint_store: Arc<dyn CheckpointStore>,
-    config: MySQLBridgeConfig,
+    config:           MySQLBridgeConfig,
 }
 
 #[cfg(all(feature = "mysql", feature = "nats"))]
@@ -335,9 +337,7 @@ impl MySQLNatsBridge {
 
     /// Save cursor checkpoint.
     async fn save_cursor(&self, cursor: i64) -> Result<()> {
-        self.checkpoint_store
-            .save_checkpoint(&self.config.transport_name, cursor)
-            .await
+        self.checkpoint_store.save_checkpoint(&self.config.transport_name, cursor).await
     }
 
     /// Fetch batch from cursor.
@@ -393,10 +393,7 @@ impl MySQLNatsBridge {
     /// Unlike PostgreSQL, MySQL has no LISTEN/NOTIFY, so this uses
     /// pure polling with configurable interval.
     pub async fn run(&self) -> Result<()> {
-        info!(
-            "Starting MySQL → NATS bridge: {}",
-            self.config.transport_name
-        );
+        info!("Starting MySQL → NATS bridge: {}", self.config.transport_name);
 
         let mut cursor = self.load_cursor().await?;
         info!("Bridge starting from cursor: {cursor}");
@@ -405,11 +402,7 @@ impl MySQLNatsBridge {
             let entries = self.fetch_batch_from_cursor(cursor).await?;
 
             if !entries.is_empty() {
-                debug!(
-                    "Processing {} entries from cursor {}",
-                    entries.len(),
-                    cursor
-                );
+                debug!("Processing {} entries from cursor {}", entries.len(), cursor);
 
                 for entry in entries {
                     // Check if already published (skip if so)
@@ -432,15 +425,14 @@ impl MySQLNatsBridge {
                             );
                             cursor = entry.pk_entity_change_log;
                             continue;
-                        }
+                        },
                     };
 
                     // Publish to NATS JetStream
                     match self.nats_transport.publish(event.clone()).await {
                         Ok(()) => {
-                            let was_first = self
-                                .mark_published(entry.pk_entity_change_log, event.id)
-                                .await?;
+                            let was_first =
+                                self.mark_published(entry.pk_entity_change_log, event.id).await?;
 
                             if was_first {
                                 debug!(
@@ -455,24 +447,21 @@ impl MySQLNatsBridge {
                             }
 
                             cursor = entry.pk_entity_change_log;
-                        }
+                        },
                         Err(e) => {
                             error!(
                                 "Failed to publish event {} to NATS: {}. Will retry.",
                                 event.id, e
                             );
                             break;
-                        }
+                        },
                     }
                 }
 
                 self.save_cursor(cursor).await?;
             } else {
                 // No entries, wait for poll interval
-                debug!(
-                    "No new entries, sleeping for {}s",
-                    self.config.poll_interval_secs
-                );
+                debug!("No new entries, sleeping for {}s", self.config.poll_interval_secs);
                 tokio::time::sleep(Duration::from_secs(self.config.poll_interval_secs)).await;
             }
         }
@@ -517,20 +506,19 @@ impl MySQLNatsBridge {
                             );
                             cursor = entry.pk_entity_change_log;
                             continue;
-                        }
+                        },
                     };
 
                     match self.nats_transport.publish(event.clone()).await {
                         Ok(()) => {
-                            let _ = self
-                                .mark_published(entry.pk_entity_change_log, event.id)
-                                .await?;
+                            let _ =
+                                self.mark_published(entry.pk_entity_change_log, event.id).await?;
                             cursor = entry.pk_entity_change_log;
-                        }
+                        },
                         Err(e) => {
                             error!("Failed to publish event {}: {}. Retrying.", event.id, e);
                             break;
-                        }
+                        },
                     }
                 }
 
@@ -577,18 +565,18 @@ mod tests {
 
         let entry = MySQLChangeLogEntry {
             pk_entity_change_log: 1,
-            id: Uuid::new_v4().to_string(),
-            fk_customer_org: Some(123),
-            fk_contact: Some(456),
-            object_type: "Order".to_string(),
-            object_id: Uuid::new_v4().to_string(),
-            modification_type: "INSERT".to_string(),
-            change_status: None,
-            object_data: Some(serde_json::json!({"total": 100})),
-            extra_metadata: None,
-            created_at: Utc::now(),
-            nats_published_at: None,
-            nats_event_id: None,
+            id:                   Uuid::new_v4().to_string(),
+            fk_customer_org:      Some(123),
+            fk_contact:           Some(456),
+            object_type:          "Order".to_string(),
+            object_id:            Uuid::new_v4().to_string(),
+            modification_type:    "INSERT".to_string(),
+            change_status:        None,
+            object_data:          Some(serde_json::json!({"total": 100})),
+            extra_metadata:       None,
+            created_at:           Utc::now(),
+            nats_published_at:    None,
+            nats_event_id:        None,
         };
 
         let event = entry.to_entity_event().unwrap();
@@ -603,18 +591,18 @@ mod tests {
 
         let entry = MySQLChangeLogEntry {
             pk_entity_change_log: 2,
-            id: Uuid::new_v4().to_string(),
-            fk_customer_org: None,
-            fk_contact: None,
-            object_type: "User".to_string(),
-            object_id: Uuid::new_v4().to_string(),
-            modification_type: "UPDATE".to_string(),
-            change_status: None,
-            object_data: None,
-            extra_metadata: None,
-            created_at: Utc::now(),
-            nats_published_at: None,
-            nats_event_id: None,
+            id:                   Uuid::new_v4().to_string(),
+            fk_customer_org:      None,
+            fk_contact:           None,
+            object_type:          "User".to_string(),
+            object_id:            Uuid::new_v4().to_string(),
+            modification_type:    "UPDATE".to_string(),
+            change_status:        None,
+            object_data:          None,
+            extra_metadata:       None,
+            created_at:           Utc::now(),
+            nats_published_at:    None,
+            nats_event_id:        None,
         };
 
         let event = entry.to_entity_event().unwrap();
@@ -627,18 +615,18 @@ mod tests {
 
         let entry = MySQLChangeLogEntry {
             pk_entity_change_log: 3,
-            id: Uuid::new_v4().to_string(),
-            fk_customer_org: None,
-            fk_contact: None,
-            object_type: "Product".to_string(),
-            object_id: Uuid::new_v4().to_string(),
-            modification_type: "DELETE".to_string(),
-            change_status: None,
-            object_data: None,
-            extra_metadata: None,
-            created_at: Utc::now(),
-            nats_published_at: None,
-            nats_event_id: None,
+            id:                   Uuid::new_v4().to_string(),
+            fk_customer_org:      None,
+            fk_contact:           None,
+            object_type:          "Product".to_string(),
+            object_id:            Uuid::new_v4().to_string(),
+            modification_type:    "DELETE".to_string(),
+            change_status:        None,
+            object_data:          None,
+            extra_metadata:       None,
+            created_at:           Utc::now(),
+            nats_published_at:    None,
+            nats_event_id:        None,
         };
 
         let event = entry.to_entity_event().unwrap();
@@ -649,18 +637,18 @@ mod tests {
     fn test_mysql_change_log_entry_invalid_modification_type() {
         let entry = MySQLChangeLogEntry {
             pk_entity_change_log: 4,
-            id: Uuid::new_v4().to_string(),
-            fk_customer_org: None,
-            fk_contact: None,
-            object_type: "Test".to_string(),
-            object_id: Uuid::new_v4().to_string(),
-            modification_type: "INVALID".to_string(),
-            change_status: None,
-            object_data: None,
-            extra_metadata: None,
-            created_at: Utc::now(),
-            nats_published_at: None,
-            nats_event_id: None,
+            id:                   Uuid::new_v4().to_string(),
+            fk_customer_org:      None,
+            fk_contact:           None,
+            object_type:          "Test".to_string(),
+            object_id:            Uuid::new_v4().to_string(),
+            modification_type:    "INVALID".to_string(),
+            change_status:        None,
+            object_data:          None,
+            extra_metadata:       None,
+            created_at:           Utc::now(),
+            nats_published_at:    None,
+            nats_event_id:        None,
         };
 
         let result = entry.to_entity_event();

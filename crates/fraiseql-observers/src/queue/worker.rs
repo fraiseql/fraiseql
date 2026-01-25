@@ -3,13 +3,21 @@
 //! Workers continuously fetch jobs from the queue and process them with retries,
 //! handling timeouts and failures gracefully.
 
-use super::{Job, JobQueue, JobResult, JobStatus, RetryPolicy};
-use crate::error::{ObserverError, Result};
-use crate::traits::ActionExecutor;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::{Duration, Instant},
+};
+
 use tokio::time::timeout;
+
+use super::{Job, JobQueue, JobResult, JobStatus, RetryPolicy};
+use crate::{
+    error::{ObserverError, Result},
+    traits::ActionExecutor,
+};
 
 /// A worker that processes jobs from the queue.
 ///
@@ -20,10 +28,10 @@ where
     E: ActionExecutor,
     P: RetryPolicy,
 {
-    queue: Q,
-    executor: E,
-    worker_id: String,
-    retry_policy: P,
+    queue:          Q,
+    executor:       E,
+    worker_id:      String,
+    retry_policy:   P,
     job_timeout_ms: u64,
 }
 
@@ -41,12 +49,7 @@ where
     /// * `executor` - Action executor for job processing
     /// * `retry_policy` - Policy for retry logic
     /// * `job_timeout_ms` - Timeout per job in milliseconds
-    pub fn new(
-        queue: Q,
-        executor: E,
-        retry_policy: P,
-        job_timeout_ms: u64,
-    ) -> Self {
+    pub fn new(queue: Q, executor: E, retry_policy: P, job_timeout_ms: u64) -> Self {
         let worker_id = format!("worker-{}", uuid::Uuid::new_v4());
 
         Self {
@@ -77,16 +80,16 @@ where
                     if let Err(e) = self.process_job(job).await {
                         eprintln!("Error processing job: {e}");
                     }
-                }
+                },
                 Ok(None) => {
                     // No jobs available, wait a bit before retrying
                     tokio::time::sleep(Duration::from_millis(100)).await;
-                }
+                },
                 Err(e) => {
                     // Dequeue error - log and wait before retrying
                     eprintln!("Dequeue error: {e}");
                     tokio::time::sleep(Duration::from_secs(1)).await;
-                }
+                },
             }
         }
     }
@@ -119,15 +122,15 @@ where
                     duration_ms,
                 };
                 self.queue.mark_success(&job_id, &job_result).await?;
-            }
+            },
             Ok(Err(e)) => {
                 // Job execution failed
                 self.handle_job_failure(&job, &e, duration_ms).await?;
-            }
+            },
             Err(_) => {
                 // Job timed out
                 self.handle_job_timeout(&job, duration_ms).await?;
-            }
+            },
         }
 
         Ok(())
@@ -175,13 +178,13 @@ where
     E: ActionExecutor,
     P: RetryPolicy,
 {
-    queue: Q,
-    executor: E,
-    retry_policy: P,
-    pool_size: usize,
+    queue:          Q,
+    executor:       E,
+    retry_policy:   P,
+    pool_size:      usize,
     job_timeout_ms: u64,
-    workers: Vec<tokio::task::JoinHandle<Result<()>>>,
-    is_running: Arc<AtomicBool>,
+    workers:        Vec<tokio::task::JoinHandle<Result<()>>>,
+    is_running:     Arc<AtomicBool>,
 }
 
 impl<Q, E, P> JobWorkerPool<Q, E, P>
@@ -279,13 +282,13 @@ where
         // Wait for all workers to finish
         for handle in self.workers.drain(..) {
             match handle.await {
-                Ok(Ok(())) => {}
+                Ok(Ok(())) => {},
                 Ok(Err(e)) => {
                     eprintln!("Worker finished with error: {e}");
-                }
+                },
                 Err(e) => {
                     eprintln!("Worker task error: {e}");
-                }
+                },
             }
         }
 

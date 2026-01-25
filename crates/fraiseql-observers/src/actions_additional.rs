@@ -1,8 +1,8 @@
 //! Additional action implementations (SMS, Push, Search, Cache).
 
-use crate::error::Result;
-use crate::event::EntityEvent;
 use uuid::Uuid;
+
+use crate::{error::Result, event::EntityEvent};
 
 // ============================================================================
 // SMS Action
@@ -13,7 +13,7 @@ pub struct SmsAction;
 
 impl SmsAction {
     /// Creates a new SMS action.
-    #[must_use] 
+    #[must_use]
     pub const fn new() -> Self {
         Self
     }
@@ -65,11 +65,11 @@ impl Default for SmsAction {
 #[derive(Debug, Clone)]
 pub struct SmsResponse {
     /// Whether the SMS was sent successfully.
-    pub success: bool,
+    pub success:     bool,
     /// Duration of the operation in milliseconds.
     pub duration_ms: f64,
     /// Message ID from the SMS provider.
-    pub message_id: Option<String>,
+    pub message_id:  Option<String>,
 }
 
 // ============================================================================
@@ -81,7 +81,7 @@ pub struct PushAction;
 
 impl PushAction {
     /// Creates a new push notification action.
-    #[must_use] 
+    #[must_use]
     pub const fn new() -> Self {
         Self
     }
@@ -133,9 +133,9 @@ impl Default for PushAction {
 #[derive(Debug, Clone)]
 pub struct PushResponse {
     /// Whether the push notification was sent successfully.
-    pub success: bool,
+    pub success:         bool,
     /// Duration of the operation in milliseconds.
-    pub duration_ms: f64,
+    pub duration_ms:     f64,
     /// Notification ID from the push provider.
     pub notification_id: Option<String>,
 }
@@ -149,7 +149,7 @@ pub struct SearchAction;
 
 impl SearchAction {
     /// Creates a new search index action.
-    #[must_use] 
+    #[must_use]
     pub const fn new() -> Self {
         Self
     }
@@ -173,7 +173,8 @@ impl SearchAction {
     ) -> Result<SearchResponse> {
         let start = std::time::Instant::now();
 
-        // Stub implementation - will be replaced with actual search backend (Elasticsearch, Meilisearch, etc.)
+        // Stub implementation - will be replaced with actual search backend (Elasticsearch,
+        // Meilisearch, etc.)
         let _index_name = index.trim();
         let _document_id = document_id_template.unwrap_or(&event.entity_id.to_string());
         let _event_data = &event.data;
@@ -201,11 +202,11 @@ impl Default for SearchAction {
 #[derive(Debug, Clone)]
 pub struct SearchResponse {
     /// Whether the operation was successful.
-    pub success: bool,
+    pub success:     bool,
     /// Duration of the operation in milliseconds.
     pub duration_ms: f64,
     /// Whether the document was indexed.
-    pub indexed: bool,
+    pub indexed:     bool,
 }
 
 // ============================================================================
@@ -217,7 +218,7 @@ pub struct CacheAction;
 
 impl CacheAction {
     /// Creates a new cache action.
-    #[must_use] 
+    #[must_use]
     pub const fn new() -> Self {
         Self
     }
@@ -232,11 +233,7 @@ impl CacheAction {
     /// # Errors
     ///
     /// Returns `ObserverError` if cache operation fails.
-    pub fn execute(
-        &self,
-        key_pattern: String,
-        action_type: &str,
-    ) -> Result<CacheResponse> {
+    pub fn execute(&self, key_pattern: String, action_type: &str) -> Result<CacheResponse> {
         let start = std::time::Instant::now();
 
         // Stub implementation - will be replaced with actual cache backend (Redis, Memcached, etc.)
@@ -266,9 +263,9 @@ impl Default for CacheAction {
 #[derive(Debug, Clone)]
 pub struct CacheResponse {
     /// Whether the operation was successful.
-    pub success: bool,
+    pub success:       bool,
     /// Duration of the operation in milliseconds.
-    pub duration_ms: f64,
+    pub duration_ms:   f64,
     /// Number of cache keys affected.
     pub keys_affected: usize,
 }
@@ -279,9 +276,10 @@ pub struct CacheResponse {
 
 #[cfg(test)]
 mod tests {
+    use serde_json::json;
+
     use super::*;
     use crate::event::EventKind;
-    use serde_json::json;
 
     fn create_test_event() -> EntityEvent {
         EntityEvent::new(
@@ -307,11 +305,7 @@ mod tests {
         let action = SmsAction::new();
         let event = create_test_event();
         let response = action
-            .execute(
-                "+1234567890".to_string(),
-                Some("Test notification"),
-                &event,
-            )
+            .execute("+1234567890".to_string(), Some("Test notification"), &event)
             .unwrap();
 
         assert!(response.success);
@@ -351,9 +345,7 @@ mod tests {
     fn test_search_action_execute() {
         let action = SearchAction::new();
         let event = create_test_event();
-        let response = action
-            .execute("users".to_string(), Some("user_123"), &event)
-            .unwrap();
+        let response = action.execute("users".to_string(), Some("user_123"), &event).unwrap();
 
         assert!(response.success);
         assert!(response.duration_ms >= 0.0);
@@ -369,9 +361,7 @@ mod tests {
     #[test]
     fn test_cache_action_execute() {
         let action = CacheAction::new();
-        let response = action
-            .execute("user:*".to_string(), "invalidate")
-            .unwrap();
+        let response = action.execute("user:*".to_string(), "invalidate").unwrap();
 
         assert!(response.success);
         assert!(response.duration_ms >= 0.0);

@@ -1,8 +1,11 @@
 // PostgreSQL SessionStore implementation
-use crate::auth::error::{AuthError, Result};
-use crate::auth::session::{generate_refresh_token, hash_token, SessionData, SessionStore, TokenPair};
 use async_trait::async_trait;
-use sqlx::{postgres::PgPool, Row};
+use sqlx::{Row, postgres::PgPool};
+
+use crate::auth::{
+    error::{AuthError, Result},
+    session::{SessionData, SessionStore, TokenPair, generate_refresh_token, hash_token},
+};
 
 /// PostgreSQL-backed session store
 pub struct PostgresSessionStore {
@@ -56,12 +59,7 @@ impl PostgresSessionStore {
     /// In a real implementation, this would use the JWT validator to create a proper JWT.
     /// For now, we return a placeholder that the middleware will exchange for a real JWT.
     fn generate_access_token(user_id: &str, expires_in: u64) -> String {
-        format!(
-            "access_token_{}_{}_{}",
-            user_id,
-            expires_in,
-            uuid::Uuid::new_v4()
-        )
+        format!("access_token_{}_{}_{}", user_id, expires_in, uuid::Uuid::new_v4())
     }
 }
 

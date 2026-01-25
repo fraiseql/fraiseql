@@ -4,8 +4,9 @@
 //! Events are converted from NATS JetStream to Arrow RecordBatches for high-performance
 //! analytics and real-time processing.
 
-use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use std::sync::Arc;
+
+use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 
 /// Arrow schema for FraiseQL observer events.
 ///

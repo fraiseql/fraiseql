@@ -1,2 +1,2 @@
-pub mod shutdown;
 pub mod health;
+pub mod shutdown;

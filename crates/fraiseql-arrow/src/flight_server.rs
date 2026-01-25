@@ -4,30 +4,37 @@
 //! In Phase 9.1, it implements the basic server skeleton with empty data streams.
 //! Phase 9.2+ will add actual query execution and data streaming.
 
-use crate::convert::{ConvertConfig, RowToArrowConverter};
-use crate::db_convert::convert_db_rows_to_arrow;
-use crate::db::DatabaseAdapter;
-use crate::metadata::SchemaRegistry;
-use crate::schema::{graphql_result_schema, observer_event_schema};
-use crate::ticket::FlightTicket;
-use arrow::array::RecordBatch;
-use arrow::ipc::writer::{DictionaryTracker, IpcDataGenerator, IpcWriteOptions};
+use std::{pin::Pin, sync::Arc};
+
+use arrow::{
+    array::RecordBatch,
+    ipc::writer::{DictionaryTracker, IpcDataGenerator, IpcWriteOptions},
+};
 use arrow_flight::{
+    Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightInfo,
+    HandshakeRequest, HandshakeResponse, PollInfo, PutResult, SchemaResult, Ticket,
     flight_service_server::{FlightService, FlightServiceServer},
-    Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightInfo, PollInfo,
-    HandshakeRequest, HandshakeResponse, PutResult, SchemaResult, Ticket,
 };
 use futures::Stream;
-use std::pin::Pin;
-use std::sync::Arc;
 use tonic::{Request, Response, Status, Streaming};
 use tracing::{info, warn};
 
-type HandshakeStream = Pin<Box<dyn Stream<Item = std::result::Result<HandshakeResponse, Status>> + Send>>;
+use crate::{
+    convert::{ConvertConfig, RowToArrowConverter},
+    db::DatabaseAdapter,
+    db_convert::convert_db_rows_to_arrow,
+    metadata::SchemaRegistry,
+    schema::{graphql_result_schema, observer_event_schema},
+    ticket::FlightTicket,
+};
+
+type HandshakeStream =
+    Pin<Box<dyn Stream<Item = std::result::Result<HandshakeResponse, Status>> + Send>>;
 type FlightInfoStream = Pin<Box<dyn Stream<Item = std::result::Result<FlightInfo, Status>> + Send>>;
 type FlightDataStream = Pin<Box<dyn Stream<Item = std::result::Result<FlightData, Status>> + Send>>;
 type PutResultStream = Pin<Box<dyn Stream<Item = std::result::Result<PutResult, Status>> + Send>>;
-type ActionResultStream = Pin<Box<dyn Stream<Item = std::result::Result<arrow_flight::Result, Status>> + Send>>;
+type ActionResultStream =
+    Pin<Box<dyn Stream<Item = std::result::Result<arrow_flight::Result, Status>> + Send>>;
 type ActionTypeStream = Pin<Box<dyn Stream<Item = std::result::Result<ActionType, Status>> + Send>>;
 
 /// FraiseQL Arrow Flight service implementation.
@@ -59,7 +66,7 @@ pub struct FraiseQLFlightService {
     schema_registry: SchemaRegistry,
     /// Optional database adapter for executing real queries.
     /// If None, placeholder queries are used (for testing/development).
-    db_adapter: Option<Arc<dyn DatabaseAdapter>>,
+    db_adapter:      Option<Arc<dyn DatabaseAdapter>>,
     // Future: Will hold references to query executor, observer system, etc.
 }
 
@@ -139,10 +146,8 @@ impl FraiseQLFlightService {
         &self,
         _query: &str,
         _variables: Option<serde_json::Value>,
-    ) -> std::result::Result<
-        impl Stream<Item = std::result::Result<FlightData, Status>>,
-        Status,
-    > {
+    ) -> std::result::Result<impl Stream<Item = std::result::Result<FlightData, Status>>, Status>
+    {
         // TODO: Phase 9.3+ - Execute actual query
         // let executor = &self.query_executor;
         // let batches = fraiseql_core::arrow_executor::execute_query_as_arrow(
@@ -190,10 +195,8 @@ impl FraiseQLFlightService {
         order_by: Option<String>,
         limit: Option<usize>,
         offset: Option<usize>,
-    ) -> std::result::Result<
-        impl Stream<Item = std::result::Result<FlightData, Status>>,
-        Status,
-    > {
+    ) -> std::result::Result<impl Stream<Item = std::result::Result<FlightData, Status>>, Status>
+    {
         // 1. Load pre-compiled Arrow schema from registry
         let schema = self
             .schema_registry
@@ -222,7 +225,7 @@ impl FraiseQLFlightService {
         // 5. Convert to RecordBatches
         let config = ConvertConfig {
             batch_size: limit.unwrap_or(10_000).min(10_000),
-            max_rows: limit,
+            max_rows:   limit,
         };
         let converter = RowToArrowConverter::new(schema.clone(), config);
 
@@ -239,10 +242,8 @@ impl FraiseQLFlightService {
         let schema_message = schema_to_flight_data(&schema)?;
 
         // Subsequent messages: data batches
-        let batch_messages: Vec<std::result::Result<FlightData, Status>> = batches
-            .iter()
-            .map(record_batch_to_flight_data)
-            .collect();
+        let batch_messages: Vec<std::result::Result<FlightData, Status>> =
+            batches.iter().map(record_batch_to_flight_data).collect();
 
         // Combine schema + batches into a single stream
         let mut all_messages = vec![Ok(schema_message)];
@@ -259,35 +260,15 @@ impl Default for FraiseQLFlightService {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_new_creates_service_without_db_adapter() {
-        let service = FraiseQLFlightService::new();
-        assert!(service.db_adapter.is_none());
-    }
-
-    #[test]
-    fn test_new_registers_defaults() {
-        let service = FraiseQLFlightService::new();
-        assert!(service.schema_registry.contains("va_orders"));
-        assert!(service.schema_registry.contains("va_users"));
-        assert!(service.schema_registry.contains("ta_orders"));
-        assert!(service.schema_registry.contains("ta_users"));
-    }
-}
-
 #[tonic::async_trait]
 impl FlightService for FraiseQLFlightService {
-    type HandshakeStream = HandshakeStream;
-    type ListFlightsStream = FlightInfoStream;
+    type DoActionStream = ActionResultStream;
+    type DoExchangeStream = FlightDataStream;
     type DoGetStream = FlightDataStream;
     type DoPutStream = PutResultStream;
-    type DoActionStream = ActionResultStream;
+    type HandshakeStream = HandshakeStream;
     type ListActionsStream = ActionTypeStream;
-    type DoExchangeStream = FlightDataStream;
+    type ListFlightsStream = FlightInfoStream;
 
     /// Handshake for authentication (not implemented yet).
     ///
@@ -341,14 +322,14 @@ impl FlightService for FraiseQLFlightService {
             FlightTicket::ObserverEvents { .. } => observer_event_schema(),
             FlightTicket::OptimizedView { view, .. } => {
                 // Phase 9.3: Load pre-compiled Arrow schema for optimized view
-                self.schema_registry
-                    .get(&view)
-                    .map_err(|e| Status::not_found(format!("Schema not found for view {view}: {e}")))?
-            }
+                self.schema_registry.get(&view).map_err(|e| {
+                    Status::not_found(format!("Schema not found for view {view}: {e}"))
+                })?
+            },
             FlightTicket::BulkExport { .. } => {
                 // Will be implemented in Phase 9.4
                 return Err(Status::unimplemented("BulkExport not implemented yet"));
-            }
+            },
         };
 
         // Serialize schema to IPC format
@@ -382,7 +363,7 @@ impl FlightService for FraiseQLFlightService {
                 // Phase 9.2: Execute query and stream batches (placeholder for now)
                 let stream = self.execute_graphql_query(&query, variables).await?;
                 Ok(Response::new(Box::pin(stream)))
-            }
+            },
             FlightTicket::OptimizedView {
                 view,
                 filter,
@@ -391,23 +372,18 @@ impl FlightService for FraiseQLFlightService {
                 offset,
             } => {
                 // Phase 9.3: Optimized path using pre-compiled va_* views
-                let stream = self
-                    .execute_optimized_view(&view, filter, order_by, limit, offset)
-                    .await?;
+                let stream =
+                    self.execute_optimized_view(&view, filter, order_by, limit, offset).await?;
                 Ok(Response::new(Box::pin(stream)))
-            }
+            },
             FlightTicket::ObserverEvents { .. } => {
                 // Phase 9.3: Will implement observer event streaming
-                Err(Status::unimplemented(
-                    "Observer events not implemented yet (Phase 9.3)",
-                ))
-            }
+                Err(Status::unimplemented("Observer events not implemented yet (Phase 9.3)"))
+            },
             FlightTicket::BulkExport { .. } => {
                 // Phase 9.4: Will implement bulk exports
-                Err(Status::unimplemented(
-                    "Bulk export not implemented yet (Phase 9.4)",
-                ))
-            }
+                Err(Status::unimplemented("Bulk export not implemented yet (Phase 9.4)"))
+            },
         }
     }
 
@@ -526,7 +502,8 @@ fn schema_to_flight_data(
     let data_gen = IpcDataGenerator::default();
     let mut dict_tracker = DictionaryTracker::new(false);
 
-    let encoded_data = data_gen.schema_to_bytes_with_dictionary_tracker(schema, &mut dict_tracker, &options);
+    let encoded_data =
+        data_gen.schema_to_bytes_with_dictionary_tracker(schema, &mut dict_tracker, &options);
 
     Ok(FlightData {
         data_header: encoded_data.ipc_message.into(),
@@ -605,8 +582,9 @@ fn execute_placeholder_query(
     view: &str,
     limit: Option<usize>,
 ) -> Vec<std::collections::HashMap<String, serde_json::Value>> {
-    use serde_json::json;
     use std::collections::HashMap;
+
+    use serde_json::json;
 
     let row_count = limit.unwrap_or(10).min(100); // Cap at 100 for testing
     let mut rows = Vec::with_capacity(row_count);
@@ -622,22 +600,16 @@ fn execute_placeholder_query(
                     "created_at".to_string(),
                     json!(1_700_000_000_000_000_i64 + i64::from(i as i32) * 86_400_000_000),
                 );
-                row.insert(
-                    "customer_name".to_string(),
-                    json!(format!("Customer {}", i + 1)),
-                );
+                row.insert("customer_name".to_string(), json!(format!("Customer {}", i + 1)));
                 rows.push(row);
             }
-        }
+        },
         "va_users" => {
             // Schema: id (Int64), email (Utf8), name (Utf8), created_at (Timestamp)
             for i in 0..row_count {
                 let mut row = HashMap::new();
                 row.insert("id".to_string(), json!(i64::from(i as i32 + 1)));
-                row.insert(
-                    "email".to_string(),
-                    json!(format!("user{}@example.com", i + 1)),
-                );
+                row.insert("email".to_string(), json!(format!("user{}@example.com", i + 1)));
                 row.insert("name".to_string(), json!(format!("User {}", i + 1)));
                 row.insert(
                     "created_at".to_string(),
@@ -645,7 +617,7 @@ fn execute_placeholder_query(
                 );
                 rows.push(row);
             }
-        }
+        },
         "ta_orders" => {
             // Schema: id (Utf8), total (Utf8), created_at (Utf8 ISO 8601), customer_name (Utf8)
             for i in 0..row_count {
@@ -657,22 +629,16 @@ fn execute_placeholder_query(
                     "created_at".to_string(),
                     json!(format!("2025-11-{:02}T12:00:00Z", (i % 30) + 1)),
                 );
-                row.insert(
-                    "customer_name".to_string(),
-                    json!(format!("Customer {}", i + 1)),
-                );
+                row.insert("customer_name".to_string(), json!(format!("Customer {}", i + 1)));
                 rows.push(row);
             }
-        }
+        },
         "ta_users" => {
             // Schema: id (Utf8), email (Utf8), name (Utf8), created_at (Utf8 ISO 8601)
             for i in 0..row_count {
                 let mut row = HashMap::new();
                 row.insert("id".to_string(), json!(format!("user-{}", i + 1)));
-                row.insert(
-                    "email".to_string(),
-                    json!(format!("user{}@example.com", i + 1)),
-                );
+                row.insert("email".to_string(), json!(format!("user{}@example.com", i + 1)));
                 row.insert("name".to_string(), json!(format!("User {}", i + 1)));
                 // ISO 8601 timestamp format
                 row.insert(
@@ -681,12 +647,34 @@ fn execute_placeholder_query(
                 );
                 rows.push(row);
             }
-        }
+        },
         _ => {
             // Unknown view, return empty rows
             warn!("Unknown view '{}', returning empty result", view);
-        }
+        },
     }
 
     rows
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Tests service initialization without database adapter
+    #[test]
+    fn test_new_creates_service_without_db_adapter() {
+        let service = FraiseQLFlightService::new();
+        assert!(service.db_adapter.is_none());
+    }
+
+    /// Tests that service registers default views on creation
+    #[test]
+    fn test_new_registers_defaults() {
+        let service = FraiseQLFlightService::new();
+        assert!(service.schema_registry.contains("va_orders"));
+        assert!(service.schema_registry.contains("va_users"));
+        assert!(service.schema_registry.contains("ta_orders"));
+        assert!(service.schema_registry.contains("ta_users"));
+    }
 }

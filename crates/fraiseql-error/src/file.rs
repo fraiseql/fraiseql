@@ -4,13 +4,20 @@ pub enum FileError {
     TooLarge { size: usize, max: usize },
 
     #[error("Invalid file type: {got} (allowed: {allowed:?})")]
-    InvalidType { got: String, allowed: Vec<String> },
+    InvalidType {
+        got:     String,
+        allowed: Vec<String>,
+    },
 
     #[error("MIME type mismatch: declared {declared}, detected {detected}")]
     MimeMismatch { declared: String, detected: String },
 
     #[error("Storage error: {message}")]
-    Storage { message: String, #[source] source: Option<Box<dyn std::error::Error + Send + Sync>> },
+    Storage {
+        message: String,
+        #[source]
+        source:  Option<Box<dyn std::error::Error + Send + Sync>>,
+    },
 
     #[error("Processing error: {message}")]
     Processing { message: String },

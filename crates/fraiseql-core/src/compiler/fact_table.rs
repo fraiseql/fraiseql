@@ -245,8 +245,7 @@ pub struct FilterColumn {
 /// - **Incremental**: New records added (e.g., transaction logs)
 /// - **AccumulatingSnapshot**: Records updated with new events (e.g., order milestones)
 /// - **PeriodicSnapshot**: Complete snapshot at regular intervals (e.g., daily inventory)
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum AggregationStrategy {
     /// New records are appended (e.g., transaction logs, event streams)
     #[serde(rename = "incremental")]
@@ -261,7 +260,6 @@ pub enum AggregationStrategy {
     #[serde(rename = "periodic_snapshot")]
     PeriodicSnapshot,
 }
-
 
 /// Explicit fact table schema declaration
 ///
@@ -1304,12 +1302,8 @@ mod tests {
     // =============================================================================
 
     /// Helper to find a path by name, returning a proper error instead of panicking
-    fn find_path_by_name<'a>(
-        paths: &'a [DimensionPath],
-        name: &str,
-    ) -> Option<&'a DimensionPath> {
-        paths.iter()
-            .find(|p| p.name == name)
+    fn find_path_by_name<'a>(paths: &'a [DimensionPath], name: &str) -> Option<&'a DimensionPath> {
+        paths.iter().find(|p| p.name == name)
     }
 
     // =============================================================================
@@ -1368,7 +1362,8 @@ mod tests {
         assert!(paths.iter().any(|p| p.name == "product"));
 
         // Check nested path syntax
-        let customer_region = find_path_by_name(&paths, "customer_region").expect("customer_region path");
+        let customer_region =
+            find_path_by_name(&paths, "customer_region").expect("customer_region path");
         assert_eq!(customer_region.json_path, "data->'customer'->>'region'");
     }
 
@@ -1590,11 +1585,11 @@ mod tests {
     #[test]
     fn test_fact_table_declaration_basic() {
         let decl = FactTableDeclaration {
-            name: "tf_sales".to_string(),
-            measures: vec!["amount".to_string(), "quantity".to_string()],
-            dimensions: vec!["product_id".to_string(), "region_id".to_string()],
+            name:        "tf_sales".to_string(),
+            measures:    vec!["amount".to_string(), "quantity".to_string()],
+            dimensions:  vec!["product_id".to_string(), "region_id".to_string()],
             primary_key: "id".to_string(),
-            metadata: None,
+            metadata:    None,
         };
 
         assert_eq!(decl.name, "tf_sales");
@@ -1614,11 +1609,11 @@ mod tests {
         };
 
         let decl = FactTableDeclaration {
-            name: "tf_events".to_string(),
-            measures: vec!["count".to_string()],
-            dimensions: vec!["user_id".to_string(), "event_type".to_string()],
+            name:        "tf_events".to_string(),
+            measures:    vec!["count".to_string()],
+            dimensions:  vec!["user_id".to_string(), "event_type".to_string()],
             primary_key: "id".to_string(),
-            metadata: Some(metadata.clone()),
+            metadata:    Some(metadata.clone()),
         };
 
         assert!(decl.metadata.is_some());
@@ -1637,11 +1632,11 @@ mod tests {
         };
 
         let decl = FactTableDeclaration {
-            name: "tf_inventory".to_string(),
-            measures: vec!["quantity_on_hand".to_string()],
-            dimensions: vec!["warehouse_id".to_string()],
+            name:        "tf_inventory".to_string(),
+            measures:    vec!["quantity_on_hand".to_string()],
+            dimensions:  vec!["warehouse_id".to_string()],
             primary_key: "id".to_string(),
-            metadata: Some(metadata.clone()),
+            metadata:    Some(metadata.clone()),
         };
 
         assert_eq!(decl.name, "tf_inventory");
@@ -1677,11 +1672,11 @@ mod tests {
     #[test]
     fn test_fact_table_declaration_json_roundtrip() {
         let original = FactTableDeclaration {
-            name: "tf_orders".to_string(),
-            measures: vec!["amount".to_string()],
-            dimensions: vec!["customer_id".to_string()],
+            name:        "tf_orders".to_string(),
+            measures:    vec!["amount".to_string()],
+            dimensions:  vec!["customer_id".to_string()],
             primary_key: "id".to_string(),
-            metadata: Some(FactTableDeclarationMetadata {
+            metadata:    Some(FactTableDeclarationMetadata {
                 aggregation_strategy: AggregationStrategy::AccumulatingSnapshot,
                 grain: vec!["order_id".to_string()],
                 snapshot_date_column: None,
@@ -1720,20 +1715,22 @@ mod tests {
 
     #[test]
     fn test_multiple_fact_table_declarations() {
-        let declarations = [FactTableDeclaration {
-                name: "tf_sales".to_string(),
-                measures: vec!["amount".to_string()],
-                dimensions: vec!["product_id".to_string()],
+        let declarations = [
+            FactTableDeclaration {
+                name:        "tf_sales".to_string(),
+                measures:    vec!["amount".to_string()],
+                dimensions:  vec!["product_id".to_string()],
                 primary_key: "id".to_string(),
-                metadata: None,
+                metadata:    None,
             },
             FactTableDeclaration {
-                name: "tf_events".to_string(),
-                measures: vec!["count".to_string()],
-                dimensions: vec!["user_id".to_string()],
+                name:        "tf_events".to_string(),
+                measures:    vec!["count".to_string()],
+                dimensions:  vec!["user_id".to_string()],
                 primary_key: "id".to_string(),
-                metadata: None,
-            }];
+                metadata:    None,
+            },
+        ];
 
         assert_eq!(declarations.len(), 2);
         assert_eq!(declarations[0].name, "tf_sales");
@@ -1755,16 +1752,16 @@ mod tests {
         };
 
         let decl = FactTableDeclaration {
-            name: "tf_sales_detailed".to_string(),
-            measures: vec!["amount".to_string(), "quantity".to_string()],
-            dimensions: vec![
+            name:        "tf_sales_detailed".to_string(),
+            measures:    vec!["amount".to_string(), "quantity".to_string()],
+            dimensions:  vec![
                 "date_id".to_string(),
                 "product_id".to_string(),
                 "region_id".to_string(),
                 "customer_id".to_string(),
             ],
             primary_key: "id".to_string(),
-            metadata: Some(metadata),
+            metadata:    Some(metadata),
         };
 
         let meta = decl.metadata.unwrap();

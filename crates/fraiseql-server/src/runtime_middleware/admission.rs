@@ -1,23 +1,27 @@
-use std::sync::Arc;
-use std::task::{Context, Poll};
+use std::{
+    future::Future,
+    pin::Pin,
+    sync::Arc,
+    task::{Context, Poll},
+};
+
 use axum::{
     body::Body,
     http::{Request, Response, StatusCode},
     response::IntoResponse,
 };
-use tower::{Layer, Service};
 use pin_project::pin_project;
-use std::future::Future;
-use std::pin::Pin;
+use tower::{Layer, Service};
 
-use crate::lifecycle::shutdown::ShutdownCoordinator;
-use crate::resilience::backpressure::AdmissionController;
+use crate::{
+    lifecycle::shutdown::ShutdownCoordinator, resilience::backpressure::AdmissionController,
+};
 
 /// Layer for admission control
 #[derive(Clone)]
 pub struct AdmissionLayer {
     controller: Arc<AdmissionController>,
-    shutdown: Arc<ShutdownCoordinator>,
+    shutdown:   Arc<ShutdownCoordinator>,
 }
 
 impl AdmissionLayer {
@@ -48,9 +52,9 @@ impl<S> Layer<S> for AdmissionLayer {
 /// Service wrapper for admission control
 #[derive(Clone)]
 pub struct AdmissionService<S> {
-    inner: S,
+    inner:      S,
     controller: Arc<AdmissionController>,
-    shutdown: Arc<ShutdownCoordinator>,
+    shutdown:   Arc<ShutdownCoordinator>,
 }
 
 impl<S, ReqBody> Service<Request<ReqBody>> for AdmissionService<S>
@@ -59,9 +63,9 @@ where
     S::Future: Send,
     ReqBody: Send + 'static,
 {
-    type Response = S::Response;
     type Error = S::Error;
     type Future = AdmissionFuture<S::Future>;
+    type Response = S::Response;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.inner.poll_ready(cx)
@@ -83,11 +87,11 @@ where
                     future: self.inner.call(req),
                     _permit,
                 }
-            }
+            },
             None => {
                 // System overloaded
                 AdmissionFuture::Rejected(overloaded_response())
-            }
+            },
         }
     }
 }
@@ -96,7 +100,7 @@ where
 pub enum AdmissionFuture<F> {
     Permitted {
         #[pin]
-        future: F,
+        future:  F,
         _permit: crate::resilience::backpressure::AdmissionPermit<'static>,
     },
     Rejected(Response<Body>),
@@ -116,7 +120,7 @@ where
                 let default_response = Response::new(Body::default());
                 let actual_response = std::mem::replace(response, default_response);
                 Poll::Ready(Ok(actual_response))
-            }
+            },
         }
     }
 }
@@ -125,14 +129,16 @@ fn service_unavailable_response() -> Response<Body> {
     (
         StatusCode::SERVICE_UNAVAILABLE,
         [("Retry-After", "5")],
-        "Service is shutting down"
-    ).into_response()
+        "Service is shutting down",
+    )
+        .into_response()
 }
 
 fn overloaded_response() -> Response<Body> {
     (
         StatusCode::SERVICE_UNAVAILABLE,
         [("Retry-After", "1")],
-        "Server is overloaded, please retry"
-    ).into_response()
+        "Server is overloaded, please retry",
+    )
+        .into_response()
 }

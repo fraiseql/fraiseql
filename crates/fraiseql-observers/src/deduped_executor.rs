@@ -51,15 +51,19 @@
 //! }
 //! ```
 
+use std::sync::Arc;
+
+use tracing::{debug, warn};
+
 #[cfg(feature = "dedup")]
 use crate::dedup::DeduplicationStore;
-use crate::error::Result;
-use crate::event::EntityEvent;
-use crate::executor::{ExecutionSummary, ObserverExecutor};
 #[cfg(feature = "metrics")]
 use crate::metrics::MetricsRegistry;
-use std::sync::Arc;
-use tracing::{debug, warn};
+use crate::{
+    error::Result,
+    event::EntityEvent,
+    executor::{ExecutionSummary, ObserverExecutor},
+};
 
 /// `ObserverExecutor` wrapper with deduplication support.
 ///
@@ -83,12 +87,12 @@ use tracing::{debug, warn};
 #[cfg(feature = "dedup")]
 pub struct DedupedObserverExecutor<D: DeduplicationStore> {
     /// Inner executor that performs actual event processing
-    inner: Arc<ObserverExecutor>,
+    inner:       Arc<ObserverExecutor>,
     /// Deduplication store (typically Redis-backed)
     dedup_store: D,
     /// Prometheus metrics registry
     #[cfg(feature = "metrics")]
-    metrics: MetricsRegistry,
+    metrics:     MetricsRegistry,
 }
 
 #[cfg(feature = "dedup")]
@@ -165,23 +169,20 @@ impl<D: DeduplicationStore> DedupedObserverExecutor<D> {
 
                 return Ok(ExecutionSummary {
                     successful_actions: 0,
-                    failed_actions: 0,
+                    failed_actions:     0,
                     conditions_skipped: 0,
-                    total_duration_ms: 0.0,
-                    dlq_errors: 0,
-                    errors: Vec::new(),
-                    duplicate_skipped: true,
-                    cache_hits: 0,
-                    cache_misses: 0,
+                    total_duration_ms:  0.0,
+                    dlq_errors:         0,
+                    errors:             Vec::new(),
+                    duplicate_skipped:  true,
+                    cache_hits:         0,
+                    cache_misses:       0,
                 });
-            }
+            },
             Ok(false) => {
                 // Event is new - proceed with processing
-                debug!(
-                    "Event {} is new (not in dedup store), processing",
-                    event.id
-                );
-            }
+                debug!("Event {} is new (not in dedup store), processing", event.id);
+            },
             Err(e) => {
                 // Deduplication check failed - log warning and process anyway
                 // (fail-open: better to process duplicate than miss event)
@@ -189,7 +190,7 @@ impl<D: DeduplicationStore> DedupedObserverExecutor<D> {
                     "Deduplication check failed for event {}: {}. Processing anyway (fail-open).",
                     event.id, e
                 );
-            }
+            },
         }
 
         // Process event (not a duplicate or check failed)
@@ -204,7 +205,7 @@ impl<D: DeduplicationStore> DedupedObserverExecutor<D> {
                         event.id,
                         self.dedup_store.window_seconds()
                     );
-                }
+                },
                 Err(e) => {
                     // Failed to mark as processed - log warning but don't fail the request
                     // (event was processed successfully, just couldn't record it)
@@ -212,7 +213,7 @@ impl<D: DeduplicationStore> DedupedObserverExecutor<D> {
                         "Failed to mark event {} as processed: {}. Event executed successfully but may be reprocessed if delivered again.",
                         event.id, e
                     );
-                }
+                },
             }
         } else {
             warn!(
@@ -242,17 +243,16 @@ impl<D: DeduplicationStore> DedupedObserverExecutor<D> {
 
 #[cfg(all(test, feature = "dedup"))]
 mod tests {
-    use super::*;
-    use crate::event::EventKind;
-    use crate::matcher::EventMatcher;
-    use crate::testing::mocks::MockDeadLetterQueue;
     use serde_json::json;
     use uuid::Uuid;
+
+    use super::*;
+    use crate::{event::EventKind, matcher::EventMatcher, testing::mocks::MockDeadLetterQueue};
 
     // Simple in-memory dedup store for testing
     #[derive(Clone)]
     struct InMemoryDedupStore {
-        store: Arc<dashmap::DashMap<String, bool>>,
+        store:          Arc<dashmap::DashMap<String, bool>>,
         window_seconds: u64,
     }
 

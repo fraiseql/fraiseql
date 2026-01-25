@@ -4,43 +4,38 @@
 //!
 //! ## Running Tests
 //!
-//! 1. Start PostgreSQL and NATS:
-//!    ```bash
-//!    docker run -d --name postgres -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres:16
-//!    docker run -d --name nats -p 4222:4222 nats:latest -js
+//! 1. Start PostgreSQL and NATS: ```bash docker run -d --name postgres -p 5432:5432 -e
+//!    POSTGRES_PASSWORD=postgres postgres:16 docker run -d --name nats -p 4222:4222 nats:latest -js
 //!    ```
 //!
-//! 2. Create the test database and schema:
-//!    ```bash
-//!    psql -h localhost -U postgres -c "CREATE DATABASE fraiseql_test"
-//!    psql -h localhost -U postgres -d fraiseql_test -f migrations/03_add_nats_transport.sql
-//!    ```
+//! 2. Create the test database and schema: ```bash psql -h localhost -U postgres -c "CREATE
+//!    DATABASE fraiseql_test" psql -h localhost -U postgres -d fraiseql_test -f
+//!    migrations/03_add_nats_transport.sql ```
 //!
-//! 3. Run tests:
-//!    ```bash
-//!    DATABASE_URL=postgres://postgres:postgres@localhost/fraiseql_test \
-//!    cargo test --test bridge_integration --features nats -- --ignored
-//!    ```
+//! 3. Run tests: ```bash DATABASE_URL=postgres://postgres:postgres@localhost/fraiseql_test \ cargo
+//!    test --test bridge_integration --features nats -- --ignored ```
 
 #![allow(unused_imports)]
 #![cfg(feature = "nats")]
 
-use std::sync::Arc;
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
+
 use uuid::Uuid;
 
 #[cfg(test)]
 mod bridge_tests {
-    use super::*;
-    use fraiseql_observers::event::{EntityEvent, EventKind};
-    use fraiseql_observers::transport::{
-        BridgeConfig, CheckpointStore, EventFilter, EventTransport, NatsConfig, NatsTransport,
-        PostgresCheckpointStore,
+    use fraiseql_observers::{
+        event::{EntityEvent, EventKind},
+        transport::{
+            BridgeConfig, CheckpointStore, EventFilter, EventTransport, NatsConfig, NatsTransport,
+            PostgresCheckpointStore,
+        },
     };
     use futures::StreamExt;
     use serde_json::json;
-    use sqlx::postgres::PgPoolOptions;
-    use sqlx::PgPool;
+    use sqlx::{PgPool, postgres::PgPoolOptions};
+
+    use super::*;
 
     /// Get database URL from environment
     fn get_database_url() -> String {
@@ -122,11 +117,7 @@ mod bridge_tests {
     }
 
     /// Insert test change log entries
-    async fn insert_change_log_entries(
-        pool: &PgPool,
-        count: usize,
-        object_type: &str,
-    ) -> Vec<i64> {
+    async fn insert_change_log_entries(pool: &PgPool, count: usize, object_type: &str) -> Vec<i64> {
         let mut pks = Vec::with_capacity(count);
 
         for i in 0..count {
@@ -242,10 +233,7 @@ mod bridge_tests {
             .get_checkpoint(&transport_name)
             .await
             .expect("get_checkpoint should succeed");
-        assert!(
-            cursor == Some(100) || cursor == Some(200),
-            "Cursor should be 100 or 200"
-        );
+        assert!(cursor == Some(100) || cursor == Some(200), "Cursor should be 100 or 200");
 
         // Cleanup
         cleanup_test_data(&pool, &test_id).await;
@@ -271,10 +259,7 @@ mod bridge_tests {
 
         // Verify PKs are monotonically increasing
         for i in 1..pks.len() {
-            assert!(
-                pks[i] > pks[i - 1],
-                "PKs should be monotonically increasing"
-            );
+            assert!(pks[i] > pks[i - 1], "PKs should be monotonically increasing");
         }
 
         // Query entries by cursor
@@ -330,11 +315,7 @@ mod bridge_tests {
         .await
         .expect("Query should succeed");
 
-        assert_eq!(
-            result.rows_affected(),
-            1,
-            "First mark_published should affect 1 row"
-        );
+        assert_eq!(result.rows_affected(), 1, "First mark_published should affect 1 row");
 
         // Second mark_published should NOT update (already published)
         let event_id_2 = Uuid::new_v4();
@@ -368,10 +349,7 @@ mod bridge_tests {
         .await
         .expect("Query should succeed");
 
-        assert_eq!(
-            stored_event_id, event_id_1,
-            "First event_id should be preserved"
-        );
+        assert_eq!(stored_event_id, event_id_1, "First event_id should be preserved");
 
         // Cleanup
         cleanup_test_data(&pool, &test_id).await;
@@ -407,7 +385,8 @@ mod bridge_tests {
             .expect("Update should succeed");
         }
 
-        // Fetch all entries from cursor 0 (bridge pattern: fetch by cursor, not by published status)
+        // Fetch all entries from cursor 0 (bridge pattern: fetch by cursor, not by published
+        // status)
         let entries: Vec<(i64, Option<chrono::DateTime<chrono::Utc>>)> = sqlx::query_as(
             r"
             SELECT pk_entity_change_log, nats_published_at
@@ -477,15 +456,15 @@ mod bridge_tests {
                 eprintln!("Skipping test - NATS not available: {e}");
                 cleanup_test_data(&pool, &test_id).await;
                 return;
-            }
+            },
         };
 
         // Create bridge config
         let bridge_config = BridgeConfig {
-            transport_name: transport_name.clone(),
-            batch_size: 10,
+            transport_name:     transport_name.clone(),
+            batch_size:         10,
             poll_interval_secs: 1,
-            notify_channel: format!("test_notify_{test_id}"),
+            notify_channel:     format!("test_notify_{test_id}"),
         };
 
         // Create bridge
@@ -498,14 +477,12 @@ mod bridge_tests {
 
         // Subscribe to NATS to count received events
         let filter = EventFilter::default();
-        let mut stream = nats_transport
-            .subscribe(filter)
-            .await
-            .expect("Subscribe should succeed");
+        let mut stream = nats_transport.subscribe(filter).await.expect("Subscribe should succeed");
 
         // Run bridge with shutdown signal
         let (shutdown_tx, shutdown_rx) = tokio::sync::broadcast::channel(1);
-        let bridge_handle = tokio::spawn(async move { bridge.run_with_shutdown(shutdown_rx).await });
+        let bridge_handle =
+            tokio::spawn(async move { bridge.run_with_shutdown(shutdown_rx).await });
 
         // Collect events with timeout
         let mut received_count = 0;
@@ -578,14 +555,14 @@ mod bridge_tests {
                 eprintln!("Skipping test - NATS not available: {e}");
                 cleanup_test_data(&pool, &test_id).await;
                 return;
-            }
+            },
         };
 
         let bridge_config = BridgeConfig {
-            transport_name: transport_name.clone(),
-            batch_size: 5,
+            transport_name:     transport_name.clone(),
+            batch_size:         5,
             poll_interval_secs: 1,
-            notify_channel: format!("test_crash_notify_{test_id}"),
+            notify_channel:     format!("test_crash_notify_{test_id}"),
         };
 
         // First run: process some entries then "crash"
@@ -614,10 +591,7 @@ mod bridge_tests {
             .get_checkpoint(&transport_name)
             .await
             .expect("get_checkpoint should succeed");
-        assert!(
-            checkpoint_after_crash.is_some(),
-            "Checkpoint should be saved before crash"
-        );
+        assert!(checkpoint_after_crash.is_some(), "Checkpoint should be saved before crash");
 
         let crash_checkpoint = checkpoint_after_crash.unwrap();
         assert!(crash_checkpoint > 0, "Checkpoint should be > 0");

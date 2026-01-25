@@ -11,7 +11,7 @@ extern crate proc_macro;
 
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, FnArg, ItemFn, Meta};
+use syn::{FnArg, ItemFn, Meta, parse_macro_input};
 
 /// Creates an automatic span for function execution
 ///
@@ -41,7 +41,7 @@ pub fn traced(args: TokenStream, input: TokenStream) -> TokenStream {
             } else {
                 input_fn.sig.ident.to_string()
             }
-        }
+        },
         _ => input_fn.sig.ident.to_string(),
     };
 

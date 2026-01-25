@@ -33,15 +33,19 @@
 //! - **Result Aggregation**: Collects success/failure for each action
 //! - **Transparent Integration**: Drop-in replacement for sequential executor
 
-use std::sync::Arc;
-use std::time::Instant;
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
-use crate::config::ActionConfig;
-use crate::event::EntityEvent;
-use crate::traits::{ActionExecutor, ActionResult};
 use futures::stream::{FuturesUnordered, StreamExt};
-use std::time::Duration;
 use tokio::time::timeout;
+
+use crate::{
+    config::ActionConfig,
+    event::EntityEvent,
+    traits::{ActionExecutor, ActionResult},
+};
 
 /// Concurrent action execution wrapper.
 ///
@@ -49,7 +53,7 @@ use tokio::time::timeout;
 /// Significantly reduces latency by eliminating sequential waiting.
 #[derive(Clone)]
 pub struct ConcurrentActionExecutor<E: ActionExecutor + Clone> {
-    inner: E,
+    inner:             E,
     action_timeout_ms: u64,
 }
 
@@ -102,8 +106,7 @@ impl<E: ActionExecutor + Clone + Send + Sync + 'static> ConcurrentActionExecutor
 
             futures.push(async move {
                 let start = Instant::now();
-                let result =
-                    timeout(action_timeout, executor.execute(&event, &action)).await;
+                let result = timeout(action_timeout, executor.execute(&event, &action)).await;
 
                 let duration_ms = start.elapsed().as_secs_f64() * 1000.0;
 
@@ -111,7 +114,7 @@ impl<E: ActionExecutor + Clone + Send + Sync + 'static> ConcurrentActionExecutor
                     Ok(Ok(mut action_result)) => {
                         action_result.duration_ms = duration_ms;
                         action_result
-                    }
+                    },
                     Ok(Err(err)) => ActionResult {
                         action_type: format!("{action:?}"),
                         success: false,
@@ -150,10 +153,11 @@ impl<E: ActionExecutor + Clone + Send + Sync + 'static> ConcurrentActionExecutor
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::error::Result;
     use serde_json::json;
     use uuid::Uuid;
+
+    use super::*;
+    use crate::error::Result;
 
     // Create a simple mock for testing
     #[derive(Clone)]
@@ -168,8 +172,8 @@ mod tests {
         ) -> Result<ActionResult> {
             Ok(ActionResult {
                 action_type: "test".to_string(),
-                success: true,
-                message: "Test success".to_string(),
+                success:     true,
+                message:     "Test success".to_string(),
                 duration_ms: 10.0,
             })
         }
@@ -202,12 +206,12 @@ mod tests {
         );
 
         let action = ActionConfig::Email {
-            to: Some("test@example.com".to_string()),
-            to_template: None,
-            subject: Some("Test".to_string()),
+            to:               Some("test@example.com".to_string()),
+            to_template:      None,
+            subject:          Some("Test".to_string()),
             subject_template: None,
-            body_template: Some("Test body".to_string()),
-            reply_to: None,
+            body_template:    Some("Test body".to_string()),
+            reply_to:         None,
         };
 
         let results = concurrent.execute_all(&event, &[action]).await;

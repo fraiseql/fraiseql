@@ -2,9 +2,11 @@
 
 use bytes::Bytes;
 
-use crate::files::config::{parse_size, FileConfig};
-use crate::files::error::FileError;
-use crate::files::traits::{FileValidator, ValidatedFile};
+use crate::files::{
+    config::{FileConfig, parse_size},
+    error::FileError,
+    traits::{FileValidator, ValidatedFile},
+};
 
 /// Default file validator implementation
 pub struct DefaultFileValidator;
@@ -34,18 +36,14 @@ pub fn validate_file(
     if data.len() > max_size {
         return Err(FileError::TooLarge {
             size: data.len(),
-            max: max_size,
+            max:  max_size,
         });
     }
 
     // Check MIME type is allowed
-    if !config
-        .allowed_types
-        .iter()
-        .any(|t| t == declared_type || t == "*/*")
-    {
+    if !config.allowed_types.iter().any(|t| t == declared_type || t == "*/*") {
         return Err(FileError::InvalidType {
-            got: declared_type.to_string(),
+            got:     declared_type.to_string(),
             allowed: config.allowed_types.clone(),
         });
     }
@@ -185,10 +183,7 @@ mod tests {
     #[test]
     fn test_sanitize_filename() {
         assert_eq!(sanitize_filename("photo.jpg").unwrap(), "photo.jpg");
-        assert_eq!(
-            sanitize_filename("my-file_2024.pdf").unwrap(),
-            "my-file_2024.pdf"
-        );
+        assert_eq!(sanitize_filename("my-file_2024.pdf").unwrap(), "my-file_2024.pdf");
 
         // Path traversal
         let result = sanitize_filename("../../../etc/passwd").unwrap();

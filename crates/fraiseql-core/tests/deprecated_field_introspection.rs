@@ -142,9 +142,8 @@ fn test_multiple_deprecated_fields() {
     });
 
     let fields = type_def["fields"].as_array().unwrap();
-    let deprecated_fields: Vec<_> = fields.iter()
-        .filter(|f| f["isDeprecated"] == json!(true))
-        .collect();
+    let deprecated_fields: Vec<_> =
+        fields.iter().filter(|f| f["isDeprecated"] == json!(true)).collect();
 
     assert_eq!(deprecated_fields.len(), 3);
     assert_eq!(deprecated_fields[0]["deprecationReason"], json!("Use id instead"));
@@ -204,9 +203,8 @@ fn test_enum_value_deprecated() {
     });
 
     let values = enum_def["values"].as_array().unwrap();
-    let deprecated_values: Vec<_> = values.iter()
-        .filter(|v| v["isDeprecated"] == json!(true))
-        .collect();
+    let deprecated_values: Vec<_> =
+        values.iter().filter(|v| v["isDeprecated"] == json!(true)).collect();
 
     assert_eq!(deprecated_values.len(), 1);
     assert_eq!(deprecated_values[0]["name"], json!("SUPERUSER"));
@@ -244,9 +242,7 @@ fn test_introspection_query_response_deprecated() {
     let fields = introspection_response["__type"]["fields"].as_array().unwrap();
 
     // Find deprecated field
-    let deprecated_field = fields.iter()
-        .find(|f| f["name"] == "authorId")
-        .unwrap();
+    let deprecated_field = fields.iter().find(|f| f["name"] == "authorId").unwrap();
 
     assert_eq!(deprecated_field["isDeprecated"], json!(true));
     assert_eq!(deprecated_field["deprecationReason"], json!("Use author { id } instead"));
@@ -315,9 +311,8 @@ fn test_deprecated_input_field() {
     });
 
     let input_fields = input_type["inputFields"].as_array().unwrap();
-    let deprecated_input_fields: Vec<_> = input_fields.iter()
-        .filter(|f| f["isDeprecated"] == json!(true))
-        .collect();
+    let deprecated_input_fields: Vec<_> =
+        input_fields.iter().filter(|f| f["isDeprecated"] == json!(true)).collect();
 
     assert_eq!(deprecated_input_fields.len(), 1);
     assert_eq!(deprecated_input_fields[0]["name"], json!("userId"));
@@ -346,4 +341,3 @@ fn test_deprecated_status_field_structure() {
     let reason = field_info["deprecationReason"].as_str().unwrap();
     assert!(!reason.is_empty());
 }
-

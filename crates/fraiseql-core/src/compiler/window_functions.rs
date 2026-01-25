@@ -1381,14 +1381,12 @@ mod tests {
 
     /// Helper to serialize test objects without panicking
     fn serialize_json<T: serde::Serialize>(value: &T) -> String {
-        serde_json::to_string(value)
-            .expect("serialization should succeed for test objects")
+        serde_json::to_string(value).expect("serialization should succeed for test objects")
     }
 
     /// Helper to deserialize test JSON without panicking
     fn deserialize_json<'a, T: serde::Deserialize<'a>>(json: &'a str) -> T {
-        serde_json::from_str(json)
-            .expect("deserialization should succeed for valid test JSON")
+        serde_json::from_str(json).expect("deserialization should succeed for valid test JSON")
     }
 
     // =============================================================================
@@ -1438,7 +1436,8 @@ mod tests {
             }]
         });
 
-        let plan = WindowFunctionPlanner::plan(&query, &metadata).expect("window plan should succeed");
+        let plan =
+            WindowFunctionPlanner::plan(&query, &metadata).expect("window plan should succeed");
 
         assert_eq!(plan.table, "tf_sales");
         assert_eq!(plan.windows.len(), 1);
@@ -1464,7 +1463,8 @@ mod tests {
             }]
         });
 
-        let plan = WindowFunctionPlanner::plan(&query, &metadata).expect("window plan should succeed");
+        let plan =
+            WindowFunctionPlanner::plan(&query, &metadata).expect("window plan should succeed");
 
         match &plan.windows[0].function {
             WindowFunctionType::Lag {
