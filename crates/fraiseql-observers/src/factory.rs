@@ -46,6 +46,10 @@ use crate::config::RedisConfig;
 use crate::dedup::redis::RedisDeduplicationStore;
 #[cfg(feature = "dedup")]
 use crate::deduped_executor::DedupedObserverExecutor;
+#[cfg(feature = "queue")]
+use crate::job_queue::redis::RedisJobQueue;
+#[cfg(feature = "queue")]
+use crate::queued_executor::QueuedObserverExecutor;
 use crate::{
     config::ObserverRuntimeConfig,
     error::{ObserverError, Result},
@@ -184,6 +188,31 @@ impl ExecutorFactory {
 
         Ok(RedisCacheBackend::new(conn, redis_config.cache_ttl_secs))
     }
+
+    /// Build Redis job queue from config
+    #[cfg(feature = "queue")]
+    async fn build_job_queue(
+        job_queue_config: &crate::config::JobQueueConfig,
+    ) -> Result<Arc<dyn crate::job_queue::JobQueue>> {
+        use redis::aio::ConnectionManager;
+
+        // Validate configuration
+        job_queue_config.validate()?;
+
+        // Create Redis client and connection manager
+        let client = redis::Client::open(job_queue_config.url.as_str()).map_err(|e| {
+            ObserverError::InvalidConfig {
+                message: format!("Failed to create Redis client for job queue: {e}"),
+            }
+        })?;
+
+        let conn =
+            ConnectionManager::new(client).await.map_err(|e| ObserverError::InvalidConfig {
+                message: format!("Failed to connect to Redis for job queue: {e}"),
+            })?;
+
+        Ok(Arc::new(RedisJobQueue::new(conn)))
+    }
 }
 
 /// Trait for event processing (allows different executor implementations)
@@ -217,6 +246,28 @@ impl<D: crate::dedup::DeduplicationStore + Send + Sync> ProcessEvent
         &self,
         event: &crate::event::EntityEvent,
     ) -> Result<crate::executor::ExecutionSummary> {
+        self.process_event(event).await
+    }
+}
+
+/// Trait for queued event processing (async job queueing)
+#[async_trait::async_trait]
+pub trait ProcessEventQueued: Send + Sync {
+    /// Process an event by queueing actions (async execution)
+    async fn process_event(
+        &self,
+        event: &crate::event::EntityEvent,
+    ) -> Result<crate::queued_executor::QueuedExecutionSummary>;
+}
+
+/// Implement ProcessEventQueued for QueuedObserverExecutor
+#[cfg(feature = "queue")]
+#[async_trait::async_trait]
+impl ProcessEventQueued for QueuedObserverExecutor {
+    async fn process_event(
+        &self,
+        event: &crate::event::EntityEvent,
+    ) -> Result<crate::queued_executor::QueuedExecutionSummary> {
         self.process_event(event).await
     }
 }
@@ -306,6 +357,38 @@ impl ExecutorFactory {
 
         Self::build(config, dlq).await
     }
+
+    /// Build executor with queued (async) action execution
+    ///
+    /// This wraps any executor with `QueuedObserverExecutor` to enable:
+    /// - Non-blocking event processing (returns immediately)
+    /// - Asynchronous action execution in background workers
+    /// - Automatic job queueing and retry logic
+    ///
+    /// Requires: `job_queue` configuration with Redis URL
+    #[cfg(feature = "queue")]
+    pub async fn build_with_queue(
+        config: &ObserverRuntimeConfig,
+        _dlq: Arc<dyn DeadLetterQueue>,
+    ) -> Result<Arc<dyn ProcessEventQueued>> {
+        // Validate job queue config
+        let job_queue_config = config.job_queue.as_ref().ok_or_else(|| {
+            ObserverError::InvalidConfig {
+                message: "build_with_queue requires job_queue configuration".to_string(),
+            }
+        })?;
+
+        // Create event matcher
+        let matcher = EventMatcher::build(config.observers.clone())?;
+
+        // Build job queue
+        let job_queue = Self::build_job_queue(job_queue_config).await?;
+
+        // Create queued executor
+        let queued_executor = QueuedObserverExecutor::new(matcher, job_queue);
+
+        Ok(Arc::new(queued_executor))
+    }
 }
 
 #[cfg(test)]
@@ -327,6 +410,7 @@ mod tests {
             },
             redis:                   None, // No Redis
             clickhouse:              None,
+            job_queue:               None,
             performance:             PerformanceConfig {
                 enable_dedup: false,
                 enable_caching: false,
@@ -352,6 +436,7 @@ mod tests {
             transport:               TransportConfig::default(),
             redis:                   None, // No Redis but dedup enabled
             clickhouse:              None,
+            job_queue:               None,
             performance:             PerformanceConfig {
                 enable_dedup: true, // Invalid!
                 ..Default::default()
@@ -399,5 +484,83 @@ mod tests {
 
         let summary = processor.process_event(&event).await.unwrap();
         assert!(!summary.duplicate_skipped);
+    }
+
+    #[cfg(feature = "queue")]
+    #[tokio::test]
+    async fn test_build_with_queue_requires_config() {
+        let config = ObserverRuntimeConfig {
+            transport: TransportConfig::default(),
+            redis: None,
+            clickhouse: None,
+            job_queue: None, // No job queue config
+            performance: PerformanceConfig {
+                enable_dedup: false,
+                enable_caching: false,
+                enable_concurrent: true,
+                ..Default::default()
+            },
+            observers: HashMap::new(),
+            channel_capacity: 1000,
+            max_concurrency: 50,
+            overflow_policy: crate::config::OverflowPolicy::Drop,
+            backlog_alert_threshold: 500,
+            shutdown_timeout: "30s".to_string(),
+        };
+
+        let dlq = Arc::new(MockDeadLetterQueue::new());
+        let result = ExecutorFactory::build_with_queue(&config, dlq).await;
+        assert!(result.is_err());
+    }
+
+    #[cfg(feature = "queue")]
+    #[tokio::test]
+    async fn test_job_queue_config_validation() {
+        use crate::config::JobQueueConfig;
+
+        // Valid config
+        let config = JobQueueConfig::default();
+        assert!(config.validate().is_ok());
+
+        // Invalid: empty URL
+        let mut config = JobQueueConfig::default();
+        config.url = String::new();
+        assert!(config.validate().is_err());
+
+        // Invalid: zero batch size
+        let mut config = JobQueueConfig::default();
+        config.batch_size = 0;
+        assert!(config.validate().is_err());
+
+        // Invalid: zero concurrency
+        let mut config = JobQueueConfig::default();
+        config.worker_concurrency = 0;
+        assert!(config.validate().is_err());
+    }
+
+    #[cfg(feature = "queue")]
+    #[test]
+    fn test_job_queue_config_defaults() {
+        use crate::config::JobQueueConfig;
+
+        let config = JobQueueConfig::default();
+        assert_eq!(config.batch_size, 100);
+        assert_eq!(config.batch_timeout_secs, 5);
+        assert_eq!(config.max_retries, 5);
+        assert_eq!(config.worker_concurrency, 10);
+        assert_eq!(config.poll_interval_ms, 1000);
+    }
+
+    #[cfg(feature = "queue")]
+    #[test]
+    fn test_job_queue_config_env_overrides() {
+        use crate::config::JobQueueConfig;
+
+        let config = JobQueueConfig::default()
+            .with_env_overrides();
+
+        // Should have defaults (env vars not set in test)
+        assert_eq!(config.batch_size, 100);
+        assert_eq!(config.worker_concurrency, 10);
     }
 }
