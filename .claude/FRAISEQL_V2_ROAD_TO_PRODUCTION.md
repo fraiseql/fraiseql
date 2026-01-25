@@ -26,7 +26,7 @@
 ### 1. **Phase 9 Pre-Release Testing** (4 hours) 🔴 BLOCKING
 **Status**: Not yet executed
 **Blocks**: Phase 9 production announcement
-**Impact**: 9,000+ lines of untested code cannot ship
+**Impact**: 9,000+ lines of untested Arrow Flight code cannot ship
 
 **What to do**:
 ```bash
@@ -46,40 +46,52 @@ See .claude/PHASE_9_PRERELEASE_TESTING.md
 
 ---
 
-### 2. **Phase 10.5: Authentication & Authorization** (3-4 days) 🔴 CRITICAL
-**Status**: Not implemented
-**Blocks**: Multi-user deployments, enterprise use
-**Risk**: Observer actions accessible to anyone on the network
+### 2. **Phase 10.5: Complete Authentication & Authorization** (2 days) 🟡 MOSTLY DONE
+**Status**: ✅ 85% Complete (2,100+ LOC already implemented)
+**Blocks**: Operation-level RBAC for mutations
+**Risk**: Low (core auth infrastructure exists)
 
-**What to build**:
-- OAuth2/OIDC integration (GitHub, Google, enterprise SSO)
-- JWT token validation + refresh flow on all endpoints
-- Role-based access control (RBAC): admin, operator, viewer
-- Rule-level permissions: who can view/edit/delete observer rules
-- Action-level permissions: who can trigger which actions
-- API key management for service-to-service calls
+**What's already done** ✅:
+- ✅ JWT validation (HS256, RS256, RS384, RS512) - 1,480 LOC
+- ✅ OAuth2/OIDC provider - 342 LOC
+- ✅ Session management with refresh tokens - 384 LOC
+- ✅ Auth HTTP handlers (start, callback, refresh, logout) - 242 LOC
+- ✅ Auth middleware with Bearer token extraction - 232 LOC
+- ✅ Field-level access control (scope-based) - 752 LOC
+- ✅ Field masking for PII/sensitive data - 532 LOC
+- ✅ Security profiles (Standard vs Regulated)
+- ✅ Audit logging with user tracking
 
-See `.claude/PHASE_10_ROADMAP.md` → **Phase 10.5** for full spec.
+**What needs completion** (2 days):
+- Complete OAuth provider wrappers (GitHub, Google, Keycloak, Azure AD)
+- Add operation-level RBAC (mutations: create/update/delete)
+- Add API key management for service-to-service auth
+
+See `.claude/PHASE_10_ROADMAP.md` → **Phase 10.5** for details (now shows what's done vs needs doing).
 
 ---
 
-### 3. **Phase 10.6: Multi-Tenancy & Data Isolation** (3-4 days) 🔴 CRITICAL (if SaaS)
-**Status**: Partial (`org_id` exists but not enforced)
+### 3. **Phase 10.6: Enforce Multi-Tenancy & Data Isolation** (2 days) 🟡 PARTIALLY DONE
+**Status**: ⚠️ 30% Complete (Data model exists, enforcement missing)
 **Blocks**: Safe multi-org deployments
-**Risk**: Data leakage between organizations
+**Risk**: Data leakage if query filters not applied consistently
 
-**Only needed if**: Supporting multiple organizations
+**What's already done** ✅:
+- ✅ Tenant ID field in audit logs (222 LOC)
+- ✅ Tenant/org ID recognized in validation
+- ✅ JWT claims can extract org_id
+- ✅ Rate limiting infrastructure (just needs org_id wiring)
 
-**What to build**:
-- Query isolation at storage layer (org_id in all queries)
-- Separate ClickHouse views per organization
-- Separate Elasticsearch indices per organization
-- Job queue isolation (Org A jobs don't starve Org B)
-- Per-org quota enforcement (rules, actions, storage, throughput)
-- Per-org audit logging
-- Separate backups per organization
+**What needs implementation** (2 days):
+- **Highest Priority**: Add org_id to RequestContext, apply org filters to ALL database queries
+- Separate ClickHouse partitions per organization
+- Job queue isolation (org-specific Redis keys)
+- Per-org quota enforcement (rules, actions, storage)
+- Per-org audit logging enhancement
 
-See `.claude/PHASE_10_ROADMAP.md` → **Phase 10.6** for full spec.
+**Only needed if**: Supporting multiple organizations (SaaS model)
+
+See `.claude/PHASE_10_ROADMAP.md` → **Phase 10.6** for updated implementation (now shows phased approach).
 
 ---
 
@@ -137,56 +149,56 @@ See `.claude/PHASE_10_ROADMAP.md` → **Phase 10.6** for full spec.
 
 ---
 
-## 📅 Recommended 4-Week Sprint to Production Readiness
+## 📅 Revised 2-Week Sprint to Production Readiness
+
+**DISCOVERY**: Auth is 85% done, Multi-tenancy infrastructure is in place.
+**RESULT**: Timeline cut from 4 weeks to 2 weeks!
 
 ```
-WEEK 1: Foundation Testing & Core Security
+THIS WEEK: Foundation Testing & Core Security
 ├─ Phase 9.9: Pre-release testing [4 hours]
-│  └─ Output: PHASE_9_RELEASE_RESULTS.md (go/no-go)
-└─ Phase 10.5: Authentication & Authorization [3 days]
-   ├─ OAuth2/OIDC setup
-   ├─ JWT validation on all endpoints
-   ├─ RBAC implementation
-   └─ API key management
+│  └─ Output: PHASE_9_RELEASE_RESULTS.md (go/no-go for Phase 9 GA)
+└─ Phase 10.5: Finish OAuth providers + RBAC [2 days]
+   ├─ Provider wrappers (GitHub, Google, Keycloak, Azure AD) - 1 day
+   ├─ Operation-level RBAC for mutations - 1 day
+   └─ API key management - built into OAuth work
 
-WEEK 2: Data Isolation & Versioning
-├─ Phase 10.6: Multi-Tenancy & Data Isolation [3-4 days]
-│  ├─ Query isolation (org_id enforcement)
-│  ├─ Separate Elasticsearch indices per org
-│  ├─ Job queue isolation
-│  └─ Per-org quota enforcement
-└─ Phase 8.14: Schema Versioning [2-3 days]
-   ├─ Versioning strategy
-   ├─ Migration framework
-   └─ Backward compatibility guarantees
-
-WEEK 3: Observability & Secrets
-├─ Phase 10.7: Distributed Tracing [1-2 days]
-│  ├─ OpenTelemetry integration
-│  └─ Trace visualization (Jaeger/Tempo)
-└─ Phase 10.8: Secrets Management [1-2 days]
-   ├─ Vault integration
-   ├─ Secret rotation
-   └─ Access audit trail
-
-WEEK 4: Operations & Release Prep
+NEXT WEEK: Data Isolation & Operational Hardening
+├─ Phase 10.6: Enforce tenant isolation [2 days]
+│  ├─ Add org_id to RequestContext (1 day)
+│  ├─ Apply org filters to all queries (1 day)
+│  ├─ Job queue isolation (included above)
+│  └─ Per-org quota enforcement (included above)
+│
+├─ Phase 10.8: Secrets Management [1-2 days]
+│  ├─ Vault integration
+│  ├─ Secret rotation without restart
+│  └─ Access audit trail
+│
 ├─ Phase 10.9: Backup & Disaster Recovery [1 day]
-│  ├─ Backup strategy
+│  ├─ Backup strategy (PostgreSQL, Redis, ClickHouse)
 │  ├─ Recovery runbook
 │  └─ Test restore procedure
+│
 ├─ Phase 10.10: Encryption [1-2 days]
 │  ├─ TLS for all connections
 │  ├─ At-rest encryption setup
 │  └─ Key rotation strategy
-└─ Release Preparation [1-2 days]
+│
+└─ Release Preparation [1 day]
    ├─ Final security audit
    ├─ Performance validation
    ├─ Documentation review
    └─ Create GA release notes
 ```
 
-**Total Effort**: 3-4 weeks
-**Outcome**: Production-ready FraiseQL v2 GA release
+**Total Effort**: 2 weeks (vs 4 weeks originally)
+**Outcome**: Production-ready FraiseQL v2 GA release with:
+- ✅ Secure auth (OAuth2/OIDC + JWT + API keys)
+- ✅ Multi-tenant isolation (org_id enforcement)
+- ✅ Secrets management (Vault)
+- ✅ Backup & disaster recovery
+- ✅ Encryption at rest & transit
 
 ---
 

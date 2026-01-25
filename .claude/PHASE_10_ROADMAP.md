@@ -490,224 +490,361 @@ Achieve target performance benchmarks (15-50x Arrow vs HTTP).
 
 ---
 
-## Phase 10.5: Authentication & Authorization (3 days) 🔴 CRITICAL
+## Phase 10.5: Complete Authentication & Enhance Authorization (2 days) 🟡 MOSTLY DONE
+
+### Status: 85% Complete ✅
+**Already Implemented** (2,100+ LOC):
+- ✅ JWT validation (HS256, RS256, RS384, RS512) - `crates/fraiseql-core/src/security/auth_middleware.rs` (1,480 LOC)
+- ✅ OAuth2/OIDC provider - `crates/fraiseql-server/src/auth/oidc_provider.rs` (342 LOC)
+- ✅ Session management with refresh tokens - `crates/fraiseql-server/src/auth/session.rs` (384 LOC)
+- ✅ Auth HTTP handlers (start, callback, refresh, logout) - `crates/fraiseql-server/src/auth/handlers.rs` (242 LOC)
+- ✅ Auth middleware with Bearer token extraction - `crates/fraiseql-server/src/auth/middleware.rs` (232 LOC)
+- ✅ Field-level access control (scope-based) - `crates/fraiseql-core/src/security/field_filter.rs` (752 LOC)
+- ✅ Field masking for PII/sensitive data - `crates/fraiseql-core/src/security/field_masking.rs` (532 LOC)
+- ✅ Security profiles (Standard vs Regulated) - `crates/fraiseql-core/src/security/profiles.rs` (513 LOC)
+- ✅ Audit logging with user tracking - `crates/fraiseql-core/src/security/audit.rs` (222 LOC)
 
 ### Objective
-Implement secure access control for all endpoints.
+Complete OAuth integrations and add operation-level RBAC (mutations).
 
-### 5.1 OAuth2/OIDC
-**Files**: `crates/fraiseql-server/src/auth/oauth.rs` (NEW, ~300 lines)
+### 5.1 OAuth Provider Integration (ALREADY 60% DONE)
+**Existing**: `crates/fraiseql-server/src/auth/oidc_provider.rs` (342 LOC)
 
-**Integrations**:
-- GitHub OAuth (for dev/testing)
-- Google OAuth (for consumer)
-- Keycloak (for enterprise SAML/LDAP)
-- Azure AD (for enterprise)
+**What's done**:
+- Generic OIDC provider trait supporting any OIDC service
+- Authorization code flow
+- Token refresh
+- Token revocation
+- PKCE support
+
+**What needs finishing** (1 day):
+- GitHub OAuth specific client (wrapper around OIDC)
+- Google OAuth specific client (wrapper around OIDC)
+- Keycloak integration (group mapping to roles)
+- Azure AD integration (app roles mapping)
+- Provider factory for configuration-driven setup
 
 ```rust
-pub struct OAuthProvider {
+// Existing OIDC provider - just needs provider-specific wrappers
+pub struct OidcProvider {
     client_id: String,
     client_secret: String,
-    authorize_url: String,
-    token_url: String,
-    userinfo_url: String,
+    discovery_url: String,  // Auto-discovers endpoints
 }
 
-impl OAuthProvider {
-    pub async fn get_token(&self, code: &str) -> Result<Token> { /* */ }
-    pub async fn get_user(&self, token: &str) -> Result<OAuthUser> { /* */ }
-}
-
-// Usage: POST /auth/oauth/github/callback?code=XXX
+// NEW: Provider-specific wrappers
+pub struct GitHubOAuth { /* wraps OidcProvider */ }
+pub struct GoogleOAuth { /* wraps OidcProvider */ }
+pub struct KeycloakOAuth { /* wraps OidcProvider */ }
 ```
 
-### 5.2 JWT Token Management
-**Files**: `crates/fraiseql-server/src/auth/jwt.rs` (NEW, ~200 lines)
+### 5.2 JWT & Session Management (ALREADY COMPLETE ✅)
+**Existing**:
+- `crates/fraiseql-server/src/auth/jwt.rs` (282 LOC) - validation & claims parsing
+- `crates/fraiseql-server/src/auth/session.rs` (384 LOC) - session store
+- `crates/fraiseql-server/src/auth/session_postgres.rs` (200 LOC) - PostgreSQL backend
 
-**Features**:
-- Issue JWT tokens on successful OAuth
-- Validate JWT on every request
-- Refresh token rotation
-- Token expiration (15 min access, 7 day refresh)
+**Status**: Production-ready, no changes needed.
 
-```rust
-pub struct JwtManager {
-    secret: String,
-    expiry: Duration,
-}
+### 5.3 Operation-Level RBAC (NEEDS IMPLEMENTATION)
+**Existing**: Field-level access control only
+**Needed**: Mutation authorization (create/update/delete operations)
 
-impl JwtManager {
-    pub fn issue_token(&self, user_id: &str, org_id: &str) -> Result<Token> { /* */ }
-    pub fn validate_token(&self, token: &str) -> Result<Claims> { /* */ }
-}
-
-// Middleware: validates JWT on every HTTP request
-pub async fn jwt_middleware(req: HttpRequest, next: Next) -> Result<HttpResponse> {
-    let token = extract_token(&req)?;
-    let claims = jwt_manager.validate_token(&token)?;
-    req.extensions_mut().insert(claims);
-    Ok(next.call(req).await)
-}
-```
-
-### 5.3 Role-Based Access Control (RBAC)
-**Files**: `crates/fraiseql-server/src/auth/rbac.rs` (NEW, ~200 lines)
-
-**Roles**:
-- **Admin**: View/create/edit/delete rules, manage users, access all data
-- **Operator**: View/create/edit/delete rules, execute actions, view logs
-- **Viewer**: View rules and logs (read-only)
-
-**Resources**:
-- Rules (get, list, create, update, delete)
-- Actions (get, list, execute)
-- Logs (get, list)
-- Settings (get, update)
+**Files**: `crates/fraiseql-server/src/auth/operation_rbac.rs` (NEW, ~200 lines)
 
 ```rust
-pub struct RbacPolicy {
+pub enum MutationPermission {
+    // Observer rules
+    CreateRule,
+    UpdateRule,
+    DeleteRule,
+    // Actions
+    ExecuteAction,
+    // Admin
+    ManageUsers,
+    ManageOrgQuota,
+}
+
+pub struct OperationPolicy {
     role: Role,
-    permissions: HashMap<Resource, Vec<Action>>,
+    permissions: HashMap<String, Vec<MutationPermission>>,
 }
 
-// Usage: Check permission before operation
-fn require_permission(claims: &Claims, resource: Resource, action: Action) -> Result<()> {
-    let policy = RbacPolicy::for_role(claims.role);
+// Usage: Check permission before mutation
+pub fn require_mutation_permission(
+    user: &AuthenticatedUser,
+    resource: &str,
+    action: MutationPermission,
+) -> Result<()> {
+    let policy = OperationPolicy::for_user(user);
     if !policy.has_permission(resource, action) {
-        return Err(ForbiddenError.into());
+        return Err(ForbiddenError::MutationNotAllowed.into());
     }
     Ok(())
 }
 ```
 
-### 5.4 API Keys
+**Roles**:
+- **Admin**: All operations
+- **Operator**: Create/update/execute actions, but not delete rules
+- **Viewer**: Read-only, no mutations
+- **Custom roles**: Define in configuration
+
+### 5.4 API Keys (NEW)
 **Files**: `crates/fraiseql-server/src/auth/api_key.rs` (NEW, ~150 lines)
 
 **Features**:
 - Create API keys for service-to-service auth
-- Key scoping (specific resources)
-- Rotation policy (keys expire after 90 days)
+- Key scoping (read-only vs full access)
+- Expiration policy (90 day rotation)
 - Rate limiting per key
 
 ```rust
 pub struct ApiKey {
     id: String,
-    secret: String,  // Hashed
-    scope: ApiScope,  // What can this key do?
+    secret_hash: String,  // Never store plaintext
+    scopes: Vec<String>,  // e.g., ["read:rules", "execute:actions"]
     expires_at: DateTime,
     last_used: DateTime,
+    created_by: String,   // Audit trail
 }
 
-// Usage: Authorization: Bearer <api_key>
-pub async fn api_key_middleware(req: HttpRequest, next: Next) -> Result<HttpResponse> {
-    let key = extract_api_key(&req)?;
-    let api_key = api_key_store.get(&key)?;
-    if api_key.is_expired() {
-        return Err(UnauthorizedError.into());
+pub struct ApiKeyStore {
+    db: Database,  // Persist to PostgreSQL
+}
+
+impl ApiKeyStore {
+    pub async fn create(&self, key: ApiKey) -> Result<String> {
+        // Return base64(key_id:secret) once, never again
     }
-    req.extensions_mut().insert(api_key);
-    Ok(next.call(req).await)
+    pub async fn validate(&self, key_string: &str) -> Result<ApiKey> {
+        // Hash and lookup secret_hash in database
+    }
 }
 ```
 
-### 5.5 Configuration
-**Files**: Modified `crates/fraiseql-server/src/config.rs` (~50 lines)
+### 5.5 Integration with Existing Auth
+**Files**: Modified `crates/fraiseql-server/src/auth/middleware.rs` (~50 lines)
+
+```rust
+// Enhanced middleware: supports JWT + API keys
+pub async fn auth_middleware(req: HttpRequest, next: Next) -> Result<HttpResponse> {
+    let auth_header = req.headers().get("Authorization")?;
+
+    // Try JWT (Bearer token)
+    if let Some(token) = extract_bearer_token(&auth_header) {
+        let claims = jwt_validator.validate(token)?;
+        let user = AuthenticatedUser::from_claims(claims);
+        req.extensions_mut().insert(user);
+        return Ok(next.call(req).await);
+    }
+
+    // Try API key (Bearer key)
+    if let Some(key) = extract_api_key(&auth_header) {
+        let api_key = api_key_store.validate(key).await?;
+        let user = AuthenticatedUser::from_api_key(api_key);
+        req.extensions_mut().insert(user);
+        return Ok(next.call(req).await);
+    }
+
+    Err(UnauthorizedError.into())
+}
+```
+
+### 5.6 Configuration
+**Files**: Modified `crates/fraiseql-server/src/config.rs` (~30 lines, OIDC part exists)
 
 ```toml
 [auth]
 enabled = true
 
-# OAuth2/OIDC
-oauth_provider = "github"  # or "google", "keycloak"
+# OAuth2/OIDC (OIDC provider already implemented)
+oauth_provider = "github"  # or "google", "keycloak", "azure_ad"
+oidc_discovery_url = "https://accounts.google.com/.well-known/openid-configuration"
 oauth_client_id = "..."
 oauth_client_secret = "..."
 
-# JWT
+# JWT (already implemented)
 jwt_secret = "..."  # From env or Vault
 jwt_expiry_minutes = 15
 refresh_token_expiry_days = 7
 
-# RBAC
-default_role = "viewer"  # or "operator", "admin"
+# RBAC (field-level already exists)
+# Operation-level needs new config
+default_role = "viewer"
 admin_users = ["admin@example.com"]
 ```
 
-### Tests
-- [ ] OAuth flow works (mock OAuth provider)
-- [ ] JWT validation rejects invalid tokens
-- [ ] RBAC enforces permissions correctly
-- [ ] API key authentication works
-- [ ] Token expiration triggers refresh flow
-
-### Verification
-- [ ] HTTP 401 on missing token
-- [ ] HTTP 403 on insufficient permissions
-- [ ] Token refresh flow works
-- [ ] API key scope limits access
-
----
-
-## Phase 10.6: Multi-Tenancy & Data Isolation (3-4 days) 🔴 CRITICAL (if SaaS)
-
-### Objective
-Enforce strict data isolation between organizations.
-
-### 6.1 Query-Level Isolation
-**Files**: `crates/fraiseql-core/src/tenant.rs` (NEW, ~150 lines)
-
-**Every query includes org_id filter**:
-
-```sql
--- Before
-SELECT * FROM observer_rules WHERE user_id = $1;
-
--- After (with org_id isolation)
-SELECT * FROM observer_rules WHERE user_id = $1 AND org_id = $2;
-```
-
-**Implementation**:
-- Middleware extracts org_id from JWT claims
-- All database queries wrapped with org_id filter
-- Request context includes org_id (cannot be overridden)
-
+### What's Already Working
 ```rust
-pub struct TenantContext {
-    org_id: Uuid,
-    user_id: Uuid,
+// Existing: Field-level access control
+pub fn can_read_field(
+    user: &AuthenticatedUser,
+    type_name: &str,
+    field_name: &str,
+) -> bool {
+    // Scope format: read:User.salary, read:User.*, admin
 }
 
-// Middleware extracts from JWT
-pub async fn tenant_middleware(req: HttpRequest, next: Next) -> Result<HttpResponse> {
-    let claims = req.extensions().get::<Claims>().ok_or(Unauthorized)?;
-    let tenant = TenantContext {
-        org_id: claims.org_id,
-        user_id: claims.user_id,
-    };
-    req.extensions_mut().insert(tenant);
-    Ok(next.call(req).await)
-}
-
-// Usage: All queries automatically include org_id
-impl ObserverRuleRepository {
-    pub async fn get(&self, rule_id: Uuid, tenant: &TenantContext) -> Result<ObserverRule> {
-        let rule = sqlx::query_as::<_, ObserverRule>(
-            "SELECT * FROM observer_rules WHERE id = $1 AND org_id = $2"
-        )
-        .bind(rule_id)
-        .bind(tenant.org_id)  // Cannot be bypassed
-        .fetch_one(&self.pool)
-        .await?;
-        Ok(rule)
+// Existing: Field masking
+pub fn apply_field_masking(
+    value: &str,
+    sensitivity: FieldSensitivity,
+) -> String {
+    match sensitivity {
+        Public => value.to_string(),
+        Sensitive => mask_email(value),  // u***
+        PII => mask_pii(value),           // PII ****
+        Secret => "****".to_string(),
     }
 }
 ```
 
-### 6.2 Storage Isolation
+### Tests
+- [ ] GitHub OAuth integration works
+- [ ] Google OAuth integration works
+- [ ] JWT validation rejects invalid tokens (already tested)
+- [ ] API key validation and scoping works
+- [ ] Operation RBAC enforces mutation permissions
+- [ ] Field-level access control still works (regression)
+
+### Verification
+- [ ] `cargo clippy` clean
+- [ ] `cargo test auth*` passes
+- [ ] HTTP 401 on missing auth
+- [ ] HTTP 403 on insufficient permissions
+- [ ] API key scopes limit operations
+- [ ] Audit logs record who did what (already works)
+
+---
+
+## Phase 10.6: Multi-Tenancy & Data Isolation (2 days) 🟡 PARTIALLY DONE
+
+### Status: 30% Complete (Data Model) ⚠️
+**Already Implemented**:
+- ✅ Tenant ID field in audit logs - `crates/fraiseql-core/src/security/audit.rs` (222 LOC)
+- ✅ Tenant/org ID recognized in validation - `crates/fraiseql-core/src/validation/input_processor.rs`
+- ✅ JWT claims can include org_id/tenant_id - extracted in `crates/fraiseql-server/src/auth/middleware.rs`
+
+**NOT YET Implemented**:
+- ❌ Request context enrichment with tenant_id
+- ❌ Query-level isolation enforcement
+- ❌ Separate storage layer per tenant (ClickHouse views, Elasticsearch indices)
+- ❌ Job queue isolation
+- ❌ Quota enforcement per tenant
+
+### Objective
+Enforce strict data isolation between organizations at query execution level.
+
+### 6.1 Request Context Enrichment (HIGHEST PRIORITY)
+**Files**: Modified `crates/fraiseql-server/src/logging.rs` (~30 lines)
+
+**Current**:
+```rust
+pub struct RequestContext {
+    pub request_id: RequestId,
+    pub operation: Option<String>,
+    pub user_id: Option<String>,
+    pub client_ip: Option<String>,
+    pub api_version: Option<String>,
+    // ❌ MISSING: tenant_id, org_id, roles
+}
+```
+
+**Enhanced**:
+```rust
+pub struct RequestContext {
+    pub request_id: RequestId,
+    pub user_id: Option<String>,
+    pub org_id: Option<String>,      // ← NEW: From JWT claims.org_id
+    pub tenant_id: Option<String>,   // ← NEW: Alias for org_id if using different naming
+    pub roles: Vec<String>,           // ← NEW: From JWT claims.roles
+    pub client_ip: Option<String>,
+    pub api_version: Option<String>,
+}
+
+// Middleware extracts org_id from JWT
+pub async fn tenant_context_middleware(req: HttpRequest, next: Next) -> Result<HttpResponse> {
+    let claims = req.extensions().get::<Claims>().ok_or(Unauthorized)?;
+
+    // Add tenant context to request
+    let ctx = RequestContext {
+        request_id: generate_request_id(),
+        user_id: Some(claims.sub.clone()),
+        org_id: claims.extra.get("org_id")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string()),
+        tenant_id: claims.extra.get("tenant_id")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string()),
+        roles: extract_roles(&claims),  // ["admin"], ["operator"], etc.
+        client_ip: Some(get_client_ip(&req)),
+        api_version: None,
+    };
+
+    req.extensions_mut().insert(ctx);
+    Ok(next.call(req).await)
+}
+```
+
+### 6.2 Query-Level Isolation Enforcement
+**Files**: `crates/fraiseql-core/src/tenant.rs` (NEW, ~200 lines)
+
+**Tenant filter middleware for all database queries**:
+
+```rust
+pub struct TenantFilter {
+    org_id: String,
+    user_id: String,
+}
+
+impl TenantFilter {
+    pub fn apply_filter(&self, query: &mut SqlQuery) -> Result<()> {
+        // Add `WHERE org_id = $N` to all queries
+        query.add_filter("org_id", &self.org_id)?;
+        Ok(())
+    }
+}
+
+// Usage: Wrap all database operations
+pub async fn get_rule(&self, ctx: &RequestContext, rule_id: Uuid) -> Result<ObserverRule> {
+    let org_id = ctx.org_id.as_ref().ok_or(MissingOrgId)?;
+
+    // Query automatically includes org_id filter
+    let rule = sqlx::query_as::<_, ObserverRule>(
+        "SELECT * FROM observer_rules WHERE id = $1 AND org_id = $2"
+    )
+    .bind(rule_id)
+    .bind(org_id)  // Cannot be bypassed - comes from JWT
+    .fetch_one(&self.pool)
+    .await?;
+    Ok(rule)
+}
+```
+
+**For GraphQL queries** (applies to all field resolvers):
+```rust
+// Every resolver receives context with org_id
+pub async fn observer_rules(
+    &self,
+    ctx: &RequestContext,
+) -> Result<Vec<ObserverRule>> {
+    let org_id = ctx.org_id.as_ref().ok_or(MissingOrgId)?;
+
+    // All rules filtered by org_id automatically
+    self.db.query("SELECT * FROM observer_rules WHERE org_id = $1")
+        .bind(org_id)
+        .fetch_all()
+        .await
+}
+```
+
+### 6.3 Storage Layer Isolation
 **Files**: `crates/fraiseql-arrow/src/tenant.rs` (NEW, ~100 lines)
 
 **ClickHouse views per organization**:
 ```sql
--- Main table (all orgs)
+-- Main table (all orgs, partitioned by org)
 CREATE TABLE fraiseql_events (
     event_id UUID,
     org_id UUID,
@@ -715,18 +852,15 @@ CREATE TABLE fraiseql_events (
     data String,
     ...
 ) ENGINE = MergeTree()
+PARTITION BY org_id
 ORDER BY (org_id, timestamp);
 
--- View for Org A (data isolation)
-CREATE VIEW fraiseql_events_org_123 AS
-SELECT * FROM fraiseql_events WHERE org_id = '123-456...';
-
--- View for Org B
-CREATE VIEW fraiseql_events_org_789 AS
-SELECT * FROM fraiseql_events WHERE org_id = '789-012...';
+-- Optional: Per-org materialized views for performance
+CREATE MATERIALIZED VIEW fraiseql_events_org_123_mv AS
+SELECT * FROM fraiseql_events WHERE org_id = '123-456...'
 ```
 
-**Elasticsearch indices per organization**:
+**Elasticsearch indices per organization** (optional, for operational search):
 ```json
 {
   "fraiseql-events-org-123": {
@@ -739,116 +873,150 @@ SELECT * FROM fraiseql_events WHERE org_id = '789-012...';
 }
 ```
 
-### 6.3 Job Queue Isolation
+### 6.4 Job Queue Isolation
 **Files**: Modified `crates/fraiseql-observers/src/job_queue/redis.rs` (~30 lines)
 
-**Separate Redis queues per organization**:
+**Separate Redis queues per organization** (already has org_id in events, just needs routing):
 ```rust
-pub fn queue_key(org_id: &Uuid) -> String {
+pub fn queue_key(org_id: &str) -> String {
     format!("fraiseql:queue:org:{}", org_id)
 }
 
-// Enqueue: adds to org-specific queue
-pub async fn enqueue(&self, org_id: &Uuid, job: Job) -> Result<()> {
+// Enqueue: adds to org-specific queue (from context)
+pub async fn enqueue(&self, ctx: &RequestContext, job: Job) -> Result<()> {
+    let org_id = ctx.org_id.as_ref().ok_or(MissingOrgId)?;
     let key = queue_key(org_id);
     redis_client.lpush(&key, serialize(&job)).await?;
     Ok(())
 }
 
-// Dequeue: consumes from org-specific queue
-pub async fn dequeue(&self, org_id: &Uuid, count: usize) -> Result<Vec<Job>> {
+// Dequeue: worker reads only from its org's queue
+pub async fn dequeue(&self, org_id: &str, count: usize) -> Result<Vec<Job>> {
     let key = queue_key(org_id);
-    // ... dequeue from org-specific queue
+    redis_client.lrange(&key, 0, count as i64).await
 }
 ```
 
-### 6.4 Quota Enforcement
-**Files**: `crates/fraiseql-server/src/quota.rs` (NEW, ~200 lines)
+### 6.5 Quota Enforcement
+**Files**: `crates/fraiseql-server/src/quota.rs` (NEW, ~150 lines)
 
-**Per-organization quotas**:
+**Per-organization quotas** (stored in database):
 ```toml
+# Configuration profiles for organizations
 [quota.default]
 max_rules = 100
 max_actions_per_rule = 10
 max_storage_gb = 100
 max_qps = 1000
-max_concurrent_connections = 50
 
 [quota.enterprise]
 max_rules = 10000
 max_actions_per_rule = 1000
 max_storage_gb = 1000
 max_qps = 100000
-max_concurrent_connections = 500
 ```
 
-**Enforcement**:
+**Runtime quota enforcement**:
 ```rust
 pub struct QuotaManager {
-    limits: HashMap<Uuid, QuotaLimits>,
-    usage: Arc<Mutex<HashMap<Uuid, QuotaUsage>>>,
+    db: Database,  // Read org quotas from database
 }
 
 impl QuotaManager {
-    pub async fn check_quota(&self, org_id: &Uuid, resource: &str) -> Result<()> {
-        let usage = self.usage.lock().await;
-        let limit = self.limits.get(org_id).ok_or(OrgNotFound)?;
+    pub async fn check_quota(&self, ctx: &RequestContext, resource: &str) -> Result<()> {
+        let org_id = ctx.org_id.as_ref().ok_or(MissingOrgId)?;
+
+        // Get org's quota from database
+        let org = self.db.get_organization(org_id).await?;
+        let usage = self.db.get_usage(org_id).await?;
 
         match resource {
             "rules" => {
-                if usage[org_id].rule_count >= limit.max_rules {
+                if usage.rule_count >= org.quota.max_rules {
                     return Err(QuotaExceeded::Rules.into());
                 }
             }
-            // ... other resources
+            "qps" => {
+                if current_qps() > org.quota.max_qps {
+                    return Err(QuotaExceeded::Qps.into());
+                }
+            }
+            _ => {}
         }
         Ok(())
     }
 }
+
+// Usage: Check before creating rule
+pub async fn create_rule(&self, ctx: &RequestContext, rule: ObserverRule) -> Result<()> {
+    quota_manager.check_quota(ctx, "rules").await?;
+    // ... create rule
+}
 ```
 
-### 6.5 Audit Logging
-**Files**: `crates/fraiseql-server/src/audit.rs` (NEW, ~150 lines)
+### 6.6 Audit Logging (ALREADY PARTIALLY DONE ✅)
+**Existing**: `crates/fraiseql-core/src/security/audit.rs` (222 LOC)
 
-**Log all operations per organization**:
+**What's done**:
+- ✅ Audit log schema includes org_id/tenant_id
+- ✅ User tracking (user_id, username)
+- ✅ Query logging
+- ✅ IP address and user agent tracking
+
+**What needs enhancement** (~20 lines):
+- Add mutation tracking (who created/updated/deleted what)
+- Add resource identifiers to audit logs
+- Connect audit logging to quota enforcement
+
 ```rust
-pub struct AuditLog {
-    timestamp: DateTime,
-    org_id: Uuid,
-    user_id: Uuid,
-    action: AuditAction,
-    resource: String,
-    result: Result<(), String>,
+// Existing audit structure - just needs connection to mutations
+pub struct AuditEntry {
+    pub tenant_id: i64,      // ✅ Already there
+    pub user_id: i64,        // ✅ Already there
+    pub operation: String,   // ✅ Already there
+    pub query: String,       // ✅ Already there
+    // Need to enhance:
+    pub mutation_type: Option<String>,  // create, update, delete
+    pub resource_id: Option<String>,    // rule ID, action ID, etc.
 }
+```
 
-impl AuditLog {
-    pub async fn log(&self, entry: AuditLog) -> Result<()> {
-        // Write to dedicated audit table
-        sqlx::query(
-            "INSERT INTO audit_logs (timestamp, org_id, user_id, action, resource, result)
-             VALUES ($1, $2, $3, $4, $5, $6)"
-        )
-        .bind(entry.timestamp)
-        .bind(entry.org_id)
-        // ... etc
-        .execute(&self.pool)
-        .await?;
-        Ok(())
-    }
-}
+### 6.7 Tenant Initialization
+**Database schema changes** (existing tables need org_id):
+```sql
+-- All existing tables need org_id column
+ALTER TABLE observer_rules ADD COLUMN org_id UUID NOT NULL DEFAULT gen_random_uuid();
+ALTER TABLE observer_actions ADD COLUMN org_id UUID NOT NULL;
+ALTER TABLE audit_logs ADD COLUMN org_id UUID NOT NULL;  -- Already has this
+
+-- Add tenant table for quota/config
+CREATE TABLE organizations (
+    id UUID PRIMARY KEY,
+    name VARCHAR(255),
+    quota_tier VARCHAR(50),  -- 'default', 'enterprise', custom
+    created_at TIMESTAMP,
+    created_by UUID,
+);
+
+-- Add indexes for org-filtered queries
+CREATE INDEX idx_observer_rules_org_id ON observer_rules(org_id);
+CREATE INDEX idx_observer_actions_org_id ON observer_actions(org_id);
+CREATE INDEX idx_events_org_id ON fraiseql_events(org_id);
 ```
 
 ### Tests
-- [ ] Org A cannot read Org B's rules
-- [ ] Org A cannot execute Org B's actions
-- [ ] Org A jobs isolated in separate queue
-- [ ] Quota exceeded blocks operation
-- [ ] Audit log records all operations per org
+- [ ] Org A cannot read Org B's rules (query isolation)
+- [ ] Org A cannot execute Org B's actions (authorization)
+- [ ] Org A jobs isolated in separate queue (queue isolation)
+- [ ] Quota exceeded blocks operation (quota enforcement)
+- [ ] Audit log records all operations per org (audit trail)
+- [ ] Cross-org data access returns empty (security test)
 
 ### Verification
-- [ ] Run data isolation tests (try to read cross-org data, should fail)
-- [ ] Run quota tests (exceed limit, should reject)
-- [ ] Run audit tests (all ops logged)
+- [ ] Run data isolation tests: `cargo test tenant*`
+- [ ] Run quota tests: `cargo test quota*`
+- [ ] Run audit tests: `cargo test audit*`
+- [ ] Manual: Try to access org_id from JWT in every query
 
 ---
 
@@ -1066,46 +1234,46 @@ WITH SETTINGS
 
 ## Summary: Phase 10 Phases at a Glance
 
-| Phase | Effort | Dependencies | Go/No-Go |
-|-------|--------|--------------|----------|
-| 10.1 | 3 days | None | 🟡 Recommended |
-| 10.2 | 2 days | None | 🟡 Recommended |
-| 10.3 | 3 days | 10.1 | 🟡 Recommended |
-| 10.4 | 2 days | None | 🟢 Optional (nice-to-have) |
-| **10.5** | **3 days** | **None** | **🔴 CRITICAL** |
-| **10.6** | **3-4 days** | **10.5** | **🔴 CRITICAL (SaaS)** |
-| 10.7 | 1-2 days | None | 🟡 Recommended |
-| **10.8** | **1-2 days** | **10.5** | **🔴 CRITICAL** |
-| **10.9** | **1 day** | **None** | **🔴 CRITICAL** |
-| **10.10** | **1-2 days** | **None** | **🔴 CRITICAL** |
+| Phase | Status | Effort | Dependencies | Go/No-Go |
+|-------|--------|--------|--------------|----------|
+| 10.1 | Not started | 3 days | None | 🟡 Recommended |
+| 10.2 | Not started | 2 days | None | 🟡 Recommended |
+| 10.3 | Not started | 3 days | 10.1 | 🟡 Recommended |
+| 10.4 | Not started | 2 days | None | 🟢 Optional (nice-to-have) |
+| **10.5** | **85% Done (2,100 LOC)** | **2 days** | **None** | **🟡 MOSTLY DONE** |
+| **10.6** | **30% Done (Schema only)** | **2 days** | **10.5** | **🟡 PRIORITY** |
+| 10.7 | Not started | 1-2 days | None | 🟡 Recommended |
+| **10.8** | **Not started** | **1-2 days** | **10.5** | **🔴 CRITICAL** |
+| **10.9** | **Not started** | **1 day** | **None** | **🔴 CRITICAL** |
+| **10.10** | **Not started** | **1-2 days** | **None** | **🔴 CRITICAL** |
 
-**Total Critical Path**: 10.5 → 10.6, 10.8, 10.9, 10.10
-**Total Effort**: 3-4 weeks
+**Revised Critical Path**: 10.5 (finish) → 10.6 (enforce) → 10.8, 10.9, 10.10
+**Realistic Effort**: 2 weeks (vs 3-4 weeks, since 85% of auth already done)
 
 ---
 
-## Implementation Order (Recommended)
+## Implementation Order (Revised - 2 Weeks Now That Auth is 85% Done)
 
 ```
-Week 1:
-├─ 10.1: Rate limiting & admission control [3 days]
-└─ 10.5: Auth & RBAC [3 days]  ← Critical, enables everything
+WEEK 1: Complete Auth & Enforce Multi-Tenancy
+├─ 10.5: Finish OAuth providers + API keys [2 days]
+│  └─ Most JWT/session/OIDC already done, just need provider wrappers
+├─ 10.6: Enforce tenant isolation [2 days]
+│  └─ Add org_id to RequestContext, apply filters to all queries
+└─ 10.1: Rate limiting & admission control [1 day]
+   └─ Wire org_id into rate limiter
 
-Week 2:
-├─ 10.3: Circuit breakers & resilience [3 days]
-└─ 10.6: Multi-tenancy (if needed) [3-4 days]
-
-Week 3:
-├─ 10.8: Secrets management [1-2 days]
-├─ 10.9: Backup & DR [1 day]
-└─ 10.10: Encryption [1-2 days]
-
-Week 4:
-├─ 10.2: Deployment patterns [2 days]
-├─ 10.7: Distributed tracing [1-2 days]
-├─ 10.4: Performance optimization [2 days]
-└─ Integration testing & polish [2-3 days]
+WEEK 2: Operational Hardening
+├─ 10.8: Secrets management (Vault integration) [1-2 days]
+├─ 10.9: Backup & disaster recovery runbook [1 day]
+├─ 10.10: Encryption at rest & transit [1-2 days]
+├─ 10.3: Circuit breakers (optional) [1 day]
+└─ Integration & release prep [1-2 days]
 ```
+
+**Total Effort**: 2 weeks (vs 3-4 weeks)
+**Critical Path**: 10.5 (finish) → 10.6 (enforce) → 10.8, 10.9, 10.10
+**Optional But Nice**: 10.1, 10.2, 10.3, 10.4, 10.7
 
 ---
 
