@@ -1,314 +1,262 @@
-# Phase 9.10: Cross-Language Arrow Flight SDK
+# Phase 9.10: Language-Agnostic Arrow Flight Schema (REVISED)
 
-**Objective**: Make Arrow Flight implementable in ANY programming language
+**Objective**: Enable Arrow schemas to be authored in ANY programming language
 
-**Duration**: 2 weeks | **Effort**: 10 days of implementation | **Priority**: High
+**Duration**: 1.5 weeks | **Effort**: 6 days of implementation | **Priority**: High
+
+---
+
+## Core Principle (Clarified)
+
+**The Arrow Flight RUNTIME runs in Rust. The AUTHORING is language-agnostic.**
+
+```
+Arrow Schema Authoring (Python/TypeScript/YAML/JSON)
+    ↓
+fraiseql compile-arrow (CLI command)
+    ↓
+schema.arrow.json (Language-agnostic artifact)
+    ↓
+Arrow Flight Server (Rust - fraiseql-arrow crate)
+    ↓
+Clients in Any Language (PyArrow, R, Go, Java, C#, Node.js, etc.)
+```
+
+**Key Point**: We are NOT building Arrow Flight servers in Go, Java, C#, etc. We are building authoring tools in those languages that compile to a common schema format for the single Rust runtime.
 
 ---
 
 ## Problem Statement
 
 ### Current State
-- Arrow Flight implemented in Rust (fraiseql-arrow crate)
-- Python/R/Rust clients exist
-- Schema definitions hardcoded in Rust
-- New language support = rewrite everything
+- Arrow schemas defined in Rust code (type definitions)
+- EntityEvent, User schemas hardcoded in `fraiseql-arrow`
+- No standard schema format for other languages to reference
 
 ### Gap
-- **No language-agnostic schema definition**
-- **No code generation for clients/servers**
-- **No formal specification for interop**
-- **Hard to extend to Java, Go, C#, C++, Node.js**
+- **Python developer**: Can't define Arrow schema without writing Rust
+- **Go backend**: Can't validate Arrow schemas without Rust tooling
+- **Java system**: No way to introspect Arrow schema format
+- **TypeScript web app**: Can't understand Arrow table structure
 
 ### Impact
-- Teams can't implement Arrow Flight in their preferred language
-- Vendor lock-in to Rust ecosystem
-- Difficult to integrate with legacy systems
+- Schema validation happens only in Rust
+- Other languages guess schema structure
+- Schema changes require Rust recompilation
+- No language-neutral schema registry
 
 ---
 
-## Solution: Language-Neutral SDK
+## Solution: Language-Agnostic Schema Definition
 
-### Three Core Components
+### Three Components
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  Arrow Schema IDL (.arrow-schema files)                  │
-│  - Define tables, fields, types, indexes                 │
-│  - Language-agnostic YAML/JSON format                    │
-│  - Example: EntityEvent, User, Order schemas             │
-└─────────────┬───────────────────────────────────────────┘
-              │
-              ▼
+│  Arrow Schema Format (.arrow-schema)                     │
+│  - JSON-based, language-neutral                          │
+│  - Defines tables, fields, types, constraints           │
+└─────────────────┬───────────────────────────────────────┘
+                  │
+                  ▼
 ┌─────────────────────────────────────────────────────────┐
-│  Code Generators (Template-Driven)                        │
-│  - Parse .arrow-schema → Generate language-specific code │
-│  - 5 languages: Go, Java, C#, Node.js, C++              │
-│  - 2 templates each: Serialization + RPC client         │
-└─────────────┬───────────────────────────────────────────┘
-              │
-              ▼
+│  Schema Authoring Libraries (Language SDKs)              │
+│  - Python: fraiseql_arrow library                        │
+│  - TypeScript: @fraiseql/arrow library                   │
+│  - Go, Java, C#, etc.: Generate code from .arrow-schema │
+└─────────────────┬───────────────────────────────────────┘
+                  │
+                  ▼
 ┌─────────────────────────────────────────────────────────┐
-│  Protocol Specification & Examples                        │
-│  - Formal Arrow Flight wire format spec                  │
-│  - Cross-language interop guide                          │
-│  - Example servers: Go, Java, Node.js                    │
+│  Single Arrow Flight Server (Rust)                       │
+│  - Loads .arrow-schema artifacts                         │
+│  - Serves data to any language client                    │
+│  - No language-specific implementations                  │
 └─────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Implementation Plan (10 Days)
+## Implementation Plan (6 Days)
 
-### Day 1-3: Arrow Schema IDL Design & Tooling
+### Day 1-2: Arrow Schema Format & Standard Library
 
-**Goal**: Define schema language, create parser/validator
-
-**Deliverables**:
-
-1. **Arrow Schema Specification** (`docs/arrow-flight/schema-spec.md`)
-   - JSON schema format (similar to Avro/Protobuf)
-   - Supported field types:
-     - Scalars: `bool`, `int8-64`, `uint8-64`, `float32-64`, `string`, `bytes`
-     - Temporal: `date`, `time_us`, `timestamp_us`, `duration_us`
-     - Complex: `list`, `struct`, `map`, `union`
-   - Field attributes: `required`, `nullable`, `default`, `doc`
-   - Table attributes: `namespace`, `version`, `description`, `indexes`
-   - TTL configuration: `expires_after_days`, `partition_key`
-
-2. **Example Schema Files** (`crates/fraiseql-arrow/schemas/`)
-   - `EntityEvent.arrow-schema` (Observer events)
-   - `User.arrow-schema` (Example entity)
-   - `Order.arrow-schema` (Example with complex types)
-
-3. **Schema Parser** (`crates/fraiseql-codegen/src/parser.rs`, ~200 lines)
-   - Parse `.arrow-schema` files
-   - Validate field types, required fields
-   - Error messages for invalid schemas
-
-4. **Schema Validator** (`crates/fraiseql-codegen/src/validator.rs`, ~150 lines)
-   - Check for naming conventions
-   - Verify index fields exist
-   - Detect conflicting field names across tables
-
-**Effort**: 3 days
-
-**Key File**: `EntityEvent.arrow-schema`
-```yaml
-namespace: fraiseql.events
-name: EntityEvent
-version: 1.0
-description: >
-  Observer event: represents state change in entity.
-  Streaming via Arrow Flight, storage in ClickHouse.
-
-fields:
-  - name: event_id
-    type: string
-    required: true
-    doc: "Unique event identifier (UUID v4)"
-
-  - name: entity_type
-    type: string
-    required: true
-    doc: "Entity type from schema (e.g., 'User', 'Order')"
-    index: true
-
-  - name: entity_id
-    type: string
-    required: true
-    doc: "Entity primary key"
-
-  - name: event_type
-    type: string
-    required: true
-    doc: "Event type (created, updated, deleted)"
-    index: true
-
-  - name: timestamp
-    type: timestamp_us
-    required: true
-    doc: "Event timestamp in microseconds UTC"
-    index: true
-
-  - name: data
-    type: string
-    required: true
-    doc: "Event payload as JSON string"
-
-  - name: user_id
-    type: string
-    required: false
-    doc: "User who triggered event"
-
-  - name: org_id
-    type: string
-    required: false
-    doc: "Organization context"
-
-indexes:
-  - name: idx_entity_timestamp
-    fields: [entity_type, timestamp]
-    description: "Partition by entity type, sort by timestamp"
-
-ttl:
-  expires_after_days: 90
-  partition_strategy: monthly
-
-metadata:
-  storage:
-    primary: clickhouse
-    table_name: fraiseql_events
-    materialized_views:
-      - fraiseql_events_hourly
-      - fraiseql_org_daily
-```
-
----
-
-### Day 4-6: Code Generators (5 Languages)
-
-**Goal**: Generate client + serialization code for 5 languages
-
-**Architecture**: Template-driven using Handlebars/Tera
-
-**Process**:
-1. Parse schema → AST
-2. Map types to language-specific types
-3. Render templates → language code
-4. Output ready-to-use modules
-
-#### Language Targets & Templates
-
-| Language | Client Library | Serialization | Output |
-|----------|----------------|---------------|--------|
-| **Go** | `grpc-go` + `apache-arrow/go` | Manual struct marshaling | `.go` files |
-| **Java** | `grpc-java` + `apache-arrow-java` | Protobuf serialization | `.java` files |
-| **C#** | `grpc-dotnet` + `Apache.Arrow` | JSON serialization | `.cs` files |
-| **Node.js** | `grpc-js` + `apache-arrow` | JSON + Arrow IPC | `.js` files |
-| **C++** | `grpc-c++` + `apache-arrow-cpp` | Manual struct marshaling | `.h`/`.cpp` |
-
-**Implementation**:
-
-1. **Type Mapping** (`crates/fraiseql-codegen/src/type_mapping.rs`, ~300 lines)
-   ```rust
-   // Maps Arrow types to language-specific types
-   enum ArrowType {
-       String → "string" (Go/Java), "str" (Rust), "string" (C#), "string" (JS), "std::string" (C++)
-       Int64 → "int64" (Go), "long" (Java), "long" (C#), "BigInt" (JS), "int64_t" (C++)
-       Timestamp → "time.Time", "Instant", "DateTime", "Date", "std::chrono::time_point"
-       ...
-   }
-   ```
-
-2. **Template Engine** (`crates/fraiseql-codegen/src/generator.rs`, ~400 lines)
-   - Tera templates in `crates/fraiseql-codegen/templates/`
-   - One template set per language:
-     - `go/entity.tera` → struct definition
-     - `go/serializer.tera` → MarshalBinary/UnmarshalBinary
-     - `go/client.tera` → Flight client code
-     - (Same for Java, C#, Node.js, C++)
-
-3. **CLI Command** (`crates/fraiseql-cli/src/generate.rs`)
-   ```bash
-   fraiseql generate arrow-flight \
-     --schema EntityEvent.arrow-schema \
-     --language go \
-     --output generated/go/
-   ```
-
-**Effort**: 5 days
-
-**Outputs**:
-- `templates/go/entity.tera`
-- `templates/java/entity.tera`
-- `templates/csharp/entity.tera`
-- `templates/nodejs/entity.tera`
-- `templates/cpp/entity.tera`
-- Generator logic in `crates/fraiseql-codegen/`
-
----
-
-### Day 7-8: Protocol Specification & Examples
-
-**Goal**: Document Arrow Flight protocol, provide example servers
+**Goal**: Define schema format, create Python/TypeScript libraries
 
 **Deliverables**:
 
-1. **Arrow Flight Protocol Specification** (`docs/arrow-flight/protocol-spec.md`)
-   - Message framing (gRPC + Arrow IPC)
-   - Ticket format for querying
-   - Streaming batch format
-   - Backpressure & flow control
-   - Error handling & status codes
-   - Example wire traces
+1. **Arrow Schema Specification** (`docs/arrow-flight/arrow-schema-format.md`)
+   - JSON schema format (similar to Avro)
+   - Types: scalars, temporal, complex (list, struct, map, union)
+   - Field attributes: required, nullable, default, index, doc
+   - Table attributes: namespace, version, ttl, partition_strategy
+   - Example:
+     ```json
+     {
+       "namespace": "fraiseql.events",
+       "name": "EntityEvent",
+       "version": "1.0",
+       "fields": [
+         {"name": "event_id", "type": "string", "required": true},
+         {"name": "timestamp", "type": "timestamp_us", "required": true},
+         {"name": "data", "type": "string", "required": true}
+       ]
+     }
+     ```
 
-2. **Example Server Implementations**
+2. **Python Authoring Library** (`crates/fraiseql-arrow/python/`)
+   - `fraiseql_arrow` pip package (NEW)
+   - `@schema` decorator for defining Arrow schemas
+   - Export to `.arrow-schema` JSON format
+   - Validation and type checking
 
-   a. **Go Server** (`examples/go/server/main.go`, ~200 lines)
-   ```go
-   // Generated from EntityEvent.arrow-schema
-   type EntityEvent struct {
-       EventID   string    `arrow:"event_id"`
-       EventType string    `arrow:"event_type"`
-       Timestamp time.Time `arrow:"timestamp"`
-       Data      string    `arrow:"data"`
-   }
+   ```python
+   from fraiseql_arrow import schema, Schema, Field, String, Timestamp
 
-   // Flight GetFlightInfo handler
-   func (s *Server) GetFlightInfo(ctx context.Context, descriptor *flight.FlightDescriptor) (*flight.FlightInfo, error) {
-       // Query preparation
-   }
+   @schema(namespace="fraiseql.events", version="1.0")
+   class EntityEvent(Schema):
+       event_id: String(required=True, index=True)
+       event_type: String(required=True)
+       timestamp: Timestamp(resolution="us", required=True, index=True)
+       data: String(required=True)
+       user_id: String(required=False)
+       org_id: String(required=False)
 
-   // Flight DoGet handler - stream data
-   func (s *Server) DoGet(request *flight.Ticket, stream flight.FlightService_DoGetServer) error {
-       // Stream Arrow batches
-   }
+   # Export to .arrow-schema JSON
+   EntityEvent.to_schema_file("EntityEvent.arrow-schema")
    ```
 
-   b. **Java Server** (`examples/java/ArrowFlightServer.java`, ~250 lines)
-   - Same flight handlers, Java Arrow API
+3. **TypeScript Authoring Library** (`crates/fraiseql-arrow/typescript/`)
+   - `@fraiseql/arrow` npm package (NEW)
+   - TypeScript classes for schema definition
+   - JSON schema generation
 
-   c. **Node.js Server** (`examples/nodejs/server.js`, ~200 lines)
-   - Express.js wrapper around gRPC server
-   - For ease of JavaScript integration
+   ```typescript
+   import { ArrowSchema, Field, StringType, TimestampType } from '@fraiseql/arrow';
 
-3. **Interop Testing Guide** (`docs/arrow-flight/interop-testing.md`)
-   - Cross-language client-server testing
-   - Docker Compose setup (Rust, Go, Java servers)
-   - Test matrix: all clients × all servers
+   class EntityEvent extends ArrowSchema {
+     @Field(new StringType({ required: true, index: true }))
+     eventId: string;
+
+     @Field(new TimestampType({ resolution: 'us', required: true }))
+     timestamp: Date;
+
+     @Field(new StringType({ required: true }))
+     data: string;
+   }
+
+   // Export
+   const schema = new EntityEvent().toSchema();
+   fs.writeFileSync('EntityEvent.arrow-schema', JSON.stringify(schema));
+   ```
+
+4. **Schema Validator** (`crates/fraiseql-codegen/src/arrow_schema_validator.rs`)
+   - Load and validate `.arrow-schema` JSON files
+   - Check field types, constraints, naming conventions
+   - Report errors clearly
 
 **Effort**: 2 days
 
 ---
 
-### Day 9-10: Integration & Testing
+### Day 3-4: Server Integration & CLI
 
-**Goal**: Verify all generators work, examples compile, interop tests pass
+**Goal**: Load `.arrow-schema` files, serve via Arrow Flight
 
 **Deliverables**:
 
-1. **Generated Code Verification**
-   - Run generator for all 5 languages
-   - Verify compilation (Go, Java, C#, Node.js, C++)
-   - Check for syntax errors, missing imports
+1. **Schema Registry** (Rust, `fraiseql-arrow/src/schema_registry.rs`, ~200 lines)
+   ```rust
+   pub struct ArrowSchemaRegistry {
+       schemas: HashMap<String, ArrowSchema>,  // namespace/name → schema
+   }
 
-2. **Cross-Language Interop Tests** (`tests/arrow-flight-interop/`)
-   - Matrix: 5 servers × 5 clients = 25 combinations
-   - Template test:
-     ```
-     1. Start server (Go/Java/Node.js/Rust/C++)
-     2. Run client (same language or different)
-     3. Send query with EntityEvent schema
-     4. Verify batch deserialization matches expected values
-     5. Check performance (latency, throughput)
-     ```
-   - Docker Compose for easy orchestration
+   impl ArrowSchemaRegistry {
+       // Load from .arrow-schema files
+       fn load_from_directory(path: &str) -> Result<Self> { }
 
-3. **Documentation Finalization**
-   - README per language with installation instructions
-   - Migration guide: moving from HTTP/JSON to Arrow Flight
-   - Benchmarks: language comparison (throughput, memory, latency)
+       // Serve to Flight clients
+       fn get_schema(&self, name: &str) -> Option<&ArrowSchema> { }
+
+       // Generate RecordBatch from schema + data
+       fn create_batch(&self, schema_name: &str, data: &[u8]) -> Result<RecordBatch> { }
+   }
+   ```
+
+2. **Flight GetFlightInfo Handler** (Updated, ~50 lines)
+   ```rust
+   fn get_flight_info(&self, descriptor: &FlightDescriptor) -> Result<FlightInfo> {
+       // descriptor.path[0] = schema name (from .arrow-schema)
+       let schema = self.registry.get_schema(&descriptor.path[0])?;
+
+       // Return Arrow schema + endpoints
+       Ok(FlightInfo {
+           schema: schema.to_arrow_schema(),
+           endpoints: /* endpoints */,
+           total_records: /* count */,
+       })
+   }
+   ```
+
+3. **CLI Command** (`fraiseql-cli/src/commands/arrow-schema.rs`)
+   ```bash
+   # Validate schema
+   fraiseql arrow-schema validate EntityEvent.arrow-schema
+
+   # Export to Arrow proto format
+   fraiseql arrow-schema export EntityEvent.arrow-schema --format arrow-ipc
+
+   # Register schema with server
+   fraiseql arrow-schema register EntityEvent.arrow-schema --server http://localhost:8080
+   ```
+
+4. **Configuration** (Updated `fraiseql/config.toml`)
+   ```toml
+   [arrow]
+   schemas_dir = "./schemas"  # Load all .arrow-schema files from here
+   registry_mode = "file"      # File-based registry (no separate service)
+   ```
+
+**Effort**: 2 days
+
+---
+
+### Day 5-6: Integration & Documentation
+
+**Goal**: End-to-end flow: author in Python/TypeScript → run in Rust
+
+**Deliverables**:
+
+1. **End-to-End Example** (`examples/arrow-schema-authoring/`)
+   ```bash
+   ├── python/
+   │   ├── define_schema.py          # Define EntityEvent in Python
+   │   └── EntityEvent.arrow-schema  # Generated schema file
+   ├── typescript/
+   │   ├── define_schema.ts          # Define Order in TypeScript
+   │   └── Order.arrow-schema        # Generated schema file
+   └── rust/
+       ├── main.rs                   # Load both schemas, serve via Flight
+       └── config.toml
+   ```
+
+2. **How-To Guide** (`docs/arrow-flight/defining-schemas.md`)
+   - Define in Python: Python decorators → JSON export
+   - Define in TypeScript: TypeScript classes → JSON export
+   - Define in YAML: Manual YAML → validate with CLI
+   - Load in Rust: Automatic schema discovery from directory
+   - Use with Flight: Client queries by schema name
+
+3. **Schema Versioning Guide** (`docs/arrow-flight/schema-versioning.md`)
+   - Version field in schemas
+   - Backward compatibility rules
+   - Migration strategies
+
+4. **Testing** (`tests/arrow_schema_integration.rs`, ~200 lines)
+   - Load Python-generated schema in Rust
+   - Load TypeScript-generated schema in Rust
+   - Verify schema compatibility
+   - E2E: Python author schema → Rust load → Python client query
 
 **Effort**: 2 days
 
@@ -316,80 +264,120 @@ metadata:
 
 ## Detailed Specification
 
-### File Structure
+### Arrow Schema Format (JSON)
 
-```
-crates/fraiseql-codegen/                    # NEW CRATE
-├── Cargo.toml
-├── src/
-│   ├── lib.rs
-│   ├── parser.rs                          # Parse .arrow-schema
-│   ├── validator.rs                        # Validate schemas
-│   ├── type_mapping.rs                     # Arrow → language types
-│   ├── generator.rs                        # Template rendering
-│   └── cli.rs                              # CLI integration
-├── templates/
-│   ├── go/
-│   │   ├── entity.tera
-│   │   ├── serializer.tera
-│   │   └── client.tera
-│   ├── java/
-│   ├── csharp/
-│   ├── nodejs/
-│   └── cpp/
-└── tests/
-    ├── parser_tests.rs
-    ├── generator_tests.rs
-    └── integration_tests.rs
+```json
+{
+  "namespace": "fraiseql.events",
+  "name": "EntityEvent",
+  "version": "1.0",
+  "description": "Observer event representing entity state change",
 
-crates/fraiseql-arrow/schemas/              # Schema definitions
-├── EntityEvent.arrow-schema
-├── User.arrow-schema
-└── Order.arrow-schema
+  "fields": [
+    {
+      "name": "event_id",
+      "type": "string",
+      "required": true,
+      "doc": "Unique event ID (UUID v4)"
+    },
+    {
+      "name": "entity_type",
+      "type": "string",
+      "required": true,
+      "index": true,
+      "doc": "Entity type (e.g., User, Order)"
+    },
+    {
+      "name": "entity_id",
+      "type": "string",
+      "required": true,
+      "doc": "Entity primary key"
+    },
+    {
+      "name": "timestamp",
+      "type": {
+        "precision": "microsecond",
+        "timezone": "UTC"
+      },
+      "required": true,
+      "index": true,
+      "doc": "Event timestamp"
+    },
+    {
+      "name": "data",
+      "type": "string",
+      "required": true,
+      "doc": "JSON payload"
+    },
+    {
+      "name": "user_id",
+      "type": "string",
+      "required": false,
+      "nullable": true,
+      "doc": "User who triggered event"
+    }
+  ],
 
-examples/
-├── go/
-│   ├── server/
-│   └── client/
-├── java/
-├── csharp/
-├── nodejs/
-└── cpp/
-
-docs/arrow-flight/
-├── schema-spec.md
-├── protocol-spec.md
-├── interop-testing.md
-└── language-guides/
-    ├── go.md
-    ├── java.md
-    ├── csharp.md
-    ├── nodejs.md
-    └── cpp.md
-
-tests/arrow-flight-interop/
-├── docker-compose.yml
-├── Makefile
-└── test_cases/
-    ├── basic_query.sh
-    ├── stress_test.sh
-    └── cross_lang_matrix.sh
+  "metadata": {
+    "storage": {
+      "primary": "clickhouse",
+      "table": "fraiseql_events"
+    },
+    "ttl_days": 90,
+    "partition_strategy": "monthly"
+  }
+}
 ```
 
 ---
 
-## Success Criteria
+## File Structure
 
-- ✅ `.arrow-schema` format specified and documented
-- ✅ Schema parser compiles and passes all tests
-- ✅ Code generators produce valid code for 5 languages
-- ✅ Generated Go, Java, C# code compiles without errors
-- ✅ Generated Node.js code runs without errors
-- ✅ Example servers run and accept Flight connections
-- ✅ Cross-language interop tests (5×5 matrix) all pass
-- ✅ Benchmarks show <5% overhead vs hand-written code
-- ✅ Complete documentation with examples
-- ✅ CLI command: `fraiseql generate arrow-flight --language <lang>`
+```
+crates/fraiseql-arrow/
+├── src/
+│   └── schema_registry.rs          # Load and serve schemas
+│
+├── python/                         # NEW - Python library
+│   ├── pyproject.toml
+│   ├── fraiseql_arrow/
+│   │   ├── __init__.py
+│   │   ├── schema.py               # @schema decorator
+│   │   ├── fields.py               # Field types
+│   │   ├── exporter.py             # Export to .arrow-schema
+│   │   └── validator.py            # Validate JSON schema
+│   └── examples/
+│       └── define_entity_event.py
+│
+├── typescript/                     # NEW - TypeScript library
+│   ├── package.json
+│   ├── src/
+│   │   ├── index.ts
+│   │   ├── schema.ts               # ArrowSchema base class
+│   │   ├── fields.ts               # Field decorators
+│   │   ├── types.ts                # Type definitions
+│   │   └── exporter.ts             # Export to .arrow-schema
+│   └── examples/
+│       └── define-order-schema.ts
+│
+└── schemas/                        # Directory of .arrow-schema files
+    ├── EntityEvent.arrow-schema
+    ├── User.arrow-schema
+    └── Order.arrow-schema
+
+crates/fraiseql-cli/
+└── src/
+    └── commands/
+        └── arrow_schema.rs         # CLI: validate, export, register
+
+docs/arrow-flight/
+├── arrow-schema-format.md          # Format specification
+├── defining-schemas.md             # How-to guide (Python/TypeScript/YAML)
+└── schema-versioning.md            # Versioning strategy
+
+tests/
+└── arrow_schema_integration.rs     # E2E tests
+```
 
 ---
 
@@ -397,37 +385,40 @@ tests/arrow-flight-interop/
 
 | Benefit | Impact |
 |---------|--------|
-| **Language-agnostic** | Implement Arrow Flight in Java, Go, C#, Node.js, C++ |
-| **Code generation** | Zero-boilerplate client/server code |
-| **Standardized schema** | Single source of truth for all languages |
-| **Interoperability** | Clients in any language talk to servers in any language |
-| **Documentation** | Clear protocol spec enables custom implementations |
-| **Scalability** | Teams can choose their preferred language |
-| **Maintainability** | Schema changes generate new code automatically |
+| **Language-agnostic authoring** | Python/TypeScript devs can define schemas without Rust |
+| **Single server runtime** | One Arrow Flight server in Rust, all clients connect to it |
+| **Schema as artifact** | `.arrow-schema` files are portable, versionable, shareable |
+| **Auto-discovery** | Server loads all schemas from directory automatically |
+| **Type validation** | Each language validates schema types at author time |
+| **Standardized format** | Schema format is language-neutral JSON |
+| **Client flexibility** | Clients in any language can query any schema |
 
 ---
 
 ## Timeline & Milestones
 
-| Week | Days | Milestone | Output |
-|------|------|-----------|--------|
-| **W1** | 1-3 | Schema IDL + Parser | `EntityEvent.arrow-schema` + parser crate |
-| **W1** | 4-6 | Code Generators | 5 language templates + generator CLI |
-| **W2** | 7-8 | Protocol Spec + Examples | Spec doc + Go/Java/Node.js servers |
-| **W2** | 9-10 | Integration & Testing | Interop tests + all docs complete |
+| Days | Milestone | Output |
+|------|-----------|--------|
+| **1-2** | Python + TypeScript libraries | `fraiseql_arrow` + `@fraiseql/arrow` packages |
+| **3-4** | Server integration + CLI | Schema registry, Flight handler, CLI commands |
+| **5-6** | Examples + documentation | E2E examples, how-to guides, tests |
 
-**Total**: 2 weeks, 10 implementation days
+**Total**: 6 implementation days (1.5 weeks)
 
 ---
 
-## Risks & Mitigations
+## Success Criteria
 
-| Risk | Probability | Mitigation |
-|------|-------------|-----------|
-| Template bugs for 5 languages | Medium | Test each template with generated code compilation |
-| Generated code performance | Low | Benchmarks in integration tests |
-| Schema version compatibility | Low | Version field + migration guide |
-| Interop testing complexity | Medium | Docker Compose + Makefile automation |
+- ✅ Python library can define Arrow schemas
+- ✅ TypeScript library can define Arrow schemas
+- ✅ Both export to standardized `.arrow-schema` JSON
+- ✅ Rust server loads `.arrow-schema` files from directory
+- ✅ Flight GetFlightInfo returns correct schema
+- ✅ Python-authored schema works with Rust server
+- ✅ TypeScript-authored schema works with Rust server
+- ✅ YAML-defined schema works with Rust server
+- ✅ Complete documentation with examples
+- ✅ All tests pass (Python, TypeScript, Rust integration)
 
 ---
 
@@ -439,26 +430,28 @@ tests/arrow-flight-interop/
 
 ---
 
-## Questions for Decision
+## Key Difference from Original Plan
 
-1. **Priority**: Start immediately after Phase 9.9 testing, or after Phase 10 security?
-   - **Recommendation**: Immediately after Phase 9.9 (unblocks multi-language teams)
+### Original Phase 9.10 (INCORRECT)
+- Implement Arrow Flight servers in 5 languages (Go, Java, C#, Node.js, C++)
+- Generate client code in 5 languages
+- Cross-language server interop
 
-2. **Scope**: Support all 5 languages or start with 2-3?
-   - **Recommendation**: All 5 (or 3 primary: Go, Java, Node.js)
+### Revised Phase 9.10 (CORRECT)
+- Author Arrow schemas in ANY language (Python, TypeScript, YAML, etc.)
+- Compile to `.arrow-schema` format
+- Single Rust Arrow Flight server
+- Any-language clients connect to single server
 
-3. **Examples**: Minimal (100 lines) or comprehensive (1000 lines)?
-   - **Recommendation**: Comprehensive with error handling, retries, auth
-
----
-
-## References
-
-- Arrow Flight spec: https://arrow.apache.org/docs/format/FlightRpc.html
-- Avro schema format: https://avro.apache.org/docs/current/spec.html
-- Protobuf code generation: https://developers.google.com/protocol-buffers/docs/reference/go-generated
-- Tera template engine: https://tera.netlify.app/
+**This matches the core FraiseQL architecture principle:**
+- Authoring: Language-agnostic
+- Compilation: Standardized artifacts
+- Runtime: Single Rust implementation
 
 ---
 
-**Next Step**: Review this plan, then decide if Phase 9.10 starts after Phase 9.9 testing or Phase 10 completion.
+## Next Step
+
+Review this revised approach. Does this align with the authoring/compilation/runtime separation principle?
+
+If yes, proceed with Phase 9.10 implementation after Phase 9.9 testing complete.
