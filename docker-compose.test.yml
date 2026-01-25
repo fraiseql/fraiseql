@@ -134,6 +134,48 @@ services:
       timeout: 5s
       retries: 5
 
+  # ClickHouse test server (for analytics testing)
+  clickhouse-test:
+    image: clickhouse/clickhouse-server:24-alpine
+    container_name: fraiseql-clickhouse-test
+    environment:
+      CLICKHOUSE_DB: default
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ""
+    ports:
+      - "8124:8123"  # HTTP interface
+      - "9001:9000"  # Native protocol
+    volumes:
+      - clickhouse-test-data:/var/lib/clickhouse
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8123/?query=SELECT%201 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fraiseql-test
+
+  # Elasticsearch test server (for operational search testing)
+  elasticsearch-test:
+    image: elasticsearch:8.15.0-alpine
+    container_name: fraiseql-elasticsearch-test
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms256m -Xmx256m"
+    ports:
+      - "9201:9200"
+      - "9301:9300"
+    tmpfs:
+      - /usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fraiseql-test
+
 volumes:
   postgres-test-data:
     name: fraiseql-postgres-test-data
@@ -143,6 +185,8 @@ volumes:
     name: fraiseql-mysql-test-data
   nats-test-data:
     name: fraiseql-nats-test-data
+  clickhouse-test-data:
+    name: fraiseql-clickhouse-test-data
 
 networks:
   fraiseql-test:
