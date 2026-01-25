@@ -48,6 +48,7 @@ mod projection;
 pub mod query_tracing;
 pub mod sql_logger;
 pub mod subscription;
+pub mod tenant_enforcer;
 pub mod window;
 mod window_parser;
 mod window_projector;
@@ -69,6 +70,7 @@ pub use subscription::{
     SubscriptionManager, SubscriptionOperation, SubscriptionPayload, TransportAdapter,
     TransportManager, WebhookAdapter, WebhookConfig, WebhookPayload, protocol,
 };
+pub use tenant_enforcer::TenantEnforcer;
 pub use window::{WindowSql, WindowSqlGenerator};
 pub use window_parser::WindowQueryParser;
 pub use window_projector::WindowProjector;
