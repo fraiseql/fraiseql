@@ -43,7 +43,11 @@
 
 ---
 
-## ✅ PHASE 9 (ARROW FLIGHT) - 100% COMPLETE! ⭐⭐⭐
+## 🔄 PHASE 9 (ARROW FLIGHT) - CODE COMPLETE, TESTING PENDING ⚠️
+
+**Status**: Code-complete and compiles cleanly, but pre-release testing checklist MUST be executed before production use.
+
+**CRITICAL**: Phase 9.7 benchmarks and stress tests exist but have NOT been run. Performance claims (3-378x improvements, 1M events/sec) are based on documentation, not actual execution.
 
 **Final Completion Status**:
 - ✅ **Phase 9.1**: Arrow Flight Foundation (COMPLETE - 2,637 lines)
@@ -399,4 +403,24 @@ crates/fraiseql-cli/src/
 
 ---
 
-**Session End Status**: ✅ Phase 9 complete, clean, production-ready, documented
+## ⚠️ Pre-Release Testing Required
+
+Before Phase 9 can be considered production-ready, the following MUST be executed:
+
+**Test Phases** (see `.claude/PHASE_9_PRERELEASE_TESTING.md`):
+1. ⏳ Environment setup (services start)
+2. ⏳ Unit tests (255+ observer tests)
+3. ⏳ Integration tests (ClickHouse, Elasticsearch)
+4. ⏳ Stress tests (1M rows, 10k events/sec sustained)
+5. ⏳ Chaos tests (failure scenarios)
+6. ⏳ Benchmarks (actual performance numbers)
+7. ⏳ E2E data flow (event → ClickHouse → query)
+8. ⏳ Documentation verification
+
+**Estimated Time**: 4 hours
+
+**Go/No-Go Decision**: Based on test results documented in `PHASE_9_RELEASE_RESULTS.md`
+
+---
+
+**Session End Status**: Phase 9 code-complete with comprehensive pre-release testing checklist. Not yet production-ready until testing is executed.
