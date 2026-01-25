@@ -101,6 +101,7 @@ pub mod metrics;
 pub mod queue;
 pub mod resilience;
 pub mod search;
+pub mod elasticsearch_sink;
 pub mod traits;
 pub mod transport;
 
@@ -154,6 +155,7 @@ pub use resilience::{
 #[cfg(feature = "search")]
 pub use search::http::HttpSearchBackend;
 pub use search::{IndexedEvent, SearchBackend, SearchStats};
+pub use elasticsearch_sink::{ElasticsearchSink, ElasticsearchSinkConfig};
 pub use traits::{
     ActionExecutor, ActionResult, ConditionEvaluator, DeadLetterQueue, DlqItem, EventSource,
     TemplateRenderer,

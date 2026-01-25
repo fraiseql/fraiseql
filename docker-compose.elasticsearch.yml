@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  elasticsearch:
+    image: elasticsearch:8.15.0
+    container_name: fraiseql-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    networks:
+      - fraiseql_network
+    labels:
+      - "com.fraiseql.service=elasticsearch"
+      - "com.fraiseql.phase=9.5"
+    restart: unless-stopped
+
+  kibana:
+    image: kibana:8.15.0
+    container_name: fraiseql-kibana
+    ports:
+      - "5601:5601"
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+      ELASTICSEARCH_USERNAME: elastic
+      ELASTICSEARCH_PASSWORD: changeme
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5601/api/status || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    networks:
+      - fraiseql_network
+    labels:
+      - "com.fraiseql.service=kibana"
+      - "com.fraiseql.phase=9.5"
+    restart: unless-stopped
+
+volumes:
+  es_data:
+    driver: local
+
+networks:
+  fraiseql_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
