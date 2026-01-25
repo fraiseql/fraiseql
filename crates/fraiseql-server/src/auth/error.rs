@@ -45,6 +45,9 @@ pub enum AuthError {
     #[error("Session revoked")]
     SessionRevoked,
 
+    #[error("Forbidden: {message}")]
+    Forbidden { message: String },
+
     #[error("Internal error: {message}")]
     Internal { message: String },
 }

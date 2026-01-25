@@ -100,6 +100,9 @@ impl IntoResponse for AuthError {
             AuthError::SessionRevoked => {
                 (StatusCode::UNAUTHORIZED, "session_revoked", "Session has been revoked")
             },
+            AuthError::Forbidden { ref message } => {
+                (StatusCode::FORBIDDEN, "forbidden", message.as_str())
+            },
             _ => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "auth_error",

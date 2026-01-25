@@ -1,5 +1,5 @@
 // Authentication module
-// Handles JWT validation, OAuth/OIDC flows, session management
+// Handles JWT validation, OAuth/OIDC flows, session management, and authorization
 
 pub mod error;
 pub mod handlers;
@@ -7,6 +7,7 @@ pub mod jwt;
 pub mod middleware;
 pub mod monitoring;
 pub mod oidc_provider;
+pub mod operation_rbac;
 pub mod provider;
 pub mod providers;
 pub mod session;
@@ -21,6 +22,7 @@ pub use jwt::{Claims, JwtValidator};
 pub use middleware::{AuthMiddleware, AuthenticatedUser};
 pub use monitoring::{AuthEvent, AuthMetrics, OperationTimer};
 pub use oidc_provider::OidcProvider;
+pub use operation_rbac::{OperationPermission, RBACPolicy, Role};
 pub use provider::{OAuthProvider, PkceChallenge, TokenResponse, UserInfo};
 pub use providers::{create_provider, AzureADOAuth, GitHubOAuth, GoogleOAuth, KeycloakOAuth};
 pub use session::{SessionData, SessionStore, TokenPair};
