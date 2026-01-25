@@ -310,13 +310,13 @@ mod tests {
         };
         let mut job = Job::new(event_id, action, 3, crate::config::BackoffStrategy::Exponential);
 
-        let job_id = job.id;
         queue.enqueue(job.clone()).await.expect("enqueue failed");
         queue
             .fail(&mut job, "connection timeout".to_string())
             .await
             .expect("fail failed");
 
+        // Should still be in queue (for retry) and not in DLQ
         assert_eq!(queue.dlq_size().await.expect("dlq size failed"), 0);
         assert_eq!(queue.queue_depth().await.expect("depth failed"), 1);
     }

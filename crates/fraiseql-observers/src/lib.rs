@@ -151,7 +151,13 @@ pub use queue::{
     worker::{JobWorker, JobWorkerPool},
 };
 #[cfg(feature = "queue")]
-pub use job_queue::{Job as JobQueueItem, JobQueue as JobQueueTrait, JobState};
+pub use job_queue::traits::{JobQueue as JobQueueTrait, MockJobQueue};
+#[cfg(feature = "queue")]
+pub use job_queue::{Job as JobQueueItem, JobState};
+#[cfg(feature = "queue")]
+pub use job_queue::redis::RedisJobQueue as JobQueueRedisImpl;
+#[cfg(feature = "queue")]
+pub use job_queue::dlq::{DeadLetterQueueManager, DlqStats};
 pub use resilience::{
     CircuitBreaker, CircuitBreakerConfig, CircuitState, DegradationLevel, GracefulDegradation,
     PerEndpointCircuitBreaker, ResilienceStrategy, ResilientExecutor,

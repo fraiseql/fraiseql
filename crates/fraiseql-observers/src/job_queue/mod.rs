@@ -17,13 +17,13 @@
 
 pub mod traits;
 
-// Phase 8.6 Task 2+: These modules will be implemented in subsequent tasks
-// #[cfg(feature = "queue")]
-// pub mod redis;
-//
-// #[cfg(feature = "queue")]
-// pub mod dlq;
-//
+#[cfg(feature = "queue")]
+pub mod redis;
+
+#[cfg(feature = "queue")]
+pub mod dlq;
+
+// Phase 8.6 Task 3+: These modules will be implemented in subsequent tasks
 // #[cfg(feature = "queue")]
 // pub mod executor;
 //
