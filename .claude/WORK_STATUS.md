@@ -1,8 +1,24 @@
 # FraiseQL Work Status & Progress
 
 **Last Updated:** January 25, 2026
-**Current Session:** Phase 9 Alignment & Planning Optimization
-**Planning Documents**: See `.claude/FRAISEQL_V2_IMPLEMENTATION_PLAN.md` (NEW - compact) and `.claude/PHASE_9_10_PLAN.md` (NEW - cross-language SDK)
+**Current Status:** Phase 8.6 Complete, Phase 9 Code-Complete, Ready for Production Hardening
+**Next Steps:** See **FRAISEQL_V2_ROAD_TO_PRODUCTION.md** ← START HERE
+
+---
+
+## 🚀 IMMEDIATE NEXT STEPS (Next Session)
+
+### Option 1: Execute Phase 9.9 Pre-Release Testing (Recommended - 4 hours)
+- Validates all Phase 9 (Arrow Flight) code
+- Produces go/no-go decision for production
+- Unblocks Phase 10 production hardening
+- See: `.claude/PHASE_9_PRERELEASE_TESTING.md`
+
+### Option 2: Begin Phase 10 Production Hardening (Recommended - 3-4 weeks)
+- Phase 10.5: Authentication & Authorization (CRITICAL)
+- Phase 10.6: Multi-tenancy & Data Isolation (CRITICAL if SaaS)
+- Phase 10.8-10.10: Secrets, Backup, Encryption (CRITICAL)
+- See: `.claude/PHASE_10_ROADMAP.md` for detailed 4-week sprint plan
 
 ---
 
@@ -257,26 +273,30 @@ Phase 9 is **code-complete**, now requires **pre-release testing**:
 
 ## 📁 Repository Structure
 
-### Planning Documents (Optimized)
+### Planning Documents (Optimized & Reorganized)
 ```
 .claude/
-├── FRAISEQL_V2_IMPLEMENTATION_PLAN.md  (NEW - Compact, token-efficient - USE THIS)
-│                                        (60% smaller than old roadmap)
-│                                        (Quick reference tables & links)
+├── ✨ FRAISEQL_V2_ROAD_TO_PRODUCTION.md  (NEW - Forward-looking production roadmap)
+│                                          (Status, blockers, checklist, go/no-go criteria)
+│                                          👈 START HERE for next phase
 │
-├── PHASE_9_10_PLAN.md                  (NEW - Cross-Language Arrow SDK)
+├── PHASE_10_ROADMAP.md                   (NEW - Detailed Phase 10.1-10.10 specs)
+│                                          (3-4 weeks to production hardening)
 │
-├── FRAISEQL_V2_UNIFIED_ROADMAP.md      (Historical - detailed decisions/rationale)
+├── PHASE_9_PRERELEASE_TESTING.md         (Phase 9.9 - Testing checklist)
+├── PHASE_9_RELEASE_RESULTS.md            (Phase 9 go/no-go decision)
+├── PHASE_9_10_PLAN.md                    (Cross-Language Arrow SDK planning)
 │
-└── Active Phase Plans
-    ├── PHASE_8_6_PLAN.md               (Phase 8.6 - Job Queue, ready to start)
-    ├── PHASE_8_7_PLAN.md               (Phase 8.7 - Metrics, completed)
-    ├── PHASE_9_PRERELEASE_TESTING.md   (Phase 9.9 - Testing checklist)
-    └── PHASE_9_*.md                    (Summaries - reference)
+├── Phase 8 Completed
+│   ├── PHASE_8_6_PLAN.md                 (Job Queue - COMPLETE)
+│   ├── PHASE_8_6_COMPLETION_SUMMARY.md   (16 integration tests + metrics)
+│   └── PHASE_8_7_PLAN.md                 (Metrics - COMPLETE)
+│
+├── FRAISEQL_V2_UNIFIED_ROADMAP.md        (Historical - detailed decisions/rationale)
+│
+└── Archive
+    └── FRAISEQL_V2_IMPLEMENTATION_PLAN_COMPLETED.md  (Historical reference)
 
-### Archive
-```
-.claude/archive/                        (Completed phases, obsolete docs)
 ```
 
 ### Key Insight: Token Efficiency
