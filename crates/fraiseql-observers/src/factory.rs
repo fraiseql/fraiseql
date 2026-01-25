@@ -191,7 +191,7 @@ impl ExecutorFactory {
 
     /// Build Redis job queue from config
     #[cfg(feature = "queue")]
-    async fn build_job_queue(
+    pub async fn build_job_queue(
         job_queue_config: &crate::config::JobQueueConfig,
     ) -> Result<Arc<dyn crate::job_queue::JobQueue>> {
         use redis::aio::ConnectionManager;
