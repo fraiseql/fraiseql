@@ -107,6 +107,9 @@ pub mod auth;
 // Secrets management (Phase 10.8)
 pub mod secrets;
 
+// Backup and disaster recovery (Phase 10.9)
+pub mod backup;
+
 // Observer management (Phase 6) - optional
 #[cfg(feature = "observers")]
 pub mod observers;
