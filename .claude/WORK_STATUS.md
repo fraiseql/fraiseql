@@ -63,7 +63,13 @@
   - Comprehensive plan for Arrow Flight → ClickHouse MergeTree sink
   - Materialized views for real-time aggregations
 
-- ✅ **Phase 9.5**: Elasticsearch Integration (COMPLETE - see plan archive)
+- ✅ **Phase 9.5**: Explicit DDL Generation for Table-Backed Views (COMPLETE)
+  - Python DDL generation helper library (6 functions + 6 templates)
+  - TypeScript DDL generation library (6 functions)
+  - CLI `generate-views` subcommand
+  - 49 Python tests + 10 CLI tests
+
+- ✅ **Phase 9.5b**: Elasticsearch Integration (COMPLETE - see plan archive)
   - Search indexing and analytics layer design
   - ILM policy configuration
 
@@ -169,11 +175,13 @@ Either **Phase 8.6 - Job Queue** or remaining **Phase 8 enhancements**
 - Can proceed in parallel with Phase 10
 - Adds async capabilities to observer system
 
-### Priority 3: Phase 9 Implementation Details (Optional)
-If ClickHouse/Elasticsearch integration needed immediately:
-- Phase 9.4 plan exists and is ready to implement
-- Phase 9.5 plan exists and is ready to implement
-- Would take 3-4 days for production implementation
+### Priority 3: Phase 9 Testing & Validation (CURRENT FOCUS)
+Phase 9 is **code-complete**, now requires **pre-release testing**:
+- Phase 9.4 (ClickHouse) - ✅ COMPLETE & TESTED
+- Phase 9.5 (DDL Generation) - ✅ COMPLETE & TESTED
+- Phase 9.5b (Elasticsearch) - ✅ COMPLETE & TESTED
+- **Next**: Execute PHASE_9_PRERELEASE_TESTING.md (~4 hours)
+- **Outcome**: Go/no-go decision for production release
 
 ---
 
@@ -345,10 +353,15 @@ crates/fraiseql-cli/src/
 
 **Status**: Ready for production use or ClickHouse/Elasticsearch integration
 
-### What's Still Needed
-- Phase 10: Security hardening (mTLS, rate limiting, authorization)
-- Phase 9.4: ClickHouse sink implementation (if analytics needed immediately)
-- Phase 9.5: Elasticsearch sink implementation (if operational search needed immediately)
+### What's Still Needed Before Production
+- ⏳ **Phase 9 Pre-Release Testing** (4 hours) - Execute comprehensive testing checklist
+  - See `.claude/PHASE_9_PRERELEASE_TESTING.md` for detailed plan
+  - Once complete, Phase 9 can be declared production-ready
+- 🔄 **Phase 10: Security Hardening** (2-3 weeks)
+  - Add gRPC mTLS for Arrow Flight
+  - JWT validation on Arrow Flight endpoint
+  - Rate limiting and quota management
+  - Enterprise deployment patterns
 
 ---
 
@@ -379,25 +392,25 @@ crates/fraiseql-cli/src/
 
 ## 🎯 Recommended Next Action
 
-**Two Clear Paths Forward:**
+**IMMEDIATE** (This Session):
+- ✅ Execute PHASE_9_PRERELEASE_TESTING.md (~4 hours)
+  - Validates all 8 Phase 9 components
+  - Produces go/no-go decision for production
+  - See `.claude/PHASE_9_PRERELEASE_TESTING.md` for detailed checklist
 
-1. **Phase 10 - Production Hardening** (Recommended for security)
+**AFTER Phase 9 Testing:**
+
+**Option A: Phase 10 - Production Hardening** (Recommended for security-first approach)
    - Add mTLS, JWT validation, rate limiting
    - Enables enterprise deployments
    - 2-3 weeks estimated effort
    - Builds directly on Phase 9 foundation
 
-2. **Phase 8.6 - Job Queue System** (Recommended for async processing)
+**Option B: Phase 8.6 - Job Queue System** (Recommended for async processing)
    - Enables async actions in observer system
    - 3-4 days estimated effort
    - Can proceed in parallel with Phase 10
-   - Comprehensive plan ready
-
-3. **Phase 9.4/9.5 Implementation** (If analytics needed immediately)
-   - ClickHouse and Elasticsearch sinks
-   - Plans and documentation ready
-   - 3-4 days for implementation
-   - Adds real-time analytics capability
+   - Comprehensive plan ready in PHASE_8_6_PLAN.md
 
 **No wrong choice - all advance the project significantly!**
 
