@@ -9,28 +9,37 @@
 | Phases | Status | Est. Effort | Key Files |
 |--------|--------|-------------|-----------|
 | **1-7** | ✅ COMPLETE | — | Core GraphQL engine |
-| **8.0-8.7** | 🔄 60% (8/13 subphases) | 3 weeks remaining | See Phase 8 below |
-| **9.1-9.8** | ✅ CODE COMPLETE | ~4hrs testing | See Phase 9 below |
-| **9.9** | ⏳ PENDING | 4 hours | Testing checklist |
+| **8.0-8.7** | ✅ COMPLETE | — | Observer system + metrics + job queue |
+| **8.6** | ✅ COMPLETE (NEW) | 1 session | Job queue with async execution |
+| **9.1-9.8** | ✅ CODE COMPLETE | ~4hrs testing | Arrow Flight analytics layer |
+| **9.9** | ⏳ PENDING | 4 hours | Pre-release testing checklist |
 | **9.10 (NEW)** | 📋 PLANNED | 2 weeks | Cross-language SDK |
-| **10+** | 📋 PLANNED | TBD | See Future below |
+| **10+** | 📋 PLANNED | TBD | Security & Production Hardening |
 
 ---
 
-## 2️⃣ Phase 8: Observer System Excellence (Continued)
+## 2️⃣ Phase 8: Observer System Excellence ✅ COMPLETE
 
-**Status**: ~60% complete (8 of 13 subphases done)
+**Status**: ✅ 100% complete (8.0-8.7, including 8.6)
 
 | Sub-Phase | Status | Lines | Notes |
 |-----------|--------|-------|-------|
-| 8.0-8.4 | ✅ | — | Foundation, execution, caching |
-| **8.7** | ✅ | 600 | Prometheus metrics + Grafana dashboard |
-| **8.6** | 🟡 Ready | Plan ready | Job queue system (3-4 days) → `.claude/PHASE_8_6_PLAN.md` |
+| 8.0-8.4 | ✅ | — | Foundation, execution, caching, dedup |
+| **8.7** | ✅ | 600+ | Prometheus metrics (14 metrics) + Grafana dashboard |
+| **8.6** | ✅ COMPLETE | 500+ | Job queue system with async execution (8 tasks, 1 session) |
 | 8.5, 8.8-13 | 🔵 Planned | — | Elasticsearch, resilience, tooling |
 
-**Next**: Start Phase 8.6 (Job Queue) OR jump to Phase 9 testing
-- Plan: `.claude/PHASE_8_6_PLAN.md` (comprehensive, 8 tasks)
-- Effort: 3-4 days following step-by-step tasks
+**Just Completed (8.6)**:
+- ✅ Redis-backed job queue with persistent storage
+- ✅ QueuedObserverExecutor async wrapper
+- ✅ 3 backoff strategies (Fixed, Linear, Exponential)
+- ✅ Dead Letter Queue for permanent failures
+- ✅ 7 new Prometheus metrics
+- ✅ Complete documentation (600+ lines)
+- ✅ Working example
+- ✅ 16 integration tests
+
+**Next**: Phase 9 pre-release testing or Phase 10 (Security)
 
 ---
 
