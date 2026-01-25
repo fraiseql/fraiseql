@@ -1,7 +1,8 @@
 # FraiseQL Work Status & Progress
 
-**Last Updated:** January 24, 2026
-**Current Session:** Phase Completion & Planning
+**Last Updated:** January 25, 2026
+**Current Session:** Phase 9 Alignment & Planning Optimization
+**Planning Documents**: See `.claude/FRAISEQL_V2_IMPLEMENTATION_PLAN.md` (NEW - compact) and `.claude/PHASE_9_10_PLAN.md` (NEW - cross-language SDK)
 
 ---
 
@@ -175,13 +176,27 @@ Either **Phase 8.6 - Job Queue** or remaining **Phase 8 enhancements**
 - Can proceed in parallel with Phase 10
 - Adds async capabilities to observer system
 
-### Priority 3: Phase 9 Testing & Validation (CURRENT FOCUS)
+### Priority 3: Phase 9 Testing & Validation (IMMEDIATE)
 Phase 9 is **code-complete**, now requires **pre-release testing**:
 - Phase 9.4 (ClickHouse) - ✅ COMPLETE & TESTED
 - Phase 9.5 (DDL Generation) - ✅ COMPLETE & TESTED
 - Phase 9.5b (Elasticsearch) - ✅ COMPLETE & TESTED
-- **Next**: Execute PHASE_9_PRERELEASE_TESTING.md (~4 hours)
+- Phase 9.9 (Pre-release testing) - ⏳ PENDING (4 hours)
+- **Next**: Execute PHASE_9_PRERELEASE_TESTING.md
 - **Outcome**: Go/no-go decision for production release
+
+### Priority 4: Phase 9.10 (Cross-Language Arrow SDK) - PLANNED
+**NEW PHASE**: Enable Arrow Flight implementation in ANY programming language
+- **Objective**: Language-agnostic schema + code generators
+- **Scope**: 5 languages (Go, Java, C#, Node.js, C++)
+- **Effort**: 2 weeks (10 implementation days)
+- **Plan**: See `.claude/PHASE_9_10_PLAN.md`
+- **Timeline**: Start after Phase 9.9 testing
+- **Deliverables**:
+  - `.arrow-schema` format specification
+  - Code generators for 5 languages
+  - Example servers (Go, Java, Node.js)
+  - Protocol specification + interop testing guide
 
 ---
 
@@ -202,18 +217,33 @@ Phase 9 is **code-complete**, now requires **pre-release testing**:
 
 ## 📁 Repository Structure
 
-### Active Plans
+### Planning Documents (Optimized)
 ```
 .claude/
-├── CLAUDE.md                          (Project instructions)
-├── FRAISEQL_V2_UNIFIED_ROADMAP.md     (Main roadmap - reference)
-├── PHASE_8_7_PLAN.md                  (Phase 8.7 - COMPLETED, archived)
-├── PHASE_9_5_PLAN.md                  (Phase 9.5 - COMPLETED, archived)
-├── PHASE_8_6_PLAN.md                  (Phase 8.6 - READY TO START)
-├── OBSERVER_E2E_IMPLEMENTATION.md     (Observer testing strategy)
-├── NATS_VISION_ASSESSMENT.md          (Transport architecture)
-└── archive/                           (Completed, obsolete, analysis docs)
+├── FRAISEQL_V2_IMPLEMENTATION_PLAN.md  (NEW - Compact, token-efficient - USE THIS)
+│                                        (60% smaller than old roadmap)
+│                                        (Quick reference tables & links)
+│
+├── PHASE_9_10_PLAN.md                  (NEW - Cross-Language Arrow SDK)
+│
+├── FRAISEQL_V2_UNIFIED_ROADMAP.md      (Historical - detailed decisions/rationale)
+│
+└── Active Phase Plans
+    ├── PHASE_8_6_PLAN.md               (Phase 8.6 - Job Queue, ready to start)
+    ├── PHASE_8_7_PLAN.md               (Phase 8.7 - Metrics, completed)
+    ├── PHASE_9_PRERELEASE_TESTING.md   (Phase 9.9 - Testing checklist)
+    └── PHASE_9_*.md                    (Summaries - reference)
+
+### Archive
 ```
+.claude/archive/                        (Completed phases, obsolete docs)
+```
+
+### Key Insight: Token Efficiency
+- **Old roadmap**: 832 lines, 50+ KB (high token cost per read)
+- **New plan**: 300 lines, 12 KB (60% smaller)
+- **Strategy**: Compact tables + links to detailed docs
+- **Result**: Same information, 60% fewer tokens
 
 ### Implementation
 
