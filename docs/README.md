@@ -1,8 +1,8 @@
 # FraiseQL v2 Documentation
 
-**Version:** 1.0
-**Status:** Complete
-**Last Updated:** January 18, 2026
+**Version:** 1.1
+**Status:** Complete (Phase 9 Arrow Flight docs added)
+**Last Updated:** January 25, 2026
 
 ---
 
@@ -17,6 +17,16 @@
 ---
 
 ## 📚 Documentation Structure
+
+### [Arrow Flight Integration](arrow-flight/)
+
+High-performance columnar data delivery for analytics and cross-language integration.
+
+- **[README.md](arrow-flight/README.md)** — Overview and quick start (5 minutes)
+- **[Architecture](arrow-flight/architecture.md)** — System design and dual-dataplane architecture
+- **[Getting Started](arrow-flight/getting-started.md)** — Step-by-step tutorial
+- **[Migration Guide](arrow-flight/migration-guide.md)** — 4-phase adoption strategy (5 weeks)
+- **[Performance Benchmarks](arrow-flight/performance/benchmarks.md)** — Real-world performance metrics (10-50x improvements)
 
 ### [Product Requirements](prd/)
 
@@ -147,10 +157,11 @@ Not sure where to start? See the **[Reading Order Guide](reading-order.md)** for
 
 ## 📊 Documentation Statistics
 
-- **Total Documents:** 48 files
-- **Total Lines:** ~53,000 lines
-- **Estimated Reading Time:** 12-15 hours (complete path)
-- **Last Updated:** January 11, 2026
+- **Total Documents:** 53+ files (includes Arrow Flight 9 docs)
+- **Total Lines:** ~57,000 lines (added ~4,000 for Arrow Flight)
+- **Estimated Reading Time:** 13-16 hours (complete path)
+- **Last Updated:** January 25, 2026
+- **Latest Addition:** Arrow Flight Integration (Phase 9, 2,000+ lines of user docs)
 
 ---
 

@@ -1,7 +1,16 @@
-# FraiseQL v2: Unified Development Roadmap
-**Date**: January 24, 2026 (Updated)
-**Version**: 2.1 (Phase 8.7 Complete, Phase 8.6 Ready, Phase 9.5 Complete)
-**Status**: Comprehensive Architectural Plan with Recent Completions
+# FraiseQL v2: Unified Development Roadmap (Historical Reference)
+
+**⚠️ NOTE**: This document is now a HISTORICAL REFERENCE. For efficient, compact planning, see:
+- **`.claude/FRAISEQL_V2_IMPLEMENTATION_PLAN.md`** (NEW - 60% smaller, token-optimized)
+- **`.claude/PHASE_9_10_PLAN.md`** (NEW - Cross-language Arrow Flight SDK)
+
+This document retains all detailed decisions and rationale.
+
+---
+
+**Date**: January 25, 2026 (Historical)
+**Version**: 2.0 (Archived, See New Plan)
+**Status**: Comprehensive Detail - See Implementation Plan for Quick Reference
 
 ---
 
