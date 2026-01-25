@@ -141,6 +141,18 @@ impl GitHubOAuth {
 
         Ok((user, team_strings))
     }
+
+    /// Extract organization ID from GitHub teams (primary org)
+    ///
+    /// Returns the first organization the user belongs to as the org_id.
+    /// In multi-org scenarios, this should be overridden with explicit org selection.
+    pub fn extract_org_id_from_teams(teams: &[(GitHubUser, Vec<String>)]) -> Option<String> {
+        teams
+            .first()
+            .and_then(|(_, team_strings)| team_strings.first())
+            .and_then(|team_str| team_str.split(':').next())
+            .map(|org| org.to_string())
+    }
 }
 
 #[async_trait]
@@ -197,6 +209,12 @@ impl OAuthProvider for GitHubOAuth {
             .map(|t| format!("{}:{}", t.organization.login, t.slug))
             .collect();
 
+        // Extract org_id from primary organization
+        let org_id = team_strings
+            .first()
+            .and_then(|team| team.split(':').next())
+            .map(|org| org.to_string());
+
         // Merge GitHub data into user info
         let mut user_info = user_info;
         user_info.raw_claims["github_id"] = serde_json::json!(github_user.id);
@@ -205,6 +223,11 @@ impl OAuthProvider for GitHubOAuth {
         user_info.raw_claims["github_company"] = serde_json::json!(github_user.company);
         user_info.raw_claims["github_location"] = serde_json::json!(github_user.location);
         user_info.raw_claims["github_public_repos"] = serde_json::json!(github_user.public_repos);
+
+        // Add org_id if available (from primary organization)
+        if let Some(org_id) = org_id {
+            user_info.raw_claims["org_id"] = serde_json::json!(&org_id);
+        }
 
         Ok(user_info)
     }

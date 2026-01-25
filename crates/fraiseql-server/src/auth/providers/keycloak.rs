@@ -187,6 +187,16 @@ impl OAuthProvider for KeycloakOAuth {
         user_info.raw_claims["keycloak_client_roles"] = json!(client_roles);
         user_info.raw_claims["keycloak_realm"] = json!(&self.realm);
 
+        // Extract org_id from JWT custom claims if present
+        if let Some(org_id_val) = user_info.raw_claims.get("org_id") {
+            if let Some(org_id_str) = org_id_val.as_str() {
+                user_info.raw_claims["org_id"] = json!(org_id_str);
+            }
+        } else {
+            // Fallback: use realm as org_id if not explicitly set
+            user_info.raw_claims["org_id"] = json!(&self.realm);
+        }
+
         Ok(user_info)
     }
 

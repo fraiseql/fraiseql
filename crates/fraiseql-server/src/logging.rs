@@ -46,7 +46,7 @@ impl fmt::Display for RequestId {
     }
 }
 
-/// Request context for structured logging.
+/// Request context for structured logging and multi-tenancy.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RequestContext {
     /// Unique request identifier
@@ -57,6 +57,9 @@ pub struct RequestContext {
 
     /// User identifier (if authenticated)
     pub user_id: Option<String>,
+
+    /// Organization ID for multi-tenancy enforcement
+    pub org_id: Option<String>,
 
     /// Client IP address
     pub client_ip: Option<String>,
@@ -73,6 +76,7 @@ impl RequestContext {
             request_id:  RequestId::new(),
             operation:   None,
             user_id:     None,
+            org_id:      None,
             client_ip:   None,
             api_version: None,
         }
@@ -89,6 +93,13 @@ impl RequestContext {
     #[must_use]
     pub fn with_user_id(mut self, user_id: String) -> Self {
         self.user_id = Some(user_id);
+        self
+    }
+
+    /// Set organization ID for multi-tenancy.
+    #[must_use]
+    pub fn with_org_id(mut self, org_id: String) -> Self {
+        self.org_id = Some(org_id);
         self
     }
 

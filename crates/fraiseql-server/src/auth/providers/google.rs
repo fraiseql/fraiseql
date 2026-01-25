@@ -144,6 +144,18 @@ impl OAuthProvider for GoogleOAuth {
         let default_roles = Self::extract_roles_from_domain(&user_info.email);
         user_info.raw_claims["google_default_roles"] = serde_json::json!(default_roles);
 
+        // Extract org_id from email domain
+        let org_id = user_info
+            .email
+            .split('@')
+            .nth(1)
+            .and_then(|domain| domain.split('.').next())
+            .map(|domain_part| domain_part.to_string());
+
+        if let Some(org_id) = org_id {
+            user_info.raw_claims["org_id"] = serde_json::json!(&org_id);
+        }
+
         // Note: To get Workspace groups, you would need to:
         // 1. Request additional scopes: https://www.googleapis.com/auth/admin.directory.group.readonly
         // 2. Use Directory API: GET https://www.googleapis.com/admin/directory/v1/groups?userKey={email}

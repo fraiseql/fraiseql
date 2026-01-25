@@ -203,6 +203,16 @@ impl OAuthProvider for AzureADOAuth {
         user_info.raw_claims["azure_group_ids"] = json!(group_ids);
         user_info.raw_claims["azure_tenant"] = json!(&self.tenant);
 
+        // Extract org_id from custom claim or use tenant as fallback
+        if let Some(org_id_val) = user_info.raw_claims.get("org_id") {
+            if let Some(org_id_str) = org_id_val.as_str() {
+                user_info.raw_claims["org_id"] = json!(org_id_str);
+            }
+        } else {
+            // Fallback: use tenant ID as org_id
+            user_info.raw_claims["org_id"] = json!(&self.tenant);
+        }
+
         // Extract user identifier (UPN or email)
         if let Some(identifier) = Self::get_user_identifier(&user_info.raw_claims) {
             user_info.raw_claims["azure_user_identifier"] = json!(identifier);
