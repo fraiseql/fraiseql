@@ -37,9 +37,16 @@ dashmap = "6.1"
 # Async utilities
 async-trait = "0.1"
 
+# ClickHouse client (optional)
+clickhouse = { version = "0.14", features = ["inserter"], optional = true }
+
 [dev-dependencies]
 tokio-test = "0.4"
 
 [lib]
 name = "fraiseql_arrow"
 path = "src/lib.rs"
+
+[features]
+default = []
+clickhouse = ["dep:clickhouse"]

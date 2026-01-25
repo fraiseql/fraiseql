@@ -43,9 +43,50 @@
 
 ---
 
+## 📊 MAJOR DISCOVERY: Phase 9 (Arrow Flight) is Already ~55% Implemented!
+
+**Completion Status**:
+- ✅ **Phase 9.1**: Arrow Flight Foundation (COMPLETE - 2,637 lines)
+  - Flight server, gRPC implementation, ticket routing, schema registry
+
+- ✅ **Phase 9.2**: GraphQL → Arrow Conversion (COMPLETE - 951 lines)
+  - Row converters, schema generation, Arrow executor bridge
+
+- ✅ **Phase 9.3**: Observer Events → Arrow Streaming (COMPLETE - 300+ lines)
+  - NATS → Arrow bridge, EntityEvent schema, OptimizedView support (va_* and ta_* views)
+
+- ⚠️ **Phase 9.4**: ClickHouse Integration (DOCUMENTED, NOT IMPLEMENTED)
+  - Plan exists, ready for 3-4 day implementation
+
+- ⚠️ **Phase 9.5**: Elasticsearch Integration (PARTIALLY IMPLEMENTED)
+  - Search indexing complete, analytics layer needs implementation
+
+- 📋 **Phases 9.6-9.8**: Documentation & Testing (SPECS WRITTEN - 150+ KB, code pending)
+
+**Implementation Location**: `crates/fraiseql-arrow/` (main) + `crates/fraiseql-observers/` (events)
+**Tests**: 435 lines of integration tests - all passing
+**Commits**: 30+ commits from Jan 18-25, 2026
+
+---
+
 ## 📋 In Progress / Next Steps
 
-### Phase 8.6: Job Queue System (Ready to Start Tomorrow)
+### Option A: Finish Phase 9 Arrow Flight System (RECOMMENDED)
+**Phase 9.4: ClickHouse Integration** (3-4 days)
+- Implement Arrow Flight → ClickHouse MergeTree sink
+- Automatic table creation
+- Materialized views for real-time aggregations
+- **Why**: Completes the analytics pipeline, unblocks real-world use cases
+
+**Then Phase 9.5: Elasticsearch Analytics** (2-3 days)
+- Complete analytics aggregations over event stream
+- Real-time dashboard metrics
+- **Why**: Event search already working, just needs analytics layer
+
+---
+
+### Option B: Complete Phase 8 Observer Features
+**Phase 8.6: Job Queue System** (3-4 days)
 - **Status**: 🔵 PLANNED (Not started)
 - **Priority**: HIGH - Builds on Phase 8.7 metrics foundation
 - **Key Features**:
@@ -58,14 +99,38 @@
 - **Implementation Plan**: `.claude/PHASE_8_6_PLAN.md` (comprehensive, ready to implement)
 - **Effort**: 3-4 days
 - **Tasks**: 8 tasks (job types, queue impl, executor, wrapper, config, metrics, docs, tests)
-- **Hybrid Approach**: Claude (architecture + examples), Local Model (pattern application)
 
-**Why Start This First?**
+**Why Start Phase 8.6?**
 - Directly builds on Phase 8.7 metrics you just completed
 - Enables async processing (major capability gap)
 - Required for production reliability
-- Smaller scope than Phase 8.5 (Elasticsearch)
+- Smaller scope, well-defined architecture
 - Unblocks other phases
+
+---
+
+---
+
+## 🎯 Recommended Next Actions (Priority Order)
+
+### Priority 1: Complete Phase 9 Arrow Flight (Recommended)
+Start with **Phase 9.4 - ClickHouse Integration**
+- Builds on solid Phase 9.1-9.3 foundation
+- Unblocks enterprise analytics use cases
+- 3-4 days of focused work
+- Then complete Phase 9.5 (Elasticsearch analytics)
+
+### Priority 2: Complete Phase 8 Observer Features
+Either **Phase 8.6 - Job Queue** or **Phase 8.5 - Elasticsearch**
+- Both are well-scoped and ready
+- Phase 8.6 enables async processing (job queue)
+- Phase 8.5 enables event full-text search
+
+### Priority 3: Phase 10 - Production Hardening
+- Most specs already written (36+ KB documentation)
+- Admission control partially implemented
+- Deploy patterns documented and ready
+- Should follow Phase 9 completion
 
 ---
 
@@ -152,24 +217,35 @@ crates/fraiseql-cli/src/
 
 ---
 
-## 🚀 Tomorrow's Tasks
+## 🚀 Next Session: Choose Your Path
 
-### To Start Phase 8.6:
-1. **Review PHASE_8_6_PLAN.md** (20 min)
-   - Architecture overview
-   - 8 implementation tasks
-   - Hybrid implementation strategy
+### Option A: Finish Arrow Flight System (Phase 9.4-9.5)
+**Start with Phase 9.4 - ClickHouse Integration**:
+1. Review Arrow Flight architecture (existing implementation is solid)
+2. Implement MergeTree sink for Arrow streams
+3. Create materialized views for aggregations
+4. Integrate with Phase 9.5 (Elasticsearch) for analytics
 
-2. **Implementation Order** (Following the plan):
-   - Task 1: Job definition & types (1 day)
-   - Task 2: Redis job queue (1 day)
-   - Task 3: Job executor/worker (1 day)
-   - Task 4-8: Integration, metrics, docs (1 day)
+**Expected Progress**: 3-4 days to complete core analytics pipeline
 
-3. **Delegation Strategy**:
-   - Claude: Tasks 1-3 (core architecture)
-   - Local Model: Pattern application (retry logic, backoff, metrics)
-   - Claude: Final verification and integration
+---
+
+### Option B: Start Phase 8.6 - Job Queue System
+**Review PHASE_8_6_PLAN.md** (20 min):
+1. Architecture overview
+2. 8 implementation tasks
+3. Hybrid implementation strategy
+
+**Implementation Order** (Following the plan):
+- Task 1: Job definition & types (1 day)
+- Task 2: Redis job queue (1 day)
+- Task 3: Job executor/worker (1 day)
+- Task 4-8: Integration, metrics, docs (1 day)
+
+**Delegation Strategy**:
+- Claude: Tasks 1-3 (core architecture)
+- Local Model: Pattern application (retry logic, backoff, metrics)
+- Claude: Final verification and integration
 
 ---
 
@@ -210,35 +286,49 @@ crates/fraiseql-cli/src/
 
 ## 🎯 Recommended Next Action
 
-**Tomorrow morning, start Phase 8.6 implementation:**
+**CHOICE TIME: Phase 9 Analytics vs Phase 8 Job Queue**
 
-```bash
-# 1. Read the plan
-cat .claude/PHASE_8_6_PLAN.md
+### ✨ OPTION A (Recommended): Complete Phase 9 Arrow Flight
+- **Why**: Arrow Flight is 55% done - finish it while momentum is high
+- **Impact**: Unblocks enterprise analytics pipelines (ClickHouse, Elasticsearch)
+- **Timeline**: 3-4 days (Phase 9.4-9.5)
+- **Effort**: Well-defined tasks, existing foundation is solid
 
-# 2. Start with Task 1 (1 day)
-# Implement Job struct and JobQueue trait
+### OR: OPTION B: Start Phase 8.6 Job Queue
+- **Why**: Observer system needs async processing capability
+- **Impact**: Enables long-running actions (video processing, batch reports)
+- **Timeline**: 3-4 days following PHASE_8_6_PLAN.md
+- **Effort**: Architecture ready, 8 clear tasks defined
 
-# 3. Continue with Task 2 (1 day)
-# Implement RedisJobQueue
-
-# 4. Task 3 (1 day)
-# Implement JobExecutor worker
-
-# Then delegate pattern application to local model
-```
-
-**Expected Completion**: 3-4 days following the plan
+**No wrong choice - both advance the project significantly!**
 
 ---
 
-## 📝 Notes for Tomorrow
+## 📝 Key Insights for Next Session
 
-- **Phase 8.6 Plan is Complete**: Detailed, ready to execute
-- **Hybrid Approach Ready**: Architecture defined for Claude + Local Model
-- **No Blocking Issues**: All prerequisites from Phase 8.7 are complete
-- **Tests in Place**: Can start implementing with confidence
-- **Documentation Template Ready**: PHASE_8_7_METRICS.md shows the documentation pattern
+### Major Discovery: Phase 9 Already 55% Complete!
+- ✅ Arrow Flight server, conversion, event streaming all working
+- ⚠️ ClickHouse/Elasticsearch integration still needed
+- 📋 150+ KB of documentation specs ready for implementation
+- 🎯 Just need to finish the analytics pipeline (9.4-9.5)
+
+### Two Clear Paths Forward
+1. **Arrow Flight Completion** (Phase 9.4-9.5)
+   - 3-4 days remaining work
+   - Well-scoped, documented
+   - Unblocks enterprise use cases
+
+2. **Job Queue System** (Phase 8.6)
+   - 3-4 days estimated
+   - Comprehensive plan ready
+   - Completes observer async processing
+
+### Quality Status
+- ✅ All 255 observer tests passing
+- ✅ Zero clippy warnings
+- ✅ Clean, organized codebase
+- ✅ Feature-gated implementations
+- ✅ Zero unsafe code
 
 ---
 

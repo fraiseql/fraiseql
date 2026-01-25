@@ -1,0 +1,83 @@
+version: '3.8'
+
+services:
+  # ClickHouse Analytics Database
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.1-alpine
+    container_name: fraiseql-clickhouse
+    ports:
+      # HTTP API
+      - "8123:8123"
+      # Native protocol (for clickhouse-client)
+      - "9000:9000"
+      # Interserver HTTP
+      - "9009:9009"
+    environment:
+      # Enable JetStream-like features if needed
+      CLICKHOUSE_LOG_LEVEL: "information"
+      # Optional: Set memory limit
+      # CLICKHOUSE_DEFAULT_MAX_MEMORY: "8589934592"
+    volumes:
+      # Mount migrations for auto-initialization
+      - ./migrations/clickhouse:/docker-entrypoint-initdb.d:ro
+      # Persist data
+      - clickhouse-data:/var/lib/clickhouse
+      # Persist logs
+      - clickhouse-logs:/var/log/clickhouse-server
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fraiseql_network
+    labels:
+      - "com.fraiseql.service=clickhouse"
+      - "com.fraiseql.phase=9.4"
+    # For development: restart on failure
+    restart: unless-stopped
+
+  # NATS JetStream (required for Arrow bridge)
+  nats:
+    image: nats:2.10-alpine
+    container_name: fraiseql-nats
+    command:
+      - "-js"
+      - "-sd"
+      - "/data"
+    ports:
+      # Client port
+      - "4222:4222"
+      # WebSocket
+      - "8080:8080"
+      # HTTP monitoring
+      - "8222:8222"
+    volumes:
+      # Persist JetStream data
+      - nats-data:/data
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "4222"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fraiseql_network
+    labels:
+      - "com.fraiseql.service=nats"
+      - "com.fraiseql.phase=9.4"
+    restart: unless-stopped
+
+volumes:
+  clickhouse-data:
+    driver: local
+  clickhouse-logs:
+    driver: local
+  nats-data:
+    driver: local
+
+networks:
+  fraiseql_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16

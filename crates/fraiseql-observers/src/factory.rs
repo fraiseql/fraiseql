@@ -326,6 +326,7 @@ mod tests {
                 ..Default::default()
             },
             redis:                   None, // No Redis
+            clickhouse:              None,
             performance:             PerformanceConfig {
                 enable_dedup: false,
                 enable_caching: false,
@@ -350,6 +351,7 @@ mod tests {
         let config = ObserverRuntimeConfig {
             transport:               TransportConfig::default(),
             redis:                   None, // No Redis but dedup enabled
+            clickhouse:              None,
             performance:             PerformanceConfig {
                 enable_dedup: true, // Invalid!
                 ..Default::default()

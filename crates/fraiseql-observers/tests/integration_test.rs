@@ -79,6 +79,7 @@ fn test_runtime_config() -> ObserverRuntimeConfig {
             ..Default::default()
         },
         redis:                   Some(test_redis_config()),
+        clickhouse:              None,
         performance:             PerformanceConfig {
             enable_dedup:           true,
             enable_caching:         true,

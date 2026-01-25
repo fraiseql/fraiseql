@@ -28,6 +28,18 @@ pub enum ArrowFlightError {
     /// JSON serialization/deserialization error
     #[error("Serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
+
+    /// Configuration error (ClickHouse)
+    #[error("Configuration error: {0}")]
+    Configuration(String),
+
+    /// Conversion error (Arrow → Row)
+    #[error("Conversion error: {0}")]
+    Conversion(String),
+
+    /// External service error (ClickHouse, network, etc.)
+    #[error("External error: {0}")]
+    External(String),
 }
 
 /// Result type for Arrow Flight operations
