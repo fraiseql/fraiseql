@@ -12,6 +12,8 @@ use std::time::Duration;
 use tokio::task::JoinSet;
 use tracing::{debug, error, info, warn};
 
+#[cfg(feature = "metrics")]
+use crate::metrics::MetricsRegistry;
 use super::{backoff, traits::JobQueue, Job};
 use crate::error::Result;
 use crate::executor::ObserverExecutor;
@@ -38,6 +40,10 @@ pub struct JobExecutor {
 
     /// Poll interval when queue is empty
     poll_interval_ms: u64,
+
+    /// Prometheus metrics registry
+    #[cfg(feature = "metrics")]
+    metrics: MetricsRegistry,
 }
 
 impl JobExecutor {
@@ -68,6 +74,8 @@ impl JobExecutor {
             batch_size,
             job_timeout_secs,
             poll_interval_ms: 1000,
+            #[cfg(feature = "metrics")]
+            metrics: MetricsRegistry::global().unwrap_or_default(),
         }
     }
 
@@ -127,9 +135,19 @@ impl JobExecutor {
             let queue = Arc::clone(&self.queue);
             let executor = Arc::clone(&self.observer_executor);
             let worker_id = self.worker_id.clone();
+            #[cfg(feature = "metrics")]
+            let metrics = self.metrics.clone();
 
             join_set.spawn(async move {
-                Self::execute_job_with_retry(job, queue, executor, &worker_id).await;
+                Self::execute_job_with_retry(
+                    job,
+                    queue,
+                    executor,
+                    &worker_id,
+                    #[cfg(feature = "metrics")]
+                    metrics,
+                )
+                .await;
             });
 
             // Limit parallelism
@@ -150,8 +168,10 @@ impl JobExecutor {
         queue: Arc<dyn JobQueue>,
         executor: Arc<ObserverExecutor>,
         worker_id: &str,
+        #[cfg(feature = "metrics")] metrics: MetricsRegistry,
     ) {
         let job_id = job.id;
+        let action_type = job.action_type().to_string();
         let start_time = std::time::Instant::now();
 
         loop {
@@ -164,8 +184,11 @@ impl JobExecutor {
             match timeout_job_execution(&executor, &job).await {
                 Ok(()) => {
                     // Success
-                    let duration_ms = start_time.elapsed().as_millis() as f64;
-                    info!("Job {} completed in {}ms", job_id, duration_ms);
+                    let duration_secs = start_time.elapsed().as_secs_f64();
+                    info!("Job {} completed in {:.3}s", job_id, duration_secs);
+
+                    #[cfg(feature = "metrics")]
+                    metrics.job_executed(&action_type, duration_secs);
 
                     if let Err(e) = queue.acknowledge(job_id).await {
                         error!("Failed to acknowledge job {}: {}", job_id, e);
@@ -180,6 +203,9 @@ impl JobExecutor {
                         // Permanent error
                         warn!("Job {} failed permanently: {}", job_id, e);
 
+                        #[cfg(feature = "metrics")]
+                        metrics.job_failed(&action_type, "permanent_error");
+
                         if let Err(queue_err) = queue.fail(&mut job, e.to_string()).await {
                             error!("Failed to mark job {} as failed: {}", job_id, queue_err);
                         }
@@ -190,6 +216,9 @@ impl JobExecutor {
                     if !job.can_retry() {
                         // Retries exhausted
                         error!("Job {} exhausted retries", job_id);
+
+                        #[cfg(feature = "metrics")]
+                        metrics.job_failed(&action_type, "retries_exhausted");
 
                         if let Err(queue_err) = queue.fail(&mut job, e.to_string()).await {
                             error!("Failed to mark job {} as failed: {}", job_id, queue_err);
@@ -210,6 +239,9 @@ impl JobExecutor {
                         "Job {} attempt {} failed (transient): {}. Retrying in {:?}",
                         job_id, job.attempt, e, delay
                     );
+
+                    #[cfg(feature = "metrics")]
+                    metrics.job_retry_attempt(&action_type);
 
                     tokio::time::sleep(delay).await;
 

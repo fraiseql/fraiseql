@@ -39,6 +39,15 @@ pub struct MetricsRegistry {
     // Queue metrics
     backlog_size: IntGauge,
     dlq_items:    IntGauge,
+
+    // Job queue metrics (Phase 8.6)
+    job_queued_total:       IntCounter,
+    job_executed_total:     IntCounterVec,
+    job_failed_total:       IntCounterVec,
+    job_duration_seconds:   HistogramVec,
+    job_retry_attempts:     IntCounterVec,
+    job_queue_depth:        IntGauge,
+    job_dlq_items:          IntGauge,
 }
 
 impl MetricsRegistry {
@@ -123,6 +132,59 @@ impl MetricsRegistry {
         )?;
         registry.register(Box::new(dlq_items.clone()))?;
 
+        // Job queue metrics (Phase 8.6)
+        let job_queued_total = IntCounter::new(
+            "fraiseql_observer_job_queued_total",
+            "Total jobs queued for async execution",
+        )?;
+        registry.register(Box::new(job_queued_total.clone()))?;
+
+        let job_executed_total = IntCounterVec::new(
+            Opts::new(
+                "fraiseql_observer_job_executed_total",
+                "Total jobs successfully executed",
+            ),
+            &["action_type"],
+        )?;
+        registry.register(Box::new(job_executed_total.clone()))?;
+
+        let job_failed_total = IntCounterVec::new(
+            Opts::new("fraiseql_observer_job_failed_total", "Total jobs that failed"),
+            &["action_type", "error_type"],
+        )?;
+        registry.register(Box::new(job_failed_total.clone()))?;
+
+        let job_duration_seconds = HistogramVec::new(
+            HistogramOpts::new(
+                "fraiseql_observer_job_duration_seconds",
+                "Job execution duration in seconds",
+            )
+            .buckets(vec![0.001, 0.01, 0.1, 1.0, 5.0, 10.0, 30.0, 60.0, 300.0]),
+            &["action_type"],
+        )?;
+        registry.register(Box::new(job_duration_seconds.clone()))?;
+
+        let job_retry_attempts = IntCounterVec::new(
+            Opts::new(
+                "fraiseql_observer_job_retry_attempts_total",
+                "Total job retry attempts",
+            ),
+            &["action_type"],
+        )?;
+        registry.register(Box::new(job_retry_attempts.clone()))?;
+
+        let job_queue_depth = IntGauge::new(
+            "fraiseql_observer_job_queue_depth",
+            "Current number of jobs in queue waiting to execute",
+        )?;
+        registry.register(Box::new(job_queue_depth.clone()))?;
+
+        let job_dlq_items = IntGauge::new(
+            "fraiseql_observer_job_dlq_items",
+            "Current number of jobs in job queue dead letter queue",
+        )?;
+        registry.register(Box::new(job_dlq_items.clone()))?;
+
         Ok(MetricsRegistry {
             events_processed_total,
             events_failed_total,
@@ -136,6 +198,13 @@ impl MetricsRegistry {
             action_errors_total,
             backlog_size,
             dlq_items,
+            job_queued_total,
+            job_executed_total,
+            job_failed_total,
+            job_duration_seconds,
+            job_retry_attempts,
+            job_queue_depth,
+            job_dlq_items,
         })
     }
 
@@ -195,6 +264,41 @@ impl MetricsRegistry {
     /// Update the current DLQ item count
     pub fn set_dlq_items(&self, count: usize) {
         self.dlq_items.set(count as i64);
+    }
+
+    // Job queue metrics methods (Phase 8.6)
+
+    /// Record a job was queued for async execution
+    pub fn job_queued(&self) {
+        self.job_queued_total.inc();
+    }
+
+    /// Record a job was successfully executed
+    pub fn job_executed(&self, action_type: &str, duration_secs: f64) {
+        self.job_executed_total.with_label_values(&[action_type]).inc();
+        self.job_duration_seconds
+            .with_label_values(&[action_type])
+            .observe(duration_secs);
+    }
+
+    /// Record a job execution failure
+    pub fn job_failed(&self, action_type: &str, error_type: &str) {
+        self.job_failed_total.with_label_values(&[action_type, error_type]).inc();
+    }
+
+    /// Record a job retry attempt
+    pub fn job_retry_attempt(&self, action_type: &str) {
+        self.job_retry_attempts.with_label_values(&[action_type]).inc();
+    }
+
+    /// Update the current job queue depth
+    pub fn set_job_queue_depth(&self, depth: usize) {
+        self.job_queue_depth.set(depth as i64);
+    }
+
+    /// Update the current job DLQ item count
+    pub fn set_job_dlq_items(&self, count: usize) {
+        self.job_dlq_items.set(count as i64);
     }
 
     /// Get cache hit rate as percentage (0-100)
@@ -315,5 +419,96 @@ mod tests {
         // Update it
         metrics.set_backlog_size(100);
         assert_eq!(metrics.backlog_size.get(), 100);
+    }
+
+    #[test]
+    fn test_job_queue_metrics_recording() {
+        let metrics = MetricsRegistry::global().expect("Failed to get global metrics");
+
+        // Record job queueing
+        metrics.job_queued();
+        metrics.job_queued();
+
+        // Verify jobs were queued (will be non-zero if this test ran)
+        assert!(metrics.job_queued_total.get() >= 2);
+    }
+
+    #[test]
+    fn test_job_execution_tracking() {
+        let metrics = MetricsRegistry::global().expect("Failed to get global metrics");
+
+        // Record job executions
+        metrics.job_executed("webhook", 0.5);
+        metrics.job_executed("email", 1.2);
+
+        // Verify they were recorded
+        let webhook_count = metrics.job_executed_total.with_label_values(&["webhook"]).get();
+        let email_count = metrics.job_executed_total.with_label_values(&["email"]).get();
+
+        assert!(webhook_count >= 1);
+        assert!(email_count >= 1);
+    }
+
+    #[test]
+    fn test_job_failure_tracking() {
+        let metrics = MetricsRegistry::global().expect("Failed to get global metrics");
+
+        // Record job failures
+        metrics.job_failed("webhook", "timeout");
+        metrics.job_failed("webhook", "connection_error");
+        metrics.job_failed("email", "authentication_failed");
+
+        // Verify they were recorded
+        let webhook_timeout =
+            metrics.job_failed_total.with_label_values(&["webhook", "timeout"]).get();
+        let webhook_connection = metrics.job_failed_total.with_label_values(&["webhook", "connection_error"]).get();
+        let email_auth = metrics.job_failed_total.with_label_values(&["email", "authentication_failed"]).get();
+
+        assert!(webhook_timeout >= 1);
+        assert!(webhook_connection >= 1);
+        assert!(email_auth >= 1);
+    }
+
+    #[test]
+    fn test_job_retry_tracking() {
+        let metrics = MetricsRegistry::global().expect("Failed to get global metrics");
+
+        // Record retry attempts
+        metrics.job_retry_attempt("webhook");
+        metrics.job_retry_attempt("webhook");
+        metrics.job_retry_attempt("slack");
+
+        // Verify they were recorded
+        let webhook_retries = metrics.job_retry_attempts.with_label_values(&["webhook"]).get();
+        let slack_retries = metrics.job_retry_attempts.with_label_values(&["slack"]).get();
+
+        assert!(webhook_retries >= 2);
+        assert!(slack_retries >= 1);
+    }
+
+    #[test]
+    fn test_job_queue_depth_tracking() {
+        let metrics = MetricsRegistry::global().expect("Failed to get global metrics");
+
+        // Set job queue depth
+        metrics.set_job_queue_depth(42);
+        assert_eq!(metrics.job_queue_depth.get(), 42);
+
+        // Update it
+        metrics.set_job_queue_depth(100);
+        assert_eq!(metrics.job_queue_depth.get(), 100);
+    }
+
+    #[test]
+    fn test_job_dlq_items_tracking() {
+        let metrics = MetricsRegistry::global().expect("Failed to get global metrics");
+
+        // Set job DLQ items
+        metrics.set_job_dlq_items(5);
+        assert_eq!(metrics.job_dlq_items.get(), 5);
+
+        // Update it
+        metrics.set_job_dlq_items(15);
+        assert_eq!(metrics.job_dlq_items.get(), 15);
     }
 }

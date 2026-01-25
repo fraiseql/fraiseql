@@ -25,6 +25,8 @@
 use std::sync::Arc;
 use uuid::Uuid;
 
+#[cfg(feature = "metrics")]
+use crate::metrics::MetricsRegistry;
 #[cfg(feature = "queue")]
 use crate::job_queue::{Job, JobQueue};
 use crate::{
@@ -46,6 +48,10 @@ pub struct QueuedObserverExecutor {
 
     /// Job queue for asynchronous action execution
     job_queue: Arc<dyn JobQueue>,
+
+    /// Prometheus metrics registry
+    #[cfg(feature = "metrics")]
+    metrics: MetricsRegistry,
 }
 
 #[cfg(feature = "queue")]
@@ -62,6 +68,8 @@ impl QueuedObserverExecutor {
             matcher: Arc::new(matcher),
             condition_parser: Arc::new(ConditionParser::new()),
             job_queue,
+            #[cfg(feature = "metrics")]
+            metrics: MetricsRegistry::global().unwrap_or_default(),
         }
     }
 
@@ -129,21 +137,24 @@ impl QueuedObserverExecutor {
                 );
 
                 let job_id = job.id;
+                let action_type_str = action.action_type();
                 match self.job_queue.enqueue(job).await {
                     Ok(()) => {
                         tracing::debug!(
                             "Queued action {} (job_id: {}) for event {}",
-                            action.action_type(),
+                            action_type_str,
                             job_id,
                             event.id
                         );
+                        #[cfg(feature = "metrics")]
+                        self.metrics.job_queued();
                         summary.jobs_queued += 1;
                         summary.job_ids.push(job_id);
                     },
                     Err(e) => {
                         tracing::error!(
                             "Failed to queue action {} (job_id: {}): {e}",
-                            action.action_type(),
+                            action_type_str,
                             job_id,
                         );
                         summary.queueing_errors += 1;

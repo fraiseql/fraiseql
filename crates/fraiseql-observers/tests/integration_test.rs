@@ -80,6 +80,7 @@ fn test_runtime_config() -> ObserverRuntimeConfig {
         },
         redis:                   Some(test_redis_config()),
         clickhouse:              None,
+        job_queue:               None,
         performance:             PerformanceConfig {
             enable_dedup:           true,
             enable_caching:         true,
