@@ -8,6 +8,7 @@ pub mod middleware;
 pub mod monitoring;
 pub mod oidc_provider;
 pub mod provider;
+pub mod providers;
 pub mod session;
 pub mod session_postgres;
 
@@ -21,5 +22,6 @@ pub use middleware::{AuthMiddleware, AuthenticatedUser};
 pub use monitoring::{AuthEvent, AuthMetrics, OperationTimer};
 pub use oidc_provider::OidcProvider;
 pub use provider::{OAuthProvider, PkceChallenge, TokenResponse, UserInfo};
+pub use providers::{create_provider, AzureADOAuth, GitHubOAuth, GoogleOAuth, KeycloakOAuth};
 pub use session::{SessionData, SessionStore, TokenPair};
 pub use session_postgres::PostgresSessionStore;

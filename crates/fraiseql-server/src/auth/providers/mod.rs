@@ -1,0 +1,131 @@
+// OAuth provider implementations
+// Provides provider-specific wrappers for GitHub, Google, Keycloak, and Azure AD
+
+pub mod azure_ad;
+pub mod github;
+pub mod google;
+pub mod keycloak;
+
+pub use azure_ad::AzureADOAuth;
+pub use github::GitHubOAuth;
+pub use google::GoogleOAuth;
+pub use keycloak::KeycloakOAuth;
+
+use crate::auth::{error::Result, provider::OAuthProvider};
+
+/// Factory for creating OAuth providers from configuration
+///
+/// # Arguments
+/// * `provider_type` - Provider type: "github", "google", "keycloak", "azure_ad"
+/// * `client_id` - OAuth client ID
+/// * `client_secret` - OAuth client secret
+/// * `config` - Provider-specific configuration (JSON value)
+///
+/// # Returns
+/// A boxed OAuthProvider implementation
+pub async fn create_provider(
+    provider_type: &str,
+    client_id: String,
+    client_secret: String,
+    redirect_uri: String,
+    config: Option<serde_json::Value>,
+) -> Result<Box<dyn OAuthProvider>> {
+    match provider_type {
+        "github" => {
+            let provider = GitHubOAuth::new(client_id, client_secret, redirect_uri).await?;
+            Ok(Box::new(provider))
+        }
+        "google" => {
+            let provider = GoogleOAuth::new(client_id, client_secret, redirect_uri).await?;
+            Ok(Box::new(provider))
+        }
+        "keycloak" => {
+            let config = config.ok_or_else(|| crate::auth::AuthError::ConfigError {
+                message: "Keycloak provider requires config with keycloak_url and realm".to_string(),
+            })?;
+
+            let keycloak_url = config
+                .get("keycloak_url")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| crate::auth::AuthError::ConfigError {
+                    message: "Missing keycloak_url in config".to_string(),
+                })?
+                .to_string();
+
+            let realm = config
+                .get("realm")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| crate::auth::AuthError::ConfigError {
+                    message: "Missing realm in config".to_string(),
+                })?
+                .to_string();
+
+            let provider = KeycloakOAuth::new(
+                client_id,
+                client_secret,
+                keycloak_url,
+                realm,
+                redirect_uri,
+            )
+            .await?;
+            Ok(Box::new(provider))
+        }
+        "azure_ad" => {
+            let config = config.ok_or_else(|| crate::auth::AuthError::ConfigError {
+                message: "Azure AD provider requires config with tenant".to_string(),
+            })?;
+
+            let tenant = config
+                .get("tenant")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| crate::auth::AuthError::ConfigError {
+                    message: "Missing tenant in config".to_string(),
+                })?
+                .to_string();
+
+            let provider = AzureADOAuth::new(client_id, client_secret, tenant, redirect_uri).await?;
+            Ok(Box::new(provider))
+        }
+        _ => Err(crate::auth::AuthError::ConfigError {
+            message: format!("Unknown provider type: {}", provider_type),
+        }),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_github_role_mapping() {
+        let roles = github::GitHubOAuth::map_teams_to_roles(vec![
+            "org:admin".to_string(),
+            "org:operator".to_string(),
+        ]);
+        assert_eq!(roles.len(), 2);
+    }
+
+    #[test]
+    fn test_google_role_mapping() {
+        let roles = google::GoogleOAuth::map_groups_to_roles(vec![
+            "fraiseql-admins@company.com".to_string(),
+        ]);
+        assert!(roles.contains(&"admin".to_string()));
+    }
+
+    #[test]
+    fn test_keycloak_role_mapping() {
+        let roles = keycloak::KeycloakOAuth::map_keycloak_roles_to_fraiseql(vec![
+            "admin".to_string(),
+        ]);
+        assert!(roles.contains(&"admin".to_string()));
+    }
+
+    #[test]
+    fn test_azure_ad_role_mapping() {
+        let roles = azure_ad::AzureADOAuth::map_azure_roles_to_fraiseql(vec![
+            "fraiseql.admin".to_string(),
+        ]);
+        assert!(roles.contains(&"admin".to_string()));
+    }
+}
