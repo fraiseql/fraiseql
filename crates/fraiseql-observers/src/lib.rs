@@ -104,6 +104,8 @@ pub mod queue;
 pub mod resilience;
 pub mod search;
 pub mod elasticsearch_sink;
+#[cfg(feature = "queue")]
+pub mod queued_executor;
 pub mod traits;
 pub mod transport;
 
@@ -158,6 +160,8 @@ pub use job_queue::{Job as JobQueueItem, JobState};
 pub use job_queue::redis::RedisJobQueue as JobQueueRedisImpl;
 #[cfg(feature = "queue")]
 pub use job_queue::dlq::{DeadLetterQueueManager, DlqStats};
+#[cfg(feature = "queue")]
+pub use queued_executor::{QueuedExecutionSummary, QueuedObserverExecutor};
 pub use resilience::{
     CircuitBreaker, CircuitBreakerConfig, CircuitState, DegradationLevel, GracefulDegradation,
     PerEndpointCircuitBreaker, ResilienceStrategy, ResilientExecutor,

@@ -23,12 +23,10 @@ pub mod redis;
 #[cfg(feature = "queue")]
 pub mod dlq;
 
-// Phase 8.6 Task 3+: These modules will be implemented in subsequent tasks
-// #[cfg(feature = "queue")]
-// pub mod executor;
-//
-// #[cfg(feature = "queue")]
-// pub mod backoff;
+#[cfg(feature = "queue")]
+pub mod executor;
+
+pub mod backoff;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
