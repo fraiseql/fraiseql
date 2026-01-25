@@ -112,6 +112,7 @@ pub mod backup;
 
 // TLS/SSL and encryption (Phase 10.10)
 pub mod tls;
+pub mod tls_listener;
 
 // Observer management (Phase 6) - optional
 #[cfg(feature = "observers")]

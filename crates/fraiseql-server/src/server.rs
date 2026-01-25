@@ -33,6 +33,7 @@ use crate::{
         metrics_json_handler, playground_handler, subscription_handler,
     },
     server_config::ServerConfig,
+    tls::TlsSetup,
 };
 
 /// FraiseQL HTTP Server.
@@ -311,9 +312,13 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     pub async fn serve(self) -> Result<()> {
         let app = self.build_router();
 
+        // Initialize TLS setup
+        let tls_setup = TlsSetup::new(self.config.tls.clone(), self.config.database_tls.clone())?;
+
         info!(
             bind_addr = %self.config.bind_addr,
             graphql_path = %self.config.graphql_path,
+            tls_enabled = tls_setup.is_tls_enabled(),
             "Starting FraiseQL server"
         );
 
@@ -336,6 +341,27 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         let listener = TcpListener::bind(self.config.bind_addr)
             .await
             .map_err(|e| ServerError::BindError(e.to_string()))?;
+
+        // Log TLS configuration
+        if tls_setup.is_tls_enabled() {
+            // Verify TLS setup is valid (will error if certificates are missing/invalid)
+            let _ = tls_setup.create_rustls_config()?;
+            info!(
+                cert_path = ?tls_setup.cert_path(),
+                key_path = ?tls_setup.key_path(),
+                mtls_required = tls_setup.is_mtls_required(),
+                "Server TLS configuration loaded (note: use reverse proxy for server-side TLS termination)"
+            );
+        }
+
+        // Log database TLS configuration
+        info!(
+            postgres_ssl_mode = tls_setup.postgres_ssl_mode(),
+            redis_ssl = tls_setup.redis_ssl_enabled(),
+            clickhouse_https = tls_setup.clickhouse_https_enabled(),
+            elasticsearch_https = tls_setup.elasticsearch_https_enabled(),
+            "Database connection TLS configuration applied"
+        );
 
         info!("Server listening on http://{}", self.config.bind_addr);
 

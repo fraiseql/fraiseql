@@ -8,8 +8,12 @@
 //! - Per-connection TLS enforcement using the TlsEnforcer
 
 use std::path::Path;
+use std::sync::Arc;
 
 use fraiseql_core::security::{TlsConfig, TlsEnforcer, TlsVersion};
+use rustls::pki_types::CertificateDer;
+use rustls::ServerConfig;
+use rustls_pemfile::Item;
 use tracing::info;
 
 use crate::server_config::{DatabaseTlsConfig, TlsServerConfig};
@@ -59,19 +63,6 @@ impl TlsSetup {
 
     /// Create a TLS enforcer from configuration.
     fn create_enforcer(config: &TlsServerConfig) -> Result<TlsEnforcer> {
-        // Validate certificate and key files exist
-        if !config.cert_path.exists() {
-            return Err(ServerError::ConfigError(
-                format!("Certificate file not found: {}", config.cert_path.display()),
-            ));
-        }
-
-        if !config.key_path.exists() {
-            return Err(ServerError::ConfigError(
-                format!("Key file not found: {}", config.key_path.display()),
-            ));
-        }
-
         // Parse minimum TLS version
         let min_version = match config.min_version.as_str() {
             "1.2" => TlsVersion::V1_2,
@@ -247,6 +238,103 @@ impl TlsSetup {
             es_url.to_string()
         }
     }
+
+    /// Load certificates from PEM file.
+    fn load_certificates(path: &Path) -> Result<Vec<CertificateDer<'static>>> {
+        let cert_file = std::fs::File::open(path).map_err(|e| {
+            ServerError::ConfigError(format!(
+                "Failed to open certificate file {}: {}",
+                path.display(),
+                e
+            ))
+        })?;
+
+        let mut reader = std::io::BufReader::new(cert_file);
+        let mut certificates = Vec::new();
+
+        loop {
+            match rustls_pemfile::read_one(&mut reader).map_err(|e| {
+                ServerError::ConfigError(format!("Failed to parse certificate: {}", e))
+            })? {
+                Some(Item::X509Certificate(cert)) => certificates.push(cert),
+                Some(_) => continue, // Skip other items
+                None => break,
+            }
+        }
+
+        if certificates.is_empty() {
+            return Err(ServerError::ConfigError(
+                "No certificates found in certificate file".to_string(),
+            ));
+        }
+
+        Ok(certificates)
+    }
+
+    /// Load private key from PEM file.
+    fn load_private_key(path: &Path) -> Result<rustls::pki_types::PrivateKeyDer<'static>> {
+        let key_file = std::fs::File::open(path).map_err(|e| {
+            ServerError::ConfigError(format!(
+                "Failed to open key file {}: {}",
+                path.display(),
+                e
+            ))
+        })?;
+
+        let mut reader = std::io::BufReader::new(key_file);
+
+        loop {
+            match rustls_pemfile::read_one(&mut reader).map_err(|e| {
+                ServerError::ConfigError(format!("Failed to parse private key: {}", e))
+            })? {
+                Some(Item::Pkcs8Key(key)) => return Ok(key.into()),
+                Some(Item::Pkcs1Key(key)) => return Ok(key.into()),
+                Some(Item::Sec1Key(key)) => return Ok(key.into()),
+                Some(_) => continue, // Skip other items
+                None => break,
+            }
+        }
+
+        Err(ServerError::ConfigError(
+            "No private key found in key file".to_string(),
+        ))
+    }
+
+    /// Create a rustls ServerConfig for TLS.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if:
+    /// - Certificate or key files cannot be read
+    /// - Certificate or key format is invalid
+    pub fn create_rustls_config(&self) -> Result<Arc<ServerConfig>> {
+        let (cert_path, key_path) = match self.config.as_ref() {
+            Some(c) if c.enabled => (&c.cert_path, &c.key_path),
+            _ => {
+                return Err(ServerError::ConfigError(
+                    "TLS not enabled".to_string(),
+                ))
+            }
+        };
+
+        info!(
+            cert_path = %cert_path.display(),
+            key_path = %key_path.display(),
+            "Loading TLS certificates"
+        );
+
+        let certs = Self::load_certificates(cert_path)?;
+        let key = Self::load_private_key(key_path)?;
+
+        let server_config = ServerConfig::builder()
+            .with_no_client_auth()
+            .with_single_cert(certs, key)
+            .map_err(|e| {
+                ServerError::ConfigError(format!("Failed to build TLS config: {}", e))
+            })?;
+
+        Ok(Arc::new(server_config))
+    }
 }
 
 #[cfg(test)]
@@ -414,5 +502,35 @@ mod tests {
             setup.ca_bundle_path(),
             Some(Path::new("/etc/ssl/certs/ca.pem"))
         );
+    }
+
+    #[test]
+    fn test_create_rustls_config_without_tls_enabled() {
+        let setup = TlsSetup::new(None, None).expect("should create setup");
+
+        let result = setup.create_rustls_config();
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("TLS not enabled"));
+    }
+
+    #[test]
+    fn test_create_rustls_config_with_missing_cert() {
+        let tls_config = TlsServerConfig {
+            enabled: true,
+            cert_path: PathBuf::from("/nonexistent/cert.pem"),
+            key_path: PathBuf::from("/nonexistent/key.pem"),
+            require_client_cert: false,
+            client_ca_path: None,
+            min_version: "1.2".to_string(),
+        };
+
+        let setup = TlsSetup::new(Some(tls_config), None).expect("should create setup");
+
+        let result = setup.create_rustls_config();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Failed to open"));
     }
 }
