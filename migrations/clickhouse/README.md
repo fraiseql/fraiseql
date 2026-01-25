@@ -1,280 +1,332 @@
 # ClickHouse Migrations
 
-This directory contains SQL migrations for FraiseQL's ClickHouse analytics database.
+This directory contains database migrations for the ClickHouse analytics database used by FraiseQL's Arrow Flight integration.
 
 ## Overview
 
 The migrations set up:
+1. **fraiseql_events** - Main table storing all observer events (90-day TTL)
+2. **fraiseql_events_hourly** - Hourly aggregations by entity and event type
+3. **fraiseql_org_daily** - Daily organization statistics
+4. **fraiseql_event_type_stats** - Event type distribution metrics
+5. Helper functions for common analytics queries
 
-1. **fraiseql_events** - Main event table (MergeTree)
-   - Raw analytics events from observers
-   - Partitioned by month for efficient deletion
-   - 90-day retention via TTL
-   - Bloom filter indexes on frequently-filtered columns
+## Schema
 
-2. **fraiseql_events_hourly** - Hourly aggregation (SummingMergeTree)
-   - Event counts by type and entity
-   - Unique entity counts per hour
-   - Auto-aggregates on insert
+### Main Events Table
 
-3. **fraiseql_org_daily** - Daily organization statistics (SummingMergeTree)
-   - Events per organization per day
-   - Unique user and entity counts
-   - Create/Update/Delete event breakdowns
+```sql
+CREATE TABLE fraiseql_events (
+    event_id String,
+    event_type String,
+    entity_type String,
+    entity_id String,
+    timestamp DateTime,
+    data String,  -- JSON
+    user_id Nullable(String),
+    org_id Nullable(String)
+)
+```
 
-4. **fraiseql_event_type_stats** - Event type performance metrics (SummingMergeTree)
-   - Hourly event type distribution
-   - Average and max JSON data sizes
-   - Useful for monitoring and capacity planning
+**Indexes:**
+- Bloom filter on `event_type` for fast filtering
+- Bloom filter on `entity_type` for entity queries
+- Bloom filter on `org_id` for organization filtering
+
+**Storage:**
+- MergeTree engine with monthly partitioning
+- Ordered by `(entity_type, timestamp)` for efficient queries
+- 90-day TTL for automatic cleanup
+
+### Materialized Views
+
+**fraiseql_events_hourly**: Hourly counts and unique entity counts
+- Aggregates: `event_count`, `unique_entities`
+- Grouped by: hour, entity_type, event_type
+- Retention: 120 days
+
+**fraiseql_org_daily**: Daily organization statistics
+- Aggregates: event count, unique entities, unique users
+- Grouped by: day, org_id
+- Retention: 90 days
+
+**fraiseql_event_type_stats**: Event type distribution
+- Aggregates: count, rate (events/second)
+- Grouped by: hour, event_type
+- Retention: 120 days
 
 ## Applying Migrations
 
-### Option 1: Docker Compose (Recommended for Development)
+### Docker Compose (Automatic)
 
-The `docker-compose.clickhouse.yml` file auto-applies migrations:
+Place migration files in a directory and mount to ClickHouse container:
+
+```yaml
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:24
+    volumes:
+      - ./migrations/clickhouse:/docker-entrypoint-initdb.d:ro
+```
+
+ClickHouse automatically applies all SQL files in `/docker-entrypoint-initdb.d` at startup.
+
+### Manual Application
+
+Connect to ClickHouse and run:
 
 ```bash
-docker-compose -f docker-compose.clickhouse.yml up -d
+# Using clickhouse-client (native protocol)
+clickhouse-client < migrations/clickhouse/001_events_table.sql
+
+# Or via HTTP
+curl -X POST "http://localhost:8123/" --data-binary @migrations/clickhouse/001_events_table.sql
 ```
 
-ClickHouse will automatically execute all SQL files in `/docker-entrypoint-initdb.d/` on startup.
+## Common Queries
 
-### Option 2: Manual Application via clickhouse-client
-
-Connect to ClickHouse and apply the migration:
-
-```bash
-# From the fraiseql project root
-clickhouse-client -h localhost \
-  --multiquery < migrations/clickhouse/001_events_table.sql
-```
-
-Or connect interactively:
-
-```bash
-clickhouse-client -h localhost
-```
-
-Then paste the SQL from `001_events_table.sql`.
-
-### Option 3: Using Python clickhouse-driver
-
-```python
-from clickhouse_driver import Client
-
-client = Client('localhost')
-
-with open('migrations/clickhouse/001_events_table.sql') as f:
-    sql = f.read()
-
-client.execute(sql)
-```
-
-## Verification
-
-After applying migrations, verify the setup:
-
-```bash
-# Check tables exist
-clickhouse-client -h localhost \
-  --query "SELECT name FROM system.tables WHERE database='default' AND name LIKE 'fraiseql%'"
-
-# Check main table schema
-clickhouse-client -h localhost \
-  --query "DESCRIBE TABLE fraiseql_events"
-
-# Check materialized views
-clickhouse-client -h localhost \
-  --query "SELECT name FROM system.tables WHERE table_type='MaterializedView' AND database='default'"
-```
-
-## Sample Queries
-
-### Insert Test Events
+### Events for a specific entity (last 100)
 
 ```sql
-INSERT INTO fraiseql_events (event_id, event_type, entity_type, entity_id, timestamp, data, user_id, org_id)
-VALUES
-    ('evt-001', 'created', 'User', 'user-123', 1700000000000000, '{"name":"Alice"}', 'admin-1', 'org-1'),
-    ('evt-002', 'updated', 'User', 'user-123', 1700001000000000, '{"email":"alice@example.com"}', 'admin-1', 'org-1'),
-    ('evt-003', 'created', 'Order', 'order-456', 1700002000000000, '{"total":99.99}', 'user-123', 'org-1');
+-- Using helper function
+SELECT * FROM get_entity_events('order-123', 100);
+
+-- Or direct query
+SELECT event_id, event_type, timestamp, data
+FROM fraiseql_events
+WHERE entity_id = 'order-123'
+ORDER BY timestamp DESC
+LIMIT 100;
 ```
 
-### Query Hourly Aggregations
+### Event counts by entity type (last 24 hours)
 
 ```sql
-SELECT
-    hour,
-    event_type,
+-- Using helper function
+SELECT * FROM count_events_by_entity_type(24);
+
+-- Or direct query
+SELECT 
     entity_type,
+    sum(event_count) as total_events
+FROM fraiseql_events_hourly
+WHERE hour >= now() - INTERVAL 24 HOUR
+GROUP BY entity_type
+ORDER BY total_events DESC;
+```
+
+### Organization activity summary
+
+```sql
+-- Using helper function
+SELECT * FROM org_activity_summary('org-001', 30);
+
+-- Or direct query
+SELECT 
+    day,
+    event_count,
+    unique_entities,
+    unique_users
+FROM fraiseql_org_daily
+WHERE org_id = 'org-001' AND day >= now() - INTERVAL 30 DAY
+ORDER BY day DESC;
+```
+
+### Event rate by type (last hour)
+
+```sql
+SELECT 
+    event_type,
+    count as event_count,
+    rate as events_per_second
+FROM fraiseql_event_type_stats
+WHERE hour >= now() - INTERVAL 1 HOUR
+ORDER BY events_per_second DESC;
+```
+
+### Hourly breakdown (last 24 hours)
+
+```sql
+SELECT 
+    hour,
+    entity_type,
+    event_type,
     event_count,
     unique_entities
 FROM fraiseql_events_hourly
-ORDER BY hour DESC
-LIMIT 10;
-```
-
-### Query Organization Daily Stats
-
-```sql
-SELECT
-    day,
-    org_id,
-    event_count,
-    unique_users,
-    unique_entities,
-    created_count,
-    updated_count,
-    deleted_count
-FROM fraiseql_org_daily
-WHERE day >= today() - INTERVAL 7 DAY
-ORDER BY day DESC, event_count DESC;
-```
-
-### Query Event Type Performance Metrics
-
-```sql
-SELECT
-    hour,
-    event_type,
-    event_count,
-    formatReadableSize(avg_data_size_bytes) as avg_size,
-    formatReadableSize(max_data_size_bytes) as max_size
-FROM fraiseql_event_type_stats
-WHERE hour >= subtractHours(now(), 24)
+WHERE hour >= now() - INTERVAL 24 HOUR
 ORDER BY hour DESC, event_count DESC;
 ```
 
-### Check Table Size and TTL Status
+## Monitoring
+
+### Check table sizes
 
 ```sql
--- Table size
-SELECT
-    name,
+SELECT 
+    table,
     formatReadableSize(total_bytes) as size,
-    partition_count,
-    part_count
+    rows
 FROM system.tables
-WHERE database = 'default' AND name = 'fraiseql_events'
-FORMAT Vertical;
+WHERE database = 'default' AND name LIKE 'fraiseql%'
+ORDER BY total_bytes DESC;
+```
 
--- Rows in main table
-SELECT formatReadableQuantity(count()) as total_rows
-FROM fraiseql_events;
+### Monitor TTL cleanup
 
--- Partition info (TTL cleanup status)
-SELECT
-    partition,
-    partition_key,
+```sql
+SELECT 
+    table,
     rows,
-    bytes
+    modification_time
 FROM system.parts
 WHERE database = 'default' AND table = 'fraiseql_events'
-ORDER BY partition DESC
-LIMIT 10;
+ORDER BY modification_time DESC;
+```
+
+### Check materialized view lag
+
+```sql
+SELECT 
+    name,
+    target_table,
+    is_ready
+FROM system.views
+WHERE database = 'default' AND name LIKE 'fraiseql%_mv';
+```
+
+### Query system.query_log for performance analysis
+
+```sql
+SELECT 
+    query_start_time,
+    type,
+    query,
+    query_duration_ms,
+    read_rows,
+    result_rows
+FROM system.query_log
+WHERE database = 'default' AND type = 2  -- QueryFinish
+  AND query_start_time >= now() - INTERVAL 1 HOUR
+ORDER BY query_start_time DESC
+LIMIT 50;
 ```
 
 ## Performance Tuning
 
-### Index Settings
+### Adjust batch size if needed
 
-The migration creates Bloom filter indexes on:
-- `user_id` - for filtering by user
-- `org_id` - for filtering by organization
-- `event_type` - for filtering by event type
+The Arrow Flight sink default batch size is 10,000 rows. Adjust if:
+- Batches are taking >100ms: reduce batch_size
+- Memory pressure: reduce batch_size
+- Network latency high: increase batch_size
 
-These indexes are useful for the `WHERE` clauses in the aggregations. Adjust `GRANULARITY` if needed:
-- `GRANULARITY 1` - index every row (precise, larger index)
-- `GRANULARITY 8192` - index every 8192 rows (smaller, less precise)
-
-### Partitioning Strategy
-
-Current: Monthly partitions by `toYYYYMM(timestamp)`
-
-Alternatives:
-- Daily: `toYYYYMMDD(timestamp)` - more granular deletion, more partitions
-- Weekly: Custom function - balanced approach
-- Yearly: `toYear(timestamp)` - fewer partitions, coarser deletion
-
-### TTL Settings
-
-Current: 90-day retention (`INTERVAL 90 DAY`)
-
-To adjust:
-```sql
-ALTER TABLE fraiseql_events MODIFY TTL timestamp + INTERVAL 365 DAY;
+```toml
+# In fraiseql config
+[observers.clickhouse]
+batch_size = 20000  # Default is 10,000
+batch_timeout_secs = 5
 ```
 
-To disable TTL:
+### Monitor Bloom filter efficiency
+
+Bloom filters are configured with `GRANULARITY 1` (very precise). If memory is constrained:
+
 ```sql
-ALTER TABLE fraiseql_events REMOVE TTL;
+-- Update index granularity
+ALTER TABLE fraiseql_events MODIFY SETTING index_granularity = 16384;
 ```
 
-### Aggregation Settings
+### Adjust TTL if needed
 
-The SummingMergeTree tables automatically aggregate on background merges. To force immediate aggregation:
+Change 90-day retention:
 
 ```sql
-OPTIMIZE TABLE fraiseql_events_hourly FINAL;
-OPTIMIZE TABLE fraiseql_org_daily FINAL;
-OPTIMIZE TABLE fraiseql_event_type_stats FINAL;
+ALTER TABLE fraiseql_events MODIFY TTL timestamp + INTERVAL 120 DAY;
+ALTER TABLE fraiseql_org_daily MODIFY TTL day + INTERVAL 120 DAY;
 ```
 
 ## Troubleshooting
 
-### Materialized View Not Updating
+### Events not appearing in ClickHouse
 
-If aggregation views are empty after inserts:
+1. Check Arrow Flight sink is running:
+   ```bash
+   docker logs fraiseql-arrow
+   ```
 
-```sql
--- Check if view is processing correctly
-SELECT count() FROM fraiseql_events;
+2. Verify NATS has events:
+   ```bash
+   nats stream info fraiseql_events
+   ```
 
--- Check view status
-SELECT * FROM system.tables
-WHERE name = 'fraiseql_events_hourly_mv' FORMAT Vertical;
+3. Check ClickHouse connectivity:
+   ```bash
+   curl -s http://localhost:8123/?query="SELECT 1" | head
+   ```
 
--- Try manual optimization
-OPTIMIZE TABLE fraiseql_events FINAL;
-OPTIMIZE TABLE fraiseql_events_hourly FINAL;
+### Slow queries on fraiseql_events
+
+1. Verify indexes exist:
+   ```sql
+   SELECT * FROM system.indexes WHERE table = 'fraiseql_events';
+   ```
+
+2. Check partition pruning is working:
+   ```sql
+   EXPLAIN
+   SELECT * FROM fraiseql_events
+   WHERE timestamp >= now() - INTERVAL 7 DAY;
+   ```
+
+3. Review table settings:
+   ```sql
+   SHOW CREATE TABLE fraiseql_events;
+   ```
+
+### Materialized views not updating
+
+1. Check view status:
+   ```sql
+   SELECT name, target_table, is_ready FROM system.views WHERE name LIKE 'fraiseql%_mv';
+   ```
+
+2. Check for errors in query log:
+   ```sql
+   SELECT * FROM system.query_log
+   WHERE query LIKE '%fraiseql_events_hourly_mv%'
+   ORDER BY query_start_time DESC;
+   ```
+
+3. Manually refresh (if stuck):
+   ```sql
+   -- Drop and recreate view
+   DROP VIEW fraiseql_events_hourly_mv;
+   CREATE MATERIALIZED VIEW fraiseql_events_hourly_mv TO fraiseql_events_hourly AS
+   SELECT ...;
+   ```
+
+## Architecture
+
+```
+PostgreSQL Events
+    ↓ (via NATS)
+Observer Event Stream (NATS JetStream)
+    ↓ (via Arrow Bridge)
+Arrow RecordBatch
+    ↓ (via ClickHouse Sink)
+fraiseql_events table (MergeTree)
+    ↓
+┌───────────┬─────────────┬──────────────┐
+↓           ↓             ↓              ↓
+hourly      org_daily     event_type_    (future)
+aggregations stats        stats          analytics
 ```
 
-### Storage Issues
+## Future Enhancements
 
-Monitor disk usage:
-
-```sql
-SELECT
-    table,
-    formatReadableSize(sum(bytes)) as size
-FROM system.parts
-WHERE database = 'default' AND table LIKE 'fraiseql%'
-GROUP BY table
-ORDER BY size DESC;
-```
-
-Clean old partitions manually:
-
-```sql
--- Delete partitions older than 120 days
-ALTER TABLE fraiseql_events DELETE WHERE timestamp < now64Milli() - INTERVAL 120 DAY;
-```
-
-### Connection Issues
-
-If Docker container is running but clickhouse-client can't connect:
-
-```bash
-# Check container is running
-docker ps | grep clickhouse
-
-# Check logs
-docker logs <container-id>
-
-# Test connectivity
-docker exec fraiseql-clickhouse clickhouse-client --query "SELECT 1"
-
-# Access via Docker network
-docker run --network fraiseql_default clickhouse/clickhouse-client:latest \
-  --host clickhouse --query "SELECT 1"
-```
+- [ ] Time-series predictions using ML models
+- [ ] Anomaly detection on event rates
+- [ ] Custom aggregations per organization
+- [ ] Event replication to S3 for long-term storage
+- [ ] Integration with Grafana for dashboards
