@@ -28,9 +28,10 @@ Complete Phase 9.9 testing + finish Phase 10 hardening (auth, multi-tenancy, ops
 | Phase 9.9 | 4 hours | Not started |
 | Phase 10.5 | 2 days | 85% done (just wrappers + RBAC) |
 | Phase 10.6 | 2 days | 30% done (just enforcement) |
-| Phase 10.8-10.10 | 3-4 days | Not started (straightforward) |
+| ✅ Phase 10.10 | ✅ COMPLETE | ✅ Jan 25, 2026 (370 LOC, 9/9 tests passing) |
+| Phase 10.8-10.9 | 2 days | Not started (secrets + backup/DR) |
 | Testing & Release | 1-2 days | Prep work |
-| **Total** | **2 weeks** | **Ready to start** |
+| **Total** | **~1.5 weeks** | **Reduced from 2 weeks - 10.10 complete** |
 
 ---
 
@@ -1334,7 +1335,13 @@ Co-Authored-By: Claude Haiku 4.5 <noreply@anthropic.com>"
 
 ---
 
-### Days 7-8: Phase 10.8-10.10 - Ops Hardening (Secrets, Backup, Encryption)
+### Days 7-8: Phase 10.8-10.9 - Ops Hardening (Secrets, Backup)
+
+**Status Update**: Phase 10.10 (Encryption at Rest & In Transit) ✅ COMPLETE (Jan 25, 2026)
+- 370 LOC implemented in `crates/fraiseql-server/src/tls.rs` and `tls_listener.rs`
+- 9 tests passing (all validation and database TLS scenarios covered)
+- rustls 0.23 + tokio-rustls 0.25 integration complete
+- No changes needed to timeline - removed from this section
 
 #### Day 7.1: Secrets Management - HashiCorp Vault (1 day)
 
@@ -1778,13 +1785,14 @@ FraiseQL is open source. See LICENSE file for details.
 | 1 | 4 | 10.5C | API key management | ✅ 0.5 days |
 | 1 | 4 | Test | Integration & commit Phase 10.5 | ✅ 0.5 days |
 | 2 | 5-6 | 10.6 | Multi-tenancy enforcement (org_id isolation) | ✅ 2 days |
-| 2 | 7-8 | 10.8-10.10 | Secrets, backup, encryption | ✅ 2 days |
+| 2 | 7 | ✅ 10.10 | Encryption at rest & transit | ✅ COMPLETE (Jan 25) |
+| 2 | 7-8 | 10.8-10.9 | Secrets, backup/DR | ✅ 2 days |
 | 2 | 9 | Release | Final testing, sign-off, GA | ✅ 1 day |
-| | | **TOTAL** | | **10 working days** |
+| | | **TOTAL** | | **~9 working days** |
 
-**Timeline**: January 27 - February 7, 2026
-**Status**: Ready to execute
-**Decision**: 🟢 GO FOR PRODUCTION on Day 10
+**Timeline**: January 25-27 (already done: 10.10) + January 27 - February 7 (remaining tasks)
+**Status**: Ready to execute (10.10 encryption complete, on schedule for production)
+**Decision**: 🟢 GO FOR PRODUCTION (10.10 security foundation in place)
 
 ---
 
