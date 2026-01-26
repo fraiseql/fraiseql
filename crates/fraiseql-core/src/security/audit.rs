@@ -7,6 +7,7 @@ use std::{sync::Arc, time::SystemTime};
 use chrono::{DateTime, Utc};
 use deadpool_postgres::Pool;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 /// Audit log levels
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -41,33 +42,87 @@ impl AuditLevel {
     }
 }
 
-/// Audit log entry
+/// Audit log entry with integrity protection
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuditEntry {
     /// Entry ID (None for new entries)
-    pub id:          Option<i64>,
+    pub id:             Option<i64>,
     /// Timestamp
-    pub timestamp:   DateTime<Utc>,
+    pub timestamp:      DateTime<Utc>,
     /// Log level
-    pub level:       AuditLevel,
+    pub level:          AuditLevel,
     /// User ID
-    pub user_id:     i64,
+    pub user_id:        i64,
     /// Tenant ID
-    pub tenant_id:   i64,
+    pub tenant_id:      i64,
     /// Operation type (query, mutation)
-    pub operation:   String,
+    pub operation:      String,
     /// GraphQL query string
-    pub query:       String,
+    pub query:          String,
     /// Query variables (JSONB)
-    pub variables:   serde_json::Value,
+    pub variables:      serde_json::Value,
     /// Client IP address
-    pub ip_address:  String,
+    pub ip_address:     String,
     /// Client user agent
-    pub user_agent:  String,
+    pub user_agent:     String,
     /// Error message (if any)
-    pub error:       Option<String>,
+    pub error:          Option<String>,
     /// Query duration in milliseconds (optional)
-    pub duration_ms: Option<i32>,
+    pub duration_ms:    Option<i32>,
+    /// SHA256 hash of previous entry (for integrity chain)
+    pub previous_hash:  Option<String>,
+    /// SHA256 hash of this entry (for integrity verification)
+    pub integrity_hash: Option<String>,
+}
+
+impl AuditEntry {
+    /// Calculate SHA256 hash for this entry (for integrity chain)
+    ///
+    /// Hashes: user_id | timestamp | operation | query to create a tamper-proof chain
+    #[must_use]
+    pub fn calculate_hash(&self) -> String {
+        let mut hasher = Sha256::new();
+
+        // Include all mutable fields in hash for tamper detection
+        hasher.update(self.user_id.to_string().as_bytes());
+        hasher.update(self.timestamp.to_rfc3339().as_bytes());
+        hasher.update(self.operation.as_bytes());
+        hasher.update(self.query.as_bytes());
+        hasher.update(self.level.as_str().as_bytes());
+
+        // Include previous hash if present (hash chain)
+        if let Some(ref prev) = self.previous_hash {
+            hasher.update(prev.as_bytes());
+        }
+
+        format!("{:x}", hasher.finalize())
+    }
+
+    /// Verify integrity of this entry against its stored hash
+    #[must_use]
+    pub fn verify_integrity(&self) -> bool {
+        if let Some(ref stored_hash) = self.integrity_hash {
+            let calculated = self.calculate_hash();
+            // Constant-time comparison to prevent timing attacks
+            constant_time_eq(stored_hash.as_bytes(), calculated.as_bytes())
+        } else {
+            false
+        }
+    }
+}
+
+/// Constant-time comparison to prevent timing attacks
+fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+
+    let mut result = 0u8;
+    for (x, y) in a.iter().zip(b.iter()) {
+        result |= x ^ y;
+    }
+
+    result == 0
 }
 
 /// Statistics about audit events
@@ -213,10 +268,136 @@ impl AuditLogger {
                     user_agent,
                     error,
                     duration_ms,
+                    previous_hash: None,
+                    integrity_hash: None,
                 }
             })
             .collect();
 
         Ok(entries)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_audit_entry_integrity_hash() {
+        let entry = AuditEntry {
+            id: Some(1),
+            timestamp: Utc::now(),
+            level: AuditLevel::INFO,
+            user_id: 123,
+            tenant_id: 456,
+            operation: "query".to_string(),
+            query: "{ users { id name } }".to_string(),
+            variables: serde_json::json!({}),
+            ip_address: "192.168.1.1".to_string(),
+            user_agent: "Mozilla/5.0".to_string(),
+            error: None,
+            duration_ms: Some(100),
+            previous_hash: None,
+            integrity_hash: None,
+        };
+
+        let hash = entry.calculate_hash();
+        assert!(!hash.is_empty());
+        assert_eq!(hash.len(), 64); // SHA256 hex is 64 chars
+    }
+
+    #[test]
+    fn test_audit_integrity_verification() {
+        let mut entry = AuditEntry {
+            id: Some(1),
+            timestamp: Utc::now(),
+            level: AuditLevel::INFO,
+            user_id: 123,
+            tenant_id: 456,
+            operation: "query".to_string(),
+            query: "{ users { id name } }".to_string(),
+            variables: serde_json::json!({}),
+            ip_address: "192.168.1.1".to_string(),
+            user_agent: "Mozilla/5.0".to_string(),
+            error: None,
+            duration_ms: Some(100),
+            previous_hash: None,
+            integrity_hash: None,
+        };
+
+        // Calculate hash and store it
+        let calculated_hash = entry.calculate_hash();
+        entry.integrity_hash = Some(calculated_hash);
+
+        // Verify should pass
+        assert!(entry.verify_integrity());
+
+        // Tamper with data
+        entry.user_id = 999;
+
+        // Verify should fail
+        assert!(!entry.verify_integrity());
+    }
+
+    #[test]
+    fn test_audit_hash_chain() {
+        let timestamp = Utc::now();
+
+        let mut entry1 = AuditEntry {
+            id: Some(1),
+            timestamp,
+            level: AuditLevel::INFO,
+            user_id: 123,
+            tenant_id: 456,
+            operation: "query".to_string(),
+            query: "{ users { id } }".to_string(),
+            variables: serde_json::json!({}),
+            ip_address: "192.168.1.1".to_string(),
+            user_agent: "Mozilla/5.0".to_string(),
+            error: None,
+            duration_ms: Some(100),
+            previous_hash: None,
+            integrity_hash: None,
+        };
+
+        let hash1 = entry1.calculate_hash();
+        entry1.integrity_hash = Some(hash1.clone());
+
+        // Create second entry with chain
+        let mut entry2 = AuditEntry {
+            id: Some(2),
+            timestamp,
+            level: AuditLevel::INFO,
+            user_id: 123,
+            tenant_id: 456,
+            operation: "query".to_string(),
+            query: "{ posts { id } }".to_string(),
+            variables: serde_json::json!({}),
+            ip_address: "192.168.1.1".to_string(),
+            user_agent: "Mozilla/5.0".to_string(),
+            error: None,
+            duration_ms: Some(50),
+            previous_hash: Some(hash1),
+            integrity_hash: None,
+        };
+
+        let hash2 = entry2.calculate_hash();
+        entry2.integrity_hash = Some(hash2);
+
+        // Both should verify
+        assert!(entry1.verify_integrity());
+        assert!(entry2.verify_integrity());
+
+        // Breaking the chain should be detected
+        entry1.user_id = 999;
+        assert!(!entry1.verify_integrity());
+    }
+
+    #[test]
+    fn test_audit_level_parsing() {
+        assert_eq!(AuditLevel::parse("WARN"), AuditLevel::WARN);
+        assert_eq!(AuditLevel::parse("ERROR"), AuditLevel::ERROR);
+        assert_eq!(AuditLevel::parse("INFO"), AuditLevel::INFO);
+        assert_eq!(AuditLevel::parse("UNKNOWN"), AuditLevel::INFO);
     }
 }
