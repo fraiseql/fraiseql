@@ -131,7 +131,9 @@ pub struct OidcConfig {
 }
 
 fn default_jwks_cache_ttl() -> u64 {
-    3600
+    // SECURITY: Reduced from 3600s (1 hour) to 300s (5 minutes)
+    // Prevents token cache poisoning by limiting revoked token window
+    300
 }
 
 fn default_algorithms() -> Vec<String> {
@@ -643,6 +645,13 @@ impl OidcValidator {
         // Fetch fresh JWKS
         let jwks = self.fetch_jwks().await?;
 
+        // SECURITY: Detect key rotation for audit purposes
+        if self.detect_key_rotation(&jwks) {
+            tracing::warn!(
+                "OIDC key rotation detected: some previously cached keys no longer available"
+            );
+        }
+
         // Find the key index first, then we can clone the key
         let key_index =
             jwks.keys.iter().position(|k| k.kid.as_deref() == Some(kid)).ok_or_else(|| {
@@ -694,6 +703,28 @@ impl OidcValidator {
     /// Find a key in the JWKS by key ID.
     fn find_key<'a>(&self, jwks: &'a Jwks, kid: &str) -> Option<&'a Jwk> {
         jwks.keys.iter().find(|k| k.kid.as_deref() == Some(kid))
+    }
+
+    /// Detect if JWKS keys have been rotated (old keys removed).
+    ///
+    /// Compares current cached keys with newly fetched keys.
+    /// Returns true if any previously cached keys are missing from the new JWKS.
+    fn detect_key_rotation(&self, new_jwks: &Jwks) -> bool {
+        let cache = self.jwks_cache.read();
+        if let Some(ref cached) = *cache {
+            // Get set of old key IDs
+            let old_kids: std::collections::HashSet<_> =
+                cached.jwks.keys.iter().filter_map(|k| k.kid.as_deref()).collect();
+
+            // Get set of new key IDs
+            let new_kids: std::collections::HashSet<_> =
+                new_jwks.keys.iter().filter_map(|k| k.kid.as_deref()).collect();
+
+            // Rotation detected if any old keys are missing
+            !old_kids.is_subset(&new_kids)
+        } else {
+            false
+        }
     }
 
     /// Convert a JWK to a jsonwebtoken DecodingKey.
@@ -795,7 +826,8 @@ mod tests {
         let config = OidcConfig::default();
         assert!(config.issuer.is_empty());
         assert!(config.audience.is_none());
-        assert_eq!(config.jwks_cache_ttl_secs, 3600);
+        // SECURITY: Cache TTL reduced to 5 minutes to prevent token cache poisoning
+        assert_eq!(config.jwks_cache_ttl_secs, 300);
         assert_eq!(config.allowed_algorithms, vec!["RS256"]);
         assert_eq!(config.clock_skew_secs, 60);
         assert!(config.required);
@@ -996,5 +1028,12 @@ mod tests {
         assert_eq!(doc.issuer, "https://issuer.example.com");
         assert_eq!(doc.jwks_uri, "https://issuer.example.com/.well-known/jwks.json");
         assert_eq!(doc.id_token_signing_alg_values_supported.len(), 3);
+    }
+
+    #[test]
+    fn test_jwks_cache_ttl_reduced_for_security() {
+        // SECURITY: Verify cache TTL is reduced to 5 minutes (300 seconds)
+        // to prevent token cache poisoning attacks
+        assert_eq!(default_jwks_cache_ttl(), 300, "Cache TTL should be 5 minutes (300 seconds)");
     }
 }
