@@ -72,10 +72,14 @@ pub mod directive_evaluator;
 /// Fragment cycle detection.
 pub mod fragments;
 
+/// Query complexity analysis and DoS prevention.
+pub mod complexity;
+
 // ============================================================================
 // Re-exports for convenient access
 // ============================================================================
 
+pub use complexity::{ComplexityAnalyzer, ComplexityConfig};
 pub use directive_evaluator::{
     CustomDirectiveEvaluator, DirectiveError, DirectiveEvaluator, DirectiveHandler,
     DirectiveResult, EvaluationContext, OperationType,
