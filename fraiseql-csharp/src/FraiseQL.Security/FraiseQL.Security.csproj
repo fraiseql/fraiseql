@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>FraiseQL.Security</RootNamespace>
+    <AssemblyName>FraiseQL.Security</AssemblyName>
+    <Version>1.0.0</Version>
+    <Description>Security module for FraiseQL with 100% feature parity</Description>
+    <Authors>FraiseQL Contributors</Authors>
+    <PackageProjectUrl>https://github.com/fraiseql/fraiseql</PackageProjectUrl>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+  </PropertyGroup>
+
+</Project>
