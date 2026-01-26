@@ -247,8 +247,8 @@ impl PostgresAdapter {
             // Convert JSON values to QueryParam (preserves types)
             let typed_params: Vec<QueryParam> = params.into_iter().map(QueryParam::from).collect();
 
-            eprintln!("DEBUG: SQL with projection = {}", sql);
-            eprintln!("DEBUG: typed_params = {:?}", typed_params);
+            tracing::debug!("SQL with projection = {}", sql);
+            tracing::debug!("typed_params = {:?}", typed_params);
 
             // Create references to QueryParam for ToSql
             let param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = typed_params

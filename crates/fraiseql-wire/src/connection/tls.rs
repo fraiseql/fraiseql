@@ -350,8 +350,8 @@ fn validate_tls_security(danger_accept_invalid_certs: bool) {
         // Development builds: warn but allow
         #[cfg(debug_assertions)]
         {
-            eprintln!("🚨 WARNING: TLS certificate validation is DISABLED (development only)");
-            eprintln!("🚨 This mode is only for development with self-signed certificates");
+            tracing::warn!("TLS certificate validation is DISABLED (development only)");
+            tracing::warn!("This mode is only for development with self-signed certificates");
         }
     }
 }

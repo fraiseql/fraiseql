@@ -247,35 +247,25 @@ impl Compiler {
     /// ```
     pub fn compile(&self, schema_json: &str) -> Result<CompiledSchema> {
         // Parse JSON → Authoring IR
-        if self.config.debug {
-            eprintln!("[compiler] Parsing schema...");
-        }
+        tracing::debug!("Parsing schema...");
         let ir = self.parser.parse(schema_json)?;
 
         // Validate IR
-        if self.config.debug {
-            eprintln!("[compiler] Validating schema...");
-        }
+        tracing::debug!("Validating schema...");
         let validated_ir = self.validator.validate(ir)?;
 
         // Lower IR → SQL templates
-        if self.config.debug {
-            eprintln!("[compiler] Generating SQL templates...");
-        }
+        tracing::debug!("Generating SQL templates...");
         let sql_templates = self.lowering.generate(&validated_ir)?;
 
         // Codegen SQL templates → CompiledSchema
-        if self.config.debug {
-            eprintln!("[compiler] Generating CompiledSchema...");
-        }
+        tracing::debug!("Generating CompiledSchema...");
         let compiled = self.codegen.generate(&validated_ir, &sql_templates)?;
 
         // Note: Fact table metadata will be added by external tools or
         // through explicit API calls (e.g., from Python decorators)
 
-        if self.config.debug {
-            eprintln!("[compiler] Compilation complete!");
-        }
+        tracing::debug!("Compilation complete!");
 
         Ok(compiled)
     }
