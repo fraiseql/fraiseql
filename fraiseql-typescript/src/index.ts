@@ -47,6 +47,11 @@ export type {
   MutationDefinition,
   SubscriptionDefinition,
   ArgumentDefinition,
+  EnumValue,
+  EnumDefinition,
+  InterfaceDefinition,
+  InputTypeDefinition,
+  UnionDefinition,
   Schema,
   Measure,
   Dimension,
@@ -67,6 +72,10 @@ export {
   Subscription,
   FactTable as FactTableDecorator,
   AggregateQuery as AggregateQueryDecorator,
+  enum_,
+  interface_,
+  union,
+  input,
   registerTypeFields,
   registerQuery,
   registerMutation,
@@ -79,6 +88,10 @@ export type {
   SubscriptionConfig,
   FactTableConfig,
   AggregateQueryConfig,
+  EnumConfig,
+  InterfaceConfig,
+  UnionConfig,
+  InputConfig,
 } from "./decorators";
 
 // Export schema functions

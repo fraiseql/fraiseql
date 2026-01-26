@@ -5,7 +5,7 @@
  * for JSON export. NO runtime behavior - only metadata collection.
  */
 
-import { SchemaRegistry, ArgumentDefinition, Field } from "./registry";
+import { SchemaRegistry, ArgumentDefinition, Field, EnumValue } from "./registry";
 
 /**
  * Configuration for a Type decorator.
@@ -335,6 +335,188 @@ export function AggregateQuery(config: AggregateQueryConfig) {
 
     return descriptor;
   };
+}
+
+/**
+ * Configuration for Enum decorator.
+ */
+export interface EnumConfig {
+  description?: string;
+}
+
+/**
+ * Decorator to mark an object as a GraphQL enum.
+ *
+ * This decorator registers the enum with the schema registry for JSON export.
+ * NO runtime behavior - only used for schema compilation.
+ *
+ * @param values - Object with enum values as keys (values are not used, only keys matter)
+ * @param config - Optional configuration
+ * @returns Decorator function
+ *
+ * @example
+ * ```ts
+ * const OrderStatus = enum('OrderStatus', {
+ *   PENDING: 'pending',
+ *   SHIPPED: 'shipped',
+ *   DELIVERED: 'delivered'
+ * }, {
+ *   description: 'The status of an order'
+ * })
+ * ```
+ *
+ * This generates JSON:
+ * ```json
+ * {
+ *   "name": "OrderStatus",
+ *   "description": "The status of an order",
+ *   "values": [
+ *     {"name": "PENDING"},
+ *     {"name": "SHIPPED"},
+ *     {"name": "DELIVERED"}
+ *   ]
+ * }
+ * ```
+ */
+export function enum_(
+  name: string,
+  values: Record<string, unknown>,
+  config?: EnumConfig
+): Record<string, unknown> {
+  // Extract enum value names from the values object
+  const enumValues: EnumValue[] = Object.keys(values).map((key) => ({
+    name: key,
+  }));
+
+  // Register enum with schema registry
+  SchemaRegistry.registerEnum(name, enumValues, config?.description);
+
+  // Return the values object for backward compatibility
+  return values;
+}
+
+/**
+ * Configuration for Interface decorator.
+ */
+export interface InterfaceConfig {
+  description?: string;
+}
+
+/**
+ * Decorator to mark a class as a GraphQL interface.
+ *
+ * This decorator registers the interface with the schema registry for JSON export.
+ * NO runtime behavior - only used for schema compilation.
+ *
+ * Interfaces define a common set of fields that multiple object types can implement.
+ * Per GraphQL spec §3.7, interfaces enable polymorphic queries.
+ *
+ * @param name - Interface name
+ * @param fields - Field definitions
+ * @param config - Optional configuration
+ * @returns Interface marker object
+ *
+ * @example
+ * ```ts
+ * const Node = interface('Node', {
+ *   id: { type: 'ID', nullable: false },
+ *   createdAt: { type: 'DateTime', nullable: false }
+ * }, {
+ *   description: 'An object with a globally unique ID'
+ * })
+ * ```
+ */
+export function interface_(
+  name: string,
+  fields: Field[],
+  config?: InterfaceConfig
+): Record<string, unknown> {
+  // Register interface with schema registry
+  SchemaRegistry.registerInterface(name, fields, config?.description);
+
+  // Return an empty object as marker
+  return {};
+}
+
+/**
+ * Configuration for Union decorator.
+ */
+export interface UnionConfig {
+  description?: string;
+}
+
+/**
+ * Decorator to mark a class as a GraphQL union type.
+ *
+ * Per GraphQL spec §3.10, unions represent a type that could be one of
+ * several object types. Unlike interfaces, unions don't define common fields.
+ *
+ * This decorator registers the union with the schema registry for JSON export.
+ * NO runtime behavior - only used for schema compilation.
+ *
+ * @param name - Union name
+ * @param memberTypes - List of member type names
+ * @param config - Optional configuration
+ * @returns Union marker object
+ *
+ * @example
+ * ```ts
+ * const SearchResult = union('SearchResult', ['User', 'Post', 'Comment'], {
+ *   description: 'Result of a search query'
+ * })
+ * ```
+ */
+export function union(
+  name: string,
+  memberTypes: string[],
+  config?: UnionConfig
+): Record<string, unknown> {
+  // Register union with schema registry
+  SchemaRegistry.registerUnion(name, memberTypes, config?.description);
+
+  // Return an empty object as marker
+  return {};
+}
+
+/**
+ * Configuration for Input decorator.
+ */
+export interface InputConfig {
+  description?: string;
+}
+
+/**
+ * Decorator to mark a class as a GraphQL input type.
+ *
+ * This decorator registers the input type with the schema registry for JSON export.
+ * NO runtime behavior - only used for schema compilation.
+ *
+ * @param name - Input type name
+ * @param fields - Field definitions with optional defaults
+ * @param config - Optional configuration
+ * @returns Input marker object
+ *
+ * @example
+ * ```ts
+ * const CreateUserInput = input('CreateUserInput', [
+ *   { name: 'name', type: 'String', nullable: false },
+ *   { name: 'email', type: 'String', nullable: false },
+ *   { name: 'role', type: 'String', nullable: false, default: 'user' }
+ * ], {
+ *   description: 'Input for creating a new user'
+ * })
+ * ```
+ */
+export function input(
+  name: string,
+  fields: Array<Field & { default?: unknown }>,
+  config?: InputConfig
+): Record<string, unknown> {
+  // Register input type with schema registry
+  SchemaRegistry.registerInputType(name, fields, config?.description);
+
+  // Return an empty object as marker
+  return {};
 }
 
 /**

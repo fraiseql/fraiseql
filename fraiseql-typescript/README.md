@@ -209,6 +209,105 @@ function salesAggregate(): Record<string, unknown>[] {
 }
 ```
 
+### Type System Decorators
+
+#### `enum_(name, values, config?)`
+
+Define a GraphQL enum type.
+
+```typescript
+const OrderStatus = fraiseql.enum_("OrderStatus", {
+  PENDING: "pending",
+  SHIPPED: "shipped",
+  DELIVERED: "delivered",
+}, {
+  description: "Status of an order"
+});
+```
+
+Then use in types:
+
+```typescript
+fraiseql.registerTypeFields("Order", [
+  { name: "id", type: "ID", nullable: false },
+  { name: "status", type: "OrderStatus", nullable: false },
+]);
+```
+
+#### `interface_(name, fields, config?)`
+
+Define a GraphQL interface - shared fields for multiple types.
+
+```typescript
+const Node = fraiseql.interface_("Node", [
+  { name: "id", type: "ID", nullable: false },
+  { name: "createdAt", type: "DateTime", nullable: false },
+], {
+  description: "An object with a globally unique ID"
+});
+```
+
+Types can implement interfaces:
+
+```typescript
+fraiseql.registerTypeFields("User", [
+  { name: "id", type: "ID", nullable: false },
+  { name: "createdAt", type: "DateTime", nullable: false },
+  { name: "name", type: "String", nullable: false },
+]);
+```
+
+#### `union(name, memberTypes, config?)`
+
+Define a GraphQL union - polymorphic return type.
+
+```typescript
+const SearchResult = fraiseql.union("SearchResult",
+  ["User", "Post", "Comment"],
+  { description: "Result of a search query" }
+);
+```
+
+Then use in queries:
+
+```typescript
+fraiseql.registerQuery(
+  "search",
+  "SearchResult",  // Returns union
+  true,            // returns list
+  false,           // not nullable
+  [{ name: "query", type: "String", nullable: false }],
+  "Search across content"
+);
+```
+
+#### `input(name, fields, config?)`
+
+Define a GraphQL input type - structured parameters.
+
+```typescript
+const CreateUserInput = fraiseql.input("CreateUserInput", [
+  { name: "email", type: "Email", nullable: false },
+  { name: "name", type: "String", nullable: false },
+  { name: "role", type: "String", nullable: false, default: "user" },
+], {
+  description: "Input for creating a new user"
+});
+```
+
+Use in mutations:
+
+```typescript
+fraiseql.registerMutation(
+  "createUser",
+  "User",
+  false,
+  false,
+  [{ name: "input", type: "CreateUserInput", nullable: false }],
+  "Create a new user"
+);
+```
+
 ### Manual Registration Functions
 
 When decorators alone don't provide enough type information:
@@ -383,12 +482,18 @@ See the `examples/` directory:
 
 - **basic_schema.ts** - Simple CRUD queries and mutations
 - **analytics_schema.ts** - Fact tables and aggregate queries
+- **enums-example.ts** - Enum definitions and usage
+- **types-advanced.ts** - Comprehensive type system example (enums, interfaces, unions, input types)
+- **unions-interfaces-example.ts** - Interfaces, unions, and polymorphic queries
+- **comprehensive-example.ts** - Full-featured schema with all FraiseQL capabilities
 
 Run examples:
 
 ```bash
-npm run example:basic    # Generate basic schema
-npm run example:analytics  # Generate analytics schema
+npm run example:basic       # Generate basic schema
+npm run example:analytics   # Generate analytics schema
+npm run example:enums       # Generate enum example
+npm run example:advanced    # Generate advanced types example
 ```
 
 ## Development

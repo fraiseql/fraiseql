@@ -164,6 +164,50 @@ export interface ObserverDefinition {
 }
 
 /**
+ * Enum value definition.
+ */
+export interface EnumValue {
+  name: string;
+  deprecated?: { reason: string };
+}
+
+/**
+ * GraphQL enum definition.
+ */
+export interface EnumDefinition {
+  name: string;
+  values: EnumValue[];
+  description?: string;
+}
+
+/**
+ * GraphQL interface definition.
+ */
+export interface InterfaceDefinition {
+  name: string;
+  fields: Field[];
+  description?: string;
+}
+
+/**
+ * GraphQL input type definition.
+ */
+export interface InputTypeDefinition {
+  name: string;
+  fields: Array<Field & { default?: unknown }>;
+  description?: string;
+}
+
+/**
+ * GraphQL union definition.
+ */
+export interface UnionDefinition {
+  name: string;
+  member_types: string[];
+  description?: string;
+}
+
+/**
  * Complete schema definition.
  */
 export interface Schema {
@@ -171,6 +215,10 @@ export interface Schema {
   queries: QueryDefinition[];
   mutations: MutationDefinition[];
   subscriptions: SubscriptionDefinition[];
+  enums?: EnumDefinition[];
+  interfaces?: InterfaceDefinition[];
+  input_types?: InputTypeDefinition[];
+  unions?: UnionDefinition[];
   fact_tables?: FactTableDefinition[];
   aggregate_queries?: AggregateQueryDefinition[];
   observers?: ObserverDefinition[];
@@ -187,6 +235,10 @@ export class SchemaRegistry {
   private static queries: Map<string, QueryDefinition> = new Map();
   private static mutations: Map<string, MutationDefinition> = new Map();
   private static subscriptions: Map<string, SubscriptionDefinition> = new Map();
+  private static enums: Map<string, EnumDefinition> = new Map();
+  private static interfaces: Map<string, InterfaceDefinition> = new Map();
+  private static inputTypes: Map<string, InputTypeDefinition> = new Map();
+  private static unions: Map<string, UnionDefinition> = new Map();
   private static factTables: Map<string, FactTableDefinition> = new Map();
   private static aggregateQueries: Map<string, AggregateQueryDefinition> = new Map();
   private static observers: Map<string, ObserverDefinition> = new Map();
@@ -384,6 +436,70 @@ export class SchemaRegistry {
   }
 
   /**
+   * Register a GraphQL enum type.
+   *
+   * @param name - Enum name (e.g., "OrderStatus")
+   * @param values - List of enum value definitions
+   * @param description - Optional enum description
+   */
+  static registerEnum(name: string, values: EnumValue[], description?: string): void {
+    this.enums.set(name, {
+      name,
+      values,
+      description,
+    });
+  }
+
+  /**
+   * Register a GraphQL interface type.
+   *
+   * @param name - Interface name (e.g., "Node")
+   * @param fields - List of field definitions
+   * @param description - Optional interface description
+   */
+  static registerInterface(name: string, fields: Field[], description?: string): void {
+    this.interfaces.set(name, {
+      name,
+      fields,
+      description,
+    });
+  }
+
+  /**
+   * Register a GraphQL input type.
+   *
+   * @param name - Input type name (e.g., "CreateUserInput")
+   * @param fields - List of field definitions with optional defaults
+   * @param description - Optional input type description
+   */
+  static registerInputType(
+    name: string,
+    fields: Array<Field & { default?: unknown }>,
+    description?: string
+  ): void {
+    this.inputTypes.set(name, {
+      name,
+      fields,
+      description,
+    });
+  }
+
+  /**
+   * Register a GraphQL union type.
+   *
+   * @param name - Union name (e.g., "SearchResult")
+   * @param memberTypes - List of member type names
+   * @param description - Optional union description
+   */
+  static registerUnion(name: string, memberTypes: string[], description?: string): void {
+    this.unions.set(name, {
+      name,
+      member_types: memberTypes,
+      description,
+    });
+  }
+
+  /**
    * Get the complete schema as an object.
    *
    * @returns Schema object with types, queries, mutations, subscriptions, and analytics sections
@@ -395,6 +511,22 @@ export class SchemaRegistry {
       mutations: Array.from(this.mutations.values()),
       subscriptions: Array.from(this.subscriptions.values()),
     };
+
+    if (this.enums.size > 0) {
+      schema.enums = Array.from(this.enums.values());
+    }
+
+    if (this.interfaces.size > 0) {
+      schema.interfaces = Array.from(this.interfaces.values());
+    }
+
+    if (this.inputTypes.size > 0) {
+      schema.input_types = Array.from(this.inputTypes.values());
+    }
+
+    if (this.unions.size > 0) {
+      schema.unions = Array.from(this.unions.values());
+    }
 
     if (this.factTables.size > 0) {
       schema.fact_tables = Array.from(this.factTables.values());
@@ -419,6 +551,10 @@ export class SchemaRegistry {
     this.queries.clear();
     this.mutations.clear();
     this.subscriptions.clear();
+    this.enums.clear();
+    this.interfaces.clear();
+    this.inputTypes.clear();
+    this.unions.clear();
     this.factTables.clear();
     this.aggregateQueries.clear();
     this.observers.clear();
