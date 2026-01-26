@@ -16,6 +16,10 @@ public class SchemaRegistry {
     private final Map<String, MutationInfo> mutations;
     private final Map<String, SubscriptionInfo> subscriptions;
     private final Map<String, ObserverInfo> observers;
+    private final Map<String, EnumInfo> enums;
+    private final Map<String, InterfaceInfo> interfaces;
+    private final Map<String, UnionInfo> unions;
+    private final Map<String, InputTypeInfo> inputTypes;
 
     private SchemaRegistry() {
         this.types = new ConcurrentHashMap<>();
@@ -23,6 +27,10 @@ public class SchemaRegistry {
         this.mutations = new ConcurrentHashMap<>();
         this.subscriptions = new ConcurrentHashMap<>();
         this.observers = new ConcurrentHashMap<>();
+        this.enums = new ConcurrentHashMap<>();
+        this.interfaces = new ConcurrentHashMap<>();
+        this.unions = new ConcurrentHashMap<>();
+        this.inputTypes = new ConcurrentHashMap<>();
     }
 
     /**
@@ -141,6 +149,54 @@ public class SchemaRegistry {
     }
 
     /**
+     * Register an enum type in the schema.
+     *
+     * @param enumName the enum name
+     * @param values the enum values (name -> value map)
+     * @param description optional description
+     */
+    public void registerEnum(String enumName, Map<String, String> values, String description) {
+        EnumInfo enumInfo = new EnumInfo(enumName, values, description);
+        enums.put(enumName, enumInfo);
+    }
+
+    /**
+     * Register an interface type in the schema.
+     *
+     * @param interfaceName the interface name
+     * @param fields the interface fields
+     * @param description optional description
+     */
+    public void registerInterface(String interfaceName, Map<String, TypeConverter.GraphQLFieldInfo> fields, String description) {
+        InterfaceInfo interfaceInfo = new InterfaceInfo(interfaceName, fields, description);
+        interfaces.put(interfaceName, interfaceInfo);
+    }
+
+    /**
+     * Register a union type in the schema.
+     *
+     * @param unionName the union name
+     * @param memberTypes the member type names
+     * @param description optional description
+     */
+    public void registerUnion(String unionName, List<String> memberTypes, String description) {
+        UnionInfo unionInfo = new UnionInfo(unionName, memberTypes, description);
+        unions.put(unionName, unionInfo);
+    }
+
+    /**
+     * Register an input type in the schema.
+     *
+     * @param inputName the input type name
+     * @param fields the input fields
+     * @param description optional description
+     */
+    public void registerInputType(String inputName, Map<String, TypeConverter.GraphQLFieldInfo> fields, String description) {
+        InputTypeInfo inputInfo = new InputTypeInfo(inputName, fields, description);
+        inputTypes.put(inputName, inputInfo);
+    }
+
+    /**
      * Get a registered type by name.
      *
      * @param typeName the type name
@@ -226,7 +282,83 @@ public class SchemaRegistry {
     }
 
     /**
-     * Clear all registered types, queries, mutations, subscriptions, and observers.
+     * Get an enum type by name.
+     *
+     * @param enumName the enum name
+     * @return the EnumInfo or empty Optional if not found
+     */
+    public Optional<EnumInfo> getEnum(String enumName) {
+        return Optional.ofNullable(enums.get(enumName));
+    }
+
+    /**
+     * Get all registered enum types.
+     *
+     * @return unmodifiable map of enum name to EnumInfo
+     */
+    public Map<String, EnumInfo> getAllEnums() {
+        return Collections.unmodifiableMap(enums);
+    }
+
+    /**
+     * Get an interface type by name.
+     *
+     * @param interfaceName the interface name
+     * @return the InterfaceInfo or empty Optional if not found
+     */
+    public Optional<InterfaceInfo> getInterface(String interfaceName) {
+        return Optional.ofNullable(interfaces.get(interfaceName));
+    }
+
+    /**
+     * Get all registered interface types.
+     *
+     * @return unmodifiable map of interface name to InterfaceInfo
+     */
+    public Map<String, InterfaceInfo> getAllInterfaces() {
+        return Collections.unmodifiableMap(interfaces);
+    }
+
+    /**
+     * Get a union type by name.
+     *
+     * @param unionName the union name
+     * @return the UnionInfo or empty Optional if not found
+     */
+    public Optional<UnionInfo> getUnion(String unionName) {
+        return Optional.ofNullable(unions.get(unionName));
+    }
+
+    /**
+     * Get all registered union types.
+     *
+     * @return unmodifiable map of union name to UnionInfo
+     */
+    public Map<String, UnionInfo> getAllUnions() {
+        return Collections.unmodifiableMap(unions);
+    }
+
+    /**
+     * Get an input type by name.
+     *
+     * @param inputName the input type name
+     * @return the InputTypeInfo or empty Optional if not found
+     */
+    public Optional<InputTypeInfo> getInputType(String inputName) {
+        return Optional.ofNullable(inputTypes.get(inputName));
+    }
+
+    /**
+     * Get all registered input types.
+     *
+     * @return unmodifiable map of input type name to InputTypeInfo
+     */
+    public Map<String, InputTypeInfo> getAllInputTypes() {
+        return Collections.unmodifiableMap(inputTypes);
+    }
+
+    /**
+     * Clear all registered types, queries, mutations, subscriptions, observers, enums, interfaces, unions, and input types.
      * Useful for testing.
      */
     public void clear() {
@@ -235,6 +367,10 @@ public class SchemaRegistry {
         mutations.clear();
         subscriptions.clear();
         observers.clear();
+        enums.clear();
+        interfaces.clear();
+        unions.clear();
+        inputTypes.clear();
     }
 
     /**
@@ -380,6 +516,98 @@ public class SchemaRegistry {
                 ", event='" + event + '\'' +
                 ", actions=" + actions.size() +
                 (condition != null && !condition.isEmpty() ? ", condition='" + condition + '\'' : "") +
+                '}';
+        }
+    }
+
+    /**
+     * Information about a registered GraphQL enum type.
+     */
+    public static class EnumInfo {
+        public final String name;
+        public final Map<String, String> values;
+        public final String description;
+
+        public EnumInfo(String name, Map<String, String> values, String description) {
+            this.name = name;
+            this.values = Collections.unmodifiableMap(new LinkedHashMap<>(values));
+            this.description = description;
+        }
+
+        @Override
+        public String toString() {
+            return "EnumInfo{" +
+                "name='" + name + '\'' +
+                ", values=" + values.size() +
+                '}';
+        }
+    }
+
+    /**
+     * Information about a registered GraphQL interface type.
+     */
+    public static class InterfaceInfo {
+        public final String name;
+        public final Map<String, TypeConverter.GraphQLFieldInfo> fields;
+        public final String description;
+
+        public InterfaceInfo(String name, Map<String, TypeConverter.GraphQLFieldInfo> fields, String description) {
+            this.name = name;
+            this.fields = Collections.unmodifiableMap(new LinkedHashMap<>(fields));
+            this.description = description;
+        }
+
+        @Override
+        public String toString() {
+            return "InterfaceInfo{" +
+                "name='" + name + '\'' +
+                ", fields=" + fields.size() +
+                '}';
+        }
+    }
+
+    /**
+     * Information about a registered GraphQL union type.
+     */
+    public static class UnionInfo {
+        public final String name;
+        public final List<String> memberTypes;
+        public final String description;
+
+        public UnionInfo(String name, List<String> memberTypes, String description) {
+            this.name = name;
+            this.memberTypes = Collections.unmodifiableList(new ArrayList<>(memberTypes));
+            this.description = description;
+        }
+
+        @Override
+        public String toString() {
+            return "UnionInfo{" +
+                "name='" + name + '\'' +
+                ", memberTypes=" + memberTypes.size() +
+                '}';
+        }
+    }
+
+    /**
+     * Information about a registered GraphQL input type.
+     */
+    public static class InputTypeInfo {
+        public final String name;
+        public final Map<String, TypeConverter.GraphQLFieldInfo> fields;
+        public final String description;
+
+        public InputTypeInfo(String name, Map<String, TypeConverter.GraphQLFieldInfo> fields, String description) {
+            this.name = name;
+            this.fields = Collections.unmodifiableMap(new LinkedHashMap<>(fields));
+            this.description = description;
+        }
+
+        @Override
+        public String toString() {
+            return "InputTypeInfo{" +
+                "name='" + name + '\'' +
+                ", fields=" + fields.size() +
                 '}';
         }
     }
