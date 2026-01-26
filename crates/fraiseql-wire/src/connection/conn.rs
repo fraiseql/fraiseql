@@ -12,6 +12,7 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 use tracing::Instrument;
+use zeroize::Zeroizing;
 
 // Global counter for chunk metrics sampling (1 per 10 chunks)
 // Used to reduce per-chunk metric recording overhead
@@ -27,8 +28,8 @@ pub struct ConnectionConfig {
     pub database: String,
     /// Username
     pub user: String,
-    /// Password (optional)
-    pub password: Option<String>,
+    /// Password (optional, zeroed on drop for security)
+    pub password: Option<Zeroizing<String>>,
     /// Additional connection parameters
     pub params: HashMap<String, String>,
     /// TCP connection timeout (default: 10 seconds)
@@ -103,9 +104,9 @@ impl ConnectionConfig {
         }
     }
 
-    /// Set password
+    /// Set password (automatically zeroed on drop)
     pub fn password(mut self, password: impl Into<String>) -> Self {
-        self.password = Some(password.into());
+        self.password = Some(Zeroizing::new(password.into()));
         self
     }
 
@@ -135,7 +136,7 @@ impl ConnectionConfig {
 pub struct ConnectionConfigBuilder {
     database: String,
     user: String,
-    password: Option<String>,
+    password: Option<Zeroizing<String>>,
     params: HashMap<String, String>,
     connect_timeout: Option<Duration>,
     statement_timeout: Option<Duration>,
@@ -145,9 +146,9 @@ pub struct ConnectionConfigBuilder {
 }
 
 impl ConnectionConfigBuilder {
-    /// Set the password
+    /// Set the password (automatically zeroed on drop)
     pub fn password(mut self, password: impl Into<String>) -> Self {
-        self.password = Some(password.into());
+        self.password = Some(Zeroizing::new(password.into()));
         self
     }
 
@@ -343,7 +344,8 @@ impl Connection {
                             .password
                             .as_ref()
                             .ok_or_else(|| Error::Authentication("password required".into()))?;
-                        let pwd_msg = FrontendMessage::Password(password.clone());
+                        // SECURITY: Convert from Zeroizing wrapper while preserving password content
+                        let pwd_msg = FrontendMessage::Password(password.as_str().to_string());
                         self.send_message(&pwd_msg).await?;
                     }
                     AuthenticationMessage::Md5Password { .. } => {
@@ -416,7 +418,8 @@ impl Connection {
         })?;
 
         // Create SCRAM client
-        let mut scram = ScramClient::new(config.user.clone(), password.clone());
+        // SECURITY: Convert from Zeroizing wrapper while preserving password content
+        let mut scram = ScramClient::new(config.user.clone(), password.as_str().to_string());
         tracing::debug!("initiating SCRAM-SHA-256 authentication");
 
         // Send SaslInitialResponse with client first message
@@ -979,7 +982,10 @@ mod tests {
 
         assert_eq!(config.database, "testdb");
         assert_eq!(config.user, "testuser");
-        assert_eq!(config.password, Some("testpass".to_string()));
+        assert_eq!(
+            config.password.as_ref().map(|p| p.as_str()),
+            Some("testpass")
+        );
         assert_eq!(
             config.params.get("application_name"),
             Some(&"fraiseql-wire".to_string())
@@ -994,7 +1000,7 @@ mod tests {
 
         assert_eq!(config.database, "mydb");
         assert_eq!(config.user, "myuser");
-        assert_eq!(config.password, Some("mypass".to_string()));
+        assert_eq!(config.password.as_ref().map(|p| p.as_str()), Some("mypass"));
         assert_eq!(config.connect_timeout, None);
         assert_eq!(config.statement_timeout, None);
         assert_eq!(config.keepalive_idle, None);
@@ -1042,7 +1048,7 @@ mod tests {
 
         assert_eq!(config.database, "mydb");
         assert_eq!(config.user, "myuser");
-        assert_eq!(config.password, Some("secret".to_string()));
+        assert_eq!(config.password.as_ref().map(|p| p.as_str()), Some("secret"));
         assert_eq!(config.params.get("key1"), Some(&"value1".to_string()));
         assert_eq!(config.connect_timeout, Some(Duration::from_secs(5)));
         assert_eq!(config.statement_timeout, Some(Duration::from_secs(60)));

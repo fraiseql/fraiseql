@@ -48,6 +48,8 @@ tracing-subscriber = {version = "0.3", features = ["env-filter"]}
 webpki-roots = "0.26"
 # User info for default values
 whoami = "1"
+# Secure password memory management
+zeroize = {version = "1.6", features = ["std", "derive"]}
 
 [dev-dependencies]
 criterion = {version = "0.5", features = ["async_tokio"]}

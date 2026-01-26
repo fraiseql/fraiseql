@@ -8,6 +8,7 @@
 use crate::connection::ConnectionConfig;
 use crate::{Error, Result};
 use std::path::{Path, PathBuf};
+use zeroize::Zeroizing;
 
 /// Parsed connection info
 #[derive(Debug, Clone)]
@@ -24,8 +25,8 @@ pub struct ConnectionInfo {
     pub database: String,
     /// Username
     pub user: String,
-    /// Password
-    pub password: Option<String>,
+    /// Password (zeroed on drop for security)
+    pub password: Option<Zeroizing<String>>,
 }
 
 /// Transport type
@@ -158,7 +159,10 @@ impl ConnectionInfo {
         let (user, password) = if let Some(auth) = auth {
             if let Some(pos) = auth.find(':') {
                 let (user, pass) = auth.split_at(pos);
-                (user.to_string(), Some(pass[1..].to_string()))
+                (
+                    user.to_string(),
+                    Some(Zeroizing::new(pass[1..].to_string())),
+                )
             } else {
                 (auth.to_string(), None)
             }
@@ -198,7 +202,8 @@ impl ConnectionInfo {
     pub fn to_config(&self) -> ConnectionConfig {
         let mut config = ConnectionConfig::new(&self.database, &self.user);
         if let Some(ref password) = self.password {
-            config = config.password(password);
+            // SECURITY: Extract password string from Zeroizing wrapper
+            config = config.password(password.as_str());
         }
         config
     }
@@ -216,7 +221,7 @@ mod tests {
         assert_eq!(info.port, Some(5433));
         assert_eq!(info.database, "mydb");
         assert_eq!(info.user, "user");
-        assert_eq!(info.password, Some("pass".to_string()));
+        assert_eq!(info.password.as_ref().map(|p| p.as_str()), Some("pass"));
     }
 
     #[test]
@@ -299,5 +304,12 @@ mod tests {
         assert_eq!(info.transport, TransportType::Unix);
         // Database should be the username (from whoami)
         assert!(!info.database.is_empty());
+    }
+
+    #[test]
+    fn test_password_field_present() {
+        // Verify password field exists and is properly handled (and zeroed on drop)
+        let info = ConnectionInfo::parse("postgres://user:secret@localhost/db").unwrap();
+        assert_eq!(info.password.as_ref().map(|p| p.as_str()), Some("secret"));
     }
 }
