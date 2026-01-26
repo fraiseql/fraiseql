@@ -1,15 +1,21 @@
-# FraiseQL HTTP Server Deployment Guide
+# Deployment & Operations Guide - From Development to Production
+
+**Duration**: 2-4 hours
+**Outcome**: Deploy FraiseQL to production with confidence
+**Prerequisites**: Completed [GETTING_STARTED.md](GETTING_STARTED.md)
+
+---
 
 ## Overview
 
-This guide covers deploying the FraiseQL HTTP server to various environments including local development, Docker, Kubernetes, and cloud platforms.
+This guide covers deploying the FraiseQL GraphQL server to various environments including local development, Docker, Kubernetes, and cloud platforms. It also references the comprehensive [OPERATIONS_GUIDE.md](OPERATIONS_GUIDE.md) for production operations.
 
 ## Prerequisites
 
 - Compiled schema file (`schema.compiled.json`)
-- Database with proper schema (PostgreSQL, MySQL, or SQLite)
-- Environment-specific configuration
-- For Kubernetes: Docker image and Kubernetes cluster access
+- Database (PostgreSQL, MySQL, or SQLite)
+- For Kubernetes: Docker image and Kubernetes cluster
+- For cloud: Appropriate cloud credentials
 
 ## Local Development
 
