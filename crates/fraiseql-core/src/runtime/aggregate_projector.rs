@@ -72,7 +72,7 @@ impl AggregationProjector {
     /// // result: [{"category": "Electronics", "count": 42, "revenue_sum": 5280.50}]
     /// ```
     pub fn project(rows: Vec<HashMap<String, Value>>, _plan: &AggregationPlan) -> Result<Value> {
-        // For Phase 5, simple projection: just convert rows to JSON array
+        // For simple projection: just convert rows to JSON array
         // In future phases, this could include:
         // - Type coercion (ensure numbers are numbers, not strings)
         // - Null handling

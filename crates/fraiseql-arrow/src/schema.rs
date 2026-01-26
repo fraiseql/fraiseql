@@ -1,7 +1,7 @@
 //! Arrow schema definitions for FraiseQL data types.
 //!
 //! This module provides predefined Arrow schemas for common FraiseQL data structures.
-//! In Phase 9.2+, schemas will be generated dynamically from GraphQL types.
+//! schemas will be generated dynamically from GraphQL types.
 
 use std::sync::Arc;
 
@@ -9,8 +9,8 @@ use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 
 /// Arrow schema for GraphQL query results.
 ///
-/// This is a placeholder schema used in Phase 9.1.
-/// In Phase 9.2, schemas will be generated dynamically from GraphQL type definitions.
+/// This is a placeholder schema.
+/// schemas will be generated dynamically from GraphQL type definitions.
 ///
 /// # Schema
 ///
@@ -56,8 +56,8 @@ pub fn observer_event_schema() -> Arc<Schema> {
 
 /// Arrow schema for bulk exports (table rows).
 ///
-/// This is a placeholder schema used in Phase 9.1.
-/// In Phase 9.4, schemas will be generated from database table metadata.
+/// This is a placeholder schema.
+/// schemas will be generated from database table metadata.
 ///
 /// # Schema
 ///

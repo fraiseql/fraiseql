@@ -333,7 +333,7 @@ impl AggregationSqlGenerator {
         }
     }
 
-    /// Generate SQL for advanced aggregates (Phase 6)
+    /// Generate SQL for advanced aggregates
     fn advanced_aggregate_to_sql(
         &self,
         column: &str,

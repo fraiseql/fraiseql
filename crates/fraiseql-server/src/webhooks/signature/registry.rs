@@ -23,12 +23,12 @@ impl ProviderRegistry {
     pub fn new() -> Self {
         let mut providers: HashMap<String, Arc<dyn SignatureVerifier>> = HashMap::new();
 
-        // Core providers (Phase 3a)
+        // Core providers
         providers.insert("stripe".into(), Arc::new(StripeVerifier::new()));
         providers.insert("github".into(), Arc::new(GitHubVerifier));
         providers.insert("shopify".into(), Arc::new(ShopifyVerifier));
 
-        // Popular providers (Phase 3b)
+        // Popular providers
         providers.insert("gitlab".into(), Arc::new(GitLabVerifier));
         providers.insert("slack".into(), Arc::new(SlackVerifier));
         providers.insert("twilio".into(), Arc::new(TwilioVerifier));
@@ -37,7 +37,7 @@ impl ProviderRegistry {
         providers.insert("paddle".into(), Arc::new(PaddleVerifier));
         providers.insert("lemonsqueezy".into(), Arc::new(LemonSqueezyVerifier));
 
-        // Extended providers (Phase 3c)
+        // Extended providers
         providers.insert("discord".into(), Arc::new(DiscordVerifier));
 
         // Generic verifiers

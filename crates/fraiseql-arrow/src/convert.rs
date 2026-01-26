@@ -36,7 +36,7 @@ impl Default for ConvertConfig {
 /// Placeholder for SQL value types.
 ///
 /// In production, this will be replaced with actual database driver types.
-/// For Phase 9.2, this provides the interface for converting values.
+/// For, this provides the interface for converting values.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     /// UTF-8 string value

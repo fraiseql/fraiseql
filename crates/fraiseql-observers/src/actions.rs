@@ -240,7 +240,7 @@ pub struct SlackResponse {
 
 /// Email action executor
 pub struct EmailAction {
-    // Placeholder for SMTP client (will be initialized in Phase 6.4)
+    // Placeholder for SMTP client 
 }
 
 impl EmailAction {
@@ -250,7 +250,7 @@ impl EmailAction {
         Self {}
     }
 
-    /// Execute email action (stub for Phase 6.4)
+    /// Execute email action (stub)
     pub async fn execute(
         &self,
         _to: &str,
@@ -258,7 +258,7 @@ impl EmailAction {
         _body_template: Option<&str>,
         _event: &EntityEvent,
     ) -> Result<EmailResponse> {
-        // Stub: will be implemented with real SMTP in Phase 6.4
+        // Stub implementation
         Ok(EmailResponse {
             success:     true,
             message_id:  Some(uuid::Uuid::new_v4().to_string()),

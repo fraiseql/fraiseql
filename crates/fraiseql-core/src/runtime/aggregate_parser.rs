@@ -65,7 +65,7 @@ pub struct AggregateQueryParser;
 impl AggregateQueryParser {
     /// Parse a simplified aggregate query into AggregationRequest.
     ///
-    /// For Phase 5, we'll accept a JSON structure that represents the query:
+    /// For we'll accept a JSON structure that represents the query:
     /// ```json
     /// {
     ///   "table": "tf_sales",

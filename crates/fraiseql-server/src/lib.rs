@@ -101,20 +101,20 @@ pub mod webhooks;
 // fraiseql-files modules (merged)
 pub mod files;
 
-// Authentication modules (Phase 5)
+// Authentication modules
 pub mod auth;
 
-// Secrets management (Phase 10.8)
+// Secrets management
 pub mod secrets;
 
-// Backup and disaster recovery (Phase 10.9)
+// Backup and disaster recovery
 pub mod backup;
 
-// TLS/SSL and encryption (Phase 10.10)
+// TLS/SSL and encryption
 pub mod tls;
 pub mod tls_listener;
 
-// Observer management (Phase 6) - optional
+// Observer management - optional
 #[cfg(feature = "observers")]
 pub mod observers;
 

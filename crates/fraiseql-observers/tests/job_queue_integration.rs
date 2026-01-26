@@ -1,5 +1,4 @@
-//! Integration tests for Phase 8.6 Job Queue System
-//!
+//! Integration tests//!
 //! Tests validate:
 //! - Job queue configuration and validation
 //! - Job structure and lifecycle

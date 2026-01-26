@@ -498,7 +498,7 @@ mod tests {
         assert_eq!(config.resume_from_id, Some(100));
     }
 
-    // Event conversion tests (Subphase 7.2)
+    // Event conversion tests
 
     #[test]
     fn test_insert_to_entity_event() {

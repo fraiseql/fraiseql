@@ -3,7 +3,7 @@
 //! This module provides a bridge between fraiseql-core (SQL execution) and
 //! fraiseql-arrow (Arrow RecordBatch conversion) for high-performance analytics.
 //!
-//! # Phase 9.2 Status
+//! # Status
 //!
 //! Currently implements placeholder/stub functionality with dummy data.
 //! Full integration with database drivers will be added in later phases.
@@ -24,7 +24,7 @@ pub type Result<T> = std::result::Result<T, FraiseQLError>;
 ///
 /// This is the bridge between fraiseql-core (SQL execution) and fraiseql-arrow (Arrow conversion).
 ///
-/// # Phase 9.2 Implementation Status
+/// # Implementation Status
 ///
 /// Currently returns placeholder data for testing purposes. Full integration includes:
 /// - TODO: Execute actual GraphQL query via QueryExecutor
@@ -63,7 +63,7 @@ pub async fn execute_query_as_arrow(
     _variables: Option<serde_json::Value>,
     batch_size: usize,
 ) -> Result<Vec<RecordBatch>> {
-    // TODO: Phase 9.3+ - Execute actual GraphQL query
+    Execute actual GraphQL query
     // let result = executor.execute(query, variables).await?;
 
     // Placeholder: Generate dummy schema (2 fields: id, name)
@@ -99,7 +99,7 @@ pub async fn execute_query_as_arrow(
 
 /// Generate dummy rows for testing purposes.
 ///
-/// TODO: Phase 9.3+ - Replace with actual database row conversion
+/Replace with actual database row conversion
 #[cfg(feature = "arrow")]
 fn generate_dummy_rows() -> Vec<Vec<Option<Value>>> {
     vec![

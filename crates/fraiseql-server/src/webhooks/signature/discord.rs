@@ -1,7 +1,7 @@
 //! Discord webhook signature verification.
 //!
 //! Format: HMAC-SHA256 (simplified - real Discord uses Ed25519)
-//! Note: For Phase 3, we use HMAC-SHA256. Full Ed25519 support in later phase.
+//! Note: For we use HMAC-SHA256. Full Ed25519 support in later phase.
 
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
@@ -30,7 +30,7 @@ impl SignatureVerifier for DiscordVerifier {
         timestamp: Option<&str>,
     ) -> Result<bool, SignatureError> {
         // Simplified verification - real Discord uses Ed25519
-        // For Phase 3, we use HMAC-SHA256 as a placeholder
+        // For we use HMAC-SHA256 as a placeholder
         let timestamp = timestamp.ok_or(SignatureError::MissingTimestamp)?;
 
         let signed_payload = format!("{}{}", timestamp, String::from_utf8_lossy(payload));

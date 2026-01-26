@@ -161,7 +161,7 @@ async function example5_CompleteWorkflow(): Promise<void> {
 
   // Step 2: Developer decides to use table-backed view
   console.log("\nStep 2: Developer decides to use tv_order_summary");
-  console.log("  (Based on Phase 9.4 view selection guide)");
+  console.log("  (view selection guide)");
 
   // Step 3: Suggest refresh strategy
   console.log("\nStep 3: Getting refresh strategy recommendation...");

@@ -66,7 +66,7 @@ pub enum AggregateFunction {
     /// VARIANCE(field) - variance (PostgreSQL, SQL Server)
     Variance,
 
-    // Advanced aggregates (Phase 6)
+    // Advanced aggregates
     /// ARRAY_AGG(field) - collect values into array
     ArrayAgg,
     /// JSON_AGG(expr) - aggregate into JSON array (PostgreSQL)

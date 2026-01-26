@@ -151,7 +151,7 @@ pub enum AggregateSelection {
         /// Alias for result
         alias:    String,
     },
-    /// Boolean aggregate (Phase 6)
+    /// Boolean aggregate
     BoolAggregate {
         /// Field to aggregate
         field:    String,
@@ -275,7 +275,7 @@ pub enum AggregateExpression {
         /// Result alias
         alias:    String,
     },
-    /// Advanced aggregate with optional parameters (Phase 6)
+    /// Advanced aggregate with optional parameters
     AdvancedAggregate {
         /// Column to aggregate
         column:    String,
@@ -288,7 +288,7 @@ pub enum AggregateExpression {
         /// Optional ORDER BY for ARRAY_AGG/STRING_AGG
         order_by:  Option<Vec<OrderByClause>>,
     },
-    /// Boolean aggregate (BOOL_AND/BOOL_OR) (Phase 6)
+    /// Boolean aggregate (BOOL_AND/BOOL_OR)
     BoolAggregate {
         /// Column to aggregate (boolean expression)
         column:   String,

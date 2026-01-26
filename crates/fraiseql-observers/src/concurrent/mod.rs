@@ -5,11 +5,11 @@
 //!
 //! # Performance Benefits
 //!
-//! - **Sequential (Phase 1-7)**: Execute action 1, wait, execute action 2, wait, etc.
+//! - **Sequential ()**: Execute action 1, wait, execute action 2, wait, etc.
 //!   - Total latency: sum of all action latencies
 //!   - Example: 100ms + 100ms + 100ms = 300ms
 //!
-//! - **Concurrent (Phase 8.2)**: Execute all actions in parallel
+//! - **Concurrent ()**: Execute all actions in parallel
 //!   - Total latency: max action latency (with timeout per action)
 //!   - Example: max(100ms, 100ms, 100ms) = 100ms
 //!   - **5x latency reduction** when actions have similar latencies

@@ -4,9 +4,9 @@
 //! enabling FraiseQL's observer system to work with multiple event transports:
 //!
 //! - **`PostgresNotify`**: PostgreSQL LISTEN/NOTIFY (low latency, ephemeral)
-//! - **`MySQLBridge`**: MySQL polling-based bridge (Phase 3)
-//! - **`MSSQLBridge`**: SQL Server polling-based bridge (Phase 3)
-//! - **Nats**: NATS `JetStream` for distributed architectures (Phase 2)
+//! - **`MySQLBridge`**: MySQL polling-based bridge
+//! - **`MSSQLBridge`**: SQL Server polling-based bridge
+//! - **Nats**: NATS `JetStream` for distributed architectures
 //! - **`InMemory`**: Testing and development
 //!
 //! # Architecture
@@ -115,13 +115,13 @@ pub trait EventTransport: Send + Sync {
 pub enum TransportType {
     /// PostgreSQL LISTEN/NOTIFY
     PostgresNotify,
-    /// MySQL polling-based (Phase 3)
+    /// MySQL polling-based
     #[cfg(feature = "mysql")]
     MySQL,
-    /// SQL Server polling-based (Phase 3)
+    /// SQL Server polling-based
     #[cfg(feature = "mssql")]
     MSSQL,
-    /// NATS `JetStream` (Phase 2)
+    /// NATS `JetStream`
     #[cfg(feature = "nats")]
     Nats,
     /// In-memory for testing

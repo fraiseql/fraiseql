@@ -1,4 +1,4 @@
-//! Stress tests for Phase 8 features
+//! Stress tests features
 //!
 //! These tests verify system behavior under high load, long duration,
 //! and failure scenarios.

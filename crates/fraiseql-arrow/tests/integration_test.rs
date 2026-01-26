@@ -1,7 +1,7 @@
 //! Integration tests for Arrow Flight server lifecycle.
 //!
 //! These tests verify that the Flight server starts correctly and handles
-//! basic RPC calls. Actual data streaming will be tested in Phase 9.2+.
+//! basic RPC calls. Actual data streaming will be tested .
 
 use arrow_flight::{
     Criteria, FlightDescriptor, Ticket, flight_service_client::FlightServiceClient,
@@ -135,10 +135,10 @@ async fn test_do_get_returns_empty_stream() {
     let response = client.do_get(request).await.expect("DoGet failed");
     let mut stream = response.into_inner();
 
-    // In Phase 9.1, stream should be empty (no data implementation yet)
-    // In Phase 9.2+, this will return actual RecordBatches
+    // stream should be empty (no data implementation yet)
+    // this will return actual RecordBatches
     let first_item = stream.message().await.expect("Stream error");
-    assert!(first_item.is_none(), "Stream should be empty in Phase 9.1");
+    assert!(first_item.is_none(), "Stream should be empty ");
 }
 
 #[tokio::test]
@@ -170,7 +170,7 @@ async fn test_bulk_export_ticket_not_implemented() {
         .await
         .expect("Failed to connect to Flight server");
 
-    // Create bulk export ticket (not implemented in Phase 9.1)
+    // Create bulk export ticket (not implemented )
     let ticket = FlightTicket::BulkExport {
         table:  "users".to_string(),
         filter: None,

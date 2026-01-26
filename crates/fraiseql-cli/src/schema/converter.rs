@@ -144,7 +144,7 @@ impl SchemaConverter {
             description: intermediate.description,
             sql_source: String::new(), // Not used for regular types (empty string)
             jsonb_column: String::new(), // Not used for regular types (empty string)
-            sql_projection_hint: None, // Will be populated by optimizer in Phase 9
+            sql_projection_hint: None, // Will be populated by optimizer in
             implements: intermediate.implements,
         })
     }

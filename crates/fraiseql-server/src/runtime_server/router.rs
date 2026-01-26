@@ -26,13 +26,12 @@ impl RuntimeRouter {
             .route(&lifecycle.health_path, get(liveness_handler))
             .route(&lifecycle.ready_path, get(readiness_handler))
             .route("/startup", get(startup_handler))
+            // TODO: Add GraphQL endpoint
+            // TODO: Add webhook routes
+            // TODO: Add file upload routes
+            // TODO: Add auth routes
+            // TODO: Add metrics endpoint
             .with_state(self.state)
-
-        // TODO Phase 2+: Add GraphQL endpoint
-        // TODO Phase 3: Add webhook routes
-        // TODO Phase 4: Add file upload routes
-        // TODO Phase 5: Add auth routes
-        // TODO Phase 6: Add metrics endpoint
     }
 }
 

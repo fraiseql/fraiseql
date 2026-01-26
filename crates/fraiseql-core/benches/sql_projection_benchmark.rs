@@ -1,7 +1,7 @@
 //! SQL Projection Performance Benchmarks
 //!
 //! This benchmark suite measures the performance of the SQL projection optimization system
-//! introduced in Phase 9-10, validating the 37% latency improvement and 95% payload reduction.
+//! validating the 37% latency improvement and 95% payload reduction.
 //!
 //! # Metrics Measured
 //!
@@ -24,7 +24,7 @@
 //! cargo bench --bench sql_projection_benchmark -- --baseline main
 //! ```
 //!
-//! # Expected Results (Phase 9-10 Target)
+//! # Expected Results (Target)
 //!
 //! | Operation | Time | Improvement |
 //! |-----------|------|-------------|

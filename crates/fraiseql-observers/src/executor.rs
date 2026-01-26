@@ -691,11 +691,11 @@ pub struct ExecutionSummary {
     pub dlq_errors:         usize,
     /// Other errors encountered
     pub errors:             Vec<String>,
-    /// Whether this event was skipped due to deduplication (Phase 8.3)
+    /// Whether this event was skipped due to deduplication
     pub duplicate_skipped:  bool,
-    /// Number of cache hits during action execution (Phase 8.4)
+    /// Number of cache hits during action execution
     pub cache_hits:         usize,
-    /// Number of cache misses during action execution (Phase 8.4)
+    /// Number of cache misses during action execution
     pub cache_misses:       usize,
 }
 
@@ -868,7 +868,7 @@ mod tests {
         assert_eq!(config.max_delay_ms, 30000);
     }
 
-    // Listener integration tests (Subphase 7.3)
+    // Listener integration tests ()
 
     #[tokio::test]
     async fn test_run_listener_loop_empty_batch() {
@@ -926,7 +926,7 @@ mod tests {
         assert_eq!(config.resume_from_id, Some(500));
     }
 
-    // Error handling and resilience tests (Subphase 7.4)
+    // Error handling and resilience tests ()
 
     #[tokio::test]
     async fn test_run_listener_loop_with_iteration_limit() {

@@ -52,7 +52,7 @@ impl CodeGenerator {
     ///
     /// ### 1. SQL Templates
     ///
-    /// SQL templates are managed separately by the compilation pipeline (Phase 4).
+    /// SQL templates are managed separately by the compilation pipeline.
     /// They are:
     /// - Generated in a separate compiler pass after schema validation
     /// - Kept separate to allow schema reuse across database backends
@@ -96,7 +96,7 @@ impl CodeGenerator {
     ///
     /// # See Also
     ///
-    /// - Phase 4 (Compilation): SQL template generation
+    /// - (Compilation): SQL template generation
     /// - Compiler module documentation for pipeline overview
     pub fn generate(&self, ir: &AuthoringIR, _templates: &[SqlTemplate]) -> Result<CompiledSchema> {
         // Build set of known type names for field type parsing

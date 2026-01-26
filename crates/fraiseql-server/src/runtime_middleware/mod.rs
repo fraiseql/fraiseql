@@ -1,12 +1,8 @@
 //! Middleware components for the FraiseQL runtime.
 //!
 //! This module contains middleware for:
-//! - Admission control (backpressure) - Phase 1 ✅
-//! - Request tracking and tracing - Phase 2 ✅
-//! - Rate limiting - Phase 2 ✅
-//! - CORS - Phase 2 ✅
-//! - Compression - Phase 1 (via tower-http)
-//! - Timeout handling - Phase 1 (via tower-http)
+//! - Admission control (backpressure)//! - Request tracking and tracing//! - Rate limiting//! - CORS//! - Compression
+//! - Timeout handling
 
 pub mod admission;
 pub mod cors;

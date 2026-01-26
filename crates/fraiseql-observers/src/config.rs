@@ -599,7 +599,7 @@ impl RedisConfig {
 }
 
 // ============================================================================
-// Job Queue Configuration (Phase 8.6)
+// Job Queue Configuration
 // ============================================================================
 
 /// Job queue configuration for asynchronous action execution
@@ -1014,15 +1014,15 @@ pub struct ObserverRuntimeConfig {
     #[serde(default)]
     pub redis: Option<RedisConfig>,
 
-    /// ClickHouse configuration (for analytics sink, Phase 9.4)
+    /// ClickHouse configuration (for analytics sink)
     #[serde(default)]
     pub clickhouse: Option<ClickHouseConfig>,
 
-    /// Job queue configuration (for async action execution, Phase 8.6)
+    /// Job queue configuration (for async action execution)
     #[serde(default)]
     pub job_queue: Option<JobQueueConfig>,
 
-    /// Performance optimization features (Phase 8)
+    /// Performance optimization features
     #[serde(default)]
     pub performance: PerformanceConfig,
 
@@ -1223,7 +1223,7 @@ pub enum ActionConfig {
         reply_to:         Option<String>,
     },
 
-    /// Send SMS (stub for Phase 6, full implementation later)
+    /// Send SMS (stub for, full implementation later)
     Sms {
         /// Phone number to send to
         phone:            Option<String>,
@@ -1233,7 +1233,7 @@ pub enum ActionConfig {
         message_template: Option<String>,
     },
 
-    /// Send push notification (stub for Phase 6)
+    /// Send push notification (stub for)
     Push {
         /// Device token
         device_token:   Option<String>,
@@ -1243,7 +1243,7 @@ pub enum ActionConfig {
         body_template:  Option<String>,
     },
 
-    /// Update search index (stub for Phase 6)
+    /// Update search index (stub for)
     Search {
         /// Index name
         index:       String,
@@ -1251,7 +1251,7 @@ pub enum ActionConfig {
         id_template: Option<String>,
     },
 
-    /// Invalidate cache (stub for Phase 6)
+    /// Invalidate cache (stub for)
     Cache {
         /// Cache key pattern
         key_pattern: String,

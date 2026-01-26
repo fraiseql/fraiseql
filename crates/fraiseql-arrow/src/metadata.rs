@@ -12,8 +12,8 @@ use crate::error::{ArrowFlightError, Result};
 
 /// In-memory Arrow schema metadata store.
 ///
-/// In Phase 9.3, schemas are registered at runtime.
-/// In Phase 9.4+, schemas will be loaded from compiled schema metadata.
+/// schemas are registered at runtime.
+/// schemas will be loaded from compiled schema metadata.
 ///
 /// # Example
 ///

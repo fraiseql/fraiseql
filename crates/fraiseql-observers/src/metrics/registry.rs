@@ -40,7 +40,7 @@ pub struct MetricsRegistry {
     backlog_size: IntGauge,
     dlq_items:    IntGauge,
 
-    // Job queue metrics (Phase 8.6)
+    // Job queue metrics
     job_queued_total:       IntCounter,
     job_executed_total:     IntCounterVec,
     job_failed_total:       IntCounterVec,
@@ -132,7 +132,7 @@ impl MetricsRegistry {
         )?;
         registry.register(Box::new(dlq_items.clone()))?;
 
-        // Job queue metrics (Phase 8.6)
+        // Job queue metrics
         let job_queued_total = IntCounter::new(
             "fraiseql_observer_job_queued_total",
             "Total jobs queued for async execution",
@@ -266,7 +266,7 @@ impl MetricsRegistry {
         self.dlq_items.set(count as i64);
     }
 
-    // Job queue metrics methods (Phase 8.6)
+    // Job queue metrics methods
 
     /// Record a job was queued for async execution
     pub fn job_queued(&self) {
