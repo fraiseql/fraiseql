@@ -283,7 +283,7 @@ mod tests {
             "mock"
         }
 
-        async fn _do_encrypt(
+        async fn do_encrypt(
             &self,
             plaintext: &[u8],
             _key_id: &str,
@@ -293,7 +293,7 @@ mod tests {
             Ok((base64_encode(plaintext), "mock-algorithm".to_string()))
         }
 
-        async fn _do_decrypt(
+        async fn do_decrypt(
             &self,
             ciphertext: &str,
             _key_id: &str,
@@ -302,7 +302,7 @@ mod tests {
             base64_decode(ciphertext)
         }
 
-        async fn _do_generate_data_key(
+        async fn do_generate_data_key(
             &self,
             _key_id: &str,
             _context: &HashMap<String, String>,
@@ -312,11 +312,11 @@ mod tests {
             Ok((key, encrypted))
         }
 
-        async fn _do_rotate_key(&self, _key_id: &str) -> KmsResult<()> {
+        async fn do_rotate_key(&self, _key_id: &str) -> KmsResult<()> {
             Ok(())
         }
 
-        async fn _do_get_key_info(
+        async fn do_get_key_info(
             &self,
             _key_id: &str,
         ) -> KmsResult<fraiseql_core::security::kms::base::KeyInfo> {
@@ -326,7 +326,7 @@ mod tests {
             })
         }
 
-        async fn _do_get_rotation_policy(
+        async fn do_get_rotation_policy(
             &self,
             _key_id: &str,
         ) -> KmsResult<fraiseql_core::security::kms::base::RotationPolicyInfo> {
