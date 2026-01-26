@@ -21,14 +21,14 @@ repos:
       - id: debug-statements
 
   - repo: https://github.com/adrienverge/yamllint
-    rev: v1.37.1
+    rev: v1.38.0
     hooks:
       - id: yamllint
         args: [-c=.yamllint.yaml]
         files: ^deploy/kubernetes/[^/]+\.yaml$  # Only top-level K8s files, not helm/
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.9
+    rev: v0.14.14
     hooks:
       - id: ruff
         args: [--fix]
