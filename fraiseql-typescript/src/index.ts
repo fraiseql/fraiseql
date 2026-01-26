@@ -42,6 +42,7 @@ export type { FieldInfo, ArgumentInfo, ReturnTypeInfo, FunctionSignature } from 
 export { SchemaRegistry } from "./registry";
 export type {
   Field,
+  FieldMetadata,
   TypeDefinition,
   QueryDefinition,
   MutationDefinition,
@@ -66,6 +67,7 @@ export type {
 
 // Export decorators
 export {
+  field,
   Type,
   Query,
   Mutation,

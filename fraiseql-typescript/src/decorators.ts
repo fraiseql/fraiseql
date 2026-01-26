@@ -5,7 +5,41 @@
  * for JSON export. NO runtime behavior - only metadata collection.
  */
 
-import { SchemaRegistry, ArgumentDefinition, Field, EnumValue } from "./registry";
+import { SchemaRegistry, ArgumentDefinition, Field, EnumValue, FieldMetadata } from "./registry";
+
+/**
+ * Create field-level metadata for access control and deprecation.
+ *
+ * This function creates metadata for use with field definitions to add:
+ * - `requiresScope`: JWT scope required to access this field
+ * - `deprecated`: Deprecation marker with optional reason
+ * - `description`: Field description for GraphQL schema
+ *
+ * @param options - Field metadata options
+ * @returns Field metadata object
+ *
+ * @example
+ * ```typescript
+ * fraiseql.registerTypeFields("User", [
+ *   { name: "id", type: "ID", nullable: false },
+ *   {
+ *     name: "salary",
+ *     type: "Decimal",
+ *     nullable: false,
+ *     requiresScope: "read:User.salary"  // Requires JWT scope
+ *   },
+ *   {
+ *     name: "oldEmail",
+ *     type: "String",
+ *     nullable: true,
+ *     deprecated: "Use email instead"  // Deprecation marker
+ *   }
+ * ]);
+ * ```
+ */
+export function field(options: FieldMetadata): FieldMetadata {
+  return options;
+}
 
 /**
  * Configuration for a Type decorator.

@@ -6,12 +6,22 @@
  */
 
 /**
+ * Field metadata for access control and deprecation.
+ */
+export interface FieldMetadata {
+  requiresScope?: string | string[];
+  deprecated?: boolean | string;
+  description?: string;
+}
+
+/**
  * Field definition in a GraphQL type.
  */
-export interface Field {
+export interface Field extends FieldMetadata {
   name: string;
   type: string;
   nullable: boolean;
+  default?: unknown;
 }
 
 /**

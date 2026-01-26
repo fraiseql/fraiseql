@@ -308,6 +308,76 @@ fraiseql.registerMutation(
 );
 ```
 
+### Field-Level Metadata
+
+Add access control, deprecation markers, and documentation to individual fields:
+
+#### `field(options)`
+
+Create field metadata for use with `registerTypeFields()`:
+
+```typescript
+fraiseql.registerTypeFields("User", [
+  { name: "id", type: "ID", nullable: false },
+  {
+    name: "salary",
+    type: "Decimal",
+    nullable: false,
+    requiresScope: "read:User.salary",
+    description: "Annual salary (requires HR scope)"
+  },
+  {
+    name: "oldEmail",
+    type: "String",
+    nullable: true,
+    deprecated: "Use email instead",
+    description: "Legacy email field (deprecated)"
+  }
+]);
+```
+
+**Field Metadata Options**:
+
+- `requiresScope: string | string[]` - JWT scope(s) required to access this field (field-level access control)
+- `deprecated: boolean | string` - Mark field as deprecated. Pass a string with migration guidance.
+- `description: string` - Field documentation (appears in GraphQL schema)
+
+**Use Cases**:
+
+1. **PII Protection**: Require specific scopes for sensitive fields
+
+```typescript
+{
+  name: "ssn",
+  type: "String",
+  nullable: false,
+  requiresScope: "pii:read"  // Only users with pii:read scope can query this
+}
+```
+
+2. **API Versioning**: Deprecate fields with migration guidance
+
+```typescript
+{
+  name: "oldPrice",
+  type: "Decimal",
+  nullable: true,
+  deprecated: "Use pricing.current instead - structure moved to pricing object"
+}
+```
+
+3. **Schema Documentation**: Add rich field descriptions
+
+```typescript
+{
+  name: "discount",
+  type: "Decimal",
+  nullable: false,
+  description: "Discount percentage. Access requires orders:view_discounts scope.",
+  requiresScope: "orders:view_discounts"
+}
+```
+
 ### Manual Registration Functions
 
 When decorators alone don't provide enough type information:
@@ -485,6 +555,7 @@ See the `examples/` directory:
 - **enums-example.ts** - Enum definitions and usage
 - **types-advanced.ts** - Comprehensive type system example (enums, interfaces, unions, input types)
 - **unions-interfaces-example.ts** - Interfaces, unions, and polymorphic queries
+- **field-metadata.ts** - Field-level access control, deprecation, and documentation
 - **comprehensive-example.ts** - Full-featured schema with all FraiseQL capabilities
 
 Run examples:
@@ -494,6 +565,7 @@ npm run example:basic       # Generate basic schema
 npm run example:analytics   # Generate analytics schema
 npm run example:enums       # Generate enum example
 npm run example:advanced    # Generate advanced types example
+npm run example:metadata    # Generate field metadata example
 ```
 
 ## Development
