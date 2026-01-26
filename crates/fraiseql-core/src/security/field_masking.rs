@@ -68,21 +68,31 @@ impl FieldMasker {
     pub fn detect_sensitivity(field_name: &str) -> FieldSensitivity {
         let lower = field_name.to_lowercase();
 
-        // Secret fields
+        // Secret fields - cryptographic material and credentials
         if lower.starts_with("password")
             || lower.starts_with("secret")
             || lower.starts_with("token")
             || lower.contains("token")  // Also catch refresh_token, bearer_token, etc.
             || lower.starts_with("key")
             || lower.starts_with("api_key")
+            || lower.starts_with("api_secret")
             || lower.starts_with("auth")
+            || lower.starts_with("oauth")
             || lower == "hash"
             || lower == "signature"
+            || lower.contains("webhook_secret")
+            || lower.contains("private_key")
+            || lower.contains("certificate")
+            || lower.contains("tls_secret")
+            || lower.contains("encryption_key")
+            || lower.contains("database_url")
+            || lower.contains("connection_string")
+            || lower.contains("access_token")
         {
             return FieldSensitivity::Secret;
         }
 
-        // PII fields
+        // PII fields - personally identifiable and financial information
         if lower == "ssn"
             || lower == "social_security_number"
             || lower.contains("credit_card")
@@ -92,12 +102,24 @@ impl FieldMasker {
             || lower.contains("bank_account")
             || lower == "pin"
             || lower.contains("driver_license")
+            || lower.contains("driver's_license")
             || lower.contains("passport")
+            || lower == "date_of_birth"
+            || lower == "dob"
+            || lower.contains("maiden_name")
+            || lower.contains("mother's_name")
+            || lower.contains("routing_number")
+            || lower.contains("swift_code")
+            || lower == "iban"
+            || lower.contains("health_record")
+            || lower.contains("medical_record")
+            || lower.contains("state_id")
+            || lower.contains("drivers_license_number")
         {
             return FieldSensitivity::PII;
         }
 
-        // Sensitive fields
+        // Sensitive fields - personal contact and identification info
         if lower == "email"
             || lower.starts_with("email_")
             || lower.ends_with("_email")
@@ -112,6 +134,19 @@ impl FieldMasker {
             || lower.contains("ipaddress")
             || lower == "mac_address"
             || lower == "macaddress"
+            || lower == "username"
+            || lower.starts_with("username_")
+            || lower.contains("login_name")
+            || lower.contains("im_handle")
+            || lower.contains("slack_id")
+            || lower.contains("twitter_handle")
+            || lower.contains("billing_address")
+            || lower.contains("shipping_address")
+            || lower.contains("home_address")
+            || lower.contains("work_address")
+            || lower.contains("zip_code")
+            || lower.contains("postal_code")
+            || lower.contains("ssn_last_four")
         {
             return FieldSensitivity::Sensitive;
         }
