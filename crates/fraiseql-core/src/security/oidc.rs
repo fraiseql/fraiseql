@@ -1036,4 +1036,313 @@ mod tests {
         // to prevent token cache poisoning attacks
         assert_eq!(default_jwks_cache_ttl(), 300, "Cache TTL should be 5 minutes (300 seconds)");
     }
+
+    #[test]
+    fn test_cached_jwks_expiration() {
+        // Test that CachedJwks correctly determines expiration
+        let jwks = Jwks { keys: vec![] };
+        let cached = CachedJwks {
+            jwks,
+            fetched_at: Instant::now(),
+            ttl: Duration::from_secs(1),
+        };
+
+        // Should not be expired immediately
+        assert!(!cached.is_expired());
+
+        // After sleep, should be expired
+        std::thread::sleep(Duration::from_millis(1100));
+        assert!(cached.is_expired());
+    }
+
+    #[test]
+    fn test_detect_key_rotation_when_no_cache() {
+        // Test that key rotation detection returns false when no cache exists
+        let config = OidcConfig {
+            issuer: "http://localhost:8080".to_string(),
+            ..Default::default()
+        };
+
+        let validator = OidcValidator {
+            config,
+            http_client: reqwest::Client::new(),
+            jwks_uri: "http://localhost:8080/.well-known/jwks.json".to_string(),
+            jwks_cache: Arc::new(RwLock::new(None)),
+        };
+
+        let new_jwks = Jwks {
+            keys: vec![Jwk {
+                kty:     "RSA".to_string(),
+                kid:     Some("key1".to_string()),
+                alg:     None,
+                key_use: None,
+                n:       None,
+                e:       None,
+                x5c:     vec![],
+            }],
+        };
+
+        // Should not detect rotation when cache is empty
+        assert!(!validator.detect_key_rotation(&new_jwks));
+    }
+
+    #[test]
+    fn test_detect_key_rotation_when_keys_removed() {
+        // Test that key rotation is detected when old keys disappear
+        let config = OidcConfig {
+            issuer: "http://localhost:8080".to_string(),
+            ..Default::default()
+        };
+
+        let validator = OidcValidator {
+            config,
+            http_client: reqwest::Client::new(),
+            jwks_uri: "http://localhost:8080/.well-known/jwks.json".to_string(),
+            jwks_cache: Arc::new(RwLock::new(None)),
+        };
+
+        // Cache with 2 keys
+        let old_jwks = Jwks {
+            keys: vec![
+                Jwk {
+                    kty:     "RSA".to_string(),
+                    kid:     Some("old_key_1".to_string()),
+                    alg:     None,
+                    key_use: None,
+                    n:       None,
+                    e:       None,
+                    x5c:     vec![],
+                },
+                Jwk {
+                    kty:     "RSA".to_string(),
+                    kid:     Some("old_key_2".to_string()),
+                    alg:     None,
+                    key_use: None,
+                    n:       None,
+                    e:       None,
+                    x5c:     vec![],
+                },
+            ],
+        };
+
+        {
+            let mut cache = validator.jwks_cache.write();
+            *cache = Some(CachedJwks {
+                jwks:       old_jwks,
+                fetched_at: Instant::now(),
+                ttl:        Duration::from_secs(300),
+            });
+        }
+
+        // New JWKS with only 1 of the old keys (old_key_2 removed)
+        let new_jwks = Jwks {
+            keys: vec![
+                Jwk {
+                    kty:     "RSA".to_string(),
+                    kid:     Some("old_key_1".to_string()),
+                    alg:     None,
+                    key_use: None,
+                    n:       None,
+                    e:       None,
+                    x5c:     vec![],
+                },
+                Jwk {
+                    kty:     "RSA".to_string(),
+                    kid:     Some("new_key_1".to_string()),
+                    alg:     None,
+                    key_use: None,
+                    n:       None,
+                    e:       None,
+                    x5c:     vec![],
+                },
+            ],
+        };
+
+        // Should detect rotation because old_key_2 is missing
+        assert!(validator.detect_key_rotation(&new_jwks));
+    }
+
+    #[test]
+    fn test_detect_key_rotation_when_no_keys_removed() {
+        // Test that key rotation is NOT detected when all old keys still exist
+        let config = OidcConfig {
+            issuer: "http://localhost:8080".to_string(),
+            ..Default::default()
+        };
+
+        let validator = OidcValidator {
+            config,
+            http_client: reqwest::Client::new(),
+            jwks_uri: "http://localhost:8080/.well-known/jwks.json".to_string(),
+            jwks_cache: Arc::new(RwLock::new(None)),
+        };
+
+        // Cache with 2 keys
+        let old_jwks = Jwks {
+            keys: vec![
+                Jwk {
+                    kty:     "RSA".to_string(),
+                    kid:     Some("key_1".to_string()),
+                    alg:     None,
+                    key_use: None,
+                    n:       None,
+                    e:       None,
+                    x5c:     vec![],
+                },
+                Jwk {
+                    kty:     "RSA".to_string(),
+                    kid:     Some("key_2".to_string()),
+                    alg:     None,
+                    key_use: None,
+                    n:       None,
+                    e:       None,
+                    x5c:     vec![],
+                },
+            ],
+        };
+
+        {
+            let mut cache = validator.jwks_cache.write();
+            *cache = Some(CachedJwks {
+                jwks:       old_jwks,
+                fetched_at: Instant::now(),
+                ttl:        Duration::from_secs(300),
+            });
+        }
+
+        // New JWKS with old keys + new key (no removal)
+        let new_jwks = Jwks {
+            keys: vec![
+                Jwk {
+                    kty:     "RSA".to_string(),
+                    kid:     Some("key_1".to_string()),
+                    alg:     None,
+                    key_use: None,
+                    n:       None,
+                    e:       None,
+                    x5c:     vec![],
+                },
+                Jwk {
+                    kty:     "RSA".to_string(),
+                    kid:     Some("key_2".to_string()),
+                    alg:     None,
+                    key_use: None,
+                    n:       None,
+                    e:       None,
+                    x5c:     vec![],
+                },
+                Jwk {
+                    kty:     "RSA".to_string(),
+                    kid:     Some("new_key".to_string()),
+                    alg:     None,
+                    key_use: None,
+                    n:       None,
+                    e:       None,
+                    x5c:     vec![],
+                },
+            ],
+        };
+
+        // Should NOT detect rotation because all old keys still exist
+        assert!(!validator.detect_key_rotation(&new_jwks));
+    }
+
+    #[test]
+    fn test_find_key_by_kid() {
+        // Test finding a specific key by kid in JWKS
+        let config = OidcConfig {
+            issuer: "http://localhost:8080".to_string(),
+            ..Default::default()
+        };
+
+        let validator = OidcValidator {
+            config,
+            http_client: reqwest::Client::new(),
+            jwks_uri: "http://localhost:8080/.well-known/jwks.json".to_string(),
+            jwks_cache: Arc::new(RwLock::new(None)),
+        };
+
+        let jwks = Jwks {
+            keys: vec![
+                Jwk {
+                    kty:     "RSA".to_string(),
+                    kid:     Some("key1".to_string()),
+                    alg:     None,
+                    key_use: None,
+                    n:       None,
+                    e:       None,
+                    x5c:     vec![],
+                },
+                Jwk {
+                    kty:     "RSA".to_string(),
+                    kid:     Some("key2".to_string()),
+                    alg:     None,
+                    key_use: None,
+                    n:       None,
+                    e:       None,
+                    x5c:     vec![],
+                },
+            ],
+        };
+
+        // Should find existing key
+        assert!(validator.find_key(&jwks, "key1").is_some());
+        assert!(validator.find_key(&jwks, "key2").is_some());
+
+        // Should not find non-existent key
+        assert!(validator.find_key(&jwks, "key3").is_none());
+    }
+
+    #[test]
+    fn test_find_key_without_kid() {
+        // Test handling of keys without kid
+        let config = OidcConfig {
+            issuer: "http://localhost:8080".to_string(),
+            ..Default::default()
+        };
+
+        let validator = OidcValidator {
+            config,
+            http_client: reqwest::Client::new(),
+            jwks_uri: "http://localhost:8080/.well-known/jwks.json".to_string(),
+            jwks_cache: Arc::new(RwLock::new(None)),
+        };
+
+        let jwks = Jwks {
+            keys: vec![Jwk {
+                kty:     "RSA".to_string(),
+                kid:     None, // No kid
+                alg:     None,
+                key_use: None,
+                n:       None,
+                e:       None,
+                x5c:     vec![],
+            }],
+        };
+
+        // Should not find key without kid even if requested
+        assert!(validator.find_key(&jwks, "any_kid").is_none());
+    }
+
+    #[test]
+    fn test_oidc_config_with_custom_cache_ttl() {
+        // Test that custom cache TTL can be configured
+        let config = OidcConfig {
+            issuer: "http://localhost:8080".to_string(),
+            jwks_cache_ttl_secs: 600, // Custom 10-minute TTL
+            ..Default::default()
+        };
+
+        assert_eq!(config.jwks_cache_ttl_secs, 600);
+    }
+
+    #[test]
+    fn test_oidc_config_default_cache_ttl_is_short() {
+        // Test that default cache TTL is short (5 minutes) for security
+        let config = OidcConfig::default();
+        assert!(
+            config.jwks_cache_ttl_secs <= 300,
+            "Default cache TTL should be short (≤ 300 seconds) to prevent token poisoning"
+        );
+    }
 }
