@@ -190,7 +190,7 @@ mod tests {
             "vault".to_string(),
             "my-key-123".to_string(),
             KeyPurpose::EncryptDecrypt,
-            1000000,
+            1_000_000,
         );
         assert_eq!(key_ref.qualified_id(), "vault:my-key-123");
     }
@@ -201,7 +201,7 @@ mod tests {
             "vault".to_string(),
             "my-key-123".to_string(),
             KeyPurpose::EncryptDecrypt,
-            1000000,
+            1_000_000,
         )
         .with_alias("production-key".to_string());
 

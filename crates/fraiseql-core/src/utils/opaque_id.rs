@@ -77,9 +77,8 @@ impl OpaqueId {
         };
 
         // Split at pipe separator (| is not in base64url alphabet)
-        let (db_id, provided_sig) = match decoded.split_once('|') {
-            Some((id, sig)) => (id, sig),
-            None => return false,
+        let Some((db_id, provided_sig)) = decoded.split_once('|') else {
+            return false;
         };
 
         // Recalculate signature

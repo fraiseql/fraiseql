@@ -125,11 +125,11 @@ impl VaultKmsProvider {
 
 #[async_trait::async_trait]
 impl BaseKmsProvider for VaultKmsProvider {
-    fn provider_name(&self) -> &str {
+    fn provider_name(&self) -> &'static str {
         "vault"
     }
 
-    async fn _do_encrypt(
+    async fn do_encrypt(
         &self,
         plaintext: &[u8],
         key_id: &str,
@@ -187,7 +187,7 @@ impl BaseKmsProvider for VaultKmsProvider {
         Ok((ciphertext, "aes256-gcm96".to_string()))
     }
 
-    async fn _do_decrypt(
+    async fn do_decrypt(
         &self,
         ciphertext: &str,
         key_id: &str,
@@ -243,7 +243,7 @@ impl BaseKmsProvider for VaultKmsProvider {
         })
     }
 
-    async fn _do_generate_data_key(
+    async fn do_generate_data_key(
         &self,
         key_id: &str,
         context: &HashMap<String, String>,
@@ -308,7 +308,7 @@ impl BaseKmsProvider for VaultKmsProvider {
         Ok((plaintext_key, ciphertext))
     }
 
-    async fn _do_rotate_key(&self, key_id: &str) -> KmsResult<()> {
+    async fn do_rotate_key(&self, key_id: &str) -> KmsResult<()> {
         let url = self.config.api_url(&format!("keys/{}/rotate", key_id));
 
         let response = self
@@ -332,7 +332,7 @@ impl BaseKmsProvider for VaultKmsProvider {
         Ok(())
     }
 
-    async fn _do_get_key_info(&self, key_id: &str) -> KmsResult<KeyInfo> {
+    async fn do_get_key_info(&self, key_id: &str) -> KmsResult<KeyInfo> {
         let url = self.config.api_url(&format!("keys/{}", key_id));
 
         let response = self
@@ -373,7 +373,7 @@ impl BaseKmsProvider for VaultKmsProvider {
         Ok(KeyInfo { alias, created_at })
     }
 
-    async fn _do_get_rotation_policy(&self, key_id: &str) -> KmsResult<RotationPolicyInfo> {
+    async fn do_get_rotation_policy(&self, key_id: &str) -> KmsResult<RotationPolicyInfo> {
         let url = self.config.api_url(&format!("keys/{}", key_id));
 
         let response = self

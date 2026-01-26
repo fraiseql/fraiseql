@@ -348,7 +348,7 @@ mod tests {
     #[test]
     fn test_duration_ms() {
         let builder = SqlQueryLogBuilder::new("query_1", "SELECT * FROM users", 0);
-        thread::sleep(Duration::from_micros(10000));
+        thread::sleep(Duration::from_millis(10));
         let log = builder.finish_success(None);
 
         let ms = log.duration_ms();

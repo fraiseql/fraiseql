@@ -15,14 +15,15 @@ use crate::security::kms::{
 
 /// Get current Unix timestamp.
 fn current_timestamp() -> i64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs() as i64
+    // Safe to unwrap: u64 timestamp won't overflow i64 until year 292,277,026,596
+    i64::try_from(SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs()).unwrap_or(0)
 }
 
 /// Abstract base class for KMS providers.
 ///
 /// Implements the Template Method pattern:
 /// - Public methods (encrypt, decrypt, etc.) handle common logic
-/// - Protected abstract methods (_do_encrypt, _do_decrypt, etc.) are implemented by concrete
+/// - Protected abstract methods (do_encrypt, do_decrypt, etc.) are implemented by concrete
 ///   providers
 #[async_trait::async_trait]
 pub trait BaseKmsProvider: Send + Sync {
@@ -54,7 +55,7 @@ pub trait BaseKmsProvider: Send + Sync {
         let ctx = context.unwrap_or_default();
 
         let (ciphertext, algorithm) =
-            self._do_encrypt(plaintext, key_id, &ctx).await.map_err(|e| {
+            self.do_encrypt(plaintext, key_id, &ctx).await.map_err(|e| {
                 KmsError::EncryptionFailed {
                     message: format!("Provider encryption failed: {}", e),
                 }
@@ -93,7 +94,7 @@ pub trait BaseKmsProvider: Send + Sync {
         let ctx = context.unwrap_or_else(|| encrypted.context.clone());
         let key_id = &encrypted.key_reference.key_id;
 
-        self._do_decrypt(&encrypted.ciphertext, key_id, &ctx).await.map_err(|e| {
+        self.do_decrypt(&encrypted.ciphertext, key_id, &ctx).await.map_err(|e| {
             KmsError::DecryptionFailed {
                 message: format!("Provider decryption failed: {}", e),
             }
@@ -116,7 +117,7 @@ pub trait BaseKmsProvider: Send + Sync {
         let ctx = context.unwrap_or_default();
 
         let (plaintext_key, encrypted_key_bytes) = self
-            ._do_generate_data_key(key_id, &ctx)
+            .do_generate_data_key(key_id, &ctx)
             .await
             .map_err(|e| KmsError::EncryptionFailed {
             message: format!("Data key generation failed: {}", e),
@@ -147,7 +148,7 @@ pub trait BaseKmsProvider: Send + Sync {
     /// # Errors
     /// Returns KmsError::RotationFailed if rotation fails
     async fn rotate_key(&self, key_id: &str) -> KmsResult<KeyReference> {
-        self._do_rotate_key(key_id).await.map_err(|e| KmsError::RotationFailed {
+        self.do_rotate_key(key_id).await.map_err(|e| KmsError::RotationFailed {
             message: format!("Provider rotation failed: {}", e),
         })?;
 
@@ -159,7 +160,7 @@ pub trait BaseKmsProvider: Send + Sync {
     /// # Errors
     /// Returns KmsError::KeyNotFound if key does not exist
     async fn get_key_info(&self, key_id: &str) -> KmsResult<KeyReference> {
-        let info = self._do_get_key_info(key_id).await.map_err(|_e| KmsError::KeyNotFound {
+        let info = self.do_get_key_info(key_id).await.map_err(|_e| KmsError::KeyNotFound {
             key_id: key_id.to_string(),
         })?;
 
@@ -178,7 +179,7 @@ pub trait BaseKmsProvider: Send + Sync {
     /// Returns KmsError::KeyNotFound if key does not exist
     async fn get_rotation_policy(&self, key_id: &str) -> KmsResult<RotationPolicy> {
         let policy =
-            self._do_get_rotation_policy(key_id).await.map_err(|_e| KmsError::KeyNotFound {
+            self.do_get_rotation_policy(key_id).await.map_err(|_e| KmsError::KeyNotFound {
                 key_id: key_id.to_string(),
             })?;
 
@@ -203,7 +204,7 @@ pub trait BaseKmsProvider: Send + Sync {
     ///
     /// # Returns
     /// Tuple of (ciphertext, algorithm_name) on success
-    async fn _do_encrypt(
+    async fn do_encrypt(
         &self,
         plaintext: &[u8],
         key_id: &str,
@@ -219,7 +220,7 @@ pub trait BaseKmsProvider: Send + Sync {
     ///
     /// # Returns
     /// Decrypted plaintext bytes
-    async fn _do_decrypt(
+    async fn do_decrypt(
         &self,
         ciphertext: &str,
         key_id: &str,
@@ -234,22 +235,22 @@ pub trait BaseKmsProvider: Send + Sync {
     ///
     /// # Returns
     /// Tuple of (plaintext_key, encrypted_key_hex)
-    async fn _do_generate_data_key(
+    async fn do_generate_data_key(
         &self,
         key_id: &str,
         context: &HashMap<String, String>,
     ) -> KmsResult<(Vec<u8>, String)>;
 
     /// Provider-specific key rotation.
-    async fn _do_rotate_key(&self, key_id: &str) -> KmsResult<()>;
+    async fn do_rotate_key(&self, key_id: &str) -> KmsResult<()>;
 
     /// Provider-specific key info retrieval.
     ///
     /// Returns KeyInfo struct with alias and created_at
-    async fn _do_get_key_info(&self, key_id: &str) -> KmsResult<KeyInfo>;
+    async fn do_get_key_info(&self, key_id: &str) -> KmsResult<KeyInfo>;
 
     /// Provider-specific rotation policy retrieval.
-    async fn _do_get_rotation_policy(&self, key_id: &str) -> KmsResult<RotationPolicyInfo>;
+    async fn do_get_rotation_policy(&self, key_id: &str) -> KmsResult<RotationPolicyInfo>;
 }
 
 /// Key information returned by provider.
