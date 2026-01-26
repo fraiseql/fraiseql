@@ -38,8 +38,8 @@ pub use field_masking::{FieldMasker, FieldSensitivity};
 pub use headers::SecurityHeaders;
 pub use introspection_enforcer::{IntrospectionEnforcer, IntrospectionPolicy};
 pub use kms::{
-    BaseKmsProvider, DataKeyPair, EncryptedData, KeyPurpose, KeyReference, KeyState,
-    KmsError, KmsResult, RotationPolicy, VaultConfig, VaultKmsProvider,
+    BaseKmsProvider, DataKeyPair, EncryptedData, KeyPurpose, KeyReference, KeyState, KmsError,
+    KmsResult, RotationPolicy, VaultConfig, VaultKmsProvider,
 };
 pub use oidc::{OidcConfig, OidcValidator};
 pub use profiles::SecurityProfile;

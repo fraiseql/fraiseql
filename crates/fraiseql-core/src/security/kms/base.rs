@@ -3,27 +3,27 @@
 //! Provides public async methods with common logic and abstract hooks
 //! for provider-specific implementations.
 
-use crate::security::kms::error::{KmsError, KmsResult};
-use crate::security::kms::models::{
-    DataKeyPair, EncryptedData, KeyPurpose, KeyReference, RotationPolicy,
+use std::{
+    collections::HashMap,
+    time::{SystemTime, UNIX_EPOCH},
 };
-use std::collections::HashMap;
-use std::time::{SystemTime, UNIX_EPOCH};
+
+use crate::security::kms::{
+    error::{KmsError, KmsResult},
+    models::{DataKeyPair, EncryptedData, KeyPurpose, KeyReference, RotationPolicy},
+};
 
 /// Get current Unix timestamp.
 fn current_timestamp() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs() as i64
+    SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs() as i64
 }
 
 /// Abstract base class for KMS providers.
 ///
 /// Implements the Template Method pattern:
 /// - Public methods (encrypt, decrypt, etc.) handle common logic
-/// - Protected abstract methods (_do_encrypt, _do_decrypt, etc.) are
-///   implemented by concrete providers
+/// - Protected abstract methods (_do_encrypt, _do_decrypt, etc.) are implemented by concrete
+///   providers
 #[async_trait::async_trait]
 pub trait BaseKmsProvider: Send + Sync {
     /// Unique provider identifier (e.g., 'vault', 'aws', 'gcp').
@@ -53,11 +53,11 @@ pub trait BaseKmsProvider: Send + Sync {
     ) -> KmsResult<EncryptedData> {
         let ctx = context.unwrap_or_default();
 
-        let (ciphertext, algorithm) = self
-            ._do_encrypt(plaintext, key_id, &ctx)
-            .await
-            .map_err(|e| KmsError::EncryptionFailed {
-                message: format!("Provider encryption failed: {}", e),
+        let (ciphertext, algorithm) =
+            self._do_encrypt(plaintext, key_id, &ctx).await.map_err(|e| {
+                KmsError::EncryptionFailed {
+                    message: format!("Provider encryption failed: {}", e),
+                }
             })?;
 
         Ok(EncryptedData::new(
@@ -93,11 +93,11 @@ pub trait BaseKmsProvider: Send + Sync {
         let ctx = context.unwrap_or_else(|| encrypted.context.clone());
         let key_id = &encrypted.key_reference.key_id;
 
-        self._do_decrypt(&encrypted.ciphertext, key_id, &ctx)
-            .await
-            .map_err(|e| KmsError::DecryptionFailed {
+        self._do_decrypt(&encrypted.ciphertext, key_id, &ctx).await.map_err(|e| {
+            KmsError::DecryptionFailed {
                 message: format!("Provider decryption failed: {}", e),
-            })
+            }
+        })
     }
 
     /// Generate a data encryption key (envelope encryption).
@@ -119,8 +119,8 @@ pub trait BaseKmsProvider: Send + Sync {
             ._do_generate_data_key(key_id, &ctx)
             .await
             .map_err(|e| KmsError::EncryptionFailed {
-                message: format!("Data key generation failed: {}", e),
-            })?;
+            message: format!("Data key generation failed: {}", e),
+        })?;
 
         let key_ref = KeyReference::new(
             self.provider_name().to_string(),
@@ -147,11 +147,9 @@ pub trait BaseKmsProvider: Send + Sync {
     /// # Errors
     /// Returns KmsError::RotationFailed if rotation fails
     async fn rotate_key(&self, key_id: &str) -> KmsResult<KeyReference> {
-        self._do_rotate_key(key_id)
-            .await
-            .map_err(|e| KmsError::RotationFailed {
-                message: format!("Provider rotation failed: {}", e),
-            })?;
+        self._do_rotate_key(key_id).await.map_err(|e| KmsError::RotationFailed {
+            message: format!("Provider rotation failed: {}", e),
+        })?;
 
         self.get_key_info(key_id).await
     }
@@ -161,12 +159,9 @@ pub trait BaseKmsProvider: Send + Sync {
     /// # Errors
     /// Returns KmsError::KeyNotFound if key does not exist
     async fn get_key_info(&self, key_id: &str) -> KmsResult<KeyReference> {
-        let info = self
-            ._do_get_key_info(key_id)
-            .await
-            .map_err(|_e| KmsError::KeyNotFound {
-                key_id: key_id.to_string(),
-            })?;
+        let info = self._do_get_key_info(key_id).await.map_err(|_e| KmsError::KeyNotFound {
+            key_id: key_id.to_string(),
+        })?;
 
         Ok(KeyReference::new(
             self.provider_name().to_string(),
@@ -182,18 +177,16 @@ pub trait BaseKmsProvider: Send + Sync {
     /// # Errors
     /// Returns KmsError::KeyNotFound if key does not exist
     async fn get_rotation_policy(&self, key_id: &str) -> KmsResult<RotationPolicy> {
-        let policy = self
-            ._do_get_rotation_policy(key_id)
-            .await
-            .map_err(|_e| KmsError::KeyNotFound {
+        let policy =
+            self._do_get_rotation_policy(key_id).await.map_err(|_e| KmsError::KeyNotFound {
                 key_id: key_id.to_string(),
             })?;
 
         Ok(RotationPolicy {
-            enabled: policy.enabled,
+            enabled:              policy.enabled,
             rotation_period_days: policy.rotation_period_days,
-            last_rotation: policy.last_rotation,
-            next_rotation: policy.next_rotation,
+            last_rotation:        policy.last_rotation,
+            next_rotation:        policy.next_rotation,
         })
     }
 
@@ -262,17 +255,17 @@ pub trait BaseKmsProvider: Send + Sync {
 /// Key information returned by provider.
 #[derive(Debug, Clone)]
 pub struct KeyInfo {
-    pub alias: Option<String>,
+    pub alias:      Option<String>,
     pub created_at: i64,
 }
 
 /// Rotation policy info returned by provider.
 #[derive(Debug, Clone)]
 pub struct RotationPolicyInfo {
-    pub enabled: bool,
+    pub enabled:              bool,
     pub rotation_period_days: u32,
-    pub last_rotation: Option<i64>,
-    pub next_rotation: Option<i64>,
+    pub last_rotation:        Option<i64>,
+    pub next_rotation:        Option<i64>,
 }
 
 #[cfg(test)]

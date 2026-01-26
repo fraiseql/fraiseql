@@ -30,13 +30,13 @@ impl fmt::Display for KmsError {
             Self::RotationFailed { message } => write!(f, "Key rotation failed: {}", message),
             Self::ProviderConnectionError { message } => {
                 write!(f, "Provider connection error: {}", message)
-            }
+            },
             Self::InvalidConfiguration { message } => {
                 write!(f, "Invalid configuration: {}", message)
-            }
+            },
             Self::SerializationError { message } => {
                 write!(f, "Serialization error: {}", message)
-            }
+            },
         }
     }
 }

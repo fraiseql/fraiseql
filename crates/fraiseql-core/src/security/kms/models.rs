@@ -3,9 +3,9 @@
 //! Provides immutable value objects for representing encrypted data,
 //! key references, and rotation policies.
 
+use std::{collections::HashMap, fmt};
+
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::fmt;
 
 /// Intended use of the key.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -58,25 +58,20 @@ impl fmt::Display for KeyState {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KeyReference {
     /// Provider identifier (e.g., 'vault', 'aws', 'gcp')
-    pub provider: String,
+    pub provider:   String,
     /// Provider-specific key identifier
-    pub key_id: String,
+    pub key_id:     String,
     /// Human-readable alias (optional)
-    pub key_alias: Option<String>,
+    pub key_alias:  Option<String>,
     /// Intended use of the key
-    pub purpose: KeyPurpose,
+    pub purpose:    KeyPurpose,
     /// When the key was created (Unix timestamp)
     pub created_at: i64,
 }
 
 impl KeyReference {
     /// Create a new key reference.
-    pub fn new(
-        provider: String,
-        key_id: String,
-        purpose: KeyPurpose,
-        created_at: i64,
-    ) -> Self {
+    pub fn new(provider: String, key_id: String, purpose: KeyPurpose, created_at: i64) -> Self {
         Self {
             provider,
             key_id,
@@ -104,15 +99,15 @@ impl KeyReference {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EncryptedData {
     /// The encrypted bytes (as hex string for JSON compatibility)
-    pub ciphertext: String,
+    pub ciphertext:    String,
     /// Reference to the key used
     pub key_reference: KeyReference,
     /// Encryption algorithm used
-    pub algorithm: String,
+    pub algorithm:     String,
     /// When encryption occurred (Unix timestamp)
-    pub encrypted_at: i64,
+    pub encrypted_at:  i64,
     /// Additional authenticated data (AAD)
-    pub context: HashMap<String, String>,
+    pub context:       HashMap<String, String>,
 }
 
 impl EncryptedData {
@@ -164,13 +159,13 @@ impl DataKeyPair {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RotationPolicy {
     /// Whether automatic rotation is enabled
-    pub enabled: bool,
+    pub enabled:              bool,
     /// Days between rotations
     pub rotation_period_days: u32,
     /// When key was last rotated (Unix timestamp, None if never)
-    pub last_rotation: Option<i64>,
+    pub last_rotation:        Option<i64>,
     /// When key will next be rotated (Unix timestamp, None if not scheduled)
-    pub next_rotation: Option<i64>,
+    pub next_rotation:        Option<i64>,
 }
 
 impl RotationPolicy {

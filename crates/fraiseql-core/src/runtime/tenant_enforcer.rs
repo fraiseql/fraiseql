@@ -1,8 +1,9 @@
 // Multi-tenancy enforcement layer
 // Ensures all database queries are scoped to the requesting organization
 
-use crate::db::where_clause::{WhereClause, WhereOperator};
 use serde_json::json;
+
+use crate::db::where_clause::{WhereClause, WhereOperator};
 
 /// Multi-tenancy enforcer for query scoping
 ///
@@ -11,7 +12,7 @@ use serde_json::json;
 #[derive(Debug, Clone)]
 pub struct TenantEnforcer {
     /// Current org_id for this request
-    org_id: Option<String>,
+    org_id:         Option<String>,
     /// Enforce tenant scoping (require org_id for all queries)
     require_tenant: bool,
 }
@@ -70,9 +71,9 @@ impl TenantEnforcer {
 
         // Build org_id filter clause
         let org_id_filter = WhereClause::Field {
-            path: vec!["org_id".to_string()],
+            path:     vec!["org_id".to_string()],
             operator: WhereOperator::Eq,
-            value: json!(org_id),
+            value:    json!(org_id),
         };
 
         // Combine with user's WHERE clause
@@ -184,9 +185,9 @@ mod tests {
         let enforcer = TenantEnforcer::new(Some("org-123".to_string()));
 
         let user_clause = WhereClause::Field {
-            path: vec!["status".to_string()],
+            path:     vec!["status".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("active"),
+            value:    json!("active"),
         };
 
         let result = enforcer.enforce_tenant_scope(Some(&user_clause));
@@ -242,9 +243,9 @@ mod tests {
     fn test_enforce_tenant_scope_without_org_id() {
         let enforcer = TenantEnforcer::new(None);
         let user_clause = WhereClause::Field {
-            path: vec!["status".to_string()],
+            path:     vec!["status".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("active"),
+            value:    json!("active"),
         };
 
         let result = enforcer.enforce_tenant_scope(Some(&user_clause));
@@ -261,10 +262,7 @@ mod tests {
         let result = enforcer.enforce_tenant_scope(None);
 
         assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err(),
-            "Request must be tenant-scoped (missing org_id)"
-        );
+        assert_eq!(result.unwrap_err(), "Request must be tenant-scoped (missing org_id)");
     }
 
     #[test]

@@ -1,9 +1,13 @@
 //! HashiCorp Vault Transit secrets engine provider.
 
-use crate::security::kms::base::{BaseKmsProvider, KeyInfo, RotationPolicyInfo};
-use crate::security::kms::error::{KmsError, KmsResult};
-use serde_json::json;
 use std::collections::HashMap;
+
+use serde_json::json;
+
+use crate::security::kms::{
+    base::{BaseKmsProvider, KeyInfo, RotationPolicyInfo},
+    error::{KmsError, KmsResult},
+};
 
 /// Configuration for Vault KMS provider.
 ///
@@ -20,15 +24,15 @@ pub struct VaultConfig {
     /// Vault server address (e.g., "https://vault.example.com")
     pub vault_addr: String,
     /// Vault authentication token
-    pub token: String,
+    pub token:      String,
     /// Transit mount path (default: "transit")
     pub mount_path: String,
     /// Optional Vault namespace
-    pub namespace: Option<String>,
+    pub namespace:  Option<String>,
     /// Verify TLS certificates (default: true)
     pub verify_tls: bool,
     /// Request timeout in seconds (default: 30)
-    pub timeout: u64,
+    pub timeout:    u64,
 }
 
 impl VaultConfig {
@@ -77,7 +81,6 @@ impl VaultConfig {
         let addr = self.vault_addr.trim_end_matches('/');
         format!("{}/v1/{}/{}", addr, self.mount_path, path)
     }
-
 }
 
 /// HashiCorp Vault Transit secrets engine provider.
@@ -142,8 +145,8 @@ impl BaseKmsProvider for VaultKmsProvider {
 
         // Add context if provided (used for key derivation)
         if !context.is_empty() {
-            let context_json = serde_json::to_string(context)
-                .map_err(|e| KmsError::SerializationError {
+            let context_json =
+                serde_json::to_string(context).map_err(|e| KmsError::SerializationError {
                     message: e.to_string(),
                 })?;
             let context_b64 = base64_encode(context_json.as_bytes());
@@ -168,12 +171,11 @@ impl BaseKmsProvider for VaultKmsProvider {
             });
         }
 
-        let data = response
-            .json::<serde_json::Value>()
-            .await
-            .map_err(|e| KmsError::SerializationError {
+        let data = response.json::<serde_json::Value>().await.map_err(|e| {
+            KmsError::SerializationError {
                 message: e.to_string(),
-            })?;
+            }
+        })?;
 
         let ciphertext = data["data"]["ciphertext"]
             .as_str()
@@ -199,8 +201,8 @@ impl BaseKmsProvider for VaultKmsProvider {
 
         // Add context if provided
         if !context.is_empty() {
-            let context_json = serde_json::to_string(context)
-                .map_err(|e| KmsError::SerializationError {
+            let context_json =
+                serde_json::to_string(context).map_err(|e| KmsError::SerializationError {
                     message: e.to_string(),
                 })?;
             let context_b64 = base64_encode(context_json.as_bytes());
@@ -225,16 +227,14 @@ impl BaseKmsProvider for VaultKmsProvider {
             });
         }
 
-        let data = response
-            .json::<serde_json::Value>()
-            .await
-            .map_err(|e| KmsError::SerializationError {
+        let data = response.json::<serde_json::Value>().await.map_err(|e| {
+            KmsError::SerializationError {
                 message: e.to_string(),
-            })?;
+            }
+        })?;
 
-        let plaintext_b64 = data["data"]["plaintext"]
-            .as_str()
-            .ok_or_else(|| KmsError::DecryptionFailed {
+        let plaintext_b64 =
+            data["data"]["plaintext"].as_str().ok_or_else(|| KmsError::DecryptionFailed {
                 message: "No plaintext in Vault response".to_string(),
             })?;
 
@@ -256,8 +256,8 @@ impl BaseKmsProvider for VaultKmsProvider {
 
         // Add context if provided
         if !context.is_empty() {
-            let context_json = serde_json::to_string(context)
-                .map_err(|e| KmsError::SerializationError {
+            let context_json =
+                serde_json::to_string(context).map_err(|e| KmsError::SerializationError {
                     message: e.to_string(),
                 })?;
             let context_b64 = base64_encode(context_json.as_bytes());
@@ -282,24 +282,21 @@ impl BaseKmsProvider for VaultKmsProvider {
             });
         }
 
-        let data = response
-            .json::<serde_json::Value>()
-            .await
-            .map_err(|e| KmsError::SerializationError {
+        let data = response.json::<serde_json::Value>().await.map_err(|e| {
+            KmsError::SerializationError {
                 message: e.to_string(),
-            })?;
+            }
+        })?;
 
-        let plaintext_b64 = data["data"]["plaintext"]
-            .as_str()
-            .ok_or_else(|| KmsError::EncryptionFailed {
+        let plaintext_b64 =
+            data["data"]["plaintext"].as_str().ok_or_else(|| KmsError::EncryptionFailed {
                 message: "No plaintext key in Vault response".to_string(),
             })?;
 
-        let plaintext_key = base64_decode(plaintext_b64).map_err(|_| {
-            KmsError::EncryptionFailed {
+        let plaintext_key =
+            base64_decode(plaintext_b64).map_err(|_| KmsError::EncryptionFailed {
                 message: "Failed to decode plaintext key from Vault".to_string(),
-            }
-        })?;
+            })?;
 
         let ciphertext = data["data"]["ciphertext"]
             .as_str()
@@ -361,12 +358,11 @@ impl BaseKmsProvider for VaultKmsProvider {
             });
         }
 
-        let data = response
-            .json::<serde_json::Value>()
-            .await
-            .map_err(|e| KmsError::SerializationError {
+        let data = response.json::<serde_json::Value>().await.map_err(|e| {
+            KmsError::SerializationError {
                 message: e.to_string(),
-            })?;
+            }
+        })?;
 
         let key_data = &data["data"];
         let alias = key_data["name"].as_str().map(|s| s.to_string());
@@ -403,20 +399,19 @@ impl BaseKmsProvider for VaultKmsProvider {
             });
         }
 
-        let _data = response
-            .json::<serde_json::Value>()
-            .await
-            .map_err(|e| KmsError::SerializationError {
+        let _data = response.json::<serde_json::Value>().await.map_err(|e| {
+            KmsError::SerializationError {
                 message: e.to_string(),
-            })?;
+            }
+        })?;
 
         // Vault doesn't have explicit rotation policies in transit engine
         // Return disabled by default
         Ok(RotationPolicyInfo {
-            enabled: false,
+            enabled:              false,
             rotation_period_days: 0,
-            last_rotation: None,
-            next_rotation: None,
+            last_rotation:        None,
+            next_rotation:        None,
         })
     }
 }
@@ -439,10 +434,8 @@ mod tests {
 
     #[test]
     fn test_vault_config_api_url() {
-        let config = VaultConfig::new(
-            "https://vault.example.com".to_string(),
-            "token123".to_string(),
-        );
+        let config =
+            VaultConfig::new("https://vault.example.com".to_string(), "token123".to_string());
         assert_eq!(
             config.api_url("encrypt/my-key"),
             "https://vault.example.com/v1/transit/encrypt/my-key"
@@ -451,11 +444,9 @@ mod tests {
 
     #[test]
     fn test_vault_config_custom_mount_path() {
-        let config = VaultConfig::new(
-            "https://vault.example.com".to_string(),
-            "token123".to_string(),
-        )
-        .with_mount_path("custom-transit".to_string());
+        let config =
+            VaultConfig::new("https://vault.example.com".to_string(), "token123".to_string())
+                .with_mount_path("custom-transit".to_string());
 
         assert_eq!(
             config.api_url("encrypt/my-key"),

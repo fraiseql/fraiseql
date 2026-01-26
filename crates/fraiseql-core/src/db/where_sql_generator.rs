@@ -92,13 +92,21 @@ impl WhereSqlGenerator {
 
         if path.len() == 1 {
             // Simple path: data->>'field'
-            format!("data->>'{}'", path[0])
+            // SECURITY: Escape field name to prevent SQL injection
+            let escaped = Self::escape_sql_string(&path[0]);
+            format!("data->>'{}'", escaped)
         } else {
             // Nested path: data#>'{a,b,c}'->>'d'
+            // SECURITY: Escape all field names to prevent SQL injection
             let nested = &path[..path.len() - 1];
             let last = &path[path.len() - 1];
-            let nested_path = nested.join(",");
-            format!("data#>'{{{}}}'->>'{}'", nested_path, last)
+
+            // Escape all nested components
+            let escaped_nested: Vec<String> =
+                nested.iter().map(|n| Self::escape_sql_string(n)).collect();
+            let nested_path = escaped_nested.join(",");
+            let escaped_last = Self::escape_sql_string(last);
+            format!("data#>'{{{}}}'->>'{}'", nested_path, escaped_last)
         }
     }
 
@@ -490,5 +498,43 @@ mod tests {
             sql,
             "(data->>'type' = 'article' AND (data->>'status' = 'published' OR (data->>'status' = 'draft' AND data#>'{author}'->>'role' = 'admin')))"
         );
+    }
+
+    #[test]
+    fn test_sql_injection_in_field_name_simple() {
+        // Test that malicious field names are escaped to prevent SQL injection
+        let clause = WhereClause::Field {
+            path:     vec!["name'; DROP TABLE users; --".to_string()],
+            operator: WhereOperator::Eq,
+            value:    json!("value"),
+        };
+
+        let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
+        // Field name should be escaped with doubled single quotes
+        // Result: data->>'name''; DROP TABLE users; --' = 'value'
+        // The doubled '' prevents the quote from closing the string
+        assert!(sql.contains("''")); // Escaped quotes present
+        // The SQL structure should be: identifier->>'field' operator value
+        // With escaping, DROP TABLE becomes part of the field string, not executable
+        assert!(sql.contains("data->>'"));
+        assert!(sql.contains("= 'value'")); // Proper value comparison
+    }
+
+    #[test]
+    fn test_sql_injection_in_nested_field_name() {
+        // Test that malicious nested field names are also escaped
+        let clause = WhereClause::Field {
+            path:     vec![
+                "user".to_string(),
+                "role'; DROP TABLE users; --".to_string(),
+            ],
+            operator: WhereOperator::Eq,
+            value:    json!("admin"),
+        };
+
+        let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
+        // Both simple and nested path components should be escaped
+        assert!(sql.contains("''")); // Escaped quotes present
+        assert!(sql.contains("data#>'{")); // Nested path syntax
     }
 }
