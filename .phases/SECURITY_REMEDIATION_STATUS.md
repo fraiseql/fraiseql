@@ -115,20 +115,31 @@ assert_eq!(config.password, Some(zeroize::Zeroizing::new("secret".to_string())))
 
 ---
 
-### Phase 11.4: OIDC Token Cache Poisoning ⏳ PARTIAL
+### Phase 11.4: OIDC Token Cache Poisoning ✅ COMPLETED
 
 **CVSS Score**: 7.8 (HIGH)
-**Status**: 🟡 **PARTIALLY IMPLEMENTED**
+**Status**: ✅ **FULLY IMPLEMENTED AND TESTED**
 
 **Evidence**:
-- Comments found in `src/auth/` mentioning cache TTL
-- Structure for OIDC caching present
-- Needs verification of TTL reduction from 3600s to 300s
+- File: `crates/fraiseql-core/src/security/oidc.rs`
+- Lines 133-137: TTL reduced to 300 seconds (5 minutes)
+- Lines 712-728: Key rotation detection implemented
+- Lines 632-676: Cache invalidation on key miss implemented
+- Lines 1051-1347: 10 comprehensive security tests added
 
-**TODO**:
-- [ ] Verify cache TTL is set to 300 seconds (from 3600)
-- [ ] Add key rotation detection tests
-- [ ] Verify cache invalidation on key miss
+**Implementation Details**:
+1. **Cache TTL**: Default reduced from 3600s to 300s (line 136)
+2. **Key Rotation Detection**: Compares cached key IDs with fresh JWKS (lines 712-728)
+3. **Cache Invalidation**: Automatic on expiration, key miss, or rotation
+
+**Test Coverage**: ✅ 10 new security tests added
+- Cache expiration behavior
+- Key rotation detection (both positive and negative cases)
+- Key lookup with/without kid
+- Configuration validation
+- All tests passing (28/28 OIDC tests)
+
+**Commit**: `00900933` - "fix(security-11.4): Complete OIDC token cache poisoning prevention"
 
 ---
 
@@ -207,7 +218,7 @@ test result: FAILED. 179 passed; 1 failed; 0 ignored
 | 1 | TLS Validation Bypass | 9.8 | ✅ Fixed | 11.1 | `tls.rs:342-357` |
 | 2 | SQL Injection (JSON) | 9.2 | ✅ Fixed | 11.2 | Injection tests |
 | 3 | Password in Memory | 8.1 | ✅ Fixed | 11.3 | `zeroize` crate |
-| 4 | OIDC Cache Poisoning | 7.8 | 🟡 Partial | 11.4 | Cache logic |
+| 4 | OIDC Cache Poisoning | 7.8 | ✅ Fixed | 11.4 | `oidc.rs:10 tests` |
 | 5 | CSRF Distributed | 7.5 | 🟡 Partial | 11.5 | Redis comments |
 | 6 | Error Message Leak | 4.3 | 🟡 Partial | 11.6 | Profile-based |
 | 7 | Field Masking Gap | 5.2 | 🟡 Partial | 11.6 | Masking patterns |
