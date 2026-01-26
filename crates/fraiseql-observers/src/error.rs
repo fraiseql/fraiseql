@@ -104,7 +104,6 @@ pub enum ObserverError {
     #[error("Serialization error: {0}")]
     SerializationError(String),
 
-    /// Phase 8: Database query/connection error (from sqlx)
     #[error("Database query error: {0}")]
     SqlxError(String),
 

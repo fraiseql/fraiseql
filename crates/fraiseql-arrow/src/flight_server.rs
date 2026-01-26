@@ -1,8 +1,7 @@
 //! FraiseQL Arrow Flight service implementation.
 //!
-//! This module provides the core gRPC service that handles Flight RPC calls.
-//! In Phase 9.1, it implements the basic server skeleton with empty data streams.
-//! Phase 9.2+ will add actual query execution and data streaming.
+//! This module provides the core gRPC service that handles Flight RPC calls,
+//! enabling high-performance columnar data transfer for GraphQL queries.
 
 use std::{pin::Pin, sync::Arc};
 
@@ -133,8 +132,6 @@ impl FraiseQLFlightService {
 
     /// Execute GraphQL query and stream Arrow batches.
     ///
-    /// Phase 9.2: Placeholder implementation returns empty stream.
-    /// Phase 9.3+: Will integrate with fraiseql-core query executor.
     ///
     /// # TODO
     ///
@@ -148,7 +145,7 @@ impl FraiseQLFlightService {
         _variables: Option<serde_json::Value>,
     ) -> std::result::Result<impl Stream<Item = std::result::Result<FlightData, Status>>, Status>
     {
-        // TODO: Phase 9.3+ - Execute actual query
+        // TODO:  - Execute actual query
         // let executor = &self.query_executor;
         // let batches = fraiseql_core::arrow_executor::execute_query_as_arrow(
         //     executor,
@@ -171,7 +168,6 @@ impl FraiseQLFlightService {
 
     /// Execute optimized query on pre-compiled va_* view.
     ///
-    /// Phase 9.3: Fast path for compiler-generated Arrow views.
     /// Uses pre-compiled Arrow schemas, eliminating runtime type inference.
     ///
     /// # Arguments
@@ -272,7 +268,7 @@ impl FlightService for FraiseQLFlightService {
 
     /// Handshake for authentication (not implemented yet).
     ///
-    /// Will be implemented in Phase 10 with JWT/API key authentication.
+    /// Will be implemented in future versions with JWT/API key authentication.
     async fn handshake(
         &self,
         _request: Request<Streaming<HandshakeRequest>>,
@@ -283,8 +279,8 @@ impl FlightService for FraiseQLFlightService {
 
     /// List available datasets/queries.
     ///
-    /// In Phase 9.1, this returns an empty list for testing.
-    /// In Phase 9.2+, this will list available GraphQL queries, observer events, etc.
+    /// Currently, this returns an empty list for testing.
+    /// In  to list available GraphQL queries, observer events, etc.
     async fn list_flights(
         &self,
         _request: Request<Criteria>,
@@ -321,13 +317,12 @@ impl FlightService for FraiseQLFlightService {
             FlightTicket::GraphQLQuery { .. } => graphql_result_schema(),
             FlightTicket::ObserverEvents { .. } => observer_event_schema(),
             FlightTicket::OptimizedView { view, .. } => {
-                // Phase 9.3: Load pre-compiled Arrow schema for optimized view
                 self.schema_registry.get(&view).map_err(|e| {
                     Status::not_found(format!("Schema not found for view {view}: {e}"))
                 })?
             },
             FlightTicket::BulkExport { .. } => {
-                // Will be implemented in Phase 9.4
+                // Will be implemented in future versions
                 return Err(Status::unimplemented("BulkExport not implemented yet"));
             },
         };
@@ -346,8 +341,8 @@ impl FlightService for FraiseQLFlightService {
 
     /// Fetch data stream (main data retrieval method).
     ///
-    /// In Phase 9.1, this returns empty streams.
-    /// In Phase 9.2+, this will execute queries and stream Arrow RecordBatches.
+    /// Currently, this returns empty streams.
+    /// In , this will execute queries and stream Arrow RecordBatches.
     async fn do_get(
         &self,
         request: Request<Ticket>,
@@ -360,7 +355,6 @@ impl FlightService for FraiseQLFlightService {
 
         match ticket {
             FlightTicket::GraphQLQuery { query, variables } => {
-                // Phase 9.2: Execute query and stream batches (placeholder for now)
                 let stream = self.execute_graphql_query(&query, variables).await?;
                 Ok(Response::new(Box::pin(stream)))
             },
@@ -371,26 +365,23 @@ impl FlightService for FraiseQLFlightService {
                 limit,
                 offset,
             } => {
-                // Phase 9.3: Optimized path using pre-compiled va_* views
                 let stream =
                     self.execute_optimized_view(&view, filter, order_by, limit, offset).await?;
                 Ok(Response::new(Box::pin(stream)))
             },
             FlightTicket::ObserverEvents { .. } => {
-                // Phase 9.3: Will implement observer event streaming
-                Err(Status::unimplemented("Observer events not implemented yet (Phase 9.3)"))
+                Err(Status::unimplemented("Observer events not implemented yet"))
             },
             FlightTicket::BulkExport { .. } => {
-                // Phase 9.4: Will implement bulk exports
-                Err(Status::unimplemented("Bulk export not implemented yet (Phase 9.4)"))
+                Err(Status::unimplemented("Bulk export not implemented yet"))
             },
         }
     }
 
     /// Upload data stream (for client-to-server data transfer).
     ///
-    /// Not needed for Phase 9.1-9.3 (we're focused on server→client).
-    /// May be useful in Phase 9.4+ for bulk imports.
+    /// Not currently needed(we're focused on server→client).
+    /// May be useful in  for bulk imports.
     async fn do_put(
         &self,
         _request: Request<Streaming<FlightData>>,
@@ -430,7 +421,7 @@ impl FlightService for FraiseQLFlightService {
     /// Get flight info for a descriptor (metadata about available data).
     ///
     /// This method provides metadata about what data is available without
-    /// actually fetching it. Will be implemented in Phase 9.2+.
+    /// actually fetching it. Will be implemented in future versions+.
     async fn get_flight_info(
         &self,
         _request: Request<FlightDescriptor>,

@@ -100,7 +100,7 @@ impl SchemaRegistry {
 
     /// Register default schemas for common views.
     ///
-    /// This is a convenience method for Phase 9.3 testing.
+    /// This is a convenience method for testing.
     /// In production, schemas come from compiled schema metadata.
     pub fn register_defaults(&self) {
         use arrow::datatypes::{DataType, Field, TimeUnit};
@@ -142,7 +142,7 @@ impl SchemaRegistry {
     /// Unlike logical views (va_*), ta_* tables are actual PostgreSQL tables with
     /// trigger-based refresh and BRIN indexes for fast range queries.
     ///
-    /// This is a convenience method for Phase 9.3 testing.
+    /// This is a convenience method for testing.
     pub fn register_ta_tables(&self) {
         use arrow::datatypes::DataType;
 

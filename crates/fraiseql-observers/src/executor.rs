@@ -414,7 +414,6 @@ impl ObserverExecutor {
                     error
                 );
                 summary.failed_actions += 1;
-                // Phase 6.7: Implement alerting via separate observer
             },
             FailurePolicy::Dlq => {
                 info!(

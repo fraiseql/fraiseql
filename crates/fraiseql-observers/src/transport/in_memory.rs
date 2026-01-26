@@ -51,7 +51,7 @@ impl InMemoryTransport {
     /// Create with explicit capacity (for backpressure testing)
     ///
     /// Note: Currently uses unbounded channel for simplicity.
-    /// Bounded capacity support can be added in Phase 2 if needed.
+    /// Bounded capacity support can be added in if needed.
     #[allow(unused_variables)]
     #[must_use]
     pub fn with_capacity(capacity: usize) -> Self {
