@@ -170,7 +170,7 @@ async fn test_load_large_json_objects() {
     }
 
     let elapsed = start.elapsed();
-    let avg_size = if count > 0 { total_size / count } else { 0 };
+    let avg_size = total_size.checked_div(count).unwrap_or(0);
 
     println!("  Rows: {}", count);
     println!("  Total size: {} bytes", total_size);

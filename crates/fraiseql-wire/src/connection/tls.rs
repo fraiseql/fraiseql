@@ -226,6 +226,9 @@ impl TlsConfigBuilder {
     ///     .build()?;
     /// ```
     pub fn build(self) -> Result<TlsConfig> {
+        // SECURITY: Validate TLS configuration before creating client
+        validate_tls_security(self.danger_accept_invalid_certs);
+
         let client_config = if self.danger_accept_invalid_certs {
             // Create a client config that accepts any certificate (development only)
             let verifier = Arc::new(NoVerifier);
@@ -320,6 +323,36 @@ impl TlsConfigBuilder {
         }
 
         Ok(root_store)
+    }
+}
+
+/// Validate TLS configuration for security constraints.
+///
+/// Enforces:
+/// - Release builds cannot use `danger_accept_invalid_certs`
+/// - Production environment rejects danger mode
+///
+/// # Arguments
+///
+/// * `danger_accept_invalid_certs` - Whether danger mode is enabled
+///
+/// # Errors
+///
+/// Returns an error or panics if validation fails
+fn validate_tls_security(danger_accept_invalid_certs: bool) {
+    if danger_accept_invalid_certs {
+        // SECURITY: Panic in release builds to prevent accidental production use
+        #[cfg(not(debug_assertions))]
+        {
+            panic!("🚨 CRITICAL: TLS certificate validation bypass not allowed in release builds");
+        }
+
+        // Development builds: warn but allow
+        #[cfg(debug_assertions)]
+        {
+            eprintln!("🚨 WARNING: TLS certificate validation is DISABLED (development only)");
+            eprintln!("🚨 This mode is only for development with self-signed certificates");
+        }
     }
 }
 
@@ -441,6 +474,44 @@ mod tests {
         let debug_str = format!("{:?}", tls);
         assert!(debug_str.contains("TlsConfig"));
         assert!(debug_str.contains("verify_hostname"));
+    }
+
+    #[test]
+    #[cfg(not(debug_assertions))]
+    #[should_panic(expected = "TLS certificate validation bypass")]
+    fn test_danger_mode_panics_in_release_build() {
+        // This test only runs in release builds and should panic
+        let _ = TlsConfig::builder()
+            .danger_accept_invalid_certs(true)
+            .build();
+    }
+
+    #[test]
+    fn test_danger_mode_allowed_in_debug_build() {
+        // In debug builds, danger mode should be allowed but logged
+        install_crypto_provider();
+
+        let tls = TlsConfig::builder()
+            .danger_accept_invalid_certs(true)
+            .build();
+
+        // In debug, this should succeed
+        assert!(tls.is_ok());
+        if let Ok(config) = tls {
+            assert!(config.danger_accept_invalid_certs());
+        }
+    }
+
+    #[test]
+    fn test_normal_tls_config_works() {
+        install_crypto_provider();
+
+        let tls = TlsConfig::builder().verify_hostname(true).build();
+
+        assert!(tls.is_ok());
+        if let Ok(config) = tls {
+            assert!(!config.danger_accept_invalid_certs());
+        }
     }
 }
 
