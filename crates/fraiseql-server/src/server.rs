@@ -24,7 +24,7 @@ use {fraiseql_arrow::FraiseQLFlightService, tonic::transport::Server as GrpcServ
 use crate::{
     Result, ServerError,
     middleware::{
-        BearerAuthState, OidcAuthState, bearer_auth_middleware, cors_layer, metrics_middleware,
+        BearerAuthState, OidcAuthState, bearer_auth_middleware, cors_layer_restricted, metrics_middleware,
         oidc_auth_middleware, trace_layer,
     },
     routes::{
@@ -264,7 +264,18 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         }
 
         if self.config.cors_enabled {
-            app = app.layer(cors_layer());
+            // Use restricted CORS with configured origins
+            let origins = if self.config.cors_origins.is_empty() {
+                // Default to localhost for development if no origins configured
+                tracing::warn!(
+                    "CORS enabled but no origins configured. Using localhost:3000 as default. \
+                     Set cors_origins in config for production."
+                );
+                vec!["http://localhost:3000".to_string()]
+            } else {
+                self.config.cors_origins.clone()
+            };
+            app = app.layer(cors_layer_restricted(origins));
         }
 
         app

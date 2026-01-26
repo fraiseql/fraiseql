@@ -3,18 +3,32 @@
 use axum::{middleware::Next, response::IntoResponse};
 use tower_http::cors::{Any, CorsLayer};
 
-/// Create CORS layer.
+/// Create CORS layer for development only.
 ///
-/// Configures Cross-Origin Resource Sharing for the GraphQL API.
+/// ⚠️  **SECURITY WARNING**: This function allows all origins and methods.
+/// **DO NOT USE IN PRODUCTION** - use `cors_layer_restricted()` instead.
 ///
-/// # Configuration
+/// Configures Cross-Origin Resource Sharing for the GraphQL API with permissive settings.
 ///
-/// - Allows all origins (use `allow_origins` for production)
-/// - Allows common HTTP methods (GET, POST, OPTIONS)
-/// - Allows common headers (Content-Type, Authorization)
+/// # Development Only
+///
+/// This configuration is suitable only for local development.
+/// - Allows all origins (no origin validation)
+/// - Allows all HTTP methods
+/// - Allows all headers
 /// - Exposes all headers
+///
+/// # Production
+///
+/// For production deployments, use `cors_layer_restricted()` with specific allowed origins.
+/// See server configuration `cors_origins` setting.
 #[must_use]
 pub fn cors_layer() -> CorsLayer {
+    tracing::warn!(
+        "Using permissive CORS settings (allows all origins). \
+         This is suitable for development only. \
+         For production, configure cors_origins in server config and use cors_layer_restricted()."
+    );
     CorsLayer::new()
         .allow_origin(Any)
         .allow_methods(Any)
