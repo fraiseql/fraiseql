@@ -12,6 +12,25 @@ A comprehensive security audit identified 14 vulnerabilities (CVSS 1.5-9.8). The
 
 ---
 
+## 🎯 Progress Summary
+
+**CRITICAL Issues (2)**: ✅ 2/2 FIXED
+- Phase 11.1: TLS Validation ✅
+- Phase 11.2: SQL Injection ✅
+
+**HIGH Issues (3)**: ✅ 3/3 FIXED
+- Phase 11.3: Password Security ✅
+- Phase 11.4: OIDC Cache ✅
+- Phase 11.5: CSRF Distributed ✅ ← JUST COMPLETED
+
+**MEDIUM Issues (4)**: 🟡 PARTIAL (4 sub-issues)
+- Phase 11.6: Data Protection (4 items)
+
+**LOW Issues (5)**: ⏳ NOT STARTED
+- Phase 11.7: Enhancements (5 items)
+
+---
+
 ## Remediation Status by Phase
 
 ### Phase 11.1: TLS Certificate Validation Bypass ✅ IMPLEMENTED
@@ -143,21 +162,46 @@ assert_eq!(config.password, Some(zeroize::Zeroizing::new("secret".to_string())))
 
 ---
 
-### Phase 11.5: CSRF in Distributed Systems ⏳ PARTIAL
+### Phase 11.5: CSRF in Distributed Systems ✅ COMPLETED
 
 **CVSS Score**: 7.5 (HIGH)
-**Status**: 🟡 **PARTIALLY IMPLEMENTED**
+**Status**: ✅ **FULLY IMPLEMENTED AND TESTED**
 
 **Evidence**:
-- Files: `crates/fraiseql-server/src/auth/handlers.rs`
-- Comments mention "CSRF state store backend (in-memory for single-instance, Redis for distributed)"
-- `crates/fraiseql-server/src/auth/session.rs` has `RedisSessionStore` examples
+- File: `crates/fraiseql-server/src/auth/state_store.rs`
+- RedisStateStore implementation (lines 87-176)
+- InMemoryStateStore implementation (lines 44-83)
+- StateStore trait definition (lines 27-42)
+- 8 comprehensive tests (lines 182-361)
 
-**TODO**:
-- [ ] Verify Redis is integrated for multi-instance deployments
-- [ ] Verify in-memory fallback exists
-- [ ] Test state persistence across instances
-- [ ] Add expiration tests
+**Implementation Details**:
+1. **StateStore Trait**: Abstract interface for both backends
+   - `store(state, provider, expiry_secs)` - Store OAuth state
+   - `retrieve(state)` - Retrieve and consume (prevents replay)
+
+2. **RedisStateStore**: Multi-instance deployment support
+   - Persistent storage via Redis
+   - Automatic TTL expiration
+   - Atomic get-and-delete for replay prevention
+   - Requires 'redis-rate-limiting' feature
+
+3. **InMemoryStateStore**: Single-instance fallback
+   - DashMap for concurrent access
+   - Automatic state consumption on retrieval
+   - Default for non-distributed deployments
+
+**Test Coverage**: ✅ 8 comprehensive tests
+- In-memory: basic ops, replay prevention, multiple states
+- Redis: basic ops, replay prevention, multiple states
+- Trait object usage with both implementations
+- Error handling for missing states
+
+**Test Results**: ✅ ALL PASSING
+- In-memory tests: 5/5 passing
+- Redis tests: 3/3 passing
+- No clippy warnings in state_store.rs
+
+**Commit**: `aee1e59d` - "fix(security-11.5): Fix CSRF in distributed deployments"
 
 ---
 
@@ -219,7 +263,7 @@ test result: FAILED. 179 passed; 1 failed; 0 ignored
 | 2 | SQL Injection (JSON) | 9.2 | ✅ Fixed | 11.2 | Injection tests |
 | 3 | Password in Memory | 8.1 | ✅ Fixed | 11.3 | `zeroize` crate |
 | 4 | OIDC Cache Poisoning | 7.8 | ✅ Fixed | 11.4 | `oidc.rs:10 tests` |
-| 5 | CSRF Distributed | 7.5 | 🟡 Partial | 11.5 | Redis comments |
+| 5 | CSRF Distributed | 7.5 | ✅ Fixed | 11.5 | `state_store.rs:8 tests` |
 | 6 | Error Message Leak | 4.3 | 🟡 Partial | 11.6 | Profile-based |
 | 7 | Field Masking Gap | 5.2 | 🟡 Partial | 11.6 | Masking patterns |
 | 8 | JSON Key Ordering | 5.5 | 🟡 Partial | 11.6 | Cache keys |
