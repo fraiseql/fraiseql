@@ -912,6 +912,16 @@ FraiseQL enforces strict naming conventions to enable automatic compilation and 
 
 ---
 
+## Production & Operations
+
+For teams deploying FraiseQL v2 to production:
+
+- **[DEPLOYMENT.md](DEPLOYMENT.md)** — Complete production setup guide covering Docker, Kubernetes, database configuration, security hardening, and monitoring
+- **[SECURITY.md](SECURITY.md)** — Security model, threat analysis, authentication/authorization architecture, and compliance framework
+- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** — Common issues, diagnostic commands, performance tuning, and debugging guides
+
+---
+
 ## Credits
 
 **Specification Authors:**
