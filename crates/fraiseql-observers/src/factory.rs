@@ -251,6 +251,7 @@ impl<D: crate::dedup::DeduplicationStore + Send + Sync> ProcessEvent
 }
 
 /// Trait for queued event processing (async job queueing)
+#[cfg(feature = "queue")]
 #[async_trait::async_trait]
 pub trait ProcessEventQueued: Send + Sync {
     /// Process an event by queueing actions (async execution)

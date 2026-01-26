@@ -63,7 +63,7 @@ pub async fn execute_query_as_arrow(
     _variables: Option<serde_json::Value>,
     batch_size: usize,
 ) -> Result<Vec<RecordBatch>> {
-    Execute actual GraphQL query
+    // TODO: Execute actual GraphQL query
     // let result = executor.execute(query, variables).await?;
 
     // Placeholder: Generate dummy schema (2 fields: id, name)
@@ -99,7 +99,7 @@ pub async fn execute_query_as_arrow(
 
 /// Generate dummy rows for testing purposes.
 ///
-/Replace with actual database row conversion
+/// TODO: Replace with actual database row conversion
 #[cfg(feature = "arrow")]
 fn generate_dummy_rows() -> Vec<Vec<Option<Value>>> {
     vec![

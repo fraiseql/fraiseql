@@ -24,8 +24,8 @@ use {fraiseql_arrow::FraiseQLFlightService, tonic::transport::Server as GrpcServ
 use crate::{
     Result, ServerError,
     middleware::{
-        BearerAuthState, OidcAuthState, bearer_auth_middleware, cors_layer_restricted, metrics_middleware,
-        oidc_auth_middleware, trace_layer,
+        BearerAuthState, OidcAuthState, bearer_auth_middleware, cors_layer_restricted,
+        metrics_middleware, oidc_auth_middleware, trace_layer,
     },
     routes::{
         PlaygroundState, SubscriptionState, graphql::AppState, graphql_get_handler,

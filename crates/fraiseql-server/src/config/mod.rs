@@ -261,7 +261,7 @@ pub struct OAuthProviderConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct NotificationsConfig {
-    // TODO: 
+    // TODO:
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -283,7 +283,7 @@ pub struct ActionConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct LoggingConfig {
-    // TODO: 
+    // TODO:
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -297,25 +297,25 @@ pub struct StorageConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct SearchConfig {
-    // TODO: 
+    // TODO:
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct CacheConfig {
-    // TODO: 
+    // TODO:
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct QueueConfig {
-    // TODO: 
+    // TODO:
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct RealtimeConfig {
-    // TODO: 
+    // TODO:
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct CustomEndpointsConfig {
-    // TODO: 
+    // TODO:
 }

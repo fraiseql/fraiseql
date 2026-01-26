@@ -16,7 +16,8 @@ use crate::security::kms::{
 /// Get current Unix timestamp.
 fn current_timestamp() -> i64 {
     // Safe to unwrap: u64 timestamp won't overflow i64 until year 292,277,026,596
-    i64::try_from(SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs()).unwrap_or(0)
+    i64::try_from(SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs())
+        .unwrap_or(0)
 }
 
 /// Abstract base class for KMS providers.
@@ -120,8 +121,8 @@ pub trait BaseKmsProvider: Send + Sync {
             .do_generate_data_key(key_id, &ctx)
             .await
             .map_err(|e| KmsError::EncryptionFailed {
-            message: format!("Data key generation failed: {}", e),
-        })?;
+                message: format!("Data key generation failed: {}", e),
+            })?;
 
         let key_ref = KeyReference::new(
             self.provider_name().to_string(),
