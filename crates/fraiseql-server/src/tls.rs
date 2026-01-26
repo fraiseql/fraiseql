@@ -7,17 +7,17 @@
 //! - Database connection TLS settings
 //! - Per-connection TLS enforcement using the TlsEnforcer
 
-use std::path::Path;
-use std::sync::Arc;
+use std::{path::Path, sync::Arc};
 
 use fraiseql_core::security::{TlsConfig, TlsEnforcer, TlsVersion};
-use rustls::pki_types::CertificateDer;
-use rustls::ServerConfig;
+use rustls::{ServerConfig, pki_types::CertificateDer};
 use rustls_pemfile::Item;
 use tracing::info;
 
-use crate::server_config::{DatabaseTlsConfig, TlsServerConfig};
-use crate::{Result, ServerError};
+use crate::{
+    Result, ServerError,
+    server_config::{DatabaseTlsConfig, TlsServerConfig},
+};
 
 /// TLS server setup and enforcement.
 pub struct TlsSetup {
@@ -71,8 +71,8 @@ impl TlsSetup {
                 return Err(ServerError::ConfigError(format!(
                     "Invalid TLS minimum version: {}",
                     other
-                )))
-            }
+                )));
+            },
         };
 
         // Create TLS configuration
@@ -119,9 +119,7 @@ impl TlsSetup {
     /// Check if mTLS is required.
     #[must_use]
     pub fn is_mtls_required(&self) -> bool {
-        self.config
-            .as_ref()
-            .is_some_and(|c| c.enabled && c.require_client_cert)
+        self.config.as_ref().is_some_and(|c| c.enabled && c.require_client_cert)
     }
 
     /// Get the certificate path.
@@ -163,17 +161,13 @@ impl TlsSetup {
     /// Check if ClickHouse HTTPS is enabled.
     #[must_use]
     pub fn clickhouse_https_enabled(&self) -> bool {
-        self.db_config
-            .as_ref()
-            .is_some_and(|c| c.clickhouse_https)
+        self.db_config.as_ref().is_some_and(|c| c.clickhouse_https)
     }
 
     /// Check if Elasticsearch HTTPS is enabled.
     #[must_use]
     pub fn elasticsearch_https_enabled(&self) -> bool {
-        self.db_config
-            .as_ref()
-            .is_some_and(|c| c.elasticsearch_https)
+        self.db_config.as_ref().is_some_and(|c| c.elasticsearch_https)
     }
 
     /// Check if certificate verification is enabled for databases.
@@ -274,11 +268,7 @@ impl TlsSetup {
     /// Load private key from PEM file.
     fn load_private_key(path: &Path) -> Result<rustls::pki_types::PrivateKeyDer<'static>> {
         let key_file = std::fs::File::open(path).map_err(|e| {
-            ServerError::ConfigError(format!(
-                "Failed to open key file {}: {}",
-                path.display(),
-                e
-            ))
+            ServerError::ConfigError(format!("Failed to open key file {}: {}", path.display(), e))
         })?;
 
         let mut reader = std::io::BufReader::new(key_file);
@@ -295,9 +285,7 @@ impl TlsSetup {
             }
         }
 
-        Err(ServerError::ConfigError(
-            "No private key found in key file".to_string(),
-        ))
+        Err(ServerError::ConfigError("No private key found in key file".to_string()))
     }
 
     /// Create a rustls ServerConfig for TLS.
@@ -310,11 +298,7 @@ impl TlsSetup {
     pub fn create_rustls_config(&self) -> Result<Arc<ServerConfig>> {
         let (cert_path, key_path) = match self.config.as_ref() {
             Some(c) if c.enabled => (&c.cert_path, &c.key_path),
-            _ => {
-                return Err(ServerError::ConfigError(
-                    "TLS not enabled".to_string(),
-                ))
-            }
+            _ => return Err(ServerError::ConfigError("TLS not enabled".to_string())),
         };
 
         info!(
@@ -329,9 +313,7 @@ impl TlsSetup {
         let server_config = ServerConfig::builder()
             .with_no_client_auth()
             .with_single_cert(certs, key)
-            .map_err(|e| {
-                ServerError::ConfigError(format!("Failed to build TLS config: {}", e))
-            })?;
+            .map_err(|e| ServerError::ConfigError(format!("Failed to build TLS config: {}", e)))?;
 
         Ok(Arc::new(server_config))
     }
@@ -339,8 +321,9 @@ impl TlsSetup {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::path::PathBuf;
+
+    use super::*;
 
     #[test]
     fn test_tls_setup_disabled() {
@@ -366,12 +349,12 @@ mod tests {
     #[test]
     fn test_postgres_url_tls_application() {
         let db_config = DatabaseTlsConfig {
-            postgres_ssl_mode: "require".to_string(),
-            redis_ssl: false,
-            clickhouse_https: false,
+            postgres_ssl_mode:   "require".to_string(),
+            redis_ssl:           false,
+            clickhouse_https:    false,
             elasticsearch_https: false,
             verify_certificates: true,
-            ca_bundle_path: None,
+            ca_bundle_path:      None,
         };
 
         let setup = TlsSetup::new(None, Some(db_config)).expect("should create setup");
@@ -385,12 +368,12 @@ mod tests {
     #[test]
     fn test_redis_url_tls_application() {
         let db_config = DatabaseTlsConfig {
-            postgres_ssl_mode: "prefer".to_string(),
-            redis_ssl: true,
-            clickhouse_https: false,
+            postgres_ssl_mode:   "prefer".to_string(),
+            redis_ssl:           true,
+            clickhouse_https:    false,
             elasticsearch_https: false,
             verify_certificates: true,
-            ca_bundle_path: None,
+            ca_bundle_path:      None,
         };
 
         let setup = TlsSetup::new(None, Some(db_config)).expect("should create setup");
@@ -404,12 +387,12 @@ mod tests {
     #[test]
     fn test_clickhouse_url_tls_application() {
         let db_config = DatabaseTlsConfig {
-            postgres_ssl_mode: "prefer".to_string(),
-            redis_ssl: false,
-            clickhouse_https: true,
+            postgres_ssl_mode:   "prefer".to_string(),
+            redis_ssl:           false,
+            clickhouse_https:    true,
             elasticsearch_https: false,
             verify_certificates: true,
-            ca_bundle_path: None,
+            ca_bundle_path:      None,
         };
 
         let setup = TlsSetup::new(None, Some(db_config)).expect("should create setup");
@@ -423,12 +406,12 @@ mod tests {
     #[test]
     fn test_elasticsearch_url_tls_application() {
         let db_config = DatabaseTlsConfig {
-            postgres_ssl_mode: "prefer".to_string(),
-            redis_ssl: false,
-            clickhouse_https: false,
+            postgres_ssl_mode:   "prefer".to_string(),
+            redis_ssl:           false,
+            clickhouse_https:    false,
             elasticsearch_https: true,
             verify_certificates: true,
-            ca_bundle_path: None,
+            ca_bundle_path:      None,
         };
 
         let setup = TlsSetup::new(None, Some(db_config)).expect("should create setup");
@@ -442,12 +425,12 @@ mod tests {
     #[test]
     fn test_all_database_tls_enabled() {
         let db_config = DatabaseTlsConfig {
-            postgres_ssl_mode: "require".to_string(),
-            redis_ssl: true,
-            clickhouse_https: true,
+            postgres_ssl_mode:   "require".to_string(),
+            redis_ssl:           true,
+            clickhouse_https:    true,
             elasticsearch_https: true,
             verify_certificates: true,
-            ca_bundle_path: Some(PathBuf::from("/etc/ssl/certs/ca-bundle.crt")),
+            ca_bundle_path:      Some(PathBuf::from("/etc/ssl/certs/ca-bundle.crt")),
         };
 
         let setup = TlsSetup::new(None, Some(db_config)).expect("should create setup");
@@ -463,12 +446,12 @@ mod tests {
     #[test]
     fn test_postgres_url_with_existing_params() {
         let db_config = DatabaseTlsConfig {
-            postgres_ssl_mode: "require".to_string(),
-            redis_ssl: false,
-            clickhouse_https: false,
+            postgres_ssl_mode:   "require".to_string(),
+            redis_ssl:           false,
+            clickhouse_https:    false,
             elasticsearch_https: false,
             verify_certificates: true,
-            ca_bundle_path: None,
+            ca_bundle_path:      None,
         };
 
         let setup = TlsSetup::new(None, Some(db_config)).expect("should create setup");
@@ -483,12 +466,12 @@ mod tests {
     #[test]
     fn test_database_tls_config_getters() {
         let db_config = DatabaseTlsConfig {
-            postgres_ssl_mode: "verify-full".to_string(),
-            redis_ssl: true,
-            clickhouse_https: true,
+            postgres_ssl_mode:   "verify-full".to_string(),
+            redis_ssl:           true,
+            clickhouse_https:    true,
             elasticsearch_https: false,
             verify_certificates: true,
-            ca_bundle_path: Some(PathBuf::from("/etc/ssl/certs/ca.pem")),
+            ca_bundle_path:      Some(PathBuf::from("/etc/ssl/certs/ca.pem")),
         };
 
         let setup = TlsSetup::new(None, Some(db_config)).expect("should create setup");
@@ -498,10 +481,7 @@ mod tests {
         assert!(setup.redis_ssl_enabled());
         assert!(setup.clickhouse_https_enabled());
         assert!(!setup.elasticsearch_https_enabled());
-        assert_eq!(
-            setup.ca_bundle_path(),
-            Some(Path::new("/etc/ssl/certs/ca.pem"))
-        );
+        assert_eq!(setup.ca_bundle_path(), Some(Path::new("/etc/ssl/certs/ca.pem")));
     }
 
     #[test]
@@ -510,21 +490,18 @@ mod tests {
 
         let result = setup.create_rustls_config();
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("TLS not enabled"));
+        assert!(result.unwrap_err().to_string().contains("TLS not enabled"));
     }
 
     #[test]
     fn test_create_rustls_config_with_missing_cert() {
         let tls_config = TlsServerConfig {
-            enabled: true,
-            cert_path: PathBuf::from("/nonexistent/cert.pem"),
-            key_path: PathBuf::from("/nonexistent/key.pem"),
+            enabled:             true,
+            cert_path:           PathBuf::from("/nonexistent/cert.pem"),
+            key_path:            PathBuf::from("/nonexistent/key.pem"),
             require_client_cert: false,
-            client_ca_path: None,
-            min_version: "1.2".to_string(),
+            client_ca_path:      None,
+            min_version:         "1.2".to_string(),
         };
 
         let setup = TlsSetup::new(Some(tls_config), None).expect("should create setup");

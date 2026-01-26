@@ -6,8 +6,10 @@
 //! # Architecture
 //!
 //! This implementation follows the v1 KeyManager pattern:
-//! - **Startup-time**: Generate and cache a data encryption key at startup for fast local encryption
-//! - **Per-request**: Use KMS directly for high-security operations (slower but per-request isolation)
+//! - **Startup-time**: Generate and cache a data encryption key at startup for fast local
+//!   encryption
+//! - **Per-request**: Use KMS directly for high-security operations (slower but per-request
+//!   isolation)
 //!
 //! # Usage
 //!
@@ -25,19 +27,17 @@
 //! let encrypted_kms = manager.encrypt(b"highly-sensitive", "prod-key").await?;
 //! ```
 
-use fraiseql_core::security::{
-    BaseKmsProvider, DataKeyPair, EncryptedData, KmsError, KmsResult,
-};
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
+
+use fraiseql_core::security::{BaseKmsProvider, DataKeyPair, EncryptedData, KmsError, KmsResult};
 use tokio::sync::RwLock;
 
 /// Secret manager combining cached and per-request encryption.
 pub struct SecretManager {
     /// Primary KMS provider
-    provider: Arc<dyn BaseKmsProvider>,
+    provider:       Arc<dyn BaseKmsProvider>,
     /// Cached data key for local encryption
-    cached_key: Arc<RwLock<Option<DataKeyPair>>>,
+    cached_key:     Arc<RwLock<Option<DataKeyPair>>>,
     /// Default key ID for KMS operations
     default_key_id: String,
     /// Context prefix for all encryption operations
@@ -46,10 +46,7 @@ pub struct SecretManager {
 
 impl SecretManager {
     /// Create a new secret manager.
-    pub fn new(
-        provider: Arc<dyn BaseKmsProvider>,
-        default_key_id: String,
-    ) -> Self {
+    pub fn new(provider: Arc<dyn BaseKmsProvider>, default_key_id: String) -> Self {
         Self {
             provider,
             cached_key: Arc::new(RwLock::new(None)),
@@ -80,10 +77,7 @@ impl SecretManager {
         context.insert("purpose".to_string(), "data_encryption".to_string());
         let context = self.build_context(context);
 
-        let data_key = self
-            .provider
-            .generate_data_key(&self.default_key_id, context)
-            .await?;
+        let data_key = self.provider.generate_data_key(&self.default_key_id, context).await?;
 
         let mut cached = self.cached_key.write().await;
         *cached = Some(data_key);
@@ -174,9 +168,7 @@ impl SecretManager {
         context.insert("operation".to_string(), "encrypt".to_string());
         let context = self.build_context(context);
 
-        self.provider
-            .encrypt(plaintext, key_id, context)
-            .await
+        self.provider.encrypt(plaintext, key_id, context).await
     }
 
     /// Decrypt data using KMS (per-request operation).
@@ -218,7 +210,10 @@ impl SecretManager {
     // ─────────────────────────────────────────────────────────────
 
     /// Build encryption context with optional prefix.
-    fn build_context(&self, mut context: HashMap<String, String>) -> Option<HashMap<String, String>> {
+    fn build_context(
+        &self,
+        mut context: HashMap<String, String>,
+    ) -> Option<HashMap<String, String>> {
         if let Some(prefix) = &self.context_prefix {
             context.insert("service".to_string(), prefix.clone());
         }
@@ -241,45 +236,43 @@ impl SecretManager {
 
 /// AES-256-GCM encryption using aes-gcm.
 fn aes_gcm_encrypt(key: &[u8], nonce: &[u8], plaintext: &[u8]) -> KmsResult<Vec<u8>> {
-    use aes_gcm::Aes256Gcm;
-    use aes_gcm::Key;
-    use aes_gcm::Nonce;
-    use aes_gcm::aead::{Aead, KeyInit};
+    use aes_gcm::{
+        Aes256Gcm, Key, Nonce,
+        aead::{Aead, KeyInit},
+    };
 
     let key = Key::<Aes256Gcm>::from_slice(key);
     let cipher = Aes256Gcm::new(key);
     let nonce = Nonce::from_slice(nonce);
 
-    cipher
-        .encrypt(nonce, plaintext)
-        .map_err(|e| KmsError::EncryptionFailed {
-            message: format!("AES-GCM encryption failed: {}", e),
-        })
+    cipher.encrypt(nonce, plaintext).map_err(|e| KmsError::EncryptionFailed {
+        message: format!("AES-GCM encryption failed: {}", e),
+    })
 }
 
 /// AES-256-GCM decryption using aes-gcm.
 fn aes_gcm_decrypt(key: &[u8], nonce: &[u8], ciphertext: &[u8]) -> KmsResult<Vec<u8>> {
-    use aes_gcm::Aes256Gcm;
-    use aes_gcm::Key;
-    use aes_gcm::Nonce;
-    use aes_gcm::aead::{Aead, KeyInit};
+    use aes_gcm::{
+        Aes256Gcm, Key, Nonce,
+        aead::{Aead, KeyInit},
+    };
 
     let key = Key::<Aes256Gcm>::from_slice(key);
     let cipher = Aes256Gcm::new(key);
     let nonce = Nonce::from_slice(nonce);
 
-    cipher
-        .decrypt(nonce, ciphertext)
-        .map_err(|e| KmsError::DecryptionFailed {
-            message: format!("AES-GCM decryption failed: {}", e),
-        })
+    cipher.decrypt(nonce, ciphertext).map_err(|e| KmsError::DecryptionFailed {
+        message: format!("AES-GCM decryption failed: {}", e),
+    })
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use fraiseql_core::security::{KmsError, KmsResult};
     use std::collections::HashMap;
+
+    use fraiseql_core::security::{KmsError, KmsResult};
+
+    use super::*;
 
     /// Mock KMS provider for testing
     struct MockKmsProvider;
@@ -297,10 +290,7 @@ mod tests {
             _context: &HashMap<String, String>,
         ) -> KmsResult<(String, String)> {
             // Return base64-encoded plaintext as mock ciphertext
-            Ok((
-                base64_encode(plaintext),
-                "mock-algorithm".to_string(),
-            ))
+            Ok((base64_encode(plaintext), "mock-algorithm".to_string()))
         }
 
         async fn _do_decrypt(
@@ -331,7 +321,7 @@ mod tests {
             _key_id: &str,
         ) -> KmsResult<fraiseql_core::security::kms::base::KeyInfo> {
             Ok(fraiseql_core::security::kms::base::KeyInfo {
-                alias: Some("mock-key".to_string()),
+                alias:      Some("mock-key".to_string()),
                 created_at: 1000000,
             })
         }
@@ -341,10 +331,10 @@ mod tests {
             _key_id: &str,
         ) -> KmsResult<fraiseql_core::security::kms::base::RotationPolicyInfo> {
             Ok(fraiseql_core::security::kms::base::RotationPolicyInfo {
-                enabled: false,
+                enabled:              false,
                 rotation_period_days: 0,
-                last_rotation: None,
-                next_rotation: None,
+                last_rotation:        None,
+                next_rotation:        None,
             })
         }
     }
@@ -356,11 +346,9 @@ mod tests {
 
     fn base64_decode(s: &str) -> KmsResult<Vec<u8>> {
         use base64::prelude::*;
-        BASE64_STANDARD
-            .decode(s)
-            .map_err(|e| KmsError::SerializationError {
-                message: e.to_string(),
-            })
+        BASE64_STANDARD.decode(s).map_err(|e| KmsError::SerializationError {
+            message: e.to_string(),
+        })
     }
 
     #[tokio::test]

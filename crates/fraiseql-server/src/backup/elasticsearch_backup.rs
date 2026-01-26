@@ -1,7 +1,8 @@
 //! Elasticsearch backup provider.
 
-use super::backup_provider::{BackupError, BackupInfo, BackupProvider, BackupResult, StorageUsage};
 use std::collections::HashMap;
+
+use super::backup_provider::{BackupError, BackupInfo, BackupProvider, BackupResult, StorageUsage};
 
 /// Elasticsearch backup provider.
 ///
@@ -11,7 +12,7 @@ pub struct ElasticsearchBackupProvider {
     /// Elasticsearch endpoint URL
     endpoint_url: String,
     /// Backup repository name
-    repository: String,
+    repository:   String,
 }
 
 impl ElasticsearchBackupProvider {
@@ -53,16 +54,16 @@ impl BackupProvider for ElasticsearchBackupProvider {
         // 4. Verify all shards successful
 
         Ok(BackupInfo {
-            backup_id: backup_id.clone(),
-            store_name: "elasticsearch".to_string(),
-            timestamp: std::time::SystemTime::now()
+            backup_id:   backup_id.clone(),
+            store_name:  "elasticsearch".to_string(),
+            timestamp:   std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .map(|d| d.as_secs() as i64)
                 .unwrap_or(0),
-            size_bytes: 0,
-            verified: false,
+            size_bytes:  0,
+            verified:    false,
             compression: None, // Elasticsearch snapshot handles compression
-            metadata: {
+            metadata:    {
                 let mut m = HashMap::new();
                 m.insert("snapshot_id".to_string(), backup_id);
                 m.insert("repository".to_string(), self.repository.clone());
@@ -88,7 +89,7 @@ impl BackupProvider for ElasticsearchBackupProvider {
 
     async fn get_backup(&self, backup_id: &str) -> BackupResult<BackupInfo> {
         Err(BackupError::NotFound {
-            store: "elasticsearch".to_string(),
+            store:     "elasticsearch".to_string(),
             backup_id: backup_id.to_string(),
         })
     }
@@ -105,8 +106,8 @@ impl BackupProvider for ElasticsearchBackupProvider {
 
     async fn get_storage_usage(&self) -> BackupResult<StorageUsage> {
         Ok(StorageUsage {
-            total_bytes: 0,
-            backup_count: 0,
+            total_bytes:             0,
+            backup_count:            0,
             oldest_backup_timestamp: None,
             newest_backup_timestamp: None,
         })

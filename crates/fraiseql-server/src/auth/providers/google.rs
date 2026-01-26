@@ -19,20 +19,20 @@ pub struct GoogleOAuth {
 /// Google user information
 #[derive(Debug, Clone, Deserialize)]
 pub struct GoogleUser {
-    pub sub: String,
-    pub email: String,
+    pub sub:            String,
+    pub email:          String,
     pub email_verified: bool,
-    pub name: Option<String>,
-    pub picture: Option<String>,
-    pub locale: Option<String>,
+    pub name:           Option<String>,
+    pub picture:        Option<String>,
+    pub locale:         Option<String>,
 }
 
 /// Google Workspace group
 #[derive(Debug, Clone, Deserialize)]
 pub struct GoogleWorkspaceGroup {
-    pub id: String,
-    pub email: String,
-    pub name: Option<String>,
+    pub id:          String,
+    pub email:       String,
+    pub name:        Option<String>,
     pub description: Option<String>,
 }
 
@@ -159,7 +159,8 @@ impl OAuthProvider for GoogleOAuth {
         // Note: To get Workspace groups, you would need to:
         // 1. Request additional scopes: https://www.googleapis.com/auth/admin.directory.group.readonly
         // 2. Use Directory API: GET https://www.googleapis.com/admin/directory/v1/groups?userKey={email}
-        // This requires admin consent and service account setup, so it's not included in basic setup
+        // This requires admin consent and service account setup, so it's not included in basic
+        // setup
         //
         // For now, we store the email for later group lookup
         user_info.raw_claims["google_email"] = serde_json::json!(&user_info.email);

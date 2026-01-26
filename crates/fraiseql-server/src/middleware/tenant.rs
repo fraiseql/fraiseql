@@ -1,12 +1,7 @@
 // Multi-tenancy middleware for extracting and enforcing org_id
 // Extracts org_id from JWT claims or request headers and adds to request context
 
-use axum::{
-    body::Body,
-    http::Request,
-    middleware::Next,
-    response::Response,
-};
+use axum::{body::Body, http::Request, middleware::Next, response::Response};
 use tracing::debug;
 
 use crate::middleware::oidc_auth::AuthUser;
@@ -22,10 +17,7 @@ use crate::middleware::oidc_auth::AuthUser;
 /// 1. **Authenticated with JWT claim "org_id"**: Use JWT claim (most secure)
 /// 2. **X-Org-ID header**: Use header (for service-to-service)
 /// 3. **Neither**: Request is not tenant-scoped (public/unauthenticated)
-pub async fn tenant_middleware(
-    mut request: Request<Body>,
-    next: Next,
-) -> Response {
+pub async fn tenant_middleware(mut request: Request<Body>, next: Next) -> Response {
     let mut org_id: Option<String> = None;
 
     // Try to extract org_id from authenticated user's JWT claims

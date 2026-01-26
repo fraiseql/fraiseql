@@ -15,22 +15,22 @@ use crate::auth::{
 /// Supports both app roles and directory roles.
 #[derive(Debug)]
 pub struct AzureADOAuth {
-    oidc: OidcProvider,
+    oidc:   OidcProvider,
     tenant: String,
 }
 
 /// Azure AD user information
 #[derive(Debug, Clone, Deserialize)]
 pub struct AzureADUser {
-    pub oid: String,
+    pub oid:                String,
     pub preferred_username: Option<String>,
-    pub email: Option<String>,
-    pub name: Option<String>,
-    pub given_name: Option<String>,
-    pub surname: Option<String>,
+    pub email:              Option<String>,
+    pub name:               Option<String>,
+    pub given_name:         Option<String>,
+    pub surname:            Option<String>,
     #[serde(rename = "jobTitle")]
-    pub job_title: Option<String>,
-    pub department: Option<String>,
+    pub job_title:          Option<String>,
+    pub department:         Option<String>,
 }
 
 impl AzureADOAuth {
@@ -39,7 +39,8 @@ impl AzureADOAuth {
     /// # Arguments
     /// * `client_id` - Azure AD application (client) ID
     /// * `client_secret` - Azure AD client secret
-    /// * `tenant` - Azure AD tenant ID or domain (e.g., "contoso.onmicrosoft.com" or "12345678-1234-1234-1234-123456789012")
+    /// * `tenant` - Azure AD tenant ID or domain (e.g., "contoso.onmicrosoft.com" or
+    ///   "12345678-1234-1234-1234-123456789012")
     /// * `redirect_uri` - Redirect URI after authentication
     pub async fn new(
         client_id: String,
@@ -49,14 +50,9 @@ impl AzureADOAuth {
     ) -> Result<Self> {
         let issuer_url = format!("https://login.microsoftonline.com/{}/v2.0", tenant);
 
-        let oidc = OidcProvider::new(
-            "azure_ad",
-            &issuer_url,
-            &client_id,
-            &client_secret,
-            &redirect_uri,
-        )
-        .await?;
+        let oidc =
+            OidcProvider::new("azure_ad", &issuer_url, &client_id, &client_secret, &redirect_uri)
+                .await?;
 
         Ok(Self { oidc, tenant })
     }
@@ -70,12 +66,7 @@ impl AzureADOAuth {
         raw_claims
             .get("roles")
             .and_then(|roles| roles.as_array())
-            .map(|roles| {
-                roles
-                    .iter()
-                    .filter_map(|r| r.as_str().map(|s| s.to_string()))
-                    .collect()
-            })
+            .map(|roles| roles.iter().filter_map(|r| r.as_str().map(|s| s.to_string())).collect())
             .unwrap_or_default()
     }
 
@@ -88,12 +79,7 @@ impl AzureADOAuth {
         raw_claims
             .get("groups")
             .and_then(|groups| groups.as_array())
-            .map(|groups| {
-                groups
-                    .iter()
-                    .filter_map(|g| g.as_str().map(|s| s.to_string()))
-                    .collect()
-            })
+            .map(|groups| groups.iter().filter_map(|g| g.as_str().map(|s| s.to_string())).collect())
             .unwrap_or_default()
     }
 
@@ -108,12 +94,7 @@ impl AzureADOAuth {
             .and_then(|sources| sources.get("src1"))
             .and_then(|src| src.get("groups"))
             .and_then(|groups| groups.as_array())
-            .map(|groups| {
-                groups
-                    .iter()
-                    .filter_map(|g| g.as_str().map(|s| s.to_string()))
-                    .collect()
-            })
+            .map(|groups| groups.iter().filter_map(|g| g.as_str().map(|s| s.to_string())).collect())
             .unwrap_or_default()
     }
 
@@ -158,20 +139,12 @@ impl AzureADOAuth {
             .get("preferred_username")
             .and_then(|u| u.as_str())
             .map(|s| s.to_string())
-            .or_else(|| {
-                raw_claims
-                    .get("email")
-                    .and_then(|e| e.as_str())
-                    .map(|s| s.to_string())
-            })
+            .or_else(|| raw_claims.get("email").and_then(|e| e.as_str()).map(|s| s.to_string()))
     }
 
     /// Get user's display name
     pub fn get_user_display_name(raw_claims: &serde_json::Value) -> Option<String> {
-        raw_claims
-            .get("name")
-            .and_then(|n| n.as_str())
-            .map(|s| s.to_string())
+        raw_claims.get("name").and_then(|n| n.as_str()).map(|s| s.to_string())
     }
 }
 

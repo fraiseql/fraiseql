@@ -1,7 +1,8 @@
 //! Backup configuration and scheduling.
 
-use serde::{Deserialize, Serialize};
 use std::time::Duration;
+
+use serde::{Deserialize, Serialize};
 
 /// Backup configuration for a data store.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -38,14 +39,14 @@ pub struct BackupConfig {
 impl Default for BackupConfig {
     fn default() -> Self {
         Self {
-            enabled: true,
-            schedule: "0 * * * *".to_string(), // Hourly
-            retention_count: 24,                 // Keep 24 hourly backups
-            retention_days: 30,
-            storage: "local".to_string(),
-            storage_path: "/var/backups/fraiseql".to_string(),
-            compression: Some("gzip".to_string()),
-            timeout_secs: 600,
+            enabled:             true,
+            schedule:            "0 * * * *".to_string(), // Hourly
+            retention_count:     24,                      // Keep 24 hourly backups
+            retention_days:      30,
+            storage:             "local".to_string(),
+            storage_path:        "/var/backups/fraiseql".to_string(),
+            compression:         Some("gzip".to_string()),
+            timeout_secs:        600,
             verify_after_backup: true,
         }
     }
@@ -55,14 +56,14 @@ impl BackupConfig {
     /// Create config for PostgreSQL backups (hourly, high retention).
     pub fn postgres_default() -> Self {
         Self {
-            enabled: true,
-            schedule: "0 * * * *".to_string(), // Hourly
-            retention_count: 24,
-            retention_days: 30,
-            storage: "local".to_string(),
-            storage_path: "/var/backups/fraiseql/postgres".to_string(),
-            compression: Some("gzip".to_string()),
-            timeout_secs: 1800,
+            enabled:             true,
+            schedule:            "0 * * * *".to_string(), // Hourly
+            retention_count:     24,
+            retention_days:      30,
+            storage:             "local".to_string(),
+            storage_path:        "/var/backups/fraiseql/postgres".to_string(),
+            compression:         Some("gzip".to_string()),
+            timeout_secs:        1800,
             verify_after_backup: true,
         }
     }
@@ -70,14 +71,14 @@ impl BackupConfig {
     /// Create config for Redis backups (daily).
     pub fn redis_default() -> Self {
         Self {
-            enabled: true,
-            schedule: "0 0 * * *".to_string(), // Daily at midnight
-            retention_count: 7,
-            retention_days: 7,
-            storage: "local".to_string(),
-            storage_path: "/var/backups/fraiseql/redis".to_string(),
-            compression: Some("gzip".to_string()),
-            timeout_secs: 600,
+            enabled:             true,
+            schedule:            "0 0 * * *".to_string(), // Daily at midnight
+            retention_count:     7,
+            retention_days:      7,
+            storage:             "local".to_string(),
+            storage_path:        "/var/backups/fraiseql/redis".to_string(),
+            compression:         Some("gzip".to_string()),
+            timeout_secs:        600,
             verify_after_backup: false,
         }
     }
@@ -85,14 +86,14 @@ impl BackupConfig {
     /// Create config for ClickHouse backups (daily).
     pub fn clickhouse_default() -> Self {
         Self {
-            enabled: true,
-            schedule: "0 1 * * *".to_string(), // Daily at 1 AM
-            retention_count: 7,
-            retention_days: 7,
-            storage: "local".to_string(),
-            storage_path: "/var/backups/fraiseql/clickhouse".to_string(),
-            compression: None, // ClickHouse compression built-in
-            timeout_secs: 3600,
+            enabled:             true,
+            schedule:            "0 1 * * *".to_string(), // Daily at 1 AM
+            retention_count:     7,
+            retention_days:      7,
+            storage:             "local".to_string(),
+            storage_path:        "/var/backups/fraiseql/clickhouse".to_string(),
+            compression:         None, // ClickHouse compression built-in
+            timeout_secs:        3600,
             verify_after_backup: false,
         }
     }
@@ -100,14 +101,14 @@ impl BackupConfig {
     /// Create config for Elasticsearch backups (daily).
     pub fn elasticsearch_default() -> Self {
         Self {
-            enabled: true,
-            schedule: "0 2 * * *".to_string(), // Daily at 2 AM
-            retention_count: 7,
-            retention_days: 7,
-            storage: "local".to_string(),
-            storage_path: "/var/backups/fraiseql/elasticsearch".to_string(),
-            compression: None, // Elasticsearch snapshot built-in compression
-            timeout_secs: 3600,
+            enabled:             true,
+            schedule:            "0 2 * * *".to_string(), // Daily at 2 AM
+            retention_count:     7,
+            retention_days:      7,
+            storage:             "local".to_string(),
+            storage_path:        "/var/backups/fraiseql/elasticsearch".to_string(),
+            compression:         None, // Elasticsearch snapshot built-in compression
+            timeout_secs:        3600,
             verify_after_backup: true,
         }
     }

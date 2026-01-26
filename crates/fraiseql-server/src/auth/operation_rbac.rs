@@ -2,9 +2,10 @@
 // Defines permissions for mutations on observer rules, actions, and system operations
 
 use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
-use crate::auth::{error::Result, middleware::AuthenticatedUser, AuthError};
+use crate::auth::{AuthError, error::Result, middleware::AuthenticatedUser};
 
 /// Permission for a specific GraphQL operation/mutation
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -94,7 +95,7 @@ impl OperationPermission {
 /// Predefined roles with their associated permissions
 #[derive(Debug, Clone)]
 pub struct Role {
-    pub name: String,
+    pub name:        String,
     pub permissions: Vec<OperationPermission>,
 }
 
@@ -203,7 +204,11 @@ impl RBACPolicy {
     }
 
     /// Check if a user has permission to perform an operation
-    pub fn authorize(&self, user: &AuthenticatedUser, permission: OperationPermission) -> Result<()> {
+    pub fn authorize(
+        &self,
+        user: &AuthenticatedUser,
+        permission: OperationPermission,
+    ) -> Result<()> {
         // Get user's roles (can be single role or array of roles)
         let user_roles = self.extract_user_roles(user);
 
@@ -226,7 +231,11 @@ impl RBACPolicy {
     }
 
     /// Check multiple permissions at once
-    pub fn authorize_any(&self, user: &AuthenticatedUser, permissions: &[OperationPermission]) -> Result<()> {
+    pub fn authorize_any(
+        &self,
+        user: &AuthenticatedUser,
+        permissions: &[OperationPermission],
+    ) -> Result<()> {
         for permission in permissions {
             if self.authorize(user, *permission).is_ok() {
                 return Ok(());
@@ -234,15 +243,16 @@ impl RBACPolicy {
         }
 
         Err(AuthError::Forbidden {
-            message: format!(
-                "User {} does not have any of the required permissions",
-                user.user_id
-            ),
+            message: format!("User {} does not have any of the required permissions", user.user_id),
         })
     }
 
     /// Check that user has all permissions
-    pub fn authorize_all(&self, user: &AuthenticatedUser, permissions: &[OperationPermission]) -> Result<()> {
+    pub fn authorize_all(
+        &self,
+        user: &AuthenticatedUser,
+        permissions: &[OperationPermission],
+    ) -> Result<()> {
         for permission in permissions {
             self.authorize(user, *permission)?;
         }
@@ -286,7 +296,8 @@ impl RBACPolicy {
         }
 
         // Check for standard claim name variations
-        if let Some(serde_json::Value::Array(role_array)) = user.get_custom_claim("fraiseql_roles") {
+        if let Some(serde_json::Value::Array(role_array)) = user.get_custom_claim("fraiseql_roles")
+        {
             for role_val in role_array {
                 if let serde_json::Value::String(role_name) = role_val {
                     roles.push(role_name.clone());
@@ -313,7 +324,7 @@ mod tests {
 
         AuthenticatedUser {
             user_id: "test-user".to_string(),
-            claims: Claims {
+            claims:  Claims {
                 sub: "test-user".to_string(),
                 iat: 1000000,
                 exp: 2000000,
@@ -326,14 +337,11 @@ mod tests {
 
     fn create_test_user_with_roles(roles: Vec<&str>) -> AuthenticatedUser {
         let mut extra = std::collections::HashMap::new();
-        extra.insert(
-            "roles".to_string(),
-            serde_json::json!(roles),
-        );
+        extra.insert("roles".to_string(), serde_json::json!(roles));
 
         AuthenticatedUser {
             user_id: "test-user".to_string(),
-            claims: Claims {
+            claims:  Claims {
                 sub: "test-user".to_string(),
                 iat: 1000000,
                 exp: 2000000,

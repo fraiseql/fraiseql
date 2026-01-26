@@ -1,10 +1,13 @@
 //! Backup manager orchestrating all backup providers.
 
-use super::backup_config::{BackupConfig, BackupStatus};
-use super::backup_provider::{BackupError, BackupProvider, BackupResult};
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
+
 use tokio::sync::RwLock;
+
+use super::{
+    backup_config::{BackupConfig, BackupStatus},
+    backup_provider::{BackupError, BackupProvider, BackupResult},
+};
 
 /// Manages backups across all data stores.
 pub struct BackupManager {
@@ -55,10 +58,10 @@ impl BackupManager {
             match provider.health_check().await {
                 Ok(_) => {
                     eprintln!("✓ Backup provider '{}' healthy", name);
-                }
+                },
                 Err(e) => {
                     eprintln!("✗ Backup provider '{}' failed health check: {:?}", name, e);
-                }
+                },
             }
         }
 
@@ -69,23 +72,19 @@ impl BackupManager {
     pub async fn backup(&self, provider_name: &str) -> BackupResult<()> {
         let providers = self.providers.read().await;
 
-        let provider = providers.get(provider_name).ok_or_else(|| {
-            BackupError::BackupFailed {
-                store: provider_name.to_string(),
-                message: "Provider not registered".to_string(),
-            }
+        let provider = providers.get(provider_name).ok_or_else(|| BackupError::BackupFailed {
+            store:   provider_name.to_string(),
+            message: "Provider not registered".to_string(),
         })?;
 
-        let config = self.configs.get(provider_name).ok_or_else(|| {
-            BackupError::BackupFailed {
-                store: provider_name.to_string(),
-                message: "No configuration found".to_string(),
-            }
+        let config = self.configs.get(provider_name).ok_or_else(|| BackupError::BackupFailed {
+            store:   provider_name.to_string(),
+            message: "No configuration found".to_string(),
         })?;
 
         if !config.enabled {
             return Err(BackupError::BackupFailed {
-                store: provider_name.to_string(),
+                store:   provider_name.to_string(),
                 message: "Backups disabled".to_string(),
             });
         }
@@ -94,11 +93,11 @@ impl BackupManager {
         let backup_future = provider.backup();
         let timeout_duration = config.timeout();
 
-        let result = tokio::time::timeout(timeout_duration, backup_future)
-            .await
-            .map_err(|_| BackupError::Timeout {
+        let result = tokio::time::timeout(timeout_duration, backup_future).await.map_err(|_| {
+            BackupError::Timeout {
                 store: provider_name.to_string(),
-            })?;
+            }
+        })?;
 
         match result {
             Ok(backup_info) => {
@@ -107,34 +106,34 @@ impl BackupManager {
                 cache.insert(
                     provider_name.to_string(),
                     BackupStatus {
-                        store_name: provider_name.to_string(),
-                        enabled: config.enabled,
+                        store_name:             provider_name.to_string(),
+                        enabled:                config.enabled,
                         last_successful_backup: Some(backup_info.timestamp),
-                        last_backup_size: Some(backup_info.size_bytes),
-                        available_backups: 1, // Would count in production
-                        last_error: None,
-                        status: "healthy".to_string(),
+                        last_backup_size:       Some(backup_info.size_bytes),
+                        available_backups:      1, // Would count in production
+                        last_error:             None,
+                        status:                 "healthy".to_string(),
                     },
                 );
                 Ok(())
-            }
+            },
             Err(e) => {
                 // Update status cache with error
                 let mut cache = self.status_cache.write().await;
                 cache.insert(
                     provider_name.to_string(),
                     BackupStatus {
-                        store_name: provider_name.to_string(),
-                        enabled: config.enabled,
+                        store_name:             provider_name.to_string(),
+                        enabled:                config.enabled,
                         last_successful_backup: None,
-                        last_backup_size: None,
-                        available_backups: 0,
-                        last_error: Some(e.to_string()),
-                        status: "error".to_string(),
+                        last_backup_size:       None,
+                        available_backups:      0,
+                        last_error:             Some(e.to_string()),
+                        status:                 "error".to_string(),
                     },
                 );
                 Err(e)
-            }
+            },
         }
     }
 
@@ -145,29 +144,21 @@ impl BackupManager {
 
     /// Get backup status for a specific provider.
     pub async fn get_provider_status(&self, provider_name: &str) -> Option<BackupStatus> {
-        self.status_cache
-            .read()
-            .await
-            .get(provider_name)
-            .cloned()
+        self.status_cache.read().await.get(provider_name).cloned()
     }
 
     /// Restore from a backup.
     pub async fn restore(&self, provider_name: &str, backup_id: &str) -> BackupResult<()> {
         let providers = self.providers.read().await;
 
-        let provider = providers.get(provider_name).ok_or_else(|| {
-            BackupError::RestoreFailed {
-                store: provider_name.to_string(),
-                message: "Provider not registered".to_string(),
-            }
+        let provider = providers.get(provider_name).ok_or_else(|| BackupError::RestoreFailed {
+            store:   provider_name.to_string(),
+            message: "Provider not registered".to_string(),
         })?;
 
-        let config = self.configs.get(provider_name).ok_or_else(|| {
-            BackupError::RestoreFailed {
-                store: provider_name.to_string(),
-                message: "No configuration found".to_string(),
-            }
+        let config = self.configs.get(provider_name).ok_or_else(|| BackupError::RestoreFailed {
+            store:   provider_name.to_string(),
+            message: "No configuration found".to_string(),
         })?;
 
         provider.restore(backup_id, config.verify_after_backup).await
@@ -177,11 +168,9 @@ impl BackupManager {
     pub async fn list_backups(&self, provider_name: &str) -> BackupResult<Vec<String>> {
         let providers = self.providers.read().await;
 
-        let provider = providers.get(provider_name).ok_or_else(|| {
-            BackupError::BackupFailed {
-                store: provider_name.to_string(),
-                message: "Provider not registered".to_string(),
-            }
+        let provider = providers.get(provider_name).ok_or_else(|| BackupError::BackupFailed {
+            store:   provider_name.to_string(),
+            message: "Provider not registered".to_string(),
         })?;
 
         let backups = provider.list_backups().await?;
@@ -211,13 +200,13 @@ mod tests {
 
         async fn backup(&self) -> BackupResult<BackupInfo> {
             Ok(BackupInfo {
-                backup_id: format!("{}-backup-1", self.name),
-                store_name: self.name.clone(),
-                timestamp: 1000000,
-                size_bytes: 1024 * 1024,
-                verified: true,
+                backup_id:   format!("{}-backup-1", self.name),
+                store_name:  self.name.clone(),
+                timestamp:   1000000,
+                size_bytes:  1024 * 1024,
+                verified:    true,
                 compression: Some("gzip".to_string()),
-                metadata: Default::default(),
+                metadata:    Default::default(),
             })
         }
 
@@ -227,25 +216,25 @@ mod tests {
 
         async fn list_backups(&self) -> BackupResult<Vec<BackupInfo>> {
             Ok(vec![BackupInfo {
-                backup_id: format!("{}-backup-1", self.name),
-                store_name: self.name.clone(),
-                timestamp: 1000000,
-                size_bytes: 1024 * 1024,
-                verified: true,
+                backup_id:   format!("{}-backup-1", self.name),
+                store_name:  self.name.clone(),
+                timestamp:   1000000,
+                size_bytes:  1024 * 1024,
+                verified:    true,
                 compression: Some("gzip".to_string()),
-                metadata: Default::default(),
+                metadata:    Default::default(),
             }])
         }
 
         async fn get_backup(&self, backup_id: &str) -> BackupResult<BackupInfo> {
             Ok(BackupInfo {
-                backup_id: backup_id.to_string(),
-                store_name: self.name.clone(),
-                timestamp: 1000000,
-                size_bytes: 1024 * 1024,
-                verified: true,
+                backup_id:   backup_id.to_string(),
+                store_name:  self.name.clone(),
+                timestamp:   1000000,
+                size_bytes:  1024 * 1024,
+                verified:    true,
                 compression: Some("gzip".to_string()),
-                metadata: Default::default(),
+                metadata:    Default::default(),
             })
         }
 
@@ -259,8 +248,8 @@ mod tests {
 
         async fn get_storage_usage(&self) -> BackupResult<StorageUsage> {
             Ok(StorageUsage {
-                total_bytes: 1024 * 1024 * 100,
-                backup_count: 7,
+                total_bytes:             1024 * 1024 * 100,
+                backup_count:            7,
                 oldest_backup_timestamp: Some(999999),
                 newest_backup_timestamp: Some(1000000),
             })
@@ -305,10 +294,7 @@ mod tests {
             name: "postgres".to_string(),
         });
 
-        manager
-            .register_provider("postgres".to_string(), provider)
-            .await
-            .unwrap();
+        manager.register_provider("postgres".to_string(), provider).await.unwrap();
 
         manager.backup("postgres").await.unwrap();
 
@@ -326,10 +312,7 @@ mod tests {
             name: "postgres".to_string(),
         });
 
-        manager
-            .register_provider("postgres".to_string(), provider)
-            .await
-            .unwrap();
+        manager.register_provider("postgres".to_string(), provider).await.unwrap();
 
         let backups = manager.list_backups("postgres").await.unwrap();
         assert_eq!(backups.len(), 1);

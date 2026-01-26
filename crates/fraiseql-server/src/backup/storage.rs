@@ -79,11 +79,9 @@ impl BackupStorage for LocalFileStorage {
     async fn store(&self, backup_id: &str, data: &[u8]) -> Result<u64, StorageError> {
         let path = self.get_path(backup_id);
 
-        tokio::fs::write(&path, data)
-            .await
-            .map_err(|e| StorageError::IoError {
-                message: format!("Failed to write backup: {}", e),
-            })?;
+        tokio::fs::write(&path, data).await.map_err(|e| StorageError::IoError {
+            message: format!("Failed to write backup: {}", e),
+        })?;
 
         Ok(data.len() as u64)
     }
@@ -97,22 +95,18 @@ impl BackupStorage for LocalFileStorage {
             });
         }
 
-        tokio::fs::read(&path)
-            .await
-            .map_err(|e| StorageError::IoError {
-                message: format!("Failed to read backup: {}", e),
-            })
+        tokio::fs::read(&path).await.map_err(|e| StorageError::IoError {
+            message: format!("Failed to read backup: {}", e),
+        })
     }
 
     async fn delete(&self, backup_id: &str) -> Result<(), StorageError> {
         let path = self.get_path(backup_id);
 
         if path.exists() {
-            tokio::fs::remove_file(&path)
-                .await
-                .map_err(|e| StorageError::IoError {
-                    message: format!("Failed to delete backup: {}", e),
-                })?;
+            tokio::fs::remove_file(&path).await.map_err(|e| StorageError::IoError {
+                message: format!("Failed to delete backup: {}", e),
+            })?;
         }
 
         Ok(())
@@ -121,19 +115,14 @@ impl BackupStorage for LocalFileStorage {
     async fn list(&self) -> Result<Vec<String>, StorageError> {
         let mut entries = Vec::new();
 
-        let mut dir = tokio::fs::read_dir(&self.base_path)
-            .await
-            .map_err(|e| StorageError::IoError {
+        let mut dir =
+            tokio::fs::read_dir(&self.base_path).await.map_err(|e| StorageError::IoError {
                 message: format!("Failed to list backups: {}", e),
             })?;
 
-        while let Some(entry) = dir
-            .next_entry()
-            .await
-            .map_err(|e| StorageError::IoError {
-                message: format!("Failed to read backup entry: {}", e),
-            })?
-        {
+        while let Some(entry) = dir.next_entry().await.map_err(|e| StorageError::IoError {
+            message: format!("Failed to read backup entry: {}", e),
+        })? {
             if let Some(name) = entry.file_name().to_str() {
                 if name.ends_with(".backup") {
                     let backup_id = name.strip_suffix(".backup").unwrap_or(name).to_string();
@@ -154,11 +143,9 @@ impl BackupStorage for LocalFileStorage {
             });
         }
 
-        let metadata = tokio::fs::metadata(&path)
-            .await
-            .map_err(|e| StorageError::IoError {
-                message: format!("Failed to get backup size: {}", e),
-            })?;
+        let metadata = tokio::fs::metadata(&path).await.map_err(|e| StorageError::IoError {
+            message: format!("Failed to get backup size: {}", e),
+        })?;
 
         Ok(metadata.len())
     }
@@ -171,8 +158,9 @@ impl BackupStorage for LocalFileStorage {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use tempfile::TempDir;
+
+    use super::*;
 
     #[tokio::test]
     async fn test_local_storage_store_retrieve() {

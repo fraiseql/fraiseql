@@ -34,14 +34,15 @@ pub async fn create_provider(
         "github" => {
             let provider = GitHubOAuth::new(client_id, client_secret, redirect_uri).await?;
             Ok(Box::new(provider))
-        }
+        },
         "google" => {
             let provider = GoogleOAuth::new(client_id, client_secret, redirect_uri).await?;
             Ok(Box::new(provider))
-        }
+        },
         "keycloak" => {
             let config = config.ok_or_else(|| crate::auth::AuthError::ConfigError {
-                message: "Keycloak provider requires config with keycloak_url and realm".to_string(),
+                message: "Keycloak provider requires config with keycloak_url and realm"
+                    .to_string(),
             })?;
 
             let keycloak_url = config
@@ -60,16 +61,11 @@ pub async fn create_provider(
                 })?
                 .to_string();
 
-            let provider = KeycloakOAuth::new(
-                client_id,
-                client_secret,
-                keycloak_url,
-                realm,
-                redirect_uri,
-            )
-            .await?;
+            let provider =
+                KeycloakOAuth::new(client_id, client_secret, keycloak_url, realm, redirect_uri)
+                    .await?;
             Ok(Box::new(provider))
-        }
+        },
         "azure_ad" => {
             let config = config.ok_or_else(|| crate::auth::AuthError::ConfigError {
                 message: "Azure AD provider requires config with tenant".to_string(),
@@ -83,9 +79,10 @@ pub async fn create_provider(
                 })?
                 .to_string();
 
-            let provider = AzureADOAuth::new(client_id, client_secret, tenant, redirect_uri).await?;
+            let provider =
+                AzureADOAuth::new(client_id, client_secret, tenant, redirect_uri).await?;
             Ok(Box::new(provider))
-        }
+        },
         _ => Err(crate::auth::AuthError::ConfigError {
             message: format!("Unknown provider type: {}", provider_type),
         }),
@@ -115,17 +112,15 @@ mod tests {
 
     #[test]
     fn test_keycloak_role_mapping() {
-        let roles = keycloak::KeycloakOAuth::map_keycloak_roles_to_fraiseql(vec![
-            "admin".to_string(),
-        ]);
+        let roles =
+            keycloak::KeycloakOAuth::map_keycloak_roles_to_fraiseql(vec!["admin".to_string()]);
         assert!(roles.contains(&"admin".to_string()));
     }
 
     #[test]
     fn test_azure_ad_role_mapping() {
-        let roles = azure_ad::AzureADOAuth::map_azure_roles_to_fraiseql(vec![
-            "fraiseql.admin".to_string(),
-        ]);
+        let roles =
+            azure_ad::AzureADOAuth::map_azure_roles_to_fraiseql(vec!["fraiseql.admin".to_string()]);
         assert!(roles.contains(&"admin".to_string()));
     }
 }

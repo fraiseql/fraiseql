@@ -13,6 +13,7 @@ use crate::auth::{
     error::{AuthError, Result},
     provider::OAuthProvider,
     session::SessionStore,
+    state_store::StateStore,
 };
 
 /// AuthState holds the auth configuration and backends
@@ -22,8 +23,8 @@ pub struct AuthState {
     pub oauth_provider: Arc<dyn OAuthProvider>,
     /// Session store backend
     pub session_store:  Arc<dyn SessionStore>,
-    /// In-memory state store for CSRF protection (TODO: replace with persistent store)
-    pub state_store:    Arc<dashmap::DashMap<String, (String, u64)>>,
+    /// CSRF state store backend (in-memory for single-instance, Redis for distributed)
+    pub state_store:    Arc<dyn StateStore>,
 }
 
 /// Request body for auth/start endpoint
@@ -108,10 +109,9 @@ pub async fn auth_start(
         .as_secs()
         + 600;
 
-    state.state_store.insert(
-        state_value.clone(),
-        (req.provider.unwrap_or_else(|| "default".to_string()), expiry),
-    );
+    // SECURITY: Store state using configurable backend (in-memory or distributed)
+    let provider = req.provider.unwrap_or_else(|| "default".to_string());
+    state.state_store.store(state_value.clone(), provider, expiry).await?;
 
     // Generate authorization URL
     let authorization_url = state.oauth_provider.authorization_url(&state_value);
@@ -133,9 +133,8 @@ pub async fn auth_callback(
         });
     }
 
-    // Validate state (CSRF protection)
-    let (_, entry) = state.state_store.remove(&query.state).ok_or(AuthError::InvalidState)?;
-    let (_provider_name, expiry) = entry;
+    // SECURITY: Validate state using configurable backend (distributed-safe)
+    let (_provider_name, expiry) = state.state_store.retrieve(&query.state).await?;
 
     // Check state expiry
     let now = std::time::SystemTime::now()

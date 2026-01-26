@@ -1,6 +1,7 @@
 //! Backup and Disaster Recovery System
 //!
-//! Provides automated backups for all data stores with configurable schedules and retention policies.
+//! Provides automated backups for all data stores with configurable schedules and retention
+//! policies.
 //!
 //! # Architecture
 //!

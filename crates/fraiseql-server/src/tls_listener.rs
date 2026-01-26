@@ -57,14 +57,14 @@ pub async fn accept_connection(
         None => {
             // Plain connection
             Ok((AcceptedConnection::Plain(stream), addr))
-        }
+        },
         Some(acceptor) => {
             // TLS connection
             match acceptor.accept(stream).await {
                 Ok(tls_stream) => Ok((AcceptedConnection::Tls(tls_stream), addr)),
                 Err(e) => Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
             }
-        }
+        },
     }
 }
 

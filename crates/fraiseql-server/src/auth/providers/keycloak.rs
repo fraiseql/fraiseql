@@ -15,22 +15,22 @@ use crate::auth::{
 /// Supports both realm roles and client roles.
 #[derive(Debug)]
 pub struct KeycloakOAuth {
-    oidc: OidcProvider,
-    realm: String,
+    oidc:        OidcProvider,
+    realm:       String,
     client_name: String,
 }
 
 /// Keycloak token claims structure (partial)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KeycloakTokenClaims {
-    pub sub: String,
+    pub sub:                String,
     pub preferred_username: Option<String>,
-    pub email: Option<String>,
-    pub name: Option<String>,
-    pub given_name: Option<String>,
-    pub family_name: Option<String>,
-    pub realm_access: Option<RealmAccess>,
-    pub resource_access: Option<serde_json::Value>,
+    pub email:              Option<String>,
+    pub name:               Option<String>,
+    pub given_name:         Option<String>,
+    pub family_name:        Option<String>,
+    pub realm_access:       Option<RealmAccess>,
+    pub resource_access:    Option<serde_json::Value>,
 }
 
 /// Keycloak realm access structure
@@ -63,8 +63,9 @@ impl KeycloakOAuth {
     ) -> Result<Self> {
         let issuer_url = format!("{}/realms/{}", keycloak_url.trim_end_matches('/'), realm);
 
-        let oidc = OidcProvider::new("keycloak", &issuer_url, &client_id, &client_secret, &redirect_uri)
-            .await?;
+        let oidc =
+            OidcProvider::new("keycloak", &issuer_url, &client_id, &client_secret, &redirect_uri)
+                .await?;
 
         Ok(Self {
             oidc,
@@ -82,12 +83,7 @@ impl KeycloakOAuth {
             .get("realm_access")
             .and_then(|ra| ra.get("roles"))
             .and_then(|roles| roles.as_array())
-            .map(|roles| {
-                roles
-                    .iter()
-                    .filter_map(|r| r.as_str().map(|s| s.to_string()))
-                    .collect()
-            })
+            .map(|roles| roles.iter().filter_map(|r| r.as_str().map(|s| s.to_string())).collect())
             .unwrap_or_default()
     }
 
@@ -102,12 +98,7 @@ impl KeycloakOAuth {
             .and_then(|ra| ra.get(client_name))
             .and_then(|client| client.get("roles"))
             .and_then(|roles| roles.as_array())
-            .map(|roles| {
-                roles
-                    .iter()
-                    .filter_map(|r| r.as_str().map(|s| s.to_string()))
-                    .collect()
-            })
+            .map(|roles| roles.iter().filter_map(|r| r.as_str().map(|s| s.to_string())).collect())
             .unwrap_or_default()
     }
 
@@ -267,7 +258,11 @@ mod tests {
 
     #[test]
     fn test_map_roles_case_insensitive() {
-        let roles = vec!["ADMIN".to_string(), "Operator".to_string(), "VIEWER".to_string()];
+        let roles = vec![
+            "ADMIN".to_string(),
+            "Operator".to_string(),
+            "VIEWER".to_string(),
+        ];
         let fraiseql_roles = KeycloakOAuth::map_keycloak_roles_to_fraiseql(roles);
 
         assert_eq!(fraiseql_roles.len(), 3);

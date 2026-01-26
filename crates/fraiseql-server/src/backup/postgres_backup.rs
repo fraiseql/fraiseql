@@ -1,7 +1,8 @@
 //! PostgreSQL backup provider.
 
-use super::backup_provider::{BackupError, BackupInfo, BackupProvider, BackupResult, StorageUsage};
 use std::collections::HashMap;
+
+use super::backup_provider::{BackupError, BackupInfo, BackupProvider, BackupResult, StorageUsage};
 
 /// PostgreSQL backup provider.
 ///
@@ -94,7 +95,7 @@ impl BackupProvider for PostgresBackupProvider {
 
     async fn get_backup(&self, backup_id: &str) -> BackupResult<BackupInfo> {
         Err(BackupError::NotFound {
-            store: "postgres".to_string(),
+            store:     "postgres".to_string(),
             backup_id: backup_id.to_string(),
         })
     }
@@ -114,8 +115,8 @@ impl BackupProvider for PostgresBackupProvider {
 
     async fn get_storage_usage(&self) -> BackupResult<StorageUsage> {
         Ok(StorageUsage {
-            total_bytes: 0,
-            backup_count: 0,
+            total_bytes:             0,
+            backup_count:            0,
             oldest_backup_timestamp: None,
             newest_backup_timestamp: None,
         })

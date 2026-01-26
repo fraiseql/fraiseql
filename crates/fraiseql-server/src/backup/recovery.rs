@@ -1,5 +1,7 @@
 //! Disaster recovery utilities.
 
+use std::time::SystemTime;
+
 /// Disaster Recovery Runbook
 ///
 /// This module provides utilities and documentation for recovering from data loss.
@@ -112,9 +114,7 @@
 /// - DBA: (escalate to data recovery team)
 /// - DevOps: (coordinate infrastructure changes)
 /// - Engineering Lead: (assess impact and prioritize recovery)
-
 use serde::{Deserialize, Serialize};
-use std::time::SystemTime;
 
 /// Recovery status for a single data store.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -226,64 +226,64 @@ impl RecoveryChecklist {
         Self {
             items: vec![
                 RecoveryChecklistItem {
-                    id: "assess".to_string(),
+                    id:          "assess".to_string(),
                     description: "Assess data loss and impact".to_string(),
-                    completed: false,
-                    notes: None,
+                    completed:   false,
+                    notes:       None,
                 },
                 RecoveryChecklistItem {
-                    id: "notify".to_string(),
+                    id:          "notify".to_string(),
                     description: "Notify stakeholders of RTO/RPO".to_string(),
-                    completed: false,
-                    notes: None,
+                    completed:   false,
+                    notes:       None,
                 },
                 RecoveryChecklistItem {
-                    id: "postgres".to_string(),
+                    id:          "postgres".to_string(),
                     description: "Restore PostgreSQL from backup".to_string(),
-                    completed: false,
-                    notes: None,
+                    completed:   false,
+                    notes:       None,
                 },
                 RecoveryChecklistItem {
-                    id: "redis".to_string(),
+                    id:          "redis".to_string(),
                     description: "Restore Redis from dump".to_string(),
-                    completed: false,
-                    notes: None,
+                    completed:   false,
+                    notes:       None,
                 },
                 RecoveryChecklistItem {
-                    id: "clickhouse".to_string(),
+                    id:          "clickhouse".to_string(),
                     description: "Restore ClickHouse from snapshot".to_string(),
-                    completed: false,
-                    notes: None,
+                    completed:   false,
+                    notes:       None,
                 },
                 RecoveryChecklistItem {
-                    id: "elasticsearch".to_string(),
+                    id:          "elasticsearch".to_string(),
                     description: "Restore Elasticsearch indices".to_string(),
-                    completed: false,
-                    notes: None,
+                    completed:   false,
+                    notes:       None,
                 },
                 RecoveryChecklistItem {
-                    id: "verify".to_string(),
+                    id:          "verify".to_string(),
                     description: "Verify data integrity and consistency".to_string(),
-                    completed: false,
-                    notes: None,
+                    completed:   false,
+                    notes:       None,
                 },
                 RecoveryChecklistItem {
-                    id: "test".to_string(),
+                    id:          "test".to_string(),
                     description: "Run acceptance tests".to_string(),
-                    completed: false,
-                    notes: None,
+                    completed:   false,
+                    notes:       None,
                 },
                 RecoveryChecklistItem {
-                    id: "restart".to_string(),
+                    id:          "restart".to_string(),
                     description: "Restart all services".to_string(),
-                    completed: false,
-                    notes: None,
+                    completed:   false,
+                    notes:       None,
                 },
                 RecoveryChecklistItem {
-                    id: "monitor".to_string(),
+                    id:          "monitor".to_string(),
                     description: "Monitor applications for issues".to_string(),
-                    completed: false,
-                    notes: None,
+                    completed:   false,
+                    notes:       None,
                 },
             ],
         }
