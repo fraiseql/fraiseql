@@ -209,6 +209,112 @@ function salesAggregate(): Record<string, unknown>[] {
 }
 ```
 
+#### `@Subscription(config?)`
+
+Mark a function as a GraphQL subscription for real-time events.
+
+Subscriptions in FraiseQL are **compiled database event projections** sourced from LISTEN/NOTIFY or CDC, not resolver-based.
+
+```typescript
+@fraiseql.Subscription({ topic: "order_events" })
+function orderCreated(userId?: string): Order {
+  pass;
+}
+```
+
+### Subscription Configuration
+
+**SubscriptionConfig Options**:
+
+- `entityType`: Entity type being subscribed to (defaults to return type)
+- `topic`: Optional topic/channel name for filtering events
+- `operation`: Single event type filter - "CREATE" | "UPDATE" | "DELETE"
+- `operations`: Multiple event type filters - ["CREATE", "UPDATE", "DELETE"]
+
+**Manual Registration**:
+
+```typescript
+fraiseql.registerSubscription(
+  "orderCreated",        // name
+  "Order",               // entityType
+  false,                 // nullable
+  [
+    { name: "userId", type: "String", nullable: true }
+  ],                     // filter arguments
+  "Subscribe to new orders",
+  { topic: "order_events", operation: "CREATE" }
+);
+```
+
+**Subscription Patterns**:
+
+1. **Event Type Filtering** - Subscribe to specific operations
+
+```typescript
+fraiseql.registerSubscription(
+  "userCreated",
+  "User",
+  false,
+  [],
+  "New user registrations",
+  { operation: "CREATE" }  // Only CREATE events
+);
+```
+
+2. **Topic-Based Subscriptions** - Route to different channels
+
+```typescript
+fraiseql.registerSubscription(
+  "criticalOrders",
+  "Order",
+  false,
+  [],
+  "High-priority orders",
+  { topic: "orders.critical", operation: "CREATE" }
+);
+```
+
+3. **Filtered Subscriptions** - Target specific records
+
+```typescript
+fraiseql.registerSubscription(
+  "customerOrders",
+  "Order",
+  false,
+  [{ name: "customerId", type: "ID", nullable: false }],  // Filter by customer
+  "Orders for specific customer"
+);
+```
+
+4. **Change Data Capture (CDC)** - Capture all changes
+
+```typescript
+fraiseql.registerSubscription(
+  "userCDC",
+  "User",
+  false,
+  [],
+  "All user changes",
+  { operations: ["CREATE", "UPDATE", "DELETE"] }
+);
+```
+
+5. **Alerts and Notifications** - Complex filtering
+
+```typescript
+fraiseql.registerSubscription(
+  "unusualOrders",
+  "Order",
+  false,
+  [
+    { name: "minAmount", type: "Decimal", nullable: false },
+    { name: "timeWindowMinutes", type: "Int", nullable: true }
+  ],
+  "Alert on high-value orders",
+  { operation: "CREATE" }
+);
+```
+
 ### Type System Decorators
 
 #### `enum_(name, values, config?)`
@@ -556,16 +662,18 @@ See the `examples/` directory:
 - **types-advanced.ts** - Comprehensive type system example (enums, interfaces, unions, input types)
 - **unions-interfaces-example.ts** - Interfaces, unions, and polymorphic queries
 - **field-metadata.ts** - Field-level access control, deprecation, and documentation
+- **subscriptions.ts** - Real-time subscriptions: event filtering, topics, CDC, alerts
 - **comprehensive-example.ts** - Full-featured schema with all FraiseQL capabilities
 
 Run examples:
 
 ```bash
-npm run example:basic       # Generate basic schema
-npm run example:analytics   # Generate analytics schema
-npm run example:enums       # Generate enum example
-npm run example:advanced    # Generate advanced types example
-npm run example:metadata    # Generate field metadata example
+npm run example:basic         # Generate basic schema
+npm run example:analytics     # Generate analytics schema
+npm run example:enums         # Generate enum example
+npm run example:advanced      # Generate advanced types example
+npm run example:metadata      # Generate field metadata example
+npm run example:subscriptions # Generate subscriptions example
 ```
 
 ## Development
