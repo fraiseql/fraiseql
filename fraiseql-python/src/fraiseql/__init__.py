@@ -60,6 +60,16 @@ from fraiseql.observers import (
 )
 from fraiseql.scalars import ID, UUID, Date, DateTime, Decimal, Json, Time, Vector
 from fraiseql.schema import config, export_schema
+from fraiseql.security import (
+    AuthorizeConfig,
+    AuthzPolicyConfig,
+    AuthzPolicyType,
+    RoleMatchStrategy,
+    RoleRequiredConfig,
+    authorize,
+    authz_policy,
+    role_required,
+)
 
 __version__ = "2.0.0-alpha.1"
 
@@ -75,6 +85,15 @@ __all__ = [
     "subscription",
     "field",
     "FieldConfig",
+    # Security
+    "authorize",
+    "role_required",
+    "authz_policy",
+    "AuthorizeConfig",
+    "RoleRequiredConfig",
+    "AuthzPolicyConfig",
+    "RoleMatchStrategy",
+    "AuthzPolicyType",
     # Observers
     "observer_decorator",
     "Observer",
