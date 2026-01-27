@@ -87,6 +87,14 @@ pub struct CompiledSchema {
     /// Observer definitions (database change event listeners).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub observers: Vec<ObserverDefinition>,
+
+    /// Federation metadata for Apollo Federation v2 support.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub federation: Option<serde_json::Value>,
+
+    /// Raw GraphQL schema as string (for SDL generation).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub schema_sdl: Option<String>,
 }
 
 impl CompiledSchema {
@@ -272,6 +280,42 @@ impl CompiledSchema {
     #[must_use]
     pub fn observer_count(&self) -> usize {
         self.observers.len()
+    }
+
+    /// Get federation metadata from schema.
+    ///
+    /// # Returns
+    ///
+    /// Federation metadata if configured in schema
+    #[must_use]
+    pub fn federation_metadata(&self) -> Option<crate::federation::FederationMetadata> {
+        self.federation.as_ref().and_then(|fed_json| {
+            serde_json::from_value(fed_json.clone()).ok()
+        })
+    }
+
+    /// Get raw GraphQL schema SDL.
+    ///
+    /// # Returns
+    ///
+    /// Raw schema string if available, otherwise generates from type definitions
+    #[must_use]
+    pub fn raw_schema(&self) -> String {
+        self.schema_sdl.clone().unwrap_or_else(|| {
+            // Generate basic SDL from type definitions if not provided
+            let mut sdl = String::new();
+
+            // Add types
+            for type_def in &self.types {
+                sdl.push_str(&format!("type {} {{\n", type_def.name));
+                for field in &type_def.fields {
+                    sdl.push_str(&format!("  {}: {}\n", field.name, field.field_type));
+                }
+                sdl.push_str("}\n\n");
+            }
+
+            sdl
+        })
     }
 
     /// Validate the schema for internal consistency.

@@ -196,6 +196,10 @@ impl CodeGenerator {
             // Observers are populated from ir.observers. Currently empty; will be populated
             // when observer support is added to the IR layer.
             observers: Vec::new(),
+            // Federation metadata: populated if Apollo Federation is configured
+            federation: None,
+            // Raw schema SDL: populated for federation _service query
+            schema_sdl: None,
         })
     }
 

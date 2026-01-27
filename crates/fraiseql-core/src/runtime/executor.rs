@@ -41,6 +41,10 @@ enum QueryType {
     /// Contains the full query name (e.g., "sales_window").
     Window(String),
 
+    /// Federation query (_service or _entities).
+    /// Contains the query name ("_service" or "_entities").
+    Federation(String),
+
     /// Introspection query (`__schema`).
     IntrospectionSchema,
 
@@ -226,6 +230,9 @@ impl<A: DatabaseAdapter> Executor<A> {
             QueryType::Window(query_name) => {
                 self.execute_window_dispatch(&query_name, variables).await
             },
+            QueryType::Federation(query_name) => {
+                self.execute_federation_query(&query_name, query, variables).await
+            },
             QueryType::IntrospectionSchema => {
                 // Return pre-built __schema response (zero-cost at runtime)
                 Ok(self.introspection.schema_response.clone())
@@ -285,6 +292,9 @@ impl<A: DatabaseAdapter> Executor<A> {
             },
             QueryType::Window(query_name) => {
                 self.execute_window_dispatch(&query_name, variables).await
+            },
+            QueryType::Federation(query_name) => {
+                self.execute_federation_query(&query_name, query, variables).await
             },
             QueryType::IntrospectionSchema => Ok(self.introspection.schema_response.clone()),
             QueryType::IntrospectionType(type_name) => {
@@ -454,9 +464,14 @@ impl<A: DatabaseAdapter> Executor<A> {
 
     /// Classify query type based on operation name.
     fn classify_query(&self, query: &str) -> Result<QueryType> {
-        // Check for introspection queries first (higher priority)
+        // Check for introspection queries first (highest priority)
         if let Some(introspection_type) = self.detect_introspection(query) {
             return Ok(introspection_type);
+        }
+
+        // Check for federation queries (higher priority than regular queries)
+        if let Some(federation_type) = self.detect_federation(query) {
+            return Ok(federation_type);
         }
 
         // Parse the query to extract the root field name
@@ -500,6 +515,25 @@ impl<A: DatabaseAdapter> Executor<A> {
             }
             // If no type name found, return schema introspection as fallback
             return Some(QueryType::IntrospectionSchema);
+        }
+
+        None
+    }
+
+    /// Detect if a query is a federation query (_service or _entities).
+    ///
+    /// Returns `Some(QueryType)` for federation queries, `None` otherwise.
+    fn detect_federation(&self, query: &str) -> Option<QueryType> {
+        let query_trimmed = query.trim();
+
+        // Check for _service query
+        if query_trimmed.contains("_service") {
+            return Some(QueryType::Federation("_service".to_string()));
+        }
+
+        // Check for _entities query
+        if query_trimmed.contains("_entities") {
+            return Some(QueryType::Federation("_entities".to_string()));
         }
 
         None
@@ -606,6 +640,103 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         // Execute window query
         self.execute_window_query(query_json, query_name, &metadata).await
+    }
+
+    /// Execute a federation query (_service or _entities).
+    async fn execute_federation_query(
+        &self,
+        query_name: &str,
+        query: &str,
+        variables: Option<&serde_json::Value>,
+    ) -> Result<String> {
+        match query_name {
+            "_service" => self.execute_service_query().await,
+            "_entities" => self.execute_entities_query(query, variables).await,
+            _ => Err(FraiseQLError::Validation {
+                message: format!("Unknown federation query: {}", query_name),
+                path: None,
+            }),
+        }
+    }
+
+    /// Execute _service query returning federation SDL.
+    async fn execute_service_query(&self) -> Result<String> {
+        // Get federation metadata from schema
+        let fed_metadata = self.schema.federation_metadata().ok_or_else(|| {
+            FraiseQLError::Validation {
+                message: "Federation not enabled in schema".to_string(),
+                path: None,
+            }
+        })?;
+
+        // Generate SDL with federation directives
+        let raw_schema = self.schema.raw_schema();
+        let sdl = crate::federation::generate_service_sdl(&raw_schema, &fed_metadata);
+
+        // Return federation response format
+        let response = serde_json::json!({
+            "data": {
+                "_service": {
+                    "sdl": sdl
+                }
+            }
+        });
+
+        Ok(serde_json::to_string(&response)?)
+    }
+
+    /// Execute _entities query resolving federation entities.
+    async fn execute_entities_query(
+        &self,
+        _query: &str,
+        variables: Option<&serde_json::Value>,
+    ) -> Result<String> {
+        // Get federation metadata from schema
+        let fed_metadata = self.schema.federation_metadata().ok_or_else(|| {
+            FraiseQLError::Validation {
+                message: "Federation not enabled in schema".to_string(),
+                path: None,
+            }
+        })?;
+
+        // Extract representations from variables
+        let representations_value = variables
+            .and_then(|v| v.get("representations"))
+            .ok_or_else(|| FraiseQLError::Validation {
+                message: "_entities query requires 'representations' variable".to_string(),
+                path: None,
+            })?;
+
+        // Parse representations
+        let representations =
+            crate::federation::parse_representations(representations_value, &fed_metadata)
+                .map_err(|e| FraiseQLError::Validation {
+                    message: format!("Failed to parse representations: {}", e),
+                    path: None,
+                })?;
+
+        // Validate representations
+        crate::federation::validate_representations(&representations, &fed_metadata)
+            .map_err(|errors| FraiseQLError::Validation {
+                message: format!("Invalid representations: {}", errors.join("; ")),
+                path: None,
+            })?;
+
+        // Create federation resolver
+        let fed_resolver = crate::federation::FederationResolver::new(fed_metadata);
+
+        // Batch load entities
+        let entities = crate::federation::batch_load_entities(&representations, &fed_resolver)
+            .await?;
+
+        // Return federation response format
+        let response = serde_json::json!({
+            "data": {
+                "_entities": entities
+            }
+        });
+
+        Ok(serde_json::to_string(&response)?)
     }
 
     /// Execute a window query.

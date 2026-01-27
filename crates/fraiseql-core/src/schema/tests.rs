@@ -134,6 +134,8 @@ fn test_schema_to_json_roundtrip() {
         directives:    vec![],
         fact_tables:   std::collections::HashMap::new(),
         observers:     Vec::new(),
+        federation:    None,
+        schema_sdl:    None,
     };
 
     let json = schema.to_json().unwrap();
@@ -326,6 +328,8 @@ fn test_operation_count() {
         directives:    vec![],
         fact_tables:   std::collections::HashMap::new(),
         observers:     Vec::new(),
+        federation:    None,
+        schema_sdl:    None,
     };
 
     assert_eq!(schema.operation_count(), 4); // 2 queries + 1 mutation + 1 subscription
@@ -693,6 +697,8 @@ fn test_vector_field_roundtrip() {
         directives:    vec![],
         fact_tables:   std::collections::HashMap::new(),
         observers:     Vec::new(),
+        federation:    None,
+        schema_sdl:    None,
     };
 
     let json = schema.to_json().unwrap();
