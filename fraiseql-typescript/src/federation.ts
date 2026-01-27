@@ -104,7 +104,7 @@ export function External(): PropertyDecorator {
     // Validate it's being used on a field, not a method
     const descriptor = Object.getOwnPropertyDescriptor(target, propertyKey);
     if (descriptor && typeof descriptor.value === 'function') {
-      throw new Error(`@External() cannot be used on methods (${key})`);
+      throw new Error(`@External() cannot be used on methods`);
     }
 
     if (!fieldMetadata.has(target)) {
@@ -116,11 +116,6 @@ export function External(): PropertyDecorator {
       existing.external = true;
     } else {
       fieldMetadata.get(target)!.set(key, new FieldMarker(true));
-    }
-
-    // Mark that this class has external fields (for deferred validation)
-    if (!target.hasOwnProperty('__fraiseqlHasExternalFields__')) {
-      (target as any).__fraiseqlHasExternalFields__ = true;
     }
   };
 }
@@ -252,11 +247,6 @@ export function Key(
 
     const metadata: FederationMetadata = target.__fraiseqlFederation__;
 
-    // Validate that @Type decorator was applied
-    if (!target.__fraiseqlType__) {
-      throw new TypeError(`@Key requires @Type decorator to be applied to ${target.name}`);
-    }
-
     // Check for duplicate keys (this can be checked immediately)
     const newKey = { fields };
     const isDuplicate = metadata.keys.some(
@@ -269,7 +259,7 @@ export function Key(
     }
 
     // Add key to federation metadata
-    // Field existence validation is deferred to Type() decorator
+    // Validation of @Type requirement and field existence deferred to validateFederation()
     metadata.keys.push(newKey);
 
     return target;
@@ -316,9 +306,6 @@ export function Extends(): ClassDecorator {
 
     // Mark type as extended
     metadata.extend = true;
-
-    // Clear the external fields validation flag since this type is properly extended
-    delete (target as any).__fraiseqlHasExternalFields__;
 
     // Collect external fields from field metadata
     const prototype = target.prototype || target;
@@ -429,15 +416,9 @@ export function Type(): ClassDecorator {
 
       for (const [fieldName, marker] of classMetadata.entries()) {
         if (marker instanceof FieldMarker) {
-          // Validate @Requires field exists
+          // Store @Requires reference (validation deferred to validateFederation)
           if (marker.requires) {
-            if (fieldSet.has(marker.requires)) {
-              // Store in metadata if field exists
-              metadata.requires[fieldName] = marker.requires;
-            } else if (fieldSet.size > 0) {
-              // Only throw if we have field info
-              throw new Error(`Field '${marker.requires}' not found`);
-            }
+            metadata.requires[fieldName] = marker.requires;
           }
 
           // Store external fields
@@ -500,6 +481,60 @@ export function Type(): ClassDecorator {
 }
 
 /**
+ * Validate federation metadata for a set of types.
+ * This is called during schema compilation to catch federation errors.
+ *
+ * @param types Classes with federation metadata
+ * @throws Error if validation fails
+ */
+export function validateFederation(types: any[]): void {
+  if (!Array.isArray(types)) return;
+
+  for (const typeClass of types) {
+    const metadata = (typeClass as any)?.__fraiseqlFederation__;
+    if (!metadata) continue;
+
+    // Validate @Type decorator was applied
+    if (!typeClass.__fraiseqlType__) {
+      throw new TypeError(`@Key requires @Type decorator to be applied to ${typeClass.name}`);
+    }
+
+    const prototype = typeClass.prototype || typeClass;
+    const fieldMetadataMap = fieldMetadata.get(prototype);
+    const classFieldSet = classFields.get(typeClass);
+
+    // Validate @Key fields exist
+    if (metadata.keys && metadata.keys.length > 0) {
+      for (const keyDef of metadata.keys) {
+        for (const field of keyDef.fields) {
+          if (classFieldSet && !classFieldSet.has(field)) {
+            throw new Error(`Field '${field}' not found`);
+          }
+        }
+      }
+    }
+
+    // Validate @External requires @Extends
+    if (metadata.external_fields && metadata.external_fields.length > 0 && !metadata.extend) {
+      throw new Error(`@external requires @extends`);
+    }
+
+    // Validate @Requires field references exist
+    if (fieldMetadataMap) {
+      for (const [fieldName, marker] of fieldMetadataMap.entries()) {
+        if (marker instanceof FieldMarker && marker.requires) {
+          if (classFieldSet && !classFieldSet.has(marker.requires)) {
+            throw new Error(
+              `Field '${marker.requires}' not found`
+            );
+          }
+        }
+      }
+    }
+  }
+}
+
+/**
  * Generate schema JSON from the current registry.
  *
  * @param types Optional list of types to include
@@ -511,14 +546,9 @@ export function generateSchemaJson(
   const schema = SchemaRegistry.getSchema();
   let hasFederation = false;
 
-  // Validate federation constraints
+  // Validate federation if types provided
   if (Array.isArray(types)) {
-    for (const typeClass of types) {
-      const metadata = (typeClass as any)?.__fraiseqlFederation__;
-      if (metadata && metadata.external_fields && metadata.external_fields.length > 0 && !metadata.extend) {
-        throw new Error('@external requires @extends');
-      }
-    }
+    validateFederation(types);
   }
 
   // Enhance types with federation metadata
