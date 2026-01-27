@@ -368,14 +368,16 @@ def extends(cls: type[T] | None = None) -> type[T] | Callable[[type[T]], type[T]
 
         # Determine which non-key fields are external
         external_non_key = {
-            name for name, marker in field_markers.items()
+            name
+            for name, marker in field_markers.items()
             if marker.external and name not in key_fields
         }
 
         # If any non-key field is external, all key fields must be external too
         if external_non_key:
             external_key_fields = {
-                name for name, marker in field_markers.items()
+                name
+                for name, marker in field_markers.items()
                 if marker.external and name in key_fields
             }
             missing_key_fields = key_fields - external_key_fields

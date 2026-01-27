@@ -50,7 +50,7 @@ from fraiseql.decorators import interface as interface_decorator
 from fraiseql.decorators import mutation, query, subscription
 from fraiseql.decorators import type as type_decorator
 from fraiseql.decorators import union as union_decorator
-from fraiseql.federation import external, key, provides, requires
+from fraiseql.federation import extends, external, key, provides, requires
 from fraiseql.observers import (
     Observer,
     RetryConfig,
@@ -88,6 +88,7 @@ __all__ = [
     "FieldConfig",
     # Federation
     "key",
+    "extends",
     "requires",
     "external",
     "provides",
