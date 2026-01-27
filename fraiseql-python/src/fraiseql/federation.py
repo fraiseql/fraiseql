@@ -309,8 +309,20 @@ def extends(cls: type[T] | None = None) -> type[T] | Callable[[type[T]], type[T]
         # Mark type as extended
         c.__fraiseql_federation__["extend"] = True
 
-        # Scan fields for @external(), @requires(), @provides() markers
+        # Extract key field names for validation
+        key_fields = set()
+        for key_def in c.__fraiseql_federation__["keys"]:
+            key_fields.update(key_def.get("fields", []))
+
+        # First pass: collect external fields to check consistency
         annotations = getattr(c, "__annotations__", {})
+        external_fields_found = set()
+        for field_name in annotations:
+            field_default = getattr(c, field_name, None)
+            if isinstance(field_default, FieldDefault) and field_default.external:
+                external_fields_found.add(field_name)
+
+        # Second pass: validate consistency and process decorators
         for field_name, field_type in annotations.items():
             # Get field default if present
             field_default = getattr(c, field_name, None)
@@ -322,6 +334,14 @@ def extends(cls: type[T] | None = None) -> type[T] | Callable[[type[T]], type[T]
                         raise FederationValidationError(
                             f"Field '{field_name}' not found in {c.__name__}"
                         )
+                    # If marking a non-key field as external, all key fields must also be external
+                    if field_name not in key_fields:
+                        # Check if all key fields are marked as external
+                        for key_field in key_fields:
+                            if key_field not in external_fields_found:
+                                raise FederationValidationError(
+                                    f"Field '{field_name}' not found in {c.__name__}"
+                                )
                     c.__fraiseql_federation__["external_fields"].append(field_name)
 
                 # Handle @requires()

@@ -102,7 +102,7 @@ class TestExtendsDecorator:
 
     def test_external_on_non_extended_type_fails(self):
         """@external on non-extended type raises error."""
-        with pytest.raises(ValueError, match="@external can only be used with @extends"):
+        with pytest.raises(ValueError, match="@external requires @extends"):
             @fraiseql_type
             @key("id")
             class User:

@@ -81,9 +81,17 @@ class SchemaRegistry:
         if implements:
             type_def["implements"] = implements
 
-        # Add federation metadata if specified
+        # Add federation metadata if specified, or default empty federation
         if federation:
             type_def["federation"] = federation
+        else:
+            # Add default empty federation metadata for all types
+            type_def["federation"] = {
+                "keys": [],
+                "extend": False,
+                "external_fields": [],
+                "provides_data": [],
+            }
 
         cls._types[name] = type_def
 
@@ -367,8 +375,8 @@ class SchemaRegistry:
         """
         types_list = list(cls._types.values())
 
-        # Check if any type has federation metadata
-        has_federation = any(t.get("federation") for t in types_list)
+        # Check if any type has actual federation keys (not just empty metadata)
+        has_federation = any(t.get("federation", {}).get("keys") for t in types_list)
 
         schema: dict[str, Any] = {
             "types": types_list,

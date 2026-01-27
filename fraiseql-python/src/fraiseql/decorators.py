@@ -178,7 +178,7 @@ def type(
                     if field_default.external and not federation_metadata.get("extend", False):
                         from fraiseql.errors import FederationValidationError
                         raise FederationValidationError(
-                            "@external can only be used with @extends"
+                            "@external requires @extends"
                         )
 
         # Extract field information from class annotations
