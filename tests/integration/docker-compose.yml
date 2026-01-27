@@ -1,0 +1,187 @@
+version: '3.8'
+
+services:
+  # ============================================================================
+  # PostgreSQL Databases
+  # ============================================================================
+
+  postgres-users:
+    image: postgres:16-alpine
+    container_name: federation-int-users
+    environment:
+      POSTGRES_PASSWORD: fraiseql
+      POSTGRES_DB: users
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./fixtures/init-users.sql:/docker-entrypoint-initdb.d/init.sql
+      - users_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - federation_network
+
+  postgres-orders:
+    image: postgres:16-alpine
+    container_name: federation-int-orders
+    environment:
+      POSTGRES_PASSWORD: fraiseql
+      POSTGRES_DB: orders
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./fixtures/init-orders.sql:/docker-entrypoint-initdb.d/init.sql
+      - orders_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - federation_network
+
+  postgres-products:
+    image: postgres:16-alpine
+    container_name: federation-int-products
+    environment:
+      POSTGRES_PASSWORD: fraiseql
+      POSTGRES_DB: products
+    ports:
+      - "5434:5432"
+    volumes:
+      - ./fixtures/init-products.sql:/docker-entrypoint-initdb.d/init.sql
+      - products_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - federation_network
+
+  # ============================================================================
+  # FraiseQL Subgraph Services
+  # ============================================================================
+
+  users-subgraph:
+    build:
+      context: ./services/users
+      dockerfile: Dockerfile
+    container_name: federation-int-users-service
+    environment:
+      DATABASE_URL: postgresql://postgres:fraiseql@postgres-users:5432/users
+      PORT: 4001
+      GRAPHQL_PATH: /graphql
+      FEDERATION_ENABLED: "true"
+    ports:
+      - "4001:4001"
+    depends_on:
+      postgres-users:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4001/graphql", "-H", "Content-Type: application/json", "-d", "{\"query\":\"{ __typename }\"}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - federation_network
+
+  orders-subgraph:
+    build:
+      context: ./services/orders
+      dockerfile: Dockerfile
+    container_name: federation-int-orders-service
+    environment:
+      DATABASE_URL: postgresql://postgres:fraiseql@postgres-orders:5432/orders
+      PORT: 4002
+      GRAPHQL_PATH: /graphql
+      FEDERATION_ENABLED: "true"
+      # HTTP federation configuration
+      USERS_SUBGRAPH_URL: http://users-subgraph:4001/graphql
+    ports:
+      - "4002:4002"
+    depends_on:
+      postgres-orders:
+        condition: service_healthy
+      users-subgraph:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4002/graphql", "-H", "Content-Type: application/json", "-d", "{\"query\":\"{ __typename }\"}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - federation_network
+
+  products-subgraph:
+    build:
+      context: ./services/products
+      dockerfile: Dockerfile
+    container_name: federation-int-products-service
+    environment:
+      DATABASE_URL: postgresql://postgres:fraiseql@postgres-products:5432/products
+      PORT: 4003
+      GRAPHQL_PATH: /graphql
+      FEDERATION_ENABLED: "true"
+      # HTTP federation configuration
+      ORDERS_SUBGRAPH_URL: http://orders-subgraph:4002/graphql
+    ports:
+      - "4003:4003"
+    depends_on:
+      postgres-products:
+        condition: service_healthy
+      orders-subgraph:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4003/graphql", "-H", "Content-Type: application/json", "-d", "{\"query\":\"{ __typename }\"}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - federation_network
+
+  # ============================================================================
+  # Apollo Router Gateway
+  # ============================================================================
+
+  apollo-router:
+    image: ghcr.io/apollographql/router:v1.31.1
+    container_name: federation-int-gateway
+    environment:
+      ROUTER_LOG: debug
+    volumes:
+      - ./fixtures/supergraph.yaml:/etc/apollo/supergraph.yaml
+      - ./fixtures/router.yaml:/etc/apollo/router.yaml
+    ports:
+      - "4000:4000"
+    depends_on:
+      users-subgraph:
+        condition: service_healthy
+      orders-subgraph:
+        condition: service_healthy
+      products-subgraph:
+        condition: service_healthy
+    command:
+      - --config
+      - /etc/apollo/router.yaml
+      - --supergraph
+      - /etc/apollo/supergraph.yaml
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/.well-known/apollo/server-health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - federation_network
+
+volumes:
+  users_data:
+  orders_data:
+  products_data:
+
+networks:
+  federation_network:
+    driver: bridge
