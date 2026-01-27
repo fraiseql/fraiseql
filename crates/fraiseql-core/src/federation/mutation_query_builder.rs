@@ -4,6 +4,7 @@
 //! with parameter validation and SQL injection prevention.
 
 use crate::error::{FraiseQLError, Result};
+use crate::federation::sql_utils::value_to_sql_literal;
 use crate::federation::types::FederationMetadata;
 use serde_json::Value;
 
@@ -181,39 +182,6 @@ pub fn build_delete_query(
     ))
 }
 
-/// Convert a JSON value to SQL literal representation.
-fn value_to_sql_literal(value: &Value) -> Result<String> {
-    match value {
-        Value::String(s) => {
-            let escaped = s.replace("'", "''");
-            Ok(format!("'{}'", escaped))
-        }
-        Value::Number(n) => Ok(n.to_string()),
-        Value::Bool(b) => Ok(if *b { "true" } else { "false" }.to_string()),
-        Value::Null => Ok("NULL".to_string()),
-        _ => Err(FraiseQLError::Validation {
-            message: format!("Cannot convert {} to SQL literal", value.type_str()),
-            path: None,
-        }),
-    }
-}
-
-trait JsonTypeStr {
-    fn type_str(&self) -> &'static str;
-}
-
-impl JsonTypeStr for Value {
-    fn type_str(&self) -> &'static str {
-        match self {
-            Value::Null => "null",
-            Value::Bool(_) => "bool",
-            Value::Number(_) => "number",
-            Value::String(_) => "string",
-            Value::Array(_) => "array",
-            Value::Object(_) => "object",
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {

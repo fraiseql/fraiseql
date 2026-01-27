@@ -4,8 +4,8 @@
 //! through proper escaping and parameterization.
 
 use crate::error::{FraiseQLError, Result};
+use crate::federation::sql_utils::{escape_sql_string, value_to_string};
 use crate::federation::types::{EntityRepresentation, FederationMetadata};
-use serde_json::Value;
 
 /// Build a WHERE IN clause for batch entity resolution.
 ///
@@ -130,26 +130,6 @@ fn construct_composite_where_in(
     Ok(format!("({}) IN ({})", fields_list, tuples_str))
 }
 
-/// Convert JSON value to SQL-safe string representation.
-fn value_to_string(value: &Value) -> Result<String> {
-    match value {
-        Value::String(s) => Ok(s.clone()),
-        Value::Number(n) => Ok(n.to_string()),
-        Value::Bool(b) => Ok(b.to_string()),
-        Value::Null => Ok("null".to_string()),
-        _ => Err(FraiseQLError::Validation {
-            message: format!("Cannot convert {} to string for WHERE clause", value.type_str()),
-            path: None,
-        }),
-    }
-}
-
-/// Escape single quotes in SQL string values to prevent injection.
-///
-/// Example: `O'Brien` → `O''Brien` (PostgreSQL/SQL Server style)
-fn escape_sql_string(value: &str) -> String {
-    value.replace("'", "''")
-}
 
 #[cfg(test)]
 mod tests {
@@ -244,20 +224,3 @@ mod tests {
     }
 }
 
-/// Extension trait for JSON Value to get type name string.
-trait JsonTypeStr {
-    fn type_str(&self) -> &'static str;
-}
-
-impl JsonTypeStr for Value {
-    fn type_str(&self) -> &'static str {
-        match self {
-            Value::Null => "null",
-            Value::Bool(_) => "bool",
-            Value::Number(_) => "number",
-            Value::String(_) => "string",
-            Value::Array(_) => "array",
-            Value::Object(_) => "object",
-        }
-    }
-}

@@ -26,6 +26,7 @@ pub mod types;
 pub mod entity_resolver;
 pub mod representation;
 pub mod service_sdl;
+pub mod sql_utils;
 pub mod query_builder;
 pub mod selection_parser;
 pub mod database_resolver;
