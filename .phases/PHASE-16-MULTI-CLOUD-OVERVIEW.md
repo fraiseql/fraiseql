@@ -229,10 +229,10 @@ struct SelfHostedProvider { ... }
 **Status**: FraiseQL v2 already has production-ready multi-database support!
 
 **Currently Supported Databases**:
-- ✅ PostgreSQL (primary, full 60+ WHERE operators)
-- ✅ MySQL (production ready, basic operators)
-- ✅ SQL Server (enterprise, basic operators)
-- ✅ SQLite (dev/testing, basic operators)
+- ✅ PostgreSQL (primary, all PostgreSQL operators supported)
+- ✅ MySQL (production ready, all MySQL operators supported)
+- ✅ SQL Server (enterprise, all SQL Server operators supported)
+- ✅ SQLite (dev/testing, all SQLite operators supported)
 
 **Existing Architecture**:
 - ✅ Trait-based `DatabaseAdapter` abstraction

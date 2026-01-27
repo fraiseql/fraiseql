@@ -14,10 +14,10 @@
 ## ✅ Already Complete (No Work Needed)
 
 ### Database Abstraction Layer
-- ✅ **PostgreSQL** (primary, full feature set with 60+ WHERE operators)
-- ✅ **MySQL** (production ready, basic operators)
-- ✅ **SQL Server** (enterprise support, basic operators)
-- ✅ **SQLite** (development/edge, basic operators)
+- ✅ **PostgreSQL** (primary, all PostgreSQL operators supported)
+- ✅ **MySQL** (production ready, all MySQL operators supported)
+- ✅ **SQL Server** (enterprise support, all SQL Server operators supported)
+- ✅ **SQLite** (development/edge, all SQLite operators supported)
 
 **Implementation Status**:
 - ✅ `DatabaseAdapter` trait abstraction (`crates/fraiseql-core/src/db/traits.rs`)

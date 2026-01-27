@@ -242,10 +242,10 @@ Cost Estimate (Monthly):
 **Status**: FraiseQL v2 ALREADY has production-ready multi-database support!
 
 **Currently Supported**:
-- ✅ PostgreSQL (primary, full feature set with 60+ WHERE operators)
-- ✅ MySQL / MariaDB (production ready, basic operators)
-- ✅ SQL Server (enterprise support, basic operators)
-- ✅ SQLite (development/testing, basic operators)
+- ✅ PostgreSQL (primary, all PostgreSQL operators supported)
+- ✅ MySQL / MariaDB (production ready, all MySQL operators supported)
+- ✅ SQL Server (enterprise support, all SQL Server operators supported)
+- ✅ SQLite (development/testing, all SQLite operators supported)
 
 **Architecture Already in Place**:
 - ✅ Trait-based `DatabaseAdapter` abstraction
