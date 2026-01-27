@@ -26,11 +26,23 @@ pub mod types;
 pub mod entity_resolver;
 pub mod representation;
 pub mod service_sdl;
+pub mod query_builder;
+pub mod selection_parser;
+pub mod database_resolver;
+pub mod mutation_detector;
+pub mod mutation_executor;
+pub mod mutation_query_builder;
 
 pub use types::*;
 pub use entity_resolver::*;
 pub use service_sdl::*;
 pub use representation::*;
+pub use query_builder::*;
+pub use selection_parser::*;
+pub use database_resolver::*;
+pub use mutation_detector::*;
+pub use mutation_executor::*;
+pub use mutation_query_builder::*;
 
 use crate::error::{FraiseQLError, Result};
 use serde_json::{json, Value};

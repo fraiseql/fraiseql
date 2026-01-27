@@ -42,27 +42,194 @@ fn test_resolve_entity_large_result_set_from_postgres() {
 
 #[test]
 fn test_where_clause_single_key_field() {
-    panic!("WHERE clause building for single key not implemented");
+    use fraiseql_core::federation::query_builder::construct_where_in_clause;
+    use fraiseql_core::federation::types::{EntityRepresentation, FederatedType, FederationMetadata, KeyDirective};
+    use serde_json::json;
+    use std::collections::HashMap;
+
+    let metadata = FederationMetadata {
+        enabled: true,
+        version: "v2".to_string(),
+        types: vec![FederatedType {
+            name: "User".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["id".to_string()],
+                resolvable: true,
+            }],
+            is_extends: false,
+            external_fields: vec![],
+            shareable_fields: vec![],
+        }],
+    };
+
+    let mut rep1_keys = HashMap::new();
+    rep1_keys.insert("id".to_string(), json!("123"));
+    let mut rep1_all = HashMap::new();
+    rep1_all.insert("id".to_string(), json!("123"));
+    let rep1 = EntityRepresentation {
+        typename: "User".to_string(),
+        key_fields: rep1_keys,
+        all_fields: rep1_all,
+    };
+
+    let mut rep2_keys = HashMap::new();
+    rep2_keys.insert("id".to_string(), json!("456"));
+    let mut rep2_all = HashMap::new();
+    rep2_all.insert("id".to_string(), json!("456"));
+    let rep2 = EntityRepresentation {
+        typename: "User".to_string(),
+        key_fields: rep2_keys,
+        all_fields: rep2_all,
+    };
+
+    let where_clause = construct_where_in_clause("User", &[rep1, rep2], &metadata).unwrap();
+    assert_eq!(where_clause, "id IN ('123', '456')");
 }
 
 #[test]
 fn test_where_clause_composite_keys() {
-    panic!("WHERE clause building for composite keys not implemented");
+    use fraiseql_core::federation::query_builder::construct_where_in_clause;
+    use fraiseql_core::federation::types::{EntityRepresentation, FederatedType, FederationMetadata, KeyDirective};
+    use serde_json::json;
+    use std::collections::HashMap;
+
+    let metadata = FederationMetadata {
+        enabled: true,
+        version: "v2".to_string(),
+        types: vec![FederatedType {
+            name: "Order".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["user_id".to_string(), "order_id".to_string()],
+                resolvable: true,
+            }],
+            is_extends: false,
+            external_fields: vec![],
+            shareable_fields: vec![],
+        }],
+    };
+
+    let mut rep1_keys = HashMap::new();
+    rep1_keys.insert("user_id".to_string(), json!("user1"));
+    rep1_keys.insert("order_id".to_string(), json!("order1"));
+    let mut rep1_all = HashMap::new();
+    rep1_all.insert("user_id".to_string(), json!("user1"));
+    rep1_all.insert("order_id".to_string(), json!("order1"));
+    let rep1 = EntityRepresentation {
+        typename: "Order".to_string(),
+        key_fields: rep1_keys,
+        all_fields: rep1_all,
+    };
+
+    let where_clause = construct_where_in_clause("Order", &[rep1], &metadata).unwrap();
+    assert_eq!(where_clause, "(user_id, order_id) IN (('user1', 'order1'))");
 }
 
 #[test]
 fn test_where_clause_string_escaping() {
-    panic!("String escaping in WHERE clause not implemented");
+    use fraiseql_core::federation::query_builder::construct_where_in_clause;
+    use fraiseql_core::federation::types::{EntityRepresentation, FederatedType, FederationMetadata, KeyDirective};
+    use serde_json::json;
+    use std::collections::HashMap;
+
+    let metadata = FederationMetadata {
+        enabled: true,
+        version: "v2".to_string(),
+        types: vec![FederatedType {
+            name: "User".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["name".to_string()],
+                resolvable: true,
+            }],
+            is_extends: false,
+            external_fields: vec![],
+            shareable_fields: vec![],
+        }],
+    };
+
+    let mut rep_keys = HashMap::new();
+    rep_keys.insert("name".to_string(), json!("O'Brien"));
+    let mut rep_all = HashMap::new();
+    rep_all.insert("name".to_string(), json!("O'Brien"));
+    let rep = EntityRepresentation {
+        typename: "User".to_string(),
+        key_fields: rep_keys,
+        all_fields: rep_all,
+    };
+
+    let where_clause = construct_where_in_clause("User", &[rep], &metadata).unwrap();
+    assert_eq!(where_clause, "name IN ('O''Brien')");
 }
 
 #[test]
 fn test_where_clause_sql_injection_prevention() {
-    panic!("SQL injection prevention in WHERE clause not implemented");
+    use fraiseql_core::federation::query_builder::construct_where_in_clause;
+    use fraiseql_core::federation::types::{EntityRepresentation, FederatedType, FederationMetadata, KeyDirective};
+    use serde_json::json;
+    use std::collections::HashMap;
+
+    let metadata = FederationMetadata {
+        enabled: true,
+        version: "v2".to_string(),
+        types: vec![FederatedType {
+            name: "User".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["id".to_string()],
+                resolvable: true,
+            }],
+            is_extends: false,
+            external_fields: vec![],
+            shareable_fields: vec![],
+        }],
+    };
+
+    let mut rep_keys = HashMap::new();
+    rep_keys.insert("id".to_string(), json!("'; DROP TABLE users; --"));
+    let mut rep_all = HashMap::new();
+    rep_all.insert("id".to_string(), json!("'; DROP TABLE users; --"));
+    let rep = EntityRepresentation {
+        typename: "User".to_string(),
+        key_fields: rep_keys,
+        all_fields: rep_all,
+    };
+
+    let where_clause = construct_where_in_clause("User", &[rep], &metadata).unwrap();
+    assert_eq!(where_clause, "id IN ('''; DROP TABLE users; --')");
 }
 
 #[test]
 fn test_where_clause_type_coercion() {
-    panic!("Type coercion in WHERE clause not implemented");
+    use fraiseql_core::federation::query_builder::construct_where_in_clause;
+    use fraiseql_core::federation::types::{EntityRepresentation, FederatedType, FederationMetadata, KeyDirective};
+    use serde_json::json;
+    use std::collections::HashMap;
+
+    let metadata = FederationMetadata {
+        enabled: true,
+        version: "v2".to_string(),
+        types: vec![FederatedType {
+            name: "Order".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["order_id".to_string()],
+                resolvable: true,
+            }],
+            is_extends: false,
+            external_fields: vec![],
+            shareable_fields: vec![],
+        }],
+    };
+
+    let mut rep_keys = HashMap::new();
+    rep_keys.insert("order_id".to_string(), json!(789));
+    let mut rep_all = HashMap::new();
+    rep_all.insert("order_id".to_string(), json!(789));
+    let rep = EntityRepresentation {
+        typename: "Order".to_string(),
+        key_fields: rep_keys,
+        all_fields: rep_all,
+    };
+
+    let where_clause = construct_where_in_clause("Order", &[rep], &metadata).unwrap();
+    assert_eq!(where_clause, "order_id IN ('789')");
 }
 
 // ============================================================================
