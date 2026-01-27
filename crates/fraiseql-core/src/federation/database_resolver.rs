@@ -7,8 +7,9 @@ use std::sync::Arc;
 
 use crate::db::traits::DatabaseAdapter;
 use crate::error::Result;
+use crate::federation::metadata_helpers::find_federation_type;
 use crate::federation::selection_parser::FieldSelection;
-use crate::federation::types::{EntityRepresentation, FederationMetadata};
+use crate::federation::types::{EntityRepresentation, FederatedType, FederationMetadata};
 use crate::federation::query_builder::construct_where_in_clause;
 use serde_json::Value;
 
@@ -52,17 +53,8 @@ impl<A: DatabaseAdapter> DatabaseEntityResolver<A> {
             return Ok(Vec::new());
         }
 
-        // Find type definition
-        let fed_type = self.metadata
-            .types
-            .iter()
-            .find(|t| t.name == typename)
-            .ok_or_else(|| {
-                crate::error::FraiseQLError::Validation {
-                    message: format!("Type '{}' not found in federation metadata", typename),
-                    path: None,
-                }
-            })?;
+        // Find type definition using metadata helpers
+        let fed_type = find_federation_type(typename, &self.metadata)?;
 
         // Get table name (simplified: use lowercase type name)
         let table_name = typename.to_lowercase();
@@ -97,7 +89,7 @@ impl<A: DatabaseAdapter> DatabaseEntityResolver<A> {
         let rows = self.adapter.execute_raw_query(&sql).await?;
 
         // Project results maintaining order
-        project_results(&rows, representations, &select_fields, typename)
+        project_results(&rows, representations, fed_type, typename)
     }
 }
 
@@ -105,32 +97,68 @@ impl<A: DatabaseAdapter> DatabaseEntityResolver<A> {
 fn project_results(
     rows: &[std::collections::HashMap<String, Value>],
     representations: &[EntityRepresentation],
-    _select_fields: &[String],
+    fed_type: &FederatedType,
     typename: &str,
 ) -> Result<Vec<Option<Value>>> {
-    // For now, create a simple map of key -> row data
-    // In production, this would handle result ordering to match input representations
-    let mut result_map: std::collections::HashMap<String, Value> =
-        std::collections::HashMap::new();
+    use std::collections::HashMap as StdHashMap;
+
+    // Build a map of key values -> row data for quick lookup
+    // Key is constructed from the key fields of the federation type
+    let mut row_map: StdHashMap<Vec<String>, StdHashMap<String, Value>> = StdHashMap::new();
 
     for row in rows {
-        // Build a key from the key fields
-        let key_str = format!("{:?}", row);
-        let mut entity = row.clone();
-        entity.insert("__typename".to_string(), Value::String(typename.to_string()));
-        result_map.insert(key_str, Value::Object(serde_json::Map::from_iter(entity)));
+        // Build key from key fields
+        let key_values: Result<Vec<String>> = fed_type
+            .keys
+            .first()
+            .ok_or_else(|| crate::error::FraiseQLError::Validation {
+                message: format!("Type '{}' has no key fields", typename),
+                path: None,
+            })?
+            .fields
+            .iter()
+            .map(|field| {
+                row.get(field)
+                    .and_then(|v| v.as_str().map(|s| s.to_string()))
+                    .or_else(|| row.get(field).map(|v| v.to_string()))
+                    .ok_or_else(|| crate::error::FraiseQLError::Validation {
+                        message: format!("Key field '{}' not found in row", field),
+                        path: None,
+                    })
+            })
+            .collect();
+
+        if let Ok(key) = key_values {
+            row_map.insert(key, row.clone());
+        }
     }
 
     // Map representations to results, preserving order
     let mut results = Vec::new();
-    for _rep in representations {
-        // For simplified version, find matching row and return it
-        // In production, would use actual key matching
-        if let Some(row) = rows.first() {
+    for rep in representations {
+        // Extract key values from representation
+        let key_values: Vec<String> = fed_type
+            .keys
+            .first()
+            .map(|k| {
+                k.fields
+                    .iter()
+                    .filter_map(|field| {
+                        rep.key_fields.get(field).and_then(|v| {
+                            v.as_str().map(|s| s.to_string()).or_else(|| Some(v.to_string()))
+                        })
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        // Look up row in map
+        if let Some(row) = row_map.get(&key_values) {
             let mut entity = row.clone();
             entity.insert("__typename".to_string(), Value::String(typename.to_string()));
             results.push(Some(Value::Object(serde_json::Map::from_iter(entity))));
         } else {
+            // Entity not found in database
             results.push(None);
         }
     }
