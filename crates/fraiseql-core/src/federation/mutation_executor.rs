@@ -6,14 +6,12 @@
 use std::sync::Arc;
 
 use serde_json::Value;
-use std::collections::HashMap;
 
 use crate::db::traits::DatabaseAdapter;
 use crate::error::Result;
 use crate::federation::types::FederationMetadata;
 use crate::federation::metadata_helpers::find_federation_type;
 use crate::federation::mutation_query_builder::{build_update_query, build_insert_query, build_delete_query};
-use crate::federation::selection_parser::FieldSelection;
 
 /// Type of mutation being performed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -1,9 +1,13 @@
 //! Entity resolution for federation _entities query.
 
-use super::types::{EntityRepresentation, FederatedType, FederationResolver};
+use super::types::{EntityRepresentation, FederationResolver};
+use super::database_resolver::DatabaseEntityResolver;
+use super::selection_parser::FieldSelection;
+use crate::db::traits::DatabaseAdapter;
 use crate::error::Result;
-use serde_json::{json, Value};
+use serde_json::Value;
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
 /// Result of entity resolution
 #[derive(Debug)]
@@ -79,76 +83,79 @@ pub fn construct_batch_where_clause(
     }
 }
 
-/// Resolve entities for a specific typename
-pub fn resolve_entities_local(
+/// Resolve entities for a specific typename from local database
+pub async fn resolve_entities_from_db<A: DatabaseAdapter>(
     representations: &[EntityRepresentation],
     typename: &str,
-    fed_type: &FederatedType,
+    adapter: Arc<A>,
+    fed_resolver: &FederationResolver,
+    selection: &FieldSelection,
 ) -> EntityResolutionResult {
-    // Deduplicate
-    let deduped = deduplicate_representations(representations);
-
-    // Get key columns from first key directive
-    let _key_columns = fed_type.keys.first()
-        .map(|k| k.fields.clone())
-        .unwrap_or_default();
-
-    // Return mock results that match the structure
-    // Database integration will be added in a future phase when connection pooling is available
-    let mut entities = Vec::new();
-    for rep in &deduped {
-        // Return the representation as resolved entity
-        let mut entity = rep.all_fields.clone();
-        entity.insert("__typename".to_string(), json!(typename));
-        entities.push(Some(json!(entity)));
+    if representations.is_empty() {
+        return EntityResolutionResult {
+            entities: Vec::new(),
+            errors: Vec::new(),
+        };
     }
 
-    // Need to re-map to original order
-    let mut result_map: HashMap<String, Value> = HashMap::new();
-    for (i, entity) in entities.iter().enumerate() {
-        if let Some(ent) = entity {
-            result_map.insert(format!("key_{}", i), ent.clone());
-        }
-    }
+    // Create database entity resolver
+    let db_resolver = DatabaseEntityResolver::new(adapter, fed_resolver.metadata.clone());
 
-    // Build final results in original order
-    let mut final_results = Vec::new();
-    for rep in representations {
-        let _key = format!("{}:{:?}", rep.typename, rep.key_fields);
-        // For basic implementation, return representation as entity
-        let mut entity = rep.all_fields.clone();
-        entity.insert("__typename".to_string(), json!(typename));
-        final_results.push(Some(json!(entity)));
-    }
-
-    EntityResolutionResult {
-        entities: final_results,
-        errors: Vec::new(),
+    // Resolve from database
+    match db_resolver
+        .resolve_entities_from_db(typename, representations, selection)
+        .await
+    {
+        Ok(entities) => EntityResolutionResult {
+            entities,
+            errors: Vec::new(),
+        },
+        Err(e) => EntityResolutionResult {
+            entities: vec![None; representations.len()],
+            errors: vec![e.to_string()],
+        },
     }
 }
 
-/// Batch load entities
-pub async fn batch_load_entities(
+/// Batch load entities from database
+pub async fn batch_load_entities<A: DatabaseAdapter>(
     representations: &[EntityRepresentation],
     fed_resolver: &FederationResolver,
+    adapter: Arc<A>,
+    selection: &FieldSelection,
 ) -> Result<Vec<Option<Value>>> {
+    if representations.is_empty() {
+        return Ok(Vec::new());
+    }
+
     // Group by typename
     let grouped = group_entities_by_typename(representations);
 
     let mut all_results: Vec<(usize, Option<Value>)> = Vec::new();
+    let mut current_index = 0;
 
     for (typename, reps) in grouped {
-        // Find type metadata
-        let fed_type = fed_resolver.metadata.types.iter()
-            .find(|t| t.name == typename);
+        // Resolve this batch using database
+        let result = resolve_entities_from_db(
+            &reps,
+            &typename,
+            Arc::clone(&adapter),
+            fed_resolver,
+            selection,
+        )
+        .await;
 
-        if let Some(fed_type) = fed_type {
-            // Resolve this batch
-            let result = resolve_entities_local(&reps, &typename, fed_type);
+        // Map results back to original indices with proper ordering
+        for entity in result.entities {
+            all_results.push((current_index, entity));
+            current_index += 1;
+        }
 
-            // Map results back to original indices
-            for (idx, entity) in result.entities.iter().enumerate() {
-                all_results.push((idx, entity.clone()));
+        // Track errors if any
+        if !result.errors.is_empty() {
+            // Log errors but continue with None values
+            for error in result.errors {
+                eprintln!("Entity resolution error for {}: {}", typename, error);
             }
         }
     }
@@ -161,6 +168,7 @@ pub async fn batch_load_entities(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn test_deduplicate_representations() {

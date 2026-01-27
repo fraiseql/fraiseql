@@ -6,7 +6,7 @@
 use crate::error::Result;
 
 /// Represents requested fields in a GraphQL selection set.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct FieldSelection {
     /// Names of fields requested in the query
     pub fields: Vec<String>,

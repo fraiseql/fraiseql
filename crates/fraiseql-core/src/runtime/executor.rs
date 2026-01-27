@@ -725,9 +725,21 @@ impl<A: DatabaseAdapter> Executor<A> {
         // Create federation resolver
         let fed_resolver = crate::federation::FederationResolver::new(fed_metadata);
 
-        // Batch load entities
-        let entities = crate::federation::batch_load_entities(&representations, &fed_resolver)
-            .await?;
+        // Create field selection (for now, select all requested fields)
+        // TODO: Extract actual field selection from GraphQL query AST
+        let selection = crate::federation::FieldSelection::new(vec![
+            "__typename".to_string(),
+            "*".to_string(), // Wildcard for all fields (will be expanded by resolver)
+        ]);
+
+        // Batch load entities from database
+        let entities = crate::federation::batch_load_entities(
+            &representations,
+            &fed_resolver,
+            Arc::clone(&self.adapter),
+            &selection,
+        )
+        .await?;
 
         // Return federation response format
         let response = serde_json::json!({
