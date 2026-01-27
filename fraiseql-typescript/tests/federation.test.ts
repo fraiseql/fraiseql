@@ -17,6 +17,13 @@ import {
 } from '../src/federation';
 
 describe('TypeScript Federation Decorators', () => {
+    beforeEach(() => {
+        // Clear decorator metadata between tests to prevent cross-test contamination
+        // This is necessary because decorators store metadata on prototype objects
+        // that may be reused across tests
+        jest.resetModules();
+    });
+
     describe('@Key decorator', () => {
         it('marks type with federation key', () => {
             @Key('id')

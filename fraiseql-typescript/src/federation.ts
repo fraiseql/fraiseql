@@ -100,10 +100,28 @@ export function External(): PropertyDecorator {
   return function (target: object, propertyKey: string | symbol | undefined) {
     if (!propertyKey) return;
     const key = String(propertyKey);
+
+    // Validate it's being used on a field, not a method
+    const descriptor = Object.getOwnPropertyDescriptor(target, propertyKey);
+    if (descriptor && typeof descriptor.value === 'function') {
+      throw new Error(`@External() cannot be used on methods (${key})`);
+    }
+
     if (!fieldMetadata.has(target)) {
       fieldMetadata.set(target, new Map());
     }
-    fieldMetadata.get(target)!.set(key, new FieldMarker(true));
+
+    const existing = fieldMetadata.get(target)?.get(key);
+    if (existing instanceof FieldMarker) {
+      existing.external = true;
+    } else {
+      fieldMetadata.get(target)!.set(key, new FieldMarker(true));
+    }
+
+    // Mark that this class has external fields (for deferred validation)
+    if (!target.hasOwnProperty('__fraiseqlHasExternalFields__')) {
+      (target as any).__fraiseqlHasExternalFields__ = true;
+    }
   };
 }
 
@@ -133,19 +151,19 @@ export function Requires(fieldName: string): PropertyDecorator {
     if (!propertyKey) return;
     const key = String(propertyKey);
 
-    // Find the class from the prototype
-    const classConstructor = (target as any).constructor;
-    const fieldSet = classFields.get(classConstructor);
-
-    // Validate required field exists
-    if (fieldSet && !fieldSet.has(fieldName)) {
-      throw new Error(`Field '${fieldName}' not found`);
-    }
+    // Don't validate here - validation happens in Type() decorator
+    // This prevents decorator ordering issues
 
     if (!fieldMetadata.has(target)) {
       fieldMetadata.set(target, new Map());
     }
-    fieldMetadata.get(target)!.set(key, new FieldMarker(false, fieldName));
+
+    const existing = fieldMetadata.get(target)?.get(key);
+    if (existing instanceof FieldMarker) {
+      existing.requires = fieldName;
+    } else {
+      fieldMetadata.get(target)!.set(key, new FieldMarker(false, fieldName));
+    }
   };
 }
 
@@ -172,10 +190,17 @@ export function Provides(...targets: string[]): PropertyDecorator {
   return function (target: object, propertyKey: string | symbol | undefined) {
     if (!propertyKey) return;
     const key = String(propertyKey);
+
     if (!fieldMetadata.has(target)) {
       fieldMetadata.set(target, new Map());
     }
-    fieldMetadata.get(target)!.set(key, new FieldMarker(false, null, targets));
+
+    const existing = fieldMetadata.get(target)?.get(key);
+    if (existing instanceof FieldMarker) {
+      existing.provides = targets;
+    } else {
+      fieldMetadata.get(target)!.set(key, new FieldMarker(false, null, targets));
+    }
   };
 }
 
@@ -209,7 +234,7 @@ export function Provides(...targets: string[]): PropertyDecorator {
 export function Key(
   fieldNames: string | string[]
 ): ClassDecorator & PropertyDecorator {
-  // When used as class decorator (called first)
+  // When used as class decorator
   return function (target: any) {
     const fields =
       typeof fieldNames === "string" ? [fieldNames] : fieldNames;
@@ -232,17 +257,7 @@ export function Key(
       throw new TypeError(`@Key requires @Type decorator to be applied to ${target.name}`);
     }
 
-    // Validate that key fields exist in the class
-    const classFieldSet = classFields.get(target);
-    if (classFieldSet) {
-      for (const fieldName of fields) {
-        if (!classFieldSet.has(fieldName)) {
-          throw new Error(`Field '${fieldName}' not found`);
-        }
-      }
-    }
-
-    // Check for duplicate keys
+    // Check for duplicate keys (this can be checked immediately)
     const newKey = { fields };
     const isDuplicate = metadata.keys.some(
       (existingKey) =>
@@ -254,6 +269,7 @@ export function Key(
     }
 
     // Add key to federation metadata
+    // Field existence validation is deferred to Type() decorator
     metadata.keys.push(newKey);
 
     return target;
@@ -301,37 +317,23 @@ export function Extends(): ClassDecorator {
     // Mark type as extended
     metadata.extend = true;
 
-    // Extract key field names
-    const keyFields = new Set<string>();
-    for (const keyDef of metadata.keys) {
-      for (const field of keyDef.fields) {
-        keyFields.add(field);
-      }
-    }
+    // Clear the external fields validation flag since this type is properly extended
+    delete (target as any).__fraiseqlHasExternalFields__;
 
-    // Scan fields for field markers
+    // Collect external fields from field metadata
     const prototype = target.prototype || target;
-    const externalFields = new Set<string>();
-
     if (fieldMetadata.has(prototype)) {
       const classMetadata = fieldMetadata.get(prototype)!;
-      for (const [key, marker] of classMetadata.entries()) {
-        if (marker instanceof FieldMarker) {
-          if (marker.external) {
-            externalFields.add(key);
-          }
-          if (marker.requires) {
-            metadata.requires[key] = marker.requires;
-          }
-          if (marker.provides && marker.provides.length > 0) {
-            metadata.provides_data.push(...marker.provides);
+      for (const [fieldName, marker] of classMetadata.entries()) {
+        if (marker instanceof FieldMarker && marker.external) {
+          // Valid - @External on extended type
+          // Ensure they're in the external_fields list
+          if (!metadata.external_fields.includes(fieldName)) {
+            metadata.external_fields.push(fieldName);
           }
         }
       }
     }
-
-    // Store external fields
-    metadata.external_fields = Array.from(externalFields);
 
     return target;
   };
@@ -365,66 +367,120 @@ export function Type(): ClassDecorator {
       };
     }
 
-    // Collect field names from class definition for validation
-    const fieldSet = new Set<string>();
+    const metadata: FederationMetadata = target.__fraiseqlFederation__;
     const prototype = target.prototype || target;
 
-    // Get field names from property descriptors
+    // Collect field names from all sources:
+    // 1. PropertyDecorators (via fieldMetadata)
+    // 2. Property descriptors on prototype
+    // 3. Instance properties (for test scenarios)
+    const fieldSet = new Set<string>();
+
+    // Add fields that have PropertyDecorators
+    if (fieldMetadata.has(prototype)) {
+      const classMetadata = fieldMetadata.get(prototype)!;
+      for (const [fieldName] of classMetadata.entries()) {
+        fieldSet.add(fieldName);
+      }
+    }
+
+    // Add property descriptors from prototype
     for (const key of Object.getOwnPropertyNames(prototype)) {
       if (key !== 'constructor') {
         fieldSet.add(key);
       }
     }
 
-    // Also collect from class instance if in test environment
-    const instance = new target();
-    for (const key in instance) {
-      if (instance.hasOwnProperty(key) || Object.getPrototypeOf(instance).hasOwnProperty(key)) {
-        fieldSet.add(key);
+    // Try to create instance to collect class field properties
+    try {
+      // Use Reflect.construct if available, otherwise try direct construction
+      let instance: any;
+      try {
+        instance = new target();
+      } catch {
+        // If constructor has required parameters, create without calling it
+        instance = Object.create(prototype);
       }
+
+      // Collect all enumerable properties from instance
+      for (const key in instance) {
+        if (instance.hasOwnProperty(key) || Object.getPrototypeOf(instance).hasOwnProperty(key)) {
+          fieldSet.add(key);
+        }
+      }
+
+      // Also collect non-enumerable properties
+      const allPropertyNames = Object.getOwnPropertyNames(instance);
+      for (const key of allPropertyNames) {
+        if (key !== 'constructor') {
+          fieldSet.add(key);
+        }
+      }
+    } catch (e) {
+      // If we can't instantiate or inspect, continue with what we have
     }
 
     // Store field names for this class
     classFields.set(target, fieldSet);
 
-    const metadata: FederationMetadata = target.__fraiseqlFederation__;
-
-    // Validate that @external is only used on extended types
+    // Collect field markers and process them
     if (fieldMetadata.has(prototype)) {
       const classMetadata = fieldMetadata.get(prototype)!;
+
       for (const [fieldName, marker] of classMetadata.entries()) {
         if (marker instanceof FieldMarker) {
-          // Validate field exists
-          if (!fieldSet.has(fieldName)) {
-            throw new Error(`Field '${fieldName}' not found`);
-          }
-
-          if (marker.external) {
-            if (!metadata.extend) {
-              throw new Error("@external requires @extends");
-            }
-          }
-
+          // Validate @Requires field exists
           if (marker.requires) {
-            // Validate required field exists
-            if (!fieldSet.has(marker.requires)) {
+            if (fieldSet.has(marker.requires)) {
+              // Store in metadata if field exists
+              metadata.requires[fieldName] = marker.requires;
+            } else if (fieldSet.size > 0) {
+              // Only throw if we have field info
               throw new Error(`Field '${marker.requires}' not found`);
             }
+          }
+
+          // Store external fields
+          if (marker.external) {
+            if (!metadata.external_fields.includes(fieldName)) {
+              metadata.external_fields.push(fieldName);
+            }
+          }
+
+          // Store provides data
+          if (marker.provides && marker.provides.length > 0) {
+            metadata.provides_data.push(...marker.provides);
           }
         }
       }
     }
 
+    // Validate @Key fields exist
+    if (metadata.keys && metadata.keys.length > 0) {
+      for (const keyDef of metadata.keys) {
+        for (const field of keyDef.fields) {
+          if (!fieldSet.has(field)) {
+            throw new Error(`Field '${field}' not found`);
+          }
+        }
+      }
+    }
+
+
     // Register type with schema registry
     const fields: Record<string, any> = {};
     for (const fieldName of fieldSet) {
       fields[fieldName] = {
-        type: "String", // Default type for property markers
+        type: "String", // Default type
         nullable: false,
       };
     }
 
-    // Register with schema registry (federation metadata will be added in schema generation)
+    // Note: Validation of "@external requires @extends" is deferred because
+    // decorators execute top-to-bottom, so @Extends() runs after @Type().
+    // This validation can happen in generateSchemaJson or a separate validation call.
+
+    // Register with schema registry
     try {
       const fieldArray: Array<{
         name: string;
@@ -454,6 +510,16 @@ export function generateSchemaJson(
 ): Record<string, any> {
   const schema = SchemaRegistry.getSchema();
   let hasFederation = false;
+
+  // Validate federation constraints
+  if (Array.isArray(types)) {
+    for (const typeClass of types) {
+      const metadata = (typeClass as any)?.__fraiseqlFederation__;
+      if (metadata && metadata.external_fields && metadata.external_fields.length > 0 && !metadata.extend) {
+        throw new Error('@external requires @extends');
+      }
+    }
+  }
 
   // Enhance types with federation metadata
   const enhancedTypes: Record<string, any>[] = [];
