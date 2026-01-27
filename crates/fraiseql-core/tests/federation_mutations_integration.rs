@@ -232,17 +232,33 @@ fn test_mutation_concurrent_request_handling() {
 
 #[test]
 fn test_detect_mutation_query() {
-    panic!("Mutation query detection not implemented");
+    use fraiseql_core::federation::mutation_detector::is_mutation;
+
+    assert!(is_mutation("mutation { updateUser { id } }"));
+    assert!(is_mutation("mutation UpdateUser { updateUser(id: \"123\") { id } }"));
+    assert!(is_mutation("  mutation  {  createOrder  {  id  }  }"));
+    assert!(!is_mutation("query { user { id } }"));
+    assert!(!is_mutation("{ user { id } }"));
 }
 
 #[test]
 fn test_detect_mutation_on_owned_entity() {
-    panic!("Owned entity mutation detection not implemented");
+    use fraiseql_core::federation::mutation_detector::{is_mutation, is_local_mutation};
+
+    let mutation_query = "mutation { updateUser { id } }";
+    assert!(is_mutation(mutation_query));
+    assert!(is_local_mutation("updateUser"));
 }
 
 #[test]
 fn test_detect_mutation_on_extended_entity() {
-    panic!("Extended entity mutation detection not implemented");
+    use fraiseql_core::federation::mutation_detector::{is_mutation, is_extended_mutation};
+
+    let mutation_query = "mutation { updateOrder { id } }";
+    assert!(is_mutation(mutation_query));
+    // Extended mutation detection would check federation metadata in production
+    // For now, is_extended_mutation returns !is_local_mutation
+    assert!(!is_extended_mutation("updateUser")); // Local mutations are not extended
 }
 
 // ============================================================================
@@ -251,17 +267,107 @@ fn test_detect_mutation_on_extended_entity() {
 
 #[test]
 fn test_mutation_with_variables() {
-    panic!("Mutation with GraphQL variables not implemented");
+    use fraiseql_core::federation::mutation_query_builder::{build_update_query, build_insert_query, build_delete_query};
+    use fraiseql_core::federation::types::{FederatedType, FederationMetadata, KeyDirective};
+    use serde_json::json;
+
+    let metadata = FederationMetadata {
+        enabled: true,
+        version: "v2".to_string(),
+        types: vec![FederatedType {
+            name: "User".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["id".to_string()],
+                resolvable: true,
+            }],
+            is_extends: false,
+            external_fields: vec![],
+            shareable_fields: vec![],
+        }],
+    };
+
+    let variables = json!({
+        "id": "user123",
+        "email": "test@example.com",
+        "name": "Test User"
+    });
+
+    let update_query = build_update_query("User", &variables, &metadata).unwrap();
+    assert!(update_query.contains("UPDATE user"));
+    assert!(update_query.contains("SET"));
+    assert!(update_query.contains("WHERE id = 'user123'"));
+
+    let insert_query = build_insert_query("User", &variables, &metadata).unwrap();
+    assert!(insert_query.contains("INSERT INTO user"));
+    assert!(insert_query.contains("VALUES"));
+
+    let delete_query = build_delete_query("User", &variables, &metadata).unwrap();
+    assert!(delete_query.contains("DELETE FROM user"));
+    assert!(delete_query.contains("WHERE id = 'user123'"));
 }
 
 #[test]
 fn test_mutation_variable_validation() {
-    panic!("Mutation variable validation not implemented");
+    use fraiseql_core::federation::mutation_query_builder::build_update_query;
+    use fraiseql_core::federation::types::{FederatedType, FederationMetadata, KeyDirective};
+    use serde_json::json;
+
+    let metadata = FederationMetadata {
+        enabled: true,
+        version: "v2".to_string(),
+        types: vec![FederatedType {
+            name: "User".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["id".to_string()],
+                resolvable: true,
+            }],
+            is_extends: false,
+            external_fields: vec![],
+            shareable_fields: vec![],
+        }],
+    };
+
+    // Missing key field should error
+    let missing_key = json!({
+        "email": "test@example.com"
+    });
+
+    let result = build_update_query("User", &missing_key, &metadata);
+    assert!(result.is_err());
 }
 
 #[test]
 fn test_mutation_input_type_coercion() {
-    panic!("Input type coercion in mutations not implemented");
+    use fraiseql_core::federation::mutation_query_builder::build_update_query;
+    use fraiseql_core::federation::types::{FederatedType, FederationMetadata, KeyDirective};
+    use serde_json::json;
+
+    let metadata = FederationMetadata {
+        enabled: true,
+        version: "v2".to_string(),
+        types: vec![FederatedType {
+            name: "Order".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["order_id".to_string()],
+                resolvable: true,
+            }],
+            is_extends: false,
+            external_fields: vec![],
+            shareable_fields: vec![],
+        }],
+    };
+
+    let variables = json!({
+        "order_id": 789,
+        "total": 99.99,
+        "active": true
+    });
+
+    let update_query = build_update_query("Order", &variables, &metadata).unwrap();
+    // Numbers are not quoted in SQL (correctly)
+    assert!(update_query.contains("WHERE order_id = 789"));
+    assert!(update_query.contains("total = 99.99"));
+    assert!(update_query.contains("active = true"));
 }
 
 // ============================================================================
