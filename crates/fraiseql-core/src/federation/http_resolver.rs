@@ -123,7 +123,6 @@ impl HttpEntityResolver {
                 obj.insert("__typename".to_string(), Value::String(rep.typename.clone()));
                 Value::Object(
                     obj.into_iter()
-                        .map(|(k, v)| (k, v))
                         .collect::<serde_json::Map<_, _>>(),
                 )
             })
@@ -212,7 +211,7 @@ impl HttpEntityResolver {
             .as_ref()
             .and_then(|d| d.get("_entities"))
             .and_then(|e| e.as_array())
-            .map(|arr| arr.to_vec())
+            .cloned()
             .unwrap_or_default();
 
         if entities.len() != representations.len() {

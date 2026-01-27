@@ -35,6 +35,8 @@ pub mod mutation_detector;
 pub mod mutation_executor;
 pub mod mutation_query_builder;
 pub mod http_resolver;
+pub mod connection_manager;
+pub mod direct_db_resolver;
 
 pub use types::*;
 pub use entity_resolver::*;
@@ -47,6 +49,8 @@ pub use mutation_detector::*;
 pub use mutation_executor::*;
 pub use mutation_query_builder::*;
 pub use http_resolver::*;
+pub use connection_manager::*;
+pub use direct_db_resolver::*;
 
 use crate::error::{FraiseQLError, Result};
 use serde_json::{json, Value};

@@ -126,9 +126,8 @@ pub fn is_local_mutation(mutation_name: &str, metadata: &FederationMetadata) -> 
     }
 
     // Extract typename from mutation name
-    let typename = match extract_typename_from_mutation(mutation_name) {
-        Some(t) => t,
-        None => return true, // Unknown mutations default to local
+    let Some(typename) = extract_typename_from_mutation(mutation_name) else {
+        return true; // Unknown mutations default to local
     };
 
     // Find type in federation metadata

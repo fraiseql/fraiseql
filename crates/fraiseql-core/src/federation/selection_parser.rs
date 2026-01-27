@@ -119,7 +119,7 @@ mod tests {
 
     #[test]
     fn test_parse_simple_field_selection() {
-        let query = r#"
+        let query = r"
             query {
                 _entities(representations: [...]) {
                     __typename
@@ -127,7 +127,7 @@ mod tests {
                     name
                 }
             }
-        "#;
+        ";
 
         let selection = parse_field_selection(query).unwrap();
         assert!(selection.contains("__typename"));
