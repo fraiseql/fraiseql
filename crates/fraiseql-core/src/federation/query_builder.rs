@@ -65,23 +65,20 @@ fn extract_key_values(
     representations: &[EntityRepresentation],
     key_field: &str,
 ) -> Result<Vec<String>> {
-    let mut values = Vec::new();
-
-    for rep in representations {
-        if let Some(value) = rep.key_fields.get(key_field) {
-            values.push(value_to_string(value)?);
-        } else {
-            return Err(FraiseQLError::Validation {
-                message: format!(
-                    "Key field '{}' missing in entity representation for {}",
-                    key_field, rep.typename
-                ),
-                path: None,
-            });
-        }
-    }
-
-    Ok(values)
+    representations
+        .iter()
+        .map(|rep| {
+            rep.key_fields.get(key_field)
+                .ok_or_else(|| FraiseQLError::Validation {
+                    message: format!(
+                        "Key field '{}' missing in entity representation for {}",
+                        key_field, rep.typename
+                    ),
+                    path: None,
+                })
+                .and_then(|v| value_to_string(v))
+        })
+        .collect()
 }
 
 /// Build WHERE IN clause for composite keys.
