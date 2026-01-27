@@ -1501,7 +1501,10 @@ fn test_detect_mutation_on_owned_entity() {
 
     let mutation_query = "mutation { updateUser { id } }";
     assert!(is_mutation(mutation_query));
-    assert!(is_local_mutation("updateUser"));
+
+    // Test with federation disabled - all mutations are local
+    let metadata = FederationMetadata::default();
+    assert!(is_local_mutation("updateUser", &metadata));
 }
 
 #[test]
@@ -1510,9 +1513,10 @@ fn test_detect_mutation_on_extended_entity() {
 
     let mutation_query = "mutation { updateOrder { id } }";
     assert!(is_mutation(mutation_query));
-    // Extended mutation detection would check federation metadata in production
-    // For now, is_extended_mutation returns !is_local_mutation
-    assert!(!is_extended_mutation("updateUser")); // Local mutations are not extended
+
+    // Test with federation disabled - no mutations are extended
+    let metadata = FederationMetadata::default();
+    assert!(!is_extended_mutation("updateUser", &metadata));
 }
 
 // ============================================================================

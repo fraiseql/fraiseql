@@ -1,7 +1,9 @@
 //! Federation mutation query detection.
 //!
 //! Detects whether a GraphQL query is a mutation and extracts mutation information
-//! for routing to mutation handlers.
+//! for routing to mutation handlers. Includes federation awareness for local vs extended mutations.
+
+use crate::federation::types::FederationMetadata;
 
 /// Check if a query is a GraphQL mutation.
 ///
@@ -67,25 +69,86 @@ pub fn extract_mutation_name(query: &str) -> Option<String> {
     }
 }
 
+/// Extract entity typename from a mutation name.
+///
+/// Examples:
+/// - "createUser" -> "User"
+/// - "updateOrder" -> "Order"
+/// - "deleteProduct" -> "Product"
+#[must_use]
+pub fn extract_typename_from_mutation(mutation_name: &str) -> Option<String> {
+    let lower = mutation_name.to_lowercase();
+
+    // Try common prefixes
+    if let Some(typename) = lower
+        .strip_prefix("create")
+        .or_else(|| lower.strip_prefix("add"))
+    {
+        // Capitalize first letter
+        if let Some(first) = typename.chars().next() {
+            let capitalized = first.to_uppercase().collect::<String>() + &typename[1..];
+            return Some(capitalized);
+        }
+    }
+
+    if let Some(typename) = lower
+        .strip_prefix("update")
+        .or_else(|| lower.strip_prefix("modify"))
+    {
+        if let Some(first) = typename.chars().next() {
+            let capitalized = first.to_uppercase().collect::<String>() + &typename[1..];
+            return Some(capitalized);
+        }
+    }
+
+    if let Some(typename) = lower
+        .strip_prefix("delete")
+        .or_else(|| lower.strip_prefix("remove"))
+    {
+        if let Some(first) = typename.chars().next() {
+            let capitalized = first.to_uppercase().collect::<String>() + &typename[1..];
+            return Some(capitalized);
+        }
+    }
+
+    None
+}
+
 /// Check if a mutation is on a locally-owned entity.
 ///
-/// A mutation is local if the entity type is not marked as @extends.
-/// (Simplified for now - would check federation metadata in production)
+/// A mutation is local if the entity type is NOT marked as @extends in federation metadata.
+/// If federation is disabled, all mutations are considered local.
 #[must_use]
-pub fn is_local_mutation(_mutation_name: &str) -> bool {
-    // Simplified: assume all mutations are local for now
-    // In production, check if entity is @extends in federation metadata
-    true
+pub fn is_local_mutation(mutation_name: &str, metadata: &FederationMetadata) -> bool {
+    // If federation is not enabled, assume local
+    if !metadata.enabled {
+        return true;
+    }
+
+    // Extract typename from mutation name
+    let typename = match extract_typename_from_mutation(mutation_name) {
+        Some(t) => t,
+        None => return true, // Unknown mutations default to local
+    };
+
+    // Find type in federation metadata
+    let fed_type = metadata.types.iter().find(|t| t.name == typename);
+
+    match fed_type {
+        Some(t) => {
+            // Local if NOT extended
+            !t.is_extends
+        }
+        None => true, // Unknown types default to local
+    }
 }
 
 /// Check if a mutation is on an extended (non-owned) entity.
 ///
-/// A mutation is extended if the entity type is marked as @extends.
+/// A mutation is extended if the entity type is marked as @extends in federation metadata.
 #[must_use]
-pub fn is_extended_mutation(mutation_name: &str) -> bool {
-    // Simplified: check for known extended patterns
-    // In production, check federation metadata
-    !is_local_mutation(mutation_name)
+pub fn is_extended_mutation(mutation_name: &str, metadata: &FederationMetadata) -> bool {
+    !is_local_mutation(mutation_name, metadata)
 }
 
 #[cfg(test)]
@@ -122,8 +185,63 @@ mod tests {
     }
 
     #[test]
-    fn test_mutation_ownership() {
-        assert!(is_local_mutation("updateUser"));
-        assert!(!is_extended_mutation("updateUser")); // Local is not extended
+    fn test_extract_typename_from_mutation() {
+        assert_eq!(
+            extract_typename_from_mutation("createUser"),
+            Some("User".to_string())
+        );
+        assert_eq!(
+            extract_typename_from_mutation("updateOrder"),
+            Some("Order".to_string())
+        );
+        assert_eq!(
+            extract_typename_from_mutation("deleteProduct"),
+            Some("Product".to_string())
+        );
+        assert_eq!(extract_typename_from_mutation("unknown"), None);
+    }
+
+    #[test]
+    fn test_mutation_ownership_federation_disabled() {
+        let metadata = crate::federation::FederationMetadata::default();
+        // With federation disabled, all mutations are local
+        assert!(is_local_mutation("updateUser", &metadata));
+        assert!(!is_extended_mutation("updateUser", &metadata));
+    }
+
+    #[test]
+    fn test_mutation_ownership_local_type() {
+        let metadata = crate::federation::FederationMetadata {
+            enabled: true,
+            version: "v2".to_string(),
+            types: vec![crate::federation::FederatedType {
+                name: "User".to_string(),
+                keys: vec![],
+                is_extends: false, // NOT extended = local
+                external_fields: vec![],
+                shareable_fields: vec![],
+            }],
+        };
+
+        assert!(is_local_mutation("updateUser", &metadata));
+        assert!(!is_extended_mutation("updateUser", &metadata));
+    }
+
+    #[test]
+    fn test_mutation_ownership_extended_type() {
+        let metadata = crate::federation::FederationMetadata {
+            enabled: true,
+            version: "v2".to_string(),
+            types: vec![crate::federation::FederatedType {
+                name: "User".to_string(),
+                keys: vec![],
+                is_extends: true, // Extended = remote
+                external_fields: vec![],
+                shareable_fields: vec![],
+            }],
+        };
+
+        assert!(!is_local_mutation("updateUser", &metadata));
+        assert!(is_extended_mutation("updateUser", &metadata));
     }
 }
