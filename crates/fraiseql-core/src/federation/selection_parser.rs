@@ -90,7 +90,8 @@ fn extract_fields_from_selection_set(query: &str) -> Result<Vec<String>> {
                     in_selection = false;
                 }
             }
-            '\n' | '\r' if in_selection => {
+            ' ' | '\n' | '\r' | '\t' if in_selection => {
+                // Whitespace is a field separator
                 if !current_field.is_empty() {
                     fields.push(current_field.trim().to_string());
                     current_field.clear();
@@ -107,8 +108,6 @@ fn extract_fields_from_selection_set(query: &str) -> Result<Vec<String>> {
     let fields: Vec<String> = fields
         .into_iter()
         .filter(|f| !f.is_empty() && !f.contains('(') && !f.contains(':'))
-        .map(|f| f.split_whitespace().next().unwrap_or("").to_string())
-        .filter(|f| !f.is_empty())
         .collect();
 
     Ok(fields)

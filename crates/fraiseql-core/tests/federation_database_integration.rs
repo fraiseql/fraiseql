@@ -7,33 +7,430 @@
 //! - Connection pooling and transaction handling
 //! - Type coercion between database systems
 
+use async_trait::async_trait;
+use fraiseql_core::db::{traits::{DatabaseAdapter, DatabaseCapabilities}, types::{DatabaseType, PoolMetrics}, where_clause::WhereClause};
+use fraiseql_core::db::types::JsonbValue;
+use fraiseql_core::error::Result;
+use fraiseql_core::federation::database_resolver::DatabaseEntityResolver;
+use fraiseql_core::federation::selection_parser::FieldSelection;
+use fraiseql_core::federation::types::{EntityRepresentation, FederatedType, FederationMetadata, KeyDirective};
+use serde_json::{json, Value};
+use std::collections::HashMap;
+use std::sync::Arc;
+
+// ============================================================================
+// Mock Database Adapter for Testing
+// ============================================================================
+
+struct MockDatabaseAdapter {
+    data: HashMap<String, Vec<HashMap<String, Value>>>,
+}
+
+impl MockDatabaseAdapter {
+    fn new() -> Self {
+        Self {
+            data: HashMap::new(),
+        }
+    }
+
+    fn with_table_data(mut self, table: String, rows: Vec<HashMap<String, Value>>) -> Self {
+        self.data.insert(table, rows);
+        self
+    }
+}
+
+#[async_trait]
+impl DatabaseAdapter for MockDatabaseAdapter {
+    async fn execute_where_query(
+        &self,
+        _view: &str,
+        _where_clause: Option<&WhereClause>,
+        _limit: Option<u32>,
+        _offset: Option<u32>,
+    ) -> Result<Vec<JsonbValue>> {
+        // Not needed for these tests
+        Ok(Vec::new())
+    }
+
+    fn database_type(&self) -> DatabaseType {
+        DatabaseType::PostgreSQL
+    }
+
+    async fn health_check(&self) -> Result<()> {
+        Ok(())
+    }
+
+    fn pool_metrics(&self) -> PoolMetrics {
+        PoolMetrics {
+            total_connections: 10,
+            idle_connections: 8,
+            active_connections: 2,
+            waiting_requests: 0,
+        }
+    }
+
+    async fn execute_raw_query(
+        &self,
+        sql: &str,
+    ) -> Result<Vec<HashMap<String, Value>>> {
+        // Extract table name from simple SELECT queries
+        if let Some(start) = sql.to_uppercase().find("FROM ") {
+            let after_from = &sql[start + 5..].trim();
+            if let Some(space_pos) = after_from.find(' ') {
+                let table = after_from[..space_pos].trim().to_lowercase();
+                if let Some(rows) = self.data.get(&table) {
+                    return Ok(rows.clone());
+                }
+            } else {
+                let table = after_from.to_lowercase();
+                if let Some(rows) = self.data.get(&table) {
+                    return Ok(rows.clone());
+                }
+            }
+        }
+        Ok(Vec::new())
+    }
+
+    fn capabilities(&self) -> DatabaseCapabilities {
+        DatabaseCapabilities::from_database_type(self.database_type())
+    }
+}
+
 // ============================================================================
 // Database Entity Resolution (PostgreSQL)
 // ============================================================================
 
 #[test]
 fn test_resolve_entity_from_postgres_table() {
-    panic!("Entity resolution from PostgreSQL not implemented");
+    use std::collections::HashMap;
+
+    // Setup
+    let mut user_row = HashMap::new();
+    user_row.insert("id".to_string(), json!("user123"));
+    user_row.insert("name".to_string(), json!("John Doe"));
+    user_row.insert("email".to_string(), json!("john@example.com"));
+
+    let mock_adapter = MockDatabaseAdapter::new()
+        .with_table_data("user".to_string(), vec![user_row]);
+
+    let metadata = FederationMetadata {
+        enabled: true,
+        version: "v2".to_string(),
+        types: vec![FederatedType {
+            name: "User".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["id".to_string()],
+                resolvable: true,
+            }],
+            is_extends: false,
+            external_fields: vec![],
+            shareable_fields: vec![],
+        }],
+    };
+
+    let mut rep_keys = HashMap::new();
+    rep_keys.insert("id".to_string(), json!("user123"));
+    let mut rep_all = HashMap::new();
+    rep_all.insert("id".to_string(), json!("user123"));
+
+    let representation = EntityRepresentation {
+        typename: "User".to_string(),
+        key_fields: rep_keys,
+        all_fields: rep_all,
+    };
+
+    let selection = FieldSelection::new(vec![
+        "__typename".to_string(),
+        "id".to_string(),
+        "name".to_string(),
+        "email".to_string(),
+    ]);
+
+    // Execute
+    let resolver = DatabaseEntityResolver::new(Arc::new(mock_adapter), metadata);
+    let result = tokio::runtime::Runtime::new()
+        .unwrap()
+        .block_on(resolver.resolve_entities_from_db("User", &[representation], &selection));
+
+    // Verify
+    assert!(result.is_ok());
+    let entities = result.unwrap();
+    assert_eq!(entities.len(), 1);
+    assert!(entities[0].is_some());
+
+    let entity = &entities[0].as_ref().unwrap();
+    assert_eq!(entity["__typename"], "User");
+    assert_eq!(entity["id"], "user123");
+    assert_eq!(entity["name"], "John Doe");
 }
 
 #[test]
 fn test_resolve_entities_batch_from_postgres() {
-    panic!("Batch entity resolution from PostgreSQL not implemented");
+    use std::collections::HashMap;
+
+    // Setup - multiple users
+    let mut user1 = HashMap::new();
+    user1.insert("id".to_string(), json!("user1"));
+    user1.insert("name".to_string(), json!("Alice"));
+
+    let mut user2 = HashMap::new();
+    user2.insert("id".to_string(), json!("user2"));
+    user2.insert("name".to_string(), json!("Bob"));
+
+    let mock_adapter = MockDatabaseAdapter::new()
+        .with_table_data("user".to_string(), vec![user1, user2]);
+
+    let metadata = FederationMetadata {
+        enabled: true,
+        version: "v2".to_string(),
+        types: vec![FederatedType {
+            name: "User".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["id".to_string()],
+                resolvable: true,
+            }],
+            is_extends: false,
+            external_fields: vec![],
+            shareable_fields: vec![],
+        }],
+    };
+
+    // Request for two entities
+    let mut rep1_keys = HashMap::new();
+    rep1_keys.insert("id".to_string(), json!("user1"));
+    let mut rep1_all = HashMap::new();
+    rep1_all.insert("id".to_string(), json!("user1"));
+
+    let mut rep2_keys = HashMap::new();
+    rep2_keys.insert("id".to_string(), json!("user2"));
+    let mut rep2_all = HashMap::new();
+    rep2_all.insert("id".to_string(), json!("user2"));
+
+    let reps = vec![
+        EntityRepresentation {
+            typename: "User".to_string(),
+            key_fields: rep1_keys,
+            all_fields: rep1_all,
+        },
+        EntityRepresentation {
+            typename: "User".to_string(),
+            key_fields: rep2_keys,
+            all_fields: rep2_all,
+        },
+    ];
+
+    let selection = FieldSelection::new(vec![
+        "__typename".to_string(),
+        "id".to_string(),
+        "name".to_string(),
+    ]);
+
+    // Execute
+    let resolver = DatabaseEntityResolver::new(Arc::new(mock_adapter), metadata);
+    let result = tokio::runtime::Runtime::new()
+        .unwrap()
+        .block_on(resolver.resolve_entities_from_db("User", &reps, &selection));
+
+    // Verify
+    assert!(result.is_ok());
+    let entities = result.unwrap();
+    assert_eq!(entities.len(), 2);
+    assert!(entities[0].is_some());
+    assert!(entities[1].is_some());
+
+    assert_eq!(entities[0].as_ref().unwrap()["name"], "Alice");
+    assert_eq!(entities[1].as_ref().unwrap()["name"], "Bob");
 }
 
 #[test]
 fn test_resolve_entity_composite_key_from_postgres() {
-    panic!("Composite key entity resolution from PostgreSQL not implemented");
+    use std::collections::HashMap;
+
+    // Setup - entity with composite key (tenant_id, user_id)
+    let mut row = HashMap::new();
+    row.insert("tenant_id".to_string(), json!("t1"));
+    row.insert("user_id".to_string(), json!("u1"));
+    row.insert("name".to_string(), json!("John"));
+
+    let mock_adapter = MockDatabaseAdapter::new()
+        .with_table_data("user".to_string(), vec![row]);
+
+    let metadata = FederationMetadata {
+        enabled: true,
+        version: "v2".to_string(),
+        types: vec![FederatedType {
+            name: "User".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["tenant_id".to_string(), "user_id".to_string()],
+                resolvable: true,
+            }],
+            is_extends: false,
+            external_fields: vec![],
+            shareable_fields: vec![],
+        }],
+    };
+
+    let mut rep_keys = HashMap::new();
+    rep_keys.insert("tenant_id".to_string(), json!("t1"));
+    rep_keys.insert("user_id".to_string(), json!("u1"));
+    let mut rep_all = HashMap::new();
+    rep_all.insert("tenant_id".to_string(), json!("t1"));
+    rep_all.insert("user_id".to_string(), json!("u1"));
+
+    let representation = EntityRepresentation {
+        typename: "User".to_string(),
+        key_fields: rep_keys,
+        all_fields: rep_all,
+    };
+
+    let selection = FieldSelection::new(vec![
+        "__typename".to_string(),
+        "tenant_id".to_string(),
+        "user_id".to_string(),
+        "name".to_string(),
+    ]);
+
+    // Execute
+    let resolver = DatabaseEntityResolver::new(Arc::new(mock_adapter), metadata);
+    let result = tokio::runtime::Runtime::new()
+        .unwrap()
+        .block_on(resolver.resolve_entities_from_db("User", &[representation], &selection));
+
+    // Verify
+    assert!(result.is_ok());
+    let entities = result.unwrap();
+    assert_eq!(entities.len(), 1);
+    assert!(entities[0].is_some());
+    assert_eq!(entities[0].as_ref().unwrap()["name"], "John");
 }
 
 #[test]
 fn test_resolve_entity_with_null_values_from_postgres() {
-    panic!("Null value handling in PostgreSQL entity resolution not implemented");
+    use std::collections::HashMap;
+
+    // Setup - entity with NULL values
+    let mut row = HashMap::new();
+    row.insert("id".to_string(), json!("user123"));
+    row.insert("name".to_string(), json!("John"));
+    row.insert("email".to_string(), Value::Null);
+
+    let mock_adapter = MockDatabaseAdapter::new()
+        .with_table_data("user".to_string(), vec![row]);
+
+    let metadata = FederationMetadata {
+        enabled: true,
+        version: "v2".to_string(),
+        types: vec![FederatedType {
+            name: "User".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["id".to_string()],
+                resolvable: true,
+            }],
+            is_extends: false,
+            external_fields: vec![],
+            shareable_fields: vec![],
+        }],
+    };
+
+    let mut rep_keys = HashMap::new();
+    rep_keys.insert("id".to_string(), json!("user123"));
+    let mut rep_all = HashMap::new();
+    rep_all.insert("id".to_string(), json!("user123"));
+
+    let representation = EntityRepresentation {
+        typename: "User".to_string(),
+        key_fields: rep_keys,
+        all_fields: rep_all,
+    };
+
+    let selection = FieldSelection::new(vec![
+        "__typename".to_string(),
+        "id".to_string(),
+        "name".to_string(),
+        "email".to_string(),
+    ]);
+
+    // Execute
+    let resolver = DatabaseEntityResolver::new(Arc::new(mock_adapter), metadata);
+    let result = tokio::runtime::Runtime::new()
+        .unwrap()
+        .block_on(resolver.resolve_entities_from_db("User", &[representation], &selection));
+
+    // Verify
+    assert!(result.is_ok());
+    let entities = result.unwrap();
+    assert_eq!(entities.len(), 1);
+    assert!(entities[0].is_some());
+
+    let entity = &entities[0].as_ref().unwrap();
+    assert_eq!(entity["name"], "John");
+    assert_eq!(entity["email"], Value::Null);
 }
 
 #[test]
 fn test_resolve_entity_large_result_set_from_postgres() {
-    panic!("Large result set handling from PostgreSQL not implemented");
+    use std::collections::HashMap;
+
+    // Setup - 100 users
+    let mut rows = Vec::new();
+    let mut reps = Vec::new();
+
+    for i in 0..100 {
+        let mut row = HashMap::new();
+        let id = format!("user{}", i);
+        row.insert("id".to_string(), json!(id.clone()));
+        row.insert("name".to_string(), json!(format!("User {}", i)));
+        rows.push(row);
+
+        let mut rep_keys = HashMap::new();
+        rep_keys.insert("id".to_string(), json!(id.clone()));
+        let mut rep_all = HashMap::new();
+        rep_all.insert("id".to_string(), json!(id));
+
+        reps.push(EntityRepresentation {
+            typename: "User".to_string(),
+            key_fields: rep_keys,
+            all_fields: rep_all,
+        });
+    }
+
+    let mock_adapter = MockDatabaseAdapter::new()
+        .with_table_data("user".to_string(), rows);
+
+    let metadata = FederationMetadata {
+        enabled: true,
+        version: "v2".to_string(),
+        types: vec![FederatedType {
+            name: "User".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["id".to_string()],
+                resolvable: true,
+            }],
+            is_extends: false,
+            external_fields: vec![],
+            shareable_fields: vec![],
+        }],
+    };
+
+    let selection = FieldSelection::new(vec![
+        "__typename".to_string(),
+        "id".to_string(),
+        "name".to_string(),
+    ]);
+
+    // Execute
+    let resolver = DatabaseEntityResolver::new(Arc::new(mock_adapter), metadata);
+    let result = tokio::runtime::Runtime::new()
+        .unwrap()
+        .block_on(resolver.resolve_entities_from_db("User", &reps, &selection));
+
+    // Verify
+    assert!(result.is_ok());
+    let entities = result.unwrap();
+    assert_eq!(entities.len(), 100);
+    for i in 0..100 {
+        assert!(entities[i].is_some());
+    }
 }
 
 // ============================================================================

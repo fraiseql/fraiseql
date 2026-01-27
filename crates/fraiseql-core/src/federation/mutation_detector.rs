@@ -41,27 +41,23 @@ pub fn is_mutation(query: &str) -> bool {
 pub fn extract_mutation_name(query: &str) -> Option<String> {
     let trimmed = query.trim();
 
-    // Find the first opening brace
+    // Find the first opening brace of the selection set
     let brace_pos = trimmed.find('{')?;
-    let before_brace = &trimmed[..brace_pos];
+    let after_brace = &trimmed[brace_pos + 1..];
 
-    // Find the field name between opening { and either ( or whitespace
-    let after_mutation = if let Some(pos) = before_brace.rfind("mutation") {
-        &before_brace[pos + 8..] // Skip "mutation" keyword
-    } else {
-        before_brace
-    };
-
-    // Extract the field name (alphanumeric and underscore)
-    let field_part = after_mutation.trim();
+    // Skip whitespace and find the first field name
     let mut field_name = String::new();
+    let mut found_alphanumeric = false;
 
-    for ch in field_part.chars() {
+    for ch in after_brace.chars() {
         if ch.is_alphanumeric() || ch == '_' {
             field_name.push(ch);
-        } else if !field_name.is_empty() {
+            found_alphanumeric = true;
+        } else if found_alphanumeric {
+            // Stop when we hit a non-alphanumeric after finding the field name
             break;
         }
+        // Skip whitespace before field name
     }
 
     if field_name.is_empty() {
