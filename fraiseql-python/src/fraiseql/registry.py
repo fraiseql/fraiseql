@@ -30,6 +30,7 @@ class SchemaRegistry:
         fields: dict[str, dict[str, Any]],
         description: str | None = None,
         implements: list[str] | None = None,
+        federation: dict[str, Any] | None = None,
     ) -> None:
         """Register a GraphQL type.
 
@@ -38,23 +39,51 @@ class SchemaRegistry:
             fields: Dictionary of field_name -> {"type": str, "nullable": bool}
             description: Optional type description from docstring
             implements: List of interface names this type implements
+            federation: Federation metadata (keys, extends, external_fields, etc.)
         """
+        # Build field list with federation metadata
+        field_list = []
+        for field_name, field_info in fields.items():
+            field_def: dict[str, Any] = {
+                "name": field_name,
+                "type": field_info["type"],
+                "nullable": field_info["nullable"],
+            }
+
+            # Add field-level federation metadata
+            if federation:
+                field_fed: dict[str, Any] = {
+                    "external": field_name in federation.get("external_fields", []),
+                }
+                if field_name in federation.get("requires", {}):
+                    field_fed["requires"] = federation["requires"][field_name]
+                if federation.get("provides_data"):
+                    # Check if this field provides any data
+                    field_provides = [
+                        p
+                        for p in federation["provides_data"]
+                        if f"{name}.{field_name}" in str(p) or p.startswith(f"{field_name}:")
+                    ]
+                    if field_provides:
+                        field_fed["provides"] = field_provides
+
+                field_def["federation"] = field_fed
+
+            field_list.append(field_def)
+
         type_def: dict[str, Any] = {
             "name": name,
-            "fields": [
-                {
-                    "name": field_name,
-                    "type": field_info["type"],
-                    "nullable": field_info["nullable"],
-                }
-                for field_name, field_info in fields.items()
-            ],
+            "fields": field_list,
             "description": description,
         }
 
         # Add implements if specified
         if implements:
             type_def["implements"] = implements
+
+        # Add federation metadata if specified
+        if federation:
+            type_def["federation"] = federation
 
         cls._types[name] = type_def
 
@@ -336,8 +365,13 @@ class SchemaRegistry:
             Dictionary with "types", "enums", "input_types", "interfaces", "unions",
             "queries", "mutations", "fact_tables", and "aggregate_queries"
         """
+        types_list = list(cls._types.values())
+
+        # Check if any type has federation metadata
+        has_federation = any(t.get("federation") for t in types_list)
+
         schema: dict[str, Any] = {
-            "types": list(cls._types.values()),
+            "types": types_list,
             "enums": list(cls._enums.values()),
             "input_types": list(cls._input_types.values()),
             "interfaces": list(cls._interfaces.values()),
@@ -346,6 +380,13 @@ class SchemaRegistry:
             "mutations": list(cls._mutations.values()),
             "subscriptions": list(cls._subscriptions.values()),
         }
+
+        # Add federation root metadata if any type uses federation
+        if has_federation:
+            schema["federation"] = {
+                "enabled": True,
+                "version": "v2",
+            }
 
         # Add analytics sections if present
         if cls._fact_tables:
@@ -373,3 +414,15 @@ class SchemaRegistry:
         cls._fact_tables.clear()
         cls._aggregate_queries.clear()
         cls._observers.clear()
+
+
+def generate_schema_json(types: list[type] | None = None) -> dict[str, Any]:
+    """Generate schema JSON from current registry (convenience function).
+
+    Args:
+        types: List of types to include (unused for compatibility, uses full registry)
+
+    Returns:
+        Schema dictionary with federation metadata if applicable.
+    """
+    return SchemaRegistry.get_schema()

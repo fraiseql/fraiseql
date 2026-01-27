@@ -30,6 +30,10 @@ def python_type_to_graphql(py_type: Any) -> tuple[str, bool]:
         >>> python_type_to_graphql(DateTime)
         ('DateTime', False)
     """
+    # Handle string forward references (e.g., "Order" from list["Order"])
+    if isinstance(py_type, str):
+        return (py_type, False)
+
     origin = get_origin(py_type)
     args = get_args(py_type)
 

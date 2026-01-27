@@ -166,12 +166,16 @@ def type(
         # Extract field information from class annotations
         fields = extract_field_info(c)
 
+        # Extract federation metadata if present (from @key, @extends decorators)
+        federation_metadata = getattr(c, "__fraiseql_federation__", None)
+
         # Register type with schema registry
         SchemaRegistry.register_type(
             name=c.__name__,
             fields=fields,
             description=c.__doc__,
             implements=implements or [],
+            federation=federation_metadata,
         )
 
         # Return original class unmodified (no runtime behavior)
