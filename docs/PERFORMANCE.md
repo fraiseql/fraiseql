@@ -607,4 +607,4 @@ You now know how to:
 
 ---
 
-**Questions?** See [FAQ.md](FAQ.md) or open an issue on [GitHub](https://github.com/fraiseql/fraiseql-v2).
+**Questions?** See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for FAQ and solutions, or open an issue on [GitHub](https://github.com/fraiseql/fraiseql-v2).

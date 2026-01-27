@@ -176,8 +176,8 @@ Query result:
 
 - **Core Concepts**: Read [CORE_CONCEPTS.md](CORE_CONCEPTS.md) to understand how FraiseQL works
 - **Common Patterns**: See [PATTERNS.md](PATTERNS.md) for solutions to real-world problems
-- **API Reference**: Check [API_REFERENCE.md](API_REFERENCE.md) for all available methods
 - **Deployment**: When ready to deploy, see [DEPLOYMENT.md](DEPLOYMENT.md)
+- **Performance**: Optimize your queries with [PERFORMANCE.md](PERFORMANCE.md)
 
 ### Try these exercises
 
@@ -231,4 +231,4 @@ A: Yes! See [DEPLOYMENT.md](DEPLOYMENT.md) and [OPERATIONS_GUIDE.md](OPERATIONS_
 
 ---
 
-**Questions?** See [FAQ.md](FAQ.md) or open an issue on [GitHub](https://github.com/fraiseql/fraiseql-v2).
+**Questions?** See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for FAQ and solutions, or open an issue on [GitHub](https://github.com/fraiseql/fraiseql-v2).
