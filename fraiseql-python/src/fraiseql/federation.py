@@ -33,14 +33,39 @@ Example:
 from __future__ import annotations
 
 import inspect
-from typing import TYPE_CHECKING, Any, Callable, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from fraiseql.errors import FederationValidationError
 
 if TYPE_CHECKING:
-    from typing import Union
+    from collections.abc import Callable
 
 T = TypeVar("T")
+
+# Federation metadata keys
+_KEYS = "keys"
+_EXTEND = "extend"
+_EXTERNAL_FIELDS = "external_fields"
+_REQUIRES = "requires"
+_PROVIDES_DATA = "provides_data"
+
+
+def _init_federation_metadata() -> dict[str, Any]:
+    """Initialize an empty federation metadata dictionary."""
+    return {
+        _KEYS: [],
+        _EXTEND: False,
+        _EXTERNAL_FIELDS: [],
+        _REQUIRES: {},
+        _PROVIDES_DATA: [],
+    }
+
+
+def _get_or_init_federation_metadata(cls: type[T]) -> dict[str, Any]:
+    """Get or initialize federation metadata on a class."""
+    if not hasattr(cls, "__fraiseql_federation__"):
+        cls.__fraiseql_federation__ = _init_federation_metadata()
+    return cls.__fraiseql_federation__
 
 
 def _check_type_decorator_applied(cls: type[T]) -> bool:
@@ -52,16 +77,73 @@ def _check_type_decorator_applied(cls: type[T]) -> bool:
     try:
         source = inspect.getsource(cls)
         # Check if fraiseql_type or just 'type' decorator appears before class definition
-        lines = source.split('\n')
-        for line in lines:
-            if '@' in line:
-                # Check for @type or @fraiseql_type or @type_decorator
-                if 'type' in line.lower() and '@' in line:
-                    return True
-        return False
+        lines = source.split("\n")
+        return any("@" in line and "type" in line.lower() for line in lines)
     except (OSError, TypeError):
         # Can't get source (e.g., in tests or REPL), assume it's OK
         return True
+
+
+def _extract_key_fields(metadata: dict[str, Any]) -> set[str]:
+    """Extract all field names used in keys from federation metadata."""
+    key_fields: set[str] = set()
+    for key_def in metadata.get(_KEYS, []):
+        key_fields.update(key_def.get("fields", []))
+    return key_fields
+
+
+def _validate_field_exists(field_name: str, annotations: dict[str, Any], class_name: str) -> None:
+    """Validate that a field name exists in class annotations."""
+    if field_name not in annotations:
+        raise FederationValidationError(f"Field '{field_name}' not found in {class_name}")
+
+
+def _collect_field_markers(
+    cls: type[T],
+) -> tuple[set[str], dict[str, FieldDefault]]:
+    """Collect all field markers and their metadata from a class.
+
+    Returns:
+        Tuple of (field_names_with_markers, marker_by_field)
+    """
+    annotations = getattr(cls, "__annotations__", {})
+    field_markers: dict[str, FieldDefault] = {}
+    marked_fields: set[str] = set()
+
+    for field_name in annotations:
+        field_default = getattr(cls, field_name, None)
+        if isinstance(field_default, FieldDefault):
+            field_markers[field_name] = field_default
+            marked_fields.add(field_name)
+
+    return marked_fields, field_markers
+
+
+def _process_field_markers(
+    metadata: dict[str, Any],
+    field_markers: dict[str, FieldDefault],
+    annotations: dict[str, Any],
+    class_name: str,
+    is_extended: bool = False,
+) -> None:
+    """Process field markers and update federation metadata.
+
+    Handles @requires, @provides, and @external markers.
+    """
+    for field_name, marker in field_markers.items():
+        # Handle @requires()
+        if marker.requires:
+            _validate_field_exists(marker.requires, annotations, class_name)
+            metadata[_REQUIRES][field_name] = marker.requires
+
+        # Handle @provides()
+        if marker.provides:
+            metadata[_PROVIDES_DATA].extend(marker.provides)
+
+        # Handle @external() - only relevant for extended types
+        if is_extended and marker.external:
+            _validate_field_exists(field_name, annotations, class_name)
+            metadata[_EXTERNAL_FIELDS].append(field_name)
 
 
 class FieldDefault:
@@ -139,6 +221,7 @@ def requires(field_name: str | list[str]) -> FieldDefault:
     Raises:
         ValueError: If the referenced field doesn't exist.
     """
+    # Normalize field_name to string
     if isinstance(field_name, list):
         if len(field_name) != 1:
             raise FederationValidationError("@requires supports only single field dependency")
@@ -202,6 +285,7 @@ def key(field_names: str | list[str]) -> Callable[[type[T]], type[T]]:
     Raises:
         ValueError: If key field doesn't exist on the type.
     """
+    # Normalize field_names to list
     if isinstance(field_names, str):
         field_names = [field_names]
 
@@ -210,54 +294,27 @@ def key(field_names: str | list[str]) -> Callable[[type[T]], type[T]]:
         if not _check_type_decorator_applied(cls):
             raise TypeError(f"@key requires @type decorator to be applied to {cls.__name__}")
 
-        # Initialize federation metadata if not present
-        if not hasattr(cls, "__fraiseql_federation__"):
-            cls.__fraiseql_federation__ = {
-                "keys": [],
-                "extend": False,
-                "external_fields": [],
-                "requires": {},
-                "provides_data": [],
-            }
-
-        # Get field annotations
+        # Get or initialize federation metadata
+        metadata = _get_or_init_federation_metadata(cls)
         annotations = getattr(cls, "__annotations__", {})
 
-        # Validate that all key fields exist
+        # Validate all key fields exist
         for field_name in field_names:
-            if field_name not in annotations:
-                raise FederationValidationError(f"Field '{field_name}' not found in {cls.__name__}")
+            _validate_field_exists(field_name, annotations, cls.__name__)
 
-        # Check for duplicate key
-        existing_keys = cls.__fraiseql_federation__["keys"]
+        # Check for duplicate keys
         new_key = {"fields": field_names}
-        if new_key in existing_keys:
+        if new_key in metadata[_KEYS]:
             raise FederationValidationError(f"Duplicate key field in {cls.__name__}")
 
         # Add key to federation metadata
-        cls.__fraiseql_federation__["keys"].append(new_key)
+        metadata[_KEYS].append(new_key)
 
-        # Scan fields for @requires() and @provides() markers on non-extended types
-        # (Extended types will be scanned in @extends decorator)
-        # Note: Don't check @external here since @extends hasn't been applied yet
-        for field_name in annotations:
-            field_default = getattr(cls, field_name, None)
-
-            if isinstance(field_default, FieldDefault):
-                # Handle @requires() on non-extended type
-                if not cls.__fraiseql_federation__["extend"] and field_default.requires:
-                    required_field = field_default.requires
-                    if required_field not in annotations:
-                        raise FederationValidationError(
-                            f"Field '{required_field}' not found in {cls.__name__}"
-                        )
-                    cls.__fraiseql_federation__["requires"][field_name] = required_field
-
-                # Handle @provides() on non-extended type
-                if not cls.__fraiseql_federation__["extend"] and field_default.provides:
-                    cls.__fraiseql_federation__["provides_data"].extend(
-                        field_default.provides
-                    )
+        # Collect and process field markers on non-extended types
+        # Note: Extended types are processed in @extends decorator
+        if not metadata[_EXTEND]:
+            _, field_markers = _collect_field_markers(cls)
+            _process_field_markers(metadata, field_markers, annotations, cls.__name__)
 
         return cls
 
@@ -292,72 +349,44 @@ def extends(cls: type[T] | None = None) -> type[T] | Callable[[type[T]], type[T]
     """
 
     def decorator(c: type[T]) -> type[T]:
-        # Initialize federation metadata if not present
-        if not hasattr(c, "__fraiseql_federation__"):
-            c.__fraiseql_federation__ = {
-                "keys": [],
-                "extend": False,
-                "external_fields": [],
-                "requires": {},
-                "provides_data": [],
-            }
+        # Get or initialize federation metadata
+        metadata = _get_or_init_federation_metadata(c)
 
-        # Check that @key decorator was used
-        if not c.__fraiseql_federation__["keys"]:
+        # Validate @key decorator was applied first
+        if not metadata[_KEYS]:
             raise FederationValidationError(f"@extends requires @key decorator on {c.__name__}")
 
         # Mark type as extended
-        c.__fraiseql_federation__["extend"] = True
+        metadata[_EXTEND] = True
 
         # Extract key field names for validation
-        key_fields = set()
-        for key_def in c.__fraiseql_federation__["keys"]:
-            key_fields.update(key_def.get("fields", []))
+        key_fields = _extract_key_fields(metadata)
 
-        # First pass: collect external fields to check consistency
+        # Collect field markers and check consistency
         annotations = getattr(c, "__annotations__", {})
-        external_fields_found = set()
-        for field_name in annotations:
-            field_default = getattr(c, field_name, None)
-            if isinstance(field_default, FieldDefault) and field_default.external:
-                external_fields_found.add(field_name)
+        _, field_markers = _collect_field_markers(c)
 
-        # Second pass: validate consistency and process decorators
-        for field_name, field_type in annotations.items():
-            # Get field default if present
-            field_default = getattr(c, field_name, None)
+        # Determine which non-key fields are external
+        external_non_key = {
+            name for name, marker in field_markers.items()
+            if marker.external and name not in key_fields
+        }
 
-            if isinstance(field_default, FieldDefault):
-                # Handle @external()
-                if field_default.external:
-                    if field_name not in annotations:
-                        raise FederationValidationError(
-                            f"Field '{field_name}' not found in {c.__name__}"
-                        )
-                    # If marking a non-key field as external, all key fields must also be external
-                    if field_name not in key_fields:
-                        # Check if all key fields are marked as external
-                        for key_field in key_fields:
-                            if key_field not in external_fields_found:
-                                raise FederationValidationError(
-                                    f"Field '{field_name}' not found in {c.__name__}"
-                                )
-                    c.__fraiseql_federation__["external_fields"].append(field_name)
+        # If any non-key field is external, all key fields must be external too
+        if external_non_key:
+            external_key_fields = {
+                name for name, marker in field_markers.items()
+                if marker.external and name in key_fields
+            }
+            missing_key_fields = key_fields - external_key_fields
+            if missing_key_fields:
+                # Report error using first non-key external field (for consistent error)
+                raise FederationValidationError(
+                    f"Field '{next(iter(external_non_key))}' not found in {c.__name__}"
+                )
 
-                # Handle @requires()
-                if field_default.requires:
-                    required_field = field_default.requires
-                    if required_field not in annotations:
-                        raise FederationValidationError(
-                            f"Field '{required_field}' not found in {c.__name__}"
-                        )
-                    c.__fraiseql_federation__["requires"][field_name] = required_field
-
-                # Handle @provides()
-                if field_default.provides:
-                    c.__fraiseql_federation__["provides_data"].extend(
-                        field_default.provides
-                    )
+        # Process field markers (requires, provides, external)
+        _process_field_markers(metadata, field_markers, annotations, c.__name__, is_extended=True)
 
         return c
 

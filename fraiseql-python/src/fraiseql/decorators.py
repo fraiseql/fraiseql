@@ -170,13 +170,15 @@ def type(
         federation_metadata = getattr(c, "__fraiseql_federation__", None)
         if federation_metadata:
             # Check if @external was used without @extends
+            from fraiseql.federation import FieldDefault
+            from fraiseql.errors import FederationValidationError
+
             annotations = getattr(c, "__annotations__", {})
             for field_name in annotations:
-                from fraiseql.federation import FieldDefault
                 field_default = getattr(c, field_name, None)
                 if isinstance(field_default, FieldDefault):
+                    # @external can only be used on extended types
                     if field_default.external and not federation_metadata.get("extend", False):
-                        from fraiseql.errors import FederationValidationError
                         raise FederationValidationError(
                             "@external requires @extends"
                         )
