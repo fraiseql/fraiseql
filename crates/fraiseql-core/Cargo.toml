@@ -12,6 +12,10 @@ required-features = ["postgres"]
 harness = false
 name = "sql_projection_benchmark"
 
+[[bench]]
+harness = false
+name = "federation_bench"
+
 [dependencies]
 anyhow = {workspace = true}
 base64 = {workspace = true}
