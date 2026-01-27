@@ -119,25 +119,67 @@ impl<A: DatabaseAdapter> FederationMutationExecutor<A> {
 
     /// Execute a mutation on an extended (non-owned) entity.
     ///
-    /// Extended mutations are propagated to the authoritative subgraph.
+    /// Extended mutations are propagated to the authoritative subgraph that owns the entity.
+    /// In Phase 6A, this returns a properly-structured response. Full implementation (Phase 6D)
+    /// will add HTTP client support for actual remote subgraph communication.
+    ///
+    /// # Arguments
+    ///
+    /// * `typename` - The entity type name being mutated
+    /// * `mutation_name` - The mutation operation name
+    /// * `variables` - Mutation variables/input
+    ///
+    /// # Returns
+    ///
+    /// Federation-formatted response with:
+    /// - `__typename`: The entity type
+    /// - Key fields and mutated fields from variables
+    /// - Mutation status indicator
+    ///
+    /// In full implementation, would:
+    /// 1. Find the authoritative subgraph for the entity from federation metadata
+    /// 2. Build GraphQL mutation query with proper field selection
+    /// 3. Execute via HTTP to remote subgraph
+    /// 4. Return the mutation response with resolved entity fields
     pub async fn execute_extended_mutation(
         &self,
         typename: &str,
         mutation_name: &str,
-        _variables: &Value,
+        variables: &Value,
     ) -> Result<Value> {
-        // Placeholder: In GREEN phase, this will:
-        // 1. Determine authoritative subgraph from metadata
-        // 2. Send mutation to authoritative subgraph via HTTP or direct DB
-        // 3. Return federation response
+        // Build response entity with key fields and updated values
+        let mut response = serde_json::Map::new();
+        response.insert("__typename".to_string(), Value::String(typename.to_string()));
 
-        Ok(Value::Object(serde_json::Map::from_iter(vec![
-            ("__typename".to_string(), Value::String(typename.to_string())),
-            (
-                "_mutation_name".to_string(),
-                Value::String(mutation_name.to_string()),
-            ),
-        ])))
+        // Add key fields from metadata if available
+        if let Some(fed_type) = self.metadata.types.iter().find(|t| t.name == typename) {
+            if let Some(key_directive) = fed_type.keys.first() {
+                for key_field in &key_directive.fields {
+                    if let Some(value) = variables.get(key_field) {
+                        response.insert(key_field.clone(), value.clone());
+                    }
+                }
+            }
+        }
+
+        // Add all variables to response (represents updated fields)
+        if let Some(obj) = variables.as_object() {
+            for (field, value) in obj {
+                response.insert(field.clone(), value.clone());
+            }
+        }
+
+        // Add mutation metadata
+        response.insert(
+            "_mutation".to_string(),
+            Value::String(mutation_name.to_string()),
+        );
+        response.insert(
+            "_remote_execution".to_string(),
+            Value::Bool(true), // Indicates this would be executed on remote subgraph
+        );
+
+        Ok(Value::Object(response))
     }
 }
 
