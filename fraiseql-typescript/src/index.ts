@@ -217,3 +217,13 @@ export type {
   // Database scalars
   LTree,
 } from "./scalars";
+
+// Export federation support
+export {
+  Key,
+  Extends,
+  External,
+  Requires,
+  Provides,
+  generateSchemaJson,
+} from "./federation";

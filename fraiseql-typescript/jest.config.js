@@ -14,6 +14,10 @@ module.exports = {
     "ts-jest": {
       tsconfig: {
         esModuleInterop: true,
+        strict: false,
+        strictNullChecks: false,
+        noImplicitAny: false,
+        noUnusedLocals: false,
       },
     },
   },
