@@ -6,6 +6,14 @@ from typing import Any
 from fraiseql.registry import SchemaRegistry
 
 
+class Federation:
+    """Federation metadata container."""
+
+    def __init__(self, enabled: bool = False, version: str = "v2") -> None:
+        self.enabled = enabled
+        self.version = version
+
+
 class Schema:
     """Federation-aware schema container for compilation and validation.
 
@@ -56,15 +64,12 @@ class CompiledSchema:
         self.schema = schema_dict
         self.federation = self._extract_federation_info()
 
-    def _extract_federation_info(self) -> dict[str, Any] | None:
+    def _extract_federation_info(self) -> Federation | None:
         """Extract federation metadata from schema."""
         # Check if any type has federation metadata
         types = self.schema.get("types", [])
         if any(t.get("federation") for t in types):
-            return {
-                "enabled": True,
-                "version": "v2",
-            }
+            return Federation(enabled=True, version="v2")
         return None
 
     def get_type(self, name: str) -> dict[str, Any] | None:

@@ -32,6 +32,7 @@ Example:
 
 from __future__ import annotations
 
+import inspect
 from typing import TYPE_CHECKING, Any, Callable, TypeVar
 
 from fraiseql.errors import FederationValidationError
@@ -40,6 +41,27 @@ if TYPE_CHECKING:
     from typing import Union
 
 T = TypeVar("T")
+
+
+def _check_type_decorator_applied(cls: type[T]) -> bool:
+    """Check if @fraiseql.type or @type decorator is in the decorator stack.
+
+    This is a heuristic check using source inspection.
+    Returns True if type decorator appears to be present.
+    """
+    try:
+        source = inspect.getsource(cls)
+        # Check if fraiseql_type or just 'type' decorator appears before class definition
+        lines = source.split('\n')
+        for line in lines:
+            if '@' in line:
+                # Check for @type or @fraiseql_type or @type_decorator
+                if 'type' in line.lower() and '@' in line:
+                    return True
+        return False
+    except (OSError, TypeError):
+        # Can't get source (e.g., in tests or REPL), assume it's OK
+        return True
 
 
 class FieldDefault:
@@ -184,6 +206,10 @@ def key(field_names: str | list[str]) -> Callable[[type[T]], type[T]]:
         field_names = [field_names]
 
     def decorator(cls: type[T]) -> type[T]:
+        # Validate that @type decorator was applied or will be applied
+        if not _check_type_decorator_applied(cls):
+            raise TypeError(f"@key requires @type decorator to be applied to {cls.__name__}")
+
         # Initialize federation metadata if not present
         if not hasattr(cls, "__fraiseql_federation__"):
             cls.__fraiseql_federation__ = {
@@ -213,27 +239,25 @@ def key(field_names: str | list[str]) -> Callable[[type[T]], type[T]]:
 
         # Scan fields for @requires() and @provides() markers on non-extended types
         # (Extended types will be scanned in @extends decorator)
-        if not cls.__fraiseql_federation__["extend"]:
-            for field_name in annotations:
-                field_default = getattr(cls, field_name, None)
+        # Note: Don't check @external here since @extends hasn't been applied yet
+        for field_name in annotations:
+            field_default = getattr(cls, field_name, None)
 
-                if isinstance(field_default, FieldDefault):
-                    # Handle @requires() on non-extended type
-                    if field_default.requires:
-                        required_field = field_default.requires
-                        if required_field not in annotations:
-                            raise FederationValidationError(
-                                f"Field '{required_field}' not found in {cls.__name__}"
-                            )
-                        cls.__fraiseql_federation__["requires"][field_name] = (
-                            required_field
+            if isinstance(field_default, FieldDefault):
+                # Handle @requires() on non-extended type
+                if not cls.__fraiseql_federation__["extend"] and field_default.requires:
+                    required_field = field_default.requires
+                    if required_field not in annotations:
+                        raise FederationValidationError(
+                            f"Field '{required_field}' not found in {cls.__name__}"
                         )
+                    cls.__fraiseql_federation__["requires"][field_name] = required_field
 
-                    # Handle @provides() on non-extended type
-                    if field_default.provides:
-                        cls.__fraiseql_federation__["provides_data"].extend(
-                            field_default.provides
-                        )
+                # Handle @provides() on non-extended type
+                if not cls.__fraiseql_federation__["extend"] and field_default.provides:
+                    cls.__fraiseql_federation__["provides_data"].extend(
+                        field_default.provides
+                    )
 
         return cls
 

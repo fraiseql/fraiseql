@@ -163,11 +163,26 @@ def type(
     """
 
     def decorator(c: type[T]) -> type[T]:
+        # Mark class as a FraiseQL type
+        c.__fraiseql_type__ = True
+
+        # Check for invalid federation usage
+        federation_metadata = getattr(c, "__fraiseql_federation__", None)
+        if federation_metadata:
+            # Check if @external was used without @extends
+            annotations = getattr(c, "__annotations__", {})
+            for field_name in annotations:
+                from fraiseql.federation import FieldDefault
+                field_default = getattr(c, field_name, None)
+                if isinstance(field_default, FieldDefault):
+                    if field_default.external and not federation_metadata.get("extend", False):
+                        from fraiseql.errors import FederationValidationError
+                        raise FederationValidationError(
+                            "@external can only be used with @extends"
+                        )
+
         # Extract field information from class annotations
         fields = extract_field_info(c)
-
-        # Extract federation metadata if present (from @key, @extends decorators)
-        federation_metadata = getattr(c, "__fraiseql_federation__", None)
 
         # Register type with schema registry
         SchemaRegistry.register_type(
