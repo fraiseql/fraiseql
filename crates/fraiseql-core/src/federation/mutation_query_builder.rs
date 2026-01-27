@@ -4,6 +4,7 @@
 //! with parameter validation and SQL injection prevention.
 
 use crate::error::{FraiseQLError, Result};
+use crate::federation::metadata_helpers::{find_federation_type, get_key_directive};
 use crate::federation::sql_utils::value_to_sql_literal;
 use crate::federation::types::FederationMetadata;
 use serde_json::Value;
@@ -19,23 +20,9 @@ pub fn build_update_query(
     variables: &Value,
     metadata: &FederationMetadata,
 ) -> Result<String> {
-    // Find type in metadata
-    let fed_type = metadata
-        .types
-        .iter()
-        .find(|t| t.name == typename)
-        .ok_or_else(|| FraiseQLError::Validation {
-            message: format!("Type '{}' not found in federation metadata", typename),
-            path: None,
-        })?;
-
-    // Get key field
-    let key_directive = fed_type.keys.first().ok_or_else(|| {
-        FraiseQLError::Validation {
-            message: format!("Type '{}' has no @key directive", typename),
-            path: None,
-        }
-    })?;
+    // Find type and key directive
+    let fed_type = find_federation_type(typename, metadata)?;
+    let key_directive = get_key_directive(fed_type)?;
 
     let key_field = &key_directive.fields[0];
     let table_name = typename.to_lowercase();
@@ -141,21 +128,8 @@ pub fn build_delete_query(
     variables: &Value,
     metadata: &FederationMetadata,
 ) -> Result<String> {
-    let fed_type = metadata
-        .types
-        .iter()
-        .find(|t| t.name == typename)
-        .ok_or_else(|| FraiseQLError::Validation {
-            message: format!("Type '{}' not found in federation metadata", typename),
-            path: None,
-        })?;
-
-    let key_directive = fed_type.keys.first().ok_or_else(|| {
-        FraiseQLError::Validation {
-            message: format!("Type '{}' has no @key directive", typename),
-            path: None,
-        }
-    })?;
+    let fed_type = find_federation_type(typename, metadata)?;
+    let key_directive = get_key_directive(fed_type)?;
 
     let key_field = &key_directive.fields[0];
     let table_name = typename.to_lowercase();

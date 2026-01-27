@@ -4,6 +4,7 @@
 //! through proper escaping and parameterization.
 
 use crate::error::{FraiseQLError, Result};
+use crate::federation::metadata_helpers::{find_federation_type, get_key_directive};
 use crate::federation::sql_utils::{escape_sql_string, value_to_string};
 use crate::federation::types::{EntityRepresentation, FederationMetadata};
 
@@ -32,23 +33,9 @@ pub fn construct_where_in_clause(
     representations: &[EntityRepresentation],
     metadata: &FederationMetadata,
 ) -> Result<String> {
-    // Find the entity type in federation metadata
-    let fed_type = metadata
-        .types
-        .iter()
-        .find(|t| t.name == typename)
-        .ok_or_else(|| FraiseQLError::Validation {
-            message: format!("Type '{}' not found in federation metadata", typename),
-            path: None,
-        })?;
-
-    // Get the key directive (use first key for now - handles simple case)
-    let key_directive = fed_type.keys.first().ok_or_else(|| {
-        FraiseQLError::Validation {
-            message: format!("Type '{}' has no @key directive", typename),
-            path: None,
-        }
-    })?;
+    // Find the entity type and its key directive
+    let fed_type = find_federation_type(typename, metadata)?;
+    let key_directive = get_key_directive(fed_type)?;
 
     // For single-field keys, build simple WHERE IN
     if key_directive.fields.len() == 1 {
