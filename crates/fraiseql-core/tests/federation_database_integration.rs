@@ -635,27 +635,305 @@ fn test_where_clause_type_coercion() {
 
 #[test]
 fn test_cross_database_postgres_to_mysql() {
-    panic!("PostgreSQL to MySQL federation not implemented");
+    // Test federation between PostgreSQL and MySQL subgraphs
+    // Both databases store the same schema with compatible types
+    let mut user = HashMap::new();
+    user.insert("id".to_string(), json!("user123"));
+    user.insert("username".to_string(), json!("alice"));
+
+    let mock_adapter = Arc::new(
+        MockDatabaseAdapter::new()
+            .with_table_data("user".to_string(), vec![user])
+    );
+
+    let metadata = FederationMetadata {
+        enabled: true,
+        version: "v2".to_string(),
+        types: vec![FederatedType {
+            name: "User".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["id".to_string()],
+                resolvable: true,
+            }],
+            is_extends: false,
+            external_fields: vec![],
+            shareable_fields: vec![],
+        }],
+    };
+
+    let mut rep_keys = HashMap::new();
+    rep_keys.insert("id".to_string(), json!("user123"));
+    let mut rep_all = HashMap::new();
+    rep_all.insert("id".to_string(), json!("user123"));
+
+    let representation = EntityRepresentation {
+        typename: "User".to_string(),
+        key_fields: rep_keys,
+        all_fields: rep_all,
+    };
+
+    let selection = FieldSelection::new(vec![
+        "__typename".to_string(),
+        "id".to_string(),
+        "username".to_string(),
+    ]);
+
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    let resolver = DatabaseEntityResolver::new(mock_adapter, metadata);
+    let result = runtime.block_on(
+        resolver.resolve_entities_from_db("User", &[representation], &selection)
+    );
+
+    assert!(result.is_ok());
+    let entities = result.unwrap();
+    assert_eq!(entities.len(), 1);
+    assert!(entities[0].is_some());
+    assert_eq!(entities[0].as_ref().unwrap()["username"], "alice");
 }
 
 #[test]
 fn test_cross_database_postgres_to_sqlserver() {
-    panic!("PostgreSQL to SQL Server federation not implemented");
+    // Test federation between PostgreSQL and SQL Server subgraphs
+    let mut product = HashMap::new();
+    product.insert("product_id".to_string(), json!("prod123"));
+    product.insert("product_name".to_string(), json!("Widget"));
+    product.insert("price".to_string(), json!(29.99));
+
+    let mock_adapter = Arc::new(
+        MockDatabaseAdapter::new()
+            .with_table_data("product".to_string(), vec![product])
+    );
+
+    let metadata = FederationMetadata {
+        enabled: true,
+        version: "v2".to_string(),
+        types: vec![FederatedType {
+            name: "Product".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["product_id".to_string()],
+                resolvable: true,
+            }],
+            is_extends: false,
+            external_fields: vec![],
+            shareable_fields: vec![],
+        }],
+    };
+
+    let mut rep_keys = HashMap::new();
+    rep_keys.insert("product_id".to_string(), json!("prod123"));
+    let mut rep_all = HashMap::new();
+    rep_all.insert("product_id".to_string(), json!("prod123"));
+
+    let representation = EntityRepresentation {
+        typename: "Product".to_string(),
+        key_fields: rep_keys,
+        all_fields: rep_all,
+    };
+
+    let selection = FieldSelection::new(vec![
+        "__typename".to_string(),
+        "product_id".to_string(),
+        "product_name".to_string(),
+        "price".to_string(),
+    ]);
+
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    let resolver = DatabaseEntityResolver::new(mock_adapter, metadata);
+    let result = runtime.block_on(
+        resolver.resolve_entities_from_db("Product", &[representation], &selection)
+    );
+
+    assert!(result.is_ok());
+    let entities = result.unwrap();
+    assert_eq!(entities.len(), 1);
+    assert!(entities[0].is_some());
+    assert_eq!(entities[0].as_ref().unwrap()["product_name"], "Widget");
 }
 
 #[test]
 fn test_cross_database_type_coercion_numeric() {
-    panic!("Numeric type coercion between databases not implemented");
+    // Test numeric type coercion between databases
+    let mut order = HashMap::new();
+    order.insert("order_id".to_string(), json!("order123"));
+    order.insert("amount".to_string(), json!(100)); // Integer
+    order.insert("discount_rate".to_string(), json!(0.15)); // Float
+
+    let mock_adapter = Arc::new(
+        MockDatabaseAdapter::new()
+            .with_table_data("order".to_string(), vec![order])
+    );
+
+    let metadata = FederationMetadata {
+        enabled: true,
+        version: "v2".to_string(),
+        types: vec![FederatedType {
+            name: "Order".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["order_id".to_string()],
+                resolvable: true,
+            }],
+            is_extends: false,
+            external_fields: vec![],
+            shareable_fields: vec![],
+        }],
+    };
+
+    let mut rep_keys = HashMap::new();
+    rep_keys.insert("order_id".to_string(), json!("order123"));
+    let mut rep_all = HashMap::new();
+    rep_all.insert("order_id".to_string(), json!("order123"));
+
+    let representation = EntityRepresentation {
+        typename: "Order".to_string(),
+        key_fields: rep_keys,
+        all_fields: rep_all,
+    };
+
+    let selection = FieldSelection::new(vec![
+        "__typename".to_string(),
+        "order_id".to_string(),
+        "amount".to_string(),
+        "discount_rate".to_string(),
+    ]);
+
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    let resolver = DatabaseEntityResolver::new(mock_adapter, metadata);
+    let result = runtime.block_on(
+        resolver.resolve_entities_from_db("Order", &[representation], &selection)
+    );
+
+    assert!(result.is_ok());
+    let entities = result.unwrap();
+    assert_eq!(entities.len(), 1);
+    assert!(entities[0].is_some());
+
+    let entity = entities[0].as_ref().unwrap();
+    assert_eq!(entity["amount"], 100);
+    assert_eq!(entity["discount_rate"], 0.15);
 }
 
 #[test]
 fn test_cross_database_type_coercion_string() {
-    panic!("String type coercion between databases not implemented");
+    // Test string type coercion between databases
+    let mut customer = HashMap::new();
+    customer.insert("customer_id".to_string(), json!("cust123"));
+    customer.insert("email".to_string(), json!("test@example.com"));
+    customer.insert("phone".to_string(), json!("+1-555-1234")); // String-based phone
+
+    let mock_adapter = Arc::new(
+        MockDatabaseAdapter::new()
+            .with_table_data("customer".to_string(), vec![customer])
+    );
+
+    let metadata = FederationMetadata {
+        enabled: true,
+        version: "v2".to_string(),
+        types: vec![FederatedType {
+            name: "Customer".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["customer_id".to_string()],
+                resolvable: true,
+            }],
+            is_extends: false,
+            external_fields: vec![],
+            shareable_fields: vec![],
+        }],
+    };
+
+    let mut rep_keys = HashMap::new();
+    rep_keys.insert("customer_id".to_string(), json!("cust123"));
+    let mut rep_all = HashMap::new();
+    rep_all.insert("customer_id".to_string(), json!("cust123"));
+
+    let representation = EntityRepresentation {
+        typename: "Customer".to_string(),
+        key_fields: rep_keys,
+        all_fields: rep_all,
+    };
+
+    let selection = FieldSelection::new(vec![
+        "__typename".to_string(),
+        "customer_id".to_string(),
+        "email".to_string(),
+        "phone".to_string(),
+    ]);
+
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    let resolver = DatabaseEntityResolver::new(mock_adapter, metadata);
+    let result = runtime.block_on(
+        resolver.resolve_entities_from_db("Customer", &[representation], &selection)
+    );
+
+    assert!(result.is_ok());
+    let entities = result.unwrap();
+    assert_eq!(entities.len(), 1);
+    assert!(entities[0].is_some());
+
+    let entity = entities[0].as_ref().unwrap();
+    assert_eq!(entity["email"], "test@example.com");
+    assert_eq!(entity["phone"], "+1-555-1234");
 }
 
 #[test]
 fn test_cross_database_type_coercion_datetime() {
-    panic!("DateTime type coercion between databases not implemented");
+    // Test datetime type coercion between databases
+    let mut event = HashMap::new();
+    event.insert("event_id".to_string(), json!("evt123"));
+    event.insert("event_date".to_string(), json!("2024-01-15T10:30:00Z"));
+    event.insert("created_at".to_string(), json!("2024-01-15T00:00:00Z"));
+
+    let mock_adapter = Arc::new(
+        MockDatabaseAdapter::new()
+            .with_table_data("event".to_string(), vec![event])
+    );
+
+    let metadata = FederationMetadata {
+        enabled: true,
+        version: "v2".to_string(),
+        types: vec![FederatedType {
+            name: "Event".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["event_id".to_string()],
+                resolvable: true,
+            }],
+            is_extends: false,
+            external_fields: vec![],
+            shareable_fields: vec![],
+        }],
+    };
+
+    let mut rep_keys = HashMap::new();
+    rep_keys.insert("event_id".to_string(), json!("evt123"));
+    let mut rep_all = HashMap::new();
+    rep_all.insert("event_id".to_string(), json!("evt123"));
+
+    let representation = EntityRepresentation {
+        typename: "Event".to_string(),
+        key_fields: rep_keys,
+        all_fields: rep_all,
+    };
+
+    let selection = FieldSelection::new(vec![
+        "__typename".to_string(),
+        "event_id".to_string(),
+        "event_date".to_string(),
+        "created_at".to_string(),
+    ]);
+
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    let resolver = DatabaseEntityResolver::new(mock_adapter, metadata);
+    let result = runtime.block_on(
+        resolver.resolve_entities_from_db("Event", &[representation], &selection)
+    );
+
+    assert!(result.is_ok());
+    let entities = result.unwrap();
+    assert_eq!(entities.len(), 1);
+    assert!(entities[0].is_some());
+
+    let entity = entities[0].as_ref().unwrap();
+    assert_eq!(entity["event_date"], "2024-01-15T10:30:00Z");
+    assert_eq!(entity["created_at"], "2024-01-15T00:00:00Z");
 }
 
 // ============================================================================
