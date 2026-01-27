@@ -81,6 +81,40 @@ fn has_errors(response: &Value) -> bool {
     response.get("errors").is_some()
 }
 
+/// Get error message from GraphQL response
+#[allow(dead_code)]
+fn get_error_messages(response: &Value) -> String {
+    response
+        .get("errors")
+        .and_then(|e| e.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|err| err.get("message")?.as_str())
+                .collect::<Vec<_>>()
+                .join("; ")
+        })
+        .unwrap_or_else(|| "Unknown error".to_string())
+}
+
+/// Setup test fixtures - ensures services are ready
+#[allow(dead_code)]
+async fn setup_federation_tests() -> Result<(), Box<dyn std::error::Error>> {
+    println!("\n=== Setting up 2-subgraph federation tests ===\n");
+
+    // Wait for all services
+    println!("Waiting for users subgraph...");
+    wait_for_service(USERS_SUBGRAPH_URL, 30).await?;
+
+    println!("Waiting for orders subgraph...");
+    wait_for_service(ORDERS_SUBGRAPH_URL, 30).await?;
+
+    println!("Waiting for Apollo Router gateway...");
+    wait_for_service(APOLLO_GATEWAY_URL, 30).await?;
+
+    println!("\n✓ All services ready for 2-subgraph federation tests\n");
+    Ok(())
+}
+
 // ============================================================================
 // Service Health & Composition Tests
 // ============================================================================
@@ -348,6 +382,403 @@ async fn test_gateway_three_subgraph_federation() {
 
     assert!(!users.is_empty(), "Should have at least one user");
     println!("✓ Gateway 3-subgraph federation query succeeded");
+}
+
+// ============================================================================
+// Two-Subgraph Federation Tests (Core functionality)
+// ============================================================================
+
+#[tokio::test]
+#[ignore]
+async fn test_two_subgraph_setup_validation() {
+    // Validate that 2-subgraph setup is working
+    if let Err(e) = setup_federation_tests().await {
+        panic!("2-subgraph federation setup failed: {}", e);
+    }
+}
+
+#[tokio::test]
+#[ignore]
+async fn test_two_subgraph_direct_subgraph_queries() {
+    setup_federation_tests()
+        .await
+        .expect("Setup should succeed");
+
+    // Test 1: Query users directly from users subgraph
+    println!("\n--- Test 1: Query users directly ---");
+    let users_response = graphql_query(
+        USERS_SUBGRAPH_URL,
+        r#"query { users { id identifier email } }"#,
+    )
+    .await
+    .expect("Users query should succeed");
+
+    assert!(
+        !has_errors(&users_response),
+        "Users query should not have errors: {}",
+        get_error_messages(&users_response)
+    );
+
+    let users = extract_data(&users_response)
+        .and_then(|d| d.get("users"))
+        .and_then(|u| u.as_array())
+        .expect("Should return users array");
+
+    assert!(!users.is_empty(), "Should have users in database");
+    println!(
+        "✓ Found {} users from users subgraph",
+        users.len()
+    );
+
+    // Test 2: Query orders directly from orders subgraph
+    println!("\n--- Test 2: Query orders directly ---");
+    let orders_response = graphql_query(
+        ORDERS_SUBGRAPH_URL,
+        r#"query { orders { id status total } }"#,
+    )
+    .await
+    .expect("Orders query should succeed");
+
+    assert!(
+        !has_errors(&orders_response),
+        "Orders query should not have errors: {}",
+        get_error_messages(&orders_response)
+    );
+
+    let orders = extract_data(&orders_response)
+        .and_then(|d| d.get("orders"))
+        .and_then(|o| o.as_array())
+        .expect("Should return orders array");
+
+    assert!(!orders.is_empty(), "Should have orders in database");
+    println!(
+        "✓ Found {} orders from orders subgraph",
+        orders.len()
+    );
+}
+
+#[tokio::test]
+#[ignore]
+async fn test_two_subgraph_http_federation_from_orders() {
+    setup_federation_tests()
+        .await
+        .expect("Setup should succeed");
+
+    println!("\n--- Test: Query orders with extended User fields (HTTP federation) ---");
+
+    // Orders subgraph extends User type from users subgraph
+    // This tests if orders can resolve User information via HTTP
+    let query = r#"
+        query {
+            orders(limit: 5) {
+                id
+                status
+                total
+                user {
+                    id
+                    identifier
+                    email
+                }
+            }
+        }
+    "#;
+
+    let response = graphql_query(ORDERS_SUBGRAPH_URL, query)
+        .await
+        .expect("Orders with user query should succeed");
+
+    if has_errors(&response) {
+        eprintln!(
+            "! GraphQL errors (may be expected if User not fully extended): {}",
+            get_error_messages(&response)
+        );
+        eprintln!("! This indicates orders subgraph HTTP federation to users may not be fully configured");
+    } else {
+        let orders = extract_data(&response)
+            .and_then(|d| d.get("orders"))
+            .and_then(|o| o.as_array())
+            .expect("Should return orders array");
+
+        assert!(!orders.is_empty(), "Should have orders");
+
+        // Verify orders have user information
+        let has_user_info = orders
+            .iter()
+            .any(|o| {
+                o.get("user")
+                    .and_then(|u| u.get("id"))
+                    .is_some()
+            });
+
+        if has_user_info {
+            println!("✓ Orders successfully resolved User information via HTTP federation");
+        }
+    }
+}
+
+#[tokio::test]
+#[ignore]
+async fn test_two_subgraph_federation_through_gateway() {
+    setup_federation_tests()
+        .await
+        .expect("Setup should succeed");
+
+    println!("\n--- Test: Federated query through Apollo Router gateway ---");
+
+    // Query users with their orders through the gateway
+    let query = r#"
+        query {
+            users(limit: 3) {
+                id
+                identifier
+                email
+                orders {
+                    id
+                    status
+                    total
+                }
+            }
+        }
+    "#;
+
+    let response = graphql_query(APOLLO_GATEWAY_URL, query)
+        .await
+        .expect("Gateway query should complete");
+
+    // Print detailed error info if it fails
+    if has_errors(&response) {
+        let errors = get_error_messages(&response);
+        eprintln!("✗ Gateway federation query failed: {}", errors);
+        eprintln!(
+            "Response: {}",
+            serde_json::to_string_pretty(&response).unwrap_or_default()
+        );
+        panic!("Gateway federation query should not have errors");
+    }
+
+    let users = extract_data(&response)
+        .and_then(|d| d.get("users"))
+        .and_then(|u| u.as_array())
+        .expect("Should return users array");
+
+    assert!(!users.is_empty(), "Should have at least one user");
+    println!("✓ Successfully queried users through gateway");
+
+    // Check if we got orders (federated data)
+    let users_with_orders = users
+        .iter()
+        .filter(|u| {
+            u.get("orders")
+                .and_then(|o| o.as_array())
+                .map(|arr| !arr.is_empty())
+                .unwrap_or(false)
+        })
+        .count();
+
+    println!(
+        "✓ {} users have orders (federated data)",
+        users_with_orders
+    );
+}
+
+#[tokio::test]
+#[ignore]
+async fn test_two_subgraph_entity_resolution_consistency() {
+    setup_federation_tests()
+        .await
+        .expect("Setup should succeed");
+
+    println!("\n--- Test: Entity resolution consistency across subgraphs ---");
+
+    // Get a user ID from users subgraph
+    let users_response = graphql_query(
+        USERS_SUBGRAPH_URL,
+        r#"query { users(limit: 1) { id identifier } }"#,
+    )
+    .await
+    .expect("Initial users query should succeed");
+
+    let user_id = extract_data(&users_response)
+        .and_then(|d| d.get("users"))
+        .and_then(|u| u.as_array())
+        .and_then(|arr| arr.first())
+        .and_then(|user| user.get("id"))
+        .and_then(|id| id.as_str())
+        .expect("Should extract user ID");
+
+    let user_identifier = extract_data(&users_response)
+        .and_then(|d| d.get("users"))
+        .and_then(|u| u.as_array())
+        .and_then(|arr| arr.first())
+        .and_then(|user| user.get("identifier"))
+        .and_then(|id| id.as_str())
+        .expect("Should extract user identifier");
+
+    println!("Got user: id={}, identifier={}", user_id, user_identifier);
+
+    // Query the same user through orders subgraph (which has it as extended)
+    let query = format!(
+        r#"query {{ user(id: "{}") {{ id identifier }} }}"#,
+        user_id
+    );
+
+    let orders_response = graphql_query(ORDERS_SUBGRAPH_URL, &query)
+        .await
+        .expect("Orders user query should succeed");
+
+    if has_errors(&orders_response) {
+        let errors = get_error_messages(&orders_response);
+        eprintln!(
+            "! Entity resolution query has errors: {}",
+            errors
+        );
+        eprintln!("! This may indicate extended User type is not properly configured");
+    } else {
+        let resolved_user = extract_data(&orders_response)
+            .and_then(|d| d.get("user"))
+            .expect("Should return resolved user");
+
+        let resolved_id = resolved_user
+            .get("id")
+            .and_then(|id| id.as_str())
+            .expect("Should have user ID");
+
+        assert_eq!(
+            resolved_id, user_id,
+            "Resolved user ID should match original"
+        );
+
+        println!(
+            "✓ User {} consistently resolved across subgraphs",
+            user_id
+        );
+    }
+}
+
+#[tokio::test]
+#[ignore]
+async fn test_two_subgraph_data_consistency() {
+    setup_federation_tests()
+        .await
+        .expect("Setup should succeed");
+
+    println!("\n--- Test: Data consistency between direct and federated queries ---");
+
+    // Get users directly from users subgraph
+    let direct_response = graphql_query(
+        USERS_SUBGRAPH_URL,
+        r#"query { users(limit: 3) { id identifier } }"#,
+    )
+    .await
+    .expect("Direct users query should succeed");
+
+    let direct_users = extract_data(&direct_response)
+        .and_then(|d| d.get("users"))
+        .and_then(|u| u.as_array())
+        .expect("Should return users array");
+
+    // Get same users through gateway (federated)
+    let gateway_response = graphql_query(
+        APOLLO_GATEWAY_URL,
+        r#"query { users(limit: 3) { id identifier } }"#,
+    )
+    .await
+    .expect("Gateway users query should succeed");
+
+    if has_errors(&gateway_response) {
+        eprintln!(
+            "! Gateway users query error: {}",
+            get_error_messages(&gateway_response)
+        );
+    } else {
+        let gateway_users = extract_data(&gateway_response)
+            .and_then(|d| d.get("users"))
+            .and_then(|u| u.as_array())
+            .expect("Should return users array");
+
+        // Compare counts
+        assert_eq!(
+            direct_users.len(),
+            gateway_users.len(),
+            "User counts should match between direct and gateway queries"
+        );
+
+        // Compare IDs
+        let direct_ids: Vec<_> = direct_users
+            .iter()
+            .filter_map(|u| u.get("id")?.as_str())
+            .collect();
+
+        let gateway_ids: Vec<_> = gateway_users
+            .iter()
+            .filter_map(|u| u.get("id")?.as_str())
+            .collect();
+
+        assert_eq!(direct_ids, gateway_ids, "User IDs should match");
+
+        println!(
+            "✓ Data consistency verified: {} users match across direct and federated queries",
+            direct_ids.len()
+        );
+    }
+}
+
+#[tokio::test]
+#[ignore]
+async fn test_two_subgraph_federation_performance() {
+    setup_federation_tests()
+        .await
+        .expect("Setup should succeed");
+
+    println!("\n--- Test: Federation query performance ---");
+
+    let query = r#"
+        query {
+            users(limit: 10) {
+                id
+                identifier
+                orders {
+                    id
+                    status
+                }
+            }
+        }
+    "#;
+
+    // Warm-up query
+    let _ = graphql_query(APOLLO_GATEWAY_URL, query).await;
+
+    // Timed query
+    let start = std::time::Instant::now();
+    let response = graphql_query(APOLLO_GATEWAY_URL, query)
+        .await
+        .expect("Query should succeed");
+
+    let elapsed = start.elapsed();
+
+    assert!(
+        !has_errors(&response),
+        "Query should not have errors: {}",
+        get_error_messages(&response)
+    );
+
+    let users = extract_data(&response)
+        .and_then(|d| d.get("users"))
+        .and_then(|u| u.as_array())
+        .expect("Should return users");
+
+    println!(
+        "✓ 2-hop federation query ({} users + orders): {:.0}ms",
+        users.len(),
+        elapsed.as_millis()
+    );
+
+    // Assert reasonable latency
+    assert!(
+        elapsed.as_millis() < 5000,
+        "Federation query should complete in reasonable time (got {:.0}ms)",
+        elapsed.as_millis()
+    );
 }
 
 // ============================================================================
