@@ -162,18 +162,13 @@ impl SagaStep {
 }
 
 /// Compensation strategy for saga failures
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CompensationStrategy {
     /// Automatically compensate on any failure
+    #[default]
     Automatic,
     /// Wait for manual compensation trigger
     Manual,
-}
-
-impl Default for CompensationStrategy {
-    fn default() -> Self {
-        Self::Automatic
-    }
 }
 
 /// Saga execution result
