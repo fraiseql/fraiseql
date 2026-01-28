@@ -22,6 +22,7 @@
 //! let response = executor.handle_entities_query(input).await?;
 //! ```
 
+pub mod composition_validator;
 pub mod connection_manager;
 pub mod database_resolver;
 pub mod dependency_graph;
@@ -45,6 +46,10 @@ pub mod sql_utils;
 pub mod tracing;
 pub mod types;
 
+pub use composition_validator::{
+    ComposedSchema, ComposedType, CompositionError, CompositionValidator,
+    ConflictResolutionStrategy, CrossSubgraphValidator,
+};
 pub use connection_manager::*;
 pub use database_resolver::*;
 pub use dependency_graph::DependencyGraph;
