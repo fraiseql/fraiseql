@@ -95,6 +95,7 @@ fn test_sdl_entity_union_includes_all_types() {
                 is_extends: false,
                 external_fields: vec![],
                 shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
                 name: "Order".to_string(),
@@ -105,6 +106,7 @@ fn test_sdl_entity_union_includes_all_types() {
                 is_extends: false,
                 external_fields: vec![],
                 shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
             },
         ],
     };
@@ -289,6 +291,7 @@ fn test_key_directive_required_on_entities() {
         is_extends: false,
         external_fields: vec![],
         shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
     };
 
     assert!(!fed_type.keys.is_empty(), "Entity types must have @key directive");
@@ -306,6 +309,7 @@ fn test_external_directive_on_extended_fields() {
         is_extends: true,
         external_fields: vec!["customerId".to_string()],
         shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
     };
 
     assert!(fed_type.is_extends);
@@ -324,6 +328,7 @@ fn test_extends_directive_marks_extended_types() {
         is_extends: true,
         external_fields: vec!["customerId".to_string()],
         shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
     };
 
     assert!(fed_type.is_extends);
@@ -397,6 +402,7 @@ fn test_entity_ownership_is_exclusive() {
         is_extends: false,
         external_fields: vec![],
         shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
     };
 
     let extending_subgraph = FederatedType {
@@ -408,6 +414,7 @@ fn test_entity_ownership_is_exclusive() {
         is_extends: true,
         external_fields: vec![],
         shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
     };
 
     // Only owner should have is_extends: false
@@ -427,6 +434,7 @@ fn test_external_fields_reference_owned_subgraph() {
         is_extends: true,
         external_fields: vec!["customerId".to_string()],
         shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
     };
 
     // This subgraph extends Order and references customerId from another subgraph

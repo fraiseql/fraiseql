@@ -130,6 +130,7 @@ fn create_test_metadata() -> FederationMetadata {
                 is_extends: false,
                 external_fields: vec![],
                 shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
                 name: "Order".to_string(),
@@ -140,6 +141,7 @@ fn create_test_metadata() -> FederationMetadata {
                 is_extends: false,
                 external_fields: vec![],
                 shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
             },
         ],
     }

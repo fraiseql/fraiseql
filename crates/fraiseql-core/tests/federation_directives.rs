@@ -78,6 +78,7 @@ fn test_key_directive_multiple_keys() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -103,6 +104,7 @@ fn test_external_field_single() {
         is_extends: true,
         external_fields: vec!["email".to_string()],
         shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
     };
 
     assert!(fed_type.external_fields.contains(&"email".to_string()));
@@ -124,6 +126,7 @@ fn test_external_field_multiple() {
             "customerEmail".to_string(),
         ],
         shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
     };
 
     assert_eq!(fed_type.external_fields.len(), 2);
@@ -143,6 +146,7 @@ fn test_external_field_key_field() {
         is_extends: true,
         external_fields: vec!["id".to_string()],
         shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
     };
 
     // Key field "id" is also external in this extended type
@@ -165,6 +169,7 @@ fn test_extends_directive_owned_entity() {
         is_extends: false,
         external_fields: vec![],
         shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
     };
 
     assert!(!fed_type.is_extends, "Local entity should not be extended");
@@ -182,6 +187,7 @@ fn test_extends_directive_extended_entity() {
         is_extends: true,
         external_fields: vec!["email".to_string()],
         shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
     };
 
     assert!(fed_type.is_extends, "Extended entity should have is_extends=true");
@@ -199,6 +205,7 @@ fn test_extends_with_external_fields() {
         is_extends: true,
         external_fields: vec!["customerId".to_string()],
         shareable_fields: vec!["total".to_string()],
+                field_directives: std::collections::HashMap::new(),
     };
 
     assert!(fed_type.is_extends);
@@ -222,6 +229,7 @@ fn test_shareable_field_single() {
         is_extends: false,
         external_fields: vec![],
         shareable_fields: vec!["email".to_string()],
+                field_directives: std::collections::HashMap::new(),
     };
 
     assert!(fed_type.shareable_fields.contains(&"email".to_string()));
@@ -239,6 +247,7 @@ fn test_shareable_field_multiple() {
         is_extends: false,
         external_fields: vec![],
         shareable_fields: vec!["name".to_string(), "description".to_string()],
+                field_directives: std::collections::HashMap::new(),
     };
 
     assert_eq!(fed_type.shareable_fields.len(), 2);
@@ -258,6 +267,7 @@ fn test_shareable_field_in_extended_type() {
         is_extends: true,
         external_fields: vec!["customerId".to_string()],
         shareable_fields: vec!["status".to_string()],
+                field_directives: std::collections::HashMap::new(),
     };
 
     assert!(fed_type.is_extends);
@@ -280,6 +290,7 @@ fn test_composite_key_multi_tenant() {
         is_extends: false,
         external_fields: vec![],
         shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
     };
 
     assert_eq!(fed_type.keys[0].fields.len(), 2);
@@ -364,6 +375,7 @@ fn test_federation_metadata_multiple_types() {
                 is_extends: false,
                 external_fields: vec![],
                 shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
                 name: "Order".to_string(),
@@ -374,6 +386,7 @@ fn test_federation_metadata_multiple_types() {
                 is_extends: false,
                 external_fields: vec![],
                 shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
             },
         ],
     };
@@ -400,6 +413,7 @@ fn test_field_cannot_be_both_external_and_key() {
         is_extends: true,
         external_fields: vec!["id".to_string()],
         shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
     };
 
     // This is valid for extended types (key fields are external)
@@ -418,6 +432,7 @@ fn test_owned_type_cannot_have_external_fields() {
         is_extends: false,
         external_fields: vec![], // Must be empty for owned types
         shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
     };
 
     assert!(!fed_type.is_extends);
@@ -467,6 +482,7 @@ fn test_extended_type_must_have_key() {
         is_extends: true,
         external_fields: vec!["customerId".to_string()],
         shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
     };
 
     assert!(fed_type.is_extends);

@@ -102,6 +102,7 @@ fn test_mutation_create_owned_entity() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -140,6 +141,7 @@ fn test_mutation_update_owned_entity() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -179,6 +181,7 @@ fn test_mutation_delete_owned_entity() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -214,6 +217,7 @@ fn test_mutation_owned_entity_returns_updated_representation() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -256,6 +260,7 @@ fn test_mutation_owned_entity_batch_updates() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -295,6 +300,7 @@ fn test_mutation_composite_key_update() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -334,6 +340,7 @@ fn test_mutation_with_validation_errors() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -371,6 +378,7 @@ fn test_mutation_constraint_violation() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -407,6 +415,7 @@ fn test_mutation_concurrent_updates() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -445,6 +454,7 @@ fn test_mutation_transaction_rollback() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -485,6 +495,7 @@ fn test_mutation_extended_entity_requires_resolution() {
             is_extends: true,  // Extended entity
             external_fields: vec!["customer_id".to_string()],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -522,6 +533,7 @@ fn test_mutation_extended_entity_propagates_to_owner() {
             is_extends: true,  // Extended in this subgraph
             external_fields: vec!["email".to_string()],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -558,6 +570,7 @@ fn test_mutation_extended_entity_partial_fields() {
             is_extends: true,
             external_fields: vec![],
             shareable_fields: vec!["price".to_string()],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -592,6 +605,7 @@ fn test_mutation_extended_entity_cross_subgraph() {
             is_extends: true,
             external_fields: vec!["product_id".to_string()],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -626,6 +640,7 @@ fn test_mutation_extended_entity_with_external_fields() {
             is_extends: true,
             external_fields: vec!["order_id".to_string(), "product_id".to_string()],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -660,6 +675,7 @@ fn test_mutation_extended_entity_reference_tracking() {
             is_extends: true,
             external_fields: vec!["user_id".to_string()],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -694,6 +710,7 @@ fn test_mutation_extended_entity_cascade_updates() {
             is_extends: true,
             external_fields: vec![],
             shareable_fields: vec!["name".to_string()],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -728,6 +745,7 @@ fn test_mutation_extended_entity_conflict_resolution() {
             is_extends: true,
             external_fields: vec![],
             shareable_fields: vec!["data".to_string()],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -922,6 +940,7 @@ fn test_mutation_coordinate_two_subgraph_updates() {
                 is_extends: false,
                 external_fields: vec![],
                 shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
                 name: "OrderItem".to_string(),
@@ -932,6 +951,7 @@ fn test_mutation_coordinate_two_subgraph_updates() {
                 is_extends: true,
                 external_fields: vec![],
                 shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
             },
         ],
     };
@@ -969,6 +989,7 @@ fn test_mutation_coordinate_three_subgraph_updates() {
                 is_extends: false,
                 external_fields: vec![],
                 shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
                 name: "Order".to_string(),
@@ -979,6 +1000,7 @@ fn test_mutation_coordinate_three_subgraph_updates() {
                 is_extends: true,
                 external_fields: vec![],
                 shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
                 name: "Payment".to_string(),
@@ -989,6 +1011,7 @@ fn test_mutation_coordinate_three_subgraph_updates() {
                 is_extends: true,
                 external_fields: vec![],
                 shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
             },
         ],
     };
@@ -1029,6 +1052,7 @@ fn test_mutation_reference_update_propagation() {
             is_extends: true,
             external_fields: vec!["product_id".to_string()],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1063,6 +1087,7 @@ fn test_mutation_circular_reference_handling() {
                 is_extends: false,
                 external_fields: vec![],
                 shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
                 name: "Book".to_string(),
@@ -1073,6 +1098,7 @@ fn test_mutation_circular_reference_handling() {
                 is_extends: true,
                 external_fields: vec!["author_id".to_string()],
                 shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
             },
         ],
     };
@@ -1109,6 +1135,7 @@ fn test_mutation_multi_subgraph_transaction() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1141,6 +1168,7 @@ fn test_mutation_subgraph_failure_rollback() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1173,6 +1201,7 @@ fn test_mutation_subgraph_timeout_handling() {
             is_extends: true,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1210,6 +1239,7 @@ fn test_mutation_entity_not_found() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1260,6 +1290,7 @@ fn test_mutation_missing_required_fields() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1289,6 +1320,7 @@ fn test_mutation_authorization_error() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1325,6 +1357,7 @@ fn test_mutation_duplicate_key_error() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1367,6 +1400,7 @@ fn test_mutation_latency_single_entity() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1406,6 +1440,7 @@ fn test_mutation_latency_batch_updates() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1448,6 +1483,7 @@ fn test_mutation_concurrent_request_handling() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1543,6 +1579,7 @@ fn test_mutation_with_variables() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1584,6 +1621,7 @@ fn test_mutation_variable_validation() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1614,6 +1652,7 @@ fn test_mutation_input_type_coercion() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1650,6 +1689,7 @@ fn test_mutation_return_all_requested_fields() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1696,6 +1736,7 @@ fn test_mutation_return_computed_fields() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1737,6 +1778,7 @@ fn test_mutation_return_related_entities() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 

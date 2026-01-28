@@ -28,6 +28,7 @@ fn test_federation_postgres_to_postgres() {
                 is_extends: false,
                 external_fields: vec![],
                 shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
                 name: "Order".to_string(),
@@ -38,6 +39,7 @@ fn test_federation_postgres_to_postgres() {
                 is_extends: true, // Extended in different subgraph
                 external_fields: vec!["user_id".to_string()],
                 shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
             },
         ],
     };
@@ -70,6 +72,7 @@ fn test_federation_postgres_to_mysql() {
                 is_extends: false, // PostgreSQL owns User
                 external_fields: vec![],
                 shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
                 name: "Order".to_string(),
@@ -80,6 +83,7 @@ fn test_federation_postgres_to_mysql() {
                 is_extends: false, // MySQL owns Order
                 external_fields: vec![],
                 shareable_fields: vec!["user_id".to_string()],
+                field_directives: std::collections::HashMap::new(),
             },
         ],
     };
@@ -109,6 +113,7 @@ fn test_federation_postgres_to_sqlserver() {
                 is_extends: false, // SQL Server owns Product
                 external_fields: vec![],
                 shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
             },
         ],
     };
@@ -134,6 +139,7 @@ fn test_federation_three_database_chain() {
                 is_extends: false,
                 external_fields: vec![],
                 shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
                 name: "Order".to_string(),
@@ -144,6 +150,7 @@ fn test_federation_three_database_chain() {
                 is_extends: false,
                 external_fields: vec![],
                 shareable_fields: vec!["user_id".to_string()],
+                field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
                 name: "Product".to_string(),
@@ -154,6 +161,7 @@ fn test_federation_three_database_chain() {
                 is_extends: false,
                 external_fields: vec![],
                 shareable_fields: vec!["order_id".to_string()],
+                field_directives: std::collections::HashMap::new(),
             },
         ],
     };
@@ -188,6 +196,7 @@ fn test_federation_two_subgraph_simple() {
                 is_extends: false,
                 external_fields: vec![],
                 shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
                 name: "Order".to_string(),
@@ -198,6 +207,7 @@ fn test_federation_two_subgraph_simple() {
                 is_extends: false,
                 external_fields: vec![],
                 shareable_fields: vec!["user_id".to_string()],
+                field_directives: std::collections::HashMap::new(),
             },
         ],
     };
@@ -227,6 +237,7 @@ fn test_federation_three_subgraph_federation() {
                 is_extends: false,
                 external_fields: vec![],
                 shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
                 name: "Order".to_string(),
@@ -237,6 +248,7 @@ fn test_federation_three_subgraph_federation() {
                 is_extends: false,
                 external_fields: vec![],
                 shareable_fields: vec!["user_id".to_string()],
+                field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
                 name: "Product".to_string(),
@@ -247,6 +259,7 @@ fn test_federation_three_subgraph_federation() {
                 is_extends: false,
                 external_fields: vec![],
                 shareable_fields: vec!["order_id".to_string()],
+                field_directives: std::collections::HashMap::new(),
             },
         ],
     };
@@ -272,6 +285,7 @@ fn test_federation_chain_federation() {
                 is_extends: false,
                 external_fields: vec![],
                 shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
                 name: "Order".to_string(),
@@ -282,6 +296,7 @@ fn test_federation_chain_federation() {
                 is_extends: true, // Extended in subgraph 2
                 external_fields: vec!["user_id".to_string()],
                 shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
                 name: "Product".to_string(),
@@ -292,6 +307,7 @@ fn test_federation_chain_federation() {
                 is_extends: true, // Extended in subgraph 3
                 external_fields: vec!["order_id".to_string()],
                 shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
             },
         ],
     };
@@ -327,6 +343,7 @@ fn test_federation_multi_tenant_composite_key() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -354,6 +371,7 @@ fn test_federation_multi_tenant_isolation() {
                 is_extends: false,
                 external_fields: vec![],
                 shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
                 name: "Organization".to_string(),
@@ -364,6 +382,7 @@ fn test_federation_multi_tenant_isolation() {
                 is_extends: true,
                 external_fields: vec!["tenant_id".to_string()],
                 shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
             },
         ],
     };
@@ -394,6 +413,7 @@ fn test_federation_circular_references_handling() {
                 is_extends: false,
                 external_fields: vec![],
                 shareable_fields: vec!["posts".to_string()],
+                field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
                 name: "Post".to_string(),
@@ -403,7 +423,8 @@ fn test_federation_circular_references_handling() {
                 }],
                 is_extends: false,
                 external_fields: vec![],
-                shareable_fields: vec!["author".to_string()], // References User
+                shareable_fields: vec!["author".to_string()], // References User,
+                field_directives: std::collections::HashMap::new(),
             },
         ],
     };
@@ -433,6 +454,7 @@ fn test_federation_shared_entity_fields() {
                 is_extends: false,
                 external_fields: vec![],
                 shareable_fields: vec!["email".to_string(), "name".to_string()],
+                field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
                 name: "UserProfile".to_string(), // Extended version with more fields
@@ -443,6 +465,7 @@ fn test_federation_shared_entity_fields() {
                 is_extends: true,
                 external_fields: vec!["id".to_string(), "email".to_string()],
                 shareable_fields: vec!["bio".to_string(), "avatar".to_string()],
+                field_directives: std::collections::HashMap::new(),
             },
         ],
     };
@@ -473,6 +496,7 @@ fn test_federation_batching_across_subgraphs() {
                 is_extends: false,
                 external_fields: vec![],
                 shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
                 name: "Order".to_string(),
@@ -483,6 +507,7 @@ fn test_federation_batching_across_subgraphs() {
                 is_extends: false,
                 external_fields: vec![],
                 shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
             },
         ],
     };
@@ -507,6 +532,7 @@ fn test_federation_parallel_subgraph_resolution() {
                 is_extends: false,
                 external_fields: vec![],
                 shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
                 name: "Product".to_string(),
@@ -517,6 +543,7 @@ fn test_federation_parallel_subgraph_resolution() {
                 is_extends: false,
                 external_fields: vec![],
                 shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
                 name: "Order".to_string(),
@@ -527,6 +554,7 @@ fn test_federation_parallel_subgraph_resolution() {
                 is_extends: false,
                 external_fields: vec![],
                 shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
             },
         ],
     };
@@ -550,6 +578,7 @@ fn test_federation_large_batch_1000_entities() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -572,6 +601,7 @@ fn test_federation_concurrent_requests() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -598,6 +628,7 @@ fn test_federation_subgraph_timeout() {
             is_extends: true,
             external_fields: vec!["id".to_string()],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -622,6 +653,7 @@ fn test_federation_subgraph_partial_failure() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -644,6 +676,7 @@ fn test_federation_entity_not_found() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -666,6 +699,7 @@ fn test_federation_invalid_key_format() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -694,6 +728,7 @@ fn test_federation_apollo_router_composition() {
                 is_extends: false,
                 external_fields: vec![],
                 shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
                 name: "Order".to_string(),
@@ -704,6 +739,7 @@ fn test_federation_apollo_router_composition() {
                 is_extends: false,
                 external_fields: vec![],
                 shareable_fields: vec!["user_id".to_string()],
+                field_directives: std::collections::HashMap::new(),
             },
         ],
     };
@@ -729,6 +765,7 @@ fn test_federation_apollo_router_query_planning() {
                 is_extends: false,
                 external_fields: vec![],
                 shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
                 name: "Product".to_string(),
@@ -739,6 +776,7 @@ fn test_federation_apollo_router_query_planning() {
                 is_extends: false,
                 external_fields: vec![],
                 shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
             },
         ],
     };
@@ -762,6 +800,7 @@ fn test_federation_apollo_router_variables() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -784,6 +823,7 @@ fn test_federation_apollo_router_mutations() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -806,6 +846,7 @@ fn test_federation_apollo_router_subscriptions() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 

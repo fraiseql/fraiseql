@@ -125,6 +125,7 @@ fn test_resolve_entity_from_postgres_table() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -192,6 +193,7 @@ fn test_resolve_entities_batch_from_postgres() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -267,6 +269,7 @@ fn test_resolve_entity_composite_key_from_postgres() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -329,6 +332,7 @@ fn test_resolve_entity_with_null_values_from_postgres() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -409,6 +413,7 @@ fn test_resolve_entity_large_result_set_from_postgres() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -456,6 +461,7 @@ fn test_where_clause_single_key_field() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -502,6 +508,7 @@ fn test_where_clause_composite_keys() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -540,6 +547,7 @@ fn test_where_clause_string_escaping() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -576,6 +584,7 @@ fn test_where_clause_sql_injection_prevention() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -612,6 +621,7 @@ fn test_where_clause_type_coercion() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -658,6 +668,7 @@ fn test_cross_database_postgres_to_mysql() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -716,6 +727,7 @@ fn test_cross_database_postgres_to_sqlserver() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -775,6 +787,7 @@ fn test_cross_database_type_coercion_numeric() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -837,6 +850,7 @@ fn test_cross_database_type_coercion_string() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -899,6 +913,7 @@ fn test_cross_database_type_coercion_datetime() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -976,6 +991,7 @@ fn test_database_connection_reuse() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1056,6 +1072,7 @@ fn test_database_connection_retry() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1125,6 +1142,7 @@ fn test_database_query_execution_basic() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1217,6 +1235,7 @@ fn test_database_parameterized_queries() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1462,6 +1481,7 @@ fn test_database_constraint_violation() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1524,6 +1544,7 @@ fn test_single_entity_resolution_latency() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1603,6 +1624,7 @@ fn test_batch_100_entities_resolution_latency() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1658,6 +1680,7 @@ fn test_concurrent_entity_resolution() {
             is_extends: false,
             external_fields: vec![],
             shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
         }],
     };
 

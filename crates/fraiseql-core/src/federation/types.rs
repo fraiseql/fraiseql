@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 
+// Phase 1, Cycle 1: Field-level directive metadata structures
+
 /// Federation metadata attached to compiled schema
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FederationMetadata {
@@ -27,6 +29,33 @@ impl Default for FederationMetadata {
     }
 }
 
+/// Field-level federation directives (@requires, @provides, @shareable, @external)
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct FieldFederationDirectives {
+    /// @requires directive - fields that must be present for this field to resolve
+    pub requires: Vec<FieldPathSelection>,
+
+    /// @provides directive - fields this resolver provides
+    pub provides: Vec<FieldPathSelection>,
+
+    /// @external directive - field is owned by another subgraph
+    pub external: bool,
+
+    /// @shareable directive - field is shareable across subgraphs
+    pub shareable: bool,
+}
+
+/// Field path selection for @requires/@provides (e.g., ["profile", "age"] for "profile.age")
+/// Note: This is distinct from selection_parser::FieldSelection which represents requested fields
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct FieldPathSelection {
+    /// Path components: ["profile", "age"] for "profile.age"
+    pub path: Vec<String>,
+
+    /// The type this field belongs to (for context)
+    pub typename: String,
+}
+
 /// Federated type definition
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FederatedType {
@@ -44,6 +73,9 @@ pub struct FederatedType {
 
     /// Fields that are shareable across subgraphs
     pub shareable_fields: Vec<String>,
+
+    /// Field-level federation directives (Phase 1: Field-Level Metadata)
+    pub field_directives: HashMap<String, FieldFederationDirectives>,
 }
 
 /// @key directive for entity identification
