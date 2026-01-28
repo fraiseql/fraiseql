@@ -74,6 +74,7 @@
 //! ```
 
 use std::sync::Arc;
+
 use uuid::Uuid;
 
 use crate::federation::saga_store::Result as SagaStoreResult;
@@ -93,7 +94,7 @@ pub struct StepExecutionResult {
     /// Step number that executed (1-indexed)
     pub step_number: u32,
     /// Whether step succeeded (true) or failed (false)
-    pub success: bool,
+    pub success:     bool,
     /// Result data if successful
     ///
     /// Contains:
@@ -101,14 +102,14 @@ pub struct StepExecutionResult {
     /// - Key fields (id, etc.)
     /// - Mutation output fields
     /// - Timestamps
-    pub data: Option<serde_json::Value>,
+    pub data:        Option<serde_json::Value>,
     /// Error message if failed
     ///
     /// Includes:
     /// - Error type (timeout, network, mutation failed, etc.)
     /// - Subgraph context
     /// - Suggestion for resolution
-    pub error: Option<String>,
+    pub error:       Option<String>,
     /// Execution duration in milliseconds
     ///
     /// Measured from step start to completion (or failure)
@@ -224,19 +225,13 @@ impl SagaExecutor {
     /// # Returns
     ///
     /// Vector of step results (successful or failed)
-    pub async fn execute_saga(
-        &self,
-        _saga_id: Uuid,
-    ) -> SagaStoreResult<Vec<StepExecutionResult>> {
+    pub async fn execute_saga(&self, _saga_id: Uuid) -> SagaStoreResult<Vec<StepExecutionResult>> {
         // Placeholder implementation for GREEN phase
         // In full implementation, would:
         // 1. Load saga from store
         // 2. Transition saga from Pending to Executing
-        // 3. For each step (in order):
-        //    a. Execute step
-        //    b. Collect result
-        //    c. On failure: transition to Failed, break loop
-        //    d. On success: continue to next step
+        // 3. For each step (in order): a. Execute step b. Collect result c. On failure: transition
+        //    to Failed, break loop d. On success: continue to next step
         // 4. If all succeed: transition saga to Completed
         // 5. If any fail: transition saga to Failed, return results so far
         // 6. Update saga store with final state
@@ -253,19 +248,16 @@ impl SagaExecutor {
     /// # Returns
     ///
     /// Current execution state including completed steps
-    pub async fn get_execution_state(
-        &self,
-        _saga_id: Uuid,
-    ) -> SagaStoreResult<ExecutionState> {
+    pub async fn get_execution_state(&self, _saga_id: Uuid) -> SagaStoreResult<ExecutionState> {
         // Placeholder: Load from store in full implementation
 
         Ok(ExecutionState {
-            saga_id: _saga_id,
-            total_steps: 0,
+            saga_id:         _saga_id,
+            total_steps:     0,
             completed_steps: 0,
-            current_step: None,
-            failed: false,
-            failure_reason: None,
+            current_step:    None,
+            failed:          false,
+            failure_reason:  None,
         })
     }
 
@@ -322,17 +314,17 @@ impl Default for SagaExecutor {
 #[derive(Debug, Clone)]
 pub struct ExecutionState {
     /// Saga identifier
-    pub saga_id: Uuid,
+    pub saga_id:         Uuid,
     /// Total steps in saga
-    pub total_steps: u32,
+    pub total_steps:     u32,
     /// Number of completed steps
     pub completed_steps: u32,
     /// Currently executing step, if any
-    pub current_step: Option<u32>,
+    pub current_step:    Option<u32>,
     /// Whether saga has failed
-    pub failed: bool,
+    pub failed:          bool,
     /// Reason for failure, if any
-    pub failure_reason: Option<String>,
+    pub failure_reason:  Option<String>,
 }
 
 #[cfg(test)]
