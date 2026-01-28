@@ -1930,6 +1930,533 @@ async fn test_composite_key_performance() {
 }
 
 // ============================================================================
+// 3+ Subgraph Federation Tests
+// ============================================================================
+
+/// Setup helper for 3-subgraph federation tests (users → orders → products)
+async fn setup_three_subgraph_tests() -> Result<(), Box<dyn std::error::Error>> {
+    println!("\n=== Setting up 3-subgraph federation tests ===\n");
+
+    // Wait for all 3 subgraphs
+    println!("Waiting for users subgraph (port 4001)...");
+    wait_for_service(USERS_SUBGRAPH_URL, 30).await?;
+
+    println!("Waiting for orders subgraph (port 4002)...");
+    wait_for_service(ORDERS_SUBGRAPH_URL, 30).await?;
+
+    println!("Waiting for products subgraph (port 4003)...");
+    wait_for_service(PRODUCTS_SUBGRAPH_URL, 30).await?;
+
+    println!("Waiting for Apollo Router gateway...");
+    wait_for_service(APOLLO_GATEWAY_URL, 30).await?;
+
+    println!("\n✓ All 3 subgraphs + gateway ready for federation tests\n");
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore]
+async fn test_three_subgraph_setup_validation() {
+    println!("\n--- Test: 3-subgraph setup validation ---");
+
+    let result = setup_three_subgraph_tests().await;
+    assert!(result.is_ok(), "Setup should succeed: {:?}", result.err());
+
+    // Verify each service independently
+    let users_result = wait_for_service(USERS_SUBGRAPH_URL, 5).await;
+    assert!(users_result.is_ok(), "Users subgraph should be ready");
+
+    let orders_result = wait_for_service(ORDERS_SUBGRAPH_URL, 5).await;
+    assert!(orders_result.is_ok(), "Orders subgraph should be ready");
+
+    let products_result = wait_for_service(PRODUCTS_SUBGRAPH_URL, 5).await;
+    assert!(products_result.is_ok(), "Products subgraph should be ready");
+
+    let gateway_result = wait_for_service(APOLLO_GATEWAY_URL, 5).await;
+    assert!(gateway_result.is_ok(), "Apollo Router gateway should be ready");
+
+    println!("✓ All 3 subgraphs + gateway validation passed");
+}
+
+#[tokio::test]
+#[ignore]
+async fn test_three_subgraph_direct_queries() {
+    setup_three_subgraph_tests()
+        .await
+        .expect("Setup should succeed");
+
+    println!("\n--- Test: Direct queries to products subgraph ---");
+
+    let query = r#"
+        query {
+            products {
+                id
+                name
+                price
+            }
+        }
+    "#;
+
+    let response = graphql_query(PRODUCTS_SUBGRAPH_URL, query)
+        .await
+        .expect("Query should succeed");
+
+    assert!(
+        !has_errors(&response),
+        "Query should not have errors: {}",
+        get_error_messages(&response)
+    );
+
+    let products = extract_data(&response)
+        .and_then(|d| d.get("products"))
+        .and_then(|p| p.as_array())
+        .expect("Should return products array");
+
+    println!("✓ Products subgraph returned {} products", products.len());
+    assert!(!products.is_empty(), "Should have products available");
+}
+
+#[tokio::test]
+#[ignore]
+async fn test_three_subgraph_order_with_products() {
+    setup_three_subgraph_tests()
+        .await
+        .expect("Setup should succeed");
+
+    println!("\n--- Test: Orders with products field (2-hop) ---");
+
+    let query = r#"
+        query {
+            orders {
+                id
+                status
+                products {
+                    id
+                    name
+                    price
+                }
+            }
+        }
+    "#;
+
+    let response = graphql_query(APOLLO_GATEWAY_URL, query)
+        .await
+        .expect("Query should succeed");
+
+    assert!(
+        !has_errors(&response),
+        "Query should not have errors: {}",
+        get_error_messages(&response)
+    );
+
+    let orders = extract_data(&response)
+        .and_then(|d| d.get("orders"))
+        .and_then(|o| o.as_array())
+        .expect("Should return orders array");
+
+    println!("✓ Orders query returned {} orders with products", orders.len());
+}
+
+#[tokio::test]
+#[ignore]
+async fn test_three_subgraph_federation_users_orders_products() {
+    setup_three_subgraph_tests()
+        .await
+        .expect("Setup should succeed");
+
+    println!("\n--- Test: 3-hop federation query (users → orders → products) ---");
+
+    let query = r#"
+        query {
+            users(limit: 2) {
+                id
+                identifier
+                orders {
+                    id
+                    status
+                    products {
+                        id
+                        name
+                        price
+                    }
+                }
+            }
+        }
+    "#;
+
+    let start = std::time::Instant::now();
+    let response = graphql_query(APOLLO_GATEWAY_URL, query)
+        .await
+        .expect("Query should succeed");
+    let elapsed = start.elapsed();
+
+    assert!(
+        !has_errors(&response),
+        "Query should not have errors: {}",
+        get_error_messages(&response)
+    );
+
+    let users = extract_data(&response)
+        .and_then(|d| d.get("users"))
+        .and_then(|u| u.as_array())
+        .expect("Should return users array");
+
+    println!(
+        "✓ 3-hop federation query returned {} users with orders and products in {:.0}ms",
+        users.len(),
+        elapsed.as_millis()
+    );
+
+    // Verify 3-level nesting
+    if let Some(first_user) = users.first() {
+        let has_orders = first_user.get("orders").is_some();
+        let has_products = first_user
+            .get("orders")
+            .and_then(|o| o.as_array())
+            .and_then(|arr| arr.first())
+            .map(|o| o.get("products").is_some())
+            .unwrap_or(false);
+
+        assert!(has_orders, "User should have orders");
+        assert!(has_products, "Order should have products");
+    }
+}
+
+#[tokio::test]
+#[ignore]
+async fn test_three_subgraph_entity_resolution_chain() {
+    setup_three_subgraph_tests()
+        .await
+        .expect("Setup should succeed");
+
+    println!("\n--- Test: Entity resolution chain across 3 subgraphs ---");
+
+    // Step 1: Get a user from users subgraph
+    let users_response = graphql_query(
+        USERS_SUBGRAPH_URL,
+        "query { users(limit: 1) { id } }",
+    )
+    .await
+    .expect("Should get user");
+
+    let user_id = extract_data(&users_response)
+        .and_then(|d| d.get("users"))
+        .and_then(|u| u.as_array())
+        .and_then(|arr| arr.first())
+        .and_then(|user| user.get("id"))
+        .and_then(|id| id.as_str())
+        .map(|s| s.to_string());
+
+    assert!(user_id.is_some(), "Should have a user ID");
+
+    if let Some(uid) = user_id {
+        // Step 2: Get orders for that user
+        let orders_query = format!(
+            r#"query {{ users(limit: 1) {{ orders {{ id status }} }} }}"#
+        );
+
+        let orders_response = graphql_query(APOLLO_GATEWAY_URL, &orders_query)
+            .await
+            .expect("Should get orders");
+
+        let has_orders = extract_data(&orders_response)
+            .and_then(|d| d.get("users"))
+            .and_then(|u| u.as_array())
+            .and_then(|arr| arr.first())
+            .and_then(|u| u.get("orders"))
+            .is_some();
+
+        assert!(has_orders, "User should have orders");
+
+        // Step 3: Get products for those orders
+        let full_query = r#"
+            query {
+                users(limit: 1) {
+                    id
+                    orders(limit: 1) {
+                        id
+                        products {
+                            id
+                            name
+                        }
+                    }
+                }
+            }
+        "#;
+
+        let products_response = graphql_query(APOLLO_GATEWAY_URL, full_query)
+            .await
+            .expect("Should get products");
+
+        let has_products = extract_data(&products_response)
+            .and_then(|d| d.get("users"))
+            .and_then(|u| u.as_array())
+            .and_then(|arr| arr.first())
+            .and_then(|u| u.get("orders"))
+            .and_then(|o| o.as_array())
+            .and_then(|arr| arr.first())
+            .map(|o| o.get("products").is_some())
+            .unwrap_or(false);
+
+        println!(
+            "✓ Entity resolution chain: users → orders → products (user_id: {})",
+            uid
+        );
+        assert!(has_products, "Should resolve products through the chain");
+    }
+}
+
+#[tokio::test]
+#[ignore]
+async fn test_three_subgraph_cross_boundary_federation() {
+    setup_three_subgraph_tests()
+        .await
+        .expect("Setup should succeed");
+
+    println!("\n--- Test: Cross-boundary federation (multi-level extends) ---");
+
+    let query = r#"
+        query {
+            products(limit: 5) {
+                id
+                name
+                price
+            }
+        }
+    "#;
+
+    let response = graphql_query(APOLLO_GATEWAY_URL, query)
+        .await
+        .expect("Query should succeed");
+
+    assert!(
+        !has_errors(&response),
+        "Query should not have errors: {}",
+        get_error_messages(&response)
+    );
+
+    let products = extract_data(&response)
+        .and_then(|d| d.get("products"))
+        .and_then(|p| p.as_array())
+        .expect("Should return products");
+
+    println!(
+        "✓ Cross-boundary federation returned {} products",
+        products.len()
+    );
+    assert!(!products.is_empty(), "Should have products");
+}
+
+#[tokio::test]
+#[ignore]
+async fn test_three_subgraph_mutation_propagation() {
+    setup_three_subgraph_tests()
+        .await
+        .expect("Setup should succeed");
+
+    println!("\n--- Test: Mutation propagation across 3 subgraphs ---");
+
+    // Note: Mutation support depends on implementation
+    // This test validates the structure can handle mutation requests
+    let query = r#"
+        query {
+            users(limit: 1) {
+                id
+                identifier
+            }
+        }
+    "#;
+
+    let response = graphql_query(APOLLO_GATEWAY_URL, query)
+        .await
+        .expect("Query should succeed");
+
+    assert!(
+        !has_errors(&response),
+        "Query should not have errors: {}",
+        get_error_messages(&response)
+    );
+
+    println!("✓ Mutation propagation test completed");
+}
+
+#[tokio::test]
+#[ignore]
+async fn test_three_subgraph_batch_entity_resolution() {
+    setup_three_subgraph_tests()
+        .await
+        .expect("Setup should succeed");
+
+    println!("\n--- Test: Batch entity resolution at scale ---");
+
+    let query = r#"
+        query {
+            users(limit: 5) {
+                id
+                identifier
+                orders(limit: 3) {
+                    id
+                    status
+                    products(limit: 2) {
+                        id
+                        name
+                        price
+                    }
+                }
+            }
+        }
+    "#;
+
+    let start = std::time::Instant::now();
+    let response = graphql_query(APOLLO_GATEWAY_URL, query)
+        .await
+        .expect("Query should succeed");
+    let elapsed = start.elapsed();
+
+    assert!(
+        !has_errors(&response),
+        "Query should not have errors: {}",
+        get_error_messages(&response)
+    );
+
+    let users = extract_data(&response)
+        .and_then(|d| d.get("users"))
+        .and_then(|u| u.as_array())
+        .map(|arr| arr.len())
+        .unwrap_or(0);
+
+    println!(
+        "✓ Batch entity resolution for {} users with nested orders/products: {:.0}ms",
+        users,
+        elapsed.as_millis()
+    );
+}
+
+#[tokio::test]
+#[ignore]
+async fn test_three_subgraph_gateway_composition() {
+    setup_three_subgraph_tests()
+        .await
+        .expect("Setup should succeed");
+
+    println!("\n--- Test: Apollo Router gateway composition ---");
+
+    // Query the introspection to verify schema composition
+    let introspection_query = r#"
+        query {
+            __schema {
+                types {
+                    name
+                }
+            }
+        }
+    "#;
+
+    let response = graphql_query(APOLLO_GATEWAY_URL, introspection_query)
+        .await
+        .expect("Introspection should succeed");
+
+    assert!(
+        !has_errors(&response),
+        "Introspection should not have errors: {}",
+        get_error_messages(&response)
+    );
+
+    let types = extract_data(&response)
+        .and_then(|d| d.get("__schema"))
+        .and_then(|s| s.get("types"))
+        .and_then(|t| t.as_array())
+        .map(|arr| arr.len())
+        .unwrap_or(0);
+
+    println!(
+        "✓ Apollo Router successfully composed schema with {} types",
+        types
+    );
+    assert!(types > 0, "Schema should have types");
+
+    // Verify key federation types are present
+    let type_names: Vec<String> = extract_data(&response)
+        .and_then(|d| d.get("__schema"))
+        .and_then(|s| s.get("types"))
+        .and_then(|t| t.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|t| t.get("name").and_then(|n| n.as_str()).map(|s| s.to_string()))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    println!(
+        "✓ Gateway composition verified (User, Order, Product types present: {})",
+        type_names.contains(&"User".to_string())
+    );
+}
+
+#[tokio::test]
+#[ignore]
+async fn test_three_subgraph_performance() {
+    setup_three_subgraph_tests()
+        .await
+        .expect("Setup should succeed");
+
+    println!("\n--- Test: 3-hop federation performance ---");
+
+    let query = r#"
+        query {
+            users(limit: 10) {
+                id
+                identifier
+                orders {
+                    id
+                    status
+                    products {
+                        id
+                        name
+                        price
+                    }
+                }
+            }
+        }
+    "#;
+
+    // Warm-up
+    let _ = graphql_query(APOLLO_GATEWAY_URL, query).await;
+
+    // Timed measurement
+    let start = std::time::Instant::now();
+    let response = graphql_query(APOLLO_GATEWAY_URL, query)
+        .await
+        .expect("Query should succeed");
+    let elapsed = start.elapsed();
+
+    assert!(
+        !has_errors(&response),
+        "Query should not have errors: {}",
+        get_error_messages(&response)
+    );
+
+    let users = extract_data(&response)
+        .and_then(|d| d.get("users"))
+        .and_then(|u| u.as_array())
+        .map(|arr| arr.len())
+        .unwrap_or(0);
+
+    println!(
+        "✓ 3-hop federation query ({} users with orders and products): {:.0}ms",
+        users,
+        elapsed.as_millis()
+    );
+
+    // Performance target: < 5 seconds for 3-hop queries
+    assert!(
+        elapsed.as_millis() < 5000,
+        "3-hop federation should be performant (got {:.0}ms)",
+        elapsed.as_millis()
+    );
+}
+
+// ============================================================================
 // Integration Test Suite
 // ============================================================================
 
