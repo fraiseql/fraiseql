@@ -2,12 +2,96 @@
 //!
 //! This module provides a production-grade persistent store for sagas using PostgreSQL,
 //! enabling crash recovery, distributed coordination, and saga tracking across instances.
+//!
+//! # Architecture
+//!
+//! The saga store implements the saga pattern for distributed transactions:
+//! - **Forward phase**: Execute steps sequentially across subgraphs
+//! - **Compensation phase**: Rollback failures by executing inverse operations
+//! - **Persistence**: All saga state and steps stored in PostgreSQL
+//! - **Recovery**: Background processes recover interrupted sagas on restart
+//!
+//! # State Machine
+//!
+//! ```text
+//! Pending → Executing → Completed (success)
+//!           ↓
+//!       Failed → Compensating → Compensated (rolledback)
+//! ```
+//!
+//! # Example
+//!
+//! ```ignore
+//! let store = PostgresSagaStore::new("postgresql://localhost/fraiseql").await?;
+//! store.migrate_schema().await?;
+//!
+//! let saga = Saga {
+//!     id: Uuid::new_v4(),
+//!     state: SagaState::Pending,
+//!     created_at: chrono::Utc::now(),
+//!     completed_at: None,
+//!     metadata: None,
+//! };
+//!
+//! store.save_saga(&saga).await?;
+//! ```
 
-use serde_json::Value;
 use std::sync::Arc;
-use uuid::Uuid;
 
 use deadpool_postgres::Pool;
+use serde_json::Value;
+use uuid::Uuid;
+
+/// Error type for saga store operations
+#[derive(Debug)]
+pub enum SagaStoreError {
+    /// Database connection or query error
+    Database(String),
+    /// Invalid state transition
+    InvalidStateTransition { from: String, to: String },
+    /// Saga not found
+    SagaNotFound(Uuid),
+    /// Step not found
+    StepNotFound(Uuid),
+}
+
+impl std::fmt::Display for SagaStoreError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Database(msg) => write!(f, "Database error: {}", msg),
+            Self::InvalidStateTransition { from, to } => {
+                write!(f, "Invalid state transition from {} to {}", from, to)
+            },
+            Self::SagaNotFound(id) => write!(f, "Saga {} not found", id),
+            Self::StepNotFound(id) => write!(f, "Step {} not found", id),
+        }
+    }
+}
+
+impl std::error::Error for SagaStoreError {}
+
+impl From<tokio_postgres::Error> for SagaStoreError {
+    fn from(err: tokio_postgres::Error) -> Self {
+        Self::Database(err.to_string())
+    }
+}
+
+impl From<deadpool_postgres::PoolError> for SagaStoreError {
+    fn from(err: deadpool_postgres::PoolError) -> Self {
+        Self::Database(err.to_string())
+    }
+}
+
+impl<E> From<deadpool::managed::CreatePoolError<E>> for SagaStoreError
+where
+    E: std::fmt::Display,
+{
+    fn from(err: deadpool::managed::CreatePoolError<E>) -> Self {
+        Self::Database(format!("Failed to create connection pool: {}", err))
+    }
+}
+
+pub type Result<T> = std::result::Result<T, SagaStoreError>;
 
 /// SagaState enum
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -84,6 +168,7 @@ pub enum MutationType {
 }
 
 impl MutationType {
+    /// Convert to string representation
     pub fn as_str(&self) -> &'static str {
         match self {
             MutationType::Create => "create",
@@ -91,54 +176,84 @@ impl MutationType {
             MutationType::Delete => "delete",
         }
     }
+
+    /// Parse from string representation
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "create" => Some(MutationType::Create),
+            "update" => Some(MutationType::Update),
+            "delete" => Some(MutationType::Delete),
+            _ => None,
+        }
+    }
 }
 
 /// Saga struct
 #[derive(Debug, Clone)]
 pub struct Saga {
-    pub id: Uuid,
-    pub state: SagaState,
-    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub id:           Uuid,
+    pub state:        SagaState,
+    pub created_at:   chrono::DateTime<chrono::Utc>,
     pub completed_at: Option<chrono::DateTime<chrono::Utc>>,
-    pub metadata: Option<Value>,
+    pub metadata:     Option<Value>,
 }
 
 /// SagaStep struct
 #[derive(Debug, Clone)]
 pub struct SagaStep {
-    pub id: Uuid,
-    pub saga_id: Uuid,
-    pub order: usize,
-    pub subgraph: String,
+    pub id:            Uuid,
+    pub saga_id:       Uuid,
+    pub order:         usize,
+    pub subgraph:      String,
     pub mutation_type: MutationType,
-    pub typename: String,
-    pub variables: Value,
-    pub state: StepState,
-    pub result: Option<Value>,
-    pub started_at: Option<chrono::DateTime<chrono::Utc>>,
-    pub completed_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub typename:      String,
+    pub variables:     Value,
+    pub state:         StepState,
+    pub result:        Option<Value>,
+    pub started_at:    Option<chrono::DateTime<chrono::Utc>>,
+    pub completed_at:  Option<chrono::DateTime<chrono::Utc>>,
 }
 
 /// SagaRecovery struct
 #[derive(Debug, Clone)]
 pub struct SagaRecovery {
-    pub id: Uuid,
-    pub saga_id: Uuid,
+    pub id:            Uuid,
+    pub saga_id:       Uuid,
     pub recovery_type: String,
-    pub attempted_at: chrono::DateTime<chrono::Utc>,
-    pub last_attempt: Option<chrono::DateTime<chrono::Utc>>,
+    pub attempted_at:  chrono::DateTime<chrono::Utc>,
+    pub last_attempt:  Option<chrono::DateTime<chrono::Utc>>,
     pub attempt_count: i32,
-    pub last_error: Option<String>,
+    pub last_error:    Option<String>,
 }
 
 /// PostgreSQL-backed Saga Store
+///
+/// Manages persistent storage of sagas and their execution state using PostgreSQL.
+/// Provides crash recovery and distributed coordination across federation instances.
 pub struct PostgresSagaStore {
     pool: Arc<Pool>,
 }
 
 impl PostgresSagaStore {
-    /// Create a new PostgreSQL saga store
-    pub async fn new(_connection_string: &str) -> Result<Self, Box<dyn std::error::Error>> {
+    /// Create a new PostgreSQL saga store with default configuration.
+    ///
+    /// Connects to PostgreSQL and verifies connectivity.
+    ///
+    /// # Arguments
+    ///
+    /// * `_connection_string` - PostgreSQL connection string (currently unused, uses default
+    ///   config)
+    ///
+    /// # Errors
+    ///
+    /// Returns `SagaStoreError::Database` if connection fails.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let store = PostgresSagaStore::new("postgresql://localhost/fraiseql").await?;
+    /// ```
+    pub async fn new(_connection_string: &str) -> Result<Self> {
         // Parse connection string and create pool
         let cfg = deadpool_postgres::Config {
             dbname: Some("fraiseql".to_string()),
@@ -162,8 +277,12 @@ impl PostgresSagaStore {
         })
     }
 
-    /// Create database schema
-    pub async fn migrate_schema(&self) -> Result<(), Box<dyn std::error::Error>> {
+    /// Create database schema and indices if they don't exist
+    ///
+    /// # Errors
+    ///
+    /// Returns `SagaStoreError::Database` if schema creation fails.
+    pub async fn migrate_schema(&self) -> Result<()> {
         let conn = self.pool.get().await?;
 
         // Create federation_sagas table
@@ -225,11 +344,8 @@ impl PostgresSagaStore {
         .await?;
 
         // Create indices
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_saga_state ON federation_sagas(state)",
-            &[],
-        )
-        .await?;
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_saga_state ON federation_sagas(state)", &[])
+            .await?;
 
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_saga_created ON federation_sagas(created_at)",
@@ -252,14 +368,57 @@ impl PostgresSagaStore {
         Ok(())
     }
 
-    /// Health check
-    pub async fn health_check(&self) -> Result<(), Box<dyn std::error::Error>> {
+    /// Health check - verifies database connectivity
+    ///
+    /// # Errors
+    ///
+    /// Returns `SagaStoreError::Database` if connection fails.
+    pub async fn health_check(&self) -> Result<()> {
         let _conn = self.pool.get().await?;
         Ok(())
     }
 
-    /// Save a saga
-    pub async fn save_saga(&self, saga: &Saga) -> Result<(), Box<dyn std::error::Error>> {
+    // Helper functions for row mapping to reduce duplication
+
+    /// Map a database row to a Saga struct
+    fn map_saga_row(row: &tokio_postgres::Row) -> Saga {
+        Saga {
+            id:           row.get(0),
+            state:        SagaState::from_str(row.get::<_, String>(1).as_str())
+                .unwrap_or(SagaState::Pending),
+            created_at:   row.get(2),
+            completed_at: row.get(3),
+            metadata:     row.get(4),
+        }
+    }
+
+    /// Map a database row to a SagaStep struct
+    fn map_saga_step_row(row: &tokio_postgres::Row) -> SagaStep {
+        SagaStep {
+            id:            row.get(0),
+            saga_id:       row.get(1),
+            order:         row.get::<_, i32>(2) as usize,
+            subgraph:      row.get(3),
+            mutation_type: MutationType::from_str(row.get::<_, String>(4).as_str())
+                .unwrap_or(MutationType::Update),
+            typename:      row.get(5),
+            variables:     row.get(6),
+            state:         StepState::from_str(row.get::<_, String>(7).as_str())
+                .unwrap_or(StepState::Pending),
+            result:        row.get(8),
+            started_at:    row.get(9),
+            completed_at:  row.get(10),
+        }
+    }
+
+    /// Save or update a saga
+    ///
+    /// Uses upsert semantics - inserts if new, updates if exists.
+    ///
+    /// # Errors
+    ///
+    /// Returns `SagaStoreError::Database` if the operation fails.
+    pub async fn save_saga(&self, saga: &Saga) -> Result<()> {
         let conn = self.pool.get().await?;
         let state = saga.state.as_str();
         let now = chrono::Utc::now();
@@ -269,14 +428,7 @@ impl PostgresSagaStore {
              VALUES ($1, $2, $3, $4, $5, $6)
              ON CONFLICT (id) DO UPDATE SET
                  state = $2, completed_at = $4, updated_at = $5, metadata = $6",
-            &[
-                &saga.id,
-                &state,
-                &saga.created_at,
-                &saga.completed_at,
-                &now,
-                &saga.metadata,
-            ],
+            &[&saga.id, &state, &saga.created_at, &saga.completed_at, &now, &saga.metadata],
         )
         .await?;
 
@@ -284,7 +436,11 @@ impl PostgresSagaStore {
     }
 
     /// Load a saga by ID
-    pub async fn load_saga(&self, saga_id: Uuid) -> Result<Option<Saga>, Box<dyn std::error::Error>> {
+    ///
+    /// # Errors
+    ///
+    /// Returns `SagaStoreError::Database` if the query fails.
+    pub async fn load_saga(&self, saga_id: Uuid) -> Result<Option<Saga>> {
         let conn = self.pool.get().await?;
 
         let row = conn
@@ -294,17 +450,15 @@ impl PostgresSagaStore {
             )
             .await?;
 
-        Ok(row.map(|r| Saga {
-            id: r.get(0),
-            state: SagaState::from_str(r.get::<_, String>(1).as_str()).unwrap_or(SagaState::Pending),
-            created_at: r.get(2),
-            completed_at: r.get(3),
-            metadata: r.get(4),
-        }))
+        Ok(row.map(|r| Self::map_saga_row(&r)))
     }
 
-    /// Load all sagas
-    pub async fn load_all_sagas(&self) -> Result<Vec<Saga>, Box<dyn std::error::Error>> {
+    /// Load all sagas ordered by creation time (newest first)
+    ///
+    /// # Errors
+    ///
+    /// Returns `SagaStoreError::Database` if the query fails.
+    pub async fn load_all_sagas(&self) -> Result<Vec<Saga>> {
         let conn = self.pool.get().await?;
 
         let rows = conn
@@ -314,20 +468,15 @@ impl PostgresSagaStore {
             )
             .await?;
 
-        Ok(rows
-            .into_iter()
-            .map(|r| Saga {
-                id: r.get(0),
-                state: SagaState::from_str(r.get::<_, String>(1).as_str()).unwrap_or(SagaState::Pending),
-                created_at: r.get(2),
-                completed_at: r.get(3),
-                metadata: r.get(4),
-            })
-            .collect())
+        Ok(rows.into_iter().map(|r| Self::map_saga_row(&r)).collect())
     }
 
-    /// Load sagas by state
-    pub async fn load_sagas_by_state(&self, state: &SagaState) -> Result<Vec<Saga>, Box<dyn std::error::Error>> {
+    /// Load sagas filtered by state
+    ///
+    /// # Errors
+    ///
+    /// Returns `SagaStoreError::Database` if the query fails.
+    pub async fn load_sagas_by_state(&self, state: &SagaState) -> Result<Vec<Saga>> {
         let conn = self.pool.get().await?;
         let state_str = state.as_str();
 
@@ -338,20 +487,17 @@ impl PostgresSagaStore {
             )
             .await?;
 
-        Ok(rows
-            .into_iter()
-            .map(|r| Saga {
-                id: r.get(0),
-                state: SagaState::from_str(r.get::<_, String>(1).as_str()).unwrap_or(SagaState::Pending),
-                created_at: r.get(2),
-                completed_at: r.get(3),
-                metadata: r.get(4),
-            })
-            .collect())
+        Ok(rows.into_iter().map(|r| Self::map_saga_row(&r)).collect())
     }
 
-    /// Update saga state
-    pub async fn update_saga_state(&self, saga_id: Uuid, state: &SagaState) -> Result<(), Box<dyn std::error::Error>> {
+    /// Update saga state and automatically set completion time for terminal states
+    ///
+    /// Terminal states (Completed, Compensated) automatically receive completed_at timestamp.
+    ///
+    /// # Errors
+    ///
+    /// Returns `SagaStoreError::Database` if the update fails.
+    pub async fn update_saga_state(&self, saga_id: Uuid, state: &SagaState) -> Result<()> {
         let conn = self.pool.get().await?;
         let state_str = state.as_str();
         let now = chrono::Utc::now();
@@ -371,8 +517,12 @@ impl PostgresSagaStore {
         Ok(())
     }
 
-    /// Load saga step by ID
-    pub async fn load_saga_step(&self, step_id: Uuid) -> Result<Option<SagaStep>, Box<dyn std::error::Error>> {
+    /// Load a saga step by ID
+    ///
+    /// # Errors
+    ///
+    /// Returns `SagaStoreError::Database` if the query fails.
+    pub async fn load_saga_step(&self, step_id: Uuid) -> Result<Option<SagaStep>> {
         let conn = self.pool.get().await?;
 
         let row = conn
@@ -382,28 +532,15 @@ impl PostgresSagaStore {
             )
             .await?;
 
-        Ok(row.map(|r| SagaStep {
-            id: r.get(0),
-            saga_id: r.get(1),
-            order: r.get::<_, i32>(2) as usize,
-            subgraph: r.get(3),
-            mutation_type: match r.get::<_, String>(4).as_str() {
-                "create" => MutationType::Create,
-                "update" => MutationType::Update,
-                "delete" => MutationType::Delete,
-                _ => MutationType::Update,
-            },
-            typename: r.get(5),
-            variables: r.get(6),
-            state: StepState::from_str(r.get::<_, String>(7).as_str()).unwrap_or(StepState::Pending),
-            result: r.get(8),
-            started_at: r.get(9),
-            completed_at: r.get(10),
-        }))
+        Ok(row.map(|r| Self::map_saga_step_row(&r)))
     }
 
-    /// Load saga steps
-    pub async fn load_saga_steps(&self, saga_id: Uuid) -> Result<Vec<SagaStep>, Box<dyn std::error::Error>> {
+    /// Load all saga steps for a saga, ordered by step number
+    ///
+    /// # Errors
+    ///
+    /// Returns `SagaStoreError::Database` if the query fails.
+    pub async fn load_saga_steps(&self, saga_id: Uuid) -> Result<Vec<SagaStep>> {
         let conn = self.pool.get().await?;
 
         let rows = conn
@@ -413,31 +550,17 @@ impl PostgresSagaStore {
             )
             .await?;
 
-        Ok(rows
-            .into_iter()
-            .map(|r| SagaStep {
-                id: r.get(0),
-                saga_id: r.get(1),
-                order: r.get::<_, i32>(2) as usize,
-                subgraph: r.get(3),
-                mutation_type: match r.get::<_, String>(4).as_str() {
-                    "create" => MutationType::Create,
-                    "update" => MutationType::Update,
-                    "delete" => MutationType::Delete,
-                    _ => MutationType::Update,
-                },
-                typename: r.get(5),
-                variables: r.get(6),
-                state: StepState::from_str(r.get::<_, String>(7).as_str()).unwrap_or(StepState::Pending),
-                result: r.get(8),
-                started_at: r.get(9),
-                completed_at: r.get(10),
-            })
-            .collect())
+        Ok(rows.into_iter().map(|r| Self::map_saga_step_row(&r)).collect())
     }
 
-    /// Update saga step state
-    pub async fn update_saga_step_state(&self, step_id: Uuid, state: &StepState) -> Result<(), Box<dyn std::error::Error>> {
+    /// Update saga step state and automatically set completion time for terminal states
+    ///
+    /// Terminal states (Completed, Failed) automatically receive completed_at timestamp.
+    ///
+    /// # Errors
+    ///
+    /// Returns `SagaStoreError::Database` if the update fails.
+    pub async fn update_saga_step_state(&self, step_id: Uuid, state: &StepState) -> Result<()> {
         let conn = self.pool.get().await?;
         let state_str = state.as_str();
         let now = chrono::Utc::now();
@@ -457,12 +580,23 @@ impl PostgresSagaStore {
         Ok(())
     }
 
-    /// Save a saga step
-    pub async fn save_saga_step(&self, step: &SagaStep) -> Result<(), Box<dyn std::error::Error>> {
+    /// Save or update a saga step
+    ///
+    /// Uses upsert semantics - inserts if new, updates if exists.
+    ///
+    /// # Errors
+    ///
+    /// Returns `SagaStoreError::Database` if the operation fails.
+    pub async fn save_saga_step(&self, step: &SagaStep) -> Result<()> {
         let conn = self.pool.get().await?;
         let mutation_type = step.mutation_type.as_str();
         let state = step.state.as_str();
         let now = chrono::Utc::now();
+
+        // Note: step.order is casted to i32 for PostgreSQL storage.
+        // In practice, sagas rarely exceed 2 billion steps, so this is safe.
+        #[allow(clippy::cast_possible_wrap)]
+        let step_number = step.order as i32;
 
         conn.execute(
             "INSERT INTO federation_saga_steps (id, saga_id, step_number, subgraph, mutation_type, typename, variables, state, result, started_at, completed_at, created_at, updated_at)
@@ -471,7 +605,7 @@ impl PostgresSagaStore {
             &[
                 &step.id,
                 &step.saga_id,
-                &(step.order as i32),
+                &step_number,
                 &step.subgraph,
                 &mutation_type,
                 &step.typename,
@@ -489,8 +623,12 @@ impl PostgresSagaStore {
         Ok(())
     }
 
-    /// Update saga step result
-    pub async fn update_saga_step_result(&self, step_id: Uuid, result: &Value) -> Result<(), Box<dyn std::error::Error>> {
+    /// Update the result of a completed saga step
+    ///
+    /// # Errors
+    ///
+    /// Returns `SagaStoreError::Database` if the update fails.
+    pub async fn update_saga_step_result(&self, step_id: Uuid, result: &Value) -> Result<()> {
         let conn = self.pool.get().await?;
         let now = chrono::Utc::now();
 
@@ -503,8 +641,14 @@ impl PostgresSagaStore {
         Ok(())
     }
 
-    /// Mark saga for recovery
-    pub async fn mark_saga_for_recovery(&self, saga_id: Uuid, reason: &str) -> Result<(), Box<dyn std::error::Error>> {
+    /// Mark a saga for recovery
+    ///
+    /// Creates a recovery record tracking an attempt to recover a failed saga.
+    ///
+    /// # Errors
+    ///
+    /// Returns `SagaStoreError::Database` if the operation fails.
+    pub async fn mark_saga_for_recovery(&self, saga_id: Uuid, reason: &str) -> Result<()> {
         let conn = self.pool.get().await?;
         let recovery_id = Uuid::new_v4();
         let now = chrono::Utc::now();
@@ -518,38 +662,74 @@ impl PostgresSagaStore {
         Ok(())
     }
 
-    /// Find pending sagas
-    pub async fn find_pending_sagas(&self) -> Result<Vec<Saga>, Box<dyn std::error::Error>> {
+    /// Find all pending sagas (not yet started)
+    ///
+    /// # Errors
+    ///
+    /// Returns `SagaStoreError::Database` if the query fails.
+    pub async fn find_pending_sagas(&self) -> Result<Vec<Saga>> {
         self.load_sagas_by_state(&SagaState::Pending).await
     }
 
-    /// Clear recovery record
-    pub async fn clear_recovery_record(&self, saga_id: Uuid) -> Result<(), Box<dyn std::error::Error>> {
+    /// Clear recovery record for a saga
+    ///
+    /// # Errors
+    ///
+    /// Returns `SagaStoreError::Database` if the operation fails.
+    pub async fn clear_recovery_record(&self, saga_id: Uuid) -> Result<()> {
         let conn = self.pool.get().await?;
         conn.execute("DELETE FROM federation_saga_recovery WHERE saga_id = $1", &[&saga_id])
             .await?;
         Ok(())
     }
 
-    /// Delete saga
-    pub async fn delete_saga(&self, saga_id: Uuid) -> Result<(), Box<dyn std::error::Error>> {
+    /// Delete a saga and all associated steps and recovery records
+    ///
+    /// CASCADE constraints ensure related records are deleted.
+    ///
+    /// # Errors
+    ///
+    /// Returns `SagaStoreError::Database` if the operation fails.
+    pub async fn delete_saga(&self, saga_id: Uuid) -> Result<()> {
         let conn = self.pool.get().await?;
-        conn.execute("DELETE FROM federation_sagas WHERE id = $1", &[&saga_id])
-            .await?;
+        conn.execute("DELETE FROM federation_sagas WHERE id = $1", &[&saga_id]).await?;
         Ok(())
     }
 
-    /// Delete completed sagas
-    pub async fn delete_completed_sagas(&self) -> Result<u64, Box<dyn std::error::Error>> {
+    /// Delete all completed and compensated sagas
+    ///
+    /// # Errors
+    ///
+    /// Returns `SagaStoreError::Database` if the operation fails.
+    ///
+    /// # Returns
+    ///
+    /// Number of sagas deleted.
+    pub async fn delete_completed_sagas(&self) -> Result<u64> {
         let conn = self.pool.get().await?;
         let result = conn
-            .execute("DELETE FROM federation_sagas WHERE state IN ('completed', 'compensated')", &[])
+            .execute(
+                "DELETE FROM federation_sagas WHERE state IN ('completed', 'compensated')",
+                &[],
+            )
             .await?;
         Ok(result)
     }
 
-    /// Cleanup stale sagas
-    pub async fn cleanup_stale_sagas(&self, hours_threshold: i64) -> Result<u64, Box<dyn std::error::Error>> {
+    /// Delete sagas older than the specified threshold that are in a terminal state
+    ///
+    /// # Arguments
+    ///
+    /// * `hours_threshold` - Delete sagas created more than this many hours ago
+    ///
+    /// # Errors
+    ///
+    /// Returns `SagaStoreError::Database` if the operation fails.
+    ///
+    /// # Returns
+    ///
+    /// Number of sagas deleted.
+    pub async fn cleanup_stale_sagas(&self, hours_threshold: i64) -> Result<u64> {
         let conn = self.pool.get().await?;
         let result = conn
             .execute(
@@ -560,8 +740,12 @@ impl PostgresSagaStore {
         Ok(result)
     }
 
-    /// Get recovery attempts
-    pub async fn get_recovery_attempts(&self, saga_id: Uuid) -> Result<i32, Box<dyn std::error::Error>> {
+    /// Get the maximum recovery attempt count for a saga
+    ///
+    /// # Errors
+    ///
+    /// Returns `SagaStoreError::Database` if the query fails.
+    pub async fn get_recovery_attempts(&self, saga_id: Uuid) -> Result<i32> {
         let conn = self.pool.get().await?;
         let row = conn
             .query_opt(
@@ -572,8 +756,12 @@ impl PostgresSagaStore {
         Ok(row.map(|r| r.get(0)).unwrap_or(0))
     }
 
-    /// Save recovery record
-    pub async fn save_recovery_record(&self, recovery: &SagaRecovery) -> Result<(), Box<dyn std::error::Error>> {
+    /// Save a saga recovery record
+    ///
+    /// # Errors
+    ///
+    /// Returns `SagaStoreError::Database` if the operation fails.
+    pub async fn save_recovery_record(&self, recovery: &SagaRecovery) -> Result<()> {
         let conn = self.pool.get().await?;
 
         conn.execute(
@@ -593,8 +781,12 @@ impl PostgresSagaStore {
         Ok(())
     }
 
-    /// Cleanup all (for testing)
-    pub async fn cleanup_all(&self) -> Result<(), Box<dyn std::error::Error>> {
+    /// Delete all sagas, steps, and recovery records (for testing)
+    ///
+    /// # Errors
+    ///
+    /// Returns `SagaStoreError::Database` if the operation fails.
+    pub async fn cleanup_all(&self) -> Result<()> {
         let conn = self.pool.get().await?;
         conn.execute("DELETE FROM federation_saga_recovery", &[]).await?;
         conn.execute("DELETE FROM federation_saga_steps", &[]).await?;
@@ -602,29 +794,45 @@ impl PostgresSagaStore {
         Ok(())
     }
 
-    /// Get saga count
-    pub async fn saga_count(&self) -> Result<i64, Box<dyn std::error::Error>> {
+    /// Get total number of sagas in the database
+    ///
+    /// # Errors
+    ///
+    /// Returns `SagaStoreError::Database` if the query fails.
+    pub async fn saga_count(&self) -> Result<i64> {
         let conn = self.pool.get().await?;
         let row = conn.query_one("SELECT COUNT(*) FROM federation_sagas", &[]).await?;
         Ok(row.get(0))
     }
 
-    /// Get step count
-    pub async fn step_count(&self) -> Result<i64, Box<dyn std::error::Error>> {
+    /// Get total number of saga steps in the database
+    ///
+    /// # Errors
+    ///
+    /// Returns `SagaStoreError::Database` if the query fails.
+    pub async fn step_count(&self) -> Result<i64> {
         let conn = self.pool.get().await?;
         let row = conn.query_one("SELECT COUNT(*) FROM federation_saga_steps", &[]).await?;
         Ok(row.get(0))
     }
 
-    /// Get recovery count
-    pub async fn recovery_count(&self) -> Result<i64, Box<dyn std::error::Error>> {
+    /// Get total number of saga recovery records in the database
+    ///
+    /// # Errors
+    ///
+    /// Returns `SagaStoreError::Database` if the query fails.
+    pub async fn recovery_count(&self) -> Result<i64> {
         let conn = self.pool.get().await?;
         let row = conn.query_one("SELECT COUNT(*) FROM federation_saga_recovery", &[]).await?;
         Ok(row.get(0))
     }
 
-    /// Find stuck sagas
-    pub async fn find_stuck_sagas(&self) -> Result<Vec<Saga>, Box<dyn std::error::Error>> {
+    /// Find all stuck sagas (in executing state that may have crashed)
+    ///
+    /// # Errors
+    ///
+    /// Returns `SagaStoreError::Database` if the query fails.
+    pub async fn find_stuck_sagas(&self) -> Result<Vec<Saga>> {
         self.load_sagas_by_state(&SagaState::Executing).await
     }
 }
