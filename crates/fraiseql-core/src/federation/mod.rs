@@ -38,6 +38,7 @@ pub mod http_resolver;
 pub mod connection_manager;
 pub mod direct_db_resolver;
 pub mod mutation_http_client;
+pub mod tracing;
 
 pub use types::*;
 pub use entity_resolver::*;
@@ -53,6 +54,7 @@ pub use http_resolver::*;
 pub use connection_manager::*;
 pub use direct_db_resolver::*;
 pub use mutation_http_client::*;
+pub use tracing::{FederationSpan, FederationTraceContext};
 
 use crate::error::{FraiseQLError, Result};
 use serde_json::{json, Value};

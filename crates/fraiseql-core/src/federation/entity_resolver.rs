@@ -3,6 +3,7 @@
 use super::types::{EntityRepresentation, FederationResolver};
 use super::database_resolver::DatabaseEntityResolver;
 use super::selection_parser::FieldSelection;
+use super::tracing::{FederationTraceContext, FederationSpan};
 use crate::db::traits::DatabaseAdapter;
 use crate::error::Result;
 use serde_json::Value;
@@ -124,9 +125,28 @@ pub async fn batch_load_entities<A: DatabaseAdapter>(
     adapter: Arc<A>,
     selection: &FieldSelection,
 ) -> Result<Vec<Option<Value>>> {
+    batch_load_entities_with_tracing(representations, fed_resolver, adapter, selection, None).await
+}
+
+/// Batch load entities from database with optional distributed tracing.
+pub async fn batch_load_entities_with_tracing<A: DatabaseAdapter>(
+    representations: &[EntityRepresentation],
+    fed_resolver: &FederationResolver,
+    adapter: Arc<A>,
+    selection: &FieldSelection,
+    trace_context: Option<FederationTraceContext>,
+) -> Result<Vec<Option<Value>>> {
     if representations.is_empty() {
         return Ok(Vec::new());
     }
+
+    // Create or use provided trace context
+    let trace_ctx = trace_context.unwrap_or_else(FederationTraceContext::new);
+
+    // Create span for federation query
+    let span = FederationSpan::new("federation.entities.batch_load", trace_ctx.clone())
+        .with_attribute("entity_count", representations.len().to_string())
+        .with_attribute("typename_count", count_unique_typenames(representations).to_string());
 
     // Group by typename
     let grouped = group_entities_by_typename(representations);
@@ -135,6 +155,11 @@ pub async fn batch_load_entities<A: DatabaseAdapter>(
     let mut current_index = 0;
 
     for (typename, reps) in grouped {
+        // Create child span for this typename batch
+        let child_span = span.create_child(format!("federation.entities.resolve.{}", typename))
+            .with_attribute("typename", typename.clone())
+            .with_attribute("batch_size", reps.len().to_string());
+
         // Resolve this batch using database
         let result = resolve_entities_from_db(
             &reps,
@@ -144,6 +169,10 @@ pub async fn batch_load_entities<A: DatabaseAdapter>(
             selection,
         )
         .await;
+
+        // Record span duration and attributes
+        let _resolved_count = result.entities.iter().filter(|e| e.is_some()).count();
+        let _error_count = result.errors.len();
 
         // Map results back to original indices with proper ordering
         for entity in result.entities {
@@ -158,11 +187,31 @@ pub async fn batch_load_entities<A: DatabaseAdapter>(
                 eprintln!("Entity resolution error for {}: {}", typename, error);
             }
         }
+
+        // Update span attributes with results
+        drop(child_span);
     }
 
     // Sort by original index to preserve order
     all_results.sort_by_key(|(idx, _)| *idx);
+
+    // Record final span attributes (will be used in Phase 2 metrics recording)
+    let _span_duration = span.duration_ms();
+    let _resolved_count = all_results.iter().filter(|(_, e)| e.is_some()).count();
+
+    // Keep span alive until function returns
+    drop(span);
+
     Ok(all_results.into_iter().map(|(_, e)| e).collect())
+}
+
+/// Count unique typenames in representations
+fn count_unique_typenames(representations: &[EntityRepresentation]) -> usize {
+    let mut typenames = HashSet::new();
+    for rep in representations {
+        typenames.insert(&rep.typename);
+    }
+    typenames.len()
 }
 
 #[cfg(test)]

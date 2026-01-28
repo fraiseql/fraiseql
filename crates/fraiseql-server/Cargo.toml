@@ -43,7 +43,9 @@ metrics-exporter-prometheus = {version = "0.14", optional = true}
 
 # OpenTelemetry (optional)
 opentelemetry = {version = "0.22", optional = true}
+opentelemetry_sdk = {version = "0.22", optional = true}
 opentelemetry-otlp = {version = "0.15", optional = true}
+tracing-opentelemetry = {version = "0.23", optional = true}
 
 # Database
 sqlx = {version = "0.8", features = ["postgres", "runtime-tokio", "uuid", "chrono"]}
@@ -114,7 +116,7 @@ default = []
 database = []
 cors = []
 metrics = ["dep:metrics", "metrics-exporter-prometheus"]
-tracing-opentelemetry = ["opentelemetry", "opentelemetry-otlp"]
+tracing-opentelemetry = ["opentelemetry", "opentelemetry_sdk", "opentelemetry-otlp", "dep:tracing-opentelemetry"]
 redis-rate-limiting = ["redis"]
 aws-s3 = ["aws-sdk-s3", "aws-config"]
 testing = []
