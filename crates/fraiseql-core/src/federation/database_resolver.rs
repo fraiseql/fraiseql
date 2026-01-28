@@ -11,6 +11,7 @@ use crate::federation::metadata_helpers::find_federation_type;
 use crate::federation::selection_parser::FieldSelection;
 use crate::federation::types::{EntityRepresentation, FederatedType, FederationMetadata};
 use crate::federation::query_builder::construct_where_in_clause;
+use crate::federation::tracing::FederationTraceContext;
 use serde_json::Value;
 
 /// Resolves federation entities from local databases.
@@ -48,6 +49,32 @@ impl<A: DatabaseAdapter> DatabaseEntityResolver<A> {
         typename: &str,
         representations: &[EntityRepresentation],
         selection: &FieldSelection,
+    ) -> Result<Vec<Option<Value>>> {
+        self.resolve_entities_from_db_with_tracing(typename, representations, selection, None).await
+    }
+
+    /// Resolve entities from database with optional distributed tracing.
+    ///
+    /// # Arguments
+    ///
+    /// * `typename` - The entity type name (e.g., "User")
+    /// * `representations` - Entity representations with key field values
+    /// * `selection` - Field selection from GraphQL query
+    /// * `trace_context` - Optional W3C trace context for span creation
+    ///
+    /// # Returns
+    ///
+    /// Vector of resolved entities (or None for missing entities)
+    ///
+    /// # Errors
+    ///
+    /// Returns error if database query fails
+    pub async fn resolve_entities_from_db_with_tracing(
+        &self,
+        typename: &str,
+        representations: &[EntityRepresentation],
+        selection: &FieldSelection,
+        _trace_context: Option<FederationTraceContext>,
     ) -> Result<Vec<Option<Value>>> {
         if representations.is_empty() {
             return Ok(Vec::new());

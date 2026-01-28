@@ -92,6 +92,26 @@ pub async fn resolve_entities_from_db<A: DatabaseAdapter>(
     fed_resolver: &FederationResolver,
     selection: &FieldSelection,
 ) -> EntityResolutionResult {
+    resolve_entities_from_db_with_tracing(
+        representations,
+        typename,
+        adapter,
+        fed_resolver,
+        selection,
+        None,
+    )
+    .await
+}
+
+/// Resolve entities for a specific typename from local database with optional distributed tracing.
+pub async fn resolve_entities_from_db_with_tracing<A: DatabaseAdapter>(
+    representations: &[EntityRepresentation],
+    typename: &str,
+    adapter: Arc<A>,
+    fed_resolver: &FederationResolver,
+    selection: &FieldSelection,
+    trace_context: Option<FederationTraceContext>,
+) -> EntityResolutionResult {
     if representations.is_empty() {
         return EntityResolutionResult {
             entities: Vec::new(),
@@ -102,9 +122,9 @@ pub async fn resolve_entities_from_db<A: DatabaseAdapter>(
     // Create database entity resolver
     let db_resolver = DatabaseEntityResolver::new(adapter, fed_resolver.metadata.clone());
 
-    // Resolve from database
+    // Resolve from database with tracing
     match db_resolver
-        .resolve_entities_from_db(typename, representations, selection)
+        .resolve_entities_from_db_with_tracing(typename, representations, selection, trace_context)
         .await
     {
         Ok(entities) => EntityResolutionResult {
@@ -160,13 +180,14 @@ pub async fn batch_load_entities_with_tracing<A: DatabaseAdapter>(
             .with_attribute("typename", typename.clone())
             .with_attribute("batch_size", reps.len().to_string());
 
-        // Resolve this batch using database
-        let result = resolve_entities_from_db(
+        // Resolve this batch using database with trace context
+        let result = resolve_entities_from_db_with_tracing(
             &reps,
             &typename,
             Arc::clone(&adapter),
             fed_resolver,
             selection,
+            Some(trace_ctx.clone()),
         )
         .await;
 

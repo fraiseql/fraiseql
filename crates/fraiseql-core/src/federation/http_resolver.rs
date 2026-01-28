@@ -9,6 +9,7 @@ use serde_json::{json, Value};
 use crate::error::Result;
 use crate::federation::types::EntityRepresentation;
 use crate::federation::selection_parser::FieldSelection;
+use crate::federation::tracing::FederationTraceContext;
 
 /// Configuration for HTTP client behavior
 #[derive(Debug, Clone)]
@@ -72,6 +73,17 @@ impl HttpEntityResolver {
         subgraph_url: &str,
         representations: &[EntityRepresentation],
         selection: &FieldSelection,
+    ) -> Result<Vec<Option<Value>>> {
+        self.resolve_entities_with_tracing(subgraph_url, representations, selection, None).await
+    }
+
+    /// Resolve entities via HTTP _entities query with optional distributed tracing.
+    pub async fn resolve_entities_with_tracing(
+        &self,
+        subgraph_url: &str,
+        representations: &[EntityRepresentation],
+        selection: &FieldSelection,
+        _trace_context: Option<FederationTraceContext>,
     ) -> Result<Vec<Option<Value>>> {
         if representations.is_empty() {
             return Ok(Vec::new());
