@@ -38,6 +38,7 @@ pub mod mutation_query_builder;
 pub mod query_builder;
 pub mod representation;
 pub mod requires_provides_validator;
+pub mod saga_compensator;
 pub mod saga_coordinator;
 pub mod saga_executor;
 pub mod saga_recovery_manager;
@@ -69,6 +70,9 @@ pub use query_builder::*;
 pub use representation::*;
 pub use requires_provides_validator::{
     DirectiveValidationError, RequiresProvidesRuntimeValidator, RequiresProvidesValidator,
+};
+pub use saga_compensator::{
+    CompensationResult, CompensationStatus, CompensationStepResult, SagaCompensator,
 };
 pub use saga_coordinator::{
     CompensationStrategy, SagaCoordinator, SagaResult, SagaStatus, SagaStep as SagaCoordinatorStep,
