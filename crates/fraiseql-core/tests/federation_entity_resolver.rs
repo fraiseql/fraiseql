@@ -544,7 +544,7 @@ fn test_federation_query_single_entity_postgres() {
     use serde_json::json;
 
     // Single entity resolution via _entities query
-    let request = json!({
+    let _request = json!({
         "query": "query($representations: [_Any!]!) { _entities(representations: $representations) { __typename ... on User { id name } } }",
         "variables": {
             "representations": [

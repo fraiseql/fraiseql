@@ -242,6 +242,8 @@ mod tests {
             directives:    vec![],
             observers:     Vec::new(),
             fact_tables:   HashMap::default(),
+            federation:    None,
+            schema_sdl:    None,
         };
 
         // Validation is done inside SchemaConverter::convert, not exposed separately
@@ -274,6 +276,8 @@ mod tests {
             directives:    vec![],
             observers:     Vec::new(),
             fact_tables:   HashMap::default(),
+            federation:    None,
+            schema_sdl:    None,
         };
 
         // Note: Validation is private to SchemaConverter

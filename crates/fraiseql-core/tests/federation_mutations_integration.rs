@@ -22,6 +22,7 @@ use std::sync::Arc;
 // ============================================================================
 
 struct MockMutationDatabaseAdapter {
+    #[allow(dead_code)]
     data: HashMap<String, Vec<HashMap<String, Value>>>,
 }
 
@@ -32,6 +33,7 @@ impl MockMutationDatabaseAdapter {
         }
     }
 
+    #[allow(dead_code)]
     fn with_table_data(mut self, table: String, rows: Vec<HashMap<String, Value>>) -> Self {
         self.data.insert(table, rows);
         self

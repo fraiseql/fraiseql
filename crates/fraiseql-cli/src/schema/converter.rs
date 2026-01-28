@@ -120,6 +120,8 @@ impl SchemaConverter {
             directives,
             fact_tables,           // Analytics metadata
             observers: Vec::new(), // Observer definitions (populated from IntermediateSchema)
+            federation: None,      // Federation metadata
+            schema_sdl: None,      // Raw GraphQL SDL
         };
 
         // Validate the compiled schema

@@ -337,6 +337,8 @@ mod tests {
             directives:    vec![],
             observers:     Vec::new(),
             fact_tables:   HashMap::default(),
+            federation:    None,
+            schema_sdl:    None,
         };
 
         let report = SchemaOptimizer::optimize(&mut schema).unwrap();
@@ -374,6 +376,8 @@ mod tests {
             directives:    vec![],
             observers:     Vec::new(),
             fact_tables:   HashMap::default(),
+            federation:    None,
+            schema_sdl:    None,
         };
 
         let report = SchemaOptimizer::optimize(&mut schema).unwrap();
@@ -411,6 +415,8 @@ mod tests {
             directives:    vec![],
             observers:     Vec::new(),
             fact_tables:   HashMap::default(),
+            federation:    None,
+            schema_sdl:    None,
         };
 
         let report = SchemaOptimizer::optimize(&mut schema).unwrap();
@@ -451,6 +457,8 @@ mod tests {
             directives:    vec![],
             observers:     Vec::new(),
             fact_tables:   HashMap::default(),
+            federation:    None,
+            schema_sdl:    None,
         };
 
         let report = SchemaOptimizer::optimize(&mut schema).unwrap();
@@ -491,6 +499,8 @@ mod tests {
             directives:    vec![],
             observers:     Vec::new(),
             fact_tables:   HashMap::default(),
+            federation:    None,
+            schema_sdl:    None,
         };
 
         let report = SchemaOptimizer::optimize(&mut schema).unwrap();
@@ -541,6 +551,8 @@ mod tests {
             directives:    vec![],
             observers:     Vec::new(),
             fact_tables:   HashMap::default(),
+            federation:    None,
+            schema_sdl:    None,
         };
 
         let report = SchemaOptimizer::optimize(&mut schema).unwrap();
