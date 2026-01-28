@@ -13,10 +13,13 @@ use axum::{
     Json,
     extract::{Query, State},
     response::{IntoResponse, Response},
+    http::HeaderMap,
 };
-use fraiseql_core::{db::traits::DatabaseAdapter, runtime::Executor};
+use fraiseql_core::db::traits::DatabaseAdapter;
+use fraiseql_core::runtime::Executor;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error, info, warn};
+use crate::tracing_utils;
 
 use crate::{
     error::{ErrorResponse, GraphQLError},
@@ -104,22 +107,29 @@ impl<A: DatabaseAdapter> AppState<A> {
 /// GraphQL HTTP handler for POST requests.
 ///
 /// Handles POST requests to the GraphQL endpoint:
-/// 1. Validate GraphQL request (depth, complexity)
-/// 2. Parse GraphQL request body
-/// 3. Execute query via Executor
-/// 4. Return GraphQL response with proper error formatting
+/// 1. Extract W3C trace context from traceparent header (if present)
+/// 2. Validate GraphQL request (depth, complexity)
+/// 3. Parse GraphQL request body
+/// 4. Execute query via Executor
+/// 5. Return GraphQL response with proper error formatting
 ///
 /// Tracks execution timing and operation name for monitoring.
 /// Provides GraphQL spec-compliant error responses.
+/// Supports W3C Trace Context for distributed tracing.
 ///
 /// # Errors
 ///
 /// Returns appropriate HTTP status codes based on error type.
 pub async fn graphql_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     State(state): State<AppState<A>>,
+    headers: HeaderMap,
     Json(request): Json<GraphQLRequest>,
 ) -> Result<GraphQLResponse, ErrorResponse> {
-    execute_graphql_request(state, request).await
+    let trace_context = tracing_utils::extract_trace_context(&headers);
+    if trace_context.is_some() {
+        debug!("Extracted W3C trace context from incoming request");
+    }
+    execute_graphql_request(state, request, trace_context).await
 }
 
 /// GraphQL HTTP handler for GET requests.
@@ -129,6 +139,8 @@ pub async fn graphql_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
 /// - `query`: Required, the GraphQL query string (URL-encoded)
 /// - `variables`: Optional, JSON-encoded variables object (URL-encoded)
 /// - `operationName`: Optional, name of the operation to execute
+///
+/// Supports W3C Trace Context via traceparent header for distributed tracing.
 ///
 /// Example:
 /// ```text
@@ -146,6 +158,7 @@ pub async fn graphql_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
 /// restriction but logs a warning for mutation-like queries.
 pub async fn graphql_get_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     State(state): State<AppState<A>>,
+    headers: HeaderMap,
     Query(params): Query<GraphQLGetParams>,
 ) -> Result<GraphQLResponse, ErrorResponse> {
     // Parse variables from JSON string
@@ -175,19 +188,25 @@ pub async fn graphql_get_handler<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         );
     }
 
+    let trace_context = tracing_utils::extract_trace_context(&headers);
+    if trace_context.is_some() {
+        debug!("Extracted W3C trace context from incoming request");
+    }
+
     let request = GraphQLRequest {
         query: params.query,
         variables,
         operation_name: params.operation_name,
     };
 
-    execute_graphql_request(state, request).await
+    execute_graphql_request(state, request, trace_context).await
 }
 
 /// Shared GraphQL execution logic for both GET and POST handlers.
 async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     state: AppState<A>,
     request: GraphQLRequest,
+    _trace_context: Option<fraiseql_core::federation::FederationTraceContext>,
 ) -> Result<GraphQLResponse, ErrorResponse> {
     let start_time = Instant::now();
     let metrics = &state.metrics;
