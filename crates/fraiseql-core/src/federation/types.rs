@@ -45,6 +45,50 @@ pub struct FieldFederationDirectives {
     pub shareable: bool,
 }
 
+impl FieldFederationDirectives {
+    /// Create a new empty set of field directives
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set the @requires directive
+    pub fn with_requires(mut self, requires: Vec<FieldPathSelection>) -> Self {
+        self.requires = requires;
+        self
+    }
+
+    /// Add a single @requires dependency
+    pub fn add_requires(mut self, field_path: FieldPathSelection) -> Self {
+        self.requires.push(field_path);
+        self
+    }
+
+    /// Set the @provides directive
+    pub fn with_provides(mut self, provides: Vec<FieldPathSelection>) -> Self {
+        self.provides = provides;
+        self
+    }
+
+    /// Add a single @provides dependency
+    pub fn add_provides(mut self, field_path: FieldPathSelection) -> Self {
+        self.provides.push(field_path);
+        self
+    }
+
+    /// Mark as @external
+    pub fn external(mut self) -> Self {
+        self.external = true;
+        self
+    }
+
+    /// Mark as @shareable
+    pub fn shareable(mut self) -> Self {
+        self.shareable = true;
+        self
+    }
+}
+
 /// Field path selection for @requires/@provides (e.g., ["profile", "age"] for "profile.age")
 /// Note: This is distinct from selection_parser::FieldSelection which represents requested fields
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -76,6 +120,63 @@ pub struct FederatedType {
 
     /// Field-level federation directives (Phase 1: Field-Level Metadata)
     pub field_directives: HashMap<String, FieldFederationDirectives>,
+}
+
+impl FederatedType {
+    /// Create a new federated type with the given name
+    #[must_use]
+    pub fn new(name: String) -> Self {
+        Self {
+            name,
+            keys: Vec::new(),
+            is_extends: false,
+            external_fields: Vec::new(),
+            shareable_fields: Vec::new(),
+            field_directives: HashMap::new(),
+        }
+    }
+
+    /// Get field-level directives for a field, if they exist
+    pub fn get_field_directives(&self, field_name: &str) -> Option<&FieldFederationDirectives> {
+        self.field_directives.get(field_name)
+    }
+
+    /// Set field-level directives for a field
+    pub fn set_field_directives(
+        &mut self,
+        field_name: String,
+        directives: FieldFederationDirectives,
+    ) {
+        self.field_directives.insert(field_name, directives);
+    }
+
+    /// Check if a field has the @requires directive
+    pub fn field_has_requires(&self, field_name: &str) -> bool {
+        self.get_field_directives(field_name)
+            .map(|d| !d.requires.is_empty())
+            .unwrap_or(false)
+    }
+
+    /// Check if a field has the @provides directive
+    pub fn field_has_provides(&self, field_name: &str) -> bool {
+        self.get_field_directives(field_name)
+            .map(|d| !d.provides.is_empty())
+            .unwrap_or(false)
+    }
+
+    /// Check if a field is marked as @shareable
+    pub fn field_is_shareable(&self, field_name: &str) -> bool {
+        self.get_field_directives(field_name)
+            .map(|d| d.shareable)
+            .unwrap_or(false)
+    }
+
+    /// Check if a field is marked as @external
+    pub fn field_is_external(&self, field_name: &str) -> bool {
+        self.get_field_directives(field_name)
+            .map(|d| d.external)
+            .unwrap_or(false)
+    }
 }
 
 /// @key directive for entity identification
