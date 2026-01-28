@@ -39,6 +39,7 @@ pub mod query_builder;
 pub mod representation;
 pub mod requires_provides_validator;
 pub mod saga_coordinator;
+pub mod saga_executor;
 pub mod saga_recovery_manager;
 pub mod saga_store;
 pub mod selection_parser;
@@ -72,6 +73,7 @@ pub use requires_provides_validator::{
 pub use saga_coordinator::{
     CompensationStrategy, SagaCoordinator, SagaResult, SagaStatus, SagaStep as SagaCoordinatorStep,
 };
+pub use saga_executor::{ExecutionState, SagaExecutor, StepExecutionResult};
 pub use saga_recovery_manager::{RecoveryConfig, RecoveryStats, SagaRecoveryManager};
 pub use saga_store::{
     MutationType, PostgresSagaStore, Saga, SagaRecovery, SagaState, SagaStep, SagaStoreError,
