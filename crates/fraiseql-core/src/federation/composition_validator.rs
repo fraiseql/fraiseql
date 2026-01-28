@@ -82,10 +82,7 @@ pub enum CompositionError {
     /// Type definition conflict
     ///
     /// A type definition conflict that doesn't fit other categories.
-    TypeConflict {
-        typename: String,
-        reason:   String,
-    },
+    TypeConflict { typename: String, reason: String },
 }
 
 impl std::fmt::Display for CompositionError {
@@ -180,10 +177,7 @@ impl CrossSubgraphValidator {
     pub fn validate_consistency(&self) -> Result<(), Vec<CompositionError>> {
         let mut errors = Vec::new();
 
-        info!(
-            "Starting cross-subgraph validation for {} subgraph(s)",
-            self.subgraphs.len()
-        );
+        info!("Starting cross-subgraph validation for {} subgraph(s)", self.subgraphs.len());
 
         // Validate @key consistency
         debug!("Validating @key directive consistency");
@@ -207,10 +201,7 @@ impl CrossSubgraphValidator {
             info!("Validation successful - all subgraph consistent");
             Ok(())
         } else {
-            warn!(
-                "Validation failed with {} errors",
-                errors.len()
-            );
+            warn!("Validation failed with {} errors", errors.len());
             Err(errors)
         }
     }
@@ -373,7 +364,8 @@ impl CrossSubgraphValidator {
 
 /// Configuration for schema composition
 ///
-/// Determines how composition handles conflicts when multiple subgraphs define the same type or field.
+/// Determines how composition handles conflicts when multiple subgraphs define the same type or
+/// field.
 #[derive(Debug, Clone, Copy)]
 pub enum ConflictResolutionStrategy {
     /// Fail on any conflict (default)

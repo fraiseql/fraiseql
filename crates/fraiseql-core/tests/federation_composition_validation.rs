@@ -27,18 +27,9 @@ fn create_users_subgraph() -> FederationMetadata {
     });
 
     // Add fields
-    user.set_field_directives(
-        "id".to_string(),
-        FieldFederationDirectives::new(),
-    );
-    user.set_field_directives(
-        "email".to_string(),
-        FieldFederationDirectives::new(),
-    );
-    user.set_field_directives(
-        "profile".to_string(),
-        FieldFederationDirectives::new(),
-    );
+    user.set_field_directives("id".to_string(), FieldFederationDirectives::new());
+    user.set_field_directives("email".to_string(), FieldFederationDirectives::new());
+    user.set_field_directives("profile".to_string(), FieldFederationDirectives::new());
 
     metadata.types.push(user);
     metadata
@@ -58,18 +49,9 @@ fn create_orders_subgraph() -> FederationMetadata {
     });
 
     // Add fields
-    order.set_field_directives(
-        "id".to_string(),
-        FieldFederationDirectives::new(),
-    );
-    order.set_field_directives(
-        "userId".to_string(),
-        FieldFederationDirectives::new(),
-    );
-    order.set_field_directives(
-        "total".to_string(),
-        FieldFederationDirectives::new(),
-    );
+    order.set_field_directives("id".to_string(), FieldFederationDirectives::new());
+    order.set_field_directives("userId".to_string(), FieldFederationDirectives::new());
+    order.set_field_directives("total".to_string(), FieldFederationDirectives::new());
 
     // Extend User type
     let mut user_extension = FederatedType::new("User".to_string());
@@ -105,18 +87,9 @@ fn create_products_subgraph() -> FederationMetadata {
         resolvable: true,
     });
 
-    product.set_field_directives(
-        "id".to_string(),
-        FieldFederationDirectives::new(),
-    );
-    product.set_field_directives(
-        "name".to_string(),
-        FieldFederationDirectives::new(),
-    );
-    product.set_field_directives(
-        "price".to_string(),
-        FieldFederationDirectives::new(),
-    );
+    product.set_field_directives("id".to_string(), FieldFederationDirectives::new());
+    product.set_field_directives("name".to_string(), FieldFederationDirectives::new());
+    product.set_field_directives("price".to_string(), FieldFederationDirectives::new());
 
     metadata.types.push(product);
     metadata
@@ -173,11 +146,7 @@ fn test_composition_preserves_key_directives() {
 #[test]
 fn test_composition_preserves_extends() {
     let orders = create_orders_subgraph();
-    let user_extension = orders
-        .types
-        .iter()
-        .find(|t| t.name == "User" && t.is_extends)
-        .unwrap();
+    let user_extension = orders.types.iter().find(|t| t.name == "User" && t.is_extends).unwrap();
 
     // Should be marked as @extends
     assert!(user_extension.is_extends);
@@ -186,11 +155,7 @@ fn test_composition_preserves_extends() {
 #[test]
 fn test_composition_preserves_field_directives() {
     let orders = create_orders_subgraph();
-    let user_extension = orders
-        .types
-        .iter()
-        .find(|t| t.name == "User" && t.is_extends)
-        .unwrap();
+    let user_extension = orders.types.iter().find(|t| t.name == "User" && t.is_extends).unwrap();
 
     // User.orders should have @requires
     let orders_directives = user_extension.get_field_directives("orders").unwrap();
@@ -206,10 +171,7 @@ fn test_composition_combines_types_from_multiple_subgraphs() {
     let mut all_types = HashMap::new();
     for subgraph in &[users, orders, products] {
         for ftype in &subgraph.types {
-            all_types
-                .entry(ftype.name.clone())
-                .or_insert_with(Vec::new)
-                .push(ftype.clone());
+            all_types.entry(ftype.name.clone()).or_insert_with(Vec::new).push(ftype.clone());
         }
     }
 
@@ -229,11 +191,7 @@ fn test_key_consistency_same_fields_across_subgraphs() {
     let orders = create_orders_subgraph();
 
     let user_in_users = users.types.iter().find(|t| t.name == "User").unwrap();
-    let user_in_orders = orders
-        .types
-        .iter()
-        .find(|t| t.name == "User" && t.is_extends)
-        .unwrap();
+    let user_in_orders = orders.types.iter().find(|t| t.name == "User" && t.is_extends).unwrap();
 
     // Both should reference User with @key(fields: "id")
     assert_eq!(user_in_users.keys[0].fields, vec!["id"]);
@@ -252,11 +210,7 @@ fn test_key_ownership_primary_type() {
 #[test]
 fn test_key_extended_type_not_resolvable() {
     let orders = create_orders_subgraph();
-    let user_extension = orders
-        .types
-        .iter()
-        .find(|t| t.name == "User" && t.is_extends)
-        .unwrap();
+    let user_extension = orders.types.iter().find(|t| t.name == "User" && t.is_extends).unwrap();
 
     // Extension should not be resolvable (references parent)
     assert!(!user_extension.keys[0].resolvable);
@@ -268,10 +222,8 @@ fn test_key_consistency_validation_same_type_different_keys_fails() {
     let mut conflicting_orders = create_orders_subgraph();
 
     // Modify the orders extension to have different key
-    if let Some(user_ext) = conflicting_orders
-        .types
-        .iter_mut()
-        .find(|t| t.name == "User" && t.is_extends)
+    if let Some(user_ext) =
+        conflicting_orders.types.iter_mut().find(|t| t.name == "User" && t.is_extends)
     {
         user_ext.keys.clear();
         user_ext.keys.push(KeyDirective {
@@ -317,11 +269,7 @@ fn test_key_multiple_fields() {
 #[test]
 fn test_external_field_ownership_single_owner() {
     let orders = create_orders_subgraph();
-    let user_ext = orders
-        .types
-        .iter()
-        .find(|t| t.name == "User" && t.is_extends)
-        .unwrap();
+    let user_ext = orders.types.iter().find(|t| t.name == "User" && t.is_extends).unwrap();
 
     // Can mark userId as external (owned by users subgraph)
     // but it's not marked in this test, which is fine
@@ -363,19 +311,17 @@ fn test_external_field_cannot_be_defined_twice() {
     let mut orders = create_orders_subgraph();
 
     // Mark email as external in orders
-    if let Some(user_ext) = orders
-        .types
-        .iter_mut()
-        .find(|t| t.name == "User" && t.is_extends)
-    {
+    if let Some(user_ext) = orders.types.iter_mut().find(|t| t.name == "User" && t.is_extends) {
         user_ext.external_fields.push("email".to_string());
     }
 
     // In composition validation, should detect this external field
-    assert!(orders
-        .types
-        .iter()
-        .any(|t| t.name == "User" && t.external_fields.contains(&"email".to_string())));
+    assert!(
+        orders
+            .types
+            .iter()
+            .any(|t| t.name == "User" && t.external_fields.contains(&"email".to_string()))
+    );
 }
 
 #[test]
@@ -428,11 +374,7 @@ fn test_shareable_field_same_type_both_subgraphs() {
         user.set_field_directives("email".to_string(), email_directives);
     }
 
-    if let Some(user_ext) = orders
-        .types
-        .iter_mut()
-        .find(|t| t.name == "User" && t.is_extends)
-    {
+    if let Some(user_ext) = orders.types.iter_mut().find(|t| t.name == "User" && t.is_extends) {
         let mut email_directives = FieldFederationDirectives::new();
         email_directives.shareable = true;
         user_ext.set_field_directives("email".to_string(), email_directives);
@@ -462,22 +404,14 @@ fn test_shareable_field_conflict_one_shareable_one_not() {
     }
 
     // NOT shareable in orders extension
-    if let Some(user_ext) = orders
-        .types
-        .iter_mut()
-        .find(|t| t.name == "User" && t.is_extends)
-    {
+    if let Some(user_ext) = orders.types.iter_mut().find(|t| t.name == "User" && t.is_extends) {
         let email_directives = FieldFederationDirectives::new();
         user_ext.set_field_directives("email".to_string(), email_directives);
     }
 
     // Should detect conflict
     let user_in_users = users.types.iter().find(|t| t.name == "User").unwrap();
-    let user_in_orders = orders
-        .types
-        .iter()
-        .find(|t| t.name == "User" && t.is_extends)
-        .unwrap();
+    let user_in_orders = orders.types.iter().find(|t| t.name == "User" && t.is_extends).unwrap();
 
     let email_in_users = user_in_users.get_field_directives("email").unwrap();
     let email_in_orders = user_in_orders.get_field_directives("email").unwrap();
@@ -505,13 +439,8 @@ fn test_shareable_field_both_resolvable() {
     metadata.types.push(user_b);
 
     // Both definitions have @shareable
-    assert!(metadata
-        .types
-        .iter()
-        .all(|t| t.name == "User"
-            && t.get_field_directives("email")
-                .map(|d| d.shareable)
-                .unwrap_or(false)));
+    assert!(metadata.types.iter().all(|t| t.name == "User"
+        && t.get_field_directives("email").map(|d| d.shareable).unwrap_or(false)));
 }
 
 #[test]
@@ -584,12 +513,12 @@ fn test_conflict_resolution_strategy_shareable_required() {
     metadata.types.push(user_b);
 
     // Both are @shareable, so composition is valid
-    assert!(metadata
-        .types
-        .iter()
-        .all(|t| t.get_field_directives("email")
-            .map(|d| d.shareable)
-            .unwrap_or(false)));
+    assert!(
+        metadata
+            .types
+            .iter()
+            .all(|t| t.get_field_directives("email").map(|d| d.shareable).unwrap_or(false))
+    );
 }
 
 #[test]
@@ -605,11 +534,7 @@ fn test_conflict_resolution_strategy_error_on_conflict() {
         user.set_field_directives("email".to_string(), email_directives);
     }
 
-    if let Some(user_ext) = orders
-        .types
-        .iter_mut()
-        .find(|t| t.name == "User" && t.is_extends)
-    {
+    if let Some(user_ext) = orders.types.iter_mut().find(|t| t.name == "User" && t.is_extends) {
         let mut email_directives = FieldFederationDirectives::new();
         email_directives.shareable = false; // Conflict!
         user_ext.set_field_directives("email".to_string(), email_directives);
@@ -617,11 +542,7 @@ fn test_conflict_resolution_strategy_error_on_conflict() {
 
     // Should be detectable as a conflict
     let user_in_users = users.types.iter().find(|t| t.name == "User").unwrap();
-    let user_in_orders = orders
-        .types
-        .iter()
-        .find(|t| t.name == "User" && t.is_extends)
-        .unwrap();
+    let user_in_orders = orders.types.iter().find(|t| t.name == "User" && t.is_extends).unwrap();
 
     let email_users = user_in_users.get_field_directives("email").unwrap();
     let email_orders = user_in_orders.get_field_directives("email").unwrap();
@@ -689,11 +610,7 @@ fn test_cross_subgraph_type_reference() {
 
     // Orders references User type from Users subgraph
     let order_in_orders = orders.types.iter().find(|t| t.name == "Order").unwrap();
-    let user_in_orders = orders
-        .types
-        .iter()
-        .find(|t| t.name == "User" && t.is_extends)
-        .unwrap();
+    let user_in_orders = orders.types.iter().find(|t| t.name == "User" && t.is_extends).unwrap();
 
     assert!(order_in_orders.name == "Order");
     assert!(user_in_orders.is_extends);
@@ -704,11 +621,7 @@ fn test_cross_subgraph_field_reference() {
     let orders = create_orders_subgraph();
 
     // User.orders field references from Orders subgraph
-    let user_ext = orders
-        .types
-        .iter()
-        .find(|t| t.name == "User" && t.is_extends)
-        .unwrap();
+    let user_ext = orders.types.iter().find(|t| t.name == "User" && t.is_extends).unwrap();
 
     let orders_field = user_ext.get_field_directives("orders").unwrap();
     assert!(!orders_field.requires.is_empty());
