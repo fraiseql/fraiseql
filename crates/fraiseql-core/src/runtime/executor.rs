@@ -25,6 +25,7 @@ use crate::{
     graphql::parse_query,
     schema::{CompiledSchema, IntrospectionResponses},
     security::FieldAccessError,
+    federation::FederationTraceContext,
 };
 
 /// Query type classification for routing.
@@ -732,12 +733,13 @@ impl<A: DatabaseAdapter> Executor<A> {
             "*".to_string(), // Wildcard for all fields (will be expanded by resolver)
         ]);
 
-        // Batch load entities from database
-        let entities = crate::federation::batch_load_entities(
+        // Batch load entities from database with tracing support
+        let entities = crate::federation::batch_load_entities_with_tracing(
             &representations,
             &fed_resolver,
             Arc::clone(&self.adapter),
             &selection,
+            None, // TODO: Extract trace context from HTTP headers in Phase 2
         )
         .await?;
 

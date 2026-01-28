@@ -95,6 +95,7 @@ pub mod resilience;
 pub mod runtime_middleware;
 pub mod runtime_server;
 pub mod runtime_state;
+pub mod tracing_utils;
 
 // fraiseql-webhooks modules (merged)
 pub mod webhooks;
