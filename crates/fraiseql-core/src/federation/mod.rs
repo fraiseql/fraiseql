@@ -36,6 +36,7 @@ pub mod mutation_http_client;
 pub mod mutation_query_builder;
 pub mod query_builder;
 pub mod representation;
+pub mod saga_store;
 pub mod selection_parser;
 pub mod service_sdl;
 pub mod sql_utils;
