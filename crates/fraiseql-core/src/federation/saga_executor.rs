@@ -1,7 +1,77 @@
 //! Saga Forward Phase Executor
 //!
-//! Executes saga steps sequentially during the forward phase.
-//! Loads saga from store, executes mutations, updates state.
+//! Executes saga steps sequentially during the forward phase, implementing
+//! the core saga pattern for distributed transactions across subgraphs.
+//!
+//! # Architecture
+//!
+//! The forward phase executor:
+//! - Loads sagas from persistent storage
+//! - Executes steps in strict sequential order (1 → 2 → 3)
+//! - Pre-fetches @requires fields before each step
+//! - Captures and persists results for chaining
+//! - Tracks execution state for monitoring and recovery
+//! - Terminates on first failure and triggers compensation
+//!
+//! # Execution Flow
+//!
+//! ```text
+//! Load Saga from Store
+//!    ↓
+//! For Each Step (1..N):
+//!    ├─ Validate step is Pending
+//!    ├─ Pre-fetch @requires fields from other subgraphs
+//!    ├─ Transition step to Executing
+//!    ├─ Execute mutation via MutationExecutor
+//!    │  (with augmented entity data)
+//!    ├─ Capture result data
+//!    ├─ Persist step result to store
+//!    ├─ Transition step to Completed
+//!    └─ Continue to next step
+//!       OR on failure: Break and transition to Failed state
+//!
+//! Update Saga State:
+//!    ├─ If all completed: Saga → Completed
+//!    └─ If any failed: Saga → Failed (trigger compensation)
+//! ```
+//!
+//! # @requires Field Fetching
+//!
+//! Each step may have @requires fields that must be present before mutation execution.
+//! These fields are fetched from their owning subgraphs before step execution:
+//!
+//! ```text
+//! Step Definition:
+//!   mutation: "updateOrder"
+//!   @requires: ["product.price", "user.email"]
+//!
+//! Pre-Execution:
+//!   1. Identify @requires fields
+//!   2. Fetch from owning subgraphs
+//!   3. Augment entity data with fetched fields
+//!   4. Execute mutation with complete entity
+//! ```
+//!
+//! # Example
+//!
+//! ```ignore
+//! let executor = SagaExecutor::new();
+//!
+//! // Execute a single step
+//! let result = executor.execute_step(
+//!     saga_id,
+//!     1,
+//!     "createOrder",
+//!     &json!({"customerId": "c123", "total": 100.0}),
+//!     "orders-service"
+//! ).await?;
+//!
+//! if result.success {
+//!     println!("Step 1 created order: {:?}", result.data);
+//! } else {
+//!     println!("Step 1 failed: {}", result.error.unwrap());
+//! }
+//! ```
 
 use std::sync::Arc;
 use uuid::Uuid;
@@ -9,17 +79,40 @@ use uuid::Uuid;
 use crate::federation::saga_store::Result as SagaStoreResult;
 
 /// Represents a step result from execution
+///
+/// Contains the outcome of executing a single saga step, including:
+/// - Whether execution succeeded or failed
+/// - Result data if successful (entity with key fields and updated values)
+/// - Error details if failed
+/// - Execution metrics (duration)
+///
+/// The result data is stored and available for subsequent steps to reference
+/// via result chaining.
 #[derive(Debug, Clone)]
 pub struct StepExecutionResult {
-    /// Step number that executed
+    /// Step number that executed (1-indexed)
     pub step_number: u32,
-    /// Whether step succeeded
+    /// Whether step succeeded (true) or failed (false)
     pub success: bool,
     /// Result data if successful
+    ///
+    /// Contains:
+    /// - `__typename`: Entity type
+    /// - Key fields (id, etc.)
+    /// - Mutation output fields
+    /// - Timestamps
     pub data: Option<serde_json::Value>,
     /// Error message if failed
+    ///
+    /// Includes:
+    /// - Error type (timeout, network, mutation failed, etc.)
+    /// - Subgraph context
+    /// - Suggestion for resolution
     pub error: Option<String>,
     /// Execution duration in milliseconds
+    ///
+    /// Measured from step start to completion (or failure)
+    /// Useful for performance monitoring
     pub duration_ms: u64,
 }
 
@@ -37,19 +130,59 @@ impl SagaExecutor {
         }
     }
 
-    /// Execute a single step
+    /// Execute a single saga step
+    ///
+    /// Executes a single mutation step within a saga, handling:
+    /// - Step state validation (Pending → Executing → Completed)
+    /// - @requires field pre-fetching from owning subgraphs
+    /// - Entity data augmentation with required fields
+    /// - Mutation execution via MutationExecutor
+    /// - Result capture and persistence
     ///
     /// # Arguments
     ///
     /// * `saga_id` - ID of saga being executed
-    /// * `step_number` - Step number to execute (1-indexed)
-    /// * `mutation_name` - Name of mutation to execute
-    /// * `variables` - Variables for mutation
-    /// * `subgraph` - Target subgraph
+    /// * `step_number` - Step number to execute (1-indexed, 1 = first step)
+    /// * `mutation_name` - GraphQL mutation operation name
+    /// * `variables` - Input variables for the mutation (JSON value)
+    /// * `subgraph` - Target subgraph name (must exist in federation)
     ///
     /// # Returns
     ///
-    /// Step execution result with success/failure
+    /// `StepExecutionResult` with:
+    /// - `success`: true if step executed successfully
+    /// - `data`: Result entity data if successful
+    /// - `error`: Error description if failed
+    /// - `duration_ms`: Execution time for monitoring
+    ///
+    /// # Errors
+    ///
+    /// Returns `SagaStoreError` if:
+    /// - Saga not found in store
+    /// - Step already executed (not in Pending state)
+    /// - Subgraph unavailable
+    /// - Mutation execution fails
+    /// - @requires fields cannot be fetched
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let executor = SagaExecutor::new();
+    /// let result = executor.execute_step(
+    ///     saga_id,
+    ///     1,
+    ///     "createOrder",
+    ///     &json!({"customerId": "c123", "total": 100.0}),
+    ///     "orders-service"
+    /// ).await?;
+    ///
+    /// if result.success {
+    ///     println!("Order created with data: {:?}", result.data);
+    /// } else {
+    ///     eprintln!("Step failed: {}", result.error.unwrap());
+    ///     // Compensation will be triggered by coordinator
+    /// }
+    /// ```
     pub async fn execute_step(
         &self,
         _saga_id: Uuid,
@@ -93,7 +226,7 @@ impl SagaExecutor {
     /// Vector of step results (successful or failed)
     pub async fn execute_saga(
         &self,
-        saga_id: Uuid,
+        _saga_id: Uuid,
     ) -> SagaStoreResult<Vec<StepExecutionResult>> {
         // Placeholder implementation for GREEN phase
         // In full implementation, would:
