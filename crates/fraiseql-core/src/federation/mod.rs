@@ -59,7 +59,7 @@ pub use mutation_http_client::*;
 pub use mutation_query_builder::*;
 pub use query_builder::*;
 pub use representation::*;
-pub use saga_recovery_manager::{RecoveryConfig, SagaRecoveryManager};
+pub use saga_recovery_manager::{RecoveryConfig, RecoveryStats, SagaRecoveryManager};
 pub use saga_store::{
     MutationType, PostgresSagaStore, Saga, SagaRecovery, SagaState, SagaStep, SagaStoreError,
     StepState,
