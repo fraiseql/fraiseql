@@ -1,9 +1,9 @@
 //! # Saga Recovery Manager - Background Loop with Store Integration
 //!
-//! RED Phase: Tests for background recovery loop and saga store integration.
-//! Establishes contracts for periodic recovery, saga detection, and advanced retry scenarios.
+//! Comprehensive tests for background recovery loop and saga store integration.
+//! Tests cover periodic recovery, saga detection, and advanced retry scenarios.
 //!
-//! This test file defines requirements before implementation (RED phase of TDD).
+//! These tests validate the background loop implementation with mock saga stores.
 
 use std::{
     sync::{Arc, Mutex},
