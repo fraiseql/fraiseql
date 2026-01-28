@@ -24,8 +24,8 @@ pub struct MockSagaStore {
 
 #[derive(Debug, Clone)]
 pub struct MockSaga {
-    pub id: Uuid,
-    pub state: String,
+    pub id:         Uuid,
+    pub state:      String,
     pub created_at: Instant,
     pub step_count: u32,
 }
@@ -49,20 +49,12 @@ impl MockSagaStore {
 
     pub fn get_pending_sagas(&self) -> Vec<MockSaga> {
         let sagas = self.sagas.lock().unwrap();
-        sagas
-            .iter()
-            .filter(|s| s.state == "pending")
-            .cloned()
-            .collect()
+        sagas.iter().filter(|s| s.state == "pending").cloned().collect()
     }
 
     pub fn get_executing_sagas(&self) -> Vec<MockSaga> {
         let sagas = self.sagas.lock().unwrap();
-        sagas
-            .iter()
-            .filter(|s| s.state == "executing")
-            .cloned()
-            .collect()
+        sagas.iter().filter(|s| s.state == "executing").cloned().collect()
     }
 
     pub fn get_stale_sagas(&self, hours_threshold: i64) -> Vec<MockSaga> {
@@ -119,28 +111,28 @@ impl Default for MockSagaStore {
 #[derive(Debug, Clone, Copy)]
 pub struct BackgroundLoopConfig {
     /// Interval between recovery checks
-    pub check_interval: Duration,
+    pub check_interval:          Duration,
     /// Maximum sagas to process per iteration
     pub max_sagas_per_iteration: u32,
     /// Grace period before retrying a saga
-    pub grace_period: Duration,
+    pub grace_period:            Duration,
 }
 
 impl Default for BackgroundLoopConfig {
     fn default() -> Self {
         Self {
-            check_interval: Duration::from_secs(5),
+            check_interval:          Duration::from_secs(5),
             max_sagas_per_iteration: 10,
-            grace_period: Duration::from_secs(1),
+            grace_period:            Duration::from_secs(1),
         }
     }
 }
 
 /// Controls the background recovery loop lifecycle.
 pub struct BackgroundLoopController {
-    config: BackgroundLoopConfig,
-    store: MockSagaStore,
-    running: Arc<Mutex<bool>>,
+    config:     BackgroundLoopConfig,
+    store:      MockSagaStore,
+    running:    Arc<Mutex<bool>>,
     iterations: Arc<Mutex<u64>>,
 }
 

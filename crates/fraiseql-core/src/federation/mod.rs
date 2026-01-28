@@ -36,6 +36,7 @@ pub mod mutation_http_client;
 pub mod mutation_query_builder;
 pub mod query_builder;
 pub mod representation;
+pub mod saga_recovery_manager;
 pub mod saga_store;
 pub mod selection_parser;
 pub mod service_sdl;
@@ -58,6 +59,11 @@ pub use mutation_http_client::*;
 pub use mutation_query_builder::*;
 pub use query_builder::*;
 pub use representation::*;
+pub use saga_recovery_manager::{RecoveryConfig, SagaRecoveryManager};
+pub use saga_store::{
+    MutationType, PostgresSagaStore, Saga, SagaRecovery, SagaState, SagaStep, SagaStoreError,
+    StepState,
+};
 pub use selection_parser::*;
 use serde_json::{Value, json};
 pub use service_sdl::*;
