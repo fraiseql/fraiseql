@@ -233,6 +233,25 @@ impl EntityRepresentation {
             }
         }
     }
+
+    /// Check if a field exists in the representation
+    ///
+    /// Supports both simple field names (e.g., "email") and dot-notation paths (e.g.,
+    /// "user.email"). For nested paths, checks if the first component exists.
+    pub fn has_field(&self, field_path: &str) -> bool {
+        // Check direct field match first
+        if self.all_fields.contains_key(field_path) {
+            return true;
+        }
+
+        // For dot-notation paths like "user.email", check the first component
+        if field_path.contains('.') {
+            let first_component = field_path.split('.').next().unwrap_or("");
+            return self.all_fields.contains_key(first_component);
+        }
+
+        false
+    }
 }
 
 /// Resolution strategy for entity
