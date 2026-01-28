@@ -57,9 +57,9 @@
 //! );
 //! ```
 
-use serde_json::{json, Value};
-use std::collections::HashMap;
-use std::sync::Mutex;
+use std::{collections::HashMap, sync::Mutex};
+
+use serde_json::{Value, json};
 use uuid::Uuid;
 
 // ============================================================================
@@ -96,38 +96,38 @@ pub enum MutationType {
 
 #[derive(Debug, Clone)]
 pub struct Saga {
-    pub id: Uuid,
-    pub state: SagaState,
-    pub steps: Vec<SagaStep>,
-    pub created_at: std::time::Instant,
+    pub id:           Uuid,
+    pub state:        SagaState,
+    pub steps:        Vec<SagaStep>,
+    pub created_at:   std::time::Instant,
     pub completed_at: Option<std::time::Instant>,
-    pub metadata: Option<Value>,
+    pub metadata:     Option<Value>,
 }
 
 #[derive(Debug, Clone)]
 pub struct SagaStep {
-    pub id: Uuid,
-    pub saga_id: Uuid,
-    pub order: usize,
-    pub subgraph: String,
+    pub id:            Uuid,
+    pub saga_id:       Uuid,
+    pub order:         usize,
+    pub subgraph:      String,
     pub mutation_type: MutationType,
-    pub typename: String,
-    pub variables: Value,
-    pub state: StepState,
-    pub result: Option<Value>,
-    pub started_at: Option<std::time::Instant>,
-    pub completed_at: Option<std::time::Instant>,
+    pub typename:      String,
+    pub variables:     Value,
+    pub state:         StepState,
+    pub result:        Option<Value>,
+    pub started_at:    Option<std::time::Instant>,
+    pub completed_at:  Option<std::time::Instant>,
 }
 
 #[derive(Debug, Clone)]
 pub struct SagaRecovery {
-    pub id: Uuid,
-    pub saga_id: Uuid,
+    pub id:            Uuid,
+    pub saga_id:       Uuid,
     pub recovery_type: String,
-    pub attempted_at: std::time::Instant,
-    pub last_attempt: Option<std::time::Instant>,
+    pub attempted_at:  std::time::Instant,
+    pub last_attempt:  Option<std::time::Instant>,
     pub attempt_count: u32,
-    pub last_error: Option<String>,
+    pub last_error:    Option<String>,
 }
 
 // ============================================================================
@@ -137,21 +137,21 @@ pub struct SagaRecovery {
 /// In-memory saga store for testing persistence logic.
 /// In production, this would be replaced with PostgreSQL backend.
 pub struct SagaStore {
-    sagas: Mutex<HashMap<Uuid, Saga>>,
-    steps: Mutex<HashMap<Uuid, SagaStep>>,
+    sagas:            Mutex<HashMap<Uuid, Saga>>,
+    steps:            Mutex<HashMap<Uuid, SagaStep>>,
     recovery_records: Mutex<HashMap<Uuid, SagaRecovery>>,
-    connected: Mutex<bool>,
-    in_transaction: Mutex<bool>,
+    connected:        Mutex<bool>,
+    in_transaction:   Mutex<bool>,
 }
 
 impl SagaStore {
     pub fn new() -> Self {
         Self {
-            sagas: Mutex::new(HashMap::new()),
-            steps: Mutex::new(HashMap::new()),
+            sagas:            Mutex::new(HashMap::new()),
+            steps:            Mutex::new(HashMap::new()),
             recovery_records: Mutex::new(HashMap::new()),
-            connected: Mutex::new(false),
-            in_transaction: Mutex::new(false),
+            connected:        Mutex::new(false),
+            in_transaction:   Mutex::new(false),
         }
     }
 
@@ -181,18 +181,12 @@ impl SagaStore {
     }
 
     pub fn save_saga(&self, saga: &Saga) -> Result<(), String> {
-        self.sagas
-            .lock()
-            .map_err(|e| e.to_string())?
-            .insert(saga.id, saga.clone());
+        self.sagas.lock().map_err(|e| e.to_string())?.insert(saga.id, saga.clone());
         Ok(())
     }
 
     pub fn save_saga_step(&self, step: &SagaStep) -> Result<(), String> {
-        self.steps
-            .lock()
-            .map_err(|e| e.to_string())?
-            .insert(step.id, step.clone());
+        self.steps.lock().map_err(|e| e.to_string())?.insert(step.id, step.clone());
         Ok(())
     }
 
@@ -209,21 +203,13 @@ impl SagaStore {
     }
 
     pub fn load_saga_step(&self, step_id: Uuid) -> Result<Option<SagaStep>, String> {
-        Ok(self
-            .steps
-            .lock()
-            .map_err(|e| e.to_string())?
-            .get(&step_id)
-            .cloned())
+        Ok(self.steps.lock().map_err(|e| e.to_string())?.get(&step_id).cloned())
     }
 
     pub fn load_saga_steps(&self, saga_id: Uuid) -> Result<Vec<SagaStep>, String> {
         let steps = self.steps.lock().map_err(|e| e.to_string())?;
-        let mut result: Vec<SagaStep> = steps
-            .values()
-            .filter(|s| s.saga_id == saga_id)
-            .cloned()
-            .collect();
+        let mut result: Vec<SagaStep> =
+            steps.values().filter(|s| s.saga_id == saga_id).cloned().collect();
         result.sort_by_key(|s| s.order);
         Ok(result)
     }
@@ -235,11 +221,7 @@ impl SagaStore {
 
     pub fn load_sagas_by_state(&self, state: &SagaState) -> Result<Vec<Saga>, String> {
         let sagas = self.sagas.lock().map_err(|e| e.to_string())?;
-        Ok(sagas
-            .values()
-            .filter(|s| s.state == *state)
-            .cloned()
-            .collect())
+        Ok(sagas.values().filter(|s| s.state == *state).cloned().collect())
     }
 
     pub fn update_saga_state(&self, saga_id: Uuid, state: &SagaState) -> Result<(), String> {
@@ -284,11 +266,8 @@ impl SagaStore {
 
     pub fn find_stuck_sagas(&self, _timeout_seconds: u64) -> Result<Vec<Saga>, String> {
         let sagas = self.sagas.lock().map_err(|e| e.to_string())?;
-        let stuck: Vec<Saga> = sagas
-            .values()
-            .filter(|s| s.state == SagaState::Executing)
-            .cloned()
-            .collect();
+        let stuck: Vec<Saga> =
+            sagas.values().filter(|s| s.state == SagaState::Executing).cloned().collect();
         Ok(stuck)
     }
 
