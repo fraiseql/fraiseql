@@ -79,7 +79,7 @@ fn extract_fields_from_selection_set(query: &str) -> Result<Vec<String>> {
                     // Entering selection set for _entities
                     in_selection = true;
                 }
-            }
+            },
             '}' => {
                 depth -= 1;
                 if in_selection && !current_field.is_empty() {
@@ -89,18 +89,18 @@ fn extract_fields_from_selection_set(query: &str) -> Result<Vec<String>> {
                 if depth == 1 {
                     in_selection = false;
                 }
-            }
+            },
             ' ' | '\n' | '\r' | '\t' if in_selection => {
                 // Whitespace is a field separator
                 if !current_field.is_empty() {
                     fields.push(current_field.trim().to_string());
                     current_field.clear();
                 }
-            }
+            },
             _ if in_selection => {
                 current_field.push(ch);
-            }
-            _ => {}
+            },
+            _ => {},
         }
     }
 

@@ -89,6 +89,7 @@ pub mod deduped_executor;
 
 #[cfg(feature = "arrow")]
 pub mod arrow_bridge;
+pub mod elasticsearch_sink;
 pub mod error;
 pub mod event;
 pub mod executor;
@@ -101,11 +102,10 @@ pub mod matcher;
 #[cfg(feature = "metrics")]
 pub mod metrics;
 pub mod queue;
-pub mod resilience;
-pub mod search;
-pub mod elasticsearch_sink;
 #[cfg(feature = "queue")]
 pub mod queued_executor;
+pub mod resilience;
+pub mod search;
 pub mod traits;
 pub mod transport;
 
@@ -128,9 +128,18 @@ pub use config::{
 #[cfg(feature = "dedup")]
 pub use dedup::redis::RedisDeduplicationStore;
 pub use dedup::{DeduplicationStats, DeduplicationStore};
+pub use elasticsearch_sink::{ElasticsearchSink, ElasticsearchSinkConfig};
 pub use error::{ObserverError, ObserverErrorCode, Result};
 pub use event::{EntityEvent, EventKind, FieldChanges};
 pub use executor::{ExecutionSummary, ObserverExecutor};
+#[cfg(feature = "queue")]
+pub use job_queue::dlq::{DeadLetterQueueManager, DlqStats};
+#[cfg(feature = "queue")]
+pub use job_queue::redis::RedisJobQueue as JobQueueRedisImpl;
+#[cfg(feature = "queue")]
+pub use job_queue::traits::{JobQueue as JobQueueTrait, MockJobQueue};
+#[cfg(feature = "queue")]
+pub use job_queue::{Job as JobQueueItem, JobState};
 pub use listener::{
     ChangeLogEntry, ChangeLogListener, ChangeLogListenerConfig, CheckpointLease, EventListener,
     FailoverEvent, FailoverManager, ListenerConfig, ListenerHandle, ListenerHealth, ListenerState,
@@ -153,14 +162,6 @@ pub use queue::{
     worker::{JobWorker, JobWorkerPool},
 };
 #[cfg(feature = "queue")]
-pub use job_queue::traits::{JobQueue as JobQueueTrait, MockJobQueue};
-#[cfg(feature = "queue")]
-pub use job_queue::{Job as JobQueueItem, JobState};
-#[cfg(feature = "queue")]
-pub use job_queue::redis::RedisJobQueue as JobQueueRedisImpl;
-#[cfg(feature = "queue")]
-pub use job_queue::dlq::{DeadLetterQueueManager, DlqStats};
-#[cfg(feature = "queue")]
 pub use queued_executor::{QueuedExecutionSummary, QueuedObserverExecutor};
 pub use resilience::{
     CircuitBreaker, CircuitBreakerConfig, CircuitState, DegradationLevel, GracefulDegradation,
@@ -169,7 +170,6 @@ pub use resilience::{
 #[cfg(feature = "search")]
 pub use search::http::HttpSearchBackend;
 pub use search::{IndexedEvent, SearchBackend, SearchStats};
-pub use elasticsearch_sink::{ElasticsearchSink, ElasticsearchSinkConfig};
 pub use traits::{
     ActionExecutor, ActionResult, ConditionEvaluator, DeadLetterQueue, DlqItem, EventSource,
     TemplateRenderer,

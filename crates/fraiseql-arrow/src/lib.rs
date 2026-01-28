@@ -56,11 +56,10 @@ pub mod ticket;
 #[cfg(feature = "clickhouse")]
 pub mod clickhouse_sink;
 
+#[cfg(feature = "clickhouse")]
+pub use clickhouse_sink::{ClickHouseSink, ClickHouseSinkConfig, EventRow};
 pub use db::{DatabaseAdapter, DatabaseError, DatabaseResult};
 pub use error::{ArrowFlightError, Result};
 pub use flight_server::FraiseQLFlightService;
 pub use metadata::SchemaRegistry;
 pub use ticket::FlightTicket;
-
-#[cfg(feature = "clickhouse")]
-pub use clickhouse_sink::{ClickHouseSink, ClickHouseSinkConfig, EventRow};

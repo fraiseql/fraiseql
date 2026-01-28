@@ -7,44 +7,47 @@
 //! - Multi-hop federation queries
 //! - Mutation execution with full observability
 
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+    time::Instant,
+};
+
 use serde_json::json;
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-use std::time::Instant;
 
 /// Mock trace context for testing distributed tracing
 #[derive(Debug, Clone)]
 struct TestTraceContext {
-    trace_id: String,
+    trace_id:       String,
     parent_span_id: String,
-    spans: Arc<Mutex<Vec<TestSpan>>>,
+    spans:          Arc<Mutex<Vec<TestSpan>>>,
 }
 
 /// Mock span for testing
 #[derive(Debug, Clone)]
 struct TestSpan {
-    name: String,
-    span_id: String,
+    name:           String,
+    span_id:        String,
     parent_span_id: String,
-    trace_id: String,
-    start_time: Instant,
-    duration_us: u64,
-    attributes: HashMap<String, String>,
+    trace_id:       String,
+    start_time:     Instant,
+    duration_us:    u64,
+    attributes:     HashMap<String, String>,
 }
 
 /// Mock metrics collector for testing
 #[derive(Debug, Clone, Default)]
 struct TestMetricsCollector {
-    entity_resolutions_total: Arc<Mutex<u64>>,
-    entity_resolutions_errors: Arc<Mutex<u64>>,
+    entity_resolutions_total:    Arc<Mutex<u64>>,
+    entity_resolutions_errors:   Arc<Mutex<u64>>,
     entity_resolution_durations: Arc<Mutex<Vec<u64>>>,
-    subgraph_requests_total: Arc<Mutex<u64>>,
-    subgraph_requests_errors: Arc<Mutex<u64>>,
-    subgraph_request_durations: Arc<Mutex<Vec<u64>>>,
-    mutations_total: Arc<Mutex<u64>>,
-    mutations_errors: Arc<Mutex<u64>>,
-    cache_hits: Arc<Mutex<u64>>,
-    cache_misses: Arc<Mutex<u64>>,
+    subgraph_requests_total:     Arc<Mutex<u64>>,
+    subgraph_requests_errors:    Arc<Mutex<u64>>,
+    subgraph_request_durations:  Arc<Mutex<Vec<u64>>>,
+    mutations_total:             Arc<Mutex<u64>>,
+    mutations_errors:            Arc<Mutex<u64>>,
+    cache_hits:                  Arc<Mutex<u64>>,
+    cache_misses:                Arc<Mutex<u64>>,
 }
 
 impl TestMetricsCollector {
@@ -106,11 +109,11 @@ impl TestMetricsCollector {
 #[derive(Debug, Clone)]
 struct TestLogEntry {
     timestamp: Instant,
-    level: String,
-    message: String,
-    query_id: String,
-    trace_id: String,
-    context: serde_json::Value,
+    level:     String,
+    message:   String,
+    query_id:  String,
+    trace_id:  String,
+    context:   serde_json::Value,
 }
 
 /// Mock log collector for testing
@@ -161,8 +164,8 @@ impl TestLogCollector {
 /// Mock federation executor for testing
 struct TestFederationExecutor {
     trace_context: TestTraceContext,
-    metrics: TestMetricsCollector,
-    logs: TestLogCollector,
+    metrics:       TestMetricsCollector,
+    logs:          TestLogCollector,
 }
 
 impl TestFederationExecutor {
@@ -170,12 +173,12 @@ impl TestFederationExecutor {
         let spans = Arc::new(Mutex::new(Vec::new()));
         Self {
             trace_context: TestTraceContext {
-                trace_id: trace_id.clone(),
+                trace_id:       trace_id.clone(),
                 parent_span_id: format!("{:016x}", 1u64),
-                spans: spans.clone(),
+                spans:          spans.clone(),
             },
-            metrics: TestMetricsCollector::new(),
-            logs: TestLogCollector::new(),
+            metrics:       TestMetricsCollector::new(),
+            logs:          TestLogCollector::new(),
         }
     }
 
@@ -201,19 +204,9 @@ impl TestFederationExecutor {
         }
     }
 
-    fn emit_log(
-        &self,
-        level: &str,
-        message: &str,
-        context: serde_json::Value,
-    ) {
-        self.logs.emit_log(
-            level,
-            message,
-            "query_test",
-            &self.trace_context.trace_id,
-            context,
-        );
+    fn emit_log(&self, level: &str, message: &str, context: serde_json::Value) {
+        self.logs
+            .emit_log(level, message, "query_test", &self.trace_context.trace_id, context);
     }
 
     fn get_spans(&self) -> Vec<TestSpan> {
@@ -223,7 +216,11 @@ impl TestFederationExecutor {
     fn get_span_tree(&self) -> String {
         let spans = self.get_spans();
         let mut tree = String::new();
-        tree.push_str(&format!("Root: {} (trace_id: {})\n", "federation.query.execute", &self.trace_context.trace_id[..8]));
+        tree.push_str(&format!(
+            "Root: {} (trace_id: {})\n",
+            "federation.query.execute",
+            &self.trace_context.trace_id[..8]
+        ));
 
         for span in spans.iter() {
             if span.name != "federation.query.execute" {
@@ -259,15 +256,12 @@ fn test_federation_query_complete_observability() {
     );
 
     // Simulate entity resolution operation
-    let mut entity_res_span = executor.create_span(
-        "federation.entity_resolution",
-        {
-            let mut attrs = HashMap::new();
-            attrs.insert("query_id".to_string(), "query_test".to_string());
-            attrs.insert("entity_count".to_string(), "3".to_string());
-            attrs
-        },
-    );
+    let mut entity_res_span = executor.create_span("federation.entity_resolution", {
+        let mut attrs = HashMap::new();
+        attrs.insert("query_id".to_string(), "query_test".to_string());
+        attrs.insert("entity_count".to_string(), "3".to_string());
+        attrs
+    });
 
     // Record entity resolution metrics
     executor.metrics.record_cache_miss();
@@ -288,15 +282,12 @@ fn test_federation_query_complete_observability() {
     );
 
     // Simulate subgraph request 1
-    let mut subgraph_span_1 = executor.create_span(
-        "federation.subgraph_request",
-        {
-            let mut attrs = HashMap::new();
-            attrs.insert("subgraph".to_string(), "users_subgraph".to_string());
-            attrs.insert("operation".to_string(), "_entities".to_string());
-            attrs
-        },
-    );
+    let mut subgraph_span_1 = executor.create_span("federation.subgraph_request", {
+        let mut attrs = HashMap::new();
+        attrs.insert("subgraph".to_string(), "users_subgraph".to_string());
+        attrs.insert("operation".to_string(), "_entities".to_string());
+        attrs
+    });
 
     executor.metrics.record_cache_hit();
     std::thread::sleep(std::time::Duration::from_millis(25));
@@ -305,15 +296,12 @@ fn test_federation_query_complete_observability() {
     executor.end_span(&mut subgraph_span_1);
 
     // Simulate subgraph request 2
-    let mut subgraph_span_2 = executor.create_span(
-        "federation.subgraph_request",
-        {
-            let mut attrs = HashMap::new();
-            attrs.insert("subgraph".to_string(), "posts_subgraph".to_string());
-            attrs.insert("operation".to_string(), "_entities".to_string());
-            attrs
-        },
-    );
+    let mut subgraph_span_2 = executor.create_span("federation.subgraph_request", {
+        let mut attrs = HashMap::new();
+        attrs.insert("subgraph".to_string(), "posts_subgraph".to_string());
+        attrs.insert("operation".to_string(), "_entities".to_string());
+        attrs
+    });
 
     executor.metrics.record_cache_miss();
     std::thread::sleep(std::time::Duration::from_millis(19));
@@ -339,26 +327,31 @@ fn test_federation_query_complete_observability() {
     let spans = executor.get_spans();
 
     // Check root span exists
-    assert!(spans.iter().any(|s| s.name == "federation.entity_resolution"),
-            "Entity resolution span missing");
+    assert!(
+        spans.iter().any(|s| s.name == "federation.entity_resolution"),
+        "Entity resolution span missing"
+    );
 
     // Check entity resolution span
     let entity_span = spans.iter().find(|s| s.name == "federation.entity_resolution").unwrap();
     assert_eq!(entity_span.trace_id, trace_id, "Entity span has wrong trace_id");
-    println!("✓ Entity resolution span: federation.entity_resolution (duration: {:.1}ms)",
-             entity_span.duration_us as f64 / 1000.0);
+    println!(
+        "✓ Entity resolution span: federation.entity_resolution (duration: {:.1}ms)",
+        entity_span.duration_us as f64 / 1000.0
+    );
 
     // Check subgraph spans
-    let subgraph_spans: Vec<_> = spans
-        .iter()
-        .filter(|s| s.name == "federation.subgraph_request")
-        .collect();
+    let subgraph_spans: Vec<_> =
+        spans.iter().filter(|s| s.name == "federation.subgraph_request").collect();
     assert_eq!(subgraph_spans.len(), 2, "Expected 2 subgraph request spans");
 
     for (i, span) in subgraph_spans.iter().enumerate() {
         let subgraph = span.attributes.get("subgraph").unwrap();
-        println!("✓ Subgraph span: federation.subgraph_request ({}, duration: {:.1}ms)",
-                 subgraph, span.duration_us as f64 / 1000.0);
+        println!(
+            "✓ Subgraph span: federation.subgraph_request ({}, duration: {:.1}ms)",
+            subgraph,
+            span.duration_us as f64 / 1000.0
+        );
         assert_eq!(span.trace_id, trace_id, "Subgraph span {} has wrong trace_id", i);
     }
 
@@ -367,10 +360,16 @@ fn test_federation_query_complete_observability() {
     let metrics_json = executor.metrics.get_metrics_json();
 
     assert_eq!(metrics_json["entity_resolutions_total"], 1, "Entity resolutions count mismatch");
-    println!("✓ federation_entity_resolutions_total: {}", metrics_json["entity_resolutions_total"]);
+    println!(
+        "✓ federation_entity_resolutions_total: {}",
+        metrics_json["entity_resolutions_total"]
+    );
 
     assert_eq!(metrics_json["subgraph_requests_total"], 2, "Subgraph requests count mismatch");
-    println!("✓ federation_subgraph_requests_total: {}", metrics_json["subgraph_requests_total"]);
+    println!(
+        "✓ federation_subgraph_requests_total: {}",
+        metrics_json["subgraph_requests_total"]
+    );
 
     assert_eq!(metrics_json["cache_hits"], 1, "Cache hits count mismatch");
     println!("✓ federation_entity_cache_hits: {}", metrics_json["cache_hits"]);
@@ -409,10 +408,16 @@ fn test_federation_query_complete_observability() {
 
     // Validation: No Errors
     println!("\nError Handling:");
-    assert_eq!(executor.metrics.entity_resolutions_errors.lock().unwrap().clone(), 0,
-               "Unexpected entity resolution errors");
-    assert_eq!(executor.metrics.subgraph_requests_errors.lock().unwrap().clone(), 0,
-               "Unexpected subgraph request errors");
+    assert_eq!(
+        executor.metrics.entity_resolutions_errors.lock().unwrap().clone(),
+        0,
+        "Unexpected entity resolution errors"
+    );
+    assert_eq!(
+        executor.metrics.subgraph_requests_errors.lock().unwrap().clone(),
+        0,
+        "Unexpected subgraph request errors"
+    );
     println!("✓ No errors in observability pipeline");
 
     println!("\n=== ALL VALIDATIONS PASSED ===\n");
@@ -438,14 +443,11 @@ fn test_federation_mutation_with_observability() {
     );
 
     // Simulate mutation span
-    let mut mutation_span = executor.create_span(
-        "federation.mutation.execute",
-        {
-            let mut attrs = HashMap::new();
-            attrs.insert("mutation_type".to_string(), "updateUserProfile".to_string());
-            attrs
-        },
-    );
+    let mut mutation_span = executor.create_span("federation.mutation.execute", {
+        let mut attrs = HashMap::new();
+        attrs.insert("mutation_type".to_string(), "updateUserProfile".to_string());
+        attrs
+    });
 
     std::thread::sleep(std::time::Duration::from_millis(45));
     executor.metrics.record_mutation(45_200);
@@ -467,8 +469,10 @@ fn test_federation_mutation_with_observability() {
     println!("Mutation Analysis:");
 
     let spans = executor.get_spans();
-    assert!(spans.iter().any(|s| s.name == "federation.mutation.execute"),
-            "Mutation span missing");
+    assert!(
+        spans.iter().any(|s| s.name == "federation.mutation.execute"),
+        "Mutation span missing"
+    );
     println!("✓ Mutation span created");
 
     let metrics_json = executor.metrics.get_metrics_json();
@@ -479,8 +483,11 @@ fn test_federation_mutation_with_observability() {
     assert_eq!(logs.len(), 2, "Expected 2 log entries for mutation");
     println!("✓ Mutation logs emitted with trace_id correlation");
 
-    assert_eq!(executor.metrics.mutations_errors.lock().unwrap().clone(), 0,
-               "Unexpected mutation errors");
+    assert_eq!(
+        executor.metrics.mutations_errors.lock().unwrap().clone(),
+        0,
+        "Unexpected mutation errors"
+    );
     println!("✓ No errors in mutation execution");
 
     println!("\n=== MUTATION TEST PASSED ===\n");
@@ -559,11 +566,11 @@ fn test_structured_logging_json_serialization() {
 
     let log_entry = TestLogEntry {
         timestamp: Instant::now(),
-        level: "info".to_string(),
-        message: "Entity resolution completed".to_string(),
-        query_id: "query_123".to_string(),
-        trace_id: "4bf92f3577b34da6a3ce929d0e0e4736".to_string(),
-        context: json!({
+        level:     "info".to_string(),
+        message:   "Entity resolution completed".to_string(),
+        query_id:  "query_123".to_string(),
+        trace_id:  "4bf92f3577b34da6a3ce929d0e0e4736".to_string(),
+        context:   json!({
             "operation_type": "entity_resolution",
             "status": "success",
             "duration_ms": 32.5,
@@ -606,17 +613,17 @@ fn parse_traceparent(header: &str) -> Option<TraceparentHeader> {
     }
 
     Some(TraceparentHeader {
-        trace_id: parts[1].to_string(),
+        trace_id:       parts[1].to_string(),
         parent_span_id: parts[2].to_string(),
-        trace_flags: parts[3].to_string(),
+        trace_flags:    parts[3].to_string(),
     })
 }
 
 #[derive(Debug)]
 struct TraceparentHeader {
-    trace_id: String,
+    trace_id:       String,
     parent_span_id: String,
-    trace_flags: String,
+    trace_flags:    String,
 }
 
 /// Summary test: Phase 7 End-to-End Integration

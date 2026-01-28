@@ -289,9 +289,9 @@ impl CompiledSchema {
     /// Federation metadata if configured in schema
     #[must_use]
     pub fn federation_metadata(&self) -> Option<crate::federation::FederationMetadata> {
-        self.federation.as_ref().and_then(|fed_json| {
-            serde_json::from_value(fed_json.clone()).ok()
-        })
+        self.federation
+            .as_ref()
+            .and_then(|fed_json| serde_json::from_value(fed_json.clone()).ok())
     }
 
     /// Get raw GraphQL schema SDL.

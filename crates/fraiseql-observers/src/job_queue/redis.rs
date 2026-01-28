@@ -9,8 +9,7 @@ use chrono::Utc;
 use redis::aio::ConnectionManager;
 use uuid::Uuid;
 
-use super::traits::JobQueue;
-use super::Job;
+use super::{Job, traits::JobQueue};
 use crate::error::Result;
 
 /// Redis-backed job queue.
@@ -100,8 +99,8 @@ impl JobQueue for RedisJobQueue {
     async fn dequeue(&self, batch_size: usize, timeout_secs: u64) -> Result<Vec<Job>> {
         let mut jobs = Vec::new();
         let now = Utc::now();
-        let expiry_timestamp = (now + chrono::Duration::seconds(timeout_secs as i64))
-            .timestamp_millis() as f64;
+        let expiry_timestamp =
+            (now + chrono::Duration::seconds(timeout_secs as i64)).timestamp_millis() as f64;
 
         for _ in 0..batch_size {
             // Pop from pending queue
@@ -332,7 +331,7 @@ mod tests {
         let event_id = Uuid::new_v4();
         let action = ActionConfig::Cache {
             key_pattern: "test:*".to_string(),
-            action: "invalidate".to_string(),
+            action:      "invalidate".to_string(),
         };
         let job = Job::new(event_id, action, 3, crate::config::BackoffStrategy::Exponential);
 

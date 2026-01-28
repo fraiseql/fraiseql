@@ -5,19 +5,24 @@
 
 use std::sync::Arc;
 
-use crate::db::traits::DatabaseAdapter;
-use crate::error::Result;
-use crate::federation::metadata_helpers::find_federation_type;
-use crate::federation::selection_parser::FieldSelection;
-use crate::federation::types::{EntityRepresentation, FederatedType, FederationMetadata};
-use crate::federation::query_builder::construct_where_in_clause;
-use crate::federation::tracing::FederationTraceContext;
 use serde_json::Value;
+
+use crate::{
+    db::traits::DatabaseAdapter,
+    error::Result,
+    federation::{
+        metadata_helpers::find_federation_type,
+        query_builder::construct_where_in_clause,
+        selection_parser::FieldSelection,
+        tracing::FederationTraceContext,
+        types::{EntityRepresentation, FederatedType, FederationMetadata},
+    },
+};
 
 /// Resolves federation entities from local databases.
 pub struct DatabaseEntityResolver<A: DatabaseAdapter> {
     /// Database adapter for executing queries
-    adapter: Arc<A>,
+    adapter:  Arc<A>,
     /// Federation metadata
     metadata: FederationMetadata,
 }
@@ -50,7 +55,8 @@ impl<A: DatabaseAdapter> DatabaseEntityResolver<A> {
         representations: &[EntityRepresentation],
         selection: &FieldSelection,
     ) -> Result<Vec<Option<Value>>> {
-        self.resolve_entities_from_db_with_tracing(typename, representations, selection, None).await
+        self.resolve_entities_from_db_with_tracing(typename, representations, selection, None)
+            .await
     }
 
     /// Resolve entities from database with optional distributed tracing.
@@ -140,7 +146,7 @@ fn project_results(
             .first()
             .ok_or_else(|| crate::error::FraiseQLError::Validation {
                 message: format!("Type '{}' has no key fields", typename),
-                path: None,
+                path:    None,
             })?
             .fields
             .iter()
@@ -150,7 +156,7 @@ fn project_results(
                     .or_else(|| row.get(field).map(|v| v.to_string()))
                     .ok_or_else(|| crate::error::FraiseQLError::Validation {
                         message: format!("Key field '{}' not found in row", field),
-                        path: None,
+                        path:    None,
                     })
             })
             .collect();

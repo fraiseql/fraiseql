@@ -47,9 +47,7 @@ pub fn init_jaeger(
         .with_exporter(otlp_exporter)
         .with_trace_config(
             opentelemetry_sdk::trace::Config::default()
-                .with_sampler(opentelemetry_sdk::trace::Sampler::ProbabilitySampler(
-                    sampling_rate,
-                ))
+                .with_sampler(opentelemetry_sdk::trace::Sampler::ProbabilitySampler(sampling_rate))
                 .with_resource(opentelemetry_sdk::Resource::new(vec![
                     opentelemetry::KeyValue::new("service.name", service_name.to_string()),
                 ])),
@@ -92,11 +90,7 @@ mod tests {
         // Invalid sampling rates
         let invalid_rates = vec![-0.1, 1.1, 2.0];
         for rate in invalid_rates {
-            assert!(
-                !(rate >= 0.0 && rate <= 1.0),
-                "Rate {} should be invalid",
-                rate
-            );
+            assert!(!(rate >= 0.0 && rate <= 1.0), "Rate {} should be invalid", rate);
         }
     }
 }

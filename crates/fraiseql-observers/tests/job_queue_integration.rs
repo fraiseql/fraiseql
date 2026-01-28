@@ -15,13 +15,14 @@
 
 #![cfg(all(feature = "queue", feature = "metrics", feature = "testing"))]
 
+use std::collections::HashMap;
+
 use fraiseql_observers::{
     config::{ActionConfig, BackoffStrategy, JobQueueConfig},
     error::Result,
     job_queue::Job,
     metrics::MetricsRegistry,
 };
-use std::collections::HashMap;
 use uuid::Uuid;
 
 // ============================================================================
@@ -31,14 +32,14 @@ use uuid::Uuid;
 #[test]
 fn test_job_queue_config_valid() -> Result<()> {
     let config = JobQueueConfig {
-        url: "redis://localhost:6379".to_string(),
-        batch_size: 10,
+        url:                "redis://localhost:6379".to_string(),
+        batch_size:         10,
         batch_timeout_secs: 5,
-        max_retries: 3,
+        max_retries:        3,
         worker_concurrency: 5,
-        poll_interval_ms: 500,
-        initial_delay_ms: 100,
-        max_delay_ms: 5000,
+        poll_interval_ms:   500,
+        initial_delay_ms:   100,
+        max_delay_ms:       5000,
     };
 
     assert!(config.validate().is_ok(), "Valid config should pass");
@@ -49,14 +50,14 @@ fn test_job_queue_config_valid() -> Result<()> {
 #[test]
 fn test_job_queue_config_batch_size_zero() -> Result<()> {
     let config = JobQueueConfig {
-        url: "redis://localhost:6379".to_string(),
-        batch_size: 0, // Invalid!
+        url:                "redis://localhost:6379".to_string(),
+        batch_size:         0, // Invalid!
         batch_timeout_secs: 5,
-        max_retries: 3,
+        max_retries:        3,
         worker_concurrency: 5,
-        poll_interval_ms: 500,
-        initial_delay_ms: 100,
-        max_delay_ms: 5000,
+        poll_interval_ms:   500,
+        initial_delay_ms:   100,
+        max_delay_ms:       5000,
     };
 
     assert!(config.validate().is_err(), "batch_size=0 should fail");
@@ -67,14 +68,14 @@ fn test_job_queue_config_batch_size_zero() -> Result<()> {
 #[test]
 fn test_job_queue_config_max_retries_zero() -> Result<()> {
     let config = JobQueueConfig {
-        url: "redis://localhost:6379".to_string(),
-        batch_size: 10,
+        url:                "redis://localhost:6379".to_string(),
+        batch_size:         10,
         batch_timeout_secs: 5,
-        max_retries: 0, // Invalid!
+        max_retries:        0, // Invalid!
         worker_concurrency: 5,
-        poll_interval_ms: 500,
-        initial_delay_ms: 100,
-        max_delay_ms: 5000,
+        poll_interval_ms:   500,
+        initial_delay_ms:   100,
+        max_delay_ms:       5000,
     };
 
     assert!(config.validate().is_err(), "max_retries=0 should fail");
@@ -85,14 +86,14 @@ fn test_job_queue_config_max_retries_zero() -> Result<()> {
 #[test]
 fn test_job_queue_config_empty_url() -> Result<()> {
     let config = JobQueueConfig {
-        url: String::new(), // Invalid!
-        batch_size: 10,
+        url:                String::new(), // Invalid!
+        batch_size:         10,
         batch_timeout_secs: 5,
-        max_retries: 3,
+        max_retries:        3,
         worker_concurrency: 5,
-        poll_interval_ms: 500,
-        initial_delay_ms: 100,
-        max_delay_ms: 5000,
+        poll_interval_ms:   500,
+        initial_delay_ms:   100,
+        max_delay_ms:       5000,
     };
 
     assert!(config.validate().is_err(), "Empty URL should fail");
@@ -110,9 +111,9 @@ fn test_job_creation_with_fixed_backoff() -> Result<()> {
     let job = Job::with_config(
         event_id,
         ActionConfig::Webhook {
-            url: Some("http://example.com/webhook".to_string()),
-            url_env: None,
-            headers: HashMap::new(),
+            url:           Some("http://example.com/webhook".to_string()),
+            url_env:       None,
+            headers:       HashMap::new(),
             body_template: None,
         },
         3,
@@ -134,9 +135,9 @@ fn test_job_creation_with_linear_backoff() -> Result<()> {
     let job = Job::with_config(
         Uuid::new_v4(),
         ActionConfig::Webhook {
-            url: Some("http://example.com/webhook".to_string()),
-            url_env: None,
-            headers: HashMap::new(),
+            url:           Some("http://example.com/webhook".to_string()),
+            url_env:       None,
+            headers:       HashMap::new(),
             body_template: None,
         },
         5,
@@ -156,9 +157,9 @@ fn test_job_creation_with_exponential_backoff() -> Result<()> {
     let job = Job::with_config(
         Uuid::new_v4(),
         ActionConfig::Webhook {
-            url: Some("http://example.com/webhook".to_string()),
-            url_env: None,
-            headers: HashMap::new(),
+            url:           Some("http://example.com/webhook".to_string()),
+            url_env:       None,
+            headers:       HashMap::new(),
             body_template: None,
         },
         10,
@@ -181,9 +182,9 @@ fn test_job_retry_counting() -> Result<()> {
     let mut job = Job::with_config(
         Uuid::new_v4(),
         ActionConfig::Webhook {
-            url: Some("http://example.com/webhook".to_string()),
-            url_env: None,
-            headers: HashMap::new(),
+            url:           Some("http://example.com/webhook".to_string()),
+            url_env:       None,
+            headers:       HashMap::new(),
             body_template: None,
         },
         3,
@@ -224,9 +225,9 @@ fn test_job_with_webhook_action() -> Result<()> {
     let job = Job::with_config(
         Uuid::new_v4(),
         ActionConfig::Webhook {
-            url: Some("http://api.example.com/webhooks/event".to_string()),
-            url_env: None,
-            headers: {
+            url:           Some("http://api.example.com/webhooks/event".to_string()),
+            url_env:       None,
+            headers:       {
                 let mut h = HashMap::new();
                 h.insert("X-API-Key".to_string(), "secret".to_string());
                 h
@@ -249,9 +250,9 @@ fn test_job_with_slack_action() -> Result<()> {
     let job = Job::with_config(
         Uuid::new_v4(),
         ActionConfig::Slack {
-            webhook_url: Some("https://hooks.slack.com/services/T00/B00/XX".to_string()),
-            webhook_url_env: None,
-            channel: Some("#alerts".to_string()),
+            webhook_url:      Some("https://hooks.slack.com/services/T00/B00/XX".to_string()),
+            webhook_url_env:  None,
+            channel:          Some("#alerts".to_string()),
             message_template: Some("Event occurred: {{ event.kind }}".to_string()),
         },
         3,
@@ -270,12 +271,12 @@ fn test_job_with_email_action() -> Result<()> {
     let job = Job::with_config(
         Uuid::new_v4(),
         ActionConfig::Email {
-            to: Some("admin@example.com".to_string()),
-            to_template: None,
-            subject: None,
+            to:               Some("admin@example.com".to_string()),
+            to_template:      None,
+            subject:          None,
             subject_template: Some("Alert: {{ event.kind }}".to_string()),
-            body_template: Some("Event: {{ event.entity_type }}".to_string()),
-            reply_to: None,
+            body_template:    Some("Event: {{ event.entity_type }}".to_string()),
+            reply_to:         None,
         },
         3,
         BackoffStrategy::Fixed,
@@ -340,9 +341,9 @@ fn test_backoff_strategies() -> Result<()> {
         let _job = Job::with_config(
             Uuid::new_v4(),
             ActionConfig::Webhook {
-                url: Some("http://example.com/webhook".to_string()),
-                url_env: None,
-                headers: HashMap::new(),
+                url:           Some("http://example.com/webhook".to_string()),
+                url_env:       None,
+                headers:       HashMap::new(),
                 body_template: None,
             },
             3,
@@ -366,9 +367,9 @@ fn test_job_lifecycle() -> Result<()> {
     let mut job = Job::with_config(
         Uuid::new_v4(),
         ActionConfig::Webhook {
-            url: Some("http://example.com/webhook".to_string()),
-            url_env: None,
-            headers: HashMap::new(),
+            url:           Some("http://example.com/webhook".to_string()),
+            url_env:       None,
+            headers:       HashMap::new(),
             body_template: None,
         },
         3,
@@ -406,18 +407,24 @@ fn test_job_lifecycle() -> Result<()> {
 #[test]
 fn test_job_config_combinations() -> Result<()> {
     let action_types = vec![
-        ("webhook", ActionConfig::Webhook {
-            url: Some("http://example.com/webhook".to_string()),
-            url_env: None,
-            headers: HashMap::new(),
-            body_template: None,
-        }),
-        ("slack", ActionConfig::Slack {
-            webhook_url: Some("https://hooks.slack.com/services/T00/B00/XX".to_string()),
-            webhook_url_env: None,
-            channel: None,
-            message_template: None,
-        }),
+        (
+            "webhook",
+            ActionConfig::Webhook {
+                url:           Some("http://example.com/webhook".to_string()),
+                url_env:       None,
+                headers:       HashMap::new(),
+                body_template: None,
+            },
+        ),
+        (
+            "slack",
+            ActionConfig::Slack {
+                webhook_url:      Some("https://hooks.slack.com/services/T00/B00/XX".to_string()),
+                webhook_url_env:  None,
+                channel:          None,
+                message_template: None,
+            },
+        ),
     ];
 
     let retry_counts = vec![1, 3, 5, 10];
@@ -445,9 +452,6 @@ fn test_job_config_combinations() -> Result<()> {
         }
     }
 
-    println!(
-        "✅ Created {} job configurations with various combinations",
-        total_jobs
-    );
+    println!("✅ Created {} job configurations with various combinations", total_jobs);
     Ok(())
 }

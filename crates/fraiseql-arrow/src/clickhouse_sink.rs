@@ -20,13 +20,17 @@
 //! ClickHouse MergeTree table
 //! ```
 
-use crate::error::{ArrowFlightError, Result};
-use arrow::array::{Array, StringArray, TimestampMicrosecondArray};
-use arrow::record_batch::RecordBatch;
-use serde::{Deserialize, Serialize};
 use std::time::Duration;
+
+use arrow::{
+    array::{Array, StringArray, TimestampMicrosecondArray},
+    record_batch::RecordBatch,
+};
+use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tracing::{error, info, warn};
+
+use crate::error::{ArrowFlightError, Result};
 
 /// ClickHouse sink configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -58,20 +62,17 @@ pub struct ClickHouseSinkConfig {
 
 /// Default ClickHouse URL
 fn default_clickhouse_url() -> String {
-    std::env::var("FRAISEQL_CLICKHOUSE_URL")
-        .unwrap_or_else(|_| "http://localhost:8123".to_string())
+    std::env::var("FRAISEQL_CLICKHOUSE_URL").unwrap_or_else(|_| "http://localhost:8123".to_string())
 }
 
 /// Default ClickHouse database
 fn default_clickhouse_database() -> String {
-    std::env::var("FRAISEQL_CLICKHOUSE_DATABASE")
-        .unwrap_or_else(|_| "default".to_string())
+    std::env::var("FRAISEQL_CLICKHOUSE_DATABASE").unwrap_or_else(|_| "default".to_string())
 }
 
 /// Default ClickHouse table
 fn default_clickhouse_table() -> String {
-    std::env::var("FRAISEQL_CLICKHOUSE_TABLE")
-        .unwrap_or_else(|_| "fraiseql_events".to_string())
+    std::env::var("FRAISEQL_CLICKHOUSE_TABLE").unwrap_or_else(|_| "fraiseql_events".to_string())
 }
 
 /// Default batch size
@@ -101,12 +102,12 @@ fn default_clickhouse_max_retries() -> usize {
 impl Default for ClickHouseSinkConfig {
     fn default() -> Self {
         Self {
-            url: default_clickhouse_url(),
-            database: default_clickhouse_database(),
-            table: default_clickhouse_table(),
-            batch_size: default_clickhouse_batch_size(),
+            url:                default_clickhouse_url(),
+            database:           default_clickhouse_database(),
+            table:              default_clickhouse_table(),
+            batch_size:         default_clickhouse_batch_size(),
             batch_timeout_secs: default_clickhouse_batch_timeout_secs(),
-            max_retries: default_clickhouse_max_retries(),
+            max_retries:        default_clickhouse_max_retries(),
         }
     }
 }
@@ -177,21 +178,21 @@ impl ClickHouseSinkConfig {
 #[derive(Debug, Clone, Serialize, Deserialize, clickhouse::Row)]
 pub struct EventRow {
     /// Unique event identifier
-    pub event_id: String,
+    pub event_id:    String,
     /// Type of event (e.g., "created", "updated", "deleted")
-    pub event_type: String,
+    pub event_type:  String,
     /// Type of entity that was affected (e.g., "User", "Product")
     pub entity_type: String,
     /// ID of the entity that was affected
-    pub entity_id: String,
+    pub entity_id:   String,
     /// Timestamp in microseconds since UTC epoch
-    pub timestamp: i64,
+    pub timestamp:   i64,
     /// Event data as JSON string
-    pub data: String,
+    pub data:        String,
     /// Optional user ID associated with the event
-    pub user_id: Option<String>,
+    pub user_id:     Option<String>,
     /// Optional organization ID associated with the event
-    pub org_id: Option<String>,
+    pub org_id:      Option<String>,
 }
 
 /// ClickHouse sink for consuming Arrow RecordBatches
@@ -283,9 +284,7 @@ impl ClickHouseSink {
         // Extract columns by name
         let event_id = batch
             .column_by_name("event_id")
-            .ok_or_else(|| {
-                ArrowFlightError::Conversion("Missing 'event_id' column".to_string())
-            })?
+            .ok_or_else(|| ArrowFlightError::Conversion("Missing 'event_id' column".to_string()))?
             .as_any()
             .downcast_ref::<StringArray>()
             .ok_or_else(|| {
@@ -294,9 +293,7 @@ impl ClickHouseSink {
 
         let event_type = batch
             .column_by_name("event_type")
-            .ok_or_else(|| {
-                ArrowFlightError::Conversion("Missing 'event_type' column".to_string())
-            })?
+            .ok_or_else(|| ArrowFlightError::Conversion("Missing 'event_type' column".to_string()))?
             .as_any()
             .downcast_ref::<StringArray>()
             .ok_or_else(|| {
@@ -316,9 +313,7 @@ impl ClickHouseSink {
 
         let entity_id = batch
             .column_by_name("entity_id")
-            .ok_or_else(|| {
-                ArrowFlightError::Conversion("Missing 'entity_id' column".to_string())
-            })?
+            .ok_or_else(|| ArrowFlightError::Conversion("Missing 'entity_id' column".to_string()))?
             .as_any()
             .downcast_ref::<StringArray>()
             .ok_or_else(|| {
@@ -327,9 +322,7 @@ impl ClickHouseSink {
 
         let timestamp = batch
             .column_by_name("timestamp")
-            .ok_or_else(|| {
-                ArrowFlightError::Conversion("Missing 'timestamp' column".to_string())
-            })?
+            .ok_or_else(|| ArrowFlightError::Conversion("Missing 'timestamp' column".to_string()))?
             .as_any()
             .downcast_ref::<TimestampMicrosecondArray>()
             .ok_or_else(|| {
@@ -369,18 +362,18 @@ impl ClickHouseSink {
         let mut rows = Vec::with_capacity(num_rows);
         for i in 0..num_rows {
             let row = EventRow {
-                event_id: event_id.value(i).to_string(),
-                event_type: event_type.value(i).to_string(),
+                event_id:    event_id.value(i).to_string(),
+                event_type:  event_type.value(i).to_string(),
                 entity_type: entity_type.value(i).to_string(),
-                entity_id: entity_id.value(i).to_string(),
-                timestamp: timestamp.value(i),
-                data: data.value(i).to_string(),
-                user_id: if user_id.is_null(i) {
+                entity_id:   entity_id.value(i).to_string(),
+                timestamp:   timestamp.value(i),
+                data:        data.value(i).to_string(),
+                user_id:     if user_id.is_null(i) {
                     None
                 } else {
                     Some(user_id.value(i).to_string())
                 },
-                org_id: if org_id.is_null(i) {
+                org_id:      if org_id.is_null(i) {
                     None
                 } else {
                     Some(org_id.value(i).to_string())
@@ -400,13 +393,9 @@ impl ClickHouseSink {
         for attempt in 1..=self.config.max_retries {
             match self.try_insert(rows).await {
                 Ok(()) => {
-                    info!(
-                        count = rows.len(),
-                        attempt,
-                        "Batch inserted successfully"
-                    );
+                    info!(count = rows.len(), attempt, "Batch inserted successfully");
                     return Ok(());
-                }
+                },
                 Err(e) => {
                     let error_msg = e.to_string();
                     if self.is_transient_error(&error_msg) {
@@ -430,7 +419,7 @@ impl ClickHouseSink {
                         );
                         return Err(e);
                     }
-                }
+                },
             }
         }
 

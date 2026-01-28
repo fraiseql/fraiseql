@@ -121,7 +121,7 @@ pub async fn federation_health_handler() -> impl IntoResponse {
     debug!("Federation health check requested");
 
     let response = FederationHealthResponse {
-        status: "healthy".to_string(),
+        status:    "healthy".to_string(),
         subgraphs: vec![],
         timestamp: chrono::Utc::now().to_rfc3339(),
     };

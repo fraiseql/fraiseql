@@ -128,7 +128,7 @@ enum Commands {
         command: IntrospectCommands,
     },
 
-    /// Development server with hot-reload 
+    /// Development server with hot-reload
     #[command(hide = true)] // Hide until implemented
     Serve {
         /// Schema.json file path to watch

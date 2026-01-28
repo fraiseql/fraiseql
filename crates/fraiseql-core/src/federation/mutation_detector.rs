@@ -80,10 +80,7 @@ pub fn extract_typename_from_mutation(mutation_name: &str) -> Option<String> {
     let lower = mutation_name.to_lowercase();
 
     // Try common prefixes
-    if let Some(typename) = lower
-        .strip_prefix("create")
-        .or_else(|| lower.strip_prefix("add"))
-    {
+    if let Some(typename) = lower.strip_prefix("create").or_else(|| lower.strip_prefix("add")) {
         // Capitalize first letter
         if let Some(first) = typename.chars().next() {
             let capitalized = first.to_uppercase().collect::<String>() + &typename[1..];
@@ -91,20 +88,14 @@ pub fn extract_typename_from_mutation(mutation_name: &str) -> Option<String> {
         }
     }
 
-    if let Some(typename) = lower
-        .strip_prefix("update")
-        .or_else(|| lower.strip_prefix("modify"))
-    {
+    if let Some(typename) = lower.strip_prefix("update").or_else(|| lower.strip_prefix("modify")) {
         if let Some(first) = typename.chars().next() {
             let capitalized = first.to_uppercase().collect::<String>() + &typename[1..];
             return Some(capitalized);
         }
     }
 
-    if let Some(typename) = lower
-        .strip_prefix("delete")
-        .or_else(|| lower.strip_prefix("remove"))
-    {
+    if let Some(typename) = lower.strip_prefix("delete").or_else(|| lower.strip_prefix("remove")) {
         if let Some(first) = typename.chars().next() {
             let capitalized = first.to_uppercase().collect::<String>() + &typename[1..];
             return Some(capitalized);
@@ -137,7 +128,7 @@ pub fn is_local_mutation(mutation_name: &str, metadata: &FederationMetadata) -> 
         Some(t) => {
             // Local if NOT extended
             !t.is_extends
-        }
+        },
         None => true, // Unknown types default to local
     }
 }
@@ -185,18 +176,9 @@ mod tests {
 
     #[test]
     fn test_extract_typename_from_mutation() {
-        assert_eq!(
-            extract_typename_from_mutation("createUser"),
-            Some("User".to_string())
-        );
-        assert_eq!(
-            extract_typename_from_mutation("updateOrder"),
-            Some("Order".to_string())
-        );
-        assert_eq!(
-            extract_typename_from_mutation("deleteProduct"),
-            Some("Product".to_string())
-        );
+        assert_eq!(extract_typename_from_mutation("createUser"), Some("User".to_string()));
+        assert_eq!(extract_typename_from_mutation("updateOrder"), Some("Order".to_string()));
+        assert_eq!(extract_typename_from_mutation("deleteProduct"), Some("Product".to_string()));
         assert_eq!(extract_typename_from_mutation("unknown"), None);
     }
 
@@ -213,11 +195,11 @@ mod tests {
         let metadata = crate::federation::FederationMetadata {
             enabled: true,
             version: "v2".to_string(),
-            types: vec![crate::federation::FederatedType {
-                name: "User".to_string(),
-                keys: vec![],
-                is_extends: false, // NOT extended = local
-                external_fields: vec![],
+            types:   vec![crate::federation::FederatedType {
+                name:             "User".to_string(),
+                keys:             vec![],
+                is_extends:       false, // NOT extended = local
+                external_fields:  vec![],
                 shareable_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             }],
@@ -232,11 +214,11 @@ mod tests {
         let metadata = crate::federation::FederationMetadata {
             enabled: true,
             version: "v2".to_string(),
-            types: vec![crate::federation::FederatedType {
-                name: "User".to_string(),
-                keys: vec![],
-                is_extends: true, // Extended = remote
-                external_fields: vec![],
+            types:   vec![crate::federation::FederatedType {
+                name:             "User".to_string(),
+                keys:             vec![],
+                is_extends:       true, // Extended = remote
+                external_fields:  vec![],
                 shareable_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             }],

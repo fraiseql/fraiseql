@@ -316,11 +316,10 @@ impl FlightService for FraiseQLFlightService {
         let schema = match ticket {
             FlightTicket::GraphQLQuery { .. } => graphql_result_schema(),
             FlightTicket::ObserverEvents { .. } => observer_event_schema(),
-            FlightTicket::OptimizedView { view, .. } => {
-                self.schema_registry.get(&view).map_err(|e| {
-                    Status::not_found(format!("Schema not found for view {view}: {e}"))
-                })?
-            },
+            FlightTicket::OptimizedView { view, .. } => self
+                .schema_registry
+                .get(&view)
+                .map_err(|e| Status::not_found(format!("Schema not found for view {view}: {e}")))?,
             FlightTicket::BulkExport { .. } => {
                 // Will be implemented in future versions
                 return Err(Status::unimplemented("BulkExport not implemented yet"));

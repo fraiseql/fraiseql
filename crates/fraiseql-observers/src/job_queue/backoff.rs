@@ -129,23 +129,14 @@ mod tests {
 
     #[test]
     fn test_calculate_backoff_exponential() {
-        let duration = calculate_backoff(
-            crate::config::BackoffStrategy::Exponential,
-            2,
-            100,
-            30000,
-        );
+        let duration =
+            calculate_backoff(crate::config::BackoffStrategy::Exponential, 2, 100, 30000);
         assert_eq!(duration.as_millis(), 200);
     }
 
     #[test]
     fn test_calculate_backoff_linear() {
-        let duration = calculate_backoff(
-            crate::config::BackoffStrategy::Linear,
-            3,
-            100,
-            30000,
-        );
+        let duration = calculate_backoff(crate::config::BackoffStrategy::Linear, 3, 100, 30000);
         assert_eq!(duration.as_millis(), 300);
     }
 

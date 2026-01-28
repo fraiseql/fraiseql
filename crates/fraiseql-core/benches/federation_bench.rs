@@ -6,34 +6,36 @@
 //! - Batching and deduplication
 //! - GraphQL query building
 
-use fraiseql_core::federation::mutation_http_client::{HttpMutationClient, HttpMutationConfig};
-use fraiseql_core::federation::types::{FederatedType, FederationMetadata, KeyDirective};
+use fraiseql_core::federation::{
+    mutation_http_client::{HttpMutationClient, HttpMutationConfig},
+    types::{FederatedType, FederationMetadata, KeyDirective},
+};
 use serde_json::json;
 
 fn create_test_metadata() -> FederationMetadata {
     FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![
+        types:   vec![
             FederatedType {
-                name: "User".to_string(),
-                keys: vec![KeyDirective {
-                    fields: vec!["id".to_string()],
+                name:             "User".to_string(),
+                keys:             vec![KeyDirective {
+                    fields:     vec!["id".to_string()],
                     resolvable: true,
                 }],
-                is_extends: false,
-                external_fields: vec![],
+                is_extends:       false,
+                external_fields:  vec![],
                 shareable_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
-                name: "Order".to_string(),
-                keys: vec![KeyDirective {
-                    fields: vec!["id".to_string()],
+                name:             "Order".to_string(),
+                keys:             vec![KeyDirective {
+                    fields:     vec!["id".to_string()],
                     resolvable: true,
                 }],
-                is_extends: true,
-                external_fields: vec!["customerId".to_string()],
+                is_extends:       true,
+                external_fields:  vec!["customerId".to_string()],
                 shareable_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
@@ -106,7 +108,7 @@ fn criterion_benchmark(c: &mut criterion::Criterion) {
         let client = HttpMutationClient::new(config);
 
         let response = fraiseql_core::federation::mutation_http_client::GraphQLResponse {
-            data: Some(json!({
+            data:   Some(json!({
                 "updateUser": {
                     "__typename": "User",
                     "id": "user123",
@@ -232,13 +234,12 @@ fn criterion_benchmark(c: &mut criterion::Criterion) {
 
     c.bench_function("validate_composite_key_uniqueness", |b| {
         let key = KeyDirective {
-            fields: vec!["organizationId".to_string(), "userId".to_string()],
+            fields:     vec!["organizationId".to_string(), "userId".to_string()],
             resolvable: true,
         };
 
         b.iter(|| {
-            let unique_fields: std::collections::HashSet<_> =
-                key.fields.iter().collect();
+            let unique_fields: std::collections::HashSet<_> = key.fields.iter().collect();
             assert_eq!(unique_fields.len(), key.fields.len());
         });
     });

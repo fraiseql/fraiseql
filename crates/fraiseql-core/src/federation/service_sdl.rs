@@ -3,10 +3,7 @@
 use super::types::FederationMetadata;
 
 /// Generate federation-compliant SDL for _service query
-pub fn generate_service_sdl(
-    base_schema: &str,
-    metadata: &FederationMetadata,
-) -> String {
+pub fn generate_service_sdl(base_schema: &str, metadata: &FederationMetadata) -> String {
     if !metadata.enabled {
         return base_schema.to_string();
     }
@@ -31,9 +28,7 @@ scalar _Any
 ";
 
     // Build _Entity union with all federated types
-    let entity_types: Vec<&str> = metadata.types.iter()
-        .map(|t| t.name.as_str())
-        .collect();
+    let entity_types: Vec<&str> = metadata.types.iter().map(|t| t.name.as_str()).collect();
 
     let union_str = if !entity_types.is_empty() {
         format!("union _Entity = {}\n", entity_types.join(" | "))
@@ -74,11 +69,11 @@ scalar _Any
 /// Parse SDL to check if it's valid GraphQL
 pub fn validate_sdl(sdl: &str) -> bool {
     // Basic validation - check for required federation elements
-    sdl.contains("directive @key") &&
-    sdl.contains("scalar _Any") &&
-    sdl.contains("union _Entity") &&
-    sdl.contains("_service") &&
-    sdl.contains("_entities")
+    sdl.contains("directive @key")
+        && sdl.contains("scalar _Any")
+        && sdl.contains("union _Entity")
+        && sdl.contains("_service")
+        && sdl.contains("_entities")
 }
 
 #[cfg(test)]
@@ -99,7 +94,7 @@ mod tests {
         let metadata = FederationMetadata {
             enabled: true,
             version: "v2".to_string(),
-            types: vec![],
+            types:   vec![],
         };
 
         let base_schema = "type Query { test: String }";

@@ -3,10 +3,14 @@
 //! Builds WHERE IN clauses for batch entity queries, with SQL injection prevention
 //! through proper escaping and parameterization.
 
-use crate::error::{FraiseQLError, Result};
-use crate::federation::metadata_helpers::{find_federation_type, get_key_directive};
-use crate::federation::sql_utils::{escape_sql_string, value_to_string};
-use crate::federation::types::{EntityRepresentation, FederationMetadata};
+use crate::{
+    error::{FraiseQLError, Result},
+    federation::{
+        metadata_helpers::{find_federation_type, get_key_directive},
+        sql_utils::{escape_sql_string, value_to_string},
+        types::{EntityRepresentation, FederationMetadata},
+    },
+};
 
 /// Build a WHERE IN clause for batch entity resolution.
 ///
@@ -68,13 +72,14 @@ fn extract_key_values(
     representations
         .iter()
         .map(|rep| {
-            rep.key_fields.get(key_field)
+            rep.key_fields
+                .get(key_field)
                 .ok_or_else(|| FraiseQLError::Validation {
                     message: format!(
                         "Key field '{}' missing in entity representation for {}",
                         key_field, rep.typename
                     ),
-                    path: None,
+                    path:    None,
                 })
                 .and_then(|v| value_to_string(v))
         })
@@ -96,13 +101,10 @@ fn construct_composite_where_in(
     for rep in representations {
         let mut tuple_values = Vec::new();
         for field in &key_fields {
-            let value = rep
-                .key_fields
-                .get(field)
-                .ok_or_else(|| FraiseQLError::Validation {
-                    message: format!("Key field '{}' missing in representation", field),
-                    path: None,
-                })?;
+            let value = rep.key_fields.get(field).ok_or_else(|| FraiseQLError::Validation {
+                message: format!("Key field '{}' missing in representation", field),
+                path:    None,
+            })?;
             tuple_values.push(format!("'{}'", escape_sql_string(&value_to_string(value)?)));
         }
         value_tuples.push(format!("({})", tuple_values.join(", ")));
@@ -114,25 +116,25 @@ fn construct_composite_where_in(
     Ok(format!("({}) IN ({})", fields_list, tuples_str))
 }
 
-
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serde_json::json;
+
+    use super::*;
 
     fn make_test_metadata() -> FederationMetadata {
         use crate::federation::types::{FederatedType, KeyDirective};
 
         let types = vec![FederatedType {
-            name: "User".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["id".to_string()],
+            name:             "User".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }];
 
         FederationMetadata {
@@ -147,12 +149,12 @@ mod tests {
         let metadata = make_test_metadata();
         let reps = vec![
             EntityRepresentation {
-                typename: "User".to_string(),
+                typename:   "User".to_string(),
                 key_fields: [(String::from("id"), json!("123"))].iter().cloned().collect(),
                 all_fields: Default::default(),
             },
             EntityRepresentation {
-                typename: "User".to_string(),
+                typename:   "User".to_string(),
                 key_fields: [(String::from("id"), json!("456"))].iter().cloned().collect(),
                 all_fields: Default::default(),
             },
@@ -168,7 +170,7 @@ mod tests {
     fn test_sql_injection_prevention() {
         let metadata = make_test_metadata();
         let reps = vec![EntityRepresentation {
-            typename: "User".to_string(),
+            typename:   "User".to_string(),
             key_fields: [(String::from("id"), json!("'; DROP TABLE users; --"))]
                 .iter()
                 .cloned()
@@ -208,4 +210,3 @@ mod tests {
         assert!(result.is_err());
     }
 }
-

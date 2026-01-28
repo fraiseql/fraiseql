@@ -3,13 +3,19 @@
 //! Resolves entities from remote FraiseQL database instances via direct database connections,
 //! achieving <20ms latency by eliminating HTTP overhead.
 
-use crate::error::Result;
-use crate::db::where_clause::{WhereClause, WhereOperator};
-use crate::federation::selection_parser::FieldSelection;
-use crate::federation::types::{EntityRepresentation, FederationMetadata};
-use crate::federation::connection_manager::{ConnectionManager, RemoteDatabaseConfig};
-use serde_json::{Value, json};
 use std::collections::HashMap;
+
+use serde_json::{Value, json};
+
+use crate::{
+    db::where_clause::{WhereClause, WhereOperator},
+    error::Result,
+    federation::{
+        connection_manager::{ConnectionManager, RemoteDatabaseConfig},
+        selection_parser::FieldSelection,
+        types::{EntityRepresentation, FederationMetadata},
+    },
+};
 
 /// Resolves entities from remote databases via direct connections
 pub struct DirectDatabaseResolver {
@@ -18,7 +24,7 @@ pub struct DirectDatabaseResolver {
     /// Federation metadata for schema validation
     /// Note: metadata will be used in Phase 6D for entity resolution
     #[allow(dead_code)]
-    metadata: FederationMetadata,
+    metadata:           FederationMetadata,
 }
 
 impl DirectDatabaseResolver {
@@ -45,7 +51,8 @@ impl DirectDatabaseResolver {
     ///
     /// # Returns
     ///
-    /// Vector of resolved entities (or None for missing entities), in same order as `representations`
+    /// Vector of resolved entities (or None for missing entities), in same order as
+    /// `representations`
     ///
     /// # Errors
     ///
@@ -72,20 +79,14 @@ impl DirectDatabaseResolver {
 
         // Get or create connection to remote database
         let config = RemoteDatabaseConfig::new(connection_string);
-        let adapter = self
-            .connection_manager
-            .get_or_create_connection(config)
-            .await?;
+        let adapter = self.connection_manager.get_or_create_connection(config).await?;
 
         // Get federation metadata for this type
-        let fed_type = self.metadata
-            .types
-            .iter()
-            .find(|t| t.name == typename)
-            .ok_or_else(|| {
+        let fed_type =
+            self.metadata.types.iter().find(|t| t.name == typename).ok_or_else(|| {
                 crate::error::FraiseQLError::Internal {
                     message: format!("Type {} not in federation metadata", typename),
-                    source: None,
+                    source:  None,
                 }
             })?;
 
@@ -97,9 +98,8 @@ impl DirectDatabaseResolver {
 
         // Execute query on remote database
         let view_name = format!("v_{}", typename.to_lowercase());
-        let jsonb_rows = adapter
-            .execute_where_query(&view_name, Some(&where_clause), None, None)
-            .await?;
+        let jsonb_rows =
+            adapter.execute_where_query(&view_name, Some(&where_clause), None, None).await?;
 
         // Convert JsonbValue to serde_json::Value
         let rows: Vec<Value> = jsonb_rows.into_iter().map(|jv| jv.into_value()).collect();
@@ -123,9 +123,9 @@ impl DirectDatabaseResolver {
                 .collect();
 
             Ok(WhereClause::Field {
-                path: vec![key_field.clone()],
+                path:     vec![key_field.clone()],
                 operator: WhereOperator::In,
-                value: json!(values),
+                value:    json!(values),
             })
         } else {
             // Composite key: (id, org_id) IN (...)
@@ -143,9 +143,9 @@ impl DirectDatabaseResolver {
                 .collect();
 
             Ok(WhereClause::Field {
-                path: key_fields.to_vec(),
+                path:     key_fields.to_vec(),
                 operator: WhereOperator::In,
-                value: json!(values),
+                value:    json!(values),
             })
         }
     }
@@ -161,8 +161,8 @@ impl DirectDatabaseResolver {
         for row in rows {
             if let Value::Object(obj) = &row {
                 // Use JSON serialization of key fields as lookup key
-                let key = serde_json::to_string(obj)
-                    .unwrap_or_else(|_| uuid::Uuid::new_v4().to_string());
+                let key =
+                    serde_json::to_string(obj).unwrap_or_else(|_| uuid::Uuid::new_v4().to_string());
                 row_map.insert(key, row);
             }
         }
@@ -173,9 +173,7 @@ impl DirectDatabaseResolver {
             // Try to find matching row by comparing key fields
             let matching_row = row_map.values().find(|row| {
                 if let Value::Object(obj) = row {
-                    rep.key_fields.iter().all(|(key, val)| {
-                        obj.get(key).map_or(false, |v| v == val)
-                    })
+                    rep.key_fields.iter().all(|(key, val)| obj.get(key).map_or(false, |v| v == val))
                 } else {
                     false
                 }
@@ -212,14 +210,14 @@ mod tests {
         FederationMetadata {
             enabled: true,
             version: "v2".to_string(),
-            types: vec![FederatedType {
-                name: "User".to_string(),
-                keys: vec![KeyDirective {
-                    fields: vec!["id".to_string()],
+            types:   vec![FederatedType {
+                name:             "User".to_string(),
+                keys:             vec![KeyDirective {
+                    fields:     vec!["id".to_string()],
                     resolvable: true,
                 }],
-                is_extends: false,
-                external_fields: vec![],
+                is_extends:       false,
+                external_fields:  vec![],
                 shareable_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             }],
@@ -252,9 +250,7 @@ mod tests {
         let metadata = create_test_metadata();
         let resolver = DirectDatabaseResolver::new(metadata);
         // Closing non-existent connection should be OK (no error)
-        assert!(resolver
-            .close_connection("postgresql://localhost/db")
-            .is_ok());
+        assert!(resolver.close_connection("postgresql://localhost/db").is_ok());
     }
 
     #[test]
@@ -276,26 +272,31 @@ mod tests {
         // Create representations with single key
         let representations = vec![
             EntityRepresentation {
-                typename: "User".to_string(),
+                typename:   "User".to_string(),
                 key_fields: vec![("id".to_string(), json!("user1"))].into_iter().collect(),
                 all_fields: HashMap::new(),
             },
             EntityRepresentation {
-                typename: "User".to_string(),
+                typename:   "User".to_string(),
                 key_fields: vec![("id".to_string(), json!("user2"))].into_iter().collect(),
                 all_fields: HashMap::new(),
             },
         ];
 
-        let where_clause = resolver.build_where_in_clause(&["id".to_string()], &representations).unwrap();
+        let where_clause =
+            resolver.build_where_in_clause(&["id".to_string()], &representations).unwrap();
 
         // Verify WHERE IN clause structure
         match where_clause {
-            WhereClause::Field { path, operator, value } => {
+            WhereClause::Field {
+                path,
+                operator,
+                value,
+            } => {
                 assert_eq!(path, vec!["id".to_string()]);
                 assert_eq!(operator, WhereOperator::In);
                 assert_eq!(value, json!(["user1", "user2"]));
-            }
+            },
             _ => panic!("Expected Field clause"),
         }
     }
@@ -308,7 +309,7 @@ mod tests {
         // Create representations with composite keys
         let representations = vec![
             EntityRepresentation {
-                typename: "User".to_string(),
+                typename:   "User".to_string(),
                 key_fields: vec![
                     ("organization_id".to_string(), json!("org1")),
                     ("user_id".to_string(), json!("user1")),
@@ -318,7 +319,7 @@ mod tests {
                 all_fields: HashMap::new(),
             },
             EntityRepresentation {
-                typename: "User".to_string(),
+                typename:   "User".to_string(),
                 key_fields: vec![
                     ("organization_id".to_string(), json!("org1")),
                     ("user_id".to_string(), json!("user2")),
@@ -330,12 +331,19 @@ mod tests {
         ];
 
         let where_clause = resolver
-            .build_where_in_clause(&["organization_id".to_string(), "user_id".to_string()], &representations)
+            .build_where_in_clause(
+                &["organization_id".to_string(), "user_id".to_string()],
+                &representations,
+            )
             .unwrap();
 
         // Verify WHERE IN clause for composite key
         match where_clause {
-            WhereClause::Field { path, operator, value } => {
+            WhereClause::Field {
+                path,
+                operator,
+                value,
+            } => {
                 assert_eq!(path, vec!["organization_id".to_string(), "user_id".to_string()]);
                 assert_eq!(operator, WhereOperator::In);
                 // Value should be array of objects with both keys
@@ -344,7 +352,7 @@ mod tests {
                 } else {
                     panic!("Expected array value");
                 }
-            }
+            },
             _ => panic!("Expected Field clause"),
         }
     }
@@ -357,12 +365,12 @@ mod tests {
         // Create representations
         let representations = vec![
             EntityRepresentation {
-                typename: "User".to_string(),
+                typename:   "User".to_string(),
                 key_fields: vec![("id".to_string(), json!("user1"))].into_iter().collect(),
                 all_fields: HashMap::new(),
             },
             EntityRepresentation {
-                typename: "User".to_string(),
+                typename:   "User".to_string(),
                 key_fields: vec![("id".to_string(), json!("user2"))].into_iter().collect(),
                 all_fields: HashMap::new(),
             },
@@ -391,10 +399,12 @@ mod tests {
 
         // Should create WHERE IN with empty array
         match where_clause {
-            WhereClause::Field { operator, value, .. } => {
+            WhereClause::Field {
+                operator, value, ..
+            } => {
                 assert_eq!(operator, WhereOperator::In);
                 assert_eq!(value, json!([]));
-            }
+            },
             _ => panic!("Expected Field clause"),
         }
     }

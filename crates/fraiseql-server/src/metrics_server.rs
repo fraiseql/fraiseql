@@ -64,7 +64,6 @@ pub struct MetricsCollector {
     pub cache_misses: Arc<AtomicU64>,
 
     // Federation Metrics
-
     /// Federation entity resolutions (total)
     pub federation_entity_resolutions_total: Arc<AtomicU64>,
 
@@ -107,33 +106,33 @@ impl MetricsCollector {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            queries_total:           Arc::new(AtomicU64::new(0)),
-            queries_success:         Arc::new(AtomicU64::new(0)),
-            queries_error:           Arc::new(AtomicU64::new(0)),
-            queries_duration_us:     Arc::new(AtomicU64::new(0)),
-            db_queries_total:        Arc::new(AtomicU64::new(0)),
-            db_queries_duration_us:  Arc::new(AtomicU64::new(0)),
+            queries_total: Arc::new(AtomicU64::new(0)),
+            queries_success: Arc::new(AtomicU64::new(0)),
+            queries_error: Arc::new(AtomicU64::new(0)),
+            queries_duration_us: Arc::new(AtomicU64::new(0)),
+            db_queries_total: Arc::new(AtomicU64::new(0)),
+            db_queries_duration_us: Arc::new(AtomicU64::new(0)),
             validation_errors_total: Arc::new(AtomicU64::new(0)),
-            parse_errors_total:      Arc::new(AtomicU64::new(0)),
-            execution_errors_total:  Arc::new(AtomicU64::new(0)),
-            http_requests_total:     Arc::new(AtomicU64::new(0)),
-            http_responses_2xx:      Arc::new(AtomicU64::new(0)),
-            http_responses_4xx:      Arc::new(AtomicU64::new(0)),
-            http_responses_5xx:      Arc::new(AtomicU64::new(0)),
-            cache_hits:              Arc::new(AtomicU64::new(0)),
-            cache_misses:            Arc::new(AtomicU64::new(0)),
-            federation_entity_resolutions_total:    Arc::new(AtomicU64::new(0)),
-            federation_entity_resolutions_errors:   Arc::new(AtomicU64::new(0)),
+            parse_errors_total: Arc::new(AtomicU64::new(0)),
+            execution_errors_total: Arc::new(AtomicU64::new(0)),
+            http_requests_total: Arc::new(AtomicU64::new(0)),
+            http_responses_2xx: Arc::new(AtomicU64::new(0)),
+            http_responses_4xx: Arc::new(AtomicU64::new(0)),
+            http_responses_5xx: Arc::new(AtomicU64::new(0)),
+            cache_hits: Arc::new(AtomicU64::new(0)),
+            cache_misses: Arc::new(AtomicU64::new(0)),
+            federation_entity_resolutions_total: Arc::new(AtomicU64::new(0)),
+            federation_entity_resolutions_errors: Arc::new(AtomicU64::new(0)),
             federation_entity_resolution_duration_us: Arc::new(AtomicU64::new(0)),
-            federation_subgraph_requests_total:     Arc::new(AtomicU64::new(0)),
-            federation_subgraph_requests_errors:    Arc::new(AtomicU64::new(0)),
+            federation_subgraph_requests_total: Arc::new(AtomicU64::new(0)),
+            federation_subgraph_requests_errors: Arc::new(AtomicU64::new(0)),
             federation_subgraph_request_duration_us: Arc::new(AtomicU64::new(0)),
-            federation_mutations_total:             Arc::new(AtomicU64::new(0)),
-            federation_mutations_errors:            Arc::new(AtomicU64::new(0)),
-            federation_mutation_duration_us:        Arc::new(AtomicU64::new(0)),
-            federation_entity_cache_hits:           Arc::new(AtomicU64::new(0)),
-            federation_entity_cache_misses:         Arc::new(AtomicU64::new(0)),
-            federation_errors_total:                Arc::new(AtomicU64::new(0)),
+            federation_mutations_total: Arc::new(AtomicU64::new(0)),
+            federation_mutations_errors: Arc::new(AtomicU64::new(0)),
+            federation_mutation_duration_us: Arc::new(AtomicU64::new(0)),
+            federation_entity_cache_hits: Arc::new(AtomicU64::new(0)),
+            federation_entity_cache_misses: Arc::new(AtomicU64::new(0)),
+            federation_errors_total: Arc::new(AtomicU64::new(0)),
         }
     }
 }
@@ -179,8 +178,7 @@ impl MetricsCollector {
     /// * `success` - Whether mutation succeeded
     pub fn record_mutation(&self, duration_us: u64, success: bool) {
         self.federation_mutations_total.fetch_add(1, Ordering::Relaxed);
-        self.federation_mutation_duration_us
-            .fetch_add(duration_us, Ordering::Relaxed);
+        self.federation_mutation_duration_us.fetch_add(duration_us, Ordering::Relaxed);
         if !success {
             self.federation_mutations_errors.fetch_add(1, Ordering::Relaxed);
             self.federation_errors_total.fetch_add(1, Ordering::Relaxed);

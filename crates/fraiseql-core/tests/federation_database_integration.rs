@@ -7,16 +7,23 @@
 //! - Connection pooling and transaction handling
 //! - Type coercion between database systems
 
+use std::{collections::HashMap, sync::Arc};
+
 use async_trait::async_trait;
-use fraiseql_core::db::{traits::{DatabaseAdapter, DatabaseCapabilities}, types::{DatabaseType, PoolMetrics}, where_clause::WhereClause};
-use fraiseql_core::db::types::JsonbValue;
-use fraiseql_core::error::Result;
-use fraiseql_core::federation::database_resolver::DatabaseEntityResolver;
-use fraiseql_core::federation::selection_parser::FieldSelection;
-use fraiseql_core::federation::types::{EntityRepresentation, FederatedType, FederationMetadata, KeyDirective};
-use serde_json::{json, Value};
-use std::collections::HashMap;
-use std::sync::Arc;
+use fraiseql_core::{
+    db::{
+        traits::{DatabaseAdapter, DatabaseCapabilities},
+        types::{DatabaseType, JsonbValue, PoolMetrics},
+        where_clause::WhereClause,
+    },
+    error::Result,
+    federation::{
+        database_resolver::DatabaseEntityResolver,
+        selection_parser::FieldSelection,
+        types::{EntityRepresentation, FederatedType, FederationMetadata, KeyDirective},
+    },
+};
+use serde_json::{Value, json};
 
 // ============================================================================
 // Mock Database Adapter for Testing
@@ -62,17 +69,14 @@ impl DatabaseAdapter for MockDatabaseAdapter {
 
     fn pool_metrics(&self) -> PoolMetrics {
         PoolMetrics {
-            total_connections: 10,
-            idle_connections: 8,
+            total_connections:  10,
+            idle_connections:   8,
             active_connections: 2,
-            waiting_requests: 0,
+            waiting_requests:   0,
         }
     }
 
-    async fn execute_raw_query(
-        &self,
-        sql: &str,
-    ) -> Result<Vec<HashMap<String, Value>>> {
+    async fn execute_raw_query(&self, sql: &str) -> Result<Vec<HashMap<String, Value>>> {
         // Extract table name from simple SELECT queries
         if let Some(start) = sql.to_uppercase().find("FROM ") {
             let after_from = &sql[start + 5..].trim();
@@ -110,22 +114,22 @@ fn test_resolve_entity_from_postgres_table() {
     user_row.insert("name".to_string(), json!("John Doe"));
     user_row.insert("email".to_string(), json!("john@example.com"));
 
-    let mock_adapter = MockDatabaseAdapter::new()
-        .with_table_data("user".to_string(), vec![user_row]);
+    let mock_adapter =
+        MockDatabaseAdapter::new().with_table_data("user".to_string(), vec![user_row]);
 
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "User".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["id".to_string()],
+        types:   vec![FederatedType {
+            name:             "User".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -135,7 +139,7 @@ fn test_resolve_entity_from_postgres_table() {
     rep_all.insert("id".to_string(), json!("user123"));
 
     let representation = EntityRepresentation {
-        typename: "User".to_string(),
+        typename:   "User".to_string(),
         key_fields: rep_keys,
         all_fields: rep_all,
     };
@@ -178,22 +182,22 @@ fn test_resolve_entities_batch_from_postgres() {
     user2.insert("id".to_string(), json!("user2"));
     user2.insert("name".to_string(), json!("Bob"));
 
-    let mock_adapter = MockDatabaseAdapter::new()
-        .with_table_data("user".to_string(), vec![user1, user2]);
+    let mock_adapter =
+        MockDatabaseAdapter::new().with_table_data("user".to_string(), vec![user1, user2]);
 
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "User".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["id".to_string()],
+        types:   vec![FederatedType {
+            name:             "User".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -210,12 +214,12 @@ fn test_resolve_entities_batch_from_postgres() {
 
     let reps = vec![
         EntityRepresentation {
-            typename: "User".to_string(),
+            typename:   "User".to_string(),
             key_fields: rep1_keys,
             all_fields: rep1_all,
         },
         EntityRepresentation {
-            typename: "User".to_string(),
+            typename:   "User".to_string(),
             key_fields: rep2_keys,
             all_fields: rep2_all,
         },
@@ -254,22 +258,21 @@ fn test_resolve_entity_composite_key_from_postgres() {
     row.insert("user_id".to_string(), json!("u1"));
     row.insert("name".to_string(), json!("John"));
 
-    let mock_adapter = MockDatabaseAdapter::new()
-        .with_table_data("user".to_string(), vec![row]);
+    let mock_adapter = MockDatabaseAdapter::new().with_table_data("user".to_string(), vec![row]);
 
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "User".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["tenant_id".to_string(), "user_id".to_string()],
+        types:   vec![FederatedType {
+            name:             "User".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["tenant_id".to_string(), "user_id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -281,7 +284,7 @@ fn test_resolve_entity_composite_key_from_postgres() {
     rep_all.insert("user_id".to_string(), json!("u1"));
 
     let representation = EntityRepresentation {
-        typename: "User".to_string(),
+        typename:   "User".to_string(),
         key_fields: rep_keys,
         all_fields: rep_all,
     };
@@ -317,22 +320,21 @@ fn test_resolve_entity_with_null_values_from_postgres() {
     row.insert("name".to_string(), json!("John"));
     row.insert("email".to_string(), Value::Null);
 
-    let mock_adapter = MockDatabaseAdapter::new()
-        .with_table_data("user".to_string(), vec![row]);
+    let mock_adapter = MockDatabaseAdapter::new().with_table_data("user".to_string(), vec![row]);
 
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "User".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["id".to_string()],
+        types:   vec![FederatedType {
+            name:             "User".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -342,7 +344,7 @@ fn test_resolve_entity_with_null_values_from_postgres() {
     rep_all.insert("id".to_string(), json!("user123"));
 
     let representation = EntityRepresentation {
-        typename: "User".to_string(),
+        typename:   "User".to_string(),
         key_fields: rep_keys,
         all_fields: rep_all,
     };
@@ -392,28 +394,27 @@ fn test_resolve_entity_large_result_set_from_postgres() {
         rep_all.insert("id".to_string(), json!(id));
 
         reps.push(EntityRepresentation {
-            typename: "User".to_string(),
+            typename:   "User".to_string(),
             key_fields: rep_keys,
             all_fields: rep_all,
         });
     }
 
-    let mock_adapter = MockDatabaseAdapter::new()
-        .with_table_data("user".to_string(), rows);
+    let mock_adapter = MockDatabaseAdapter::new().with_table_data("user".to_string(), rows);
 
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "User".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["id".to_string()],
+        types:   vec![FederatedType {
+            name:             "User".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -444,24 +445,27 @@ fn test_resolve_entity_large_result_set_from_postgres() {
 
 #[test]
 fn test_where_clause_single_key_field() {
-    use fraiseql_core::federation::query_builder::construct_where_in_clause;
-    use fraiseql_core::federation::types::{EntityRepresentation, FederatedType, FederationMetadata, KeyDirective};
-    use serde_json::json;
     use std::collections::HashMap;
+
+    use fraiseql_core::federation::{
+        query_builder::construct_where_in_clause,
+        types::{EntityRepresentation, FederatedType, FederationMetadata, KeyDirective},
+    };
+    use serde_json::json;
 
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "User".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["id".to_string()],
+        types:   vec![FederatedType {
+            name:             "User".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -470,7 +474,7 @@ fn test_where_clause_single_key_field() {
     let mut rep1_all = HashMap::new();
     rep1_all.insert("id".to_string(), json!("123"));
     let rep1 = EntityRepresentation {
-        typename: "User".to_string(),
+        typename:   "User".to_string(),
         key_fields: rep1_keys,
         all_fields: rep1_all,
     };
@@ -480,7 +484,7 @@ fn test_where_clause_single_key_field() {
     let mut rep2_all = HashMap::new();
     rep2_all.insert("id".to_string(), json!("456"));
     let rep2 = EntityRepresentation {
-        typename: "User".to_string(),
+        typename:   "User".to_string(),
         key_fields: rep2_keys,
         all_fields: rep2_all,
     };
@@ -491,24 +495,27 @@ fn test_where_clause_single_key_field() {
 
 #[test]
 fn test_where_clause_composite_keys() {
-    use fraiseql_core::federation::query_builder::construct_where_in_clause;
-    use fraiseql_core::federation::types::{EntityRepresentation, FederatedType, FederationMetadata, KeyDirective};
-    use serde_json::json;
     use std::collections::HashMap;
+
+    use fraiseql_core::federation::{
+        query_builder::construct_where_in_clause,
+        types::{EntityRepresentation, FederatedType, FederationMetadata, KeyDirective},
+    };
+    use serde_json::json;
 
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "Order".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["user_id".to_string(), "order_id".to_string()],
+        types:   vec![FederatedType {
+            name:             "Order".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["user_id".to_string(), "order_id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -519,7 +526,7 @@ fn test_where_clause_composite_keys() {
     rep1_all.insert("user_id".to_string(), json!("user1"));
     rep1_all.insert("order_id".to_string(), json!("order1"));
     let rep1 = EntityRepresentation {
-        typename: "Order".to_string(),
+        typename:   "Order".to_string(),
         key_fields: rep1_keys,
         all_fields: rep1_all,
     };
@@ -530,24 +537,27 @@ fn test_where_clause_composite_keys() {
 
 #[test]
 fn test_where_clause_string_escaping() {
-    use fraiseql_core::federation::query_builder::construct_where_in_clause;
-    use fraiseql_core::federation::types::{EntityRepresentation, FederatedType, FederationMetadata, KeyDirective};
-    use serde_json::json;
     use std::collections::HashMap;
+
+    use fraiseql_core::federation::{
+        query_builder::construct_where_in_clause,
+        types::{EntityRepresentation, FederatedType, FederationMetadata, KeyDirective},
+    };
+    use serde_json::json;
 
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "User".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["name".to_string()],
+        types:   vec![FederatedType {
+            name:             "User".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["name".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -556,7 +566,7 @@ fn test_where_clause_string_escaping() {
     let mut rep_all = HashMap::new();
     rep_all.insert("name".to_string(), json!("O'Brien"));
     let rep = EntityRepresentation {
-        typename: "User".to_string(),
+        typename:   "User".to_string(),
         key_fields: rep_keys,
         all_fields: rep_all,
     };
@@ -567,24 +577,27 @@ fn test_where_clause_string_escaping() {
 
 #[test]
 fn test_where_clause_sql_injection_prevention() {
-    use fraiseql_core::federation::query_builder::construct_where_in_clause;
-    use fraiseql_core::federation::types::{EntityRepresentation, FederatedType, FederationMetadata, KeyDirective};
-    use serde_json::json;
     use std::collections::HashMap;
+
+    use fraiseql_core::federation::{
+        query_builder::construct_where_in_clause,
+        types::{EntityRepresentation, FederatedType, FederationMetadata, KeyDirective},
+    };
+    use serde_json::json;
 
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "User".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["id".to_string()],
+        types:   vec![FederatedType {
+            name:             "User".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -593,7 +606,7 @@ fn test_where_clause_sql_injection_prevention() {
     let mut rep_all = HashMap::new();
     rep_all.insert("id".to_string(), json!("'; DROP TABLE users; --"));
     let rep = EntityRepresentation {
-        typename: "User".to_string(),
+        typename:   "User".to_string(),
         key_fields: rep_keys,
         all_fields: rep_all,
     };
@@ -604,24 +617,27 @@ fn test_where_clause_sql_injection_prevention() {
 
 #[test]
 fn test_where_clause_type_coercion() {
-    use fraiseql_core::federation::query_builder::construct_where_in_clause;
-    use fraiseql_core::federation::types::{EntityRepresentation, FederatedType, FederationMetadata, KeyDirective};
-    use serde_json::json;
     use std::collections::HashMap;
+
+    use fraiseql_core::federation::{
+        query_builder::construct_where_in_clause,
+        types::{EntityRepresentation, FederatedType, FederationMetadata, KeyDirective},
+    };
+    use serde_json::json;
 
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "Order".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["order_id".to_string()],
+        types:   vec![FederatedType {
+            name:             "Order".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["order_id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -630,7 +646,7 @@ fn test_where_clause_type_coercion() {
     let mut rep_all = HashMap::new();
     rep_all.insert("order_id".to_string(), json!(789));
     let rep = EntityRepresentation {
-        typename: "Order".to_string(),
+        typename:   "Order".to_string(),
         key_fields: rep_keys,
         all_fields: rep_all,
     };
@@ -651,24 +667,22 @@ fn test_cross_database_postgres_to_mysql() {
     user.insert("id".to_string(), json!("user123"));
     user.insert("username".to_string(), json!("alice"));
 
-    let mock_adapter = Arc::new(
-        MockDatabaseAdapter::new()
-            .with_table_data("user".to_string(), vec![user])
-    );
+    let mock_adapter =
+        Arc::new(MockDatabaseAdapter::new().with_table_data("user".to_string(), vec![user]));
 
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "User".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["id".to_string()],
+        types:   vec![FederatedType {
+            name:             "User".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -678,7 +692,7 @@ fn test_cross_database_postgres_to_mysql() {
     rep_all.insert("id".to_string(), json!("user123"));
 
     let representation = EntityRepresentation {
-        typename: "User".to_string(),
+        typename:   "User".to_string(),
         key_fields: rep_keys,
         all_fields: rep_all,
     };
@@ -691,9 +705,8 @@ fn test_cross_database_postgres_to_mysql() {
 
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let resolver = DatabaseEntityResolver::new(mock_adapter, metadata);
-    let result = runtime.block_on(
-        resolver.resolve_entities_from_db("User", &[representation], &selection)
-    );
+    let result =
+        runtime.block_on(resolver.resolve_entities_from_db("User", &[representation], &selection));
 
     assert!(result.is_ok());
     let entities = result.unwrap();
@@ -710,24 +723,22 @@ fn test_cross_database_postgres_to_sqlserver() {
     product.insert("product_name".to_string(), json!("Widget"));
     product.insert("price".to_string(), json!(29.99));
 
-    let mock_adapter = Arc::new(
-        MockDatabaseAdapter::new()
-            .with_table_data("product".to_string(), vec![product])
-    );
+    let mock_adapter =
+        Arc::new(MockDatabaseAdapter::new().with_table_data("product".to_string(), vec![product]));
 
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "Product".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["product_id".to_string()],
+        types:   vec![FederatedType {
+            name:             "Product".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["product_id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -737,7 +748,7 @@ fn test_cross_database_postgres_to_sqlserver() {
     rep_all.insert("product_id".to_string(), json!("prod123"));
 
     let representation = EntityRepresentation {
-        typename: "Product".to_string(),
+        typename:   "Product".to_string(),
         key_fields: rep_keys,
         all_fields: rep_all,
     };
@@ -751,9 +762,11 @@ fn test_cross_database_postgres_to_sqlserver() {
 
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let resolver = DatabaseEntityResolver::new(mock_adapter, metadata);
-    let result = runtime.block_on(
-        resolver.resolve_entities_from_db("Product", &[representation], &selection)
-    );
+    let result = runtime.block_on(resolver.resolve_entities_from_db(
+        "Product",
+        &[representation],
+        &selection,
+    ));
 
     assert!(result.is_ok());
     let entities = result.unwrap();
@@ -770,24 +783,22 @@ fn test_cross_database_type_coercion_numeric() {
     order.insert("amount".to_string(), json!(100)); // Integer
     order.insert("discount_rate".to_string(), json!(0.15)); // Float
 
-    let mock_adapter = Arc::new(
-        MockDatabaseAdapter::new()
-            .with_table_data("order".to_string(), vec![order])
-    );
+    let mock_adapter =
+        Arc::new(MockDatabaseAdapter::new().with_table_data("order".to_string(), vec![order]));
 
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "Order".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["order_id".to_string()],
+        types:   vec![FederatedType {
+            name:             "Order".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["order_id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -797,7 +808,7 @@ fn test_cross_database_type_coercion_numeric() {
     rep_all.insert("order_id".to_string(), json!("order123"));
 
     let representation = EntityRepresentation {
-        typename: "Order".to_string(),
+        typename:   "Order".to_string(),
         key_fields: rep_keys,
         all_fields: rep_all,
     };
@@ -811,9 +822,8 @@ fn test_cross_database_type_coercion_numeric() {
 
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let resolver = DatabaseEntityResolver::new(mock_adapter, metadata);
-    let result = runtime.block_on(
-        resolver.resolve_entities_from_db("Order", &[representation], &selection)
-    );
+    let result =
+        runtime.block_on(resolver.resolve_entities_from_db("Order", &[representation], &selection));
 
     assert!(result.is_ok());
     let entities = result.unwrap();
@@ -834,23 +844,22 @@ fn test_cross_database_type_coercion_string() {
     customer.insert("phone".to_string(), json!("+1-555-1234")); // String-based phone
 
     let mock_adapter = Arc::new(
-        MockDatabaseAdapter::new()
-            .with_table_data("customer".to_string(), vec![customer])
+        MockDatabaseAdapter::new().with_table_data("customer".to_string(), vec![customer]),
     );
 
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "Customer".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["customer_id".to_string()],
+        types:   vec![FederatedType {
+            name:             "Customer".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["customer_id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -860,7 +869,7 @@ fn test_cross_database_type_coercion_string() {
     rep_all.insert("customer_id".to_string(), json!("cust123"));
 
     let representation = EntityRepresentation {
-        typename: "Customer".to_string(),
+        typename:   "Customer".to_string(),
         key_fields: rep_keys,
         all_fields: rep_all,
     };
@@ -874,9 +883,11 @@ fn test_cross_database_type_coercion_string() {
 
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let resolver = DatabaseEntityResolver::new(mock_adapter, metadata);
-    let result = runtime.block_on(
-        resolver.resolve_entities_from_db("Customer", &[representation], &selection)
-    );
+    let result = runtime.block_on(resolver.resolve_entities_from_db(
+        "Customer",
+        &[representation],
+        &selection,
+    ));
 
     assert!(result.is_ok());
     let entities = result.unwrap();
@@ -896,24 +907,22 @@ fn test_cross_database_type_coercion_datetime() {
     event.insert("event_date".to_string(), json!("2024-01-15T10:30:00Z"));
     event.insert("created_at".to_string(), json!("2024-01-15T00:00:00Z"));
 
-    let mock_adapter = Arc::new(
-        MockDatabaseAdapter::new()
-            .with_table_data("event".to_string(), vec![event])
-    );
+    let mock_adapter =
+        Arc::new(MockDatabaseAdapter::new().with_table_data("event".to_string(), vec![event]));
 
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "Event".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["event_id".to_string()],
+        types:   vec![FederatedType {
+            name:             "Event".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["event_id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -923,7 +932,7 @@ fn test_cross_database_type_coercion_datetime() {
     rep_all.insert("event_id".to_string(), json!("evt123"));
 
     let representation = EntityRepresentation {
-        typename: "Event".to_string(),
+        typename:   "Event".to_string(),
         key_fields: rep_keys,
         all_fields: rep_all,
     };
@@ -937,9 +946,8 @@ fn test_cross_database_type_coercion_datetime() {
 
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let resolver = DatabaseEntityResolver::new(mock_adapter, metadata);
-    let result = runtime.block_on(
-        resolver.resolve_entities_from_db("Event", &[representation], &selection)
-    );
+    let result =
+        runtime.block_on(resolver.resolve_entities_from_db("Event", &[representation], &selection));
 
     assert!(result.is_ok());
     let entities = result.unwrap();
@@ -974,24 +982,22 @@ fn test_database_connection_reuse() {
     user1.insert("id".to_string(), json!("user1"));
     user1.insert("name".to_string(), json!("Alice"));
 
-    let mock_adapter = Arc::new(
-        MockDatabaseAdapter::new()
-            .with_table_data("user".to_string(), vec![user1])
-    );
+    let mock_adapter =
+        Arc::new(MockDatabaseAdapter::new().with_table_data("user".to_string(), vec![user1]));
 
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "User".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["id".to_string()],
+        types:   vec![FederatedType {
+            name:             "User".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1005,7 +1011,7 @@ fn test_database_connection_reuse() {
         rep_all.insert("id".to_string(), json!("user1"));
 
         let representation = EntityRepresentation {
-            typename: "User".to_string(),
+            typename:   "User".to_string(),
             key_fields: rep_keys,
             all_fields: rep_all,
         };
@@ -1017,9 +1023,11 @@ fn test_database_connection_reuse() {
         ]);
 
         let resolver = DatabaseEntityResolver::new(mock_adapter.clone(), metadata.clone());
-        let result = runtime.block_on(
-            resolver.resolve_entities_from_db("User", &[representation], &selection)
-        );
+        let result = runtime.block_on(resolver.resolve_entities_from_db(
+            "User",
+            &[representation],
+            &selection,
+        ));
 
         assert!(result.is_ok());
         let entities = result.unwrap();
@@ -1055,24 +1063,22 @@ fn test_database_connection_retry() {
     user.insert("id".to_string(), json!("user1"));
     user.insert("name".to_string(), json!("Bob"));
 
-    let mock_adapter = Arc::new(
-        MockDatabaseAdapter::new()
-            .with_table_data("user".to_string(), vec![user])
-    );
+    let mock_adapter =
+        Arc::new(MockDatabaseAdapter::new().with_table_data("user".to_string(), vec![user]));
 
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "User".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["id".to_string()],
+        types:   vec![FederatedType {
+            name:             "User".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1086,7 +1092,7 @@ fn test_database_connection_retry() {
         rep_all.insert("id".to_string(), json!("user1"));
 
         let representation = EntityRepresentation {
-            typename: "User".to_string(),
+            typename:   "User".to_string(),
             key_fields: rep_keys,
             all_fields: rep_all,
         };
@@ -1098,9 +1104,11 @@ fn test_database_connection_retry() {
         ]);
 
         let resolver = DatabaseEntityResolver::new(mock_adapter.clone(), metadata.clone());
-        let result = runtime.block_on(
-            resolver.resolve_entities_from_db("User", &[representation], &selection)
-        );
+        let result = runtime.block_on(resolver.resolve_entities_from_db(
+            "User",
+            &[representation],
+            &selection,
+        ));
 
         // After any attempt, we should get a successful result
         assert!(result.is_ok(), "Attempt {} failed", attempt);
@@ -1126,23 +1134,22 @@ fn test_database_query_execution_basic() {
     user2.insert("email".to_string(), json!("user2@example.com"));
 
     let mock_adapter = Arc::new(
-        MockDatabaseAdapter::new()
-            .with_table_data("user".to_string(), vec![user1, user2])
+        MockDatabaseAdapter::new().with_table_data("user".to_string(), vec![user1, user2]),
     );
 
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "User".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["id".to_string()],
+        types:   vec![FederatedType {
+            name:             "User".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1158,12 +1165,12 @@ fn test_database_query_execution_basic() {
 
     let representations = vec![
         EntityRepresentation {
-            typename: "User".to_string(),
+            typename:   "User".to_string(),
             key_fields: rep1_keys,
             all_fields: rep1_all,
         },
         EntityRepresentation {
-            typename: "User".to_string(),
+            typename:   "User".to_string(),
             key_fields: rep2_keys,
             all_fields: rep2_all,
         },
@@ -1177,9 +1184,8 @@ fn test_database_query_execution_basic() {
 
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let resolver = DatabaseEntityResolver::new(mock_adapter, metadata);
-    let result = runtime.block_on(
-        resolver.resolve_entities_from_db("User", &representations, &selection)
-    );
+    let result =
+        runtime.block_on(resolver.resolve_entities_from_db("User", &representations, &selection));
 
     assert!(result.is_ok());
     let entities = result.unwrap();
@@ -1196,17 +1202,14 @@ fn test_database_prepared_statements() {
     user.insert("id".to_string(), json!("user1"));
     user.insert("name".to_string(), json!("John"));
 
-    let mock_adapter = Arc::new(
-        MockDatabaseAdapter::new()
-            .with_table_data("user".to_string(), vec![user])
-    );
+    let mock_adapter =
+        Arc::new(MockDatabaseAdapter::new().with_table_data("user".to_string(), vec![user]));
 
     let runtime = tokio::runtime::Runtime::new().unwrap();
 
     // Execute a SELECT query
-    let result = runtime.block_on(
-        mock_adapter.execute_raw_query("SELECT id, name FROM user WHERE id = 'user1'")
-    );
+    let result = runtime
+        .block_on(mock_adapter.execute_raw_query("SELECT id, name FROM user WHERE id = 'user1'"));
 
     assert!(result.is_ok());
     let rows = result.unwrap();
@@ -1219,23 +1222,26 @@ fn test_database_prepared_statements() {
 fn test_database_parameterized_queries() {
     // Parameterized queries prevent SQL injection
     // This test verifies that SQL escaping works in WHERE clauses
-    use fraiseql_core::federation::query_builder::construct_where_in_clause;
-    use fraiseql_core::federation::types::{EntityRepresentation, FederatedType, FederationMetadata, KeyDirective};
     use std::collections::HashMap;
+
+    use fraiseql_core::federation::{
+        query_builder::construct_where_in_clause,
+        types::{EntityRepresentation, FederatedType, FederationMetadata, KeyDirective},
+    };
 
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "User".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["id".to_string()],
+        types:   vec![FederatedType {
+            name:             "User".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1246,7 +1252,7 @@ fn test_database_parameterized_queries() {
     rep_all.insert("id".to_string(), json!("O'Brien"));
 
     let representation = EntityRepresentation {
-        typename: "User".to_string(),
+        typename:   "User".to_string(),
         key_fields: rep_keys,
         all_fields: rep_all,
     };
@@ -1290,28 +1296,22 @@ fn test_database_transaction_rollback() {
     user.insert("name".to_string(), json!("John"));
 
     let mock_adapter = Arc::new(
-        MockDatabaseAdapter::new()
-            .with_table_data("user".to_string(), vec![user.clone()])
+        MockDatabaseAdapter::new().with_table_data("user".to_string(), vec![user.clone()]),
     );
 
     let runtime = tokio::runtime::Runtime::new().unwrap();
 
     // Query should succeed
-    let result1 = runtime.block_on(
-        mock_adapter.execute_raw_query("SELECT * FROM user")
-    );
+    let result1 = runtime.block_on(mock_adapter.execute_raw_query("SELECT * FROM user"));
     assert!(result1.is_ok());
 
     // Query for non-existent table should fail gracefully
-    let result2 = runtime.block_on(
-        mock_adapter.execute_raw_query("SELECT * FROM nonexistent_table")
-    );
+    let result2 =
+        runtime.block_on(mock_adapter.execute_raw_query("SELECT * FROM nonexistent_table"));
     assert!(result2.is_ok()); // Returns empty result, not error
 
     // Original data should still be intact
-    let result3 = runtime.block_on(
-        mock_adapter.execute_raw_query("SELECT * FROM user")
-    );
+    let result3 = runtime.block_on(mock_adapter.execute_raw_query("SELECT * FROM user"));
     assert!(result3.is_ok());
     let rows = result3.unwrap();
     assert_eq!(rows[0]["id"], "user1");
@@ -1364,10 +1364,7 @@ fn test_select_excludes_external_fields() {
 fn test_select_includes_key_fields() {
     use fraiseql_core::federation::selection_parser::FieldSelection;
 
-    let mut selection = FieldSelection::new(vec![
-        "name".to_string(),
-        "email".to_string(),
-    ]);
+    let mut selection = FieldSelection::new(vec!["name".to_string(), "email".to_string()]);
 
     // Key fields should always be included
     selection.add_field("id".to_string());
@@ -1415,9 +1412,7 @@ fn test_database_query_timeout() {
     let runtime = tokio::runtime::Runtime::new().unwrap();
 
     // Query with reasonable timeout should succeed
-    let result = runtime.block_on(
-        mock_adapter.execute_raw_query("SELECT 1")
-    );
+    let result = runtime.block_on(mock_adapter.execute_raw_query("SELECT 1"));
 
     assert!(result.is_ok());
 }
@@ -1434,9 +1429,7 @@ fn test_database_connection_failure() {
     assert!(result.is_ok());
 
     // Query for non-existent table should not panic
-    let result = runtime.block_on(
-        mock_adapter.execute_raw_query("SELECT * FROM nonexistent")
-    );
+    let result = runtime.block_on(mock_adapter.execute_raw_query("SELECT * FROM nonexistent"));
     // Mock adapter returns Ok(empty) for missing tables
     assert!(result.is_ok());
 }
@@ -1449,9 +1442,7 @@ fn test_database_query_syntax_error() {
     let runtime = tokio::runtime::Runtime::new().unwrap();
 
     // Invalid SQL should be handled gracefully
-    let result = runtime.block_on(
-        mock_adapter.execute_raw_query("INVALID SQL SYNTAX ;;;")
-    );
+    let result = runtime.block_on(mock_adapter.execute_raw_query("INVALID SQL SYNTAX ;;;"));
 
     // Mock adapter returns Ok(empty) for all queries
     assert!(result.is_ok());
@@ -1464,24 +1455,22 @@ fn test_database_constraint_violation() {
     user.insert("id".to_string(), json!("user1"));
     user.insert("email".to_string(), json!("test@example.com"));
 
-    let mock_adapter = Arc::new(
-        MockDatabaseAdapter::new()
-            .with_table_data("user".to_string(), vec![user])
-    );
+    let mock_adapter =
+        Arc::new(MockDatabaseAdapter::new().with_table_data("user".to_string(), vec![user]));
 
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "User".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["id".to_string()],
+        types:   vec![FederatedType {
+            name:             "User".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1494,7 +1483,7 @@ fn test_database_constraint_violation() {
     rep_all.insert("id".to_string(), json!("user1"));
 
     let representation = EntityRepresentation {
-        typename: "User".to_string(),
+        typename:   "User".to_string(),
         key_fields: rep_keys,
         all_fields: rep_all,
     };
@@ -1506,9 +1495,8 @@ fn test_database_constraint_violation() {
     ]);
 
     let resolver = DatabaseEntityResolver::new(mock_adapter, metadata);
-    let result = runtime.block_on(
-        resolver.resolve_entities_from_db("User", &[representation], &selection)
-    );
+    let result =
+        runtime.block_on(resolver.resolve_entities_from_db("User", &[representation], &selection));
 
     // Should handle gracefully without panicking
     assert!(result.is_ok());
@@ -1527,24 +1515,22 @@ fn test_single_entity_resolution_latency() {
     user.insert("id".to_string(), json!("user1"));
     user.insert("name".to_string(), json!("John"));
 
-    let mock_adapter = Arc::new(
-        MockDatabaseAdapter::new()
-            .with_table_data("user".to_string(), vec![user])
-    );
+    let mock_adapter =
+        Arc::new(MockDatabaseAdapter::new().with_table_data("user".to_string(), vec![user]));
 
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "User".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["id".to_string()],
+        types:   vec![FederatedType {
+            name:             "User".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1554,7 +1540,7 @@ fn test_single_entity_resolution_latency() {
     rep_all.insert("id".to_string(), json!("user1"));
 
     let representation = EntityRepresentation {
-        typename: "User".to_string(),
+        typename:   "User".to_string(),
         key_fields: rep_keys,
         all_fields: rep_all,
     };
@@ -1570,9 +1556,8 @@ fn test_single_entity_resolution_latency() {
 
     // Measure resolution time
     let start = Instant::now();
-    let _result = runtime.block_on(
-        resolver.resolve_entities_from_db("User", &[representation], &selection)
-    );
+    let _result =
+        runtime.block_on(resolver.resolve_entities_from_db("User", &[representation], &selection));
     let duration = start.elapsed();
 
     // Mock resolution should be very fast (< 1ms)
@@ -1601,30 +1586,28 @@ fn test_batch_100_entities_resolution_latency() {
         rep_all.insert("id".to_string(), json!(id));
 
         reps.push(EntityRepresentation {
-            typename: "User".to_string(),
+            typename:   "User".to_string(),
             key_fields: rep_keys,
             all_fields: rep_all,
         });
     }
 
-    let mock_adapter = Arc::new(
-        MockDatabaseAdapter::new()
-            .with_table_data("user".to_string(), rows)
-    );
+    let mock_adapter =
+        Arc::new(MockDatabaseAdapter::new().with_table_data("user".to_string(), rows));
 
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "User".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["id".to_string()],
+        types:   vec![FederatedType {
+            name:             "User".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1639,9 +1622,7 @@ fn test_batch_100_entities_resolution_latency() {
 
     // Measure resolution time
     let start = Instant::now();
-    let result = runtime.block_on(
-        resolver.resolve_entities_from_db("User", &reps, &selection)
-    );
+    let result = runtime.block_on(resolver.resolve_entities_from_db("User", &reps, &selection));
     let duration = start.elapsed();
 
     // Verify all entities resolved
@@ -1663,24 +1644,22 @@ fn test_concurrent_entity_resolution() {
         users.push(user);
     }
 
-    let mock_adapter = Arc::new(
-        MockDatabaseAdapter::new()
-            .with_table_data("user".to_string(), users)
-    );
+    let mock_adapter =
+        Arc::new(MockDatabaseAdapter::new().with_table_data("user".to_string(), users));
 
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "User".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["id".to_string()],
+        types:   vec![FederatedType {
+            name:             "User".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1700,15 +1679,17 @@ fn test_concurrent_entity_resolution() {
         rep_all.insert("id".to_string(), json!(format!("user{}", i)));
 
         let representation = EntityRepresentation {
-            typename: "User".to_string(),
+            typename:   "User".to_string(),
             key_fields: rep_keys,
             all_fields: rep_all,
         };
 
         let resolver = DatabaseEntityResolver::new(mock_adapter.clone(), metadata.clone());
-        let result = runtime.block_on(
-            resolver.resolve_entities_from_db("User", &[representation], &selection)
-        );
+        let result = runtime.block_on(resolver.resolve_entities_from_db(
+            "User",
+            &[representation],
+            &selection,
+        ));
 
         assert!(result.is_ok());
         let entities = result.unwrap();

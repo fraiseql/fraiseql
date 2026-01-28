@@ -82,7 +82,10 @@ mod config_integration {
 
         assert_eq!(config.database, "mydb");
         assert_eq!(config.user, "myuser");
-        assert_eq!(config.password, Some(zeroize::Zeroizing::new("secret".to_string())));
+        assert_eq!(
+            config.password,
+            Some(zeroize::Zeroizing::new("secret".to_string()))
+        );
         assert_eq!(config.statement_timeout, Some(Duration::from_secs(60)));
         assert_eq!(config.keepalive_idle, Some(Duration::from_secs(300)));
         assert_eq!(config.application_name, Some("multi_test".to_string()));

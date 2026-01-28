@@ -5,19 +5,24 @@
 //! and error recovery.
 
 use std::time::Duration;
-use serde_json::{json, Value};
-use crate::error::Result;
-use crate::federation::types::EntityRepresentation;
-use crate::federation::selection_parser::FieldSelection;
-use crate::federation::tracing::FederationTraceContext;
+
+use serde_json::{Value, json};
+
+use crate::{
+    error::Result,
+    federation::{
+        selection_parser::FieldSelection, tracing::FederationTraceContext,
+        types::EntityRepresentation,
+    },
+};
 
 /// Configuration for HTTP client behavior
 #[derive(Debug, Clone)]
 pub struct HttpClientConfig {
     /// Request timeout in milliseconds
-    pub timeout_ms: u64,
+    pub timeout_ms:     u64,
     /// Maximum number of retry attempts
-    pub max_retries: u32,
+    pub max_retries:    u32,
     /// Initial delay between retries in milliseconds (exponential backoff)
     pub retry_delay_ms: u64,
 }
@@ -25,8 +30,8 @@ pub struct HttpClientConfig {
 impl Default for HttpClientConfig {
     fn default() -> Self {
         Self {
-            timeout_ms: 5000,
-            max_retries: 3,
+            timeout_ms:     5000,
+            max_retries:    3,
             retry_delay_ms: 100,
         }
     }
@@ -41,13 +46,13 @@ pub struct HttpEntityResolver {
 
 #[derive(serde::Serialize)]
 struct GraphQLRequest {
-    query: String,
+    query:     String,
     variables: Value,
 }
 
 #[derive(serde::Deserialize, Debug)]
 struct GraphQLResponse {
-    data: Option<Value>,
+    data:   Option<Value>,
     errors: Option<Vec<GraphQLError>>,
 }
 
@@ -74,7 +79,8 @@ impl HttpEntityResolver {
         representations: &[EntityRepresentation],
         selection: &FieldSelection,
     ) -> Result<Vec<Option<Value>>> {
-        self.resolve_entities_with_tracing(subgraph_url, representations, selection, None).await
+        self.resolve_entities_with_tracing(subgraph_url, representations, selection, None)
+            .await
     }
 
     /// Resolve entities via HTTP _entities query with optional distributed tracing.
@@ -109,9 +115,7 @@ impl HttpEntityResolver {
             std::collections::HashMap::new();
 
         for rep in representations {
-            typename_fields
-                .entry(rep.typename.clone())
-                .or_insert_with(Vec::new);
+            typename_fields.entry(rep.typename.clone()).or_insert_with(Vec::new);
         }
 
         // Build inline fragments for each type
@@ -133,10 +137,7 @@ impl HttpEntityResolver {
             .map(|rep| {
                 let mut obj = rep.all_fields.clone();
                 obj.insert("__typename".to_string(), Value::String(rep.typename.clone()));
-                Value::Object(
-                    obj.into_iter()
-                        .collect::<serde_json::Map<_, _>>(),
-                )
+                Value::Object(obj.into_iter().collect::<serde_json::Map<_, _>>())
             })
             .collect();
 
@@ -157,27 +158,21 @@ impl HttpEntityResolver {
         while attempts < self.config.max_retries {
             attempts += 1;
 
-            match self
-                .client
-                .post(url)
-                .json(request)
-                .send()
-                .await
-            {
+            match self.client.post(url).json(request).send().await {
                 Ok(response) if response.status().is_success() => {
                     match response.json::<GraphQLResponse>().await {
                         Ok(gql_response) => return Ok(gql_response),
                         Err(e) => {
                             last_error = Some(format!("Failed to parse response: {}", e));
-                        }
+                        },
                     }
-                }
+                },
                 Ok(response) => {
                     last_error = Some(format!("HTTP {}", response.status()));
-                }
+                },
                 Err(e) => {
                     last_error = Some(format!("Request failed: {}", e));
-                }
+                },
             }
 
             // Exponential backoff
@@ -195,7 +190,7 @@ impl HttpEntityResolver {
                 attempts,
                 last_error.unwrap_or_else(|| "unknown error".to_string())
             ),
-            source: None,
+            source:  None,
         })
     }
 
@@ -206,14 +201,10 @@ impl HttpEntityResolver {
     ) -> Result<Vec<Option<Value>>> {
         // Check for GraphQL errors
         if let Some(errors) = &response.errors {
-            let error_messages: Vec<String> =
-                errors.iter().map(|e| e.message.clone()).collect();
+            let error_messages: Vec<String> = errors.iter().map(|e| e.message.clone()).collect();
             return Err(crate::error::FraiseQLError::Internal {
-                message: format!(
-                    "GraphQL errors: {}",
-                    error_messages.join("; ")
-                ),
-                source: None,
+                message: format!("GraphQL errors: {}", error_messages.join("; ")),
+                source:  None,
             });
         }
 
@@ -233,7 +224,7 @@ impl HttpEntityResolver {
                     representations.len(),
                     entities.len()
                 ),
-                source: None,
+                source:  None,
             });
         }
 
@@ -244,8 +235,9 @@ impl HttpEntityResolver {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::collections::HashMap;
+
+    use super::*;
 
     fn mock_representation(typename: &str, id: &str) -> EntityRepresentation {
         let mut key_fields = HashMap::new();
@@ -275,11 +267,7 @@ mod tests {
 
         rt.block_on(async {
             let result = resolver
-                .resolve_entities(
-                    "http://example.com/graphql",
-                    &[],
-                    &FieldSelection::default(),
-                )
+                .resolve_entities("http://example.com/graphql", &[], &FieldSelection::default())
                 .await;
 
             assert!(result.is_ok());
@@ -295,9 +283,7 @@ mod tests {
             fields: vec!["id".to_string(), "email".to_string()],
         };
 
-        let request = resolver
-            .build_entities_query(&reps, &selection)
-            .unwrap();
+        let request = resolver.build_entities_query(&reps, &selection).unwrap();
 
         assert!(request.query.contains("_entities"));
         assert!(request.query.contains("_Any!"));
@@ -317,9 +303,7 @@ mod tests {
             fields: vec!["id".to_string()],
         };
 
-        let request = resolver
-            .build_entities_query(&reps, &selection)
-            .unwrap();
+        let request = resolver.build_entities_query(&reps, &selection).unwrap();
 
         assert!(request.query.contains("User"));
         assert!(request.query.contains("Order"));
@@ -331,7 +315,7 @@ mod tests {
         let representations = vec![mock_representation("User", "123")];
 
         let response = GraphQLResponse {
-            data: Some(json!({
+            data:   Some(json!({
                 "_entities": [
                     { "id": "123", "email": "user@example.com" }
                 ]
@@ -353,7 +337,7 @@ mod tests {
         let representations = vec![mock_representation("User", "123")];
 
         let response = GraphQLResponse {
-            data: None,
+            data:   None,
             errors: Some(vec![GraphQLError {
                 message: "Entity not found".to_string(),
             }]),
@@ -372,7 +356,7 @@ mod tests {
         ];
 
         let response = GraphQLResponse {
-            data: Some(json!({
+            data:   Some(json!({
                 "_entities": [
                     { "id": "123" }
                 ]
@@ -395,8 +379,8 @@ mod tests {
     #[test]
     fn test_config_custom() {
         let config = HttpClientConfig {
-            timeout_ms: 10000,
-            max_retries: 5,
+            timeout_ms:     10000,
+            max_retries:    5,
             retry_delay_ms: 200,
         };
         assert_eq!(config.timeout_ms, 10000);

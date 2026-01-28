@@ -654,7 +654,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             "_entities" => self.execute_entities_query(query, variables).await,
             _ => Err(FraiseQLError::Validation {
                 message: format!("Unknown federation query: {}", query_name),
-                path: None,
+                path:    None,
             }),
         }
     }
@@ -662,12 +662,11 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// Execute _service query returning federation SDL.
     async fn execute_service_query(&self) -> Result<String> {
         // Get federation metadata from schema
-        let fed_metadata = self.schema.federation_metadata().ok_or_else(|| {
-            FraiseQLError::Validation {
+        let fed_metadata =
+            self.schema.federation_metadata().ok_or_else(|| FraiseQLError::Validation {
                 message: "Federation not enabled in schema".to_string(),
-                path: None,
-            }
-        })?;
+                path:    None,
+            })?;
 
         // Generate SDL with federation directives
         let raw_schema = self.schema.raw_schema();
@@ -692,19 +691,19 @@ impl<A: DatabaseAdapter> Executor<A> {
         variables: Option<&serde_json::Value>,
     ) -> Result<String> {
         // Get federation metadata from schema
-        let fed_metadata = self.schema.federation_metadata().ok_or_else(|| {
-            FraiseQLError::Validation {
+        let fed_metadata =
+            self.schema.federation_metadata().ok_or_else(|| FraiseQLError::Validation {
                 message: "Federation not enabled in schema".to_string(),
-                path: None,
-            }
-        })?;
+                path:    None,
+            })?;
 
         // Extract representations from variables
-        let representations_value = variables
-            .and_then(|v| v.get("representations"))
-            .ok_or_else(|| FraiseQLError::Validation {
-                message: "_entities query requires 'representations' variable".to_string(),
-                path: None,
+        let representations_value =
+            variables.and_then(|v| v.get("representations")).ok_or_else(|| {
+                FraiseQLError::Validation {
+                    message: "_entities query requires 'representations' variable".to_string(),
+                    path:    None,
+                }
             })?;
 
         // Parse representations
@@ -712,15 +711,16 @@ impl<A: DatabaseAdapter> Executor<A> {
             crate::federation::parse_representations(representations_value, &fed_metadata)
                 .map_err(|e| FraiseQLError::Validation {
                     message: format!("Failed to parse representations: {}", e),
-                    path: None,
+                    path:    None,
                 })?;
 
         // Validate representations
-        crate::federation::validate_representations(&representations, &fed_metadata)
-            .map_err(|errors| FraiseQLError::Validation {
+        crate::federation::validate_representations(&representations, &fed_metadata).map_err(
+            |errors| FraiseQLError::Validation {
                 message: format!("Invalid representations: {}", errors.join("; ")),
-                path: None,
-            })?;
+                path:    None,
+            },
+        )?;
 
         // Create federation resolver
         let fed_resolver = crate::federation::FederationResolver::new(fed_metadata);

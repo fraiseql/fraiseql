@@ -17,38 +17,41 @@
 //!     └─ Bulk index to ES
 //! ```
 
-use crate::event::EntityEvent;
-use crate::error::{ObserverError, Result};
+use std::{env, sync::Arc};
+
 use reqwest::Client;
-use serde_json::{json, Value};
-use std::env;
-use std::sync::Arc;
+use serde_json::{Value, json};
 use tokio::sync::mpsc;
 use tracing::{error, info, warn};
+
+use crate::{
+    error::{ObserverError, Result},
+    event::EntityEvent,
+};
 
 /// Elasticsearch sink configuration
 #[derive(Debug, Clone)]
 pub struct ElasticsearchSinkConfig {
     /// Elasticsearch base URL (e.g., "http://localhost:9200")
-    pub url: String,
+    pub url:                 String,
     /// Index name prefix (default: "fraiseql-events")
-    pub index_prefix: String,
+    pub index_prefix:        String,
     /// Bulk request size threshold (default: 1000)
-    pub bulk_size: usize,
+    pub bulk_size:           usize,
     /// Flush timeout in seconds (default: 5)
     pub flush_interval_secs: u64,
     /// Max retries for bulk requests (default: 3)
-    pub max_retries: usize,
+    pub max_retries:         usize,
 }
 
 impl Default for ElasticsearchSinkConfig {
     fn default() -> Self {
         Self {
-            url: env::var("FRAISEQL_ELASTICSEARCH_URL")
+            url:                 env::var("FRAISEQL_ELASTICSEARCH_URL")
                 .unwrap_or_else(|_| "http://localhost:9200".to_string()),
-            index_prefix: env::var("FRAISEQL_ELASTICSEARCH_INDEX_PREFIX")
+            index_prefix:        env::var("FRAISEQL_ELASTICSEARCH_INDEX_PREFIX")
                 .unwrap_or_else(|_| "fraiseql-events".to_string()),
-            bulk_size: env::var("FRAISEQL_ELASTICSEARCH_BULK_SIZE")
+            bulk_size:           env::var("FRAISEQL_ELASTICSEARCH_BULK_SIZE")
                 .ok()
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(1000),
@@ -56,7 +59,7 @@ impl Default for ElasticsearchSinkConfig {
                 .ok()
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(5),
-            max_retries: env::var("FRAISEQL_ELASTICSEARCH_MAX_RETRIES")
+            max_retries:         env::var("FRAISEQL_ELASTICSEARCH_MAX_RETRIES")
                 .ok()
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(3),
@@ -214,7 +217,7 @@ impl ElasticsearchSink {
                     info!(count, attempt, "Batch indexed successfully");
                     buffer.clear();
                     return Ok(());
-                }
+                },
                 Err(e) => {
                     let error_msg = e.to_string();
                     if self.is_transient_error(&error_msg) {
@@ -235,7 +238,7 @@ impl ElasticsearchSink {
                         error!(count, error = %error_msg, "Permanent error, giving up");
                         return Err(e);
                     }
-                }
+                },
             }
         }
 
@@ -250,11 +253,8 @@ impl ElasticsearchSink {
 
         for event in events {
             // Determine index name based on event timestamp
-            let index_name = format!(
-                "{}-{}",
-                self.config.index_prefix,
-                event.timestamp.format("%Y.%m")
-            );
+            let index_name =
+                format!("{}-{}", self.config.index_prefix, event.timestamp.format("%Y.%m"));
 
             // Bulk API format: action metadata, then document
             body.push(json!({
@@ -299,11 +299,10 @@ impl ElasticsearchSink {
                 reason: format!("Elasticsearch bulk request failed: {}", e),
             })?;
 
-        let response_body: Value = response.json().await.map_err(|e| {
-            ObserverError::DatabaseError {
+        let response_body: Value =
+            response.json().await.map_err(|e| ObserverError::DatabaseError {
                 reason: format!("Failed to parse Elasticsearch response: {}", e),
-            }
-        })?;
+            })?;
 
         // Check for errors in bulk response
         if response_body["errors"].as_bool().unwrap_or(false) {

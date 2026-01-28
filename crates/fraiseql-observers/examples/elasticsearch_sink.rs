@@ -18,7 +18,7 @@
 //! cargo run --example elasticsearch_sink
 //! ```
 
-use fraiseql_observers::{EntityEvent, EventKind, ElasticsearchSink, ElasticsearchSinkConfig};
+use fraiseql_observers::{ElasticsearchSink, ElasticsearchSinkConfig, EntityEvent, EventKind};
 use serde_json::json;
 use tokio::sync::mpsc;
 use uuid::Uuid;
@@ -31,8 +31,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Step 1: Create configuration
     println!("Step 1: Creating Elasticsearch sink configuration...");
-    let config = ElasticsearchSinkConfig::default()
-        .with_env_overrides();
+    let config = ElasticsearchSinkConfig::default().with_env_overrides();
 
     println!("  URL:           {}", config.url);
     println!("  Index Prefix:  {}", config.index_prefix);
@@ -57,7 +56,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             eprintln!("Make sure Elasticsearch is running:");
             eprintln!("  docker-compose -f docker-compose.elasticsearch.yml up -d\n");
             return Err(e.into());
-        }
+        },
     }
 
     // Step 4: Create channel
@@ -80,11 +79,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     for i in 0..num_events {
         let entity_types = ["User", "Order", "Product", "Invoice"];
-        let event_types = [
-            EventKind::Created,
-            EventKind::Updated,
-            EventKind::Deleted,
-        ];
+        let event_types = [EventKind::Created, EventKind::Updated, EventKind::Deleted];
 
         let event = EntityEvent::new(
             event_types[i % event_types.len()],

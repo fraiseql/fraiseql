@@ -8,8 +8,9 @@
 //! - Federated query execution
 //! - Extended mutations
 
-use serde_json::{json, Value};
 use std::time::Duration;
+
+use serde_json::{Value, json};
 
 const APOLLO_GATEWAY_URL: &str = "http://localhost:4000/graphql";
 const USERS_SUBGRAPH_URL: &str = "http://localhost:4001/graphql";
@@ -32,22 +33,22 @@ async fn wait_for_service(url: &str, max_retries: u32) -> Result<(), Box<dyn std
             Ok(response) if response.status().is_success() => {
                 println!("✓ Service ready: {}", url);
                 return Ok(());
-            }
+            },
             Ok(response) => {
-                println!(
-                    "✗ Service {} returned status: {}",
-                    url,
-                    response.status()
-                );
-            }
+                println!("✗ Service {} returned status: {}", url, response.status());
+            },
             Err(e) => {
                 println!("✗ Service {} connection failed: {}", url, e);
-            }
+            },
         }
 
         retries += 1;
         if retries >= max_retries {
-            return Err(format!("Service {} failed to become ready after {} retries", url, max_retries).into());
+            return Err(format!(
+                "Service {} failed to become ready after {} retries",
+                url, max_retries
+            )
+            .into());
         }
 
         tokio::time::sleep(Duration::from_secs(2)).await;
@@ -55,10 +56,7 @@ async fn wait_for_service(url: &str, max_retries: u32) -> Result<(), Box<dyn std
 }
 
 /// Execute a GraphQL query against a service
-async fn graphql_query(
-    url: &str,
-    query: &str,
-) -> Result<Value, Box<dyn std::error::Error>> {
+async fn graphql_query(url: &str, query: &str) -> Result<Value, Box<dyn std::error::Error>> {
     let client = reqwest::Client::new();
     let response = client
         .post(url)
@@ -155,17 +153,12 @@ async fn test_apollo_router_health() {
 #[ignore]
 async fn test_apollo_router_schema_composition_sdl() {
     // Wait for gateway to be ready
-    wait_for_service(APOLLO_GATEWAY_URL, 30)
-        .await
-        .expect("Gateway should be ready");
+    wait_for_service(APOLLO_GATEWAY_URL, 30).await.expect("Gateway should be ready");
 
     // Query SDL from gateway
-    let response = graphql_query(
-        APOLLO_GATEWAY_URL,
-        "query { _service { sdl } }",
-    )
-    .await
-    .expect("SDL query should succeed");
+    let response = graphql_query(APOLLO_GATEWAY_URL, "query { _service { sdl } }")
+        .await
+        .expect("SDL query should succeed");
 
     // Should have data, no errors
     assert!(!has_errors(&response), "SDL query should not have errors");
@@ -178,22 +171,10 @@ async fn test_apollo_router_schema_composition_sdl() {
         .expect("SDL should be a string");
 
     // Verify SDL contains federation directives
-    assert!(
-        sdl.contains("@key"),
-        "SDL should contain @key directive"
-    );
-    assert!(
-        sdl.contains("type User"),
-        "SDL should contain User type"
-    );
-    assert!(
-        sdl.contains("type Order"),
-        "SDL should contain Order type"
-    );
-    assert!(
-        sdl.contains("type Product"),
-        "SDL should contain Product type"
-    );
+    assert!(sdl.contains("@key"), "SDL should contain @key directive");
+    assert!(sdl.contains("type User"), "SDL should contain User type");
+    assert!(sdl.contains("type Order"), "SDL should contain Order type");
+    assert!(sdl.contains("type Product"), "SDL should contain Product type");
 }
 
 // ============================================================================
@@ -203,14 +184,15 @@ async fn test_apollo_router_schema_composition_sdl() {
 #[tokio::test]
 #[ignore]
 async fn test_users_subgraph_query() {
-    let response = graphql_query(
-        USERS_SUBGRAPH_URL,
-        "query { users { id identifier } }",
-    )
-    .await
-    .expect("Query should succeed");
+    let response = graphql_query(USERS_SUBGRAPH_URL, "query { users { id identifier } }")
+        .await
+        .expect("Query should succeed");
 
-    assert!(!has_errors(&response), "Query should not have errors: {:?}", response.get("errors"));
+    assert!(
+        !has_errors(&response),
+        "Query should not have errors: {:?}",
+        response.get("errors")
+    );
 
     let data = extract_data(&response)
         .and_then(|d| d.get("users"))
@@ -230,14 +212,15 @@ async fn test_users_subgraph_query() {
 #[tokio::test]
 #[ignore]
 async fn test_orders_subgraph_query() {
-    let response = graphql_query(
-        ORDERS_SUBGRAPH_URL,
-        "query { orders { id status total } }",
-    )
-    .await
-    .expect("Query should succeed");
+    let response = graphql_query(ORDERS_SUBGRAPH_URL, "query { orders { id status total } }")
+        .await
+        .expect("Query should succeed");
 
-    assert!(!has_errors(&response), "Query should not have errors: {:?}", response.get("errors"));
+    assert!(
+        !has_errors(&response),
+        "Query should not have errors: {:?}",
+        response.get("errors")
+    );
 
     let data = extract_data(&response)
         .and_then(|d| d.get("orders"))
@@ -251,14 +234,15 @@ async fn test_orders_subgraph_query() {
 #[tokio::test]
 #[ignore]
 async fn test_products_subgraph_query() {
-    let response = graphql_query(
-        PRODUCTS_SUBGRAPH_URL,
-        "query { products { id name price } }",
-    )
-    .await
-    .expect("Query should succeed");
+    let response = graphql_query(PRODUCTS_SUBGRAPH_URL, "query { products { id name price } }")
+        .await
+        .expect("Query should succeed");
 
-    assert!(!has_errors(&response), "Query should not have errors: {:?}", response.get("errors"));
+    assert!(
+        !has_errors(&response),
+        "Query should not have errors: {:?}",
+        response.get("errors")
+    );
 
     let data = extract_data(&response)
         .and_then(|d| d.get("products"))
@@ -276,14 +260,15 @@ async fn test_products_subgraph_query() {
 #[tokio::test]
 #[ignore]
 async fn test_gateway_simple_query() {
-    let response = graphql_query(
-        APOLLO_GATEWAY_URL,
-        "query { users { id identifier } }",
-    )
-    .await
-    .expect("Query should succeed");
+    let response = graphql_query(APOLLO_GATEWAY_URL, "query { users { id identifier } }")
+        .await
+        .expect("Query should succeed");
 
-    assert!(!has_errors(&response), "Query should not have errors: {:?}", response.get("errors"));
+    assert!(
+        !has_errors(&response),
+        "Query should not have errors: {:?}",
+        response.get("errors")
+    );
 
     let data = extract_data(&response)
         .and_then(|d| d.get("users"))
@@ -312,9 +297,7 @@ async fn test_gateway_two_subgraph_federation() {
         }
     "#;
 
-    let response = graphql_query(APOLLO_GATEWAY_URL, query)
-        .await
-        .expect("Query should succeed");
+    let response = graphql_query(APOLLO_GATEWAY_URL, query).await.expect("Query should succeed");
 
     if has_errors(&response) {
         eprintln!("GraphQL errors: {:?}", response.get("errors"));
@@ -330,14 +313,12 @@ async fn test_gateway_two_subgraph_federation() {
     assert!(!users.is_empty(), "Should have at least one user");
 
     // At least some users should have orders
-    let has_orders = users
-        .iter()
-        .any(|u| {
-            u.get("orders")
-                .and_then(|o| o.as_array())
-                .map(|arr| !arr.is_empty())
-                .unwrap_or(false)
-        });
+    let has_orders = users.iter().any(|u| {
+        u.get("orders")
+            .and_then(|o| o.as_array())
+            .map(|arr| !arr.is_empty())
+            .unwrap_or(false)
+    });
 
     assert!(has_orders, "Some users should have orders in federated query");
     println!("✓ Gateway 2-subgraph federation query succeeded");
@@ -365,9 +346,7 @@ async fn test_gateway_three_subgraph_federation() {
         }
     "#;
 
-    let response = graphql_query(APOLLO_GATEWAY_URL, query)
-        .await
-        .expect("Query should succeed");
+    let response = graphql_query(APOLLO_GATEWAY_URL, query).await.expect("Query should succeed");
 
     if has_errors(&response) {
         eprintln!("GraphQL errors: {:?}", response.get("errors"));
@@ -400,18 +379,14 @@ async fn test_two_subgraph_setup_validation() {
 #[tokio::test]
 #[ignore]
 async fn test_two_subgraph_direct_subgraph_queries() {
-    setup_federation_tests()
-        .await
-        .expect("Setup should succeed");
+    setup_federation_tests().await.expect("Setup should succeed");
 
     // Test 1: Query users directly from users subgraph
     println!("\n--- Test 1: Query users directly ---");
-    let users_response = graphql_query(
-        USERS_SUBGRAPH_URL,
-        r#"query { users { id identifier email } }"#,
-    )
-    .await
-    .expect("Users query should succeed");
+    let users_response =
+        graphql_query(USERS_SUBGRAPH_URL, r#"query { users { id identifier email } }"#)
+            .await
+            .expect("Users query should succeed");
 
     assert!(
         !has_errors(&users_response),
@@ -425,19 +400,14 @@ async fn test_two_subgraph_direct_subgraph_queries() {
         .expect("Should return users array");
 
     assert!(!users.is_empty(), "Should have users in database");
-    println!(
-        "✓ Found {} users from users subgraph",
-        users.len()
-    );
+    println!("✓ Found {} users from users subgraph", users.len());
 
     // Test 2: Query orders directly from orders subgraph
     println!("\n--- Test 2: Query orders directly ---");
-    let orders_response = graphql_query(
-        ORDERS_SUBGRAPH_URL,
-        r#"query { orders { id status total } }"#,
-    )
-    .await
-    .expect("Orders query should succeed");
+    let orders_response =
+        graphql_query(ORDERS_SUBGRAPH_URL, r#"query { orders { id status total } }"#)
+            .await
+            .expect("Orders query should succeed");
 
     assert!(
         !has_errors(&orders_response),
@@ -451,18 +421,13 @@ async fn test_two_subgraph_direct_subgraph_queries() {
         .expect("Should return orders array");
 
     assert!(!orders.is_empty(), "Should have orders in database");
-    println!(
-        "✓ Found {} orders from orders subgraph",
-        orders.len()
-    );
+    println!("✓ Found {} orders from orders subgraph", orders.len());
 }
 
 #[tokio::test]
 #[ignore]
 async fn test_two_subgraph_http_federation_from_orders() {
-    setup_federation_tests()
-        .await
-        .expect("Setup should succeed");
+    setup_federation_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Query orders with extended User fields (HTTP federation) ---");
 
@@ -492,7 +457,9 @@ async fn test_two_subgraph_http_federation_from_orders() {
             "! GraphQL errors (may be expected if User not fully extended): {}",
             get_error_messages(&response)
         );
-        eprintln!("! This indicates orders subgraph HTTP federation to users may not be fully configured");
+        eprintln!(
+            "! This indicates orders subgraph HTTP federation to users may not be fully configured"
+        );
     } else {
         let orders = extract_data(&response)
             .and_then(|d| d.get("orders"))
@@ -502,13 +469,8 @@ async fn test_two_subgraph_http_federation_from_orders() {
         assert!(!orders.is_empty(), "Should have orders");
 
         // Verify orders have user information
-        let has_user_info = orders
-            .iter()
-            .any(|o| {
-                o.get("user")
-                    .and_then(|u| u.get("id"))
-                    .is_some()
-            });
+        let has_user_info =
+            orders.iter().any(|o| o.get("user").and_then(|u| u.get("id")).is_some());
 
         if has_user_info {
             println!("✓ Orders successfully resolved User information via HTTP federation");
@@ -519,9 +481,7 @@ async fn test_two_subgraph_http_federation_from_orders() {
 #[tokio::test]
 #[ignore]
 async fn test_two_subgraph_federation_through_gateway() {
-    setup_federation_tests()
-        .await
-        .expect("Setup should succeed");
+    setup_federation_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Federated query through Apollo Router gateway ---");
 
@@ -549,10 +509,7 @@ async fn test_two_subgraph_federation_through_gateway() {
     if has_errors(&response) {
         let errors = get_error_messages(&response);
         eprintln!("✗ Gateway federation query failed: {}", errors);
-        eprintln!(
-            "Response: {}",
-            serde_json::to_string_pretty(&response).unwrap_or_default()
-        );
+        eprintln!("Response: {}", serde_json::to_string_pretty(&response).unwrap_or_default());
         panic!("Gateway federation query should not have errors");
     }
 
@@ -575,28 +532,21 @@ async fn test_two_subgraph_federation_through_gateway() {
         })
         .count();
 
-    println!(
-        "✓ {} users have orders (federated data)",
-        users_with_orders
-    );
+    println!("✓ {} users have orders (federated data)", users_with_orders);
 }
 
 #[tokio::test]
 #[ignore]
 async fn test_two_subgraph_entity_resolution_consistency() {
-    setup_federation_tests()
-        .await
-        .expect("Setup should succeed");
+    setup_federation_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Entity resolution consistency across subgraphs ---");
 
     // Get a user ID from users subgraph
-    let users_response = graphql_query(
-        USERS_SUBGRAPH_URL,
-        r#"query { users(limit: 1) { id identifier } }"#,
-    )
-    .await
-    .expect("Initial users query should succeed");
+    let users_response =
+        graphql_query(USERS_SUBGRAPH_URL, r#"query { users(limit: 1) { id identifier } }"#)
+            .await
+            .expect("Initial users query should succeed");
 
     let user_id = extract_data(&users_response)
         .and_then(|d| d.get("users"))
@@ -617,10 +567,7 @@ async fn test_two_subgraph_entity_resolution_consistency() {
     println!("Got user: id={}, identifier={}", user_id, user_identifier);
 
     // Query the same user through orders subgraph (which has it as extended)
-    let query = format!(
-        r#"query {{ user(id: "{}") {{ id identifier }} }}"#,
-        user_id
-    );
+    let query = format!(r#"query {{ user(id: "{}") {{ id identifier }} }}"#, user_id);
 
     let orders_response = graphql_query(ORDERS_SUBGRAPH_URL, &query)
         .await
@@ -628,49 +575,34 @@ async fn test_two_subgraph_entity_resolution_consistency() {
 
     if has_errors(&orders_response) {
         let errors = get_error_messages(&orders_response);
-        eprintln!(
-            "! Entity resolution query has errors: {}",
-            errors
-        );
+        eprintln!("! Entity resolution query has errors: {}", errors);
         eprintln!("! This may indicate extended User type is not properly configured");
     } else {
         let resolved_user = extract_data(&orders_response)
             .and_then(|d| d.get("user"))
             .expect("Should return resolved user");
 
-        let resolved_id = resolved_user
-            .get("id")
-            .and_then(|id| id.as_str())
-            .expect("Should have user ID");
+        let resolved_id =
+            resolved_user.get("id").and_then(|id| id.as_str()).expect("Should have user ID");
 
-        assert_eq!(
-            resolved_id, user_id,
-            "Resolved user ID should match original"
-        );
+        assert_eq!(resolved_id, user_id, "Resolved user ID should match original");
 
-        println!(
-            "✓ User {} consistently resolved across subgraphs",
-            user_id
-        );
+        println!("✓ User {} consistently resolved across subgraphs", user_id);
     }
 }
 
 #[tokio::test]
 #[ignore]
 async fn test_two_subgraph_data_consistency() {
-    setup_federation_tests()
-        .await
-        .expect("Setup should succeed");
+    setup_federation_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Data consistency between direct and federated queries ---");
 
     // Get users directly from users subgraph
-    let direct_response = graphql_query(
-        USERS_SUBGRAPH_URL,
-        r#"query { users(limit: 3) { id identifier } }"#,
-    )
-    .await
-    .expect("Direct users query should succeed");
+    let direct_response =
+        graphql_query(USERS_SUBGRAPH_URL, r#"query { users(limit: 3) { id identifier } }"#)
+            .await
+            .expect("Direct users query should succeed");
 
     let direct_users = extract_data(&direct_response)
         .and_then(|d| d.get("users"))
@@ -678,18 +610,13 @@ async fn test_two_subgraph_data_consistency() {
         .expect("Should return users array");
 
     // Get same users through gateway (federated)
-    let gateway_response = graphql_query(
-        APOLLO_GATEWAY_URL,
-        r#"query { users(limit: 3) { id identifier } }"#,
-    )
-    .await
-    .expect("Gateway users query should succeed");
+    let gateway_response =
+        graphql_query(APOLLO_GATEWAY_URL, r#"query { users(limit: 3) { id identifier } }"#)
+            .await
+            .expect("Gateway users query should succeed");
 
     if has_errors(&gateway_response) {
-        eprintln!(
-            "! Gateway users query error: {}",
-            get_error_messages(&gateway_response)
-        );
+        eprintln!("! Gateway users query error: {}", get_error_messages(&gateway_response));
     } else {
         let gateway_users = extract_data(&gateway_response)
             .and_then(|d| d.get("users"))
@@ -704,15 +631,11 @@ async fn test_two_subgraph_data_consistency() {
         );
 
         // Compare IDs
-        let direct_ids: Vec<_> = direct_users
-            .iter()
-            .filter_map(|u| u.get("id")?.as_str())
-            .collect();
+        let direct_ids: Vec<_> =
+            direct_users.iter().filter_map(|u| u.get("id")?.as_str()).collect();
 
-        let gateway_ids: Vec<_> = gateway_users
-            .iter()
-            .filter_map(|u| u.get("id")?.as_str())
-            .collect();
+        let gateway_ids: Vec<_> =
+            gateway_users.iter().filter_map(|u| u.get("id")?.as_str()).collect();
 
         assert_eq!(direct_ids, gateway_ids, "User IDs should match");
 
@@ -726,9 +649,7 @@ async fn test_two_subgraph_data_consistency() {
 #[tokio::test]
 #[ignore]
 async fn test_two_subgraph_federation_performance() {
-    setup_federation_tests()
-        .await
-        .expect("Setup should succeed");
+    setup_federation_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Federation query performance ---");
 
@@ -750,9 +671,7 @@ async fn test_two_subgraph_federation_performance() {
 
     // Timed query
     let start = std::time::Instant::now();
-    let response = graphql_query(APOLLO_GATEWAY_URL, query)
-        .await
-        .expect("Query should succeed");
+    let response = graphql_query(APOLLO_GATEWAY_URL, query).await.expect("Query should succeed");
 
     let elapsed = start.elapsed();
 
@@ -789,12 +708,9 @@ async fn test_two_subgraph_federation_performance() {
 #[ignore]
 async fn test_user_entity_resolution() {
     // Query users to get IDs
-    let users_response = graphql_query(
-        USERS_SUBGRAPH_URL,
-        "query { users(limit: 1) { id } }",
-    )
-    .await
-    .expect("Initial query should succeed");
+    let users_response = graphql_query(USERS_SUBGRAPH_URL, "query { users(limit: 1) { id } }")
+        .await
+        .expect("Initial query should succeed");
 
     let user_id = extract_data(&users_response)
         .and_then(|d| d.get("users"))
@@ -805,10 +721,7 @@ async fn test_user_entity_resolution() {
         .expect("Should extract first user ID");
 
     // Query user by ID through federation
-    let query = format!(
-        r#"query {{ user(id: "{}") {{ id identifier }} }}"#,
-        user_id
-    );
+    let query = format!(r#"query {{ user(id: "{}") {{ id identifier }} }}"#, user_id);
 
     let response = graphql_query(ORDERS_SUBGRAPH_URL, &query)
         .await
@@ -836,17 +749,11 @@ async fn test_user_entity_resolution() {
 #[tokio::test]
 #[ignore]
 async fn test_gateway_invalid_query_error_handling() {
-    let response = graphql_query(
-        APOLLO_GATEWAY_URL,
-        "query { invalidField { subfield } }",
-    )
-    .await
-    .expect("Request should complete even with invalid query");
+    let response = graphql_query(APOLLO_GATEWAY_URL, "query { invalidField { subfield } }")
+        .await
+        .expect("Request should complete even with invalid query");
 
-    assert!(
-        has_errors(&response),
-        "Invalid query should return errors"
-    );
+    assert!(has_errors(&response), "Invalid query should return errors");
 
     let errors = response
         .get("errors")
@@ -885,16 +792,10 @@ async fn test_federation_query_performance() {
 
     let elapsed = start.elapsed();
 
-    println!(
-        "✓ 3-hop federated query completed in: {:.0}ms",
-        elapsed.as_millis()
-    );
+    println!("✓ 3-hop federated query completed in: {:.0}ms", elapsed.as_millis());
 
     // Assert reasonable latency (adjust based on actual performance)
-    assert!(
-        elapsed.as_millis() < 1000,
-        "Federated query should complete in under 1 second"
-    );
+    assert!(elapsed.as_millis() < 1000, "Federated query should complete in under 1 second");
 }
 
 // ============================================================================
@@ -927,7 +828,7 @@ mod setup {
             Ok(output) => {
                 println!("Docker Compose Status:");
                 println!("{}", String::from_utf8_lossy(&output.stdout));
-            }
+            },
             Err(e) => eprintln!("Failed to get docker-compose status: {}", e),
         }
     }
@@ -940,9 +841,7 @@ mod setup {
 #[tokio::test]
 #[ignore]
 async fn test_extended_mutation_user_from_authoritative_subgraph() {
-    setup_federation_tests()
-        .await
-        .expect("Setup should succeed");
+    setup_federation_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Direct user mutation in authoritative subgraph ---");
 
@@ -967,43 +866,29 @@ async fn test_extended_mutation_user_from_authoritative_subgraph() {
         .expect("Create user mutation should succeed");
 
     if has_errors(&response) {
-        eprintln!(
-            "! User creation has errors: {}",
-            get_error_messages(&response)
-        );
+        eprintln!("! User creation has errors: {}", get_error_messages(&response));
     } else {
         let user = extract_data(&response)
             .and_then(|d| d.get("createUser"))
             .expect("Should return created user");
 
-        let user_id = user
-            .get("id")
-            .and_then(|id| id.as_str())
-            .expect("Should have user ID");
+        let user_id = user.get("id").and_then(|id| id.as_str()).expect("Should have user ID");
 
-        println!(
-            "✓ Created user directly in authoritative subgraph: {}",
-            user_id
-        );
+        println!("✓ Created user directly in authoritative subgraph: {}", user_id);
     }
 }
 
 #[tokio::test]
 #[ignore]
 async fn test_extended_mutation_update_user_from_extended_subgraph() {
-    setup_federation_tests()
-        .await
-        .expect("Setup should succeed");
+    setup_federation_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Update user mutation from extended subgraph (HTTP propagation) ---");
 
     // Get an existing user
-    let users_response = graphql_query(
-        USERS_SUBGRAPH_URL,
-        r#"query { users(limit: 1) { id } }"#,
-    )
-    .await
-    .expect("Get users query should succeed");
+    let users_response = graphql_query(USERS_SUBGRAPH_URL, r#"query { users(limit: 1) { id } }"#)
+        .await
+        .expect("Get users query should succeed");
 
     let user_id = extract_data(&users_response)
         .and_then(|d| d.get("users"))
@@ -1038,13 +923,8 @@ async fn test_extended_mutation_update_user_from_extended_subgraph() {
         .expect("Update user mutation should complete");
 
     if has_errors(&response) {
-        eprintln!(
-            "! Update user mutation has errors: {}",
-            get_error_messages(&response)
-        );
-        eprintln!(
-            "! This may indicate extended mutations are not configured"
-        );
+        eprintln!("! Update user mutation has errors: {}", get_error_messages(&response));
+        eprintln!("! This may indicate extended mutations are not configured");
     } else {
         let updated_user = extract_data(&response)
             .and_then(|d| d.get("updateUser"))
@@ -1055,29 +935,21 @@ async fn test_extended_mutation_update_user_from_extended_subgraph() {
             .and_then(|n| n.as_str())
             .expect("Should have updated name");
 
-        println!(
-            "✓ Successfully updated user from extended subgraph: {}",
-            updated_name
-        );
+        println!("✓ Successfully updated user from extended subgraph: {}", updated_name);
     }
 }
 
 #[tokio::test]
 #[ignore]
 async fn test_extended_mutation_create_order_with_user_reference() {
-    setup_federation_tests()
-        .await
-        .expect("Setup should succeed");
+    setup_federation_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Create order with user reference (entity linking) ---");
 
     // Get a user ID
-    let users_response = graphql_query(
-        USERS_SUBGRAPH_URL,
-        r#"query { users(limit: 1) { id } }"#,
-    )
-    .await
-    .expect("Get users query should succeed");
+    let users_response = graphql_query(USERS_SUBGRAPH_URL, r#"query { users(limit: 1) { id } }"#)
+        .await
+        .expect("Get users query should succeed");
 
     let user_id = extract_data(&users_response)
         .and_then(|d| d.get("users"))
@@ -1116,32 +988,20 @@ async fn test_extended_mutation_create_order_with_user_reference() {
         .expect("Create order mutation should succeed");
 
     if has_errors(&response) {
-        eprintln!(
-            "! Create order mutation has errors: {}",
-            get_error_messages(&response)
-        );
+        eprintln!("! Create order mutation has errors: {}", get_error_messages(&response));
     } else {
         let order = extract_data(&response)
             .and_then(|d| d.get("createOrder"))
             .expect("Should return created order");
 
-        let order_id = order
-            .get("id")
-            .and_then(|id| id.as_str())
-            .expect("Should have order ID");
+        let order_id = order.get("id").and_then(|id| id.as_str()).expect("Should have order ID");
 
-        println!(
-            "✓ Successfully created order with user reference: {}",
-            order_id
-        );
+        println!("✓ Successfully created order with user reference: {}", order_id);
 
         // Verify user reference was resolved
         if let Some(user) = order.get("user") {
             if let Some(resolved_id) = user.get("id").and_then(|id| id.as_str()) {
-                println!(
-                    "✓ User reference resolved in order: {}",
-                    resolved_id
-                );
+                println!("✓ User reference resolved in order: {}", resolved_id);
             }
         }
     }
@@ -1150,9 +1010,7 @@ async fn test_extended_mutation_create_order_with_user_reference() {
 #[tokio::test]
 #[ignore]
 async fn test_extended_mutation_error_handling() {
-    setup_federation_tests()
-        .await
-        .expect("Setup should succeed");
+    setup_federation_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Error handling in extended mutations ---");
 
@@ -1192,19 +1050,15 @@ async fn test_extended_mutation_error_handling() {
 #[tokio::test]
 #[ignore]
 async fn test_extended_mutation_data_consistency_after_mutation() {
-    setup_federation_tests()
-        .await
-        .expect("Setup should succeed");
+    setup_federation_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Data consistency after extended mutations ---");
 
     // Get a user
-    let users_response = graphql_query(
-        USERS_SUBGRAPH_URL,
-        r#"query { users(limit: 1) { id name } }"#,
-    )
-    .await
-    .expect("Get users query should succeed");
+    let users_response =
+        graphql_query(USERS_SUBGRAPH_URL, r#"query { users(limit: 1) { id name } }"#)
+            .await
+            .expect("Get users query should succeed");
 
     let original_user = extract_data(&users_response)
         .and_then(|d| d.get("users"))
@@ -1213,15 +1067,9 @@ async fn test_extended_mutation_data_consistency_after_mutation() {
         .expect("Should have at least one user")
         .clone();
 
-    let user_id = original_user
-        .get("id")
-        .and_then(|id| id.as_str())
-        .expect("Should have ID");
+    let user_id = original_user.get("id").and_then(|id| id.as_str()).expect("Should have ID");
 
-    let original_name = original_user
-        .get("name")
-        .and_then(|n| n.as_str())
-        .unwrap_or("unknown");
+    let original_name = original_user.get("name").and_then(|n| n.as_str()).unwrap_or("unknown");
 
     println!("Original user: id={}, name={}", user_id, original_name);
 
@@ -1262,43 +1110,28 @@ async fn test_extended_mutation_data_consistency_after_mutation() {
             .and_then(|d| d.get("user"))
             .expect("Should return user");
 
-        let verified_name = verified_user
-            .get("name")
-            .and_then(|n| n.as_str())
-            .expect("Should have name");
+        let verified_name =
+            verified_user.get("name").and_then(|n| n.as_str()).expect("Should have name");
 
-        assert_eq!(
-            verified_name, &new_name,
-            "Updated name should persist after mutation"
-        );
+        assert_eq!(verified_name, &new_name, "Updated name should persist after mutation");
 
-        println!(
-            "✓ Data consistency verified: mutation persisted correctly"
-        );
+        println!("✓ Data consistency verified: mutation persisted correctly");
     } else {
-        eprintln!(
-            "! Mutation failed: {}",
-            get_error_messages(&update_response)
-        );
+        eprintln!("! Mutation failed: {}", get_error_messages(&update_response));
     }
 }
 
 #[tokio::test]
 #[ignore]
 async fn test_extended_mutation_through_gateway() {
-    setup_federation_tests()
-        .await
-        .expect("Setup should succeed");
+    setup_federation_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Mutation through gateway (federated mutation) ---");
 
     // Get a user
-    let users_response = graphql_query(
-        APOLLO_GATEWAY_URL,
-        r#"query { users(limit: 1) { id } }"#,
-    )
-    .await
-    .expect("Get users query should succeed");
+    let users_response = graphql_query(APOLLO_GATEWAY_URL, r#"query { users(limit: 1) { id } }"#)
+        .await
+        .expect("Get users query should succeed");
 
     let user_id = extract_data(&users_response)
         .and_then(|d| d.get("users"))
@@ -1329,31 +1162,21 @@ async fn test_extended_mutation_through_gateway() {
         .expect("Gateway mutation should complete");
 
     if has_errors(&response) {
-        eprintln!(
-            "! Gateway mutation has errors: {}",
-            get_error_messages(&response)
-        );
-        eprintln!(
-            "! This may be expected if mutations are not yet routed through gateway"
-        );
+        eprintln!("! Gateway mutation has errors: {}", get_error_messages(&response));
+        eprintln!("! This may be expected if mutations are not yet routed through gateway");
     } else {
         let result = extract_data(&response)
             .and_then(|d| d.get("updateUser"))
             .expect("Should return result");
 
-        println!(
-            "✓ Gateway mutation executed successfully: {:?}",
-            result.get("name")
-        );
+        println!("✓ Gateway mutation executed successfully: {:?}", result.get("name"));
     }
 }
 
 #[tokio::test]
 #[ignore]
 async fn test_extended_mutation_performance() {
-    setup_federation_tests()
-        .await
-        .expect("Setup should succeed");
+    setup_federation_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Mutation performance ---");
 
@@ -1381,27 +1204,17 @@ async fn test_extended_mutation_performance() {
             .expect("Mutation should succeed");
 
         if has_errors(&response) {
-            eprintln!(
-                "! Mutation {} failed: {}",
-                i,
-                get_error_messages(&response)
-            );
+            eprintln!("! Mutation {} failed: {}", i, get_error_messages(&response));
             break;
         }
     }
 
     let elapsed = start.elapsed();
 
-    println!(
-        "✓ 5 order creation mutations completed in: {:.0}ms",
-        elapsed.as_millis()
-    );
+    println!("✓ 5 order creation mutations completed in: {:.0}ms", elapsed.as_millis());
 
     // Assert reasonable latency
-    assert!(
-        elapsed.as_millis() < 10000,
-        "Mutations should complete in reasonable time"
-    );
+    assert!(elapsed.as_millis() < 10000, "Mutations should complete in reasonable time");
 }
 
 // ============================================================================
@@ -1411,52 +1224,37 @@ async fn test_extended_mutation_performance() {
 #[tokio::test]
 #[ignore]
 async fn test_composite_key_setup_validation() {
-    setup_federation_tests()
-        .await
-        .expect("Setup should succeed");
+    setup_federation_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Composite key environment setup validation ---");
 
     // Verify database schema supports composite keys
-    let users_response = graphql_query(
-        USERS_SUBGRAPH_URL,
-        r#"query { users { id identifier } }"#,
-    )
-    .await
-    .expect("Query should succeed");
+    let users_response = graphql_query(USERS_SUBGRAPH_URL, r#"query { users { id identifier } }"#)
+        .await
+        .expect("Query should succeed");
 
-    assert!(
-        !has_errors(&users_response),
-        "Setup query should not have errors"
-    );
+    assert!(!has_errors(&users_response), "Setup query should not have errors");
 
     let users = extract_data(&users_response)
         .and_then(|d| d.get("users"))
         .and_then(|u| u.as_array())
         .expect("Should return users array");
 
-    println!(
-        "✓ Composite key environment ready with {} users",
-        users.len()
-    );
+    println!("✓ Composite key environment ready with {} users", users.len());
 }
 
 #[tokio::test]
 #[ignore]
 async fn test_composite_key_single_field_federation() {
-    setup_federation_tests()
-        .await
-        .expect("Setup should succeed");
+    setup_federation_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Single field composite key (baseline) ---");
 
     // Get a user (single field key: id UUID)
-    let users_response = graphql_query(
-        USERS_SUBGRAPH_URL,
-        r#"query { users(limit: 1) { id identifier } }"#,
-    )
-    .await
-    .expect("Query should succeed");
+    let users_response =
+        graphql_query(USERS_SUBGRAPH_URL, r#"query { users(limit: 1) { id identifier } }"#)
+            .await
+            .expect("Query should succeed");
 
     let user_id = extract_data(&users_response)
         .and_then(|d| d.get("users"))
@@ -1469,50 +1267,36 @@ async fn test_composite_key_single_field_federation() {
     println!("User with single field key: {}", user_id);
 
     // Query from orders subgraph (extended type with single field key)
-    let query = format!(
-        r#"query {{ user(id: "{}") {{ id identifier }} }}"#,
-        user_id
-    );
+    let query = format!(r#"query {{ user(id: "{}") {{ id identifier }} }}"#, user_id);
 
-    let response = graphql_query(ORDERS_SUBGRAPH_URL, &query)
-        .await
-        .expect("Query should succeed");
+    let response = graphql_query(ORDERS_SUBGRAPH_URL, &query).await.expect("Query should succeed");
 
     if !has_errors(&response) {
-        let user = extract_data(&response)
-            .and_then(|d| d.get("user"))
-            .expect("Should return user");
+        let user = extract_data(&response).and_then(|d| d.get("user")).expect("Should return user");
 
         let resolved_id = user.get("id").and_then(|id| id.as_str()).expect("Should have ID");
         assert_eq!(resolved_id, user_id, "IDs should match");
 
         println!("✓ Single field composite key resolution works");
     } else {
-        eprintln!(
-            "! Single field key query error: {}",
-            get_error_messages(&response)
-        );
+        eprintln!("! Single field key query error: {}", get_error_messages(&response));
     }
 }
 
 #[tokio::test]
 #[ignore]
 async fn test_composite_key_multi_field_resolution() {
-    setup_federation_tests()
-        .await
-        .expect("Setup should succeed");
+    setup_federation_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Multi-field composite key resolution ---");
 
     // In a real multi-tenant system, composite key would be: (tenant_id, entity_id)
     // For this test, we verify the infrastructure handles multiple key fields
 
-    let users_response = graphql_query(
-        USERS_SUBGRAPH_URL,
-        r#"query { users(limit: 1) { id identifier email } }"#,
-    )
-    .await
-    .expect("Query should succeed");
+    let users_response =
+        graphql_query(USERS_SUBGRAPH_URL, r#"query { users(limit: 1) { id identifier email } }"#)
+            .await
+            .expect("Query should succeed");
 
     let user = extract_data(&users_response)
         .and_then(|d| d.get("users"))
@@ -1522,52 +1306,39 @@ async fn test_composite_key_multi_field_resolution() {
         .expect("Should have user");
 
     let user_id = user.get("id").and_then(|id| id.as_str()).expect("Should have ID");
-    let user_identifier = user.get("identifier").and_then(|id| id.as_str()).expect("Should have identifier");
+    let user_identifier = user
+        .get("identifier")
+        .and_then(|id| id.as_str())
+        .expect("Should have identifier");
 
-    println!(
-        "User composite fields: id={}, identifier={}",
-        user_id, user_identifier
-    );
+    println!("User composite fields: id={}, identifier={}", user_id, user_identifier);
 
     // In a true composite key scenario, we would query with both fields:
     // query { user(id: "<id>", tenant: "<tenant>") { ... } }
     // For now, test single field resolution as infrastructure baseline
 
-    let query = format!(
-        r#"query {{ user(id: "{}") {{ id identifier }} }}"#,
-        user_id
-    );
+    let query = format!(r#"query {{ user(id: "{}") {{ id identifier }} }}"#, user_id);
 
-    let response = graphql_query(ORDERS_SUBGRAPH_URL, &query)
-        .await
-        .expect("Query should succeed");
+    let response = graphql_query(ORDERS_SUBGRAPH_URL, &query).await.expect("Query should succeed");
 
     if !has_errors(&response) {
         println!("✓ Multi-field composite key infrastructure validated");
     } else {
-        eprintln!(
-            "! Multi-field key resolution error: {}",
-            get_error_messages(&response)
-        );
+        eprintln!("! Multi-field key resolution error: {}", get_error_messages(&response));
     }
 }
 
 #[tokio::test]
 #[ignore]
 async fn test_tenant_isolation_with_composite_keys() {
-    setup_federation_tests()
-        .await
-        .expect("Setup should succeed");
+    setup_federation_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Tenant isolation with composite keys ---");
 
     // Get users from database
-    let users_response = graphql_query(
-        USERS_SUBGRAPH_URL,
-        r#"query { users { id identifier } }"#,
-    )
-    .await
-    .expect("Query should succeed");
+    let users_response = graphql_query(USERS_SUBGRAPH_URL, r#"query { users { id identifier } }"#)
+        .await
+        .expect("Query should succeed");
 
     let users = extract_data(&users_response)
         .and_then(|d| d.get("users"))
@@ -1580,10 +1351,7 @@ async fn test_tenant_isolation_with_composite_keys() {
     // - Cross-tenant queries should fail or return null
 
     println!("✓ Tenant isolation model: Composite key includes tenant_id");
-    println!(
-        "✓ Infrastructure supports {} users (data isolation ready)",
-        users.len()
-    );
+    println!("✓ Infrastructure supports {} users (data isolation ready)", users.len());
 
     // Verify all users have consistent data structure
     let all_have_id = users.iter().all(|u| u.get("id").is_some());
@@ -1598,19 +1366,15 @@ async fn test_tenant_isolation_with_composite_keys() {
 #[tokio::test]
 #[ignore]
 async fn test_composite_key_entity_batch_resolution() {
-    setup_federation_tests()
-        .await
-        .expect("Setup should succeed");
+    setup_federation_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Batch entity resolution with composite keys ---");
 
     // Get multiple users (simulating composite key batch)
-    let users_response = graphql_query(
-        USERS_SUBGRAPH_URL,
-        r#"query { users(limit: 5) { id identifier } }"#,
-    )
-    .await
-    .expect("Query should succeed");
+    let users_response =
+        graphql_query(USERS_SUBGRAPH_URL, r#"query { users(limit: 5) { id identifier } }"#)
+            .await
+            .expect("Query should succeed");
 
     let users = extract_data(&users_response)
         .and_then(|d| d.get("users"))
@@ -1621,26 +1385,16 @@ async fn test_composite_key_entity_batch_resolution() {
 
     // In federation, batch entity resolution means resolving multiple entities
     // with the same composite key structure in one query
-    let user_ids: Vec<&str> = users
-        .iter()
-        .filter_map(|u| u.get("id")?.as_str())
-        .collect();
+    let user_ids: Vec<&str> = users.iter().filter_map(|u| u.get("id")?.as_str()).collect();
 
-    println!(
-        "✓ Batch resolution ready for {} users with composite keys",
-        user_ids.len()
-    );
+    println!("✓ Batch resolution ready for {} users with composite keys", user_ids.len());
 
     // Test resolving first user from orders subgraph (extended type)
     if let Some(first_id) = user_ids.first() {
-        let query = format!(
-            r#"query {{ user(id: "{}") {{ id identifier }} }}"#,
-            first_id
-        );
+        let query = format!(r#"query {{ user(id: "{}") {{ id identifier }} }}"#, first_id);
 
-        let response = graphql_query(ORDERS_SUBGRAPH_URL, &query)
-            .await
-            .expect("Query should succeed");
+        let response =
+            graphql_query(ORDERS_SUBGRAPH_URL, &query).await.expect("Query should succeed");
 
         if !has_errors(&response) {
             println!("✓ Individual batch entity resolution works");
@@ -1651,9 +1405,7 @@ async fn test_composite_key_entity_batch_resolution() {
 #[tokio::test]
 #[ignore]
 async fn test_composite_key_mutation_with_isolation() {
-    setup_federation_tests()
-        .await
-        .expect("Setup should succeed");
+    setup_federation_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Mutation with composite key tenant isolation ---");
 
@@ -1682,10 +1434,7 @@ async fn test_composite_key_mutation_with_isolation() {
 
         let user_id = user.get("id").and_then(|id| id.as_str()).expect("Should have ID");
 
-        println!(
-            "✓ Created user with composite key structure: {}",
-            user_id
-        );
+        println!("✓ Created user with composite key structure: {}", user_id);
 
         // Verify user is isolated and only accessible with correct tenant context
         // In real multi-tenant system:
@@ -1694,49 +1443,38 @@ async fn test_composite_key_mutation_with_isolation() {
         // - Cross-tenant access is prevented
 
         // For MVP, just verify user can be retrieved
-        let query = format!(
-            r#"query {{ user(id: "{}") {{ id identifier }} }}"#,
-            user_id
-        );
+        let query = format!(r#"query {{ user(id: "{}") {{ id identifier }} }}"#, user_id);
 
-        let verify_response = graphql_query(USERS_SUBGRAPH_URL, &query)
-            .await
-            .expect("Query should succeed");
+        let verify_response =
+            graphql_query(USERS_SUBGRAPH_URL, &query).await.expect("Query should succeed");
 
         if !has_errors(&verify_response) {
             let verified = extract_data(&verify_response)
                 .and_then(|d| d.get("user"))
                 .expect("Should return user");
 
-            let verified_id = verified.get("id").and_then(|id| id.as_str()).expect("Should have ID");
+            let verified_id =
+                verified.get("id").and_then(|id| id.as_str()).expect("Should have ID");
             assert_eq!(verified_id, user_id, "IDs should match");
 
             println!("✓ Mutation with composite key isolation validated");
         }
     } else {
-        eprintln!(
-            "! User creation failed: {}",
-            get_error_messages(&response)
-        );
+        eprintln!("! User creation failed: {}", get_error_messages(&response));
     }
 }
 
 #[tokio::test]
 #[ignore]
 async fn test_composite_key_federation_across_boundaries() {
-    setup_federation_tests()
-        .await
-        .expect("Setup should succeed");
+    setup_federation_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Composite key federation across subgraph boundaries ---");
 
     // Create an order that references a user via composite key
-    let users_response = graphql_query(
-        USERS_SUBGRAPH_URL,
-        r#"query { users(limit: 1) { id } }"#,
-    )
-    .await
-    .expect("Query should succeed");
+    let users_response = graphql_query(USERS_SUBGRAPH_URL, r#"query { users(limit: 1) { id } }"#)
+        .await
+        .expect("Query should succeed");
 
     let user_id = extract_data(&users_response)
         .and_then(|d| d.get("users"))
@@ -1778,10 +1516,7 @@ async fn test_composite_key_federation_across_boundaries() {
 
         let order_id = order.get("id").and_then(|id| id.as_str()).expect("Should have ID");
 
-        println!(
-            "✓ Order created with composite key federation: {}",
-            order_id
-        );
+        println!("✓ Order created with composite key federation: {}", order_id);
 
         // Verify user was resolved via composite key
         if let Some(user) = order.get("user") {
@@ -1791,19 +1526,14 @@ async fn test_composite_key_federation_across_boundaries() {
             }
         }
     } else {
-        eprintln!(
-            "! Order creation failed: {}",
-            get_error_messages(&response)
-        );
+        eprintln!("! Order creation failed: {}", get_error_messages(&response));
     }
 }
 
 #[tokio::test]
 #[ignore]
 async fn test_composite_key_gateway_resolution() {
-    setup_federation_tests()
-        .await
-        .expect("Setup should succeed");
+    setup_federation_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Composite key resolution through gateway ---");
 
@@ -1825,9 +1555,7 @@ async fn test_composite_key_gateway_resolution() {
         }
     "#;
 
-    let response = graphql_query(APOLLO_GATEWAY_URL, query)
-        .await
-        .expect("Query should succeed");
+    let response = graphql_query(APOLLO_GATEWAY_URL, query).await.expect("Query should succeed");
 
     if !has_errors(&response) {
         let users = extract_data(&response)
@@ -1835,10 +1563,7 @@ async fn test_composite_key_gateway_resolution() {
             .and_then(|u| u.as_array())
             .expect("Should return users");
 
-        println!(
-            "✓ Gateway resolved {} users with composite key federation",
-            users.len()
-        );
+        println!("✓ Gateway resolved {} users with composite key federation", users.len());
 
         // Verify composite key consistency across resolution layers
         for user in users {
@@ -1861,19 +1586,14 @@ async fn test_composite_key_gateway_resolution() {
 
         println!("✓ Composite key consistency verified through gateway");
     } else {
-        eprintln!(
-            "! Gateway query error: {}",
-            get_error_messages(&response)
-        );
+        eprintln!("! Gateway query error: {}", get_error_messages(&response));
     }
 }
 
 #[tokio::test]
 #[ignore]
 async fn test_composite_key_performance() {
-    setup_federation_tests()
-        .await
-        .expect("Setup should succeed");
+    setup_federation_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Composite key resolution performance ---");
 
@@ -1897,9 +1617,7 @@ async fn test_composite_key_performance() {
         }
     "#;
 
-    let response = graphql_query(APOLLO_GATEWAY_URL, query)
-        .await
-        .expect("Query should succeed");
+    let response = graphql_query(APOLLO_GATEWAY_URL, query).await.expect("Query should succeed");
 
     let elapsed = start.elapsed();
 
@@ -1910,22 +1628,12 @@ async fn test_composite_key_performance() {
             .map(|arr| arr.len())
             .unwrap_or(0);
 
-        println!(
-            "✓ Composite key resolution for {} users: {:.0}ms",
-            users,
-            elapsed.as_millis()
-        );
+        println!("✓ Composite key resolution for {} users: {:.0}ms", users, elapsed.as_millis());
 
         // Performance should scale well with composite keys
-        assert!(
-            elapsed.as_millis() < 5000,
-            "Composite key resolution should be performant"
-        );
+        assert!(elapsed.as_millis() < 5000, "Composite key resolution should be performant");
     } else {
-        eprintln!(
-            "! Query error: {}",
-            get_error_messages(&response)
-        );
+        eprintln!("! Query error: {}", get_error_messages(&response));
     }
 }
 
@@ -1981,9 +1689,7 @@ async fn test_three_subgraph_setup_validation() {
 #[tokio::test]
 #[ignore]
 async fn test_three_subgraph_direct_queries() {
-    setup_three_subgraph_tests()
-        .await
-        .expect("Setup should succeed");
+    setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Direct queries to products subgraph ---");
 
@@ -1997,9 +1703,7 @@ async fn test_three_subgraph_direct_queries() {
         }
     "#;
 
-    let response = graphql_query(PRODUCTS_SUBGRAPH_URL, query)
-        .await
-        .expect("Query should succeed");
+    let response = graphql_query(PRODUCTS_SUBGRAPH_URL, query).await.expect("Query should succeed");
 
     assert!(
         !has_errors(&response),
@@ -2019,9 +1723,7 @@ async fn test_three_subgraph_direct_queries() {
 #[tokio::test]
 #[ignore]
 async fn test_three_subgraph_order_with_products() {
-    setup_three_subgraph_tests()
-        .await
-        .expect("Setup should succeed");
+    setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Orders with products field (2-hop) ---");
 
@@ -2039,9 +1741,7 @@ async fn test_three_subgraph_order_with_products() {
         }
     "#;
 
-    let response = graphql_query(APOLLO_GATEWAY_URL, query)
-        .await
-        .expect("Query should succeed");
+    let response = graphql_query(APOLLO_GATEWAY_URL, query).await.expect("Query should succeed");
 
     assert!(
         !has_errors(&response),
@@ -2060,9 +1760,7 @@ async fn test_three_subgraph_order_with_products() {
 #[tokio::test]
 #[ignore]
 async fn test_three_subgraph_federation_users_orders_products() {
-    setup_three_subgraph_tests()
-        .await
-        .expect("Setup should succeed");
+    setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: 3-hop federation query (users → orders → products) ---");
 
@@ -2085,9 +1783,7 @@ async fn test_three_subgraph_federation_users_orders_products() {
     "#;
 
     let start = std::time::Instant::now();
-    let response = graphql_query(APOLLO_GATEWAY_URL, query)
-        .await
-        .expect("Query should succeed");
+    let response = graphql_query(APOLLO_GATEWAY_URL, query).await.expect("Query should succeed");
     let elapsed = start.elapsed();
 
     assert!(
@@ -2125,19 +1821,14 @@ async fn test_three_subgraph_federation_users_orders_products() {
 #[tokio::test]
 #[ignore]
 async fn test_three_subgraph_entity_resolution_chain() {
-    setup_three_subgraph_tests()
-        .await
-        .expect("Setup should succeed");
+    setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Entity resolution chain across 3 subgraphs ---");
 
     // Step 1: Get a user from users subgraph
-    let users_response = graphql_query(
-        USERS_SUBGRAPH_URL,
-        "query { users(limit: 1) { id } }",
-    )
-    .await
-    .expect("Should get user");
+    let users_response = graphql_query(USERS_SUBGRAPH_URL, "query { users(limit: 1) { id } }")
+        .await
+        .expect("Should get user");
 
     let user_id = extract_data(&users_response)
         .and_then(|d| d.get("users"))
@@ -2151,9 +1842,7 @@ async fn test_three_subgraph_entity_resolution_chain() {
 
     if let Some(uid) = user_id {
         // Step 2: Get orders for that user
-        let orders_query = format!(
-            r#"query {{ users(limit: 1) {{ orders {{ id status }} }} }}"#
-        );
+        let orders_query = format!(r#"query {{ users(limit: 1) {{ orders {{ id status }} }} }}"#);
 
         let orders_response = graphql_query(APOLLO_GATEWAY_URL, &orders_query)
             .await
@@ -2198,10 +1887,7 @@ async fn test_three_subgraph_entity_resolution_chain() {
             .map(|o| o.get("products").is_some())
             .unwrap_or(false);
 
-        println!(
-            "✓ Entity resolution chain: users → orders → products (user_id: {})",
-            uid
-        );
+        println!("✓ Entity resolution chain: users → orders → products (user_id: {})", uid);
         assert!(has_products, "Should resolve products through the chain");
     }
 }
@@ -2209,9 +1895,7 @@ async fn test_three_subgraph_entity_resolution_chain() {
 #[tokio::test]
 #[ignore]
 async fn test_three_subgraph_cross_boundary_federation() {
-    setup_three_subgraph_tests()
-        .await
-        .expect("Setup should succeed");
+    setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Cross-boundary federation (multi-level extends) ---");
 
@@ -2225,9 +1909,7 @@ async fn test_three_subgraph_cross_boundary_federation() {
         }
     "#;
 
-    let response = graphql_query(APOLLO_GATEWAY_URL, query)
-        .await
-        .expect("Query should succeed");
+    let response = graphql_query(APOLLO_GATEWAY_URL, query).await.expect("Query should succeed");
 
     assert!(
         !has_errors(&response),
@@ -2240,19 +1922,14 @@ async fn test_three_subgraph_cross_boundary_federation() {
         .and_then(|p| p.as_array())
         .expect("Should return products");
 
-    println!(
-        "✓ Cross-boundary federation returned {} products",
-        products.len()
-    );
+    println!("✓ Cross-boundary federation returned {} products", products.len());
     assert!(!products.is_empty(), "Should have products");
 }
 
 #[tokio::test]
 #[ignore]
 async fn test_three_subgraph_mutation_propagation() {
-    setup_three_subgraph_tests()
-        .await
-        .expect("Setup should succeed");
+    setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Mutation propagation across 3 subgraphs ---");
 
@@ -2267,9 +1944,7 @@ async fn test_three_subgraph_mutation_propagation() {
         }
     "#;
 
-    let response = graphql_query(APOLLO_GATEWAY_URL, query)
-        .await
-        .expect("Query should succeed");
+    let response = graphql_query(APOLLO_GATEWAY_URL, query).await.expect("Query should succeed");
 
     assert!(
         !has_errors(&response),
@@ -2283,9 +1958,7 @@ async fn test_three_subgraph_mutation_propagation() {
 #[tokio::test]
 #[ignore]
 async fn test_three_subgraph_batch_entity_resolution() {
-    setup_three_subgraph_tests()
-        .await
-        .expect("Setup should succeed");
+    setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Batch entity resolution at scale ---");
 
@@ -2308,9 +1981,7 @@ async fn test_three_subgraph_batch_entity_resolution() {
     "#;
 
     let start = std::time::Instant::now();
-    let response = graphql_query(APOLLO_GATEWAY_URL, query)
-        .await
-        .expect("Query should succeed");
+    let response = graphql_query(APOLLO_GATEWAY_URL, query).await.expect("Query should succeed");
     let elapsed = start.elapsed();
 
     assert!(
@@ -2335,9 +2006,7 @@ async fn test_three_subgraph_batch_entity_resolution() {
 #[tokio::test]
 #[ignore]
 async fn test_three_subgraph_gateway_composition() {
-    setup_three_subgraph_tests()
-        .await
-        .expect("Setup should succeed");
+    setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Apollo Router gateway composition ---");
 
@@ -2369,10 +2038,7 @@ async fn test_three_subgraph_gateway_composition() {
         .map(|arr| arr.len())
         .unwrap_or(0);
 
-    println!(
-        "✓ Apollo Router successfully composed schema with {} types",
-        types
-    );
+    println!("✓ Apollo Router successfully composed schema with {} types", types);
     assert!(types > 0, "Schema should have types");
 
     // Verify key federation types are present
@@ -2396,9 +2062,7 @@ async fn test_three_subgraph_gateway_composition() {
 #[tokio::test]
 #[ignore]
 async fn test_three_subgraph_performance() {
-    setup_three_subgraph_tests()
-        .await
-        .expect("Setup should succeed");
+    setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: 3-hop federation performance ---");
 
@@ -2425,9 +2089,7 @@ async fn test_three_subgraph_performance() {
 
     // Timed measurement
     let start = std::time::Instant::now();
-    let response = graphql_query(APOLLO_GATEWAY_URL, query)
-        .await
-        .expect("Query should succeed");
+    let response = graphql_query(APOLLO_GATEWAY_URL, query).await.expect("Query should succeed");
     let elapsed = start.elapsed();
 
     assert!(
@@ -2463,9 +2125,7 @@ async fn test_three_subgraph_performance() {
 #[tokio::test]
 #[ignore]
 async fn test_apollo_router_discovers_subgraphs() {
-    setup_three_subgraph_tests()
-        .await
-        .expect("Setup should succeed");
+    setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Apollo Router discovers all 3 subgraphs ---");
 
@@ -2506,12 +2166,12 @@ async fn test_apollo_router_discovers_subgraphs() {
     // Verify key types from each subgraph
     assert!(type_names.contains(&"User".to_string()), "User type from users subgraph");
     assert!(type_names.contains(&"Order".to_string()), "Order type from orders subgraph");
-    assert!(type_names.contains(&"Product".to_string()), "Product type from products subgraph");
-
-    println!(
-        "✓ Apollo Router discovered all 3 subgraphs ({} total types)",
-        type_names.len()
+    assert!(
+        type_names.contains(&"Product".to_string()),
+        "Product type from products subgraph"
     );
+
+    println!("✓ Apollo Router discovered all 3 subgraphs ({} total types)", type_names.len());
     println!("  - User type (users subgraph)");
     println!("  - Order type (orders subgraph)");
     println!("  - Product type (products subgraph)");
@@ -2520,9 +2180,7 @@ async fn test_apollo_router_discovers_subgraphs() {
 #[tokio::test]
 #[ignore]
 async fn test_apollo_router_schema_composition() {
-    setup_three_subgraph_tests()
-        .await
-        .expect("Setup should succeed");
+    setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Apollo Router schema composition ---");
 
@@ -2569,10 +2227,7 @@ async fn test_apollo_router_schema_composition() {
         })
         .unwrap_or_default();
 
-    println!(
-        "✓ Apollo Router composed schema with Query type: {}",
-        query_type
-    );
+    println!("✓ Apollo Router composed schema with Query type: {}", query_type);
     println!("  Root fields: {}", root_fields.join(", "));
 
     // Verify key queries are present
@@ -2584,9 +2239,7 @@ async fn test_apollo_router_schema_composition() {
 #[tokio::test]
 #[ignore]
 async fn test_apollo_router_sdl_completeness() {
-    setup_three_subgraph_tests()
-        .await
-        .expect("Setup should succeed");
+    setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Apollo Router SDL completeness ---");
 
@@ -2632,9 +2285,7 @@ async fn test_apollo_router_sdl_completeness() {
         .map(|arr| arr.len())
         .unwrap_or(0);
 
-    println!(
-        "✓ Apollo Router SDL completeness verified"
-    );
+    println!("✓ Apollo Router SDL completeness verified");
     println!("  - Query type present: {}", has_query_type);
     println!("  - Total types in schema: {}", types_count);
 
@@ -2645,9 +2296,7 @@ async fn test_apollo_router_sdl_completeness() {
 #[tokio::test]
 #[ignore]
 async fn test_apollo_router_federation_directives() {
-    setup_three_subgraph_tests()
-        .await
-        .expect("Setup should succeed");
+    setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Apollo Router federation directives ---");
 
@@ -2684,9 +2333,7 @@ async fn test_apollo_router_federation_directives() {
         })
         .unwrap_or_default();
 
-    println!(
-        "✓ Apollo Router federation directives verified"
-    );
+    println!("✓ Apollo Router federation directives verified");
     println!("  Available directives: {}", directive_names.join(", "));
 
     // Verify standard federation and GraphQL directives
@@ -2700,9 +2347,7 @@ async fn test_apollo_router_federation_directives() {
 #[tokio::test]
 #[ignore]
 async fn test_apollo_router_query_routing() {
-    setup_three_subgraph_tests()
-        .await
-        .expect("Setup should succeed");
+    setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Apollo Router query routing ---");
 
@@ -2776,9 +2421,7 @@ async fn test_apollo_router_query_routing() {
 #[tokio::test]
 #[ignore]
 async fn test_apollo_router_error_handling() {
-    setup_three_subgraph_tests()
-        .await
-        .expect("Setup should succeed");
+    setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Apollo Router error handling ---");
 
@@ -2799,7 +2442,11 @@ async fn test_apollo_router_error_handling() {
     let has_error = has_errors(&invalid_response);
     println!(
         "✓ Apollo Router error handling for invalid field: {}",
-        if has_error { "✓ (errors present)" } else { "✗ (no errors)" }
+        if has_error {
+            "✓ (errors present)"
+        } else {
+            "✗ (no errors)"
+        }
     );
 
     // Test query to non-existent root field
@@ -2818,7 +2465,11 @@ async fn test_apollo_router_error_handling() {
     let has_nonexistent_error = has_errors(&nonexistent_response);
     println!(
         "✓ Apollo Router error handling for non-existent field: {}",
-        if has_nonexistent_error { "✓ (errors present)" } else { "✗ (no errors)" }
+        if has_nonexistent_error {
+            "✓ (errors present)"
+        } else {
+            "✗ (no errors)"
+        }
     );
 
     // Test malformed query
@@ -2831,7 +2482,11 @@ async fn test_apollo_router_error_handling() {
     let has_malformed_error = has_errors(&malformed_response);
     println!(
         "✓ Apollo Router error handling for malformed query: {}",
-        if has_malformed_error { "✓ (errors present)" } else { "✗ (no errors)" }
+        if has_malformed_error {
+            "✓ (errors present)"
+        } else {
+            "✗ (no errors)"
+        }
     );
 
     println!("\n✓ Apollo Router error handling comprehensive validation complete");
@@ -2844,9 +2499,7 @@ async fn test_apollo_router_error_handling() {
 #[tokio::test]
 #[ignore]
 async fn test_federation_query_performance_baseline() {
-    setup_three_subgraph_tests()
-        .await
-        .expect("Setup should succeed");
+    setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Federation query performance baseline ---");
 
@@ -2874,9 +2527,7 @@ async fn test_federation_query_performance_baseline() {
 
     // Baseline measurement (first execution)
     let start = std::time::Instant::now();
-    let response1 = graphql_query(APOLLO_GATEWAY_URL, query)
-        .await
-        .expect("Query should succeed");
+    let response1 = graphql_query(APOLLO_GATEWAY_URL, query).await.expect("Query should succeed");
     let baseline_latency = start.elapsed();
 
     assert!(
@@ -2892,15 +2543,10 @@ async fn test_federation_query_performance_baseline() {
 
     // Second execution should have similar latency (no cache benefit expected at gateway level)
     let start = std::time::Instant::now();
-    let response2 = graphql_query(APOLLO_GATEWAY_URL, query)
-        .await
-        .expect("Query should succeed");
+    let response2 = graphql_query(APOLLO_GATEWAY_URL, query).await.expect("Query should succeed");
     let second_latency = start.elapsed();
 
-    assert!(
-        !has_errors(&response2),
-        "Repeated query should not have errors"
-    );
+    assert!(!has_errors(&response2), "Repeated query should not have errors");
 
     println!(
         "✓ Second execution latency: {:.0}ms (expected: similar to baseline)",
@@ -2911,10 +2557,7 @@ async fn test_federation_query_performance_baseline() {
     let data1 = extract_data(&response1).cloned().unwrap_or_default();
     let data2 = extract_data(&response2).cloned().unwrap_or_default();
 
-    assert_eq!(
-        data1, data2,
-        "Multiple executions should return same data"
-    );
+    assert_eq!(data1, data2, "Multiple executions should return same data");
 
     println!("✓ Baseline performance established for optimization comparison");
 }
@@ -2922,9 +2565,7 @@ async fn test_federation_query_performance_baseline() {
 #[tokio::test]
 #[ignore]
 async fn test_federation_repeated_query_performance() {
-    setup_three_subgraph_tests()
-        .await
-        .expect("Setup should succeed");
+    setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Repeated federation query performance ---");
 
@@ -2967,21 +2608,10 @@ async fn test_federation_repeated_query_performance() {
 
     assert!(!has_errors(&response1) && !has_errors(&response2) && !has_errors(&response3));
 
-    println!(
-        "✓ Repeated query latency analysis:"
-    );
-    println!(
-        "  1st execution: {:.0}ms",
-        first_latency.as_millis()
-    );
-    println!(
-        "  2nd execution: {:.0}ms",
-        second_latency.as_millis()
-    );
-    println!(
-        "  3rd execution: {:.0}ms",
-        third_latency.as_millis()
-    );
+    println!("✓ Repeated query latency analysis:");
+    println!("  1st execution: {:.0}ms", first_latency.as_millis());
+    println!("  2nd execution: {:.0}ms", second_latency.as_millis());
+    println!("  3rd execution: {:.0}ms", third_latency.as_millis());
 
     // All executions should have consistent performance
     // (with connection pooling, later executions should be similar)
@@ -2991,9 +2621,7 @@ async fn test_federation_repeated_query_performance() {
 #[tokio::test]
 #[ignore]
 async fn test_federation_batch_vs_sequential_performance() {
-    setup_three_subgraph_tests()
-        .await
-        .expect("Setup should succeed");
+    setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Batch vs sequential entity resolution performance ---");
 
@@ -3050,21 +2678,10 @@ async fn test_federation_batch_vs_sequential_performance() {
         .map(|arr| arr.len())
         .unwrap_or(0);
 
-    println!(
-        "✓ Batch entity resolution performance:"
-    );
-    println!(
-        "  Batch query (10 users): {:.0}ms",
-        batch_latency.as_millis()
-    );
-    println!(
-        "  Sequential (3×1 user): {:.0}ms",
-        sequential_latency.as_millis()
-    );
-    println!(
-        "  Users fetched: {}",
-        batch_users
-    );
+    println!("✓ Batch entity resolution performance:");
+    println!("  Batch query (10 users): {:.0}ms", batch_latency.as_millis());
+    println!("  Sequential (3×1 user): {:.0}ms", sequential_latency.as_millis());
+    println!("  Users fetched: {}", batch_users);
     println!(
         "✓ Batch efficiency: {} ms per user",
         (batch_latency.as_millis() as f64) / (batch_users as f64)
@@ -3080,9 +2697,7 @@ async fn test_federation_batch_vs_sequential_performance() {
 #[tokio::test]
 #[ignore]
 async fn test_federation_large_result_set_performance() {
-    setup_three_subgraph_tests()
-        .await
-        .expect("Setup should succeed");
+    setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Large result set federation performance ---");
 
@@ -3135,39 +2750,23 @@ async fn test_federation_large_result_set_performance() {
         })
         .unwrap_or(0);
 
-    println!(
-        "✓ Large result set performance:"
-    );
-    println!(
-        "  Query latency: {:.0}ms",
-        latency.as_millis()
-    );
-    println!(
-        "  Users returned: {}",
-        users
-    );
-    println!(
-        "  Total orders: {}",
-        total_orders
-    );
+    println!("✓ Large result set performance:");
+    println!("  Query latency: {:.0}ms", latency.as_millis());
+    println!("  Users returned: {}", users);
+    println!("  Total orders: {}", total_orders);
     println!(
         "  Throughput: {:.0} items/sec",
         ((users + total_orders) as f64 / latency.as_secs_f64())
     );
 
     // Ensure it completes in reasonable time
-    assert!(
-        latency.as_secs() < 10,
-        "Large query should complete in <10s"
-    );
+    assert!(latency.as_secs() < 10, "Large query should complete in <10s");
 }
 
 #[tokio::test]
 #[ignore]
 async fn test_federation_query_complexity_scaling() {
-    setup_three_subgraph_tests()
-        .await
-        .expect("Setup should succeed");
+    setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Federation query complexity scaling ---");
 
@@ -3220,17 +2819,9 @@ async fn test_federation_query_complexity_scaling() {
 
     assert!(!has_errors(&simple_response) && !has_errors(&complex_response));
 
-    println!(
-        "✓ Query complexity scaling:"
-    );
-    println!(
-        "  Simple (2-hop, 2 fields): {:.0}ms",
-        simple_latency.as_millis()
-    );
-    println!(
-        "  Complex (3-hop, 5 fields): {:.0}ms",
-        complex_latency.as_millis()
-    );
+    println!("✓ Query complexity scaling:");
+    println!("  Simple (2-hop, 2 fields): {:.0}ms", simple_latency.as_millis());
+    println!("  Complex (3-hop, 5 fields): {:.0}ms", complex_latency.as_millis());
     println!(
         "  Complexity overhead: {:.0}%",
         ((complex_latency.as_millis() as f64 / simple_latency.as_millis() as f64) - 1.0) * 100.0
@@ -3242,9 +2833,7 @@ async fn test_federation_query_complexity_scaling() {
 #[tokio::test]
 #[ignore]
 async fn test_federation_concurrent_query_performance() {
-    setup_three_subgraph_tests()
-        .await
-        .expect("Setup should succeed");
+    setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Concurrent federation query performance ---");
 
@@ -3273,9 +2862,7 @@ async fn test_federation_concurrent_query_performance() {
 
     // Measure concurrent execution
     let start = std::time::Instant::now();
-    let futures: Vec<_> = (0..5)
-        .map(|_| graphql_query(APOLLO_GATEWAY_URL, query))
-        .collect();
+    let futures: Vec<_> = (0..5).map(|_| graphql_query(APOLLO_GATEWAY_URL, query)).collect();
 
     // Note: futures collected but not awaited concurrently (would need tokio::join_all)
     for future in futures {
@@ -3283,28 +2870,16 @@ async fn test_federation_concurrent_query_performance() {
     }
     let concurrent_time = start.elapsed();
 
-    println!(
-        "✓ Concurrent query performance:"
-    );
-    println!(
-        "  Sequential (5 queries): {:.0}ms",
-        sequential_time.as_millis()
-    );
-    println!(
-        "  Collected (5 queries): {:.0}ms",
-        concurrent_time.as_millis()
-    );
-    println!(
-        "✓ Connection pooling handling validated"
-    );
+    println!("✓ Concurrent query performance:");
+    println!("  Sequential (5 queries): {:.0}ms", sequential_time.as_millis());
+    println!("  Collected (5 queries): {:.0}ms", concurrent_time.as_millis());
+    println!("✓ Connection pooling handling validated");
 }
 
 #[tokio::test]
 #[ignore]
 async fn test_federation_mutation_impact_on_performance() {
-    setup_three_subgraph_tests()
-        .await
-        .expect("Setup should succeed");
+    setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Mutation impact on federation query performance ---");
 
@@ -3323,31 +2898,21 @@ async fn test_federation_mutation_impact_on_performance() {
     "#;
 
     let start = std::time::Instant::now();
-    let response_before = graphql_query(APOLLO_GATEWAY_URL, query)
-        .await
-        .expect("Query should succeed");
+    let response_before =
+        graphql_query(APOLLO_GATEWAY_URL, query).await.expect("Query should succeed");
     let latency_before = start.elapsed();
 
     assert!(!has_errors(&response_before), "Query should succeed");
 
     // Execute same query again
     let start = std::time::Instant::now();
-    let response_after = graphql_query(APOLLO_GATEWAY_URL, query)
-        .await
-        .expect("Query should succeed");
+    let response_after =
+        graphql_query(APOLLO_GATEWAY_URL, query).await.expect("Query should succeed");
     let latency_after = start.elapsed();
 
-    println!(
-        "✓ Query performance stability:"
-    );
-    println!(
-        "  First execution: {:.0}ms",
-        latency_before.as_millis()
-    );
-    println!(
-        "  Second execution: {:.0}ms",
-        latency_after.as_millis()
-    );
+    println!("✓ Query performance stability:");
+    println!("  First execution: {:.0}ms", latency_before.as_millis());
+    println!("  Second execution: {:.0}ms", latency_after.as_millis());
 
     // Verify results match
     let data_before = extract_data(&response_before).cloned().unwrap_or_default();
@@ -3361,9 +2926,7 @@ async fn test_federation_mutation_impact_on_performance() {
 #[tokio::test]
 #[ignore]
 async fn test_federation_different_query_patterns_performance() {
-    setup_three_subgraph_tests()
-        .await
-        .expect("Setup should succeed");
+    setup_three_subgraph_tests().await.expect("Setup should succeed");
 
     println!("\n--- Test: Different query patterns performance comparison ---");
 
@@ -3437,21 +3000,10 @@ async fn test_federation_different_query_patterns_performance() {
             && !has_errors(&deep_response)
     );
 
-    println!(
-        "✓ Query pattern performance:"
-    );
-    println!(
-        "  Filtered (basic): {:.0}ms",
-        filtered_latency.as_millis()
-    );
-    println!(
-        "  Expanded (2-hop): {:.0}ms",
-        expanded_latency.as_millis()
-    );
-    println!(
-        "  Deep (3-hop): {:.0}ms",
-        deep_latency.as_millis()
-    );
+    println!("✓ Query pattern performance:");
+    println!("  Filtered (basic): {:.0}ms", filtered_latency.as_millis());
+    println!("  Expanded (2-hop): {:.0}ms", expanded_latency.as_millis());
+    println!("  Deep (3-hop): {:.0}ms", deep_latency.as_millis());
 
     println!("✓ Pattern analysis: deeper nesting increases latency as expected");
 }

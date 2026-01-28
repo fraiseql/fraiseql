@@ -7,15 +7,22 @@
 //! - Mutation response formatting
 //! - Transaction handling and rollback
 
+use std::{collections::HashMap, sync::Arc};
+
 use async_trait::async_trait;
-use fraiseql_core::db::{traits::{DatabaseAdapter, DatabaseCapabilities}, types::{DatabaseType, PoolMetrics}, where_clause::WhereClause};
-use fraiseql_core::db::types::JsonbValue;
-use fraiseql_core::error::Result;
-use fraiseql_core::federation::mutation_executor::FederationMutationExecutor;
-use fraiseql_core::federation::types::{FederatedType, FederationMetadata, KeyDirective};
-use serde_json::{json, Value};
-use std::collections::HashMap;
-use std::sync::Arc;
+use fraiseql_core::{
+    db::{
+        traits::{DatabaseAdapter, DatabaseCapabilities},
+        types::{DatabaseType, JsonbValue, PoolMetrics},
+        where_clause::WhereClause,
+    },
+    error::Result,
+    federation::{
+        mutation_executor::FederationMutationExecutor,
+        types::{FederatedType, FederationMetadata, KeyDirective},
+    },
+};
+use serde_json::{Value, json};
 
 // ============================================================================
 // Mock Database Adapter for Mutation Testing
@@ -62,17 +69,14 @@ impl DatabaseAdapter for MockMutationDatabaseAdapter {
 
     fn pool_metrics(&self) -> PoolMetrics {
         PoolMetrics {
-            total_connections: 10,
-            idle_connections: 8,
+            total_connections:  10,
+            idle_connections:   8,
             active_connections: 2,
-            waiting_requests: 0,
+            waiting_requests:   0,
         }
     }
 
-    async fn execute_raw_query(
-        &self,
-        _sql: &str,
-    ) -> Result<Vec<HashMap<String, Value>>> {
+    async fn execute_raw_query(&self, _sql: &str) -> Result<Vec<HashMap<String, Value>>> {
         // Mock executes and returns empty (mutations don't return data in our mock)
         Ok(Vec::new())
     }
@@ -93,16 +97,16 @@ fn test_mutation_create_owned_entity() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "User".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["id".to_string()],
+        types:   vec![FederatedType {
+            name:             "User".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -114,9 +118,8 @@ fn test_mutation_create_owned_entity() {
 
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let executor = FederationMutationExecutor::new(mock_adapter, metadata);
-    let result = runtime.block_on(
-        executor.execute_local_mutation("User", "createUser", &variables)
-    );
+    let result =
+        runtime.block_on(executor.execute_local_mutation("User", "createUser", &variables));
 
     assert!(result.is_ok());
     let response = result.unwrap();
@@ -132,16 +135,16 @@ fn test_mutation_update_owned_entity() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "User".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["id".to_string()],
+        types:   vec![FederatedType {
+            name:             "User".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -153,9 +156,8 @@ fn test_mutation_update_owned_entity() {
 
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let executor = FederationMutationExecutor::new(mock_adapter, metadata);
-    let result = runtime.block_on(
-        executor.execute_local_mutation("User", "updateUser", &variables)
-    );
+    let result =
+        runtime.block_on(executor.execute_local_mutation("User", "updateUser", &variables));
 
     assert!(result.is_ok());
     let response = result.unwrap();
@@ -172,16 +174,16 @@ fn test_mutation_delete_owned_entity() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "User".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["id".to_string()],
+        types:   vec![FederatedType {
+            name:             "User".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -191,9 +193,8 @@ fn test_mutation_delete_owned_entity() {
 
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let executor = FederationMutationExecutor::new(mock_adapter, metadata);
-    let result = runtime.block_on(
-        executor.execute_local_mutation("User", "deleteUser", &variables)
-    );
+    let result =
+        runtime.block_on(executor.execute_local_mutation("User", "deleteUser", &variables));
 
     assert!(result.is_ok());
     let response = result.unwrap();
@@ -208,16 +209,16 @@ fn test_mutation_owned_entity_returns_updated_representation() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "Product".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["sku".to_string()],
+        types:   vec![FederatedType {
+            name:             "Product".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["sku".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -230,9 +231,8 @@ fn test_mutation_owned_entity_returns_updated_representation() {
 
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let executor = FederationMutationExecutor::new(mock_adapter, metadata);
-    let result = runtime.block_on(
-        executor.execute_local_mutation("Product", "updateProduct", &variables)
-    );
+    let result =
+        runtime.block_on(executor.execute_local_mutation("Product", "updateProduct", &variables));
 
     assert!(result.is_ok());
     let entity = result.unwrap();
@@ -251,16 +251,16 @@ fn test_mutation_owned_entity_batch_updates() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "User".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["id".to_string()],
+        types:   vec![FederatedType {
+            name:             "User".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -274,9 +274,8 @@ fn test_mutation_owned_entity_batch_updates() {
             "name": format!("User {}", i)
         });
 
-        let result = runtime.block_on(
-            executor.execute_local_mutation("User", "updateUser", &variables)
-        );
+        let result =
+            runtime.block_on(executor.execute_local_mutation("User", "updateUser", &variables));
 
         assert!(result.is_ok());
         let response = result.unwrap();
@@ -291,16 +290,16 @@ fn test_mutation_composite_key_update() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "Order".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["tenant_id".to_string(), "order_id".to_string()],
+        types:   vec![FederatedType {
+            name:             "Order".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["tenant_id".to_string(), "order_id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -312,9 +311,8 @@ fn test_mutation_composite_key_update() {
 
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let executor = FederationMutationExecutor::new(mock_adapter, metadata);
-    let result = runtime.block_on(
-        executor.execute_local_mutation("Order", "updateOrder", &variables)
-    );
+    let result =
+        runtime.block_on(executor.execute_local_mutation("Order", "updateOrder", &variables));
 
     assert!(result.is_ok());
     let response = result.unwrap();
@@ -331,16 +329,16 @@ fn test_mutation_with_validation_errors() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "User".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["id".to_string()],
+        types:   vec![FederatedType {
+            name:             "User".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -354,9 +352,8 @@ fn test_mutation_with_validation_errors() {
     let executor = FederationMutationExecutor::new(mock_adapter, metadata);
 
     // This should fail during query building
-    let result = runtime.block_on(
-        executor.execute_local_mutation("User", "updateUser", &variables)
-    );
+    let result =
+        runtime.block_on(executor.execute_local_mutation("User", "updateUser", &variables));
 
     // Error expected
     assert!(result.is_err());
@@ -369,16 +366,16 @@ fn test_mutation_constraint_violation() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "User".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["id".to_string()],
+        types:   vec![FederatedType {
+            name:             "User".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -391,9 +388,8 @@ fn test_mutation_constraint_violation() {
     let executor = FederationMutationExecutor::new(mock_adapter, metadata);
 
     // Execute mutation (constraint violation would occur at DB level)
-    let result = runtime.block_on(
-        executor.execute_local_mutation("User", "updateUser", &variables)
-    );
+    let result =
+        runtime.block_on(executor.execute_local_mutation("User", "updateUser", &variables));
 
     // Should succeed in building query, DB would handle constraint
     assert!(result.is_ok());
@@ -406,16 +402,16 @@ fn test_mutation_concurrent_updates() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "User".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["id".to_string()],
+        types:   vec![FederatedType {
+            name:             "User".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -430,9 +426,8 @@ fn test_mutation_concurrent_updates() {
         });
 
         let exec = executor.clone();
-        let result = runtime.block_on(
-            exec.execute_local_mutation("User", "updateUser", &variables)
-        );
+        let result =
+            runtime.block_on(exec.execute_local_mutation("User", "updateUser", &variables));
 
         assert!(result.is_ok());
     }
@@ -445,16 +440,16 @@ fn test_mutation_transaction_rollback() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "User".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["id".to_string()],
+        types:   vec![FederatedType {
+            name:             "User".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -466,9 +461,8 @@ fn test_mutation_transaction_rollback() {
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let executor = FederationMutationExecutor::new(mock_adapter, metadata);
 
-    let result = runtime.block_on(
-        executor.execute_local_mutation("User", "updateUser", &variables)
-    );
+    let result =
+        runtime.block_on(executor.execute_local_mutation("User", "updateUser", &variables));
 
     // In real scenario with DB transaction, would test rollback
     assert!(result.is_ok());
@@ -486,16 +480,16 @@ fn test_mutation_extended_entity_requires_resolution() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "Order".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["order_id".to_string()],
+        types:   vec![FederatedType {
+            name:             "Order".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["order_id".to_string()],
                 resolvable: true,
             }],
-            is_extends: true,  // Extended entity
-            external_fields: vec!["customer_id".to_string()],
+            is_extends:       true, // Extended entity
+            external_fields:  vec!["customer_id".to_string()],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -506,9 +500,8 @@ fn test_mutation_extended_entity_requires_resolution() {
 
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let executor = FederationMutationExecutor::new(mock_adapter, metadata);
-    let result = runtime.block_on(
-        executor.execute_extended_mutation("Order", "updateOrder", &variables)
-    );
+    let result =
+        runtime.block_on(executor.execute_extended_mutation("Order", "updateOrder", &variables));
 
     // Extended mutation returns entity representation
     assert!(result.is_ok());
@@ -524,16 +517,16 @@ fn test_mutation_extended_entity_propagates_to_owner() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "User".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["id".to_string()],
+        types:   vec![FederatedType {
+            name:             "User".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends: true,  // Extended in this subgraph
-            external_fields: vec!["email".to_string()],
+            is_extends:       true, // Extended in this subgraph
+            external_fields:  vec!["email".to_string()],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -544,9 +537,8 @@ fn test_mutation_extended_entity_propagates_to_owner() {
 
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let executor = FederationMutationExecutor::new(mock_adapter, metadata);
-    let result = runtime.block_on(
-        executor.execute_extended_mutation("User", "verifyUser", &variables)
-    );
+    let result =
+        runtime.block_on(executor.execute_extended_mutation("User", "verifyUser", &variables));
 
     assert!(result.is_ok());
     let response = result.unwrap();
@@ -561,16 +553,16 @@ fn test_mutation_extended_entity_partial_fields() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "Product".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["sku".to_string()],
+        types:   vec![FederatedType {
+            name:             "Product".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["sku".to_string()],
                 resolvable: true,
             }],
-            is_extends: true,
-            external_fields: vec![],
+            is_extends:       true,
+            external_fields:  vec![],
             shareable_fields: vec!["price".to_string()],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -581,9 +573,8 @@ fn test_mutation_extended_entity_partial_fields() {
 
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let executor = FederationMutationExecutor::new(mock_adapter, metadata);
-    let result = runtime.block_on(
-        executor.execute_extended_mutation("Product", "updatePrice", &variables)
-    );
+    let result =
+        runtime.block_on(executor.execute_extended_mutation("Product", "updatePrice", &variables));
 
     assert!(result.is_ok());
 }
@@ -596,16 +587,16 @@ fn test_mutation_extended_entity_cross_subgraph() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "Review".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["review_id".to_string()],
+        types:   vec![FederatedType {
+            name:             "Review".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["review_id".to_string()],
                 resolvable: true,
             }],
-            is_extends: true,
-            external_fields: vec!["product_id".to_string()],
+            is_extends:       true,
+            external_fields:  vec!["product_id".to_string()],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -616,9 +607,8 @@ fn test_mutation_extended_entity_cross_subgraph() {
 
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let executor = FederationMutationExecutor::new(mock_adapter, metadata);
-    let result = runtime.block_on(
-        executor.execute_extended_mutation("Review", "updateReview", &variables)
-    );
+    let result =
+        runtime.block_on(executor.execute_extended_mutation("Review", "updateReview", &variables));
 
     assert!(result.is_ok());
 }
@@ -631,16 +621,16 @@ fn test_mutation_extended_entity_with_external_fields() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "OrderItem".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["item_id".to_string()],
+        types:   vec![FederatedType {
+            name:             "OrderItem".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["item_id".to_string()],
                 resolvable: true,
             }],
-            is_extends: true,
-            external_fields: vec!["order_id".to_string(), "product_id".to_string()],
+            is_extends:       true,
+            external_fields:  vec!["order_id".to_string(), "product_id".to_string()],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -651,9 +641,11 @@ fn test_mutation_extended_entity_with_external_fields() {
 
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let executor = FederationMutationExecutor::new(mock_adapter, metadata);
-    let result = runtime.block_on(
-        executor.execute_extended_mutation("OrderItem", "updateQuantity", &variables)
-    );
+    let result = runtime.block_on(executor.execute_extended_mutation(
+        "OrderItem",
+        "updateQuantity",
+        &variables,
+    ));
 
     assert!(result.is_ok());
 }
@@ -666,16 +658,16 @@ fn test_mutation_extended_entity_reference_tracking() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "UserProfile".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["user_id".to_string()],
+        types:   vec![FederatedType {
+            name:             "UserProfile".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["user_id".to_string()],
                 resolvable: true,
             }],
-            is_extends: true,
-            external_fields: vec!["user_id".to_string()],
+            is_extends:       true,
+            external_fields:  vec!["user_id".to_string()],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -686,9 +678,11 @@ fn test_mutation_extended_entity_reference_tracking() {
 
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let executor = FederationMutationExecutor::new(mock_adapter, metadata);
-    let result = runtime.block_on(
-        executor.execute_extended_mutation("UserProfile", "updateProfile", &variables)
-    );
+    let result = runtime.block_on(executor.execute_extended_mutation(
+        "UserProfile",
+        "updateProfile",
+        &variables,
+    ));
 
     assert!(result.is_ok());
 }
@@ -701,16 +695,16 @@ fn test_mutation_extended_entity_cascade_updates() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "Organization".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["org_id".to_string()],
+        types:   vec![FederatedType {
+            name:             "Organization".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["org_id".to_string()],
                 resolvable: true,
             }],
-            is_extends: true,
-            external_fields: vec![],
+            is_extends:       true,
+            external_fields:  vec![],
             shareable_fields: vec!["name".to_string()],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -721,9 +715,11 @@ fn test_mutation_extended_entity_cascade_updates() {
 
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let executor = FederationMutationExecutor::new(mock_adapter, metadata);
-    let result = runtime.block_on(
-        executor.execute_extended_mutation("Organization", "updateOrganization", &variables)
-    );
+    let result = runtime.block_on(executor.execute_extended_mutation(
+        "Organization",
+        "updateOrganization",
+        &variables,
+    ));
 
     assert!(result.is_ok());
 }
@@ -736,16 +732,16 @@ fn test_mutation_extended_entity_conflict_resolution() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "SharedResource".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["resource_id".to_string()],
+        types:   vec![FederatedType {
+            name:             "SharedResource".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["resource_id".to_string()],
                 resolvable: true,
             }],
-            is_extends: true,
-            external_fields: vec![],
+            is_extends:       true,
+            external_fields:  vec![],
             shareable_fields: vec!["data".to_string()],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -757,9 +753,11 @@ fn test_mutation_extended_entity_conflict_resolution() {
 
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let executor = FederationMutationExecutor::new(mock_adapter, metadata);
-    let result = runtime.block_on(
-        executor.execute_extended_mutation("SharedResource", "updateResource", &variables)
-    );
+    let result = runtime.block_on(executor.execute_extended_mutation(
+        "SharedResource",
+        "updateResource",
+        &variables,
+    ));
 
     assert!(result.is_ok());
 }
@@ -930,26 +928,26 @@ fn test_mutation_coordinate_two_subgraph_updates() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![
+        types:   vec![
             FederatedType {
-                name: "Order".to_string(),
-                keys: vec![KeyDirective {
-                    fields: vec!["order_id".to_string()],
+                name:             "Order".to_string(),
+                keys:             vec![KeyDirective {
+                    fields:     vec!["order_id".to_string()],
                     resolvable: true,
                 }],
-                is_extends: false,
-                external_fields: vec![],
+                is_extends:       false,
+                external_fields:  vec![],
                 shareable_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
-                name: "OrderItem".to_string(),
-                keys: vec![KeyDirective {
-                    fields: vec!["item_id".to_string()],
+                name:             "OrderItem".to_string(),
+                keys:             vec![KeyDirective {
+                    fields:     vec!["item_id".to_string()],
                     resolvable: true,
                 }],
-                is_extends: true,
-                external_fields: vec![],
+                is_extends:       true,
+                external_fields:  vec![],
                 shareable_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
@@ -961,13 +959,18 @@ fn test_mutation_coordinate_two_subgraph_updates() {
     // Update order (subgraph 1)
     let order_vars = json!({"order_id": "order123", "status": "confirmed"});
     let executor1 = FederationMutationExecutor::new(mock_adapter.clone(), metadata.clone());
-    let result1 = runtime.block_on(executor1.execute_local_mutation("Order", "updateOrder", &order_vars));
+    let result1 =
+        runtime.block_on(executor1.execute_local_mutation("Order", "updateOrder", &order_vars));
     assert!(result1.is_ok());
 
     // Update order items (subgraph 2)
     let item_vars = json!({"item_id": "item1", "quantity": 2});
     let executor2 = FederationMutationExecutor::new(mock_adapter, metadata);
-    let result2 = runtime.block_on(executor2.execute_extended_mutation("OrderItem", "updateQuantity", &item_vars));
+    let result2 = runtime.block_on(executor2.execute_extended_mutation(
+        "OrderItem",
+        "updateQuantity",
+        &item_vars,
+    ));
     assert!(result2.is_ok());
 }
 
@@ -979,37 +982,37 @@ fn test_mutation_coordinate_three_subgraph_updates() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![
+        types:   vec![
             FederatedType {
-                name: "User".to_string(),
-                keys: vec![KeyDirective {
-                    fields: vec!["id".to_string()],
+                name:             "User".to_string(),
+                keys:             vec![KeyDirective {
+                    fields:     vec!["id".to_string()],
                     resolvable: true,
                 }],
-                is_extends: false,
-                external_fields: vec![],
+                is_extends:       false,
+                external_fields:  vec![],
                 shareable_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
-                name: "Order".to_string(),
-                keys: vec![KeyDirective {
-                    fields: vec!["order_id".to_string()],
+                name:             "Order".to_string(),
+                keys:             vec![KeyDirective {
+                    fields:     vec!["order_id".to_string()],
                     resolvable: true,
                 }],
-                is_extends: true,
-                external_fields: vec![],
+                is_extends:       true,
+                external_fields:  vec![],
                 shareable_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
-                name: "Payment".to_string(),
-                keys: vec![KeyDirective {
-                    fields: vec!["payment_id".to_string()],
+                name:             "Payment".to_string(),
+                keys:             vec![KeyDirective {
+                    fields:     vec!["payment_id".to_string()],
                     resolvable: true,
                 }],
-                is_extends: true,
-                external_fields: vec![],
+                is_extends:       true,
+                external_fields:  vec![],
                 shareable_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
@@ -1026,12 +1029,17 @@ fn test_mutation_coordinate_three_subgraph_updates() {
 
     // Update order in subgraph 2
     let order_vars = json!({"order_id": "order123", "status": "processing"});
-    let r2 = runtime.block_on(executor.execute_extended_mutation("Order", "updateOrder", &order_vars));
+    let r2 =
+        runtime.block_on(executor.execute_extended_mutation("Order", "updateOrder", &order_vars));
     assert!(r2.is_ok());
 
     // Update payment in subgraph 3
     let payment_vars = json!({"payment_id": "pay123", "status": "processed"});
-    let r3 = runtime.block_on(executor.execute_extended_mutation("Payment", "processPayment", &payment_vars));
+    let r3 = runtime.block_on(executor.execute_extended_mutation(
+        "Payment",
+        "processPayment",
+        &payment_vars,
+    ));
     assert!(r3.is_ok());
 }
 
@@ -1043,16 +1051,16 @@ fn test_mutation_reference_update_propagation() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "Review".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["review_id".to_string()],
+        types:   vec![FederatedType {
+            name:             "Review".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["review_id".to_string()],
                 resolvable: true,
             }],
-            is_extends: true,
-            external_fields: vec!["product_id".to_string()],
+            is_extends:       true,
+            external_fields:  vec!["product_id".to_string()],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1065,7 +1073,8 @@ fn test_mutation_reference_update_propagation() {
         "rating": 5
     });
 
-    let result = runtime.block_on(executor.execute_extended_mutation("Review", "updateReview", &variables));
+    let result =
+        runtime.block_on(executor.execute_extended_mutation("Review", "updateReview", &variables));
     assert!(result.is_ok());
 }
 
@@ -1077,26 +1086,26 @@ fn test_mutation_circular_reference_handling() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![
+        types:   vec![
             FederatedType {
-                name: "Author".to_string(),
-                keys: vec![KeyDirective {
-                    fields: vec!["author_id".to_string()],
+                name:             "Author".to_string(),
+                keys:             vec![KeyDirective {
+                    fields:     vec!["author_id".to_string()],
                     resolvable: true,
                 }],
-                is_extends: false,
-                external_fields: vec![],
+                is_extends:       false,
+                external_fields:  vec![],
                 shareable_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
-                name: "Book".to_string(),
-                keys: vec![KeyDirective {
-                    fields: vec!["book_id".to_string()],
+                name:             "Book".to_string(),
+                keys:             vec![KeyDirective {
+                    fields:     vec!["book_id".to_string()],
                     resolvable: true,
                 }],
-                is_extends: true,
-                external_fields: vec!["author_id".to_string()],
+                is_extends:       true,
+                external_fields:  vec!["author_id".to_string()],
                 shareable_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
@@ -1108,13 +1117,15 @@ fn test_mutation_circular_reference_handling() {
     // Update author
     let author_vars = json!({"author_id": "author1", "name": "Updated Author"});
     let executor = FederationMutationExecutor::new(mock_adapter.clone(), metadata.clone());
-    let r1 = runtime.block_on(executor.execute_local_mutation("Author", "updateAuthor", &author_vars));
+    let r1 =
+        runtime.block_on(executor.execute_local_mutation("Author", "updateAuthor", &author_vars));
     assert!(r1.is_ok());
 
     // Update book referencing author (circular)
     let book_vars = json!({"book_id": "book1", "author_id": "author1", "title": "Updated Book"});
     let executor2 = FederationMutationExecutor::new(mock_adapter, metadata);
-    let r2 = runtime.block_on(executor2.execute_extended_mutation("Book", "updateBook", &book_vars));
+    let r2 =
+        runtime.block_on(executor2.execute_extended_mutation("Book", "updateBook", &book_vars));
     assert!(r2.is_ok());
 }
 
@@ -1126,16 +1137,16 @@ fn test_mutation_multi_subgraph_transaction() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "Account".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["account_id".to_string()],
+        types:   vec![FederatedType {
+            name:             "Account".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["account_id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1147,7 +1158,8 @@ fn test_mutation_multi_subgraph_transaction() {
         "balance": 1000.00
     });
 
-    let result = runtime.block_on(executor.execute_local_mutation("Account", "updateAccount", &variables));
+    let result =
+        runtime.block_on(executor.execute_local_mutation("Account", "updateAccount", &variables));
     assert!(result.is_ok());
 }
 
@@ -1159,16 +1171,16 @@ fn test_mutation_subgraph_failure_rollback() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "Transaction".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["txn_id".to_string()],
+        types:   vec![FederatedType {
+            name:             "Transaction".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["txn_id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1180,7 +1192,11 @@ fn test_mutation_subgraph_failure_rollback() {
         "amount": 100.00
     });
 
-    let result = runtime.block_on(executor.execute_local_mutation("Transaction", "executeTransaction", &variables));
+    let result = runtime.block_on(executor.execute_local_mutation(
+        "Transaction",
+        "executeTransaction",
+        &variables,
+    ));
     assert!(result.is_ok());
 }
 
@@ -1192,16 +1208,16 @@ fn test_mutation_subgraph_timeout_handling() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "AsyncJob".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["job_id".to_string()],
+        types:   vec![FederatedType {
+            name:             "AsyncJob".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["job_id".to_string()],
                 resolvable: true,
             }],
-            is_extends: true,
-            external_fields: vec![],
+            is_extends:       true,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1213,7 +1229,8 @@ fn test_mutation_subgraph_timeout_handling() {
         "status": "processing"
     });
 
-    let result = runtime.block_on(executor.execute_extended_mutation("AsyncJob", "updateJob", &variables));
+    let result =
+        runtime.block_on(executor.execute_extended_mutation("AsyncJob", "updateJob", &variables));
     assert!(result.is_ok());
 }
 
@@ -1223,23 +1240,25 @@ fn test_mutation_subgraph_timeout_handling() {
 
 #[test]
 fn test_mutation_entity_not_found() {
-    use fraiseql_core::federation::mutation_query_builder::build_update_query;
-    use fraiseql_core::federation::types::{FederatedType, FederationMetadata, KeyDirective};
+    use fraiseql_core::federation::{
+        mutation_query_builder::build_update_query,
+        types::{FederatedType, FederationMetadata, KeyDirective},
+    };
     use serde_json::json;
 
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "User".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["id".to_string()],
+        types:   vec![FederatedType {
+            name:             "User".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1255,8 +1274,9 @@ fn test_mutation_entity_not_found() {
 
 #[test]
 fn test_mutation_invalid_field_value() {
-    use fraiseql_core::federation::mutation_query_builder::build_insert_query;
-    use fraiseql_core::federation::types::FederationMetadata;
+    use fraiseql_core::federation::{
+        mutation_query_builder::build_insert_query, types::FederationMetadata,
+    };
     use serde_json::json;
 
     let metadata = FederationMetadata::default();
@@ -1274,23 +1294,25 @@ fn test_mutation_invalid_field_value() {
 
 #[test]
 fn test_mutation_missing_required_fields() {
-    use fraiseql_core::federation::mutation_query_builder::build_update_query;
-    use fraiseql_core::federation::types::{FederatedType, FederationMetadata, KeyDirective};
+    use fraiseql_core::federation::{
+        mutation_query_builder::build_update_query,
+        types::{FederatedType, FederationMetadata, KeyDirective},
+    };
     use serde_json::json;
 
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "User".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["id".to_string()],
+        types:   vec![FederatedType {
+            name:             "User".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1311,16 +1333,16 @@ fn test_mutation_authorization_error() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "User".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["id".to_string()],
+        types:   vec![FederatedType {
+            name:             "User".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1333,9 +1355,8 @@ fn test_mutation_authorization_error() {
     let executor = FederationMutationExecutor::new(mock_adapter, metadata);
 
     // Execute mutation (authorization would be checked at application level)
-    let result = runtime.block_on(
-        executor.execute_local_mutation("User", "updateUser", &variables)
-    );
+    let result =
+        runtime.block_on(executor.execute_local_mutation("User", "updateUser", &variables));
 
     // Query builds successfully
     assert!(result.is_ok());
@@ -1348,16 +1369,16 @@ fn test_mutation_duplicate_key_error() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "User".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["id".to_string()],
+        types:   vec![FederatedType {
+            name:             "User".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1370,9 +1391,8 @@ fn test_mutation_duplicate_key_error() {
     let executor = FederationMutationExecutor::new(mock_adapter, metadata);
 
     // Execute mutation (duplicate key would be caught at DB level)
-    let result = runtime.block_on(
-        executor.execute_local_mutation("User", "updateUser", &variables)
-    );
+    let result =
+        runtime.block_on(executor.execute_local_mutation("User", "updateUser", &variables));
 
     // Query builds successfully
     assert!(result.is_ok());
@@ -1391,16 +1411,16 @@ fn test_mutation_latency_single_entity() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "User".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["id".to_string()],
+        types:   vec![FederatedType {
+            name:             "User".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1413,9 +1433,8 @@ fn test_mutation_latency_single_entity() {
     let executor = FederationMutationExecutor::new(mock_adapter, metadata);
 
     let start = Instant::now();
-    let _result = runtime.block_on(
-        executor.execute_local_mutation("User", "updateUser", &variables)
-    );
+    let _result =
+        runtime.block_on(executor.execute_local_mutation("User", "updateUser", &variables));
     let duration = start.elapsed();
 
     // Mock mutation should be very fast (<10ms)
@@ -1431,16 +1450,16 @@ fn test_mutation_latency_batch_updates() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "User".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["id".to_string()],
+        types:   vec![FederatedType {
+            name:             "User".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1456,9 +1475,8 @@ fn test_mutation_latency_batch_updates() {
             "name": format!("Updated User {}", i)
         });
 
-        let _result = runtime.block_on(
-            executor.execute_local_mutation("User", "updateUser", &variables)
-        );
+        let _result =
+            runtime.block_on(executor.execute_local_mutation("User", "updateUser", &variables));
     }
 
     let duration = start.elapsed();
@@ -1474,16 +1492,16 @@ fn test_mutation_concurrent_request_handling() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "User".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["id".to_string()],
+        types:   vec![FederatedType {
+            name:             "User".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1503,9 +1521,7 @@ fn test_mutation_concurrent_request_handling() {
                 });
 
                 let executor = FederationMutationExecutor::new(adapter, meta);
-                rt.block_on(
-                    executor.execute_local_mutation("User", "updateUser", &variables)
-                )
+                rt.block_on(executor.execute_local_mutation("User", "updateUser", &variables))
             })
         })
         .collect();
@@ -1535,7 +1551,7 @@ fn test_detect_mutation_query() {
 
 #[test]
 fn test_detect_mutation_on_owned_entity() {
-    use fraiseql_core::federation::mutation_detector::{is_mutation, is_local_mutation};
+    use fraiseql_core::federation::mutation_detector::{is_local_mutation, is_mutation};
 
     let mutation_query = "mutation { updateUser { id } }";
     assert!(is_mutation(mutation_query));
@@ -1547,7 +1563,7 @@ fn test_detect_mutation_on_owned_entity() {
 
 #[test]
 fn test_detect_mutation_on_extended_entity() {
-    use fraiseql_core::federation::mutation_detector::{is_mutation, is_extended_mutation};
+    use fraiseql_core::federation::mutation_detector::{is_extended_mutation, is_mutation};
 
     let mutation_query = "mutation { updateOrder { id } }";
     assert!(is_mutation(mutation_query));
@@ -1563,23 +1579,25 @@ fn test_detect_mutation_on_extended_entity() {
 
 #[test]
 fn test_mutation_with_variables() {
-    use fraiseql_core::federation::mutation_query_builder::{build_update_query, build_insert_query, build_delete_query};
-    use fraiseql_core::federation::types::{FederatedType, FederationMetadata, KeyDirective};
+    use fraiseql_core::federation::{
+        mutation_query_builder::{build_delete_query, build_insert_query, build_update_query},
+        types::{FederatedType, FederationMetadata, KeyDirective},
+    };
     use serde_json::json;
 
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "User".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["id".to_string()],
+        types:   vec![FederatedType {
+            name:             "User".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1605,23 +1623,25 @@ fn test_mutation_with_variables() {
 
 #[test]
 fn test_mutation_variable_validation() {
-    use fraiseql_core::federation::mutation_query_builder::build_update_query;
-    use fraiseql_core::federation::types::{FederatedType, FederationMetadata, KeyDirective};
+    use fraiseql_core::federation::{
+        mutation_query_builder::build_update_query,
+        types::{FederatedType, FederationMetadata, KeyDirective},
+    };
     use serde_json::json;
 
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "User".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["id".to_string()],
+        types:   vec![FederatedType {
+            name:             "User".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1636,23 +1656,25 @@ fn test_mutation_variable_validation() {
 
 #[test]
 fn test_mutation_input_type_coercion() {
-    use fraiseql_core::federation::mutation_query_builder::build_update_query;
-    use fraiseql_core::federation::types::{FederatedType, FederationMetadata, KeyDirective};
+    use fraiseql_core::federation::{
+        mutation_query_builder::build_update_query,
+        types::{FederatedType, FederationMetadata, KeyDirective},
+    };
     use serde_json::json;
 
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "Order".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["order_id".to_string()],
+        types:   vec![FederatedType {
+            name:             "Order".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["order_id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1680,16 +1702,16 @@ fn test_mutation_return_all_requested_fields() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "User".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["id".to_string()],
+        types:   vec![FederatedType {
+            name:             "User".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1704,9 +1726,8 @@ fn test_mutation_return_all_requested_fields() {
 
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let executor = FederationMutationExecutor::new(mock_adapter, metadata);
-    let result = runtime.block_on(
-        executor.execute_local_mutation("User", "updateUser", &variables)
-    );
+    let result =
+        runtime.block_on(executor.execute_local_mutation("User", "updateUser", &variables));
 
     assert!(result.is_ok());
     let response = result.unwrap();
@@ -1727,16 +1748,16 @@ fn test_mutation_return_computed_fields() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "Order".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["order_id".to_string()],
+        types:   vec![FederatedType {
+            name:             "Order".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["order_id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1749,9 +1770,8 @@ fn test_mutation_return_computed_fields() {
 
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let executor = FederationMutationExecutor::new(mock_adapter, metadata);
-    let result = runtime.block_on(
-        executor.execute_local_mutation("Order", "updateOrder", &variables)
-    );
+    let result =
+        runtime.block_on(executor.execute_local_mutation("Order", "updateOrder", &variables));
 
     assert!(result.is_ok());
     let response = result.unwrap();
@@ -1769,16 +1789,16 @@ fn test_mutation_return_related_entities() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "Order".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["order_id".to_string()],
+        types:   vec![FederatedType {
+            name:             "Order".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["order_id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -1790,9 +1810,8 @@ fn test_mutation_return_related_entities() {
 
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let executor = FederationMutationExecutor::new(mock_adapter, metadata);
-    let result = runtime.block_on(
-        executor.execute_local_mutation("Order", "updateOrder", &variables)
-    );
+    let result =
+        runtime.block_on(executor.execute_local_mutation("Order", "updateOrder", &variables));
 
     assert!(result.is_ok());
     let response = result.unwrap();

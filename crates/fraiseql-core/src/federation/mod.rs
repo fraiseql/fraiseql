@@ -22,47 +22,48 @@
 //! let response = executor.handle_entities_query(input).await?;
 //! ```
 
-pub mod types;
-pub mod entity_resolver;
-pub mod representation;
-pub mod service_sdl;
-pub mod sql_utils;
-pub mod metadata_helpers;
-pub mod query_builder;
-pub mod selection_parser;
+pub mod connection_manager;
 pub mod database_resolver;
+pub mod dependency_graph;
+pub mod direct_db_resolver;
+pub mod entity_resolver;
+pub mod http_resolver;
+pub mod logging;
+pub mod metadata_helpers;
 pub mod mutation_detector;
 pub mod mutation_executor;
-pub mod mutation_query_builder;
-pub mod http_resolver;
-pub mod connection_manager;
-pub mod direct_db_resolver;
 pub mod mutation_http_client;
+pub mod mutation_query_builder;
+pub mod query_builder;
+pub mod representation;
+pub mod selection_parser;
+pub mod service_sdl;
+pub mod sql_utils;
 pub mod tracing;
-pub mod logging;
+pub mod types;
 
-pub use types::*;
-pub use entity_resolver::*;
-pub use service_sdl::*;
-pub use representation::*;
-pub use query_builder::*;
-pub use selection_parser::*;
+pub use connection_manager::*;
 pub use database_resolver::*;
+pub use dependency_graph::DependencyGraph;
+pub use direct_db_resolver::*;
+pub use entity_resolver::*;
+pub use http_resolver::*;
+pub use logging::{
+    FederationLogContext, FederationOperationType, LogTimer, OperationStatus, ResolutionStrategy,
+};
 pub use mutation_detector::*;
 pub use mutation_executor::*;
-pub use mutation_query_builder::*;
-pub use http_resolver::*;
-pub use connection_manager::*;
-pub use direct_db_resolver::*;
 pub use mutation_http_client::*;
+pub use mutation_query_builder::*;
+pub use query_builder::*;
+pub use representation::*;
+pub use selection_parser::*;
+use serde_json::{Value, json};
+pub use service_sdl::*;
 pub use tracing::{FederationSpan, FederationTraceContext};
-pub use logging::{
-    FederationLogContext, FederationOperationType, ResolutionStrategy,
-    OperationStatus, LogTimer,
-};
+pub use types::*;
 
 use crate::error::{FraiseQLError, Result};
-use serde_json::{json, Value};
 
 /// Handle federation queries (federation introspection)
 pub async fn handle_federation_query(
@@ -75,12 +76,12 @@ pub async fn handle_federation_query(
             // Will be handled at executor level with proper context
             Err(FraiseQLError::Validation {
                 message: "_entities query requires executor context".to_string(),
-                path: None,
+                path:    None,
             })
-        }
+        },
         _ => Err(FraiseQLError::Validation {
             message: format!("Unknown federation query: {}", query_name),
-            path: None,
+            path:    None,
         }),
     }
 }

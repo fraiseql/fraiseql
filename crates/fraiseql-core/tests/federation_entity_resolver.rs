@@ -269,25 +269,23 @@ fn test_any_scalar_required() {
 
 #[test]
 fn test_strategy_local_for_owned_entity() {
-    use fraiseql_core::federation::types::{FederatedType, KeyDirective, FederationMetadata};
+    use fraiseql_core::federation::types::{FederatedType, FederationMetadata, KeyDirective};
 
     // Create metadata with locally-owned User type
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![
-            FederatedType {
-                name: "User".to_string(),
-                keys: vec![KeyDirective {
-                    fields: vec!["id".to_string()],
-                    resolvable: true,
-                }],
-                is_extends: false,  // Locally owned
-                external_fields: vec![],
-                shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
-            },
-        ],
+        types:   vec![FederatedType {
+            name:             "User".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["id".to_string()],
+                resolvable: true,
+            }],
+            is_extends:       false, // Locally owned
+            external_fields:  vec![],
+            shareable_fields: vec![],
+            field_directives: std::collections::HashMap::new(),
+        }],
     };
 
     // User type is not extended, so it should use local resolution
@@ -297,25 +295,23 @@ fn test_strategy_local_for_owned_entity() {
 
 #[test]
 fn test_strategy_direct_db_when_available() {
-    use fraiseql_core::federation::types::{FederatedType, KeyDirective, FederationMetadata};
+    use fraiseql_core::federation::types::{FederatedType, FederationMetadata, KeyDirective};
 
     // Create metadata with extended Order type (would use HTTP or DirectDB)
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![
-            FederatedType {
-                name: "Order".to_string(),
-                keys: vec![KeyDirective {
-                    fields: vec!["id".to_string()],
-                    resolvable: true,
-                }],
-                is_extends: true,  // Extended from another subgraph
-                external_fields: vec!["id".to_string()],
-                shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
-            },
-        ],
+        types:   vec![FederatedType {
+            name:             "Order".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["id".to_string()],
+                resolvable: true,
+            }],
+            is_extends:       true, // Extended from another subgraph
+            external_fields:  vec!["id".to_string()],
+            shareable_fields: vec![],
+            field_directives: std::collections::HashMap::new(),
+        }],
     };
 
     // Order type is extended, so it should use DirectDB or HTTP
@@ -325,32 +321,32 @@ fn test_strategy_direct_db_when_available() {
 
 #[test]
 fn test_strategy_http_fallback() {
-    use fraiseql_core::federation::types::{FederatedType, KeyDirective, FederationMetadata};
+    use fraiseql_core::federation::types::{FederatedType, FederationMetadata, KeyDirective};
 
     // Both local and extended types can be queried via HTTP as fallback
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![
+        types:   vec![
             FederatedType {
-                name: "User".to_string(),
-                keys: vec![KeyDirective {
-                    fields: vec!["id".to_string()],
+                name:             "User".to_string(),
+                keys:             vec![KeyDirective {
+                    fields:     vec!["id".to_string()],
                     resolvable: true,
                 }],
-                is_extends: false,
-                external_fields: vec![],
+                is_extends:       false,
+                external_fields:  vec![],
                 shareable_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
-                name: "Product".to_string(),
-                keys: vec![KeyDirective {
-                    fields: vec!["id".to_string()],
+                name:             "Product".to_string(),
+                keys:             vec![KeyDirective {
+                    fields:     vec!["id".to_string()],
                     resolvable: true,
                 }],
-                is_extends: true,
-                external_fields: vec!["id".to_string()],
+                is_extends:       true,
+                external_fields:  vec!["id".to_string()],
                 shareable_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
@@ -403,8 +399,9 @@ fn test_strategy_caching() {
 
 #[test]
 fn test_batch_latency_single_entity() {
-    use serde_json::json;
     use std::time::Instant;
+
+    use serde_json::json;
 
     // Single entity resolution should be fast
     let start = Instant::now();
@@ -423,8 +420,9 @@ fn test_batch_latency_single_entity() {
 
 #[test]
 fn test_batch_latency_hundred_entities() {
-    use serde_json::json;
     use std::time::Instant;
+
+    use serde_json::json;
 
     let start = Instant::now();
 
@@ -493,7 +491,7 @@ fn test_federation_spec_version_2() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![],
+        types:   vec![],
     };
 
     assert!(metadata.enabled);
@@ -517,25 +515,23 @@ fn test_entity_union_required() {
 
 #[test]
 fn test_federation_directive_fields() {
-    use fraiseql_core::federation::types::{FederationMetadata, FederatedType, KeyDirective};
+    use fraiseql_core::federation::types::{FederatedType, FederationMetadata, KeyDirective};
 
     // Federation directives must be parsed correctly
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![
-            FederatedType {
-                name: "User".to_string(),
-                keys: vec![KeyDirective {
-                    fields: vec!["id".to_string()],
-                    resolvable: true,
-                }],
-                is_extends: false,
-                external_fields: vec![],
-                shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
-            },
-        ],
+        types:   vec![FederatedType {
+            name:             "User".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["id".to_string()],
+                resolvable: true,
+            }],
+            is_extends:       false,
+            external_fields:  vec![],
+            shareable_fields: vec![],
+            field_directives: std::collections::HashMap::new(),
+        }],
     };
 
     let user_type = &metadata.types[0];

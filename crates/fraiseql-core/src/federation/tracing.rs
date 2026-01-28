@@ -3,6 +3,7 @@
 //! Provides W3C Trace Context support and span creation for federation queries.
 
 use std::time::Instant;
+
 use uuid::Uuid;
 
 /// Federation trace context following W3C Trace Context format.
@@ -25,10 +26,10 @@ impl FederationTraceContext {
     /// Create new trace context with random IDs.
     pub fn new() -> Self {
         Self {
-            trace_id: format!("{:032x}", Uuid::new_v4().as_u128()),
+            trace_id:       format!("{:032x}", Uuid::new_v4().as_u128()),
             parent_span_id: format!("{:016x}", Uuid::new_v4().as_u64_pair().0),
-            trace_flags: "01".to_string(), // sampled
-            query_id: Uuid::new_v4().to_string(),
+            trace_flags:    "01".to_string(), // sampled
+            query_id:       Uuid::new_v4().to_string(),
         }
     }
 
@@ -48,19 +49,16 @@ impl FederationTraceContext {
         }
 
         Some(Self {
-            trace_id: parts[1].to_string(),
+            trace_id:       parts[1].to_string(),
             parent_span_id: parts[2].to_string(),
-            trace_flags: parts[3].to_string(),
-            query_id: Uuid::new_v4().to_string(),
+            trace_flags:    parts[3].to_string(),
+            query_id:       Uuid::new_v4().to_string(),
         })
     }
 
     /// Generate W3C traceparent header value.
     pub fn to_traceparent(&self) -> String {
-        format!(
-            "00-{}-{}-{}",
-            self.trace_id, self.parent_span_id, self.trace_flags
-        )
+        format!("00-{}-{}-{}", self.trace_id, self.parent_span_id, self.trace_flags)
     }
 
     /// Create child span ID for next hop.
@@ -99,10 +97,7 @@ pub struct FederationSpan {
 
 impl FederationSpan {
     /// Create new federation span.
-    pub fn new(
-        name: impl Into<String>,
-        trace_context: FederationTraceContext,
-    ) -> Self {
+    pub fn new(name: impl Into<String>, trace_context: FederationTraceContext) -> Self {
         let parent_span_id = trace_context.parent_span_id.clone();
         Self {
             name: name.into(),

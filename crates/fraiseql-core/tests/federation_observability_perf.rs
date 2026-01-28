@@ -18,20 +18,22 @@
 //! 4. Measure with observability (100 iterations)
 //! 5. Calculate overhead and validate against budget
 
-use fraiseql_core::federation::{
-    EntityRepresentation, FederationResolver, FederationMetadata, FederatedType, KeyDirective,
-    batch_load_entities_with_tracing_and_metrics,
-};
-use fraiseql_core::federation::selection_parser::FieldSelection;
-use fraiseql_core::db::traits::DatabaseAdapter;
-use fraiseql_core::db::types::{DatabaseType, PoolMetrics};
-use fraiseql_core::db::where_clause::WhereClause;
-use fraiseql_core::error::Result;
-use serde_json::{json, Value};
-use std::collections::HashMap;
-use std::sync::Arc;
-use std::time::Instant;
+use std::{collections::HashMap, sync::Arc, time::Instant};
+
 use async_trait::async_trait;
+use fraiseql_core::{
+    db::{
+        traits::DatabaseAdapter,
+        types::{DatabaseType, PoolMetrics},
+        where_clause::WhereClause,
+    },
+    error::Result,
+    federation::{
+        EntityRepresentation, FederatedType, FederationMetadata, FederationResolver, KeyDirective,
+        batch_load_entities_with_tracing_and_metrics, selection_parser::FieldSelection,
+    },
+};
+use serde_json::{Value, json};
 
 /// Mock database adapter for performance testing.
 #[derive(Clone)]
@@ -93,10 +95,10 @@ impl DatabaseAdapter for PerfTestDatabaseAdapter {
 
     fn pool_metrics(&self) -> PoolMetrics {
         PoolMetrics {
-            total_connections: 10,
-            idle_connections: 9,
+            total_connections:  10,
+            idle_connections:   9,
             active_connections: 1,
-            waiting_requests: 0,
+            waiting_requests:   0,
         }
     }
 
@@ -120,26 +122,26 @@ fn create_test_metadata() -> FederationMetadata {
     FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![
+        types:   vec![
             FederatedType {
-                name: "User".to_string(),
-                keys: vec![KeyDirective {
-                    fields: vec!["id".to_string()],
+                name:             "User".to_string(),
+                keys:             vec![KeyDirective {
+                    fields:     vec!["id".to_string()],
                     resolvable: true,
                 }],
-                is_extends: false,
-                external_fields: vec![],
+                is_extends:       false,
+                external_fields:  vec![],
                 shareable_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
-                name: "Order".to_string(),
-                keys: vec![KeyDirective {
-                    fields: vec!["id".to_string()],
+                name:             "Order".to_string(),
+                keys:             vec![KeyDirective {
+                    fields:     vec!["id".to_string()],
                     resolvable: true,
                 }],
-                is_extends: false,
-                external_fields: vec![],
+                is_extends:       false,
+                external_fields:  vec![],
                 shareable_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
@@ -196,7 +198,8 @@ async fn test_entity_resolution_latency_overhead() {
     let adapter = Arc::new(PerfTestDatabaseAdapter::with_test_users());
     let metadata = create_test_metadata();
     let fed_resolver = FederationResolver::new(metadata.clone());
-    let selection = FieldSelection::new(vec!["id".to_string(), "name".to_string(), "email".to_string()]);
+    let selection =
+        FieldSelection::new(vec!["id".to_string(), "name".to_string(), "email".to_string()]);
 
     let representations = create_user_representations(100);
 
@@ -246,7 +249,9 @@ async fn test_entity_resolution_latency_overhead() {
     let with_obs_latency_us = with_obs_duration_us / 100;
 
     // Calculate overhead
-    let overhead_percent = ((with_obs_latency_us as f64 - baseline_latency_us as f64) / baseline_latency_us as f64) * 100.0;
+    let overhead_percent = ((with_obs_latency_us as f64 - baseline_latency_us as f64)
+        / baseline_latency_us as f64)
+        * 100.0;
 
     println!("  With observability: {:.2}µs", with_obs_latency_us as f64);
     println!("  Overhead: {:.2}%", overhead_percent);
@@ -336,7 +341,8 @@ async fn test_mixed_batch_resolution_latency() {
     }
     let obs_latency_us = obs_start.elapsed().as_micros() as u64 / 50;
 
-    let overhead_percent = ((obs_latency_us as f64 - baseline_latency_us as f64) / baseline_latency_us as f64) * 100.0;
+    let overhead_percent =
+        ((obs_latency_us as f64 - baseline_latency_us as f64) / baseline_latency_us as f64) * 100.0;
 
     println!("Mixed Batch Resolution (75 users + 50 orders):");
     println!("  Baseline: {:.2}µs", baseline_latency_us as f64);
@@ -415,7 +421,8 @@ async fn test_deduplication_latency_impact() {
     }
     let obs_latency_us = obs_start.elapsed().as_micros() as u64 / 100;
 
-    let overhead_percent = ((obs_latency_us as f64 - baseline_latency_us as f64) / baseline_latency_us as f64) * 100.0;
+    let overhead_percent =
+        ((obs_latency_us as f64 - baseline_latency_us as f64) / baseline_latency_us as f64) * 100.0;
 
     println!("High-Duplication Batch (100 refs, 10 unique):");
     println!("  Baseline: {:.2}µs", baseline_latency_us as f64);

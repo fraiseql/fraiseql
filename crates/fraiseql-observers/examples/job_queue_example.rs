@@ -24,10 +24,12 @@
 #[cfg(all(feature = "queue", feature = "metrics", feature = "testing"))]
 #[tokio::main]
 async fn main() -> fraiseql_observers::Result<()> {
+    use std::{collections::HashMap, sync::Arc};
+
     use fraiseql_observers::{
         config::{
-            ActionConfig, BackoffStrategy, JobQueueConfig, ObserverDefinition, ObserverRuntimeConfig,
-            PerformanceConfig, RetryConfig, TransportConfig,
+            ActionConfig, BackoffStrategy, JobQueueConfig, ObserverDefinition,
+            ObserverRuntimeConfig, PerformanceConfig, RetryConfig, TransportConfig,
         },
         event::{EntityEvent, EventKind},
         executor::ObserverExecutor,
@@ -38,8 +40,6 @@ async fn main() -> fraiseql_observers::Result<()> {
         testing::mocks::MockDeadLetterQueue,
     };
     use serde_json::json;
-    use std::collections::HashMap;
-    use std::sync::Arc;
     use uuid::Uuid;
 
     println!("═══════════════════════════════════════════════════════════════");
@@ -53,14 +53,14 @@ async fn main() -> fraiseql_observers::Result<()> {
     println!("\n[1/5] Setting up configuration...");
 
     let job_queue_config = JobQueueConfig {
-        url: "redis://localhost:6379".to_string(),
-        batch_size: 10,
+        url:                "redis://localhost:6379".to_string(),
+        batch_size:         10,
         batch_timeout_secs: 2,
-        max_retries: 3,
+        max_retries:        3,
         worker_concurrency: 5,
-        poll_interval_ms: 500,
-        initial_delay_ms: 100,
-        max_delay_ms: 5000,
+        poll_interval_ms:   500,
+        initial_delay_ms:   100,
+        max_delay_ms:       5000,
     };
 
     job_queue_config.validate()?;
@@ -91,18 +91,18 @@ async fn main() -> fraiseql_observers::Result<()> {
         "user_created_webhook".to_string(),
         ObserverDefinition {
             event_type: "INSERT".to_string(),
-            entity: "User".to_string(),
-            condition: None,
-            actions: vec![ActionConfig::Webhook {
-                url: Some("https://webhook.example.com/user-created".to_string()),
-                url_env: None,
-                headers: Default::default(),
+            entity:     "User".to_string(),
+            condition:  None,
+            actions:    vec![ActionConfig::Webhook {
+                url:           Some("https://webhook.example.com/user-created".to_string()),
+                url_env:       None,
+                headers:       Default::default(),
                 body_template: None,
             }],
-            retry: RetryConfig {
-                max_attempts: 3,
+            retry:      RetryConfig {
+                max_attempts:     3,
                 initial_delay_ms: 100,
-                max_delay_ms: 5000,
+                max_delay_ms:     5000,
                 backoff_strategy: BackoffStrategy::Exponential,
             },
             on_failure: Default::default(),
@@ -123,17 +123,17 @@ async fn main() -> fraiseql_observers::Result<()> {
     // Create and queue some test jobs
     let queued_executor = ExecutorFactory::build_with_queue(
         &ObserverRuntimeConfig {
-            transport: TransportConfig::default(),
-            redis: None,
-            clickhouse: None,
-            job_queue: Some(job_queue_config.clone()),
-            performance: PerformanceConfig::default(),
-            observers: HashMap::new(),
-            channel_capacity: 1000,
-            max_concurrency: 50,
-            overflow_policy: fraiseql_observers::config::OverflowPolicy::Drop,
+            transport:               TransportConfig::default(),
+            redis:                   None,
+            clickhouse:              None,
+            job_queue:               Some(job_queue_config.clone()),
+            performance:             PerformanceConfig::default(),
+            observers:               HashMap::new(),
+            channel_capacity:        1000,
+            max_concurrency:         50,
+            overflow_policy:         fraiseql_observers::config::OverflowPolicy::Drop,
             backlog_alert_threshold: 500,
-            shutdown_timeout: "30s".to_string(),
+            shutdown_timeout:        "30s".to_string(),
         },
         Arc::new(MockDeadLetterQueue::new()),
     )
@@ -154,9 +154,7 @@ async fn main() -> fraiseql_observers::Result<()> {
         let summary = queued_executor.process_event(&event).await?;
         println!(
             "✓ Event {} queued: {} actions queued, {} errors",
-            i,
-            summary.jobs_queued,
-            summary.queueing_errors
+            i, summary.jobs_queued, summary.queueing_errors
         );
     }
 

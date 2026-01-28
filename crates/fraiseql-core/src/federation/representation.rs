@@ -1,15 +1,15 @@
 //! Entity representation parsing for _Any scalar.
 
-use super::types::{EntityRepresentation, FederationMetadata};
 use serde_json::Value;
+
+use super::types::{EntityRepresentation, FederationMetadata};
 
 /// Parse entity representations from _entities input
 pub fn parse_representations(
     input: &Value,
     metadata: &FederationMetadata,
 ) -> Result<Vec<EntityRepresentation>, String> {
-    let array = input.as_array()
-        .ok_or_else(|| "Representations must be array".to_string())?;
+    let array = input.as_array().ok_or_else(|| "Representations must be array".to_string())?;
 
     let mut reps = Vec::new();
 
@@ -68,8 +68,9 @@ pub fn validate_representations(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serde_json::json;
+
+    use super::*;
 
     #[test]
     fn test_parse_representations() {

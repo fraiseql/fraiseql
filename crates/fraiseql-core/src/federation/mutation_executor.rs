@@ -7,11 +7,15 @@ use std::sync::Arc;
 
 use serde_json::Value;
 
-use crate::db::traits::DatabaseAdapter;
-use crate::error::Result;
-use crate::federation::types::FederationMetadata;
-use crate::federation::metadata_helpers::find_federation_type;
-use crate::federation::mutation_query_builder::{build_update_query, build_insert_query, build_delete_query};
+use crate::{
+    db::traits::DatabaseAdapter,
+    error::Result,
+    federation::{
+        metadata_helpers::find_federation_type,
+        mutation_query_builder::{build_delete_query, build_insert_query, build_update_query},
+        types::FederationMetadata,
+    },
+};
 
 /// Type of mutation being performed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -45,7 +49,7 @@ fn determine_mutation_type(mutation_name: &str) -> Result<MutationType> {
 pub struct FederationMutationExecutor<A: DatabaseAdapter> {
     /// Database adapter for executing mutations
     #[allow(dead_code)]
-    adapter: Arc<A>,
+    adapter:  Arc<A>,
     /// Federation metadata
     metadata: FederationMetadata,
 }
@@ -62,7 +66,8 @@ impl<A: DatabaseAdapter> FederationMutationExecutor<A> {
     /// # Arguments
     ///
     /// * `typename` - The entity type name
-    /// * `mutation_name` - The mutation operation name (e.g., "updateUser", "createUser", "deleteUser")
+    /// * `mutation_name` - The mutation operation name (e.g., "updateUser", "createUser",
+    ///   "deleteUser")
     /// * `variables` - Mutation variables/input
     ///
     /// # Returns
@@ -170,10 +175,7 @@ impl<A: DatabaseAdapter> FederationMutationExecutor<A> {
         }
 
         // Add mutation metadata
-        response.insert(
-            "_mutation".to_string(),
-            Value::String(mutation_name.to_string()),
-        );
+        response.insert("_mutation".to_string(), Value::String(mutation_name.to_string()));
         response.insert(
             "_remote_execution".to_string(),
             Value::Bool(true), // Indicates this would be executed on remote subgraph

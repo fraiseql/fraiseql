@@ -12,18 +12,17 @@ use std::{
 use axum::{
     Json,
     extract::{Query, State},
-    response::{IntoResponse, Response},
     http::HeaderMap,
+    response::{IntoResponse, Response},
 };
-use fraiseql_core::db::traits::DatabaseAdapter;
-use fraiseql_core::runtime::Executor;
+use fraiseql_core::{db::traits::DatabaseAdapter, runtime::Executor};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error, info, warn};
-use crate::tracing_utils;
 
 use crate::{
     error::{ErrorResponse, GraphQLError},
     metrics_server::MetricsCollector,
+    tracing_utils,
     validation::RequestValidator,
 };
 
@@ -294,13 +293,9 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
 
     // Record successful query metrics
     metrics.queries_success.fetch_add(1, Ordering::Relaxed);
-    metrics
-        .queries_duration_us
-        .fetch_add(elapsed_us, Ordering::Relaxed);
+    metrics.queries_duration_us.fetch_add(elapsed_us, Ordering::Relaxed);
     metrics.db_queries_total.fetch_add(1, Ordering::Relaxed);
-    metrics
-        .db_queries_duration_us
-        .fetch_add(elapsed_us, Ordering::Relaxed);
+    metrics.db_queries_duration_us.fetch_add(elapsed_us, Ordering::Relaxed);
 
     // Record federation-specific metrics for federation queries
     if fraiseql_core::federation::is_federation_query(&request.query) {

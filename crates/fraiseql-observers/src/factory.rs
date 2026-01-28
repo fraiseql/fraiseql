@@ -373,11 +373,10 @@ impl ExecutorFactory {
         _dlq: Arc<dyn DeadLetterQueue>,
     ) -> Result<Arc<dyn ProcessEventQueued>> {
         // Validate job queue config
-        let job_queue_config = config.job_queue.as_ref().ok_or_else(|| {
-            ObserverError::InvalidConfig {
+        let job_queue_config =
+            config.job_queue.as_ref().ok_or_else(|| ObserverError::InvalidConfig {
                 message: "build_with_queue requires job_queue configuration".to_string(),
-            }
-        })?;
+            })?;
 
         // Create event matcher
         let matcher = EventMatcher::build(config.observers.clone())?;
@@ -491,22 +490,22 @@ mod tests {
     #[tokio::test]
     async fn test_build_with_queue_requires_config() {
         let config = ObserverRuntimeConfig {
-            transport: TransportConfig::default(),
-            redis: None,
-            clickhouse: None,
-            job_queue: None, // No job queue config
-            performance: PerformanceConfig {
+            transport:               TransportConfig::default(),
+            redis:                   None,
+            clickhouse:              None,
+            job_queue:               None, // No job queue config
+            performance:             PerformanceConfig {
                 enable_dedup: false,
                 enable_caching: false,
                 enable_concurrent: true,
                 ..Default::default()
             },
-            observers: HashMap::new(),
-            channel_capacity: 1000,
-            max_concurrency: 50,
-            overflow_policy: crate::config::OverflowPolicy::Drop,
+            observers:               HashMap::new(),
+            channel_capacity:        1000,
+            max_concurrency:         50,
+            overflow_policy:         crate::config::OverflowPolicy::Drop,
             backlog_alert_threshold: 500,
-            shutdown_timeout: "30s".to_string(),
+            shutdown_timeout:        "30s".to_string(),
         };
 
         let dlq = Arc::new(MockDeadLetterQueue::new());
@@ -557,8 +556,7 @@ mod tests {
     fn test_job_queue_config_env_overrides() {
         use crate::config::JobQueueConfig;
 
-        let config = JobQueueConfig::default()
-            .with_env_overrides();
+        let config = JobQueueConfig::default().with_env_overrides();
 
         // Should have defaults (env vars not set in test)
         assert_eq!(config.batch_size, 100);

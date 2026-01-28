@@ -3,11 +3,16 @@
 //! Constructs UPDATE, INSERT, and DELETE queries from GraphQL mutations
 //! with parameter validation and SQL injection prevention.
 
-use crate::error::{FraiseQLError, Result};
-use crate::federation::metadata_helpers::{find_federation_type, get_key_directive};
-use crate::federation::sql_utils::value_to_sql_literal;
-use crate::federation::types::FederationMetadata;
 use serde_json::Value;
+
+use crate::{
+    error::{FraiseQLError, Result},
+    federation::{
+        metadata_helpers::{find_federation_type, get_key_directive},
+        sql_utils::value_to_sql_literal,
+        types::FederationMetadata,
+    },
+};
 
 /// Build an UPDATE query from mutation variables.
 ///
@@ -27,19 +32,15 @@ pub fn build_update_query(
     let key_field = &key_directive.fields[0];
     let table_name = typename.to_lowercase();
 
-    let vars = variables.as_object().ok_or_else(|| {
-        FraiseQLError::Validation {
-            message: "Variables must be an object".to_string(),
-            path: None,
-        }
+    let vars = variables.as_object().ok_or_else(|| FraiseQLError::Validation {
+        message: "Variables must be an object".to_string(),
+        path:    None,
     })?;
 
     // Extract key value
-    let key_value = vars.get(key_field).ok_or_else(|| {
-        FraiseQLError::Validation {
-            message: format!("Key field '{}' missing in variables", key_field),
-            path: None,
-        }
+    let key_value = vars.get(key_field).ok_or_else(|| FraiseQLError::Validation {
+        message: format!("Key field '{}' missing in variables", key_field),
+        path:    None,
     })?;
 
     // Build SET clauses
@@ -54,7 +55,7 @@ pub fn build_update_query(
     if set_clauses.is_empty() {
         return Err(FraiseQLError::Validation {
             message: "No fields to update (only key field provided)".to_string(),
-            path: None,
+            path:    None,
         });
     }
 
@@ -82,39 +83,36 @@ pub fn build_insert_query(
 ) -> Result<String> {
     let table_name = typename.to_lowercase();
 
-    let vars = variables.as_object().ok_or_else(|| {
-        FraiseQLError::Validation {
-            message: "Variables must be an object".to_string(),
-            path: None,
-        }
+    let vars = variables.as_object().ok_or_else(|| FraiseQLError::Validation {
+        message: "Variables must be an object".to_string(),
+        path:    None,
     })?;
 
     if vars.is_empty() {
         return Err(FraiseQLError::Validation {
             message: "No fields to insert".to_string(),
-            path: None,
+            path:    None,
         });
     }
 
     let columns: Vec<&String> = vars.keys().collect();
     let values: Result<Vec<String>> = columns
         .iter()
-        .map(|col| vars.get(*col).ok_or_else(|| {
-            FraiseQLError::Validation {
-                message: format!("Field '{}' missing in variables", col),
-                path: None,
-            }
-        }).and_then(|v| value_to_sql_literal(v)))
+        .map(|col| {
+            vars.get(*col)
+                .ok_or_else(|| FraiseQLError::Validation {
+                    message: format!("Field '{}' missing in variables", col),
+                    path:    None,
+                })
+                .and_then(|v| value_to_sql_literal(v))
+        })
         .collect();
 
     let values = values?;
     let columns_str = columns.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", ");
     let values_str = values.join(", ");
 
-    Ok(format!(
-        "INSERT INTO {} ({}) VALUES ({})",
-        table_name, columns_str, values_str
-    ))
+    Ok(format!("INSERT INTO {} ({}) VALUES ({})", table_name, columns_str, values_str))
 }
 
 /// Build a DELETE query from mutation variables.
@@ -134,28 +132,20 @@ pub fn build_delete_query(
     let key_field = &key_directive.fields[0];
     let table_name = typename.to_lowercase();
 
-    let vars = variables.as_object().ok_or_else(|| {
-        FraiseQLError::Validation {
-            message: "Variables must be an object".to_string(),
-            path: None,
-        }
+    let vars = variables.as_object().ok_or_else(|| FraiseQLError::Validation {
+        message: "Variables must be an object".to_string(),
+        path:    None,
     })?;
 
-    let key_value = vars.get(key_field).ok_or_else(|| {
-        FraiseQLError::Validation {
-            message: format!("Key field '{}' missing in variables", key_field),
-            path: None,
-        }
+    let key_value = vars.get(key_field).ok_or_else(|| FraiseQLError::Validation {
+        message: format!("Key field '{}' missing in variables", key_field),
+        path:    None,
     })?;
 
     let key_value_str = value_to_sql_literal(key_value)?;
 
-    Ok(format!(
-        "DELETE FROM {} WHERE {} = {}",
-        table_name, key_field, key_value_str
-    ))
+    Ok(format!("DELETE FROM {} WHERE {} = {}", table_name, key_field, key_value_str))
 }
-
 
 #[cfg(test)]
 mod tests {

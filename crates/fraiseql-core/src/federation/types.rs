@@ -1,8 +1,9 @@
 //! Federation types and metadata structures.
 
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
 
 // Phase 1, Cycle 1: Field-level directive metadata structures
 
@@ -24,7 +25,7 @@ impl Default for FederationMetadata {
         Self {
             enabled: false,
             version: "v2".to_string(),
-            types: Vec::new(),
+            types:   Vec::new(),
         }
     }
 }
@@ -166,16 +167,12 @@ impl FederatedType {
 
     /// Check if a field is marked as @shareable
     pub fn field_is_shareable(&self, field_name: &str) -> bool {
-        self.get_field_directives(field_name)
-            .map(|d| d.shareable)
-            .unwrap_or(false)
+        self.get_field_directives(field_name).map(|d| d.shareable).unwrap_or(false)
     }
 
     /// Check if a field is marked as @external
     pub fn field_is_external(&self, field_name: &str) -> bool {
-        self.get_field_directives(field_name)
-            .map(|d| d.external)
-            .unwrap_or(false)
+        self.get_field_directives(field_name).map(|d| d.external).unwrap_or(false)
     }
 }
 
@@ -205,10 +202,12 @@ pub struct EntityRepresentation {
 impl EntityRepresentation {
     /// Parse from _Any scalar input
     pub fn from_any(value: &Value) -> Result<Self, String> {
-        let obj = value.as_object()
+        let obj = value
+            .as_object()
             .ok_or_else(|| "Entity representation must be object".to_string())?;
 
-        let typename = obj.get("__typename")
+        let typename = obj
+            .get("__typename")
             .and_then(|v| v.as_str())
             .ok_or_else(|| "__typename field required".to_string())?
             .to_string();
@@ -227,10 +226,7 @@ impl EntityRepresentation {
     }
 
     /// Extract key fields based on key directive
-    pub fn extract_key_fields(
-        &mut self,
-        key_fields_list: &[String],
-    ) {
+    pub fn extract_key_fields(&mut self, key_fields_list: &[String]) {
         for key_field in key_fields_list {
             if let Some(value) = self.all_fields.get(key_field) {
                 self.key_fields.insert(key_field.clone(), value.clone());
@@ -245,7 +241,7 @@ pub enum ResolutionStrategy {
     /// Entity is owned by this subgraph, resolve locally
     Local {
         /// View or table name to query
-        view_name: String,
+        view_name:   String,
         /// Columns that form the key
         key_columns: Vec<String>,
     },
@@ -255,7 +251,7 @@ pub enum ResolutionStrategy {
         /// Connection string or identifier
         connection_string: String,
         /// Key columns for WHERE clause
-        key_columns: Vec<String>,
+        key_columns:       Vec<String>,
     },
 
     /// Resolve via HTTP to external subgraph
@@ -270,13 +266,15 @@ impl std::fmt::Display for ResolutionStrategy {
         match self {
             ResolutionStrategy::Local { view_name, .. } => {
                 write!(f, "Local({})", view_name)
-            }
-            ResolutionStrategy::DirectDatabase { connection_string, .. } => {
+            },
+            ResolutionStrategy::DirectDatabase {
+                connection_string, ..
+            } => {
                 write!(f, "DirectDB({})", connection_string)
-            }
+            },
             ResolutionStrategy::Http { subgraph_url } => {
                 write!(f, "Http({})", subgraph_url)
-            }
+            },
         }
     }
 }
@@ -300,21 +298,20 @@ impl FederationResolver {
     }
 
     /// Get or determine resolution strategy for type
-    pub fn get_or_determine_strategy(
-        &self,
-        typename: &str,
-    ) -> Result<ResolutionStrategy, String> {
+    pub fn get_or_determine_strategy(&self, typename: &str) -> Result<ResolutionStrategy, String> {
         // Check cache
         {
-            let cache = self.strategy_cache.lock()
-                .map_err(|e| format!("Lock error: {}", e))?;
+            let cache = self.strategy_cache.lock().map_err(|e| format!("Lock error: {}", e))?;
             if let Some(strategy) = cache.get(typename) {
                 return Ok(strategy.clone());
             }
         }
 
         // Find type metadata
-        let fed_type = self.metadata.types.iter()
+        let fed_type = self
+            .metadata
+            .types
+            .iter()
             .find(|t| t.name == typename)
             .ok_or_else(|| format!("Type {} not found in federation metadata", typename))?;
 
@@ -327,20 +324,17 @@ impl FederationResolver {
             }
         } else {
             // Owned type - resolve locally
-            let key_cols = fed_type.keys.first()
-                .map(|k| k.fields.clone())
-                .unwrap_or_default();
+            let key_cols = fed_type.keys.first().map(|k| k.fields.clone()).unwrap_or_default();
 
             ResolutionStrategy::Local {
-                view_name: format!("{}_federation_view", typename),
+                view_name:   format!("{}_federation_view", typename),
                 key_columns: key_cols,
             }
         };
 
         // Cache the strategy
         {
-            let mut cache = self.strategy_cache.lock()
-                .map_err(|e| format!("Lock error: {}", e))?;
+            let mut cache = self.strategy_cache.lock().map_err(|e| format!("Lock error: {}", e))?;
             cache.insert(typename.to_string(), strategy.clone());
         }
 

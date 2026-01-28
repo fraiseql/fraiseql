@@ -3,10 +3,15 @@
 //! Manages database connections to remote FraiseQL instances,
 //! enabling direct database queries without HTTP overhead.
 
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-use crate::db::traits::DatabaseAdapter;
-use crate::error::{FraiseQLError, Result};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
+
+use crate::{
+    db::traits::DatabaseAdapter,
+    error::{FraiseQLError, Result},
+};
 
 /// Configuration for a remote database connection
 #[derive(Debug, Clone)]
@@ -14,9 +19,9 @@ pub struct RemoteDatabaseConfig {
     /// Connection string (e.g., "postgresql://user:pass@host:5432/dbname")
     pub connection_string: String,
     /// Optional pool size (default: 5)
-    pub pool_size: Option<u32>,
+    pub pool_size:         Option<u32>,
     /// Optional connection timeout in seconds (default: 5)
-    pub timeout_seconds: Option<u32>,
+    pub timeout_seconds:   Option<u32>,
 }
 
 impl RemoteDatabaseConfig {
@@ -24,8 +29,8 @@ impl RemoteDatabaseConfig {
     pub fn new(connection_string: impl Into<String>) -> Self {
         Self {
             connection_string: connection_string.into(),
-            pool_size: None,
-            timeout_seconds: None,
+            pool_size:         None,
+            timeout_seconds:   None,
         }
     }
 
@@ -85,11 +90,10 @@ impl ConnectionManager {
     ) -> Result<Arc<dyn DatabaseAdapter>> {
         // Check cache first
         {
-            let adapters = self.adapters.lock()
-                .map_err(|e| FraiseQLError::Internal {
-                    message: format!("Connection cache lock error: {}", e),
-                    source: None,
-                })?;
+            let adapters = self.adapters.lock().map_err(|e| FraiseQLError::Internal {
+                message: format!("Connection cache lock error: {}", e),
+                source:  None,
+            })?;
 
             if let Some(adapter) = adapters.get(&config.connection_string) {
                 return Ok(Arc::clone(adapter));
@@ -100,18 +104,19 @@ impl ConnectionManager {
         // Note: In production, this would create a real database adapter
         // For now, we document the interface
         Err(FraiseQLError::Internal {
-            message: "Direct database connection creation requires database-specific implementation".to_string(),
-            source: None,
+            message:
+                "Direct database connection creation requires database-specific implementation"
+                    .to_string(),
+            source:  None,
         })
     }
 
     /// Close a specific connection by connection string
     pub fn close_connection(&self, connection_string: &str) -> Result<()> {
-        let mut adapters = self.adapters.lock()
-            .map_err(|e| FraiseQLError::Internal {
-                message: format!("Connection cache lock error: {}", e),
-                source: None,
-            })?;
+        let mut adapters = self.adapters.lock().map_err(|e| FraiseQLError::Internal {
+            message: format!("Connection cache lock error: {}", e),
+            source:  None,
+        })?;
 
         adapters.remove(connection_string);
         Ok(())
@@ -119,11 +124,10 @@ impl ConnectionManager {
 
     /// Close all cached connections
     pub fn close_all(&self) -> Result<()> {
-        let mut adapters = self.adapters.lock()
-            .map_err(|e| FraiseQLError::Internal {
-                message: format!("Connection cache lock error: {}", e),
-                source: None,
-            })?;
+        let mut adapters = self.adapters.lock().map_err(|e| FraiseQLError::Internal {
+            message: format!("Connection cache lock error: {}", e),
+            source:  None,
+        })?;
 
         adapters.clear();
         Ok(())
@@ -131,11 +135,10 @@ impl ConnectionManager {
 
     /// Get number of cached connections
     pub fn connection_count(&self) -> Result<usize> {
-        let adapters = self.adapters.lock()
-            .map_err(|e| FraiseQLError::Internal {
-                message: format!("Connection cache lock error: {}", e),
-                source: None,
-            })?;
+        let adapters = self.adapters.lock().map_err(|e| FraiseQLError::Internal {
+            message: format!("Connection cache lock error: {}", e),
+            source:  None,
+        })?;
 
         Ok(adapters.len())
     }

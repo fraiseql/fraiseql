@@ -41,13 +41,13 @@ pub struct MetricsRegistry {
     dlq_items:    IntGauge,
 
     // Job queue metrics
-    job_queued_total:       IntCounter,
-    job_executed_total:     IntCounterVec,
-    job_failed_total:       IntCounterVec,
-    job_duration_seconds:   HistogramVec,
-    job_retry_attempts:     IntCounterVec,
-    job_queue_depth:        IntGauge,
-    job_dlq_items:          IntGauge,
+    job_queued_total:     IntCounter,
+    job_executed_total:   IntCounterVec,
+    job_failed_total:     IntCounterVec,
+    job_duration_seconds: HistogramVec,
+    job_retry_attempts:   IntCounterVec,
+    job_queue_depth:      IntGauge,
+    job_dlq_items:        IntGauge,
 }
 
 impl MetricsRegistry {
@@ -140,10 +140,7 @@ impl MetricsRegistry {
         registry.register(Box::new(job_queued_total.clone()))?;
 
         let job_executed_total = IntCounterVec::new(
-            Opts::new(
-                "fraiseql_observer_job_executed_total",
-                "Total jobs successfully executed",
-            ),
+            Opts::new("fraiseql_observer_job_executed_total", "Total jobs successfully executed"),
             &["action_type"],
         )?;
         registry.register(Box::new(job_executed_total.clone()))?;
@@ -165,10 +162,7 @@ impl MetricsRegistry {
         registry.register(Box::new(job_duration_seconds.clone()))?;
 
         let job_retry_attempts = IntCounterVec::new(
-            Opts::new(
-                "fraiseql_observer_job_retry_attempts_total",
-                "Total job retry attempts",
-            ),
+            Opts::new("fraiseql_observer_job_retry_attempts_total", "Total job retry attempts"),
             &["action_type"],
         )?;
         registry.register(Box::new(job_retry_attempts.clone()))?;
@@ -461,8 +455,14 @@ mod tests {
         // Verify they were recorded
         let webhook_timeout =
             metrics.job_failed_total.with_label_values(&["webhook", "timeout"]).get();
-        let webhook_connection = metrics.job_failed_total.with_label_values(&["webhook", "connection_error"]).get();
-        let email_auth = metrics.job_failed_total.with_label_values(&["email", "authentication_failed"]).get();
+        let webhook_connection = metrics
+            .job_failed_total
+            .with_label_values(&["webhook", "connection_error"])
+            .get();
+        let email_auth = metrics
+            .job_failed_total
+            .with_label_values(&["email", "authentication_failed"])
+            .get();
 
         assert!(webhook_timeout >= 1);
         assert!(webhook_connection >= 1);

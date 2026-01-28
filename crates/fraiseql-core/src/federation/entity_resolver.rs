@@ -1,18 +1,23 @@
 //! Entity resolution for federation _entities query.
 
-use super::types::{EntityRepresentation, FederationResolver};
-use super::database_resolver::DatabaseEntityResolver;
-use super::selection_parser::FieldSelection;
-use super::tracing::{FederationTraceContext, FederationSpan};
-use super::logging::{FederationLogContext, FederationOperationType, ResolutionStrategy};
-use crate::db::traits::DatabaseAdapter;
-use crate::error::Result;
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+    time::Instant,
+};
+
 use serde_json::Value;
-use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
-use std::time::Instant;
 use tracing::info;
 use uuid::Uuid;
+
+use super::{
+    database_resolver::DatabaseEntityResolver,
+    logging::{FederationLogContext, FederationOperationType, ResolutionStrategy},
+    selection_parser::FieldSelection,
+    tracing::{FederationSpan, FederationTraceContext},
+    types::{EntityRepresentation, FederationResolver},
+};
+use crate::{db::traits::DatabaseAdapter, error::Result};
 
 /// Result of entity resolution
 #[derive(Debug)]
@@ -28,19 +33,17 @@ pub struct EntityResolutionResult {
 #[derive(Debug)]
 pub struct EntityResolutionMetrics {
     /// Resolved entities in same order as input representations
-    pub entities: Vec<Option<Value>>,
+    pub entities:    Vec<Option<Value>>,
     /// Any errors encountered during resolution
-    pub errors: Vec<String>,
+    pub errors:      Vec<String>,
     /// Duration of resolution in microseconds
     pub duration_us: u64,
     /// Whether resolution succeeded (no errors)
-    pub success: bool,
+    pub success:     bool,
 }
 
 /// Deduplicate entity representations while preserving order
-pub fn deduplicate_representations(
-    reps: &[EntityRepresentation],
-) -> Vec<EntityRepresentation> {
+pub fn deduplicate_representations(reps: &[EntityRepresentation]) -> Vec<EntityRepresentation> {
     let mut seen = HashSet::new();
     let mut result = Vec::with_capacity(reps.len());
 
@@ -62,9 +65,7 @@ pub fn group_entities_by_typename(
     let mut groups: HashMap<String, Vec<EntityRepresentation>> = HashMap::new();
 
     for rep in reps {
-        groups.entry(rep.typename.clone())
-            .or_insert_with(Vec::new)
-            .push(rep.clone());
+        groups.entry(rep.typename.clone()).or_insert_with(Vec::new).push(rep.clone());
     }
 
     groups
@@ -132,7 +133,7 @@ pub async fn resolve_entities_from_db_with_tracing<A: DatabaseAdapter>(
     if representations.is_empty() {
         return EntityResolutionResult {
             entities: Vec::new(),
-            errors: Vec::new(),
+            errors:   Vec::new(),
         };
     }
 
@@ -150,7 +151,7 @@ pub async fn resolve_entities_from_db_with_tracing<A: DatabaseAdapter>(
         },
         Err(e) => EntityResolutionResult {
             entities: vec![None; representations.len()],
-            errors: vec![e.to_string()],
+            errors:   vec![e.to_string()],
         },
     }
 }
@@ -199,10 +200,10 @@ pub async fn batch_load_entities_with_tracing_and_metrics<A: DatabaseAdapter>(
 
     if representations.is_empty() {
         return Ok(EntityResolutionMetrics {
-            entities: Vec::new(),
-            errors: Vec::new(),
+            entities:    Vec::new(),
+            errors:      Vec::new(),
             duration_us: 0,
-            success: true,
+            success:     true,
         });
     }
 
@@ -243,7 +244,8 @@ pub async fn batch_load_entities_with_tracing_and_metrics<A: DatabaseAdapter>(
         let batch_start = Instant::now();
 
         // Create child span for this typename batch
-        let child_span = span.create_child(format!("federation.entities.resolve.{}", typename))
+        let child_span = span
+            .create_child(format!("federation.entities.resolve.{}", typename))
             .with_attribute("typename", typename.clone())
             .with_attribute("batch_size", reps.len().to_string());
 
@@ -333,18 +335,14 @@ pub async fn batch_load_entities_with_tracing_and_metrics<A: DatabaseAdapter>(
 
     // Log overall completion
     let final_log_ctx = if success {
-        log_ctx
-            .with_resolved_count(resolved_count)
-            .complete(duration_ms)
+        log_ctx.with_resolved_count(resolved_count).complete(duration_ms)
     } else {
         let error_message = if all_errors.is_empty() {
             "Unknown error".to_string()
         } else {
             all_errors.join("; ")
         };
-        log_ctx
-            .with_resolved_count(resolved_count)
-            .fail(duration_ms, error_message)
+        log_ctx.with_resolved_count(resolved_count).fail(duration_ms, error_message)
     };
 
     info!(
@@ -378,14 +376,15 @@ fn count_unique_typenames(representations: &[EntityRepresentation]) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serde_json::json;
+
+    use super::*;
 
     #[test]
     fn test_deduplicate_representations() {
         let reps = vec![
             EntityRepresentation {
-                typename: "User".to_string(),
+                typename:   "User".to_string(),
                 key_fields: {
                     let mut m = HashMap::new();
                     m.insert("id".to_string(), json!("123"));
@@ -394,7 +393,7 @@ mod tests {
                 all_fields: HashMap::new(),
             },
             EntityRepresentation {
-                typename: "User".to_string(),
+                typename:   "User".to_string(),
                 key_fields: {
                     let mut m = HashMap::new();
                     m.insert("id".to_string(), json!("123"));
@@ -403,7 +402,7 @@ mod tests {
                 all_fields: HashMap::new(),
             },
             EntityRepresentation {
-                typename: "User".to_string(),
+                typename:   "User".to_string(),
                 key_fields: {
                     let mut m = HashMap::new();
                     m.insert("id".to_string(), json!("456"));
@@ -421,17 +420,17 @@ mod tests {
     fn test_group_entities_by_typename() {
         let reps = vec![
             EntityRepresentation {
-                typename: "User".to_string(),
+                typename:   "User".to_string(),
                 key_fields: HashMap::new(),
                 all_fields: HashMap::new(),
             },
             EntityRepresentation {
-                typename: "Order".to_string(),
+                typename:   "Order".to_string(),
                 key_fields: HashMap::new(),
                 all_fields: HashMap::new(),
             },
             EntityRepresentation {
-                typename: "User".to_string(),
+                typename:   "User".to_string(),
                 key_fields: HashMap::new(),
                 all_fields: HashMap::new(),
             },
@@ -446,14 +445,14 @@ mod tests {
     #[test]
     fn test_construct_batch_where_clause() {
         let mut rep1 = EntityRepresentation {
-            typename: "User".to_string(),
+            typename:   "User".to_string(),
             key_fields: HashMap::new(),
             all_fields: HashMap::new(),
         };
         rep1.key_fields.insert("id".to_string(), json!("123"));
 
         let mut rep2 = EntityRepresentation {
-            typename: "User".to_string(),
+            typename:   "User".to_string(),
             key_fields: HashMap::new(),
             all_fields: HashMap::new(),
         };

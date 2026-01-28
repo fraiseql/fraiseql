@@ -7,16 +7,15 @@
 //! 4. Moves to DLQ on permanent failures
 //! 5. Records metrics for observability
 
-use std::sync::Arc;
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
+
 use tokio::task::JoinSet;
 use tracing::{debug, error, info, warn};
 
+use super::{Job, backoff, traits::JobQueue};
 #[cfg(feature = "metrics")]
 use crate::metrics::MetricsRegistry;
-use super::{backoff, traits::JobQueue, Job};
-use crate::error::Result;
-use crate::executor::ObserverExecutor;
+use crate::{error::Result, executor::ObserverExecutor};
 
 /// Job executor that processes jobs from the queue
 pub struct JobExecutor {
@@ -264,10 +263,7 @@ impl JobExecutor {
 ///
 /// This is a placeholder that would integrate with the observer executor
 /// in a full implementation. For now, it returns success.
-async fn timeout_job_execution(
-    _executor: &Arc<ObserverExecutor>,
-    _job: &Job,
-) -> Result<()> {
+async fn timeout_job_execution(_executor: &Arc<ObserverExecutor>, _job: &Job) -> Result<()> {
     // In a full implementation, this would:
     // 1. Determine the action type from job.action
     // 2. Execute the action with the observer executor

@@ -2,8 +2,9 @@
 //!
 //! Shared utilities for SQL generation across federation modules.
 
-use crate::error::{FraiseQLError, Result};
 use serde_json::Value;
+
+use crate::error::{FraiseQLError, Result};
 
 /// Convert a JSON value to a SQL literal representation.
 ///
@@ -27,13 +28,13 @@ pub fn value_to_sql_literal(value: &Value) -> Result<String> {
         Value::String(s) => {
             let escaped = escape_sql_string(s);
             Ok(format!("'{}'", escaped))
-        }
+        },
         Value::Number(n) => Ok(n.to_string()),
         Value::Bool(b) => Ok(if *b { "true" } else { "false" }.to_string()),
         Value::Null => Ok("NULL".to_string()),
         _ => Err(FraiseQLError::Validation {
             message: format!("Cannot convert {} to SQL literal", value.type_str()),
-            path: None,
+            path:    None,
         }),
     }
 }
@@ -56,7 +57,7 @@ pub fn value_to_string(value: &Value) -> Result<String> {
         Value::Null => Ok("null".to_string()),
         _ => Err(FraiseQLError::Validation {
             message: format!("Cannot convert {} to string for WHERE clause", value.type_str()),
-            path: None,
+            path:    None,
         }),
     }
 }
@@ -96,8 +97,9 @@ impl JsonTypeStr for Value {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serde_json::json;
+
+    use super::*;
 
     #[test]
     fn test_value_to_sql_literal_string() {

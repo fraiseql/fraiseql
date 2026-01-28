@@ -3,20 +3,22 @@
 //! Propagates extended mutations (mutations on entities owned elsewhere) to the
 //! authoritative subgraph via GraphQL HTTP requests.
 
-use serde_json::Value;
 use std::time::Duration;
 
-use crate::error::{FraiseQLError, Result};
-use crate::federation::types::FederationMetadata;
-use crate::federation::metadata_helpers::find_federation_type;
+use serde_json::Value;
+
+use crate::{
+    error::{FraiseQLError, Result},
+    federation::{metadata_helpers::find_federation_type, types::FederationMetadata},
+};
 
 /// Configuration for HTTP mutation client
 #[derive(Debug, Clone)]
 pub struct HttpMutationConfig {
     /// Request timeout in milliseconds
-    pub timeout_ms: u64,
+    pub timeout_ms:     u64,
     /// Maximum number of retries
-    pub max_retries: u32,
+    pub max_retries:    u32,
     /// Delay between retries in milliseconds
     pub retry_delay_ms: u64,
 }
@@ -24,8 +26,8 @@ pub struct HttpMutationConfig {
 impl Default for HttpMutationConfig {
     fn default() -> Self {
         Self {
-            timeout_ms: 5000,
-            max_retries: 3,
+            timeout_ms:     5000,
+            max_retries:    3,
             retry_delay_ms: 100,
         }
     }
@@ -35,7 +37,7 @@ impl Default for HttpMutationConfig {
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct GraphQLRequest {
     /// GraphQL query/mutation string
-    pub query: String,
+    pub query:     String,
     /// Variables for the query
     pub variables: Value,
 }
@@ -44,7 +46,7 @@ pub struct GraphQLRequest {
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct GraphQLResponse {
     /// Response data (null if errors occurred)
-    pub data: Option<Value>,
+    pub data:   Option<Value>,
     /// GraphQL errors
     pub errors: Option<Vec<GraphQLError>>,
 }
@@ -84,13 +86,10 @@ impl HttpMutationClient {
         variables: &Value,
         metadata: &FederationMetadata,
     ) -> Result<Value> {
-        let client = self
-            .client
-            .as_ref()
-            .ok_or_else(|| FraiseQLError::Internal {
-                message: "HTTP client not initialized".to_string(),
-                source: None,
-            })?;
+        let client = self.client.as_ref().ok_or_else(|| FraiseQLError::Internal {
+            message: "HTTP client not initialized".to_string(),
+            source:  None,
+        })?;
 
         // Get entity type for key fields
         let fed_type = find_federation_type(typename, metadata)?;
@@ -99,9 +98,7 @@ impl HttpMutationClient {
         let query = self.build_mutation_query(typename, mutation_name, variables, fed_type)?;
 
         // Execute with retry
-        let response = self
-            .execute_with_retry(client, subgraph_url, &query)
-            .await?;
+        let response = self.execute_with_retry(client, subgraph_url, &query).await?;
 
         // Parse and return response
         self.parse_response(response, mutation_name)
@@ -188,15 +185,15 @@ impl HttpMutationClient {
                 Ok(response) if response.status().is_success() => {
                     return response.json().await.map_err(|e| FraiseQLError::Internal {
                         message: format!("Failed to parse GraphQL response: {}", e),
-                        source: None,
+                        source:  None,
                     });
-                }
+                },
                 Ok(response) => {
                     last_error = Some(format!("HTTP {}", response.status()));
-                }
+                },
                 Err(e) => {
                     last_error = Some(e.to_string());
-                }
+                },
             }
 
             if attempts < self.config.max_retries {
@@ -213,7 +210,7 @@ impl HttpMutationClient {
                 self.config.max_retries,
                 last_error.unwrap_or_else(|| "Unknown error".to_string())
             ),
-            source: None,
+            source:  None,
         })
     }
 
@@ -221,25 +218,25 @@ impl HttpMutationClient {
     pub fn parse_response(&self, response: GraphQLResponse, mutation_name: &str) -> Result<Value> {
         // Check for GraphQL errors
         if let Some(errors) = response.errors {
-            let error_messages: Vec<String> =
-                errors.iter().map(|e| e.message.clone()).collect();
+            let error_messages: Vec<String> = errors.iter().map(|e| e.message.clone()).collect();
             return Err(FraiseQLError::Internal {
-                message: format!("GraphQL error in mutation response: {}", error_messages.join("; ")),
-                source: None,
+                message: format!(
+                    "GraphQL error in mutation response: {}",
+                    error_messages.join("; ")
+                ),
+                source:  None,
             });
         }
 
         // Extract mutation result from data
         let data = response.data.ok_or_else(|| FraiseQLError::Internal {
             message: "No data in mutation response".to_string(),
-            source: None,
+            source:  None,
         })?;
 
-        let result = data.get(mutation_name).cloned().ok_or_else(|| {
-            FraiseQLError::Internal {
-                message: format!("No {} field in response data", mutation_name),
-                source: None,
-            }
+        let result = data.get(mutation_name).cloned().ok_or_else(|| FraiseQLError::Internal {
+            message: format!("No {} field in response data", mutation_name),
+            source:  None,
         })?;
 
         Ok(result)
@@ -248,8 +245,9 @@ impl HttpMutationClient {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serde_json::json;
+
+    use super::*;
 
     #[test]
     fn test_http_mutation_client_creation() {
@@ -269,8 +267,8 @@ mod tests {
     #[test]
     fn test_mutation_config_custom() {
         let config = HttpMutationConfig {
-            timeout_ms: 10000,
-            max_retries: 5,
+            timeout_ms:     10000,
+            max_retries:    5,
             retry_delay_ms: 200,
         };
         assert_eq!(config.timeout_ms, 10000);
@@ -281,7 +279,7 @@ mod tests {
     #[test]
     fn test_graphql_request_serialization() {
         let request = GraphQLRequest {
-            query: "mutation { updateUser(id: $id) { id } }".to_string(),
+            query:     "mutation { updateUser(id: $id) { id } }".to_string(),
             variables: json!({ "id": "123" }),
         };
 

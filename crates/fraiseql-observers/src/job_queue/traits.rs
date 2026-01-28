@@ -1,8 +1,8 @@
 //! Job queue trait definitions and error types.
 
+use std::{fmt, sync::Arc};
+
 use async_trait::async_trait;
-use std::fmt;
-use std::sync::Arc;
 use uuid::Uuid;
 
 use super::Job;
@@ -130,9 +130,9 @@ pub trait JobQueue: Send + Sync {
 
 /// Mock job queue for testing
 pub struct MockJobQueue {
-    jobs: Arc<dashmap::DashMap<Uuid, Job>>,
+    jobs:    Arc<dashmap::DashMap<Uuid, Job>>,
     pending: Arc<dashmap::DashMap<Uuid, ()>>,
-    dlq: Arc<dashmap::DashMap<Uuid, Job>>,
+    dlq:     Arc<dashmap::DashMap<Uuid, Job>>,
 }
 
 impl MockJobQueue {
@@ -140,28 +140,22 @@ impl MockJobQueue {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            jobs: Arc::new(dashmap::DashMap::new()),
+            jobs:    Arc::new(dashmap::DashMap::new()),
             pending: Arc::new(dashmap::DashMap::new()),
-            dlq: Arc::new(dashmap::DashMap::new()),
+            dlq:     Arc::new(dashmap::DashMap::new()),
         }
     }
 
     /// Get all jobs (for testing)
     #[must_use]
     pub fn all_jobs(&self) -> Vec<Job> {
-        self.jobs
-            .iter()
-            .map(|entry| entry.value().clone())
-            .collect()
+        self.jobs.iter().map(|entry| entry.value().clone()).collect()
     }
 
     /// Get all DLQ jobs (for testing)
     #[must_use]
     pub fn dlq_jobs(&self) -> Vec<Job> {
-        self.dlq
-            .iter()
-            .map(|entry| entry.value().clone())
-            .collect()
+        self.dlq.iter().map(|entry| entry.value().clone()).collect()
     }
 }
 
@@ -249,7 +243,7 @@ mod tests {
         let event_id = Uuid::new_v4();
         let action = ActionConfig::Cache {
             key_pattern: "test:*".to_string(),
-            action: "invalidate".to_string(),
+            action:      "invalidate".to_string(),
         };
         let job = Job::new(event_id, action, 3, crate::config::BackoffStrategy::Exponential);
         let job_id = job.id;
@@ -266,7 +260,7 @@ mod tests {
         let event_id = Uuid::new_v4();
         let action = ActionConfig::Cache {
             key_pattern: "test:*".to_string(),
-            action: "invalidate".to_string(),
+            action:      "invalidate".to_string(),
         };
         let job = Job::new(event_id, action, 3, crate::config::BackoffStrategy::Exponential);
 
@@ -283,7 +277,7 @@ mod tests {
         let event_id = Uuid::new_v4();
         let action = ActionConfig::Cache {
             key_pattern: "test:*".to_string(),
-            action: "invalidate".to_string(),
+            action:      "invalidate".to_string(),
         };
         let job = Job::new(event_id, action, 3, crate::config::BackoffStrategy::Exponential);
 
@@ -306,7 +300,7 @@ mod tests {
         let event_id = Uuid::new_v4();
         let action = ActionConfig::Cache {
             key_pattern: "test:*".to_string(),
-            action: "invalidate".to_string(),
+            action:      "invalidate".to_string(),
         };
         let mut job = Job::new(event_id, action, 3, crate::config::BackoffStrategy::Exponential);
 
@@ -327,15 +321,12 @@ mod tests {
         let event_id = Uuid::new_v4();
         let action = ActionConfig::Cache {
             key_pattern: "test:*".to_string(),
-            action: "invalidate".to_string(),
+            action:      "invalidate".to_string(),
         };
         let mut job = Job::new(event_id, action, 1, crate::config::BackoffStrategy::Exponential);
 
         queue.enqueue(job.clone()).await.expect("enqueue failed");
-        queue
-            .fail(&mut job, "permanent error".to_string())
-            .await
-            .expect("fail failed");
+        queue.fail(&mut job, "permanent error".to_string()).await.expect("fail failed");
 
         assert_eq!(queue.dlq_size().await.expect("dlq size failed"), 1);
     }

@@ -48,8 +48,8 @@ pub struct RollingErrorWindow {
 #[derive(Debug, Clone)]
 struct ErrorBucket {
     timestamp: Instant,
-    errors: u32,
-    total: u32,
+    errors:    u32,
+    total:     u32,
 }
 
 impl RollingErrorWindow {
@@ -68,8 +68,8 @@ impl RollingErrorWindow {
         } else {
             buckets.push_back(ErrorBucket {
                 timestamp: Instant::now(),
-                errors: 0,
-                total: 1,
+                errors:    0,
+                total:     1,
             });
         }
     }
@@ -83,8 +83,8 @@ impl RollingErrorWindow {
         } else {
             buckets.push_back(ErrorBucket {
                 timestamp: Instant::now(),
-                errors: 1,
-                total: 1,
+                errors:    1,
+                total:     1,
             });
         }
     }
@@ -145,10 +145,10 @@ impl Default for RollingErrorWindow {
 
 /// Subgraph health checker.
 pub struct SubgraphHealthChecker {
-    subgraphs: Vec<SubgraphConfig>,
-    http_client: reqwest::Client,
+    subgraphs:     Vec<SubgraphConfig>,
+    http_client:   reqwest::Client,
     error_windows: Arc<Mutex<std::collections::HashMap<String, RollingErrorWindow>>>,
-    status_cache: Arc<Mutex<Vec<SubgraphHealthStatus>>>,
+    status_cache:  Arc<Mutex<Vec<SubgraphHealthStatus>>>,
 }
 
 /// Configuration for a single subgraph.
@@ -202,9 +202,7 @@ impl SubgraphHealthChecker {
         // Record result and get updated stats
         let (error_count, error_rate) = {
             let windows = self.error_windows.lock().unwrap();
-            let window = windows
-                .get(&config.name)
-                .expect("Window should exist for subgraph");
+            let window = windows.get(&config.name).expect("Window should exist for subgraph");
 
             if available {
                 window.record_success();
@@ -279,12 +277,7 @@ impl SubgraphHealthChecker {
 
     /// Get cached health statuses.
     pub fn get_cached_statuses(&self) -> Vec<SubgraphHealthStatus> {
-        self.status_cache
-            .lock()
-            .unwrap()
-            .iter()
-            .cloned()
-            .collect()
+        self.status_cache.lock().unwrap().iter().cloned().collect()
     }
 
     /// Get overall federation health status.
@@ -340,12 +333,12 @@ mod tests {
     #[test]
     fn test_health_status_serialization() {
         let status = SubgraphHealthStatus {
-            name: "test-subgraph".to_string(),
-            available: true,
-            latency_ms: 25.5,
-            last_check: Utc::now().to_rfc3339(),
+            name:                 "test-subgraph".to_string(),
+            available:            true,
+            latency_ms:           25.5,
+            last_check:           Utc::now().to_rfc3339(),
             error_count_last_60s: 0,
-            error_rate_percent: 0.0,
+            error_rate_percent:   0.0,
         };
 
         let json = serde_json::to_string(&status).unwrap();

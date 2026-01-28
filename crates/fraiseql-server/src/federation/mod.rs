@@ -4,4 +4,6 @@
 
 pub mod health_checker;
 
-pub use health_checker::{RollingErrorWindow, SubgraphConfig, SubgraphHealthChecker, SubgraphHealthStatus};
+pub use health_checker::{
+    RollingErrorWindow, SubgraphConfig, SubgraphHealthChecker, SubgraphHealthStatus,
+};

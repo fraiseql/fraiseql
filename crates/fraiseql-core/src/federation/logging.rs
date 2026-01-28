@@ -5,8 +5,9 @@
 //! - Resolution details (strategy, typename, subgraph)
 //! - Timing and status information
 
-use serde::Serialize;
 use std::time::Instant;
+
+use serde::Serialize;
 
 /// Federation operation types for logging.
 #[derive(Debug, Clone, Copy, Serialize)]

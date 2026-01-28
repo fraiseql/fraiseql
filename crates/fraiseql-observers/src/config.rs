@@ -640,8 +640,7 @@ pub struct JobQueueConfig {
 }
 
 fn default_job_queue_url() -> String {
-    env::var("FRAISEQL_JOB_QUEUE_URL")
-        .unwrap_or_else(|_| "redis://localhost:6379".to_string())
+    env::var("FRAISEQL_JOB_QUEUE_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string())
 }
 
 const fn default_job_queue_batch_size() -> usize {
@@ -675,14 +674,14 @@ const fn default_job_queue_max_delay_ms() -> u64 {
 impl Default for JobQueueConfig {
     fn default() -> Self {
         Self {
-            url: default_job_queue_url(),
-            batch_size: default_job_queue_batch_size(),
+            url:                default_job_queue_url(),
+            batch_size:         default_job_queue_batch_size(),
             batch_timeout_secs: default_job_queue_batch_timeout_secs(),
-            max_retries: default_job_queue_max_retries(),
+            max_retries:        default_job_queue_max_retries(),
             worker_concurrency: default_job_queue_worker_concurrency(),
-            poll_interval_ms: default_job_queue_poll_interval_ms(),
-            initial_delay_ms: default_job_queue_initial_delay_ms(),
-            max_delay_ms: default_job_queue_max_delay_ms(),
+            poll_interval_ms:   default_job_queue_poll_interval_ms(),
+            initial_delay_ms:   default_job_queue_initial_delay_ms(),
+            max_delay_ms:       default_job_queue_max_delay_ms(),
         }
     }
 }
@@ -898,18 +897,15 @@ pub struct ClickHouseConfig {
 }
 
 fn default_clickhouse_url() -> String {
-    env::var("FRAISEQL_CLICKHOUSE_URL")
-        .unwrap_or_else(|_| "http://localhost:8123".to_string())
+    env::var("FRAISEQL_CLICKHOUSE_URL").unwrap_or_else(|_| "http://localhost:8123".to_string())
 }
 
 fn default_clickhouse_database() -> String {
-    env::var("FRAISEQL_CLICKHOUSE_DATABASE")
-        .unwrap_or_else(|_| "default".to_string())
+    env::var("FRAISEQL_CLICKHOUSE_DATABASE").unwrap_or_else(|_| "default".to_string())
 }
 
 fn default_clickhouse_table() -> String {
-    env::var("FRAISEQL_CLICKHOUSE_TABLE")
-        .unwrap_or_else(|_| "fraiseql_events".to_string())
+    env::var("FRAISEQL_CLICKHOUSE_TABLE").unwrap_or_else(|_| "fraiseql_events".to_string())
 }
 
 const fn default_clickhouse_batch_size() -> usize {
@@ -927,12 +923,12 @@ const fn default_clickhouse_max_retries() -> usize {
 impl Default for ClickHouseConfig {
     fn default() -> Self {
         Self {
-            url: default_clickhouse_url(),
-            database: default_clickhouse_database(),
-            table: default_clickhouse_table(),
-            batch_size: default_clickhouse_batch_size(),
+            url:                default_clickhouse_url(),
+            database:           default_clickhouse_database(),
+            table:              default_clickhouse_table(),
+            batch_size:         default_clickhouse_batch_size(),
             batch_timeout_secs: default_clickhouse_batch_timeout_secs(),
-            max_retries: default_clickhouse_max_retries(),
+            max_retries:        default_clickhouse_max_retries(),
         }
     }
 }

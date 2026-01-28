@@ -18,7 +18,7 @@ use fraiseql_core::federation::types::{FederatedType, FederationMetadata, KeyDir
 fn test_key_directive_single_field() {
     // @key(fields: "id")
     let key = KeyDirective {
-        fields: vec!["id".to_string()],
+        fields:     vec!["id".to_string()],
         resolvable: true,
     };
 
@@ -31,7 +31,7 @@ fn test_key_directive_single_field() {
 fn test_key_directive_composite_key() {
     // @key(fields: "organizationId id")
     let key = KeyDirective {
-        fields: vec!["organizationId".to_string(), "id".to_string()],
+        fields:     vec!["organizationId".to_string(), "id".to_string()],
         resolvable: true,
     };
 
@@ -44,12 +44,12 @@ fn test_key_directive_composite_key() {
 fn test_key_directive_resolvable_flag() {
     // Resolvable flag indicates whether _entities query can resolve this type
     let resolvable = KeyDirective {
-        fields: vec!["id".to_string()],
+        fields:     vec!["id".to_string()],
         resolvable: true,
     };
 
     let non_resolvable = KeyDirective {
-        fields: vec!["id".to_string()],
+        fields:     vec!["id".to_string()],
         resolvable: false,
     };
 
@@ -63,22 +63,22 @@ fn test_key_directive_multiple_keys() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "User".to_string(),
-            keys: vec![
+        types:   vec![FederatedType {
+            name:             "User".to_string(),
+            keys:             vec![
                 KeyDirective {
-                    fields: vec!["id".to_string()],
+                    fields:     vec!["id".to_string()],
                     resolvable: true,
                 },
                 KeyDirective {
-                    fields: vec!["email".to_string()],
+                    fields:     vec!["email".to_string()],
                     resolvable: true,
                 },
             ],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+            field_directives: std::collections::HashMap::new(),
         }],
     };
 
@@ -96,15 +96,15 @@ fn test_key_directive_multiple_keys() {
 fn test_external_field_single() {
     // @external indicates field is owned by another subgraph
     let fed_type = FederatedType {
-        name: "User".to_string(),
-        keys: vec![KeyDirective {
-            fields: vec!["id".to_string()],
+        name:             "User".to_string(),
+        keys:             vec![KeyDirective {
+            fields:     vec!["id".to_string()],
             resolvable: true,
         }],
-        is_extends: true,
-        external_fields: vec!["email".to_string()],
+        is_extends:       true,
+        external_fields:  vec!["email".to_string()],
         shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+        field_directives: std::collections::HashMap::new(),
     };
 
     assert!(fed_type.external_fields.contains(&"email".to_string()));
@@ -115,18 +115,15 @@ fn test_external_field_single() {
 fn test_external_field_multiple() {
     // Multiple @external fields in extended type
     let fed_type = FederatedType {
-        name: "Order".to_string(),
-        keys: vec![KeyDirective {
-            fields: vec!["id".to_string()],
+        name:             "Order".to_string(),
+        keys:             vec![KeyDirective {
+            fields:     vec!["id".to_string()],
             resolvable: true,
         }],
-        is_extends: true,
-        external_fields: vec![
-            "customerId".to_string(),
-            "customerEmail".to_string(),
-        ],
+        is_extends:       true,
+        external_fields:  vec!["customerId".to_string(), "customerEmail".to_string()],
         shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+        field_directives: std::collections::HashMap::new(),
     };
 
     assert_eq!(fed_type.external_fields.len(), 2);
@@ -138,15 +135,15 @@ fn test_external_field_multiple() {
 fn test_external_field_key_field() {
     // Key fields should also be marked as external in extended types
     let fed_type = FederatedType {
-        name: "Order".to_string(),
-        keys: vec![KeyDirective {
-            fields: vec!["id".to_string()],
+        name:             "Order".to_string(),
+        keys:             vec![KeyDirective {
+            fields:     vec!["id".to_string()],
             resolvable: true,
         }],
-        is_extends: true,
-        external_fields: vec!["id".to_string()],
+        is_extends:       true,
+        external_fields:  vec!["id".to_string()],
         shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+        field_directives: std::collections::HashMap::new(),
     };
 
     // Key field "id" is also external in this extended type
@@ -161,15 +158,15 @@ fn test_external_field_key_field() {
 fn test_extends_directive_owned_entity() {
     // Local entity (not extended)
     let fed_type = FederatedType {
-        name: "User".to_string(),
-        keys: vec![KeyDirective {
-            fields: vec!["id".to_string()],
+        name:             "User".to_string(),
+        keys:             vec![KeyDirective {
+            fields:     vec!["id".to_string()],
             resolvable: true,
         }],
-        is_extends: false,
-        external_fields: vec![],
+        is_extends:       false,
+        external_fields:  vec![],
         shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+        field_directives: std::collections::HashMap::new(),
     };
 
     assert!(!fed_type.is_extends, "Local entity should not be extended");
@@ -179,15 +176,15 @@ fn test_extends_directive_owned_entity() {
 fn test_extends_directive_extended_entity() {
     // Extended entity (extends another subgraph's type)
     let fed_type = FederatedType {
-        name: "User".to_string(),
-        keys: vec![KeyDirective {
-            fields: vec!["id".to_string()],
+        name:             "User".to_string(),
+        keys:             vec![KeyDirective {
+            fields:     vec!["id".to_string()],
             resolvable: true,
         }],
-        is_extends: true,
-        external_fields: vec!["email".to_string()],
+        is_extends:       true,
+        external_fields:  vec!["email".to_string()],
         shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+        field_directives: std::collections::HashMap::new(),
     };
 
     assert!(fed_type.is_extends, "Extended entity should have is_extends=true");
@@ -197,15 +194,15 @@ fn test_extends_directive_extended_entity() {
 fn test_extends_with_external_fields() {
     // Extended types must have external fields
     let fed_type = FederatedType {
-        name: "Order".to_string(),
-        keys: vec![KeyDirective {
-            fields: vec!["id".to_string()],
+        name:             "Order".to_string(),
+        keys:             vec![KeyDirective {
+            fields:     vec!["id".to_string()],
             resolvable: true,
         }],
-        is_extends: true,
-        external_fields: vec!["customerId".to_string()],
+        is_extends:       true,
+        external_fields:  vec!["customerId".to_string()],
         shareable_fields: vec!["total".to_string()],
-                field_directives: std::collections::HashMap::new(),
+        field_directives: std::collections::HashMap::new(),
     };
 
     assert!(fed_type.is_extends);
@@ -221,15 +218,15 @@ fn test_extends_with_external_fields() {
 fn test_shareable_field_single() {
     // @shareable indicates field can be resolved by multiple subgraphs
     let fed_type = FederatedType {
-        name: "User".to_string(),
-        keys: vec![KeyDirective {
-            fields: vec!["id".to_string()],
+        name:             "User".to_string(),
+        keys:             vec![KeyDirective {
+            fields:     vec!["id".to_string()],
             resolvable: true,
         }],
-        is_extends: false,
-        external_fields: vec![],
+        is_extends:       false,
+        external_fields:  vec![],
         shareable_fields: vec!["email".to_string()],
-                field_directives: std::collections::HashMap::new(),
+        field_directives: std::collections::HashMap::new(),
     };
 
     assert!(fed_type.shareable_fields.contains(&"email".to_string()));
@@ -239,15 +236,15 @@ fn test_shareable_field_single() {
 fn test_shareable_field_multiple() {
     // Multiple shareable fields
     let fed_type = FederatedType {
-        name: "Product".to_string(),
-        keys: vec![KeyDirective {
-            fields: vec!["id".to_string()],
+        name:             "Product".to_string(),
+        keys:             vec![KeyDirective {
+            fields:     vec!["id".to_string()],
             resolvable: true,
         }],
-        is_extends: false,
-        external_fields: vec![],
+        is_extends:       false,
+        external_fields:  vec![],
         shareable_fields: vec!["name".to_string(), "description".to_string()],
-                field_directives: std::collections::HashMap::new(),
+        field_directives: std::collections::HashMap::new(),
     };
 
     assert_eq!(fed_type.shareable_fields.len(), 2);
@@ -259,15 +256,15 @@ fn test_shareable_field_multiple() {
 fn test_shareable_field_in_extended_type() {
     // Extended types can have shareable fields
     let fed_type = FederatedType {
-        name: "Order".to_string(),
-        keys: vec![KeyDirective {
-            fields: vec!["id".to_string()],
+        name:             "Order".to_string(),
+        keys:             vec![KeyDirective {
+            fields:     vec!["id".to_string()],
             resolvable: true,
         }],
-        is_extends: true,
-        external_fields: vec!["customerId".to_string()],
+        is_extends:       true,
+        external_fields:  vec!["customerId".to_string()],
         shareable_fields: vec!["status".to_string()],
-                field_directives: std::collections::HashMap::new(),
+        field_directives: std::collections::HashMap::new(),
     };
 
     assert!(fed_type.is_extends);
@@ -282,15 +279,15 @@ fn test_shareable_field_in_extended_type() {
 fn test_composite_key_multi_tenant() {
     // Multi-tenant composite key: (tenantId, id)
     let fed_type = FederatedType {
-        name: "TenantUser".to_string(),
-        keys: vec![KeyDirective {
-            fields: vec!["tenantId".to_string(), "id".to_string()],
+        name:             "TenantUser".to_string(),
+        keys:             vec![KeyDirective {
+            fields:     vec!["tenantId".to_string(), "id".to_string()],
             resolvable: true,
         }],
-        is_extends: false,
-        external_fields: vec![],
+        is_extends:       false,
+        external_fields:  vec![],
         shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+        field_directives: std::collections::HashMap::new(),
     };
 
     assert_eq!(fed_type.keys[0].fields.len(), 2);
@@ -302,12 +299,12 @@ fn test_composite_key_multi_tenant() {
 fn test_composite_key_ordering_matters() {
     // Key field order matters for uniqueness
     let key1 = KeyDirective {
-        fields: vec!["organizationId".to_string(), "userId".to_string()],
+        fields:     vec!["organizationId".to_string(), "userId".to_string()],
         resolvable: true,
     };
 
     let key2 = KeyDirective {
-        fields: vec!["userId".to_string(), "organizationId".to_string()],
+        fields:     vec!["userId".to_string(), "organizationId".to_string()],
         resolvable: true,
     };
 
@@ -318,7 +315,7 @@ fn test_composite_key_ordering_matters() {
 fn test_composite_key_uniqueness() {
     // All fields in composite key must be unique
     let key = KeyDirective {
-        fields: vec!["organizationId".to_string(), "id".to_string()],
+        fields:     vec!["organizationId".to_string(), "id".to_string()],
         resolvable: true,
     };
 
@@ -335,7 +332,7 @@ fn test_federation_metadata_version() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![],
+        types:   vec![],
     };
 
     assert_eq!(metadata.version, "v2");
@@ -347,13 +344,13 @@ fn test_federation_metadata_enabled_flag() {
     let enabled = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![],
+        types:   vec![],
     };
 
     let disabled = FederationMetadata {
         enabled: false,
         version: "v2".to_string(),
-        types: vec![],
+        types:   vec![],
     };
 
     assert!(enabled.enabled);
@@ -365,26 +362,26 @@ fn test_federation_metadata_multiple_types() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![
+        types:   vec![
             FederatedType {
-                name: "User".to_string(),
-                keys: vec![KeyDirective {
-                    fields: vec!["id".to_string()],
+                name:             "User".to_string(),
+                keys:             vec![KeyDirective {
+                    fields:     vec!["id".to_string()],
                     resolvable: true,
                 }],
-                is_extends: false,
-                external_fields: vec![],
+                is_extends:       false,
+                external_fields:  vec![],
                 shareable_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
-                name: "Order".to_string(),
-                keys: vec![KeyDirective {
-                    fields: vec!["id".to_string()],
+                name:             "Order".to_string(),
+                keys:             vec![KeyDirective {
+                    fields:     vec!["id".to_string()],
                     resolvable: true,
                 }],
-                is_extends: false,
-                external_fields: vec![],
+                is_extends:       false,
+                external_fields:  vec![],
                 shareable_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
@@ -405,15 +402,15 @@ fn test_field_cannot_be_both_external_and_key() {
     // A field cannot be both a key field and external in the same type
     // (in extended types, key fields are external, but that's handled separately)
     let fed_type = FederatedType {
-        name: "Order".to_string(),
-        keys: vec![KeyDirective {
-            fields: vec!["id".to_string()],
+        name:             "Order".to_string(),
+        keys:             vec![KeyDirective {
+            fields:     vec!["id".to_string()],
             resolvable: true,
         }],
-        is_extends: true,
-        external_fields: vec!["id".to_string()],
+        is_extends:       true,
+        external_fields:  vec!["id".to_string()],
         shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+        field_directives: std::collections::HashMap::new(),
     };
 
     // This is valid for extended types (key fields are external)
@@ -424,15 +421,15 @@ fn test_field_cannot_be_both_external_and_key() {
 fn test_owned_type_cannot_have_external_fields() {
     // Owned (non-extended) types should not have external fields
     let fed_type = FederatedType {
-        name: "User".to_string(),
-        keys: vec![KeyDirective {
-            fields: vec!["id".to_string()],
+        name:             "User".to_string(),
+        keys:             vec![KeyDirective {
+            fields:     vec!["id".to_string()],
             resolvable: true,
         }],
-        is_extends: false,
-        external_fields: vec![], // Must be empty for owned types
+        is_extends:       false,
+        external_fields:  vec![], // Must be empty for owned types
         shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+        field_directives: std::collections::HashMap::new(),
     };
 
     assert!(!fed_type.is_extends);
@@ -446,7 +443,7 @@ fn test_owned_type_cannot_have_external_fields() {
 #[test]
 fn test_key_directive_requires_fields() {
     let key = KeyDirective {
-        fields: vec!["id".to_string()],
+        fields:     vec!["id".to_string()],
         resolvable: true,
     };
 
@@ -456,12 +453,12 @@ fn test_key_directive_requires_fields() {
 #[test]
 fn test_resolvable_key_vs_non_resolvable() {
     let resolvable = KeyDirective {
-        fields: vec!["id".to_string()],
+        fields:     vec!["id".to_string()],
         resolvable: true,
     };
 
     let non_resolvable = KeyDirective {
-        fields: vec!["id".to_string()],
+        fields:     vec!["id".to_string()],
         resolvable: false,
     };
 
@@ -474,15 +471,15 @@ fn test_resolvable_key_vs_non_resolvable() {
 #[test]
 fn test_extended_type_must_have_key() {
     let fed_type = FederatedType {
-        name: "Order".to_string(),
-        keys: vec![KeyDirective {
-            fields: vec!["id".to_string()],
+        name:             "Order".to_string(),
+        keys:             vec![KeyDirective {
+            fields:     vec!["id".to_string()],
             resolvable: true,
         }],
-        is_extends: true,
-        external_fields: vec!["customerId".to_string()],
+        is_extends:       true,
+        external_fields:  vec!["customerId".to_string()],
         shareable_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
+        field_directives: std::collections::HashMap::new(),
     };
 
     assert!(fed_type.is_extends);

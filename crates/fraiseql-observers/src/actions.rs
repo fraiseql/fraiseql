@@ -240,7 +240,7 @@ pub struct SlackResponse {
 
 /// Email action executor
 pub struct EmailAction {
-    // Placeholder for SMTP client 
+    // Placeholder for SMTP client
 }
 
 impl EmailAction {

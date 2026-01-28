@@ -21,8 +21,9 @@
 #[cfg(feature = "clickhouse")]
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    use fraiseql_arrow::{ClickHouseSink, ClickHouseSinkConfig, EventRow};
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    use fraiseql_arrow::{ClickHouseSink, ClickHouseSinkConfig, EventRow};
     use tokio::sync::mpsc;
 
     println!("🚀 Starting ClickHouse Sink Example");
@@ -30,8 +31,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Step 1: Create configuration
     println!("Step 1: Creating ClickHouse sink configuration...");
-    let config = ClickHouseSinkConfig::default()
-        .with_env_overrides();
+    let config = ClickHouseSinkConfig::default().with_env_overrides();
 
     println!("  URL:          {}", config.url);
     println!("  Database:     {}", config.database);
@@ -58,10 +58,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let num_events = 100;
     let mut rows = Vec::with_capacity(num_events);
 
-    let now_micros = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_micros() as i64;
+    let now_micros = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_micros() as i64;
 
     for i in 0..num_events {
         let event_id = format!("evt-{:05}", i);
@@ -88,8 +85,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             timestamp: now_micros + (i as i64) * 1_000_000, // Space out by 1 second each
             data: format!(
                 r#"{{"event_number":{}, "processed_at": {}, "test": true}}"#,
-                i,
-                now_micros
+                i, now_micros
             ),
             user_id,
             org_id,
@@ -114,9 +110,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Convert EventRow to RecordBatch
         // Note: In real usage, you'd use EventToArrowConverter
         // Here we just send the row directly for the sink to handle
-        use arrow::array::StringArray;
-        use arrow::record_batch::RecordBatch;
         use std::sync::Arc;
+
+        use arrow::{array::StringArray, record_batch::RecordBatch};
 
         let event_ids = StringArray::from(vec![row.event_id.clone()]);
         let event_types = StringArray::from(vec![row.event_type.clone()]);
@@ -143,7 +139,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap();
 
         match tx.send_timeout(batch, tokio::time::Duration::from_secs(5)).await {
-            Ok(()) => {}
+            Ok(()) => {},
             Err(e) => eprintln!("⚠️  Failed to send batch: {}", e),
         }
     }
