@@ -138,6 +138,66 @@ impl MetricsCollector {
     }
 }
 
+impl MetricsCollector {
+    /// Record entity resolution completion (all strategies).
+    ///
+    /// # Arguments
+    ///
+    /// * `duration_us` - Resolution duration in microseconds
+    /// * `success` - Whether resolution succeeded
+    pub fn record_entity_resolution(&self, duration_us: u64, success: bool) {
+        self.federation_entity_resolutions_total.fetch_add(1, Ordering::Relaxed);
+        self.federation_entity_resolution_duration_us
+            .fetch_add(duration_us, Ordering::Relaxed);
+        if !success {
+            self.federation_entity_resolutions_errors.fetch_add(1, Ordering::Relaxed);
+            self.federation_errors_total.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    /// Record subgraph request completion.
+    ///
+    /// # Arguments
+    ///
+    /// * `duration_us` - Request duration in microseconds
+    /// * `success` - Whether request succeeded (HTTP 2xx)
+    pub fn record_subgraph_request(&self, duration_us: u64, success: bool) {
+        self.federation_subgraph_requests_total.fetch_add(1, Ordering::Relaxed);
+        self.federation_subgraph_request_duration_us
+            .fetch_add(duration_us, Ordering::Relaxed);
+        if !success {
+            self.federation_subgraph_requests_errors.fetch_add(1, Ordering::Relaxed);
+            self.federation_errors_total.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    /// Record federation mutation execution.
+    ///
+    /// # Arguments
+    ///
+    /// * `duration_us` - Mutation duration in microseconds
+    /// * `success` - Whether mutation succeeded
+    pub fn record_mutation(&self, duration_us: u64, success: bool) {
+        self.federation_mutations_total.fetch_add(1, Ordering::Relaxed);
+        self.federation_mutation_duration_us
+            .fetch_add(duration_us, Ordering::Relaxed);
+        if !success {
+            self.federation_mutations_errors.fetch_add(1, Ordering::Relaxed);
+            self.federation_errors_total.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    /// Record entity cache hit.
+    pub fn record_entity_cache_hit(&self) {
+        self.federation_entity_cache_hits.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Record entity cache miss.
+    pub fn record_entity_cache_miss(&self) {
+        self.federation_entity_cache_misses.fetch_add(1, Ordering::Relaxed);
+    }
+}
+
 impl Default for MetricsCollector {
     fn default() -> Self {
         Self::new()

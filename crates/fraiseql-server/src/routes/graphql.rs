@@ -290,16 +290,22 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         })?;
 
     let elapsed = start_time.elapsed();
+    let elapsed_us = elapsed.as_micros() as u64;
 
     // Record successful query metrics
     metrics.queries_success.fetch_add(1, Ordering::Relaxed);
     metrics
         .queries_duration_us
-        .fetch_add(elapsed.as_micros() as u64, Ordering::Relaxed);
+        .fetch_add(elapsed_us, Ordering::Relaxed);
     metrics.db_queries_total.fetch_add(1, Ordering::Relaxed);
     metrics
         .db_queries_duration_us
-        .fetch_add(elapsed.as_micros() as u64, Ordering::Relaxed);
+        .fetch_add(elapsed_us, Ordering::Relaxed);
+
+    // Record federation-specific metrics for federation queries
+    if fraiseql_core::federation::is_federation_query(&request.query) {
+        metrics.record_entity_resolution(elapsed_us, true);
+    }
 
     debug!(
         response_length = result.len(),

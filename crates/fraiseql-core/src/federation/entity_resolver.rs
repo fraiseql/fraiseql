@@ -9,6 +9,7 @@ use crate::error::Result;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+use std::time::Instant;
 
 /// Result of entity resolution
 #[derive(Debug)]
@@ -18,6 +19,19 @@ pub struct EntityResolutionResult {
 
     /// Any errors encountered during resolution
     pub errors: Vec<String>,
+}
+
+/// Result of batch entity resolution with timing information
+#[derive(Debug)]
+pub struct EntityResolutionMetrics {
+    /// Resolved entities in same order as input representations
+    pub entities: Vec<Option<Value>>,
+    /// Any errors encountered during resolution
+    pub errors: Vec<String>,
+    /// Duration of resolution in microseconds
+    pub duration_us: u64,
+    /// Whether resolution succeeded (no errors)
+    pub success: bool,
 }
 
 /// Deduplicate entity representations while preserving order
@@ -148,7 +162,7 @@ pub async fn batch_load_entities<A: DatabaseAdapter>(
     batch_load_entities_with_tracing(representations, fed_resolver, adapter, selection, None).await
 }
 
-/// Batch load entities from database with optional distributed tracing.
+/// Batch load entities from database with optional distributed tracing and metrics.
 pub async fn batch_load_entities_with_tracing<A: DatabaseAdapter>(
     representations: &[EntityRepresentation],
     fed_resolver: &FederationResolver,
@@ -156,8 +170,36 @@ pub async fn batch_load_entities_with_tracing<A: DatabaseAdapter>(
     selection: &FieldSelection,
     trace_context: Option<FederationTraceContext>,
 ) -> Result<Vec<Option<Value>>> {
+    let result = batch_load_entities_with_tracing_and_metrics(
+        representations,
+        fed_resolver,
+        adapter,
+        selection,
+        trace_context,
+    )
+    .await?;
+    Ok(result.entities)
+}
+
+/// Batch load entities with full metrics for observability.
+///
+/// Returns both entities and timing information for metrics recording.
+pub async fn batch_load_entities_with_tracing_and_metrics<A: DatabaseAdapter>(
+    representations: &[EntityRepresentation],
+    fed_resolver: &FederationResolver,
+    adapter: Arc<A>,
+    selection: &FieldSelection,
+    trace_context: Option<FederationTraceContext>,
+) -> Result<EntityResolutionMetrics> {
+    let start_time = Instant::now();
+
     if representations.is_empty() {
-        return Ok(Vec::new());
+        return Ok(EntityResolutionMetrics {
+            entities: Vec::new(),
+            errors: Vec::new(),
+            duration_us: 0,
+            success: true,
+        });
     }
 
     // Create or use provided trace context
@@ -173,6 +215,7 @@ pub async fn batch_load_entities_with_tracing<A: DatabaseAdapter>(
 
     let mut all_results: Vec<(usize, Option<Value>)> = Vec::new();
     let mut current_index = 0;
+    let mut all_errors = Vec::new();
 
     for (typename, reps) in grouped {
         // Create child span for this typename batch
@@ -201,29 +244,33 @@ pub async fn batch_load_entities_with_tracing<A: DatabaseAdapter>(
             current_index += 1;
         }
 
-        // Track errors if any
-        if !result.errors.is_empty() {
-            // Log errors but continue with None values
-            for error in result.errors {
-                eprintln!("Entity resolution error for {}: {}", typename, error);
-            }
-        }
+        // Collect errors
+        all_errors.extend(result.errors.clone());
 
-        // Update span attributes with results
+        // Drop child span
         drop(child_span);
     }
 
     // Sort by original index to preserve order
     all_results.sort_by_key(|(idx, _)| *idx);
 
-    // Record final span attributes (will be used in Phase 2 metrics recording)
+    // Record final span attributes
     let _span_duration = span.duration_ms();
     let _resolved_count = all_results.iter().filter(|(_, e)| e.is_some()).count();
 
     // Keep span alive until function returns
     drop(span);
 
-    Ok(all_results.into_iter().map(|(_, e)| e).collect())
+    let duration_us = start_time.elapsed().as_micros() as u64;
+    let entities = all_results.into_iter().map(|(_, e)| e).collect();
+    let success = all_errors.is_empty();
+
+    Ok(EntityResolutionMetrics {
+        entities,
+        errors: all_errors,
+        duration_us,
+        success,
+    })
 }
 
 /// Count unique typenames in representations
