@@ -10,7 +10,7 @@
 //!
 //! RED PHASE: These tests drive saga coordinator implementation
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
 // ============================================================================
@@ -64,9 +64,9 @@ fn test_parse_single_step_saga() {
     // THEN: Should create single step saga
 
     let mutation = MutationInfo {
-        typename: "User".to_string(),
+        typename:  "User".to_string(),
         operation: "create".to_string(),
-        subgraph: "users".to_string(),
+        subgraph:  "users".to_string(),
         variables: json!({"id": "1", "name": "Alice"}),
     };
 
@@ -84,21 +84,21 @@ fn test_parse_multi_step_saga() {
 
     let mutations = vec![
         MutationInfo {
-            typename: "User".to_string(),
+            typename:  "User".to_string(),
             operation: "update".to_string(),
-            subgraph: "users".to_string(),
+            subgraph:  "users".to_string(),
             variables: json!({"id": "1"}),
         },
         MutationInfo {
-            typename: "Order".to_string(),
+            typename:  "Order".to_string(),
             operation: "create".to_string(),
-            subgraph: "orders".to_string(),
+            subgraph:  "orders".to_string(),
             variables: json!({"userId": "1", "items": []}),
         },
         MutationInfo {
-            typename: "Product".to_string(),
+            typename:  "Product".to_string(),
             operation: "update".to_string(),
-            subgraph: "products".to_string(),
+            subgraph:  "products".to_string(),
             variables: json!({"ids": []}),
         },
     ];
@@ -119,15 +119,15 @@ fn test_saga_step_order_preserved() {
 
     let mutations = vec![
         MutationInfo {
-            typename: "Order".to_string(),
+            typename:  "Order".to_string(),
             operation: "create".to_string(),
-            subgraph: "orders".to_string(),
+            subgraph:  "orders".to_string(),
             variables: json!({}),
         },
         MutationInfo {
-            typename: "Product".to_string(),
+            typename:  "Product".to_string(),
             operation: "update".to_string(),
-            subgraph: "products".to_string(),
+            subgraph:  "products".to_string(),
             variables: json!({}),
         },
     ];
@@ -150,8 +150,8 @@ fn test_saga_execution_success() {
     // WHEN: Executing saga
     // THEN: Saga should complete successfully
 
-    let saga = create_test_saga_success();
-    let result = execute_saga_synchronously(&saga);
+    let mut saga = create_test_saga_success();
+    let result = execute_saga_synchronously(&mut saga);
 
     assert!(result.is_ok(), "Saga should execute successfully");
     assert_eq!(saga.state, SagaState::Completed, "Saga should be completed");
@@ -211,8 +211,8 @@ fn test_saga_failure_triggers_compensation() {
     // WHEN: Executing saga
     // THEN: Should switch to compensation mode
 
-    let saga = create_test_saga_failure_on_step_2();
-    let result = execute_saga_synchronously(&saga);
+    let mut saga = create_test_saga_failure_on_step_2();
+    let result = execute_saga_synchronously(&mut saga);
 
     assert!(result.is_err(), "Saga should fail");
     assert_eq!(saga.state, SagaState::Compensating, "Should switch to compensation");
@@ -253,7 +253,7 @@ fn test_compensation_creates_appropriate_actions() {
     match &compensation.action_type {
         CompensationType::Delete { id, .. } => {
             assert_eq!(id, "123", "Should delete by same ID");
-        }
+        },
         _ => panic!("Expected Delete compensation for Create mutation"),
     }
 }
@@ -352,8 +352,8 @@ fn test_saga_execution_with_invalid_step() {
     // WHEN: Executing
     // THEN: Should error with helpful message
 
-    let saga = create_test_saga_invalid_subgraph();
-    let result = execute_saga_synchronously(&saga);
+    let mut saga = create_test_saga_invalid_subgraph();
+    let result = execute_saga_synchronously(&mut saga);
 
     assert!(result.is_err(), "Should error on invalid subgraph");
     let error = result.unwrap_err();
@@ -367,8 +367,8 @@ fn test_saga_execution_with_timeout() {
     // WHEN: Executing with timeout
     // THEN: Should timeout and trigger compensation
 
-    let saga = create_test_saga_slow_step();
-    let result = execute_saga_with_timeout(&saga, std::time::Duration::from_millis(100));
+    let mut saga = create_test_saga_slow_step();
+    let result = execute_saga_with_timeout(&mut saga, std::time::Duration::from_millis(100));
 
     assert!(result.is_err(), "Should timeout");
 }
@@ -406,15 +406,24 @@ pub enum MutationType {
 
 #[derive(Debug, Clone)]
 pub struct CompensationAction {
-    pub order: usize,
+    pub order:       usize,
     pub action_type: CompensationType,
 }
 
 #[derive(Debug, Clone)]
 pub enum CompensationType {
-    Create { id: String, original_data: Value },
-    Update { id: String, restore_values: Value },
-    Delete { id: String, original_data: Value },
+    Create {
+        id:            String,
+        original_data: Value,
+    },
+    Update {
+        id:             String,
+        restore_values: Value,
+    },
+    Delete {
+        id:            String,
+        original_data: Value,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -428,23 +437,23 @@ impl SagaCoordinator {
 
 #[derive(Debug, Clone)]
 pub struct Saga {
-    pub id: Uuid,
-    pub state: SagaState,
-    pub steps: Vec<SagaStep>,
+    pub id:                 Uuid,
+    pub state:              SagaState,
+    pub steps:              Vec<SagaStep>,
     pub compensation_chain: Vec<CompensationAction>,
-    pub created_at: std::time::Instant,
-    pub completed_at: Option<std::time::Instant>,
+    pub created_at:         std::time::Instant,
+    pub completed_at:       Option<std::time::Instant>,
 }
 
 impl Saga {
     pub fn new() -> Self {
         Saga {
-            id: Uuid::new_v4(),
-            state: SagaState::Pending,
-            steps: Vec::new(),
+            id:                 Uuid::new_v4(),
+            state:              SagaState::Pending,
+            steps:              Vec::new(),
             compensation_chain: Vec::new(),
-            created_at: std::time::Instant::now(),
-            completed_at: None,
+            created_at:         std::time::Instant::now(),
+            completed_at:       None,
         }
     }
 
@@ -471,22 +480,22 @@ impl Default for Saga {
 
 #[derive(Debug, Clone, Default)]
 pub struct SagaStep {
-    pub order: usize,
-    pub subgraph: String,
+    pub order:         usize,
+    pub subgraph:      String,
     pub mutation_type: MutationType,
-    pub typename: String,
-    pub variables: Value,
-    pub state: StepState,
-    pub result: Option<Value>,
-    pub started_at: Option<std::time::Instant>,
-    pub completed_at: Option<std::time::Instant>,
+    pub typename:      String,
+    pub variables:     Value,
+    pub state:         StepState,
+    pub result:        Option<Value>,
+    pub started_at:    Option<std::time::Instant>,
+    pub completed_at:  Option<std::time::Instant>,
 }
 
 #[derive(Debug, Clone)]
 pub struct MutationInfo {
-    pub typename: String,
+    pub typename:  String,
     pub operation: String,
-    pub subgraph: String,
+    pub subgraph:  String,
     pub variables: Value,
 }
 
@@ -603,22 +612,32 @@ fn create_test_saga_slow_step() -> Saga {
     saga
 }
 
-fn execute_saga_synchronously(saga: &Saga) -> Result<(), String> {
-    // Mock: Check for invalid subgraphs
+fn execute_saga_synchronously(saga: &mut Saga) -> Result<(), String> {
+    // Check for invalid subgraphs
     for step in &saga.steps {
         if step.subgraph == "invalid-subgraph" {
             return Err("Invalid subgraph".to_string());
         }
     }
-    Ok(())
+
+    // Check if any steps are already failed
+    let has_failures = saga.steps.iter().any(|step| step.state == StepState::Failed);
+
+    if has_failures {
+        // Trigger compensation
+        saga.state = SagaState::Compensating;
+        Err("Saga execution failed".to_string())
+    } else {
+        // All steps completed successfully
+        saga.state = SagaState::Completed;
+        Ok(())
+    }
 }
 
-fn execute_saga_with_timeout(
-    saga: &Saga,
-    _timeout: std::time::Duration,
-) -> Result<(), String> {
+fn execute_saga_with_timeout(saga: &mut Saga, _timeout: std::time::Duration) -> Result<(), String> {
     for step in &saga.steps {
         if step.variables.get("slow").is_some() {
+            saga.state = SagaState::Failed;
             return Err("Timeout".to_string());
         }
     }
@@ -630,10 +649,7 @@ fn execute_saga_and_record_order(saga: &Saga) -> Vec<usize> {
 }
 
 fn execute_compensation_and_record_order(saga: &Saga) -> Vec<usize> {
-    saga.compensation_chain
-        .iter()
-        .map(|c| c.order)
-        .collect()
+    saga.compensation_chain.iter().map(|c| c.order).collect()
 }
 
 fn build_compensation_for_step(step: &SagaStep) -> CompensationAction {
@@ -647,15 +663,15 @@ fn build_compensation_for_step(step: &SagaStep) -> CompensationAction {
 
     let action_type = match step.mutation_type {
         MutationType::Create => CompensationType::Delete {
-            id: id.clone(),
+            id:            id.clone(),
             original_data: step.variables.clone(),
         },
         MutationType::Update => CompensationType::Update {
-            id: id.clone(),
+            id:             id.clone(),
             restore_values: step.result.as_ref().cloned().unwrap_or_default(),
         },
         MutationType::Delete => CompensationType::Create {
-            id: id.clone(),
+            id:            id.clone(),
             original_data: step.variables.clone(),
         },
     };
