@@ -8,7 +8,32 @@
 //! - Failure detection and compensation triggering
 //! - State machine transitions
 //!
-//! RED PHASE: These tests drive saga coordinator implementation
+//! REFACTOR PHASE: Code is tested, improving design and documentation
+//!
+//! ## Architecture
+//!
+//! Saga Coordinator implements distributed transaction orchestration with
+//! automatic compensation (rollback) on failure.
+//!
+//! ### State Machine
+//!
+//! ```
+//! Pending → Executing → Completed (success)
+//!          ↓
+//!        Failed → Compensating → Compensated (rollback)
+//! ```
+//!
+//! ### Compensation Strategy
+//!
+//! When a step fails:
+//! 1. Mark saga as Compensating
+//! 2. Build compensation chain in REVERSE order
+//! 3. Execute compensations for completed steps only
+//! 4. Mark saga as Compensated
+//!
+//! Example: If steps [A, B, C] execute with C failing after A and B complete:
+//! - Compensation runs: B's inverse, then A's inverse
+//! - C has no compensation (never completed)
 
 use serde_json::{Value, json};
 use uuid::Uuid;
@@ -542,6 +567,14 @@ fn determine_mutation_type(operation: &str) -> MutationType {
     }
 }
 
+/// Create a 3-step saga that completes successfully
+///
+/// Simulates a real-world scenario:
+/// 1. Update user (increment order count)
+/// 2. Create order (link to user)
+/// 3. Update inventory (decrement product stock)
+///
+/// All steps start in Pending state, allowing tests to customize success/failure.
 fn create_test_saga_success() -> Saga {
     let mut saga = Saga::new();
     saga.steps = vec![
@@ -576,6 +609,14 @@ fn create_test_saga_success() -> Saga {
     saga
 }
 
+/// Create a saga where step 2 fails after steps 0-1 complete
+///
+/// Simulates partial execution failure:
+/// - Step 0 (Update user): Completed
+/// - Step 1 (Create order): Completed
+/// - Step 2 (Update inventory): Failed
+///
+/// This tests that compensation runs in reverse order for completed steps only.
 fn create_test_saga_failure_on_step_2() -> Saga {
     let mut saga = create_test_saga_success();
     saga.steps[0].state = StepState::Completed;
@@ -584,6 +625,10 @@ fn create_test_saga_failure_on_step_2() -> Saga {
     saga
 }
 
+/// Create a saga with an invalid subgraph name
+///
+/// Tests error handling when a step references a non-existent subgraph.
+/// This should trigger an error during saga execution.
 fn create_test_saga_invalid_subgraph() -> Saga {
     let mut saga = Saga::new();
     saga.steps.push(SagaStep {
@@ -598,6 +643,10 @@ fn create_test_saga_invalid_subgraph() -> Saga {
     saga
 }
 
+/// Create a saga with a slow-executing step
+///
+/// Simulates long-running mutations for timeout testing.
+/// The step includes `{"slow": true}` flag to trigger timeout logic.
 fn create_test_saga_slow_step() -> Saga {
     let mut saga = Saga::new();
     saga.steps.push(SagaStep {
@@ -612,6 +661,29 @@ fn create_test_saga_slow_step() -> Saga {
     saga
 }
 
+/// Execute saga synchronously and update state machine
+///
+/// Minimal implementation for GREEN phase:
+/// 1. Validates all subgraph names are valid
+/// 2. Checks if any steps are in Failed state
+/// 3. Transitions saga to Completed or Compensating based on failures
+///
+/// # State Transitions
+///
+/// Success path:
+/// - Pending → Executing → Completed
+///
+/// Failure path:
+/// - Pending → Executing → Compensating
+///
+/// # Arguments
+///
+/// * `saga` - Mutable saga to execute and update state
+///
+/// # Returns
+///
+/// * `Ok(())` if all steps complete successfully
+/// * `Err(message)` if validation fails or steps have failed state
 fn execute_saga_synchronously(saga: &mut Saga) -> Result<(), String> {
     // Check for invalid subgraphs
     for step in &saga.steps {
@@ -652,6 +724,23 @@ fn execute_compensation_and_record_order(saga: &Saga) -> Vec<usize> {
     saga.compensation_chain.iter().map(|c| c.order).collect()
 }
 
+/// Build appropriate compensation action for a saga step
+///
+/// Implements automatic compensation generation based on mutation type:
+///
+/// | Forward Mutation | Compensation | Behavior |
+/// |------------------|--------------|----------|
+/// | Create           | Delete       | Remove created entity |
+/// | Update           | Update       | Restore previous values |
+/// | Delete           | Create       | Restore deleted entity |
+///
+/// # Arguments
+///
+/// * `step` - Completed saga step to generate compensation for
+///
+/// # Returns
+///
+/// Compensation action in reverse of the original mutation
 fn build_compensation_for_step(step: &SagaStep) -> CompensationAction {
     let id = step
         .result
