@@ -62,6 +62,44 @@ pub struct MetricsCollector {
 
     /// Cache misses
     pub cache_misses: Arc<AtomicU64>,
+
+    // Federation Metrics
+
+    /// Federation entity resolutions (total)
+    pub federation_entity_resolutions_total: Arc<AtomicU64>,
+
+    /// Federation entity resolutions (errors)
+    pub federation_entity_resolutions_errors: Arc<AtomicU64>,
+
+    /// Federation entity resolution duration (microseconds)
+    pub federation_entity_resolution_duration_us: Arc<AtomicU64>,
+
+    /// Federation subgraph requests (total)
+    pub federation_subgraph_requests_total: Arc<AtomicU64>,
+
+    /// Federation subgraph requests (errors)
+    pub federation_subgraph_requests_errors: Arc<AtomicU64>,
+
+    /// Federation subgraph request duration (microseconds)
+    pub federation_subgraph_request_duration_us: Arc<AtomicU64>,
+
+    /// Federation mutations (total)
+    pub federation_mutations_total: Arc<AtomicU64>,
+
+    /// Federation mutations (errors)
+    pub federation_mutations_errors: Arc<AtomicU64>,
+
+    /// Federation mutation duration (microseconds)
+    pub federation_mutation_duration_us: Arc<AtomicU64>,
+
+    /// Federation entity cache hits
+    pub federation_entity_cache_hits: Arc<AtomicU64>,
+
+    /// Federation entity cache misses
+    pub federation_entity_cache_misses: Arc<AtomicU64>,
+
+    /// Federation errors
+    pub federation_errors_total: Arc<AtomicU64>,
 }
 
 impl MetricsCollector {
@@ -84,6 +122,18 @@ impl MetricsCollector {
             http_responses_5xx:      Arc::new(AtomicU64::new(0)),
             cache_hits:              Arc::new(AtomicU64::new(0)),
             cache_misses:            Arc::new(AtomicU64::new(0)),
+            federation_entity_resolutions_total:    Arc::new(AtomicU64::new(0)),
+            federation_entity_resolutions_errors:   Arc::new(AtomicU64::new(0)),
+            federation_entity_resolution_duration_us: Arc::new(AtomicU64::new(0)),
+            federation_subgraph_requests_total:     Arc::new(AtomicU64::new(0)),
+            federation_subgraph_requests_errors:    Arc::new(AtomicU64::new(0)),
+            federation_subgraph_request_duration_us: Arc::new(AtomicU64::new(0)),
+            federation_mutations_total:             Arc::new(AtomicU64::new(0)),
+            federation_mutations_errors:            Arc::new(AtomicU64::new(0)),
+            federation_mutation_duration_us:        Arc::new(AtomicU64::new(0)),
+            federation_entity_cache_hits:           Arc::new(AtomicU64::new(0)),
+            federation_entity_cache_misses:         Arc::new(AtomicU64::new(0)),
+            federation_errors_total:                Arc::new(AtomicU64::new(0)),
         }
     }
 }

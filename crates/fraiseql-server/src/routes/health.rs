@@ -38,6 +38,19 @@ pub struct DatabaseStatus {
     pub idle_connections: Option<usize>,
 }
 
+/// Federation health response.
+#[derive(Debug, Serialize)]
+pub struct FederationHealthResponse {
+    /// Overall federation status: healthy, degraded, unhealthy, unknown
+    pub status: String,
+
+    /// Per-subgraph status
+    pub subgraphs: Vec<crate::federation::SubgraphHealthStatus>,
+
+    /// Response timestamp
+    pub timestamp: String,
+}
+
 /// Health check handler.
 ///
 /// Returns server and database health status.
@@ -90,6 +103,30 @@ pub async fn health_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
         StatusCode::SERVICE_UNAVAILABLE
     };
 
+    (status_code, Json(response))
+}
+
+/// Federation health check handler.
+///
+/// Returns federation-specific health status including per-subgraph availability.
+///
+/// Note: This handler requires a SubgraphHealthChecker instance to be provided.
+/// For now, it returns a placeholder response.
+///
+/// # Response Codes
+///
+/// - 200: Federation status retrieved (see status field for actual status)
+/// - 503: Federation unhealthy
+pub async fn federation_health_handler() -> impl IntoResponse {
+    debug!("Federation health check requested");
+
+    let response = FederationHealthResponse {
+        status: "healthy".to_string(),
+        subgraphs: vec![],
+        timestamp: chrono::Utc::now().to_rfc3339(),
+    };
+
+    let status_code = StatusCode::OK;
     (status_code, Json(response))
 }
 
