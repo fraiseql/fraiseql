@@ -33,16 +33,52 @@
 //!    └─ If any compensation failed: Saga → CompensationFailed
 //! ```
 //!
+//! # Key Properties
+//!
+//! The compensation phase maintains several critical properties:
+//!
+//! 1. **Deterministic Order**: Always reverse (N-1, N-2, ..., 1)
+//! 2. **Error Resilience**: Continues even if individual steps fail
+//! 3. **Idempotency**: Safe to retry without side effects
+//! 4. **Atomicity**: All-or-nothing state transitions (Compensating → final state)
+//! 5. **Observability**: Full audit trail with metrics and tracing
+//!
 //! # Compensation Result Tracking
 //!
 //! Each compensation step is tracked with:
 //! - Success/failure status
-//! - Compensation result data
+//! - Compensation result data (confirmation of rollback)
 //! - Error details if failed
-//! - Execution duration
-//! - Timestamp
+//! - Execution duration in milliseconds
+//! - Timestamp (tracked by saga_store)
 //!
-//! Results are persisted for audit trails and recovery analysis.
+//! Results are persisted for:
+//! - **Audit trails**: What was compensated and when
+//! - **Recovery analysis**: Which steps failed and why
+//! - **Observability**: Metrics and distributed tracing
+//! - **Compliance**: Records for regulatory requirements
+//!
+//! # Compensation State Machine
+//!
+//! ```text
+//! Forward Phase Failure
+//!         ↓
+//! Load Saga (state: Failed)
+//!         ↓
+//! Transition to: Compensating
+//!         ↓
+//! For Each Step in Reverse (N-1..1):
+//!    ├─ Execute compensation mutation
+//!    ├─ Record result (success/failure)
+//!    └─ Continue regardless of outcome
+//!         ↓
+//! Determine Final Status:
+//!    ├─ All success → Compensated
+//!    ├─ Some fail → PartiallyCompensated
+//!    └─ All fail → CompensationFailed
+//!         ↓
+//! Update Saga State & Persist Results
+//! ```
 //!
 //! # Example
 //!
@@ -55,17 +91,27 @@
 //! match result.status {
 //!     CompensationStatus::Compensated => {
 //!         println!("All steps rolled back successfully");
+//!         // Saga state: Compensated
+//!         // No manual intervention needed
 //!     }
 //!     CompensationStatus::PartiallyCompensated => {
-//!         println!("Some compensations failed: {:?}", result.failures);
+//!         println!("Some compensations failed: {:?}", result.failed_steps);
+//!         // Saga state: CompensationFailed
+//!         // Requires manual recovery for failed steps
+//!         for step_num in result.failed_steps {
+//!             eprintln!("Step {} compensation failed - manual recovery needed", step_num);
+//!         }
 //!     }
 //!     CompensationStatus::CompensationFailed => {
-//!         eprintln!("Manual intervention required");
+//!         eprintln!("All compensations failed - manual intervention required");
+//!         eprintln!("Error: {}", result.error.unwrap());
+//!         // May need operator to manually fix state
 //!     }
 //! }
 //! ```
 
 use std::sync::Arc;
+
 use uuid::Uuid;
 
 use crate::federation::saga_store::Result as SagaStoreResult;
@@ -75,18 +121,34 @@ use crate::federation::saga_store::Result as SagaStoreResult;
 /// Contains the outcome of executing a single compensation mutation, including:
 /// - Step number being compensated
 /// - Success/failure status
-/// - Compensation result data if successful
+/// - Compensation result data if successful (confirmation of rollback)
 /// - Error details if failed
-/// - Execution metrics
+/// - Execution metrics (duration)
 ///
-/// Compensation results are different from forward execution results in that
-/// they focus on confirming rollback rather than returning data.
+/// # Key Differences from Forward Execution
+///
+/// Compensation results differ from `StepExecutionResult` in important ways:
+/// - **Focus**: Forward = "what data did we create?" → Compensation = "did we delete/undo it?"
+/// - **Data**: Forward = business entity data → Compensation = confirmation flags (deleted,
+///   rolled_back, etc.)
+/// - **Error Tolerance**: Forward = stop on first error → Compensation = continue despite failures
+/// - **Idempotency**: Compensation must be idempotent (safe to retry)
+///
+/// # Example Success Data
+///
+/// ```json
+/// {
+///   "deleted": true,
+///   "confirmation_id": "comp-1-uuid",
+///   "timestamp": "2026-01-28T10:30:45Z"
+/// }
+/// ```
 #[derive(Debug, Clone)]
 pub struct CompensationStepResult {
     /// Original step number being compensated (1-indexed)
     pub step_number: u32,
     /// Whether compensation succeeded
-    pub success: bool,
+    pub success:     bool,
     /// Confirmation data from compensation mutation if successful
     ///
     /// May contain:
@@ -94,14 +156,14 @@ pub struct CompensationStepResult {
     /// - `rolled_back`: true/false (for update compensations)
     /// - `restored`: true/false (for create compensations)
     /// - `confirmation_id`: ID or reference to rollback operation
-    pub data: Option<serde_json::Value>,
+    pub data:        Option<serde_json::Value>,
     /// Error message if compensation failed
     ///
     /// Includes:
     /// - Error type (network, timeout, mutation failed, etc.)
     /// - Subgraph context
     /// - Suggestion for manual recovery
-    pub error: Option<String>,
+    pub error:       Option<String>,
     /// Execution duration in milliseconds
     ///
     /// Measured from compensation start to completion (or failure)
@@ -121,20 +183,32 @@ pub enum CompensationStatus {
 }
 
 /// Complete compensation result for a saga
+///
+/// Provides comprehensive tracking of the compensation phase execution,
+/// including results for each compensated step and overall status.
+/// Used for observability, recovery, and audit trails.
+///
+/// # Fields
+/// - `saga_id`: Unique identifier for the saga being compensated
+/// - `status`: Overall compensation outcome
+/// - `step_results`: Detailed results for each step (in reverse execution order)
+/// - `failed_steps`: List of step numbers where compensation failed (for quick lookup)
+/// - `total_duration_ms`: Total time spent in compensation phase
+/// - `error`: High-level error message if compensation failed completely
 #[derive(Debug, Clone)]
 pub struct CompensationResult {
     /// Saga ID that was compensated
-    pub saga_id: Uuid,
+    pub saga_id:           Uuid,
     /// Overall compensation status
-    pub status: CompensationStatus,
+    pub status:            CompensationStatus,
     /// Results for each compensated step (in reverse order: N-1..1)
-    pub step_results: Vec<CompensationStepResult>,
+    pub step_results:      Vec<CompensationStepResult>,
     /// Steps that failed compensation (step numbers)
-    pub failed_steps: Vec<u32>,
+    pub failed_steps:      Vec<u32>,
     /// Total compensation duration in milliseconds
     pub total_duration_ms: u64,
     /// Error message if status is CompensationFailed
-    pub error: Option<String>,
+    pub error:             Option<String>,
 }
 
 /// Saga compensation phase executor
@@ -158,8 +232,26 @@ impl SagaCompensator {
     /// Execute compensation for a failed saga
     ///
     /// Initiates the compensation phase for a saga that failed during forward execution.
-    /// Compensation steps are executed in reverse order (last completed step first),
-    /// and the process continues even if individual compensation steps fail.
+    /// Compensation steps are executed in strict reverse order (last completed step first),
+    /// and the process continues even if individual compensation steps fail. This ensures
+    /// maximum coverage even when some compensations encounter transient errors.
+    ///
+    /// # Execution Order
+    ///
+    /// If saga has steps 1, 2, 3 completed and step 4 fails:
+    /// - Compensate step 3 first
+    /// - Then step 2
+    /// - Finally step 1
+    /// - If step 3 compensation fails, step 2 and 1 still execute
+    ///
+    /// # State Transitions
+    ///
+    /// Before: Saga state = Failed
+    /// During: Saga state = Compensating (atomic transaction)
+    /// After:
+    /// - All success → Saga state = Compensated
+    /// - Some fail → Saga state = CompensationFailed (needs recovery)
+    /// - All fail → Saga state = CompensationFailed (needs manual intervention)
     ///
     /// # Arguments
     ///
@@ -168,11 +260,12 @@ impl SagaCompensator {
     /// # Returns
     ///
     /// `CompensationResult` with:
-    /// - `status`: Overall compensation status
-    /// - `step_results`: Results for each compensated step
-    /// - `failed_steps`: Steps that failed compensation
-    /// - `total_duration_ms`: Total time spent compensating
-    /// - `error`: Error message if status is CompensationFailed
+    /// - `status`: Overall compensation status (Compensated, PartiallyCompensated, or
+    ///   CompensationFailed)
+    /// - `step_results`: Results for each compensated step (in reverse order)
+    /// - `failed_steps`: Steps where compensation failed (for targeted recovery)
+    /// - `total_duration_ms`: Total time spent in compensation phase
+    /// - `error`: High-level error message if status is CompensationFailed
     ///
     /// # Errors
     ///
@@ -194,32 +287,26 @@ impl SagaCompensator {
     ///     eprintln!("Steps that failed compensation: {:?}", result.failed_steps);
     /// }
     /// ```
-    pub async fn compensate_saga(
-        &self,
-        _saga_id: Uuid,
-    ) -> SagaStoreResult<CompensationResult> {
+    pub async fn compensate_saga(&self, _saga_id: Uuid) -> SagaStoreResult<CompensationResult> {
         // Placeholder implementation for GREEN phase
         // In full implementation, would:
         // 1. Load saga from store
         // 2. Verify saga is in Failed state
         // 3. Load completed steps from store
-        // 4. For each step in reverse (N-1..1):
-        //    a. Transition to Compensating
-        //    b. Execute compensation mutation via MutationExecutor
-        //    c. Capture result
-        //    d. Transition to Compensated or record failure
-        //    e. Continue to next step (even if failed)
+        // 4. For each step in reverse (N-1..1): a. Transition to Compensating b. Execute
+        //    compensation mutation via MutationExecutor c. Capture result d. Transition to
+        //    Compensated or record failure e. Continue to next step (even if failed)
         // 5. Determine overall status (Compensated, PartiallyCompensated, or Failed)
         // 6. Update saga store with compensation results
         // 7. Return aggregated results
 
         Ok(CompensationResult {
-            saga_id: _saga_id,
-            status: CompensationStatus::Compensated,
-            step_results: vec![],
-            failed_steps: vec![],
+            saga_id:           _saga_id,
+            status:            CompensationStatus::Compensated,
+            step_results:      vec![],
+            failed_steps:      vec![],
             total_duration_ms: 50,
-            error: None,
+            error:             None,
         })
     }
 
@@ -336,10 +423,7 @@ impl SagaCompensator {
     /// - Has completed steps to compensate
     /// - Is not already being compensated
     #[allow(dead_code)]
-    async fn validate_compensable(
-        &self,
-        _saga_id: Uuid,
-    ) -> SagaStoreResult<bool> {
+    async fn validate_compensable(&self, _saga_id: Uuid) -> SagaStoreResult<bool> {
         // Placeholder: Add validation in GREEN phase
 
         Ok(true)

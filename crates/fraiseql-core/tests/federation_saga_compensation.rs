@@ -13,22 +13,22 @@ mod fixtures {
     /// Create a saga with results from forward phase
     pub fn create_saga_with_completed_steps() -> CompletedSagaDefinition {
         CompletedSagaDefinition {
-            saga_id: Uuid::new_v4(),
-            completed_steps: vec![
+            saga_id:           Uuid::new_v4(),
+            completed_steps:   vec![
                 CompletedStep {
-                    number: 1,
-                    mutation: "createOrder".to_string(),
+                    number:                1,
+                    mutation:              "createOrder".to_string(),
                     compensation_mutation: "deleteOrder".to_string(),
-                    result_data: serde_json::json!({"id": "order-123", "status": "created"}),
+                    result_data:           serde_json::json!({"id": "order-123", "status": "created"}),
                 },
                 CompletedStep {
-                    number: 2,
-                    mutation: "reserveInventory".to_string(),
+                    number:                2,
+                    mutation:              "reserveInventory".to_string(),
                     compensation_mutation: "releaseInventory".to_string(),
-                    result_data: serde_json::json!({"orderId": "order-123", "reserved": true}),
+                    result_data:           serde_json::json!({"orderId": "order-123", "reserved": true}),
                 },
             ],
-            failed_step: 3,
+            failed_step:       3,
             failed_step_error: "Payment service unavailable".to_string(),
         }
     }
@@ -36,28 +36,28 @@ mod fixtures {
     /// Create a saga where all steps succeed then fail at end
     pub fn create_saga_fail_at_last_step() -> CompletedSagaDefinition {
         CompletedSagaDefinition {
-            saga_id: Uuid::new_v4(),
-            completed_steps: vec![
+            saga_id:           Uuid::new_v4(),
+            completed_steps:   vec![
                 CompletedStep {
-                    number: 1,
-                    mutation: "createUser".to_string(),
+                    number:                1,
+                    mutation:              "createUser".to_string(),
                     compensation_mutation: "deleteUser".to_string(),
-                    result_data: serde_json::json!({"id": "user-789"}),
+                    result_data:           serde_json::json!({"id": "user-789"}),
                 },
                 CompletedStep {
-                    number: 2,
-                    mutation: "createProfile".to_string(),
+                    number:                2,
+                    mutation:              "createProfile".to_string(),
                     compensation_mutation: "deleteProfile".to_string(),
-                    result_data: serde_json::json!({"userId": "user-789"}),
+                    result_data:           serde_json::json!({"userId": "user-789"}),
                 },
                 CompletedStep {
-                    number: 3,
-                    mutation: "sendWelcomeEmail".to_string(),
+                    number:                3,
+                    mutation:              "sendWelcomeEmail".to_string(),
                     compensation_mutation: "unsendWelcomeEmail".to_string(),
-                    result_data: serde_json::json!({"sent": true}),
+                    result_data:           serde_json::json!({"sent": true}),
                 },
             ],
-            failed_step: 4,
+            failed_step:       4,
             failed_step_error: "Database timeout".to_string(),
         }
     }
@@ -65,16 +65,14 @@ mod fixtures {
     /// Create a saga where second step fails (first step succeeded)
     pub fn create_saga_fail_early() -> CompletedSagaDefinition {
         CompletedSagaDefinition {
-            saga_id: Uuid::new_v4(),
-            completed_steps: vec![
-                CompletedStep {
-                    number: 1,
-                    mutation: "initTransaction".to_string(),
-                    compensation_mutation: "abortTransaction".to_string(),
-                    result_data: serde_json::json!({"txId": "tx-456"}),
-                },
-            ],
-            failed_step: 2,
+            saga_id:           Uuid::new_v4(),
+            completed_steps:   vec![CompletedStep {
+                number:                1,
+                mutation:              "initTransaction".to_string(),
+                compensation_mutation: "abortTransaction".to_string(),
+                result_data:           serde_json::json!({"txId": "tx-456"}),
+            }],
+            failed_step:       2,
             failed_step_error: "Service unavailable".to_string(),
         }
     }
@@ -82,28 +80,28 @@ mod fixtures {
     /// Create a saga where first step fails (no prior steps to compensate)
     pub fn create_saga_first_step_fails() -> CompletedSagaDefinition {
         CompletedSagaDefinition {
-            saga_id: Uuid::new_v4(),
-            completed_steps: vec![],
-            failed_step: 1,
+            saga_id:           Uuid::new_v4(),
+            completed_steps:   vec![],
+            failed_step:       1,
             failed_step_error: "Validation failed".to_string(),
         }
     }
 
     #[derive(Debug, Clone)]
     pub struct CompletedSagaDefinition {
-        pub saga_id: Uuid,
-        pub completed_steps: Vec<CompletedStep>,
-        pub failed_step: u32,
+        pub saga_id:           Uuid,
+        pub completed_steps:   Vec<CompletedStep>,
+        pub failed_step:       u32,
         #[allow(dead_code)]
         pub failed_step_error: String,
     }
 
     #[derive(Debug, Clone)]
     pub struct CompletedStep {
-        pub number: u32,
-        pub mutation: String,
+        pub number:                u32,
+        pub mutation:              String,
         pub compensation_mutation: String,
-        pub result_data: serde_json::Value,
+        pub result_data:           serde_json::Value,
     }
 }
 
@@ -550,5 +548,8 @@ fn test_compensation_with_empty_result_data() {
     // And: Use step number or saga ID for compensation
     // And: Compensation should still execute
 
-    assert_eq!(saga.completed_steps[0].result_data.get("txId"), Some(&serde_json::json!("tx-456")));
+    assert_eq!(
+        saga.completed_steps[0].result_data.get("txId"),
+        Some(&serde_json::json!("tx-456"))
+    );
 }
