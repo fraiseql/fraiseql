@@ -4,12 +4,15 @@ use super::types::{EntityRepresentation, FederationResolver};
 use super::database_resolver::DatabaseEntityResolver;
 use super::selection_parser::FieldSelection;
 use super::tracing::{FederationTraceContext, FederationSpan};
+use super::logging::{FederationLogContext, FederationOperationType, ResolutionStrategy};
 use crate::db::traits::DatabaseAdapter;
 use crate::error::Result;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Instant;
+use tracing::info;
+use uuid::Uuid;
 
 /// Result of entity resolution
 #[derive(Debug)]
@@ -192,6 +195,7 @@ pub async fn batch_load_entities_with_tracing_and_metrics<A: DatabaseAdapter>(
     trace_context: Option<FederationTraceContext>,
 ) -> Result<EntityResolutionMetrics> {
     let start_time = Instant::now();
+    let query_id = Uuid::new_v4().to_string();
 
     if representations.is_empty() {
         return Ok(EntityResolutionMetrics {
@@ -210,6 +214,24 @@ pub async fn batch_load_entities_with_tracing_and_metrics<A: DatabaseAdapter>(
         .with_attribute("entity_count", representations.len().to_string())
         .with_attribute("typename_count", count_unique_typenames(representations).to_string());
 
+    // Log entity resolution start
+    let log_ctx = FederationLogContext::new(
+        FederationOperationType::EntityResolution,
+        query_id.clone(),
+        representations.len(),
+    )
+    .with_entity_count_unique(deduplicate_representations(representations).len())
+    .with_trace_id(trace_ctx.trace_id.clone());
+
+    info!(
+        query_id = %query_id,
+        entity_count = representations.len(),
+        operation_type = "entity_resolution",
+        status = "started",
+        context = ?serde_json::to_value(&log_ctx).unwrap_or_default(),
+        "Entity resolution operation started"
+    );
+
     // Group by typename
     let grouped = group_entities_by_typename(representations);
 
@@ -218,6 +240,8 @@ pub async fn batch_load_entities_with_tracing_and_metrics<A: DatabaseAdapter>(
     let mut all_errors = Vec::new();
 
     for (typename, reps) in grouped {
+        let batch_start = Instant::now();
+
         // Create child span for this typename batch
         let child_span = span.create_child(format!("federation.entities.resolve.{}", typename))
             .with_attribute("typename", typename.clone())
@@ -234,9 +258,50 @@ pub async fn batch_load_entities_with_tracing_and_metrics<A: DatabaseAdapter>(
         )
         .await;
 
-        // Record span duration and attributes
-        let _resolved_count = result.entities.iter().filter(|e| e.is_some()).count();
-        let _error_count = result.errors.len();
+        // Record batch metrics
+        let resolved_count = result.entities.iter().filter(|e| e.is_some()).count();
+        let error_count = result.errors.len();
+        let batch_duration_ms = batch_start.elapsed().as_secs_f64() * 1000.0;
+
+        // Log batch completion
+        let batch_log_ctx = FederationLogContext::new(
+            FederationOperationType::ResolveDb,
+            query_id.clone(),
+            reps.len(),
+        )
+        .with_typename(typename.clone())
+        .with_strategy(ResolutionStrategy::Db)
+        .with_entity_count_unique(reps.len())
+        .with_resolved_count(resolved_count)
+        .with_trace_id(trace_ctx.trace_id.clone())
+        .complete(batch_duration_ms);
+
+        if error_count > 0 {
+            info!(
+                query_id = %query_id,
+                typename = %typename,
+                batch_size = reps.len(),
+                resolved = resolved_count,
+                errors = error_count,
+                duration_ms = batch_duration_ms,
+                operation_type = "resolve_db",
+                status = "error",
+                context = ?serde_json::to_value(&batch_log_ctx).unwrap_or_default(),
+                "Entity batch resolution completed with errors"
+            );
+        } else {
+            info!(
+                query_id = %query_id,
+                typename = %typename,
+                batch_size = reps.len(),
+                resolved = resolved_count,
+                duration_ms = batch_duration_ms,
+                operation_type = "resolve_db",
+                status = "success",
+                context = ?serde_json::to_value(&batch_log_ctx).unwrap_or_default(),
+                "Entity batch resolution completed successfully"
+            );
+        }
 
         // Map results back to original indices with proper ordering
         for entity in result.entities {
@@ -256,14 +321,43 @@ pub async fn batch_load_entities_with_tracing_and_metrics<A: DatabaseAdapter>(
 
     // Record final span attributes
     let _span_duration = span.duration_ms();
-    let _resolved_count = all_results.iter().filter(|(_, e)| e.is_some()).count();
+    let resolved_count = all_results.iter().filter(|(_, e)| e.is_some()).count();
 
     // Keep span alive until function returns
     drop(span);
 
     let duration_us = start_time.elapsed().as_micros() as u64;
+    let duration_ms = start_time.elapsed().as_secs_f64() * 1000.0;
     let entities = all_results.into_iter().map(|(_, e)| e).collect();
     let success = all_errors.is_empty();
+
+    // Log overall completion
+    let final_log_ctx = if success {
+        log_ctx
+            .with_resolved_count(resolved_count)
+            .complete(duration_ms)
+    } else {
+        let error_message = if all_errors.is_empty() {
+            "Unknown error".to_string()
+        } else {
+            all_errors.join("; ")
+        };
+        log_ctx
+            .with_resolved_count(resolved_count)
+            .fail(duration_ms, error_message)
+    };
+
+    info!(
+        query_id = %query_id,
+        entity_count = representations.len(),
+        resolved_count = resolved_count,
+        error_count = all_errors.len(),
+        duration_ms = duration_ms,
+        operation_type = "entity_resolution",
+        status = if success { "success" } else { "error" },
+        context = ?serde_json::to_value(&final_log_ctx).unwrap_or_default(),
+        "Entity resolution operation completed"
+    );
 
     Ok(EntityResolutionMetrics {
         entities,

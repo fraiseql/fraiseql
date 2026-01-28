@@ -25,7 +25,6 @@ use crate::{
     graphql::parse_query,
     schema::{CompiledSchema, IntrospectionResponses},
     security::FieldAccessError,
-    federation::FederationTraceContext,
 };
 
 /// Query type classification for routing.

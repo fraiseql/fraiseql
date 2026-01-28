@@ -39,6 +39,7 @@ pub mod connection_manager;
 pub mod direct_db_resolver;
 pub mod mutation_http_client;
 pub mod tracing;
+pub mod logging;
 
 pub use types::*;
 pub use entity_resolver::*;
@@ -55,6 +56,10 @@ pub use connection_manager::*;
 pub use direct_db_resolver::*;
 pub use mutation_http_client::*;
 pub use tracing::{FederationSpan, FederationTraceContext};
+pub use logging::{
+    FederationLogContext, FederationOperationType, ResolutionStrategy,
+    OperationStatus, LogTimer,
+};
 
 use crate::error::{FraiseQLError, Result};
 use serde_json::{json, Value};
