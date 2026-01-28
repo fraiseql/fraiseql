@@ -36,6 +36,7 @@ pub mod mutation_http_client;
 pub mod mutation_query_builder;
 pub mod query_builder;
 pub mod representation;
+pub mod requires_provides_validator;
 pub mod saga_recovery_manager;
 pub mod saga_store;
 pub mod selection_parser;
@@ -59,6 +60,9 @@ pub use mutation_http_client::*;
 pub use mutation_query_builder::*;
 pub use query_builder::*;
 pub use representation::*;
+pub use requires_provides_validator::{
+    DirectiveValidationError, RequiresProvidesRuntimeValidator, RequiresProvidesValidator,
+};
 pub use saga_recovery_manager::{RecoveryConfig, RecoveryStats, SagaRecoveryManager};
 pub use saga_store::{
     MutationType, PostgresSagaStore, Saga, SagaRecovery, SagaState, SagaStep, SagaStoreError,

@@ -56,7 +56,7 @@ fn create_federation_metadata() -> FederationMetadata {
     metadata.types.push(user);
 
     // Add Order type with @requires
-    let mut order = create_order_with_requires();
+    let order = create_order_with_requires();
     metadata.types.push(order);
 
     metadata
