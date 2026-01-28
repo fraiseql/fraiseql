@@ -5,6 +5,7 @@
 //! multiple subgraphs with transactional guarantees.
 
 use std::collections::HashMap;
+
 use uuid::Uuid;
 
 /// Test fixtures: Saga step definitions with forward and compensation actions
@@ -17,13 +18,13 @@ mod fixtures {
     #[derive(Debug, Clone)]
     pub struct SagaStepDefinition {
         #[allow(dead_code)]
-        pub id: Uuid,
-        pub number: u32,
-        pub subgraph: String,
-        pub typename: String,
-        pub mutation_name: String,
-        pub variables: serde_json::Value,
-        pub compensation_mutation: String,
+        pub id:                     Uuid,
+        pub number:                 u32,
+        pub subgraph:               String,
+        pub typename:               String,
+        pub mutation_name:          String,
+        pub variables:              serde_json::Value,
+        pub compensation_mutation:  String,
         pub compensation_variables: serde_json::Value,
     }
 
@@ -345,10 +346,7 @@ fn test_compensation_uses_original_step_variables() {
     //   - For deleteOrder, use id from original createOrder
 
     assert_eq!(
-        step_1
-            .compensation_variables
-            .get("id")
-            .and_then(|v| v.as_str()),
+        step_1.compensation_variables.get("id").and_then(|v| v.as_str()),
         Some("order-123")
     );
 }
@@ -555,10 +553,7 @@ fn test_saga_coordinates_dependent_steps() {
     // Then: Step 1 (createUser) should complete before Step 2 starts
     // And: Step 2 should receive data from Step 1 (user_id)
 
-    let user_id = steps[1]
-        .variables
-        .get("userId")
-        .and_then(|v| v.as_str());
+    let user_id = steps[1].variables.get("userId").and_then(|v| v.as_str());
     assert_eq!(user_id, Some("user-789"));
 }
 
