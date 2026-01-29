@@ -76,6 +76,7 @@
 
 use std::sync::Arc;
 
+use tracing::{debug, info, warn};
 use uuid::Uuid;
 
 use crate::federation::saga_store::{Result as SagaStoreResult, SagaState};
@@ -243,6 +244,7 @@ impl SagaCoordinator {
     pub async fn create_saga(&self, steps: Vec<SagaStep>) -> SagaStoreResult<Uuid> {
         // Validate at least one step
         if steps.is_empty() {
+            warn!("Saga creation failed: saga must have at least one step");
             return Err(crate::federation::saga_store::SagaStoreError::Database(
                 "saga must have at least one step".to_string(),
             ));
@@ -251,6 +253,11 @@ impl SagaCoordinator {
         // Validate step order
         for (i, step) in steps.iter().enumerate() {
             if step.number as usize != i + 1 {
+                warn!(
+                    expected = i + 1,
+                    actual = step.number,
+                    "Saga creation failed: steps must be in sequential order"
+                );
                 return Err(crate::federation::saga_store::SagaStoreError::Database(
                     "steps must be in sequential order".to_string(),
                 ));
@@ -259,6 +266,12 @@ impl SagaCoordinator {
 
         // Generate new saga ID
         let saga_id = Uuid::new_v4();
+
+        info!(
+            saga_id = %saga_id,
+            step_count = steps.len(),
+            "Saga created"
+        );
 
         // In full implementation, would persist to saga_store
         // For now, return the generated ID
@@ -304,6 +317,8 @@ impl SagaCoordinator {
     /// }
     /// ```
     pub async fn execute_saga(&self, saga_id: Uuid) -> SagaStoreResult<SagaResult> {
+        info!(saga_id = %saga_id, "Saga execution started");
+
         // In full implementation, would:
         // 1. Load saga from store
         // 2. Execute each step sequentially
@@ -315,14 +330,22 @@ impl SagaCoordinator {
         // 4. In compensation phase: execute compensations in reverse order
         // 5. Update saga state in store
 
-        Ok(SagaResult {
+        let result = SagaResult {
             saga_id,
             state: SagaState::Completed,
             completed_steps: 0,
             total_steps: 0,
             error: None,
             compensated: false,
-        })
+        };
+
+        info!(
+            saga_id = %saga_id,
+            state = result.state.as_str(),
+            "Saga execution completed"
+        );
+
+        Ok(result)
     }
 
     /// Get status of executing saga
@@ -337,14 +360,22 @@ impl SagaCoordinator {
     pub async fn get_saga_status(&self, saga_id: Uuid) -> SagaStoreResult<SagaStatus> {
         // In full implementation, would load from store
 
-        Ok(SagaStatus {
+        let status = SagaStatus {
             saga_id,
             state: SagaState::Pending,
             step_count: 0,
             completed_steps: 0,
             current_step: None,
             progress_percentage: 0.0,
-        })
+        };
+
+        debug!(
+            saga_id = %saga_id,
+            state = status.state.as_str(),
+            "Saga status queried"
+        );
+
+        Ok(status)
     }
 
     /// Cancel an in-flight saga
@@ -357,6 +388,8 @@ impl SagaCoordinator {
     ///
     /// Final saga result after cancellation
     pub async fn cancel_saga(&self, saga_id: Uuid) -> SagaStoreResult<SagaResult> {
+        info!(saga_id = %saga_id, "Saga cancellation requested");
+
         // In full implementation, would:
         // 1. Stop current step if executing
         // 2. Mark saga as failed
@@ -382,6 +415,8 @@ impl SagaCoordinator {
     ///
     /// Final saga result with all step outcomes
     pub async fn get_saga_result(&self, saga_id: Uuid) -> SagaStoreResult<SagaResult> {
+        debug!(saga_id = %saga_id, "Saga result queried");
+
         // In full implementation, would load from store
 
         Ok(SagaResult {
@@ -401,7 +436,11 @@ impl SagaCoordinator {
     /// List of in-flight saga IDs
     pub async fn list_in_flight_sagas(&self) -> SagaStoreResult<Vec<Uuid>> {
         // In full implementation, would query store for Executing/Compensating states
-        Ok(vec![])
+        let sagas = vec![];
+
+        debug!(count = sagas.len(), "In-flight sagas queried");
+
+        Ok(sagas)
     }
 
     /// Get compensation strategy

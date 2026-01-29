@@ -75,6 +75,7 @@
 
 use std::sync::Arc;
 
+use tracing::{debug, info};
 use uuid::Uuid;
 
 use crate::federation::saga_store::Result as SagaStoreResult;
@@ -186,12 +187,20 @@ impl SagaExecutor {
     /// ```
     pub async fn execute_step(
         &self,
-        _saga_id: Uuid,
+        saga_id: Uuid,
         step_number: u32,
         mutation_name: &str,
         _variables: &serde_json::Value,
-        _subgraph: &str,
+        subgraph: &str,
     ) -> SagaStoreResult<StepExecutionResult> {
+        info!(
+            saga_id = %saga_id,
+            step = step_number,
+            mutation = mutation_name,
+            subgraph = subgraph,
+            "Step execution started"
+        );
+
         // Placeholder implementation for GREEN phase
         // In full implementation, would:
         // 1. Validate step exists in saga
@@ -203,7 +212,7 @@ impl SagaExecutor {
         // 7. Update saga store
         // 8. Return result
 
-        Ok(StepExecutionResult {
+        let result = StepExecutionResult {
             step_number,
             success: true,
             data: Some(serde_json::json!({
@@ -213,7 +222,16 @@ impl SagaExecutor {
             })),
             error: None,
             duration_ms: 10,
-        })
+        };
+
+        info!(
+            saga_id = %saga_id,
+            step = step_number,
+            duration_ms = result.duration_ms,
+            "Step execution completed"
+        );
+
+        Ok(result)
     }
 
     /// Execute all steps in a saga sequentially
@@ -225,7 +243,9 @@ impl SagaExecutor {
     /// # Returns
     ///
     /// Vector of step results (successful or failed)
-    pub async fn execute_saga(&self, _saga_id: Uuid) -> SagaStoreResult<Vec<StepExecutionResult>> {
+    pub async fn execute_saga(&self, saga_id: Uuid) -> SagaStoreResult<Vec<StepExecutionResult>> {
+        info!(saga_id = %saga_id, "Saga forward phase started");
+
         // Placeholder implementation for GREEN phase
         // In full implementation, would:
         // 1. Load saga from store
@@ -236,7 +256,15 @@ impl SagaExecutor {
         // 5. If any fail: transition saga to Failed, return results so far
         // 6. Update saga store with final state
 
-        Ok(vec![])
+        let results: Vec<StepExecutionResult> = vec![];
+
+        info!(
+            saga_id = %saga_id,
+            steps_completed = results.len(),
+            "Saga forward phase completed"
+        );
+
+        Ok(results)
     }
 
     /// Get current execution state of saga
@@ -251,14 +279,24 @@ impl SagaExecutor {
     pub async fn get_execution_state(&self, saga_id: Uuid) -> SagaStoreResult<ExecutionState> {
         // Placeholder: Load from store in full implementation
 
-        Ok(ExecutionState {
+        let state = ExecutionState {
             saga_id,
-            total_steps:     0,
+            total_steps: 0,
             completed_steps: 0,
-            current_step:    None,
-            failed:          false,
-            failure_reason:  None,
-        })
+            current_step: None,
+            failed: false,
+            failure_reason: None,
+        };
+
+        debug!(
+            saga_id = %saga_id,
+            total_steps = state.total_steps,
+            completed_steps = state.completed_steps,
+            failed = state.failed,
+            "Execution state queried"
+        );
+
+        Ok(state)
     }
 
     /// Check if step is safe to execute

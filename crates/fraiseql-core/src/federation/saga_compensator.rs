@@ -112,6 +112,7 @@
 
 use std::sync::Arc;
 
+use tracing::{debug, info};
 use uuid::Uuid;
 
 use crate::federation::saga_store::Result as SagaStoreResult;
@@ -288,6 +289,8 @@ impl SagaCompensator {
     /// }
     /// ```
     pub async fn compensate_saga(&self, saga_id: Uuid) -> SagaStoreResult<CompensationResult> {
+        info!(saga_id = %saga_id, "Saga compensation started");
+
         // Placeholder implementation for GREEN phase
         // In full implementation, would:
         // 1. Load saga from store
@@ -300,14 +303,22 @@ impl SagaCompensator {
         // 6. Update saga store with compensation results
         // 7. Return aggregated results
 
-        Ok(CompensationResult {
+        let result = CompensationResult {
             saga_id,
-            status:            CompensationStatus::Compensated,
-            step_results:      vec![],
-            failed_steps:      vec![],
+            status: CompensationStatus::Compensated,
+            step_results: vec![],
+            failed_steps: vec![],
             total_duration_ms: 50,
-            error:             None,
-        })
+            error: None,
+        };
+
+        info!(
+            saga_id = %saga_id,
+            status = ?result.status,
+            "Saga compensation completed"
+        );
+
+        Ok(result)
     }
 
     /// Compensate a single step
@@ -355,12 +366,20 @@ impl SagaCompensator {
     /// ```
     pub async fn compensate_step(
         &self,
-        _saga_id: Uuid,
+        saga_id: Uuid,
         step_number: u32,
-        _compensation_mutation: &str,
+        compensation_mutation: &str,
         _original_result_data: &serde_json::Value,
-        _subgraph: &str,
+        subgraph: &str,
     ) -> SagaStoreResult<CompensationStepResult> {
+        info!(
+            saga_id = %saga_id,
+            step = step_number,
+            compensation_mutation = compensation_mutation,
+            subgraph = subgraph,
+            "Step compensation started"
+        );
+
         // Placeholder implementation for GREEN phase
         // In full implementation, would:
         // 1. Validate step is in Completed state
@@ -372,7 +391,7 @@ impl SagaCompensator {
         // 7. Persist compensation result to store
         // 8. Return result
 
-        Ok(CompensationStepResult {
+        let result = CompensationStepResult {
             step_number,
             success: true,
             data: Some(serde_json::json!({
@@ -381,7 +400,16 @@ impl SagaCompensator {
             })),
             error: None,
             duration_ms: 15,
-        })
+        };
+
+        info!(
+            saga_id = %saga_id,
+            step = step_number,
+            duration_ms = result.duration_ms,
+            "Step compensation completed"
+        );
+
+        Ok(result)
     }
 
     /// Get compensation status for a saga
@@ -409,8 +437,10 @@ impl SagaCompensator {
     /// ```
     pub async fn get_compensation_status(
         &self,
-        _saga_id: Uuid,
+        saga_id: Uuid,
     ) -> SagaStoreResult<Option<CompensationResult>> {
+        debug!(saga_id = %saga_id, "Compensation status queried");
+
         // Placeholder: Load from store in full implementation
 
         Ok(None)
